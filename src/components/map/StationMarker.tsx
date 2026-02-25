@@ -13,9 +13,9 @@ interface StationMarkerProps {
 function getFreshnessColor(reading?: NormalizedReading): string {
   if (!reading || !reading.timestamp || isNaN(reading.timestamp.getTime())) return '#6b7280';
   const ageMin = (Date.now() - reading.timestamp.getTime()) / 60000;
-  if (ageMin < STALE_THRESHOLD_MIN) return '#22c55e'; // green
-  if (ageMin < OFFLINE_THRESHOLD_MIN) return '#eab308'; // yellow
-  return '#6b7280'; // gray (offline)
+  if (ageMin < STALE_THRESHOLD_MIN) return '#22c55e';
+  if (ageMin < OFFLINE_THRESHOLD_MIN) return '#eab308';
+  return '#6b7280';
 }
 
 export function StationMarker({ station, reading }: StationMarkerProps) {
@@ -40,26 +40,26 @@ export function StationMarker({ station, reading }: StationMarkerProps) {
         title={station.name}
         style={{ cursor: 'pointer' }}
       >
-        <svg width="70" height="70" viewBox="-35 -35 70 70">
+        <svg width="90" height="90" viewBox="-45 -45 90 90">
           {/* Wind arrow */}
           <WindArrow
             direction={reading?.windDirection ?? null}
             speed={reading?.windSpeed ?? null}
           />
 
-          {/* Station dot */}
+          {/* Station dot - bigger */}
           <circle
-            r="8"
+            r="12"
             fill={tempColor}
             stroke={isSelected ? '#ffffff' : freshnessColor}
-            strokeWidth={isSelected ? 3 : 2}
+            strokeWidth={isSelected ? 3.5 : 2.5}
           />
 
           {/* Source indicator */}
           <text
-            y="2"
+            y="3"
             textAnchor="middle"
-            fontSize="7"
+            fontSize="9"
             fontWeight="bold"
             fill="white"
             style={{ pointerEvents: 'none' }}
@@ -72,14 +72,14 @@ export function StationMarker({ station, reading }: StationMarkerProps) {
         <div
           style={{
             position: 'absolute',
-            bottom: -4,
+            bottom: -2,
             left: '50%',
             transform: 'translateX(-50%)',
             whiteSpace: 'nowrap',
-            fontSize: '10px',
-            fontWeight: 600,
-            color: '#1e293b',
-            textShadow: '0 0 3px white, 0 0 3px white, 0 0 3px white',
+            fontSize: '11px',
+            fontWeight: 700,
+            color: '#0f172a',
+            textShadow: '0 0 4px white, 0 0 4px white, 0 0 4px white, 0 0 4px white',
             pointerEvents: 'none',
           }}
         >
