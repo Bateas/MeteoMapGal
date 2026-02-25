@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useWeatherStore } from '../store/weatherStore';
 import { useStations } from './useStations';
 import { useAutoRefresh } from './useAutoRefresh';
@@ -71,6 +71,16 @@ export function useWeatherData() {
   }, [stations, updateReadings, setLoading, setError]);
 
   const { lastRefresh, isPolling, forceRefresh } = useAutoRefresh(fetchData, REFRESH_INTERVAL_MS);
+
+  // Trigger fetch when stations first become available
+  // (useAutoRefresh fires before stations are loaded, so we need this)
+  const hasFetchedRef = useRef(false);
+  useEffect(() => {
+    if (stations.length > 0 && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      forceRefresh();
+    }
+  }, [stations.length, forceRefresh]);
 
   return { stations, lastRefresh, isPolling, forceRefresh };
 }
