@@ -1,6 +1,5 @@
 import { Marker } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
-import { windSpeedColor } from '../../services/windUtils';
 
 interface WindFieldOverlayProps {
   stations: NormalizedStation[];
@@ -40,21 +39,33 @@ interface ArrowData {
   opacity: number;
 }
 
-function MiniWindArrow({ rotation, speed, opacity }: { rotation: number; speed: number; opacity: number }) {
-  const color = windSpeedColor(speed);
+/** Wind field arrows use brighter colors than station markers */
+function fieldArrowColor(speed: number): string {
+  if (speed < 0.5) return '#60a5fa';   // blue-400 (light breeze visible)
+  if (speed < 2) return '#38bdf8';     // sky-400
+  if (speed < 5) return '#34d399';     // emerald-400
+  if (speed < 8) return '#fbbf24';     // amber-400
+  if (speed < 12) return '#f97316';    // orange-500
+  return '#ef4444';                    // red-500
+}
+
+function MiniWindArrow({ rotation, speed }: { rotation: number; speed: number }) {
+  const color = fieldArrowColor(speed);
 
   return (
-    <svg width="20" height="20" viewBox="-10 -10 20 20" style={{ opacity }}>
+    <svg width="22" height="22" viewBox="-11 -11 22 22" style={{ pointerEvents: 'none' }}>
+      {/* Dark background circle for contrast */}
+      <circle r="10" fill="#0f172a" opacity={0.5} />
       <g transform={`rotate(${rotation})`}>
         <line
           x1="0" y1="4"
-          x2="0" y2="-7"
+          x2="0" y2="-6"
           stroke={color}
-          strokeWidth="2"
+          strokeWidth="2.5"
           strokeLinecap="round"
         />
         <polygon
-          points="-3,-5 3,-5 0,-9"
+          points="-3.5,-4.5 3.5,-4.5 0,-9"
           fill={color}
         />
       </g>
@@ -67,7 +78,7 @@ export function WindFieldOverlay({ stations, readings }: WindFieldOverlayProps) 
 
   for (const station of stations) {
     const reading = readings.get(station.id);
-    if (!reading || reading.windDirection === null || reading.windSpeed === null || reading.windSpeed < 0.3) {
+    if (!reading || reading.windDirection === null || reading.windSpeed === null || reading.windSpeed < 0.1) {
       continue;
     }
 
@@ -83,7 +94,7 @@ export function WindFieldOverlay({ stations, readings }: WindFieldOverlayProps) 
         lat: station.lat + dy * OFFSET_LAT,
         rotation,
         speed: reading.windSpeed,
-        opacity: 0.55,
+        opacity: 0.7,
       });
     }
 
@@ -96,7 +107,7 @@ export function WindFieldOverlay({ stations, readings }: WindFieldOverlayProps) 
         lat: station.lat + dy * OFFSET_LAT * 1.8,
         rotation,
         speed: reading.windSpeed,
-        opacity: 0.3,
+        opacity: 0.45,
       });
     }
   }
@@ -109,8 +120,9 @@ export function WindFieldOverlay({ stations, readings }: WindFieldOverlayProps) 
           longitude={a.lon}
           latitude={a.lat}
           anchor="center"
+          style={{ opacity: a.opacity }}
         >
-          <MiniWindArrow rotation={a.rotation} speed={a.speed} opacity={a.opacity} />
+          <MiniWindArrow rotation={a.rotation} speed={a.speed} />
         </Marker>
       ))}
     </>
