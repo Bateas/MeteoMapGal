@@ -1,9 +1,11 @@
 import type { NormalizedStation } from '../types/station';
 import { fetchStationInventory } from './aemetClient';
 import { fetchStationList } from './meteogaliciaClient';
-import { normalizeAemetStation, normalizeMeteoGaliciaStation } from '../services/normalizer';
+import { fetchMeteoclimaticFeed } from './meteoclimaticClient';
+import { normalizeAemetStation, normalizeMeteoGaliciaStation, normalizeMeteoclimaticStation } from '../services/normalizer';
 import { isWithinRadius } from '../services/geoUtils';
 import { MAP_CENTER, DISCOVERY_RADIUS_KM } from '../config/constants';
+import { METEOCLIMATIC_STATIONS } from '../types/meteoclimatic';
 
 /**
  * Discover all weather stations within the configured radius
@@ -12,9 +14,10 @@ import { MAP_CENTER, DISCOVERY_RADIUS_KM } from '../config/constants';
 export async function discoverStations(): Promise<NormalizedStation[]> {
   const [centerLon, centerLat] = MAP_CENTER;
 
-  const [aemetStations, mgStations] = await Promise.allSettled([
+  const [aemetStations, mgStations, mcStations] = await Promise.allSettled([
     fetchStationInventory(),
     fetchStationList(),
+    fetchMeteoclimaticFeed(),
   ]);
 
   const stations: NormalizedStation[] = [];
@@ -52,6 +55,32 @@ export async function discoverStations(): Promise<NormalizedStation[]> {
     console.log(`[Discovery] Found ${stations.length - mgCount} MeteoGalicia stations in radius`);
   } else {
     console.error('[Discovery] MeteoGalicia station fetch failed:', mgStations.reason);
+  }
+
+  // Process Meteoclimatic stations
+  if (mcStations.status === 'fulfilled') {
+    const mcCount = stations.length;
+    const metaMap = new Map(METEOCLIMATIC_STATIONS.map((m) => [m.id, m]));
+
+    for (const raw of mcStations.value) {
+      const meta = metaMap.get(raw.id);
+      if (!meta) continue; // Skip stations without known coordinates
+
+      if (isWithinRadius(centerLat, centerLon, meta.lat, meta.lon, DISCOVERY_RADIUS_KM)) {
+        // Avoid duplicates: check if there's already a station very close
+        const isDuplicate = stations.some(
+          (s) =>
+            Math.abs(s.lat - meta.lat) < 0.005 &&
+            Math.abs(s.lon - meta.lon) < 0.005
+        );
+        if (!isDuplicate) {
+          stations.push(normalizeMeteoclimaticStation(raw, meta));
+        }
+      }
+    }
+    console.log(`[Discovery] Found ${stations.length - mcCount} Meteoclimatic stations in radius`);
+  } else {
+    console.error('[Discovery] Meteoclimatic feed fetch failed:', mcStations.reason);
   }
 
   console.log(`[Discovery] Total stations: ${stations.length}`);

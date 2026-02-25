@@ -18,6 +18,12 @@ export const AEMET = {
   },
 } as const;
 
+export const METEOCLIMATIC = {
+  /** Regional XML feed (e.g. ESGAL32 for Ourense) */
+  regionFeed: (region: string) =>
+    `/meteoclimatic-api/feed/xml/${region}`,
+} as const;
+
 export const METEOGALICIA = {
   /** List all meteorological stations */
   stationList: () =>

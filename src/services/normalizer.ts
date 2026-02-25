@@ -1,5 +1,6 @@
 import type { AemetRawObservation, AemetRawStation } from '../types/aemet';
 import type { MeteoGaliciaStation, MeteoGaliciaObsEntry, MeteoGaliciaMedida } from '../types/meteogalicia';
+import type { MeteoclimaticRawStation, MeteoclimaticStationMeta } from '../types/meteoclimatic';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MG_PARAMS } from '../types/meteogalicia';
 import { aemetDmsToDecimal } from './geoUtils';
@@ -74,5 +75,41 @@ export function normalizeMeteoGaliciaObservation(
     temperature: findMedida(entry.listaMedidas, MG_PARAMS.TEMPERATURE),
     humidity: findMedida(entry.listaMedidas, MG_PARAMS.HUMIDITY),
     precipitation: findMedida(entry.listaMedidas, MG_PARAMS.PRECIPITATION),
+  };
+}
+
+/** Normalize a Meteoclimatic station (requires pre-known coordinates) */
+export function normalizeMeteoclimaticStation(
+  raw: MeteoclimaticRawStation,
+  meta: MeteoclimaticStationMeta
+): NormalizedStation {
+  return {
+    id: `mc_${raw.id}`,
+    source: 'meteoclimatic',
+    name: raw.location,
+    lat: meta.lat,
+    lon: meta.lon,
+    altitude: meta.altitude,
+    province: 'OURENSE',
+  };
+}
+
+/** Normalize a Meteoclimatic observation to our reading format.
+ *  Wind speed is converted from km/h to m/s.
+ */
+export function normalizeMeteoclimaticObservation(
+  raw: MeteoclimaticRawStation
+): NormalizedReading {
+  // Parse the RSS-style date: "Wed, 25 Feb 2026 23:32:08 +0000"
+  const timestamp = new Date(raw.pubDate);
+
+  return {
+    stationId: `mc_${raw.id}`,
+    timestamp,
+    windSpeed: raw.windSpeed !== null ? raw.windSpeed / 3.6 : null, // km/h → m/s
+    windDirection: raw.windAzimuth,
+    temperature: raw.temperature,
+    humidity: raw.humidity,
+    precipitation: raw.rain,
   };
 }
