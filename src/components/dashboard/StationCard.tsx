@@ -36,11 +36,11 @@ export function StationCard({ station, reading }: StationCardProps) {
           <span
             className="text-[9px] font-bold px-1.5 py-0.5 rounded"
             style={{
-              background: station.source === 'aemet' ? '#3b82f6' : '#8b5cf6',
+              background: station.source === 'aemet' ? '#3b82f6' : station.source === 'meteoclimatic' ? '#10b981' : '#8b5cf6',
               color: 'white',
             }}
           >
-            {station.source === 'aemet' ? 'A' : 'MG'}
+            {station.source === 'aemet' ? 'A' : station.source === 'meteoclimatic' ? 'MC' : 'MG'}
           </span>
           <span className="text-xs font-semibold text-slate-200 truncate max-w-[140px]">
             {station.name}

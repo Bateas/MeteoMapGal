@@ -64,7 +64,7 @@ export function StationMarker({ station, reading }: StationMarkerProps) {
             fill="white"
             style={{ pointerEvents: 'none' }}
           >
-            {station.source === 'aemet' ? 'A' : 'M'}
+            {station.source === 'aemet' ? 'A' : station.source === 'meteoclimatic' ? 'C' : 'M'}
           </text>
         </svg>
 

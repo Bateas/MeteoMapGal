@@ -1,6 +1,6 @@
 export interface NormalizedStation {
   id: string;
-  source: 'aemet' | 'meteogalicia';
+  source: 'aemet' | 'meteogalicia' | 'meteoclimatic';
   name: string;
   lat: number;
   lon: number;

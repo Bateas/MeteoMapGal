@@ -24,6 +24,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/meteogalicia-api/, ''),
         secure: true,
       },
+      '/meteoclimatic-api': {
+        target: 'https://www.meteoclimatic.net',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/meteoclimatic-api/, ''),
+        secure: true,
+      },
     },
   },
 })

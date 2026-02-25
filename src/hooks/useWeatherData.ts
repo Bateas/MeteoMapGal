@@ -4,7 +4,8 @@ import { useStations } from './useStations';
 import { useAutoRefresh } from './useAutoRefresh';
 import { fetchAllObservations } from '../api/aemetClient';
 import { fetchLatestForStations } from '../api/meteogaliciaClient';
-import { normalizeAemetObservation, normalizeMeteoGaliciaObservation } from '../services/normalizer';
+import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
+import { normalizeAemetObservation, normalizeMeteoGaliciaObservation, normalizeMeteoclimaticObservation } from '../services/normalizer';
 import type { NormalizedReading } from '../types/station';
 import { REFRESH_INTERVAL_MS } from '../config/constants';
 
@@ -56,6 +57,24 @@ export function useWeatherData() {
           }
         } catch (err) {
           console.error('[WeatherData] MeteoGalicia fetch error:', err);
+        }
+      }
+
+      // Fetch Meteoclimatic observations (single XML feed for all stations)
+      const mcStationIds = new Set(
+        stations.filter((s) => s.source === 'meteoclimatic').map((s) => s.id)
+      );
+      if (mcStationIds.size > 0) {
+        try {
+          const mcFeed = await fetchMeteoclimaticFeed();
+          for (const raw of mcFeed) {
+            const normalizedId = `mc_${raw.id}`;
+            if (mcStationIds.has(normalizedId)) {
+              allReadings.push(normalizeMeteoclimaticObservation(raw));
+            }
+          }
+        } catch (err) {
+          console.error('[WeatherData] Meteoclimatic fetch error:', err);
         }
       }
 
