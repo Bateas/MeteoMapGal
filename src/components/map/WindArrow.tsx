@@ -7,9 +7,8 @@ interface WindArrowProps {
 
 export function WindArrow({ direction, speed }: WindArrowProps) {
   if (direction === null || speed === null || speed < 0.3) {
-    // Calm wind: show a small dot
     return (
-      <circle r="3" fill="#94a3b8" opacity={0.6} />
+      <circle r="4" fill="#94a3b8" opacity={0.5} />
     );
   }
 
@@ -25,11 +24,11 @@ export function WindArrow({ direction, speed }: WindArrowProps) {
         x1="0" y1="0"
         x2="0" y2={-length}
         stroke={color}
-        strokeWidth="2.5"
+        strokeWidth="3"
         strokeLinecap="round"
       />
       <polygon
-        points={`-3.5,${-length + 2} 3.5,${-length + 2} 0,${-length - 5}`}
+        points={`-4.5,${-length + 3} 4.5,${-length + 3} 0,${-length - 6}`}
         fill={color}
       />
     </g>

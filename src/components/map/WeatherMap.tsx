@@ -7,6 +7,7 @@ import { INITIAL_VIEW_STATE } from '../../config/constants';
 import { useWeatherStore } from '../../store/weatherStore';
 import { StationMarker } from './StationMarker';
 import { StationPopup } from './StationPopup';
+import { WindFieldOverlay } from './WindFieldOverlay';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -86,6 +87,9 @@ export function WeatherMap() {
       onClick={handleMapClick}
     >
       <NavigationControl position="top-right" visualizePitch />
+
+      {/* Wind field arrows around stations */}
+      <WindFieldOverlay stations={stations} readings={currentReadings} />
 
       {/* Station markers */}
       {stations.map((station) => (
