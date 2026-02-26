@@ -1,36 +1,77 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useTransition } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useWeatherStore } from '../store/weatherStore';
 import { useThermalStore } from '../store/thermalStore';
 import { scoreAllRules, computeZoneAlerts } from '../services/thermalScoringEngine';
 import { detectPropagation } from '../services/windPropagationDetector';
-import { fetchForecastForZones } from '../api/openMeteoClient';
-import type { MicroZoneId, ForecastAlert } from '../types/thermal';
+import { detectTendency } from '../services/tendencyDetector';
+import { analyzeZoneHumidity } from '../services/humidityWindAnalyzer';
+import type { HumidityAssessment } from '../services/humidityWindAnalyzer';
+import {
+  fetchForecastForZones,
+  fetchDailyContextForEmbalse,
+  fetchAtmosphericContextForEmbalse,
+  fetchOpenMeteoHistory,
+} from '../api/openMeteoClient';
+import type { MicroZoneId, ForecastAlert, TendencySignal } from '../types/thermal';
 import type { NormalizedReading } from '../types/station';
 import { scoreRule } from '../services/thermalScoringEngine';
+import { MICRO_ZONES } from '../config/thermalZones';
 
 const FORECAST_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const ATMOSPHERIC_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
- * Connects weather data → scoring engine → thermal store.
+ * Connects weather data → scoring engine → tendency detector → thermal store.
  * Call this once at the AppShell level.
+ *
+ * Data flow:
+ *   1. Station readings → zone grouping → rule scoring → zone alerts
+ *   2. Reading history → tendency detector → tendency signals (precursor warnings)
+ *   3. Open-Meteo forecast → forecast scoring → forecast alerts
+ *   4. Open-Meteo atmospheric → cloud/radiation/CAPE context
+ *   5. Open-Meteo 24h history → backfill for tendency time series
  */
 export function useThermalAnalysis() {
-  const stations = useWeatherStore((s) => s.stations);
-  const currentReadings = useWeatherStore((s) => s.currentReadings);
-  const readingHistory = useWeatherStore((s) => s.readingHistory);
-  const lastFetchTime = useWeatherStore((s) => s.lastFetchTime);
+  const { stations, currentReadings, readingHistory, lastFetchTime } = useWeatherStore(
+    useShallow((s) => ({
+      stations: s.stations,
+      currentReadings: s.currentReadings,
+      readingHistory: s.readingHistory,
+      lastFetchTime: s.lastFetchTime,
+    }))
+  );
 
-  const zones = useThermalStore((s) => s.zones);
-  const rules = useThermalStore((s) => s.rules);
-  const setRuleScores = useThermalStore((s) => s.setRuleScores);
-  const setZoneAlerts = useThermalStore((s) => s.setZoneAlerts);
-  const setPropagationEvents = useThermalStore((s) => s.setPropagationEvents);
-  const setStationToZone = useThermalStore((s) => s.setStationToZone);
-  const stationToZone = useThermalStore((s) => s.stationToZone);
-  const setZoneForecast = useThermalStore((s) => s.setZoneForecast);
-  const setForecastAlerts = useThermalStore((s) => s.setForecastAlerts);
+  const {
+    zones, rules, dailyContext, stationToZone, atmosphericContext,
+    setRuleScores, setZoneAlerts, setTendencySignals, setPropagationEvents,
+    setStationToZone, setZoneForecast, setForecastAlerts, setDailyContext,
+    setAtmosphericContext, setHumidityAssessments,
+  } = useThermalStore(
+    useShallow((s) => ({
+      zones: s.zones,
+      rules: s.rules,
+      dailyContext: s.dailyContext,
+      stationToZone: s.stationToZone,
+      atmosphericContext: s.atmosphericContext,
+      setRuleScores: s.setRuleScores,
+      setZoneAlerts: s.setZoneAlerts,
+      setTendencySignals: s.setTendencySignals,
+      setPropagationEvents: s.setPropagationEvents,
+      setStationToZone: s.setStationToZone,
+      setZoneForecast: s.setZoneForecast,
+      setForecastAlerts: s.setForecastAlerts,
+      setDailyContext: s.setDailyContext,
+      setAtmosphericContext: s.setAtmosphericContext,
+      setHumidityAssessments: s.setHumidityAssessments,
+    }))
+  );
+
+  const [, startTransition] = useTransition();
 
   const forecastTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const atmosphericTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const openMeteoHistoryRef = useRef<Map<MicroZoneId, NormalizedReading[]>>(new Map());
 
   // ── Build station → zone mapping when stations change ──
   useEffect(() => {
@@ -50,34 +91,148 @@ export function useThermalAnalysis() {
     setStationToZone(mapping);
   }, [stations, zones, setStationToZone]);
 
-  // ── Re-score on every data update ──────────────────────
+  // ── Fetch daily context (ΔT) on mount ──────────────────
+  useEffect(() => {
+    fetchDailyContextForEmbalse().then((ctx) => {
+      setDailyContext(ctx);
+      if (ctx.deltaT !== null) {
+        console.log(`[ThermalAnalysis] ΔT today: ${ctx.deltaT.toFixed(1)}°C (Tmin ${ctx.tempMin?.toFixed(1)}°C, Tmax ${ctx.tempMax?.toFixed(1)}°C)`);
+      }
+    });
+  }, [setDailyContext]);
+
+  // ── Fetch atmospheric context (cloud/radiation/CAPE) ────
+  const fetchAtmospheric = useCallback(() => {
+    fetchAtmosphericContextForEmbalse().then((ctx) => {
+      setAtmosphericContext(ctx);
+      if (ctx.cape !== null) {
+        console.log(
+          `[ThermalAnalysis] Atm: cloud ${ctx.cloudCover}%, radiation ${ctx.solarRadiation} W/m², CAPE ${ctx.cape} J/kg`
+        );
+      }
+    });
+  }, [setAtmosphericContext]);
+
+  useEffect(() => {
+    fetchAtmospheric();
+    atmosphericTimerRef.current = setInterval(fetchAtmospheric, ATMOSPHERIC_INTERVAL_MS);
+    return () => {
+      if (atmosphericTimerRef.current) clearInterval(atmosphericTimerRef.current);
+    };
+  }, [fetchAtmospheric]);
+
+  // ── Fetch Open-Meteo 24h history for tendency backfill ──
+  // Station-based history may be sparse (only 10min readings since app opened).
+  // Open-Meteo provides model data for the last 24h, giving the tendency detector
+  // a complete time series to compute temperature rise rates, humidity trends, etc.
+  useEffect(() => {
+    async function fetchHistory() {
+      const historyMap = new Map<MicroZoneId, NormalizedReading[]>();
+
+      const results = await Promise.allSettled(
+        MICRO_ZONES.map(async (zone) => {
+          const readings = await fetchOpenMeteoHistory(
+            zone.center.lat, zone.center.lon,
+            `openmeteo_${zone.id}`,
+            6 // last 6 hours — enough for tendency detection
+          );
+          return { id: zone.id, readings };
+        })
+      );
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          historyMap.set(result.value.id, result.value.readings);
+        }
+      }
+
+      openMeteoHistoryRef.current = historyMap;
+      console.log(`[ThermalAnalysis] Loaded 6h history backfill for ${historyMap.size} zones`);
+    }
+
+    fetchHistory();
+  }, []);
+
+  // ── Re-score + tendency detection on every data update ──
+  // Wrapped in startTransition to keep map/UI responsive during heavy scoring
   useEffect(() => {
     if (stationToZone.size === 0 || currentReadings.size === 0) return;
 
-    // Group current readings by zone
-    const zoneReadings = new Map<MicroZoneId, NormalizedReading[]>();
-    for (const [stationId, reading] of currentReadings) {
-      const zoneId = stationToZone.get(stationId);
-      if (!zoneId) continue;
-      const list = zoneReadings.get(zoneId) || [];
-      list.push(reading);
-      zoneReadings.set(zoneId, list);
-    }
+    startTransition(() => {
+      const now = new Date();
 
-    // Score all rules
-    const scores = scoreAllRules(rules, zoneReadings);
-    setRuleScores(scores);
+      // Group current readings by zone
+      const zoneReadings = new Map<MicroZoneId, NormalizedReading[]>();
+      for (const [stationId, reading] of currentReadings) {
+        const zoneId = stationToZone.get(stationId);
+        if (!zoneId) continue;
+        const list = zoneReadings.get(zoneId) || [];
+        list.push(reading);
+        zoneReadings.set(zoneId, list);
+      }
 
-    // Compute zone alerts
-    const alerts = computeZoneAlerts(scores);
-    setZoneAlerts(alerts);
+      // Score all rules (with ΔT context if available)
+      const scores = scoreAllRules(rules, zoneReadings, now, dailyContext ?? undefined);
+      setRuleScores(scores);
 
-    // Detect propagation
-    const events = detectPropagation(zones, readingHistory, stationToZone);
-    setPropagationEvents(events);
+      // Compute zone alerts
+      const alerts = computeZoneAlerts(scores);
+      setZoneAlerts(alerts);
+
+      // Detect propagation
+      const events = detectPropagation(zones, readingHistory, stationToZone);
+      setPropagationEvents(events);
+
+      // ── Tendency detection for each zone ──────────────────
+      const tendencies = new Map<MicroZoneId, TendencySignal>();
+      for (const zone of zones) {
+        const currentZoneReadings = zoneReadings.get(zone.id) || [];
+
+        // Build history arrays for the zone:
+        // 1. Station-based history (from weatherStore.readingHistory)
+        const stationHistories: NormalizedReading[][] = [];
+        for (const [stationId, stationHistory] of readingHistory) {
+          if (stationToZone.get(stationId) === zone.id) {
+            stationHistories.push(stationHistory);
+          }
+        }
+
+        // 2. Open-Meteo backfill history (model data, always available)
+        const openMeteoHistory = openMeteoHistoryRef.current.get(zone.id);
+        if (openMeteoHistory && openMeteoHistory.length > 0) {
+          stationHistories.push(openMeteoHistory);
+        }
+
+        const signal = detectTendency(
+          zone.id,
+          currentZoneReadings,
+          stationHistories,
+          dailyContext,
+          now
+        );
+        tendencies.set(zone.id, signal);
+      }
+      setTendencySignals(tendencies);
+
+      // ── Humidity cross-validation for each zone ─────────
+      const humidityResults = new Map<MicroZoneId, HumidityAssessment>();
+      for (const zone of zones) {
+        const zoneR = zoneReadings.get(zone.id) || [];
+        if (zoneR.length === 0) continue;
+
+        // Get zone average temperature for context
+        const temps = zoneR.filter((r) => r.temperature != null).map((r) => r.temperature!);
+        const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+
+        const assessment = analyzeZoneHumidity(zoneR, atmosphericContext, avgTemp);
+        humidityResults.set(zone.id, assessment);
+      }
+      setHumidityAssessments(humidityResults);
+    });
   }, [
-    currentReadings, stationToZone, rules, readingHistory, zones,
-    setRuleScores, setZoneAlerts, setPropagationEvents,
+    currentReadings, stationToZone, rules, readingHistory, zones, dailyContext, atmosphericContext,
+    setRuleScores, setZoneAlerts, setPropagationEvents, setTendencySignals, setHumidityAssessments,
+    startTransition,
   ]);
 
   // ── Forecast fetching ──────────────────────────────────
@@ -103,7 +258,7 @@ export function useThermalAnalysis() {
 
           for (const rule of rules) {
             if (!rule.enabled || rule.expectedWind.zone !== zoneId) continue;
-            const result = scoreRule(rule, [fakeReading], point.timestamp);
+            const result = scoreRule(rule, [fakeReading], point.timestamp, dailyContext ?? undefined);
             if (result.score >= 50) {
               alerts.push({
                 ruleId: rule.id,
@@ -130,7 +285,7 @@ export function useThermalAnalysis() {
     } catch (err) {
       console.warn('[ThermalAnalysis] Forecast error:', err);
     }
-  }, [zones, rules, setZoneForecast, setForecastAlerts]);
+  }, [zones, rules, dailyContext, setZoneForecast, setForecastAlerts]);
 
   // Fetch forecast on mount and every 30 minutes
   useEffect(() => {

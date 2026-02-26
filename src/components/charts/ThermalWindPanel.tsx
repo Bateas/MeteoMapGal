@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, memo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from 'recharts';
+import { useShallow } from 'zustand/react/shallow';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { format } from 'date-fns';
@@ -11,7 +12,8 @@ import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/win
 import { WindCompass } from '../common/WindCompass';
 import { HistoricalAnalysis } from './HistoricalAnalysis';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
-import type { MicroZoneId, ZoneAlert, AlertLevel } from '../../types/thermal';
+import type { MicroZoneId, ZoneAlert, AlertLevel, TendencyLevel, RuleScore } from '../../types/thermal';
+import type { HumidityAssessment } from '../../services/humidityWindAnalyzer';
 
 const ALERT_COLORS: Record<AlertLevel, string> = {
   none: '#64748b',
@@ -27,24 +29,54 @@ const ALERT_LABELS: Record<AlertLevel, string> = {
   high: 'Alta',
 };
 
+const TENDENCY_COLORS: Record<TendencyLevel, string> = {
+  none: '#64748b',
+  building: '#3b82f6',
+  likely: '#f59e0b',
+  active: '#22c55e',
+};
+
+const TENDENCY_LABELS: Record<TendencyLevel, string> = {
+  none: 'Sin tendencia',
+  building: 'Formándose',
+  likely: 'Probable',
+  active: 'Activo',
+};
+
 type PanelSection = 'alerts' | 'historical';
 
-export function ThermalWindPanel() {
-  const stations = useWeatherStore((s) => s.stations);
-  const currentReadings = useWeatherStore((s) => s.currentReadings);
+export const ThermalWindPanel = memo(function ThermalWindPanel() {
+  const { stations, currentReadings } = useWeatherStore(
+    useShallow((s) => ({
+      stations: s.stations,
+      currentReadings: s.currentReadings,
+    }))
+  );
 
-  const zones = useThermalStore((s) => s.zones);
-  const rules = useThermalStore((s) => s.rules);
-  const ruleScores = useThermalStore((s) => s.ruleScores);
-  const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
-  const propagationEvents = useThermalStore((s) => s.propagationEvents);
-  const zoneForecast = useThermalStore((s) => s.zoneForecast);
-  const forecastAlerts = useThermalStore((s) => s.forecastAlerts);
-  const stationToZone = useThermalStore((s) => s.stationToZone);
-  const toggleRule = useThermalStore((s) => s.toggleRule);
-  const selectZone = useThermalStore((s) => s.selectZone);
-  const selectedZoneId = useThermalStore((s) => s.selectedZoneId);
-
+  const {
+    zones, rules, ruleScores, zoneAlerts, propagationEvents,
+    zoneForecast, forecastAlerts, stationToZone, toggleRule,
+    selectZone, selectedZoneId, dailyContext, atmosphericContext,
+    tendencySignals, humidityAssessments,
+  } = useThermalStore(
+    useShallow((s) => ({
+      zones: s.zones,
+      rules: s.rules,
+      ruleScores: s.ruleScores,
+      zoneAlerts: s.zoneAlerts,
+      propagationEvents: s.propagationEvents,
+      zoneForecast: s.zoneForecast,
+      forecastAlerts: s.forecastAlerts,
+      stationToZone: s.stationToZone,
+      toggleRule: s.toggleRule,
+      selectZone: s.selectZone,
+      selectedZoneId: s.selectedZoneId,
+      dailyContext: s.dailyContext,
+      atmosphericContext: s.atmosphericContext,
+      tendencySignals: s.tendencySignals,
+      humidityAssessments: s.humidityAssessments,
+    }))
+  );
   const [activeSection, setActiveSection] = useState<PanelSection>('alerts');
   const [showRules, setShowRules] = useState(false);
 
@@ -81,6 +113,8 @@ export function ThermalWindPanel() {
         score: maxScore,
         temp: point.temperature,
         wind: point.windSpeed != null ? msToKnots(point.windSpeed) : null,
+        cloud: point.cloudCover,
+        cape: point.cape,
       };
     });
   }, [zoneForecast, forecastAlerts]);
@@ -127,6 +161,151 @@ export function ThermalWindPanel() {
           {/* Active alerts banner */}
           <AlertsBanner zoneAlerts={zoneAlerts} zones={zones} />
 
+          {/* ΔT indicator */}
+          {dailyContext?.deltaT !== null && dailyContext?.deltaT !== undefined && (
+            <div className="rounded-lg border border-slate-700 bg-slate-800/30 px-2.5 py-1.5 flex items-center justify-between">
+              <span className="text-[10px] text-slate-500">
+                Rango diurno (ΔT)
+              </span>
+              <span className={`text-[10px] font-mono font-semibold ${
+                dailyContext.deltaT >= 20 ? 'text-green-400' :
+                dailyContext.deltaT >= 16 ? 'text-emerald-400' :
+                dailyContext.deltaT >= 12 ? 'text-slate-300' :
+                dailyContext.deltaT >= 8 ? 'text-amber-400' :
+                'text-red-400'
+              }`}>
+                {dailyContext.deltaT.toFixed(1)}°C
+                {dailyContext.tempMin !== null && dailyContext.tempMax !== null && (
+                  <span className="text-slate-500 font-normal ml-1">
+                    ({dailyContext.tempMin.toFixed(0)}→{dailyContext.tempMax.toFixed(0)}°C)
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* Atmospheric context (cloud, radiation, CAPE) */}
+          {atmosphericContext && (atmosphericContext.cloudCover !== null || atmosphericContext.cape !== null) && (
+            <div className="rounded-lg border border-slate-700 bg-slate-800/30 px-2.5 py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                {atmosphericContext.cloudCover !== null && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-500">Nubes</span>
+                    <span className={`text-[10px] font-mono font-semibold ${
+                      atmosphericContext.cloudCover <= 20 ? 'text-green-400' :
+                      atmosphericContext.cloudCover <= 50 ? 'text-emerald-400' :
+                      atmosphericContext.cloudCover <= 80 ? 'text-amber-400' :
+                      'text-red-400'
+                    }`}>
+                      {Math.round(atmosphericContext.cloudCover)}%
+                    </span>
+                  </div>
+                )}
+                {atmosphericContext.solarRadiation !== null && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-500">Rad.</span>
+                    <span className={`text-[10px] font-mono font-semibold ${
+                      atmosphericContext.solarRadiation > 600 ? 'text-green-400' :
+                      atmosphericContext.solarRadiation > 300 ? 'text-emerald-400' :
+                      atmosphericContext.solarRadiation > 100 ? 'text-amber-400' :
+                      'text-slate-400'
+                    }`}>
+                      {Math.round(atmosphericContext.solarRadiation)} W/m&sup2;
+                    </span>
+                  </div>
+                )}
+                {atmosphericContext.cape !== null && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-500">CAPE</span>
+                    <span className={`text-[10px] font-mono font-semibold ${
+                      atmosphericContext.cape >= 1000 ? 'text-green-400' :
+                      atmosphericContext.cape >= 500 ? 'text-emerald-400' :
+                      atmosphericContext.cape >= 100 ? 'text-amber-400' :
+                      'text-slate-400'
+                    }`}>
+                      {Math.round(atmosphericContext.cape)} J/kg
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Tendency signals (precursor warnings) */}
+          {(() => {
+            const activeTendencies = [...tendencySignals.entries()]
+              .filter(([, signal]) => signal.level !== 'none')
+              .sort((a, b) => b[1].score - a[1].score);
+
+            if (activeTendencies.length === 0) return null;
+
+            return (
+              <div className="space-y-1">
+                {activeTendencies.map(([zoneId, signal]) => {
+                  const zone = zones.find((z) => z.id === zoneId);
+                  if (!zone) return null;
+
+                  return (
+                    <div
+                      key={zoneId}
+                      className="rounded-lg border p-2 flex items-center gap-2"
+                      style={{
+                        borderColor: TENDENCY_COLORS[signal.level] + '40',
+                        background: TENDENCY_COLORS[signal.level] + '08',
+                      }}
+                    >
+                      <div
+                        className={`w-2 h-2 rounded-full ${signal.level === 'active' ? 'animate-pulse' : ''}`}
+                        style={{ background: TENDENCY_COLORS[signal.level] }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-semibold uppercase tracking-wider"
+                            style={{ color: TENDENCY_COLORS[signal.level] }}>
+                            {TENDENCY_LABELS[signal.level]}
+                          </span>
+                          <span className="text-[9px] text-slate-500" style={{ color: zone.color }}>
+                            {zone.name}
+                          </span>
+                        </div>
+                        <div className="text-[9px] text-slate-400 truncate">{signal.summary}</div>
+                        {/* Precursor breakdown */}
+                        <div className="flex gap-2 mt-0.5">
+                          {signal.precursors.tempRiseRate !== null && (
+                            <span className="text-[8px] text-slate-500">
+                              T: +{signal.precursors.tempRiseRate.toFixed(1)}&deg;C/h
+                            </span>
+                          )}
+                          {signal.precursors.windInSector && (
+                            <span className="text-[8px] text-green-500">
+                              Viento en sector
+                            </span>
+                          )}
+                          {signal.precursors.humidityDropRate !== null && signal.precursors.humidityDropRate > 0 && (
+                            <span className="text-[8px] text-slate-500">
+                              HR: -{signal.precursors.humidityDropRate.toFixed(1)}%/h
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[11px] font-bold font-mono"
+                          style={{ color: TENDENCY_COLORS[signal.level] }}>
+                          {signal.score}%
+                        </div>
+                        {signal.estimatedOnsetMin !== null && (
+                          <div className="text-[8px] text-slate-500">
+                            ~{signal.estimatedOnsetMin} min
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           {/* Propagation events */}
           {propagationEvents.length > 0 && (
             <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2.5">
@@ -165,6 +344,7 @@ export function ThermalWindPanel() {
                 stations={stns}
                 ruleScores={ruleScores.filter((s) => s.matchedZone === zone.id)}
                 rules={rules}
+                humidityAssessment={humidityAssessments.get(zone.id)}
                 isExpanded={isSelected}
                 onToggle={() => selectZone(isSelected ? null : zone.id)}
               />
@@ -206,12 +386,16 @@ export function ThermalWindPanel() {
                       labelFormatter={(ts) =>
                         format(new Date(ts as number), 'HH:mm', { locale: es })
                       }
-                      formatter={(value: number, name: string) => {
-                        if (name === 'score') return [`${value}%`, 'Prob. t\u00e9rmico'];
-                        if (name === 'temp') return [value != null ? `${value.toFixed(1)}\u00b0C` : '--', 'Temp'];
-                        if (name === 'wind') return [value != null ? `${value.toFixed(1)} kt` : '--', 'Viento'];
-                        return [value, name];
-                      }}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      formatter={((value: any, name: any) => {
+                        const v = Number(value) || 0;
+                        if (name === 'score') return [`${v}%`, 'Prob. térmico'];
+                        if (name === 'temp') return [value != null ? `${v.toFixed(1)}°C` : '--', 'Temp'];
+                        if (name === 'wind') return [value != null ? `${v.toFixed(1)} kt` : '--', 'Viento'];
+                        if (name === 'cloud') return [value != null ? `${Math.round(v)}%` : '--', 'Nubes'];
+                        if (name === 'cape') return [value != null ? `${Math.round(v)} J/kg` : '--', 'CAPE'];
+                        return [v, String(name ?? '')];
+                      }) as never}
                     />
                     <ReferenceLine y={55} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
                     <ReferenceLine y={75} stroke="#ef4444" strokeDasharray="3 3" strokeOpacity={0.5} />
@@ -222,6 +406,7 @@ export function ThermalWindPanel() {
                       fillOpacity={0.15}
                       strokeWidth={2}
                       type="monotone"
+                      isAnimationActive={false}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -270,7 +455,7 @@ export function ThermalWindPanel() {
       )}
     </div>
   );
-}
+});
 
 // ── Sub-components ────────────────────────────────────────
 
@@ -342,6 +527,7 @@ function ZoneCard({
   stations,
   ruleScores,
   rules,
+  humidityAssessment,
   isExpanded,
   onToggle,
 }: {
@@ -349,8 +535,9 @@ function ZoneCard({
   zoneColor: string;
   alert: ZoneAlert | undefined;
   stations: { station: NormalizedStation; reading: NormalizedReading | undefined }[];
-  ruleScores: { ruleId: string; score: number; breakdown: Record<string, number> }[];
+  ruleScores: RuleScore[];
   rules: { id: string; name: string; enabled: boolean }[];
+  humidityAssessment?: HumidityAssessment;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -450,6 +637,41 @@ function ZoneCard({
                     </div>
                   );
                 })}
+            </div>
+          )}
+
+          {/* Humidity cross-validation */}
+          {humidityAssessment && humidityAssessment.rawAvg !== null && (
+            <div className="rounded bg-slate-800/60 px-2 py-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] text-slate-500">HR zona</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-mono font-semibold ${
+                    humidityAssessment.confidence >= 0.8 ? 'text-slate-300' :
+                    humidityAssessment.confidence >= 0.5 ? 'text-amber-400' :
+                    'text-red-400'
+                  }`}>
+                    {humidityAssessment.adjustedAvg?.toFixed(0) ?? '--'}%
+                  </span>
+                  {humidityAssessment.rawAvg !== humidityAssessment.adjustedAvg && (
+                    <span className="text-[8px] text-slate-600 line-through">
+                      {humidityAssessment.rawAvg.toFixed(0)}%
+                    </span>
+                  )}
+                  <span className={`text-[8px] px-1 rounded ${
+                    humidityAssessment.confidence >= 0.8 ? 'bg-green-500/15 text-green-400' :
+                    humidityAssessment.confidence >= 0.5 ? 'bg-amber-500/15 text-amber-400' :
+                    'bg-red-500/15 text-red-400'
+                  }`}>
+                    {(humidityAssessment.confidence * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+              {humidityAssessment.warning && (
+                <div className="text-[8px] text-amber-400/80 mt-0.5">
+                  {humidityAssessment.warning}
+                </div>
+              )}
             </div>
           )}
 

@@ -3,6 +3,7 @@ import { StationTable } from '../dashboard/StationTable';
 import { TimeSeriesChart } from '../charts/TimeSeriesChart';
 import { ThermalWindPanel } from '../charts/ThermalWindPanel';
 import { ErrorBanner } from '../common/ErrorBanner';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 
 type Tab = 'stations' | 'chart' | 'thermal';
 
@@ -47,9 +48,21 @@ export function Sidebar() {
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         <ErrorBanner />
-        {activeTab === 'stations' && <StationTable />}
-        {activeTab === 'chart' && <TimeSeriesChart />}
-        {activeTab === 'thermal' && <ThermalWindPanel />}
+        {activeTab === 'stations' && (
+          <ErrorBoundary section="Estaciones">
+            <StationTable />
+          </ErrorBoundary>
+        )}
+        {activeTab === 'chart' && (
+          <ErrorBoundary section="Gráfica">
+            <TimeSeriesChart />
+          </ErrorBoundary>
+        )}
+        {activeTab === 'thermal' && (
+          <ErrorBoundary section="Panel Térmico">
+            <ThermalWindPanel />
+          </ErrorBoundary>
+        )}
       </div>
     </aside>
   );

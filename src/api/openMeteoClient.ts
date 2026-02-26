@@ -1,5 +1,5 @@
 import type { NormalizedReading } from '../types/station';
-import type { ForecastPoint, MicroZoneId } from '../types/thermal';
+import type { ForecastPoint, DailyContext, MicroZoneId, AtmosphericContext } from '../types/thermal';
 import type { MicroZone } from '../types/thermal';
 
 interface OpenMeteoHourlyResponse {
@@ -9,6 +9,18 @@ interface OpenMeteoHourlyResponse {
     relative_humidity_2m: (number | null)[];
     wind_speed_10m: (number | null)[];
     wind_direction_10m: (number | null)[];
+    cloud_cover?: (number | null)[];
+    shortwave_radiation?: (number | null)[];
+    cape?: (number | null)[];
+  };
+  daily?: {
+    time: string[];
+    temperature_2m_max: (number | null)[];
+    temperature_2m_min: (number | null)[];
+  };
+  current?: {
+    cloud_cover?: number | null;
+    shortwave_radiation?: number | null;
   };
 }
 
@@ -77,16 +89,23 @@ export async function fetchOpenMeteoForStations(
 
 /**
  * Fetch hourly forecast from Open-Meteo for a location.
- * Uses the same API but with forecast_hours instead of past_hours.
+ * Includes enhanced parameters: cloud cover, solar radiation, CAPE.
+ * These are FREE from Open-Meteo, no API key needed.
  */
 export async function fetchOpenMeteoForecast(
   lat: number,
   lon: number,
   forecastHours = 12
 ): Promise<ForecastPoint[]> {
+  const hourlyParams = [
+    'temperature_2m', 'relative_humidity_2m',
+    'wind_speed_10m', 'wind_direction_10m',
+    'cloud_cover', 'shortwave_radiation', 'cape',
+  ].join(',');
+
   const url = `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}&longitude=${lon}` +
-    `&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m` +
+    `&hourly=${hourlyParams}` +
     `&forecast_hours=${forecastHours}&past_hours=0` +
     `&wind_speed_unit=ms` +
     `&timezone=Europe%2FMadrid`;
@@ -107,6 +126,9 @@ export async function fetchOpenMeteoForecast(
       humidity: data.hourly.relative_humidity_2m[i],
       windSpeed: data.hourly.wind_speed_10m[i],
       windDirection: data.hourly.wind_direction_10m[i],
+      cloudCover: data.hourly.cloud_cover?.[i] ?? null,
+      solarRadiation: data.hourly.shortwave_radiation?.[i] ?? null,
+      cape: data.hourly.cape?.[i] ?? null,
     });
   }
 
@@ -140,4 +162,92 @@ export async function fetchForecastForZones(
 
   console.log(`[OpenMeteo Forecast] Loaded forecasts for ${results.size}/${zones.length} zones`);
   return results;
+}
+
+// ── Daily context (ΔT) ───────────────────────────────
+
+/**
+ * Fetch today's daily Tmin/Tmax from Open-Meteo for ΔT scoring.
+ * AEMET analysis shows ΔT > 20°C → 42% thermal probability.
+ */
+export async function fetchDailyContext(
+  lat: number,
+  lon: number
+): Promise<DailyContext> {
+  const url = `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lon}` +
+    `&daily=temperature_2m_max,temperature_2m_min` +
+    `&forecast_days=1` +
+    `&timezone=Europe%2FMadrid`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return { tempMax: null, tempMin: null, deltaT: null };
+
+    const data: OpenMeteoHourlyResponse = await res.json();
+    if (!data.daily || data.daily.time.length === 0) {
+      return { tempMax: null, tempMin: null, deltaT: null };
+    }
+
+    const tempMax = data.daily.temperature_2m_max[0];
+    const tempMin = data.daily.temperature_2m_min[0];
+    const deltaT = tempMax !== null && tempMin !== null ? tempMax - tempMin : null;
+
+    return { tempMax, tempMin, deltaT };
+  } catch {
+    return { tempMax: null, tempMin: null, deltaT: null };
+  }
+}
+
+/**
+ * Fetch daily context for the embalse zone (primary sailing location).
+ */
+export async function fetchDailyContextForEmbalse(): Promise<DailyContext> {
+  return fetchDailyContext(42.295, -8.115);
+}
+
+// ── Atmospheric context (cloud, radiation, CAPE) ──────────
+
+/**
+ * Fetch current atmospheric context from Open-Meteo.
+ * Provides cloud cover, solar radiation, and CAPE for thermal prediction.
+ * CAPE > 500 J/kg indicates moderate convection potential.
+ * CAPE > 1000 J/kg indicates strong convection potential.
+ */
+export async function fetchAtmosphericContext(
+  lat: number,
+  lon: number
+): Promise<AtmosphericContext> {
+  // Fetch current hour + next 2 hours for immediate context
+  const url = `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lon}` +
+    `&hourly=cloud_cover,shortwave_radiation,cape` +
+    `&forecast_hours=1&past_hours=0` +
+    `&timezone=Europe%2FMadrid`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return { cloudCover: null, solarRadiation: null, cape: null, fetchedAt: new Date() };
+
+    const data: OpenMeteoHourlyResponse = await res.json();
+    if (!data.hourly || data.hourly.time.length === 0) {
+      return { cloudCover: null, solarRadiation: null, cape: null, fetchedAt: new Date() };
+    }
+
+    return {
+      cloudCover: data.hourly.cloud_cover?.[0] ?? null,
+      solarRadiation: data.hourly.shortwave_radiation?.[0] ?? null,
+      cape: data.hourly.cape?.[0] ?? null,
+      fetchedAt: new Date(),
+    };
+  } catch {
+    return { cloudCover: null, solarRadiation: null, cape: null, fetchedAt: new Date() };
+  }
+}
+
+/**
+ * Fetch atmospheric context for the embalse zone.
+ */
+export async function fetchAtmosphericContextForEmbalse(): Promise<AtmosphericContext> {
+  return fetchAtmosphericContext(42.295, -8.115);
 }

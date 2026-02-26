@@ -176,6 +176,7 @@ export function TimeSeriesChart() {
                     activeDot={{ r: 5, fill: color }}
                     connectNulls
                     type="monotone"
+                    isAnimationActive={false}
                   />
                 );
               })}

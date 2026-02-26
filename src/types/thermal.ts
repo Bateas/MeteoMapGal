@@ -52,12 +52,12 @@ export interface ThermalWindRule {
 // ── Scoring ──────────────────────────────────────────────
 
 export interface ScoreBreakdown {
-  temperature: number;   // 0-25
-  humidity: number;      // 0-20
-  timeOfDay: number;     // 0-15
-  season: number;        // 0-10
-  windDirection: number; // 0-15
-  windSpeed: number;     // 0-15
+  temperature: number;   // 0-25 (reliable, strong predictor)
+  humidity: number;      // 0-10 (sensors unreliable, reduced weight)
+  timeOfDay: number;     // 0-20 (very reliable, solar cycle)
+  season: number;        // 0-15 (month-proportional from 7yr data)
+  windDirection: number; // 0-15 (W dominant 74%, can mislead)
+  windSpeed: number;     // 0-15 (thermal = 0→7-12kt ramp)
 }
 
 export interface RuleScore {
@@ -95,6 +95,12 @@ export interface ForecastPoint {
   humidity: number | null;
   windSpeed: number | null;
   windDirection: number | null;
+  /** Cloud cover percentage (0-100) from Open-Meteo */
+  cloudCover: number | null;
+  /** Shortwave solar radiation (W/m²) — proxy for clear sky / convection driver */
+  solarRadiation: number | null;
+  /** Convective Available Potential Energy (J/kg) — direct thermal indicator */
+  cape: number | null;
 }
 
 export interface ForecastAlert {
@@ -102,6 +108,82 @@ export interface ForecastAlert {
   zoneId: MicroZoneId;
   expectedTime: Date;
   score: number;
+}
+
+// ── Enhanced atmospheric context ──────────────────────────
+
+/**
+ * Extended atmospheric data from Open-Meteo, beyond basic wind/temp/humidity.
+ * These parameters improve thermal prediction accuracy:
+ * - Cloud cover: clear skies = stronger thermals
+ * - Solar radiation: direct energy driving convection
+ * - CAPE: thermodynamic measure of convective potential
+ */
+export interface AtmosphericContext {
+  /** Cloud cover % for embalse zone (0 = clear, 100 = overcast) */
+  cloudCover: number | null;
+  /** Shortwave radiation W/m² at surface */
+  solarRadiation: number | null;
+  /** CAPE J/kg — >500 = moderate convection, >1000 = strong */
+  cape: number | null;
+  /** When this context was fetched */
+  fetchedAt: Date;
+}
+
+// ── Daily context (ΔT scoring from AEMET analysis) ──────
+
+/**
+ * Daily-scale context used for ΔT (diurnal temperature range) scoring.
+ * AEMET station data shows ΔT > 20°C → 42% thermal probability.
+ * ΔT < 8°C → thermals very unlikely.
+ */
+export interface DailyContext {
+  /** Today's predicted max temperature (°C) */
+  tempMax: number | null;
+  /** Today's predicted min temperature (°C) */
+  tempMin: number | null;
+  /** Diurnal temperature range ΔT = Tmax - Tmin (°C) */
+  deltaT: number | null;
+}
+
+// ── Tendency detection (precursor signals) ──────────────
+
+export type TendencyLevel = 'none' | 'building' | 'likely' | 'active';
+
+export interface TendencySignal {
+  /** Zone being analyzed */
+  zoneId: MicroZoneId;
+  /** Overall tendency score 0-100 */
+  score: number;
+  /** Qualitative level derived from score */
+  level: TendencyLevel;
+  /** Individual precursor scores */
+  precursors: {
+    /** Temperature rise rate (°C/h over last 2-3h) */
+    tempRiseRate: number | null;
+    /** Temperature rise score 0-25 (≥2°C/h = high) */
+    tempRiseScore: number;
+    /** Current wind direction already in thermal sector (W/SW/NW) */
+    windInSector: boolean;
+    /** Wind direction score 0-25 */
+    windDirScore: number;
+    /** Humidity dropping trend (% drop/h) */
+    humidityDropRate: number | null;
+    /** Humidity trend score 0-20 */
+    humidityScore: number;
+    /** ΔT context score 0-15 (from daily forecast) */
+    deltaTScore: number;
+    /** Temperature already above threshold */
+    tempAboveThreshold: boolean;
+    /** Temperature threshold score 0-15 */
+    tempScore: number;
+  };
+  /** Estimated time to thermal onset (minutes), null if not estimable */
+  estimatedOnsetMin: number | null;
+  /** Human-readable summary */
+  summary: string;
+  /** When this signal was computed */
+  computedAt: Date;
 }
 
 // ── Historical analysis ──────────────────────────────────

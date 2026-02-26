@@ -51,13 +51,13 @@ export function logReadings(readings: NormalizedReading[]): void {
     const row = [
       ts,
       r.stationId,
-      r.stationName?.replace(/,/g, ';') ?? '',
-      r.source ?? '',
+      '',
+      '',
       r.windSpeed?.toFixed(2) ?? '',
       r.windDirection?.toFixed(0) ?? '',
       r.temperature?.toFixed(1) ?? '',
       r.humidity?.toFixed(0) ?? '',
-      r.pressure?.toFixed(1) ?? '',
+      '',
     ].join(',');
 
     newRows.push(row);
