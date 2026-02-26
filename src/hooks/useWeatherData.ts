@@ -5,6 +5,8 @@ import { useAutoRefresh } from './useAutoRefresh';
 import { fetchAllObservations } from '../api/aemetClient';
 import { fetchLatestForStations } from '../api/meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
+import { fetchWUObservations } from '../api/wundergroundClient';
+import { fetchNetatmoObservations } from '../api/netatmoClient';
 import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
 import { normalizeAemetObservation, normalizeMeteoGaliciaObservation, normalizeMeteoclimaticObservation } from '../services/normalizer';
 import type { NormalizedReading } from '../types/station';
@@ -77,6 +79,38 @@ export function useWeatherData() {
           }
         } catch (err) {
           console.error('[WeatherData] Meteoclimatic fetch error:', err);
+        }
+      }
+
+      // Fetch Weather Underground PWS observations
+      const wuStationIds = stations
+        .filter((s) => s.source === 'wunderground')
+        .map((s) => s.id);
+      if (wuStationIds.length > 0) {
+        try {
+          const wuReadings = await fetchWUObservations(wuStationIds);
+          allReadings.push(...wuReadings);
+        } catch (err) {
+          console.error('[WeatherData] WU fetch error:', err);
+        }
+      }
+
+      // Fetch Netatmo observations (returns both stations and readings)
+      const netatmoStationIds = stations
+        .filter((s) => s.source === 'netatmo')
+        .map((s) => s.id);
+      if (netatmoStationIds.length > 0) {
+        try {
+          const { readings } = await fetchNetatmoObservations();
+          // Only keep readings for stations we know about
+          const known = new Set(netatmoStationIds);
+          for (const reading of readings) {
+            if (known.has(reading.stationId)) {
+              allReadings.push(reading);
+            }
+          }
+        } catch (err) {
+          console.error('[WeatherData] Netatmo fetch error:', err);
         }
       }
 

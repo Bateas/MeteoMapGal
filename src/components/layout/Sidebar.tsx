@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { StationTable } from '../dashboard/StationTable';
 import { TimeSeriesChart } from '../charts/TimeSeriesChart';
 import { ThermalWindPanel } from '../charts/ThermalWindPanel';
+import { ForecastTimeline } from '../charts/ForecastTimeline';
 import { ErrorBanner } from '../common/ErrorBanner';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 
-type Tab = 'stations' | 'chart' | 'thermal';
+type Tab = 'stations' | 'chart' | 'forecast' | 'thermal';
 
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
@@ -35,6 +36,16 @@ export function Sidebar() {
           Gráfica
         </button>
         <button
+          onClick={() => setActiveTab('forecast')}
+          className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
+            activeTab === 'forecast'
+              ? 'text-white border-b-2 border-sky-500 bg-slate-800/50'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          Previsión
+        </button>
+        <button
           onClick={() => setActiveTab('thermal')}
           className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
             activeTab === 'thermal'
@@ -56,6 +67,11 @@ export function Sidebar() {
         {activeTab === 'chart' && (
           <ErrorBoundary section="Gráfica">
             <TimeSeriesChart />
+          </ErrorBoundary>
+        )}
+        {activeTab === 'forecast' && (
+          <ErrorBoundary section="Previsión">
+            <ForecastTimeline />
           </ErrorBoundary>
         )}
         {activeTab === 'thermal' && (

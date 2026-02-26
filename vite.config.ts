@@ -48,6 +48,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/netatmo-api/, ''),
         secure: true,
       },
+      '/netatmo-auth': {
+        target: 'https://auth.netatmo.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/netatmo-auth/, ''),
+        secure: true,
+      },
     },
   },
 })

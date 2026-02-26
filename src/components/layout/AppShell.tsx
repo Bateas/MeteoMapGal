@@ -7,6 +7,7 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
 import { useLightningData } from '../../hooks/useLightningData';
+import { useForecastTimeline } from '../../hooks/useForecastTimeline';
 
 export function AppShell() {
   const { forceRefresh } = useWeatherData();
@@ -18,6 +19,9 @@ export function AppShell() {
 
   // Lightning detection: polls every 2 min, computes storm proximity alerts
   useLightningData();
+
+  // Hourly forecast timeline: 48h Open-Meteo for reservoir, polls every 30 min
+  useForecastTimeline();
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-950 text-white">
