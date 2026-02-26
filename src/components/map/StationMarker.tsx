@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { WindArrow } from './WindArrow';
@@ -18,7 +19,7 @@ function getFreshnessColor(reading?: NormalizedReading): string {
   return '#6b7280';
 }
 
-export function StationMarker({ station, reading }: StationMarkerProps) {
+export const StationMarker = memo(function StationMarker({ station, reading }: StationMarkerProps) {
   const selectStation = useWeatherStore((s) => s.selectStation);
   const selectedId = useWeatherStore((s) => s.selectedStationId);
   const isSelected = selectedId === station.id;
@@ -88,4 +89,4 @@ export function StationMarker({ station, reading }: StationMarkerProps) {
       </div>
     </Marker>
   );
-}
+});

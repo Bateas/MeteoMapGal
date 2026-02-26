@@ -308,6 +308,7 @@ export function HistoricalAnalysis() {
                 fill="#64748b"
                 fillOpacity={0.15}
                 strokeWidth={1}
+                isAnimationActive={false}
               />
               <Radar
                 name="Filtrado"
@@ -316,6 +317,7 @@ export function HistoricalAnalysis() {
                 fill="#f59e0b"
                 fillOpacity={0.25}
                 strokeWidth={2}
+                isAnimationActive={false}
               />
               <Tooltip
                 contentStyle={{
@@ -324,10 +326,11 @@ export function HistoricalAnalysis() {
                   borderRadius: 6,
                   fontSize: 10,
                 }}
-                formatter={(value: number, name: string) => [
-                  `${value.toFixed(1)}%`,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={((value: any, name: any) => [
+                  `${(Number(value) || 0).toFixed(1)}%`,
                   name === 'frequency' ? 'General' : `T≥${minTemp} HR≥${minHumidity}`,
-                ]}
+                ]) as never}
               />
             </RadarChart>
           </ResponsiveContainer>
@@ -419,16 +422,18 @@ export function HistoricalAnalysis() {
                   borderRadius: 6,
                   fontSize: 10,
                 }}
-                formatter={(value: number, name: string) => [
-                  name === 'Temp' ? `${value}°C` : `${value.toFixed(2)} m/s`,
-                  name,
-                ]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={((value: any, name: any) => [
+                  name === 'Temp' ? `${Number(value) || 0}°C` : `${(Number(value) || 0).toFixed(2)} m/s`,
+                  String(name ?? ''),
+                ]) as never}
               />
               <Scatter
                 data={scatterData}
                 fill="#f59e0b"
                 fillOpacity={0.4}
                 r={2}
+                isAnimationActive={false}
               />
             </ScatterChart>
           </ResponsiveContainer>

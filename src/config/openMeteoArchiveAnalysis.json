@@ -1,0 +1,267 @@
+{
+  "version": 1,
+  "generatedAt": "2026-02-26T12:06:34.401Z",
+  "years": [
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "months": "Jun-Sep",
+  "points": {
+    "embalse": {
+      "name": "Embalse Castrelo",
+      "altitude": 110,
+      "totalDays": 854,
+      "thermalDays": 292,
+      "thermalPct": 34.2,
+      "avgGust": 10,
+      "monthly": {
+        "6": {
+          "total": 210,
+          "thermal": 51,
+          "pct": 24
+        },
+        "7": {
+          "total": 217,
+          "thermal": 87,
+          "pct": 40
+        },
+        "8": {
+          "total": 217,
+          "thermal": 107,
+          "pct": 49
+        },
+        "9": {
+          "total": 210,
+          "thermal": 47,
+          "pct": 22
+        }
+      },
+      "directionDistribution": {
+        "W": 216,
+        "NW": 38,
+        "SW": 35,
+        "S": 3
+      }
+    },
+    "ribadavia": {
+      "name": "Ribadavia",
+      "altitude": 105,
+      "totalDays": 854,
+      "thermalDays": 278,
+      "thermalPct": 32.6,
+      "avgGust": 9.8,
+      "monthly": {
+        "6": {
+          "total": 210,
+          "thermal": 43,
+          "pct": 20
+        },
+        "7": {
+          "total": 217,
+          "thermal": 88,
+          "pct": 41
+        },
+        "8": {
+          "total": 217,
+          "thermal": 105,
+          "pct": 48
+        },
+        "9": {
+          "total": 210,
+          "thermal": 42,
+          "pct": 20
+        }
+      },
+      "directionDistribution": {
+        "W": 193,
+        "SW": 66,
+        "NW": 19
+      }
+    },
+    "san_amaro": {
+      "name": "San Amaro-Anllo",
+      "altitude": 400,
+      "totalDays": 854,
+      "thermalDays": 178,
+      "thermalPct": 20.8,
+      "avgGust": 8.8,
+      "monthly": {
+        "6": {
+          "total": 210,
+          "thermal": 20,
+          "pct": 10
+        },
+        "7": {
+          "total": 217,
+          "thermal": 59,
+          "pct": 27
+        },
+        "8": {
+          "total": 217,
+          "thermal": 73,
+          "pct": 34
+        },
+        "9": {
+          "total": 210,
+          "thermal": 26,
+          "pct": 12
+        }
+      },
+      "directionDistribution": {
+        "W": 78,
+        "SW": 54,
+        "NW": 40,
+        "S": 6
+      }
+    },
+    "carballino": {
+      "name": "O Carballiño",
+      "altitude": 420,
+      "totalDays": 854,
+      "thermalDays": 188,
+      "thermalPct": 22,
+      "avgGust": 8.8,
+      "monthly": {
+        "6": {
+          "total": 210,
+          "thermal": 21,
+          "pct": 10
+        },
+        "7": {
+          "total": 217,
+          "thermal": 63,
+          "pct": 29
+        },
+        "8": {
+          "total": 217,
+          "thermal": 77,
+          "pct": 35
+        },
+        "9": {
+          "total": 210,
+          "thermal": 27,
+          "pct": 13
+        }
+      },
+      "directionDistribution": {
+        "W": 82,
+        "SW": 60,
+        "NW": 40,
+        "S": 6
+      }
+    },
+    "ourense": {
+      "name": "Ourense",
+      "altitude": 140,
+      "totalDays": 854,
+      "thermalDays": 293,
+      "thermalPct": 34.3,
+      "avgGust": 10,
+      "monthly": {
+        "6": {
+          "total": 210,
+          "thermal": 48,
+          "pct": 23
+        },
+        "7": {
+          "total": 217,
+          "thermal": 93,
+          "pct": 43
+        },
+        "8": {
+          "total": 217,
+          "thermal": 102,
+          "pct": 47
+        },
+        "9": {
+          "total": 210,
+          "thermal": 50,
+          "pct": 24
+        }
+      },
+      "directionDistribution": {
+        "W": 212,
+        "SW": 37,
+        "NW": 40,
+        "S": 4
+      }
+    },
+    "padrenda": {
+      "name": "A Notaría-Padrenda",
+      "altitude": 218,
+      "totalDays": 854,
+      "thermalDays": 271,
+      "thermalPct": 31.7,
+      "avgGust": 10,
+      "monthly": {
+        "6": {
+          "total": 210,
+          "thermal": 39,
+          "pct": 19
+        },
+        "7": {
+          "total": 217,
+          "thermal": 87,
+          "pct": 40
+        },
+        "8": {
+          "total": 217,
+          "thermal": 108,
+          "pct": 50
+        },
+        "9": {
+          "total": 210,
+          "thermal": 37,
+          "pct": 18
+        }
+      },
+      "directionDistribution": {
+        "W": 208,
+        "NW": 36,
+        "SW": 25,
+        "S": 2
+      }
+    },
+    "norte": {
+      "name": "Montaña Norte",
+      "altitude": 630,
+      "totalDays": 854,
+      "thermalDays": 80,
+      "thermalPct": 9.4,
+      "avgGust": 8.8,
+      "monthly": {
+        "6": {
+          "total": 210,
+          "thermal": 13,
+          "pct": 6
+        },
+        "7": {
+          "total": 217,
+          "thermal": 26,
+          "pct": 12
+        },
+        "8": {
+          "total": 217,
+          "thermal": 32,
+          "pct": 15
+        },
+        "9": {
+          "total": 210,
+          "thermal": 9,
+          "pct": 4
+        }
+      },
+      "directionDistribution": {
+        "W": 40,
+        "NW": 25,
+        "SW": 14,
+        "S": 1
+      }
+    }
+  }
+}

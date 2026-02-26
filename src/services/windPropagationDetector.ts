@@ -1,6 +1,6 @@
 import type { MicroZone, PropagationEvent, MicroZoneId } from '../types/thermal';
 import type { NormalizedReading } from '../types/station';
-import { angleDifference, averageWindDirection } from './windUtils';
+import { averageWindDirection } from './windUtils';
 import { PROPAGATION_AXIS } from '../config/thermalZones';
 
 /**

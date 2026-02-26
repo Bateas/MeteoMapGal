@@ -96,80 +96,87 @@ export const PROPAGATION_AXIS: [string, string, number][] = [
 /**
  * Thermal wind rules for sailing at Embalse de Castrelo de Miño.
  *
- * Based on Open-Meteo Archive v2 analysis:
- * ~47,000 pts/location, Jun-Sep 2022-2025, calm <1 m/s filtered, 8-cardinal.
+ * Based on TWO data sources:
+ *   1. Open-Meteo Archive: 854 days/point, 7 locations, Jun-Sep 2019-2025
+ *      Valley thermals: Aug 48-50%, Jul 40-43%, Jun 20-24%, Sep 18-22%
+ *      W dominant at embalse (74%), SW (12%), NW (13%)
+ *      Average gust ~10 m/s (19 kt) at valley, ~8.8 m/s at altitude
  *
- * OBJECTIVE: Predict navigable thermal wind at the reservoir.
+ *   2. AEMET station data: 1,412 daily records, Ribadavia/Ourense/Carballiño
+ *      ΔT > 20°C → 42% thermal probability
+ *      HR media > 85% → 0% thermals
+ *      Peak gust timing: avg 14.9h for SW wind days
+ *
+ * Key user observations:
+ *   - Thermal goes from calm (0) to 7-12 kt rapidly in the afternoon
+ *   - W direction alone can mislead (synoptic W exists without thermal)
+ *   - Thermal possible at 19-20h in Jun/Jul (sunset ~22:00 Galicia)
+ *   - Humidity sensors unreliable (spike 100% with fog, drop fast with sun)
  *
  * The thermal cycle at Castrelo:
- *   Morning (6-10h): NE breeze at embalse + E slope wind in montaña = building phase
- *   Midday (10-14h): NE continues, montaña E strengthens = contrast building
- *   Afternoon (14-18h): W thermal arrives at embalse (46% freq, 3.5 m/s) = SAILING WINDOW
- *   Late afternoon (18-22h): SW humid variant or N drainage begins
- *   Night: N drainage from Carballiño (48%), cools valley for next day
- *
- * Precursor signals:
- *   - Norte E morning (76% freq!) = very strong precursor of afternoon thermal
- *   - Ourense NE morning (57% freq) = confirms regional heating pattern
- *   - Carballiño N evening (48%) = drainage that resets thermal contrast
+ *   Morning (6-10h): NE breeze + E slope wind = building phase
+ *   Midday (10-14h): NE continues, contrast builds
+ *   Afternoon (13-20h): W thermal arrives = SAILING WINDOW
+ *   Late (18-21h): SW humid variant possible in long-daylight months
+ *   Night: N drainage from Carballiño (48%), cools valley
  */
 export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
   // ═══ PRIMARY: Navigable thermal at embalse ═══════════════
 
   {
-    id: 'thermal_w_embalse',
+    id: 'thermal_sw_embalse',
     name: 'Térmico W navegable (Embalse)',
-    description: 'Viento W 14-18h. 46% frecuencia, 3.5 m/s (7 kt). Principal ventana de navegación. n=271',
+    description: 'Viento W 13-20h. W dominante (74% embalse). Racha media 10 m/s. De calma a 7-12 kt rápido. n=292/854',
     enabled: true,
     conditions: {
       minTemp: 20,
-      maxTemp: 26,
-      minHumidity: 55,
-      maxHumidity: 75,
-      timeWindow: { from: 14, to: 18 },
+      maxTemp: 30,
+      // No minHumidity — sensors unreliable for lower bound
+      maxHumidity: 80,
+      timeWindow: { from: 13, to: 20 },
       months: [6, 7, 8, 9],
     },
     expectedWind: {
       zone: 'embalse',
-      directionRange: { from: 225, to: 315 }, // W ±45°
-      minSpeed: 1.5,
+      directionRange: { from: 200, to: 310 }, // SW-WNW (covers W dominant + SW/NW secondary)
+      minSpeed: 2.0, // ~4 kt minimum for navigable detection
     },
     source: 'historical',
   },
   {
-    id: 'thermal_w_embalse_hot',
+    id: 'thermal_sw_embalse_hot',
     name: 'Térmico W con calor (Embalse)',
-    description: 'Viento W 14-18h, T>30°C. 33% frecuencia, 2.9 m/s. Calor extremo reduce fiabilidad. n=683',
+    description: 'W 13-20h, T>28°C. Días calurosos con ΔT alto. HR baja por calor. n=683',
     enabled: true,
     conditions: {
-      minTemp: 30,
-      maxHumidity: 55,
-      timeWindow: { from: 14, to: 18 },
+      minTemp: 28,
+      maxHumidity: 65,
+      timeWindow: { from: 13, to: 20 },
       months: [6, 7, 8, 9],
     },
     expectedWind: {
       zone: 'embalse',
-      directionRange: { from: 225, to: 315 },
-      minSpeed: 1.5,
+      directionRange: { from: 200, to: 310 },
+      minSpeed: 2.0,
     },
     source: 'historical',
   },
   {
     id: 'thermal_sw_embalse_evening',
-    name: 'Térmico SW atardecer húmedo (Embalse)',
-    description: 'Viento SW 18-22h, HR>75%. 46% frecuencia, 2.1 m/s. Variante húmeda del térmico. n=82',
+    name: 'Térmico SW atardecer (Embalse)',
+    description: 'SW 18-21h. Variante tardía en meses con luz larga (Jun/Jul sunset 22h). Más suave. n=82',
     enabled: true,
     conditions: {
       minTemp: 20,
-      maxTemp: 26,
-      minHumidity: 75,
-      timeWindow: { from: 18, to: 22 },
+      maxTemp: 30,
+      maxHumidity: 85,
+      timeWindow: { from: 18, to: 21 },
       months: [6, 7, 8, 9],
     },
     expectedWind: {
       zone: 'embalse',
-      directionRange: { from: 180, to: 270 }, // SW ±45°
-      minSpeed: 1.0,
+      directionRange: { from: 180, to: 280 }, // S-W (evening can shift more S)
+      minSpeed: 1.5,
     },
     source: 'historical',
   },
@@ -179,12 +186,12 @@ export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
   {
     id: 'precursor_ne_embalse_morning',
     name: 'Precursor: NE matutino (Embalse)',
-    description: 'NE 10-14h antes del térmico W. 38% freq, 2.9 m/s. Si hay NE por la mañana → W por la tarde. n=245',
+    description: 'NE 10-14h antes del térmico W. 38% freq. NE mañana → W tarde. n=245',
     enabled: true,
     conditions: {
-      minTemp: 20,
-      maxTemp: 26,
-      maxHumidity: 55,
+      minTemp: 18,
+      maxTemp: 28,
+      maxHumidity: 75,
       timeWindow: { from: 10, to: 14 },
       months: [6, 7, 8, 9],
     },
@@ -198,13 +205,12 @@ export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
   {
     id: 'precursor_e_norte_morning',
     name: 'Precursor: E matutino montaña (76%!)',
-    description: 'Brisa E 6-10h en montaña. 76% frecuencia (!), 2.2 m/s. Señal más fiable de térmico vespertino. n=72',
+    description: 'Brisa E 6-10h en montaña. 76% frecuencia. Señal más fiable de térmico vespertino. n=72',
     enabled: true,
     conditions: {
-      minTemp: 20,
+      minTemp: 14,
       maxTemp: 26,
-      minHumidity: 55,
-      maxHumidity: 75,
+      maxHumidity: 85,
       timeWindow: { from: 6, to: 10 },
       months: [6, 7, 8, 9],
     },
@@ -218,13 +224,12 @@ export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
   {
     id: 'precursor_ne_ourense_morning',
     name: 'Precursor: NE matutino Ourense (57%)',
-    description: 'NE 6-10h en Ourense. 57% frecuencia, 2.3 m/s. Confirma calentamiento regional. n=133',
+    description: 'NE 6-10h en Ourense. 57% frecuencia. Confirma calentamiento regional. n=133',
     enabled: true,
     conditions: {
-      minTemp: 20,
+      minTemp: 14,
       maxTemp: 26,
-      minHumidity: 55,
-      maxHumidity: 75,
+      maxHumidity: 85,
       timeWindow: { from: 6, to: 10 },
       months: [6, 7, 8, 9],
     },
@@ -241,7 +246,7 @@ export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
   {
     id: 'drainage_n_embalse',
     name: 'Drenaje N nocturno (Embalse)',
-    description: 'N 18-22h, HR<55%. 37% freq, 3.8 m/s. Enfría el valle → más contraste mañana. n=229',
+    description: 'N 18-22h, HR<55%. 37% freq, 3.8 m/s. Enfría el valle → contraste mañana. n=229',
     enabled: true,
     conditions: {
       minTemp: 20,
@@ -260,7 +265,7 @@ export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
   {
     id: 'drainage_n_carballino',
     name: 'Drenaje N Carballiño (48%)',
-    description: 'N 18-22h. 48% frecuencia, 3.3-3.6 m/s. Drenaje de valle muy consistente. n=225-507',
+    description: 'N 18-22h. 48% frecuencia. Drenaje de valle muy consistente. n=225-507',
     enabled: true,
     conditions: {
       minTemp: 20,

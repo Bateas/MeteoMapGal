@@ -7,10 +7,12 @@ import { INITIAL_VIEW_STATE } from '../../config/constants';
 import { useWeatherStore } from '../../store/weatherStore';
 import { StationMarker } from './StationMarker';
 import { StationPopup } from './StationPopup';
-import { WindFieldOverlay } from './WindFieldOverlay';
+import { WindFieldOverlay, registerWindArrowIcons } from './WindFieldOverlay';
 import { ThermalZoneOverlay } from './ThermalZoneOverlay';
 import { ThermalAlertMarkers } from './ThermalAlertMarker';
 import { PropagationArrows } from './PropagationArrow';
+import { LightningOverlay } from './LightningOverlay';
+import { StormAlertBanner } from './StormAlertBanner';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -25,16 +27,7 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
       attribution: '&copy; OpenStreetMap contributors',
       maxzoom: 19,
     },
-    terrainSource: {
-      type: 'raster-dem',
-      tiles: [
-        'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
-      ],
-      encoding: 'terrarium',
-      tileSize: 256,
-      maxzoom: 15,
-    },
-    hillshadeSource: {
+    terrainDEM: {
       type: 'raster-dem',
       tiles: [
         'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
@@ -53,7 +46,7 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
     {
       id: 'hillshade',
       type: 'hillshade',
-      source: 'hillshadeSource',
+      source: 'terrainDEM',
       paint: {
         'hillshade-shadow-color': '#473B24',
         'hillshade-illumination-direction': 315,
@@ -62,7 +55,7 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
     },
   ],
   terrain: {
-    source: 'terrainSource',
+    source: 'terrainDEM',
     exaggeration: 1.5,
   },
   sky: {},
@@ -80,6 +73,24 @@ export function WeatherMap() {
     selectStation(null);
   }, [selectStation]);
 
+  /**
+   * Register all wind-arrow icons (one per speed level) when the map loads.
+   * The raw maplibregl.Map is available as evt.target from the 'load' event.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleMapLoad = useCallback((evt: any) => {
+    const raw = evt?.target;
+    const map: maplibregl.Map | null =
+      raw && typeof raw.hasImage === 'function'
+        ? raw
+        : raw && typeof raw.getMap === 'function'
+          ? raw.getMap()
+          : null;
+
+    if (!map) return;
+    registerWindArrowIcons(map, 48);
+  }, []);
+
   return (
     <Map
       mapLib={maplibregl}
@@ -88,6 +99,7 @@ export function WeatherMap() {
       mapStyle={MAP_STYLE}
       maxPitch={85}
       onClick={handleMapClick}
+      onLoad={handleMapLoad}
     >
       <NavigationControl position="top-right" visualizePitch />
 
@@ -112,6 +124,9 @@ export function WeatherMap() {
       {/* Propagation arrows between zones */}
       <PropagationArrows />
 
+      {/* Lightning strikes overlay */}
+      <LightningOverlay />
+
       {/* Selected station popup */}
       {selectedStation && (
         <StationPopup
@@ -119,6 +134,8 @@ export function WeatherMap() {
           reading={currentReadings.get(selectedStation.id)}
         />
       )}
+      {/* Storm alert banner (over the map) */}
+      <StormAlertBanner />
     </Map>
   );
 }

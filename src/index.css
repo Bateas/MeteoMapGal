@@ -1,5 +1,38 @@
 @import "tailwindcss";
 
+@theme {
+  /* ── Alert levels ─────────────────────────────── */
+  --color-alert-none: #64748b;
+  --color-alert-low: #22c55e;
+  --color-alert-medium: #f59e0b;
+  --color-alert-high: #ef4444;
+
+  /* ── Wind speed scale (Beaufort-inspired) ──────── */
+  --color-wind-calm: #60a5fa;
+  --color-wind-light: #38bdf8;
+  --color-wind-moderate: #34d399;
+  --color-wind-fresh: #fbbf24;
+  --color-wind-strong: #f97316;
+  --color-wind-gale: #ef4444;
+
+  /* ── Thermal zones ────────────────────────────── */
+  --color-zone-embalse: #3b82f6;
+  --color-zone-ourense: #f59e0b;
+  --color-zone-norte: #22c55e;
+  --color-zone-sur: #a855f7;
+  --color-zone-carballino: #06b6d4;
+
+  /* ── UI surfaces ──────────────────────────────── */
+  --color-surface-base: #0f172a;
+  --color-surface-card: #1e293b;
+  --color-surface-elevated: #334155;
+  --color-surface-overlay: rgba(15, 23, 42, 0.8);
+
+  /* ── Chart tooltip ────────────────────────────── */
+  --color-tooltip-bg: #1e293b;
+  --color-tooltip-border: #334155;
+}
+
 * {
   margin: 0;
   padding: 0;

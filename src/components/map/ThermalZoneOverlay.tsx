@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
+import { useShallow } from 'zustand/react/shallow';
 import { useThermalStore } from '../../store/thermalStore';
 import type { AlertLevel } from '../../types/thermal';
 
@@ -10,10 +11,14 @@ const ALERT_OPACITIES: Record<AlertLevel, number> = {
   high: 0.30,
 };
 
-export function ThermalZoneOverlay() {
-  const zones = useThermalStore((s) => s.zones);
-  const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
-  const showZoneOverlays = useThermalStore((s) => s.showZoneOverlays);
+export const ThermalZoneOverlay = memo(function ThermalZoneOverlay() {
+  const { zones, zoneAlerts, showZoneOverlays } = useThermalStore(
+    useShallow((s) => ({
+      zones: s.zones,
+      zoneAlerts: s.zoneAlerts,
+      showZoneOverlays: s.showZoneOverlays,
+    }))
+  );
 
   const geojson = useMemo(() => {
     const features = zones.map((zone) => {
@@ -73,4 +78,4 @@ export function ThermalZoneOverlay() {
       />
     </Source>
   );
-}
+});

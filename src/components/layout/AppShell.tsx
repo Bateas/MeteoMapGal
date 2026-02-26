@@ -3,8 +3,10 @@ import { Sidebar } from './Sidebar';
 import { WeatherMap } from '../map/WeatherMap';
 import { useWeatherData } from '../../hooks/useWeatherData';
 import { LoadingSpinner } from '../common/LoadingSpinner';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
+import { useLightningData } from '../../hooks/useLightningData';
 
 export function AppShell() {
   const { forceRefresh } = useWeatherData();
@@ -14,15 +16,22 @@ export function AppShell() {
   // Thermal wind analysis: scores rules, detects propagation, fetches forecast
   useThermalAnalysis();
 
+  // Lightning detection: polls every 2 min, computes storm proximity alerts
+  useLightningData();
+
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-950 text-white">
       <Header onRefresh={forceRefresh} />
 
       <div className="flex-1 flex overflow-hidden relative">
-        <Sidebar />
+        <ErrorBoundary section="Sidebar">
+          <Sidebar />
+        </ErrorBoundary>
 
         <main className="flex-1 relative">
-          <WeatherMap />
+          <ErrorBoundary section="Mapa">
+            <WeatherMap />
+          </ErrorBoundary>
 
           {/* Loading overlay (only on initial load) */}
           {isLoading && stations.length === 0 && (
