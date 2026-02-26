@@ -9,6 +9,7 @@ import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
 import { normalizeAemetObservation, normalizeMeteoGaliciaObservation, normalizeMeteoclimaticObservation } from '../services/normalizer';
 import type { NormalizedReading } from '../types/station';
 import { REFRESH_INTERVAL_MS } from '../config/constants';
+import { logReadings } from '../services/stationDataLogger';
 
 export function useWeatherData() {
   const stations = useStations();
@@ -81,6 +82,8 @@ export function useWeatherData() {
 
       if (allReadings.length > 0) {
         updateReadings(allReadings);
+        // Log real station data for local historical analysis
+        logReadings(allReadings);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error obteniendo datos';
