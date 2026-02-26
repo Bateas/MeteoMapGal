@@ -65,7 +65,11 @@ export const StationMarker = memo(function StationMarker({ station, reading }: S
             fill="white"
             style={{ pointerEvents: 'none' }}
           >
-            {station.source === 'aemet' ? 'A' : station.source === 'meteoclimatic' ? 'C' : 'M'}
+            {station.source === 'aemet' ? 'A'
+              : station.source === 'meteoclimatic' ? 'C'
+              : station.source === 'wunderground' ? 'W'
+              : station.source === 'netatmo' ? 'N'
+              : 'M'}
           </text>
         </svg>
 
