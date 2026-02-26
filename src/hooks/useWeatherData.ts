@@ -5,6 +5,7 @@ import { useAutoRefresh } from './useAutoRefresh';
 import { fetchAllObservations } from '../api/aemetClient';
 import { fetchLatestForStations } from '../api/meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
+import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
 import { normalizeAemetObservation, normalizeMeteoGaliciaObservation, normalizeMeteoclimaticObservation } from '../services/normalizer';
 import type { NormalizedReading } from '../types/station';
 import { REFRESH_INTERVAL_MS } from '../config/constants';
@@ -91,6 +92,21 @@ export function useWeatherData() {
 
   const { lastRefresh, isPolling, forceRefresh } = useAutoRefresh(fetchData, REFRESH_INTERVAL_MS);
 
+  // Load 24h historical data from Open-Meteo on first load (model data, fills charts)
+  const hasLoadedHistoryRef = useRef(false);
+  const loadHistory = useCallback(async () => {
+    if (stations.length === 0) return;
+    try {
+      const stationCoords = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
+      const historyReadings = await fetchOpenMeteoForStations(stationCoords);
+      if (historyReadings.length > 0) {
+        updateReadings(historyReadings);
+      }
+    } catch (err) {
+      console.error('[WeatherData] Open-Meteo history load error:', err);
+    }
+  }, [stations, updateReadings]);
+
   // Trigger fetch when stations first become available
   // (useAutoRefresh fires before stations are loaded, so we need this)
   const hasFetchedRef = useRef(false);
@@ -98,8 +114,13 @@ export function useWeatherData() {
     if (stations.length > 0 && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
       forceRefresh();
+      // Load 24h history in background
+      if (!hasLoadedHistoryRef.current) {
+        hasLoadedHistoryRef.current = true;
+        loadHistory();
+      }
     }
-  }, [stations.length, forceRefresh]);
+  }, [stations.length, forceRefresh, loadHistory]);
 
   return { stations, lastRefresh, isPolling, forceRefresh };
 }
