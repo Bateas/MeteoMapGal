@@ -32,8 +32,4 @@ export const METEOGALICIA = {
   /** Last 10-min observations for a station */
   latestObservation: (stationId: number) =>
     `/meteogalicia-api/mgrss/observacion/ultimos10minEstacionsMeteo.action?idEst=${stationId}`,
-
-  /** Current day observations for a station */
-  currentDayObservation: (stationId: number) =>
-    `/meteogalicia-api/mgrss/observacion/ultimasObservacions/datos24h.action?idEst=${stationId}`,
 } as const;
