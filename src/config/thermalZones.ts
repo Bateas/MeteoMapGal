@@ -94,61 +94,205 @@ export const PROPAGATION_AXIS: [string, string, number][] = [
 ];
 
 /**
- * Placeholder thermal wind rules.
- * These will be replaced/augmented by historical analysis results.
+ * Thermal wind rules derived from Open-Meteo Archive analysis.
+ * Based on ~47,000 hourly data points per location (Jun-Sep 2022-2025).
+ *
+ * Key findings:
+ * - Embalse & Ourense: strong WSW pattern afternoons (14-17h, 17-20h), 33-47% freq
+ * - Embalse: NNE nocturnal drainage (20-23h), 27-31% freq = catabático confirmed
+ * - Norte (montaña): E morning wind (6-10h, 10-14h), 36-52% freq = slope breeze
+ * - Norte: NW evening pattern (17-20h) with heat = thermal reversal
+ * - Carballiño: N/NNW nocturnal (20-23h), 28-43% freq = valley drainage
  */
 export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
+  // ── Embalse: WSW afternoon thermal ──────────────────────
   {
-    id: 'thermal_vespertino_mino',
-    name: 'Térmico vespertino Miño',
-    description: 'Brisa térmica vespertina en el valle del Miño con calor y humedad alta',
+    id: 'hist_embalse_wsw_afternoon',
+    name: 'Térmico WSW vespertino (Embalse)',
+    description: 'Viento WSW 14-17h, T=20-25°C, HR baja. 38% frecuencia histórica, 3.6 m/s medio (n=115)',
     enabled: true,
     conditions: {
-      minTemp: 28,
-      minHumidity: 55,
-      timeWindow: { from: 16, to: 20 },
+      minTemp: 20,
+      maxTemp: 25,
+      maxHumidity: 60,
+      timeWindow: { from: 14, to: 17 },
       months: [6, 7, 8, 9],
     },
     expectedWind: {
       zone: 'embalse',
-      directionRange: { from: 225, to: 315 }, // SW to NW (west-ish)
-      minSpeed: 1.5, // m/s
+      directionRange: { from: 202, to: 292 }, // WSW ±45°
+      minSpeed: 1.8,
     },
-    source: 'manual',
+    source: 'historical',
   },
   {
-    id: 'katabatic_nocturno',
-    name: 'Catabático nocturno',
-    description: 'Drenaje de aire frío de montaña al valle por la noche',
+    id: 'hist_embalse_wsw_evening',
+    name: 'Térmico WSW atardecer (Embalse)',
+    description: 'Viento WSW 17-20h, T=20-25°C, HR alta. 39% frecuencia, 2.4 m/s (n=70)',
     enabled: true,
     conditions: {
-      maxTemp: 20,
-      timeWindow: { from: 22, to: 6 },
-      months: [5, 6, 7, 8, 9, 10],
+      minTemp: 20,
+      maxTemp: 25,
+      minHumidity: 70,
+      timeWindow: { from: 17, to: 20 },
+      months: [6, 7, 8, 9],
     },
     expectedWind: {
       zone: 'embalse',
-      directionRange: { from: 0, to: 90 }, // N to E (downhill from norte)
-      minSpeed: 0.5,
+      directionRange: { from: 202, to: 292 },
+      minSpeed: 1.2,
     },
-    source: 'manual',
+    source: 'historical',
   },
+  // ── Embalse: NNE nocturnal drainage (catabático) ────────
   {
-    id: 'efecto_embalse_matutino',
-    name: 'Efecto embalse matutino',
-    description: 'Brisa suave generada por la diferencia térmica agua-tierra al amanecer',
+    id: 'hist_embalse_nne_night',
+    name: 'Catabático NNE nocturno (Embalse)',
+    description: 'Drenaje NNE 20-23h, T=25-28°C, HR baja. 31% frecuencia, 2.8 m/s (n=98)',
     enabled: true,
     conditions: {
-      maxTemp: 20,
-      minHumidity: 75,
+      minTemp: 25,
+      maxTemp: 28,
+      maxHumidity: 60,
+      timeWindow: { from: 20, to: 23 },
+      months: [6, 7, 8, 9],
+    },
+    expectedWind: {
+      zone: 'embalse',
+      directionRange: { from: 337, to: 67 }, // NNE ±45°
+      minSpeed: 1.4,
+    },
+    source: 'historical',
+  },
+  {
+    id: 'hist_embalse_nne_hot_evening',
+    name: 'NNE con calor extremo (Embalse)',
+    description: 'Viento NNE 17-20h, T>28°C, HR<50%. 27% frecuencia, 3.5 m/s (n=157)',
+    enabled: true,
+    conditions: {
+      minTemp: 28,
+      maxHumidity: 50,
+      timeWindow: { from: 17, to: 20 },
+      months: [6, 7, 8, 9],
+    },
+    expectedWind: {
+      zone: 'embalse',
+      directionRange: { from: 337, to: 67 },
+      minSpeed: 1.7,
+    },
+    source: 'historical',
+  },
+  // ── Ourense: WSW afternoon ──────────────────────────────
+  {
+    id: 'hist_ourense_wsw_afternoon',
+    name: 'Térmico WSW vespertino (Ourense)',
+    description: 'Viento WSW 14-17h, T=20-25°C. 40-47% frecuencia, 3.2-3.8 m/s (n=30-115)',
+    enabled: true,
+    conditions: {
+      minTemp: 20,
+      maxTemp: 28,
+      timeWindow: { from: 14, to: 17 },
+      months: [6, 7, 8, 9],
+    },
+    expectedWind: {
+      zone: 'ourense',
+      directionRange: { from: 202, to: 292 },
+      minSpeed: 1.6,
+    },
+    source: 'historical',
+  },
+  {
+    id: 'hist_ourense_ne_morning',
+    name: 'NE matutino (Ourense)',
+    description: 'Viento NE 10-14h, T=25-28°C, HR=60-70%. 32% frecuencia, 1.6 m/s (n=56)',
+    enabled: true,
+    conditions: {
+      minTemp: 25,
+      maxTemp: 28,
+      minHumidity: 60,
+      maxHumidity: 70,
+      timeWindow: { from: 10, to: 14 },
+      months: [6, 7, 8, 9],
+    },
+    expectedWind: {
+      zone: 'ourense',
+      directionRange: { from: 0, to: 90 }, // NE ±45°
+      minSpeed: 0.8,
+    },
+    source: 'historical',
+  },
+  // ── Norte (montaña): E morning slope breeze ─────────────
+  {
+    id: 'hist_norte_e_morning',
+    name: 'Brisa E matutina (Montaña)',
+    description: 'Viento E 6-10h, T=20-25°C. 41-52% frecuencia, 1.8-1.9 m/s (n=42-54). Brisa de ladera',
+    enabled: true,
+    conditions: {
+      minTemp: 20,
+      maxTemp: 25,
       timeWindow: { from: 6, to: 10 },
-      months: [5, 6, 7, 8, 9],
+      months: [6, 7, 8, 9],
     },
     expectedWind: {
-      zone: 'embalse',
-      directionRange: { from: 135, to: 270 }, // SE to W (variable, lake breeze)
-      minSpeed: 0.3,
+      zone: 'norte',
+      directionRange: { from: 45, to: 135 }, // E ±45°
+      minSpeed: 0.9,
     },
-    source: 'manual',
+    source: 'historical',
+  },
+  {
+    id: 'hist_norte_nw_hot_evening',
+    name: 'NW atardecer con calor (Montaña)',
+    description: 'Viento NW 17-20h, T>25°C. 31-34% frecuencia, 2.4-3.1 m/s. Reversión térmica',
+    enabled: true,
+    conditions: {
+      minTemp: 25,
+      timeWindow: { from: 17, to: 20 },
+      months: [6, 7, 8, 9],
+    },
+    expectedWind: {
+      zone: 'norte',
+      directionRange: { from: 270, to: 360 }, // NW ±45°
+      minSpeed: 1.2,
+    },
+    source: 'historical',
+  },
+  // ── Carballiño: N/NNW nocturnal valley drainage ─────────
+  {
+    id: 'hist_carballino_n_night',
+    name: 'Drenaje N nocturno (Carballiño)',
+    description: 'Viento N/NNW 20-23h, T=20-25°C. 29-32% frecuencia, 2.9-3.6 m/s (n=97-212)',
+    enabled: true,
+    conditions: {
+      minTemp: 20,
+      maxTemp: 28,
+      timeWindow: { from: 20, to: 23 },
+      months: [6, 7, 8, 9],
+    },
+    expectedWind: {
+      zone: 'carballino',
+      directionRange: { from: 315, to: 45 }, // N ±45°
+      minSpeed: 1.4,
+    },
+    source: 'historical',
+  },
+  {
+    id: 'hist_carballino_nne_evening',
+    name: 'NNE atardecer seco (Carballiño)',
+    description: 'Viento NNE 17-20h, T=20-25°C, HR<50%. 26% frecuencia, 4.1 m/s (n=133)',
+    enabled: true,
+    conditions: {
+      minTemp: 20,
+      maxTemp: 25,
+      maxHumidity: 50,
+      timeWindow: { from: 17, to: 20 },
+      months: [6, 7, 8, 9],
+    },
+    expectedWind: {
+      zone: 'carballino',
+      directionRange: { from: 337, to: 67 }, // NNE ±45°
+      minSpeed: 2.0,
+    },
+    source: 'historical',
   },
 ];
