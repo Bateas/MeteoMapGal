@@ -23,7 +23,7 @@ export function Header({ onRefresh }: HeaderProps) {
         </span>
         {stationCount > 0 && (
           <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">
-            {readingCount}/{stationCount} estaciones
+            {readingCount}/{stationCount} est.
           </span>
         )}
       </div>

@@ -13,7 +13,8 @@ export const MICRO_ZONES: MicroZone[] = [
     name: 'Embalse Castrelo',
     stationPatterns: [
       'leiro', 'ribadavia', 'remunino', 'prado',
-      'evega', 'castrelo',
+      'evega', 'castrelo', 'cenlle', 'arnoia',
+      'cortegada', 'melón', 'melon',
     ],
     center: { lat: 42.295, lon: -8.115 },
     polygon: [
@@ -28,6 +29,7 @@ export const MICRO_ZONES: MicroZone[] = [
     name: 'Ourense',
     stationPatterns: [
       'ourense', 'farixa', 'estacions', 'instituto',
+      'barbadás', 'barbadas', 'pereiro',
     ],
     center: { lat: 42.335, lon: -7.865 },
     polygon: [
@@ -42,6 +44,7 @@ export const MICRO_ZONES: MicroZone[] = [
     name: 'Montaña Norte',
     stationPatterns: [
       'fornelos', 'gandarela', 'amiudal', 'beariz',
+      'avión', 'avion', 'covelo',
     ],
     center: { lat: 42.42, lon: -8.30 },
     polygon: [
@@ -56,6 +59,7 @@ export const MICRO_ZONES: MicroZone[] = [
     name: 'Valle Sur',
     stationPatterns: [
       'notaria', 'padrenda', 'cequelinos',
+      'cartelle', 'celanova', 'quintela', 'bande',
     ],
     center: { lat: 42.15, lon: -8.15 },
     polygon: [

@@ -6,6 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { INITIAL_VIEW_STATE } from '../../config/constants';
 import { useWeatherStore } from '../../store/weatherStore';
 import { StationMarker } from './StationMarker';
+import { TempOnlyMarker } from './TempOnlyMarker';
 import { StationPopup } from './StationPopup';
 import { WindFieldOverlay, registerWindArrowIcons } from './WindFieldOverlay';
 import { ThermalZoneOverlay } from './ThermalZoneOverlay';
@@ -109,14 +110,22 @@ export function WeatherMap() {
       {/* Wind field arrows around stations */}
       <WindFieldOverlay stations={stations} readings={currentReadings} />
 
-      {/* Station markers */}
-      {stations.map((station) => (
-        <StationMarker
-          key={station.id}
-          station={station}
-          reading={currentReadings.get(station.id)}
-        />
-      ))}
+      {/* Station markers (full markers for wind stations, tiny dots for temp-only) */}
+      {stations.map((station) =>
+        station.tempOnly ? (
+          <TempOnlyMarker
+            key={station.id}
+            station={station}
+            reading={currentReadings.get(station.id)}
+          />
+        ) : (
+          <StationMarker
+            key={station.id}
+            station={station}
+            reading={currentReadings.get(station.id)}
+          />
+        )
+      )}
 
       {/* Thermal alert badges on zone centers */}
       <ThermalAlertMarkers />

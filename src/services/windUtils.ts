@@ -71,6 +71,22 @@ export function formatHumidity(humidity: number | null): string {
   return `${Math.round(humidity)}%`;
 }
 
+/** Format precipitation for display (mm) */
+export function formatPrecipitation(mm: number | null): string {
+  if (mm === null) return '--';
+  if (mm === 0) return '0 mm';
+  return `${mm.toFixed(1)} mm`;
+}
+
+/** Color for precipitation visualization */
+export function precipitationColor(mm: number | null): string {
+  if (mm === null || mm === 0) return '#64748b'; // slate-500
+  if (mm < 1) return '#93c5fd';   // blue-300
+  if (mm < 5) return '#3b82f6';   // blue-500
+  if (mm < 15) return '#2563eb';  // blue-600
+  return '#7c3aed';               // violet-600
+}
+
 // ── Thermal wind utilities ───────────────────────────────
 
 /**
