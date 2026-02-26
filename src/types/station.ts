@@ -7,6 +7,9 @@ export interface NormalizedStation {
   altitude: number;
   province?: string;
   municipality?: string;
+  /** Station has only temperature/humidity sensors (no wind).
+   *  Shown as small dot on map, not selectable, but feeds thermal scoring. */
+  tempOnly?: boolean;
 }
 
 export interface NormalizedReading {

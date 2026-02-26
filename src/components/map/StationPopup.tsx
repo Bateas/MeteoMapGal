@@ -5,7 +5,9 @@ import {
   formatWindSpeed,
   formatTemperature,
   formatHumidity,
+  formatPrecipitation,
   windSpeedColor,
+  precipitationColor,
 } from '../../services/windUtils';
 import { WindCompass } from '../common/WindCompass';
 import { formatDistanceToNow } from 'date-fns';
@@ -82,6 +84,14 @@ export function StationPopup({ station, reading }: StationPopupProps) {
                   <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Humedad</div>
                   <div style={{ fontWeight: 600 }}>{formatHumidity(reading.humidity)}</div>
                 </div>
+                {reading.precipitation !== null && reading.precipitation > 0 && (
+                  <div>
+                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Lluvia</div>
+                    <div style={{ fontWeight: 600, color: precipitationColor(reading.precipitation) }}>
+                      {formatPrecipitation(reading.precipitation)}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

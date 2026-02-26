@@ -107,25 +107,26 @@ export async function discoverStations(): Promise<NormalizedStation[]> {
     console.error('[Discovery] WU station fetch failed:', wuStations.reason);
   }
 
-  // Process Netatmo stations (only wind-equipped ones for map display)
+  // Process Netatmo stations (all: wind stations as full markers, temp-only as small dots)
   if (netatmoStations.status === 'fulfilled') {
     const ntCount = stations.length;
+    let windCount = 0;
+    let tempOnlyCount = 0;
     for (const station of netatmoStations.value) {
-      // Only add Netatmo stations that have wind data
-      // (too many temp-only stations would clutter the map)
-      if (station.name.includes('sin viento')) continue;
-
-      // Avoid duplicates
+      // Avoid duplicates (only check against non-tempOnly stations)
       const isDuplicate = stations.some(
         (s) =>
+          !s.tempOnly &&
           Math.abs(s.lat - station.lat) < 0.005 &&
           Math.abs(s.lon - station.lon) < 0.005
       );
       if (!isDuplicate) {
         stations.push(station);
+        if (station.tempOnly) tempOnlyCount++;
+        else windCount++;
       }
     }
-    console.log(`[Discovery] Found ${stations.length - ntCount} Netatmo stations in radius`);
+    console.log(`[Discovery] Found ${windCount} Netatmo wind + ${tempOnlyCount} temp-only stations in radius`);
   } else {
     console.error('[Discovery] Netatmo station fetch failed:', netatmoStations.reason);
   }

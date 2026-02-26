@@ -3,8 +3,10 @@ import {
   formatWindSpeed,
   formatTemperature,
   formatHumidity,
+  formatPrecipitation,
   windSpeedColor,
   temperatureColor,
+  precipitationColor,
 } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { WindCompass } from '../common/WindCompass';
@@ -92,6 +94,17 @@ export function StationCard({ station, reading }: StationCardProps) {
                 {formatHumidity(reading.humidity)}
               </div>
             </div>
+            {reading.precipitation !== null && reading.precipitation > 0 && (
+              <div>
+                <div className="text-[10px] text-slate-500">Lluvia</div>
+                <div
+                  className="text-sm font-semibold"
+                  style={{ color: precipitationColor(reading.precipitation) }}
+                >
+                  {formatPrecipitation(reading.precipitation)}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (

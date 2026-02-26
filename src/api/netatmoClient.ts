@@ -173,17 +173,17 @@ export async function fetchNetatmoStations(
     const hasWind = Object.values(raw.module_types || {}).includes('NAModule2');
     if (requireWind && !hasWind) continue;
 
-    const suffix = hasWind ? '' : ' (sin viento)';
     const cityName = raw.place.city || 'Desconocida';
 
     stations.push({
       id: `netatmo_${shortMac(raw._id)}`,
       source: 'netatmo',
-      name: `${cityName}${suffix}`,
+      name: cityName,
       lat,
       lon,
       altitude: raw.place.altitude || 0,
       municipality: raw.place.city,
+      tempOnly: !hasWind,
     });
   }
 
@@ -247,11 +247,12 @@ export async function fetchNetatmoObservations(): Promise<{
     stations.push({
       id: stationId,
       source: 'netatmo',
-      name: hasWind ? cityName : `${cityName} (sin viento)`,
+      name: cityName,
       lat,
       lon,
       altitude: raw.place.altitude || 0,
       municipality: raw.place.city,
+      tempOnly: !hasWind,
     });
 
     // Extract readings from measures

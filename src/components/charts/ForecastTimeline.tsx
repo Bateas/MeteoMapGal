@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
-import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/windUtils';
+import { useThermalStore } from '../../store/thermalStore';
+import { msToKnots, degreesToCardinal, windSpeedColor, isDirectionInRange } from '../../services/windUtils';
 import type { HourlyForecast } from '../../types/forecast';
+import type { ThermalWindRule } from '../../types/thermal';
 
 // ── Time range selector ──────────────────────────────────
 const RANGES = [
@@ -21,14 +23,6 @@ function formatHour(d: Date): string {
 
 function formatDay(d: Date): string {
   return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
-}
-
-function precipColor(mm: number): string {
-  if (mm < 0.5) return 'bg-transparent';
-  if (mm < 2) return 'bg-sky-400/60';
-  if (mm < 5) return 'bg-blue-500/70';
-  if (mm < 10) return 'bg-blue-600/80';
-  return 'bg-indigo-600/90';
 }
 
 function cloudIcon(cover: number | null): string {
@@ -57,9 +51,179 @@ function WindArrow({ dir, size = 14 }: { dir: number | null; size?: number }) {
   );
 }
 
+// ── Thermal scoring for forecast points ──────────────────
+
+interface ThermalScore {
+  score: number;          // 0-100
+  mainRule: string | null; // Rule name that scored highest
+  isNavigable: boolean;   // Score > 50 on a primary rule
+  isPrecursor: boolean;   // Score > 40 on a precursor rule
+}
+
+/**
+ * Quick thermal score for a single forecast point.
+ * Simplified version of the full scoring engine — operates on forecast
+ * data without needing zone grouping or station readings.
+ */
+function scoreForecastThermal(
+  point: HourlyForecast,
+  rules: ThermalWindRule[],
+  deltaT: number | null,
+): ThermalScore {
+  let bestScore = 0;
+  let bestRule: string | null = null;
+  let isNavigable = false;
+  let isPrecursor = false;
+
+  const hour = point.time.getHours();
+  const month = point.time.getMonth() + 1;
+  const temp = point.temperature;
+  const humidity = point.humidity;
+  const windSpeed = point.windSpeed;
+  const windDir = point.windDirection;
+
+  for (const rule of rules) {
+    if (!rule.enabled) continue;
+    // Only score embalse rules for the forecast (forecast is at embalse location)
+    if (rule.expectedWind.zone !== 'embalse' && rule.expectedWind.zone !== 'norte') continue;
+
+    let score = 0;
+    const c = rule.conditions;
+
+    // Hard gates
+    if (c.months && !c.months.includes(month)) {
+      const isAdjacent = c.months.some((m) => Math.abs(m - month) === 1 || Math.abs(m - month) === 11);
+      if (!isAdjacent) continue;
+    }
+    if (temp !== null && c.minTemp !== undefined && temp < c.minTemp - 4) continue;
+
+    // Temperature (0-25)
+    if (temp !== null && c.minTemp !== undefined) {
+      if (temp >= c.minTemp) {
+        score += Math.min(25, 15 + (temp - c.minTemp) * 2);
+      } else {
+        score += Math.max(0, 15 - (c.minTemp - temp) * 5);
+      }
+    }
+
+    // Time of day (0-20)
+    if (c.timeWindow) {
+      const { from, to } = c.timeWindow;
+      if (hour >= from && hour <= to) {
+        const mid = (from + to) / 2;
+        const dist = Math.abs(hour - mid);
+        const windowSize = (to - from) / 2;
+        score += 20 - Math.round((dist / windowSize) * 8);
+      } else {
+        const distToWindow = Math.min(Math.abs(hour - from), Math.abs(hour - to));
+        if (distToWindow <= 2) {
+          score += Math.max(0, 8 - distToWindow * 4);
+        }
+      }
+    }
+
+    // Season (0-15)
+    if (c.months) {
+      if (c.months.includes(month)) {
+        if (month === 8) score += 15;
+        else if (month === 7) score += 14;
+        else if (month === 6) score += 9;
+        else if (month === 9) score += 8;
+        else score += 5;
+      } else {
+        score += 3;
+      }
+    }
+
+    // Humidity (0-10)
+    if (humidity !== null) {
+      if (c.maxHumidity && humidity > c.maxHumidity) {
+        score -= Math.min(15, (humidity - c.maxHumidity) * 1.5);
+      } else if (humidity >= 45 && humidity <= 65) {
+        score += 10;
+      } else if (humidity < 45) {
+        score += 6;
+      } else {
+        score += 4;
+      }
+    }
+
+    // Wind direction (0-15)
+    if (windDir !== null) {
+      if (isDirectionInRange(windDir, rule.expectedWind.directionRange)) {
+        score += 15;
+      }
+    }
+
+    // Wind speed (0-15)
+    if (windSpeed !== null) {
+      if (windSpeed >= rule.expectedWind.minSpeed) {
+        score += Math.min(15, 8 + windSpeed * 1.5);
+      } else if (windSpeed > 0.5) {
+        score += 4;
+      }
+    }
+
+    // ΔT scaling
+    if (deltaT !== null) {
+      if (deltaT >= 20) score *= 1.15;
+      else if (deltaT >= 16) score *= 1.08;
+      else if (deltaT < 8) score *= 0.6;
+    }
+
+    // Cloud cover penalty
+    if (point.cloudCover !== null && point.cloudCover > 70) {
+      score *= 0.8;
+    }
+
+    // CAPE bonus
+    if (point.cape !== null && point.cape > 200) {
+      score *= 1.05;
+    }
+
+    score = Math.min(100, Math.max(0, Math.round(score)));
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestRule = rule.name;
+
+      const isPrimaryRule = rule.id.startsWith('thermal_');
+      const isPrecursorRule = rule.id.startsWith('precursor_');
+      if (isPrimaryRule && score >= 50) isNavigable = true;
+      if (isPrecursorRule && score >= 40) isPrecursor = true;
+    }
+  }
+
+  return { score: bestScore, mainRule: bestRule, isNavigable, isPrecursor };
+}
+
+function thermalColor(score: number): string {
+  if (score < 20) return 'transparent';
+  if (score < 40) return '#3b82f6';
+  if (score < 55) return '#f59e0b';
+  if (score < 75) return '#f97316';
+  return '#ef4444';
+}
+
+function thermalBg(score: number): string {
+  if (score < 20) return 'transparent';
+  if (score < 40) return 'rgba(59,130,246,0.1)';
+  if (score < 55) return 'rgba(245,158,11,0.1)';
+  if (score < 75) return 'rgba(249,115,22,0.15)';
+  return 'rgba(239,68,68,0.18)';
+}
+
 // ── Forecast row ──────────────────────────────────────────
 
-function ForecastRow({ point, showDate }: { point: HourlyForecast; showDate: boolean }) {
+function ForecastRow({
+  point,
+  showDate,
+  thermalScore,
+}: {
+  point: HourlyForecast;
+  showDate: boolean;
+  thermalScore: ThermalScore;
+}) {
   const kt = point.windSpeed !== null ? msToKnots(point.windSpeed) : null;
   const gustKt = point.windGusts !== null ? msToKnots(point.windGusts) : null;
   const barWidth = kt !== null ? Math.min((kt / MAX_WIND_KT) * 100, 100) : 0;
@@ -71,10 +235,11 @@ function ForecastRow({ point, showDate }: { point: HourlyForecast; showDate: boo
 
   return (
     <div
-      className={`grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px] gap-1 items-center px-2 py-[3px] text-xs
+      className={`grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px] gap-1 items-center px-2 py-[3px] text-xs
         ${!point.isDay ? 'bg-slate-800/40' : ''}
         ${showDate ? 'border-t border-slate-600' : 'border-t border-slate-800/50'}
         hover:bg-slate-700/30 transition-colors`}
+      style={{ background: thermalScore.score >= 20 ? thermalBg(thermalScore.score) : undefined }}
     >
       {/* Time */}
       <div className="text-slate-400 tabular-nums">
@@ -93,19 +258,16 @@ function ForecastRow({ point, showDate }: { point: HourlyForecast; showDate: boo
 
       {/* Wind speed bar */}
       <div className="relative h-4 bg-slate-800 rounded overflow-hidden">
-        {/* Gust bar (lighter, behind) */}
         {gustWidth > barWidth && (
           <div
             className="absolute top-0 left-0 h-full rounded opacity-30"
             style={{ width: `${gustWidth}%`, backgroundColor: barColor }}
           />
         )}
-        {/* Speed bar */}
         <div
           className="absolute top-0 left-0 h-full rounded"
           style={{ width: `${barWidth}%`, backgroundColor: barColor }}
         />
-        {/* Label inside bar */}
         {kt !== null && kt >= 1 && (
           <span className="absolute inset-0 flex items-center px-1.5 text-[10px] font-semibold text-white drop-shadow-sm">
             {kt.toFixed(0)} kt
@@ -145,8 +307,106 @@ function ForecastRow({ point, showDate }: { point: HourlyForecast; showDate: boo
       <div className="text-center text-[11px]" title={`Nubes: ${point.cloudCover ?? '—'}%`}>
         {cloudIcon(point.cloudCover)}
       </div>
+
+      {/* Thermal score indicator */}
+      <div
+        className="text-center"
+        title={thermalScore.mainRule ?? 'Sin señal térmica'}
+      >
+        {thermalScore.score >= 20 ? (
+          <span
+            className={`text-[10px] font-bold tabular-nums ${
+              thermalScore.isNavigable ? 'animate-pulse' : ''
+            }`}
+            style={{ color: thermalColor(thermalScore.score) }}
+          >
+            {thermalScore.score}
+          </span>
+        ) : (
+          <span className="text-slate-700">·</span>
+        )}
+      </div>
     </div>
   );
+}
+
+// ── Thermal window detection ─────────────────────────────
+
+interface ThermalWindow {
+  startTime: Date;
+  endTime: Date;
+  peakScore: number;
+  peakTime: Date;
+  avgScore: number;
+  ruleName: string | null;
+}
+
+function findThermalWindows(
+  data: HourlyForecast[],
+  rules: ThermalWindRule[],
+  deltaT: number | null,
+): ThermalWindow[] {
+  const windows: ThermalWindow[] = [];
+  let currentWindow: {
+    start: Date;
+    end: Date;
+    scores: number[];
+    peakScore: number;
+    peakTime: Date;
+    ruleName: string | null;
+  } | null = null;
+
+  const future = data.filter((p) => p.time.getTime() > Date.now());
+
+  for (const point of future) {
+    const ts = scoreForecastThermal(point, rules, deltaT);
+
+    if (ts.score >= 35) {
+      if (!currentWindow) {
+        currentWindow = {
+          start: point.time,
+          end: point.time,
+          scores: [ts.score],
+          peakScore: ts.score,
+          peakTime: point.time,
+          ruleName: ts.mainRule,
+        };
+      } else {
+        currentWindow.end = point.time;
+        currentWindow.scores.push(ts.score);
+        if (ts.score > currentWindow.peakScore) {
+          currentWindow.peakScore = ts.score;
+          currentWindow.peakTime = point.time;
+          currentWindow.ruleName = ts.mainRule;
+        }
+      }
+    } else if (currentWindow) {
+      if (currentWindow.scores.length >= 2) {
+        windows.push({
+          startTime: currentWindow.start,
+          endTime: currentWindow.end,
+          peakScore: currentWindow.peakScore,
+          peakTime: currentWindow.peakTime,
+          avgScore: Math.round(currentWindow.scores.reduce((a, b) => a + b, 0) / currentWindow.scores.length),
+          ruleName: currentWindow.ruleName,
+        });
+      }
+      currentWindow = null;
+    }
+  }
+
+  if (currentWindow && currentWindow.scores.length >= 2) {
+    windows.push({
+      startTime: currentWindow.start,
+      endTime: currentWindow.end,
+      peakScore: currentWindow.peakScore,
+      peakTime: currentWindow.peakTime,
+      avgScore: Math.round(currentWindow.scores.reduce((a, b) => a + b, 0) / currentWindow.scores.length),
+      ruleName: currentWindow.ruleName,
+    });
+  }
+
+  return windows;
 }
 
 // ── Main component ────────────────────────────────────────
@@ -158,17 +418,30 @@ export function ForecastTimeline() {
   const error = useForecastStore((s) => s.error);
   const [range, setRange] = useState(24);
 
+  const rules = useThermalStore((s) => s.rules);
+  const dailyContext = useThermalStore((s) => s.dailyContext);
+  const deltaT = dailyContext?.deltaT ?? null;
+
   // Filter data by selected time range
   const visibleData = useMemo(() => {
     if (hourly.length === 0) return [];
     const now = new Date();
     const cutoff = new Date(now.getTime() + range * 60 * 60 * 1000);
-    // Include past hours too (up to 6h back)
     const startCutoff = new Date(now.getTime() - 6 * 60 * 60 * 1000);
     return hourly.filter(
       (p) => p.time >= startCutoff && p.time <= cutoff,
     );
   }, [hourly, range]);
+
+  // Score thermal for each point
+  const thermalScores = useMemo(() => {
+    return visibleData.map((point) => scoreForecastThermal(point, rules, deltaT));
+  }, [visibleData, rules, deltaT]);
+
+  // Find thermal windows in the full dataset
+  const thermalWindows = useMemo(() => {
+    return findThermalWindows(hourly, rules, deltaT);
+  }, [hourly, rules, deltaT]);
 
   // Find the "now" index for highlighting
   const nowIndex = useMemo(() => {
@@ -191,7 +464,6 @@ export function ForecastTimeline() {
     const future = visibleData.filter((p) => p.time.getTime() > Date.now());
     if (future.length === 0) return null;
 
-    // Find best wind window in the next hours
     let bestKt = 0;
     let bestTime: Date | null = null;
     let rainHours = 0;
@@ -247,6 +519,39 @@ export function ForecastTimeline() {
         </div>
       </div>
 
+      {/* Thermal windows forecast */}
+      {thermalWindows.length > 0 && (
+        <div className="mb-2 space-y-1">
+          {thermalWindows.slice(0, 3).map((w, i) => (
+            <div
+              key={i}
+              className="px-2 py-1.5 rounded text-[11px] flex items-center gap-2"
+              style={{
+                background: thermalBg(w.peakScore),
+                border: `1px solid ${thermalColor(w.peakScore)}30`,
+              }}
+            >
+              <span style={{ color: thermalColor(w.peakScore) }} className="font-bold tabular-nums">
+                {w.peakScore}%
+              </span>
+              <div className="text-slate-300 flex-1">
+                <span className="font-medium text-white">
+                  {formatHour(w.startTime)}–{formatHour(w.endTime)}
+                </span>
+                {w.startTime.getDate() !== new Date().getDate() && (
+                  <span className="text-slate-500 ml-1">
+                    ({formatDay(w.startTime)})
+                  </span>
+                )}
+                <span className="text-slate-500 ml-2 text-[10px]">
+                  {w.ruleName?.replace('Térmico ', '').replace('Precursor: ', '⚡')}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Sailing summary */}
       {sailingSummary && sailingSummary.bestKt > 0 && (
         <div className="mb-2 px-2 py-1.5 bg-slate-800/60 rounded text-[11px] text-slate-300 flex items-center gap-2">
@@ -266,8 +571,17 @@ export function ForecastTimeline() {
         </div>
       )}
 
+      {/* ΔT context */}
+      {deltaT !== null && (
+        <div className="mb-1 px-2 text-[10px] text-slate-500">
+          ΔT hoy: <span className={deltaT >= 16 ? 'text-amber-400' : deltaT < 8 ? 'text-blue-400' : 'text-slate-400'}>{deltaT.toFixed(1)}°C</span>
+          {deltaT >= 20 && ' 🔥'}
+          {deltaT < 8 && ' ❄️'}
+        </div>
+      )}
+
       {/* Column header */}
-      <div className="grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px] gap-1 px-2 py-1 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-700">
+      <div className="grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px] gap-1 px-2 py-1 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-700">
         <span>Hora</span>
         <span>Dir</span>
         <span>Viento</span>
@@ -275,6 +589,7 @@ export function ForecastTimeline() {
         <span className="text-right">HR</span>
         <span className="text-right">mm</span>
         <span className="text-center">☁</span>
+        <span className="text-center" title="Score térmico estimado">🌡</span>
       </div>
 
       {/* Timeline rows */}
@@ -286,7 +601,6 @@ export function ForecastTimeline() {
         )}
 
         {visibleData.map((point, i) => {
-          // Show date label on first row and when day changes
           const prevDay = i > 0 ? visibleData[i - 1].time.getDate() : -1;
           const showDate = i === 0 || point.time.getDate() !== prevDay;
 
@@ -295,11 +609,14 @@ export function ForecastTimeline() {
               key={point.time.getTime()}
               className={i === nowIndex ? 'relative' : ''}
             >
-              {/* "Now" indicator */}
               {i === nowIndex && (
                 <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500 z-10" />
               )}
-              <ForecastRow point={point} showDate={showDate} />
+              <ForecastRow
+                point={point}
+                showDate={showDate}
+                thermalScore={thermalScores[i] ?? { score: 0, mainRule: null, isNavigable: false, isPrecursor: false }}
+              />
             </div>
           );
         })}
@@ -308,7 +625,7 @@ export function ForecastTimeline() {
       {/* Footer */}
       {fetchedAt && (
         <div className="text-[10px] text-slate-600 text-center py-1 border-t border-slate-800">
-          Open-Meteo · Actualizado {formatHour(fetchedAt)}
+          Open-Meteo + scoring térmico · Actualizado {formatHour(fetchedAt)}
         </div>
       )}
     </div>

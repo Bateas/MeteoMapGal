@@ -96,6 +96,7 @@ export function useWeatherData() {
       }
 
       // Fetch Netatmo observations (returns both stations and readings)
+      // Includes wind stations AND temp-only stations for thermal scoring
       const netatmoStationIds = stations
         .filter((s) => s.source === 'netatmo')
         .map((s) => s.id);
