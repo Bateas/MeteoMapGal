@@ -1,4 +1,6 @@
 import type { NormalizedReading } from '../types/station';
+import type { ForecastPoint, MicroZoneId } from '../types/thermal';
+import type { MicroZone } from '../types/thermal';
 
 interface OpenMeteoHourlyResponse {
   hourly: {
@@ -69,4 +71,73 @@ export async function fetchOpenMeteoForStations(
 
   console.log(`[OpenMeteo] Loaded ${allReadings.length} historical readings for ${stations.length} stations`);
   return allReadings;
+}
+
+// ── Forecast functions ─────────────────────────────────
+
+/**
+ * Fetch hourly forecast from Open-Meteo for a location.
+ * Uses the same API but with forecast_hours instead of past_hours.
+ */
+export async function fetchOpenMeteoForecast(
+  lat: number,
+  lon: number,
+  forecastHours = 12
+): Promise<ForecastPoint[]> {
+  const url = `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lon}` +
+    `&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m` +
+    `&forecast_hours=${forecastHours}&past_hours=0` +
+    `&wind_speed_unit=ms` +
+    `&timezone=Europe%2FMadrid`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    console.warn(`[OpenMeteo Forecast] Failed: ${res.status}`);
+    return [];
+  }
+
+  const data: OpenMeteoHourlyResponse = await res.json();
+  const points: ForecastPoint[] = [];
+
+  for (let i = 0; i < data.hourly.time.length; i++) {
+    points.push({
+      timestamp: new Date(data.hourly.time[i]),
+      temperature: data.hourly.temperature_2m[i],
+      humidity: data.hourly.relative_humidity_2m[i],
+      windSpeed: data.hourly.wind_speed_10m[i],
+      windDirection: data.hourly.wind_direction_10m[i],
+    });
+  }
+
+  return points;
+}
+
+/**
+ * Fetch forecast data for all micro-zones in parallel.
+ * Uses zone center coordinates.
+ */
+export async function fetchForecastForZones(
+  zones: MicroZone[],
+  forecastHours = 12
+): Promise<Map<MicroZoneId, ForecastPoint[]>> {
+  const results = new Map<MicroZoneId, ForecastPoint[]>();
+
+  const settled = await Promise.allSettled(
+    zones.map(async (zone) => {
+      const data = await fetchOpenMeteoForecast(
+        zone.center.lat, zone.center.lon, forecastHours
+      );
+      return { id: zone.id, data };
+    })
+  );
+
+  for (const result of settled) {
+    if (result.status === 'fulfilled') {
+      results.set(result.value.id, result.value.data);
+    }
+  }
+
+  console.log(`[OpenMeteo Forecast] Loaded forecasts for ${results.size}/${zones.length} zones`);
+  return results;
 }

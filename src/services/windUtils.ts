@@ -70,3 +70,55 @@ export function formatHumidity(humidity: number | null): string {
   if (humidity === null) return '--';
   return `${Math.round(humidity)}%`;
 }
+
+// ── Thermal wind utilities ───────────────────────────────
+
+/**
+ * Angular difference between two directions (0-180°).
+ * Accounts for wraparound (e.g. 350° vs 10° = 20°).
+ */
+export function angleDifference(a: number, b: number): number {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
+/**
+ * Circular mean of wind directions using sin/cos decomposition.
+ * Returns null if input is empty or all values are null.
+ */
+export function averageWindDirection(directions: (number | null)[]): number | null {
+  const valid = directions.filter((d): d is number => d !== null);
+  if (valid.length === 0) return null;
+
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  let sinSum = 0;
+  let cosSum = 0;
+
+  for (const dir of valid) {
+    sinSum += Math.sin(toRad(dir));
+    cosSum += Math.cos(toRad(dir));
+  }
+
+  const avgRad = Math.atan2(sinSum / valid.length, cosSum / valid.length);
+  const avgDeg = ((avgRad * 180) / Math.PI + 360) % 360;
+  return avgDeg;
+}
+
+/**
+ * Check if a direction falls within a range, handling 0/360 wraparound.
+ * Range { from: 315, to: 45 } means 315°→0°→45° (through north).
+ */
+export function isDirectionInRange(
+  direction: number,
+  range: { from: number; to: number }
+): boolean {
+  const dir = ((direction % 360) + 360) % 360;
+  const { from, to } = range;
+
+  if (from <= to) {
+    // Normal range (e.g., 90 to 270)
+    return dir >= from && dir <= to;
+  }
+  // Wraparound range (e.g., 315 to 45 → through north)
+  return dir >= from || dir <= to;
+}

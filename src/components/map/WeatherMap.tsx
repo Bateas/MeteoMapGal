@@ -8,6 +8,9 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { StationMarker } from './StationMarker';
 import { StationPopup } from './StationPopup';
 import { WindFieldOverlay } from './WindFieldOverlay';
+import { ThermalZoneOverlay } from './ThermalZoneOverlay';
+import { ThermalAlertMarkers } from './ThermalAlertMarker';
+import { PropagationArrows } from './PropagationArrow';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -88,6 +91,9 @@ export function WeatherMap() {
     >
       <NavigationControl position="top-right" visualizePitch />
 
+      {/* Thermal zone polygons (below stations) */}
+      <ThermalZoneOverlay />
+
       {/* Wind field arrows around stations */}
       <WindFieldOverlay stations={stations} readings={currentReadings} />
 
@@ -99,6 +105,12 @@ export function WeatherMap() {
           reading={currentReadings.get(station.id)}
         />
       ))}
+
+      {/* Thermal alert badges on zone centers */}
+      <ThermalAlertMarkers />
+
+      {/* Propagation arrows between zones */}
+      <PropagationArrows />
 
       {/* Selected station popup */}
       {selectedStation && (

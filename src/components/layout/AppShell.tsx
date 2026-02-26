@@ -4,11 +4,15 @@ import { WeatherMap } from '../map/WeatherMap';
 import { useWeatherData } from '../../hooks/useWeatherData';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
 
 export function AppShell() {
   const { forceRefresh } = useWeatherData();
   const isLoading = useWeatherStore((s) => s.isLoading);
   const stations = useWeatherStore((s) => s.stations);
+
+  // Thermal wind analysis: scores rules, detects propagation, fetches forecast
+  useThermalAnalysis();
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-950 text-white">

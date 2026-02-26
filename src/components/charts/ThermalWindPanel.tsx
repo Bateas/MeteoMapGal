@@ -1,444 +1,511 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip,
+  AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, ReferenceLine,
 } from 'recharts';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useThermalStore } from '../../store/thermalStore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/windUtils';
 import { WindCompass } from '../common/WindCompass';
+import { HistoricalAnalysis } from './HistoricalAnalysis';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
+import type { MicroZoneId, ZoneAlert, AlertLevel } from '../../types/thermal';
 
-/** Altitude classification for thermal wind analysis */
-type AltitudeZone = 'valley' | 'mid' | 'mountain';
-
-interface StationSnapshot {
-  station: NormalizedStation;
-  reading: NormalizedReading | undefined;
-  zone: AltitudeZone;
-}
-
-function classifyAltitude(altitude: number): AltitudeZone {
-  if (altitude < 300) return 'valley';
-  if (altitude < 550) return 'mid';
-  return 'mountain';
-}
-
-const ZONE_LABELS: Record<AltitudeZone, string> = {
-  valley: 'Valle',
-  mid: 'Ladera',
-  mountain: 'Montaña',
+const ALERT_COLORS: Record<AlertLevel, string> = {
+  none: '#64748b',
+  low: '#3b82f6',
+  medium: '#f59e0b',
+  high: '#ef4444',
 };
 
-const ZONE_ICONS: Record<AltitudeZone, string> = {
-  valley: '\u2003\u23E3', // valley shape
-  mid: '\u2571',
-  mountain: '\u25B2',
+const ALERT_LABELS: Record<AlertLevel, string> = {
+  none: 'Sin alerta',
+  low: 'Baja',
+  medium: 'Media',
+  high: 'Alta',
 };
 
-/**
- * Calculate angular difference between two directions (0-180)
- * Accounts for wraparound (e.g. 350° vs 10° = 20°)
- */
-function angleDifference(a: number, b: number): number {
-  const diff = Math.abs(a - b) % 360;
-  return diff > 180 ? 360 - diff : diff;
-}
-
-/**
- * Detect thermal wind pattern from station data:
- * - Anabatic (daytime): warm valley, wind rises uphill
- * - Katabatic (nighttime): cold mountain air drains downhill
- */
-function detectThermalPattern(
-  valleyStations: StationSnapshot[],
-  mountainStations: StationSnapshot[]
-): { type: 'anabatic' | 'katabatic' | 'mixed' | 'none'; confidence: number; description: string } {
-  const valleyWithData = valleyStations.filter((s) => s.reading?.temperature != null && s.reading?.windSpeed != null);
-  const mountainWithData = mountainStations.filter((s) => s.reading?.temperature != null && s.reading?.windSpeed != null);
-
-  if (valleyWithData.length === 0 || mountainWithData.length === 0) {
-    return { type: 'none', confidence: 0, description: 'Datos insuficientes para análisis' };
-  }
-
-  const avgValleyTemp = valleyWithData.reduce((sum, s) => sum + s.reading!.temperature!, 0) / valleyWithData.length;
-  const avgMountainTemp = mountainWithData.reduce((sum, s) => sum + s.reading!.temperature!, 0) / mountainWithData.length;
-  const tempDiff = avgValleyTemp - avgMountainTemp;
-
-  const avgValleyWind = valleyWithData.reduce((sum, s) => sum + (s.reading!.windSpeed ?? 0), 0) / valleyWithData.length;
-  const avgMountainWind = mountainWithData.reduce((sum, s) => sum + (s.reading!.windSpeed ?? 0), 0) / mountainWithData.length;
-
-  // Check for wind direction divergence (indicates thermal activity)
-  const directionsValid = valleyWithData.some((s) => s.reading?.windDirection != null)
-    && mountainWithData.some((s) => s.reading?.windDirection != null);
-
-  let dirDivergence = 0;
-  if (directionsValid) {
-    const valleyDirs = valleyWithData.filter((s) => s.reading?.windDirection != null).map((s) => s.reading!.windDirection!);
-    const mountainDirs = mountainWithData.filter((s) => s.reading?.windDirection != null).map((s) => s.reading!.windDirection!);
-    const avgValleyDir = valleyDirs[0]; // simplified
-    const avgMountainDir = mountainDirs[0];
-    dirDivergence = angleDifference(avgValleyDir, avgMountainDir);
-  }
-
-  // Scoring
-  let confidence = 0;
-  let type: 'anabatic' | 'katabatic' | 'mixed' | 'none' = 'none';
-
-  const hour = new Date().getHours();
-  const isDaytime = hour >= 8 && hour <= 20;
-
-  // Temperature gradient: >2°C suggests thermal activity
-  if (Math.abs(tempDiff) > 2) confidence += 25;
-  if (Math.abs(tempDiff) > 4) confidence += 15;
-
-  // Wind direction divergence >30° suggests thermal influence
-  if (dirDivergence > 30) confidence += 20;
-  if (dirDivergence > 60) confidence += 15;
-
-  // Wind speed difference
-  if (Math.abs(avgValleyWind - avgMountainWind) > 1) confidence += 15;
-
-  // Time-of-day alignment
-  if (isDaytime && tempDiff > 2) {
-    type = 'anabatic';
-    confidence += 10;
-  } else if (!isDaytime && tempDiff > 0) {
-    type = 'katabatic';
-    confidence += 10;
-  } else if (confidence > 30) {
-    type = 'mixed';
-  }
-
-  confidence = Math.min(confidence, 100);
-
-  const descriptions: Record<string, string> = {
-    anabatic: `Viento anabático probable: valle ${avgValleyTemp.toFixed(1)}°C → montaña ${avgMountainTemp.toFixed(1)}°C (Δ${tempDiff.toFixed(1)}°C). Aire asciende por calentamiento.`,
-    katabatic: `Viento catabático probable: aire frío desciende de montaña (${avgMountainTemp.toFixed(1)}°C) al valle (${avgValleyTemp.toFixed(1)}°C).`,
-    mixed: `Patrón térmico mixto: gradiente ${tempDiff.toFixed(1)}°C, divergencia viento ${dirDivergence.toFixed(0)}°.`,
-    none: avgValleyWind < 0.5 && avgMountainWind < 0.5
-      ? 'Calma generalizada. Sin patrón térmico detectable.'
-      : `Sin patrón térmico claro. Gradiente: ${tempDiff.toFixed(1)}°C.`,
-  };
-
-  return { type, confidence, description: descriptions[type] };
-}
+type PanelSection = 'alerts' | 'historical';
 
 export function ThermalWindPanel() {
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
-  const readingHistory = useWeatherStore((s) => s.readingHistory);
 
-  // Build snapshots with zone classification
-  const snapshots = useMemo<StationSnapshot[]>(() => {
-    return stations.map((station) => ({
-      station,
-      reading: currentReadings.get(station.id),
-      zone: classifyAltitude(station.altitude),
-    })).sort((a, b) => a.station.altitude - b.station.altitude);
-  }, [stations, currentReadings]);
+  const zones = useThermalStore((s) => s.zones);
+  const rules = useThermalStore((s) => s.rules);
+  const ruleScores = useThermalStore((s) => s.ruleScores);
+  const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
+  const propagationEvents = useThermalStore((s) => s.propagationEvents);
+  const zoneForecast = useThermalStore((s) => s.zoneForecast);
+  const forecastAlerts = useThermalStore((s) => s.forecastAlerts);
+  const stationToZone = useThermalStore((s) => s.stationToZone);
+  const toggleRule = useThermalStore((s) => s.toggleRule);
+  const selectZone = useThermalStore((s) => s.selectZone);
+  const selectedZoneId = useThermalStore((s) => s.selectedZoneId);
 
-  const valleyStations = snapshots.filter((s) => s.zone === 'valley');
-  const midStations = snapshots.filter((s) => s.zone === 'mid');
-  const mountainStations = snapshots.filter((s) => s.zone === 'mountain');
+  const [activeSection, setActiveSection] = useState<PanelSection>('alerts');
+  const [showRules, setShowRules] = useState(false);
 
-  // Thermal pattern detection
-  const thermalPattern = useMemo(() => {
-    return detectThermalPattern(
-      [...valleyStations, ...midStations.filter((s) => s.station.altitude < 400)],
-      [...mountainStations, ...midStations.filter((s) => s.station.altitude >= 400)]
-    );
-  }, [valleyStations, midStations, mountainStations]);
-
-  // Build comparative chart: temperature by altitude over time
-  const altitudeChartData = useMemo(() => {
-    // Pick one representative from valley and one from mountain
-    const valleyId = valleyStations[0]?.station.id;
-    const mountainId = mountainStations[0]?.station.id;
-    if (!valleyId || !mountainId) return [];
-
-    const valleyHistory = readingHistory.get(valleyId) || [];
-    const mountainHistory = readingHistory.get(mountainId) || [];
-
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    const timeMap = new Map<number, Record<string, number | null>>();
-
-    for (const reading of valleyHistory) {
-      const ts = reading.timestamp.getTime();
-      if (ts < cutoff) continue;
-      const rounded = Math.round(ts / 300000) * 300000;
-      const entry = timeMap.get(rounded) || { time: rounded };
-      entry.valleyTemp = reading.temperature;
-      entry.valleyWind = reading.windSpeed != null ? msToKnots(reading.windSpeed) : null;
-      entry.valleyDir = reading.windDirection;
-      timeMap.set(rounded, entry);
+  // ── Zone station grouping ────────────────────────────
+  const zoneStations = useMemo(() => {
+    const map = new Map<MicroZoneId, { station: NormalizedStation; reading: NormalizedReading | undefined }[]>();
+    for (const zone of zones) {
+      map.set(zone.id, []);
     }
-
-    for (const reading of mountainHistory) {
-      const ts = reading.timestamp.getTime();
-      if (ts < cutoff) continue;
-      const rounded = Math.round(ts / 300000) * 300000;
-      const entry = timeMap.get(rounded) || { time: rounded };
-      entry.mountainTemp = reading.temperature;
-      entry.mountainWind = reading.windSpeed != null ? msToKnots(reading.windSpeed) : null;
-      entry.mountainDir = reading.windDirection;
-      timeMap.set(rounded, entry);
+    for (const station of stations) {
+      const zoneId = stationToZone.get(station.id);
+      if (zoneId) {
+        const list = map.get(zoneId) || [];
+        list.push({ station, reading: currentReadings.get(station.id) });
+        map.set(zoneId, list);
+      }
     }
+    return map;
+  }, [stations, currentReadings, zones, stationToZone]);
 
-    return Array.from(timeMap.values()).sort(
-      (a, b) => (a.time as number) - (b.time as number)
-    );
-  }, [valleyStations, mountainStations, readingHistory]);
+  // ── Forecast timeline data ───────────────────────────
+  const forecastChartData = useMemo(() => {
+    const embalseFC = zoneForecast.get('embalse') || [];
+    if (embalseFC.length === 0) return [];
+
+    return embalseFC.map((point) => {
+      const hourAlerts = forecastAlerts.filter(
+        (a) => a.expectedTime.getHours() === point.timestamp.getHours()
+      );
+      const maxScore = hourAlerts.reduce((max, a) => Math.max(max, a.score), 0);
+
+      return {
+        time: point.timestamp.getTime(),
+        score: maxScore,
+        temp: point.temperature,
+        wind: point.windSpeed != null ? msToKnots(point.windSpeed) : null,
+      };
+    });
+  }, [zoneForecast, forecastAlerts]);
 
   if (stations.length === 0) {
     return (
       <div className="text-center text-slate-500 text-xs py-6 px-4">
-        <div className="text-lg mb-2">🌬️</div>
+        <div className="text-lg mb-2">&#x1F32C;&#xFE0F;</div>
         <div>Cargando estaciones...</div>
       </div>
     );
   }
 
-  const patternColors = {
-    anabatic: '#f59e0b',
-    katabatic: '#3b82f6',
-    mixed: '#a78bfa',
-    none: '#64748b',
-  };
-
   return (
     <div className="space-y-3">
-      {/* Thermal pattern indicator */}
-      <div
-        className="rounded-lg p-3 border"
-        style={{
-          borderColor: patternColors[thermalPattern.type],
-          background: `${patternColors[thermalPattern.type]}10`,
-        }}
-      >
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: patternColors[thermalPattern.type] }}>
-            {thermalPattern.type === 'anabatic' && 'Viento Anabático'}
-            {thermalPattern.type === 'katabatic' && 'Viento Catabático'}
-            {thermalPattern.type === 'mixed' && 'Patrón Mixto'}
-            {thermalPattern.type === 'none' && 'Sin Patrón Térmico'}
-          </span>
-          {thermalPattern.confidence > 0 && (
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ color: patternColors[thermalPattern.type], background: `${patternColors[thermalPattern.type]}20` }}>
-              {thermalPattern.confidence}%
-            </span>
-          )}
-        </div>
-        <p className="text-[10px] text-slate-400 leading-relaxed">{thermalPattern.description}</p>
+      {/* Section toggle */}
+      <div className="flex gap-1">
+        <button
+          onClick={() => setActiveSection('alerts')}
+          className={`flex-1 text-[10px] font-semibold py-1.5 rounded transition-colors ${
+            activeSection === 'alerts'
+              ? 'bg-amber-600 text-white'
+              : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
+          }`}
+        >
+          Alertas
+        </button>
+        <button
+          onClick={() => setActiveSection('historical')}
+          className={`flex-1 text-[10px] font-semibold py-1.5 rounded transition-colors ${
+            activeSection === 'historical'
+              ? 'bg-amber-600 text-white'
+              : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
+          }`}
+        >
+          Hist&oacute;rico
+        </button>
       </div>
 
-      {/* Station comparison by altitude */}
-      {[
-        { label: 'mountain', stations: mountainStations },
-        { label: 'mid', stations: midStations },
-        { label: 'valley', stations: valleyStations },
-      ].map(({ label, stations: zoneStations }) => {
-        if (zoneStations.length === 0) return null;
-        const zone = label as AltitudeZone;
-        return (
-          <div key={zone}>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <span className="text-[10px] text-slate-500">{ZONE_ICONS[zone]}</span>
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                {ZONE_LABELS[zone]}
-              </span>
-              <span className="text-[9px] text-slate-600">
-                ({zoneStations.length} est.)
-              </span>
-            </div>
+      {activeSection === 'historical' ? (
+        <HistoricalAnalysis />
+      ) : (
+        <>
+          {/* Active alerts banner */}
+          <AlertsBanner zoneAlerts={zoneAlerts} zones={zones} />
 
+          {/* Propagation events */}
+          {propagationEvents.length > 0 && (
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2.5">
+              <div className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5">
+                Propagaci&oacute;n detectada
+              </div>
+              {propagationEvents.map((event, i) => {
+                const sourceZone = zones.find((z) => z.id === event.sourceZone);
+                const targetZone = zones.find((z) => z.id === event.targetZone);
+                return (
+                  <div key={i} className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                    <span style={{ color: sourceZone?.color }}>{sourceZone?.name}</span>
+                    <span className="text-slate-600">&rarr;</span>
+                    <span style={{ color: targetZone?.color }}>{targetZone?.name}</span>
+                    <span className="text-slate-600 ml-auto">
+                      ~{event.estimatedArrivalMin} min
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Zone cards */}
+          {zones.map((zone) => {
+            const alert = zoneAlerts.get(zone.id);
+            const stns = zoneStations.get(zone.id) || [];
+            const isSelected = selectedZoneId === zone.id;
+
+            return (
+              <ZoneCard
+                key={zone.id}
+                zoneName={zone.name}
+                zoneColor={zone.color}
+                alert={alert}
+                stations={stns}
+                ruleScores={ruleScores.filter((s) => s.matchedZone === zone.id)}
+                rules={rules}
+                isExpanded={isSelected}
+                onToggle={() => selectZone(isSelected ? null : zone.id)}
+              />
+            );
+          })}
+
+          {/* Forecast timeline */}
+          {forecastChartData.length > 0 && (
+            <div>
+              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                Predicci&oacute;n T&eacute;rmica (pr&oacute;x. horas)
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-2">
+                <ResponsiveContainer width="100%" height={120}>
+                  <AreaChart data={forecastChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="time"
+                      type="number"
+                      domain={['dataMin', 'dataMax']}
+                      tickFormatter={(ts) => format(new Date(ts), 'HH:mm', { locale: es })}
+                      stroke="#64748b"
+                      fontSize={9}
+                    />
+                    <YAxis
+                      stroke="#64748b"
+                      fontSize={9}
+                      domain={[0, 100]}
+                      width={28}
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: '#1e293b',
+                        border: '1px solid #334155',
+                        borderRadius: 6,
+                        fontSize: 10,
+                      }}
+                      labelFormatter={(ts) =>
+                        format(new Date(ts as number), 'HH:mm', { locale: es })
+                      }
+                      formatter={(value: number, name: string) => {
+                        if (name === 'score') return [`${value}%`, 'Prob. t\u00e9rmico'];
+                        if (name === 'temp') return [value != null ? `${value.toFixed(1)}\u00b0C` : '--', 'Temp'];
+                        if (name === 'wind') return [value != null ? `${value.toFixed(1)} kt` : '--', 'Viento'];
+                        return [value, name];
+                      }}
+                    />
+                    <ReferenceLine y={55} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    <ReferenceLine y={75} stroke="#ef4444" strokeDasharray="3 3" strokeOpacity={0.5} />
+                    <Area
+                      dataKey="score"
+                      stroke="#f59e0b"
+                      fill="#f59e0b"
+                      fillOpacity={0.15}
+                      strokeWidth={2}
+                      type="monotone"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Rules config toggle */}
+          <button
+            onClick={() => setShowRules(!showRules)}
+            className="w-full text-[10px] text-slate-500 py-1 hover:text-slate-400 transition-colors"
+          >
+            {showRules ? 'Ocultar reglas' : 'Configurar reglas'} ({rules.filter((r) => r.enabled).length}/{rules.length})
+          </button>
+
+          {showRules && (
             <div className="space-y-1">
-              {zoneStations.map(({ station, reading }) => (
-                <StationRow key={station.id} station={station} reading={reading} />
+              {rules.map((rule) => (
+                <button
+                  key={rule.id}
+                  onClick={() => toggleRule(rule.id)}
+                  className={`w-full flex items-center gap-2 text-left text-[10px] px-2 py-1.5 rounded transition-colors ${
+                    rule.enabled
+                      ? 'bg-slate-800/80 text-slate-300'
+                      : 'bg-slate-900 text-slate-600'
+                  }`}
+                >
+                  <span className={`w-3 h-3 rounded border flex items-center justify-center text-[8px] ${
+                    rule.enabled
+                      ? 'border-amber-500 bg-amber-500/20 text-amber-500'
+                      : 'border-slate-600'
+                  }`}>
+                    {rule.enabled && '\u2713'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{rule.name}</div>
+                    <div className="text-[8px] text-slate-600 truncate">
+                      {rule.source === 'historical' ? 'Hist.' : 'Manual'} &middot; {rule.description}
+                    </div>
+                  </div>
+                </button>
               ))}
             </div>
-          </div>
-        );
-      })}
-
-      {/* Comparative chart: Valley vs Mountain temperature */}
-      {altitudeChartData.length > 0 && (
-        <div>
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-            Gradiente Térmico (24h)
-          </div>
-          <div className="bg-slate-800/50 rounded-lg p-2">
-            <ResponsiveContainer width="100%" height={150}>
-              <LineChart data={altitudeChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis
-                  dataKey="time"
-                  type="number"
-                  domain={['dataMin', 'dataMax']}
-                  tickFormatter={(ts) => format(new Date(ts), 'HH:mm', { locale: es })}
-                  stroke="#64748b"
-                  fontSize={9}
-                />
-                <YAxis stroke="#64748b" fontSize={9} unit="°C" width={35} />
-                <Tooltip
-                  contentStyle={{
-                    background: '#1e293b',
-                    border: '1px solid #334155',
-                    borderRadius: 6,
-                    fontSize: 10,
-                  }}
-                  labelFormatter={(ts) =>
-                    format(new Date(ts as number), 'dd/MM HH:mm', { locale: es })
-                  }
-                  formatter={(value: number, name: string) => [
-                    value != null ? `${Number(value).toFixed(1)}°C` : '--',
-                    name === 'valleyTemp' ? `Valle (${valleyStations[0]?.station.name})` : `Montaña (${mountainStations[0]?.station.name})`,
-                  ]}
-                />
-                <Line
-                  dataKey="valleyTemp"
-                  stroke="#ef4444"
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                  name="valleyTemp"
-                />
-                <Line
-                  dataKey="mountainTemp"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                  name="mountainTemp"
-                />
-                <ReferenceLine y={0} stroke="#475569" strokeDasharray="3 3" />
-              </LineChart>
-            </ResponsiveContainer>
-            <div className="flex justify-center gap-4 mt-1">
-              <div className="flex items-center gap-1">
-                <span className="w-3 h-0.5 bg-red-500 inline-block rounded" />
-                <span className="text-[9px] text-slate-500">Valle</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-3 h-0.5 bg-blue-500 inline-block rounded" />
-                <span className="text-[9px] text-slate-500">Montaña</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Wind comparison chart */}
-      {altitudeChartData.length > 0 && (
-        <div>
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-            Viento Comparado (24h)
-          </div>
-          <div className="bg-slate-800/50 rounded-lg p-2">
-            <ResponsiveContainer width="100%" height={130}>
-              <LineChart data={altitudeChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis
-                  dataKey="time"
-                  type="number"
-                  domain={['dataMin', 'dataMax']}
-                  tickFormatter={(ts) => format(new Date(ts), 'HH:mm', { locale: es })}
-                  stroke="#64748b"
-                  fontSize={9}
-                />
-                <YAxis stroke="#64748b" fontSize={9} unit="kt" width={35} />
-                <Tooltip
-                  contentStyle={{
-                    background: '#1e293b',
-                    border: '1px solid #334155',
-                    borderRadius: 6,
-                    fontSize: 10,
-                  }}
-                  labelFormatter={(ts) =>
-                    format(new Date(ts as number), 'dd/MM HH:mm', { locale: es })
-                  }
-                  formatter={(value: number, name: string) => [
-                    value != null ? `${Number(value).toFixed(1)} kt` : '--',
-                    name === 'valleyWind' ? `Valle` : `Montaña`,
-                  ]}
-                />
-                <Line
-                  dataKey="valleyWind"
-                  stroke="#f59e0b"
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                  name="valleyWind"
-                />
-                <Line
-                  dataKey="mountainWind"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                  name="mountainWind"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-            <div className="flex justify-center gap-4 mt-1">
-              <div className="flex items-center gap-1">
-                <span className="w-3 h-0.5 bg-amber-500 inline-block rounded" />
-                <span className="text-[9px] text-slate-500">Valle</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-3 h-0.5 bg-violet-500 inline-block rounded" />
-                <span className="text-[9px] text-slate-500">Montaña</span>
-              </div>
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-/** Compact row showing a station's current wind + temp */
-function StationRow({ station, reading }: { station: NormalizedStation; reading: NormalizedReading | undefined }) {
-  const windColor = windSpeedColor(reading?.windSpeed ?? null);
+// ── Sub-components ────────────────────────────────────────
+
+function AlertsBanner({
+  zoneAlerts,
+  zones,
+}: {
+  zoneAlerts: Map<MicroZoneId, ZoneAlert>;
+  zones: { id: MicroZoneId; name: string; color: string }[];
+}) {
+  const activeAlerts = zones
+    .map((z) => ({ zone: z, alert: zoneAlerts.get(z.id) }))
+    .filter((a) => a.alert && a.alert.alertLevel !== 'none');
+
+  if (activeAlerts.length === 0) {
+    return (
+      <div className="rounded-lg border border-slate-700 bg-slate-800/30 p-2.5 text-center">
+        <div className="text-[10px] text-slate-500">
+          Sin alertas t&eacute;rmicas activas
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex items-center gap-2 bg-slate-800/60 rounded px-2 py-1.5">
-      {/* Wind compass mini */}
-      <WindCompass
-        direction={reading?.windDirection ?? null}
-        speed={reading?.windSpeed ?? null}
-        size={32}
-      />
-
-      {/* Station info */}
-      <div className="flex-1 min-w-0">
-        <div className="text-[10px] font-medium text-slate-300 truncate">{station.name}</div>
-        <div className="text-[9px] text-slate-500">{station.altitude}m</div>
-      </div>
-
-      {/* Wind speed */}
-      <div className="text-right">
-        <div className="text-[11px] font-bold tabular-nums" style={{ color: windColor }}>
-          {reading?.windSpeed != null ? `${msToKnots(reading.windSpeed).toFixed(1)}` : '--'}
-          <span className="text-[8px] text-slate-500 ml-0.5">kt</span>
+    <div className="space-y-1">
+      {activeAlerts.map(({ zone, alert }) => (
+        <div
+          key={zone.id}
+          className="rounded-lg border p-2.5 flex items-center gap-2"
+          style={{
+            borderColor: ALERT_COLORS[alert!.alertLevel] + '40',
+            background: ALERT_COLORS[alert!.alertLevel] + '08',
+          }}
+        >
+          <div
+            className={`w-2 h-2 rounded-full ${alert!.alertLevel === 'high' ? 'animate-pulse' : ''}`}
+            style={{ background: ALERT_COLORS[alert!.alertLevel] }}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-semibold" style={{ color: zone.color }}>
+              {zone.name}
+            </div>
+            <div className="text-[9px] text-slate-500">
+              {alert!.activeRules.length} regla{alert!.activeRules.length !== 1 ? 's' : ''} activa{alert!.activeRules.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+          <div className="text-right">
+            <div
+              className="text-[11px] font-bold font-mono"
+              style={{ color: ALERT_COLORS[alert!.alertLevel] }}
+            >
+              {alert!.maxScore}%
+            </div>
+            <div className="text-[8px] text-slate-500 uppercase">
+              {ALERT_LABELS[alert!.alertLevel]}
+            </div>
+          </div>
         </div>
-        {reading?.windDirection != null && (
-          <div className="text-[8px] text-slate-500">
-            {degreesToCardinal(reading.windDirection)} {Math.round(reading.windDirection)}°
+      ))}
+    </div>
+  );
+}
+
+function ZoneCard({
+  zoneName,
+  zoneColor,
+  alert,
+  stations,
+  ruleScores,
+  rules,
+  isExpanded,
+  onToggle,
+}: {
+  zoneName: string;
+  zoneColor: string;
+  alert: ZoneAlert | undefined;
+  stations: { station: NormalizedStation; reading: NormalizedReading | undefined }[];
+  ruleScores: { ruleId: string; score: number; breakdown: Record<string, number> }[];
+  rules: { id: string; name: string; enabled: boolean }[];
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const maxScore = alert?.maxScore || 0;
+
+  // Zone averages
+  const zoneAvg = useMemo(() => {
+    const readings = stations.map((s) => s.reading).filter(Boolean) as NormalizedReading[];
+    const temps = readings.filter((r) => r.temperature != null).map((r) => r.temperature!);
+    const winds = readings.filter((r) => r.windSpeed != null).map((r) => r.windSpeed!);
+    const dir = readings.find((r) => r.windDirection != null)?.windDirection ?? null;
+
+    return {
+      temp: temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
+      wind: winds.length > 0 ? winds.reduce((a, b) => a + b, 0) / winds.length : null,
+      dir,
+    };
+  }, [stations]);
+
+  return (
+    <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 overflow-hidden">
+      {/* Header */}
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 p-2 hover:bg-slate-800/50 transition-colors"
+      >
+        <div className="w-1.5 h-8 rounded-full" style={{ background: zoneColor }} />
+        <div className="flex-1 text-left min-w-0">
+          <div className="text-[11px] font-semibold text-slate-200">{zoneName}</div>
+          <div className="text-[9px] text-slate-500">
+            {stations.length} est.
+          </div>
+        </div>
+
+        {/* Zone average conditions */}
+        <div className="flex items-center gap-2">
+          <WindCompass direction={zoneAvg.dir} speed={zoneAvg.wind} size={28} />
+          <div className="text-right">
+            <div className="text-[10px] font-bold text-slate-300">
+              {zoneAvg.temp != null ? `${zoneAvg.temp.toFixed(1)}\u00b0` : '--'}
+            </div>
+            <div className="text-[9px]" style={{ color: windSpeedColor(zoneAvg.wind) }}>
+              {zoneAvg.wind != null ? `${msToKnots(zoneAvg.wind).toFixed(1)} kt` : '--'}
+            </div>
+          </div>
+        </div>
+
+        {/* Score badge */}
+        {maxScore > 0 && (
+          <div
+            className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded"
+            style={{
+              color: ALERT_COLORS[alert?.alertLevel || 'none'],
+              background: ALERT_COLORS[alert?.alertLevel || 'none'] + '15',
+            }}
+          >
+            {maxScore}%
           </div>
         )}
-      </div>
 
-      {/* Temperature */}
-      <div className="text-right w-10">
-        <div className="text-[11px] font-bold text-slate-300 tabular-nums">
-          {reading?.temperature != null ? `${reading.temperature.toFixed(1)}°` : '--'}
+        <span className={`text-slate-600 text-[10px] transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+          &#x25BC;
+        </span>
+      </button>
+
+      {/* Expanded content */}
+      {isExpanded && (
+        <div className="border-t border-slate-700/30 p-2 space-y-2">
+          {/* Rule scores as progress bars */}
+          {ruleScores.filter((s) => s.score > 0).length > 0 && (
+            <div className="space-y-1.5">
+              {ruleScores
+                .filter((s) => s.score > 0)
+                .sort((a, b) => b.score - a.score)
+                .map((score) => {
+                  const rule = rules.find((r) => r.id === score.ruleId);
+                  if (!rule) return null;
+                  const color = score.score >= 75 ? '#ef4444'
+                    : score.score >= 55 ? '#f59e0b'
+                    : score.score >= 30 ? '#3b82f6'
+                    : '#64748b';
+
+                  return (
+                    <div key={score.ruleId}>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[9px] text-slate-400 truncate flex-1">{rule.name}</span>
+                        <span className="text-[9px] font-mono ml-1" style={{ color }}>
+                          {score.score}%
+                        </span>
+                      </div>
+                      <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${score.score}%`, background: color }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          {/* Station list */}
+          <div className="space-y-1">
+            {stations.map(({ station, reading }) => (
+              <div
+                key={station.id}
+                className="flex items-center gap-2 bg-slate-800/60 rounded px-2 py-1.5"
+              >
+                <WindCompass
+                  direction={reading?.windDirection ?? null}
+                  speed={reading?.windSpeed ?? null}
+                  size={28}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-medium text-slate-300 truncate">
+                    {station.name}
+                  </div>
+                  <div className="text-[9px] text-slate-500">{station.altitude}m</div>
+                </div>
+                <div className="text-right">
+                  <div
+                    className="text-[10px] font-bold tabular-nums"
+                    style={{ color: windSpeedColor(reading?.windSpeed ?? null) }}
+                  >
+                    {reading?.windSpeed != null
+                      ? `${msToKnots(reading.windSpeed).toFixed(1)}`
+                      : '--'}
+                    <span className="text-[8px] text-slate-500 ml-0.5">kt</span>
+                  </div>
+                  {reading?.windDirection != null && (
+                    <div className="text-[8px] text-slate-500">
+                      {degreesToCardinal(reading.windDirection)} {Math.round(reading.windDirection)}\u00b0
+                    </div>
+                  )}
+                </div>
+                <div className="text-right w-10">
+                  <div className="text-[10px] font-bold text-slate-300 tabular-nums">
+                    {reading?.temperature != null ? `${reading.temperature.toFixed(1)}\u00b0` : '--'}
+                  </div>
+                  {reading?.humidity != null && (
+                    <div className="text-[8px] text-slate-500">{Math.round(reading.humidity)}%</div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {stations.length === 0 && (
+              <div className="text-[9px] text-slate-600 text-center py-2">
+                Sin estaciones en esta zona
+              </div>
+            )}
+          </div>
         </div>
-        {reading?.humidity != null && (
-          <div className="text-[8px] text-slate-500">{Math.round(reading.humidity)}%</div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
