@@ -48,10 +48,15 @@ export function temperatureColor(temp: number | null): string {
   return '#991b1b';                   // red-800
 }
 
-/** Format wind speed for display */
-export function formatWindSpeed(speed: number | null): string {
-  if (speed === null) return '--';
-  return `${speed.toFixed(1)} m/s`;
+/** Convert m/s to knots */
+export function msToKnots(speed: number): number {
+  return speed * 1.94384;
+}
+
+/** Format wind speed for display (input m/s, output knots) */
+export function formatWindSpeed(speedMs: number | null): string {
+  if (speedMs === null) return '--';
+  return `${msToKnots(speedMs).toFixed(1)} kt`;
 }
 
 /** Format temperature for display */

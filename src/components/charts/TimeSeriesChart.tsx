@@ -6,11 +6,12 @@ import {
 import { useWeatherStore } from '../../store/weatherStore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { msToKnots } from '../../services/windUtils';
 
 type MetricKey = 'windSpeed' | 'temperature' | 'humidity';
 
 const METRICS: { key: MetricKey; label: string; unit: string; color: string }[] = [
-  { key: 'windSpeed', label: 'Viento', unit: 'm/s', color: '#3b82f6' },
+  { key: 'windSpeed', label: 'Viento', unit: 'kt', color: '#3b82f6' },
   { key: 'temperature', label: 'Temperatura', unit: '°C', color: '#ef4444' },
   { key: 'humidity', label: 'Humedad', unit: '%', color: '#06b6d4' },
 ];
@@ -55,7 +56,11 @@ export function TimeSeriesChart() {
         // Round to nearest 5 minutes for alignment
         const rounded = Math.round(ts / 300000) * 300000;
         const existing = timeMap.get(rounded) || { time: rounded };
-        existing[stationId] = reading[activeMetric];
+        const rawValue = reading[activeMetric];
+        // Convert wind speed from m/s to knots for display
+        existing[stationId] = activeMetric === 'windSpeed' && rawValue !== null
+          ? msToKnots(rawValue)
+          : rawValue;
         timeMap.set(rounded, existing);
       }
     }
