@@ -41,11 +41,19 @@ export function StationPopup({ station, reading }: StationPopupProps) {
               fontWeight: 700,
               padding: '1px 5px',
               borderRadius: 3,
-              background: station.source === 'aemet' ? '#3b82f6' : station.source === 'meteoclimatic' ? '#10b981' : '#8b5cf6',
+              background: station.source === 'aemet' ? '#3b82f6'
+                : station.source === 'meteoclimatic' ? '#10b981'
+                : station.source === 'wunderground' ? '#f59e0b'
+                : station.source === 'netatmo' ? '#06b6d4'
+                : '#8b5cf6',
               color: 'white',
             }}
           >
-            {station.source === 'aemet' ? 'AEMET' : station.source === 'meteoclimatic' ? 'Meteoclimatic' : 'MeteoGalicia'}
+            {station.source === 'aemet' ? 'AEMET'
+              : station.source === 'meteoclimatic' ? 'Meteoclimatic'
+              : station.source === 'wunderground' ? 'Weather Underground'
+              : station.source === 'netatmo' ? 'Netatmo'
+              : 'MeteoGalicia'}
           </span>
           <strong style={{ fontSize: 13 }}>{station.name}</strong>
         </div>

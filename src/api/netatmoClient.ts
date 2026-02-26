@@ -37,6 +37,7 @@ function shortMac(mac: string): string {
 
 let cachedToken: string | null = null;
 let tokenFetchedAt = 0;
+let tokenPromise: Promise<string> | null = null;
 const TOKEN_TTL_MS = 60 * 60 * 1000; // Refresh token every hour
 
 async function getToken(): Promise<string> {
@@ -44,6 +45,16 @@ async function getToken(): Promise<string> {
     return cachedToken;
   }
 
+  // Deduplicate concurrent token requests
+  if (tokenPromise) return tokenPromise;
+
+  tokenPromise = fetchTokenInternal().finally(() => {
+    tokenPromise = null;
+  });
+  return tokenPromise;
+}
+
+async function fetchTokenInternal(): Promise<string> {
   // Token endpoint is at auth.netatmo.com (proxied via /netatmo-auth)
   try {
     const res = await fetch('/netatmo-auth/weathermap/token');
@@ -51,23 +62,27 @@ async function getToken(): Promise<string> {
       const data = await res.json();
       cachedToken = data.body;
       tokenFetchedAt = Date.now();
+      console.log('[Netatmo] Token obtained via proxy');
       return cachedToken!;
     }
-  } catch {
-    // Proxy failed, try direct URL (may have CORS issues)
+    console.warn(`[Netatmo] Proxy token failed: ${res.status}`);
+  } catch (e) {
+    console.warn('[Netatmo] Proxy token error:', e);
   }
 
-  // Fallback: direct URL
+  // Fallback: direct URL (may have CORS issues)
   try {
     const res = await fetch('https://auth.netatmo.com/weathermap/token');
     if (res.ok) {
       const data = await res.json();
       cachedToken = data.body;
       tokenFetchedAt = Date.now();
+      console.log('[Netatmo] Token obtained via direct URL');
       return cachedToken!;
     }
-  } catch {
-    // Both failed
+    console.warn(`[Netatmo] Direct token failed: ${res.status}`);
+  } catch (e) {
+    console.warn('[Netatmo] Direct token error:', e);
   }
 
   throw new Error('Could not obtain Netatmo weathermap token');
