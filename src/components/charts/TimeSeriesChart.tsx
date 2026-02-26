@@ -118,7 +118,7 @@ export function TimeSeriesChart() {
 
       {/* Chart */}
       <div className="bg-slate-800/50 rounded-lg p-2">
-        {chartData.length > 1 ? (
+        {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -157,18 +157,23 @@ export function TimeSeriesChart() {
                   <span style={{ fontSize: 10 }}>{stationName(value)}</span>
                 )}
               />
-              {chartStations.map((stationId, i) => (
-                <Line
-                  key={stationId}
-                  dataKey={stationId}
-                  name={stationId}
-                  stroke={STATION_COLORS[i % STATION_COLORS.length]}
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                  type="monotone"
-                />
-              ))}
+              {chartStations.map((stationId, i) => {
+                const color = STATION_COLORS[i % STATION_COLORS.length];
+                const showDots = chartData.length < 12;
+                return (
+                  <Line
+                    key={stationId}
+                    dataKey={stationId}
+                    name={stationId}
+                    stroke={color}
+                    strokeWidth={2}
+                    dot={showDots ? { r: 3, fill: color, strokeWidth: 0 } : false}
+                    activeDot={{ r: 5, fill: color }}
+                    connectNulls
+                    type="monotone"
+                  />
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
         ) : (
