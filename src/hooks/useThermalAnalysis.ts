@@ -72,6 +72,7 @@ export function useThermalAnalysis() {
   const forecastTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const atmosphericTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const openMeteoHistoryRef = useRef<Map<MicroZoneId, NormalizedReading[]>>(new Map());
+  const lastScoringFingerprintRef = useRef<string>('');
 
   // ── Build station → zone mapping when stations change ──
   useEffect(() => {
@@ -154,9 +155,26 @@ export function useThermalAnalysis() {
   }, []);
 
   // ── Re-score + tendency detection on every data update ──
-  // Wrapped in startTransition to keep map/UI responsive during heavy scoring
+  // Wrapped in startTransition to keep map/UI responsive during heavy scoring.
+  // Fingerprint skips re-scoring when readings haven't changed meaningfully.
   useEffect(() => {
     if (stationToZone.size === 0 || currentReadings.size === 0) return;
+
+    // Build fingerprint from key fields (rounded to avoid float noise)
+    const parts: string[] = [];
+    for (const [id, r] of currentReadings) {
+      parts.push(
+        `${id}:${r.windSpeed?.toFixed(1) ?? '-'},${r.windDirection?.toFixed(0) ?? '-'},${r.temperature?.toFixed(1) ?? '-'},${r.humidity?.toFixed(0) ?? '-'}`
+      );
+    }
+    // Include atmospheric context in fingerprint since it affects scoring
+    const atmKey = atmosphericContext
+      ? `atm:${atmosphericContext.cloudCover?.toFixed(0)},${atmosphericContext.solarRadiation?.toFixed(0)}`
+      : '';
+    const fingerprint = parts.sort().join('|') + atmKey;
+
+    if (fingerprint === lastScoringFingerprintRef.current) return;
+    lastScoringFingerprintRef.current = fingerprint;
 
     startTransition(() => {
       const now = new Date();

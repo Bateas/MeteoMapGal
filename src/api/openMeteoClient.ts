@@ -2,6 +2,37 @@ import type { NormalizedReading } from '../types/station';
 import type { ForecastPoint, DailyContext, MicroZoneId, AtmosphericContext } from '../types/thermal';
 import type { MicroZone } from '../types/thermal';
 
+// ── Session cache for Open-Meteo history (avoids redundant fetches) ──
+const HISTORY_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const HISTORY_CACHE_PREFIX = 'omHistory_';
+
+function getCachedHistory(key: string): NormalizedReading[] | null {
+  try {
+    const raw = sessionStorage.getItem(HISTORY_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw) as { ts: number; data: NormalizedReading[] };
+    if (Date.now() - ts > HISTORY_CACHE_TTL_MS) {
+      sessionStorage.removeItem(HISTORY_CACHE_PREFIX + key);
+      return null;
+    }
+    // Restore Date objects from ISO strings
+    return data.map((r) => ({ ...r, timestamp: new Date(r.timestamp) }));
+  } catch {
+    return null;
+  }
+}
+
+function setCachedHistory(key: string, data: NormalizedReading[]): void {
+  try {
+    sessionStorage.setItem(
+      HISTORY_CACHE_PREFIX + key,
+      JSON.stringify({ ts: Date.now(), data }),
+    );
+  } catch {
+    // sessionStorage full — silently ignore
+  }
+}
+
 interface OpenMeteoHourlyResponse {
   hourly: {
     time: string[];
@@ -36,6 +67,11 @@ export async function fetchOpenMeteoHistory(
   stationId: string,
   pastHours = 24
 ): Promise<NormalizedReading[]> {
+  // Round coords to 2 decimals (Open-Meteo grid resolution) for cache key
+  const cacheKey = `${lat.toFixed(2)}_${lon.toFixed(2)}_${pastHours}h_${stationId}`;
+  const cached = getCachedHistory(cacheKey);
+  if (cached) return cached;
+
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&past_hours=${pastHours}&forecast_hours=0&wind_speed_unit=ms`;
 
   const res = await fetch(url);
@@ -60,6 +96,7 @@ export async function fetchOpenMeteoHistory(
     });
   }
 
+  setCachedHistory(cacheKey, readings);
   return readings;
 }
 

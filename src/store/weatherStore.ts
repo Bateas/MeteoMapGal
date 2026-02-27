@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MAX_HISTORY_ENTRIES } from '../config/constants';
 
+export type WeatherSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo';
+
+export interface SourceStatus {
+  lastSuccess: Date | null;
+  lastError: Date | null;
+  errorMessage: string | null;
+  readingCount: number;
+}
+
 interface WeatherState {
   // Data
   stations: NormalizedStation[];
@@ -17,6 +26,7 @@ interface WeatherState {
   lastFetchTime: Date | null;
   isLoading: boolean;
   error: string | null;
+  sourceFreshness: Map<WeatherSource, SourceStatus>;
 
   // Actions
   setStations: (stations: NormalizedStation[]) => void;
@@ -26,6 +36,7 @@ interface WeatherState {
   toggleChartStation: (id: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  updateSourceStatus: (source: WeatherSource, ok: boolean, count?: number, errorMsg?: string) => void;
 }
 
 export const useWeatherStore = create<WeatherState>((set, get) => ({
@@ -38,6 +49,7 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
   lastFetchTime: null,
   isLoading: false,
   error: null,
+  sourceFreshness: new Map(),
 
   setStations: (stations) => set({ stations }),
 
@@ -86,4 +98,16 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
 
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
+
+  updateSourceStatus: (source, ok, count = 0, errorMsg) => {
+    const { sourceFreshness } = get();
+    const newMap = new Map(sourceFreshness);
+    const prev = newMap.get(source) ?? { lastSuccess: null, lastError: null, errorMessage: null, readingCount: 0 };
+    if (ok) {
+      newMap.set(source, { ...prev, lastSuccess: new Date(), readingCount: count, lastError: prev.lastError, errorMessage: null });
+    } else {
+      newMap.set(source, { ...prev, lastError: new Date(), errorMessage: errorMsg ?? 'Error' });
+    }
+    set({ sourceFreshness: newMap });
+  },
 }));

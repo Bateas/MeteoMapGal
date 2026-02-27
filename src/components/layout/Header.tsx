@@ -6,9 +6,12 @@ import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
 
 interface HeaderProps {
   onRefresh: () => void;
+  fieldDrawerOpen?: boolean;
+  onToggleFieldDrawer?: () => void;
+  fieldAlertLevel?: 'none' | 'riesgo' | 'alto' | 'critico';
 }
 
-export function Header({ onRefresh }: HeaderProps) {
+export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldAlertLevel = 'none' }: HeaderProps) {
   const stationCount = useWeatherStore((s) => s.stations.length);
   const readingCount = useWeatherStore((s) => s.currentReadings.size);
   const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
@@ -48,6 +51,31 @@ export function Header({ onRefresh }: HeaderProps) {
           <span className="text-slate-600">/</span>
           <span>{formatTime(sun.sunset)}</span>
         </div>
+
+        {/* Campo button */}
+        {onToggleFieldDrawer && (
+          <button
+            onClick={onToggleFieldDrawer}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
+              fieldDrawerOpen
+                ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                : fieldAlertLevel !== 'none'
+                ? 'bg-slate-800 border animate-pulse'
+                : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+            }`}
+            style={
+              !fieldDrawerOpen && fieldAlertLevel !== 'none'
+                ? {
+                    color: fieldAlertLevel === 'critico' ? '#ef4444' : fieldAlertLevel === 'alto' ? '#f59e0b' : '#3b82f6',
+                    borderColor: fieldAlertLevel === 'critico' ? 'rgba(239,68,68,0.3)' : fieldAlertLevel === 'alto' ? 'rgba(245,158,11,0.3)' : 'rgba(59,130,246,0.3)',
+                  }
+                : undefined
+            }
+          >
+            <span>🌾</span>
+            <span>Campo</span>
+          </button>
+        )}
 
         {alertLevel !== 'none' && (
           <div

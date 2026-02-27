@@ -18,6 +18,7 @@ export function useWeatherData() {
   const updateReadings = useWeatherStore((s) => s.updateReadings);
   const setLoading = useWeatherStore((s) => s.setLoading);
   const setError = useWeatherStore((s) => s.setError);
+  const updateSourceStatus = useWeatherStore((s) => s.updateSourceStatus);
 
   const fetchData = useCallback(async () => {
     if (stations.length === 0) return;
@@ -35,14 +36,18 @@ export function useWeatherData() {
       if (aemetStationIds.size > 0) {
         try {
           const aemetObs = await fetchAllObservations();
+          let count = 0;
           for (const obs of aemetObs) {
             const stationId = `aemet_${obs.idema}`;
             if (aemetStationIds.has(stationId)) {
               allReadings.push(normalizeAemetObservation(obs));
+              count++;
             }
           }
+          updateSourceStatus('aemet', true, count);
         } catch (err) {
           console.error('[WeatherData] AEMET fetch error:', err);
+          updateSourceStatus('aemet', false, 0, String(err));
         }
       }
 
@@ -52,15 +57,18 @@ export function useWeatherData() {
         try {
           const mgIds = mgStations.map((s) => parseInt(s.id.replace('mg_', ''), 10));
           const mgResults = await fetchLatestForStations(mgIds);
-
+          let count = 0;
           for (const [stationId, values] of mgResults) {
             const reading = normalizeMeteoGaliciaObservation(stationId, values);
             if (reading) {
               allReadings.push(reading);
+              count++;
             }
           }
+          updateSourceStatus('meteogalicia', true, count);
         } catch (err) {
           console.error('[WeatherData] MeteoGalicia fetch error:', err);
+          updateSourceStatus('meteogalicia', false, 0, String(err));
         }
       }
 
@@ -71,14 +79,18 @@ export function useWeatherData() {
       if (mcStationIds.size > 0) {
         try {
           const mcFeed = await fetchMeteoclimaticFeed();
+          let count = 0;
           for (const raw of mcFeed) {
             const normalizedId = `mc_${raw.id}`;
             if (mcStationIds.has(normalizedId)) {
               allReadings.push(normalizeMeteoclimaticObservation(raw));
+              count++;
             }
           }
+          updateSourceStatus('meteoclimatic', true, count);
         } catch (err) {
           console.error('[WeatherData] Meteoclimatic fetch error:', err);
+          updateSourceStatus('meteoclimatic', false, 0, String(err));
         }
       }
 
@@ -90,8 +102,10 @@ export function useWeatherData() {
         try {
           const wuReadings = await fetchWUObservations(wuStationIds);
           allReadings.push(...wuReadings);
+          updateSourceStatus('wunderground', true, wuReadings.length);
         } catch (err) {
           console.error('[WeatherData] WU fetch error:', err);
+          updateSourceStatus('wunderground', false, 0, String(err));
         }
       }
 
@@ -103,15 +117,18 @@ export function useWeatherData() {
       if (netatmoStationIds.length > 0) {
         try {
           const { readings } = await fetchNetatmoObservations();
-          // Only keep readings for stations we know about
           const known = new Set(netatmoStationIds);
+          let count = 0;
           for (const reading of readings) {
             if (known.has(reading.stationId)) {
               allReadings.push(reading);
+              count++;
             }
           }
+          updateSourceStatus('netatmo', true, count);
         } catch (err) {
           console.error('[WeatherData] Netatmo fetch error:', err);
+          updateSourceStatus('netatmo', false, 0, String(err));
         }
       }
 
@@ -126,7 +143,7 @@ export function useWeatherData() {
     } finally {
       setLoading(false);
     }
-  }, [stations, updateReadings, setLoading, setError]);
+  }, [stations, updateReadings, setLoading, setError, updateSourceStatus]);
 
   const { lastRefresh, isPolling, forceRefresh } = useAutoRefresh(fetchData, REFRESH_INTERVAL_MS);
 

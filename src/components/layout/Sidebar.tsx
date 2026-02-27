@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { StationTable } from '../dashboard/StationTable';
 import { TimeSeriesChart } from '../charts/TimeSeriesChart';
-import { ThermalWindPanel } from '../charts/ThermalWindPanel';
 import { ForecastTimeline } from '../charts/ForecastTimeline';
 import { ErrorBanner } from '../common/ErrorBanner';
 import { ErrorBoundary } from '../common/ErrorBoundary';
+
+const ThermalWindPanel = lazy(() =>
+  import('../charts/ThermalWindPanel').then((m) => ({ default: m.ThermalWindPanel })),
+);
 
 type Tab = 'stations' | 'chart' | 'forecast' | 'thermal';
 
@@ -76,7 +79,9 @@ export function Sidebar() {
         )}
         {activeTab === 'thermal' && (
           <ErrorBoundary section="Panel Térmico">
-            <ThermalWindPanel />
+            <Suspense fallback={<div className="text-center text-slate-500 text-xs py-8">Cargando panel térmico...</div>}>
+              <ThermalWindPanel />
+            </Suspense>
           </ErrorBoundary>
         )}
       </div>
