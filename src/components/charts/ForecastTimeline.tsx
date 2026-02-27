@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useThermalStore } from '../../store/thermalStore';
-import { msToKnots, degreesToCardinal, windSpeedColor, isDirectionInRange } from '../../services/windUtils';
+import { msToKnots, degreesToCardinal, windSpeedColor, isDirectionInRange, angleDifference } from '../../services/windUtils';
+import { getSunTimes, formatTime } from '../../services/solarUtils';
 import type { HourlyForecast } from '../../types/forecast';
 import type { ThermalWindRule } from '../../types/thermal';
 
@@ -409,6 +410,385 @@ function findThermalWindows(
   return windows;
 }
 
+// ── Day diagnosis analysis ───────────────────────────────
+
+interface DayDiagnosis {
+  // Pressure
+  pressureTrend: 'rising' | 'falling' | 'stable';
+  pressureChange: number; // hPa over next 6h
+  currentPressure: number | null;
+  // Solar
+  peakRadiation: number | null;
+  peakRadiationTime: Date | null;
+  // CAPE
+  maxCape: number | null;
+  maxCapeTime: Date | null;
+  // Gust factor
+  avgGustFactor: number | null; // gust/sustained ratio
+  maxGustFactor: number | null;
+  // Humidity
+  minHumidity: number | null;
+  minHumidityTime: Date | null;
+  // Wind consistency
+  directionConsistency: number; // 0-100% (how stable is wind direction)
+  // Sailing windows
+  sailingWindows: { start: Date; end: Date; avgKt: number; quality: string }[];
+  // Historical pattern match
+  patternMatch: string;
+  patternScore: number; // 0-100
+}
+
+function analyzeDayDiagnosis(
+  data: HourlyForecast[],
+  deltaT: number | null,
+): DayDiagnosis {
+  const now = new Date();
+  const future = data.filter((p) => p.time.getTime() > now.getTime());
+  const next6h = future.filter((p) => p.time.getTime() <= now.getTime() + 6 * 3600000);
+  const daylight = future.filter((p) => p.isDay);
+
+  // ── Pressure trend ──
+  let pressureTrend: 'rising' | 'falling' | 'stable' = 'stable';
+  let pressureChange = 0;
+  let currentPressure: number | null = null;
+  if (next6h.length >= 2) {
+    const pressures = next6h.filter((p) => p.pressure != null);
+    if (pressures.length >= 2) {
+      currentPressure = pressures[0].pressure;
+      const last = pressures[pressures.length - 1].pressure!;
+      const first = pressures[0].pressure!;
+      pressureChange = last - first;
+      if (pressureChange > 1.5) pressureTrend = 'rising';
+      else if (pressureChange < -1.5) pressureTrend = 'falling';
+    }
+  }
+
+  // ── Solar radiation peak ──
+  let peakRadiation: number | null = null;
+  let peakRadiationTime: Date | null = null;
+  for (const p of daylight) {
+    if (p.solarRadiation != null && (peakRadiation === null || p.solarRadiation > peakRadiation)) {
+      peakRadiation = p.solarRadiation;
+      peakRadiationTime = p.time;
+    }
+  }
+
+  // ── CAPE max ──
+  let maxCape: number | null = null;
+  let maxCapeTime: Date | null = null;
+  for (const p of future) {
+    if (p.cape != null && (maxCape === null || p.cape > maxCape)) {
+      maxCape = p.cape;
+      maxCapeTime = p.time;
+    }
+  }
+
+  // ── Gust factor ──
+  let gustFactors: number[] = [];
+  let maxGustFactor: number | null = null;
+  for (const p of daylight) {
+    if (p.windSpeed != null && p.windGusts != null && p.windSpeed > 0.5) {
+      const gf = p.windGusts / p.windSpeed;
+      gustFactors.push(gf);
+      if (maxGustFactor === null || gf > maxGustFactor) maxGustFactor = gf;
+    }
+  }
+  const avgGustFactor = gustFactors.length > 0
+    ? gustFactors.reduce((a, b) => a + b, 0) / gustFactors.length
+    : null;
+
+  // ── Min humidity ──
+  let minHumidity: number | null = null;
+  let minHumidityTime: Date | null = null;
+  for (const p of daylight) {
+    if (p.humidity != null && (minHumidity === null || p.humidity < minHumidity)) {
+      minHumidity = p.humidity;
+      minHumidityTime = p.time;
+    }
+  }
+
+  // ── Direction consistency (afternoon) ──
+  const afternoon = daylight.filter((p) => p.time.getHours() >= 13 && p.time.getHours() <= 20);
+  let directionConsistency = 0;
+  if (afternoon.length >= 3) {
+    const dirs = afternoon.filter((p) => p.windDirection != null).map((p) => p.windDirection!);
+    if (dirs.length >= 2) {
+      let totalDiff = 0;
+      for (let i = 1; i < dirs.length; i++) {
+        totalDiff += angleDifference(dirs[i], dirs[i - 1]);
+      }
+      const avgDiff = totalDiff / (dirs.length - 1);
+      directionConsistency = Math.max(0, Math.min(100, Math.round(100 - avgDiff * 2)));
+    }
+  }
+
+  // ── Sailing windows (5-15 kt, low precip, reasonable gusts) ──
+  const sailingWindows: DayDiagnosis['sailingWindows']= [];
+  let currentSW: { start: Date; end: Date; speeds: number[] } | null = null;
+
+  for (const p of future) {
+    const kt = p.windSpeed != null ? msToKnots(p.windSpeed) : 0;
+    const precip = p.precipitation ?? 0;
+    const gf = (p.windSpeed != null && p.windGusts != null && p.windSpeed > 0.5)
+      ? p.windGusts / p.windSpeed : 1;
+    const isSailable = kt >= 4 && kt <= 25 && precip < 1 && gf < 2.5;
+
+    if (isSailable) {
+      if (!currentSW) {
+        currentSW = { start: p.time, end: p.time, speeds: [kt] };
+      } else {
+        currentSW.end = p.time;
+        currentSW.speeds.push(kt);
+      }
+    } else if (currentSW) {
+      if (currentSW.speeds.length >= 2) {
+        const avg = currentSW.speeds.reduce((a, b) => a + b, 0) / currentSW.speeds.length;
+        sailingWindows.push({
+          start: currentSW.start,
+          end: currentSW.end,
+          avgKt: avg,
+          quality: avg >= 10 ? 'bueno' : avg >= 6 ? 'moderado' : 'ligero',
+        });
+      }
+      currentSW = null;
+    }
+  }
+  if (currentSW && currentSW.speeds.length >= 2) {
+    const avg = currentSW.speeds.reduce((a, b) => a + b, 0) / currentSW.speeds.length;
+    sailingWindows.push({
+      start: currentSW.start, end: currentSW.end, avgKt: avg,
+      quality: avg >= 10 ? 'bueno' : avg >= 6 ? 'moderado' : 'ligero',
+    });
+  }
+
+  // ── Historical pattern match ──
+  // Compare today's profile to AEMET historical thermal days:
+  // Best: Tmax>30, HR<65%, ΔT>20, August, SW wind
+  let patternScore = 0;
+  let patternNotes: string[] = [];
+
+  if (deltaT !== null) {
+    if (deltaT >= 20) { patternScore += 30; patternNotes.push('ΔT alto'); }
+    else if (deltaT >= 16) { patternScore += 20; patternNotes.push('ΔT moderado'); }
+    else if (deltaT >= 12) { patternScore += 10; patternNotes.push('ΔT bajo'); }
+    else { patternNotes.push('ΔT insuficiente'); }
+  }
+
+  if (minHumidity !== null) {
+    if (minHumidity <= 50) { patternScore += 25; patternNotes.push('HR baja'); }
+    else if (minHumidity <= 65) { patternScore += 15; patternNotes.push('HR moderada'); }
+    else if (minHumidity <= 75) { patternScore += 5; }
+    else { patternNotes.push('HR excesiva'); }
+  }
+
+  if (peakRadiation !== null && peakRadiation >= 700) {
+    patternScore += 15;
+    patternNotes.push('buena radiación');
+  } else if (peakRadiation !== null && peakRadiation >= 400) {
+    patternScore += 8;
+  }
+
+  if (maxCape !== null && maxCape >= 300) {
+    patternScore += 10;
+    patternNotes.push('convección activa');
+  }
+
+  if (pressureTrend === 'rising') {
+    patternScore += 10;
+    patternNotes.push('presión subiendo');
+  } else if (pressureTrend === 'falling') {
+    patternScore -= 5;
+  }
+
+  if (directionConsistency >= 70) {
+    patternScore += 10;
+    patternNotes.push('viento estable');
+  }
+
+  patternScore = Math.min(100, Math.max(0, patternScore));
+  const patternMatch = patternNotes.length > 0 ? patternNotes.join(' + ') : 'sin datos suficientes';
+
+  return {
+    pressureTrend, pressureChange, currentPressure,
+    peakRadiation, peakRadiationTime,
+    maxCape, maxCapeTime,
+    avgGustFactor, maxGustFactor,
+    minHumidity, minHumidityTime,
+    directionConsistency,
+    sailingWindows,
+    patternMatch, patternScore,
+  };
+}
+
+function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number | null }) {
+  const sun = useMemo(() => getSunTimes(), []);
+  const pressureIcon = diag.pressureTrend === 'rising' ? '\u2197' : diag.pressureTrend === 'falling' ? '\u2198' : '\u2192';
+  const pressureColor = diag.pressureTrend === 'rising' ? '#22c55e' : diag.pressureTrend === 'falling' ? '#ef4444' : '#64748b';
+
+  const gustQuality = diag.avgGustFactor !== null
+    ? diag.avgGustFactor < 1.4 ? 'suave' : diag.avgGustFactor < 1.8 ? 'normal' : diag.avgGustFactor < 2.2 ? 'racheado' : 'peligroso'
+    : null;
+  const gustColor = diag.avgGustFactor !== null
+    ? diag.avgGustFactor < 1.4 ? '#22c55e' : diag.avgGustFactor < 1.8 ? '#facc15' : diag.avgGustFactor < 2.2 ? '#f97316' : '#ef4444'
+    : '#64748b';
+
+  const capeText = diag.maxCape !== null
+    ? diag.maxCape < 100 ? 'estable' : diag.maxCape < 500 ? 'convección leve' : diag.maxCape < 1000 ? 'convección moderada' : 'convección fuerte'
+    : null;
+
+  return (
+    <div className="mb-2 rounded border border-slate-700 bg-slate-800/50 overflow-hidden">
+      <div className="px-2 py-1 bg-slate-700/50 text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+        <span>Diagn&oacute;stico del d&iacute;a</span>
+        <span className="text-slate-500 font-mono normal-case">
+          {formatTime(sun.thermalStart)}–{formatTime(sun.thermalEnd)} ventana t&eacute;rmica
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-x-3 gap-y-1 p-2 text-[11px]">
+        {/* Pressure */}
+        <div>
+          <span className="text-slate-500 text-[10px]">Presi&oacute;n</span>
+          <div className="flex items-center gap-1">
+            <span style={{ color: pressureColor }} className="font-bold">{pressureIcon}</span>
+            {diag.currentPressure !== null && (
+              <span className="text-slate-300 font-mono">{diag.currentPressure.toFixed(0)} hPa</span>
+            )}
+            {diag.pressureChange !== 0 && (
+              <span className="text-slate-500 text-[10px]">
+                ({diag.pressureChange > 0 ? '+' : ''}{diag.pressureChange.toFixed(1)})
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Gust factor */}
+        <div>
+          <span className="text-slate-500 text-[10px]">Factor racha</span>
+          <div>
+            {diag.avgGustFactor !== null ? (
+              <span style={{ color: gustColor }} className="font-semibold">
+                {diag.avgGustFactor.toFixed(1)}x
+                <span className="text-slate-400 ml-1">{gustQuality}</span>
+              </span>
+            ) : (
+              <span className="text-slate-600">—</span>
+            )}
+          </div>
+        </div>
+
+        {/* HR min */}
+        <div>
+          <span className="text-slate-500 text-[10px]">HR m&iacute;nima</span>
+          <div>
+            {diag.minHumidity !== null ? (
+              <span className={diag.minHumidity <= 55 ? 'text-amber-400' : diag.minHumidity <= 70 ? 'text-slate-300' : 'text-sky-400'}>
+                {diag.minHumidity.toFixed(0)}%
+                {diag.minHumidityTime && (
+                  <span className="text-slate-500 ml-1 text-[10px]">{formatHour(diag.minHumidityTime)}</span>
+                )}
+              </span>
+            ) : (
+              <span className="text-slate-600">—</span>
+            )}
+          </div>
+        </div>
+
+        {/* Solar radiation */}
+        <div>
+          <span className="text-slate-500 text-[10px]">Radiaci&oacute;n pico</span>
+          <div>
+            {diag.peakRadiation !== null ? (
+              <span className={diag.peakRadiation >= 700 ? 'text-yellow-400' : diag.peakRadiation >= 400 ? 'text-slate-300' : 'text-slate-500'}>
+                {diag.peakRadiation.toFixed(0)} W/m&sup2;
+              </span>
+            ) : (
+              <span className="text-slate-600">—</span>
+            )}
+          </div>
+        </div>
+
+        {/* CAPE */}
+        <div>
+          <span className="text-slate-500 text-[10px]">CAPE</span>
+          <div>
+            {diag.maxCape !== null ? (
+              <span className={diag.maxCape >= 500 ? 'text-orange-400' : diag.maxCape >= 100 ? 'text-slate-300' : 'text-slate-500'}>
+                {diag.maxCape.toFixed(0)} J/kg
+                <span className="text-slate-500 ml-1 text-[10px]">{capeText}</span>
+              </span>
+            ) : (
+              <span className="text-slate-600">—</span>
+            )}
+          </div>
+        </div>
+
+        {/* Direction consistency */}
+        <div>
+          <span className="text-slate-500 text-[10px]">Estabilidad dir.</span>
+          <div>
+            <span className={diag.directionConsistency >= 70 ? 'text-green-400' : diag.directionConsistency >= 40 ? 'text-yellow-400' : 'text-red-400'}>
+              {diag.directionConsistency}%
+              <span className="text-slate-500 ml-1 text-[10px]">
+                {diag.directionConsistency >= 70 ? 'estable' : diag.directionConsistency >= 40 ? 'variable' : 'ca&oacute;tico'}
+              </span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Pattern match bar */}
+      <div className="px-2 py-1.5 border-t border-slate-700/50 flex items-center gap-2">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 text-[10px]">
+            <span className="text-slate-500">Patr&oacute;n hist&oacute;rico:</span>
+            <span className="text-slate-400">{diag.patternMatch}</span>
+          </div>
+          <div className="mt-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${diag.patternScore}%`,
+                background: diag.patternScore >= 60 ? '#22c55e' : diag.patternScore >= 35 ? '#f59e0b' : '#64748b',
+              }}
+            />
+          </div>
+        </div>
+        <span
+          className="text-sm font-bold tabular-nums"
+          style={{ color: diag.patternScore >= 60 ? '#22c55e' : diag.patternScore >= 35 ? '#f59e0b' : '#64748b' }}
+        >
+          {diag.patternScore}%
+        </span>
+      </div>
+
+      {/* Sailing windows */}
+      {diag.sailingWindows.length > 0 && (
+        <div className="px-2 py-1.5 border-t border-slate-700/50">
+          <div className="text-[10px] text-slate-500 mb-1">Ventanas navegables</div>
+          <div className="flex flex-wrap gap-1">
+            {diag.sailingWindows.slice(0, 4).map((w, i) => (
+              <span
+                key={i}
+                className="px-1.5 py-0.5 rounded text-[10px] font-mono"
+                style={{
+                  background: w.quality === 'bueno' ? 'rgba(34,197,94,0.12)' : w.quality === 'moderado' ? 'rgba(250,204,21,0.1)' : 'rgba(100,116,139,0.1)',
+                  color: w.quality === 'bueno' ? '#22c55e' : w.quality === 'moderado' ? '#facc15' : '#94a3b8',
+                  border: `1px solid ${w.quality === 'bueno' ? 'rgba(34,197,94,0.25)' : w.quality === 'moderado' ? 'rgba(250,204,21,0.2)' : 'rgba(100,116,139,0.15)'}`,
+                }}
+              >
+                {formatHour(w.start)}–{formatHour(w.end)}{' '}
+                <span className="font-semibold">{w.avgKt.toFixed(0)} kt</span>{' '}
+                {w.quality === 'bueno' && '\u2713'}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────
 
 export function ForecastTimeline() {
@@ -442,6 +822,12 @@ export function ForecastTimeline() {
   const thermalWindows = useMemo(() => {
     return findThermalWindows(hourly, rules, deltaT);
   }, [hourly, rules, deltaT]);
+
+  // Day diagnosis
+  const diagnosis = useMemo(() => {
+    if (hourly.length === 0) return null;
+    return analyzeDayDiagnosis(hourly, deltaT);
+  }, [hourly, deltaT]);
 
   // Find the "now" index for highlighting
   const nowIndex = useMemo(() => {
@@ -551,6 +937,9 @@ export function ForecastTimeline() {
           ))}
         </div>
       )}
+
+      {/* Day diagnosis */}
+      {diagnosis && <DiagnosisPanel diag={diagnosis} deltaT={deltaT} />}
 
       {/* Sailing summary */}
       {sailingSummary && sailingSummary.bestKt > 0 && (
