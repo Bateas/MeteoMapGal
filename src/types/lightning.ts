@@ -1,21 +1,29 @@
-/** Raw GeoJSON feature from IDEG MapServer lightning query */
+import type { StormCluster } from '../services/stormTracker';
+
+/** Lightning strike from MeteoGalicia meteo2api raios/lenda endpoint */
 export interface LightningStrike {
   id: number;
   lat: number;
   lon: number;
   /** Unix timestamp in milliseconds (UTC) */
   timestamp: number;
-  /** Peak current in kA (negative = negative polarity) */
+  /** Peak current in kA */
   peakCurrent: number;
-  /** 0 = cloud-to-ground, 1 = intra-cloud */
+  /** True for intra-cloud, false for cloud-to-ground */
   cloudToCloud: boolean;
-  /** Number of return strokes */
+  /** Number of return strokes (1 if not provided by API) */
   multiplicity: number;
   /** Age in minutes from now (computed client-side) */
   ageMinutes: number;
 }
 
-/** Proximity alert level for reservoir area */
+/**
+ * Alert levels — unified color scheme:
+ * - none:    green/blue = all clear
+ * - watch:   yellow = elevated instability (CAPE high, distant activity)
+ * - warning: orange = storm approaching (<25 km)
+ * - danger:  red = storm overhead or imminent (<5 km)
+ */
 export type StormAlertLevel = 'none' | 'watch' | 'warning' | 'danger';
 
 export interface StormAlert {
@@ -26,6 +34,14 @@ export interface StormAlert {
   recentCount: number;
   /** Trend: 'approaching' if storm getting closer, 'receding' if moving away */
   trend: 'approaching' | 'receding' | 'stationary' | 'none';
+  /** Estimated time of arrival in minutes (from cluster velocity) — null if unknown */
+  etaMinutes: number | null;
+  /** Storm cluster velocity in km/h — null if no cluster tracking available */
+  speedKmh: number | null;
+  /** Storm cluster bearing in degrees — null if no tracking */
+  bearingDeg: number | null;
+  /** Detected storm clusters */
+  clusters: StormCluster[];
   /** Timestamp of last update */
   updatedAt: Date;
 }

@@ -67,6 +67,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/netatmo-auth/, ''),
         secure: true,
       },
+      '/meteo2api': {
+        target: 'https://apis-ext.xunta.gal',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/meteo2api/, '/meteo2api'),
+        secure: true,
+      },
     },
   },
 })
