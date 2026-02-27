@@ -52,43 +52,49 @@ const circleCoreLayer: LayerProps = {
   },
 };
 
-/** Temperature value label — always visible above each station circle */
+/**
+ * Temperature value label — positioned ABOVE the station marker so it
+ * doesn't overlap with the marker icon or the map place name.
+ */
 const tempLabelLayer: LayerProps = {
   id: 'temp-label',
   type: 'symbol',
   layout: {
     'text-field': ['get', 'label'],
     'text-font': ['Open Sans Bold'],
-    'text-size': ['interpolate', ['linear'], ['zoom'], 9, 10, 12, 14, 15, 20],
+    'text-size': ['interpolate', ['linear'], ['zoom'], 9, 11, 12, 15, 15, 22],
     'text-allow-overlap': true,
     'text-ignore-placement': true,
-    'text-offset': [0, -0.2],
-    'text-anchor': 'center',
+    'text-offset': [0, -1.8],
+    'text-anchor': 'bottom',
   },
   paint: {
     'text-color': '#ffffff',
-    'text-halo-color': 'rgba(0, 0, 0, 0.9)',
-    'text-halo-width': 2,
+    'text-halo-color': 'rgba(0, 0, 0, 0.95)',
+    'text-halo-width': 2.5,
   },
 };
 
-/** Station name + altitude sub-label — only at higher zoom */
+/**
+ * Station name + altitude sub-label — positioned BELOW the station marker.
+ * Only visible at higher zoom levels (fades in from zoom 11).
+ */
 const stationSubLabelLayer: LayerProps = {
   id: 'temp-station-sublabel',
   type: 'symbol',
   layout: {
     'text-field': ['get', 'sublabel'],
     'text-font': ['Open Sans Regular'],
-    'text-size': ['interpolate', ['linear'], ['zoom'], 10, 0, 11, 8, 13, 10, 15, 12],
+    'text-size': ['interpolate', ['linear'], ['zoom'], 10, 0, 11, 8, 13, 10, 15, 13],
     'text-allow-overlap': true,
     'text-ignore-placement': true,
-    'text-offset': [0, 1.0],
-    'text-anchor': 'center',
+    'text-offset': [0, 2.2],
+    'text-anchor': 'top',
   },
   paint: {
-    'text-color': 'rgba(255, 255, 255, 0.7)',
-    'text-halo-color': 'rgba(0, 0, 0, 0.8)',
-    'text-halo-width': 1.5,
+    'text-color': 'rgba(255, 255, 255, 0.8)',
+    'text-halo-color': 'rgba(0, 0, 0, 0.9)',
+    'text-halo-width': 2,
   },
 };
 
