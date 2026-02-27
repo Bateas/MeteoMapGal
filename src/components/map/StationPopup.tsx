@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { useWeatherStore } from '../../store/weatherStore';
@@ -14,7 +14,8 @@ import { WindCompass } from '../common/WindCompass';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getParsedAemetHistory, filterByStation, filterBySeason, buildWindRose } from '../../services/aemetHistoryParser';
+import { loadAemetHistory, filterByStation, filterBySeason, buildWindRose } from '../../services/aemetHistoryParser';
+import type { WindRoseData } from '../../types/campo';
 
 // AEMET stations with historical data
 const AEMET_HISTORY_STATIONS = ['aemet_1701X', 'aemet_1690A', 'aemet_1700X'];
@@ -30,14 +31,20 @@ export function StationPopup({ station, reading }: StationPopupProps) {
   const chartStations = useWeatherStore((s) => s.chartSelectedStations);
   const isInChart = chartStations.includes(station.id);
 
-  // Mini wind rose for AEMET stations with historical data
+  // Mini wind rose for AEMET stations with historical data (lazy-loaded)
   const hasHistory = AEMET_HISTORY_STATIONS.includes(station.id);
-  const windRoseData = useMemo(() => {
-    if (!hasHistory) return null;
-    const indicativo = station.id.replace('aemet_', '');
-    const stationDays = filterByStation(getParsedAemetHistory(), indicativo);
-    const summerDays = filterBySeason(stationDays, [6, 7, 8, 9]);
-    return buildWindRose(summerDays);
+  const [windRoseData, setWindRoseData] = useState<WindRoseData | null>(null);
+  useEffect(() => {
+    if (!hasHistory) return;
+    let cancelled = false;
+    loadAemetHistory().then((records) => {
+      if (cancelled) return;
+      const indicativo = station.id.replace('aemet_', '');
+      const stationDays = filterByStation(records, indicativo);
+      const summerDays = filterBySeason(stationDays, [6, 7, 8, 9]);
+      setWindRoseData(buildWindRose(summerDays));
+    });
+    return () => { cancelled = true; };
   }, [hasHistory, station.id]);
 
   return (

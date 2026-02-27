@@ -8,7 +8,6 @@ import {
   windSpeedColor,
   temperatureColor,
   precipitationColor,
-  msToKnots,
 } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { WindCompass } from '../common/WindCompass';
@@ -46,11 +45,6 @@ export function StationCard({ station, reading }: StationCardProps) {
   const selectedId = useWeatherStore((s) => s.selectedStationId);
   const isSelected = selectedId === station.id;
   const trend = useWindTrend(station.id, reading?.windSpeed ?? null);
-
-  // Show gust when significantly higher than sustained wind
-  const showGust = reading?.windGust != null
-    && reading.windSpeed != null
-    && reading.windGust > reading.windSpeed + 0.5;
 
   // Stale/offline detection based on reading timestamp
   const staleness = useMemo(() => {
@@ -129,11 +123,6 @@ export function StationCard({ station, reading }: StationCardProps) {
                   </span>
                 )}
               </div>
-              {showGust && (
-                <div className="text-[10px] text-orange-400 font-semibold leading-tight">
-                  raf. {msToKnots(reading.windGust!).toFixed(0)} kt
-                </div>
-              )}
             </div>
             <div>
               <div className="text-[10px] text-slate-500">Temp</div>

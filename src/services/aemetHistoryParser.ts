@@ -100,18 +100,31 @@ export function filterByHumidity(days: ParsedDay[], maxHumidity: number): Parsed
   return days.filter((d) => d.hrMedia !== null && d.hrMedia <= maxHumidity);
 }
 
-// ── Singleton cache ─────────────────────────────────────
-
-import aemetHistoryJson from '../config/aemetDailyHistory.json';
+// ── Singleton cache (lazy-loaded) ────────────────────────
 
 let cachedParsedHistory: ParsedDay[] | null = null;
+let loadingPromise: Promise<ParsedDay[]> | null = null;
 
-/** Get parsed AEMET history (singleton — parses once, reused everywhere). */
+/**
+ * Load & parse AEMET history on demand (dynamic import keeps 719 KB JSON
+ * out of the initial bundle). Resolves immediately on subsequent calls.
+ */
+export async function loadAemetHistory(): Promise<ParsedDay[]> {
+  if (cachedParsedHistory) return cachedParsedHistory;
+  if (loadingPromise) return loadingPromise;
+
+  loadingPromise = import('../config/aemetDailyHistory.json').then((mod) => {
+    const json = mod.default as { records: RawAemetRecord[] };
+    cachedParsedHistory = parseAemetRecords(json.records);
+    return cachedParsedHistory;
+  });
+
+  return loadingPromise;
+}
+
+/** Synchronous access — returns cached data or empty array if not yet loaded. */
 export function getParsedAemetHistory(): ParsedDay[] {
-  if (!cachedParsedHistory) {
-    cachedParsedHistory = parseAemetRecords(aemetHistoryJson.records as RawAemetRecord[]);
-  }
-  return cachedParsedHistory;
+  return cachedParsedHistory ?? [];
 }
 
 // ── Wind rose aggregation ───────────────────────────────
