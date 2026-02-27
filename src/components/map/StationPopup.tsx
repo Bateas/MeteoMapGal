@@ -11,6 +11,7 @@ import {
   msToKnots,
 } from '../../services/windUtils';
 import { WindCompass } from '../common/WindCompass';
+import { SOURCE_CONFIG } from '../../config/sourceConfig';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -44,19 +45,11 @@ export function StationPopup({ station, reading }: StationPopupProps) {
               fontWeight: 700,
               padding: '1px 5px',
               borderRadius: 3,
-              background: station.source === 'aemet' ? '#3b82f6'
-                : station.source === 'meteoclimatic' ? '#10b981'
-                : station.source === 'wunderground' ? '#f59e0b'
-                : station.source === 'netatmo' ? '#06b6d4'
-                : '#8b5cf6',
+              background: SOURCE_CONFIG[station.source].color,
               color: 'white',
             }}
           >
-            {station.source === 'aemet' ? 'AEMET'
-              : station.source === 'meteoclimatic' ? 'Meteoclimatic'
-              : station.source === 'wunderground' ? 'Weather Underground'
-              : station.source === 'netatmo' ? 'Netatmo'
-              : 'MeteoGalicia'}
+            {SOURCE_CONFIG[station.source].fullName}
           </span>
           <strong style={{ fontSize: 13 }}>{station.name}</strong>
         </div>

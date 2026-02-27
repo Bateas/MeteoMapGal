@@ -433,6 +433,8 @@ interface DayDiagnosis {
   directionConsistency: number; // 0-100% (how stable is wind direction)
   // Sailing windows
   sailingWindows: { start: Date; end: Date; avgKt: number; quality: string }[];
+  // Rain alert
+  rainAlert: { start: Date; end: Date; totalMm: number } | null;
   // Historical pattern match
   patternMatch: string;
   patternScore: number; // 0-100
@@ -561,6 +563,20 @@ function analyzeDayDiagnosis(
     });
   }
 
+  // ── Rain alert ──
+  // Detect periods of significant rain in next 12h
+  let rainAlert: DayDiagnosis['rainAlert'] = null;
+  const next12h = future.filter((p) => p.time.getTime() <= now.getTime() + 12 * 3600000);
+  const rainHours = next12h.filter((p) => (p.precipitation ?? 0) >= 0.5);
+  if (rainHours.length >= 2) {
+    const totalMm = rainHours.reduce((sum, p) => sum + (p.precipitation ?? 0), 0);
+    rainAlert = {
+      start: rainHours[0].time,
+      end: rainHours[rainHours.length - 1].time,
+      totalMm,
+    };
+  }
+
   // ── Historical pattern match ──
   // Compare today's profile to AEMET historical thermal days:
   // Best: Tmax>30, HR<65%, ΔT>20, August, SW wind
@@ -616,6 +632,7 @@ function analyzeDayDiagnosis(
     minHumidity, minHumidityTime,
     directionConsistency,
     sailingWindows,
+    rainAlert,
     patternMatch, patternScore,
   };
 }
@@ -761,6 +778,22 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
           {diag.patternScore}%
         </span>
       </div>
+
+      {/* Rain alert */}
+      {diag.rainAlert && (
+        <div className="px-2 py-1.5 border-t border-red-900/50 bg-red-950/30 flex items-center gap-2">
+          <span className="text-red-400 text-sm">🌧</span>
+          <div className="text-[10px]">
+            <span className="text-red-400 font-bold">Lluvia prevista</span>
+            <span className="text-red-300 ml-1.5">
+              {formatHour(diag.rainAlert.start)}–{formatHour(diag.rainAlert.end)}
+            </span>
+            <span className="text-red-400/70 ml-1.5 font-mono">
+              {diag.rainAlert.totalMm.toFixed(1)} mm
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Sailing windows */}
       {diag.sailingWindows.length > 0 && (
