@@ -1,5 +1,6 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import Map, { NavigationControl } from 'react-map-gl/maplibre';
+import type { MapRef } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -18,6 +19,10 @@ import { SimulationToggle } from './SimulationToggle';
 import { TemperatureOverlay } from './TemperatureOverlay';
 import { TemperatureToggle } from './TemperatureToggle';
 import { AlertPanel } from './AlertPanel';
+import { WindParticleOverlay } from './WindParticleOverlay';
+import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
+import { WrfOverlay } from './WrfOverlay';
+import { WeatherLayerSelector } from './WeatherLayerSelector';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -68,6 +73,7 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
 };
 
 export function WeatherMap() {
+  const mapRef = useRef<MapRef | null>(null);
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const selectedStationId = useWeatherStore((s) => s.selectedStationId);
@@ -100,6 +106,7 @@ export function WeatherMap() {
   return (
     <div className="relative w-full h-full">
       <Map
+        ref={mapRef}
         mapLib={maplibregl}
         initialViewState={INITIAL_VIEW_STATE}
         style={{ width: '100%', height: '100%' }}
@@ -148,6 +155,9 @@ export function WeatherMap() {
         {/* Lightning strikes overlay */}
         <LightningOverlay />
 
+        {/* WRF model raster overlay (inside Map for native MapLibre rendering) */}
+        <WrfOverlay />
+
         {/* Selected station popup */}
         {selectedStation && (
           <StationPopup
@@ -157,9 +167,14 @@ export function WeatherMap() {
         )}
       </Map>
 
+      {/* Canvas overlays on top of map (need project/unproject) */}
+      <WindParticleOverlay mapRef={mapRef} />
+      <HumidityHeatmapOverlay mapRef={mapRef} />
+
       {/* HTML overlays on top of map */}
       <AlertPanel />
       <TemperatureToggle />
+      <WeatherLayerSelector />
       <SimulationToggle />
     </div>
   );

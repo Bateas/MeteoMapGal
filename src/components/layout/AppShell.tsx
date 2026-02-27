@@ -14,6 +14,7 @@ import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { useAlertStore } from '../../store/alertStore';
+import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { processAlertNotifications } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
@@ -101,6 +102,9 @@ export function AppShell() {
           break;
         case 'a':
           useAlertStore.getState().togglePanel();
+          break;
+        case 'w':
+          useWeatherLayerStore.getState().cycleLayer();
           break;
       }
     }
