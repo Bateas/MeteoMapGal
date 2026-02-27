@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import {
   formatWindSpeed,
@@ -7,6 +8,7 @@ import {
   windSpeedColor,
   temperatureColor,
   precipitationColor,
+  msToKnots,
 } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { WindCompass } from '../common/WindCompass';
@@ -16,10 +18,38 @@ interface StationCardProps {
   reading?: NormalizedReading;
 }
 
+/** Compare current wind speed to recent history → trend indicator */
+function useWindTrend(stationId: string, currentSpeed: number | null): { symbol: string; color: string } | null {
+  const history = useWeatherStore((s) => s.readingHistory.get(stationId));
+
+  return useMemo(() => {
+    if (currentSpeed === null || !history || history.length < 3) return null;
+
+    // Average of the 3 readings before the most recent one
+    const recent = history.slice(-4, -1);
+    const validSpeeds = recent.map((r) => r.windSpeed).filter((s): s is number => s !== null);
+    if (validSpeeds.length === 0) return null;
+
+    const avg = validSpeeds.reduce((a, b) => a + b, 0) / validSpeeds.length;
+    const diff = currentSpeed - avg;
+    const threshold = 0.5; // m/s (~1 kt)
+
+    if (diff > threshold) return { symbol: '\u2191', color: '#22c55e' }; // ↑ green (increasing)
+    if (diff < -threshold) return { symbol: '\u2193', color: '#ef4444' }; // ↓ red (decreasing)
+    return { symbol: '\u2192', color: '#64748b' }; // → gray (stable)
+  }, [currentSpeed, history]);
+}
+
 export function StationCard({ station, reading }: StationCardProps) {
   const selectStation = useWeatherStore((s) => s.selectStation);
   const selectedId = useWeatherStore((s) => s.selectedStationId);
   const isSelected = selectedId === station.id;
+  const trend = useWindTrend(station.id, reading?.windSpeed ?? null);
+
+  // Show gust when significantly higher than sustained wind
+  const showGust = reading?.windGust != null
+    && reading.windSpeed != null
+    && reading.windGust > reading.windSpeed + 0.5;
 
   return (
     <div
@@ -72,12 +102,28 @@ export function StationCard({ station, reading }: StationCardProps) {
           <div className="flex-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
             <div>
               <div className="text-[10px] text-slate-500">Viento</div>
-              <div
-                className="text-sm font-bold"
-                style={{ color: windSpeedColor(reading.windSpeed) }}
-              >
-                {formatWindSpeed(reading.windSpeed)}
+              <div className="flex items-baseline gap-1">
+                <span
+                  className="text-sm font-bold"
+                  style={{ color: windSpeedColor(reading.windSpeed) }}
+                >
+                  {formatWindSpeed(reading.windSpeed)}
+                </span>
+                {trend && (
+                  <span
+                    className="text-xs font-bold leading-none"
+                    style={{ color: trend.color }}
+                    title="Tendencia viento"
+                  >
+                    {trend.symbol}
+                  </span>
+                )}
               </div>
+              {showGust && (
+                <div className="text-[10px] text-orange-400 font-semibold leading-tight">
+                  raf. {msToKnots(reading.windGust!).toFixed(0)} kt
+                </div>
+              )}
             </div>
             <div>
               <div className="text-[10px] text-slate-500">Temp</div>

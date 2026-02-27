@@ -143,6 +143,7 @@ export async function fetchWUObservations(
       stationId: stationIds[i],
       timestamp: new Date(obs.obsTimeUtc),
       windSpeed: m.windSpeed,           // Already m/s
+      windGust: m.windGust ?? null,     // Already m/s
       windDirection: obs.winddir,       // Meteorological "from"
       temperature: m.temp,
       humidity: obs.humidity,

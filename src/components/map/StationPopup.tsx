@@ -8,6 +8,7 @@ import {
   formatPrecipitation,
   windSpeedColor,
   precipitationColor,
+  msToKnots,
 } from '../../services/windUtils';
 import { WindCompass } from '../common/WindCompass';
 import { formatDistanceToNow } from 'date-fns';
@@ -75,6 +76,11 @@ export function StationPopup({ station, reading }: StationPopupProps) {
                   <div style={{ fontWeight: 600, color: windSpeedColor(reading.windSpeed) }}>
                     {formatWindSpeed(reading.windSpeed)}
                   </div>
+                  {reading.windGust != null && reading.windSpeed != null && reading.windGust > reading.windSpeed + 0.5 && (
+                    <div style={{ fontSize: 10, color: '#fb923c', fontWeight: 600 }}>
+                      raf. {msToKnots(reading.windGust).toFixed(0)} kt
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Temperatura</div>
