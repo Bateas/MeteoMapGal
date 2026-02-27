@@ -15,6 +15,8 @@ import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore'
 import { useThermalStore } from '../../store/thermalStore';
 import { useAlertStore } from '../../store/alertStore';
 import { aggregateAllAlerts } from '../../services/alertService';
+import { processAlertNotifications } from '../../services/notificationService';
+import { useNotificationStore } from '../../store/notificationStore';
 import {
   extractStationTemps,
   analyzeThermalProfile,
@@ -57,11 +59,12 @@ export function AppShell() {
     setThermalProfile(profile);
   }, [stations, currentReadings, setThermalProfile]);
 
-  // ── Unified alert aggregation ───────────────────────────
+  // ── Unified alert aggregation + notifications ──────────
   const stormAlert = useLightningStore((s) => s.stormAlert);
   const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
   const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
   const setUnifiedAlerts = useAlertStore((s) => s.setAlerts);
+  const notifConfig = useNotificationStore((s) => s.config);
 
   useEffect(() => {
     const { alerts, risk } = aggregateAllAlerts({
@@ -72,7 +75,9 @@ export function AppShell() {
       forecast: forecastHourly,
     });
     setUnifiedAlerts(alerts, risk);
-  }, [stormAlert, thermalProfile, zoneAlerts, fieldAlerts, forecastHourly, setUnifiedAlerts]);
+    // Trigger notifications for new/escalated alerts
+    processAlertNotifications(alerts, risk, notifConfig);
+  }, [stormAlert, thermalProfile, zoneAlerts, fieldAlerts, forecastHourly, setUnifiedAlerts, notifConfig]);
 
   // ── Keyboard shortcuts ──────────────────────────────────
   useEffect(() => {
