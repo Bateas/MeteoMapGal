@@ -55,11 +55,12 @@ export const STANDARD_LAPSE_RATE = -6.5;
 export const MIN_VALID_ALTITUDE = 30;
 
 /**
- * Maximum reading age (ms) to consider a station "fresh".
- * Stale/offline readings can show temperatures from hours ago (different conditions).
- * 45 minutes — most stations update every 10–30 min.
+ * Maximum reading age (ms) to consider a station usable for gradient analysis.
+ * Temperature changes slowly — a 1-2h old reading is still valid for lapse rate.
+ * AEMET rate-limits and MeteoGalicia delays regularly cause 60-90 min gaps,
+ * so 2 hours keeps key stations (Ribadavia, Remuíño, Amiudal) in the analysis.
  */
-export const MAX_READING_AGE_MS = 45 * 60 * 1000;
+export const MAX_READING_AGE_MS = 120 * 60 * 1000;
 
 /**
  * Minimum station count for reliable regression.
