@@ -62,7 +62,14 @@ async function aemetTwoStepFetch<T>(endpoint: string): Promise<T> {
 
     // Success: reset rate limit state
     rateLimitUntil = 0;
-    return dataRes.json();
+
+    // AEMET returns ISO-8859-1 encoded data (Latin-1).
+    // Using response.json() assumes UTF-8 and breaks Ñ, accented chars.
+    // Decode explicitly from the raw bytes.
+    const buf = await dataRes.arrayBuffer();
+    const charset = dataRes.headers.get('content-type')?.match(/charset=([^\s;]+)/i)?.[1] ?? 'iso-8859-1';
+    const text = new TextDecoder(charset).decode(buf);
+    return JSON.parse(text);
   }
 
   throw new Error('AEMET: reintentos agotados');
@@ -76,7 +83,7 @@ export async function fetchAllObservations(): Promise<AemetRawObservation[]> {
 /** Fetch AEMET station inventory */
 export async function fetchStationInventory(): Promise<AemetRawStation[]> {
   // Check localStorage cache (inventory rarely changes)
-  const CACHE_KEY = 'aemet_station_inventory';
+  const CACHE_KEY = 'aemet_station_inventory_v2'; // v2: fixed ISO-8859-1 charset decoding
   const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
   const cached = localStorage.getItem(CACHE_KEY);

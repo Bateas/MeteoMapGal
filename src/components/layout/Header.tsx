@@ -3,6 +3,8 @@ import { LastUpdated } from '../common/LastUpdated';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalStore, getMaxAlertLevel } from '../../store/thermalStore';
 import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
+import { useForecastStore } from '../../hooks/useForecastTimeline';
+import { scoreForecastThermal, thermalColor } from '../../services/forecastScoringUtils';
 
 interface HeaderProps {
   onRefresh: () => void;
@@ -17,8 +19,46 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
   const { level: alertLevel, score: alertScore } = getMaxAlertLevel(zoneAlerts);
 
+  const forecastHourly = useForecastStore((s) => s.hourly);
+  const thermalRules = useThermalStore((s) => s.rules);
+
   const sun = useMemo(() => getSunTimes(), []);
   const daylight = isDaylight();
+
+  const nextSailingWindow = useMemo(() => {
+    if (forecastHourly.length === 0 || thermalRules.length === 0) return null;
+
+    const now = Date.now();
+    // Find all future forecast temps for deltaT computation
+    const futurePoints = forecastHourly.filter(p => p.time.getTime() > now);
+    if (futurePoints.length === 0) return null;
+
+    // Compute deltaT from min/max temps in forecast
+    const temps = futurePoints
+      .map(p => p.temperature)
+      .filter((t): t is number => t !== null);
+    const deltaT = temps.length >= 2 ? Math.max(...temps) - Math.min(...temps) : null;
+
+    // Score each future point
+    let bestScore = 0;
+    let bestPoint: typeof futurePoints[0] | null = null;
+
+    for (const point of futurePoints) {
+      const result = scoreForecastThermal(point, thermalRules, deltaT);
+      if (result.score > bestScore) {
+        bestScore = result.score;
+        bestPoint = point;
+      }
+    }
+
+    if (!bestPoint || bestScore < 40) return null;
+
+    return {
+      time: bestPoint.time,
+      score: Math.round(bestScore),
+      color: thermalColor(bestScore),
+    };
+  }, [forecastHourly, thermalRules]);
 
   return (
     <header className="bg-slate-900 border-b border-slate-700 px-4 py-2 flex items-center justify-between">
@@ -75,6 +115,26 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             <span>🌾</span>
             <span>Campo</span>
           </button>
+        )}
+
+        {/* Next sailing window banner */}
+        {nextSailingWindow && (
+          <div
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono"
+            style={{
+              background: `${nextSailingWindow.color}12`,
+              border: `1px solid ${nextSailingWindow.color}30`,
+              color: nextSailingWindow.color,
+            }}
+            title={`Mejor ventana térmica en las próximas 48h: ${nextSailingWindow.score}%`}
+          >
+            <span>⛵</span>
+            <span className="font-semibold">{nextSailingWindow.score}%</span>
+            <span className="text-slate-500 text-[9px]">
+              {nextSailingWindow.time.toLocaleDateString('es-ES', { weekday: 'short' })}{' '}
+              {nextSailingWindow.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
         )}
 
         {alertLevel !== 'none' && (

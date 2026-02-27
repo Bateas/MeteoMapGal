@@ -42,10 +42,12 @@ interface LightningState {
   showOverlay: boolean;
   /** Simulation mode: inject fake strikes for testing */
   simulationActive: boolean;
+  clusterHistory: ClusterSnapshot[];
 
   setStrikes: (strikes: LightningStrike[]) => void;
   setAlert: (alert: StormAlert) => void;
   setClusters: (clusters: StormCluster[]) => void;
+  setClusterHistory: (history: ClusterSnapshot[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setLastFetch: (date: Date) => void;
@@ -76,10 +78,12 @@ export const useLightningStore = create<LightningState>()(
       error: null,
       showOverlay: true,
       simulationActive: false,
+      clusterHistory: [],
 
       setStrikes: (strikes) => set({ strikes }),
       setAlert: (alert) => set({ stormAlert: alert }),
       setClusters: (clusters) => set({ clusters }),
+      setClusterHistory: (clusterHistory) => set({ clusterHistory }),
       setLoading: (isLoading) => set({ isLoading }),
       setError: (error) => set({ error }),
       setLastFetch: (date) => set({ lastFetch: date }),
@@ -258,6 +262,7 @@ export function useLightningData() {
     setStrikes,
     setAlert,
     setClusters,
+    setClusterHistory,
     setLoading,
     setError,
     setLastFetch,
@@ -291,6 +296,7 @@ export function useLightningData() {
         RESERVOIR_LON,
       );
       historyRef.current = history;
+      setClusterHistory(history);
       setClusters(clusters);
 
       const alert = computeStormAlert(strikes, clusters, prevAlertRef.current);
@@ -305,7 +311,7 @@ export function useLightningData() {
     } finally {
       setLoading(false);
     }
-  }, [setStrikes, setAlert, setClusters, setLoading, setError, setLastFetch, simulationActive]);
+  }, [setStrikes, setAlert, setClusters, setClusterHistory, setLoading, setError, setLastFetch, simulationActive]);
 
   // Initial fetch + polling
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

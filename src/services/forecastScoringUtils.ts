@@ -140,6 +140,26 @@ export function scoreForecastThermal(
       score *= 1.05;
     }
 
+    // Evening decay — thermals die after 17:00
+    if (hour >= 17) {
+      const decayFactor = hour >= 20 ? 0.15 : hour >= 19 ? 0.35 : hour >= 18 ? 0.6 : 0.85;
+      score *= decayFactor;
+    }
+
+    // Pressure trend — lower pressure favors convection
+    if (point.pressure !== null) {
+      if (point.pressure < 1010) score *= 1.08;
+      else if (point.pressure < 1015) score *= 1.04;
+      else if (point.pressure > 1025) score *= 0.92;
+    }
+
+    // Solar radiation boost — strong insolation heats ground → better thermals
+    if (point.solarRadiation !== null) {
+      if (point.solarRadiation > 700) score *= 1.15;
+      else if (point.solarRadiation > 500) score *= 1.08;
+      else if (point.solarRadiation < 200 && hour >= 10 && hour <= 16) score *= 0.7;
+    }
+
     score = Math.min(100, Math.max(0, Math.round(score)));
 
     if (score > bestScore) {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FieldDrawer } from './FieldDrawer';
@@ -38,6 +38,25 @@ export function AppShell() {
     [forecastHourly, readingHistory, stations, currentReadings],
   );
   const toggleFieldDrawer = useCallback(() => setFieldDrawerOpen((o) => !o), []);
+
+  // ── Keyboard shortcuts ──────────────────────────────────
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key.toLowerCase()) {
+        case 'c':
+          toggleFieldDrawer();
+          break;
+        case 'r':
+          if (!e.ctrlKey && !e.metaKey) forceRefresh();
+          break;
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleFieldDrawer, forceRefresh]);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-950 text-white">

@@ -28,6 +28,8 @@ export interface RainAlert {
   maxPrecip: number;
   /** Max precipitation probability (%) */
   maxProbability: number;
+  /** Accumulated rain in next 6 hours (mm) */
+  rainAccum6h: number;
   /** Hail risk detected (CAPE > 1000 + heavy precip) */
   hailRisk: boolean;
 }
@@ -61,6 +63,8 @@ export interface DroneConditions {
   flyable: boolean;
   /** Current/forecast wind in knots */
   windKt: number;
+  /** Current/forecast gust in knots */
+  gustKt: number;
   /** Rain expected? */
   rain: boolean;
   /** Storms within range? */
@@ -111,6 +115,8 @@ export interface WindRosePoint {
   count: number;
   /** Percentage of total */
   percentage: number;
+  /** Average wind speed for this direction (m/s) — for speed-weighted roses */
+  avgSpeed?: number;
 }
 
 export interface WindRoseData {

@@ -2,7 +2,7 @@ import { useMemo, memo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { MAP_CENTER } from '../../config/constants';
-import type { StormCluster } from '../../services/stormTracker';
+import type { StormCluster, ClusterSnapshot } from '../../services/stormTracker';
 
 const EMPTY_FC: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
@@ -127,6 +127,51 @@ function arrowTip(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Polygon> | nul
 }
 
 /**
+ * Projected future path — dashed arc showing where the storm will be
+ * at +5, +10, and +15 minutes along its velocity vector.
+ */
+function projectedPath(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineString> | null {
+  if (!cluster.velocity || !cluster.approaching) return null;
+
+  const { bearingDeg, speedKmh } = cluster.velocity;
+  const bearingRad = (bearingDeg * Math.PI) / 180;
+  const coords: [number, number][] = [[cluster.lon, cluster.lat]];
+
+  for (let min = 5; min <= 15; min += 5) {
+    const distKm = (speedKmh / 60) * min;
+    const lat = cluster.lat + (distKm / 111.32) * Math.cos(bearingRad);
+    const lon = cluster.lon + (distKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) * Math.sin(bearingRad);
+    coords.push([lon, lat]);
+  }
+
+  return {
+    type: 'Feature',
+    geometry: { type: 'LineString', coordinates: coords },
+    properties: {
+      etaMinutes: cluster.etaMinutes ?? 0,
+      speedKmh: cluster.velocity.speedKmh,
+    },
+  };
+}
+
+/**
+ * ETA label at the cluster centroid for approaching storms.
+ */
+function etaLabelPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point> | null {
+  if (!cluster.approaching || cluster.etaMinutes === null) return null;
+
+  return {
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [cluster.lon, cluster.lat] },
+    properties: {
+      label: `${cluster.etaMinutes}min`,
+      distance: `${cluster.distanceToReservoir.toFixed(0)}km`,
+      speedKmh: cluster.velocity?.speedKmh ?? 0,
+    },
+  };
+}
+
+/**
  * Storm cluster visualization overlay.
  *
  * Renders on the map:
@@ -141,6 +186,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
   const clusters = useLightningStore((s) => s.clusters);
   const showOverlay = useLightningStore((s) => s.showOverlay);
   const alertLevel = useLightningStore((s) => s.stormAlert.level);
+  const clusterHistory = useLightningStore((s) => s.clusterHistory);
 
   // ── Watch / Warning / Danger radius rings ────────────────────
   const radiusRings = useMemo<GeoJSON.FeatureCollection>(() => {
@@ -245,6 +291,62 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     }
     return { type: 'FeatureCollection', features };
   }, [showOverlay, clusters]);
+
+  // ── Projected paths (approaching clusters only) ──────────
+  const projectedPaths = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
+    const features: GeoJSON.Feature[] = [];
+    for (const c of clusters) {
+      const path = projectedPath(c);
+      if (path) features.push(path);
+    }
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, clusters]);
+
+  // ── ETA labels (approaching clusters) ───────────────────
+  const etaLabels = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
+    const features: GeoJSON.Feature[] = [];
+    for (const c of clusters) {
+      const label = etaLabelPoint(c);
+      if (label) features.push(label);
+    }
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, clusters]);
+
+  // ── Storm trail history (fading previous centroid positions) ──
+  const trailPoints = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay || clusterHistory.length <= 1) return EMPTY_FC;
+
+    const now = Date.now();
+    const features: GeoJSON.Feature[] = [];
+
+    // Skip the most recent snapshot (that's the current position)
+    const pastSnapshots = clusterHistory.slice(0, -1);
+
+    for (const snapshot of pastSnapshots) {
+      const ageMs = now - snapshot.timestamp;
+      const ageMinutes = ageMs / 60_000;
+      // Normalize age: 0 = recent, 1 = old (15 min max)
+      const ageFactor = Math.min(ageMinutes / 15, 1);
+
+      for (const centroid of snapshot.centroids) {
+        features.push({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [centroid.lon, centroid.lat],
+          },
+          properties: {
+            age: ageFactor,
+            strikeCount: centroid.strikeCount,
+          },
+        });
+      }
+    }
+
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, clusterHistory]);
 
   if (!showOverlay) return null;
 
@@ -395,6 +497,50 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         />
       </Source>
 
+      {/* ── Storm trail history (fading ghost positions) ───────── */}
+      <Source id="storm-trail-points" type="geojson" data={trailPoints}>
+        {/* Ghost glow */}
+        <Layer
+          id="storm-trail-glow"
+          type="circle"
+          paint={{
+            'circle-radius': [
+              'interpolate',
+              ['linear'],
+              ['get', 'age'],
+              0, 10,
+              1, 4,
+            ],
+            'circle-color': 'rgba(168, 85, 247, 0.15)',
+            'circle-blur': 1,
+          }}
+        />
+        {/* Ghost core dot */}
+        <Layer
+          id="storm-trail-core"
+          type="circle"
+          paint={{
+            'circle-radius': [
+              'interpolate',
+              ['linear'],
+              ['get', 'age'],
+              0, 4,
+              1, 2,
+            ],
+            'circle-color': [
+              'interpolate',
+              ['linear'],
+              ['get', 'age'],
+              0, 'rgba(168, 85, 247, 0.6)',
+              0.5, 'rgba(168, 85, 247, 0.3)',
+              1, 'rgba(100, 116, 139, 0.1)',
+            ],
+            'circle-stroke-width': 0.5,
+            'circle-stroke-color': 'rgba(168, 85, 247, 0.2)',
+          }}
+        />
+      </Source>
+
       {/* ── Cluster centroids ────────────────────────────────── */}
       <Source id="storm-centroids" type="geojson" data={clusterCentroids}>
         {/* Outer glow pulse */}
@@ -434,6 +580,64 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'circle-opacity': 0.9,
             'circle-stroke-width': 2,
             'circle-stroke-color': 'rgba(255, 255, 255, 0.4)',
+          }}
+        />
+      </Source>
+
+      {/* ── Projected storm paths (dashed future trajectory) ── */}
+      <Source id="storm-projected-paths" type="geojson" data={projectedPaths}>
+        <Layer
+          id="storm-projected-path-glow"
+          type="line"
+          paint={{
+            'line-color': 'rgba(239, 68, 68, 0.15)',
+            'line-width': 12,
+            'line-blur': 4,
+          }}
+        />
+        <Layer
+          id="storm-projected-path-line"
+          type="line"
+          paint={{
+            'line-color': 'rgba(239, 68, 68, 0.6)',
+            'line-width': 2,
+            'line-dasharray': [4, 4],
+          }}
+        />
+      </Source>
+
+      {/* ── ETA countdown labels ───────────────────────────── */}
+      <Source id="storm-eta-labels" type="geojson" data={etaLabels}>
+        <Layer
+          id="storm-eta-text"
+          type="symbol"
+          layout={{
+            'text-field': ['concat', '⚡ ', ['get', 'label']],
+            'text-font': ['Open Sans Bold'],
+            'text-size': 13,
+            'text-offset': [0, -2.5],
+            'text-allow-overlap': true,
+          }}
+          paint={{
+            'text-color': '#fbbf24',
+            'text-halo-color': 'rgba(0, 0, 0, 0.85)',
+            'text-halo-width': 2,
+          }}
+        />
+        <Layer
+          id="storm-distance-text"
+          type="symbol"
+          layout={{
+            'text-field': ['get', 'distance'],
+            'text-font': ['Open Sans Regular'],
+            'text-size': 10,
+            'text-offset': [0, -1.2],
+            'text-allow-overlap': true,
+          }}
+          paint={{
+            'text-color': '#94a3b8',
+            'text-halo-color': 'rgba(0, 0, 0, 0.8)',
+            'text-halo-width': 1.5,
           }}
         />
       </Source>
