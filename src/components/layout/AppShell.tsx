@@ -1,5 +1,7 @@
+import { useState, useMemo, useCallback } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
+import { FieldDrawer } from './FieldDrawer';
 import { WeatherMap } from '../map/WeatherMap';
 import { useWeatherData } from '../../hooks/useWeatherData';
 import { LoadingSpinner } from '../common/LoadingSpinner';
@@ -7,7 +9,8 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
 import { useLightningData } from '../../hooks/useLightningData';
-import { useForecastTimeline } from '../../hooks/useForecastTimeline';
+import { useForecastTimeline, useForecastStore } from '../../hooks/useForecastTimeline';
+import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
 
 export function AppShell() {
   const { forceRefresh } = useWeatherData();
@@ -23,9 +26,27 @@ export function AppShell() {
   // Hourly forecast timeline: 48h Open-Meteo for reservoir, polls every 30 min
   useForecastTimeline();
 
+  // Campo (agricultural alerts) drawer
+  const [fieldDrawerOpen, setFieldDrawerOpen] = useState(false);
+  const forecastHourly = useForecastStore((s) => s.hourly);
+  const readingHistory = useWeatherStore((s) => s.readingHistory);
+  const currentReadings = useWeatherStore((s) => s.currentReadings);
+  const fieldAlerts = useMemo(
+    () => (forecastHourly.length > 0 || readingHistory.size > 0
+      ? checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings)
+      : null),
+    [forecastHourly, readingHistory, stations, currentReadings],
+  );
+  const toggleFieldDrawer = useCallback(() => setFieldDrawerOpen((o) => !o), []);
+
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-950 text-white">
-      <Header onRefresh={forceRefresh} />
+      <Header
+        onRefresh={forceRefresh}
+        fieldDrawerOpen={fieldDrawerOpen}
+        onToggleFieldDrawer={toggleFieldDrawer}
+        fieldAlertLevel={fieldAlerts?.maxLevel ?? 'none'}
+      />
 
       <div className="flex-1 flex overflow-hidden relative">
         <ErrorBoundary section="Sidebar">
@@ -48,6 +69,13 @@ export function AppShell() {
               </div>
             </div>
           )}
+
+          {/* Campo (field alerts) drawer */}
+          <FieldDrawer
+            open={fieldDrawerOpen}
+            onClose={() => setFieldDrawerOpen(false)}
+            alerts={fieldAlerts}
+          />
         </main>
       </div>
     </div>

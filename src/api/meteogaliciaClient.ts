@@ -1,6 +1,9 @@
 import type { MeteoGaliciaStation, MeteoGaliciaObsEntry } from '../types/meteogalicia';
 import { METEOGALICIA } from '../config/apiEndpoints';
 
+/** Stations that consistently fail (500/404). Skip them to avoid wasted requests. */
+const BROKEN_STATIONS = new Set([10109, 19044]);
+
 /** Fetch all MeteoGalicia meteorological stations */
 export async function fetchStationList(): Promise<MeteoGaliciaStation[]> {
   const CACHE_KEY = 'mg_station_list';
@@ -47,8 +50,9 @@ export async function fetchLatestObservation(stationId: number): Promise<MeteoGa
 
 /** Fetch latest observations for multiple stations in parallel */
 export async function fetchLatestForStations(stationIds: number[]): Promise<Map<number, MeteoGaliciaObsEntry>> {
+  const validIds = stationIds.filter((id) => !BROKEN_STATIONS.has(id));
   const results = await Promise.allSettled(
-    stationIds.map(async (id) => ({
+    validIds.map(async (id) => ({
       id,
       entry: await fetchLatestObservation(id),
     }))

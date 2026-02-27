@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { useWeatherStore } from '../../store/weatherStore';
@@ -8,12 +9,15 @@ import {
   formatPrecipitation,
   windSpeedColor,
   precipitationColor,
-  msToKnots,
 } from '../../services/windUtils';
 import { WindCompass } from '../common/WindCompass';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getParsedAemetHistory, filterByStation, filterBySeason, buildWindRose } from '../../services/aemetHistoryParser';
+
+// AEMET stations with historical data
+const AEMET_HISTORY_STATIONS = ['aemet_1701X', 'aemet_1690A', 'aemet_1700X'];
 
 interface StationPopupProps {
   station: NormalizedStation;
@@ -25,6 +29,16 @@ export function StationPopup({ station, reading }: StationPopupProps) {
   const toggleChartStation = useWeatherStore((s) => s.toggleChartStation);
   const chartStations = useWeatherStore((s) => s.chartSelectedStations);
   const isInChart = chartStations.includes(station.id);
+
+  // Mini wind rose for AEMET stations with historical data
+  const hasHistory = AEMET_HISTORY_STATIONS.includes(station.id);
+  const windRoseData = useMemo(() => {
+    if (!hasHistory) return null;
+    const indicativo = station.id.replace('aemet_', '');
+    const stationDays = filterByStation(getParsedAemetHistory(), indicativo);
+    const summerDays = filterBySeason(stationDays, [6, 7, 8, 9]);
+    return buildWindRose(summerDays);
+  }, [hasHistory, station.id]);
 
   return (
     <Popup
@@ -69,11 +83,6 @@ export function StationPopup({ station, reading }: StationPopupProps) {
                   <div style={{ fontWeight: 600, color: windSpeedColor(reading.windSpeed) }}>
                     {formatWindSpeed(reading.windSpeed)}
                   </div>
-                  {reading.windGust != null && reading.windSpeed != null && reading.windGust > reading.windSpeed + 0.5 && (
-                    <div style={{ fontSize: 10, color: '#fb923c', fontWeight: 600 }}>
-                      raf. {msToKnots(reading.windGust).toFixed(0)} kt
-                    </div>
-                  )}
                 </div>
                 <div>
                   <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Temperatura</div>
@@ -98,6 +107,11 @@ export function StationPopup({ station, reading }: StationPopupProps) {
             <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6 }}>
               Alt: {station.altitude}m
             </div>
+
+            {/* Mini wind rose for AEMET stations */}
+            {windRoseData && windRoseData.totalDays > 0 && (
+              <MiniWindRose data={windRoseData} />
+            )}
 
             {/* Timestamp */}
             <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
@@ -130,5 +144,115 @@ export function StationPopup({ station, reading }: StationPopupProps) {
         </button>
       </div>
     </Popup>
+  );
+}
+
+// ── Mini SVG wind rose for popups ────────────────────────────
+
+import type { WindRoseData } from '../../types/campo';
+
+const ROSE_SIZE = 100;
+const ROSE_CENTER = ROSE_SIZE / 2;
+const ROSE_RADIUS = 38;
+
+// 16-point cardinal labels with angles
+const DIRS_16 = [
+  'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+  'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
+];
+
+function MiniWindRose({ data }: { data: WindRoseData }) {
+  const maxPct = Math.max(...data.points.map((p) => p.percentage), 1);
+
+  // Build polygon points
+  const polyPoints = data.points.map((p, i) => {
+    const angle = ((i * 360) / 16 - 90) * (Math.PI / 180);
+    const r = (p.percentage / maxPct) * ROSE_RADIUS;
+    const x = ROSE_CENTER + r * Math.cos(angle);
+    const y = ROSE_CENTER + r * Math.sin(angle);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  // Label positions (only 4 cardinals for compact display)
+  const cardinalLabels = [
+    { label: 'N', angle: -90 },
+    { label: 'E', angle: 0 },
+    { label: 'S', angle: 90 },
+    { label: 'W', angle: 180 },
+  ];
+
+  return (
+    <div style={{ marginTop: 8, borderTop: '1px solid #e2e8f0', paddingTop: 6 }}>
+      <div style={{ fontSize: 9, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+        Rosa Vientos (Jun-Sep, {data.totalDays} días)
+      </div>
+      <svg width={ROSE_SIZE} height={ROSE_SIZE} viewBox={`0 0 ${ROSE_SIZE} ${ROSE_SIZE}`} style={{ display: 'block', margin: '0 auto' }}>
+        {/* Grid circles */}
+        {[0.33, 0.66, 1].map((f) => (
+          <circle
+            key={f}
+            cx={ROSE_CENTER}
+            cy={ROSE_CENTER}
+            r={ROSE_RADIUS * f}
+            fill="none"
+            stroke="#e2e8f0"
+            strokeWidth={0.5}
+          />
+        ))}
+        {/* Cross lines */}
+        {[0, 45, 90, 135].map((deg) => {
+          const rad = (deg - 90) * (Math.PI / 180);
+          return (
+            <line
+              key={deg}
+              x1={ROSE_CENTER - ROSE_RADIUS * Math.cos(rad)}
+              y1={ROSE_CENTER - ROSE_RADIUS * Math.sin(rad)}
+              x2={ROSE_CENTER + ROSE_RADIUS * Math.cos(rad)}
+              y2={ROSE_CENTER + ROSE_RADIUS * Math.sin(rad)}
+              stroke="#e2e8f0"
+              strokeWidth={0.3}
+            />
+          );
+        })}
+        {/* Data polygon */}
+        <polygon
+          points={polyPoints}
+          fill="rgba(245, 158, 11, 0.3)"
+          stroke="#f59e0b"
+          strokeWidth={1.5}
+        />
+        {/* Cardinal labels */}
+        {cardinalLabels.map(({ label, angle }) => {
+          const rad = angle * (Math.PI / 180);
+          const lx = ROSE_CENTER + (ROSE_RADIUS + 8) * Math.cos(rad);
+          const ly = ROSE_CENTER + (ROSE_RADIUS + 8) * Math.sin(rad);
+          return (
+            <text
+              key={label}
+              x={lx}
+              y={ly}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={8}
+              fontWeight={700}
+              fill="#64748b"
+            >
+              {label}
+            </text>
+          );
+        })}
+        {/* Dominant direction indicator */}
+        {data.points.length > 0 && (() => {
+          const dominant = data.points.reduce((a, b) => (b.percentage > a.percentage ? b : a));
+          const idx = DIRS_16.indexOf(dominant.direction);
+          if (idx < 0) return null;
+          const angle = ((idx * 360) / 16 - 90) * (Math.PI / 180);
+          const r = (dominant.percentage / maxPct) * ROSE_RADIUS;
+          const cx = ROSE_CENTER + r * Math.cos(angle);
+          const cy = ROSE_CENTER + r * Math.sin(angle);
+          return <circle cx={cx} cy={cy} r={2.5} fill="#f59e0b" stroke="white" strokeWidth={0.5} />;
+        })()}
+      </svg>
+    </div>
   );
 }
