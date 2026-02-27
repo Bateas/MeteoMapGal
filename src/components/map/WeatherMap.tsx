@@ -13,7 +13,9 @@ import { ThermalZoneOverlay } from './ThermalZoneOverlay';
 import { ThermalAlertMarkers } from './ThermalAlertMarker';
 import { PropagationArrows } from './PropagationArrow';
 import { LightningOverlay } from './LightningOverlay';
+import { StormClusterOverlay } from './StormClusterOverlay';
 import { StormAlertBanner } from './StormAlertBanner';
+import { SimulationToggle } from './SimulationToggle';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -93,58 +95,65 @@ export function WeatherMap() {
   }, []);
 
   return (
-    <Map
-      mapLib={maplibregl}
-      initialViewState={INITIAL_VIEW_STATE}
-      style={{ width: '100%', height: '100%' }}
-      mapStyle={MAP_STYLE}
-      maxPitch={85}
-      onClick={handleMapClick}
-      onLoad={handleMapLoad}
-    >
-      <NavigationControl position="top-right" visualizePitch />
+    <div className="relative w-full h-full">
+      <Map
+        mapLib={maplibregl}
+        initialViewState={INITIAL_VIEW_STATE}
+        style={{ width: '100%', height: '100%' }}
+        mapStyle={MAP_STYLE}
+        maxPitch={85}
+        onClick={handleMapClick}
+        onLoad={handleMapLoad}
+      >
+        <NavigationControl position="top-right" visualizePitch />
 
-      {/* Thermal zone polygons (below stations) */}
-      <ThermalZoneOverlay />
+        {/* Thermal zone polygons (below stations) */}
+        <ThermalZoneOverlay />
 
-      {/* Wind field arrows around stations */}
-      <WindFieldOverlay stations={stations} readings={currentReadings} />
+        {/* Wind field arrows around stations */}
+        <WindFieldOverlay stations={stations} readings={currentReadings} />
 
-      {/* Station markers (full markers for wind stations, tiny dots for temp-only) */}
-      {stations.map((station) =>
-        station.tempOnly ? (
-          <TempOnlyMarker
-            key={station.id}
-            station={station}
-            reading={currentReadings.get(station.id)}
+        {/* Station markers (full markers for wind stations, tiny dots for temp-only) */}
+        {stations.map((station) =>
+          station.tempOnly ? (
+            <TempOnlyMarker
+              key={station.id}
+              station={station}
+              reading={currentReadings.get(station.id)}
+            />
+          ) : (
+            <StationMarker
+              key={station.id}
+              station={station}
+              reading={currentReadings.get(station.id)}
+            />
+          )
+        )}
+
+        {/* Thermal alert badges on zone centers */}
+        <ThermalAlertMarkers />
+
+        {/* Propagation arrows between zones */}
+        <PropagationArrows />
+
+        {/* Storm cluster masses + radius rings (below strikes) */}
+        <StormClusterOverlay />
+
+        {/* Lightning strikes overlay */}
+        <LightningOverlay />
+
+        {/* Selected station popup */}
+        {selectedStation && (
+          <StationPopup
+            station={selectedStation}
+            reading={currentReadings.get(selectedStation.id)}
           />
-        ) : (
-          <StationMarker
-            key={station.id}
-            station={station}
-            reading={currentReadings.get(station.id)}
-          />
-        )
-      )}
+        )}
+      </Map>
 
-      {/* Thermal alert badges on zone centers */}
-      <ThermalAlertMarkers />
-
-      {/* Propagation arrows between zones */}
-      <PropagationArrows />
-
-      {/* Lightning strikes overlay */}
-      <LightningOverlay />
-
-      {/* Selected station popup */}
-      {selectedStation && (
-        <StationPopup
-          station={selectedStation}
-          reading={currentReadings.get(selectedStation.id)}
-        />
-      )}
-      {/* Storm alert banner (over the map) */}
+      {/* HTML overlays on top of map */}
       <StormAlertBanner />
-    </Map>
+      <SimulationToggle />
+    </div>
   );
 }
