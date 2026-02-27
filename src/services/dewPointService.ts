@@ -12,6 +12,7 @@
  */
 
 import type { NormalizedReading } from '../types/station';
+import type { HourlyForecast } from '../types/forecast';
 import type { FogAlert, AlertLevel } from '../types/campo';
 
 // ── Magnus formula constants (Buck, 1981) ────────────────
@@ -109,9 +110,19 @@ function calculateSpreadTrend(series: SpreadPoint[]): number | null {
  * @param allReadings - Map of stationId → reading history (from weatherStore)
  * @param now - current time (for testability)
  */
+/**
+ * Enhanced fog analysis: cross-references real station readings with
+ * Open-Meteo forecast for improved confidence and earlier ETA predictions.
+ *
+ * Forecast data adds:
+ * - Future humidity trend (will HR keep climbing?)
+ * - Cloud cover forecast (clear nights → fog, overcast → less likely)
+ * - Wind forecast (will it stay calm?)
+ */
 export function analyzeFog(
   allReadings: Map<string, NormalizedReading[]>,
   now: Date = new Date(),
+  forecast?: HourlyForecast[],
 ): FogAlert {
   const noFog: FogAlert = {
     level: 'none',
@@ -249,6 +260,89 @@ export function analyzeFog(
     else if (level === 'critico') level = 'alto';
     notes.push(`viento ${avgWind.toFixed(1)} m/s dispersa`);
   }
+
+  // ── Forecast cross-validation (if available) ────────────
+  if (forecast && forecast.length > 0) {
+    // Look at the next 6 hours of forecast
+    const next6h = forecast.filter((p) => {
+      const dt = p.time.getTime() - now.getTime();
+      return dt >= 0 && dt <= 6 * 3_600_000;
+    });
+
+    if (next6h.length >= 2) {
+      // Check if forecast humidity keeps climbing
+      const forecastHumidities = next6h
+        .map((p) => p.humidity)
+        .filter((h): h is number => h !== null);
+
+      if (forecastHumidities.length >= 2) {
+        const maxForecastHR = Math.max(...forecastHumidities);
+        const forecastHRTrend = forecastHumidities[forecastHumidities.length - 1] - forecastHumidities[0];
+
+        // Forecast agrees: humidity rising above 90%
+        if (maxForecastHR >= 95 && forecastHRTrend > 0) {
+          confidence = Math.min(100, confidence + 15);
+          notes.push('previsión HR↑>95%');
+          if (level === 'none' && currentSpread <= 6) {
+            level = 'riesgo';
+            notes.push('spread moderado + HR prevista alta');
+          }
+        } else if (maxForecastHR >= 90) {
+          confidence = Math.min(100, confidence + 8);
+        }
+
+        // Forecast disagrees: humidity dropping → reduce confidence
+        if (forecastHRTrend < -5 && level !== 'none') {
+          confidence = Math.max(10, confidence - 15);
+          notes.push('previsión HR bajando');
+        }
+      }
+
+      // Check forecast wind: will it stay calm?
+      const forecastWinds = next6h
+        .map((p) => p.windSpeed)
+        .filter((w): w is number => w !== null);
+
+      if (forecastWinds.length >= 2) {
+        const maxForecastWind = Math.max(...forecastWinds);
+        if (maxForecastWind > 4 && level !== 'none') {
+          confidence = Math.max(10, confidence - 10);
+          notes.push(`viento previsto ${maxForecastWind.toFixed(1)} m/s`);
+        } else if (maxForecastWind <= 1.5 && level !== 'none') {
+          confidence = Math.min(100, confidence + 8);
+          notes.push('calma prevista');
+        }
+      }
+
+      // Cloud cover: clear skies favor fog
+      const forecastClouds = next6h
+        .map((p) => p.cloudCover)
+        .filter((c): c is number => c !== null);
+      if (forecastClouds.length >= 2) {
+        const avgClouds = forecastClouds.reduce((a, b) => a + b, 0) / forecastClouds.length;
+        if (avgClouds <= 20 && isNight) {
+          confidence = Math.min(100, confidence + 5);
+        } else if (avgClouds > 70 && level !== 'none') {
+          confidence = Math.max(10, confidence - 10);
+          notes.push('cielo nublado');
+        }
+      }
+
+      // Better ETA from forecast: find first hour where forecast HR >= 98%
+      if (!fogEta && level === 'none') {
+        for (const p of next6h) {
+          if (p.humidity !== null && p.humidity >= 98 && (p.windSpeed ?? 5) < 2) {
+            fogEta = p.time;
+            level = 'riesgo';
+            notes.push(`previsión HR ${p.humidity}% a las ${p.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  confidence = Math.min(100, Math.max(0, confidence));
 
   const hypothesis = notes.length > 0
     ? notes.join(' · ')
