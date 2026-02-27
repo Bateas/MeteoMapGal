@@ -16,9 +16,12 @@ import { LightningOverlay } from './LightningOverlay';
 import { StormClusterOverlay } from './StormClusterOverlay';
 import { StormAlertBanner } from './StormAlertBanner';
 import { SimulationToggle } from './SimulationToggle';
+import { TemperatureOverlay } from './TemperatureOverlay';
+import { TemperatureToggle } from './TemperatureToggle';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
+  glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
   sources: {
     osm: {
       type: 'raster',
@@ -110,6 +113,9 @@ export function WeatherMap() {
         {/* Thermal zone polygons (below stations) */}
         <ThermalZoneOverlay />
 
+        {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
+        <TemperatureOverlay />
+
         {/* Wind field arrows around stations */}
         <WindFieldOverlay stations={stations} readings={currentReadings} />
 
@@ -153,6 +159,7 @@ export function WeatherMap() {
 
       {/* HTML overlays on top of map */}
       <StormAlertBanner />
+      <TemperatureToggle />
       <SimulationToggle />
     </div>
   );
