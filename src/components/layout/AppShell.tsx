@@ -11,6 +11,11 @@ import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
 import { useLightningData } from '../../hooks/useLightningData';
 import { useForecastTimeline, useForecastStore } from '../../hooks/useForecastTimeline';
 import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
+import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
+import {
+  extractStationTemps,
+  analyzeThermalProfile,
+} from '../../services/lapseRateService';
 
 export function AppShell() {
   const { forceRefresh } = useWeatherData();
@@ -39,6 +44,16 @@ export function AppShell() {
   );
   const toggleFieldDrawer = useCallback(() => setFieldDrawerOpen((o) => !o), []);
 
+  // ── Temperature gradient: compute lapse rate on every reading update ──
+  const setThermalProfile = useTemperatureOverlayStore((s) => s.setThermalProfile);
+  useEffect(() => {
+    if (stations.length === 0 || currentReadings.size === 0) return;
+    const temps = extractStationTemps(stations, currentReadings);
+    if (temps.length < 2) return;
+    const profile = analyzeThermalProfile(temps);
+    setThermalProfile(profile);
+  }, [stations, currentReadings, setThermalProfile]);
+
   // ── Keyboard shortcuts ──────────────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -51,6 +66,9 @@ export function AppShell() {
           break;
         case 'r':
           if (!e.ctrlKey && !e.metaKey) forceRefresh();
+          break;
+        case 't':
+          useTemperatureOverlayStore.getState().toggleOverlay();
           break;
       }
     }
