@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
 import { useAlertStore } from '../../store/alertStore';
+import { NotificationControl } from './NotificationControl';
 import type { UnifiedAlert, AlertSeverity, CompositeRisk } from '../../services/alertService';
 
 // ── Severity color palette ───────────────────────────────────
@@ -215,6 +216,9 @@ export const AlertPanel = memo(function AlertPanel() {
               Sin alertas activas
             </div>
           )}
+
+          {/* Notification settings */}
+          <NotificationControl />
         </div>
       )}
 
