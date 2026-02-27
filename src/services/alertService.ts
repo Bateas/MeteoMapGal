@@ -11,6 +11,8 @@ import type { FieldAlerts, AlertLevel as CampoAlertLevel } from '../types/campo'
 import type { StormAlert, StormAlertLevel } from '../types/lightning';
 import type { ThermalProfile, ThermalStatus } from './lapseRateService';
 import type { ZoneAlert, MicroZoneId } from '../types/thermal';
+import type { HourlyForecast } from '../types/forecast';
+import { buildInversionForecastAlert } from './inversionForecastService';
 
 // ── Unified Alert Types ──────────────────────────────────────
 
@@ -326,10 +328,12 @@ export function aggregateAllAlerts(sources: {
   thermalProfile: ThermalProfile | null;
   zoneAlerts: Map<MicroZoneId, ZoneAlert>;
   fieldAlerts: FieldAlerts | null;
+  forecast?: HourlyForecast[];
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
   const allAlerts: UnifiedAlert[] = [
     ...(sources.stormAlert ? buildStormAlerts(sources.stormAlert) : []),
     ...buildInversionAlerts(sources.thermalProfile),
+    ...(sources.forecast ? buildInversionForecastAlert(sources.forecast) : []),
     ...buildThermalAlerts(sources.zoneAlerts),
     ...buildFieldAlerts(sources.fieldAlerts),
   ];

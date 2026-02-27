@@ -69,9 +69,10 @@ export function AppShell() {
       thermalProfile,
       zoneAlerts,
       fieldAlerts,
+      forecast: forecastHourly,
     });
     setUnifiedAlerts(alerts, risk);
-  }, [stormAlert, thermalProfile, zoneAlerts, fieldAlerts, setUnifiedAlerts]);
+  }, [stormAlert, thermalProfile, zoneAlerts, fieldAlerts, forecastHourly, setUnifiedAlerts]);
 
   // ── Keyboard shortcuts ──────────────────────────────────
   useEffect(() => {

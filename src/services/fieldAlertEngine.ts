@@ -168,7 +168,7 @@ export function checkAllFieldAlerts(
   const frost = checkFrost(forecast);
   const rain = checkRainHail(forecast);
   const drone = checkDroneConditions(forecast);
-  const fog = analyzeFog(readingHistory ?? new Map());
+  const fog = analyzeFog(readingHistory ?? new Map(), new Date(), forecast);
 
   // Wind propagation detection (needs stations + current + history)
   let wind: WindPropagationInfo = {
