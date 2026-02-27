@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { LastUpdated } from '../common/LastUpdated';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalStore, getMaxAlertLevel } from '../../store/thermalStore';
+import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
 
 interface HeaderProps {
   onRefresh: () => void;
@@ -11,6 +13,9 @@ export function Header({ onRefresh }: HeaderProps) {
   const readingCount = useWeatherStore((s) => s.currentReadings.size);
   const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
   const { level: alertLevel, score: alertScore } = getMaxAlertLevel(zoneAlerts);
+
+  const sun = useMemo(() => getSunTimes(), []);
+  const daylight = isDaylight();
 
   return (
     <header className="bg-slate-900 border-b border-slate-700 px-4 py-2 flex items-center justify-between">
@@ -28,6 +33,22 @@ export function Header({ onRefresh }: HeaderProps) {
         )}
       </div>
       <div className="flex items-center gap-3">
+        {/* Sunrise / Sunset */}
+        <div
+          className="flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded"
+          style={{
+            background: daylight ? 'rgba(250, 204, 21, 0.08)' : 'rgba(100, 116, 139, 0.1)',
+            color: daylight ? '#facc15' : '#64748b',
+            border: `1px solid ${daylight ? 'rgba(250, 204, 21, 0.2)' : 'rgba(100, 116, 139, 0.15)'}`,
+          }}
+          title={`Mediodía solar: ${formatTime(sun.solarNoon)} | Térmico: ${formatTime(sun.thermalStart)}–${formatTime(sun.thermalEnd)}`}
+        >
+          <span>{daylight ? '\u2600' : '\u263E'}</span>
+          <span>{formatTime(sun.sunrise)}</span>
+          <span className="text-slate-600">/</span>
+          <span>{formatTime(sun.sunset)}</span>
+        </div>
+
         {alertLevel !== 'none' && (
           <div
             className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold font-mono ${

@@ -252,6 +252,7 @@ export function useThermalAnalysis() {
             temperature: point.temperature,
             humidity: point.humidity,
             windSpeed: point.windSpeed,
+            windGust: null,
             windDirection: point.windDirection,
             precipitation: null,
           };

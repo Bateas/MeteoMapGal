@@ -52,6 +52,7 @@ export async function fetchOpenMeteoHistory(
       stationId,
       timestamp: new Date(data.hourly.time[i] + 'Z'), // UTC
       windSpeed: data.hourly.wind_speed_10m[i],
+      windGust: null,
       windDirection: data.hourly.wind_direction_10m[i],
       temperature: data.hourly.temperature_2m[i],
       humidity: data.hourly.relative_humidity_2m[i],

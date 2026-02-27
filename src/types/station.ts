@@ -16,6 +16,7 @@ export interface NormalizedReading {
   stationId: string;
   timestamp: Date;
   windSpeed: number | null;      // m/s
+  windGust: number | null;       // m/s (peak gust, when available)
   windDirection: number | null;   // degrees (0-360, from north, meteorological convention)
   temperature: number | null;     // Celsius
   humidity: number | null;        // %

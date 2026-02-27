@@ -259,6 +259,7 @@ export async function fetchNetatmoObservations(): Promise<{
     let temperature: number | null = null;
     let humidity: number | null = null;
     let windSpeed: number | null = null;
+    let windGust: number | null = null;
     let windDirection: number | null = null;
     let precipitation: number | null = null;
     let timestamp = new Date();
@@ -285,6 +286,7 @@ export async function fetchNetatmoObservations(): Promise<{
       // Wind data (flat fields)
       if (measure.wind_strength !== undefined) {
         windSpeed = kmhToMs(measure.wind_strength);
+        windGust = measure.gust_strength !== undefined ? kmhToMs(measure.gust_strength) : null;
         windDirection = measure.wind_angle === -1 ? null : (measure.wind_angle ?? null);
         if (measure.wind_timeutc) {
           timestamp = new Date(measure.wind_timeutc * 1000);
@@ -301,6 +303,7 @@ export async function fetchNetatmoObservations(): Promise<{
       stationId,
       timestamp,
       windSpeed,
+      windGust,
       windDirection,
       temperature,
       humidity,

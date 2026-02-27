@@ -24,6 +24,7 @@ export function normalizeAemetObservation(raw: AemetRawObservation): NormalizedR
     stationId: `aemet_${raw.idema}`,
     timestamp: new Date(raw.fint),
     windSpeed: raw.vv ?? null,
+    windGust: raw.vmax ?? null,
     windDirection: raw.dv ?? null,
     temperature: raw.ta ?? null,
     humidity: raw.hr ?? null,
@@ -71,6 +72,7 @@ export function normalizeMeteoGaliciaObservation(
     stationId: `mg_${stationId}`,
     timestamp,
     windSpeed: findMedida(entry.listaMedidas, MG_PARAMS.WIND_SPEED),
+    windGust: null,
     windDirection: findMedida(entry.listaMedidas, MG_PARAMS.WIND_DIRECTION),
     temperature: findMedida(entry.listaMedidas, MG_PARAMS.TEMPERATURE),
     humidity: findMedida(entry.listaMedidas, MG_PARAMS.HUMIDITY),
@@ -107,6 +109,7 @@ export function normalizeMeteoclimaticObservation(
     stationId: `mc_${raw.id}`,
     timestamp,
     windSpeed: raw.windSpeed !== null ? raw.windSpeed / 3.6 : null, // km/h → m/s
+    windGust: null,
     windDirection: raw.windAzimuth,
     temperature: raw.temperature,
     humidity: raw.humidity,
