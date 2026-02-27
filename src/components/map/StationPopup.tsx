@@ -35,7 +35,10 @@ export function StationPopup({ station, reading }: StationPopupProps) {
   const hasHistory = AEMET_HISTORY_STATIONS.includes(station.id);
   const [windRoseData, setWindRoseData] = useState<WindRoseData | null>(null);
   useEffect(() => {
-    if (!hasHistory) return;
+    if (!hasHistory) {
+      setWindRoseData(null); // Clear stale data from previous AEMET station
+      return;
+    }
     let cancelled = false;
     loadAemetHistory().then((records) => {
       if (cancelled) return;
