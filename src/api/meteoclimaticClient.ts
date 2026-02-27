@@ -5,6 +5,13 @@ import { METEOCLIMATIC } from '../config/apiEndpoints';
  * Parse a Meteoclimatic XML feed into structured station data.
  * Uses DOMParser to handle the XML response.
  */
+/** Decode HTML entities (e.g. &ntilde; → ñ) that some XML feeds leave unresolved. */
+function decodeEntities(text: string): string {
+  const ta = document.createElement('textarea');
+  ta.innerHTML = text;
+  return ta.value;
+}
+
 function parseXmlFeed(xmlText: string): MeteoclimaticRawStation[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'text/xml');
@@ -13,7 +20,7 @@ function parseXmlFeed(xmlText: string): MeteoclimaticRawStation[] {
   const stationEls = doc.querySelectorAll('station');
   for (const el of stationEls) {
     const id = el.querySelector('id')?.textContent ?? '';
-    const location = el.querySelector('location')?.textContent ?? '';
+    const location = decodeEntities(el.querySelector('location')?.textContent ?? '');
     const pubDate = el.querySelector('pubDate')?.textContent ?? '';
     const qos = parseInt(el.querySelector('QOS')?.textContent ?? '0', 10);
 

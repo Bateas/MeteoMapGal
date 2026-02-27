@@ -3,8 +3,10 @@
  * Overlays the map. Doesn't touch the sidebar.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import type { FieldAlerts, AlertLevel } from '../../types/campo';
+import { useForecastStore } from '../../hooks/useForecastTimeline';
+import { checkFrost, checkRainHail } from '../../services/fieldAlertEngine';
 
 interface FieldDrawerProps {
   open: boolean;
@@ -33,6 +35,7 @@ function formatTimeRange(from: Date, to: Date): string {
 
 export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
+  const forecastHourly = useForecastStore((s) => s.hourly);
 
   // Close on click outside
   useEffect(() => {
@@ -131,6 +134,12 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
                   <span className="text-slate-400">Probabilidad</span>
                   <span className="text-slate-300">{alerts.rain.maxProbability}%</span>
                 </div>
+                {alerts.rain.rainAccum6h > 0 && (
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-slate-400">Acum. 6h</span>
+                    <span className="text-blue-300 font-bold">{alerts.rain.rainAccum6h.toFixed(1)} mm</span>
+                  </div>
+                )}
                 {alerts.rain.hailRisk && (
                   <div className="text-[10px] text-red-400 font-semibold mt-1">
                     ⚠ Riesgo de granizo detectado (CAPE alto + precipitación fuerte)
@@ -302,6 +311,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
                 </span>
                 <span className="text-[10px] text-slate-400">
                   Viento: {alerts.drone.windKt.toFixed(0)} kt
+                  {alerts.drone.gustKt > 0 && ` · Racha: ${alerts.drone.gustKt.toFixed(0)} kt`}
                 </span>
               </div>
               {alerts.drone.reasons.length > 0 && (
@@ -316,6 +326,11 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
               )}
             </div>
           </AlertSection>
+
+          {/* ── 48h Mini-timeline ── */}
+          {forecastHourly.length > 0 && (
+            <AlertTimeline forecast={forecastHourly} />
+          )}
         </div>
       )}
     </div>
@@ -339,12 +354,19 @@ function AlertSection({
 
   return (
     <div
-      className="rounded-lg p-2.5"
+      className="rounded-lg p-2.5 relative overflow-hidden"
       style={{
         background: colors.bg,
         border: `1px solid ${colors.border}`,
       }}
     >
+      {/* Severity bar on the left edge */}
+      {level !== 'none' && (
+        <div
+          className="absolute left-0 top-0 bottom-0 w-1 rounded-l-lg"
+          style={{ background: colors.text }}
+        />
+      )}
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm">{icon}</span>
         <span className="text-[11px] font-bold text-slate-200">{title}</span>
@@ -358,6 +380,142 @@ function AlertSection({
         )}
       </div>
       {children}
+    </div>
+  );
+}
+
+// ── 48h Alert mini-timeline ──────────────────────────────
+
+function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').HourlyForecast[] }) {
+  // Group forecast into 3-hour buckets for compact display
+  const buckets = useMemo(() => {
+    const now = Date.now();
+    const result: Array<{
+      time: Date;
+      label: string;
+      frostLevel: AlertLevel;
+      rainLevel: AlertLevel;
+      hasStorm: boolean;
+    }> = [];
+
+    for (let i = 0; i < forecast.length; i += 3) {
+      const chunk = forecast.slice(i, i + 3);
+      if (chunk.length === 0) continue;
+      if (chunk[0].time.getTime() < now - 3600000) continue; // skip past hours
+
+      const frost = checkFrost(chunk);
+      const rain = checkRainHail(chunk);
+      const hasStorm = chunk.some(p => (p.cape ?? 0) > 500);
+
+      result.push({
+        time: chunk[0].time,
+        label: chunk[0].time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        frostLevel: frost.level,
+        rainLevel: rain.level,
+        hasStorm,
+      });
+    }
+
+    return result.slice(0, 16); // max 16 buckets = 48h
+  }, [forecast]);
+
+  if (buckets.length === 0) return null;
+
+  const levelToColor = (level: AlertLevel): string => {
+    switch (level) {
+      case 'critico': return '#ef4444';
+      case 'alto': return '#f59e0b';
+      case 'riesgo': return '#3b82f6';
+      default: return '#1e293b';
+    }
+  };
+
+  return (
+    <div className="rounded-lg p-2.5 bg-slate-800/30 border border-slate-700/50">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm">📊</span>
+        <span className="text-[11px] font-bold text-slate-200">Timeline 48h</span>
+      </div>
+
+      {/* Frost row */}
+      <div className="flex items-center gap-0.5 mb-1">
+        <span className="text-[8px] text-slate-500 w-8 shrink-0">❄️</span>
+        <div className="flex gap-px flex-1">
+          {buckets.map((b, i) => (
+            <div
+              key={`frost-${i}`}
+              className="flex-1 h-2.5 rounded-sm transition-colors"
+              style={{ background: levelToColor(b.frostLevel) }}
+              title={`${b.label} — Helada: ${b.frostLevel}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Rain row */}
+      <div className="flex items-center gap-0.5 mb-1">
+        <span className="text-[8px] text-slate-500 w-8 shrink-0">🌧️</span>
+        <div className="flex gap-px flex-1">
+          {buckets.map((b, i) => (
+            <div
+              key={`rain-${i}`}
+              className="flex-1 h-2.5 rounded-sm transition-colors"
+              style={{ background: levelToColor(b.rainLevel) }}
+              title={`${b.label} — Lluvia: ${b.rainLevel}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Storm row */}
+      <div className="flex items-center gap-0.5 mb-1.5">
+        <span className="text-[8px] text-slate-500 w-8 shrink-0">⚡</span>
+        <div className="flex gap-px flex-1">
+          {buckets.map((b, i) => (
+            <div
+              key={`storm-${i}`}
+              className="flex-1 h-2.5 rounded-sm transition-colors"
+              style={{ background: b.hasStorm ? '#a855f7' : '#1e293b' }}
+              title={`${b.label} — ${b.hasStorm ? 'Riesgo tormenta' : 'Sin tormenta'}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Time labels */}
+      <div className="flex gap-px">
+        <span className="w-8 shrink-0" />
+        {buckets.map((b, i) => (
+          <div
+            key={`time-${i}`}
+            className="flex-1 text-center"
+          >
+            {i % 4 === 0 && (
+              <span className="text-[7px] text-slate-600 font-mono">{b.label}</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-700/30">
+        <div className="flex items-center gap-0.5">
+          <div className="w-2 h-2 rounded-sm" style={{ background: '#3b82f6' }} />
+          <span className="text-[7px] text-slate-500">Riesgo</span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          <div className="w-2 h-2 rounded-sm" style={{ background: '#f59e0b' }} />
+          <span className="text-[7px] text-slate-500">Alto</span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          <div className="w-2 h-2 rounded-sm" style={{ background: '#ef4444' }} />
+          <span className="text-[7px] text-slate-500">Crítico</span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          <div className="w-2 h-2 rounded-sm" style={{ background: '#a855f7' }} />
+          <span className="text-[7px] text-slate-500">Tormenta</span>
+        </div>
+      </div>
     </div>
   );
 }

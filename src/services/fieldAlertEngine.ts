@@ -75,7 +75,7 @@ export function checkFrost(forecast: HourlyForecast[]): FrostAlert {
  * Hail: CAPE > 1000 + heavy precipitation.
  */
 export function checkRainHail(forecast: HourlyForecast[]): RainAlert {
-  const noAlert: RainAlert = { level: 'none', maxPrecip: 0, maxProbability: 0, hailRisk: false };
+  const noAlert: RainAlert = { level: 'none', maxPrecip: 0, maxProbability: 0, rainAccum6h: 0, hailRisk: false };
   if (forecast.length === 0) return noAlert;
 
   let maxPrecip = 0;
@@ -94,12 +94,24 @@ export function checkRainHail(forecast: HourlyForecast[]): RainAlert {
     if (cape > 1000 && precip > 5) hailRisk = true;
   }
 
+  // 6-hour accumulation from now
+  const now = Date.now();
+  const sixHoursMs = 6 * 60 * 60 * 1000;
+  let rainAccum6h = 0;
+  for (const p of forecast) {
+    const elapsed = p.time.getTime() - now;
+    if (elapsed >= 0 && elapsed <= sixHoursMs) {
+      rainAccum6h += p.precipitation ?? 0;
+    }
+  }
+  rainAccum6h = Math.round(rainAccum6h * 10) / 10;
+
   let level: AlertLevel = 'none';
   if (hailRisk) level = 'critico';
   else if (maxPrecip > 10 || maxProb > 80) level = 'alto';
   else if (maxPrecip > 2 || maxProb > 60) level = 'riesgo';
 
-  return { level, maxPrecip, maxProbability: maxProb, hailRisk };
+  return { level, maxPrecip, maxProbability: maxProb, rainAccum6h, hailRisk };
 }
 
 // ── Drone flight conditions ──────────────────────────────
@@ -109,7 +121,7 @@ export function checkRainHail(forecast: HourlyForecast[]): RainAlert {
  * Safe: wind < 15 kt, no rain, no nearby storms.
  */
 export function checkDroneConditions(forecast: HourlyForecast[]): DroneConditions {
-  const noFly: DroneConditions = { flyable: false, windKt: 0, rain: false, storms: false, reasons: ['Sin datos de previsión'] };
+  const noFly: DroneConditions = { flyable: false, windKt: 0, gustKt: 0, rain: false, storms: false, reasons: ['Sin datos de previsión'] };
   if (forecast.length === 0) return noFly;
 
   // Use the first future point (or closest to now)
@@ -120,6 +132,8 @@ export function checkDroneConditions(forecast: HourlyForecast[]): DroneCondition
 
   const windMs = current.windSpeed ?? 0;
   const windKt = msToKnots(windMs);
+  const gustMs = current.windGusts ?? 0;
+  const gustKt = msToKnots(gustMs);
   const rain = (current.precipitation ?? 0) > 0.2;
   const cape = current.cape ?? 0;
   const storms = cape > 500;
@@ -127,12 +141,13 @@ export function checkDroneConditions(forecast: HourlyForecast[]): DroneCondition
   const reasons: string[] = [];
 
   if (windKt > 15) reasons.push(`Viento ${windKt.toFixed(0)} kt (max 15 kt)`);
+  if (gustKt > 18) reasons.push(`Rachas ${gustKt.toFixed(0)} kt (max 18 kt)`);
   if (rain) reasons.push(`Lluvia prevista (${(current.precipitation ?? 0).toFixed(1)} mm)`);
   if (storms) reasons.push(`Riesgo tormenta (CAPE ${cape.toFixed(0)})`);
 
   const flyable = reasons.length === 0;
 
-  return { flyable, windKt, rain, storms, reasons };
+  return { flyable, windKt, gustKt, rain, storms, reasons };
 }
 
 // ── Combined check ───────────────────────────────────────

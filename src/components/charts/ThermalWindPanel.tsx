@@ -12,7 +12,8 @@ import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/win
 import { WindCompass } from '../common/WindCompass';
 import { HistoricalAnalysis } from './HistoricalAnalysis';
 import { BestDaysSearch } from './BestDaysSearch';
-import { loadAemetHistory, getParsedAemetHistory, filterByStation } from '../../services/aemetHistoryParser';
+import { WindRose } from './WindRose';
+import { loadAemetHistory, getParsedAemetHistory, filterByStation, buildWindRose, type ParsedDay } from '../../services/aemetHistoryParser';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import type { MicroZoneId, ZoneAlert, AlertLevel, TendencyLevel, RuleScore } from '../../types/thermal';
 import type { HumidityAssessment } from '../../services/humidityWindAnalyzer';
@@ -731,7 +732,7 @@ function ZoneCard({
 // ── Historical section: Best Days + Open-Meteo ──
 
 function HistoricalSection() {
-  const [histTab, setHistTab] = useState<'bestdays' | 'openmeteo'>('bestdays');
+  const [histTab, setHistTab] = useState<'bestdays' | 'openmeteo' | 'windrose'>('bestdays');
   const [historyLoaded, setHistoryLoaded] = useState(() => getParsedAemetHistory().length > 0);
 
   // Trigger lazy load of AEMET history JSON on first render
@@ -755,6 +756,7 @@ function HistoricalSection() {
       <div className="flex gap-1">
         {([
           { key: 'bestdays' as const, label: 'Mejores Días' },
+          { key: 'windrose' as const, label: 'Rosa Vientos' },
           { key: 'openmeteo' as const, label: 'Open-Meteo' },
         ]).map((tab) => (
           <button
@@ -775,9 +777,81 @@ function HistoricalSection() {
         <BestDaysSearch records={searchRecords} />
       )}
 
+      {histTab === 'windrose' && (
+        <WindRoseSection records={parsedRecords} historyLoaded={historyLoaded} />
+      )}
+
       {histTab === 'openmeteo' && (
         <HistoricalAnalysis />
       )}
+    </div>
+  );
+}
+
+// ── Wind Rose section for historical tab ──
+
+function WindRoseSection({ records, historyLoaded }: { records: ParsedDay[]; historyLoaded: boolean }) {
+  const [roseStation, setRoseStation] = useState<string>('all');
+
+  const roseData = useMemo(() => {
+    if (!historyLoaded || records.length === 0) return null;
+    const filtered = roseStation === 'all' ? records : filterByStation(records, roseStation);
+    return buildWindRose(filtered, { stationId: roseStation === 'all' ? undefined : roseStation });
+  }, [records, historyLoaded, roseStation]);
+
+  if (!roseData) {
+    return (
+      <div className="text-[10px] text-slate-500 text-center py-4">
+        Cargando datos históricos AEMET...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Station filter */}
+      <div className="flex gap-1">
+        {[
+          { id: 'all', label: 'Todas' },
+          { id: '1701X', label: 'Ribadavia' },
+          { id: '1690A', label: 'Ourense' },
+          { id: '1700X', label: 'Carballiño' },
+        ].map((st) => (
+          <button
+            key={st.id}
+            onClick={() => setRoseStation(st.id)}
+            className={`flex-1 text-[8px] font-semibold py-1 rounded transition-colors ${
+              roseStation === st.id
+                ? 'bg-amber-600/30 text-amber-400 border border-amber-500/30'
+                : 'bg-slate-800 text-slate-500 hover:text-slate-400'
+            }`}
+          >
+            {st.label}
+          </button>
+        ))}
+      </div>
+
+      <WindRose
+        data={roseData.points}
+        title={`Rosa de vientos · ${roseData.totalDays} días`}
+        stationName={roseStation === 'all' ? 'Todas las estaciones' : undefined}
+        size={200}
+        showSpeedWeight
+      />
+
+      {/* Quick stats */}
+      <div className="grid grid-cols-3 gap-1">
+        {roseData.points
+          .sort((a, b) => b.percentage - a.percentage)
+          .slice(0, 3)
+          .map((p, i) => (
+            <div key={p.direction} className="bg-slate-800/50 rounded p-1.5 text-center">
+              <div className="text-[10px] font-bold text-amber-400">{p.direction}</div>
+              <div className="text-[9px] text-slate-400">{p.percentage.toFixed(1)}%</div>
+              <div className="text-[8px] text-slate-600">#{i + 1}</div>
+            </div>
+          ))}
+      </div>
     </div>
   );
 }
