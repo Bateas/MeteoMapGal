@@ -137,6 +137,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </div>
         )}
 
+        {/* Thermal alert badge — now also visible in unified AlertPanel (bottom) */}
         {alertLevel !== 'none' && (
           <div
             className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold font-mono ${

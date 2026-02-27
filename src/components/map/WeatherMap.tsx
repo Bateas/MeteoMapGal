@@ -18,6 +18,7 @@ import { StormAlertBanner } from './StormAlertBanner';
 import { SimulationToggle } from './SimulationToggle';
 import { TemperatureOverlay } from './TemperatureOverlay';
 import { TemperatureToggle } from './TemperatureToggle';
+import { AlertPanel } from './AlertPanel';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -159,6 +160,7 @@ export function WeatherMap() {
 
       {/* HTML overlays on top of map */}
       <StormAlertBanner />
+      <AlertPanel />
       <TemperatureToggle />
       <SimulationToggle />
     </div>

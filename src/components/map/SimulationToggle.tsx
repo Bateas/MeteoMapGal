@@ -16,7 +16,7 @@ export const SimulationToggle = memo(function SimulationToggle() {
   return (
     <button
       onClick={toggleSimulation}
-      className={`absolute bottom-3 left-3 z-20 flex items-center gap-1.5
+      className={`absolute bottom-14 left-3 z-20 flex items-center gap-1.5
         px-3 py-1.5 rounded-lg text-[11px] font-bold tracking-wide
         backdrop-blur-md transition-all duration-200 cursor-pointer
         ${simulationActive

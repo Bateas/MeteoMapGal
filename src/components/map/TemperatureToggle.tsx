@@ -44,7 +44,7 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
   }
 
   return (
-    <div className="absolute bottom-3 left-20 z-20 flex items-center gap-2">
+    <div className="absolute bottom-14 left-20 z-20 flex items-center gap-2">
       {/* Toggle button */}
       <button
         onClick={toggleOverlay}
