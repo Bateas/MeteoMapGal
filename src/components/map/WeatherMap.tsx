@@ -14,7 +14,6 @@ import { ThermalAlertMarkers } from './ThermalAlertMarker';
 import { PropagationArrows } from './PropagationArrow';
 import { LightningOverlay } from './LightningOverlay';
 import { StormClusterOverlay } from './StormClusterOverlay';
-import { StormAlertBanner } from './StormAlertBanner';
 import { SimulationToggle } from './SimulationToggle';
 import { TemperatureOverlay } from './TemperatureOverlay';
 import { TemperatureToggle } from './TemperatureToggle';
@@ -159,7 +158,6 @@ export function WeatherMap() {
       </Map>
 
       {/* HTML overlays on top of map */}
-      <StormAlertBanner />
       <AlertPanel />
       <TemperatureToggle />
       <SimulationToggle />

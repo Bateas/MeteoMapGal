@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { LastUpdated } from '../common/LastUpdated';
 import { useWeatherStore } from '../../store/weatherStore';
-import { useThermalStore, getMaxAlertLevel } from '../../store/thermalStore';
+import { useThermalStore } from '../../store/thermalStore';
 import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { scoreForecastThermal, thermalColor } from '../../services/forecastScoringUtils';
@@ -16,9 +16,6 @@ interface HeaderProps {
 export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldAlertLevel = 'none' }: HeaderProps) {
   const stationCount = useWeatherStore((s) => s.stations.length);
   const readingCount = useWeatherStore((s) => s.currentReadings.size);
-  const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
-  const { level: alertLevel, score: alertScore } = getMaxAlertLevel(zoneAlerts);
-
   const forecastHourly = useForecastStore((s) => s.hourly);
   const thermalRules = useThermalStore((s) => s.rules);
 
@@ -137,38 +134,6 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </div>
         )}
 
-        {/* Thermal alert badge — now also visible in unified AlertPanel (bottom) */}
-        {alertLevel !== 'none' && (
-          <div
-            className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
-              alertLevel === 'high' ? 'animate-pulse' : ''
-            }`}
-            style={{
-              background:
-                alertLevel === 'high'
-                  ? 'rgba(239, 68, 68, 0.15)'
-                  : alertLevel === 'medium'
-                  ? 'rgba(245, 158, 11, 0.15)'
-                  : 'rgba(59, 130, 246, 0.15)',
-              color:
-                alertLevel === 'high'
-                  ? '#ef4444'
-                  : alertLevel === 'medium'
-                  ? '#f59e0b'
-                  : '#3b82f6',
-              border: `1px solid ${
-                alertLevel === 'high'
-                  ? 'rgba(239, 68, 68, 0.3)'
-                  : alertLevel === 'medium'
-                  ? 'rgba(245, 158, 11, 0.3)'
-                  : 'rgba(59, 130, 246, 0.3)'
-              }`,
-            }}
-          >
-            <span>Térmico</span>
-            <span>{alertScore}%</span>
-          </div>
-        )}
         <LastUpdated onRefresh={onRefresh} />
       </div>
     </header>

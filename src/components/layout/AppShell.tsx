@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FieldDrawer } from './FieldDrawer';
@@ -65,6 +65,10 @@ export function AppShell() {
   const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
   const setUnifiedAlerts = useAlertStore((s) => s.setAlerts);
   const notifConfig = useNotificationStore((s) => s.config);
+  // Use fetchedAt as stable trigger instead of the array (avoids React deps size warning)
+  const forecastFetchedAt = useForecastStore((s) => s.fetchedAt);
+  const forecastRef = useRef(forecastHourly);
+  forecastRef.current = forecastHourly;
 
   useEffect(() => {
     const { alerts, risk } = aggregateAllAlerts({
@@ -72,12 +76,12 @@ export function AppShell() {
       thermalProfile,
       zoneAlerts,
       fieldAlerts,
-      forecast: forecastHourly,
+      forecast: forecastRef.current,
     });
     setUnifiedAlerts(alerts, risk);
     // Trigger notifications for new/escalated alerts
     processAlertNotifications(alerts, risk, notifConfig);
-  }, [stormAlert, thermalProfile, zoneAlerts, fieldAlerts, forecastHourly, setUnifiedAlerts, notifConfig]);
+  }, [stormAlert, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig]);
 
   // ── Keyboard shortcuts ──────────────────────────────────
   useEffect(() => {
