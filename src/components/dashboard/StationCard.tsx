@@ -12,6 +12,7 @@ import {
 } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { WindCompass } from '../common/WindCompass';
+import { SOURCE_CONFIG } from '../../config/sourceConfig';
 
 interface StationCardProps {
   station: NormalizedStation;
@@ -51,6 +52,16 @@ export function StationCard({ station, reading }: StationCardProps) {
     && reading.windSpeed != null
     && reading.windGust > reading.windSpeed + 0.5;
 
+  // Stale/offline detection based on reading timestamp
+  const staleness = useMemo(() => {
+    if (!reading) return null;
+    const ageMs = Date.now() - reading.timestamp.getTime();
+    const ageMin = ageMs / 60_000;
+    if (ageMin > 120) return { label: 'offline', color: '#ef4444' };
+    if (ageMin > 30) return { label: `${Math.round(ageMin)}min`, color: '#f59e0b' };
+    return null;
+  }, [reading]);
+
   return (
     <div
       onClick={() => selectStation(isSelected ? null : station.id)}
@@ -67,26 +78,25 @@ export function StationCard({ station, reading }: StationCardProps) {
         <div className="flex items-center gap-1.5">
           <span
             className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-            style={{
-              background: station.source === 'aemet' ? '#3b82f6'
-                : station.source === 'meteoclimatic' ? '#10b981'
-                : station.source === 'wunderground' ? '#f59e0b'
-                : station.source === 'netatmo' ? '#06b6d4'
-                : '#8b5cf6',
-              color: 'white',
-            }}
+            style={{ background: SOURCE_CONFIG[station.source].color, color: 'white' }}
           >
-            {station.source === 'aemet' ? 'A'
-              : station.source === 'meteoclimatic' ? 'MC'
-              : station.source === 'wunderground' ? 'WU'
-              : station.source === 'netatmo' ? 'NT'
-              : 'MG'}
+            {SOURCE_CONFIG[station.source].label}
           </span>
           <span className="text-xs font-semibold text-slate-200 truncate max-w-[140px]">
             {station.name}
           </span>
         </div>
-        <span className="text-[10px] text-slate-500">{station.altitude}m</span>
+        <div className="flex items-center gap-1">
+          {staleness && (
+            <span
+              className="text-[8px] font-bold px-1 py-0.5 rounded"
+              style={{ background: `${staleness.color}20`, color: staleness.color, border: `1px solid ${staleness.color}40` }}
+            >
+              {staleness.label}
+            </span>
+          )}
+          <span className="text-[10px] text-slate-500">{station.altitude}m</span>
+        </div>
       </div>
 
       {reading ? (

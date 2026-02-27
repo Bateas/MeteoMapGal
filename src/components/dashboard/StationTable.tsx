@@ -1,19 +1,10 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
 import { StationCard } from './StationCard';
 import type { NormalizedStation } from '../../types/station';
-
-// ── Source badge config ──────────────────────────────────
+import { SOURCE_CONFIG } from '../../config/sourceConfig';
 
 type SourceKey = NormalizedStation['source'];
-
-const SOURCE_CONFIG: Record<SourceKey, { label: string; color: string }> = {
-  aemet:         { label: 'A',  color: '#3b82f6' },
-  meteogalicia:  { label: 'MG', color: '#8b5cf6' },
-  meteoclimatic: { label: 'MC', color: '#10b981' },
-  wunderground:  { label: 'WU', color: '#f59e0b' },
-  netatmo:       { label: 'NT', color: '#06b6d4' },
-};
 
 type SortMode = 'wind' | 'temp' | 'name';
 
@@ -23,9 +14,24 @@ export function StationTable() {
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
 
-  // Filters
-  const [hiddenSources, setHiddenSources] = useState<Set<SourceKey>>(new Set());
-  const [sortMode, setSortMode] = useState<SortMode>('wind');
+  // Filters (persisted to localStorage)
+  const [hiddenSources, setHiddenSources] = useState<Set<SourceKey>>(() => {
+    try {
+      const saved = localStorage.getItem('meteomap_hiddenSources');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    return (localStorage.getItem('meteomap_sortMode') as SortMode) || 'wind';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('meteomap_hiddenSources', JSON.stringify([...hiddenSources]));
+  }, [hiddenSources]);
+
+  useEffect(() => {
+    localStorage.setItem('meteomap_sortMode', sortMode);
+  }, [sortMode]);
 
   const fullStations = useMemo(() => stations.filter((s) => !s.tempOnly), [stations]);
   const tempOnlyCount = stations.length - fullStations.length;

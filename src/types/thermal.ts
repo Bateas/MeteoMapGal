@@ -58,6 +58,8 @@ export interface ScoreBreakdown {
   season: number;        // 0-15 (month-proportional from 7yr data)
   windDirection: number; // 0-15 (W dominant 74%, can mislead)
   windSpeed: number;     // 0-15 (thermal = 0→7-12kt ramp)
+  gustBonus: number;     // 0-5 (strong gusts = established thermal)
+  environmentBonus: number; // 0-5 (clear sky + high radiation)
 }
 
 export interface RuleScore {

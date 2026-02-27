@@ -1,9 +1,9 @@
 import type {
   ThermalWindRule, RuleScore, ScoreBreakdown,
-  ZoneAlert, AlertLevel, MicroZoneId, DailyContext,
+  ZoneAlert, AlertLevel, MicroZoneId, DailyContext, AtmosphericContext,
 } from '../types/thermal';
 import type { NormalizedReading } from '../types/station';
-import { isDirectionInRange, averageWindDirection } from './windUtils';
+import { isDirectionInRange, averageWindDirection, msToKnots } from './windUtils';
 
 /**
  * ΔT (diurnal range) scaling factor based on AEMET station analysis.
@@ -76,12 +76,13 @@ export function scoreRule(
   rule: ThermalWindRule,
   zoneReadings: NormalizedReading[],
   currentTime: Date = new Date(),
-  dailyContext?: DailyContext
+  dailyContext?: DailyContext,
+  atmosphericContext?: AtmosphericContext | null,
 ): RuleScore {
   const zeroScore: RuleScore = {
     ruleId: rule.id,
     score: 0,
-    breakdown: { temperature: 0, humidity: 0, timeOfDay: 0, season: 0, windDirection: 0, windSpeed: 0 },
+    breakdown: { temperature: 0, humidity: 0, timeOfDay: 0, season: 0, windDirection: 0, windSpeed: 0, gustBonus: 0, environmentBonus: 0 },
     matchedZone: rule.expectedWind.zone,
   };
 
@@ -134,6 +135,18 @@ export function scoreRule(
     return zeroScore;
   }
 
+  // ══════════════════════════════════════════════════════
+  // HARD GATE 4: Active precipitation — rain kills thermals
+  // If zone average precipitation > 2mm, thermal convection is suppressed
+  // ══════════════════════════════════════════════════════
+  if (rule.id.startsWith('thermal_')) {
+    const precipReadings = zoneReadings.filter((r) => r.precipitation !== null && r.precipitation! > 0);
+    if (precipReadings.length > 0) {
+      const avgPrecip = precipReadings.reduce((sum, r) => sum + r.precipitation!, 0) / precipReadings.length;
+      if (avgPrecip > 2) return zeroScore;
+    }
+  }
+
   const breakdown: ScoreBreakdown = {
     temperature: 0,
     humidity: 0,
@@ -141,6 +154,8 @@ export function scoreRule(
     season: 0,
     windDirection: 0,
     windSpeed: 0,
+    gustBonus: 0,
+    environmentBonus: 0,
   };
 
   // ── Temperature (0-25) ───────────────────────────────
@@ -268,8 +283,37 @@ export function scoreRule(
     }
   }
 
+  // ── Gust bonus (0-5) ────────────────────────────────
+  // Strong gusts (>10 kt) indicate established thermal convection.
+  // Only count when sustained wind is also present (not just random gusts).
+  const gusts = zoneReadings.filter((r) => r.windGust !== null).map((r) => r.windGust!);
+  if (gusts.length > 0 && avgSpeed !== null && avgSpeed > 1) {
+    const avgGustKt = msToKnots(gusts.reduce((a, b) => a + b, 0) / gusts.length);
+    if (avgGustKt >= 15) breakdown.gustBonus = 5;
+    else if (avgGustKt >= 10) breakdown.gustBonus = 3;
+    else if (avgGustKt >= 6) breakdown.gustBonus = 1;
+  }
+
+  // ── Environment bonus (0-5) ────────────────────────
+  // Clear sky + strong radiation = conditions for thermal convection.
+  if (atmosphericContext && rule.id.startsWith('thermal_')) {
+    const { cloudCover, solarRadiation } = atmosphericContext;
+    if (cloudCover !== null && cloudCover < 20) {
+      breakdown.environmentBonus += 2; // Clear sky
+    } else if (cloudCover !== null && cloudCover < 40) {
+      breakdown.environmentBonus += 1; // Mostly clear
+    }
+    if (solarRadiation !== null && solarRadiation > 600) {
+      breakdown.environmentBonus += 3; // Strong radiation
+    } else if (solarRadiation !== null && solarRadiation > 400) {
+      breakdown.environmentBonus += 1; // Moderate radiation
+    }
+    breakdown.environmentBonus = Math.min(5, breakdown.environmentBonus);
+  }
+
   let score = breakdown.temperature + breakdown.humidity + breakdown.timeOfDay +
-    breakdown.season + breakdown.windDirection + breakdown.windSpeed;
+    breakdown.season + breakdown.windDirection + breakdown.windSpeed +
+    breakdown.gustBonus + breakdown.environmentBonus;
 
   // ── ΔT scaling (AEMET-derived) ────────────────────────
   // Only apply to thermal rules, in-season months
@@ -294,14 +338,15 @@ export function scoreAllRules(
   rules: ThermalWindRule[],
   zoneReadingsMap: Map<MicroZoneId, NormalizedReading[]>,
   currentTime: Date = new Date(),
-  dailyContext?: DailyContext
+  dailyContext?: DailyContext,
+  atmosphericContext?: AtmosphericContext | null,
 ): RuleScore[] {
   const scores: RuleScore[] = [];
 
   for (const rule of rules) {
     if (!rule.enabled) continue;
     const readings = zoneReadingsMap.get(rule.expectedWind.zone) || [];
-    scores.push(scoreRule(rule, readings, currentTime, dailyContext));
+    scores.push(scoreRule(rule, readings, currentTime, dailyContext, atmosphericContext));
   }
 
   return scores;

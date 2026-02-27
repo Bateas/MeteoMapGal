@@ -171,8 +171,8 @@ export function useThermalAnalysis() {
         zoneReadings.set(zoneId, list);
       }
 
-      // Score all rules (with ΔT context if available)
-      const scores = scoreAllRules(rules, zoneReadings, now, dailyContext ?? undefined);
+      // Score all rules (with ΔT context + atmospheric context if available)
+      const scores = scoreAllRules(rules, zoneReadings, now, dailyContext ?? undefined, atmosphericContext);
       setRuleScores(scores);
 
       // Compute zone alerts
