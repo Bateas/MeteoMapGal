@@ -18,8 +18,8 @@ import type { NormalizedReading } from '../types/station';
 import { scoreRule } from '../services/thermalScoringEngine';
 import { MICRO_ZONES } from '../config/thermalZones';
 
-const FORECAST_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const ATMOSPHERIC_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const FORECAST_INTERVAL_MS = 30 * 60 * 1000;
+const ATMOSPHERIC_INTERVAL_MS = 15 * 60 * 1000;
 
 /**
  * Connects weather data → scoring engine → tendency detector → thermal store.
@@ -33,12 +33,11 @@ const ATMOSPHERIC_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
  *   5. Open-Meteo 24h history → backfill for tendency time series
  */
 export function useThermalAnalysis() {
-  const { stations, currentReadings, readingHistory, lastFetchTime } = useWeatherStore(
+  const { stations, currentReadings, readingHistory } = useWeatherStore(
     useShallow((s) => ({
       stations: s.stations,
       currentReadings: s.currentReadings,
       readingHistory: s.readingHistory,
-      lastFetchTime: s.lastFetchTime,
     }))
   );
 
@@ -99,7 +98,7 @@ export function useThermalAnalysis() {
       if (ctx.deltaT !== null) {
         console.log(`[ThermalAnalysis] ΔT today: ${ctx.deltaT.toFixed(1)}°C (Tmin ${ctx.tempMin?.toFixed(1)}°C, Tmax ${ctx.tempMax?.toFixed(1)}°C)`);
       }
-    });
+    }).catch((err) => console.warn('[ThermalAnalysis] Daily context error:', err));
   }, [setDailyContext]);
 
   // ── Fetch atmospheric context (cloud/radiation/CAPE) ────
@@ -111,7 +110,7 @@ export function useThermalAnalysis() {
           `[ThermalAnalysis] Atm: cloud ${ctx.cloudCover}%, radiation ${ctx.solarRadiation} W/m², CAPE ${ctx.cape} J/kg`
         );
       }
-    });
+    }).catch((err) => console.warn('[ThermalAnalysis] Atmospheric context error:', err));
   }, [setAtmosphericContext]);
 
   useEffect(() => {
@@ -316,11 +315,4 @@ export function useThermalAnalysis() {
     };
   }, [fetchForecast]);
 
-  // Also refresh forecast when lastFetchTime changes (data update)
-  useEffect(() => {
-    if (lastFetchTime) {
-      // Don't re-fetch forecast every 10min, only re-score
-      // Forecast re-fetch is on its own 30min timer
-    }
-  }, [lastFetchTime]);
 }

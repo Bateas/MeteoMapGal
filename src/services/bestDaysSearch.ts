@@ -48,7 +48,7 @@ export function scoreDayMatch(day: ParsedDay, criteria: DaySearchCriteria): numb
     factors++;
     if (day.dir === null) {
       score += 0;
-    } else if (isDirectionInRange(day.dir, { from: criteria.windDirFrom, to: criteria.windDirTo })) {
+    } else if (isDirectionInRange(day.dir * 10, { from: criteria.windDirFrom, to: criteria.windDirTo })) {
       score += 100;
     } else {
       score += 20; // Partial credit
@@ -114,7 +114,7 @@ export function searchBestDays(
       fecha: day.fecha,
       temp: day.tmax ?? 0,
       wind: day.velmedia ?? 0,
-      dir: day.dir ?? 0,
+      dir: day.dir !== null ? day.dir * 10 : 0, // AEMET dir is in decadegrees
       precip: day.prec ?? 0,
       humidity: day.hrMedia ?? 0,
       gust: day.racha ?? 0,

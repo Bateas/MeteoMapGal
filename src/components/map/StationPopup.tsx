@@ -156,8 +156,6 @@ export function StationPopup({ station, reading }: StationPopupProps) {
 
 // ── Mini SVG wind rose for popups ────────────────────────────
 
-import type { WindRoseData } from '../../types/campo';
-
 const ROSE_SIZE = 100;
 const ROSE_CENTER = ROSE_SIZE / 2;
 const ROSE_RADIUS = 38;

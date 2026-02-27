@@ -31,6 +31,14 @@ const MAX_AGE_DAYS = 90;
 // Track last log time per station to avoid duplicates
 const lastLogTime = new Map<string, number>();
 
+/** Escape a CSV field to prevent injection (=, +, -, @) and handle commas/quotes. */
+function escapeCSV(value: string): string {
+  if (/[,"\n\r]/.test(value) || /^[=+\-@]/.test(value)) {
+    return '"' + value.replace(/"/g, '""') + '"';
+  }
+  return value;
+}
+
 /**
  * Log an array of readings to localStorage CSV.
  * Deduplicates by station (max 1 per 10 min).
@@ -50,7 +58,7 @@ export function logReadings(readings: NormalizedReading[]): void {
     const ts = r.timestamp instanceof Date ? r.timestamp.toISOString() : new Date(r.timestamp).toISOString();
     const row = [
       ts,
-      r.stationId,
+      escapeCSV(r.stationId),
       '',
       '',
       r.windSpeed?.toFixed(2) ?? '',

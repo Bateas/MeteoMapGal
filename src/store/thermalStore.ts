@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 import type {
   MicroZone, MicroZoneId, ThermalWindRule,
   RuleScore, ZoneAlert, PropagationEvent,
@@ -60,7 +61,7 @@ interface ThermalState {
   addRules: (rules: ThermalWindRule[]) => void;
 }
 
-export const useThermalStore = create<ThermalState>((set, get) => ({
+export const useThermalStore = create<ThermalState>()(devtools((set, get) => ({
   zones: MICRO_ZONES,
   rules: DEFAULT_THERMAL_RULES,
   ruleScores: [],
@@ -109,7 +110,7 @@ export const useThermalStore = create<ThermalState>((set, get) => ({
     }
     set({ rules: Array.from(ruleMap.values()) });
   },
-}));
+}), { name: 'ThermalStore' }));
 
 /**
  * Get the highest alert level across all zones.

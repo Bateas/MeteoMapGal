@@ -1,10 +1,16 @@
 import { useState, lazy, Suspense } from 'react';
-import { StationTable } from '../dashboard/StationTable';
-import { TimeSeriesChart } from '../charts/TimeSeriesChart';
-import { ForecastTimeline } from '../charts/ForecastTimeline';
 import { ErrorBanner } from '../common/ErrorBanner';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 
+const StationTable = lazy(() =>
+  import('../dashboard/StationTable').then((m) => ({ default: m.StationTable })),
+);
+const TimeSeriesChart = lazy(() =>
+  import('../charts/TimeSeriesChart').then((m) => ({ default: m.TimeSeriesChart })),
+);
+const ForecastTimeline = lazy(() =>
+  import('../charts/ForecastTimeline').then((m) => ({ default: m.ForecastTimeline })),
+);
 const ThermalWindPanel = lazy(() =>
   import('../charts/ThermalWindPanel').then((m) => ({ default: m.ThermalWindPanel })),
 );
@@ -62,28 +68,28 @@ export function Sidebar() {
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         <ErrorBanner />
-        {activeTab === 'stations' && (
-          <ErrorBoundary section="Estaciones">
-            <StationTable />
-          </ErrorBoundary>
-        )}
-        {activeTab === 'chart' && (
-          <ErrorBoundary section="Gráfica">
-            <TimeSeriesChart />
-          </ErrorBoundary>
-        )}
-        {activeTab === 'forecast' && (
-          <ErrorBoundary section="Previsión">
-            <ForecastTimeline />
-          </ErrorBoundary>
-        )}
-        {activeTab === 'thermal' && (
-          <ErrorBoundary section="Panel Térmico">
-            <Suspense fallback={<div className="text-center text-slate-500 text-xs py-8">Cargando panel térmico...</div>}>
+        <Suspense fallback={<div className="text-center text-slate-500 text-xs py-8">Cargando...</div>}>
+          {activeTab === 'stations' && (
+            <ErrorBoundary section="Estaciones">
+              <StationTable />
+            </ErrorBoundary>
+          )}
+          {activeTab === 'chart' && (
+            <ErrorBoundary section="Gráfica">
+              <TimeSeriesChart />
+            </ErrorBoundary>
+          )}
+          {activeTab === 'forecast' && (
+            <ErrorBoundary section="Previsión">
+              <ForecastTimeline />
+            </ErrorBoundary>
+          )}
+          {activeTab === 'thermal' && (
+            <ErrorBoundary section="Panel Térmico">
               <ThermalWindPanel />
-            </Suspense>
-          </ErrorBoundary>
-        )}
+            </ErrorBoundary>
+          )}
+        </Suspense>
       </div>
     </aside>
   );
