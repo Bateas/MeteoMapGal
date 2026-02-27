@@ -1,13 +1,6 @@
 import { Marker } from 'react-map-gl/maplibre';
 import { useThermalStore } from '../../store/thermalStore';
-import type { AlertLevel } from '../../types/thermal';
-
-const ALERT_COLORS: Record<AlertLevel, string> = {
-  none: '#64748b',
-  low: '#3b82f6',
-  medium: '#f59e0b',
-  high: '#ef4444',
-};
+import { ALERT_COLORS } from '../../config/alertColors';
 
 export function ThermalAlertMarkers() {
   const zones = useThermalStore((s) => s.zones);

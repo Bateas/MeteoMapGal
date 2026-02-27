@@ -146,8 +146,9 @@ export function buildWindRose(
 
   let total = 0;
   for (const d of days) {
-    if (d.dir === null || d.dir === 0) continue; // 0 = calm or no data in AEMET
-    const cardinal = degreesToCardinal(d.dir);
+    if (d.dir === null || d.dir === 0 || d.dir === 99) continue; // 0 = calm, 99 = variable
+    // AEMET dir field is in decadegrees (0-36), multiply by 10 to get real degrees
+    const cardinal = degreesToCardinal(d.dir * 10);
     counts.set(cardinal, (counts.get(cardinal) ?? 0) + 1);
     total++;
   }

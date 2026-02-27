@@ -58,10 +58,14 @@ interface WUObservation {
 export async function fetchWUNearbyStations(): Promise<NormalizedStation[]> {
   const [centerLon, centerLat] = MAP_CENTER;
 
-  const url = `${BASE_URL}/v3/location/near?geocode=${centerLat},${centerLon}&product=pws&format=json&apiKey=${API_KEY}`;
+  const url = new URL('/v3/location/near', BASE_URL);
+  url.searchParams.set('geocode', `${centerLat},${centerLon}`);
+  url.searchParams.set('product', 'pws');
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('apiKey', API_KEY);
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url.toString());
     if (!res.ok) {
       console.warn(`[WU] Near endpoint failed: ${res.status}`);
       return [];
@@ -107,10 +111,14 @@ export async function fetchWUNearbyStations(): Promise<NormalizedStation[]> {
  */
 async function fetchWUCurrent(stationId: string): Promise<WUObservation | null> {
   const rawId = stationId.replace('wu_', '');
-  const url = `${BASE_URL}/v2/pws/observations/current?stationId=${rawId}&format=json&units=s&apiKey=${API_KEY}`;
+  const url = new URL('/v2/pws/observations/current', BASE_URL);
+  url.searchParams.set('stationId', rawId);
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('units', 's');
+  url.searchParams.set('apiKey', API_KEY);
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url.toString());
     if (!res.ok) return null;
 
     const data = await res.json();

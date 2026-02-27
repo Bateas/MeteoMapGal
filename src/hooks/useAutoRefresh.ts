@@ -32,8 +32,9 @@ export function useAutoRefresh(
 
   useEffect(() => {
     const start = () => {
+      if (timerRef.current) clearInterval(timerRef.current);
       setIsPolling(true);
-      executeRefresh(); // Immediate first fetch
+      executeRefresh();
       timerRef.current = window.setInterval(executeRefresh, intervalMs);
     };
 
@@ -41,13 +42,13 @@ export function useAutoRefresh(
       setIsPolling(false);
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = undefined;
       }
     };
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        executeRefresh(); // Fetch immediately when tab becomes visible
-        start();
+        start(); // start() already calls executeRefresh()
       } else {
         stop();
       }

@@ -11,19 +11,12 @@ import { es } from 'date-fns/locale';
 import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/windUtils';
 import { WindCompass } from '../common/WindCompass';
 import { HistoricalAnalysis } from './HistoricalAnalysis';
-import { WindRose } from './WindRose';
 import { BestDaysSearch } from './BestDaysSearch';
-import { loadAemetHistory, getParsedAemetHistory, filterByStation, filterBySeason, buildWindRose } from '../../services/aemetHistoryParser';
+import { loadAemetHistory, getParsedAemetHistory, filterByStation } from '../../services/aemetHistoryParser';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import type { MicroZoneId, ZoneAlert, AlertLevel, TendencyLevel, RuleScore } from '../../types/thermal';
 import type { HumidityAssessment } from '../../services/humidityWindAnalyzer';
-
-const ALERT_COLORS: Record<AlertLevel, string> = {
-  none: '#64748b',
-  low: '#3b82f6',
-  medium: '#f59e0b',
-  high: '#ef4444',
-};
+import { ALERT_COLORS } from '../../config/alertColors';
 
 const ALERT_LABELS: Record<AlertLevel, string> = {
   none: 'Sin alerta',
@@ -735,10 +728,10 @@ function ZoneCard({
   );
 }
 
-// ── Historical section with Wind Rose + Best Days + Open-Meteo ──
+// ── Historical section: Best Days + Open-Meteo ──
 
 function HistoricalSection() {
-  const [histTab, setHistTab] = useState<'windrose' | 'bestdays' | 'openmeteo'>('windrose');
+  const [histTab, setHistTab] = useState<'bestdays' | 'openmeteo'>('bestdays');
   const [historyLoaded, setHistoryLoaded] = useState(() => getParsedAemetHistory().length > 0);
 
   // Trigger lazy load of AEMET history JSON on first render
@@ -749,14 +742,6 @@ function HistoricalSection() {
   }, [historyLoaded]);
 
   const parsedRecords = getParsedAemetHistory();
-
-  // Wind rose for Ribadavia (1701X) — summer months
-  const windRoseData = useMemo(() => {
-    if (!historyLoaded || parsedRecords.length === 0) return null;
-    const ribadavia = filterByStation(parsedRecords, '1701X');
-    const summer = filterBySeason(ribadavia, [6, 7, 8, 9]);
-    return buildWindRose(summer, { stationId: '1701X', months: [6, 7, 8, 9] });
-  }, [historyLoaded, parsedRecords]);
 
   // Records for best days search (Ribadavia)
   const searchRecords = useMemo(() => {
@@ -769,7 +754,6 @@ function HistoricalSection() {
       {/* Sub-tabs */}
       <div className="flex gap-1">
         {([
-          { key: 'windrose' as const, label: 'Rosa Vientos' },
           { key: 'bestdays' as const, label: 'Mejores Días' },
           { key: 'openmeteo' as const, label: 'Open-Meteo' },
         ]).map((tab) => (
@@ -786,19 +770,6 @@ function HistoricalSection() {
           </button>
         ))}
       </div>
-
-      {histTab === 'windrose' && (
-        windRoseData ? (
-          <WindRose
-            data={windRoseData.points}
-            title={`Jun-Sep · ${windRoseData.totalDays} días`}
-            stationName="Ribadavia (1701X)"
-            size={220}
-          />
-        ) : (
-          <div className="text-center text-slate-500 text-xs py-8">Cargando datos históricos...</div>
-        )
-      )}
 
       {histTab === 'bestdays' && (
         <BestDaysSearch records={searchRecords} />

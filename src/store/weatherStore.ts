@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MAX_HISTORY_ENTRIES } from '../config/constants';
 
@@ -39,7 +40,7 @@ interface WeatherState {
   updateSourceStatus: (source: WeatherSource, ok: boolean, count?: number, errorMsg?: string) => void;
 }
 
-export const useWeatherStore = create<WeatherState>((set, get) => ({
+export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
   stations: [],
   currentReadings: new Map(),
   readingHistory: new Map(),
@@ -51,7 +52,7 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
   error: null,
   sourceFreshness: new Map(),
 
-  setStations: (stations) => set({ stations }),
+  setStations: (stations) => set({ stations }, undefined, 'setStations'),
 
   updateReadings: (readings) => {
     const { currentReadings, readingHistory } = get();
@@ -80,24 +81,24 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
       currentReadings: newCurrent,
       readingHistory: newHistory,
       lastFetchTime: new Date(),
-    });
+    }, undefined, 'updateReadings');
   },
 
-  selectStation: (id) => set({ selectedStationId: id }),
-  highlightStation: (id) => set({ highlightedStationId: id }),
+  selectStation: (id) => set({ selectedStationId: id }, undefined, 'selectStation'),
+  highlightStation: (id) => set({ highlightedStationId: id }, undefined, 'highlightStation'),
 
   toggleChartStation: (id) => {
     const { chartSelectedStations } = get();
     const index = chartSelectedStations.indexOf(id);
     if (index >= 0) {
-      set({ chartSelectedStations: chartSelectedStations.filter((s) => s !== id) });
+      set({ chartSelectedStations: chartSelectedStations.filter((s) => s !== id) }, undefined, 'toggleChartStation');
     } else {
-      set({ chartSelectedStations: [...chartSelectedStations, id] });
+      set({ chartSelectedStations: [...chartSelectedStations, id] }, undefined, 'toggleChartStation');
     }
   },
 
-  setLoading: (isLoading) => set({ isLoading }),
-  setError: (error) => set({ error }),
+  setLoading: (isLoading) => set({ isLoading }, undefined, 'setLoading'),
+  setError: (error) => set({ error }, undefined, 'setError'),
 
   updateSourceStatus: (source, ok, count = 0, errorMsg) => {
     const { sourceFreshness } = get();
@@ -108,6 +109,6 @@ export const useWeatherStore = create<WeatherState>((set, get) => ({
     } else {
       newMap.set(source, { ...prev, lastError: new Date(), errorMessage: errorMsg ?? 'Error' });
     }
-    set({ sourceFreshness: newMap });
+    set({ sourceFreshness: newMap }, undefined, 'updateSourceStatus');
   },
-}));
+}), { name: 'WeatherStore' }));

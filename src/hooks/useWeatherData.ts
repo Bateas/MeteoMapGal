@@ -25,116 +25,115 @@ export function useWeatherData() {
 
     setLoading(true);
     setError(null);
-    const allReadings: NormalizedReading[] = [];
 
-    try {
-      // Fetch AEMET observations (single request for all stations)
-      const aemetStationIds = new Set(
-        stations.filter((s) => s.source === 'aemet').map((s) => s.id)
-      );
+    // Build fetch tasks for each source — run all in parallel
+    const tasks: Promise<NormalizedReading[]>[] = [];
 
-      if (aemetStationIds.size > 0) {
-        try {
-          const aemetObs = await fetchAllObservations();
-          let count = 0;
+    // AEMET
+    const aemetStationIds = new Set(
+      stations.filter((s) => s.source === 'aemet').map((s) => s.id)
+    );
+    if (aemetStationIds.size > 0) {
+      tasks.push(
+        fetchAllObservations().then((aemetObs) => {
+          const readings: NormalizedReading[] = [];
           for (const obs of aemetObs) {
-            const stationId = `aemet_${obs.idema}`;
-            if (aemetStationIds.has(stationId)) {
-              allReadings.push(normalizeAemetObservation(obs));
-              count++;
+            if (aemetStationIds.has(`aemet_${obs.idema}`)) {
+              readings.push(normalizeAemetObservation(obs));
             }
           }
-          updateSourceStatus('aemet', true, count);
-        } catch (err) {
+          updateSourceStatus('aemet', true, readings.length);
+          return readings;
+        }).catch((err) => {
           console.error('[WeatherData] AEMET fetch error:', err);
           updateSourceStatus('aemet', false, 0, String(err));
-        }
-      }
+          return [];
+        })
+      );
+    }
 
-      // Fetch MeteoGalicia observations (per-station)
-      const mgStations = stations.filter((s) => s.source === 'meteogalicia');
-      if (mgStations.length > 0) {
-        try {
-          const mgIds = mgStations.map((s) => parseInt(s.id.replace('mg_', ''), 10));
-          const mgResults = await fetchLatestForStations(mgIds);
-          let count = 0;
+    // MeteoGalicia
+    const mgStations = stations.filter((s) => s.source === 'meteogalicia');
+    if (mgStations.length > 0) {
+      tasks.push(
+        fetchLatestForStations(mgStations.map((s) => parseInt(s.id.replace('mg_', ''), 10))).then((mgResults) => {
+          const readings: NormalizedReading[] = [];
           for (const [stationId, values] of mgResults) {
             const reading = normalizeMeteoGaliciaObservation(stationId, values);
-            if (reading) {
-              allReadings.push(reading);
-              count++;
-            }
+            if (reading) readings.push(reading);
           }
-          updateSourceStatus('meteogalicia', true, count);
-        } catch (err) {
+          updateSourceStatus('meteogalicia', true, readings.length);
+          return readings;
+        }).catch((err) => {
           console.error('[WeatherData] MeteoGalicia fetch error:', err);
           updateSourceStatus('meteogalicia', false, 0, String(err));
-        }
-      }
-
-      // Fetch Meteoclimatic observations (single XML feed for all stations)
-      const mcStationIds = new Set(
-        stations.filter((s) => s.source === 'meteoclimatic').map((s) => s.id)
+          return [];
+        })
       );
-      if (mcStationIds.size > 0) {
-        try {
-          const mcFeed = await fetchMeteoclimaticFeed();
-          let count = 0;
+    }
+
+    // Meteoclimatic
+    const mcStationIds = new Set(
+      stations.filter((s) => s.source === 'meteoclimatic').map((s) => s.id)
+    );
+    if (mcStationIds.size > 0) {
+      tasks.push(
+        fetchMeteoclimaticFeed().then((mcFeed) => {
+          const readings: NormalizedReading[] = [];
           for (const raw of mcFeed) {
-            const normalizedId = `mc_${raw.id}`;
-            if (mcStationIds.has(normalizedId)) {
-              allReadings.push(normalizeMeteoclimaticObservation(raw));
-              count++;
+            if (mcStationIds.has(`mc_${raw.id}`)) {
+              readings.push(normalizeMeteoclimaticObservation(raw));
             }
           }
-          updateSourceStatus('meteoclimatic', true, count);
-        } catch (err) {
+          updateSourceStatus('meteoclimatic', true, readings.length);
+          return readings;
+        }).catch((err) => {
           console.error('[WeatherData] Meteoclimatic fetch error:', err);
           updateSourceStatus('meteoclimatic', false, 0, String(err));
-        }
-      }
+          return [];
+        })
+      );
+    }
 
-      // Fetch Weather Underground PWS observations
-      const wuStationIds = stations
-        .filter((s) => s.source === 'wunderground')
-        .map((s) => s.id);
-      if (wuStationIds.length > 0) {
-        try {
-          const wuReadings = await fetchWUObservations(wuStationIds);
-          allReadings.push(...wuReadings);
-          updateSourceStatus('wunderground', true, wuReadings.length);
-        } catch (err) {
+    // Weather Underground
+    const wuStationIds = stations.filter((s) => s.source === 'wunderground').map((s) => s.id);
+    if (wuStationIds.length > 0) {
+      tasks.push(
+        fetchWUObservations(wuStationIds).then((readings) => {
+          updateSourceStatus('wunderground', true, readings.length);
+          return readings;
+        }).catch((err) => {
           console.error('[WeatherData] WU fetch error:', err);
           updateSourceStatus('wunderground', false, 0, String(err));
-        }
-      }
+          return [];
+        })
+      );
+    }
 
-      // Fetch Netatmo observations (returns both stations and readings)
-      // Includes wind stations AND temp-only stations for thermal scoring
-      const netatmoStationIds = stations
-        .filter((s) => s.source === 'netatmo')
-        .map((s) => s.id);
-      if (netatmoStationIds.length > 0) {
-        try {
-          const { readings } = await fetchNetatmoObservations();
-          const known = new Set(netatmoStationIds);
-          let count = 0;
-          for (const reading of readings) {
-            if (known.has(reading.stationId)) {
-              allReadings.push(reading);
-              count++;
-            }
-          }
-          updateSourceStatus('netatmo', true, count);
-        } catch (err) {
+    // Netatmo
+    const netatmoStationIds = new Set(
+      stations.filter((s) => s.source === 'netatmo').map((s) => s.id)
+    );
+    if (netatmoStationIds.size > 0) {
+      tasks.push(
+        fetchNetatmoObservations().then(({ readings }) => {
+          const filtered = readings.filter((r) => netatmoStationIds.has(r.stationId));
+          updateSourceStatus('netatmo', true, filtered.length);
+          return filtered;
+        }).catch((err) => {
           console.error('[WeatherData] Netatmo fetch error:', err);
           updateSourceStatus('netatmo', false, 0, String(err));
-        }
-      }
+          return [];
+        })
+      );
+    }
+
+    try {
+      const results = await Promise.all(tasks);
+      const allReadings = results.flat();
 
       if (allReadings.length > 0) {
         updateReadings(allReadings);
-        // Log real station data for local historical analysis
         logReadings(allReadings);
       }
     } catch (err) {

@@ -5,6 +5,19 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    target: 'esnext',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'maplibre': ['maplibre-gl', 'react-map-gl'],
+          'recharts': ['recharts'],
+          'date-fns': ['date-fns'],
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
