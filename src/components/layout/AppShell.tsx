@@ -8,10 +8,13 @@ import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
-import { useLightningData } from '../../hooks/useLightningData';
+import { useLightningData, useLightningStore } from '../../hooks/useLightningData';
 import { useForecastTimeline, useForecastStore } from '../../hooks/useForecastTimeline';
 import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
+import { useThermalStore } from '../../store/thermalStore';
+import { useAlertStore } from '../../store/alertStore';
+import { aggregateAllAlerts } from '../../services/alertService';
 import {
   extractStationTemps,
   analyzeThermalProfile,
@@ -54,6 +57,22 @@ export function AppShell() {
     setThermalProfile(profile);
   }, [stations, currentReadings, setThermalProfile]);
 
+  // ── Unified alert aggregation ───────────────────────────
+  const stormAlert = useLightningStore((s) => s.stormAlert);
+  const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
+  const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
+  const setUnifiedAlerts = useAlertStore((s) => s.setAlerts);
+
+  useEffect(() => {
+    const { alerts, risk } = aggregateAllAlerts({
+      stormAlert,
+      thermalProfile,
+      zoneAlerts,
+      fieldAlerts,
+    });
+    setUnifiedAlerts(alerts, risk);
+  }, [stormAlert, thermalProfile, zoneAlerts, fieldAlerts, setUnifiedAlerts]);
+
   // ── Keyboard shortcuts ──────────────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -69,6 +88,9 @@ export function AppShell() {
           break;
         case 't':
           useTemperatureOverlayStore.getState().toggleOverlay();
+          break;
+        case 'a':
+          useAlertStore.getState().togglePanel();
           break;
       }
     }
