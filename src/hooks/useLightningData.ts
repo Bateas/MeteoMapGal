@@ -167,32 +167,44 @@ function computeStormAlert(
 
 let simStep = 0;
 
+/**
+ * Deterministic pseudo-random based on seed (for consistent scatter patterns).
+ * Returns 0-1 value that is the same for the same seed.
+ */
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function generateSimulatedStrikes(): LightningStrike[] {
   const now = Date.now();
   simStep++;
 
-  // Storm mass approaching from SSW, starting ~45km away, moving ~30 km/h NNE
-  // Each step (2min) = ~1 km closer
-  const baseDistKm = Math.max(3, 45 - simStep * 1.0);
-  const baseBearing = 200; // approaching from SSW (bearing 200° from reservoir)
+  // Storm mass approaching from SSW, starting ~45km away, ~96 km/h
+  // Each step (3s) ≈ 0.08 km closer → full approach in ~9 min
+  const baseDistKm = Math.max(3, 45 - simStep * 0.08);
+  const baseBearing = 200; // from SSW toward NNE
   const bearingRad = (baseBearing * Math.PI) / 180;
 
-  // Convert bearing + distance to lat/lon offset
   const baseLat = RESERVOIR_LAT + (baseDistKm / 111.32) * Math.cos(bearingRad);
   const baseLon = RESERVOIR_LON + (baseDistKm / (111.32 * Math.cos((RESERVOIR_LAT * Math.PI) / 180))) * Math.sin(bearingRad);
 
   const strikes: LightningStrike[] = [];
-  const clusterSize = 8 + Math.floor(Math.random() * 12); // 8-20 strikes per cluster
+  const clusterSize = 14;
 
   for (let i = 0; i < clusterSize; i++) {
-    // Scatter strikes within ~10km radius of cluster center
-    const scatterKm = Math.random() * 10;
-    const scatterAngle = Math.random() * 2 * Math.PI;
-    const lat = baseLat + (scatterKm / 111.32) * Math.cos(scatterAngle);
-    const lon = baseLon + (scatterKm / (111.32 * Math.cos((baseLat * Math.PI) / 180))) * Math.sin(scatterAngle);
+    // DETERMINISTIC scatter: same pattern each step → stable centroid
+    // Symmetric angular distribution with seeded radial jitter
+    const angle = (i / clusterSize) * 2 * Math.PI;
+    const baseRadius = 5; // 5km radius
+    const jitter = seededRandom(i) * 2; // 0-2km jitter, deterministic per index
+    const scatterKm = baseRadius + jitter;
 
-    // Vary age: most recent within last 10 min, some older
-    const ageMinutes = Math.floor(Math.random() * 30);
+    const lat = baseLat + (scatterKm / 111.32) * Math.cos(angle);
+    const lon = baseLon + (scatterKm / (111.32 * Math.cos((baseLat * Math.PI) / 180))) * Math.sin(angle);
+
+    // Stagger ages for realism (deterministic per index)
+    const ageMinutes = Math.floor(seededRandom(i + 100) * 25);
     const timestamp = now - ageMinutes * 60_000;
 
     strikes.push({
@@ -200,33 +212,33 @@ function generateSimulatedStrikes(): LightningStrike[] {
       lat,
       lon,
       timestamp,
-      peakCurrent: 20 + Math.floor(Math.random() * 180),
-      cloudToCloud: Math.random() < 0.2,
+      peakCurrent: 30 + Math.floor(seededRandom(i + 200) * 170),
+      cloudToCloud: seededRandom(i + 300) < 0.15,
       multiplicity: 1,
       ageMinutes,
     });
   }
 
-  // Optional: secondary cluster further away (trailing cell)
-  if (simStep > 5 && Math.random() < 0.7) {
-    const trailDist = baseDistKm + 15 + Math.random() * 10;
-    const trailBearing = baseBearing + (Math.random() - 0.5) * 30;
+  // Secondary trailing cluster (deterministic activation at step 20+)
+  if (simStep > 20) {
+    const trailDist = baseDistKm + 18;
+    const trailBearing = 210; // slightly west of main cell
     const trailRad = (trailBearing * Math.PI) / 180;
     const trailLat = RESERVOIR_LAT + (trailDist / 111.32) * Math.cos(trailRad);
-    const trailLon = RESERVOIR_LON + (trailDist / (111.32 * Math.cos((RESERVOIR_LAT * Math.PI) / 180))) * Math.sin(trailRad);
+    const trailLon = RESERVOIR_LON + (trailDist / (111.32 * Math.cos((trailLat * Math.PI) / 180))) * Math.sin(trailRad);
 
-    for (let i = 0; i < 5; i++) {
-      const sKm = Math.random() * 8;
-      const sAngle = Math.random() * 2 * Math.PI;
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * 2 * Math.PI;
+      const r = 4 + seededRandom(i + 500);
       strikes.push({
         id: 8000 + simStep * 100 + i,
-        lat: trailLat + (sKm / 111.32) * Math.cos(sAngle),
-        lon: trailLon + (sKm / (111.32 * Math.cos((trailLat * Math.PI) / 180))) * Math.sin(sAngle),
-        timestamp: now - Math.floor(Math.random() * 45) * 60_000,
-        peakCurrent: 30 + Math.floor(Math.random() * 100),
+        lat: trailLat + (r / 111.32) * Math.cos(angle),
+        lon: trailLon + (r / (111.32 * Math.cos((trailLat * Math.PI) / 180))) * Math.sin(angle),
+        timestamp: now - Math.floor(seededRandom(i + 600) * 40) * 60_000,
+        peakCurrent: 40 + Math.floor(seededRandom(i + 700) * 100),
         cloudToCloud: false,
         multiplicity: 1,
-        ageMinutes: Math.floor(Math.random() * 45),
+        ageMinutes: Math.floor(seededRandom(i + 600) * 40),
       });
     }
   }
@@ -299,8 +311,11 @@ export function useLightningData() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    // Reset simulation step when toggling
-    if (simulationActive) simStep = 0;
+    // Reset simulation state when toggling
+    if (simulationActive) {
+      simStep = 0;
+      historyRef.current = []; // Clear tracker history for clean velocity computation
+    }
 
     fetchAndUpdate();
     intervalRef.current = setInterval(fetchAndUpdate, simulationActive ? 3000 : POLL_INTERVAL_MS);
