@@ -47,8 +47,8 @@ function velocityArrow(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
   if (!cluster.velocity) return null;
 
   const { bearingDeg, speedKmh } = cluster.velocity;
-  // Arrow length: 1km per 5 km/h of speed, capped at 15km
-  const arrowLenKm = Math.min(speedKmh / 5, 15);
+  // Arrow length: 1km per 4 km/h of speed, min 3km, capped at 18km
+  const arrowLenKm = Math.max(3, Math.min(speedKmh / 4, 18));
   const bearingRad = (bearingDeg * Math.PI) / 180;
 
   const endLat = cluster.lat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
@@ -80,9 +80,9 @@ function arrowTip(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Polygon> | nul
   if (!cluster.velocity) return null;
 
   const { bearingDeg, speedKmh } = cluster.velocity;
-  const arrowLenKm = Math.min(speedKmh / 5, 15);
+  const arrowLenKm = Math.max(3, Math.min(speedKmh / 4, 18));
   const bearingRad = (bearingDeg * Math.PI) / 180;
-  const tipSizeKm = 1.5;
+  const tipSizeKm = 2.5; // bigger arrowhead for visibility
 
   // Tip point
   const tipLat = cluster.lat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
@@ -225,14 +225,21 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     };
   }, [showOverlay, clusters]);
 
-  // ── Velocity arrows ──────────────────────────────────────────
-  const velocityData = useMemo<GeoJSON.FeatureCollection>(() => {
+  // ── Velocity arrows (split into separate collections for line vs fill layers)
+  const velocityLines = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-
     const features: GeoJSON.Feature[] = [];
     for (const c of clusters) {
       const arrow = velocityArrow(c);
       if (arrow) features.push(arrow);
+    }
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, clusters]);
+
+  const velocityTips = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
+    const features: GeoJSON.Feature[] = [];
+    for (const c of clusters) {
       const tip = arrowTip(c);
       if (tip) features.push(tip);
     }
@@ -338,35 +345,51 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         />
       </Source>
 
-      {/* ── Velocity arrows ──────────────────────────────────── */}
-      <Source id="storm-velocity" type="geojson" data={velocityData}>
-        {/* Arrow shaft */}
+      {/* ── Velocity arrow shafts (LineString source) ─────────── */}
+      <Source id="storm-velocity-lines" type="geojson" data={velocityLines}>
+        {/* Arrow shaft glow (wider, semi-transparent for glow effect) */}
         <Layer
-          id="storm-velocity-line"
+          id="storm-velocity-glow"
           type="line"
-          filter={['==', ['geometry-type'], 'LineString']}
           paint={{
             'line-color': [
               'case',
               ['==', ['get', 'approaching'], 1],
-              '#ef4444', // red approaching
-              '#a78bfa', // purple receding
+              'rgba(239, 68, 68, 0.3)',
+              'rgba(167, 139, 250, 0.2)',
             ],
-            'line-width': 2.5,
-            'line-opacity': 0.7,
+            'line-width': 8,
+            'line-blur': 3,
           }}
         />
-        {/* Arrow tip (triangle) */}
+        {/* Arrow shaft (solid core) */}
+        <Layer
+          id="storm-velocity-line"
+          type="line"
+          paint={{
+            'line-color': [
+              'case',
+              ['==', ['get', 'approaching'], 1],
+              '#ef4444',
+              '#a78bfa',
+            ],
+            'line-width': 3.5,
+            'line-opacity': 0.9,
+          }}
+        />
+      </Source>
+
+      {/* ── Velocity arrow tips (Polygon source) ─────────────── */}
+      <Source id="storm-velocity-tips" type="geojson" data={velocityTips}>
         <Layer
           id="storm-velocity-tip"
           type="fill"
-          filter={['==', ['geometry-type'], 'Polygon']}
           paint={{
             'fill-color': [
               'case',
               ['==', ['get', 'approaching'], 1],
-              'rgba(239, 68, 68, 0.8)',
-              'rgba(167, 139, 250, 0.6)',
+              'rgba(239, 68, 68, 0.9)',
+              'rgba(167, 139, 250, 0.7)',
             ],
           }}
         />

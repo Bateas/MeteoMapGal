@@ -24,6 +24,9 @@ const CLUSTER_WINDOW_MIN = 60;
 /** Max time window for velocity computation (between two polls) */
 const MAX_VELOCITY_AGE_MS = 15 * 60 * 1000; // 15 min
 
+/** Min age of a snapshot before it can be used for velocity (prevents jitter) */
+const MIN_VELOCITY_AGE_MS = 8_000; // 8 seconds (was 60s — too slow for simulation mode)
+
 // ── Types ────────────────────────────────────────────────────────
 
 export interface StormCluster {
@@ -180,7 +183,7 @@ function computeVelocities(
 ): StormCluster[] {
   // Find the best previous snapshot (not too old, not too new)
   const validSnapshots = history.filter(
-    (h) => now - h.timestamp > 60_000 && now - h.timestamp < MAX_VELOCITY_AGE_MS,
+    (h) => now - h.timestamp > MIN_VELOCITY_AGE_MS && now - h.timestamp < MAX_VELOCITY_AGE_MS,
   );
 
   // Use the oldest valid snapshot for better velocity accuracy
