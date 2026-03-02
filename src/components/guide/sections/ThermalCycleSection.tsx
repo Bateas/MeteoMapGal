@@ -11,7 +11,7 @@ const CYCLE_PHASES = [
     description:
       'El sol comienza a calentar las laderas orientales. Vientos débiles del NE o calma. Es la fase precursora: si detectamos NE en el embalse o E en montaña, es señal de que el térmico vendrá por la tarde.',
     indicator: 'NE embalse → 38% probabilidad de W por la tarde',
-    indicatorAlt: 'E en montaña → 76% probabilidad (¡el mejor predictor!)',
+    indicatorAlt: 'E en montaña por la mañana → posible indicador (hipótesis, sin confirmar)',
     svgPhase: 'morning' as const,
   },
   {
@@ -22,7 +22,7 @@ const CYCLE_PHASES = [
     wind: 'Rotación SW',
     speed: '3-6 kt',
     description:
-      'La temperatura alcanza 28-31°C. El gradiente térmico se activa: el aire del valle empieza a fluir hacia las laderas. El viento rota del NE al SW, ganando intensidad gradualmente.',
+      'La temperatura alcanza 28-31°C. El gradiente térmico se activa. En teoría la transición es gradual; en Castrelo el viento suele llegar de forma más abrupta, pasando de calma a térmico en poco tiempo.',
     indicator: 'Rotación NE → SW = confirmación del térmico',
     indicatorAlt: 'ΔT (Tmax-Tmin) > 20°C → 42% probabilidad',
     svgPhase: 'buildup' as const,
@@ -35,7 +35,7 @@ const CYCLE_PHASES = [
     wind: 'W dominante',
     speed: '7-12 kt',
     description:
-      'Máxima intensidad del térmico. Viento del W estable a 7-12 nudos en el embalse. Rachas posibles de hasta 15-18 kt. Condiciones óptimas para navegar. El viento se propaga: Ribadavia SW → Ourense W → Carballiño NW.',
+      'Máxima intensidad del térmico. Viento del W estable a 7-12 nudos en el embalse. Rachas posibles de hasta 15-18 kt. Condiciones óptimas para navegar. Si Ourense también muestra W, el sistema es regional y estable (63% correlación AEMET).',
     indicator: 'W 74% frecuencia en embalse (datos de 4 años)',
     indicatorAlt: 'Racha máxima media: 9.7 m/s (19 kt) a las 15:48h',
     svgPhase: 'peak' as const,

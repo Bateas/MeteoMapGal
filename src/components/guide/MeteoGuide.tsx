@@ -104,6 +104,9 @@ function IntroSection() {
       {/* Animated thermal diagram */}
       <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-800">
         <ThermalDiagram />
+        <p className="text-[9px] text-slate-600 text-center mt-2 italic">
+          Esquema conceptual genérico — no representa la orografía real del embalse de Castrelo
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -123,12 +126,18 @@ function IntroSection() {
         </div>
       </div>
 
-      <div className="bg-gradient-to-r from-blue-900/20 to-amber-900/20 rounded-lg p-4 border border-slate-700">
+      <div className="bg-gradient-to-r from-blue-900/20 to-amber-900/20 rounded-lg p-4 border border-slate-700 space-y-2">
         <p className="text-xs text-slate-400 italic">
-          <strong className="text-slate-300">Dato real:</strong> En el embalse de Castrelo de Miño,
+          <strong className="text-slate-300">Dato real (AEMET 2022-2025):</strong> En el embalse de Castrelo de Miño,
           los térmicos del W/SW soplan el 74% de las tardes de verano con Tmax {'>'}31°C,
-          alcanzando 7-12 nudos entre las 13h y 20h. Esta guía se basa en 1.412 registros
-          históricos de AEMET (2022-2025).
+          alcanzando 7-12 nudos entre las 13h y 20h. Basado en 1.412 registros diarios de
+          3 estaciones AEMET (Ribadavia, Ourense, Carballiño).
+        </p>
+        <p className="text-[10px] text-slate-500">
+          <strong className="text-amber-500/70">Nota:</strong> Esta guía distingue entre{' '}
+          <span className="text-emerald-400">datos reales de AEMET</span> y{' '}
+          <span className="text-amber-400">teoría meteorológica general</span>.
+          Los conceptos teóricos se marcan claramente.
         </p>
       </div>
     </div>
@@ -175,13 +184,13 @@ function ThermalDiagram() {
 
       {/* Left mountain */}
       <polygon points="0,280 0,130 80,90 160,120 200,160 200,280" fill="url(#mountainGrad)" />
-      <text x="60" y="115" className="text-[9px] fill-slate-400" textAnchor="middle">630m</text>
-      <text x="60" y="127" className="text-[8px] fill-slate-500" textAnchor="middle">Montaña N</text>
+      <text x="60" y="115" className="text-[9px] fill-slate-400" textAnchor="middle">Monte</text>
+      <text x="60" y="127" className="text-[8px] fill-slate-500" textAnchor="middle">ladera W</text>
 
       {/* Right mountain */}
       <polygon points="400,280 400,160 440,120 520,100 600,140 600,280" fill="url(#mountainGrad)" />
-      <text x="520" y="125" className="text-[9px] fill-slate-400" textAnchor="middle">450m</text>
-      <text x="520" y="137" className="text-[8px] fill-slate-500" textAnchor="middle">Carballiño</text>
+      <text x="520" y="125" className="text-[9px] fill-slate-400" textAnchor="middle">Monte</text>
+      <text x="520" y="137" className="text-[8px] fill-slate-500" textAnchor="middle">ladera E</text>
 
       {/* Valley floor */}
       <rect x="200" y="220" width="200" height="60" fill="#1e293b" />

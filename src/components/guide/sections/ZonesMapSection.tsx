@@ -19,8 +19,8 @@ const ZONES = [
     color: '#f59e0b',
     position: { x: 380, y: 120 },
     description:
-      'Ciudad de referencia al este. Confirma la propagación: cuando el W del embalse llega a Ourense como W, el térmico está establecido. 63% correlación.',
-    keyStats: ['W por propagación 63%', 'Confirmación térmico', 'Tmax referencia'],
+      'Ciudad de referencia al este. Si Ourense también muestra W cuando el embalse tiene W/SW, el sistema térmico es regional y estable. Correlación real del 63% (AEMET 2022-2025). Tmax de referencia.',
+    keyStats: ['W correlación 63%', 'Confirmación regional', 'Tmax referencia'],
     windDir: 270,
   },
   {
@@ -30,8 +30,8 @@ const ZONES = [
     color: '#22c55e',
     position: { x: 200, y: 50 },
     description:
-      'Estación alta. El mejor predictor matutino: si detecta E por la mañana, hay 76% de probabilidad de térmico por la tarde. Sensor clave.',
-    keyStats: ['E mañana → 76% térmico', 'Mejor predictor', 'ΔT ladera-valle'],
+      'Zona de montaña al norte. Hipótesis: si detecta E por la mañana, podría indicar térmico vespertino. ⚠ Estaciones lejanas al embalse — dato sin confirmar con instrumentación local. Basado en modelo Open-Meteo, no en estaciones AEMET reales.',
+    keyStats: ['E mañana → térmico?', 'Hipótesis', 'Estaciones lejanas'],
     windDir: 90,
   },
   {
@@ -52,8 +52,8 @@ const ZONES = [
     color: '#a78bfa',
     position: { x: 100, y: 100 },
     description:
-      'Estación interior al oeste. Punto final de la propagación: NW. Confirma que el flujo cubre toda la cuenca. Drenaje N nocturno muy consistente (48%).',
-    keyStats: ['NW por propagación', 'Drenaje N 48%', 'Confirmación total'],
+      'Estación interior a varios km del embalse. No es la montaña de referencia para Castrelo. Su principal valor: drenaje N nocturno muy consistente (48% noches de verano), que enfría el valle y genera el ΔT para el térmico del día siguiente.',
+    keyStats: ['Drenaje N 48%', 'Contexto nocturno', 'Lejos del embalse'],
     windDir: 315,
   },
 ];
@@ -69,6 +69,13 @@ export function ZonesMapSection() {
         MeteoMap divide el área en 5 microzonas con condiciones térmicas distintas.
         Cada zona tiene estaciones asignadas que alimentan el análisis automático.
       </p>
+      <div className="bg-slate-800/30 rounded-lg p-2.5 border border-slate-700/40">
+        <p className="text-[10px] text-slate-500">
+          <span className="text-emerald-400">●</span> Embalse y Ourense: datos reales AEMET (1.412 registros 2022-2025).{' '}
+          <span className="text-amber-400">●</span> Montaña Norte: modelo Open-Meteo, sin estaciones AEMET reales en la zona.{' '}
+          <span className="text-purple-400">●</span> Carballiño: dato AEMET real pero estación lejana del embalse.
+        </p>
+      </div>
 
       {/* Interactive zone map */}
       <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
