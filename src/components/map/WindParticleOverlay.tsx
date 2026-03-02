@@ -95,8 +95,9 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
     };
     resize();
 
-    const ctx = canvas.getContext('2d')!;
-    const trailCtx = trailCanvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
+    const trailCtx = trailCanvas.getContext('2d');
+    if (!ctx || !trailCtx) return;
 
     const animate = () => {
       const dpr = window.devicePixelRatio || 1;
