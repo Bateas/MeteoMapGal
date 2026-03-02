@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { LastUpdated } from '../common/LastUpdated';
+import { SourceStatusIndicator } from '../common/SourceStatusIndicator';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
@@ -71,6 +72,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             {readingCount}/{stationCount} est.
           </span>
         )}
+        <SourceStatusIndicator />
       </div>
       <div className="flex items-center gap-3">
         {/* Sunrise / Sunset */}

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools, persist } from 'zustand/middleware';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -54,41 +54,50 @@ const LAYER_CYCLE: WeatherLayerType[] = ['none', 'wind-particles', 'humidity', '
 
 export const useWeatherLayerStore = create<WeatherLayerState>()(
   devtools(
-    (set, get) => ({
-      activeLayer: 'none',
-      layerOpacity: 0.65,
+    persist(
+      (set, get) => ({
+        activeLayer: 'none' as WeatherLayerType,
+        layerOpacity: 0.65,
 
-      wrfVariable: 'prec',
-      wrfTimeIndex: 0,
-      wrfAvailableTimes: [],
-      wrfModelRun: null,
-      wrfLoading: false,
+        wrfVariable: 'prec' as WrfVariable,
+        wrfTimeIndex: 0,
+        wrfAvailableTimes: [],
+        wrfModelRun: null,
+        wrfLoading: false,
 
-      setActiveLayer: (activeLayer) =>
-        set({ activeLayer }, undefined, 'setActiveLayer'),
+        setActiveLayer: (activeLayer) =>
+          set({ activeLayer }, undefined, 'setActiveLayer'),
 
-      cycleLayer: () => {
-        const current = get().activeLayer;
-        const idx = LAYER_CYCLE.indexOf(current);
-        const next = LAYER_CYCLE[(idx + 1) % LAYER_CYCLE.length];
-        set({ activeLayer: next }, undefined, 'cycleLayer');
+        cycleLayer: () => {
+          const current = get().activeLayer;
+          const idx = LAYER_CYCLE.indexOf(current);
+          const next = LAYER_CYCLE[(idx + 1) % LAYER_CYCLE.length];
+          set({ activeLayer: next }, undefined, 'cycleLayer');
+        },
+
+        setLayerOpacity: (layerOpacity) =>
+          set({ layerOpacity: Math.max(0, Math.min(1, layerOpacity)) }, undefined, 'setLayerOpacity'),
+
+        setWrfVariable: (wrfVariable) =>
+          set({ wrfVariable }, undefined, 'setWrfVariable'),
+
+        setWrfTimeIndex: (wrfTimeIndex) =>
+          set({ wrfTimeIndex }, undefined, 'setWrfTimeIndex'),
+
+        setWrfAvailableTimes: (wrfAvailableTimes, wrfModelRun) =>
+          set({ wrfAvailableTimes, wrfModelRun, wrfTimeIndex: 0 }, undefined, 'setWrfAvailableTimes'),
+
+        setWrfLoading: (wrfLoading) =>
+          set({ wrfLoading }, undefined, 'setWrfLoading'),
+      }),
+      {
+        name: 'meteomap-layer-prefs',
+        partialize: (state) => ({
+          layerOpacity: state.layerOpacity,
+          wrfVariable: state.wrfVariable,
+        }),
       },
-
-      setLayerOpacity: (layerOpacity) =>
-        set({ layerOpacity: Math.max(0, Math.min(1, layerOpacity)) }, undefined, 'setLayerOpacity'),
-
-      setWrfVariable: (wrfVariable) =>
-        set({ wrfVariable }, undefined, 'setWrfVariable'),
-
-      setWrfTimeIndex: (wrfTimeIndex) =>
-        set({ wrfTimeIndex }, undefined, 'setWrfTimeIndex'),
-
-      setWrfAvailableTimes: (wrfAvailableTimes, wrfModelRun) =>
-        set({ wrfAvailableTimes, wrfModelRun, wrfTimeIndex: 0 }, undefined, 'setWrfAvailableTimes'),
-
-      setWrfLoading: (wrfLoading) =>
-        set({ wrfLoading }, undefined, 'setWrfLoading'),
-    }),
+    ),
     { name: 'WeatherLayerStore' },
   ),
 );

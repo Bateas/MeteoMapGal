@@ -14,7 +14,7 @@ import { REFRESH_INTERVAL_MS } from '../config/constants';
 import { logReadings } from '../services/stationDataLogger';
 
 export function useWeatherData() {
-  const stations = useStations();
+  const { stations, retry: retryDiscovery } = useStations();
   const updateReadings = useWeatherStore((s) => s.updateReadings);
   const setLoading = useWeatherStore((s) => s.setLoading);
   const setError = useWeatherStore((s) => s.setError);
@@ -176,5 +176,5 @@ export function useWeatherData() {
     }
   }, [stations.length, forceRefresh, loadHistory]);
 
-  return { stations, lastRefresh, isPolling, forceRefresh };
+  return { stations, lastRefresh, isPolling, forceRefresh, retryDiscovery };
 }
