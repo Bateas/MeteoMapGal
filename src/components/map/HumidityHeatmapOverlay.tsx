@@ -6,16 +6,12 @@ import { extractHumidityData, interpolateScalar } from '../../services/idwInterp
 
 // ── Configuration ──────────────────────────────────────────
 
-const GRID_SIZE = 4; // px per cell (4×4 grid)
-const DEBOUNCE_MS = 250;
+const GRID_SIZE = 12; // px per cell — larger = faster, less detail
+const DEBOUNCE_MS = 200;
 
 // ── Color scale: dry (green) → humid (blue) → saturated (red) ──
 
 function humidityColor(humidity: number): [number, number, number, number] {
-  // 0-30%: dry — green
-  // 30-60%: moderate — blue
-  // 60-85%: humid — purple
-  // 85-100%: saturated — red
   if (humidity < 30) {
     const t = humidity / 30;
     return [34 + t * 20, 197 - t * 40, 94 - t * 30, 120 + t * 40];
@@ -49,7 +45,7 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
 
   const isActive = activeLayer === 'humidity';
 
-  // Draw heatmap grid
+  // Draw heatmap grid — optimized to avoid per-cell unproject()
   const drawHeatmap = useCallback(() => {
     const canvas = canvasRef.current;
     const map = mapRef.current?.getMap();
@@ -70,19 +66,32 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
     const cols = Math.ceil(w / GRID_SIZE);
     const rows = Math.ceil(h / GRID_SIZE);
 
+    // Pre-compute geo bounds from map corners (only 4 unproject calls)
+    const topLeft = map.unproject([0, 0]);
+    const topRight = map.unproject([w, 0]);
+    const bottomLeft = map.unproject([0, h]);
+    const bottomRight = map.unproject([w, h]);
+
+    // Bilinear interpolation factors for lat/lon per cell
+    // This avoids 60,000+ unproject() calls
+    const lngLeft = (topLeft.lng + bottomLeft.lng) / 2;
+    const lngRight = (topRight.lng + bottomRight.lng) / 2;
+    const latTop = (topLeft.lat + topRight.lat) / 2;
+    const latBottom = (bottomLeft.lat + bottomRight.lat) / 2;
+
     // Create ImageData for fast pixel manipulation
     const imgData = ctx.createImageData(cols, rows);
     const pixels = imgData.data;
 
     for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        // Screen center of this grid cell
-        const sx = (col + 0.5) * GRID_SIZE;
-        const sy = (row + 0.5) * GRID_SIZE;
+      const ty = (row + 0.5) / rows; // 0..1 from top to bottom
+      const lat = latTop + ty * (latBottom - latTop);
 
-        // Unproject screen → geo
-        const lngLat = map.unproject([sx, sy]);
-        const humidity = interpolateScalar(lngLat.lat, lngLat.lng, humData);
+      for (let col = 0; col < cols; col++) {
+        const tx = (col + 0.5) / cols; // 0..1 from left to right
+        const lng = lngLeft + tx * (lngRight - lngLeft);
+
+        const humidity = interpolateScalar(lat, lng, humData);
 
         const [r, g, b, a] = humidityColor(humidity);
         const idx = (row * cols + col) * 4;

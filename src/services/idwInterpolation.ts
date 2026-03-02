@@ -130,7 +130,7 @@ export function extractWindData(
     if (station.tempOnly) continue;
     const reading = readings.get(station.id);
     if (!reading || reading.windSpeed === null || reading.windDirection === null) continue;
-    if (reading.windSpeed < 0.3) continue; // skip calm (noise)
+    if (reading.windSpeed < 0.1) continue; // skip truly calm (< 0.1 m/s)
     result.push({
       lat: station.lat,
       lon: station.lon,
