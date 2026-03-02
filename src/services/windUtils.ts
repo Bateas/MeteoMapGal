@@ -24,14 +24,20 @@ export function windArrowLength(speed: number): number {
   return Math.min(15 + speed * 5, 50);
 }
 
-/** Color for wind speed visualization */
+/**
+ * Color for wind speed visualization — tuned for inland reservoir conditions.
+ * More color resolution in the 3–17 kt range where most sailing action happens.
+ * Input: speed in m/s. Thresholds shown in approximate knots.
+ */
 export function windSpeedColor(speed: number | null): string {
-  if (speed === null || speed < 0.5) return '#94a3b8'; // slate-400 (calm)
-  if (speed < 2) return '#60a5fa';   // blue-400
-  if (speed < 5) return '#34d399';   // emerald-400
-  if (speed < 8) return '#fbbf24';   // amber-400
-  if (speed < 12) return '#f97316';  // orange-500
-  return '#ef4444';                  // red-500
+  if (speed === null || speed < 0.5) return '#64748b'; // slate-500  (calm, <1 kt)
+  if (speed < 1.5) return '#93c5fd';   // blue-300   (~1-3 kt: breath)
+  if (speed < 3.0) return '#22d3ee';   // cyan-400   (~3-6 kt: light)
+  if (speed < 4.5) return '#22c55e';   // green-500  (~6-9 kt: gentle)
+  if (speed < 6.5) return '#a3e635';   // lime-400   (~9-13 kt: moderate)
+  if (speed < 8.5) return '#eab308';   // yellow-500 (~13-17 kt: fresh)
+  if (speed < 12)  return '#f97316';   // orange-500 (~17-23 kt: strong)
+  return '#ef4444';                    // red-500    (>23 kt: gale+)
 }
 
 /** Color for temperature visualization */

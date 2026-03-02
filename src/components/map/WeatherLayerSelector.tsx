@@ -54,37 +54,14 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   const isActive = activeLayer !== 'none';
 
   return (
-    <div className="absolute bottom-3 left-44 z-20">
+    <div className="shrink-0">
       <div
         className={`bg-slate-900/85 backdrop-blur-md border border-slate-700/50 rounded-xl
           transition-all duration-200 ${isActive ? 'shadow-lg shadow-black/30' : ''}`}
       >
-        {/* Layer toggle buttons — always visible, top row */}
-        <div className="flex items-center gap-0.5 p-1.5">
-          {LAYER_BUTTONS.map((btn) => {
-            const isOn = activeLayer === btn.id;
-            return (
-              <button
-                key={btn.id}
-                onClick={() => handleLayerClick(btn.id)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold
-                  transition-all duration-200 cursor-pointer
-                  ${isOn
-                    ? 'bg-sky-500/25 border border-sky-400/50 text-sky-300'
-                    : 'border border-transparent text-slate-400 hover:bg-slate-700/60 hover:text-slate-300'
-                  }`}
-                title={`${btn.label} (W para ciclar)`}
-              >
-                <span className="text-sm">{btn.icon}</span>
-                <span>{btn.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Expanded controls — only when a layer is active */}
+        {/* Expanded controls — ABOVE buttons so panel grows upward */}
         {isActive && (
-          <div className="border-t border-slate-700/40 px-3 py-2 space-y-2 w-72">
+          <div className="border-b border-slate-700/40 px-3 py-2 space-y-2 w-72">
             {/* Opacity slider */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-500 shrink-0">Opacidad</span>
@@ -164,6 +141,29 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
             )}
           </div>
         )}
+
+        {/* Layer toggle buttons — always visible, bottom row */}
+        <div className="flex items-center gap-0.5 p-1.5">
+          {LAYER_BUTTONS.map((btn) => {
+            const isOn = activeLayer === btn.id;
+            return (
+              <button
+                key={btn.id}
+                onClick={() => handleLayerClick(btn.id)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold
+                  transition-all duration-200 cursor-pointer
+                  ${isOn
+                    ? 'bg-sky-500/25 border border-sky-400/50 text-sky-300'
+                    : 'border border-transparent text-slate-400 hover:bg-slate-700/60 hover:text-slate-300'
+                  }`}
+                title={`${btn.label} (W para ciclar)`}
+              >
+                <span className="text-sm">{btn.icon}</span>
+                <span>{btn.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -173,16 +173,17 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 function WindLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold">Escala Beaufort (kt)</span>
+      <span className="text-[9px] text-slate-500 font-semibold">Velocidad viento (kt)</span>
       <div className="flex items-center gap-0">
         {[
           { color: '#64748b', label: '0' },
-          { color: '#22d3ee', label: '4' },
-          { color: '#22c55e', label: '7' },
-          { color: '#eab308', label: '11' },
+          { color: '#93c5fd', label: '1' },
+          { color: '#22d3ee', label: '3' },
+          { color: '#22c55e', label: '6' },
+          { color: '#a3e635', label: '9' },
+          { color: '#eab308', label: '13' },
           { color: '#f97316', label: '17' },
-          { color: '#ef4444', label: '22' },
-          { color: '#991b1b', label: '34' },
+          { color: '#ef4444', label: '23+' },
         ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
             <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />

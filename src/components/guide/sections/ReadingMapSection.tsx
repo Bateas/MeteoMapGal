@@ -44,19 +44,20 @@ export function ReadingMapSection() {
             <defs>
               <linearGradient id="windColorScale" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="#64748b" />
-                <stop offset="15%" stopColor="#22d3ee" />
-                <stop offset="30%" stopColor="#22c55e" />
-                <stop offset="50%" stopColor="#eab308" />
-                <stop offset="65%" stopColor="#f97316" />
-                <stop offset="80%" stopColor="#ef4444" />
-                <stop offset="100%" stopColor="#991b1b" />
+                <stop offset="8%" stopColor="#93c5fd" />
+                <stop offset="20%" stopColor="#22d3ee" />
+                <stop offset="35%" stopColor="#22c55e" />
+                <stop offset="50%" stopColor="#a3e635" />
+                <stop offset="65%" stopColor="#eab308" />
+                <stop offset="80%" stopColor="#f97316" />
+                <stop offset="100%" stopColor="#ef4444" />
               </linearGradient>
             </defs>
             <rect x="20" y="5" width="360" height="16" rx="8" fill="url(#windColorScale)" />
             {[
-              { x: 20, label: '0' }, { x: 74, label: '4' }, { x: 128, label: '7' },
-              { x: 200, label: '11' }, { x: 254, label: '17' }, { x: 308, label: '22' },
-              { x: 380, label: '34+' },
+              { x: 20, label: '0' }, { x: 57, label: '1' }, { x: 91, label: '3' },
+              { x: 143, label: '6' }, { x: 200, label: '9' }, { x: 254, label: '13' },
+              { x: 308, label: '17' }, { x: 380, label: '23+' },
             ].map((t) => (
               <text key={t.label} x={t.x} y={38} textAnchor="middle" className="text-[7px] fill-slate-500 font-mono">{t.label} kt</text>
             ))}

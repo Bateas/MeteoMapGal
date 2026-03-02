@@ -44,7 +44,18 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
   }
 
   return (
-    <div className="absolute bottom-3 left-20 z-20 flex items-center gap-2">
+    <div className="flex flex-col items-start gap-1 shrink-0">
+      {/* Gradient info badge — above button when overlay is on */}
+      {gradientInfo && (
+        <div
+          className={`px-2 py-0.5 rounded-md text-[9px] font-semibold tracking-wide
+            backdrop-blur-md bg-slate-900/70 border border-slate-700/50
+            ${gradientColor} transition-opacity duration-300 whitespace-nowrap`}
+        >
+          {gradientInfo}
+        </div>
+      )}
+
       {/* Toggle button */}
       <button
         onClick={toggleOverlay}
@@ -66,17 +77,6 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
           </span>
         )}
       </button>
-
-      {/* Gradient info badge — visible when overlay is on */}
-      {gradientInfo && (
-        <div
-          className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold tracking-wide
-            backdrop-blur-md bg-slate-900/70 border border-slate-700/50
-            ${gradientColor} transition-opacity duration-300`}
-        >
-          {gradientInfo}
-        </div>
-      )}
     </div>
   );
 });

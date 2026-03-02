@@ -175,9 +175,13 @@ export function WeatherMap() {
       {/* HTML overlays on top of map */}
       <SailingConditionBanner />
       <AlertPanel />
-      <TemperatureToggle />
-      <WeatherLayerSelector />
-      <SimulationToggle />
+
+      {/* Bottom toolbar — flex row so elements never overlap */}
+      <div className="absolute bottom-2 left-2 z-20 flex items-end gap-2">
+        <SimulationToggle />
+        <TemperatureToggle />
+        <WeatherLayerSelector />
+      </div>
     </div>
   );
 }
