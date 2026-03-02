@@ -84,12 +84,27 @@ export function HumiditySection() {
       <div className="space-y-3 mt-8">
         <h3 className="text-sm font-bold text-white">Firma del viento térmico</h3>
         <p className="text-slate-400 text-xs leading-relaxed">
-          El térmico tiene una «firma» reconocible: empieza en calma, sube gradualmente
-          a 7-12 kt, y se apaga al atardecer. Reconocer esta rampa te da ventaja.
+          En teoría, el térmico tiene una «firma» reconocible: empieza en calma, sube
+          a 7-12 kt, y se apaga al atardecer.
         </p>
 
         <div className="bg-slate-900/50 rounded-xl p-5 border border-slate-800">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[9px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 font-semibold">
+              TEORÍA GENERAL
+            </span>
+            <span className="text-[9px] text-slate-600">Perfil idealizado de viento térmico — NO es una gráfica del embalse</span>
+          </div>
           <WindRampDiagram />
+          <div className="mt-3 p-2.5 rounded-lg bg-blue-900/15 border border-blue-800/30">
+            <p className="text-[10px] text-blue-300/80">
+              <strong className="text-blue-300">En Castrelo (observación local):</strong> el viento térmico
+              no sube gradualmente como en el esquema teórico. Suele llegar de forma más
+              abrupta por la tarde (~17-18h), pasando de calma a 7-12 kt en poco tiempo.
+              La hora pico media de rachas es 15:48h (AEMET), pero la llegada del térmico al embalse
+              puede ser más tardía y repentina.
+            </p>
+          </div>
         </div>
       </div>
     </div>

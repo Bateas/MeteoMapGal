@@ -87,8 +87,10 @@ export const MICRO_ZONES: MicroZone[] = [
 ];
 
 /**
- * Propagation axis: wind changes typically flow along this path.
- * Each entry is [sourceZoneId, targetZoneId, approx distance km].
+ * Station correlation axis: approximate distances between zone centers.
+ * Used for multi-station confirmation analysis — NOT physical wind propagation.
+ * The thermal comes FROM the W; these pairs help detect correlated signals.
+ * Each entry is [zoneA, zoneB, approx distance km].
  */
 export const PROPAGATION_AXIS: [string, string, number][] = [
   ['norte', 'carballino', 12],
@@ -100,16 +102,20 @@ export const PROPAGATION_AXIS: [string, string, number][] = [
 /**
  * Thermal wind rules for sailing at Embalse de Castrelo de Miño.
  *
- * Based on TWO data sources:
- *   1. Open-Meteo Archive: 854 days/point, 7 locations, Jun-Sep 2019-2025
- *      Valley thermals: Aug 48-50%, Jul 40-43%, Jun 20-24%, Sep 18-22%
- *      W dominant at embalse (74%), SW (12%), NW (13%)
- *      Average gust ~10 m/s (19 kt) at valley, ~8.8 m/s at altitude
+ * Based on TWO data sources with different reliability:
  *
- *   2. AEMET station data: 1,412 daily records, Ribadavia/Ourense/Carballiño
+ *   1. AEMET station data (HIGH reliability): 1,412 daily records
+ *      Stations: Ribadavia (1701X), Ourense (1690A), Carballiño (1700X)
  *      ΔT > 20°C → 42% thermal probability
  *      HR media > 85% → 0% thermals
  *      Peak gust timing: avg 14.9h for SW wind days
+ *      Embalse-SW → Ourense-W: 63% correlation
+ *
+ *   2. Open-Meteo Archive (MODEL data, lower reliability): 854 days/point
+ *      7 locations, Jun-Sep 2019-2025. NO real stations for Montaña Norte.
+ *      Valley thermals: Aug 48-50%, Jul 40-43%
+ *      W dominant at embalse (74%), SW (12%), NW (13%)
+ *      ⚠ Mountain precursor data (E morning) is UNVALIDATED — no AEMET stations
  *
  * Key user observations:
  *   - Thermal goes from calm (0) to 7-12 kt rapidly in the afternoon
@@ -208,8 +214,8 @@ export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
   },
   {
     id: 'precursor_e_norte_morning',
-    name: 'Precursor: E matutino montaña (76%!)',
-    description: 'Brisa E 6-10h en montaña. 76% frecuencia. Señal más fiable de térmico vespertino. n=72',
+    name: 'Precursor: E matutino montaña (hipótesis)',
+    description: 'Brisa E 6-10h en montaña. Hipótesis basada en Open-Meteo (modelo), no en estaciones AEMET reales. Estaciones lejanas al embalse. Pendiente de validación local.',
     enabled: true,
     conditions: {
       minTemp: 14,
