@@ -7,12 +7,12 @@ import { windSpeedColor } from '../../services/windUtils';
 
 // ── Configuration ──────────────────────────────────────────
 
-const PARTICLE_COUNT = 600;
-const TRAIL_LENGTH = 12;
-const FADE_ALPHA = 0.92; // trail fade per frame
-const PARTICLE_MAX_AGE = 120; // frames before respawn
-const SPEED_SCALE = 0.00015; // wind m/s → degree displacement per frame
-const LINE_WIDTH = 1.2;
+const PARTICLE_COUNT = 500;
+const FADE_ALPHA = 0.94; // trail fade per frame (higher = longer trails)
+const PARTICLE_MAX_AGE = 100; // frames before respawn
+const SPEED_SCALE = 0.004; // wind m/s → degree displacement per frame
+const LINE_WIDTH = 1.6;
+const HEAD_RADIUS = 2; // bright dot at particle head
 
 // ── Particle type ──────────────────────────────────────────
 
@@ -147,13 +147,28 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
         // Draw trail line
         const color = windSpeedColor(wind.speed);
         const ageFade = 1 - p.age / p.maxAge;
+        const px = prev.x * dpr;
+        const py = prev.y * dpr;
+        const cx = curr.x * dpr;
+        const cy = curr.y * dpr;
+
         trailCtx.beginPath();
-        trailCtx.moveTo(prev.x * dpr, prev.y * dpr);
-        trailCtx.lineTo(curr.x * dpr, curr.y * dpr);
+        trailCtx.moveTo(px, py);
+        trailCtx.lineTo(cx, cy);
         trailCtx.strokeStyle = color;
-        trailCtx.globalAlpha = ageFade * 0.8;
+        trailCtx.globalAlpha = Math.max(ageFade * 0.9, 0.15);
         trailCtx.lineWidth = LINE_WIDTH * dpr;
+        trailCtx.lineCap = 'round';
         trailCtx.stroke();
+
+        // Bright head dot for visibility
+        if (ageFade > 0.3) {
+          trailCtx.beginPath();
+          trailCtx.arc(cx, cy, HEAD_RADIUS * dpr, 0, Math.PI * 2);
+          trailCtx.fillStyle = color;
+          trailCtx.globalAlpha = ageFade;
+          trailCtx.fill();
+        }
 
         // Respawn if too old or out of bounds
         const bounds = map.getBounds();
