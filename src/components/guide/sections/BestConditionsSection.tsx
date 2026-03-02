@@ -68,20 +68,20 @@ export function BestConditionsSection() {
         </div>
       </div>
 
-      {/* Beaufort reference */}
+      {/* Wind scale reference — tuned for inland reservoir */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Escala de viento para navegación</h3>
+        <h3 className="text-sm font-bold text-white">Escala de viento para el embalse</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
           <div className="grid grid-cols-4 gap-2">
             {[
-              { range: '0-3 kt', label: 'Calma', color: '#64748b', emoji: '😴' },
-              { range: '4-6 kt', label: 'Flojo', color: '#22d3ee', emoji: '🙂' },
-              { range: '7-10 kt', label: 'Bonancible', color: '#22c55e', emoji: '⛵' },
-              { range: '11-16 kt', label: 'Fresquito', color: '#f59e0b', emoji: '💪' },
-              { range: '17-21 kt', label: 'Fresco', color: '#f97316', emoji: '⚡' },
-              { range: '22-27 kt', label: 'Fuerte', color: '#ef4444', emoji: '⚠️' },
-              { range: '28-33 kt', label: 'Muy fuerte', color: '#dc2626', emoji: '🚫' },
-              { range: '>34 kt', label: 'Temporal', color: '#991b1b', emoji: '☠️' },
+              { range: '0-1 kt', label: 'Calma', color: '#64748b', emoji: '😴' },
+              { range: '1-3 kt', label: 'Ventolina', color: '#93c5fd', emoji: '🙂' },
+              { range: '3-6 kt', label: 'Flojito', color: '#22d3ee', emoji: '🌊' },
+              { range: '6-9 kt', label: 'Flojo', color: '#22c55e', emoji: '⛵' },
+              { range: '9-13 kt', label: 'Bonancible', color: '#a3e635', emoji: '💪' },
+              { range: '13-17 kt', label: 'Fresquito', color: '#eab308', emoji: '🏆' },
+              { range: '17-23 kt', label: 'Fresco', color: '#f97316', emoji: '⚡' },
+              { range: '>23 kt', label: 'Fuerte+', color: '#ef4444', emoji: '⚠️' },
             ].map((b) => (
               <div
                 key={b.range}
@@ -95,7 +95,7 @@ export function BestConditionsSection() {
             ))}
           </div>
           <p className="text-[9px] text-slate-600 text-center mt-3">
-            Para el embalse de Castrelo: ideal 7-16 kt. Los colores del mapa usan esta escala.
+            Interior de Galicia: lo habitual es 3-13 kt. Días excepcionales pueden llegar a 20+ kt.
           </p>
         </div>
       </div>
