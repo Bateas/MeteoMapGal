@@ -23,6 +23,7 @@ import { WindParticleOverlay } from './WindParticleOverlay';
 import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
 import { WrfOverlay } from './WrfOverlay';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
+import { SailingConditionBanner } from './SailingConditionBanner';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -172,6 +173,7 @@ export function WeatherMap() {
       <HumidityHeatmapOverlay mapRef={mapRef} />
 
       {/* HTML overlays on top of map */}
+      <SailingConditionBanner />
       <AlertPanel />
       <TemperatureToggle />
       <WeatherLayerSelector />

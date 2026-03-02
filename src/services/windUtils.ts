@@ -50,6 +50,7 @@ export function temperatureColor(temp: number | null): string {
 
 /** Convert m/s to knots */
 export function msToKnots(speed: number): number {
+  if (!Number.isFinite(speed)) return 0;
   return speed * 1.94384;
 }
 

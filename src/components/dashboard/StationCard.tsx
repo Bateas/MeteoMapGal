@@ -123,6 +123,11 @@ export function StationCard({ station, reading }: StationCardProps) {
                   </span>
                 )}
               </div>
+              {reading.windGust !== null && reading.windGust > 0 && (
+                <div className="text-[9px] text-slate-500 mt-0.5" title="Racha máxima">
+                  Racha {formatWindSpeed(reading.windGust)}
+                </div>
+              )}
             </div>
             <div>
               <div className="text-[10px] text-slate-500">Temp</div>

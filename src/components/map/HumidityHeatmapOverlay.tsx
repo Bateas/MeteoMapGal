@@ -36,7 +36,7 @@ interface HumidityHeatmapOverlayProps {
 
 export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ mapRef }: HumidityHeatmapOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(0 as unknown as ReturnType<typeof setTimeout>);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeLayer = useWeatherLayerStore((s) => s.activeLayer);
   const opacity = useWeatherLayerStore((s) => s.layerOpacity);
@@ -60,7 +60,8 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
     canvas.width = w * dpr;
     canvas.height = h * dpr;
 
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const cols = Math.ceil(w / GRID_SIZE);
@@ -117,7 +118,7 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
 
   // Debounced redraw
   const scheduleRedraw = useCallback(() => {
-    clearTimeout(timerRef.current);
+    if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(drawHeatmap, DEBOUNCE_MS);
   }, [drawHeatmap]);
 
@@ -144,7 +145,7 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
       map.off('moveend', scheduleRedraw);
       map.off('zoomend', scheduleRedraw);
       resizeObs.disconnect();
-      clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [isActive, mapRef, scheduleRedraw]);
 
