@@ -73,6 +73,13 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </span>
         )}
         <SourceStatusIndicator />
+        <button
+          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g' }))}
+          className="text-[10px] text-slate-500 hover:text-blue-400 transition-colors px-1.5 py-0.5 rounded hover:bg-slate-800"
+          title="Guía meteorológica (G)"
+        >
+          📖
+        </button>
       </div>
       <div className="flex items-center gap-3">
         {/* Sunrise / Sunset */}
