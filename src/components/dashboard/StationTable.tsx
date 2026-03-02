@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
 import { StationCard } from './StationCard';
 import type { NormalizedStation } from '../../types/station';
@@ -13,6 +13,8 @@ type SortMode = 'wind' | 'temp' | 'name';
 export function StationTable() {
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
+  const selectedStationId = useWeatherStore((s) => s.selectedStationId);
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Filters (persisted to localStorage)
   const [hiddenSources, setHiddenSources] = useState<Set<SourceKey>>(() => {
@@ -32,6 +34,15 @@ export function StationTable() {
   useEffect(() => {
     localStorage.setItem('meteomap_sortMode', sortMode);
   }, [sortMode]);
+
+  // Auto-scroll to selected station
+  useEffect(() => {
+    if (!selectedStationId) return;
+    const el = cardRefs.current.get(selectedStationId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [selectedStationId]);
 
   const fullStations = useMemo(() => stations.filter((s) => !s.tempOnly), [stations]);
   const tempOnlyCount = stations.length - fullStations.length;
@@ -150,11 +161,18 @@ export function StationTable() {
       </div>
 
       {sortedStations.map((station) => (
-        <StationCard
+        <div
           key={station.id}
-          station={station}
-          reading={currentReadings.get(station.id)}
-        />
+          ref={(el) => {
+            if (el) cardRefs.current.set(station.id, el);
+            else cardRefs.current.delete(station.id);
+          }}
+        >
+          <StationCard
+            station={station}
+            reading={currentReadings.get(station.id)}
+          />
+        </div>
       ))}
     </div>
   );

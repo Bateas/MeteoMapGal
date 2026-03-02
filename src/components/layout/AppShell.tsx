@@ -15,6 +15,7 @@ import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore'
 import { useThermalStore } from '../../store/thermalStore';
 import { useAlertStore } from '../../store/alertStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
+import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { processAlertNotifications } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
@@ -24,8 +25,9 @@ import {
 } from '../../services/lapseRateService';
 
 export function AppShell() {
-  const { forceRefresh } = useWeatherData();
+  const { forceRefresh, retryDiscovery } = useWeatherData();
   const isLoading = useWeatherStore((s) => s.isLoading);
+  const error = useWeatherStore((s) => s.error);
   const stations = useWeatherStore((s) => s.stations);
 
   // Thermal wind analysis: scores rules, detects propagation, fetches forecast
@@ -131,14 +133,28 @@ export function AppShell() {
             <WeatherMap />
           </ErrorBoundary>
 
-          {/* Loading overlay (only on initial load) */}
-          {isLoading && stations.length === 0 && (
+          {/* Loading / error overlay (only when no stations yet) */}
+          {stations.length === 0 && (isLoading || error) && (
             <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center z-10">
               <div className="flex flex-col items-center gap-3">
-                <LoadingSpinner size={40} />
-                <span className="text-sm text-slate-400">
-                  Descubriendo estaciones en Ourense...
-                </span>
+                {isLoading ? (
+                  <>
+                    <LoadingSpinner size={40} />
+                    <span className="text-sm text-slate-400">
+                      Descubriendo estaciones en Ourense...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm text-red-400">{error}</span>
+                    <button
+                      onClick={retryDiscovery}
+                      className="px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                    >
+                      Reintentar
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -151,6 +167,7 @@ export function AppShell() {
           />
         </main>
       </div>
+      <KeyboardShortcutHelp />
     </div>
   );
 }
