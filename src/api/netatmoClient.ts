@@ -73,7 +73,7 @@ async function fetchTokenInternal(): Promise<string> {
       const data = await res.json();
       cachedToken = data.body;
       tokenFetchedAt = Date.now();
-      console.log('[Netatmo] Token obtained via proxy');
+      console.debug('[Netatmo] Token obtained via proxy');
       return cachedToken!;
     }
     console.warn(`[Netatmo] Proxy token failed: ${res.status}`);
@@ -88,7 +88,7 @@ async function fetchTokenInternal(): Promise<string> {
       const data = await res.json();
       cachedToken = data.body;
       tokenFetchedAt = Date.now();
-      console.log('[Netatmo] Token obtained via direct URL');
+      console.debug('[Netatmo] Token obtained via direct URL');
       return cachedToken!;
     }
     console.warn(`[Netatmo] Direct token failed: ${res.status}`);

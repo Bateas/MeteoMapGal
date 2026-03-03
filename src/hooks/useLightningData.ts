@@ -6,11 +6,7 @@ import { trackStorms } from '../services/stormTracker';
 import type { StormCluster } from '../services/stormTracker';
 import type { LightningStrike, StormAlert, StormAlertLevel } from '../types/lightning';
 import type { ClusterSnapshot } from '../services/stormTracker';
-import { MAP_CENTER } from '../config/constants';
-
-/** Reservoir center (Castrelo de Miño) */
-const RESERVOIR_LAT = MAP_CENTER[1]; // 42.29
-const RESERVOIR_LON = MAP_CENTER[0]; // -8.1
+import { useSectorStore } from '../store/sectorStore';
 
 /**
  * Alert distance thresholds (updated per user request):
@@ -102,6 +98,8 @@ function computeStormAlert(
   strikes: LightningStrike[],
   clusters: StormCluster[],
   previousAlert: StormAlert,
+  centerLat: number,
+  centerLon: number,
 ): StormAlert {
   const now = Date.now();
 
@@ -114,9 +112,9 @@ function computeStormAlert(
     return { ...NO_ALERT, updatedAt: new Date() };
   }
 
-  // Distance of each recent strike to reservoir
+  // Distance of each recent strike to active sector center
   const distances = recent.map((s) =>
-    distanceKm(s.lat, s.lon, RESERVOIR_LAT, RESERVOIR_LON),
+    distanceKm(s.lat, s.lon, centerLat, centerLon),
   );
   const nearestKm = Math.round(Math.min(...distances) * 10) / 10;
 
@@ -180,7 +178,7 @@ function seededRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
-function generateSimulatedStrikes(): LightningStrike[] {
+function generateSimulatedStrikes(centerLat: number, centerLon: number): LightningStrike[] {
   const now = Date.now();
   simStep++;
 
@@ -190,8 +188,8 @@ function generateSimulatedStrikes(): LightningStrike[] {
   const baseBearing = 200; // from SSW toward NNE
   const bearingRad = (baseBearing * Math.PI) / 180;
 
-  const baseLat = RESERVOIR_LAT + (baseDistKm / 111.32) * Math.cos(bearingRad);
-  const baseLon = RESERVOIR_LON + (baseDistKm / (111.32 * Math.cos((RESERVOIR_LAT * Math.PI) / 180))) * Math.sin(bearingRad);
+  const baseLat = centerLat + (baseDistKm / 111.32) * Math.cos(bearingRad);
+  const baseLon = centerLon + (baseDistKm / (111.32 * Math.cos((centerLat * Math.PI) / 180))) * Math.sin(bearingRad);
 
   const strikes: LightningStrike[] = [];
   const clusterSize = 14;
@@ -228,8 +226,8 @@ function generateSimulatedStrikes(): LightningStrike[] {
     const trailDist = baseDistKm + 18;
     const trailBearing = 210; // slightly west of main cell
     const trailRad = (trailBearing * Math.PI) / 180;
-    const trailLat = RESERVOIR_LAT + (trailDist / 111.32) * Math.cos(trailRad);
-    const trailLon = RESERVOIR_LON + (trailDist / (111.32 * Math.cos((trailLat * Math.PI) / 180))) * Math.sin(trailRad);
+    const trailLat = centerLat + (trailDist / 111.32) * Math.cos(trailRad);
+    const trailLon = centerLon + (trailDist / (111.32 * Math.cos((trailLat * Math.PI) / 180))) * Math.sin(trailRad);
 
     for (let i = 0; i < 6; i++) {
       const angle = (i / 6) * 2 * Math.PI;
@@ -270,16 +268,22 @@ export function useLightningData() {
     simulationActive,
   } = useLightningStore();
 
+  const activeSector = useSectorStore((s) => s.activeSector);
+  const sectorCenter = activeSector.center; // [lon, lat]
+
   const prevAlertRef = useRef(stormAlert);
   const historyRef = useRef<ClusterSnapshot[]>([]);
 
   const fetchAndUpdate = useCallback(async () => {
+    const centerLat = sectorCenter[1];
+    const centerLon = sectorCenter[0];
+
     setLoading(true);
     try {
       let strikes: LightningStrike[];
 
       if (simulationActive) {
-        strikes = generateSimulatedStrikes();
+        strikes = generateSimulatedStrikes(centerLat, centerLon);
       } else {
         strikes = await fetchLightningStrikes();
       }
@@ -291,14 +295,14 @@ export function useLightningData() {
       const { clusters, history } = trackStorms(
         strikes,
         historyRef.current,
-        RESERVOIR_LAT,
-        RESERVOIR_LON,
+        centerLat,
+        centerLon,
       );
       historyRef.current = history;
       setClusterHistory(history);
       setClusters(clusters);
 
-      const alert = computeStormAlert(strikes, clusters, prevAlertRef.current);
+      const alert = computeStormAlert(strikes, clusters, prevAlertRef.current, centerLat, centerLon);
       setAlert(alert);
       prevAlertRef.current = alert;
 
@@ -310,7 +314,7 @@ export function useLightningData() {
     } finally {
       setLoading(false);
     }
-  }, [setStrikes, setAlert, setClusters, setClusterHistory, setLoading, setError, setLastFetch, simulationActive]);
+  }, [setStrikes, setAlert, setClusters, setClusterHistory, setLoading, setError, setLastFetch, simulationActive, sectorCenter]);
 
   // Initial fetch + polling
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

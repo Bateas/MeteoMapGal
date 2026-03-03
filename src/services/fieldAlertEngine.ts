@@ -17,12 +17,12 @@ import { detectWindPropagation } from './windPropagationService';
  * Check frost risk in the forecast window.
  * Frost is most likely on clear, calm nights: temp < 2°C, cloudCover < 30%, wind < 2 m/s.
  */
-export function checkFrost(forecast: HourlyForecast[]): FrostAlert {
+export function checkFrost(forecast: HourlyForecast[], center?: [number, number]): FrostAlert {
   const noAlert: FrostAlert = { level: 'none', minTemp: null, timeWindow: null, cloudCover: null, windSpeed: null };
   if (forecast.length === 0) return noAlert;
 
   // Focus on nighttime hours (sunset to sunrise+2h)
-  const sun = getSunTimes(new Date());
+  const sun = getSunTimes(new Date(), center);
   const nightHours = forecast.filter((p) => {
     const h = p.time.getHours();
     // Rough night window: after sunset or before sunrise+2h
@@ -164,8 +164,9 @@ export function checkAllFieldAlerts(
   readingHistory?: Map<string, NormalizedReading[]>,
   stations?: NormalizedStation[],
   currentReadings?: Map<string, NormalizedReading>,
+  center?: [number, number],
 ): FieldAlerts {
-  const frost = checkFrost(forecast);
+  const frost = checkFrost(forecast, center);
   const rain = checkRainHail(forecast);
   const drone = checkDroneConditions(forecast);
   const fog = analyzeFog(readingHistory ?? new Map(), new Date(), forecast);
