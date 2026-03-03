@@ -52,7 +52,22 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
   error: null,
   sourceFreshness: new Map(),
 
-  setStations: (stations) => set({ stations }, undefined, 'setStations'),
+  setStations: (stations) => {
+    if (stations.length === 0) {
+      // Sector switch: clear all stale data from previous sector
+      set({
+        stations,
+        currentReadings: new Map(),
+        readingHistory: new Map(),
+        selectedStationId: null,
+        highlightedStationId: null,
+        chartSelectedStations: [],
+        sourceFreshness: new Map(),
+      }, undefined, 'setStations/reset');
+    } else {
+      set({ stations }, undefined, 'setStations');
+    }
+  },
 
   updateReadings: (readings) => {
     const { currentReadings, readingHistory } = get();
