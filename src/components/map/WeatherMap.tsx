@@ -123,14 +123,14 @@ export function WeatherMap() {
       >
         <NavigationControl position="top-right" visualizePitch />
 
-        {/* Thermal zone polygons (below stations) */}
-        <ThermalZoneOverlay />
+        {/* Thermal zone polygons — only for Embalse sector */}
+        {activeSector.id === 'embalse' && <ThermalZoneOverlay />}
 
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
 
         {/* Wind field arrows around stations */}
-        <WindFieldOverlay stations={stations} readings={currentReadings} />
+        <WindFieldOverlay stations={stations} readings={currentReadings} compact={stations.length > 35} />
 
         {/* Station markers (full markers for wind stations, tiny dots for temp-only) */}
         {stations.map((station) =>
@@ -149,11 +149,13 @@ export function WeatherMap() {
           )
         )}
 
-        {/* Thermal alert badges on zone centers */}
-        <ThermalAlertMarkers />
-
-        {/* Propagation arrows between zones */}
-        <PropagationArrows />
+        {/* Thermal alert badges + propagation — only for Embalse sector */}
+        {activeSector.id === 'embalse' && (
+          <>
+            <ThermalAlertMarkers />
+            <PropagationArrows />
+          </>
+        )}
 
         {/* Storm cluster masses + radius rings (below strikes) */}
         <StormClusterOverlay />
