@@ -1,4 +1,5 @@
 import type { MeteoclimaticRawStation } from '../types/meteoclimatic';
+import { METEOCLIMATIC_REGIONS } from '../types/meteoclimatic';
 import { METEOCLIMATIC } from '../config/apiEndpoints';
 
 /**
@@ -57,26 +58,38 @@ let feedCache: { data: MeteoclimaticRawStation[]; ts: number } | null = null;
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
 /**
- * Fetch all Meteoclimatic stations for the Ourense region (ESGAL32).
- * Returns parsed station data from the XML feed.
+ * Fetch Meteoclimatic stations from all configured regions (ESGAL32 + ESGAL36).
+ * Fetches feeds in parallel and deduplicates by station ID.
  */
 export async function fetchMeteoclimaticFeed(): Promise<MeteoclimaticRawStation[]> {
   if (feedCache && Date.now() - feedCache.ts < CACHE_TTL_MS) {
     return feedCache.data;
   }
 
-  const url = METEOCLIMATIC.regionFeed('ESGAL32');
-  const resp = await fetch(url);
+  const results = await Promise.allSettled(
+    METEOCLIMATIC_REGIONS.map(async (region) => {
+      const url = METEOCLIMATIC.regionFeed(region);
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Meteoclimatic ${region} feed error: ${resp.status}`);
+      const xmlText = await resp.text();
+      return parseXmlFeed(xmlText);
+    })
+  );
 
-  if (!resp.ok) {
-    throw new Error(`Meteoclimatic feed error: ${resp.status}`);
+  // Merge all feeds, deduplicate by station ID
+  const seen = new Set<string>();
+  const data: MeteoclimaticRawStation[] = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      for (const station of result.value) {
+        if (!seen.has(station.id)) {
+          seen.add(station.id);
+          data.push(station);
+        }
+      }
+    }
   }
 
-  const xmlText = await resp.text();
-  const data = parseXmlFeed(xmlText);
-
   feedCache = { data, ts: Date.now() };
-  console.log(`[Meteoclimatic] Parsed ${data.length} stations from feed`);
-
   return data;
 }
