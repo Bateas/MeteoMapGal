@@ -5,9 +5,12 @@ import {
   formatTemperature,
   formatHumidity,
   formatPrecipitation,
+  formatSolarRadiation,
   windSpeedColor,
   temperatureColor,
   precipitationColor,
+  solarRadiationColor,
+  solarRadiationIcon,
 } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { WindCompass } from '../common/WindCompass';
@@ -152,6 +155,20 @@ export function StationCard({ station, reading }: StationCardProps) {
                   style={{ color: precipitationColor(reading.precipitation) }}
                 >
                   {formatPrecipitation(reading.precipitation)}
+                </div>
+              </div>
+            )}
+            {reading.solarRadiation !== null && (
+              <div>
+                <div className="text-[10px] text-slate-500">Radiación</div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-[10px]">{solarRadiationIcon(reading.solarRadiation)}</span>
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: solarRadiationColor(reading.solarRadiation) }}
+                  >
+                    {formatSolarRadiation(reading.solarRadiation)}
+                  </span>
                 </div>
               </div>
             )}

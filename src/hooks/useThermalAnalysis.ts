@@ -13,9 +13,10 @@ import {
   fetchAtmosphericContextForEmbalse,
   fetchOpenMeteoHistory,
 } from '../api/openMeteoClient';
-import type { MicroZoneId, ForecastAlert, TendencySignal } from '../types/thermal';
+import type { MicroZoneId, ForecastAlert, TendencySignal, AtmosphericContext } from '../types/thermal';
 import type { NormalizedReading } from '../types/station';
 import { scoreRule } from '../services/thermalScoringEngine';
+import { estimateCloudCover } from '../services/stormShadowDetector';
 import { MICRO_ZONES } from '../config/thermalZones';
 
 const FORECAST_INTERVAL_MS = 30 * 60 * 1000;
@@ -154,7 +155,7 @@ export function useThermalAnalysis() {
     const parts: string[] = [];
     for (const [id, r] of currentReadings) {
       parts.push(
-        `${id}:${r.windSpeed?.toFixed(1) ?? '-'},${r.windDirection?.toFixed(0) ?? '-'},${r.temperature?.toFixed(1) ?? '-'},${r.humidity?.toFixed(0) ?? '-'}`
+        `${id}:${r.windSpeed?.toFixed(1) ?? '-'},${r.windDirection?.toFixed(0) ?? '-'},${r.temperature?.toFixed(1) ?? '-'},${r.humidity?.toFixed(0) ?? '-'},${r.solarRadiation?.toFixed(0) ?? '-'}`
       );
     }
     // Include atmospheric context in fingerprint since it affects scoring
@@ -179,8 +180,31 @@ export function useThermalAnalysis() {
         zoneReadings.set(zoneId, list);
       }
 
+      // ── Enrich atmospheric context with REAL solar radiation ──
+      // When stations have measured solarRadiation (from MeteoGalicia/WU sensors),
+      // use that instead of Open-Meteo forecast model data. Real data is more
+      // accurate for thermal scoring and critical for storm shadow detection.
+      let effectiveAtmospheric = atmosphericContext;
+      const allSolarReadings: number[] = [];
+      for (const [, reading] of currentReadings) {
+        if (reading.solarRadiation !== null && reading.solarRadiation >= 0) {
+          allSolarReadings.push(reading.solarRadiation);
+        }
+      }
+      if (allSolarReadings.length > 0) {
+        const avgSolar = allSolarReadings.reduce((a, b) => a + b, 0) / allSolarReadings.length;
+        const realCloudCover = estimateCloudCover(avgSolar);
+        effectiveAtmospheric = {
+          cloudCover: realCloudCover,
+          solarRadiation: avgSolar,
+          // Keep CAPE from Open-Meteo (no station sensor for this)
+          cape: atmosphericContext?.cape ?? null,
+          fetchedAt: new Date(),
+        } satisfies AtmosphericContext;
+      }
+
       // Score all rules (with ΔT context + atmospheric context if available)
-      const scores = scoreAllRules(rules, zoneReadings, now, dailyContext ?? undefined, atmosphericContext);
+      const scores = scoreAllRules(rules, zoneReadings, now, dailyContext ?? undefined, effectiveAtmospheric);
       setRuleScores(scores);
 
       // Compute zone alerts
@@ -232,7 +256,7 @@ export function useThermalAnalysis() {
         const temps = zoneR.filter((r) => r.temperature != null).map((r) => r.temperature!);
         const avgTemp = temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
 
-        const assessment = analyzeZoneHumidity(zoneR, atmosphericContext, avgTemp);
+        const assessment = analyzeZoneHumidity(zoneR, effectiveAtmospheric, avgTemp);
         humidityResults.set(zone.id, assessment);
       }
       setHumidityAssessments(humidityResults);
@@ -263,6 +287,7 @@ export function useThermalAnalysis() {
             windGust: null,
             windDirection: point.windDirection,
             precipitation: null,
+            solarRadiation: null,
           };
 
           for (const rule of rules) {

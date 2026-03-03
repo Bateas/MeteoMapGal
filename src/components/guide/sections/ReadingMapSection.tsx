@@ -84,10 +84,10 @@ export function ReadingMapSection() {
             color="#3b82f6"
           />
           <LayerCard
-            icon="🌧️"
-            name="Modelo WRF"
+            icon="🛰️"
+            name="Satélite infrarrojo"
             shortcut="W ×3"
-            description="Datos del modelo numérico WRF de MeteoGalicia (4km resolución). Precipitación, nubosidad, viento, humedad, CAPE, visibilidad. Con timeline de 96h."
+            description="Imagen EUMETSAT Meteosat (IR 10.8μm) actualizada cada 15 min. Funciona 24h. Brillante = nubes altas/frías (cumulonimbus), oscuro = cielo despejado."
             color="#8b5cf6"
           />
         </div>
@@ -95,7 +95,7 @@ export function ReadingMapSection() {
 
       {/* Other overlays */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Otros indicadores</h3>
+        <h3 className="text-sm font-bold text-white">Otros indicadores del mapa</h3>
         <div className="grid grid-cols-2 gap-3">
           <MiniExplainer
             icon="🔴"
@@ -104,18 +104,28 @@ export function ReadingMapSection() {
           />
           <MiniExplainer
             icon="⚡"
-            title="Rayos"
-            text="Puntos de impactos de rayo (últimas 24h). Color por antigüedad. Alertas de proximidad al embalse."
+            title="Rayos y clusters"
+            text="Impactos de rayo (24h). Color por antigüedad. Los clusters agrupan zonas de actividad con anillo de radio."
+          />
+          <MiniExplainer
+            icon="🌑"
+            title="Sombra de tormenta"
+            text="Alerta cruzada: caída de radiación solar + rayos cercanos + anomalía de viento = tormenta acercándose."
+          />
+          <MiniExplainer
+            icon="☀️"
+            title="Radiación solar"
+            text="W/m² en estaciones equipadas (WU, MeteoGalicia). Caída brusca indica paso de nube o tormenta."
           />
           <MiniExplainer
             icon="🏷️"
             title="Alertas térmicas"
-            text="Badges sobre zonas indicando estado del viento térmico. Incluyen propagación detectada."
+            text="Badges sobre zonas del embalse indicando estado del viento térmico. Incluyen propagación detectada."
           />
           <MiniExplainer
             icon="⛵"
             title="Banner Go/No-Go"
-            text="Indicador rápido en el mapa: verde (buenas condiciones), ámbar (marginal), rojo (no navegar)."
+            text="Indicador en el mapa: verde (GO 6-20kt), ámbar (MARGINAL), rojo (NO-GO > 25kt o calma)."
           />
         </div>
       </div>

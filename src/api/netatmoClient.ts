@@ -293,12 +293,10 @@ export async function fetchNetatmoObservations(
 
           const tempIdx = measure.type.indexOf('temperature');
           const humIdx = measure.type.indexOf('humidity');
-          const pressIdx = measure.type.indexOf('pressure');
 
           if (tempIdx !== -1) temperature = values[tempIdx] ?? null;
           if (humIdx !== -1) humidity = values[humIdx] ?? null;
-          // Pressure available but not in our NormalizedReading
-          void pressIdx;
+          // Note: pressure is available in measure.type but not in NormalizedReading
         }
       }
 
@@ -327,6 +325,7 @@ export async function fetchNetatmoObservations(
       temperature,
       humidity,
       precipitation,
+      solarRadiation: null, // Netatmo basic stations don't report solar
     });
   }
 

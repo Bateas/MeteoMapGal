@@ -158,6 +158,7 @@ export async function fetchWUObservations(
       temperature: m.temp,
       humidity: obs.humidity,
       precipitation: m.precipTotal,     // mm total today
+      solarRadiation: obs.solarRadiation, // W/m² from PWS sensor
     });
   }
 

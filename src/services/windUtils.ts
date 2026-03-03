@@ -94,6 +94,35 @@ export function precipitationColor(mm: number | null): string {
   return '#7c3aed';               // violet-600
 }
 
+// ── Solar radiation utilities ────────────────────────────
+
+/** Format solar radiation (W/m²) for display */
+export function formatSolarRadiation(wm2: number | null): string {
+  if (wm2 === null) return '--';
+  return `${Math.round(wm2)} W/m²`;
+}
+
+/** Color for solar radiation visualization:
+ *  0: night/dark, <200: cloudy, 200-500: partial, 500-800: good, >800: intense */
+export function solarRadiationColor(wm2: number | null): string {
+  if (wm2 === null) return '#64748b';   // slate-500
+  if (wm2 <= 0) return '#475569';       // slate-600 (night)
+  if (wm2 < 200) return '#94a3b8';      // slate-400 (cloudy/low)
+  if (wm2 < 500) return '#fbbf24';      // amber-400 (partial sun)
+  if (wm2 < 800) return '#f59e0b';      // amber-500 (good sun)
+  return '#f97316';                      // orange-500 (intense)
+}
+
+/** Sun icon based on radiation level */
+export function solarRadiationIcon(wm2: number | null): string {
+  if (wm2 === null) return '—';
+  if (wm2 <= 0) return '🌙';           // night
+  if (wm2 < 100) return '☁️';           // heavy cloud
+  if (wm2 < 300) return '🌥️';          // partly cloudy
+  if (wm2 < 600) return '⛅';           // partial sun
+  return '☀️';                           // clear/strong sun
+}
+
 // ── Thermal wind utilities ───────────────────────────────
 
 /**
