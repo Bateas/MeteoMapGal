@@ -1,17 +1,13 @@
 import { useMemo, memo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
-import { MAP_CENTER } from '../../config/constants';
+import { useSectorStore } from '../../store/sectorStore';
 import type { StormCluster, ClusterSnapshot } from '../../services/stormTracker';
 
 const EMPTY_FC: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
   features: [],
 };
-
-// Reservoir center
-const RES_LON = MAP_CENTER[0];
-const RES_LAT = MAP_CENTER[1];
 
 /**
  * Generate a circle polygon (GeoJSON) centered at [lon, lat] with given radius in km.
@@ -187,6 +183,9 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
   const showOverlay = useLightningStore((s) => s.showOverlay);
   const alertLevel = useLightningStore((s) => s.stormAlert.level);
   const clusterHistory = useLightningStore((s) => s.clusterHistory);
+  const sectorCenter = useSectorStore((s) => s.activeSector.center);
+  const centerLon = sectorCenter[0];
+  const centerLat = sectorCenter[1];
 
   // ── Watch / Warning / Danger radius rings ────────────────────
   const radiusRings = useMemo<GeoJSON.FeatureCollection>(() => {
@@ -197,23 +196,23 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     // Only show rings when there are active clusters or alerts
     if (alertLevel !== 'none' || clusters.length > 0) {
       // 50km watch ring
-      const watch = circlePolygon(RES_LON, RES_LAT, 50);
+      const watch = circlePolygon(centerLon, centerLat, 50);
       watch.properties = { ring: 'watch', radius: 50 };
       features.push(watch);
 
       // 25km warning ring
-      const warning = circlePolygon(RES_LON, RES_LAT, 25);
+      const warning = circlePolygon(centerLon, centerLat, 25);
       warning.properties = { ring: 'warning', radius: 25 };
       features.push(warning);
 
       // 5km danger ring
-      const danger = circlePolygon(RES_LON, RES_LAT, 5);
+      const danger = circlePolygon(centerLon, centerLat, 5);
       danger.properties = { ring: 'danger', radius: 5 };
       features.push(danger);
     }
 
     return { type: 'FeatureCollection', features };
-  }, [showOverlay, alertLevel, clusters.length]);
+  }, [showOverlay, alertLevel, clusters.length, centerLon, centerLat]);
 
   // ── Cluster mass areas (big gradient circles) ────────────────
   const clusterMasses = useMemo<GeoJSON.FeatureCollection>(() => {
