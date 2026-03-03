@@ -130,14 +130,29 @@ describe('isDirectionInRange', () => {
 });
 
 describe('windSpeedColor', () => {
-  it('returns slate for calm/null', () => {
-    expect(windSpeedColor(null)).toBe('#94a3b8');
-    expect(windSpeedColor(0.3)).toBe('#94a3b8');
+  it('returns slate-500 for calm/null (<0.5 m/s)', () => {
+    expect(windSpeedColor(null)).toBe('#64748b');
+    expect(windSpeedColor(0.3)).toBe('#64748b');
   });
-  it('returns blue for light wind', () => {
-    expect(windSpeedColor(1)).toBe('#60a5fa');
+  it('returns blue-300 for light wind (~1-3 kt)', () => {
+    expect(windSpeedColor(1)).toBe('#93c5fd');
   });
-  it('returns red for strong wind', () => {
+  it('returns cyan for light breeze (~3-6 kt)', () => {
+    expect(windSpeedColor(2)).toBe('#22d3ee');
+  });
+  it('returns green for gentle wind (~6-9 kt)', () => {
+    expect(windSpeedColor(4)).toBe('#22c55e');
+  });
+  it('returns lime for moderate wind (~9-13 kt)', () => {
+    expect(windSpeedColor(5)).toBe('#a3e635');
+  });
+  it('returns yellow for fresh wind (~13-17 kt)', () => {
+    expect(windSpeedColor(7)).toBe('#eab308');
+  });
+  it('returns orange for strong wind (~17-23 kt)', () => {
+    expect(windSpeedColor(10)).toBe('#f97316');
+  });
+  it('returns red for gale+ (>23 kt)', () => {
     expect(windSpeedColor(15)).toBe('#ef4444');
   });
 });

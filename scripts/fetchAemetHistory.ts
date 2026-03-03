@@ -37,11 +37,23 @@ if (!API_KEY) {
 const BASE_URL = 'https://opendata.aemet.es/opendata';
 
 // Stations near Embalse de Castrelo / Ribadavia
+// Only 3 stations have daily climatological data via AEMET OpenData:
 const STATIONS = [
-  { id: '1701X', name: 'Ribadavia' },
-  { id: '1690A', name: 'Ourense' },
-  { id: '1700X', name: 'O Carballiño' },
-  { id: '1690B', name: 'Ourense Instituto' },
+  { id: '1701X', name: 'Ribadavia' },          // 0 km — baseline, valley floor 112m (488 days)
+  { id: '1690A', name: 'Ourense' },             // 22 km E — city, valley 146m (466 days, has sol!)
+  { id: '1700X', name: 'O Carballiño' },        // 14 km NE — mid-altitude 400m (488 days)
+
+  // ── Tested 2026-03: ALL below have 0 daily records in AEMET OpenData ──
+  // These are automated stations without daily climatological data in the API.
+  // Keeping commented for documentation. They DO appear in real-time observations.
+  // { id: '1690B', name: 'Ourense Instituto' },   // NO daily data
+  // { id: '1704',  name: 'Leiro' },               // NO daily data
+  // { id: '1703',  name: 'Avión' },               // NO daily data
+  // { id: '1705',  name: 'Melón' },               // NO daily data
+  // { id: '1696A', name: 'Arnoia' },              // NO daily data
+  // { id: '1696U', name: 'Pontedeva-Cortegada' }, // NO daily data
+  // { id: '1702',  name: 'Beariz' },              // NO daily data
+  // { id: '1690',  name: 'Ourense Aeródromo' },   // NO daily data
 ];
 
 // Summer months (thermal wind season) - fetch June through September

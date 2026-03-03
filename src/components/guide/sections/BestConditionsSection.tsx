@@ -3,8 +3,8 @@ export function BestConditionsSection() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">Mejores condiciones para navegar</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        Basado en 1.412 registros diarios de AEMET (2022-2025), estas son las condiciones
-        estadísticas que producen los mejores días de navegación en el embalse.
+        Basado en 1.412 registros diarios de AEMET (2022-2025), filtrados para separar
+        térmico real de viento frontal. 119 días térmicos confirmados de 478 veranos analizados.
       </p>
 
       {/* Best conditions checklist */}
@@ -12,13 +12,13 @@ export function BestConditionsSection() {
         <h3 className="text-sm font-bold text-emerald-400">✅ Checklist del día perfecto</h3>
         <div className="space-y-2">
           {[
-            { check: 'Tmax > 31°C', detail: '54% probabilidad térmica', icon: '🌡️' },
-            { check: 'HR 45-65%', detail: 'Sweet spot de humedad', icon: '💧' },
-            { check: 'ΔT > 20°C', detail: 'Fuerte gradiente térmico', icon: '📈' },
+            { check: 'Tmax 28-32°C', detail: 'Mejor viento: vel 2.0 m/s. >36°C = sofocante', icon: '🌡️' },
+            { check: 'HR 40-60%', detail: '38-43% térmico. >60% cae a 18%, >80% = 0%', icon: '💧' },
+            { check: 'ΔT > 16°C', detail: 'Validado con sol Ourense: ΔT>16 = sol>10h', icon: '📈' },
             { check: 'E mañana en montaña', detail: '76% predictor de térmico tarde', icon: '🏔️' },
-            { check: 'Cielo despejado', detail: 'Radiación solar máxima', icon: '☀️' },
+            { check: 'Cielo despejado (>10h sol)', detail: '35% térmico vs 0% con <4h sol', icon: '☀️' },
             { check: 'Sin lluvia 24h previas', detail: 'Suelo seco = más convección', icon: '🌂' },
-            { check: 'Julio o Agosto', detail: '40-50% días buenos', icon: '📅' },
+            { check: 'Julio o Agosto', detail: 'Jul 29% + Ago 37% térmico limpio', icon: '📅' },
           ].map((item) => (
             <div key={item.check} className="flex items-center gap-3 p-2 rounded-lg bg-slate-800/30">
               <span className="text-base">{item.icon}</span>
@@ -44,7 +44,7 @@ export function BestConditionsSection() {
         <h3 className="text-sm font-bold text-white">Ventana horaria óptima</h3>
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-            <div className="text-2xl font-black text-emerald-400">13-18h</div>
+            <div className="text-2xl font-black text-emerald-400">13-21h</div>
             <div className="text-xs text-slate-500 mt-1">Ventana principal</div>
             <div className="text-[10px] text-slate-600">7-12 kt estables del W</div>
           </div>
@@ -169,12 +169,13 @@ function MonthlyChart() {
 /* ─── Scoring breakdown ──────────────────────────── */
 function ScoringBreakdown() {
   const factors = [
-    { name: 'Temperatura', points: 25, color: '#ef4444', desc: 'Tmax, radiación solar' },
-    { name: 'Hora del día', points: 20, color: '#f59e0b', desc: '13-18h máximo' },
-    { name: 'Mes/estación', points: 15, color: '#22c55e', desc: 'Jul-Ago mejores' },
-    { name: 'Dirección viento', points: 15, color: '#3b82f6', desc: 'W/SW favorable' },
-    { name: 'Velocidad viento', points: 15, color: '#8b5cf6', desc: 'Rampa 0→12kt' },
-    { name: 'Humedad', points: 10, color: '#06b6d4', desc: '45-65% sweet spot' },
+    { name: 'Humedad', points: 20, color: '#06b6d4', desc: '40-60% = 38-43% térmico. >60% cae a 18%' },
+    { name: 'Temperatura', points: 20, color: '#ef4444', desc: '28-32°C mejor viento. <28°C = frontal, >36°C = parado' },
+    { name: 'Hora del día', points: 15, color: '#f59e0b', desc: '13-21h ventana. Racha media a las 16:06h' },
+    { name: 'Mes/estación', points: 15, color: '#22c55e', desc: 'Ago 37% > Jul 29% > Sep 25% (térmico limpio)' },
+    { name: 'Dir. viento', points: 10, color: '#3b82f6', desc: 'SW Ribadavia→W Ourense→NW Carballiño' },
+    { name: 'Vel. viento', points: 10, color: '#8b5cf6', desc: 'Confirma, no predice. Rampa 0→12kt' },
+    { name: 'ΔT (Tmax-Tmin)', points: 10, color: '#f97316', desc: '>16°C = sol>10h → 33%. <14°C = 0% térmico' },
   ];
 
   return (
@@ -209,7 +210,7 @@ function ScoringBreakdown() {
           <span className="text-sm font-mono font-black text-white">100</span>
         </div>
         <div className="w-32">
-          <span className="text-[9px] text-slate-400">+ bonuses (racha, entorno)</span>
+          <span className="text-[9px] text-slate-400">+ bonus: racha (5) + entorno (5)</span>
         </div>
       </div>
     </div>
