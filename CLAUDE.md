@@ -1,6 +1,6 @@
 # MeteoMap
 
-Real-time weather monitoring app for Ourense/Ribadavia (Galicia, Spain), focused on thermal wind patterns for sailing on the Castrelo de Miño reservoir.
+Real-time weather monitoring app for Galicia (Spain), with multi-sector support: **Embalse de Castrelo** (thermal sailing, 35km radius) and **Rías Baixas** (coastal wind monitoring, 30km radius).
 
 ## Quick Start
 
@@ -19,6 +19,7 @@ Requires `.env` with `VITE_AEMET_API_KEY`. Other sources (MeteoGalicia, Meteocli
 - **MapLibre GL JS** (react-map-gl/maplibre) with 3D terrain
 - **Zustand** for state (weatherStore, weatherLayerStore, alertStore, etc.)
 - **Five data sources**: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo
+- **Multi-sector**: `sectorStore.ts` + `src/config/sectors.ts` define Embalse / Rías Baixas with independent center, radius, regions
 - **Vite proxy** for CORS: `/aemet-api`, `/meteogalicia-api`, `/meteoclimatic-api`, `/meteo2api`, `/thredds-wms`
 
 ## Key Conventions
@@ -54,4 +55,6 @@ src/
 - **WRF WMS styles**: Only `boxfill/rainbow` works. `default-scalar/precip` returns HTTP 400.
 - **MapLibre `beforeId`**: `beforeId="osm-tiles"` on raster layers hides them below base tiles. Omit it.
 - **Vite HMR caching**: New `.tsx` files may require dev server restart.
-- **Wind particle SPEED_SCALE**: At Ourense scale (~50km viewport), use 0.004. Values <0.001 produce invisible sub-pixel movement.
+- **Wind particle SPEED_SCALE**: At Galician scale (~50km viewport), use 0.0015. Values <0.001 produce invisible sub-pixel movement.
+- **Sector switch cleanup**: `setStations([])` triggers full state reset (readings, history, selections, sourceFreshness). Fetch flags in `useWeatherData` also reset.
+- **Embalse-only features**: Thermal zones, forecast timeline, thermal panel, sailing banner, and propagation arrows are conditionally rendered only when `activeSector.id === 'embalse'`.

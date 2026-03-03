@@ -23,8 +23,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   const forecastHourly = useForecastStore((s) => s.hourly);
   const thermalRules = useThermalStore((s) => s.rules);
 
-  const sun = useMemo(() => getSunTimes(), []);
-  const daylight = isDaylight();
+  const sun = useMemo(() => getSunTimes(new Date(), activeSector.center), [activeSector.center]);
+  const daylight = isDaylight(new Date(), activeSector.center);
 
   const nextSailingWindow = useMemo(() => {
     if (forecastHourly.length === 0 || thermalRules.length === 0) return null;
