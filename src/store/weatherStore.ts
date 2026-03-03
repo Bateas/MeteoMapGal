@@ -37,6 +37,7 @@ interface WeatherState {
   toggleChartStation: (id: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  pruneHistory: () => void;
   updateSourceStatus: (source: WeatherSource, ok: boolean, count?: number, errorMsg?: string) => void;
 }
 
@@ -114,6 +115,21 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
 
   setLoading: (isLoading) => set({ isLoading }, undefined, 'setLoading'),
   setError: (error) => set({ error }, undefined, 'setError'),
+
+  pruneHistory: () => {
+    const { readingHistory } = get();
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000; // 24h ago
+    const newHistory = new Map<string, NormalizedReading[]>();
+    let pruned = 0;
+    for (const [id, entries] of readingHistory) {
+      const fresh = entries.filter((r) => r.timestamp.getTime() > cutoff);
+      if (fresh.length > 0) newHistory.set(id, fresh);
+      pruned += entries.length - fresh.length;
+    }
+    if (pruned > 0) {
+      set({ readingHistory: newHistory }, undefined, 'pruneHistory');
+    }
+  },
 
   updateSourceStatus: (source, ok, count = 0, errorMsg) => {
     const { sourceFreshness } = get();
