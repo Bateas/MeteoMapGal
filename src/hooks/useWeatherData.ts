@@ -163,9 +163,17 @@ export function useWeatherData() {
     }
   }, [stations, updateReadings]);
 
+  // Reset fetch flags when sector changes (stations go to [] then back)
+  const hasFetchedRef = useRef(false);
+  useEffect(() => {
+    if (stations.length === 0) {
+      hasFetchedRef.current = false;
+      hasLoadedHistoryRef.current = false;
+    }
+  }, [stations.length]);
+
   // Trigger fetch when stations first become available
   // (useAutoRefresh fires before stations are loaded, so we need this)
-  const hasFetchedRef = useRef(false);
   useEffect(() => {
     if (stations.length > 0 && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
