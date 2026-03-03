@@ -5,6 +5,8 @@ import { HumiditySection } from './sections/HumiditySection';
 import { PropagationSection } from './sections/PropagationSection';
 import { BestConditionsSection } from './sections/BestConditionsSection';
 import { ReadingMapSection } from './sections/ReadingMapSection';
+import { CampoPanelSection } from './sections/CampoPanelSection';
+import { SailingBannerSection } from './sections/SailingBannerSection';
 
 const SECTIONS = [
   { id: 'intro', label: '¿Qué son los térmicos?' },
@@ -14,6 +16,8 @@ const SECTIONS = [
   { id: 'propagation', label: 'Propagación' },
   { id: 'best', label: 'Mejores condiciones' },
   { id: 'reading', label: 'Leer el mapa' },
+  { id: 'campo', label: 'Panel Campo' },
+  { id: 'sailing', label: 'Navegación y fuentes' },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]['id'];
@@ -82,6 +86,8 @@ export const MeteoGuide = memo(function MeteoGuide() {
             {activeSection === 'propagation' && <PropagationSection />}
             {activeSection === 'best' && <BestConditionsSection />}
             {activeSection === 'reading' && <ReadingMapSection />}
+            {activeSection === 'campo' && <CampoPanelSection />}
+            {activeSection === 'sailing' && <SailingBannerSection />}
           </div>
         </div>
       </div>
