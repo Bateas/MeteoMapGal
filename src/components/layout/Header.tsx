@@ -98,7 +98,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           <span>{formatTime(sun.sunset)}</span>
         </div>
 
-        {/* Campo button */}
+        {/* Alerts drawer button */}
         {onToggleFieldDrawer && (
           <button
             onClick={onToggleFieldDrawer}
@@ -117,9 +117,9 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   }
                 : undefined
             }
+            title="Panel de alertas (C)"
           >
-            <span>🌾</span>
-            <span>Campo</span>
+            <span>Alertas</span>
           </button>
         )}
 
