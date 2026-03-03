@@ -52,6 +52,7 @@ export function SailingConditionBanner() {
       : 0;
 
     // Determine verdict
+    // Wind thresholds: <4kt=calma, 4-6kt=marginal, 6-20kt=GO, 20-25kt=viento fuerte, >25kt=excesivo
     let verdict: 'go' | 'marginal' | 'nogo';
     let label: string;
     let sublabel: string;
@@ -60,18 +61,24 @@ export function SailingConditionBanner() {
       verdict = 'nogo';
       label = 'NO SALIR';
       sublabel = risk.activeCount > 0 ? `${risk.activeCount} alertas activas` : 'Condiciones peligrosas';
-    } else if (bestWindKt >= 6 && bestWindKt <= 25 && risk.severity !== 'high') {
-      verdict = 'go';
-      label = `${bestWindKt.toFixed(0)} kt`;
-      sublabel = bestStationName;
-    } else if (bestWindKt >= 4 && thermalScore >= 30) {
-      verdict = 'marginal';
-      label = `${bestWindKt.toFixed(0)} kt`;
-      sublabel = `Térmico ${thermalScore}%`;
     } else if (bestWindKt > 25) {
       verdict = 'nogo';
       label = `${bestWindKt.toFixed(0)} kt`;
       sublabel = 'Viento excesivo';
+    } else if (bestWindKt >= 20) {
+      verdict = 'marginal';
+      label = `${bestWindKt.toFixed(0)} kt`;
+      sublabel = 'Viento fuerte — precaución';
+    } else if (bestWindKt >= 6) {
+      verdict = 'go';
+      label = `${bestWindKt.toFixed(0)} kt`;
+      sublabel = risk.severity === 'high'
+        ? `${bestStationName} ⚠️`
+        : bestStationName;
+    } else if (bestWindKt >= 4 && thermalScore >= 30) {
+      verdict = 'marginal';
+      label = `${bestWindKt.toFixed(0)} kt`;
+      sublabel = `Térmico ${thermalScore}%`;
     } else if (bestWindKt < 4) {
       if (thermalScore >= 50) {
         verdict = 'marginal';
@@ -87,7 +94,7 @@ export function SailingConditionBanner() {
     } else {
       verdict = 'marginal';
       label = `${bestWindKt.toFixed(0)} kt`;
-      sublabel = risk.severity === 'high' ? 'Precaución alertas' : bestStationName;
+      sublabel = bestStationName;
     }
 
     return { verdict, label, sublabel, bestWindKt, bestWindDir };
