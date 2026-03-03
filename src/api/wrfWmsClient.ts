@@ -19,17 +19,17 @@ const WMS_BASE = '/thredds-wms';
 const WRF_DATASET = (run: string) =>
   `wrf_2d_04km/fmrc/files/${run.slice(0, 8)}/wrf_arw_det_history_d03_${run}.nc4`;
 
-/** Bounding box for Ourense area (slightly larger than map extent) */
-const OURENSE_BBOX = {
-  west: -8.6,
-  south: 42.0,
-  east: -7.5,
-  north: 42.6,
+/** Bounding box that covers both sectors (Ourense + Rías Baixas) */
+const GALICIA_BBOX = {
+  west: -9.1,
+  south: 41.9,
+  east: -7.4,
+  north: 42.7,
 };
 
-/** WMS image dimensions */
-const WMS_WIDTH = 512;
-const WMS_HEIGHT = 512;
+/** WMS image dimensions (larger to compensate for wider bbox) */
+const WMS_WIDTH = 768;
+const WMS_HEIGHT = 768;
 
 /** Map WRF variable IDs to THREDDS WMS layer names */
 const LAYER_MAP: Record<WrfVariable, string> = {
@@ -139,7 +139,7 @@ export function buildWmsUrl(params: WmsUrlParams): string {
   const range = SCALE_RANGES[variable];
   const timeStr = time.toISOString();
 
-  const bbox = `${OURENSE_BBOX.west},${OURENSE_BBOX.south},${OURENSE_BBOX.east},${OURENSE_BBOX.north}`;
+  const bbox = `${GALICIA_BBOX.west},${GALICIA_BBOX.south},${GALICIA_BBOX.east},${GALICIA_BBOX.north}`;
 
   const searchParams = new URLSearchParams({
     SERVICE: 'WMS',
@@ -166,7 +166,7 @@ export function buildWmsUrl(params: WmsUrlParams): string {
  * MapLibre image source needs [topLeft, topRight, bottomRight, bottomLeft] as [lon, lat].
  */
 export function getWmsImageCoordinates(): [[number, number], [number, number], [number, number], [number, number]] {
-  const { west, south, east, north } = OURENSE_BBOX;
+  const { west, south, east, north } = GALICIA_BBOX;
   return [
     [west, north],  // top-left
     [east, north],  // top-right
