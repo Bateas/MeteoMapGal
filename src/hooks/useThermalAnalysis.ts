@@ -95,9 +95,6 @@ export function useThermalAnalysis() {
   useEffect(() => {
     fetchDailyContextForEmbalse().then((ctx) => {
       setDailyContext(ctx);
-      if (ctx.deltaT !== null) {
-        console.log(`[ThermalAnalysis] ΔT today: ${ctx.deltaT.toFixed(1)}°C (Tmin ${ctx.tempMin?.toFixed(1)}°C, Tmax ${ctx.tempMax?.toFixed(1)}°C)`);
-      }
     }).catch((err) => console.warn('[ThermalAnalysis] Daily context error:', err));
   }, [setDailyContext]);
 
@@ -105,11 +102,6 @@ export function useThermalAnalysis() {
   const fetchAtmospheric = useCallback(() => {
     fetchAtmosphericContextForEmbalse().then((ctx) => {
       setAtmosphericContext(ctx);
-      if (ctx.cape !== null) {
-        console.log(
-          `[ThermalAnalysis] Atm: cloud ${ctx.cloudCover}%, radiation ${ctx.solarRadiation} W/m², CAPE ${ctx.cape} J/kg`
-        );
-      }
     }).catch((err) => console.warn('[ThermalAnalysis] Atmospheric context error:', err));
   }, [setAtmosphericContext]);
 
@@ -147,7 +139,6 @@ export function useThermalAnalysis() {
       }
 
       openMeteoHistoryRef.current = historyMap;
-      console.log(`[ThermalAnalysis] Loaded 6h history backfill for ${historyMap.size} zones`);
     }
 
     fetchHistory();

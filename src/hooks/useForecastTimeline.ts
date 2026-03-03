@@ -125,7 +125,6 @@ export function useForecastTimeline() {
       setHourly(data);
       setError(null);
       setFetchedAt(new Date());
-      console.log(`[Forecast] Loaded ${data.length}h timeline for reservoir`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error cargando previsión';
       setError(msg);

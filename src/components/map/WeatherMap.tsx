@@ -86,20 +86,9 @@ export function WeatherMap() {
     selectStation(null);
   }, [selectStation]);
 
-  /**
-   * Register all wind-arrow icons (one per speed level) when the map loads.
-   * The raw maplibregl.Map is available as evt.target from the 'load' event.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleMapLoad = useCallback((evt: any) => {
-    const raw = evt?.target;
-    const map: maplibregl.Map | null =
-      raw && typeof raw.hasImage === 'function'
-        ? raw
-        : raw && typeof raw.getMap === 'function'
-          ? raw.getMap()
-          : null;
-
+  /** Register all wind-arrow icons (one per speed level) when the map loads. */
+  const handleMapLoad = useCallback(() => {
+    const map = mapRef.current?.getMap();
     if (!map) return;
     registerWindArrowIcons(map, 48);
   }, []);
