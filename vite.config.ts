@@ -11,7 +11,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'maplibre': ['maplibre-gl', 'react-map-gl'],
+          'maplibre': ['maplibre-gl'],
           'recharts': ['recharts'],
           'date-fns': ['date-fns'],
         },
