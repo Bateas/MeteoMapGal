@@ -1,19 +1,60 @@
 /**
- * Guide section: Panel Campo — explains the 5 agricultural/field alert modules.
+ * Guide section: Panel Alertas — explains the tabbed alert drawer with 4 context tabs.
  */
 export function CampoPanelSection() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Panel Campo</h2>
+      <h2 className="text-2xl font-bold text-white">Panel de Alertas</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        El panel Campo (tecla <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">C</kbd>)
-        es un cajón lateral derecho con alertas meteorológicas enfocadas a actividades de campo,
-        agricultura y vuelo de drones. Usa datos en tiempo real de las estaciones combinados con
-        previsión horaria de Open-Meteo.
+        El panel de alertas (tecla <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">C</kbd>)
+        es un cajón lateral derecho con 4 pestañas temáticas. Cada pestaña filtra las alertas
+        según el contexto de uso: navegación, agricultura, drones o vista completa.
       </p>
+
+      {/* Tab overview */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">Pestañas</h3>
+        <p className="text-[10px] text-slate-400">
+          Pulsa las teclas <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">1</kbd> –{' '}
+          <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">4</kbd>{' '}
+          con el panel abierto para cambiar de pestaña.
+        </p>
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
+          <TabRow
+            num="1"
+            icon="⛵"
+            name="Navegación"
+            modules="Propagación viento + Niebla/Rocío"
+            desc="Para navegantes: viento entrante y visibilidad."
+          />
+          <TabRow
+            num="2"
+            icon="🌾"
+            name="Campo"
+            modules="Helada + Lluvia/Granizo + Niebla"
+            desc="Para agricultura: riesgos de cultivo y campo."
+          />
+          <TabRow
+            num="3"
+            icon="🛩️"
+            name="Dron"
+            modules="Vuelo Dron + Propagación viento + Lluvia"
+            desc="Para pilotos de dron: aptitud y restricciones."
+          />
+          <TabRow
+            num="4"
+            icon="📊"
+            name="Meteo"
+            modules="Todos los módulos"
+            desc="Vista completa de todas las alertas meteorológicas."
+          />
+        </div>
+      </div>
 
       {/* Alert modules */}
       <div className="space-y-3">
+        <h3 className="text-sm font-bold text-white">Módulos de alerta</h3>
+
         <AlertModule
           icon="❄️"
           title="Helada"
@@ -105,8 +146,8 @@ export function CampoPanelSection() {
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Timeline 48h</h3>
         <p className="text-[10px] text-slate-400 leading-relaxed">
-          En la parte inferior del panel, un mapa de calor de 3 filas muestra la evolución de riesgos
-          en intervalos de 3 horas para las próximas 48h:
+          En la parte inferior de todas las pestañas, un mapa de calor de 3 filas muestra la evolución
+          de riesgos en intervalos de 3 horas para las próximas 48h:
         </p>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 space-y-1.5">
           <TimelineRow icon="❄️" label="Helada" />
@@ -122,6 +163,36 @@ export function CampoPanelSection() {
 }
 
 /* ─── Sub-components ─────────────────────────── */
+
+function TabRow({
+  num,
+  icon,
+  name,
+  modules,
+  desc,
+}: {
+  num: string;
+  icon: string;
+  name: string;
+  modules: string;
+  desc: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <kbd className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[9px] font-mono font-bold bg-slate-800 border border-slate-700 text-slate-300">
+        {num}
+      </kbd>
+      <div className="flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs">{icon}</span>
+          <span className="text-[10px] font-bold text-slate-200">{name}</span>
+          <span className="text-[9px] text-slate-500 ml-auto">{modules}</span>
+        </div>
+        <p className="text-[9px] text-slate-500 mt-0.5">{desc}</p>
+      </div>
+    </div>
+  );
+}
 
 function AlertModule({
   icon,

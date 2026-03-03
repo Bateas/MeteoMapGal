@@ -16,7 +16,7 @@ const SECTIONS = [
   { id: 'propagation', label: 'Propagación' },
   { id: 'best', label: 'Mejores condiciones' },
   { id: 'reading', label: 'Leer el mapa' },
-  { id: 'campo', label: 'Panel Campo' },
+  { id: 'campo', label: 'Panel Alertas' },
   { id: 'sailing', label: 'Navegación y fuentes' },
 ] as const;
 

@@ -1,7 +1,8 @@
 import { useEffect, useState, memo } from 'react';
 
 const SHORTCUTS = [
-  { key: 'C', desc: 'Panel Campo (alertas agrícolas)' },
+  { key: 'C', desc: 'Panel alertas (Navegación / Campo / Dron / Meteo)' },
+  { key: '1-4', desc: 'Cambiar pestaña del panel alertas (si está abierto)' },
   { key: 'R', desc: 'Refrescar datos' },
   { key: 'T', desc: 'Gradiente temperatura' },
   { key: 'A', desc: 'Panel alertas unificado' },
