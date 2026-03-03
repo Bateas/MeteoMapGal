@@ -25,12 +25,14 @@ import {
   extractStationTemps,
   analyzeThermalProfile,
 } from '../../services/lapseRateService';
+import { useSectorStore } from '../../store/sectorStore';
 
 export function AppShell() {
   const { forceRefresh, retryDiscovery } = useWeatherData();
   const isLoading = useWeatherStore((s) => s.isLoading);
   const error = useWeatherStore((s) => s.error);
   const stations = useWeatherStore((s) => s.stations);
+  const activeSector = useSectorStore((s) => s.activeSector);
 
   // Thermal wind analysis: scores rules, detects propagation, fetches forecast
   useThermalAnalysis();
@@ -143,7 +145,7 @@ export function AppShell() {
                   <>
                     <LoadingSpinner size={40} />
                     <span className="text-sm text-slate-400">
-                      Descubriendo estaciones en Ourense...
+                      Descubriendo estaciones en {activeSector.name}...
                     </span>
                   </>
                 ) : (

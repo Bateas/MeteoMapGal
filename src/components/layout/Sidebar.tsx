@@ -1,6 +1,7 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { ErrorBanner } from '../common/ErrorBanner';
 import { ErrorBoundary } from '../common/ErrorBoundary';
+import { useSectorStore } from '../../store/sectorStore';
 
 const StationTable = lazy(() =>
   import('../dashboard/StationTable').then((m) => ({ default: m.StationTable })),
@@ -19,6 +20,14 @@ type Tab = 'stations' | 'chart' | 'forecast' | 'thermal';
 
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
+  const isEmbalse = useSectorStore((s) => s.activeSector.id === 'embalse');
+
+  // Reset to 'stations' if viewing an Embalse-only tab and sector changes
+  useEffect(() => {
+    if (!isEmbalse && (activeTab === 'forecast' || activeTab === 'thermal')) {
+      setActiveTab('stations');
+    }
+  }, [isEmbalse, activeTab]);
 
   return (
     <aside className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col overflow-hidden">
@@ -44,26 +53,30 @@ export function Sidebar() {
         >
           Gráfica
         </button>
-        <button
-          onClick={() => setActiveTab('forecast')}
-          className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
-            activeTab === 'forecast'
-              ? 'text-white border-b-2 border-sky-500 bg-slate-800/50'
-              : 'text-slate-500 hover:text-slate-300'
-          }`}
-        >
-          Previsión
-        </button>
-        <button
-          onClick={() => setActiveTab('thermal')}
-          className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
-            activeTab === 'thermal'
-              ? 'text-white border-b-2 border-amber-500 bg-slate-800/50'
-              : 'text-slate-500 hover:text-slate-300'
-          }`}
-        >
-          Térmico
-        </button>
+        {isEmbalse && (
+          <button
+            onClick={() => setActiveTab('forecast')}
+            className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
+              activeTab === 'forecast'
+                ? 'text-white border-b-2 border-sky-500 bg-slate-800/50'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            Previsión
+          </button>
+        )}
+        {isEmbalse && (
+          <button
+            onClick={() => setActiveTab('thermal')}
+            className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
+              activeTab === 'thermal'
+                ? 'text-white border-b-2 border-amber-500 bg-slate-800/50'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            Térmico
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
