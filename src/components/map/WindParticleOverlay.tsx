@@ -10,7 +10,7 @@ import { windSpeedColor } from '../../services/windUtils';
 const PARTICLE_COUNT = 500;
 const FADE_ALPHA = 0.92; // trail fade per frame (higher = longer trails)
 const PARTICLE_MAX_AGE = 100; // frames before respawn
-const SPEED_SCALE = 0.004; // wind m/s → degree displacement per frame
+const SPEED_SCALE = 0.0015; // wind m/s → degree displacement per frame
 const LINE_WIDTH = 1.6;
 const HEAD_RADIUS = 2; // bright dot at particle head
 
