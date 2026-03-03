@@ -68,6 +68,13 @@ export function AppShell() {
   // Hourly forecast timeline: 48h Open-Meteo for reservoir, polls every 30 min
   useForecastTimeline();
 
+  // Prune stale reading history every 30 min (entries > 24h old)
+  const pruneHistory = useWeatherStore((s) => s.pruneHistory);
+  useEffect(() => {
+    const id = setInterval(pruneHistory, 30 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [pruneHistory]);
+
   // Campo (agricultural alerts) drawer
   const [fieldDrawerOpen, setFieldDrawerOpen] = useState(false);
   const forecastHourly = useForecastStore((s) => s.hourly);
