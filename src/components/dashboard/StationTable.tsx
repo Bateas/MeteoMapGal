@@ -44,41 +44,36 @@ export function StationTable() {
     }
   }, [selectedStationId]);
 
-  const fullStations = useMemo(() => stations.filter((s) => !s.tempOnly), [stations]);
-  const tempOnlyCount = stations.length - fullStations.length;
-
-  // Count per source (only full stations)
-  const sourceCounts = useMemo(() => {
+  // Memo 1: full stations (exclude temp-only) + source counts
+  const { fullStations, sourceCounts, tempOnlyCount } = useMemo(() => {
+    const full: NormalizedStation[] = [];
     const counts = new Map<SourceKey, number>();
-    for (const s of fullStations) {
+    for (const s of stations) {
+      if (s.tempOnly) continue;
+      full.push(s);
       counts.set(s.source, (counts.get(s.source) || 0) + 1);
     }
-    return counts;
-  }, [fullStations]);
+    return { fullStations: full, sourceCounts: counts, tempOnlyCount: stations.length - full.length };
+  }, [stations]);
 
-  // Filter by source
-  const filteredStations = useMemo(() => {
-    if (hiddenSources.size === 0) return fullStations;
-    return fullStations.filter((s) => !hiddenSources.has(s.source));
-  }, [fullStations, hiddenSources]);
+  // Memo 2: filtered by source + sorted in one pass
+  const { filteredStations, sortedStations } = useMemo(() => {
+    const filtered = hiddenSources.size === 0
+      ? fullStations
+      : fullStations.filter((s) => !hiddenSources.has(s.source));
 
-  // Sort
-  const sortedStations = useMemo(() => {
-    return [...filteredStations].sort((a, b) => {
+    const sorted = [...filtered].sort((a, b) => {
       if (sortMode === 'name') return a.name.localeCompare(b.name);
       const readingA = currentReadings.get(a.id);
       const readingB = currentReadings.get(b.id);
       if (sortMode === 'temp') {
-        const tA = readingA?.temperature ?? -999;
-        const tB = readingB?.temperature ?? -999;
-        return tB - tA;
+        return (readingB?.temperature ?? -999) - (readingA?.temperature ?? -999);
       }
-      // Default: wind
-      const wA = readingA?.windSpeed ?? -1;
-      const wB = readingB?.windSpeed ?? -1;
-      return wB - wA;
+      return (readingB?.windSpeed ?? -1) - (readingA?.windSpeed ?? -1);
     });
-  }, [filteredStations, currentReadings, sortMode]);
+
+    return { filteredStations: filtered, sortedStations: sorted };
+  }, [fullStations, hiddenSources, currentReadings, sortMode]);
 
   const toggleSource = useCallback((source: SourceKey) => {
     setHiddenSources((prev) => {
