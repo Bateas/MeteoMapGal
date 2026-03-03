@@ -1,4 +1,5 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
+import { useSectorStore } from '../../store/sectorStore';
 import { ThermalCycleSection } from './sections/ThermalCycleSection';
 import { ZonesMapSection } from './sections/ZonesMapSection';
 import { HumiditySection } from './sections/HumiditySection';
@@ -8,23 +9,50 @@ import { ReadingMapSection } from './sections/ReadingMapSection';
 import { CampoPanelSection } from './sections/CampoPanelSection';
 import { SailingBannerSection } from './sections/SailingBannerSection';
 
-const SECTIONS = [
-  { id: 'intro', label: '¿Qué son los térmicos?' },
-  { id: 'cycle', label: 'Ciclo diario' },
-  { id: 'zones', label: 'Nuestras zonas' },
+// ── Section definitions per sector ─────────────────────────────
+
+interface GuideSection {
+  id: string;
+  label: string;
+  /** If set, section only shows in these sector IDs */
+  sectorOnly?: string[];
+}
+
+const ALL_SECTIONS: GuideSection[] = [
+  { id: 'intro', label: 'Introducción' },
+  { id: 'cycle', label: 'Ciclo diario', sectorOnly: ['embalse'] },
+  { id: 'zones', label: 'Nuestras zonas', sectorOnly: ['embalse'] },
   { id: 'humidity', label: 'Humedad e indicadores' },
-  { id: 'propagation', label: 'Propagación' },
-  { id: 'best', label: 'Mejores condiciones' },
+  { id: 'propagation', label: 'Propagación', sectorOnly: ['embalse'] },
+  { id: 'best', label: 'Mejores condiciones', sectorOnly: ['embalse'] },
   { id: 'reading', label: 'Leer el mapa' },
   { id: 'campo', label: 'Panel Alertas' },
-  { id: 'sailing', label: 'Navegación y fuentes' },
-] as const;
+  { id: 'sailing', label: 'Navegación y fuentes', sectorOnly: ['embalse'] },
+];
 
-type SectionId = (typeof SECTIONS)[number]['id'];
+/** Guide title per sector */
+const GUIDE_TITLES: Record<string, string> = {
+  embalse: 'Guía Meteorológica — Térmicos del Miño',
+  rias: 'Guía Meteorológica — Rías Baixas',
+};
 
 export const MeteoGuide = memo(function MeteoGuide() {
   const [open, setOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<SectionId>('intro');
+  const [activeSection, setActiveSection] = useState('intro');
+  const activeSector = useSectorStore((s) => s.activeSector);
+
+  // Filter sections for current sector
+  const sections = useMemo(
+    () => ALL_SECTIONS.filter((s) => !s.sectorOnly || s.sectorOnly.includes(activeSector.id)),
+    [activeSector.id],
+  );
+
+  // Reset to intro if current section is hidden after sector switch
+  useEffect(() => {
+    if (!sections.find((s) => s.id === activeSection)) {
+      setActiveSection('intro');
+    }
+  }, [sections, activeSection]);
 
   // Listen for 'G' key
   useEffect(() => {
@@ -46,7 +74,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
         <div className="flex items-center gap-3">
           <span className="text-xl">🌬️</span>
           <h1 className="text-lg font-bold text-white tracking-tight">
-            Guía Meteorológica — Térmicos del Miño
+            {GUIDE_TITLES[activeSector.id] ?? 'Guía Meteorológica'}
           </h1>
         </div>
         <button
@@ -60,7 +88,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar nav */}
         <nav className="w-56 shrink-0 border-r border-slate-800 py-4 overflow-y-auto">
-          {SECTIONS.map((s, i) => (
+          {sections.map((s, i) => (
             <button
               key={s.id}
               onClick={() => setActiveSection(s.id)}
@@ -79,7 +107,9 @@ export const MeteoGuide = memo(function MeteoGuide() {
         {/* Content area */}
         <div className="flex-1 overflow-y-auto px-8 py-6">
           <div className="max-w-3xl mx-auto">
-            {activeSection === 'intro' && <IntroSection />}
+            {activeSection === 'intro' && (
+              activeSector.id === 'embalse' ? <IntroSection /> : <RiasIntroSection />
+            )}
             {activeSection === 'cycle' && <ThermalCycleSection />}
             {activeSection === 'zones' && <ZonesMapSection />}
             {activeSection === 'humidity' && <HumiditySection />}
@@ -255,5 +285,63 @@ function ThermalDiagram() {
         <text x="80" y="80" fill="#94a3b8" textAnchor="middle" opacity="0.6">22°C cumbre</text>
       </g>
     </svg>
+  );
+}
+
+/* ─── Rías Baixas Intro Section ──────────────────────────────── */
+function RiasIntroSection() {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-white">🌊 Monitorización costera — Rías Baixas</h2>
+
+      <p className="text-slate-400 leading-relaxed">
+        El sector Rías Baixas cubre la costa pontevedresa desde Vigo hasta Vilagarcía de Arousa,
+        incluyendo las rías de Vigo, Pontevedra y Arousa. Esta zona presenta una dinámica eólica
+        dominada por los vientos atlánticos y la brisa costera.
+      </p>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
+          <h3 className="text-sm font-bold text-cyan-400 mb-2">🌬️ Vientos dominantes</h3>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Componente N/NW predominante (nortada atlántica), especialmente en verano.
+            Las rías canalizan el viento, amplificando su efecto en las bocas.
+          </p>
+        </div>
+        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
+          <h3 className="text-sm font-bold text-emerald-400 mb-2">🏖️ Brisa costera</h3>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Ciclo térmico tierra-mar: brisa de mar (W) por la tarde,
+            terral (E) nocturno. Más suave que los térmicos de valle.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
+          <span className="text-2xl">📡</span>
+          <p className="text-xs text-slate-400 mt-1 font-medium">Estaciones en tiempo real</p>
+          <p className="text-[10px] text-slate-600">AEMET, MeteoGalicia, Meteoclimatic, Netatmo</p>
+        </div>
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
+          <span className="text-2xl">🗺️</span>
+          <p className="text-xs text-slate-400 mt-1 font-medium">Capas interactivas</p>
+          <p className="text-[10px] text-slate-600">Viento, humedad, modelo WRF, rayos</p>
+        </div>
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
+          <span className="text-2xl">⚠️</span>
+          <p className="text-xs text-slate-400 mt-1 font-medium">Alertas automáticas</p>
+          <p className="text-[10px] text-slate-600">Viento, tormentas, visibilidad</p>
+        </div>
+      </div>
+
+      <div className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-lg p-4 border border-slate-700">
+        <p className="text-xs text-slate-400 italic">
+          <strong className="text-slate-300">Modo Rías Baixas:</strong> Este sector se centra en la
+          monitorización visual del viento costero. Las funcionalidades de análisis térmico, zonas de
+          embalse y navegación a vela están disponibles en el sector Embalse de Castrelo.
+        </p>
+      </div>
+    </div>
   );
 }

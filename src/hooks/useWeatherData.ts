@@ -13,6 +13,7 @@ import { normalizeAemetObservation, normalizeMeteoGaliciaObservation, normalizeM
 import type { NormalizedReading } from '../types/station';
 import { REFRESH_INTERVAL_MS } from '../config/constants';
 import { logReadings } from '../services/stationDataLogger';
+import { useToastStore } from '../store/toastStore';
 
 export function useWeatherData() {
   const { stations, retry: retryDiscovery } = useStations();
@@ -21,6 +22,8 @@ export function useWeatherData() {
   const setLoading = useWeatherStore((s) => s.setLoading);
   const setError = useWeatherStore((s) => s.setError);
   const updateSourceStatus = useWeatherStore((s) => s.updateSourceStatus);
+  const addToast = useToastStore((s) => s.addToast);
+  const toastedSourceErrors = useRef(new Set<string>());
 
   const fetchData = useCallback(async () => {
     if (stations.length === 0) return;
@@ -138,9 +141,22 @@ export function useWeatherData() {
         updateReadings(allReadings);
         logReadings(allReadings);
       }
+
+      // Toast for source errors (once per source)
+      const sourceNames: Record<string, string> = { aemet: 'AEMET', meteogalicia: 'MeteoGalicia', meteoclimatic: 'Meteoclimatic', wunderground: 'Weather Underground', netatmo: 'Netatmo' };
+      for (const [src, name] of Object.entries(sourceNames)) {
+        const status = useWeatherStore.getState().sourceFreshness.get(src);
+        if (status && !status.ok && !toastedSourceErrors.current.has(src)) {
+          toastedSourceErrors.current.add(src);
+          addToast(`${name}: error de conexión`, 'warning');
+        } else if (status?.ok) {
+          toastedSourceErrors.current.delete(src);
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error obteniendo datos';
       setError(message);
+      addToast('Error general obteniendo datos', 'error');
     } finally {
       setLoading(false);
     }

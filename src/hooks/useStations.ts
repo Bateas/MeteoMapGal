@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState, useRef } from 'react';
 import { useWeatherStore } from '../store/weatherStore';
 import { useSectorStore } from '../store/sectorStore';
 import { discoverStations } from '../api/stationDiscovery';
+import { useToastStore } from '../store/toastStore';
 
 const DISCOVERY_TIMEOUT_MS = 30_000; // 30s max for station discovery
 
@@ -22,6 +23,7 @@ export function useStations() {
   const setError = useWeatherStore((s) => s.setError);
   const stations = useWeatherStore((s) => s.stations);
   const activeSector = useSectorStore((s) => s.activeSector);
+  const addToast = useToastStore((s) => s.addToast);
 
   const [retryCount, setRetryCount] = useState(0);
   const lastSectorId = useRef(activeSector.id);
@@ -40,6 +42,7 @@ export function useStations() {
       );
       if (!signal.cancelled) {
         setStations(discovered);
+        addToast(`${discovered.length} estaciones en ${activeSector.name}`, 'success');
       }
     } catch (err) {
       if (!signal.cancelled) {
