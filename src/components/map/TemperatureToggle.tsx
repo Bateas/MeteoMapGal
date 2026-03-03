@@ -1,13 +1,16 @@
 import { memo } from 'react';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
+import { useUIStore } from '../../store/uiStore';
 
 /**
  * Floating button on the map to toggle the temperature gradient overlay.
  * Shows "T°" when off, "T° ON" when active, and a red "INV" badge whenever
  * a thermal inversion is detected (even when the overlay is off).
  * When overlay is active, also displays a gradient info badge.
+ * Icon-only on mobile.
  */
 export const TemperatureToggle = memo(function TemperatureToggle() {
+  const isMobile = useUIStore((s) => s.isMobile);
   const showOverlay = useTemperatureOverlayStore((s) => s.showOverlay);
   const toggleOverlay = useTemperatureOverlayStore((s) => s.toggleOverlay);
   const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
@@ -59,18 +62,19 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
       {/* Toggle button */}
       <button
         onClick={toggleOverlay}
-        className={`flex items-center gap-1.5
-          px-3 py-1.5 rounded-lg text-[11px] font-bold tracking-wide
+        className={`flex items-center justify-center
+          rounded-lg font-bold tracking-wide
           backdrop-blur-md transition-all duration-200 cursor-pointer
+          ${isMobile ? 'gap-1 min-w-[44px] min-h-[44px] px-2.5 py-2 text-base' : 'gap-1.5 px-3 py-1.5 text-[11px]'}
           ${btnClasses}`}
         title={
-          showOverlay
-            ? 'Ocultar gradiente de temperatura (T)'
-            : 'Mostrar gradiente de temperatura (T)'
+          isMobile
+            ? (showOverlay ? 'Ocultar gradiente de temperatura' : 'Mostrar gradiente de temperatura')
+            : (showOverlay ? 'Ocultar gradiente de temperatura (T)' : 'Mostrar gradiente de temperatura (T)')
         }
       >
-        <span className="text-sm">🌡️</span>
-        <span>{showOverlay ? 'T° ON' : 'T°'}</span>
+        <span className={isMobile ? 'text-lg' : 'text-sm'}>🌡️</span>
+        {!isMobile && <span>{showOverlay ? 'T° ON' : 'T°'}</span>}
         {hasInversion && (
           <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/30 text-red-300 font-bold">
             INV

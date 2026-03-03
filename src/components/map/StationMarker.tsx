@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { WindArrow } from './WindArrow';
@@ -9,6 +9,8 @@ import { STALE_THRESHOLD_MIN, OFFLINE_THRESHOLD_MIN } from '../../config/constan
 interface StationMarkerProps {
   station: NormalizedStation;
   reading?: NormalizedReading;
+  /** Passed from parent to avoid each marker subscribing to selectedStationId */
+  isSelected?: boolean;
 }
 
 function getFreshnessColor(reading?: NormalizedReading): string {
@@ -19,36 +21,33 @@ function getFreshnessColor(reading?: NormalizedReading): string {
   return '#6b7280';
 }
 
-export const StationMarker = memo(function StationMarker({ station, reading }: StationMarkerProps) {
+export const StationMarker = memo(function StationMarker({ station, reading, isSelected = false }: StationMarkerProps) {
+  // Only subscribe to the action (stable ref), NOT to selectedStationId
   const selectStation = useWeatherStore((s) => s.selectStation);
-  const selectedId = useWeatherStore((s) => s.selectedStationId);
-  const isSelected = selectedId === station.id;
   const freshnessColor = getFreshnessColor(reading);
   const tempColor = temperatureColor(reading?.temperature ?? null);
+
+  const handleClick = useCallback((e: { originalEvent: MouseEvent }) => {
+    e.originalEvent.stopPropagation();
+    selectStation(isSelected ? null : station.id);
+  }, [selectStation, isSelected, station.id]);
 
   return (
     <Marker
       longitude={station.lon}
       latitude={station.lat}
       anchor="center"
-      onClick={(e) => {
-        e.originalEvent.stopPropagation();
-        selectStation(isSelected ? null : station.id);
-      }}
+      onClick={handleClick}
     >
-      <div
-        className="station-marker"
-        title={station.name}
-        style={{ cursor: 'pointer' }}
-      >
-        <svg width="90" height="90" viewBox="-45 -45 90 90">
+      <div className="station-marker cursor-pointer" title={station.name}>
+        <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Estación ${station.name}`}>
           {/* Wind arrow */}
           <WindArrow
             direction={reading?.windDirection ?? null}
             speed={reading?.windSpeed ?? null}
           />
 
-          {/* Station dot - bigger */}
+          {/* Station dot */}
           <circle
             r="12"
             fill={tempColor}
@@ -63,7 +62,7 @@ export const StationMarker = memo(function StationMarker({ station, reading }: S
             fontSize="9"
             fontWeight="bold"
             fill="white"
-            style={{ pointerEvents: 'none' }}
+            className="pointer-events-none"
           >
             {station.source === 'aemet' ? 'A'
               : station.source === 'meteoclimatic' ? 'C'
@@ -74,20 +73,7 @@ export const StationMarker = memo(function StationMarker({ station, reading }: S
         </svg>
 
         {/* Station name label */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: -2,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            whiteSpace: 'nowrap',
-            fontSize: '11px',
-            fontWeight: 700,
-            color: '#0f172a',
-            textShadow: '0 0 4px white, 0 0 4px white, 0 0 4px white, 0 0 4px white',
-            pointerEvents: 'none',
-          }}
-        >
+        <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-bold text-slate-900 map-label-halo pointer-events-none">
           {station.name}
         </div>
       </div>

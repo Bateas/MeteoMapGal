@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import type { HourlyForecast, ForecastState } from '../types/forecast';
 import { MAP_CENTER } from '../config/constants';
 
@@ -115,7 +116,14 @@ async function fetchForecastTimeline(): Promise<HourlyForecast[]> {
 // ---------------------------------------------------------------------------
 
 export function useForecastTimeline() {
-  const { setHourly, setLoading, setError, setFetchedAt } = useForecastStore();
+  const { setHourly, setLoading, setError, setFetchedAt } = useForecastStore(
+    useShallow((s) => ({
+      setHourly: s.setHourly,
+      setLoading: s.setLoading,
+      setError: s.setError,
+      setFetchedAt: s.setFetchedAt,
+    })),
+  );
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const poll = useCallback(async () => {

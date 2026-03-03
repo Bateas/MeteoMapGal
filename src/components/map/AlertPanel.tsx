@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
 import { useAlertStore } from '../../store/alertStore';
+import { useUIStore } from '../../store/uiStore';
 import { NotificationControl } from './NotificationControl';
 import type { UnifiedAlert, AlertSeverity, CompositeRisk } from '../../services/alertService';
 
@@ -74,7 +75,7 @@ function AlertChip({ alert }: { alert: UnifiedAlert }) {
 
   return (
     <div
-      className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] shrink-0
+      className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] shrink-0
         ${alert.urgent ? 'animate-pulse' : ''}`}
       style={{
         background: colors.bg,
@@ -84,7 +85,7 @@ function AlertChip({ alert }: { alert: UnifiedAlert }) {
     >
       <span className="text-xs leading-none">{alert.icon}</span>
       <span
-        className="font-bold tracking-wide truncate max-w-[140px]"
+        className="font-bold tracking-wide truncate max-w-[100px] md:max-w-[140px]"
         style={{ color: colors.text }}
       >
         {alert.title}
@@ -167,6 +168,7 @@ function SemaphoreDot({ risk }: { risk: CompositeRisk }) {
 // ── Main AlertPanel ──────────────────────────────────────────
 
 export const AlertPanel = memo(function AlertPanel() {
+  const isMobile = useUIStore((s) => s.isMobile);
   const alerts = useAlertStore((s) => s.alerts);
   const risk = useAlertStore((s) => s.risk);
   const panelExpanded = useAlertStore((s) => s.panelExpanded);
@@ -182,7 +184,7 @@ export const AlertPanel = memo(function AlertPanel() {
   const hasAlerts = alerts.length > 0;
 
   return (
-    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 max-w-2xl w-full px-3">
+    <div className="flex flex-col items-center gap-1.5 w-full">
       {/* Expanded panel: full alert list */}
       {panelExpanded && hasAlerts && (
         <div
@@ -198,9 +200,11 @@ export const AlertPanel = memo(function AlertPanel() {
             <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">
               Alertas activas
             </span>
-            <span className="text-[9px] text-slate-600 font-mono">
-              Pulsa A para cerrar
-            </span>
+            {!isMobile && (
+              <span className="text-[9px] text-slate-600 font-mono">
+                Pulsa A para cerrar
+              </span>
+            )}
           </div>
 
           {/* Alert rows */}
@@ -224,7 +228,8 @@ export const AlertPanel = memo(function AlertPanel() {
 
       {/* Compact strip: semaphore + top alert chips (always visible) */}
       <div
-        className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 backdrop-blur-md cursor-pointer"
+        className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 backdrop-blur-md cursor-pointer
+          ${isMobile ? 'max-w-[calc(100vw-1rem)] overflow-x-auto' : ''}`}
         style={{
           background: 'rgba(15, 23, 42, 0.85)',
           border: `1px solid rgba(100, 116, 139, 0.2)`,
@@ -234,22 +239,22 @@ export const AlertPanel = memo(function AlertPanel() {
       >
         <SemaphoreDot risk={risk} />
 
-        {/* Top 3 alert chips in compact mode */}
-        {!panelExpanded && topAlerts.slice(0, 3).map((a) => (
+        {/* Top alert chips in compact mode — fewer on mobile */}
+        {!panelExpanded && topAlerts.slice(0, isMobile ? 2 : 3).map((a) => (
           <AlertChip key={a.id} alert={a} />
         ))}
 
         {/* Overflow indicator */}
-        {!panelExpanded && topAlerts.length > 3 && (
+        {!panelExpanded && topAlerts.length > (isMobile ? 2 : 3) && (
           <span className="text-[9px] text-slate-500 font-mono shrink-0">
-            +{topAlerts.length - 3}
+            +{topAlerts.length - (isMobile ? 2 : 3)}
           </span>
         )}
 
         {/* No alerts = show friendly message */}
         {!hasAlerts && (
           <span className="text-[10px] text-slate-500 px-1">
-            Sin alertas · todo en orden
+            {isMobile ? 'Sin alertas' : 'Sin alertas · todo en orden'}
           </span>
         )}
 

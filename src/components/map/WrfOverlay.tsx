@@ -1,5 +1,6 @@
 import { useEffect, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
+import type maplibregl from 'maplibre-gl';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { buildWmsUrl, getWmsImageCoordinates } from '../../api/wrfWmsClient';
 

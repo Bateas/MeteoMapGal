@@ -12,11 +12,24 @@ export interface SourceStatus {
   readingCount: number;
 }
 
+// ── Shallow-compare a reading to detect real changes ────────
+// Returns true if the reading has different data from the existing one.
+function readingChanged(prev: NormalizedReading | undefined, next: NormalizedReading): boolean {
+  if (!prev) return true;
+  // Fast path: same timestamp = same data (readings are immutable per fetch)
+  if (prev.timestamp.getTime() === next.timestamp.getTime()) return false;
+  return true;
+}
+
 interface WeatherState {
   // Data
   stations: NormalizedStation[];
   currentReadings: Map<string, NormalizedReading>;
   readingHistory: Map<string, NormalizedReading[]>;
+
+  // Epoch counter — increments only when readings actually change.
+  // Components can use this for cheap change detection.
+  readingsEpoch: number;
 
   // UI state
   selectedStationId: string | null;
@@ -45,6 +58,7 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
   stations: [],
   currentReadings: new Map(),
   readingHistory: new Map(),
+  readingsEpoch: 0,
   selectedStationId: null,
   highlightedStationId: null,
   chartSelectedStations: [],
@@ -60,6 +74,7 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
         stations,
         currentReadings: new Map(),
         readingHistory: new Map(),
+        readingsEpoch: 0,
         selectedStationId: null,
         highlightedStationId: null,
         chartSelectedStations: [],
@@ -71,9 +86,34 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
   },
 
   updateReadings: (readings) => {
-    const { currentReadings, readingHistory } = get();
+    // ── PERF: Skip entirely if nothing to update ──
+    if (readings.length === 0) {
+      set({ lastFetchTime: new Date() }, undefined, 'updateReadings/empty');
+      return;
+    }
+
+    const { currentReadings, readingHistory, readingsEpoch } = get();
+
+    // ── PERF: Only create new Maps if at least one reading actually changed ──
+    // First pass: detect changes without allocating new Maps
+    let hasChanges = false;
+    for (const reading of readings) {
+      if (readingChanged(currentReadings.get(reading.stationId), reading)) {
+        hasChanges = true;
+        break;
+      }
+    }
+
+    if (!hasChanges) {
+      // Readings are identical — only update fetch timestamp, no Map mutation
+      set({ lastFetchTime: new Date() }, undefined, 'updateReadings/noChange');
+      return;
+    }
+
+    // ── Something changed: create new Maps (mutate-then-set pattern) ──
     const newCurrent = new Map(currentReadings);
     const newHistory = new Map(readingHistory);
+    let historyChanged = false;
 
     for (const reading of readings) {
       newCurrent.set(reading.stationId, reading);
@@ -90,12 +130,14 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
           history.splice(0, history.length - MAX_HISTORY_ENTRIES);
         }
         newHistory.set(reading.stationId, history);
+        historyChanged = true;
       }
     }
 
     set({
       currentReadings: newCurrent,
-      readingHistory: newHistory,
+      ...(historyChanged ? { readingHistory: newHistory } : {}),
+      readingsEpoch: readingsEpoch + 1,
       lastFetchTime: new Date(),
     }, undefined, 'updateReadings');
   },

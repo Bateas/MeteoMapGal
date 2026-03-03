@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, memo } from 'react';
+import { useEffect, useMemo, useState, memo } from 'react';
 import { useSectorStore } from '../../store/sectorStore';
+import { useUIStore } from '../../store/uiStore';
 import { ThermalCycleSection } from './sections/ThermalCycleSection';
 import { ZonesMapSection } from './sections/ZonesMapSection';
 import { HumiditySection } from './sections/HumiditySection';
@@ -8,6 +9,7 @@ import { BestConditionsSection } from './sections/BestConditionsSection';
 import { ReadingMapSection } from './sections/ReadingMapSection';
 import { CampoPanelSection } from './sections/CampoPanelSection';
 import { SailingBannerSection } from './sections/SailingBannerSection';
+import { GlossarySection } from './sections/GlossarySection';
 
 // ── Section definitions per sector ─────────────────────────────
 
@@ -20,6 +22,7 @@ interface GuideSection {
 
 const ALL_SECTIONS: GuideSection[] = [
   { id: 'intro', label: 'Introducción' },
+  { id: 'glossary', label: 'Glosario' },
   { id: 'cycle', label: 'Ciclo diario', sectorOnly: ['embalse'] },
   { id: 'zones', label: 'Nuestras zonas', sectorOnly: ['embalse'] },
   { id: 'humidity', label: 'Humedad e indicadores' },
@@ -30,16 +33,15 @@ const ALL_SECTIONS: GuideSection[] = [
   { id: 'sailing', label: 'Navegación y fuentes', sectorOnly: ['embalse'] },
 ];
 
-/** Guide title per sector */
-const GUIDE_TITLES: Record<string, string> = {
-  embalse: 'Guía Meteorológica — Térmicos del Miño',
-  rias: 'Guía Meteorológica — Rías Baixas',
-};
+/** Single generic title — sector details go in the intro content */
+const GUIDE_TITLE = 'Guía MeteoMap';
 
 export const MeteoGuide = memo(function MeteoGuide() {
-  const [open, setOpen] = useState(false);
+  const open = useUIStore((s) => s.guideOpen);
+  const setOpen = useUIStore((s) => s.setGuideOpen);
   const [activeSection, setActiveSection] = useState('intro');
   const activeSector = useSectorStore((s) => s.activeSector);
+  const isMobile = useUIStore((s) => s.isMobile);
 
   // Filter sections for current sector
   const sections = useMemo(
@@ -54,16 +56,16 @@ export const MeteoGuide = memo(function MeteoGuide() {
     }
   }, [sections, activeSection]);
 
-  // Listen for 'G' key
+  // Listen for 'G' key (all platforms) + Escape to close
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key.toLowerCase() === 'g') setOpen((o) => !o);
+      if (e.key.toLowerCase() === 'g') setOpen(!open);
       if (e.key === 'Escape' && open) setOpen(false);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [open, setOpen]);
 
   if (!open) return null;
 
@@ -74,42 +76,64 @@ export const MeteoGuide = memo(function MeteoGuide() {
         <div className="flex items-center gap-3">
           <span className="text-xl">🌬️</span>
           <h1 className="text-lg font-bold text-white tracking-tight">
-            {GUIDE_TITLES[activeSector.id] ?? 'Guía Meteorológica'}
+            {GUIDE_TITLE}
           </h1>
         </div>
         <button
           onClick={() => setOpen(false)}
-          className="text-slate-500 hover:text-white transition-colors text-sm px-3 py-1 rounded hover:bg-slate-800"
+          className="text-slate-500 hover:text-white transition-colors text-sm px-3 py-2 rounded hover:bg-slate-800 min-h-[44px] active:bg-slate-700"
         >
-          Cerrar <kbd className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">G</kbd>
+          Cerrar {!isMobile && <kbd className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">G</kbd>}
         </button>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar nav */}
-        <nav className="w-56 shrink-0 border-r border-slate-800 py-4 overflow-y-auto">
-          {sections.map((s, i) => (
-            <button
-              key={s.id}
-              onClick={() => setActiveSection(s.id)}
-              className={`w-full text-left px-4 py-2.5 text-xs transition-all flex items-center gap-2 ${
-                activeSection === s.id
-                  ? 'bg-blue-600/10 text-blue-400 border-r-2 border-blue-500 font-semibold'
-                  : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900'
-              }`}
-            >
-              <span className="text-[10px] font-mono text-slate-600 w-4">{i + 1}</span>
-              {s.label}
-            </button>
-          ))}
-        </nav>
+        {/* Sidebar nav — horizontal scroll on mobile, vertical on desktop */}
+        {isMobile ? (
+          <div className="absolute top-[53px] left-0 right-0 z-10 bg-slate-950/95 border-b border-slate-800 overflow-x-auto">
+            <div className="flex gap-0.5 px-2 py-1.5">
+              {sections.map((s, i) => (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  className={`shrink-0 px-3 py-2 rounded-lg text-[11px] font-medium transition-all ${
+                    activeSection === s.id
+                      ? 'bg-blue-600/15 text-blue-400 font-semibold'
+                      : 'text-slate-500 active:bg-slate-800'
+                  }`}
+                >
+                  <span className="text-[9px] font-mono text-slate-600 mr-1">{i + 1}</span>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <nav className="w-56 shrink-0 border-r border-slate-800 py-4 overflow-y-auto">
+            {sections.map((s, i) => (
+              <button
+                key={s.id}
+                onClick={() => setActiveSection(s.id)}
+                className={`w-full text-left px-4 py-2.5 text-xs transition-all flex items-center gap-2 ${
+                  activeSection === s.id
+                    ? 'bg-blue-600/10 text-blue-400 border-r-2 border-blue-500 font-semibold'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900'
+                }`}
+              >
+                <span className="text-[10px] font-mono text-slate-600 w-4">{i + 1}</span>
+                {s.label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {/* Content area */}
-        <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className={`flex-1 overflow-y-auto py-6 ${isMobile ? 'px-4 pt-16' : 'px-8'}`}>
           <div className="max-w-3xl mx-auto">
             {activeSection === 'intro' && (
               activeSector.id === 'embalse' ? <IntroSection /> : <RiasIntroSection />
             )}
+            {activeSection === 'glossary' && <GlossarySection />}
             {activeSection === 'cycle' && <ThermalCycleSection />}
             {activeSection === 'zones' && <ZonesMapSection />}
             {activeSection === 'humidity' && <HumiditySection />}
@@ -141,7 +165,7 @@ function IntroSection() {
       <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-800">
         <ThermalDiagram />
         <p className="text-[9px] text-slate-600 text-center mt-2 italic">
-          Esquema conceptual genérico — no representa la orografía real del embalse de Castrelo
+          Esquema conceptual — los térmicos de valle siguen este patrón en cualquier cuenca fluvial
         </p>
       </div>
 
@@ -150,14 +174,20 @@ function IntroSection() {
           <h3 className="text-sm font-bold text-amber-400 mb-2">☀️ Viento anabático (día)</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             El sol calienta las laderas. El aire asciende por la montaña, creando un flujo
-            desde el valle hacia arriba. En Ribadavia: viento del W/SW por las tardes.
+            desde el valle hacia arriba, típicamente por las tardes.
+          </p>
+          <p className="text-[9px] text-slate-600 mt-1.5 italic">
+            Ej: en Ribadavia, viento del W/SW por las tardes de verano.
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
           <h3 className="text-sm font-bold text-blue-400 mb-2">🌙 Viento catabático (noche)</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             Al enfriarse, el aire denso desciende por las laderas hacia el valle.
-            En nuestro embalse: drenaje N nocturno (37% frecuencia), 3-4 m/s.
+            Más intenso en noches despejadas y secas.
+          </p>
+          <p className="text-[9px] text-slate-600 mt-1.5 italic">
+            Ej: drenaje N nocturno en Castrelo, 37% frecuencia, 3-4 m/s.
           </p>
         </div>
       </div>
@@ -326,7 +356,7 @@ function RiasIntroSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl">🗺️</span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Capas interactivas</p>
-          <p className="text-[10px] text-slate-600">Viento, humedad, modelo WRF, rayos</p>
+          <p className="text-[10px] text-slate-600">Viento, humedad, satélite IR, rayos</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl">⚠️</span>

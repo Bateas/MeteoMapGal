@@ -9,7 +9,10 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
 import { useLightningData, useLightningStore } from '../../hooks/useLightningData';
+import { useStormShadow, useStormShadowStore } from '../../hooks/useStormShadow';
 import { useForecastTimeline, useForecastStore } from '../../hooks/useForecastTimeline';
+// WRF removed from map — kept for future "Previsiones" section
+// import { useWrfModel } from '../../hooks/useWrfModel';
 import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
 import { useThermalStore } from '../../store/thermalStore';
@@ -65,8 +68,13 @@ export function AppShell() {
   // Lightning detection: polls every 2 min, computes storm proximity alerts
   useLightningData();
 
+  // Storm shadow detection: cross-references solar radiation drops + lightning
+  useStormShadow();
+
   // Hourly forecast timeline: 48h Open-Meteo for reservoir, polls every 30 min
   useForecastTimeline();
+
+  // WRF removed from map — only real-time data on map
 
   // Prune stale reading history every 30 min (entries > 24h old)
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
@@ -100,6 +108,7 @@ export function AppShell() {
 
   // ── Unified alert aggregation + notifications ──────────
   const stormAlert = useLightningStore((s) => s.stormAlert);
+  const stormShadow = useStormShadowStore((s) => s.stormShadow);
   const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
   const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
   const setUnifiedAlerts = useAlertStore((s) => s.setAlerts);
@@ -116,14 +125,17 @@ export function AppShell() {
       zoneAlerts,
       fieldAlerts,
       forecast: forecastRef.current,
+      stormShadow,
     });
     setUnifiedAlerts(alerts, risk);
     // Trigger notifications for new/escalated alerts
     processAlertNotifications(alerts, risk, notifConfig);
-  }, [stormAlert, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig]);
+  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig]);
 
-  // ── Keyboard shortcuts ──────────────────────────────────
+  // ── Keyboard shortcuts (desktop only) ───────────────────
   useEffect(() => {
+    if (isMobile) return; // no keyboard shortcuts on mobile
+
     function handleKeyDown(e: KeyboardEvent) {
       // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -148,7 +160,7 @@ export function AppShell() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleFieldDrawer, forceRefresh]);
+  }, [isMobile, toggleFieldDrawer, forceRefresh]);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-950 text-white">
@@ -233,7 +245,7 @@ export function AppShell() {
       </div>
       <BigWindDisplay />
       <MeteoGuide />
-      <KeyboardShortcutHelp />
+      {!isMobile && <KeyboardShortcutHelp />}
       <ToastContainer />
     </div>
   );

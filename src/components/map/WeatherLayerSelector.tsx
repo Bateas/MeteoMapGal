@@ -1,51 +1,27 @@
-import { memo, useEffect } from 'react';
-import { useWeatherLayerStore, WRF_VARIABLES } from '../../store/weatherLayerStore';
-import type { WeatherLayerType, WrfVariable } from '../../store/weatherLayerStore';
-import { resolveAvailableRun } from '../../api/wrfWmsClient';
+import { memo } from 'react';
+import { useWeatherLayerStore } from '../../store/weatherLayerStore';
+import type { WeatherLayerType } from '../../store/weatherLayerStore';
+import { useUIStore } from '../../store/uiStore';
 
 // ── Layer button configs ───────────────────────────────────
+// NOTE: WRF removed from map layers — only real-time data on map.
+// WRF files kept (WrfOverlay.tsx, wrfWmsClient.ts) for future "Previsiones" section.
 
 const LAYER_BUTTONS: { id: WeatherLayerType; icon: string; label: string }[] = [
   { id: 'wind-particles', icon: '💨', label: 'Viento' },
   { id: 'humidity', icon: '💧', label: 'Humedad' },
-  { id: 'wrf', icon: '🌧️', label: 'WRF' },
+  { id: 'satellite', icon: '🛰️', label: 'Satélite' },
 ];
 
 // ── Component ──────────────────────────────────────────────
 
 export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
+  const isMobile = useUIStore((s) => s.isMobile);
   const activeLayer = useWeatherLayerStore((s) => s.activeLayer);
   const layerOpacity = useWeatherLayerStore((s) => s.layerOpacity);
-  const wrfVariable = useWeatherLayerStore((s) => s.wrfVariable);
-  const wrfTimeIndex = useWeatherLayerStore((s) => s.wrfTimeIndex);
-  const wrfAvailableTimes = useWeatherLayerStore((s) => s.wrfAvailableTimes);
-  const wrfLoading = useWeatherLayerStore((s) => s.wrfLoading);
 
   const setActiveLayer = useWeatherLayerStore((s) => s.setActiveLayer);
   const setLayerOpacity = useWeatherLayerStore((s) => s.setLayerOpacity);
-  const setWrfVariable = useWeatherLayerStore((s) => s.setWrfVariable);
-  const setWrfTimeIndex = useWeatherLayerStore((s) => s.setWrfTimeIndex);
-  const setWrfAvailableTimes = useWeatherLayerStore((s) => s.setWrfAvailableTimes);
-  const setWrfLoading = useWeatherLayerStore((s) => s.setWrfLoading);
-
-  // Resolve WRF model run when WRF layer becomes active
-  useEffect(() => {
-    if (activeLayer !== 'wrf') return;
-    if (wrfAvailableTimes.length > 0) return; // already loaded
-
-    let cancelled = false;
-    setWrfLoading(true);
-
-    resolveAvailableRun().then((result) => {
-      if (cancelled) return;
-      if (result) {
-        setWrfAvailableTimes(result.timeSteps, result.modelRun);
-      }
-      setWrfLoading(false);
-    });
-
-    return () => { cancelled = true; };
-  }, [activeLayer, wrfAvailableTimes.length, setWrfAvailableTimes, setWrfLoading]);
 
   const handleLayerClick = (id: WeatherLayerType) => {
     setActiveLayer(activeLayer === id ? 'none' : id);
@@ -61,7 +37,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
       >
         {/* Expanded controls — ABOVE buttons so panel grows upward */}
         {isActive && (
-          <div className="border-b border-slate-700/40 px-3 py-2 space-y-2 w-72">
+          <div className={`border-b border-slate-700/40 px-3 py-2 space-y-2 ${isMobile ? 'w-64' : 'w-72'}`}>
             {/* Opacity slider */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-500 shrink-0">Opacidad</span>
@@ -85,68 +61,15 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
             {/* ── Color legend for humidity ── */}
             {activeLayer === 'humidity' && <HumidityLegend />}
 
-            {/* ── WRF-specific controls ── */}
-            {activeLayer === 'wrf' && (
-              <>
-                {/* Variable selector — compact grid */}
-                <div className="flex flex-wrap gap-1" role="group" aria-label="Variable WRF">
-                  {WRF_VARIABLES.map((v) => (
-                    <button
-                      key={v.id}
-                      onClick={() => setWrfVariable(v.id as WrfVariable)}
-                      aria-pressed={wrfVariable === v.id}
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-semibold transition-colors cursor-pointer
-                        ${wrfVariable === v.id
-                          ? 'bg-sky-500/30 text-sky-300 border border-sky-400/40'
-                          : 'bg-slate-800 text-slate-500 hover:text-slate-300 border border-slate-700'
-                        }`}
-                      title={`${v.label} (${v.unit})`}
-                    >
-                      {v.icon} {v.label}
-                    </button>
-                  ))}
-                </div>
+            {/* ── Satellite info ── */}
+            {activeLayer === 'satellite' && <SatelliteLegend />}
 
-                {/* Time scrubber */}
-                {wrfAvailableTimes.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-slate-500">Tiempo</span>
-                      <span className="text-[10px] text-sky-300 font-mono">
-                        {wrfAvailableTimes[wrfTimeIndex]?.label ?? '—'}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={wrfAvailableTimes.length - 1}
-                      value={wrfTimeIndex}
-                      onChange={(e) => setWrfTimeIndex(Number(e.target.value))}
-                      className="w-full h-1 accent-sky-500 cursor-pointer"
-                      aria-label="Tiempo del modelo WRF"
-                    />
-                    <div className="flex justify-between text-[8px] text-slate-600">
-                      <span>{wrfAvailableTimes[0]?.label}</span>
-                      <span>{wrfAvailableTimes[wrfAvailableTimes.length - 1]?.label}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* WRF rainbow legend */}
-                <WrfLegend variable={wrfVariable} />
-
-                {wrfLoading && (
-                  <div className="text-[10px] text-slate-500 animate-pulse">
-                    Cargando modelo WRF...
-                  </div>
-                )}
-              </>
-            )}
+            {/* WRF removed — only real-time layers on map */}
           </div>
         )}
 
         {/* Layer toggle buttons — always visible, bottom row */}
-        <div className="flex items-center gap-0.5 p-1.5" role="group" aria-label="Capas meteorológicas">
+        <div className={`flex items-center gap-0.5 ${isMobile ? 'p-0.5' : 'p-1.5'}`} role="group" aria-label="Capas meteorológicas">
           {LAYER_BUTTONS.map((btn) => {
             const isOn = activeLayer === btn.id;
             return (
@@ -154,16 +77,17 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
                 key={btn.id}
                 onClick={() => handleLayerClick(btn.id)}
                 aria-pressed={isOn}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold
+                className={`flex items-center justify-center gap-1 rounded-lg font-bold
                   transition-all duration-200 cursor-pointer
+                  ${isMobile ? 'min-w-[44px] min-h-[44px] px-2.5 py-2 text-base' : 'px-2.5 py-1 text-[11px]'}
                   ${isOn
                     ? 'bg-sky-500/25 border border-sky-400/50 text-sky-300'
                     : 'border border-transparent text-slate-400 hover:bg-slate-700/60 hover:text-slate-300'
                   }`}
-                title={`${btn.label} (W para ciclar)`}
+                title={isMobile ? btn.label : `${btn.label} (W para ciclar)`}
               >
-                <span className="text-sm">{btn.icon}</span>
-                <span>{btn.label}</span>
+                <span className={isMobile ? 'text-lg' : 'text-sm'}>{btn.icon}</span>
+                {!isMobile && <span>{btn.label}</span>}
               </button>
             );
           })}
@@ -226,26 +150,28 @@ function HumidityLegend() {
   );
 }
 
-/* ─── WRF rainbow legend (ncWMS boxfill/rainbow) ─── */
-function WrfLegend({ variable }: { variable: WrfVariable }) {
-  const varInfo = WRF_VARIABLES.find((v) => v.id === variable);
-  if (!varInfo) return null;
-
+/* ─── Satellite info panel ─── */
+function SatelliteLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold">
-        {varInfo.label} ({varInfo.unit})
-      </span>
-      <div
-        className="h-2.5 rounded-sm overflow-hidden"
-        style={{
-          background: 'linear-gradient(to right, #00008b, #0000ff, #00ffff, #00ff00, #ffff00, #ff8800, #ff0000, #8b0000)',
-        }}
-      />
-      <div className="flex justify-between text-[7px] text-slate-600 font-mono">
-        <span>{varInfo.range[0]}</span>
-        <span>{Math.round((varInfo.range[0] + varInfo.range[1]) / 2)}</span>
-        <span>{varInfo.range[1]}</span>
+      <span className="text-[9px] text-slate-500 font-semibold">🛰️ EUMETSAT Meteosat (IR 10.8μm)</span>
+      <div className="text-[9px] text-slate-400">
+        Imagen infrarroja cada 15 min. Nubes brillantes = altas/frías (cumulonimbus).
+        Oscuro = cielo despejado o nubes bajas.
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-2 rounded-sm bg-white border border-slate-600" />
+          <span className="text-[8px] text-slate-500">Cb alto</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-2 rounded-sm bg-gray-400" />
+          <span className="text-[8px] text-slate-500">Nubes medias</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-2 rounded-sm bg-gray-700 border border-slate-600" />
+          <span className="text-[8px] text-slate-500">Despejado</span>
+        </div>
       </div>
     </div>
   );

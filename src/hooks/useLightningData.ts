@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import { fetchLightningStrikes, distanceKm } from '../api/lightningClient';
 import { trackStorms } from '../services/stormTracker';
 import type { StormCluster } from '../services/stormTracker';
@@ -266,7 +267,17 @@ export function useLightningData() {
     setLastFetch,
     stormAlert,
     simulationActive,
-  } = useLightningStore();
+  } = useLightningStore(useShallow((s) => ({
+    setStrikes: s.setStrikes,
+    setAlert: s.setAlert,
+    setClusters: s.setClusters,
+    setClusterHistory: s.setClusterHistory,
+    setLoading: s.setLoading,
+    setError: s.setError,
+    setLastFetch: s.setLastFetch,
+    stormAlert: s.stormAlert,
+    simulationActive: s.simulationActive,
+  })));
 
   const activeSector = useSectorStore((s) => s.activeSector);
   const sectorCenter = activeSector.center; // [lon, lat]

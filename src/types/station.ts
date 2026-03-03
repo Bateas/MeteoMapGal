@@ -21,4 +21,5 @@ export interface NormalizedReading {
   temperature: number | null;     // Celsius
   humidity: number | null;        // %
   precipitation: number | null;   // mm
+  solarRadiation: number | null;  // W/m² — global shortwave (pyranometer or PWS sensor)
 }

@@ -6,8 +6,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useSectorStore } from '../../store/sectorStore';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useUIStore } from '../../store/uiStore';
 import { StationMarker } from './StationMarker';
-import { TempOnlyMarker } from './TempOnlyMarker';
+import { TempOnlyOverlay } from './TempOnlyMarker';
 import { StationPopup } from './StationPopup';
 import { WindFieldOverlay, registerWindArrowIcons } from './WindFieldOverlay';
 import { ThermalZoneOverlay } from './ThermalZoneOverlay';
@@ -21,7 +22,9 @@ import { TemperatureToggle } from './TemperatureToggle';
 import { AlertPanel } from './AlertPanel';
 import { WindParticleOverlay } from './WindParticleOverlay';
 import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
-import { WrfOverlay } from './WrfOverlay';
+import { SatelliteOverlay } from './SatelliteOverlay';
+// WRF removed from map layers — only real-time data on map.
+// import { WrfOverlay } from './WrfOverlay';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { SectorSelector } from './SectorSelector';
@@ -81,6 +84,7 @@ export function WeatherMap() {
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const selectedStationId = useWeatherStore((s) => s.selectedStationId);
   const selectStation = useWeatherStore((s) => s.selectStation);
+  const isMobile = useUIStore((s) => s.isMobile);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 
@@ -96,7 +100,9 @@ export function WeatherMap() {
       bearing,
       duration: 2000,
     });
-  }, [activeSector.id]);
+  // initialView is derived from sector id (immutable configs), but include it
+  // so the linter sees all values used inside the effect are listed.
+  }, [activeSector.id, activeSector.initialView]);
 
   const handleMapClick = useCallback(() => {
     selectStation(null);
@@ -132,19 +138,17 @@ export function WeatherMap() {
         {/* Wind field arrows around stations */}
         <WindFieldOverlay stations={stations} readings={currentReadings} compact={stations.length > 35} />
 
-        {/* Station markers (full markers for wind stations, tiny dots for temp-only) */}
+        {/* Temp-only station dots — GPU-accelerated (single source + 3 layers) */}
+        <TempOnlyOverlay stations={stations} readings={currentReadings} />
+
+        {/* Wind station markers (full DOM markers with SVG) */}
         {stations.map((station) =>
-          station.tempOnly ? (
-            <TempOnlyMarker
-              key={station.id}
-              station={station}
-              reading={currentReadings.get(station.id)}
-            />
-          ) : (
+          station.tempOnly ? null : (
             <StationMarker
               key={station.id}
               station={station}
               reading={currentReadings.get(station.id)}
+              isSelected={station.id === selectedStationId}
             />
           )
         )}
@@ -163,8 +167,10 @@ export function WeatherMap() {
         {/* Lightning strikes overlay */}
         <LightningOverlay />
 
-        {/* WRF model raster overlay (inside Map for native MapLibre rendering) */}
-        <WrfOverlay />
+        {/* EUMETSAT satellite cloud imagery (inside Map for native raster rendering) */}
+        <SatelliteOverlay />
+
+        {/* WRF removed from map — only real-time layers */}
 
         {/* Selected station popup */}
         {selectedStation && (
@@ -182,14 +188,36 @@ export function WeatherMap() {
       {/* HTML overlays on top of map */}
       <SectorSelector />
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
-      <AlertPanel />
 
-      {/* Bottom toolbar — flex row so elements never overlap */}
-      <div className="absolute bottom-2 left-2 z-20 flex items-end gap-2">
-        <SimulationToggle />
-        <TemperatureToggle />
-        <WeatherLayerSelector />
-      </div>
+      {/* ── Bottom controls: toolbar + alerts ── */}
+      {isMobile ? (
+        /* Mobile: stacked column — toolbar (with expanding panels) above alerts strip */
+        <div className="absolute z-20 bottom-16 left-0 right-0 px-2 flex flex-col items-center gap-2">
+          <AlertPanel />
+          <div className="flex items-center justify-center gap-2">
+            <SimulationToggle />
+            <TemperatureToggle />
+            <WeatherLayerSelector />
+          </div>
+        </div>
+      ) : (
+        /* Desktop: single flex row — toolbar left, alerts fill remaining space */
+        <div className="absolute z-20 bottom-2 left-2 right-2 flex items-end gap-3">
+          {/* Toolbar: shrinks to fit, never overlapped */}
+          <div className="flex items-end gap-2 shrink-0">
+            <SimulationToggle />
+            <TemperatureToggle />
+            <WeatherLayerSelector />
+          </div>
+
+          {/* Alerts: fills remaining width, centered within its space */}
+          <div className="flex-1 min-w-0 flex justify-center">
+            <div className="max-w-2xl w-full">
+              <AlertPanel />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,8 +7,11 @@ import {
   formatTemperature,
   formatHumidity,
   formatPrecipitation,
+  formatSolarRadiation,
   windSpeedColor,
   precipitationColor,
+  solarRadiationColor,
+  solarRadiationIcon,
 } from '../../services/windUtils';
 import { WindCompass } from '../common/WindCompass';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
@@ -101,6 +104,16 @@ export function StationPopup({ station, reading }: StationPopupProps) {
                     <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Lluvia</div>
                     <div style={{ fontWeight: 600, color: precipitationColor(reading.precipitation) }}>
                       {formatPrecipitation(reading.precipitation)}
+                    </div>
+                  </div>
+                )}
+                {reading.solarRadiation !== null && (
+                  <div>
+                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>
+                      {solarRadiationIcon(reading.solarRadiation)} Radiación
+                    </div>
+                    <div style={{ fontWeight: 600, color: solarRadiationColor(reading.solarRadiation) }}>
+                      {formatSolarRadiation(reading.solarRadiation)}
                     </div>
                   </div>
                 )}

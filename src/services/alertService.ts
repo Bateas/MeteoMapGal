@@ -12,6 +12,7 @@ import type { StormAlert, StormAlertLevel } from '../types/lightning';
 import type { ThermalProfile, ThermalStatus } from './lapseRateService';
 import type { ZoneAlert, MicroZoneId } from '../types/thermal';
 import type { HourlyForecast } from '../types/forecast';
+import type { StormShadow } from './stormShadowDetector';
 import { buildInversionForecastAlert } from './inversionForecastService';
 
 // ── Unified Alert Types ──────────────────────────────────────
@@ -184,6 +185,58 @@ export function buildThermalAlerts(
   return results;
 }
 
+// ── Storm shadow alerts → UnifiedAlert ───────────────────────
+
+export function buildStormShadowAlerts(shadow: StormShadow | null): UnifiedAlert[] {
+  if (!shadow || shadow.confidence < 40) return [];
+
+  const now = new Date();
+  const score = Math.min(95, shadow.confidence);
+
+  let title = 'Sombra tormentosa detectada';
+  let detail = `${shadow.shadowedStations.length} estación(es) en sombra`;
+
+  if (shadow.movementSpeedKmh !== null) {
+    detail += ` · ${shadow.movementSpeedKmh.toFixed(0)} km/h`;
+  }
+  if (shadow.movementBearing !== null) {
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const idx = Math.round(shadow.movementBearing / 45) % 8;
+    detail += ` hacia ${dirs[idx]}`;
+  }
+  if (shadow.etaMinutes !== null) {
+    title = `⚡ Tormenta acercándose — ETA ~${shadow.etaMinutes} min`;
+    detail += ` · ETA ~${shadow.etaMinutes} min al embalse`;
+  }
+
+  // Wind anomaly context — storms generate their own wind!
+  if (shadow.windContext) {
+    if (shadow.windContext.outflowCount > 0) {
+      detail += ` · ⚠️ ${shadow.windContext.outflowCount} estación(es) con viento de tormenta`;
+    } else if (shadow.windContext.gustCount > 0) {
+      detail += ` · 💨 ${shadow.windContext.gustCount} racha(s) detectada(s)`;
+    }
+  }
+
+  // Severity escalation: wind outflow near target → more dangerous
+  const hasWindConfirmation = shadow.windContext !== null && shadow.windContext.outflowCount > 0;
+
+  return [{
+    id: 'storm-shadow',
+    category: 'storm',
+    severity: shadow.etaMinutes !== null && shadow.etaMinutes < 30
+      ? 'high'
+      : hasWindConfirmation ? 'high'
+      : shadow.confidence >= 60 ? 'moderate' : 'info',
+    score: hasWindConfirmation ? Math.min(100, score + 10) : score,
+    icon: '🌑',
+    title,
+    detail,
+    urgent: (shadow.etaMinutes !== null && shadow.etaMinutes < 20) || hasWindConfirmation,
+    updatedAt: now,
+  }];
+}
+
 // ── Campo (field) alerts → UnifiedAlert ──────────────────────
 
 function campoLevelToScore(level: CampoAlertLevel): number {
@@ -329,9 +382,11 @@ export function aggregateAllAlerts(sources: {
   zoneAlerts: Map<MicroZoneId, ZoneAlert>;
   fieldAlerts: FieldAlerts | null;
   forecast?: HourlyForecast[];
+  stormShadow?: StormShadow | null;
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
   const allAlerts: UnifiedAlert[] = [
     ...(sources.stormAlert ? buildStormAlerts(sources.stormAlert) : []),
+    ...buildStormShadowAlerts(sources.stormShadow ?? null),
     ...buildInversionAlerts(sources.thermalProfile),
     ...(sources.forecast ? buildInversionForecastAlert(sources.forecast) : []),
     ...buildThermalAlerts(sources.zoneAlerts),

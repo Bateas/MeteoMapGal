@@ -37,7 +37,10 @@ export interface MeteoGaliciaObsResponse {
 export const MG_PARAMS = {
   WIND_DIRECTION: 'DV_AVG_10m',
   WIND_SPEED: 'VV_AVG_10m',
+  WIND_GUST: 'VV_RACHA_10m',
   TEMPERATURE: 'TA_AVG_1.5m',
   HUMIDITY: 'HR_AVG_1.5m',
   PRECIPITATION: 'PP_SUM_1.5m',
+  SOLAR_RADIATION: 'RS_AVG_1.5m',   // W/m² — global solar radiation (pyranometer)
+  DEW_POINT: 'TO_AVG_1.5m',         // °C — dew point temperature
 } as const;

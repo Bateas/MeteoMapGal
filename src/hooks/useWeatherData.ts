@@ -143,13 +143,15 @@ export function useWeatherData() {
       }
 
       // Toast for source errors (once per source)
+      // Derive "ok" from timestamps — SourceStatus has no `.ok` property
       const sourceNames: Record<string, string> = { aemet: 'AEMET', meteogalicia: 'MeteoGalicia', meteoclimatic: 'Meteoclimatic', wunderground: 'Weather Underground', netatmo: 'Netatmo' };
       for (const [src, name] of Object.entries(sourceNames)) {
         const status = useWeatherStore.getState().sourceFreshness.get(src);
-        if (status && !status.ok && !toastedSourceErrors.current.has(src)) {
+        const isOk = status?.lastSuccess && (!status.lastError || status.lastSuccess > status.lastError);
+        if (status && !isOk && status.lastError && !toastedSourceErrors.current.has(src)) {
           toastedSourceErrors.current.add(src);
           addToast(`${name}: error de conexión`, 'warning');
-        } else if (status?.ok) {
+        } else if (isOk) {
           toastedSourceErrors.current.delete(src);
         }
       }

@@ -29,6 +29,7 @@ export function normalizeAemetObservation(raw: AemetRawObservation): NormalizedR
     temperature: raw.ta ?? null,
     humidity: raw.hr ?? null,
     precipitation: raw.prec ?? null,
+    solarRadiation: null, // AEMET obs don't include solar in this endpoint
   };
 }
 
@@ -68,15 +69,20 @@ export function normalizeMeteoGaliciaObservation(
     : entry.instanteLecturaUTC + 'Z';
   const timestamp = new Date(tsStr);
 
+  // Solar radiation: filter out sentinel -9999 values (sensor absent or error)
+  const rawSolar = findMedida(entry.listaMedidas, MG_PARAMS.SOLAR_RADIATION);
+  const solarRadiation = rawSolar !== null && rawSolar >= 0 ? rawSolar : null;
+
   return {
     stationId: `mg_${stationId}`,
     timestamp,
     windSpeed: findMedida(entry.listaMedidas, MG_PARAMS.WIND_SPEED),
-    windGust: null,
+    windGust: findMedida(entry.listaMedidas, MG_PARAMS.WIND_GUST),
     windDirection: findMedida(entry.listaMedidas, MG_PARAMS.WIND_DIRECTION),
     temperature: findMedida(entry.listaMedidas, MG_PARAMS.TEMPERATURE),
     humidity: findMedida(entry.listaMedidas, MG_PARAMS.HUMIDITY),
     precipitation: findMedida(entry.listaMedidas, MG_PARAMS.PRECIPITATION),
+    solarRadiation,
   };
 }
 
@@ -121,5 +127,6 @@ export function normalizeMeteoclimaticObservation(
     temperature: raw.temperature,
     humidity: raw.humidity,
     precipitation: raw.rain,
+    solarRadiation: null, // Meteoclimatic PWS don't report solar
   };
 }

@@ -8,6 +8,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { FieldAlerts, AlertLevel } from '../../types/campo';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { checkFrost, checkRainHail } from '../../services/fieldAlertEngine';
+import { useUIStore } from '../../store/uiStore';
 
 export type AlertTab = 'nav' | 'campo' | 'dron' | 'meteo';
 
@@ -46,6 +47,7 @@ function formatTimeRange(from: Date, to: Date): string {
 export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<AlertTab>('nav');
+  const isMobile = useUIStore((s) => s.isMobile);
   const forecastHourly = useForecastStore((s) => s.hourly);
 
   // Close on click outside
@@ -65,20 +67,21 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
     };
   }, [open, onClose]);
 
-  // Tab switching via number keys when drawer is open
+  // Tab switching via number keys when drawer is open (desktop only)
   const handleTabKey = useCallback((e: KeyboardEvent) => {
-    if (!open) return;
+    if (!open || isMobile) return;
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const idx = parseInt(e.key) - 1;
     if (idx >= 0 && idx < TABS.length) {
       setActiveTab(TABS[idx].id);
     }
-  }, [open]);
+  }, [open, isMobile]);
 
   useEffect(() => {
+    if (isMobile) return;
     window.addEventListener('keydown', handleTabKey);
     return () => window.removeEventListener('keydown', handleTabKey);
-  }, [handleTabKey]);
+  }, [isMobile, handleTabKey]);
 
   return (
     <div
@@ -94,7 +97,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
         </div>
         <button
           onClick={onClose}
-          className="text-slate-400 hover:text-slate-200 text-lg leading-none px-1"
+          className="text-slate-400 hover:text-slate-200 text-lg leading-none min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg active:bg-slate-700"
           aria-label="Cerrar panel de alertas"
         >
           &times;

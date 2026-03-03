@@ -37,6 +37,7 @@ interface HumidityHeatmapOverlayProps {
 export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ mapRef }: HumidityHeatmapOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tmpCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const activeLayer = useWeatherLayerStore((s) => s.activeLayer);
   const opacity = useWeatherLayerStore((s) => s.layerOpacity);
@@ -103,8 +104,9 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
       }
     }
 
-    // Draw the small ImageData scaled up to full canvas
-    const tmpCanvas = document.createElement('canvas');
+    // Draw the small ImageData scaled up to full canvas (reuse canvas via ref)
+    if (!tmpCanvasRef.current) tmpCanvasRef.current = document.createElement('canvas');
+    const tmpCanvas = tmpCanvasRef.current;
     tmpCanvas.width = cols;
     tmpCanvas.height = rows;
     const tmpCtx = tmpCanvas.getContext('2d')!;
