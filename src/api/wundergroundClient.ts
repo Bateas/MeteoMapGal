@@ -98,7 +98,7 @@ export async function fetchWUNearbyStations(
       });
     }
 
-    console.log(`[WU] Found ${stations.length} PWS stations in radius`);
+    console.debug(`[WU] Found ${stations.length} PWS stations in radius`);
     return stations;
   } catch (err) {
     console.error('[WU] Station discovery error:', err);
