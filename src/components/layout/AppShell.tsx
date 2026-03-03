@@ -26,6 +26,7 @@ import {
   analyzeThermalProfile,
 } from '../../services/lapseRateService';
 import { useSectorStore } from '../../store/sectorStore';
+import { useUIStore } from '../../store/uiStore';
 
 export function AppShell() {
   const { forceRefresh, retryDiscovery } = useWeatherData();
@@ -33,6 +34,29 @@ export function AppShell() {
   const error = useWeatherStore((s) => s.error);
   const stations = useWeatherStore((s) => s.stations);
   const activeSector = useSectorStore((s) => s.activeSector);
+
+  // ── Responsive state ──────────────────────────────────
+  const isMobile = useUIStore((s) => s.isMobile);
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const setIsMobile = useUIStore((s) => s.setIsMobile);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => {
+      setIsMobile(!e.matches);
+      if (e.matches) setSidebarOpen(false); // close mobile panel when resizing to desktop
+    };
+    setIsMobile(!mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [setIsMobile, setSidebarOpen]);
+
+  // Auto-close sidebar when a station is selected on mobile
+  const selectedStationId = useWeatherStore((s) => s.selectedStationId);
+  useEffect(() => {
+    if (isMobile && selectedStationId) setSidebarOpen(false);
+  }, [selectedStationId, isMobile, setSidebarOpen]);
 
   // Thermal wind analysis: scores rules, detects propagation, fetches forecast
   useThermalAnalysis();
@@ -128,9 +152,37 @@ export function AppShell() {
       />
 
       <div className="flex-1 flex overflow-hidden relative">
-        <ErrorBoundary section="Sidebar">
-          <Sidebar />
-        </ErrorBoundary>
+        {/* Desktop sidebar: always visible */}
+        {!isMobile && (
+          <ErrorBoundary section="Sidebar">
+            <aside className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col overflow-hidden">
+              <Sidebar />
+            </aside>
+          </ErrorBoundary>
+        )}
+
+        {/* Mobile sidebar: slide-over panel */}
+        {isMobile && sidebarOpen && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/60 z-30 transition-opacity"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <aside className="fixed inset-y-0 left-0 z-40 w-72 bg-slate-900 shadow-2xl flex flex-col overflow-hidden animate-slide-in-left">
+              {/* Close button */}
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="absolute top-2 right-2 z-50 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                aria-label="Cerrar panel"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <Sidebar />
+            </aside>
+          </>
+        )}
 
         <main className="flex-1 relative">
           <ErrorBoundary section="Mapa">

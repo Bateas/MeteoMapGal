@@ -16,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { loadAemetHistory, filterByStation, filterBySeason, buildWindRose } from '../../services/aemetHistoryParser';
 import type { WindRoseData } from '../../types/campo';
+import { useUIStore } from '../../store/uiStore';
 
 // AEMET stations with historical data
 const AEMET_HISTORY_STATIONS = ['aemet_1701X', 'aemet_1690A', 'aemet_1700X'];
@@ -30,6 +31,7 @@ export function StationPopup({ station, reading }: StationPopupProps) {
   const toggleChartStation = useWeatherStore((s) => s.toggleChartStation);
   const chartStations = useWeatherStore((s) => s.chartSelectedStations);
   const isInChart = chartStations.includes(station.id);
+  const isMobile = useUIStore((s) => s.isMobile);
 
   // Mini wind rose for AEMET stations with historical data (lazy-loaded)
   const hasHistory = AEMET_HISTORY_STATIONS.includes(station.id);
@@ -50,16 +52,8 @@ export function StationPopup({ station, reading }: StationPopupProps) {
     return () => { cancelled = true; };
   }, [hasHistory, station.id]);
 
-  return (
-    <Popup
-      longitude={station.lon}
-      latitude={station.lat}
-      anchor="bottom"
-      offset={[0, -40]}
-      closeOnClick={false}
-      onClose={() => selectStation(null)}
-      className="station-popup"
-    >
+  // ── Shared popup content ──────────────────────────────
+  const popupContent = (
       <div style={{ minWidth: 200, fontFamily: 'system-ui, sans-serif' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -153,6 +147,45 @@ export function StationPopup({ station, reading }: StationPopupProps) {
           {isInChart ? 'Quitar de gráfica' : 'Añadir a gráfica'}
         </button>
       </div>
+  );
+
+  // ── Mobile: bottom sheet ──────────────────────────────
+  if (isMobile) {
+    return (
+      <div className="fixed bottom-0 left-0 right-0 z-40 animate-slide-up">
+        <div className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[55vh] overflow-y-auto p-4 pb-6">
+          {/* Drag handle */}
+          <div className="flex justify-center mb-3">
+            <div className="w-10 h-1 rounded-full bg-slate-600" />
+          </div>
+          {/* Close button */}
+          <button
+            onClick={() => selectStation(null)}
+            className="absolute top-3 right-3 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+            aria-label="Cerrar"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          {popupContent}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Desktop: MapLibre popup ───────────────────────────
+  return (
+    <Popup
+      longitude={station.lon}
+      latitude={station.lat}
+      anchor="bottom"
+      offset={[0, -40]}
+      closeOnClick={false}
+      onClose={() => selectStation(null)}
+      className="station-popup"
+    >
+      {popupContent}
     </Popup>
   );
 }

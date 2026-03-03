@@ -30,7 +30,7 @@ export function Sidebar() {
   }, [isEmbalse, activeTab]);
 
   return (
-    <aside className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Tab header */}
       <div className="flex border-b border-slate-700">
         <button
@@ -104,6 +104,6 @@ export function Sidebar() {
           )}
         </Suspense>
       </div>
-    </aside>
+    </div>
   );
 }
