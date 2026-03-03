@@ -10,6 +10,7 @@
  */
 
 import type { AlertSeverity, AlertCategory, UnifiedAlert, CompositeRisk } from './alertService';
+import { postAlertWebhook } from '../api/webhookClient';
 
 // ── Configuration ────────────────────────────────────────────
 
@@ -221,6 +222,28 @@ export function processAlertNotifications(
       for (const a of notifiableAlerts) {
         sendBrowserNotification(a);
         lastNotified.set(a.id, now);
+      }
+    }
+
+    // Send webhook alerts to n8n (severity >= high only)
+    for (const a of notifiableAlerts) {
+      if (meetsMinSeverity(a.severity, 'high')) {
+        postAlertWebhook({
+          alertId: a.id,
+          category: a.category,
+          severity: a.severity,
+          title: a.title,
+          detail: a.detail,
+          icon: a.icon,
+          score: a.score,
+          sector: '', // Filled by caller if needed
+          timestamp: new Date().toISOString(),
+          compositeRisk: {
+            score: risk.score,
+            severity: risk.severity,
+            activeCount: risk.activeCount,
+          },
+        });
       }
     }
   }
