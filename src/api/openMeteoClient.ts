@@ -120,7 +120,7 @@ export async function fetchOpenMeteoForStations(
     }
   }
 
-  console.log(`[OpenMeteo] Loaded ${allReadings.length} historical readings for ${stations.length} stations`);
+  console.debug(`[OpenMeteo] Loaded ${allReadings.length} historical readings for ${stations.length} stations`);
   return allReadings;
 }
 
@@ -199,7 +199,7 @@ export async function fetchForecastForZones(
     }
   }
 
-  console.log(`[OpenMeteo Forecast] Loaded forecasts for ${results.size}/${zones.length} zones`);
+  console.debug(`[OpenMeteo Forecast] Loaded forecasts for ${results.size}/${zones.length} zones`);
   return results;
 }
 

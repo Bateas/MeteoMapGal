@@ -201,7 +201,7 @@ export async function fetchNetatmoStations(
     });
   }
 
-  console.log(`[Netatmo] Found ${stations.length} stations in radius (${requireWind ? 'wind only' : 'all'})`);
+  console.debug(`[Netatmo] Found ${stations.length} stations in radius (${requireWind ? 'wind only' : 'all'})`);
   return stations;
 }
 

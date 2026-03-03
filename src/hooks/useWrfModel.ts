@@ -40,7 +40,7 @@ export function useWrfModel() {
         if (currentIndex >= result.timeSteps.length) {
           setWrfTimeIndex(0);
         }
-        console.log(`[WRF] Model run resolved: ${result.modelRun} (${result.timeSteps.length} steps)`);
+        console.debug(`[WRF] Model run resolved: ${result.modelRun} (${result.timeSteps.length} steps)`);
       } else {
         setWrfError('No hay datos WRF disponibles');
         setWrfModelRun(null);

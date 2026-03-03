@@ -140,7 +140,7 @@ export async function fetchLightningStrikes(): Promise<LightningStrike[]> {
       nowMs,
     );
 
-    console.log(
+    console.debug(
       `[Lightning] ${strikes.length} strikes (${data.numTotalRaiosGalicia ?? 0} in Galicia, ${data.numTotalRaiosIntra ?? 0} intra-cloud)`,
     );
 

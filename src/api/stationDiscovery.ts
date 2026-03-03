@@ -41,7 +41,7 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
         stations.push(station);
       }
     }
-    console.log(`[Discovery] Found ${stations.length} AEMET stations in radius`);
+    console.debug(`[Discovery] Found ${stations.length} AEMET stations in radius`);
   } else {
     console.error('[Discovery] AEMET station fetch failed:', aemetStations.reason);
   }
@@ -62,7 +62,7 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
         }
       }
     }
-    console.log(`[Discovery] Found ${stations.length - mgCount} MeteoGalicia stations in radius`);
+    console.debug(`[Discovery] Found ${stations.length - mgCount} MeteoGalicia stations in radius`);
   } else {
     console.error('[Discovery] MeteoGalicia station fetch failed:', mgStations.reason);
   }
@@ -87,7 +87,7 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
         }
       }
     }
-    console.log(`[Discovery] Found ${stations.length - mcCount} Meteoclimatic stations in radius`);
+    console.debug(`[Discovery] Found ${stations.length - mcCount} Meteoclimatic stations in radius`);
   } else {
     console.error('[Discovery] Meteoclimatic feed fetch failed:', mcStations.reason);
   }
@@ -105,7 +105,7 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
         stations.push(station);
       }
     }
-    console.log(`[Discovery] Found ${stations.length - wuCount} Weather Underground stations in radius`);
+    console.debug(`[Discovery] Found ${stations.length - wuCount} Weather Underground stations in radius`);
   } else {
     console.error('[Discovery] WU station fetch failed:', wuStations.reason);
   }
@@ -128,11 +128,11 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
         else windCount++;
       }
     }
-    console.log(`[Discovery] Found ${windCount} Netatmo wind + ${tempOnlyCount} temp-only stations in radius`);
+    console.debug(`[Discovery] Found ${windCount} Netatmo wind + ${tempOnlyCount} temp-only stations in radius`);
   } else {
     console.error('[Discovery] Netatmo station fetch failed:', netatmoStations.reason);
   }
 
-  console.log(`[Discovery] Total stations: ${stations.length}`);
+  console.debug(`[Discovery] Total stations: ${stations.length}`);
   return stations;
 }
