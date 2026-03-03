@@ -168,6 +168,7 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
     const offsetScale = compact ? 0.6 : 1;
 
     for (const station of stations) {
+      if (station.tempOnly) continue; // no wind sensor → no arrows
       const reading = readings.get(station.id);
       if (
         !reading ||
