@@ -57,7 +57,7 @@ export const useWeatherLayerStore = create<WeatherLayerState>()(
     persist(
       (set, get) => ({
         activeLayer: 'none' as WeatherLayerType,
-        layerOpacity: 0.65,
+        layerOpacity: 0.75,
 
         wrfVariable: 'prec' as WrfVariable,
         wrfTimeIndex: 0,

@@ -6,6 +6,8 @@ import type { NormalizedStation, NormalizedReading } from '../../types/station';
 interface WindFieldOverlayProps {
   stations: NormalizedStation[];
   readings: Map<string, NormalizedReading>;
+  /** When true, uses smaller arrows and skips outer ring (for dense sectors). */
+  compact?: boolean;
 }
 
 /** Offset distance in degrees (~2km at lat 42°) */
@@ -159,9 +161,11 @@ export async function registerWindArrowIcons(
 export const WindFieldOverlay = memo(function WindFieldOverlay({
   stations,
   readings,
+  compact = false,
 }: WindFieldOverlayProps) {
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
+    const offsetScale = compact ? 0.6 : 1;
 
     for (const station of stations) {
       const reading = readings.get(station.id);
@@ -186,38 +190,40 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
           geometry: {
             type: 'Point',
             coordinates: [
-              station.lon + dx * OFFSET_LON,
-              station.lat + dy * OFFSET_LAT,
+              station.lon + dx * OFFSET_LON * offsetScale,
+              station.lat + dy * OFFSET_LAT * offsetScale,
             ],
           },
           properties: {
             rotation,
             speed: reading.windSpeed,
             speedLevel: level,
-            opacity: 0.75,
+            opacity: compact ? 0.65 : 0.75,
           },
         });
       }
 
-      // Outer ring
-      for (let i = 0; i < OFFSETS_OUTER.length; i++) {
-        const [dx, dy] = OFFSETS_OUTER[i];
-        features.push({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [
-              station.lon + dx * OFFSET_LON * 1.8,
-              station.lat + dy * OFFSET_LAT * 1.8,
-            ],
-          },
-          properties: {
-            rotation,
-            speed: reading.windSpeed,
-            speedLevel: level,
-            opacity: 0.5,
-          },
-        });
+      // Outer ring — skip in compact mode
+      if (!compact) {
+        for (let i = 0; i < OFFSETS_OUTER.length; i++) {
+          const [dx, dy] = OFFSETS_OUTER[i];
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [
+                station.lon + dx * OFFSET_LON * 1.8,
+                station.lat + dy * OFFSET_LAT * 1.8,
+              ],
+            },
+            properties: {
+              rotation,
+              speed: reading.windSpeed,
+              speedLevel: level,
+              opacity: 0.5,
+            },
+          });
+        }
       }
     }
 
@@ -227,7 +233,7 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
       type: 'FeatureCollection',
       features,
     };
-  }, [stations, readings]);
+  }, [stations, readings, compact]);
 
   return (
     <Source id="wind-field" type="geojson" data={geojson}>
@@ -237,7 +243,7 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
         layout={{
           'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],
           'icon-rotate': ['get', 'rotation'],
-          'icon-size': 0.9,
+          'icon-size': compact ? 0.55 : 0.9,
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-rotation-alignment': 'map',
