@@ -181,7 +181,7 @@ export function WeatherMap() {
 
       {/* HTML overlays on top of map */}
       <SectorSelector />
-      <SailingConditionBanner />
+      {activeSector.id === 'embalse' && <SailingConditionBanner />}
       <AlertPanel />
 
       {/* Bottom toolbar — flex row so elements never overlap */}
