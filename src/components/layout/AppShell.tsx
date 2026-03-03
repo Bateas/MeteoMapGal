@@ -18,6 +18,7 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
 import { BigWindDisplay } from '../map/BigWindDisplay';
 import { MeteoGuide } from '../guide/MeteoGuide';
+import { ToastContainer } from '../common/ToastContainer';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { processAlertNotifications } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
@@ -226,6 +227,7 @@ export function AppShell() {
       <BigWindDisplay />
       <MeteoGuide />
       <KeyboardShortcutHelp />
+      <ToastContainer />
     </div>
   );
 }
