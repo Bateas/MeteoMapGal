@@ -3,7 +3,7 @@ import { devtools, persist } from 'zustand/middleware';
 
 // ── Types ──────────────────────────────────────────────────
 
-export type WeatherLayerType = 'none' | 'wind-particles' | 'humidity' | 'wrf';
+export type WeatherLayerType = 'none' | 'wind-particles' | 'humidity' | 'satellite' | 'wrf';
 
 export type WrfVariable =
   | 'prec'      // precipitation (mm)
@@ -22,9 +22,11 @@ export const WRF_VARIABLES: { id: WrfVariable; label: string; icon: string; unit
   { id: 'visibility', label: 'Visibilidad', icon: '👁️', unit: 'km', range: [0, 50] },
 ];
 
-interface WrfTimeStep {
+// ── WRF time step type ────────────────────────────────────
+
+export interface WrfTimeStep {
   time: Date;
-  label: string; // e.g. "Hoy 14:00" or "Mañana 08:00"
+  label: string;
 }
 
 // ── State ──────────────────────────────────────────────────
@@ -33,24 +35,30 @@ interface WeatherLayerState {
   activeLayer: WeatherLayerType;
   layerOpacity: number; // 0..1
 
-  // WRF-specific
+  // WRF model state
   wrfVariable: WrfVariable;
   wrfTimeIndex: number;
   wrfAvailableTimes: WrfTimeStep[];
-  wrfModelRun: string | null; // e.g. "20260227_0000"
+  wrfModelRun: string | null;
   wrfLoading: boolean;
+  wrfError: string | null;
 
   // Actions
   setActiveLayer: (layer: WeatherLayerType) => void;
   cycleLayer: () => void;
   setLayerOpacity: (opacity: number) => void;
-  setWrfVariable: (variable: WrfVariable) => void;
-  setWrfTimeIndex: (index: number) => void;
-  setWrfAvailableTimes: (times: WrfTimeStep[], modelRun: string) => void;
+
+  // WRF actions
+  setWrfVariable: (v: WrfVariable) => void;
+  setWrfTimeIndex: (i: number) => void;
+  setWrfAvailableTimes: (times: WrfTimeStep[]) => void;
+  setWrfModelRun: (run: string | null) => void;
   setWrfLoading: (loading: boolean) => void;
+  setWrfError: (error: string | null) => void;
 }
 
-const LAYER_CYCLE: WeatherLayerType[] = ['none', 'wind-particles', 'humidity', 'wrf'];
+// WRF removed from cycle — only real-time layers on map
+const LAYER_CYCLE: WeatherLayerType[] = ['none', 'wind-particles', 'humidity', 'satellite'];
 
 export const useWeatherLayerStore = create<WeatherLayerState>()(
   devtools(
@@ -59,11 +67,13 @@ export const useWeatherLayerStore = create<WeatherLayerState>()(
         activeLayer: 'none' as WeatherLayerType,
         layerOpacity: 0.75,
 
-        wrfVariable: 'prec' as WrfVariable,
+        // WRF defaults
+        wrfVariable: 'cft' as WrfVariable,
         wrfTimeIndex: 0,
         wrfAvailableTimes: [],
         wrfModelRun: null,
         wrfLoading: false,
+        wrfError: null,
 
         setActiveLayer: (activeLayer) =>
           set({ activeLayer }, undefined, 'setActiveLayer'),
@@ -78,17 +88,19 @@ export const useWeatherLayerStore = create<WeatherLayerState>()(
         setLayerOpacity: (layerOpacity) =>
           set({ layerOpacity: Math.max(0, Math.min(1, layerOpacity)) }, undefined, 'setLayerOpacity'),
 
+        // WRF actions
         setWrfVariable: (wrfVariable) =>
           set({ wrfVariable }, undefined, 'setWrfVariable'),
-
         setWrfTimeIndex: (wrfTimeIndex) =>
           set({ wrfTimeIndex }, undefined, 'setWrfTimeIndex'),
-
-        setWrfAvailableTimes: (wrfAvailableTimes, wrfModelRun) =>
-          set({ wrfAvailableTimes, wrfModelRun, wrfTimeIndex: 0 }, undefined, 'setWrfAvailableTimes'),
-
+        setWrfAvailableTimes: (wrfAvailableTimes) =>
+          set({ wrfAvailableTimes }, undefined, 'setWrfAvailableTimes'),
+        setWrfModelRun: (wrfModelRun) =>
+          set({ wrfModelRun }, undefined, 'setWrfModelRun'),
         setWrfLoading: (wrfLoading) =>
           set({ wrfLoading }, undefined, 'setWrfLoading'),
+        setWrfError: (wrfError) =>
+          set({ wrfError }, undefined, 'setWrfError'),
       }),
       {
         name: 'meteomap-layer-prefs',

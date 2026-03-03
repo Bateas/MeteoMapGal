@@ -80,6 +80,36 @@ export function SailingBannerSection() {
         </div>
       </div>
 
+      {/* Satellite + Storm shadow */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">Satélite y sombra de tormenta</h3>
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 space-y-2">
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            La capa satélite (🛰️ en el selector de capas) muestra la imagen infrarroja de EUMETSAT
+            Meteosat actualizada cada 15 minutos. Funciona de día y de noche.
+          </p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-[10px]">
+              <div className="w-4 h-3 rounded-sm bg-white border border-slate-600 shrink-0" />
+              <span className="text-slate-400"><strong className="text-slate-300">Blanco brillante</strong> — nubes altas y frías (cumulonimbus, tormentas activas)</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px]">
+              <div className="w-4 h-3 rounded-sm bg-gray-400 shrink-0" />
+              <span className="text-slate-400"><strong className="text-slate-300">Gris claro</strong> — nubes medias o estratos</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px]">
+              <div className="w-4 h-3 rounded-sm bg-gray-700 border border-slate-600 shrink-0" />
+              <span className="text-slate-400"><strong className="text-slate-300">Oscuro</strong> — cielo despejado o nubes bajas</span>
+            </div>
+          </div>
+          <p className="text-[9px] text-slate-500 italic">
+            El sistema de <strong className="text-amber-400/80">sombra de tormenta</strong> cruza la imagen
+            satelital con datos de radiación solar, rayos y anomalías de viento para detectar tormentas
+            acercándose antes de que lleguen al embalse.
+          </p>
+        </div>
+      </div>
+
       {/* Lightning */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Rayos y tormentas</h3>

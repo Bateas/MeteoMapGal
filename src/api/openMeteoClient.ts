@@ -93,6 +93,7 @@ export async function fetchOpenMeteoHistory(
       temperature: data.hourly.temperature_2m[i],
       humidity: data.hourly.relative_humidity_2m[i],
       precipitation: null,
+      solarRadiation: null,
     });
   }
 

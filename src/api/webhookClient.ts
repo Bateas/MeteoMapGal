@@ -48,6 +48,9 @@ const WEBHOOK_COOLDOWN_MS = 10 * 60 * 1000; // 10 min per alert ID
  */
 export async function postAlertWebhook(payload: WebhookAlertPayload): Promise<void> {
   try {
+    // Skip webhook in development — no n8n server running
+    if (import.meta.env.DEV) return;
+
     // Cooldown check
     const now = Date.now();
     const lastSent = webhookCooldowns.get(payload.alertId);

@@ -125,6 +125,23 @@ export function CampoPanelSection() {
         />
 
         <AlertModule
+          icon="🌑"
+          title="Sombra de Tormenta"
+          color="#ef4444"
+          items={[
+            { label: 'Radiación solar', desc: 'Caída brusca de W/m² indica paso de nube densa o tormenta' },
+            { label: 'Rayos cercanos', desc: 'Actividad eléctrica detectada en radio de 50km' },
+            { label: 'Anomalía viento', desc: 'Rachas súbitas o cambios bruscos de dirección coordinados entre estaciones' },
+            { label: 'Cross-reference', desc: 'La alerta se activa solo cuando coinciden 2+ de los 3 indicadores' },
+          ]}
+          levels={[
+            { level: 'Vigilancia', condition: '1 indicador activo' },
+            { level: 'Alerta', condition: '2 indicadores cruzados' },
+            { level: 'Crítico', condition: '3 indicadores + rayos < 15km' },
+          ]}
+        />
+
+        <AlertModule
           icon="🚁"
           title="Vuelo Dron"
           color="#a855f7"

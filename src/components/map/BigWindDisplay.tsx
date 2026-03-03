@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useUIStore } from '../../store/uiStore';
 import { msToKnots, windSpeedColor, degreesToCardinal } from '../../services/windUtils';
 
 /**
@@ -9,19 +10,21 @@ import { msToKnots, windSpeedColor, degreesToCardinal } from '../../services/win
  */
 export function BigWindDisplay() {
   const [open, setOpen] = useState(false);
+  const isMobile = useUIStore((s) => s.isMobile);
   const stations = useWeatherStore((s) => s.stations);
   const readings = useWeatherStore((s) => s.currentReadings);
   const selectedStationId = useWeatherStore((s) => s.selectedStationId);
 
-  // Listen for 'B' key
+  // Listen for 'B' key (desktop only)
   useEffect(() => {
+    if (isMobile) return;
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key.toLowerCase() === 'b') setOpen((o) => !o);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [isMobile]);
 
   if (!open) return null;
 
@@ -52,7 +55,7 @@ export function BigWindDisplay() {
       >
         <div className="text-center">
           <div className="text-2xl text-slate-500 mb-4">Sin datos de viento</div>
-          <div className="text-xs text-slate-600">Pulsa B o toca para cerrar</div>
+          <div className="text-xs text-slate-600">{isMobile ? 'Toca para cerrar' : 'Pulsa B o toca para cerrar'}</div>
         </div>
       </div>
     );
@@ -123,7 +126,7 @@ export function BigWindDisplay() {
 
         {/* Hint to close */}
         <div className="text-xs text-slate-700 mt-4">
-          Pulsa B o toca para cerrar
+          {isMobile ? 'Toca para cerrar' : 'Pulsa B o toca para cerrar'}
         </div>
       </div>
     </div>

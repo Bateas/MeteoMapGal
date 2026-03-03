@@ -27,23 +27,23 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
   const sun = useMemo(() => getSunTimes(new Date(), activeSector.center), [activeSector.center]);
-  const daylight = isDaylight(new Date(), activeSector.center);
+  const daylight = useMemo(() => {
+    const now = new Date();
+    return now >= sun.sunrise && now <= sun.sunset;
+  }, [sun.sunrise, sun.sunset]);
 
   const nextSailingWindow = useMemo(() => {
     if (forecastHourly.length === 0 || thermalRules.length === 0) return null;
 
     const now = Date.now();
-    // Find all future forecast temps for deltaT computation
     const futurePoints = forecastHourly.filter(p => p.time.getTime() > now);
     if (futurePoints.length === 0) return null;
 
-    // Compute deltaT from min/max temps in forecast
     const temps = futurePoints
       .map(p => p.temperature)
       .filter((t): t is number => t !== null);
     const deltaT = temps.length >= 2 ? Math.max(...temps) - Math.min(...temps) : null;
 
-    // Score each future point
     let bestScore = 0;
     let bestPoint: typeof futurePoints[0] | null = null;
 
@@ -65,16 +65,16 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   }, [forecastHourly, thermalRules]);
 
   return (
-    <header className="bg-slate-900 border-b border-slate-700 px-2 md:px-4 py-2 flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2 md:gap-3 min-w-0">
-        {/* Hamburger — mobile only */}
+    <header className="bg-slate-900 border-b border-slate-700 px-2 md:px-4 py-1.5 md:py-2 flex items-center justify-between gap-1 md:gap-2">
+      <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
+        {/* Hamburger — mobile only, 44px touch target */}
         {isMobile && (
           <button
             onClick={toggleSidebar}
-            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex-shrink-0"
+            className="p-2.5 -m-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex-shrink-0 active:bg-slate-700"
             aria-label="Abrir panel lateral"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
@@ -83,30 +83,33 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         <h1 className="text-sm md:text-base font-bold text-white tracking-tight flex-shrink-0">
           MeteoMap
         </h1>
-        <span className="text-[10px] text-slate-500 font-medium truncate">
-          {activeSector.icon} {isMobile ? '' : activeSector.name}
-        </span>
+        {!isMobile && (
+          <span className="text-[10px] text-slate-500 font-medium truncate">
+            {activeSector.icon} {activeSector.name}
+          </span>
+        )}
         {stationCount > 0 && (
-          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded flex-shrink-0">
+          <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded flex-shrink-0">
             {readingCount}/{stationCount}
           </span>
         )}
         {/* Source status — hide on mobile */}
         {!isMobile && <SourceStatusIndicator />}
-        {!isMobile && (
-          <button
-            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g' }))}
-            className="text-[10px] text-slate-500 hover:text-blue-400 transition-colors px-1.5 py-0.5 rounded hover:bg-slate-800"
-            title="Guía meteorológica (G)"
-          >
-            📖
-          </button>
-        )}
+        <button
+          onClick={() => useUIStore.getState().toggleGuide()}
+          className={`text-slate-500 hover:text-blue-400 transition-colors rounded hover:bg-slate-800 ${
+            isMobile ? 'p-2.5 -m-1 text-base active:bg-slate-700' : 'text-[10px] px-1.5 py-0.5'
+          }`}
+          title={isMobile ? 'Guía meteorológica' : 'Guía meteorológica (G)'}
+          aria-label="Abrir guía meteorológica"
+        >
+          📖
+        </button>
       </div>
-      <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
-        {/* Sunrise / Sunset — hide on very small mobile */}
+      <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
+        {/* Sunrise / Sunset — hide on mobile */}
         <div
-          className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded"
+          className="hidden md:flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded"
           style={{
             background: daylight ? 'rgba(250, 204, 21, 0.08)' : 'rgba(100, 116, 139, 0.1)',
             color: daylight ? '#facc15' : '#64748b',
@@ -120,17 +123,18 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           <span>{formatTime(sun.sunset)}</span>
         </div>
 
-        {/* Alerts drawer button */}
+        {/* Alerts drawer button — 44px touch target on mobile */}
         {onToggleFieldDrawer && (
           <button
             onClick={onToggleFieldDrawer}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${
-              fieldDrawerOpen
+            className={`flex items-center gap-1 rounded font-semibold transition-colors
+              ${isMobile ? 'px-3 py-2 text-xs' : 'px-2 py-0.5 text-[10px]'}
+              ${fieldDrawerOpen
                 ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
                 : fieldAlertLevel !== 'none'
                 ? 'bg-slate-800 border animate-pulse'
                 : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
-            }`}
+              }`}
             style={
               !fieldDrawerOpen && fieldAlertLevel !== 'none'
                 ? {
@@ -139,9 +143,9 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   }
                 : undefined
             }
-            title="Panel de alertas (C)"
+            title={isMobile ? 'Panel de alertas' : 'Panel de alertas (C)'}
           >
-            <span>{isMobile ? '⚠' : 'Alertas'}</span>
+            <span>{isMobile ? '⚠ Alertas' : 'Alertas'}</span>
           </button>
         )}
 
@@ -165,7 +169,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </div>
         )}
 
-        <LastUpdated onRefresh={onRefresh} />
+        <LastUpdated onRefresh={onRefresh} compact={isMobile} />
       </div>
     </header>
   );

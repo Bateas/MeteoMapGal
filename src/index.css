@@ -74,6 +74,11 @@ body {
   animation: slide-up 0.25s ease-out;
 }
 
+/* Map label halo (white outline for readability on any background) */
+.map-label-halo {
+  text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white, 0 0 4px white;
+}
+
 /* Ensure station markers & popups float above canvas overlays (Wind/Humidity z-index:14-15) */
 .maplibregl-marker {
   z-index: 20 !important;
