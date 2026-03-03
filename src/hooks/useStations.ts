@@ -1,5 +1,6 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useWeatherStore } from '../store/weatherStore';
+import { useSectorStore } from '../store/sectorStore';
 import { discoverStations } from '../api/stationDiscovery';
 
 const DISCOVERY_TIMEOUT_MS = 30_000; // 30s max for station discovery
@@ -14,20 +15,29 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-/** Discover and load stations on mount, with timeout and retry */
+/** Discover and load stations on mount or sector change, with timeout and retry */
 export function useStations() {
   const setStations = useWeatherStore((s) => s.setStations);
   const setLoading = useWeatherStore((s) => s.setLoading);
   const setError = useWeatherStore((s) => s.setError);
   const stations = useWeatherStore((s) => s.stations);
+  const activeSector = useSectorStore((s) => s.activeSector);
 
   const [retryCount, setRetryCount] = useState(0);
+  const lastSectorId = useRef(activeSector.id);
 
   const load = useCallback(async (signal: { cancelled: boolean }) => {
     setLoading(true);
     setError(null);
     try {
-      const discovered = await withTimeout(discoverStations(), DISCOVERY_TIMEOUT_MS);
+      const discovered = await withTimeout(
+        discoverStations({
+          center: activeSector.center,
+          radiusKm: activeSector.radiusKm,
+          meteoclimaticRegions: activeSector.meteoclimaticRegions,
+        }),
+        DISCOVERY_TIMEOUT_MS,
+      );
       if (!signal.cancelled) {
         setStations(discovered);
       }
@@ -42,7 +52,17 @@ export function useStations() {
         setLoading(false);
       }
     }
-  }, [setStations, setLoading, setError]);
+  }, [setStations, setLoading, setError, activeSector]);
+
+  useEffect(() => {
+    // Reload when sector changes
+    const sectorChanged = lastSectorId.current !== activeSector.id;
+    if (sectorChanged) {
+      lastSectorId.current = activeSector.id;
+      // Clear old stations so discovery runs fresh
+      setStations([]);
+    }
+  }, [activeSector.id, setStations]);
 
   useEffect(() => {
     if (stations.length > 0) return; // Already loaded

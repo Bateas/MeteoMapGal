@@ -7,7 +7,6 @@
  */
 
 import type { NormalizedStation, NormalizedReading } from '../types/station';
-import { MAP_CENTER, DISCOVERY_RADIUS_KM } from '../config/constants';
 import { isWithinRadius } from '../services/geoUtils';
 
 // Public API key exposed in wunderground.com source code
@@ -55,8 +54,11 @@ interface WUObservation {
  * Find PWS stations near the map center using the v3/location/near endpoint.
  * Returns up to 10 nearest stations.
  */
-export async function fetchWUNearbyStations(): Promise<NormalizedStation[]> {
-  const [centerLon, centerLat] = MAP_CENTER;
+export async function fetchWUNearbyStations(
+  center: [number, number] = [-8.1, 42.29],
+  radiusKm = 35,
+): Promise<NormalizedStation[]> {
+  const [centerLon, centerLat] = center;
 
   const url = new URL('/v3/location/near', BASE_URL);
   url.searchParams.set('geocode', `${centerLat},${centerLon}`);
@@ -81,7 +83,7 @@ export async function fetchWUNearbyStations(): Promise<NormalizedStation[]> {
       const lat = locations.latitude[i];
       const lon = locations.longitude[i];
 
-      if (!isWithinRadius(centerLat, centerLon, lat, lon, DISCOVERY_RADIUS_KM)) {
+      if (!isWithinRadius(centerLat, centerLon, lat, lon, radiusKm)) {
         continue;
       }
 
