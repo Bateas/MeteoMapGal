@@ -50,9 +50,9 @@ export function AppShell() {
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const fieldAlerts = useMemo(
     () => (forecastHourly.length > 0 || readingHistory.size > 0
-      ? checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings)
+      ? checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings, activeSector.center)
       : null),
-    [forecastHourly, readingHistory, stations, currentReadings],
+    [forecastHourly, readingHistory, stations, currentReadings, activeSector.center],
   );
   const toggleFieldDrawer = useCallback(() => setFieldDrawerOpen((o) => !o), []);
 
