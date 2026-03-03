@@ -61,13 +61,15 @@ const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
  * Fetch Meteoclimatic stations from all configured regions (ESGAL32 + ESGAL36).
  * Fetches feeds in parallel and deduplicates by station ID.
  */
-export async function fetchMeteoclimaticFeed(): Promise<MeteoclimaticRawStation[]> {
+export async function fetchMeteoclimaticFeed(
+  regions: string[] = [...METEOCLIMATIC_REGIONS],
+): Promise<MeteoclimaticRawStation[]> {
   if (feedCache && Date.now() - feedCache.ts < CACHE_TTL_MS) {
     return feedCache.data;
   }
 
   const results = await Promise.allSettled(
-    METEOCLIMATIC_REGIONS.map(async (region) => {
+    regions.map(async (region) => {
       const url = METEOCLIMATIC.regionFeed(region);
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`Meteoclimatic ${region} feed error: ${resp.status}`);

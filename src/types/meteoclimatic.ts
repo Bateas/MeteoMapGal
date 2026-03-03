@@ -40,6 +40,15 @@ export const METEOCLIMATIC_STATIONS: MeteoclimaticStationMeta[] = [
   { id: 'ESGAL3600000036110B', lat: 42.385, lon: -8.525, altitude: 380 },   // Campo Lameiro (A Lagoa)
   { id: 'ESGAL3600000036519A', lat: 42.660, lon: -8.130, altitude: 550 },   // Cristimil - Lalín
   { id: 'ESGAL3600000036538A', lat: 42.659, lon: -7.946, altitude: 640 },   // Rodeiro-Vilarmaior
+  // --- Pontevedra (ESGAL36) — Rías Baixas coastal stations ---
+  { id: 'ESGAL3600000036380A', lat: 42.399, lon: -8.698, altitude: 35 },    // Sanxenxo
+  { id: 'ESGAL3600000036041A', lat: 42.233, lon: -8.720, altitude: 12 },    // Vigo - Bouzas
+  { id: 'ESGAL3600000036057A', lat: 42.233, lon: -8.683, altitude: 30 },    // Vigo - Centro
+  { id: 'ESGAL3600000036300A', lat: 42.428, lon: -8.644, altitude: 20 },    // Pontevedra
+  { id: 'ESGAL3600000036440A', lat: 42.342, lon: -8.717, altitude: 15 },    // Cangas do Morrazo
+  { id: 'ESGAL3600000036340A', lat: 42.442, lon: -8.808, altitude: 8 },     // O Grove - A Toxa
+  { id: 'ESGAL3600000036260A', lat: 42.325, lon: -8.601, altitude: 50 },    // Redondela
+  { id: 'ESGAL3600000036510A', lat: 42.196, lon: -8.748, altitude: 5 },     // Baiona
 ];
 
 /** Meteoclimatic feed regions to fetch */

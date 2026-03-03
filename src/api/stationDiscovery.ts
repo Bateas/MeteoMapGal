@@ -6,23 +6,29 @@ import { fetchWUNearbyStations } from './wundergroundClient';
 import { fetchNetatmoStations } from './netatmoClient';
 import { normalizeAemetStation, normalizeMeteoGaliciaStation, normalizeMeteoclimaticStation } from '../services/normalizer';
 import { isWithinRadius } from '../services/geoUtils';
-import { MAP_CENTER, DISCOVERY_RADIUS_KM } from '../config/constants';
 import { METEOCLIMATIC_STATIONS } from '../types/meteoclimatic';
 
+export interface DiscoveryParams {
+  center: [number, number];        // [lon, lat]
+  radiusKm: number;
+  meteoclimaticRegions: string[];
+}
+
 /**
- * Discover all weather stations within the configured radius
+ * Discover all weather stations within the given sector params
  * from AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, and Netatmo.
  */
-export async function discoverStations(): Promise<NormalizedStation[]> {
-  const [centerLon, centerLat] = MAP_CENTER;
+export async function discoverStations(params: DiscoveryParams): Promise<NormalizedStation[]> {
+  const [centerLon, centerLat] = params.center;
+  const radiusKm = params.radiusKm;
 
   const [aemetStations, mgStations, mcStations, wuStations, netatmoStations] =
     await Promise.allSettled([
       fetchStationInventory(),
       fetchStationList(),
-      fetchMeteoclimaticFeed(),
-      fetchWUNearbyStations(),
-      fetchNetatmoStations(false), // All stations (not just wind)
+      fetchMeteoclimaticFeed(params.meteoclimaticRegions),
+      fetchWUNearbyStations(params.center, radiusKm),
+      fetchNetatmoStations(params.center, radiusKm, false),
     ]);
 
   const stations: NormalizedStation[] = [];
@@ -31,7 +37,7 @@ export async function discoverStations(): Promise<NormalizedStation[]> {
   if (aemetStations.status === 'fulfilled') {
     for (const raw of aemetStations.value) {
       const station = normalizeAemetStation(raw);
-      if (isWithinRadius(centerLat, centerLon, station.lat, station.lon, DISCOVERY_RADIUS_KM)) {
+      if (isWithinRadius(centerLat, centerLon, station.lat, station.lon, radiusKm)) {
         stations.push(station);
       }
     }
@@ -45,8 +51,7 @@ export async function discoverStations(): Promise<NormalizedStation[]> {
     const mgCount = stations.length;
     for (const raw of mgStations.value) {
       const station = normalizeMeteoGaliciaStation(raw);
-      if (isWithinRadius(centerLat, centerLon, station.lat, station.lon, DISCOVERY_RADIUS_KM)) {
-        // Avoid duplicates: check if there's already an AEMET station very close
+      if (isWithinRadius(centerLat, centerLon, station.lat, station.lon, radiusKm)) {
         const isDuplicate = stations.some(
           (s) => s.source === 'aemet' &&
             Math.abs(s.lat - station.lat) < 0.005 &&
@@ -69,10 +74,9 @@ export async function discoverStations(): Promise<NormalizedStation[]> {
 
     for (const raw of mcStations.value) {
       const meta = metaMap.get(raw.id);
-      if (!meta) continue; // Skip stations without known coordinates
+      if (!meta) continue;
 
-      if (isWithinRadius(centerLat, centerLon, meta.lat, meta.lon, DISCOVERY_RADIUS_KM)) {
-        // Avoid duplicates: check if there's already a station very close
+      if (isWithinRadius(centerLat, centerLon, meta.lat, meta.lon, radiusKm)) {
         const isDuplicate = stations.some(
           (s) =>
             Math.abs(s.lat - meta.lat) < 0.005 &&
@@ -92,7 +96,6 @@ export async function discoverStations(): Promise<NormalizedStation[]> {
   if (wuStations.status === 'fulfilled') {
     const wuCount = stations.length;
     for (const station of wuStations.value) {
-      // Avoid duplicates: check if there's already a station very close
       const isDuplicate = stations.some(
         (s) =>
           Math.abs(s.lat - station.lat) < 0.005 &&
@@ -107,13 +110,12 @@ export async function discoverStations(): Promise<NormalizedStation[]> {
     console.error('[Discovery] WU station fetch failed:', wuStations.reason);
   }
 
-  // Process Netatmo stations (all: wind stations as full markers, temp-only as small dots)
+  // Process Netatmo stations
   if (netatmoStations.status === 'fulfilled') {
     const ntCount = stations.length;
     let windCount = 0;
     let tempOnlyCount = 0;
     for (const station of netatmoStations.value) {
-      // Avoid duplicates (only check against non-tempOnly stations)
       const isDuplicate = stations.some(
         (s) =>
           !s.tempOnly &&
