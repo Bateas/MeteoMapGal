@@ -72,6 +72,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
                 value={Math.round(layerOpacity * 100)}
                 onChange={(e) => setLayerOpacity(Number(e.target.value) / 100)}
                 className="flex-1 h-1 accent-sky-500 cursor-pointer"
+                aria-label="Opacidad de la capa"
               />
               <span className="text-[10px] text-slate-400 w-8 text-right font-mono">
                 {Math.round(layerOpacity * 100)}%
@@ -88,11 +89,12 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
             {activeLayer === 'wrf' && (
               <>
                 {/* Variable selector — compact grid */}
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1" role="group" aria-label="Variable WRF">
                   {WRF_VARIABLES.map((v) => (
                     <button
                       key={v.id}
                       onClick={() => setWrfVariable(v.id as WrfVariable)}
+                      aria-pressed={wrfVariable === v.id}
                       className={`px-1.5 py-0.5 rounded text-[9px] font-semibold transition-colors cursor-pointer
                         ${wrfVariable === v.id
                           ? 'bg-sky-500/30 text-sky-300 border border-sky-400/40'
@@ -121,6 +123,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
                       value={wrfTimeIndex}
                       onChange={(e) => setWrfTimeIndex(Number(e.target.value))}
                       className="w-full h-1 accent-sky-500 cursor-pointer"
+                      aria-label="Tiempo del modelo WRF"
                     />
                     <div className="flex justify-between text-[8px] text-slate-600">
                       <span>{wrfAvailableTimes[0]?.label}</span>
@@ -143,13 +146,14 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
         )}
 
         {/* Layer toggle buttons — always visible, bottom row */}
-        <div className="flex items-center gap-0.5 p-1.5">
+        <div className="flex items-center gap-0.5 p-1.5" role="group" aria-label="Capas meteorológicas">
           {LAYER_BUTTONS.map((btn) => {
             const isOn = activeLayer === btn.id;
             return (
               <button
                 key={btn.id}
                 onClick={() => handleLayerClick(btn.id)}
+                aria-pressed={isOn}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold
                   transition-all duration-200 cursor-pointer
                   ${isOn

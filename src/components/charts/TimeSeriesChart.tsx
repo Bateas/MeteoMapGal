@@ -57,8 +57,8 @@ export function TimeSeriesChart() {
         const rounded = Math.round(ts / 300000) * 300000;
         const existing = timeMap.get(rounded) || { time: rounded };
         const rawValue = reading[activeMetric];
-        // Convert wind speed from m/s to knots for display
-        existing[stationId] = activeMetric === 'windSpeed' && rawValue !== null
+        // Convert wind speed from m/s to knots for display (guard NaN/Infinity)
+        existing[stationId] = activeMetric === 'windSpeed' && rawValue !== null && Number.isFinite(rawValue)
           ? msToKnots(rawValue)
           : rawValue;
         timeMap.set(rounded, existing);
@@ -88,11 +88,12 @@ export function TimeSeriesChart() {
   return (
     <div className="space-y-3">
       {/* Metric selector */}
-      <div className="flex gap-1">
+      <div className="flex gap-1" role="group" aria-label="Seleccionar métrica">
         {METRICS.map((m) => (
           <button
             key={m.key}
             onClick={() => setActiveMetric(m.key)}
+            aria-pressed={activeMetric === m.key}
             className={`flex-1 text-[10px] font-semibold py-1.5 rounded transition-colors ${
               activeMetric === m.key
                 ? 'bg-slate-700 text-white'
@@ -105,11 +106,12 @@ export function TimeSeriesChart() {
       </div>
 
       {/* Time range selector */}
-      <div className="flex gap-1">
+      <div className="flex gap-1" role="group" aria-label="Seleccionar rango temporal">
         {TIME_RANGES.map((r) => (
           <button
             key={r.hours}
             onClick={() => setTimeRange(r.hours)}
+            aria-pressed={timeRange === r.hours}
             className={`flex-1 text-[10px] py-1 rounded transition-colors ${
               timeRange === r.hours
                 ? 'bg-blue-600 text-white'
@@ -151,10 +153,9 @@ export function TimeSeriesChart() {
                 labelFormatter={(ts) =>
                   format(new Date(ts as number), 'dd/MM HH:mm', { locale: es })
                 }
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={(value: any, name: any) => [
+                formatter={(value: number | string, name: string) => [
                   value != null ? `${Number(value).toFixed(1)} ${metric.unit}` : '--',
-                  stationName(String(name ?? '')),
+                  stationName(name),
                 ]}
               />
               <Legend
@@ -193,11 +194,12 @@ export function TimeSeriesChart() {
       </div>
 
       {/* Selected stations chips */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Estaciones seleccionadas">
         {chartStations.map((id, i) => (
           <button
             key={id}
             onClick={() => toggleChartStation(id)}
+            aria-label={`Quitar ${stationName(id)} de la gráfica`}
             className="flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
           >
             <span

@@ -23,7 +23,7 @@ export const SourceStatusIndicator = memo(function SourceStatusIndicator() {
   const sourceFreshness = useWeatherStore((s) => s.sourceFreshness);
 
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-0.5" role="status" aria-label="Estado de fuentes de datos">
       {SOURCE_ORDER.map((source) => {
         const status = sourceFreshness.get(source);
         const hasData = status && status.readingCount > 0;
@@ -62,6 +62,7 @@ export const SourceStatusIndicator = memo(function SourceStatusIndicator() {
             key={source}
             className={`inline-flex items-center justify-center px-1 py-0.5 rounded text-[9px] font-bold ${color} ${bgColor} cursor-default`}
             title={title}
+            aria-label={title}
           >
             {SOURCE_LABELS[source]}
           </span>
