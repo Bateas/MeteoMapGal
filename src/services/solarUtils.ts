@@ -5,7 +5,7 @@
 
 import { MAP_CENTER } from '../config/constants';
 
-const [LON, LAT] = MAP_CENTER;
+const DEFAULT_CENTER = MAP_CENTER;
 const DEG = Math.PI / 180;
 
 interface SunTimes {
@@ -21,8 +21,11 @@ interface SunTimes {
 /**
  * Calculate sunrise, sunset and thermal window for a given date.
  * Based on NOAA solar calculator equations.
+ * @param date — target day (defaults to today)
+ * @param center — [lon, lat] for the calculation (defaults to MAP_CENTER)
  */
-export function getSunTimes(date: Date = new Date()): SunTimes {
+export function getSunTimes(date: Date = new Date(), center?: [number, number]): SunTimes {
+  const [LON, LAT] = center ?? DEFAULT_CENTER;
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
   const day = date.getDate();
@@ -108,7 +111,7 @@ export function formatTime(date: Date): string {
 }
 
 /** Check if current time is during daylight */
-export function isDaylight(now: Date = new Date()): boolean {
-  const { sunrise, sunset } = getSunTimes(now);
+export function isDaylight(now: Date = new Date(), center?: [number, number]): boolean {
+  const { sunrise, sunset } = getSunTimes(now, center);
   return now >= sunrise && now <= sunset;
 }

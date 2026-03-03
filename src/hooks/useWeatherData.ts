@@ -80,7 +80,7 @@ export function useWeatherData() {
     );
     if (mcStationIds.size > 0) {
       tasks.push(
-        fetchMeteoclimaticFeed().then((mcFeed) => {
+        fetchMeteoclimaticFeed(activeSector.meteoclimaticRegions).then((mcFeed) => {
           const readings: NormalizedReading[] = [];
           for (const raw of mcFeed) {
             if (mcStationIds.has(`mc_${raw.id}`)) {
