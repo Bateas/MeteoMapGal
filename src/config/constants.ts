@@ -1,8 +1,8 @@
 /** Centro del mapa: zona embalse Castrelo de Miño / Ribadavia */
 export const MAP_CENTER: [number, number] = [-8.1, 42.29]; // [lon, lat]
 
-/** Radio de búsqueda de estaciones en km */
-export const DISCOVERY_RADIUS_KM = 25;
+/** Radio de búsqueda de estaciones en km (35km para captar Allariz y estaciones Pontevedra próximas) */
+export const DISCOVERY_RADIUS_KM = 35;
 
 /** Intervalo de refresco de datos (5 minutos) */
 export const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
