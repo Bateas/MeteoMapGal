@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { LastUpdated } from '../common/LastUpdated';
 import { SourceStatusIndicator } from '../common/SourceStatusIndicator';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
@@ -17,6 +18,8 @@ interface HeaderProps {
 export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldAlertLevel = 'none' }: HeaderProps) {
   const stationCount = useWeatherStore((s) => s.stations.length);
   const readingCount = useWeatherStore((s) => s.currentReadings.size);
+  const activeSector = useSectorStore((s) => s.activeSector);
+  const isEmbalse = activeSector.id === 'embalse';
   const forecastHourly = useForecastStore((s) => s.hourly);
   const thermalRules = useThermalStore((s) => s.rules);
 
@@ -65,7 +68,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           MeteoMap
         </h1>
         <span className="text-[10px] text-slate-500 font-medium">
-          Ourense / Ribadavia
+          {activeSector.icon} {activeSector.name}
         </span>
         {stationCount > 0 && (
           <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">
@@ -123,8 +126,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </button>
         )}
 
-        {/* Next sailing window banner */}
-        {nextSailingWindow && (
+        {/* Next sailing window banner (Embalse only — thermal rules are location-specific) */}
+        {isEmbalse && nextSailingWindow && (
           <div
             className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono"
             style={{
