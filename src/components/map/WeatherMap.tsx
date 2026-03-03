@@ -1,10 +1,10 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import Map, { NavigationControl } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-import { INITIAL_VIEW_STATE } from '../../config/constants';
+import { useSectorStore } from '../../store/sectorStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { StationMarker } from './StationMarker';
 import { TempOnlyMarker } from './TempOnlyMarker';
@@ -24,6 +24,7 @@ import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
 import { WrfOverlay } from './WrfOverlay';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
+import { SectorSelector } from './SectorSelector';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -75,12 +76,27 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
 
 export function WeatherMap() {
   const mapRef = useRef<MapRef | null>(null);
+  const activeSector = useSectorStore((s) => s.activeSector);
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const selectedStationId = useWeatherStore((s) => s.selectedStationId);
   const selectStation = useWeatherStore((s) => s.selectStation);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
+
+  /** Fly to sector view when it changes. */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const { longitude, latitude, zoom, pitch, bearing } = activeSector.initialView;
+    map.flyTo({
+      center: [longitude, latitude],
+      zoom,
+      pitch,
+      bearing,
+      duration: 2000,
+    });
+  }, [activeSector.id]);
 
   const handleMapClick = useCallback(() => {
     selectStation(null);
@@ -98,7 +114,7 @@ export function WeatherMap() {
       <Map
         ref={mapRef}
         mapLib={maplibregl}
-        initialViewState={INITIAL_VIEW_STATE}
+        initialViewState={activeSector.initialView}
         style={{ width: '100%', height: '100%' }}
         mapStyle={MAP_STYLE}
         maxPitch={85}
@@ -162,6 +178,7 @@ export function WeatherMap() {
       <HumidityHeatmapOverlay mapRef={mapRef} />
 
       {/* HTML overlays on top of map */}
+      <SectorSelector />
       <SailingConditionBanner />
       <AlertPanel />
 
