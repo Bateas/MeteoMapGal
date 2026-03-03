@@ -10,6 +10,11 @@ import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MAP_CENTER, DISCOVERY_RADIUS_KM } from '../config/constants';
 import { isWithinRadius } from '../services/geoUtils';
 
+export interface NetatmoFetchParams {
+  center: [number, number];   // [lon, lat]
+  radiusKm: number;
+}
+
 const DATA_URL = '/netatmo-api/api/getpublicdata';
 
 /** Build a bounding box from center + radius. ~0.009 lat/deg ≈ 1km at 42°N */
@@ -24,8 +29,8 @@ function buildBbox(center: [number, number], radiusKm: number) {
   };
 }
 
-/** Default BBOX for observation fetches (uses legacy MAP_CENTER) */
-const DEFAULT_BBOX = buildBbox(MAP_CENTER, DISCOVERY_RADIUS_KM);
+/** Default params for observation fetches (legacy fallback) */
+const DEFAULT_PARAMS: NetatmoFetchParams = { center: MAP_CENTER, radiusKm: DISCOVERY_RADIUS_KM };
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -206,20 +211,25 @@ export async function fetchNetatmoStations(
  * Fetch current observations from all Netatmo stations in the area.
  * Returns readings for stations with wind data.
  * Stations without wind still contribute temperature/humidity.
+ *
+ * @param params - Sector center/radius to query the correct geographic area.
  */
-export async function fetchNetatmoObservations(): Promise<{
+export async function fetchNetatmoObservations(
+  params: NetatmoFetchParams = DEFAULT_PARAMS,
+): Promise<{
   stations: NormalizedStation[];
   readings: NormalizedReading[];
 }> {
-  const [centerLon, centerLat] = MAP_CENTER;
+  const [centerLon, centerLat] = params.center;
+  const bbox = buildBbox(params.center, params.radiusKm);
   const token = await getToken();
 
   // Fetch all stations (not just wind) to get temp/humidity too
   const body = {
-    lat_ne: DEFAULT_BBOX.lat_ne,
-    lat_sw: DEFAULT_BBOX.lat_sw,
-    lon_ne: DEFAULT_BBOX.lon_ne,
-    lon_sw: DEFAULT_BBOX.lon_sw,
+    lat_ne: bbox.lat_ne,
+    lat_sw: bbox.lat_sw,
+    lon_ne: bbox.lon_ne,
+    lon_sw: bbox.lon_sw,
     required_data: 'temperature',
     filter: false,
   };
@@ -245,7 +255,7 @@ export async function fetchNetatmoObservations(): Promise<{
 
   for (const raw of rawStations) {
     const [lon, lat] = raw.place.location;
-    if (!isWithinRadius(centerLat, centerLon, lat, lon, DISCOVERY_RADIUS_KM)) {
+    if (!isWithinRadius(centerLat, centerLon, lat, lon, params.radiusKm)) {
       continue;
     }
 

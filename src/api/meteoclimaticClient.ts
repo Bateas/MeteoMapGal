@@ -53,19 +53,22 @@ function parseXmlFeed(xmlText: string): MeteoclimaticRawStation[] {
   return stations;
 }
 
-/** Cache for the XML feed (short TTL since data updates frequently) */
-let feedCache: { data: MeteoclimaticRawStation[]; ts: number } | null = null;
+/** Cache for the XML feed, keyed by sorted region list (short TTL) */
+const feedCacheMap = new Map<string, { data: MeteoclimaticRawStation[]; ts: number }>();
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
 /**
- * Fetch Meteoclimatic stations from all configured regions (ESGAL32 + ESGAL36).
+ * Fetch Meteoclimatic stations from the given regions.
  * Fetches feeds in parallel and deduplicates by station ID.
+ * Cache is keyed by region set so sector switches don't serve stale data.
  */
 export async function fetchMeteoclimaticFeed(
   regions: string[] = [...METEOCLIMATIC_REGIONS],
 ): Promise<MeteoclimaticRawStation[]> {
-  if (feedCache && Date.now() - feedCache.ts < CACHE_TTL_MS) {
-    return feedCache.data;
+  const cacheKey = [...regions].sort().join(',');
+  const cached = feedCacheMap.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return cached.data;
   }
 
   const results = await Promise.allSettled(
@@ -92,6 +95,6 @@ export async function fetchMeteoclimaticFeed(
     }
   }
 
-  feedCache = { data, ts: Date.now() };
+  feedCacheMap.set(cacheKey, { data, ts: Date.now() });
   return data;
 }
