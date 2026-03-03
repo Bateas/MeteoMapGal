@@ -7,6 +7,7 @@ import { useThermalStore } from '../../store/thermalStore';
 import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { scoreForecastThermal, thermalColor } from '../../services/forecastScoringUtils';
+import { useUIStore } from '../../store/uiStore';
 
 interface HeaderProps {
   onRefresh: () => void;
@@ -22,6 +23,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   const isEmbalse = activeSector.id === 'embalse';
   const forecastHourly = useForecastStore((s) => s.hourly);
   const thermalRules = useThermalStore((s) => s.rules);
+  const isMobile = useUIStore((s) => s.isMobile);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
   const sun = useMemo(() => getSunTimes(new Date(), activeSector.center), [activeSector.center]);
   const daylight = isDaylight(new Date(), activeSector.center);
@@ -62,32 +65,48 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   }, [forecastHourly, thermalRules]);
 
   return (
-    <header className="bg-slate-900 border-b border-slate-700 px-4 py-2 flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <h1 className="text-base font-bold text-white tracking-tight">
+    <header className="bg-slate-900 border-b border-slate-700 px-2 md:px-4 py-2 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 md:gap-3 min-w-0">
+        {/* Hamburger — mobile only */}
+        {isMobile && (
+          <button
+            onClick={toggleSidebar}
+            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex-shrink-0"
+            aria-label="Abrir panel lateral"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        )}
+
+        <h1 className="text-sm md:text-base font-bold text-white tracking-tight flex-shrink-0">
           MeteoMap
         </h1>
-        <span className="text-[10px] text-slate-500 font-medium">
-          {activeSector.icon} {activeSector.name}
+        <span className="text-[10px] text-slate-500 font-medium truncate">
+          {activeSector.icon} {isMobile ? '' : activeSector.name}
         </span>
         {stationCount > 0 && (
-          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">
-            {readingCount}/{stationCount} est.
+          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded flex-shrink-0">
+            {readingCount}/{stationCount}
           </span>
         )}
-        <SourceStatusIndicator />
-        <button
-          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g' }))}
-          className="text-[10px] text-slate-500 hover:text-blue-400 transition-colors px-1.5 py-0.5 rounded hover:bg-slate-800"
-          title="Guía meteorológica (G)"
-        >
-          📖
-        </button>
+        {/* Source status — hide on mobile */}
+        {!isMobile && <SourceStatusIndicator />}
+        {!isMobile && (
+          <button
+            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g' }))}
+            className="text-[10px] text-slate-500 hover:text-blue-400 transition-colors px-1.5 py-0.5 rounded hover:bg-slate-800"
+            title="Guía meteorológica (G)"
+          >
+            📖
+          </button>
+        )}
       </div>
-      <div className="flex items-center gap-3">
-        {/* Sunrise / Sunset */}
+      <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
+        {/* Sunrise / Sunset — hide on very small mobile */}
         <div
-          className="flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded"
+          className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded"
           style={{
             background: daylight ? 'rgba(250, 204, 21, 0.08)' : 'rgba(100, 116, 139, 0.1)',
             color: daylight ? '#facc15' : '#64748b',
@@ -122,12 +141,12 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             }
             title="Panel de alertas (C)"
           >
-            <span>Alertas</span>
+            <span>{isMobile ? '⚠' : 'Alertas'}</span>
           </button>
         )}
 
-        {/* Next sailing window banner (Embalse only — thermal rules are location-specific) */}
-        {isEmbalse && nextSailingWindow && (
+        {/* Next sailing window banner (Embalse only — hide on mobile) */}
+        {!isMobile && isEmbalse && nextSailingWindow && (
           <div
             className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono"
             style={{
