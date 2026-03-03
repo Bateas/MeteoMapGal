@@ -10,16 +10,22 @@ import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MAP_CENTER, DISCOVERY_RADIUS_KM } from '../config/constants';
 import { isWithinRadius } from '../services/geoUtils';
 
-const TOKEN_URL = '/netatmo-api/oauth2/token';
 const DATA_URL = '/netatmo-api/api/getpublicdata';
 
-// Bounding box around map center (slightly larger than discovery radius)
-const BBOX = {
-  lat_ne: MAP_CENTER[1] + 0.25,   // ~27km north
-  lat_sw: MAP_CENTER[1] - 0.25,   // ~27km south
-  lon_ne: MAP_CENTER[0] + 0.35,   // ~27km east
-  lon_sw: MAP_CENTER[0] - 0.35,   // ~27km west
-};
+/** Build a bounding box from center + radius. ~0.009 lat/deg ≈ 1km at 42°N */
+function buildBbox(center: [number, number], radiusKm: number) {
+  const latDelta = (radiusKm / 111) * 1.1;  // 1° lat ≈ 111km, 10% margin
+  const lonDelta = (radiusKm / 82) * 1.1;   // 1° lon ≈ 82km at 42°N
+  return {
+    lat_ne: center[1] + latDelta,
+    lat_sw: center[1] - latDelta,
+    lon_ne: center[0] + lonDelta,
+    lon_sw: center[0] - lonDelta,
+  };
+}
+
+/** Default BBOX for observation fetches (uses legacy MAP_CENTER) */
+const DEFAULT_BBOX = buildBbox(MAP_CENTER, DISCOVERY_RADIUS_KM);
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -131,16 +137,19 @@ interface NetatmoMeasure {
  * Optionally filters to only wind-equipped stations.
  */
 export async function fetchNetatmoStations(
+  center: [number, number] = MAP_CENTER,
+  radiusKm: number = DISCOVERY_RADIUS_KM,
   requireWind = false,
 ): Promise<NormalizedStation[]> {
-  const [centerLon, centerLat] = MAP_CENTER;
+  const [centerLon, centerLat] = center;
+  const bbox = buildBbox(center, radiusKm);
   const token = await getToken();
 
   const body = {
-    lat_ne: BBOX.lat_ne,
-    lat_sw: BBOX.lat_sw,
-    lon_ne: BBOX.lon_ne,
-    lon_sw: BBOX.lon_sw,
+    lat_ne: bbox.lat_ne,
+    lat_sw: bbox.lat_sw,
+    lon_ne: bbox.lon_ne,
+    lon_sw: bbox.lon_sw,
     required_data: requireWind ? 'wind' : 'temperature',
     filter: false,
   };
@@ -165,7 +174,7 @@ export async function fetchNetatmoStations(
 
   for (const raw of rawStations) {
     const [lon, lat] = raw.place.location;
-    if (!isWithinRadius(centerLat, centerLon, lat, lon, DISCOVERY_RADIUS_KM)) {
+    if (!isWithinRadius(centerLat, centerLon, lat, lon, radiusKm)) {
       continue;
     }
 
@@ -207,10 +216,10 @@ export async function fetchNetatmoObservations(): Promise<{
 
   // Fetch all stations (not just wind) to get temp/humidity too
   const body = {
-    lat_ne: BBOX.lat_ne,
-    lat_sw: BBOX.lat_sw,
-    lon_ne: BBOX.lon_ne,
-    lon_sw: BBOX.lon_sw,
+    lat_ne: DEFAULT_BBOX.lat_ne,
+    lat_sw: DEFAULT_BBOX.lat_sw,
+    lon_ne: DEFAULT_BBOX.lon_ne,
+    lon_sw: DEFAULT_BBOX.lon_sw,
     required_data: 'temperature',
     filter: false,
   };
