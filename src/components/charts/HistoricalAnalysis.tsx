@@ -326,11 +326,10 @@ export function HistoricalAnalysis() {
                   borderRadius: 6,
                   fontSize: 10,
                 }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={((value: any, name: any) => [
+                formatter={(value: number | string, name: string) => [
                   `${(Number(value) || 0).toFixed(1)}%`,
                   name === 'frequency' ? 'General' : `T≥${minTemp} HR≥${minHumidity}`,
-                ]) as never}
+                ]}
               />
             </RadarChart>
           </ResponsiveContainer>
@@ -422,11 +421,10 @@ export function HistoricalAnalysis() {
                   borderRadius: 6,
                   fontSize: 10,
                 }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                formatter={((value: any, name: any) => [
+                formatter={(value: number | string, name: string) => [
                   name === 'Temp' ? `${Number(value) || 0}°C` : `${(Number(value) || 0).toFixed(2)} m/s`,
-                  String(name ?? ''),
-                ]) as never}
+                  name,
+                ]}
               />
               <Scatter
                 data={scatterData}

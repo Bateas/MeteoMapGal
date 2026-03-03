@@ -383,16 +383,15 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
                       labelFormatter={(ts) =>
                         format(new Date(ts as number), 'HH:mm', { locale: es })
                       }
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      formatter={((value: any, name: any) => {
+                      formatter={(value: number | string, name: string) => {
                         const v = Number(value) || 0;
                         if (name === 'score') return [`${v}%`, 'Prob. térmico'];
                         if (name === 'temp') return [value != null ? `${v.toFixed(1)}°C` : '--', 'Temp'];
                         if (name === 'wind') return [value != null ? `${v.toFixed(1)} kt` : '--', 'Viento'];
                         if (name === 'cloud') return [value != null ? `${Math.round(v)}%` : '--', 'Nubes'];
                         if (name === 'cape') return [value != null ? `${Math.round(v)} J/kg` : '--', 'CAPE'];
-                        return [v, String(name ?? '')];
-                      }) as never}
+                        return [v, name];
+                      }}
                     />
                     <ReferenceLine y={55} stroke="#f59e0b" strokeDasharray="3 3" strokeOpacity={0.5} />
                     <ReferenceLine y={75} stroke="#ef4444" strokeDasharray="3 3" strokeOpacity={0.5} />

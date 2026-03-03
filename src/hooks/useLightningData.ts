@@ -280,7 +280,6 @@ export function useLightningData() {
 
       if (simulationActive) {
         strikes = generateSimulatedStrikes();
-        console.log(`[Lightning] SIMULATION: ${strikes.length} fake strikes (step ${simStep})`);
       } else {
         strikes = await fetchLightningStrikes();
       }
