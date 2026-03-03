@@ -126,7 +126,7 @@ export const PROPAGATION_AXIS: [string, string, number][] = [
  * The thermal cycle at Castrelo:
  *   Morning (6-10h): NE breeze + E slope wind = building phase
  *   Midday (10-14h): NE continues, contrast builds
- *   Afternoon (13-20h): W thermal arrives = SAILING WINDOW
+ *   Afternoon (13-21h): W thermal arrives = SAILING WINDOW (extended from 20h)
  *   Late (18-21h): SW humid variant possible in long-daylight months
  *   Night: N drainage from Carballiño (48%), cools valley
  */
@@ -136,14 +136,14 @@ export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
   {
     id: 'thermal_sw_embalse',
     name: 'Térmico W navegable (Embalse)',
-    description: 'Viento W 13-20h. W dominante (74% embalse). Racha media 10 m/s. De calma a 7-12 kt rápido. n=292/854',
+    description: 'Viento W 13-21h. W dominante (74% embalse). Racha media 10 m/s. De calma a 7-12 kt rápido. n=292/854',
     enabled: true,
     conditions: {
       minTemp: 20,
       maxTemp: 30,
       // No minHumidity — sensors unreliable for lower bound
       maxHumidity: 80,
-      timeWindow: { from: 13, to: 20 },
+      timeWindow: { from: 13, to: 21 },
       months: [6, 7, 8, 9],
     },
     expectedWind: {
@@ -156,12 +156,12 @@ export const DEFAULT_THERMAL_RULES: ThermalWindRule[] = [
   {
     id: 'thermal_sw_embalse_hot',
     name: 'Térmico W con calor (Embalse)',
-    description: 'W 13-20h, T>28°C. Días calurosos con ΔT alto. HR baja por calor. n=683',
+    description: 'W 13-21h, T>28°C. Días calurosos con ΔT alto. HR baja por calor. n=683',
     enabled: true,
     conditions: {
       minTemp: 28,
       maxHumidity: 65,
-      timeWindow: { from: 13, to: 20 },
+      timeWindow: { from: 13, to: 21 },
       months: [6, 7, 8, 9],
     },
     expectedWind: {

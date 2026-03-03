@@ -52,13 +52,14 @@ export interface ThermalWindRule {
 // ── Scoring ──────────────────────────────────────────────
 
 export interface ScoreBreakdown {
-  temperature: number;   // 0-25 (reliable, strong predictor)
-  humidity: number;      // 0-10 (sensors unreliable, reduced weight)
-  timeOfDay: number;     // 0-20 (very reliable, solar cycle)
-  season: number;        // 0-15 (month-proportional from 7yr data)
-  windDirection: number; // 0-15 (W dominant 74%, can mislead)
-  windSpeed: number;     // 0-15 (thermal = 0→7-12kt ramp)
-  gustBonus: number;     // 0-5 (strong gusts = established thermal)
+  temperature: number;      // 0-20 (gradient-based, strong predictor)
+  humidity: number;         // 0-20 (AEMET data: strongest discriminator)
+  timeOfDay: number;        // 0-15 (reliable, solar cycle)
+  season: number;           // 0-15 (month-proportional from 7yr data)
+  windDirection: number;    // 0-10 (W dominant 74%, but synoptic can mislead)
+  windSpeed: number;        // 0-10 (thermal = 0→7-12kt ramp)
+  deltaTContext: number;    // 0-10 (ΔT diurnal range, very strong predictor)
+  gustBonus: number;        // 0-5 (strong gusts = established thermal)
   environmentBonus: number; // 0-5 (clear sky + high radiation)
 }
 

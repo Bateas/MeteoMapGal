@@ -1,8 +1,12 @@
 import type { MeteoGaliciaStation, MeteoGaliciaObsEntry } from '../types/meteogalicia';
 import { METEOGALICIA } from '../config/apiEndpoints';
 
-/** Stations that consistently fail (500/404). Skip them to avoid wasted requests. */
-const BROKEN_STATIONS = new Set([10109, 19044]);
+/** Stations that consistently fail (500/404). Skip them to avoid wasted requests.
+ * NOTE (2026-03): 10109 (Amiudal) and 19044 (Remuíño) were previously broken
+ * but are now returning valid data. Removed from broken list.
+ * Remuíño (19044): 10m wind, solar radiation — very valuable for thermal analysis.
+ */
+const BROKEN_STATIONS = new Set<number>();
 
 /** Fetch all MeteoGalicia meteorological stations */
 export async function fetchStationList(): Promise<MeteoGaliciaStation[]> {
