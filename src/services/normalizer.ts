@@ -80,6 +80,13 @@ export function normalizeMeteoGaliciaObservation(
   };
 }
 
+/** Derive province from Meteoclimatic station ID prefix */
+function mcProvince(stationId: string): string {
+  if (stationId.startsWith('ESGAL36')) return 'PONTEVEDRA';
+  if (stationId.startsWith('ESGAL32')) return 'OURENSE';
+  return 'DESCONOCIDA';
+}
+
 /** Normalize a Meteoclimatic station (requires pre-known coordinates) */
 export function normalizeMeteoclimaticStation(
   raw: MeteoclimaticRawStation,
@@ -92,7 +99,7 @@ export function normalizeMeteoclimaticStation(
     lat: meta.lat,
     lon: meta.lon,
     altitude: meta.altitude,
-    province: 'OURENSE',
+    province: mcProvince(raw.id),
   };
 }
 

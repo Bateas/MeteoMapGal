@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useWeatherStore } from '../store/weatherStore';
+import { useSectorStore } from '../store/sectorStore';
 import { useStations } from './useStations';
 import { useAutoRefresh } from './useAutoRefresh';
 import { fetchAllObservations } from '../api/aemetClient';
@@ -15,6 +16,7 @@ import { logReadings } from '../services/stationDataLogger';
 
 export function useWeatherData() {
   const { stations, retry: retryDiscovery } = useStations();
+  const activeSector = useSectorStore((s) => s.activeSector);
   const updateReadings = useWeatherStore((s) => s.updateReadings);
   const setLoading = useWeatherStore((s) => s.setLoading);
   const setError = useWeatherStore((s) => s.setError);
@@ -110,13 +112,13 @@ export function useWeatherData() {
       );
     }
 
-    // Netatmo
+    // Netatmo — pass active sector center/radius so the bbox covers the right area
     const netatmoStationIds = new Set(
       stations.filter((s) => s.source === 'netatmo').map((s) => s.id)
     );
     if (netatmoStationIds.size > 0) {
       tasks.push(
-        fetchNetatmoObservations().then(({ readings }) => {
+        fetchNetatmoObservations({ center: activeSector.center, radiusKm: activeSector.radiusKm }).then(({ readings }) => {
           const filtered = readings.filter((r) => netatmoStationIds.has(r.stationId));
           updateSourceStatus('netatmo', true, filtered.length);
           return filtered;
@@ -142,7 +144,7 @@ export function useWeatherData() {
     } finally {
       setLoading(false);
     }
-  }, [stations, updateReadings, setLoading, setError, updateSourceStatus]);
+  }, [stations, activeSector, updateReadings, setLoading, setError, updateSourceStatus]);
 
   const { lastRefresh, isPolling, forceRefresh } = useAutoRefresh(fetchData, REFRESH_INTERVAL_MS);
 
