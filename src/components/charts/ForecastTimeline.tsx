@@ -621,6 +621,32 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
   );
 }
 
+// ── Day separator with sunrise/sunset ────────────────────
+
+function DaySeparator({ date }: { date: Date }) {
+  const sun = useMemo(() => getSunTimes(date), [date]);
+  const isToday = date.toDateString() === new Date().toDateString();
+  const dayLabel = isToday
+    ? 'Hoy'
+    : date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
+
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-700/40 border-t border-b border-slate-600/60">
+      <span className="text-[11px] font-bold text-slate-200 capitalize">{dayLabel}</span>
+      <span className="flex-1 h-px bg-slate-600/50" />
+      <span className="text-[10px] text-amber-400/80" title="Amanecer">
+        🌅 {formatTime(sun.sunrise)}
+      </span>
+      <span className="text-[10px] text-orange-400/80" title="Atardecer">
+        🌇 {formatTime(sun.sunset)}
+      </span>
+      <span className="text-[10px] text-slate-500 font-mono" title="Horas de luz">
+        {Math.floor(sun.dayLengthMin / 60)}h{Math.round(sun.dayLengthMin % 60).toString().padStart(2, '0')}
+      </span>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────
 
 export function ForecastTimeline() {
@@ -859,7 +885,7 @@ export function ForecastTimeline() {
 
             {visibleData.map((point, i) => {
               const prevDay = i > 0 ? visibleData[i - 1].time.getDate() : -1;
-              const showDate = i === 0 || point.time.getDate() !== prevDay;
+              const isNewDay = i === 0 || point.time.getDate() !== prevDay;
 
               return (
                 <div
@@ -869,9 +895,11 @@ export function ForecastTimeline() {
                   {i === nowIndex && (
                     <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500 z-10" />
                   )}
+                  {/* Day separator with sunrise/sunset */}
+                  {isNewDay && <DaySeparator date={point.time} />}
                   <ForecastRow
                     point={point}
-                    showDate={showDate}
+                    showDate={false}
                     thermalScore={thermalScores[i] ?? { score: 0, mainRule: null, isNavigable: false, isPrecursor: false }}
                   />
             </div>
