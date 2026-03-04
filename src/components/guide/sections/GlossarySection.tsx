@@ -185,6 +185,18 @@ export function GlossarySection() {
           example="Si Ribadavia marca 15 kt del SW y 10 min después Castrelo marca lo mismo, hay propagación — MeteoMap calcula el ETA al embalse."
           color="#a855f7"
         />
+        <Term
+          term="Presión atmosférica (hPa)"
+          definition="Peso del aire sobre un punto, medido en hectopascales (hPa) o milibares (mb). La tendencia barométrica indica cambios de tiempo inminentes."
+          example="Presión cayendo rápidamente (>3 hPa/3h) = frente acercándose. Presión alta estable (>1020 hPa) = buen tiempo."
+          color="#a855f7"
+        />
+        <Term
+          term="Reflectividad radar (dBZ)"
+          definition="Intensidad de la señal que el radar recibe al rebotar en gotas de lluvia, nieve o granizo. A mayor dBZ, mayor intensidad."
+          example="15 dBZ = llovizna. 35 dBZ = lluvia moderada. 50+ dBZ = tormenta fuerte con posible granizo."
+          color="#a855f7"
+        />
       </TermGroup>
 
       {/* Quick-reference cheat sheet */}

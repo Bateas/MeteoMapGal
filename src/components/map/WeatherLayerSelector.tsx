@@ -11,6 +11,7 @@ const LAYER_BUTTONS: { id: WeatherLayerType; icon: string; label: string }[] = [
   { id: 'wind-particles', icon: '💨', label: 'Viento' },
   { id: 'humidity', icon: '💧', label: 'Humedad' },
   { id: 'satellite', icon: '🛰️', label: 'Satélite' },
+  { id: 'radar', icon: '📡', label: 'Radar' },
 ];
 
 // ── Component ──────────────────────────────────────────────
@@ -63,6 +64,9 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 
             {/* ── Satellite info ── */}
             {activeLayer === 'satellite' && <SatelliteLegend />}
+
+            {/* ── Radar info ── */}
+            {activeLayer === 'radar' && <RadarLegend />}
 
             {/* WRF removed — only real-time layers on map */}
           </div>
@@ -172,6 +176,34 @@ function SatelliteLegend() {
           <div className="w-3 h-2 rounded-sm bg-gray-700 border border-slate-600" />
           <span className="text-[8px] text-slate-500">Despejado</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Radar info panel ─── */
+function RadarLegend() {
+  return (
+    <div className="space-y-1">
+      <span className="text-[9px] text-slate-500 font-semibold">📡 AEMET Radar de Cuntis (Galicia)</span>
+      <div className="text-[9px] text-slate-400">
+        Radar regional cada 10 min. Radio ~240 km.
+        Colores indican reflectividad (intensidad de precipitación).
+      </div>
+      <div className="flex items-center gap-0">
+        {[
+          { color: '#00c8ff', label: 'Débil' },
+          { color: '#00ff00', label: 'Mod.' },
+          { color: '#ffff00', label: 'Fuerte' },
+          { color: '#ff8000', label: 'Intensa' },
+          { color: '#ff0000', label: 'Muy int.' },
+          { color: '#ff00ff', label: 'Granizo' },
+        ].map((s, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center">
+            <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
+            <span className="text-[7px] text-slate-600 mt-0.5">{s.label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -9,6 +9,10 @@ export const AEMET = {
   stationInventory: () =>
     `/aemet-api/api/valores/climatologicos/inventarioestaciones/todasestaciones?api_key=${AEMET_KEY}`,
 
+  /** Regional radar image (two-step: returns URL to PNG) — 'ga' = Galicia/Cuntis */
+  radarRegional: (radarId = 'ga') =>
+    `/aemet-api/api/red/radar/regional/${radarId}?api_key=${AEMET_KEY}`,
+
   /** Proxy for AEMET data URLs (step 2) */
   proxyDataUrl: (url: string) => {
     // AEMET step 2 returns full URLs like https://opendata.aemet.es/opendata/sh/XXXXX
