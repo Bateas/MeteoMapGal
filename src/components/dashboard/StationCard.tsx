@@ -6,11 +6,15 @@ import {
   formatHumidity,
   formatPrecipitation,
   formatSolarRadiation,
+  formatPressure,
+  formatDewPoint,
   windSpeedColor,
   temperatureColor,
   precipitationColor,
   solarRadiationColor,
   solarRadiationIcon,
+  pressureColor,
+  dewPointSpreadColor,
 } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { WindCompass } from '../common/WindCompass';
@@ -169,6 +173,37 @@ export function StationCard({ station, reading }: StationCardProps) {
                   >
                     {formatSolarRadiation(reading.solarRadiation)}
                   </span>
+                </div>
+              </div>
+            )}
+            {reading.pressure !== null && (
+              <div>
+                <div className="text-[10px] text-slate-500">Presión</div>
+                <div
+                  className="text-sm font-semibold"
+                  style={{ color: pressureColor(reading.pressure) }}
+                >
+                  {formatPressure(reading.pressure)}
+                </div>
+              </div>
+            )}
+            {reading.dewPoint !== null && (
+              <div>
+                <div className="text-[10px] text-slate-500">P. rocío</div>
+                <div className="flex items-baseline gap-1">
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: dewPointSpreadColor(
+                      reading.temperature !== null ? reading.temperature - reading.dewPoint : null
+                    ) }}
+                  >
+                    {formatDewPoint(reading.dewPoint)}
+                  </span>
+                  {reading.temperature !== null && (
+                    <span className="text-[9px] text-slate-500" title="Spread T − Td">
+                      Δ{(reading.temperature - reading.dewPoint).toFixed(1)}°
+                    </span>
+                  )}
                 </div>
               </div>
             )}

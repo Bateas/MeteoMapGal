@@ -123,6 +123,41 @@ export function solarRadiationIcon(wm2: number | null): string {
   return '☀️';                           // clear/strong sun
 }
 
+// ── Pressure & dew point utilities ──────────────────────
+
+/** Format atmospheric pressure for display (hPa) */
+export function formatPressure(hPa: number | null): string {
+  if (hPa === null) return '--';
+  return `${hPa.toFixed(1)} hPa`;
+}
+
+/** Color for pressure visualization:
+ *  Low (<1000) → purple/storm. Normal (1010-1020) → neutral. High (>1025) → blue/stable. */
+export function pressureColor(hPa: number | null): string {
+  if (hPa === null) return '#64748b';     // slate-500
+  if (hPa < 1000) return '#a855f7';       // purple-500 (very low — storm)
+  if (hPa < 1010) return '#f59e0b';       // amber-500 (low — unsettled)
+  if (hPa < 1020) return '#94a3b8';       // slate-400 (normal)
+  if (hPa < 1030) return '#38bdf8';       // sky-400 (high — stable)
+  return '#3b82f6';                        // blue-500 (very high — blocking)
+}
+
+/** Format dew point temperature for display (°C) */
+export function formatDewPoint(td: number | null): string {
+  if (td === null) return '--';
+  return `${td.toFixed(1)}°C`;
+}
+
+/** Color for dew point / spread visualization:
+ *  Close to T (small spread) → blue/fog risk. Far from T → green/dry. */
+export function dewPointSpreadColor(spread: number | null): string {
+  if (spread === null) return '#64748b';   // slate-500
+  if (spread < 2) return '#3b82f6';        // blue-500 (fog imminent)
+  if (spread < 5) return '#06b6d4';        // cyan-500 (damp)
+  if (spread < 10) return '#22c55e';       // green-500 (comfortable)
+  return '#f59e0b';                        // amber-500 (very dry)
+}
+
 // ── Thermal wind utilities ───────────────────────────────
 
 /**
