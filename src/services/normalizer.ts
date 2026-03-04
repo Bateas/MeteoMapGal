@@ -30,6 +30,8 @@ export function normalizeAemetObservation(raw: AemetRawObservation): NormalizedR
     humidity: raw.hr ?? null,
     precipitation: raw.prec ?? null,
     solarRadiation: null, // AEMET obs don't include solar in this endpoint
+    pressure: raw.plession ?? null,   // Station-level pressure (hPa)
+    dewPoint: raw.tpr ?? null,        // Dew point from AEMET
   };
 }
 
@@ -83,6 +85,8 @@ export function normalizeMeteoGaliciaObservation(
     humidity: findMedida(entry.listaMedidas, MG_PARAMS.HUMIDITY),
     precipitation: findMedida(entry.listaMedidas, MG_PARAMS.PRECIPITATION),
     solarRadiation,
+    pressure: null, // MG doesn't report pressure in 10-min obs
+    dewPoint: findMedida(entry.listaMedidas, MG_PARAMS.DEW_POINT),
   };
 }
 
@@ -128,5 +132,7 @@ export function normalizeMeteoclimaticObservation(
     humidity: raw.humidity,
     precipitation: raw.rain,
     solarRadiation: null, // Meteoclimatic PWS don't report solar
+    pressure: raw.pressure,
+    dewPoint: null, // Meteoclimatic XML doesn't include dew point
   };
 }

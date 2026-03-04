@@ -15,6 +15,8 @@ function makeReading(overrides: Partial<NormalizedReading> = {}): NormalizedRead
     humidity: 55,
     precipitation: 0,
     solarRadiation: null,
+    pressure: null,
+    dewPoint: null,
     ...overrides,
   };
 }

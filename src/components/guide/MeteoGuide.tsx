@@ -356,7 +356,7 @@ function RiasIntroSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl">🗺️</span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Capas interactivas</p>
-          <p className="text-[10px] text-slate-600">Viento, humedad, satélite IR, rayos</p>
+          <p className="text-[10px] text-slate-600">Viento, humedad, satélite IR, radar, rayos</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl">⚠️</span>

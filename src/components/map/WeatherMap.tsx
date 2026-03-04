@@ -23,6 +23,7 @@ import { AlertPanel } from './AlertPanel';
 import { WindParticleOverlay } from './WindParticleOverlay';
 import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
 import { SatelliteOverlay } from './SatelliteOverlay';
+import { RadarOverlay } from './RadarOverlay';
 // WRF removed from map layers — only real-time data on map.
 // import { WrfOverlay } from './WrfOverlay';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
@@ -169,6 +170,9 @@ export function WeatherMap() {
 
         {/* EUMETSAT satellite cloud imagery (inside Map for native raster rendering) */}
         <SatelliteOverlay />
+
+        {/* AEMET Radar de Cuntis — regional Galicia precipitation radar */}
+        <RadarOverlay />
 
         {/* WRF removed from map — only real-time layers */}
 

@@ -22,4 +22,6 @@ export interface NormalizedReading {
   humidity: number | null;        // %
   precipitation: number | null;   // mm
   solarRadiation: number | null;  // W/m² — global shortwave (pyranometer or PWS sensor)
+  pressure: number | null;        // hPa — station-level atmospheric pressure
+  dewPoint: number | null;        // °C — dew point temperature (measured or from API)
 }
