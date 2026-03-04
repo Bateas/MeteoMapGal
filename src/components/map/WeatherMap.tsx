@@ -27,6 +27,7 @@ import { RadarOverlay } from './RadarOverlay';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { SectorSelector } from './SectorSelector';
+import { MapContextMenu } from './MapContextMenu';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -184,6 +185,9 @@ export function WeatherMap() {
       {/* Canvas overlays on top of map (need project/unproject) */}
       <WindParticleOverlay mapRef={mapRef} />
       <HumidityHeatmapOverlay mapRef={mapRef} />
+
+      {/* Right-click context menu */}
+      <MapContextMenu mapRef={mapRef} />
 
       {/* HTML overlays on top of map */}
       <SectorSelector />
