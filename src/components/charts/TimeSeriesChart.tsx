@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
@@ -7,6 +7,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { msToKnots } from '../../services/windUtils';
+import { useToastStore } from '../../store/toastStore';
 
 type MetricKey = 'windSpeed' | 'temperature' | 'humidity';
 
@@ -27,6 +28,18 @@ const TIME_RANGES = [
   { label: '24h', hours: 24 },
   { label: '48h', hours: 48 },
 ];
+
+// ── CSV export helper ─────────────────────────────────────
+
+function downloadCsv(filename: string, csvContent: string) {
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function TimeSeriesChart() {
   const chartStations = useWeatherStore((s) => s.chartSelectedStations);
@@ -74,6 +87,68 @@ export function TimeSeriesChart() {
   const stationName = (id: string) =>
     stations.find((s) => s.id === id)?.name || id;
 
+  // CSV export
+  const handleExportCsv = useCallback(() => {
+    if (chartStations.length === 0) return;
+
+    const cutoff = Date.now() - timeRange * 60 * 60 * 1000;
+    const headers = ['Fecha', 'Hora', ...chartStations.map(stationName)];
+    const rows: string[][] = [];
+
+    // Collect all timestamps
+    const timeSet = new Set<number>();
+    for (const stationId of chartStations) {
+      const history = readingHistory.get(stationId) || [];
+      for (const r of history) {
+        if (!r.timestamp || isNaN(r.timestamp.getTime())) continue;
+        const ts = r.timestamp.getTime();
+        if (ts >= cutoff) timeSet.add(Math.round(ts / 300000) * 300000);
+      }
+    }
+
+    const sortedTimes = Array.from(timeSet).sort((a, b) => a - b);
+
+    // Build value lookup
+    const lookup = new Map<string, Map<number, number | null>>();
+    for (const stationId of chartStations) {
+      const stMap = new Map<number, number | null>();
+      const history = readingHistory.get(stationId) || [];
+      for (const r of history) {
+        if (!r.timestamp || isNaN(r.timestamp.getTime())) continue;
+        const ts = r.timestamp.getTime();
+        if (ts < cutoff) continue;
+        const rounded = Math.round(ts / 300000) * 300000;
+        const raw = r[activeMetric];
+        stMap.set(rounded, activeMetric === 'windSpeed' && raw !== null && Number.isFinite(raw) ? msToKnots(raw) : raw);
+      }
+      lookup.set(stationId, stMap);
+    }
+
+    for (const ts of sortedTimes) {
+      const d = new Date(ts);
+      const row = [
+        format(d, 'dd/MM/yyyy', { locale: es }),
+        format(d, 'HH:mm', { locale: es }),
+        ...chartStations.map((id) => {
+          const val = lookup.get(id)?.get(ts);
+          return val !== null && val !== undefined ? val.toFixed(1) : '';
+        }),
+      ];
+      rows.push(row);
+    }
+
+    const unit = metric.unit;
+    const csv = [
+      `# MeteoMap — ${metric.label} (${unit}) — Últimas ${timeRange}h`,
+      headers.join(';'),
+      ...rows.map((r) => r.join(';')),
+    ].join('\n');
+
+    const date = format(new Date(), 'yyyyMMdd_HHmm');
+    downloadCsv(`meteomap_${activeMetric}_${date}.csv`, csv);
+    useToastStore.getState().addToast(`CSV exportado (${rows.length} registros)`, 'success');
+  }, [chartStations, readingHistory, activeMetric, timeRange, metric, stationName]);
+
   if (chartStations.length === 0) {
     return (
       <div className="text-center text-slate-500 text-xs py-6 px-4">
@@ -105,7 +180,7 @@ export function TimeSeriesChart() {
         ))}
       </div>
 
-      {/* Time range selector */}
+      {/* Time range selector + CSV export */}
       <div className="flex gap-1" role="group" aria-label="Seleccionar rango temporal">
         {TIME_RANGES.map((r) => (
           <button
@@ -121,6 +196,14 @@ export function TimeSeriesChart() {
             {r.label}
           </button>
         ))}
+        <button
+          onClick={handleExportCsv}
+          disabled={chartData.length === 0}
+          className="px-2 text-[10px] py-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Exportar datos a CSV"
+        >
+          📥 CSV
+        </button>
       </div>
 
       {/* Chart */}
