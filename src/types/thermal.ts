@@ -104,6 +104,12 @@ export interface ForecastPoint {
   solarRadiation: number | null;
   /** Convective Available Potential Energy (J/kg) — direct thermal indicator */
   cape: number | null;
+  /** Planetary Boundary Layer height (m) — >1500m = deep mixing, excellent thermals */
+  boundaryLayerHeight: number | null;
+  /** Lifted Index (°C) — negative = unstable. <-2 good thermals, <-6 strong convection */
+  liftedIndex: number | null;
+  /** Convective Inhibition (J/kg) — energy barrier. <50 = thermals develop freely */
+  convectiveInhibition: number | null;
 }
 
 export interface ForecastAlert {
@@ -121,6 +127,9 @@ export interface ForecastAlert {
  * - Cloud cover: clear skies = stronger thermals
  * - Solar radiation: direct energy driving convection
  * - CAPE: thermodynamic measure of convective potential
+ * - PBL height: depth of the mixing layer (thermals reach PBL top)
+ * - Lifted index: atmospheric stability (negative = unstable = thermals)
+ * - CIN: energy barrier (low CIN = thermals develop freely)
  */
 export interface AtmosphericContext {
   /** Cloud cover % for embalse zone (0 = clear, 100 = overcast) */
@@ -129,6 +138,12 @@ export interface AtmosphericContext {
   solarRadiation: number | null;
   /** CAPE J/kg — >500 = moderate convection, >1000 = strong */
   cape: number | null;
+  /** Planetary Boundary Layer height (m) — >1500m = deep mixing, excellent thermals */
+  boundaryLayerHeight: number | null;
+  /** Lifted Index (°C) — negative = unstable. <-2 good, <-6 strong convection */
+  liftedIndex: number | null;
+  /** Convective Inhibition (J/kg) — energy barrier. <50 = thermals develop freely, >200 = capped */
+  convectiveInhibition: number | null;
   /** When this context was fetched */
   fetchedAt: Date;
 }

@@ -17,6 +17,7 @@ export function BestConditionsSection() {
             { check: 'ΔT > 16°C', detail: 'Validado con sol Ourense: ΔT>16 = sol>10h', icon: '📈' },
             { check: 'E mañana en montaña', detail: '76% predictor de térmico tarde', icon: '🏔️' },
             { check: 'Cielo despejado (>10h sol)', detail: '35% térmico vs 0% con <4h sol', icon: '☀️' },
+            { check: 'PBL > 1500m, LI < -2°C', detail: 'Capa de mezcla profunda + aire inestable', icon: '🌀' },
             { check: 'Sin lluvia 24h previas', detail: 'Suelo seco = más convección', icon: '🌂' },
             { check: 'Julio o Agosto', detail: 'Jul 29% + Ago 37% térmico limpio', icon: '📅' },
           ].map((item) => (
@@ -210,7 +211,7 @@ function ScoringBreakdown() {
           <span className="text-sm font-mono font-black text-white">100</span>
         </div>
         <div className="w-32">
-          <span className="text-[9px] text-slate-400">+ bonus: racha (5) + entorno (5)</span>
+          <span className="text-[9px] text-slate-400">+ bonus: racha (5) + atmosférico (5)</span>
         </div>
       </div>
     </div>
