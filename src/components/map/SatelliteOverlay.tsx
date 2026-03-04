@@ -11,7 +11,7 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
  *   - Updates every 15 min
  *   - Bright = cold cloud tops (cumulonimbus), Dark = clear/warm ground
  *
- * Rendered as MapLibre native raster source (same pattern as WRF overlay).
+ * Rendered as MapLibre native raster source.
  */
 
 // ── Config ──────────────────────────────────────────────

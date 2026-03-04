@@ -20,11 +20,11 @@ Requires `.env` with `VITE_AEMET_API_KEY`. Other sources (MeteoGalicia, Meteocli
 - **Zustand 5** for state (weatherStore, weatherLayerStore, alertStore, sectorStore, toastStore, etc.)
 - **Vitest 4** with 103 tests across 5 test files
 - **Five real-time sources**: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo
-- **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), WRF model (THREDDS WMS), Lightning (meteo2api)
+- **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), Lightning (meteo2api), AEMET Radar (Cuntis)
 - **Multi-sector**: `sectorStore.ts` + `src/config/sectors.ts` define Embalse / Rías Baixas with independent center, radius, regions
 - **PWA**: Service worker (`public/sw.js`) + web manifest for installable app
 - **n8n webhook**: `src/api/webhookClient.ts` posts alerts to n8n for Telegram notifications (non-critical, fails silently)
-- **Vite proxy** for CORS (9 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/thredds-wms`, `/ideg-api`
+- **Vite proxy** for CORS (8 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`
 - **Production deployment**: nginx reverse proxy (`nginx.conf`) to Proxmox LXC, mirrors all Vite proxy routes
 
 ## Key Conventions
@@ -32,7 +32,7 @@ Requires `.env` with `VITE_AEMET_API_KEY`. Other sources (MeteoGalicia, Meteocli
 - **Internal units**: m/s for wind speed. Display in **knots (kt)** via `msToKnots()`.
 - **Wind direction**: meteorological "from" convention. Arrows point "to" (add 180°).
 - **Station IDs**: prefixed by source (`aemet_`, `mg_`, `mc_`, `wu_`, `nt_`).
-- **Normalization**: All vendor types → `NormalizedStation` / `NormalizedReading` (see `src/services/normalizer.ts`).
+- **Normalization**: All vendor types → `NormalizedStation` / `NormalizedReading` (see `src/services/normalizer.ts`). Includes `pressure` (hPa), `dewPoint` (°C), `solarRadiation` (W/m²) — all `number | null`.
 - **Language**: UI in Spanish. Git commits in English.
 - **AEMET `dir` field**: In **decadegrees** (0-36), NOT real degrees. Multiply by 10. `dir=99` = variable, `dir=0` = calm.
 
@@ -40,14 +40,14 @@ Requires `.env` with `VITE_AEMET_API_KEY`. Other sources (MeteoGalicia, Meteocli
 
 ```
 src/
-├── api/              # API clients (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, Open-Meteo, WRF, lightning, webhook)
+├── api/              # API clients (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, Open-Meteo, lightning, radar, webhook)
 ├── components/
 │   ├── charts/       # Recharts visualizations (TimeSeriesChart, WindRose, ForecastTimeline, ThermalWindPanel, BestDaysSearch)
 │   ├── common/       # Shared UI (LoadingSpinner, ErrorBoundary, ToastContainer, KeyboardShortcutHelp, SourceStatusIndicator)
 │   ├── dashboard/    # Sidebar components (StationCard, StationTable)
 │   ├── guide/        # MeteoGuide modal + 9 section pages (thermal cycle, zones, sailing, campo panel, etc.)
 │   ├── layout/       # AppShell, Header, Sidebar, FieldDrawer
-│   └── map/          # MapLibre overlays (Wind, Humidity, WRF, Lightning, Markers)
+│   └── map/          # MapLibre overlays (Wind, Humidity, Satellite, Radar, Lightning, Markers)
 ├── config/           # Constants, thermal zones, source config
 ├── hooks/            # useWeatherData, useStations, useThermalAnalysis, useLightningData, useStormShadow, useForecastTimeline, useAutoRefresh
 ├── services/         # Business logic (see src/services/CLAUDE.md)
@@ -58,9 +58,8 @@ src/
 
 ## Critical Gotchas
 
-- **Canvas overlays**: Must sit OUTSIDE `<Map>` component with `pointer-events-none`. MapLibre native layers (WRF raster) go INSIDE `<Map>`.
+- **Canvas overlays**: Must sit OUTSIDE `<Map>` component with `pointer-events-none`. MapLibre native layers (Satellite, Radar) go INSIDE `<Map>`.
 - **IDW per-pixel `unproject()` is fatal**: Use 4-corner pre-computation + linear interpolation instead.
-- **WRF WMS styles**: Only `boxfill/rainbow` works. `default-scalar/precip` returns HTTP 400.
 - **MapLibre `beforeId`**: `beforeId="osm-tiles"` on raster layers hides them below base tiles. Omit it.
 - **Vite HMR caching**: New `.tsx` files may require dev server restart.
 - **Wind particle SPEED_SCALE**: At Galician scale (~50km viewport), use 0.0015. Values <0.001 produce invisible sub-pixel movement.

@@ -4,8 +4,6 @@ import type { WeatherLayerType } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
 
 // ── Layer button configs ───────────────────────────────────
-// NOTE: WRF removed from map layers — only real-time data on map.
-// WRF files kept (WrfOverlay.tsx, wrfWmsClient.ts) for future "Previsiones" section.
 
 const LAYER_BUTTONS: { id: WeatherLayerType; icon: string; label: string }[] = [
   { id: 'wind-particles', icon: '💨', label: 'Viento' },
@@ -67,8 +65,6 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 
             {/* ── Radar info ── */}
             {activeLayer === 'radar' && <RadarLegend />}
-
-            {/* WRF removed — only real-time layers on map */}
           </div>
         )}
 

@@ -4,7 +4,7 @@ Pure functions and algorithms used across the app. No React dependencies.
 
 ## Wind & Weather
 
-- **`windUtils.ts`** — `msToKnots()`, `windSpeedColor()` (Beaufort scale), `degreesToCardinal()`. All wind display formatting.
+- **`windUtils.ts`** — `msToKnots()`, `windSpeedColor()` (Beaufort scale), `degreesToCardinal()`. All wind display formatting. Also includes `formatPressure()`, `formatDewPoint()`, `pressureColor()`, `dewPointSpreadColor()` for barometric and moisture display.
 - **`normalizer.ts`** — Converts vendor-specific API responses to `NormalizedStation`/`NormalizedReading`. AEMET `dir` field is in decadegrees (multiply by 10).
 - **`idwInterpolation.ts`** — Inverse Distance Weighting for wind vectors and scalar fields (humidity). `fastDistanceKm()` uses equirectangular approximation (~100x faster than haversine). Shared by WindParticleOverlay and HumidityHeatmapOverlay.
 - **`geoUtils.ts`** — `isWithinRadius()` for station discovery filtering.
@@ -42,4 +42,4 @@ Pure functions and algorithms used across the app. No React dependencies.
 
 ## Testing
 
-Test files live alongside their source (`*.test.ts`). Currently tested: `normalizer`, `windUtils`, `alertService`, `thermalScoringEngine`. Run with `npm test` (Vitest).
+Test files live alongside their source (`*.test.ts`). Currently tested: `normalizer`, `windUtils`, `alertService`, `thermalScoringEngine`, `toastStore`. Run with `npm test` (Vitest).

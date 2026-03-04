@@ -24,8 +24,6 @@ import { WindParticleOverlay } from './WindParticleOverlay';
 import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
 import { SatelliteOverlay } from './SatelliteOverlay';
 import { RadarOverlay } from './RadarOverlay';
-// WRF removed from map layers — only real-time data on map.
-// import { WrfOverlay } from './WrfOverlay';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { SectorSelector } from './SectorSelector';
@@ -173,8 +171,6 @@ export function WeatherMap() {
 
         {/* AEMET Radar de Cuntis — regional Galicia precipitation radar */}
         <RadarOverlay />
-
-        {/* WRF removed from map — only real-time layers */}
 
         {/* Selected station popup */}
         {selectedStation && (

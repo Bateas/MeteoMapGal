@@ -74,12 +74,6 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/meteo2api/, '/meteo2api'),
         secure: true,
       },
-      '/thredds-wms': {
-        target: 'https://mandeo.meteogalicia.es',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/thredds-wms/, '/thredds/wms'),
-        secure: true,
-      },
     },
   },
 })
