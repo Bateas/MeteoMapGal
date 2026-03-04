@@ -11,8 +11,6 @@ import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
 import { useLightningData, useLightningStore } from '../../hooks/useLightningData';
 import { useStormShadow, useStormShadowStore } from '../../hooks/useStormShadow';
 import { useForecastTimeline, useForecastStore } from '../../hooks/useForecastTimeline';
-// WRF removed from map — kept for future "Previsiones" section
-// import { useWrfModel } from '../../hooks/useWrfModel';
 import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
 import { useThermalStore } from '../../store/thermalStore';
@@ -73,8 +71,6 @@ export function AppShell() {
 
   // Hourly forecast timeline: 48h Open-Meteo for reservoir, polls every 30 min
   useForecastTimeline();
-
-  // WRF removed from map — only real-time data on map
 
   // Prune stale reading history every 30 min (entries > 24h old)
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
