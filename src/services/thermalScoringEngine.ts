@@ -6,7 +6,7 @@ import type { NormalizedReading } from '../types/station';
 import { isDirectionInRange, averageWindDirection, msToKnots } from './windUtils';
 
 /**
- * Thermal Scoring Engine v2.2 — Data-driven weights from AEMET analysis.
+ * Thermal Scoring Engine v2.3 — Data-driven weights from AEMET analysis.
  *
  * Weight redistribution based on 1,412 daily records from Ribadavia (1701X),
  * Ourense (1690A), and Carballiño (1700X), 2022-2025 summers.
@@ -519,20 +519,54 @@ export function scoreRule(
   }
 
   // ── Environment bonus (0-5) ────────────────────────────
-  // Clear sky + strong radiation = conditions for thermal convection.
+  // Clear sky + strong radiation + atmospheric stability indicators.
+  // v2.3: Enhanced with PBL height, lifted index, and CIN from Open-Meteo.
+  //
+  // PBL (Planetary Boundary Layer) height:
+  //   >2000m = very deep mixing layer, excellent thermals (Galician summer peak)
+  //   >1500m = deep mixing, good thermals
+  //   <800m = shallow mixing, thermals weak/capped
+  //
+  // Lifted Index (atmospheric instability):
+  //   < -6°C = strongly unstable, vigorous thermals
+  //   < -2°C = moderately unstable, good thermals
+  //   > 0°C  = stable, thermals suppressed
+  //
+  // CIN (Convective Inhibition):
+  //   < 25 J/kg = minimal barrier, thermals develop freely
+  //   < 50 J/kg = low barrier, most thermals break through
+  //   > 200 J/kg = strong cap, thermals unlikely to develop
+  //
   if (atmosphericContext && isThermalRule) {
-    const { cloudCover, solarRadiation } = atmosphericContext;
+    const { cloudCover, solarRadiation, boundaryLayerHeight, liftedIndex, convectiveInhibition } = atmosphericContext;
+    let envScore = 0;
+
+    // Cloud cover (0-1 pt)
     if (cloudCover !== null && cloudCover < 20) {
-      breakdown.environmentBonus += 2; // Clear sky
-    } else if (cloudCover !== null && cloudCover < 40) {
-      breakdown.environmentBonus += 1; // Mostly clear
+      envScore += 1;
     }
+
+    // Solar radiation (0-1 pt)
     if (solarRadiation !== null && solarRadiation > 600) {
-      breakdown.environmentBonus += 3; // Strong radiation
-    } else if (solarRadiation !== null && solarRadiation > 400) {
-      breakdown.environmentBonus += 1; // Moderate radiation
+      envScore += 1;
     }
-    breakdown.environmentBonus = Math.min(5, breakdown.environmentBonus);
+
+    // PBL height (0-1 pt) — deep mixing = strong thermals
+    if (boundaryLayerHeight !== null) {
+      if (boundaryLayerHeight > 1500) envScore += 1;
+    }
+
+    // Lifted index (0-1 pt) — negative = unstable = thermals
+    if (liftedIndex !== null) {
+      if (liftedIndex < -2) envScore += 1;
+    }
+
+    // CIN (0-1 pt) — low inhibition = thermals develop
+    if (convectiveInhibition !== null) {
+      if (convectiveInhibition < 50) envScore += 1;
+    }
+
+    breakdown.environmentBonus = Math.min(5, envScore);
   }
 
   const score = breakdown.temperature + breakdown.humidity + breakdown.timeOfDay +

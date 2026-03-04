@@ -88,6 +88,24 @@ export function GlossarySection() {
           color="#f59e0b"
         />
         <Term
+          term="PBL (Planetary Boundary Layer)"
+          definition="Altura de la capa límite planetaria (m). Capa de mezcla atmosférica donde se desarrollan los térmicos. A mayor altura, térmicos más potentes."
+          example="PBL > 1500m = capa de mezcla profunda, excelentes térmicos. PBL < 800m = térmicos débiles o inexistentes."
+          color="#f59e0b"
+        />
+        <Term
+          term="Lifted Index (LI)"
+          definition="Índice de estabilidad atmosférica (°C). Valores negativos indican inestabilidad — el aire quiere ascender. Valores positivos = aire estable."
+          example="LI < -2°C = inestable, buenos térmicos. LI < -6°C = muy inestable (riesgo de tormentas). LI > 0 = estable, sin térmicos."
+          color="#f59e0b"
+        />
+        <Term
+          term="CIN (Convective Inhibition)"
+          definition="Barrera energética que impide el desarrollo de convección (J/kg). Si es baja, las térmicas se desarrollan libremente."
+          example="CIN < 50 J/kg = barrera mínima, térmicos se activan fácilmente. CIN > 200 J/kg = tapadera fuerte, difícil que arranquen."
+          color="#f59e0b"
+        />
+        <Term
           term="Viento anabático"
           definition="Brisa ascendente por las laderas calentadas por el sol. Se desarrolla por las mañanas y alcanza su pico por la tarde."
           example="En el embalse de Castrelo, el anabático del W/SW es la base del viento térmico para navegar (13h-20h)."
@@ -180,6 +198,9 @@ export function GlossarySection() {
           <ThresholdRow label="Tormenta cercana" value="CAPE > 1000 J/kg" />
           <ThresholdRow label="Rayo peligroso" value="< 10 km" />
           <ThresholdRow label="Gradiente térmico OK" value="ΔT > 8°C" />
+          <ThresholdRow label="PBL térmicos buenos" value="> 1500 m" />
+          <ThresholdRow label="LI inestable" value="< -2°C" />
+          <ThresholdRow label="CIN barrera baja" value="< 50 J/kg" />
           <ThresholdRow label="Helada radiativa" value="Tmin < 0°C, viento < 2 m/s" />
         </div>
       </div>
