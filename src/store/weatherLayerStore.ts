@@ -3,7 +3,7 @@ import { devtools, persist } from 'zustand/middleware';
 
 // ── Types ──────────────────────────────────────────────────
 
-export type WeatherLayerType = 'none' | 'wind-particles' | 'humidity' | 'satellite' | 'wrf';
+export type WeatherLayerType = 'none' | 'wind-particles' | 'humidity' | 'satellite' | 'radar' | 'wrf';
 
 export type WrfVariable =
   | 'prec'      // precipitation (mm)
@@ -58,7 +58,7 @@ interface WeatherLayerState {
 }
 
 // WRF removed from cycle — only real-time layers on map
-const LAYER_CYCLE: WeatherLayerType[] = ['none', 'wind-particles', 'humidity', 'satellite'];
+const LAYER_CYCLE: WeatherLayerType[] = ['none', 'wind-particles', 'humidity', 'satellite', 'radar'];
 
 export const useWeatherLayerStore = create<WeatherLayerState>()(
   devtools(

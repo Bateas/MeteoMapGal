@@ -90,6 +90,13 @@ export function ReadingMapSection() {
             description="Imagen EUMETSAT Meteosat (IR 10.8μm) actualizada cada 15 min. Funciona 24h. Brillante = nubes altas/frías (cumulonimbus), oscuro = cielo despejado."
             color="#8b5cf6"
           />
+          <LayerCard
+            icon="📡"
+            name="Radar de precipitación"
+            shortcut="W ×4"
+            description="Radar AEMET de Cuntis (Galicia), radio ~240 km. Actualiza cada 10 min. Colores indican intensidad de precipitación: azul=débil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
+            color="#06b6d4"
+          />
         </div>
       </div>
 

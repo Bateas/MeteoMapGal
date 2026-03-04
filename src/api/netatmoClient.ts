@@ -277,6 +277,7 @@ export async function fetchNetatmoObservations(
     // Extract readings from measures
     let temperature: number | null = null;
     let humidity: number | null = null;
+    let pressure: number | null = null;
     let windSpeed: number | null = null;
     let windGust: number | null = null;
     let windDirection: number | null = null;
@@ -296,7 +297,9 @@ export async function fetchNetatmoObservations(
 
           if (tempIdx !== -1) temperature = values[tempIdx] ?? null;
           if (humIdx !== -1) humidity = values[humIdx] ?? null;
-          // Note: pressure is available in measure.type but not in NormalizedReading
+
+          const pressIdx = measure.type.indexOf('pressure');
+          if (pressIdx !== -1) pressure = values[pressIdx] ?? null;
         }
       }
 
@@ -326,6 +329,8 @@ export async function fetchNetatmoObservations(
       humidity,
       precipitation,
       solarRadiation: null, // Netatmo basic stations don't report solar
+      pressure,
+      dewPoint: null, // Netatmo public API doesn't expose dew point directly
     });
   }
 
