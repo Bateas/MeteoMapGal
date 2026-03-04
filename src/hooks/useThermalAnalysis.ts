@@ -160,7 +160,7 @@ export function useThermalAnalysis() {
     }
     // Include atmospheric context in fingerprint since it affects scoring
     const atmKey = atmosphericContext
-      ? `atm:${atmosphericContext.cloudCover?.toFixed(0)},${atmosphericContext.solarRadiation?.toFixed(0)}`
+      ? `atm:${atmosphericContext.cloudCover?.toFixed(0)},${atmosphericContext.solarRadiation?.toFixed(0)},${atmosphericContext.boundaryLayerHeight?.toFixed(0)},${atmosphericContext.liftedIndex?.toFixed(0)},${atmosphericContext.convectiveInhibition?.toFixed(0)}`
       : '';
     const fingerprint = parts.sort().join('|') + atmKey;
 
@@ -197,8 +197,11 @@ export function useThermalAnalysis() {
         effectiveAtmospheric = {
           cloudCover: realCloudCover,
           solarRadiation: avgSolar,
-          // Keep CAPE from Open-Meteo (no station sensor for this)
+          // Keep model-derived params from Open-Meteo (no station sensors for these)
           cape: atmosphericContext?.cape ?? null,
+          boundaryLayerHeight: atmosphericContext?.boundaryLayerHeight ?? null,
+          liftedIndex: atmosphericContext?.liftedIndex ?? null,
+          convectiveInhibition: atmosphericContext?.convectiveInhibition ?? null,
           fetchedAt: new Date(),
         } satisfies AtmosphericContext;
       }

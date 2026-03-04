@@ -43,6 +43,9 @@ interface OpenMeteoHourlyResponse {
     cloud_cover?: (number | null)[];
     shortwave_radiation?: (number | null)[];
     cape?: (number | null)[];
+    boundary_layer_height?: (number | null)[];
+    lifted_index?: (number | null)[];
+    convective_inhibition?: (number | null)[];
   };
   daily?: {
     time: string[];
@@ -140,6 +143,7 @@ export async function fetchOpenMeteoForecast(
     'temperature_2m', 'relative_humidity_2m',
     'wind_speed_10m', 'wind_direction_10m',
     'cloud_cover', 'shortwave_radiation', 'cape',
+    'boundary_layer_height', 'lifted_index', 'convective_inhibition',
   ].join(',');
 
   const url = `https://api.open-meteo.com/v1/forecast` +
@@ -168,6 +172,9 @@ export async function fetchOpenMeteoForecast(
       cloudCover: data.hourly.cloud_cover?.[i] ?? null,
       solarRadiation: data.hourly.shortwave_radiation?.[i] ?? null,
       cape: data.hourly.cape?.[i] ?? null,
+      boundaryLayerHeight: data.hourly.boundary_layer_height?.[i] ?? null,
+      liftedIndex: data.hourly.lifted_index?.[i] ?? null,
+      convectiveInhibition: data.hourly.convective_inhibition?.[i] ?? null,
     });
   }
 
@@ -249,38 +256,56 @@ export async function fetchDailyContextForEmbalse(): Promise<DailyContext> {
 
 /**
  * Fetch current atmospheric context from Open-Meteo.
- * Provides cloud cover, solar radiation, and CAPE for thermal prediction.
- * CAPE > 500 J/kg indicates moderate convection potential.
- * CAPE > 1000 J/kg indicates strong convection potential.
+ * Provides cloud cover, solar radiation, CAPE, PBL height, lifted index, CIN
+ * for thermal prediction.
+ *
+ * Key thresholds:
+ * - CAPE > 500 J/kg = moderate convection, > 1000 = strong
+ * - PBL > 1500m = deep mixing layer, excellent thermals
+ * - Lifted Index < -2 = unstable, < -6 = strongly unstable
+ * - CIN < 50 J/kg = low inhibition, thermals develop freely
  */
 export async function fetchAtmosphericContext(
   lat: number,
   lon: number
 ): Promise<AtmosphericContext> {
-  // Fetch current hour + next 2 hours for immediate context
+  const hourlyParams = [
+    'cloud_cover', 'shortwave_radiation', 'cape',
+    'boundary_layer_height', 'lifted_index', 'convective_inhibition',
+  ].join(',');
+
   const url = `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}&longitude=${lon}` +
-    `&hourly=cloud_cover,shortwave_radiation,cape` +
+    `&hourly=${hourlyParams}` +
     `&forecast_hours=1&past_hours=0` +
     `&timezone=Europe%2FMadrid`;
 
+  const nullContext: AtmosphericContext = {
+    cloudCover: null, solarRadiation: null, cape: null,
+    boundaryLayerHeight: null, liftedIndex: null, convectiveInhibition: null,
+    fetchedAt: new Date(),
+  };
+
   try {
     const res = await fetch(url);
-    if (!res.ok) return { cloudCover: null, solarRadiation: null, cape: null, fetchedAt: new Date() };
+    if (!res.ok) return nullContext;
 
     const data: OpenMeteoHourlyResponse = await res.json();
     if (!data.hourly || data.hourly.time.length === 0) {
-      return { cloudCover: null, solarRadiation: null, cape: null, fetchedAt: new Date() };
+      return nullContext;
     }
 
     return {
       cloudCover: data.hourly.cloud_cover?.[0] ?? null,
       solarRadiation: data.hourly.shortwave_radiation?.[0] ?? null,
       cape: data.hourly.cape?.[0] ?? null,
+      boundaryLayerHeight: data.hourly.boundary_layer_height?.[0] ?? null,
+      liftedIndex: data.hourly.lifted_index?.[0] ?? null,
+      convectiveInhibition: data.hourly.convective_inhibition?.[0] ?? null,
       fetchedAt: new Date(),
     };
   } catch {
-    return { cloudCover: null, solarRadiation: null, cape: null, fetchedAt: new Date() };
+    return nullContext;
   }
 }
 
