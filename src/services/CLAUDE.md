@@ -20,7 +20,6 @@ Pure functions and algorithms used across the app. No React dependencies.
 ## Alert Systems
 
 - **`fieldAlertEngine.ts`** — Agricultural alert checks: frost (helada), rain, fog/dew, wind propagation. Returns severity levels (none/low/medium/high/critical).
-- **`alertCheckers.ts`** — Individual alert check functions (frost threshold, humidity saturation, etc.).
 - **`alertService.ts`** — `aggregateAllAlerts()` merges storm alerts, thermal profile, zone alerts, field alerts, and forecast into unified risk level.
 - **`notificationService.ts`** — Browser push notifications + audio alerts for escalated alerts.
 - **`stormTracker.ts`** — Lightning proximity analysis: danger <10km, warning <25km, watch <50km from reservoir center.

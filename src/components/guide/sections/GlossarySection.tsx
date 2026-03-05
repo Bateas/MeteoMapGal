@@ -45,6 +45,12 @@ export function GlossarySection() {
           example="MeteoMap detecta frentes de racha cuando varias estaciones a barlovento muestran incrementos súbitos coordinados."
           color="#22c55e"
         />
+        <Term
+          term="CALMA"
+          definition="Veredicto del banner de navegación cuando la velocidad del viento es inferior a 4 nudos. Indica ausencia de viento útil para navegar."
+          example="Banner gris 'Sin viento' o '3 kt' → condiciones de calma. Si el score térmico es alto, se muestra 'Esperar térmico'."
+          color="#22c55e"
+        />
       </TermGroup>
 
       {/* ── Temperature & Humidity ── */}
@@ -182,16 +188,38 @@ export function GlossarySection() {
           color="#10b981"
         />
         <Term
+          term="Hargreaves-Samani"
+          definition="Fórmula empírica para estimar la evapotranspiración (ET₀) a partir de temperaturas mínima y máxima. Versión simplificada de Penman-Monteith cuando faltan datos de radiación."
+          example="MeteoMap calcula ET₀ diaria con Hargreaves-Samani usando las previsiones Open-Meteo de 48h, corrigiendo por viento y humedad."
+          color="#10b981"
+        />
+      </TermGroup>
+
+      {/* ── Aviation & Drones ── */}
+      <TermGroup title="Aviación y drones">
+        <Term
           term="NOTAM (Notice to Airmen)"
           definition="Aviso temporal a pilotos sobre restricciones o peligros en el espacio aéreo. Incluye ejercicios militares, trabajos aéreos, etc."
           example="NOTAM de restricción temporal a 500m AGL sobre una zona agrícola → drones no pueden volar en esa área."
-          color="#10b981"
+          color="#a855f7"
         />
         <Term
           term="UAS (Unmanned Aircraft System)"
           definition="Sistema de aeronave no tripulada (drones). Las zonas UAS (ZGUAS) de ENAIRE regulan dónde y cómo pueden operar."
           example="Zona UAS prohibida sobre aeródromo → MeteoMap muestra en rojo en el mapa y bloquea el veredicto Dron."
-          color="#10b981"
+          color="#a855f7"
+        />
+        <Term
+          term="ZGUAS (Zona Geográfica UAS)"
+          definition="Delimitación geográfica de ENAIRE que define restricciones para operaciones de drones: prohibidas, autorizadas con condiciones, o informativas."
+          example="ZGUAS de tipo prohibido sobre base militar → MeteoMap marca la zona en rojo y la lista en el tab Dron."
+          color="#a855f7"
+        />
+        <Term
+          term="AGL (Above Ground Level)"
+          definition="Altura medida desde el nivel del suelo, no del mar. Las restricciones de drones se expresan en metros AGL."
+          example="NOTAM restringe vuelo por debajo de 120m AGL → altura máxima legal para drones recreativos en España."
+          color="#a855f7"
         />
       </TermGroup>
 

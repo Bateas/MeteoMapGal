@@ -10,14 +10,22 @@ import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { scoreForecastThermal, thermalColor } from '../../services/forecastScoringUtils';
 import { useUIStore } from '../../store/uiStore';
 
+interface WindFrontInfo {
+  active: boolean;
+  etaMin: number | null;
+  directionLabel: string;
+  frontSpeedKt: number;
+}
+
 interface HeaderProps {
   onRefresh: () => void;
   fieldDrawerOpen?: boolean;
   onToggleFieldDrawer?: () => void;
   fieldAlertLevel?: 'none' | 'riesgo' | 'alto' | 'critico';
+  windFront?: WindFrontInfo | null;
 }
 
-export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldAlertLevel = 'none' }: HeaderProps) {
+export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldAlertLevel = 'none', windFront }: HeaderProps) {
   const stationCount = useWeatherStore((s) => s.stations.length);
   const readingCount = useWeatherStore((s) => s.currentReadings.size);
   const activeSector = useSectorStore((s) => s.activeSector);
@@ -144,10 +152,31 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   }
                 : undefined
             }
-            title={isMobile ? 'Panel de alertas' : 'Panel de alertas (C)'}
+            title={isMobile ? 'Panel campo y alertas' : 'Panel campo y alertas (C)'}
           >
-            <span className="inline-flex items-center gap-1">{isMobile && <WeatherIcon id="alert-triangle" size={14} />} Alertas</span>
+            <span className="inline-flex items-center gap-1">{isMobile && <WeatherIcon id="clipboard-list" size={14} />} Panel</span>
           </button>
+        )}
+
+        {/* Wind front ETA badge — when propagation detected */}
+        {windFront?.active && windFront.etaMin != null && (
+          <div
+            className={`flex items-center gap-1 rounded font-mono ${
+              isMobile ? 'px-2 py-1.5 text-[10px]' : 'px-2 py-0.5 text-[10px]'
+            }`}
+            style={{
+              background: 'rgba(245, 158, 11, 0.10)',
+              border: '1px solid rgba(245, 158, 11, 0.30)',
+              color: '#f59e0b',
+            }}
+            title={`Frente de viento ${windFront.directionLabel} a ${windFront.frontSpeedKt.toFixed(0)} kt — llegada estimada ~${windFront.etaMin} min`}
+          >
+            <WeatherIcon id="radar" size={isMobile ? 14 : 12} />
+            <span className="font-bold">~{windFront.etaMin} min</span>
+            {!isMobile && (
+              <span className="text-slate-500 text-[9px]">{windFront.directionLabel}</span>
+            )}
+          </div>
         )}
 
         {/* Next sailing window banner (Embalse only — hide on mobile) */}

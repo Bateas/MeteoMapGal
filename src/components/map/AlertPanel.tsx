@@ -92,7 +92,7 @@ function AlertChip({ alert }: { alert: UnifiedAlert }) {
       >
         {alert.title}
       </span>
-      <span className="text-slate-500 font-mono">{alert.score}</span>
+      {/* Score hidden from UI — internal metric only */}
     </div>
   );
 }
@@ -120,9 +120,7 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
           >
             {alert.title}
           </span>
-          <span className="text-[9px] text-slate-500 font-mono">
-            {alert.score}pts
-          </span>
+          {/* Score hidden — internal metric */}
         </div>
         <div className="text-[10px] text-slate-400 truncate mt-0.5">
           {alert.detail}
