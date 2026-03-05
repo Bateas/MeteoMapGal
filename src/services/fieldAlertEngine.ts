@@ -6,6 +6,7 @@
 import type { HourlyForecast } from '../types/forecast';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { FrostAlert, RainAlert, DroneConditions, FieldAlerts, AlertLevel, WindPropagationInfo } from '../types/campo';
+import type { AirspaceCheck } from './airspaceService';
 import { msToKnots } from './windUtils';
 import { getSunTimes } from './solarUtils';
 import { analyzeFog } from './dewPointService';
@@ -120,8 +121,14 @@ export function checkRainHail(forecast: HourlyForecast[]): RainAlert {
  * Check current/near-future conditions for drone flight.
  * Safe: wind < 15 kt, no rain, no nearby storms.
  */
-export function checkDroneConditions(forecast: HourlyForecast[]): DroneConditions {
-  const noFly: DroneConditions = { flyable: false, windKt: 0, gustKt: 0, rain: false, storms: false, reasons: ['Sin datos de previsión'] };
+export function checkDroneConditions(
+  forecast: HourlyForecast[],
+  airspace?: AirspaceCheck,
+): DroneConditions {
+  const noFly: DroneConditions = {
+    flyable: false, windKt: 0, gustKt: 0, rain: false, storms: false, reasons: ['Sin datos de previsión'],
+    airspaceRestricted: false, airspaceSeverity: 'none', airspaceReasons: [], activeNotams: 0,
+  };
   if (forecast.length === 0) return noFly;
 
   // Use the first future point (or closest to now)
@@ -145,9 +152,45 @@ export function checkDroneConditions(forecast: HourlyForecast[]): DroneCondition
   if (rain) reasons.push(`Lluvia prevista (${(current.precipitation ?? 0).toFixed(1)} mm)`);
   if (storms) reasons.push(`Riesgo tormenta (CAPE ${cape.toFixed(0)})`);
 
+  // ── Airspace restrictions ──
+  const airspaceReasons: string[] = [];
+  let airspaceSeverity: 'none' | 'caution' | 'prohibited' = 'none';
+  let activeNotams = 0;
+
+  if (airspace) {
+    airspaceSeverity = airspace.severity;
+    activeNotams = airspace.notams.length;
+
+    // Add zone restrictions to reasons
+    for (const zone of airspace.zones) {
+      if (zone.type.toUpperCase().includes('PROHIB')) {
+        reasons.push(`Zona prohibida: ${zone.name}`);
+        airspaceReasons.push(`Zona prohibida: ${zone.name}`);
+      } else {
+        airspaceReasons.push(`Requiere autorización: ${zone.name}`);
+      }
+    }
+
+    // Add NOTAM restrictions
+    for (const notam of airspace.notams) {
+      if (notam.severity === 'prohibited') {
+        reasons.push(`NOTAM: ${notam.description.slice(0, 80)}`);
+        airspaceReasons.push(`NOTAM ${notam.id}: ${notam.description.slice(0, 80)}`);
+      } else if (notam.severity === 'caution') {
+        airspaceReasons.push(`NOTAM ${notam.id}: ${notam.description.slice(0, 80)}`);
+      }
+    }
+  }
+
   const flyable = reasons.length === 0;
 
-  return { flyable, windKt, gustKt, rain, storms, reasons };
+  return {
+    flyable, windKt, gustKt, rain, storms, reasons,
+    airspaceRestricted: airspace?.restricted ?? false,
+    airspaceSeverity,
+    airspaceReasons,
+    activeNotams,
+  };
 }
 
 // ── Combined check ───────────────────────────────────────
@@ -165,10 +208,11 @@ export function checkAllFieldAlerts(
   stations?: NormalizedStation[],
   currentReadings?: Map<string, NormalizedReading>,
   center?: [number, number],
+  airspace?: AirspaceCheck,
 ): FieldAlerts {
   const frost = checkFrost(forecast, center);
   const rain = checkRainHail(forecast);
-  const drone = checkDroneConditions(forecast);
+  const drone = checkDroneConditions(forecast, airspace);
   const fog = analyzeFog(readingHistory ?? new Map(), new Date(), forecast);
 
   // Wind propagation detection (needs stations + current + history)

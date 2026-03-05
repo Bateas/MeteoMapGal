@@ -3,6 +3,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useAlertStore } from '../../store/alertStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { msToKnots } from '../../services/windUtils';
+import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 /**
  * Real-time Go/No-go sailing conditions banner on the map.
@@ -52,8 +53,8 @@ export function SailingConditionBanner() {
       : 0;
 
     // Determine verdict
-    // Wind thresholds: <4kt=calma, 4-6kt=marginal, 6-20kt=GO, 20-25kt=viento fuerte, >25kt=excesivo
-    let verdict: 'go' | 'marginal' | 'nogo';
+    // Wind thresholds: <4kt=calma, 4-6kt=light, 6-20kt=GO, 20-25kt=viento fuerte, >25kt=excesivo
+    let verdict: 'go' | 'marginal' | 'nogo' | 'calma';
     let label: string;
     let sublabel: string;
 
@@ -73,28 +74,30 @@ export function SailingConditionBanner() {
       verdict = 'go';
       label = `${bestWindKt.toFixed(0)} kt`;
       sublabel = risk.severity === 'high'
-        ? `${bestStationName} ⚠️`
+        ? bestStationName
         : bestStationName;
     } else if (bestWindKt >= 4 && thermalScore >= 30) {
       verdict = 'marginal';
       label = `${bestWindKt.toFixed(0)} kt`;
       sublabel = `Térmico ${thermalScore}%`;
-    } else if (bestWindKt < 4) {
+    } else if (bestWindKt >= 4) {
+      // 4-6 kt without thermal: light wind, not alarming
+      verdict = 'calma';
+      label = `${bestWindKt.toFixed(0)} kt`;
+      sublabel = bestStationName;
+    } else {
+      // < 4 kt: calm conditions
       if (thermalScore >= 50) {
         verdict = 'marginal';
         label = 'Esperar térmico';
         sublabel = `Previsión ${thermalScore}%`;
       } else {
-        verdict = 'nogo';
+        verdict = 'calma';
         label = 'Sin viento';
-        sublabel = avgHumidity !== null && avgHumidity > 75
-          ? `HR ${avgHumidity.toFixed(0)}% — térmico improbable`
+        sublabel = avgHumidity != null && avgHumidity > 75
+          ? `HR ${avgHumidity.toFixed(0)}%`
           : 'Calma';
       }
-    } else {
-      verdict = 'marginal';
-      label = `${bestWindKt.toFixed(0)} kt`;
-      sublabel = bestStationName;
     }
 
     return { verdict, label, sublabel, bestWindKt, bestWindDir };
@@ -102,10 +105,11 @@ export function SailingConditionBanner() {
 
   if (!condition) return null;
 
-  const colors = {
-    go: { bg: 'rgba(34, 197, 94, 0.15)', border: 'rgba(34, 197, 94, 0.4)', text: '#22c55e', icon: '⛵' },
-    marginal: { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 0.4)', text: '#f59e0b', icon: '⚠️' },
-    nogo: { bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(239, 68, 68, 0.4)', text: '#ef4444', icon: '🚫' },
+  const colors: Record<string, { bg: string; border: string; text: string; icon: IconId }> = {
+    go: { bg: 'rgba(34, 197, 94, 0.15)', border: 'rgba(34, 197, 94, 0.4)', text: '#22c55e', icon: 'sailboat' },
+    marginal: { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 0.4)', text: '#f59e0b', icon: 'alert-triangle' },
+    nogo: { bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(239, 68, 68, 0.4)', text: '#ef4444', icon: 'ban' },
+    calma: { bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.3)', text: '#94a3b8', icon: 'sleep' },
   };
   const c = colors[condition.verdict];
 
@@ -121,7 +125,7 @@ export function SailingConditionBanner() {
           color: c.text,
         }}
       >
-        <span className="text-base">{c.icon}</span>
+        <WeatherIcon id={c.icon} size={16} />
         <span className="text-sm font-bold">{condition.label}</span>
         <span className="text-[10px] font-normal opacity-80">{condition.sublabel}</span>
       </div>

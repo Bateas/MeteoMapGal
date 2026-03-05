@@ -22,6 +22,7 @@
  */
 
 import type { NormalizedReading } from '../types/station';
+import { escapeCSV } from './csvUtils';
 
 const STORAGE_KEY = 'meteomap_station_log';
 const HEADER = 'timestamp,stationId,stationName,source,windSpeed,windDirection,temperature,humidity,pressure';
@@ -30,14 +31,6 @@ const MAX_AGE_DAYS = 90;
 
 // Track last log time per station to avoid duplicates
 const lastLogTime = new Map<string, number>();
-
-/** Escape a CSV field to prevent injection (=, +, -, @) and handle commas/quotes. */
-function escapeCSV(value: string): string {
-  if (/[,"\n\r]/.test(value) || /^[=+\-@]/.test(value)) {
-    return '"' + value.replace(/"/g, '""') + '"';
-  }
-  return value;
-}
 
 /**
  * Log an array of readings to localStorage CSV.

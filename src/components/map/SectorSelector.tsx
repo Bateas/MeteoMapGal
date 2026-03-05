@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { SECTORS } from '../../config/sectors';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 /**
  * Floating sector switcher buttons on the map.
@@ -31,7 +32,7 @@ export const SectorSelector = memo(function SectorSelector() {
                 : 'bg-slate-900/80 text-slate-400 border-slate-700/50 hover:text-white hover:bg-slate-800/90'
             }`}
           >
-            <span className={isMobile ? 'text-lg' : 'text-sm'}>{sector.icon}</span>
+            <WeatherIcon id={sector.icon} size={isMobile ? 18 : 14} />
             {!isMobile && <span>{sector.shortName}</span>}
           </button>
         );

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { LastUpdated } from '../common/LastUpdated';
 import { SourceStatusIndicator } from '../common/SourceStatusIndicator';
+import { WeatherIcon } from '../icons/WeatherIcons';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
@@ -84,8 +85,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           MeteoMap
         </h1>
         {!isMobile && (
-          <span className="text-[10px] text-slate-500 font-medium truncate">
-            {activeSector.icon} {activeSector.name}
+          <span className="text-[10px] text-slate-500 font-medium truncate inline-flex items-center gap-1">
+            <WeatherIcon id={activeSector.icon} size={12} /> {activeSector.name}
           </span>
         )}
         {stationCount > 0 && (
@@ -103,7 +104,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           title={isMobile ? 'Guía meteorológica' : 'Guía meteorológica (G)'}
           aria-label="Abrir guía meteorológica"
         >
-          📖
+          <WeatherIcon id="book-open" size={14} />
         </button>
       </div>
       <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
@@ -145,7 +146,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             }
             title={isMobile ? 'Panel de alertas' : 'Panel de alertas (C)'}
           >
-            <span>{isMobile ? '⚠ Alertas' : 'Alertas'}</span>
+            <span className="inline-flex items-center gap-1">{isMobile && <WeatherIcon id="alert-triangle" size={14} />} Alertas</span>
           </button>
         )}
 
@@ -160,7 +161,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             }}
             title={`Mejor ventana térmica en las próximas 48h: ${nextSailingWindow.score}%`}
           >
-            <span>⛵</span>
+            <WeatherIcon id="sailboat" size={14} />
             <span className="font-semibold">{nextSailingWindow.score}%</span>
             <span className="text-slate-500 text-[9px]">
               {nextSailingWindow.time.toLocaleDateString('es-ES', { weekday: 'short' })}{' '}

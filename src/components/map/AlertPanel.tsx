@@ -2,6 +2,8 @@ import { memo, useMemo } from 'react';
 import { useAlertStore } from '../../store/alertStore';
 import { useUIStore } from '../../store/uiStore';
 import { NotificationControl } from './NotificationControl';
+import { WeatherIcon } from '../icons/WeatherIcons';
+import type { IconId } from '../icons/WeatherIcons';
 import type { UnifiedAlert, AlertSeverity, CompositeRisk } from '../../services/alertService';
 
 // ── Severity color palette ───────────────────────────────────
@@ -83,7 +85,7 @@ function AlertChip({ alert }: { alert: UnifiedAlert }) {
       }}
       title={alert.detail}
     >
-      <span className="text-xs leading-none">{alert.icon}</span>
+      <span className="text-xs leading-none"><WeatherIcon id={alert.icon as IconId} size={12} /></span>
       <span
         className="font-bold tracking-wide truncate max-w-[100px] md:max-w-[140px]"
         style={{ color: colors.text }}
@@ -109,7 +111,7 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
         border: `1px solid ${colors.border}`,
       }}
     >
-      <span className="text-sm leading-none shrink-0">{alert.icon}</span>
+      <span className="text-sm leading-none shrink-0"><WeatherIcon id={alert.icon as IconId} size={14} /></span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span

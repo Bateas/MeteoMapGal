@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { useWeatherStore, type WeatherSource } from '../../store/weatherStore';
+import { isAemetRateLimited, aemetCooldownRemaining } from '../../api/aemetClient';
 
 const SOURCE_LABELS: Record<WeatherSource, string> = {
   aemet: 'A',
@@ -35,10 +36,17 @@ export const SourceStatusIndicator = memo(function SourceStatusIndicator() {
         let bgColor: string;
         let title: string;
 
+        // Distinguish AEMET rate-limit cooldown from generic errors
+        const isRateLimited = source === 'aemet' && isAemetRateLimited();
+
         if (!status || (!status.lastSuccess && !status.lastError)) {
           color = 'text-slate-600';
           bgColor = 'bg-slate-800/50';
           title = `${source}: Esperando...`;
+        } else if (isRateLimited) {
+          color = 'text-amber-400 animate-pulse';
+          bgColor = 'bg-amber-950/30';
+          title = `AEMET: Rate-limited (${aemetCooldownRemaining()}s restantes)`;
         } else if (hasError && !hasData) {
           color = 'text-red-400';
           bgColor = 'bg-red-950/40';

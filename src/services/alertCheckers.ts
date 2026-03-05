@@ -95,16 +95,16 @@ export function formatTelegramMessage(messages: AlertMessage[]): string {
   const lines = messages
     .filter((m) => m.level !== 'none')
     .map((m) => {
-      const emoji = m.type === 'frost' ? '❄️'
-        : m.type === 'hail' ? '🌨️'
-        : m.type === 'rain' ? '🌧️'
-        : m.type === 'fog' ? '🌫️'
-        : m.type === 'drone_ok' ? '✅'
-        : '⛔';
-      return `${emoji} ${m.text}`;
+      const label = m.type === 'frost' ? '[Helada]'
+        : m.type === 'hail' ? '[Granizo]'
+        : m.type === 'rain' ? '[Lluvia]'
+        : m.type === 'fog' ? '[Niebla]'
+        : m.type === 'drone_ok' ? '[OK]'
+        : '[Alerta]';
+      return `${label} ${m.text}`;
     });
 
   return lines.length > 0
-    ? `🌾 MeteoMap Campo\n${lines.join('\n')}`
+    ? `MeteoMap Campo\n${lines.join('\n')}`
     : '';
 }
