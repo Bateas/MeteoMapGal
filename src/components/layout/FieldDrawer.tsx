@@ -62,11 +62,16 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
     setDroneTabActive(open && activeTab === 'dron');
   }, [open, activeTab, setDroneTabActive]);
 
-  // Close on click outside
+  // Close on click outside (but NOT on map interactions — user needs to pan/zoom while drawer is open)
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
       if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        // Don't close when clicking/dragging on the map — user may be panning or inspecting airspace
+        const target = e.target as HTMLElement;
+        if (target.closest('.maplibregl-map') || target.closest('.maplibregl-canvas-container')) {
+          return;
+        }
         onClose();
       }
     }
