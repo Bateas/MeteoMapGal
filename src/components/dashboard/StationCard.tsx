@@ -15,12 +15,60 @@ import {
   solarRadiationIcon,
   pressureColor,
   dewPointSpreadColor,
+  msToKnots,
 } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { WindCompass } from '../common/WindCompass';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
+
+// ── Wind sparkline (last ~1h of wind speed) ────────────────
+
+const SPARKLINE_W = 40;
+const SPARKLINE_H = 16;
+const SPARKLINE_MAX_POINTS = 12;
+
+function WindSparkline({ stationId }: { stationId: string }) {
+  const history = useWeatherStore((s) => s.readingHistory.get(stationId));
+
+  const path = useMemo(() => {
+    if (!history || history.length < 3) return null;
+
+    const recent = history.slice(-SPARKLINE_MAX_POINTS);
+    const speeds = recent.map((r) => r.windSpeed ?? 0);
+    const max = Math.max(...speeds, 1); // avoid division by 0
+    const step = SPARKLINE_W / (speeds.length - 1);
+
+    return speeds
+      .map((s, i) => {
+        const x = (i * step).toFixed(1);
+        const y = (SPARKLINE_H - (s / max) * (SPARKLINE_H - 2) - 1).toFixed(1);
+        return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+      })
+      .join(' ');
+  }, [history]);
+
+  if (!path) return null;
+
+  return (
+    <svg
+      width={SPARKLINE_W}
+      height={SPARKLINE_H}
+      className="ml-1 flex-shrink-0 opacity-60"
+      aria-label="Tendencia viento 1h"
+    >
+      <path
+        fill="none"
+        stroke="#64748b"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d={path}
+      />
+    </svg>
+  );
+}
 
 interface StationCardProps {
   station: NormalizedStation;
@@ -131,6 +179,7 @@ export function StationCard({ station, reading }: StationCardProps) {
                     {trend.symbol}
                   </span>
                 )}
+                <WindSparkline stationId={station.id} />
               </div>
               {reading.windGust !== null && reading.windGust > 0 && (
                 <div className="text-[9px] text-slate-500 mt-0.5" title="Racha máxima">

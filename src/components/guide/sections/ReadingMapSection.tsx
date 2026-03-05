@@ -137,6 +137,26 @@ export function ReadingMapSection() {
             title="Banner Go/No-Go"
             text="Indicador en el mapa: verde (GO 6-20kt), ámbar (MARGINAL), rojo (NO-GO > 25kt o calma)."
           />
+          <MiniExplainer
+            iconId="drone"
+            title="Espacio aéreo UAS"
+            text="Zonas restringidas ENAIRE (ZGUAS + NOTAMs) visibles al abrir el tab Dron. Clic en zona → flyTo en mapa."
+          />
+          <MiniExplainer
+            iconId="info"
+            title="Estado de fuentes"
+            text="Badge en la cabecera indicando cuántas fuentes están activas. Ámbar = alguna fuente retrasada."
+          />
+          <MiniExplainer
+            iconId="download"
+            title="Exportar CSV"
+            text="Botón en menú de estación → exporta lecturas históricas a CSV. Compatible con Excel/LibreOffice."
+          />
+          <MiniExplainer
+            iconId="thermometer"
+            title="Presión y punto de rocío"
+            text="Datos de 5 fuentes (AEMET, MG, MC, WU, Netatmo). Spread T−Td para predicción de niebla."
+          />
         </div>
       </div>
 

@@ -102,6 +102,24 @@ export interface WindPropagationInfo {
   summary: string;
 }
 
+// ── Evapotranspiration (ET₀) ─────────────────────────────
+
+export interface ET0Result {
+  /** Estimated daily reference evapotranspiration (mm/day) */
+  et0Daily: number | null;
+  /** Irrigation advice (Spanish) */
+  irrigationAdvice: string;
+  /** Alert level based on water demand */
+  level: AlertLevel;
+}
+
+// ── Disease risk (viticulture) ──────────────────────────
+
+export interface DiseaseRisk {
+  mildiu: { risk: boolean; level: AlertLevel; hours: number; detail: string };
+  oidio: { risk: boolean; level: AlertLevel; hours: number; detail: string };
+}
+
 // ── Combined field alerts ────────────────────────────────
 
 export interface FieldAlerts {
@@ -110,6 +128,8 @@ export interface FieldAlerts {
   fog: FogAlert;
   drone: DroneConditions;
   wind: WindPropagationInfo;
+  et0: ET0Result;
+  disease: DiseaseRisk;
   /** Highest alert level across all checks */
   maxLevel: AlertLevel;
 }
