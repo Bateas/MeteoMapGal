@@ -103,14 +103,24 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
   return (
     <div
       ref={drawerRef}
-      className={`fixed right-0 top-0 h-full w-72 z-30 bg-slate-900/95 backdrop-blur-sm border-l border-slate-700 transition-transform duration-300 ease-in-out ${
-        open ? 'translate-x-0' : 'translate-x-full'
+      className={`fixed z-30 bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ease-in-out ${
+        isMobile
+          ? `inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 ${open ? 'translate-y-0' : 'translate-y-full'}`
+          : `right-0 top-0 h-full w-72 border-l border-slate-700 ${open ? 'translate-x-0' : 'translate-x-full'}`
       }`}
+      style={isMobile ? { maxHeight: '70vh' } : undefined}
     >
+      {/* Mobile drag handle */}
+      {isMobile && (
+        <div className="flex justify-center py-2">
+          <div className="w-10 h-1 rounded-full bg-slate-600" />
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-slate-700">
+      <div className={`flex items-center justify-between border-b border-slate-700 ${isMobile ? 'px-4 pb-2' : 'p-3'}`}>
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-white">Alertas</span>
+          <span className={`font-bold text-white ${isMobile ? 'text-base' : 'text-sm'}`}>Alertas</span>
         </div>
         <button
           onClick={onClose}
@@ -127,13 +137,15 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-1 py-2 text-[10px] font-semibold transition-colors relative ${
+            className={`flex-1 flex items-center justify-center gap-1.5 font-semibold transition-colors relative ${
+              isMobile ? 'py-3 text-xs' : 'py-2 text-[10px]'
+            } ${
               activeTab === tab.id
                 ? 'text-blue-400'
                 : 'text-slate-500 hover:text-slate-300'
             }`}
           >
-            {tab.icon && <WeatherIcon id={tab.icon} size={12} />}
+            {tab.icon && <WeatherIcon id={tab.icon} size={isMobile ? 16 : 12} />}
             <span>{tab.label}</span>
             {activeTab === tab.id && (
               <div className="absolute bottom-0 left-1 right-1 h-0.5 bg-blue-500 rounded-full" />
@@ -147,7 +159,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           Cargando datos de previsión...
         </div>
       ) : (
-        <div className="p-3 space-y-3 overflow-y-auto h-[calc(100%-92px)]">
+        <div className={`space-y-3 overflow-y-auto ${isMobile ? 'p-4 max-h-[calc(70vh-120px)]' : 'p-3 h-[calc(100%-92px)]'}`}>
           {/* ── Navegación tab: wind propagation + fog ── */}
           {activeTab === 'nav' && (
             <>

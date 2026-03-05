@@ -37,7 +37,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
       >
         {/* Expanded controls — ABOVE buttons so panel grows upward */}
         {isActive && (
-          <div className={`border-b border-slate-700/40 px-3 py-2 space-y-2 ${isMobile ? 'w-64' : 'w-72'}`}>
+          <div className={`border-b border-slate-700/40 space-y-2 ${isMobile ? 'w-[calc(100vw-1rem)] max-w-72 px-2.5 py-2' : 'w-72 px-3 py-2'}`}>
             {/* Opacity slider */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-500 shrink-0">Opacidad</span>
@@ -116,7 +116,7 @@ function WindLegend() {
         ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
             <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
-            <span className="text-[7px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
+            <span className="text-[8px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
           </div>
         ))}
       </div>
@@ -134,14 +134,14 @@ function HumidityLegend() {
           background: 'linear-gradient(to right, #22c55e, #22c55e 25%, #3b82f6 40%, #8b5cf6 65%, #ef4444 85%, #dc2626)',
         }}
       />
-      <div className="flex justify-between text-[7px] text-slate-600 font-mono">
+      <div className="flex justify-between text-[8px] text-slate-600 font-mono">
         <span>30%</span>
         <span>50%</span>
         <span>70%</span>
         <span>85%</span>
         <span>100%</span>
       </div>
-      <div className="flex justify-between text-[7px] text-slate-500">
+      <div className="flex justify-between text-[8px] text-slate-500">
         <span>Seco</span>
         <span>Medio</span>
         <span>Húmedo</span>
@@ -198,7 +198,7 @@ function RadarLegend() {
         ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
             <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
-            <span className="text-[7px] text-slate-600 mt-0.5">{s.label}</span>
+            <span className="text-[8px] text-slate-600 mt-0.5">{s.label}</span>
           </div>
         ))}
       </div>
