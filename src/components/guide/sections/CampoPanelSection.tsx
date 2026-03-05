@@ -34,22 +34,22 @@ export function CampoPanelSection() {
             num="2"
             iconId="sun"
             name="Campo"
-            modules="Helada + Lluvia/Granizo + Niebla"
-            desc="Para agricultura: riesgos de cultivo y campo."
+            modules="Helada + Lluvia + Niebla + ET₀ + Fitosanitario"
+            desc="Para agricultura y viticultura: riesgos de cultivo, riego y enfermedades."
           />
           <TabRow
             num="3"
             iconId="drone"
             name="Dron"
-            modules="Vuelo Dron + Propagación viento + Lluvia"
-            desc="Para pilotos de dron: aptitud y restricciones."
+            modules="Vuelo Dron + Espacio aéreo + Viento + Lluvia"
+            desc="Para pilotos de dron: aptitud meteorológica y restricciones ENAIRE."
           />
           <TabRow
             num="4"
             iconId="radar"
             name="Meteo"
-            modules="Todos los módulos"
-            desc="Vista completa de todas las alertas meteorológicas."
+            modules="Todos los módulos + Historial"
+            desc="Vista completa de alertas + historial de eventos recientes."
           />
         </div>
       </div>
@@ -150,14 +150,62 @@ export function CampoPanelSection() {
           color="#a855f7"
           items={[
             { label: 'Estado', desc: 'Badge Apto / No apto con razón principal' },
-            { label: 'Viento', desc: 'Velocidad y rachas actuales. > 10 m/s = no apto' },
+            { label: 'Viento', desc: 'Velocidad y rachas actuales. > 15 kt = no apto' },
             { label: 'Precipitación', desc: 'Lluvia activa o prevista = no apto' },
-            { label: 'Visibilidad', desc: 'Niebla o nubes bajas = restricción' },
+            { label: 'Espacio aéreo', desc: 'Zonas UAS + NOTAMs de ENAIRE. Restricciones automáticas.' },
           ]}
           levels={[
-            { level: 'Apto', condition: 'Viento < 7 m/s, sin lluvia, buena visibilidad' },
-            { level: 'Precaución', condition: 'Viento 7-10 m/s o condiciones cambiantes' },
-            { level: 'No apto', condition: 'Viento > 10 m/s, lluvia o visibilidad reducida' },
+            { level: 'Apto', condition: 'Viento < 15 kt, sin lluvia, sin restricciones' },
+            { level: 'Precaución', condition: 'Viento 15-18 kt o zona con autorización requerida' },
+            { level: 'No apto', condition: 'Viento > 18 kt, lluvia, o zona prohibida' },
+          ]}
+        />
+
+        <AlertModule
+          iconId="thermometer"
+          title="ET₀ Evapotranspiración"
+          color="#10b981"
+          items={[
+            { label: 'ET₀ diaria', desc: 'Estimación de pérdida de agua del suelo (mm/día) por Hargreaves-Samani' },
+            { label: 'Correcciones', desc: 'Ajustada por viento (>2 m/s sube ET₀) y humedad (>60% la baja)' },
+            { label: 'Consejo riego', desc: 'Recomendación automática basada en la demanda hídrica calculada' },
+          ]}
+          levels={[
+            { level: 'Riesgo', condition: 'ET₀ > 2 mm/día' },
+            { level: 'Alto', condition: 'ET₀ > 4 mm/día' },
+            { level: 'Crítico', condition: 'ET₀ > 6 mm/día' },
+          ]}
+        />
+
+        <AlertModule
+          iconId="leaf"
+          title="Riesgo Fitosanitario"
+          color="#84cc16"
+          items={[
+            { label: 'Mildiu', desc: 'T > 10°C + HR > 90% + lluvia = condiciones favorables (viñedo Ribeiro)' },
+            { label: 'Oídio', desc: 'T 15-25°C + HR > 70% sin lluvia = condiciones favorables' },
+            { label: 'Horas favorables', desc: 'Conteo de horas con condiciones propicias en las próximas 24h' },
+          ]}
+          levels={[
+            { level: 'Riesgo', condition: '2-3h favorables' },
+            { level: 'Alto', condition: '4-5h favorables' },
+            { level: 'Crítico', condition: '6+h favorables' },
+          ]}
+        />
+
+        <AlertModule
+          iconId="drone"
+          title="Espacio Aéreo ENAIRE"
+          color="#6366f1"
+          items={[
+            { label: 'Zonas UAS (ZGUAS)', desc: 'Zonas de restricción UAS: prohibidas o con autorización requerida' },
+            { label: 'NOTAMs', desc: 'Avisos temporales de restricciones de vuelo (filtro ≤120m AGL)' },
+            { label: 'Interacción', desc: 'Clic en zona/NOTAM en el drawer → zoom al centroide en el mapa' },
+          ]}
+          levels={[
+            { level: 'Sin restricción', condition: 'Ninguna zona UAS ni NOTAM activo' },
+            { level: 'Precaución', condition: 'Zona con autorización requerida o NOTAM informativo' },
+            { level: 'Prohibido', condition: 'Zona prohibida o NOTAM de restricción activa' },
           ]}
         />
       </div>

@@ -5,7 +5,7 @@
 
 import type { HourlyForecast } from '../types/forecast';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
-import type { FrostAlert, RainAlert, DroneConditions, FieldAlerts, AlertLevel, WindPropagationInfo } from '../types/campo';
+import type { FrostAlert, RainAlert, DroneConditions, FieldAlerts, AlertLevel, WindPropagationInfo, ET0Result, DiseaseRisk } from '../types/campo';
 import type { AirspaceCheck } from './airspaceService';
 import { msToKnots } from './windUtils';
 import { getSunTimes } from './solarUtils';
@@ -193,6 +193,144 @@ export function checkDroneConditions(
   };
 }
 
+// ── Evapotranspiration (Hargreaves-Samani simplified) ────
+
+/**
+ * Estimate daily reference ET₀ using Hargreaves-Samani method.
+ * Uses forecast Tmax/Tmin + solar radiation. Wind/humidity correction applied.
+ * @param forecast - next 24h of hourly data
+ */
+export function computeET0(forecast: HourlyForecast[]): ET0Result {
+  const noData: ET0Result = { et0Daily: null, irrigationAdvice: 'Sin datos suficientes', level: 'none' };
+  if (forecast.length < 12) return noData;
+
+  // Next 24h slice
+  const now = Date.now();
+  const day = forecast.filter((p) => {
+    const dt = p.time.getTime() - now;
+    return dt >= 0 && dt <= 24 * 60 * 60 * 1000;
+  });
+  if (day.length < 8) return noData;
+
+  const temps = day.map((p) => p.temperature).filter((t): t is number => t !== null);
+  if (temps.length < 4) return noData;
+
+  const tMax = Math.max(...temps);
+  const tMin = Math.min(...temps);
+  const tMean = (tMax + tMin) / 2;
+  const tRange = tMax - tMin;
+
+  // Hargreaves-Samani: ET₀ = 0.0023 × (Tmean + 17.8) × √(Tmax - Tmin) × Ra
+  // Ra ≈ estimated from solar radiation average (W/m² → MJ/m²/day)
+  const solarVals = day.map((p) => p.solarRadiation).filter((s): s is number => s !== null);
+  // If no solar data, estimate Ra from latitude ~42° (Galicia) — ~20 MJ/m²/day summer, ~8 winter
+  const month = new Date().getMonth(); // 0-11
+  const defaultRa = [8, 10, 14, 18, 22, 24, 24, 22, 17, 12, 9, 7][month];
+  const ra = solarVals.length > 4
+    ? (solarVals.reduce((a, b) => a + b, 0) / solarVals.length) * 0.0864 // W/m² → MJ/m²/day
+    : defaultRa;
+
+  let et0 = 0.0023 * (tMean + 17.8) * Math.sqrt(Math.max(tRange, 0.1)) * (ra / 2.45);
+
+  // Wind correction: high wind increases ET (+10% per m/s above 2)
+  const winds = day.map((p) => p.windSpeed).filter((w): w is number => w !== null);
+  const avgWind = winds.length > 0 ? winds.reduce((a, b) => a + b, 0) / winds.length : 0;
+  if (avgWind > 2) et0 *= 1 + 0.1 * (avgWind - 2);
+
+  // Humidity correction: high humidity decreases ET (-5% per 10% above 60)
+  const hums = day.map((p) => p.humidity).filter((h): h is number => h !== null);
+  const avgHum = hums.length > 0 ? hums.reduce((a, b) => a + b, 0) / hums.length : 60;
+  if (avgHum > 60) et0 *= Math.max(0.5, 1 - 0.005 * (avgHum - 60));
+
+  et0 = Math.round(et0 * 10) / 10;
+
+  let level: AlertLevel = 'none';
+  let irrigationAdvice: string;
+
+  if (et0 >= 6) {
+    level = 'critico';
+    irrigationAdvice = 'Demanda hídrica MUY ALTA. Riego urgente recomendado.';
+  } else if (et0 >= 4) {
+    level = 'alto';
+    irrigationAdvice = 'Demanda hídrica alta. Considerar riego suplementario.';
+  } else if (et0 >= 2) {
+    level = 'riesgo';
+    irrigationAdvice = 'Demanda hídrica moderada. Monitorizar humedad del suelo.';
+  } else {
+    irrigationAdvice = 'Demanda hídrica baja. Sin necesidad de riego adicional.';
+  }
+
+  return { et0Daily: et0, irrigationAdvice, level };
+}
+
+// ── Disease risk (grapevine: mildiu + oídio) ────────────
+
+/**
+ * Evaluate phytosanitary risk for grapevine diseases in the next 24h.
+ * - Mildiu (downy mildew): T > 10°C + HR > 90% + rain present
+ * - Oídio (powdery mildew): T 15-25°C + HR > 70% + no rain
+ */
+export function checkDiseaseRisk(forecast: HourlyForecast[]): DiseaseRisk {
+  const noRisk: DiseaseRisk = {
+    mildiu: { risk: false, level: 'none', hours: 0, detail: 'Sin condiciones favorables' },
+    oidio: { risk: false, level: 'none', hours: 0, detail: 'Sin condiciones favorables' },
+  };
+  if (forecast.length < 8) return noRisk;
+
+  const now = Date.now();
+  const next24h = forecast.filter((p) => {
+    const dt = p.time.getTime() - now;
+    return dt >= 0 && dt <= 24 * 60 * 60 * 1000;
+  });
+
+  let mildiuHours = 0;
+  let oidioHours = 0;
+
+  for (const p of next24h) {
+    const t = p.temperature;
+    const h = p.humidity;
+    const rain = (p.precipitation ?? 0) > 0.1;
+
+    if (t === null || h === null) continue;
+
+    // Mildiu: warm + very humid + rain
+    if (t > 10 && h > 90 && rain) mildiuHours++;
+
+    // Oídio: moderate temp + high humidity + DRY
+    if (t >= 15 && t <= 25 && h > 70 && !rain) oidioHours++;
+  }
+
+  // Severity mapping
+  function diseaseLevel(hours: number): AlertLevel {
+    if (hours >= 6) return 'critico';
+    if (hours >= 4) return 'alto';
+    if (hours >= 2) return 'riesgo';
+    return 'none';
+  }
+
+  const mildiuLevel = diseaseLevel(mildiuHours);
+  const oidioLevel = diseaseLevel(oidioHours);
+
+  return {
+    mildiu: {
+      risk: mildiuHours >= 2,
+      level: mildiuLevel,
+      hours: mildiuHours,
+      detail: mildiuHours >= 2
+        ? `${mildiuHours}h con T>10°C + HR>90% + lluvia en próximas 24h`
+        : 'Sin condiciones favorables para mildiu',
+    },
+    oidio: {
+      risk: oidioHours >= 2,
+      level: oidioLevel,
+      hours: oidioHours,
+      detail: oidioHours >= 2
+        ? `${oidioHours}h con T 15-25°C + HR>70% sin lluvia en próximas 24h`
+        : 'Sin condiciones favorables para oídio',
+    },
+  };
+}
+
 // ── Combined check ───────────────────────────────────────
 
 /**
@@ -214,6 +352,8 @@ export function checkAllFieldAlerts(
   const rain = checkRainHail(forecast);
   const drone = checkDroneConditions(forecast, airspace);
   const fog = analyzeFog(readingHistory ?? new Map(), new Date(), forecast);
+  const et0 = computeET0(forecast);
+  const disease = checkDiseaseRisk(forecast);
 
   // Wind propagation detection (needs stations + current + history)
   let wind: WindPropagationInfo = {
@@ -241,9 +381,9 @@ export function checkAllFieldAlerts(
     };
   }
 
-  const levels: AlertLevel[] = [frost.level, rain.level, fog.level];
+  const levels: AlertLevel[] = [frost.level, rain.level, fog.level, et0.level, disease.mildiu.level, disease.oidio.level];
   const priority: Record<AlertLevel, number> = { none: 0, riesgo: 1, alto: 2, critico: 3 };
   const maxLevel = levels.reduce<AlertLevel>((max, l) => priority[l] > priority[max] ? l : max, 'none');
 
-  return { frost, rain, fog, drone, wind, maxLevel };
+  return { frost, rain, fog, drone, wind, et0, disease, maxLevel };
 }

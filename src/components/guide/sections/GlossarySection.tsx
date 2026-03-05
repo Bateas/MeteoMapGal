@@ -159,6 +159,40 @@ export function GlossarySection() {
         />
       </TermGroup>
 
+      {/* ── Agriculture & Viticulture ── */}
+      <TermGroup title="Agricultura y viticultura">
+        <Term
+          term="ET₀ (Evapotranspiración de referencia)"
+          definition="Cantidad de agua que pierde el suelo/cultivo por evaporación y transpiración (mm/día). Se calcula con temperatura, radiación, viento y humedad."
+          example="ET₀ de 5 mm/día en verano → el viñedo pierde 5 litros de agua por m² diario. Necesita riego suplementario."
+          color="#10b981"
+        />
+        <Term
+          term="Mildiu (Downy Mildew)"
+          definition="Enfermedad fúngica de la vid (Plasmopara viticola). Necesita calor (>10°C), humedad alta (>90%) y lluvia para propagarse. Ataca hojas y racimos."
+          example="Noche con 14°C, HR 95% y lluvia durante 4h = alto riesgo de infección. MeteoMap cuenta las horas favorables en las próximas 24h."
+          color="#10b981"
+        />
+        <Term
+          term="Oídio (Powdery Mildew)"
+          definition="Enfermedad fúngica (Erysiphe necator) que prefiere temperaturas moderadas (15-25°C) y humedad alta (>70%) SIN lluvia. Polvo blanco en hojas."
+          example="Día soleado de 22°C con HR 75% → condiciones ideales para oídio. La lluvia inhibe su desarrollo."
+          color="#10b981"
+        />
+        <Term
+          term="NOTAM (Notice to Airmen)"
+          definition="Aviso temporal a pilotos sobre restricciones o peligros en el espacio aéreo. Incluye ejercicios militares, trabajos aéreos, etc."
+          example="NOTAM de restricción temporal a 500m AGL sobre una zona agrícola → drones no pueden volar en esa área."
+          color="#10b981"
+        />
+        <Term
+          term="UAS (Unmanned Aircraft System)"
+          definition="Sistema de aeronave no tripulada (drones). Las zonas UAS (ZGUAS) de ENAIRE regulan dónde y cómo pueden operar."
+          example="Zona UAS prohibida sobre aeródromo → MeteoMap muestra en rojo en el mapa y bloquea el veredicto Dron."
+          color="#10b981"
+        />
+      </TermGroup>
+
       {/* ── Data & Interpolation ── */}
       <TermGroup title="Datos y técnicas">
         <Term
@@ -214,6 +248,10 @@ export function GlossarySection() {
           <ThresholdRow label="LI inestable" value="< -2°C" />
           <ThresholdRow label="CIN barrera baja" value="< 50 J/kg" />
           <ThresholdRow label="Helada radiativa" value="Tmin < 0°C, viento < 2 m/s" />
+          <ThresholdRow label="ET₀ riego necesario" value="> 4 mm/día" />
+          <ThresholdRow label="Mildiu favorable" value="T>10°C + HR>90% + lluvia" />
+          <ThresholdRow label="Oídio favorable" value="T 15-25°C + HR>70% seco" />
+          <ThresholdRow label="Dron max viento" value="< 15 kt (18 kt rachas)" />
         </div>
       </div>
     </div>

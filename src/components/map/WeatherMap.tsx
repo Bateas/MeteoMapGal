@@ -24,6 +24,7 @@ import { WindParticleOverlay } from './WindParticleOverlay';
 import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
 import { SatelliteOverlay } from './SatelliteOverlay';
 import { RadarOverlay } from './RadarOverlay';
+import { AirspaceOverlay } from './AirspaceOverlay';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { SectorSelector } from './SectorSelector';
@@ -88,6 +89,9 @@ export function WeatherMap() {
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 
+  const flyToTarget = useUIStore((s) => s.flyToTarget);
+  const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
+
   /** Fly to sector view when it changes. */
   useEffect(() => {
     const map = mapRef.current;
@@ -103,6 +107,19 @@ export function WeatherMap() {
   // initialView is derived from sector id (immutable configs), but include it
   // so the linter sees all values used inside the effect are listed.
   }, [activeSector.id, activeSector.initialView]);
+
+  /** Fly to a specific target (triggered from FieldDrawer zone click). */
+  useEffect(() => {
+    if (!flyToTarget) return;
+    const map = mapRef.current;
+    if (!map) return;
+    map.flyTo({
+      center: [flyToTarget.lon, flyToTarget.lat],
+      zoom: flyToTarget.zoom ?? 12,
+      duration: 1500,
+    });
+    setFlyToTarget(null);
+  }, [flyToTarget, setFlyToTarget]);
 
   const handleMapClick = useCallback(() => {
     selectStation(null);
@@ -172,6 +189,9 @@ export function WeatherMap() {
 
         {/* AEMET Radar de Cuntis — regional Galicia precipitation radar */}
         <RadarOverlay />
+
+        {/* ENAIRE airspace zones + NOTAMs — only visible when Dron tab is active */}
+        <AirspaceOverlay />
 
         {/* Selected station popup */}
         {selectedStation && (

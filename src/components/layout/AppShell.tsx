@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { FieldDrawer } from './FieldDrawer';
@@ -18,7 +18,7 @@ import { useAlertStore } from '../../store/alertStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
 import { BigWindDisplay } from '../map/BigWindDisplay';
-import { MeteoGuide } from '../guide/MeteoGuide';
+const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default: m.MeteoGuide })));
 import { ToastContainer } from '../common/ToastContainer';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { processAlertNotifications } from '../../services/notificationService';
@@ -79,10 +79,14 @@ export function AppShell() {
 
   // Prune stale reading history every 30 min (entries > 24h old)
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
+  const pruneAlertHistory = useAlertStore((s) => s.pruneAlertHistory);
   useEffect(() => {
-    const id = setInterval(pruneHistory, 30 * 60 * 1000);
+    const id = setInterval(() => {
+      pruneHistory();
+      pruneAlertHistory();
+    }, 30 * 60 * 1000);
     return () => clearInterval(id);
-  }, [pruneHistory]);
+  }, [pruneHistory, pruneAlertHistory]);
 
   // Campo (agricultural alerts) drawer
   const [fieldDrawerOpen, setFieldDrawerOpen] = useState(false);
@@ -263,7 +267,7 @@ export function AppShell() {
         </main>
       </div>
       <BigWindDisplay />
-      <MeteoGuide />
+      <Suspense fallback={null}><MeteoGuide /></Suspense>
       {!isMobile && <KeyboardShortcutHelp />}
       <ToastContainer />
     </div>
