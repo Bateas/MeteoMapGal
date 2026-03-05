@@ -276,7 +276,7 @@ function AlertModule({
   levels: { level: string; condition: string }[];
 }) {
   return (
-    <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: `${color}25`, background: `${color}06` }}>
+    <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: `${color}20`, background: `${color}08` }}>
       <div className="flex items-center gap-2">
         <span className="text-base" style={{ color }}><WeatherIcon id={iconId} size={18} /></span>
         <span className="text-xs font-bold" style={{ color }}>{title}</span>

@@ -68,9 +68,33 @@ export function ReadingMapSection() {
         </div>
       </div>
 
+      {/* Standalone map buttons */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-white">Botones del mapa</h3>
+        <p className="text-[10px] text-slate-400 leading-relaxed">
+          Además de las capas, el mapa tiene botones independientes que activan
+          funciones sin interferir entre sí.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <MiniExplainer
+            iconId="thermometer"
+            title="Temperatura (T)"
+            text="Pulsa T para mostrar/ocultar el gradiente térmico: círculos con la temperatura de cada estación y líneas que conectan estaciones altas y bajas, mostrando la diferencia ΔT."
+          />
+          <MiniExplainer
+            iconId="zap"
+            title="Rayos / Tormentas"
+            text="Los impactos de rayos (últimas 24h) se muestran automáticamente en el mapa. Rojo=reciente, amarillo=horas, gris=antiguo. Los clusters agrupan zonas de actividad eléctrica."
+          />
+        </div>
+      </div>
+
       {/* Layer overlays */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Capas interactivas (tecla W)</h3>
+        <p className="text-[10px] text-slate-400 leading-relaxed">
+          Cuatro capas mutuamente excluyentes. Pulsa W para ciclar entre ellas.
+        </p>
         <div className="space-y-2">
           <LayerCard
             iconId="wind"
@@ -106,7 +130,7 @@ export function ReadingMapSection() {
       {/* Other overlays */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Otros indicadores del mapa</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <MiniExplainer
             iconId="thermometer"
             title="Gradiente térmico (T)"
@@ -164,7 +188,7 @@ export function ReadingMapSection() {
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Atajos de teclado</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
               { key: 'C', desc: 'Panel Campo' },
               { key: 'R', desc: 'Refrescar datos' },
@@ -225,7 +249,7 @@ function LayerCard({
   return (
     <div
       className="flex items-start gap-3 p-3 rounded-lg border"
-      style={{ borderColor: `${color}20`, background: `${color}06` }}
+      style={{ borderColor: `${color}20`, background: `${color}08` }}
     >
       <span className="text-xl shrink-0" style={{ color }}><WeatherIcon id={iconId} size={20} /></span>
       <div className="flex-1">

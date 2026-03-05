@@ -126,7 +126,7 @@ export function ThermalCycleSection() {
         className="rounded-xl p-5 border transition-all"
         style={{
           background: `${phase.color}08`,
-          borderColor: `${phase.color}25`,
+          borderColor: `${phase.color}20`,
         }}
       >
         <div className="flex items-start gap-4">
