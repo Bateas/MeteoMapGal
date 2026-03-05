@@ -2,14 +2,15 @@ import { memo } from 'react';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import type { WeatherLayerType } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
+import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 // ── Layer button configs ───────────────────────────────────
 
-const LAYER_BUTTONS: { id: WeatherLayerType; icon: string; label: string }[] = [
-  { id: 'wind-particles', icon: '💨', label: 'Viento' },
-  { id: 'humidity', icon: '💧', label: 'Humedad' },
-  { id: 'satellite', icon: '🛰️', label: 'Satélite' },
-  { id: 'radar', icon: '📡', label: 'Radar' },
+const LAYER_BUTTONS: { id: WeatherLayerType; icon: IconId; label: string }[] = [
+  { id: 'wind-particles', icon: 'wind', label: 'Viento' },
+  { id: 'humidity', icon: 'droplets', label: 'Humedad' },
+  { id: 'satellite', icon: 'satellite', label: 'Satélite' },
+  { id: 'radar', icon: 'radar', label: 'Radar' },
 ];
 
 // ── Component ──────────────────────────────────────────────
@@ -86,7 +87,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
                   }`}
                 title={isMobile ? btn.label : `${btn.label} (W para ciclar)`}
               >
-                <span className={isMobile ? 'text-lg' : 'text-sm'}>{btn.icon}</span>
+                <WeatherIcon id={btn.icon} size={isMobile ? 18 : 14} />
                 {!isMobile && <span>{btn.label}</span>}
               </button>
             );
@@ -154,7 +155,7 @@ function HumidityLegend() {
 function SatelliteLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold">🛰️ EUMETSAT Meteosat (IR 10.8μm)</span>
+      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="satellite" size={10} /> EUMETSAT Meteosat (IR 10.8μm)</span>
       <div className="text-[9px] text-slate-400">
         Imagen infrarroja cada 15 min. Nubes brillantes = altas/frías (cumulonimbus).
         Oscuro = cielo despejado o nubes bajas.
@@ -181,7 +182,7 @@ function SatelliteLegend() {
 function RadarLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold">📡 AEMET Radar de Cuntis (Galicia)</span>
+      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> AEMET Radar de Cuntis (Galicia)</span>
       <div className="text-[9px] text-slate-400">
         Radar regional cada 10 min. Radio ~240 km.
         Colores indican reflectividad (intensidad de precipitación).

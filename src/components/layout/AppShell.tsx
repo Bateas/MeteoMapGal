@@ -29,6 +29,8 @@ import {
 } from '../../services/lapseRateService';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
+import { useToastStore } from '../../store/toastStore';
+import { useAirspace } from '../../hooks/useAirspace';
 
 export function AppShell() {
   const { forceRefresh, retryDiscovery } = useWeatherData();
@@ -72,6 +74,9 @@ export function AppShell() {
   // Hourly forecast timeline: 48h Open-Meteo for reservoir, polls every 30 min
   useForecastTimeline();
 
+  // Airspace restrictions: ENAIRE UAS zones + NOTAMs (polls every 30 min)
+  const airspaceCheck = useAirspace();
+
   // Prune stale reading history every 30 min (entries > 24h old)
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
   useEffect(() => {
@@ -86,9 +91,9 @@ export function AppShell() {
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const fieldAlerts = useMemo(
     () => (forecastHourly.length > 0 || readingHistory.size > 0
-      ? checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings, activeSector.center)
+      ? checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck)
       : null),
-    [forecastHourly, readingHistory, stations, currentReadings, activeSector.center],
+    [forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck],
   );
   const toggleFieldDrawer = useCallback(() => setFieldDrawerOpen((o) => !o), []);
 
@@ -132,26 +137,44 @@ export function AppShell() {
   useEffect(() => {
     if (isMobile) return; // no keyboard shortcuts on mobile
 
+    const LAYER_LABELS: Record<string, string> = {
+      'none': 'Ninguna',
+      'wind-particles': 'Viento',
+      'humidity': 'Humedad',
+      'satellite': 'Satélite',
+      'radar': 'Radar',
+    };
+
     function handleKeyDown(e: KeyboardEvent) {
       // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const toast = useToastStore.getState().addToast;
 
       switch (e.key.toLowerCase()) {
         case 'c':
           toggleFieldDrawer();
+          toast('Panel de campo', 'info');
           break;
         case 'r':
-          if (!e.ctrlKey && !e.metaKey) forceRefresh();
+          if (!e.ctrlKey && !e.metaKey) {
+            forceRefresh();
+            toast('Datos refrescados', 'success');
+          }
           break;
         case 't':
           useTemperatureOverlayStore.getState().toggleOverlay();
+          toast('Gradiente térmico', 'info');
           break;
         case 'a':
           useAlertStore.getState().togglePanel();
+          toast('Panel de alertas', 'info');
           break;
-        case 'w':
+        case 'w': {
           useWeatherLayerStore.getState().cycleLayer();
+          const layer = useWeatherLayerStore.getState().activeLayer;
+          toast(`Capa: ${LAYER_LABELS[layer] ?? layer}`, 'info');
           break;
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown);

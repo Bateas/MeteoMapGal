@@ -1,6 +1,7 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
 import { useUIStore } from '../../store/uiStore';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 /**
  * Floating button on the map to toggle the temperature gradient overlay.
@@ -32,13 +33,13 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
   }
 
   // Build gradient info text when overlay is active
-  let gradientInfo: string | null = null;
+  let gradientInfo: ReactNode | null = null;
   let gradientColor = 'text-slate-400';
   if (showOverlay && regression) {
     const { slopePerKm, rSquared, stationCount } = regression;
     const rateStr = `${slopePerKm > 0 ? '+' : ''}${slopePerKm.toFixed(1)}°C/km`;
     if (hasInversion) {
-      gradientInfo = `⚠ INVERSIÓN ${rateStr} · ${stationCount} est. · R²=${rSquared.toFixed(2)}`;
+      gradientInfo = <><WeatherIcon id="alert-triangle" size={12} /> INVERSIÓN {rateStr} · {stationCount} est. · R²={rSquared.toFixed(2)}</>;
       gradientColor = 'text-amber-400';
     } else {
       gradientInfo = `${rateStr} · ${stationCount} est. · R²=${rSquared.toFixed(2)}`;
@@ -51,7 +52,7 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
       {/* Gradient info badge — above button when overlay is on */}
       {gradientInfo && (
         <div
-          className={`px-2 py-0.5 rounded-md text-[9px] font-semibold tracking-wide
+          className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-semibold tracking-wide
             backdrop-blur-md bg-slate-900/70 border border-slate-700/50
             ${gradientColor} transition-opacity duration-300 whitespace-nowrap`}
         >
@@ -73,7 +74,7 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
             : (showOverlay ? 'Ocultar gradiente de temperatura (T)' : 'Mostrar gradiente de temperatura (T)')
         }
       >
-        <span className={isMobile ? 'text-lg' : 'text-sm'}>🌡️</span>
+        <WeatherIcon id="thermometer" size={isMobile ? 18 : 14} />
         {!isMobile && <span>{showOverlay ? 'T° ON' : 'T°'}</span>}
         {hasInversion && (
           <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/30 text-red-300 font-bold">

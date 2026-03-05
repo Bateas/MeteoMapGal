@@ -24,6 +24,8 @@ import { es } from 'date-fns/locale';
 import { loadAemetHistory, filterByStation, filterBySeason, buildWindRose } from '../../services/aemetHistoryParser';
 import type { WindRoseData } from '../../types/campo';
 import { useUIStore } from '../../store/uiStore';
+import { WeatherIcon } from '../icons/WeatherIcons';
+import type { IconId } from '../icons/WeatherIcons';
 
 // AEMET stations with historical data
 const AEMET_HISTORY_STATIONS = ['aemet_1701X', 'aemet_1690A', 'aemet_1700X'];
@@ -103,7 +105,7 @@ export function StationPopup({ station, reading }: StationPopupProps) {
                   <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Humedad</div>
                   <div style={{ fontWeight: 600 }}>{formatHumidity(reading.humidity)}</div>
                 </div>
-                {reading.precipitation !== null && reading.precipitation > 0 && (
+                {reading.precipitation != null && reading.precipitation > 0 && (
                   <div>
                     <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Lluvia</div>
                     <div style={{ fontWeight: 600, color: precipitationColor(reading.precipitation) }}>
@@ -111,17 +113,20 @@ export function StationPopup({ station, reading }: StationPopupProps) {
                     </div>
                   </div>
                 )}
-                {reading.solarRadiation !== null && (
+                {reading.solarRadiation != null && (
                   <div>
-                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>
-                      {solarRadiationIcon(reading.solarRadiation)} Radiación
+                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                      {solarRadiationIcon(reading.solarRadiation) && (
+                        <WeatherIcon id={solarRadiationIcon(reading.solarRadiation) as IconId} size={10} />
+                      )}
+                      Radiación
                     </div>
                     <div style={{ fontWeight: 600, color: solarRadiationColor(reading.solarRadiation) }}>
                       {formatSolarRadiation(reading.solarRadiation)}
                     </div>
                   </div>
                 )}
-                {reading.pressure !== null && (
+                {reading.pressure != null && (
                   <div>
                     <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Presión</div>
                     <div style={{ fontWeight: 600, color: pressureColor(reading.pressure) }}>
@@ -129,19 +134,19 @@ export function StationPopup({ station, reading }: StationPopupProps) {
                     </div>
                   </div>
                 )}
-                {reading.dewPoint !== null && (
+                {reading.dewPoint != null && (
                   <div>
                     <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>P. rocío</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                       <span style={{
                         fontWeight: 600,
                         color: dewPointSpreadColor(
-                          reading.temperature !== null ? reading.temperature - reading.dewPoint : null
+                          reading.temperature != null && reading.dewPoint != null ? reading.temperature - reading.dewPoint : null
                         ),
                       }}>
                         {formatDewPoint(reading.dewPoint)}
                       </span>
-                      {reading.temperature !== null && (
+                      {reading.temperature != null && reading.dewPoint != null && (
                         <span style={{ fontSize: 9, color: '#94a3b8' }} title="Spread T − Td">
                           Δ{(reading.temperature - reading.dewPoint).toFixed(1)}°
                         </span>

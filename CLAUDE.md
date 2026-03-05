@@ -73,7 +73,7 @@ npm test              # Vitest in watch mode
 npx vitest run        # Single run (CI)
 ```
 
-103 tests across 5 files: `normalizer.test.ts`, `windUtils.test.ts`, `alertService.test.ts`, `thermalScoringEngine.test.ts`, `toastStore.test.ts`. Config in `vite.config.ts` (`test` block) with jsdom environment and `src/test/setup.ts`.
+132 tests across 6 files: `normalizer.test.ts`, `windUtils.test.ts`, `alertService.test.ts`, `thermalScoringEngine.test.ts`, `toastStore.test.ts`, `csvUtils.test.ts`. Config in `vite.config.ts` (`test` block) with jsdom environment and `src/test/setup.ts`.
 
 ## Deployment
 

@@ -1,3 +1,6 @@
+import { WeatherIcon } from '../../icons/WeatherIcons';
+import type { IconId } from '../../icons/WeatherIcons';
+
 export function BestConditionsSection() {
   return (
     <div className="space-y-6">
@@ -9,20 +12,20 @@ export function BestConditionsSection() {
 
       {/* Best conditions checklist */}
       <div className="bg-slate-900/50 rounded-xl p-5 border border-slate-800 space-y-3">
-        <h3 className="text-sm font-bold text-emerald-400">✅ Checklist del día perfecto</h3>
+        <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-1.5"><WeatherIcon id="check-circle" size={16} /> Checklist del día perfecto</h3>
         <div className="space-y-2">
-          {[
-            { check: 'Tmax 28-32°C', detail: 'Mejor viento: vel 2.0 m/s. >36°C = sofocante', icon: '🌡️' },
-            { check: 'HR 40-60%', detail: '38-43% térmico. >60% cae a 18%, >80% = 0%', icon: '💧' },
-            { check: 'ΔT > 16°C', detail: 'Validado con sol Ourense: ΔT>16 = sol>10h', icon: '📈' },
-            { check: 'E mañana en montaña', detail: '76% predictor de térmico tarde', icon: '🏔️' },
-            { check: 'Cielo despejado (>10h sol)', detail: '35% térmico vs 0% con <4h sol', icon: '☀️' },
-            { check: 'PBL > 1500m, LI < -2°C', detail: 'Capa de mezcla profunda + aire inestable', icon: '🌀' },
-            { check: 'Sin lluvia 24h previas', detail: 'Suelo seco = más convección', icon: '🌂' },
-            { check: 'Julio o Agosto', detail: 'Jul 29% + Ago 37% térmico limpio', icon: '📅' },
-          ].map((item) => (
+          {([
+            { check: 'Tmax 28-32°C', detail: 'Mejor viento: vel 2.0 m/s. >36°C = sofocante', iconId: 'thermometer' as IconId },
+            { check: 'HR 40-60%', detail: '38-43% térmico. >60% cae a 18%, >80% = 0%', iconId: 'droplets' as IconId },
+            { check: 'ΔT > 16°C', detail: 'Validado con sol Ourense: ΔT>16 = sol>10h', iconId: 'flame' as IconId },
+            { check: 'E mañana en montaña', detail: '76% predictor de térmico tarde', iconId: 'mountain' as IconId },
+            { check: 'Cielo despejado (>10h sol)', detail: '35% térmico vs 0% con <4h sol', iconId: 'sun' as IconId },
+            { check: 'PBL > 1500m, LI < -2°C', detail: 'Capa de mezcla profunda + aire inestable', iconId: 'thermal-wind' as IconId },
+            { check: 'Sin lluvia 24h previas', detail: 'Suelo seco = más convección', iconId: 'cloud-rain' as IconId },
+            { check: 'Julio o Agosto', detail: 'Jul 29% + Ago 37% térmico limpio', iconId: 'sun' as IconId },
+          ]).map((item) => (
             <div key={item.check} className="flex items-center gap-3 p-2 rounded-lg bg-slate-800/30">
-              <span className="text-base">{item.icon}</span>
+              <span className="text-base"><WeatherIcon id={item.iconId} size={16} /></span>
               <div className="flex-1">
                 <span className="text-xs font-semibold text-slate-300">{item.check}</span>
                 <span className="text-[10px] text-slate-500 ml-2">— {item.detail}</span>
@@ -74,22 +77,22 @@ export function BestConditionsSection() {
         <h3 className="text-sm font-bold text-white">Escala de viento para el embalse</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
           <div className="grid grid-cols-4 gap-2">
-            {[
-              { range: '0-1 kt', label: 'Calma', color: '#64748b', emoji: '😴' },
-              { range: '1-3 kt', label: 'Ventolina', color: '#93c5fd', emoji: '🙂' },
-              { range: '3-6 kt', label: 'Flojito', color: '#22d3ee', emoji: '🌊' },
-              { range: '6-9 kt', label: 'Flojo', color: '#22c55e', emoji: '⛵' },
-              { range: '9-13 kt', label: 'Bonancible', color: '#a3e635', emoji: '💪' },
-              { range: '13-17 kt', label: 'Fresquito', color: '#eab308', emoji: '🏆' },
-              { range: '17-23 kt', label: 'Fresco', color: '#f97316', emoji: '⚡' },
-              { range: '>23 kt', label: 'Fuerte+', color: '#ef4444', emoji: '⚠️' },
-            ].map((b) => (
+            {([
+              { range: '0-1 kt', label: 'Calma', color: '#64748b', iconId: 'sleep' as IconId },
+              { range: '1-3 kt', label: 'Ventolina', color: '#93c5fd', iconId: 'wind' as IconId },
+              { range: '3-6 kt', label: 'Flojito', color: '#22d3ee', iconId: 'waves' as IconId },
+              { range: '6-9 kt', label: 'Flojo', color: '#22c55e', iconId: 'sailboat' as IconId },
+              { range: '9-13 kt', label: 'Bonancible', color: '#a3e635', iconId: 'sailboat' as IconId },
+              { range: '13-17 kt', label: 'Fresquito', color: '#eab308', iconId: 'sailboat' as IconId },
+              { range: '17-23 kt', label: 'Fresco', color: '#f97316', iconId: 'zap' as IconId },
+              { range: '>23 kt', label: 'Fuerte+', color: '#ef4444', iconId: 'alert-triangle' as IconId },
+            ]).map((b) => (
               <div
                 key={b.range}
                 className="text-center p-2 rounded border"
                 style={{ borderColor: `${b.color}20`, background: `${b.color}08` }}
               >
-                <div className="text-base">{b.emoji}</div>
+                <div className="text-base" style={{ color: b.color }}><WeatherIcon id={b.iconId} size={18} /></div>
                 <div className="text-[10px] font-mono font-bold" style={{ color: b.color }}>{b.range}</div>
                 <div className="text-[8px] text-slate-500">{b.label}</div>
               </div>

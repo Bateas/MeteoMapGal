@@ -2,13 +2,15 @@
  * Toast notification container — renders stacked toasts at bottom-right (desktop)
  * or bottom-center (mobile).
  */
+import type { ReactNode } from 'react';
 import { useToastStore, type ToastSeverity } from '../../store/toastStore';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
-const SEVERITY_STYLES: Record<ToastSeverity, { bg: string; border: string; text: string; icon: string }> = {
-  info:    { bg: 'bg-blue-900/90',   border: 'border-blue-700', text: 'text-blue-200',   icon: 'ℹ️' },
-  success: { bg: 'bg-green-900/90',  border: 'border-green-700', text: 'text-green-200',  icon: '✅' },
-  warning: { bg: 'bg-amber-900/90',  border: 'border-amber-700', text: 'text-amber-200',  icon: '⚠️' },
-  error:   { bg: 'bg-red-900/90',    border: 'border-red-700',   text: 'text-red-200',    icon: '❌' },
+const SEVERITY_STYLES: Record<ToastSeverity, { bg: string; border: string; text: string; icon: ReactNode }> = {
+  info:    { bg: 'bg-blue-900/90',   border: 'border-blue-700', text: 'text-blue-200',   icon: <WeatherIcon id="info" size={14} /> },
+  success: { bg: 'bg-green-900/90',  border: 'border-green-700', text: 'text-green-200',  icon: <WeatherIcon id="check-circle" size={14} /> },
+  warning: { bg: 'bg-amber-900/90',  border: 'border-amber-700', text: 'text-amber-200',  icon: <WeatherIcon id="alert-triangle" size={14} /> },
+  error:   { bg: 'bg-red-900/90',    border: 'border-red-700',   text: 'text-red-200',    icon: <WeatherIcon id="x-circle" size={14} /> },
 };
 
 export function ToastContainer() {
@@ -31,7 +33,7 @@ export function ToastContainer() {
               animate-slide-up
             `}
           >
-            <span className="text-sm flex-shrink-0 mt-0.5">{style.icon}</span>
+            <span className="flex-shrink-0 mt-0.5">{style.icon}</span>
             <span className="text-xs font-medium flex-1">{toast.message}</span>
             <button
               onClick={() => removeToast(toast.id)}

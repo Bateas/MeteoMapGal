@@ -34,7 +34,7 @@ export interface UnifiedAlert {
   category: AlertCategory;
   severity: AlertSeverity;
   score: number;                       // 0-100 (weighted composite score)
-  icon: string;                        // Emoji
+  icon: string;                        // IconId from WeatherIcons
   title: string;                       // Short label (Spanish)
   detail: string;                      // 1-line description (Spanish)
   /** If true, the alert pulses / demands attention */
@@ -121,7 +121,7 @@ export function buildStormAlerts(storm: StormAlert): UnifiedAlert[] {
     category: 'storm',
     severity: severityFromScore(score),
     score,
-    icon: '⛈️',
+    icon: 'zap',
     title: labels[storm.level],
     detail,
     urgent: storm.level === 'danger' || (storm.level === 'warning' && storm.trend === 'approaching'),
@@ -148,7 +148,7 @@ export function buildInversionAlerts(profile: ThermalProfile | null): UnifiedAle
     category: 'inversion',
     severity: isStrong ? 'high' : 'moderate',
     score,
-    icon: '🌡️',
+    icon: 'thermometer',
     title,
     detail,
     urgent: isStrong && rSquared >= 0.5,
@@ -174,7 +174,7 @@ export function buildThermalAlerts(
       category: 'thermal',
       severity: za.alertLevel === 'high' ? 'high' : za.alertLevel === 'medium' ? 'moderate' : 'info',
       score,
-      icon: '🌬️',
+      icon: 'thermal-wind',
       title: `Térmico ${levelLabel} — ${zoneId}`,
       detail: `${score}% — ${za.activeRules.length} regla(s) activa(s)`,
       urgent: za.alertLevel === 'high' && score >= 70,
@@ -205,16 +205,16 @@ export function buildStormShadowAlerts(shadow: StormShadow | null): UnifiedAlert
     detail += ` hacia ${dirs[idx]}`;
   }
   if (shadow.etaMinutes !== null) {
-    title = `⚡ Tormenta acercándose — ETA ~${shadow.etaMinutes} min`;
+    title = `Tormenta acercándose — ETA ~${shadow.etaMinutes} min`;
     detail += ` · ETA ~${shadow.etaMinutes} min al embalse`;
   }
 
   // Wind anomaly context — storms generate their own wind!
   if (shadow.windContext) {
     if (shadow.windContext.outflowCount > 0) {
-      detail += ` · ⚠️ ${shadow.windContext.outflowCount} estación(es) con viento de tormenta`;
+      detail += ` · ${shadow.windContext.outflowCount} estación(es) con viento de tormenta`;
     } else if (shadow.windContext.gustCount > 0) {
-      detail += ` · 💨 ${shadow.windContext.gustCount} racha(s) detectada(s)`;
+      detail += ` · ${shadow.windContext.gustCount} racha(s) detectada(s)`;
     }
   }
 
@@ -229,7 +229,7 @@ export function buildStormShadowAlerts(shadow: StormShadow | null): UnifiedAlert
       : hasWindConfirmation ? 'high'
       : shadow.confidence >= 60 ? 'moderate' : 'info',
     score: hasWindConfirmation ? Math.min(100, score + 10) : score,
-    icon: '🌑',
+    icon: 'zap',
     title,
     detail,
     urgent: (shadow.etaMinutes !== null && shadow.etaMinutes < 20) || hasWindConfirmation,
@@ -262,7 +262,7 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
       category: 'frost',
       severity: severityFromScore(score),
       score,
-      icon: '❄️',
+      icon: 'snowflake',
       title: field.frost.level === 'critico' ? 'HELADA SEVERA' : 'Riesgo de helada',
       detail: `Mín prevista ${tempStr}`,
       urgent: field.frost.level === 'critico',
@@ -274,13 +274,13 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
   if (field.rain.level !== 'none') {
     const score = campoLevelToScore(field.rain.level);
     let detail = `${field.rain.maxPrecip.toFixed(1)} mm/h · ${field.rain.maxProbability}% prob`;
-    if (field.rain.hailRisk) detail += ' · ⚠️ GRANIZO';
+    if (field.rain.hailRisk) detail += ' · GRANIZO';
     results.push({
       id: 'rain-forecast',
       category: 'rain',
       severity: severityFromScore(score),
       score: field.rain.hailRisk ? Math.min(100, score + 20) : score,
-      icon: field.rain.hailRisk ? '🌨️' : '🌧️',
+      icon: field.rain.hailRisk ? 'hail' : 'cloud-rain',
       title: field.rain.hailRisk ? 'Riesgo de GRANIZO' : 'Lluvia prevista',
       detail,
       urgent: field.rain.hailRisk || field.rain.level === 'critico',
@@ -297,7 +297,7 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
       category: 'fog',
       severity: severityFromScore(score),
       score,
-      icon: '🌫️',
+      icon: 'fog',
       title: field.fog.level === 'critico' ? 'NIEBLA INMINENTE' : 'Riesgo de niebla',
       detail: `${spreadStr} · ${field.fog.confidence}% confianza`,
       urgent: field.fog.level === 'critico',
@@ -305,17 +305,33 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
     });
   }
 
-  // Drone
+  // Drone — meteo conditions
   if (!field.drone.flyable) {
     results.push({
       id: 'drone-nogo',
       category: 'drone',
       severity: 'moderate',
       score: 35,
-      icon: '🛩️',
+      icon: 'drone',
       title: 'NO VOLAR',
       detail: field.drone.reasons.slice(0, 2).join(' · '),
       urgent: false,
+      updatedAt: now,
+    });
+  }
+
+  // Drone — airspace restrictions
+  if (field.drone.airspaceRestricted) {
+    const isProhibited = field.drone.airspaceSeverity === 'prohibited';
+    results.push({
+      id: 'drone-airspace',
+      category: 'drone',
+      severity: isProhibited ? 'high' : 'moderate',
+      score: isProhibited ? 65 : 40,
+      icon: 'drone',
+      title: isProhibited ? 'ZONA PROHIBIDA' : 'REQUIERE AUTORIZACIÓN',
+      detail: field.drone.airspaceReasons[0] ?? 'Restricción de espacio aéreo',
+      urgent: isProhibited,
       updatedAt: now,
     });
   }
@@ -332,7 +348,7 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
       category: 'wind-front',
       severity: severityFromScore(score),
       score,
-      icon: '📡',
+      icon: 'radar',
       title: 'Frente de viento detectado',
       detail,
       urgent: false,
