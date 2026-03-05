@@ -133,7 +133,7 @@ export function WeatherMap() {
   }, []);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full overflow-hidden">
       <Map
         ref={mapRef}
         mapLib={maplibregl}
@@ -216,9 +216,9 @@ export function WeatherMap() {
       {/* ── Bottom controls: toolbar + alerts ── */}
       {isMobile ? (
         /* Mobile: stacked column — toolbar (with expanding panels) above alerts strip */
-        <div className="absolute z-20 bottom-4 left-0 right-0 px-2 pb-[env(safe-area-inset-bottom)] flex flex-col items-center gap-2">
+        <div className="absolute z-20 bottom-2 left-0 right-0 px-2 pb-[env(safe-area-inset-bottom)] flex flex-col items-center gap-2 max-w-full overflow-x-hidden">
           <AlertPanel />
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-1.5 max-w-full overflow-x-auto scrollbar-none">
             <SimulationToggle />
             <TemperatureToggle />
             <WeatherLayerSelector />

@@ -62,6 +62,11 @@ export function AppShell() {
     if (isMobile && selectedStationId) setSidebarOpen(false);
   }, [selectedStationId, isMobile, setSidebarOpen]);
 
+  // Mutual exclusion: close FieldDrawer when sidebar opens on mobile
+  useEffect(() => {
+    if (isMobile && sidebarOpen) setFieldDrawerOpen(false);
+  }, [sidebarOpen, isMobile]);
+
   // Thermal wind analysis: scores rules, detects propagation, fetches forecast
   useThermalAnalysis();
 
@@ -99,7 +104,15 @@ export function AppShell() {
       : null),
     [forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck],
   );
-  const toggleFieldDrawer = useCallback(() => setFieldDrawerOpen((o) => !o), []);
+  const toggleFieldDrawer = useCallback(() => {
+    setFieldDrawerOpen((o) => {
+      // On mobile: close sidebar when opening field drawer (mutual exclusion)
+      if (!o && useUIStore.getState().isMobile) {
+        useUIStore.getState().setSidebarOpen(false);
+      }
+      return !o;
+    });
+  }, []);
 
   // ── Temperature gradient: compute lapse rate on every reading update ──
   const setThermalProfile = useTemperatureOverlayStore((s) => s.setThermalProfile);
@@ -186,12 +199,18 @@ export function AppShell() {
   }, [isMobile, toggleFieldDrawer, forceRefresh]);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-slate-950 text-white">
+    <div className="h-screen w-full flex flex-col bg-slate-950 text-white overflow-hidden">
       <Header
         onRefresh={forceRefresh}
         fieldDrawerOpen={fieldDrawerOpen}
         onToggleFieldDrawer={toggleFieldDrawer}
         fieldAlertLevel={fieldAlerts?.maxLevel ?? 'none'}
+        windFront={fieldAlerts?.wind ? {
+          active: fieldAlerts.wind.active,
+          etaMin: fieldAlerts.wind.estimatedArrivalMin,
+          directionLabel: fieldAlerts.wind.directionLabel,
+          frontSpeedKt: fieldAlerts.wind.frontSpeedKt,
+        } : null}
       />
 
       <div className="flex-1 flex overflow-hidden relative">

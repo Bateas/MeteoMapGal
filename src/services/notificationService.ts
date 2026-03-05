@@ -147,7 +147,7 @@ function sendBrowserNotification(alert: UnifiedAlert): void {
   try {
     const notification = new Notification(`MeteoMap — ${alert.title}`, {
       body: alert.detail,
-      icon: `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="80">${alert.icon}</text></svg>`,
+      icon: '/favicon.ico',
       tag: alert.id, // Replaces existing notification with same tag
       silent: true,  // We handle sound ourselves
       requireInteraction: alert.severity === 'critical',

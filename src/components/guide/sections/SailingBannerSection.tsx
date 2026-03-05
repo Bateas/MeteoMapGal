@@ -17,13 +17,17 @@ export function SailingBannerSection() {
       {/* Verdict levels */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Veredictos</h3>
+        <p className="text-[10px] text-slate-500 italic">
+          El banner solo aparece cuando hay algo relevante que comunicar. Si las condiciones son favorables
+          (6-20 kt), el banner no se muestra — el viento ya es visible en los marcadores de estación.
+        </p>
         <div className="space-y-2">
           <VerdictCard
-            iconId="sailboat"
-            label="GO"
-            color="#22c55e"
-            wind="6 – 20 kt"
-            description="Condiciones favorables para navegar. Muestra estación con mejor viento."
+            iconId="alert-triangle"
+            label="PRECAUCIÓN"
+            color="#ef4444"
+            wind="> 25 kt"
+            description="Viento muy fuerte o alertas críticas activas. Extremar precaución."
           />
           <VerdictCard
             iconId="alert-triangle"
@@ -33,11 +37,11 @@ export function SailingBannerSection() {
             description="Viento fuerte (>20kt) o viento suave con potencial térmico. Navegar con precaución."
           />
           <VerdictCard
-            iconId="ban"
-            label="NO-GO"
-            color="#ef4444"
-            wind="> 25 kt / < 4 kt"
-            description="Viento excesivo, calma total, o alertas críticas activas. No salir."
+            iconId="sleep"
+            label="CALMA"
+            color="#94a3b8"
+            wind="< 4 kt"
+            description="Sin viento o viento insuficiente. Si hay previsión térmica, indica «Esperar térmico»."
           />
         </div>
       </div>

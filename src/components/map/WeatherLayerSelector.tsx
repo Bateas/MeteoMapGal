@@ -37,7 +37,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
       >
         {/* Expanded controls — ABOVE buttons so panel grows upward */}
         {isActive && (
-          <div className={`border-b border-slate-700/40 space-y-2 ${isMobile ? 'w-[calc(100vw-1rem)] max-w-72 px-2.5 py-2' : 'w-72 px-3 py-2'}`}>
+          <div className={`border-b border-slate-700/40 space-y-2 ${isMobile ? 'w-[min(calc(100vw-2rem),18rem)] px-2.5 py-2' : 'w-72 px-3 py-2'}`}>
             {/* Opacity slider */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-500 shrink-0">Opacidad</span>

@@ -83,7 +83,7 @@ export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
     );
   }
 
-  // Desktop: full layout
+  // Desktop: full layout — no source dots (SourceStatusIndicator already shows them in Header)
   return (
     <div className="flex items-center gap-2 text-xs text-slate-400">
       {isLoading ? (
@@ -96,23 +96,6 @@ export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
       ) : (
         <span>Sin datos</span>
       )}
-      {/* Per-source freshness dots */}
-      <div className="flex items-center gap-1">
-        {(Object.keys(SOURCE_LABELS) as WeatherSource[]).map((src) => {
-          const status = sourceFreshness.get(src);
-          const color = dotColor(status);
-          const count = status?.readingCount ?? 0;
-          const title = `${SOURCE_LABELS[src]}: ${count} est.${status?.lastError && (!status.lastSuccess || status.lastError > status.lastSuccess) ? ' (error)' : ''}`;
-          return (
-            <span
-              key={src}
-              title={title}
-              className="inline-block w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: color }}
-            />
-          );
-        })}
-      </div>
       <button
         onClick={onRefresh}
         disabled={isLoading}

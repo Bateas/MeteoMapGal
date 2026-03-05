@@ -194,8 +194,7 @@ export function evaluateAirspace(
     const key = `${z.name}|${z.type}`;
     if (seenZones.has(key)) return false;
     seenZones.add(key);
-    // Skip zones with empty names (data artifacts)
-    if (!z.name || z.name === 'Sin nombre') return false;
+    if (!z.name) return false;
     return true;
   });
 

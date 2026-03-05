@@ -140,8 +140,8 @@ describe('evaluateAirspace — zone detection', () => {
     expect(result.zones).toHaveLength(1);
   });
 
-  it('filters out zones named "Sin nombre"', () => {
-    const zone = makeZone({ name: 'Sin nombre' });
+  it('filters out zones with empty names', () => {
+    const zone = makeZone({ name: '' });
     const result = evaluateAirspace([-8.1, 42.3], 35, [zone], []);
 
     expect(result.zones).toHaveLength(0);

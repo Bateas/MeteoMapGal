@@ -193,8 +193,8 @@ export function buildStormShadowAlerts(shadow: StormShadow | null): UnifiedAlert
   const now = new Date();
   const score = Math.min(95, shadow.confidence);
 
-  let title = 'Sombra tormentosa detectada';
-  let detail = `${shadow.shadowedStations.length} estación(es) en sombra`;
+  let title = 'Tormenta cercana detectada';
+  let detail = `${shadow.shadowedStations.length} estación(es) afectada(s)`;
 
   if (shadow.movementSpeedKmh !== null) {
     detail += ` · ${shadow.movementSpeedKmh.toFixed(0)} km/h`;
@@ -279,7 +279,7 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
       id: 'rain-forecast',
       category: 'rain',
       severity: severityFromScore(score),
-      score: field.rain.hailRisk ? Math.min(100, score + 20) : score,
+      score: Math.min(100, field.rain.hailRisk ? score + 20 : score),
       icon: field.rain.hailRisk ? 'hail' : 'cloud-rain',
       title: field.rain.hailRisk ? 'Riesgo de GRANIZO' : 'Lluvia prevista',
       detail,
@@ -305,56 +305,28 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
     });
   }
 
-  // Drone — meteo conditions
+  // Drone — meteo conditions (score scales with reason count)
   if (!field.drone.flyable) {
+    const droneReasons = field.drone.reasons.length;
+    const droneScore = Math.min(100, 30 + droneReasons * 15); // 1 reason=45, 2=60, 3=75
     results.push({
       id: 'drone-nogo',
       category: 'drone',
-      severity: 'moderate',
-      score: 35,
+      severity: severityFromScore(droneScore),
+      score: droneScore,
       icon: 'drone',
-      title: 'NO VOLAR',
+      title: 'Dron: Precaución',
       detail: field.drone.reasons.slice(0, 2).join(' · '),
       urgent: false,
       updatedAt: now,
     });
   }
 
-  // Drone — airspace restrictions
-  if (field.drone.airspaceRestricted) {
-    const isProhibited = field.drone.airspaceSeverity === 'prohibited';
-    results.push({
-      id: 'drone-airspace',
-      category: 'drone',
-      severity: isProhibited ? 'high' : 'moderate',
-      score: isProhibited ? 65 : 40,
-      icon: 'drone',
-      title: isProhibited ? 'ZONA PROHIBIDA' : 'REQUIERE AUTORIZACIÓN',
-      detail: field.drone.airspaceReasons[0] ?? 'Restricción de espacio aéreo',
-      urgent: isProhibited,
-      updatedAt: now,
-    });
-  }
+  // Drone — airspace restrictions: shown only in FieldDrawer Dron panel, not in general AlertPanel
+  // (broad zone coverage doesn't warrant a persistent map-center alert)
 
-  // Wind propagation
-  if (field.wind.active) {
-    const score = Math.min(100, 25 + field.wind.confidence * 0.5);
-    let detail = `${field.wind.directionLabel} · ${field.wind.avgIncreaseKt.toFixed(1)} kt/10min`;
-    if (field.wind.estimatedArrivalMin != null) {
-      detail += ` · ETA ~${field.wind.estimatedArrivalMin.toFixed(0)} min`;
-    }
-    results.push({
-      id: 'wind-front',
-      category: 'wind-front',
-      severity: severityFromScore(score),
-      score,
-      icon: 'radar',
-      title: 'Frente de viento detectado',
-      detail,
-      urgent: false,
-      updatedAt: now,
-    });
-  }
+  // Wind propagation: shown as ETA badge in Header bar, not in AlertPanel
+  // (ETA is actionable time info that fits better in the persistent top bar)
 
   return results;
 }

@@ -41,7 +41,7 @@ export function CampoPanelSection() {
             num="3"
             iconId="drone"
             name="Dron"
-            modules="Vuelo Dron + Espacio aéreo + Viento + Lluvia"
+            modules="Vuelo Dron + Espacio aéreo + Viento + Lluvia + Niebla"
             desc="Para pilotos de dron: aptitud meteorológica y restricciones ENAIRE."
           />
           <TabRow
@@ -118,18 +118,17 @@ export function CampoPanelSection() {
             { label: 'Estaciones a barlovento', desc: 'Estaciones aguas arriba del viento detectadas' },
             { label: 'Incremento medio', desc: 'Aumento de velocidad promedio (kt/10min)' },
             { label: 'Velocidad frente', desc: 'Velocidad estimada de avance del frente de viento' },
-            { label: 'ETA llegada', desc: 'Hora estimada de llegada al embalse' },
+            { label: 'ETA llegada', desc: 'Badge ámbar en la barra superior con tiempo estimado de llegada' },
           ]}
           levels={[
             { level: 'Riesgo', condition: 'Viento incrementando en estaciones próximas' },
             { level: 'Alto', condition: 'Frente de viento detectado acercándose' },
-            { level: 'Crítico', condition: 'Rachas fuertes inminentes' },
           ]}
         />
 
         <AlertModule
           iconId="zap"
-          title="Sombra de Tormenta"
+          title="Tormenta Cercana"
           color="#ef4444"
           items={[
             { label: 'Radiación solar', desc: 'Caída brusca de W/m² indica paso de nube densa o tormenta' },
@@ -149,15 +148,14 @@ export function CampoPanelSection() {
           title="Vuelo Dron"
           color="#a855f7"
           items={[
-            { label: 'Estado', desc: 'Badge Apto / No apto con razón principal' },
-            { label: 'Viento', desc: 'Velocidad y rachas actuales. > 15 kt = no apto' },
-            { label: 'Precipitación', desc: 'Lluvia activa o prevista = no apto' },
+            { label: 'Estado', desc: 'Badge Apto / Precaución con razón principal' },
+            { label: 'Viento', desc: 'Velocidad y rachas actuales. > 15 kt = precaución' },
+            { label: 'Precipitación', desc: 'Lluvia activa o prevista = precaución' },
             { label: 'Espacio aéreo', desc: 'Zonas UAS + NOTAMs de ENAIRE. Restricciones automáticas.' },
           ]}
           levels={[
             { level: 'Apto', condition: 'Viento < 15 kt, sin lluvia, sin restricciones' },
-            { level: 'Precaución', condition: 'Viento 15-18 kt o zona con autorización requerida' },
-            { level: 'No apto', condition: 'Viento > 18 kt, lluvia, o zona prohibida' },
+            { level: 'Precaución', condition: 'Viento > 15 kt, lluvia, o zona con autorización requerida' },
           ]}
         />
 

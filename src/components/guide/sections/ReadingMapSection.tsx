@@ -132,16 +132,6 @@ export function ReadingMapSection() {
         <h3 className="text-sm font-bold text-white">Otros indicadores del mapa</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <MiniExplainer
-            iconId="thermometer"
-            title="Gradiente térmico (T)"
-            text="Círculos de temperatura con líneas de gradiente. Muestra la diferencia entre estaciones altas y bajas."
-          />
-          <MiniExplainer
-            iconId="zap"
-            title="Rayos y clusters"
-            text="Impactos de rayo (24h). Color por antigüedad. Los clusters agrupan zonas de actividad con anillo de radio."
-          />
-          <MiniExplainer
             iconId="cloud"
             title="Sombra de tormenta"
             text="Alerta cruzada: caída de radiación solar + rayos cercanos + anomalía de viento = tormenta acercándose."

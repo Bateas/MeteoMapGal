@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useUIStore } from '../../store/uiStore';
 import { msToKnots, windSpeedColor, degreesToCardinal } from '../../services/windUtils';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 /**
  * Full-screen "big numbers" wind display.
@@ -25,6 +26,21 @@ export function BigWindDisplay() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isMobile]);
+
+  // Mobile FAB: floating wind button in bottom-left when no big display is open
+  if (!open && isMobile) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed z-30 bottom-20 left-3 p-2.5 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-700/50 text-slate-400 active:bg-slate-700 shadow-lg"
+        style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom, 0px))' }}
+        aria-label="Vista grande de viento"
+        title="Vista grande de viento"
+      >
+        <WeatherIcon id="wind" size={20} />
+      </button>
+    );
+  }
 
   if (!open) return null;
 
