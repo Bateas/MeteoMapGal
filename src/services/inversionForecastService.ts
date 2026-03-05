@@ -238,7 +238,7 @@ export function buildInversionForecastAlert(
     category: 'inversion',
     severity: isHighConf ? 'moderate' : 'info',
     score,
-    icon: '🌡️',
+    icon: 'thermometer',
     title: isHighConf ? 'Inversión prevista esta noche' : 'Posible inversión nocturna',
     detail,
     urgent: false,

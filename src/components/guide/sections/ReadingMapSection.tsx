@@ -1,3 +1,6 @@
+import { WeatherIcon } from '../../icons/WeatherIcons';
+import type { IconId } from '../../icons/WeatherIcons';
+
 export function ReadingMapSection() {
   return (
     <div className="space-y-6">
@@ -70,28 +73,28 @@ export function ReadingMapSection() {
         <h3 className="text-sm font-bold text-white">Capas interactivas (tecla W)</h3>
         <div className="space-y-2">
           <LayerCard
-            icon="💨"
+            iconId="wind"
             name="Partículas de viento"
             shortcut="W ×1"
             description="Animación de 500 partículas mostrando el flujo del viento interpolado (IDW). Sigue las líneas de flujo para ver la dirección del viento entre estaciones."
             color="#22c55e"
           />
           <LayerCard
-            icon="💧"
+            iconId="droplets"
             name="Heatmap de humedad"
             shortcut="W ×2"
             description="Mapa de calor de humedad interpolada. Verde=seco, azul=medio, púrpura=húmedo, rojo=saturado. Identifica zonas favorables para térmicos."
             color="#3b82f6"
           />
           <LayerCard
-            icon="🛰️"
+            iconId="satellite"
             name="Satélite infrarrojo"
             shortcut="W ×3"
             description="Imagen EUMETSAT Meteosat (IR 10.8μm) actualizada cada 15 min. Funciona 24h. Brillante = nubes altas/frías (cumulonimbus), oscuro = cielo despejado."
             color="#8b5cf6"
           />
           <LayerCard
-            icon="📡"
+            iconId="radar"
             name="Radar de precipitación"
             shortcut="W ×4"
             description="Radar AEMET de Cuntis (Galicia), radio ~240 km. Actualiza cada 10 min. Colores indican intensidad de precipitación: azul=débil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
@@ -105,32 +108,32 @@ export function ReadingMapSection() {
         <h3 className="text-sm font-bold text-white">Otros indicadores del mapa</h3>
         <div className="grid grid-cols-2 gap-3">
           <MiniExplainer
-            icon="🔴"
+            iconId="thermometer"
             title="Gradiente térmico (T)"
             text="Círculos de temperatura con líneas de gradiente. Muestra la diferencia entre estaciones altas y bajas."
           />
           <MiniExplainer
-            icon="⚡"
+            iconId="zap"
             title="Rayos y clusters"
             text="Impactos de rayo (24h). Color por antigüedad. Los clusters agrupan zonas de actividad con anillo de radio."
           />
           <MiniExplainer
-            icon="🌑"
+            iconId="cloud"
             title="Sombra de tormenta"
             text="Alerta cruzada: caída de radiación solar + rayos cercanos + anomalía de viento = tormenta acercándose."
           />
           <MiniExplainer
-            icon="☀️"
+            iconId="sun"
             title="Radiación solar"
             text="W/m² en estaciones equipadas (WU, MeteoGalicia). Caída brusca indica paso de nube o tormenta."
           />
           <MiniExplainer
-            icon="🏷️"
+            iconId="tag"
             title="Alertas térmicas"
             text="Badges sobre zonas del embalse indicando estado del viento térmico. Incluyen propagación detectada."
           />
           <MiniExplainer
-            icon="⛵"
+            iconId="sailboat"
             title="Banner Go/No-Go"
             text="Indicador en el mapa: verde (GO 6-20kt), ámbar (MARGINAL), rojo (NO-GO > 25kt o calma)."
           />
@@ -187,13 +190,13 @@ function ExplainerCard({
 }
 
 function LayerCard({
-  icon,
+  iconId,
   name,
   shortcut,
   description,
   color,
 }: {
-  icon: string;
+  iconId: IconId;
   name: string;
   shortcut: string;
   description: string;
@@ -204,7 +207,7 @@ function LayerCard({
       className="flex items-start gap-3 p-3 rounded-lg border"
       style={{ borderColor: `${color}20`, background: `${color}06` }}
     >
-      <span className="text-xl shrink-0">{icon}</span>
+      <span className="text-xl shrink-0" style={{ color }}><WeatherIcon id={iconId} size={20} /></span>
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold" style={{ color }}>{name}</span>
@@ -216,11 +219,11 @@ function LayerCard({
   );
 }
 
-function MiniExplainer({ icon, title, text }: { icon: string; title: string; text: string }) {
+function MiniExplainer({ iconId, title, text }: { iconId: IconId; title: string; text: string }) {
   return (
     <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-sm">{icon}</span>
+        <span className="text-sm"><WeatherIcon id={iconId} size={14} /></span>
         <span className="text-[10px] font-bold text-slate-300">{title}</span>
       </div>
       <p className="text-[9px] text-slate-500 leading-relaxed">{text}</p>

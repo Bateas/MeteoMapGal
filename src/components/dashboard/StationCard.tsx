@@ -19,6 +19,8 @@ import {
 import { useWeatherStore } from '../../store/weatherStore';
 import { WindCompass } from '../common/WindCompass';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
+import { WeatherIcon } from '../icons/WeatherIcons';
+import type { IconId } from '../icons/WeatherIcons';
 
 interface StationCardProps {
   station: NormalizedStation;
@@ -162,11 +164,13 @@ export function StationCard({ station, reading }: StationCardProps) {
                 </div>
               </div>
             )}
-            {reading.solarRadiation !== null && (
+            {reading.solarRadiation != null && (
               <div>
                 <div className="text-[10px] text-slate-500">Radiación</div>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-[10px]">{solarRadiationIcon(reading.solarRadiation)}</span>
+                  {solarRadiationIcon(reading.solarRadiation) && (
+                    <WeatherIcon id={solarRadiationIcon(reading.solarRadiation) as IconId} size={12} />
+                  )}
                   <span
                     className="text-sm font-semibold"
                     style={{ color: solarRadiationColor(reading.solarRadiation) }}
@@ -176,7 +180,7 @@ export function StationCard({ station, reading }: StationCardProps) {
                 </div>
               </div>
             )}
-            {reading.pressure !== null && (
+            {reading.pressure != null && (
               <div>
                 <div className="text-[10px] text-slate-500">Presión</div>
                 <div
@@ -187,19 +191,19 @@ export function StationCard({ station, reading }: StationCardProps) {
                 </div>
               </div>
             )}
-            {reading.dewPoint !== null && (
+            {reading.dewPoint != null && (
               <div>
                 <div className="text-[10px] text-slate-500">P. rocío</div>
                 <div className="flex items-baseline gap-1">
                   <span
                     className="text-sm font-semibold"
                     style={{ color: dewPointSpreadColor(
-                      reading.temperature !== null ? reading.temperature - reading.dewPoint : null
+                      reading.temperature != null && reading.dewPoint != null ? reading.temperature - reading.dewPoint : null
                     ) }}
                   >
                     {formatDewPoint(reading.dewPoint)}
                   </span>
-                  {reading.temperature !== null && (
+                  {reading.temperature != null && reading.dewPoint != null && (
                     <span className="text-[9px] text-slate-500" title="Spread T − Td">
                       Δ{(reading.temperature - reading.dewPoint).toFixed(1)}°
                     </span>

@@ -1,8 +1,9 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
 import { StationCard } from './StationCard';
 import type { NormalizedStation } from '../../types/station';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 type SourceKey = NormalizedStation['source'];
 
@@ -100,7 +101,11 @@ export function StationTable() {
     );
   }
 
-  const sortLabels: Record<SortMode, string> = { wind: '💨', temp: '🌡', name: 'AZ' };
+  const sortLabels: Record<SortMode, ReactNode> = {
+    wind: <WeatherIcon id="wind" size={12} />,
+    temp: <WeatherIcon id="thermometer" size={12} />,
+    name: <>AZ</>,
+  };
 
   return (
     <div className="space-y-2">

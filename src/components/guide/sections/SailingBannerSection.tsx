@@ -1,6 +1,9 @@
 /**
  * Guide section: Banner Go/No-Go — explains the sailing condition banner and data sources.
  */
+import { WeatherIcon } from '../../icons/WeatherIcons';
+import type { IconId } from '../../icons/WeatherIcons';
+
 export function SailingBannerSection() {
   return (
     <div className="space-y-6">
@@ -16,21 +19,21 @@ export function SailingBannerSection() {
         <h3 className="text-sm font-bold text-white">Veredictos</h3>
         <div className="space-y-2">
           <VerdictCard
-            icon="⛵"
+            iconId="sailboat"
             label="GO"
             color="#22c55e"
             wind="6 – 20 kt"
             description="Condiciones favorables para navegar. Muestra estación con mejor viento."
           />
           <VerdictCard
-            icon="⚠️"
+            iconId="alert-triangle"
             label="MARGINAL"
             color="#f59e0b"
             wind="20 – 25 kt / 4 – 6 kt"
             description="Viento fuerte (>20kt) o viento suave con potencial térmico. Navegar con precaución."
           />
           <VerdictCard
-            icon="🚫"
+            iconId="ban"
             label="NO-GO"
             color="#ef4444"
             wind="> 25 kt / < 4 kt"
@@ -85,7 +88,7 @@ export function SailingBannerSection() {
         <h3 className="text-sm font-bold text-white">Satélite y sombra de tormenta</h3>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 space-y-2">
           <p className="text-[10px] text-slate-400 leading-relaxed">
-            La capa satélite (🛰️ en el selector de capas) muestra la imagen infrarroja de EUMETSAT
+            La capa satélite (<WeatherIcon id="satellite" size={12} className="inline-block" /> en el selector de capas) muestra la imagen infrarroja de EUMETSAT
             Meteosat actualizada cada 15 minutos. Funciona de día y de noche.
           </p>
           <div className="space-y-1">
@@ -145,13 +148,13 @@ export function SailingBannerSection() {
 /* ─── Sub-components ─────────────────────────── */
 
 function VerdictCard({
-  icon,
+  iconId,
   label,
   color,
   wind,
   description,
 }: {
-  icon: string;
+  iconId: IconId;
   label: string;
   color: string;
   wind: string;
@@ -162,7 +165,7 @@ function VerdictCard({
       className="flex items-start gap-3 p-3 rounded-lg border"
       style={{ borderColor: `${color}30`, background: `${color}08` }}
     >
-      <span className="text-lg">{icon}</span>
+      <span className="text-lg" style={{ color }}><WeatherIcon id={iconId} size={20} /></span>
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold" style={{ color }}>{label}</span>

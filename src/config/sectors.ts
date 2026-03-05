@@ -5,11 +5,13 @@
  * Meteoclimatic region feeds. Station discovery runs per-sector.
  */
 
+import type { IconId } from '../components/icons/WeatherIcons';
+
 export interface Sector {
   id: string;
   name: string;
   shortName: string;
-  icon: string;
+  icon: IconId;
   center: [number, number];         // [lon, lat]
   radiusKm: number;
   initialView: {
@@ -28,7 +30,7 @@ export const SECTORS: Sector[] = [
     id: 'embalse',
     name: 'Embalse de Castrelo',
     shortName: 'Embalse',
-    icon: '⛵',
+    icon: 'sailboat',
     center: [-8.1, 42.29],
     radiusKm: 35,
     initialView: {
@@ -44,7 +46,7 @@ export const SECTORS: Sector[] = [
     id: 'rias',
     name: 'Rías Baixas',
     shortName: 'Rías',
-    icon: '🌊',
+    icon: 'waves',
     center: [-8.65, 42.25],
     radiusKm: 30,
     initialView: {

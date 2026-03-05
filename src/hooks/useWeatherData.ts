@@ -3,7 +3,7 @@ import { useWeatherStore } from '../store/weatherStore';
 import { useSectorStore } from '../store/sectorStore';
 import { useStations } from './useStations';
 import { useAutoRefresh } from './useAutoRefresh';
-import { fetchAllObservations } from '../api/aemetClient';
+import { fetchAllObservations, isAemetRateLimited, aemetCooldownRemaining } from '../api/aemetClient';
 import { fetchLatestForStations } from '../api/meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
 import { fetchWUObservations } from '../api/wundergroundClient';
@@ -34,27 +34,31 @@ export function useWeatherData() {
     // Build fetch tasks for each source — run all in parallel
     const tasks: Promise<NormalizedReading[]>[] = [];
 
-    // AEMET
+    // AEMET — skip silently during rate-limit cooldown
     const aemetStationIds = new Set(
       stations.filter((s) => s.source === 'aemet').map((s) => s.id)
     );
     if (aemetStationIds.size > 0) {
-      tasks.push(
-        fetchAllObservations().then((aemetObs) => {
-          const readings: NormalizedReading[] = [];
-          for (const obs of aemetObs) {
-            if (aemetStationIds.has(`aemet_${obs.idema}`)) {
-              readings.push(normalizeAemetObservation(obs));
+      if (isAemetRateLimited()) {
+        console.debug(`[WeatherData] AEMET rate-limited, skipping (${aemetCooldownRemaining()}s remaining)`);
+      } else {
+        tasks.push(
+          fetchAllObservations().then((aemetObs) => {
+            const readings: NormalizedReading[] = [];
+            for (const obs of aemetObs) {
+              if (aemetStationIds.has(`aemet_${obs.idema}`)) {
+                readings.push(normalizeAemetObservation(obs));
+              }
             }
-          }
-          updateSourceStatus('aemet', true, readings.length);
-          return readings;
-        }).catch((err) => {
-          console.error('[WeatherData] AEMET fetch error:', err);
-          updateSourceStatus('aemet', false, 0, String(err));
-          return [];
-        })
-      );
+            updateSourceStatus('aemet', true, readings.length);
+            return readings;
+          }).catch((err) => {
+            console.error('[WeatherData] AEMET fetch error:', err);
+            updateSourceStatus('aemet', false, 0, String(err));
+            return [];
+          })
+        );
+      }
     }
 
     // MeteoGalicia

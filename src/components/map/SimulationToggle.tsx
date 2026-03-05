@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { useUIStore } from '../../store/uiStore';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 /**
  * Small floating button on the map to toggle storm simulation mode.
@@ -28,7 +29,7 @@ export const SimulationToggle = memo(function SimulationToggle() {
         }`}
       title={simulationActive ? 'Desactivar simulación de tormenta' : 'Activar simulación de tormenta'}
     >
-      <span className={isMobile ? 'text-lg' : 'text-sm'}>{simulationActive ? '⛈️' : '⚡'}</span>
+      <WeatherIcon id="zap" size={isMobile ? 18 : 14} />
       {!isMobile && <span>{simulationActive ? 'SIM ON' : 'SIM'}</span>}
       {simulationActive && (
         <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />

@@ -9,14 +9,18 @@ import type { FieldAlerts, AlertLevel } from '../../types/campo';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { checkFrost, checkRainHail } from '../../services/fieldAlertEngine';
 import { useUIStore } from '../../store/uiStore';
+import { useAirspaceStore } from '../../store/airspaceStore';
+import type { NotamSummary } from '../../services/airspaceService';
+import { WeatherIcon } from '../icons/WeatherIcons';
+import type { IconId } from '../icons/WeatherIcons';
 
 export type AlertTab = 'nav' | 'campo' | 'dron' | 'meteo';
 
-const TABS: { id: AlertTab; label: string; icon: string; shortcut: string }[] = [
-  { id: 'nav', label: 'Naveg.', icon: '⛵', shortcut: '1' },
-  { id: 'campo', label: 'Campo', icon: '🌾', shortcut: '2' },
-  { id: 'dron', label: 'Dron', icon: '🛩️', shortcut: '3' },
-  { id: 'meteo', label: 'Meteo', icon: '📊', shortcut: '4' },
+const TABS: { id: AlertTab; label: string; icon: IconId | null; shortcut: string }[] = [
+  { id: 'nav', label: 'Naveg.', icon: 'sailboat', shortcut: '1' },
+  { id: 'campo', label: 'Campo', icon: null, shortcut: '2' },
+  { id: 'dron', label: 'Dron', icon: 'drone', shortcut: '3' },
+  { id: 'meteo', label: 'Meteo', icon: null, shortcut: '4' },
 ];
 
 interface FieldDrawerProps {
@@ -116,7 +120,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
                 : 'text-slate-500 hover:text-slate-300'
             }`}
           >
-            <span className="text-xs">{tab.icon}</span>
+            {tab.icon && <WeatherIcon id={tab.icon} size={12} />}
             <span>{tab.label}</span>
             {activeTab === tab.id && (
               <div className="absolute bottom-0 left-1 right-1 h-0.5 bg-blue-500 rounded-full" />
@@ -148,10 +152,11 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             </>
           )}
 
-          {/* ── Dron tab: drone conditions + wind + rain ── */}
+          {/* ── Dron tab: drone conditions + airspace + wind + rain ── */}
           {activeTab === 'dron' && (
             <>
               <DroneSection alerts={alerts} />
+              <AirspaceSection />
               <WindPropagationSection alerts={alerts} />
               <RainSection alerts={alerts} />
             </>
@@ -182,7 +187,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
 
 function FrostSection({ alerts }: { alerts: FieldAlerts }) {
   return (
-    <AlertSection icon="❄️" title="Helada" level={alerts.frost.level}>
+    <AlertSection icon={<WeatherIcon id="snowflake" size={14} />} title="Helada" level={alerts.frost.level}>
       {alerts.frost.level === 'none' ? (
         <p className="text-[10px] text-slate-500">Sin riesgo de helada en las próximas 48h</p>
       ) : (
@@ -216,7 +221,7 @@ function FrostSection({ alerts }: { alerts: FieldAlerts }) {
 function RainSection({ alerts }: { alerts: FieldAlerts }) {
   return (
     <AlertSection
-      icon={alerts.rain.hailRisk ? '🌨️' : '🌧️'}
+      icon={<WeatherIcon id={alerts.rain.hailRisk ? 'hail' : 'cloud-rain'} size={14} />}
       title={alerts.rain.hailRisk ? 'Granizo' : 'Lluvia'}
       level={alerts.rain.level}
     >
@@ -251,7 +256,7 @@ function RainSection({ alerts }: { alerts: FieldAlerts }) {
 
 function FogSection({ alerts }: { alerts: FieldAlerts }) {
   return (
-    <AlertSection icon="🌫️" title="Niebla / Rocío" level={alerts.fog.level}>
+    <AlertSection icon={<WeatherIcon id="fog" size={14} />} title="Niebla / Rocío" level={alerts.fog.level}>
       {alerts.fog.dewPoint !== null ? (
         <div className="space-y-1">
           <div className="flex justify-between text-[10px]">
@@ -315,7 +320,7 @@ function FogSection({ alerts }: { alerts: FieldAlerts }) {
 
 function WindPropagationSection({ alerts }: { alerts: FieldAlerts }) {
   return (
-    <AlertSection icon="📡" title="Propagación Viento" level={alerts.wind.active ? 'riesgo' : 'none'}>
+    <AlertSection icon={<WeatherIcon id="radar" size={14} />} title="Propagación Viento" level={alerts.wind.active ? 'riesgo' : 'none'}>
       {alerts.wind.active ? (
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -367,7 +372,7 @@ function WindPropagationSection({ alerts }: { alerts: FieldAlerts }) {
 
 function DroneSection({ alerts }: { alerts: FieldAlerts }) {
   return (
-    <AlertSection icon="🛩️" title="Vuelo Dron" level={alerts.drone.flyable ? 'none' : 'riesgo'}>
+    <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Vuelo Dron" level={alerts.drone.flyable ? 'none' : 'riesgo'}>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <span
@@ -400,6 +405,185 @@ function DroneSection({ alerts }: { alerts: FieldAlerts }) {
   );
 }
 
+function NotamItem({ notam }: { notam: NotamSummary }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const sevColor =
+    notam.severity === 'prohibited' ? '#ef4444' :
+    notam.severity === 'caution' ? '#f59e0b' : '#3b82f6';
+
+  const sevLabel =
+    notam.severity === 'prohibited' ? 'PROHIBIDO' :
+    notam.severity === 'caution' ? 'PRECAUCIÓN' : 'INFO';
+
+  const shortDesc = notam.description.length > 60
+    ? notam.description.slice(0, 57) + '…'
+    : notam.description;
+
+  const fmtDate = (d: Date) =>
+    d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div
+      className="rounded transition-colors cursor-pointer"
+      style={{
+        background: expanded ? 'rgba(30,41,59,0.5)' : 'transparent',
+        border: expanded ? '1px solid rgba(100,116,139,0.15)' : '1px solid transparent',
+      }}
+      onClick={() => setExpanded(!expanded)}
+    >
+      {/* Collapsed row */}
+      <div className="text-[9px] text-slate-400 flex items-start gap-1 px-1 py-0.5">
+        <span className="mt-0.5 flex-shrink-0" style={{ color: sevColor }}>
+          {expanded ? '▾' : '▸'}
+        </span>
+        <div className="min-w-0">
+          <span className="font-mono text-slate-500">{notam.id}</span>
+          {!expanded && <span className="text-slate-400"> — {shortDesc}</span>}
+        </div>
+      </div>
+
+      {/* Expanded details */}
+      {expanded && (
+        <div className="px-3 pb-1.5 space-y-0.5">
+          {/* Severity badge + location */}
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-[8px] font-bold px-1.5 py-px rounded"
+              style={{ background: `${sevColor}20`, color: sevColor, border: `1px solid ${sevColor}40` }}
+            >
+              {sevLabel}
+            </span>
+            {notam.location && (
+              <span className="text-[9px] font-mono text-slate-500">{notam.location}</span>
+            )}
+          </div>
+
+          {/* Full description */}
+          <p className="text-[9px] text-slate-300 leading-relaxed">{notam.description}</p>
+
+          {/* Altitude */}
+          {(notam.lowerAltFt > 0 || notam.upperAltFt > 0) && (
+            <div className="text-[9px] text-slate-500">
+              Alt: {notam.lowerAltFt > 0 ? `${notam.lowerAltFt} ft` : 'SFC'} → {notam.upperAltFt > 0 ? `${notam.upperAltFt} ft` : '—'}
+            </div>
+          )}
+
+          {/* Validity period */}
+          <div className="text-[9px] text-slate-600">
+            {fmtDate(notam.validFrom)} → {fmtDate(notam.validUntil)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AirspaceSection() {
+  const airspaceCheck = useAirspaceStore((s) => s.check);
+  const loading = useAirspaceStore((s) => s.loading);
+
+  if (loading && !airspaceCheck) {
+    return (
+      <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Espacio Aéreo" level="none">
+        <p className="text-[10px] text-slate-500">Consultando ENAIRE...</p>
+      </AlertSection>
+    );
+  }
+
+  if (!airspaceCheck) {
+    return (
+      <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Espacio Aéreo" level="none">
+        <p className="text-[10px] text-slate-500">Sin datos de espacio aéreo</p>
+      </AlertSection>
+    );
+  }
+
+  const level: AlertLevel =
+    airspaceCheck.severity === 'prohibited' ? 'critico' :
+    airspaceCheck.severity === 'caution' ? 'alto' : 'none';
+
+  const statusLabel =
+    airspaceCheck.severity === 'prohibited' ? 'ZONA PROHIBIDA' :
+    airspaceCheck.severity === 'caution' ? 'REQUIERE AUTORIZACIÓN' :
+    'SIN RESTRICCIONES';
+
+  const statusColor =
+    airspaceCheck.severity === 'prohibited' ? '#ef4444' :
+    airspaceCheck.severity === 'caution' ? '#f59e0b' :
+    '#22c55e';
+
+  const statusBg =
+    airspaceCheck.severity === 'prohibited' ? 'rgba(239,68,68,0.15)' :
+    airspaceCheck.severity === 'caution' ? 'rgba(245,158,11,0.15)' :
+    'rgba(34,197,94,0.15)';
+
+  const statusBorder =
+    airspaceCheck.severity === 'prohibited' ? 'rgba(239,68,68,0.3)' :
+    airspaceCheck.severity === 'caution' ? 'rgba(245,158,11,0.3)' :
+    'rgba(34,197,94,0.3)';
+
+  return (
+    <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Espacio Aéreo" level={level}>
+      <div className="space-y-1.5">
+        {/* Status badge */}
+        <div className="flex items-center gap-2">
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded"
+            style={{ background: statusBg, color: statusColor, border: `1px solid ${statusBorder}` }}
+          >
+            {statusLabel}
+          </span>
+          {airspaceCheck.notams.length > 0 && (
+            <span
+              className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}
+            >
+              {airspaceCheck.notams.length} NOTAM{airspaceCheck.notams.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {/* UAS Zones affecting the sector */}
+        {airspaceCheck.zones.length > 0 && (
+          <div className="space-y-1 mt-1">
+            <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Zonas UAS</span>
+            {airspaceCheck.zones.map((zone, i) => (
+              <div key={i} className="text-[9px] text-slate-400 flex items-start gap-1">
+                <span className="mt-0.5" style={{ color: zone.type.toUpperCase().includes('PROHIB') ? '#ef4444' : '#f59e0b' }}>•</span>
+                <div>
+                  <span className="font-semibold text-slate-300">{zone.name}</span>
+                  <span className="text-slate-500"> · {zone.type} · {zone.maxAltitudeM > 0 ? `≤${zone.maxAltitudeM}m` : 'sin límite alt.'}</span>
+                  {zone.contact && (
+                    <span className="text-slate-600 block">{zone.contact}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Active NOTAMs — clickable expand/collapse */}
+        {airspaceCheck.notams.length > 0 && (
+          <div className="space-y-1 mt-1">
+            <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">NOTAMs activos</span>
+            {airspaceCheck.notams.map((notam, i) => (
+              <NotamItem key={notam.id || i} notam={notam} />
+            ))}
+          </div>
+        )}
+
+        {/* No restrictions */}
+        {airspaceCheck.zones.length === 0 && airspaceCheck.notams.length === 0 && (
+          <p className="text-[10px] text-slate-500">
+            No hay restricciones de espacio aéreo en esta zona
+          </p>
+        )}
+      </div>
+    </AlertSection>
+  );
+}
+
 function ConfidenceBar({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-1 mt-1">
@@ -426,7 +610,7 @@ function AlertSection({
   level,
   children,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   level: AlertLevel;
   children: React.ReactNode;
@@ -449,7 +633,7 @@ function AlertSection({
         />
       )}
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-sm">{icon}</span>
+        <span className="text-sm inline-flex">{icon}</span>
         <span className="text-[11px] font-bold text-slate-200">{title}</span>
         {level !== 'none' && (
           <span
@@ -514,13 +698,13 @@ function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').
   return (
     <div className="rounded-lg p-2.5 bg-slate-800/30 border border-slate-700/50">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-sm">📊</span>
+        <WeatherIcon id="info" size={14} />
         <span className="text-[11px] font-bold text-slate-200">Timeline 48h</span>
       </div>
 
       {/* Frost row */}
       <div className="flex items-center gap-0.5 mb-1">
-        <span className="text-[8px] text-slate-500 w-8 shrink-0">❄️</span>
+        <span className="text-slate-500 w-8 shrink-0 inline-flex"><WeatherIcon id="snowflake" size={10} /></span>
         <div className="flex gap-px flex-1">
           {buckets.map((b, i) => (
             <div
@@ -535,7 +719,7 @@ function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').
 
       {/* Rain row */}
       <div className="flex items-center gap-0.5 mb-1">
-        <span className="text-[8px] text-slate-500 w-8 shrink-0">🌧️</span>
+        <span className="text-slate-500 w-8 shrink-0 inline-flex"><WeatherIcon id="cloud-rain" size={10} /></span>
         <div className="flex gap-px flex-1">
           {buckets.map((b, i) => (
             <div
@@ -550,7 +734,7 @@ function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').
 
       {/* Storm row */}
       <div className="flex items-center gap-0.5 mb-1.5">
-        <span className="text-[8px] text-slate-500 w-8 shrink-0">⚡</span>
+        <span className="text-slate-500 w-8 shrink-0 inline-flex"><WeatherIcon id="zap" size={10} /></span>
         <div className="flex gap-px flex-1">
           {buckets.map((b, i) => (
             <div

@@ -1,4 +1,5 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -42,7 +43,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center h-full min-h-[120px] bg-slate-900/80 rounded-lg p-6 gap-3">
-          <div className="text-red-400 text-lg">⚠</div>
+          <div className="text-red-400"><WeatherIcon id="alert-triangle" size={24} /></div>
           <div className="text-sm text-slate-300 font-medium">
             Error en {this.props.section}
           </div>

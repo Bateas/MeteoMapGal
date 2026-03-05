@@ -1,6 +1,9 @@
 /**
  * Guide section: Panel Alertas — explains the tabbed alert drawer with 4 context tabs.
  */
+import { WeatherIcon } from '../../icons/WeatherIcons';
+import type { IconId } from '../../icons/WeatherIcons';
+
 export function CampoPanelSection() {
   return (
     <div className="space-y-6">
@@ -22,28 +25,28 @@ export function CampoPanelSection() {
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
           <TabRow
             num="1"
-            icon="⛵"
+            iconId="sailboat"
             name="Navegación"
             modules="Propagación viento + Niebla/Rocío"
             desc="Para navegantes: viento entrante y visibilidad."
           />
           <TabRow
             num="2"
-            icon="🌾"
+            iconId="sun"
             name="Campo"
             modules="Helada + Lluvia/Granizo + Niebla"
             desc="Para agricultura: riesgos de cultivo y campo."
           />
           <TabRow
             num="3"
-            icon="🛩️"
+            iconId="drone"
             name="Dron"
             modules="Vuelo Dron + Propagación viento + Lluvia"
             desc="Para pilotos de dron: aptitud y restricciones."
           />
           <TabRow
             num="4"
-            icon="📊"
+            iconId="radar"
             name="Meteo"
             modules="Todos los módulos"
             desc="Vista completa de todas las alertas meteorológicas."
@@ -56,7 +59,7 @@ export function CampoPanelSection() {
         <h3 className="text-sm font-bold text-white">Módulos de alerta</h3>
 
         <AlertModule
-          icon="❄️"
+          iconId="snowflake"
           title="Helada"
           color="#3b82f6"
           items={[
@@ -73,7 +76,7 @@ export function CampoPanelSection() {
         />
 
         <AlertModule
-          icon="🌧️"
+          iconId="cloud-rain"
           title="Lluvia / Granizo"
           color="#60a5fa"
           items={[
@@ -90,7 +93,7 @@ export function CampoPanelSection() {
         />
 
         <AlertModule
-          icon="🌫️"
+          iconId="fog"
           title="Niebla / Rocío"
           color="#06b6d4"
           items={[
@@ -108,7 +111,7 @@ export function CampoPanelSection() {
         />
 
         <AlertModule
-          icon="💨"
+          iconId="wind"
           title="Propagación Viento"
           color="#f59e0b"
           items={[
@@ -125,7 +128,7 @@ export function CampoPanelSection() {
         />
 
         <AlertModule
-          icon="🌑"
+          iconId="zap"
           title="Sombra de Tormenta"
           color="#ef4444"
           items={[
@@ -142,7 +145,7 @@ export function CampoPanelSection() {
         />
 
         <AlertModule
-          icon="🚁"
+          iconId="drone"
           title="Vuelo Dron"
           color="#a855f7"
           items={[
@@ -167,9 +170,9 @@ export function CampoPanelSection() {
           de riesgos en intervalos de 3 horas para las próximas 48h:
         </p>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 space-y-1.5">
-          <TimelineRow icon="❄️" label="Helada" />
-          <TimelineRow icon="🌧️" label="Lluvia" />
-          <TimelineRow icon="⚡" label="Tormenta" />
+          <TimelineRow iconId="snowflake" label="Helada" />
+          <TimelineRow iconId="cloud-rain" label="Lluvia" />
+          <TimelineRow iconId="zap" label="Tormenta" />
         </div>
         <p className="text-[9px] text-slate-500 italic">
           Colores: gris = sin riesgo, azul = riesgo, naranja = alto, rojo = crítico.
@@ -183,13 +186,13 @@ export function CampoPanelSection() {
 
 function TabRow({
   num,
-  icon,
+  iconId,
   name,
   modules,
   desc,
 }: {
   num: string;
-  icon: string;
+  iconId: IconId;
   name: string;
   modules: string;
   desc: string;
@@ -201,7 +204,7 @@ function TabRow({
       </kbd>
       <div className="flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs">{icon}</span>
+          <span className="text-xs"><WeatherIcon id={iconId} size={14} /></span>
           <span className="text-[10px] font-bold text-slate-200">{name}</span>
           <span className="text-[9px] text-slate-500 ml-auto">{modules}</span>
         </div>
@@ -212,13 +215,13 @@ function TabRow({
 }
 
 function AlertModule({
-  icon,
+  iconId,
   title,
   color,
   items,
   levels,
 }: {
-  icon: string;
+  iconId: IconId;
   title: string;
   color: string;
   items: { label: string; desc: string }[];
@@ -227,7 +230,7 @@ function AlertModule({
   return (
     <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: `${color}25`, background: `${color}06` }}>
       <div className="flex items-center gap-2">
-        <span className="text-base">{icon}</span>
+        <span className="text-base" style={{ color }}><WeatherIcon id={iconId} size={18} /></span>
         <span className="text-xs font-bold" style={{ color }}>{title}</span>
       </div>
       <div className="space-y-1">
@@ -253,10 +256,10 @@ function AlertModule({
   );
 }
 
-function TimelineRow({ icon, label }: { icon: string; label: string }) {
+function TimelineRow({ iconId, label }: { iconId: IconId; label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] w-4">{icon}</span>
+      <span className="text-[10px] w-4"><WeatherIcon id={iconId} size={12} /></span>
       <span className="text-[9px] text-slate-400 w-14">{label}</span>
       <div className="flex-1 flex gap-px">
         {Array.from({ length: 16 }, (_, i) => (

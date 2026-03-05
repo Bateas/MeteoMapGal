@@ -7,7 +7,9 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { msToKnots } from '../../services/windUtils';
+import { escapeCSV } from '../../services/csvUtils';
 import { useToastStore } from '../../store/toastStore';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 type MetricKey = 'windSpeed' | 'temperature' | 'humidity';
 
@@ -138,10 +140,13 @@ export function TimeSeriesChart() {
     }
 
     const unit = metric.unit;
+    // Escape all fields for CSV injection prevention (OWASP CSV Injection)
+    const safeHeaders = headers.map((h) => escapeCSV(h, ';'));
+    const safeRows = rows.map((r) => r.map((cell) => escapeCSV(cell, ';')));
     const csv = [
       `# MeteoMap — ${metric.label} (${unit}) — Últimas ${timeRange}h`,
-      headers.join(';'),
-      ...rows.map((r) => r.join(';')),
+      safeHeaders.join(';'),
+      ...safeRows.map((r) => r.join(';')),
     ].join('\n');
 
     const date = format(new Date(), 'yyyyMMdd_HHmm');
@@ -199,10 +204,10 @@ export function TimeSeriesChart() {
         <button
           onClick={handleExportCsv}
           disabled={chartData.length === 0}
-          className="px-2 text-[10px] py-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1 px-2 text-[10px] py-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           title="Exportar datos a CSV"
         >
-          📥 CSV
+          <WeatherIcon id="download" size={12} /> CSV
         </button>
       </div>
 

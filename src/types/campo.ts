@@ -71,6 +71,14 @@ export interface DroneConditions {
   storms: boolean;
   /** Human-readable reasons why NOT flyable */
   reasons: string[];
+  /** Airspace restricted at this location? */
+  airspaceRestricted: boolean;
+  /** Airspace restriction severity */
+  airspaceSeverity: 'none' | 'caution' | 'prohibited';
+  /** Airspace restriction reasons */
+  airspaceReasons: string[];
+  /** Number of active NOTAMs in the area */
+  activeNotams: number;
 }
 
 // ── Wind propagation alert ───────────────────────────────

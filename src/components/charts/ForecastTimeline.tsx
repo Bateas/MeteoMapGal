@@ -6,6 +6,8 @@ import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { scoreForecastThermal, thermalColor, thermalBg } from '../../services/forecastScoringUtils';
 import type { ThermalScore } from '../../services/forecastScoringUtils';
 import { ForecastTable } from './ForecastTable';
+import { WeatherIcon } from '../icons/WeatherIcons';
+import type { IconId } from '../icons/WeatherIcons';
 import type { HourlyForecast } from '../../types/forecast';
 import type { ThermalWindRule } from '../../types/thermal';
 
@@ -29,13 +31,13 @@ function formatDay(d: Date): string {
   return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
 }
 
-function cloudIcon(cover: number | null): string {
+function cloudIcon(cover: number | null): IconId | '' {
   if (cover === null) return '';
-  if (cover < 15) return '☀️';
-  if (cover < 40) return '🌤️';
-  if (cover < 70) return '⛅';
-  if (cover < 90) return '🌥️';
-  return '☁️';
+  if (cover < 15) return 'sun';
+  if (cover < 40) return 'cloud-sun';
+  if (cover < 70) return 'cloud-sun';
+  if (cover < 90) return 'cloud';
+  return 'cloud';
 }
 
 /** Small inline SVG arrow pointing wind direction (meteorological "to") */
@@ -138,7 +140,7 @@ function ForecastRow({
 
       {/* Cloud icon */}
       <div className="text-center text-[11px]" title={`Nubes: ${point.cloudCover ?? '—'}%`}>
-        {cloudIcon(point.cloudCover)}
+        {cloudIcon(point.cloudCover) && <WeatherIcon id={cloudIcon(point.cloudCover) as IconId} size={14} />}
       </div>
 
       {/* Thermal score indicator */}
@@ -580,7 +582,7 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
         }[rainLevel];
         return (
           <div className={`px-2 py-1.5 border-t ${colors.border} ${colors.bg} flex items-center gap-2`}>
-            <span style={{ color: colors.icon }} className="text-sm">{'\uD83C\uDF27'}</span>
+            <span style={{ color: colors.icon }} className="text-sm"><WeatherIcon id="cloud-rain" size={14} /></span>
             <div className="text-[10px]">
               <span style={{ color: colors.label }} className="font-bold">Lluvia prevista</span>
               <span style={{ color: colors.time }} className="ml-1.5">
@@ -634,11 +636,11 @@ function DaySeparator({ date }: { date: Date }) {
     <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-700/40 border-t border-b border-slate-600/60">
       <span className="text-[11px] font-bold text-slate-200 capitalize">{dayLabel}</span>
       <span className="flex-1 h-px bg-slate-600/50" />
-      <span className="text-[10px] text-amber-400/80" title="Amanecer">
-        🌅 {formatTime(sun.sunrise)}
+      <span className="text-[10px] text-amber-400/80 flex items-center gap-0.5" title="Amanecer">
+        <WeatherIcon id="sun" size={10} /> {formatTime(sun.sunrise)}
       </span>
-      <span className="text-[10px] text-orange-400/80" title="Atardecer">
-        🌇 {formatTime(sun.sunset)}
+      <span className="text-[10px] text-orange-400/80 flex items-center gap-0.5" title="Atardecer">
+        <WeatherIcon id="moon" size={10} /> {formatTime(sun.sunset)}
       </span>
       <span className="text-[10px] text-slate-500 font-mono" title="Horas de luz">
         {Math.floor(sun.dayLengthMin / 60)}h{Math.round(sun.dayLengthMin % 60).toString().padStart(2, '0')}
@@ -817,7 +819,7 @@ export function ForecastTimeline() {
                   </span>
                 )}
                 <span className="text-slate-500 ml-2 text-[10px]">
-                  {w.ruleName?.replace('Térmico ', '').replace('Precursor: ', '⚡')}
+                  {w.ruleName?.replace('Térmico ', '').replace('Precursor: ', '')}
                 </span>
               </div>
             </div>
@@ -831,7 +833,7 @@ export function ForecastTimeline() {
       {/* Sailing summary */}
       {sailingSummary && sailingSummary.bestKt > 0 && (
         <div className="mb-2 px-2 py-1.5 bg-slate-800/60 rounded text-[11px] text-slate-300 flex items-center gap-2">
-          <span>🏄</span>
+          <span><WeatherIcon id="sailboat" size={12} /></span>
           <div>
             Mejor viento:{' '}
             <span className="text-white font-semibold">{sailingSummary.bestKt.toFixed(0)} kt</span>
@@ -839,8 +841,8 @@ export function ForecastTimeline() {
               <span> a las {formatHour(sailingSummary.bestTime)}</span>
             )}
             {sailingSummary.rainHours > 0 && (
-              <span className="text-sky-400 ml-2">
-                🌧 {sailingSummary.rainHours}h lluvia
+              <span className="text-sky-400 ml-2 inline-flex items-center gap-0.5">
+                <WeatherIcon id="cloud-rain" size={12} /> {sailingSummary.rainHours}h lluvia
               </span>
             )}
           </div>
@@ -851,8 +853,8 @@ export function ForecastTimeline() {
       {deltaT !== null && (
         <div className="mb-1 px-2 text-[10px] text-slate-500">
           ΔT hoy: <span className={deltaT >= 16 ? 'text-amber-400' : deltaT < 8 ? 'text-blue-400' : 'text-slate-400'}>{deltaT.toFixed(1)}°C</span>
-          {deltaT >= 20 && ' 🔥'}
-          {deltaT < 8 && ' ❄️'}
+          {deltaT >= 20 && <span className="inline-flex ml-0.5 text-amber-400"><WeatherIcon id="flame" size={12} /></span>}
+          {deltaT < 8 && <span className="inline-flex ml-0.5 text-blue-400"><WeatherIcon id="snowflake" size={12} /></span>}
         </div>
       )}
 
@@ -871,8 +873,8 @@ export function ForecastTimeline() {
             <span className="text-right">°C</span>
             <span className="text-right">HR</span>
             <span className="text-right">mm</span>
-            <span className="text-center">☁</span>
-            <span className="text-center" title="Score térmico estimado">🌡</span>
+            <span className="text-center"><WeatherIcon id="cloud" size={12} /></span>
+            <span className="text-center" title="Score térmico estimado"><WeatherIcon id="thermometer" size={12} /></span>
           </div>
 
           {/* Timeline rows */}

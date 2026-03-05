@@ -10,6 +10,8 @@
  * The 63% Embalse-SW → Ourense-W correlation is from real data.
  */
 
+import { WeatherIcon } from '../../icons/WeatherIcons';
+
 export function PropagationSection() {
   return (
     <div className="space-y-6">
@@ -33,7 +35,6 @@ export function PropagationSection() {
           {[
             {
               level: 'Señal local',
-              icon: '🔵',
               color: '#3b82f6',
               condition: 'W/SW en el embalse',
               meaning: 'El térmico está soplando localmente. Puedes navegar.',
@@ -41,7 +42,6 @@ export function PropagationSection() {
             },
             {
               level: 'Confirmación regional',
-              icon: '🟡',
               color: '#f59e0b',
               condition: '+ W en Ourense',
               meaning: 'El sistema es regional y estable. Más horas de viento probable.',
@@ -49,7 +49,6 @@ export function PropagationSection() {
             },
             {
               level: 'Contexto adicional',
-              icon: '🟣',
               color: '#a78bfa',
               condition: 'NW en Carballiño',
               meaning: 'El flujo cubre toda la cuenca del Miño. Térmico robusto.',
@@ -62,7 +61,7 @@ export function PropagationSection() {
               style={{ background: `${item.color}06`, borderColor: `${item.color}20` }}
             >
               <div className="flex items-center gap-2 mb-1">
-                <span>{item.icon}</span>
+                <span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ background: item.color }} />
                 <span className="text-xs font-bold" style={{ color: item.color }}>{item.level}</span>
                 <span className="text-[10px] text-slate-500 ml-auto font-mono">{item.condition}</span>
               </div>
@@ -107,7 +106,7 @@ export function PropagationSection() {
       {/* Caveat */}
       <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/50">
         <p className="text-[10px] text-slate-500 italic">
-          <span className="text-amber-400/70">⚠ Nota:</span> Las correlaciones entre estaciones son
+          <span className="text-amber-400/70 inline-flex items-center gap-0.5"><WeatherIcon id="alert-triangle" size={12} /> Nota:</span> Las correlaciones entre estaciones son
           estadísticas, no causales. El viento en Ourense no &quot;causa&quot; viento en el embalse.
           Ambos responden al mismo calentamiento diferencial regional.
           Estaciones lejanas (Carballiño, Montaña Norte) aportan contexto pero no predicción directa.

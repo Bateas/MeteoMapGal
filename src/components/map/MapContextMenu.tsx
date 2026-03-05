@@ -3,6 +3,7 @@ import type { MapRef } from 'react-map-gl/maplibre';
 import type maplibregl from 'maplibre-gl';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useToastStore } from '../../store/toastStore';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 interface ContextMenuState {
   x: number;       // screen x
@@ -123,7 +124,7 @@ export const MapContextMenu = memo(function MapContextMenu({
             onClick={goToNearest}
             className="w-full px-3 py-1.5 text-left text-xs text-slate-300 hover:bg-slate-700/60 hover:text-white transition-colors flex items-center gap-2"
           >
-            <span className="text-sm">📍</span>
+            <WeatherIcon id="map-pin" size={12} />
             <span className="flex-1 truncate">
               Ir a <span className="font-medium text-sky-400">{nearest.station.name}</span>
             </span>

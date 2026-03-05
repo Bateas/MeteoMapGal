@@ -31,9 +31,12 @@ export function Sidebar() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Tab header */}
-      <div className="flex border-b border-slate-700">
+      {/* Tab header — proper ARIA tab roles for accessibility */}
+      <div className="flex border-b border-slate-700" role="tablist" aria-label="Paneles de datos">
         <button
+          role="tab"
+          aria-selected={activeTab === 'stations'}
+          aria-controls="tabpanel-stations"
           onClick={() => setActiveTab('stations')}
           className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
             activeTab === 'stations'
@@ -44,6 +47,9 @@ export function Sidebar() {
           Estaciones
         </button>
         <button
+          role="tab"
+          aria-selected={activeTab === 'chart'}
+          aria-controls="tabpanel-chart"
           onClick={() => setActiveTab('chart')}
           className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
             activeTab === 'chart'
@@ -55,6 +61,9 @@ export function Sidebar() {
         </button>
         {isEmbalse && (
           <button
+            role="tab"
+            aria-selected={activeTab === 'forecast'}
+            aria-controls="tabpanel-forecast"
             onClick={() => setActiveTab('forecast')}
             className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
               activeTab === 'forecast'
@@ -67,6 +76,9 @@ export function Sidebar() {
         )}
         {isEmbalse && (
           <button
+            role="tab"
+            aria-selected={activeTab === 'thermal'}
+            aria-controls="tabpanel-thermal"
             onClick={() => setActiveTab('thermal')}
             className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
               activeTab === 'thermal'

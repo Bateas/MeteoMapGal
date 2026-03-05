@@ -1,10 +1,23 @@
 import { useState } from 'react';
+import { WeatherIcon } from '../../icons/WeatherIcons';
+import type { IconId } from '../../icons/WeatherIcons';
 
-const CYCLE_PHASES = [
+const CYCLE_PHASES: {
+  id: string;
+  label: string;
+  iconId: IconId;
+  color: string;
+  wind: string;
+  speed: string;
+  description: string;
+  indicator: string;
+  indicatorAlt: string;
+  svgPhase: 'morning' | 'buildup' | 'peak' | 'evening' | 'night';
+}[] = [
   {
     id: 'morning',
     label: 'Mañana (8-12h)',
-    icon: '🌅',
+    iconId: 'sun',
     color: '#f59e0b',
     wind: 'NE / Calma',
     speed: '0-3 kt',
@@ -12,12 +25,12 @@ const CYCLE_PHASES = [
       'El sol comienza a calentar las laderas orientales. Vientos débiles del NE o calma. Es la fase precursora: si detectamos NE en el embalse o E en montaña, es señal de que el térmico vendrá por la tarde.',
     indicator: 'NE embalse → 38% probabilidad de W por la tarde',
     indicatorAlt: 'E en montaña por la mañana → posible indicador (hipótesis, sin confirmar)',
-    svgPhase: 'morning' as const,
+    svgPhase: 'morning',
   },
   {
     id: 'buildup',
     label: 'Desarrollo (12-14h)',
-    icon: '☀️',
+    iconId: 'sun',
     color: '#eab308',
     wind: 'Rotación SW',
     speed: '3-6 kt',
@@ -25,12 +38,12 @@ const CYCLE_PHASES = [
       'La temperatura alcanza 28-31°C. El gradiente térmico se activa. En teoría la transición es gradual; en Castrelo el viento suele llegar de forma más abrupta, pasando de calma a térmico en poco tiempo.',
     indicator: 'Rotación NE → SW = confirmación del térmico',
     indicatorAlt: 'ΔT (Tmax-Tmin) > 20°C → 42% probabilidad',
-    svgPhase: 'buildup' as const,
+    svgPhase: 'buildup',
   },
   {
     id: 'peak',
     label: 'Pico (14-18h)',
-    icon: '💨',
+    iconId: 'wind',
     color: '#22c55e',
     wind: 'W dominante',
     speed: '7-12 kt',
@@ -38,12 +51,12 @@ const CYCLE_PHASES = [
       'Máxima intensidad del térmico. Viento del W estable a 7-12 nudos en el embalse. Rachas posibles de hasta 15-18 kt. Condiciones óptimas para navegar. Si Ourense también muestra W, el sistema es regional y estable (63% correlación AEMET).',
     indicator: 'W 74% frecuencia en embalse (datos de 4 años)',
     indicatorAlt: 'Racha máxima media: 9.7 m/s (19 kt) a las 15:48h',
-    svgPhase: 'peak' as const,
+    svgPhase: 'peak',
   },
   {
     id: 'evening',
     label: 'Atardecer (18-21h)',
-    icon: '🌇',
+    iconId: 'sun',
     color: '#f97316',
     wind: 'SW débil → calma',
     speed: '3-5 kt',
@@ -51,12 +64,12 @@ const CYCLE_PHASES = [
       'El sol baja, la convección se debilita. En junio/julio, con días más largos, el térmico puede extenderse hasta las 20-21h. El viento rota gradualmente al SW y pierde fuerza.',
     indicator: 'Jun/Jul: extensión hasta 21h por luz solar',
     indicatorAlt: 'Señal de fin: viento cae bajo 5 kt',
-    svgPhase: 'evening' as const,
+    svgPhase: 'evening',
   },
   {
     id: 'night',
     label: 'Noche (21-8h)',
-    icon: '🌙',
+    iconId: 'moon',
     color: '#6366f1',
     wind: 'N drenaje',
     speed: '2-4 kt',
@@ -64,7 +77,7 @@ const CYCLE_PHASES = [
       'Las laderas se enfrían. El aire denso y frío desciende al valle creando un flujo de drenaje del N. Constante y predecible: 37% frecuencia en embalse, 48% en Carballiño. Enfría el valle para el ciclo siguiente.',
     indicator: 'N drenaje: 3.8 m/s avg, enfría el valle 5-8°C',
     indicatorAlt: 'Carballiño N: 48% frecuencia (muy consistente)',
-    svgPhase: 'night' as const,
+    svgPhase: 'night',
   },
 ];
 
@@ -102,7 +115,7 @@ export function ThermalCycleSection() {
                 : { border: '1px solid transparent' }
             }
           >
-            <span className="block text-base mb-0.5">{p.icon}</span>
+            <span className="block text-base mb-0.5" style={{ color: p.color }}><WeatherIcon id={p.iconId} size={18} /></span>
             {p.label.split(' ')[0]}
           </button>
         ))}
@@ -117,8 +130,8 @@ export function ThermalCycleSection() {
         }}
       >
         <div className="flex items-start gap-4">
-          <div className="shrink-0">
-            <span className="text-3xl">{phase.icon}</span>
+          <div className="shrink-0" style={{ color: phase.color }}>
+            <WeatherIcon id={phase.iconId} size={32} />
           </div>
           <div className="space-y-3 flex-1">
             <div>

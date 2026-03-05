@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, memo } from 'react';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
+import { WeatherIcon } from '../icons/WeatherIcons';
 import { ThermalCycleSection } from './sections/ThermalCycleSection';
 import { ZonesMapSection } from './sections/ZonesMapSection';
 import { HumiditySection } from './sections/HumiditySection';
@@ -74,7 +75,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
       {/* Header bar */}
       <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
-          <span className="text-xl">🌬️</span>
+          <span className="text-xl"><WeatherIcon id="thermal-wind" size={20} /></span>
           <h1 className="text-lg font-bold text-white tracking-tight">
             {GUIDE_TITLE}
           </h1>
@@ -171,7 +172,7 @@ function IntroSection() {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-amber-400 mb-2">☀️ Viento anabático (día)</h3>
+          <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="sun" size={16} /> Viento anabático (día)</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             El sol calienta las laderas. El aire asciende por la montaña, creando un flujo
             desde el valle hacia arriba, típicamente por las tardes.
@@ -181,7 +182,7 @@ function IntroSection() {
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-blue-400 mb-2">🌙 Viento catabático (noche)</h3>
+          <h3 className="text-sm font-bold text-blue-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="moon" size={16} /> Viento catabático (noche)</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             Al enfriarse, el aire denso desciende por las laderas hacia el valle.
             Más intenso en noches despejadas y secas.
@@ -322,7 +323,7 @@ function ThermalDiagram() {
 function RiasIntroSection() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">🌊 Monitorización costera — Rías Baixas</h2>
+      <h2 className="text-2xl font-bold text-white flex items-center gap-2"><WeatherIcon id="waves" size={24} /> Monitorización costera — Rías Baixas</h2>
 
       <p className="text-slate-400 leading-relaxed">
         El sector Rías Baixas cubre la costa pontevedresa desde Vigo hasta Vilagarcía de Arousa,
@@ -332,14 +333,14 @@ function RiasIntroSection() {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-cyan-400 mb-2">🌬️ Vientos dominantes</h3>
+          <h3 className="text-sm font-bold text-cyan-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="thermal-wind" size={16} /> Vientos dominantes</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             Componente N/NW predominante (nortada atlántica), especialmente en verano.
             Las rías canalizan el viento, amplificando su efecto en las bocas.
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-emerald-400 mb-2">🏖️ Brisa costera</h3>
+          <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="beach" size={16} /> Brisa costera</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             Ciclo térmico tierra-mar: brisa de mar (W) por la tarde,
             terral (E) nocturno. Más suave que los térmicos de valle.
@@ -349,17 +350,17 @@ function RiasIntroSection() {
 
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
-          <span className="text-2xl">📡</span>
+          <span className="text-2xl"><WeatherIcon id="radar" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Estaciones en tiempo real</p>
           <p className="text-[10px] text-slate-600">AEMET, MeteoGalicia, Meteoclimatic, Netatmo</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
-          <span className="text-2xl">🗺️</span>
+          <span className="text-2xl"><WeatherIcon id="map" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Capas interactivas</p>
           <p className="text-[10px] text-slate-600">Viento, humedad, satélite IR, radar, rayos</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
-          <span className="text-2xl">⚠️</span>
+          <span className="text-2xl"><WeatherIcon id="alert-triangle" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Alertas automáticas</p>
           <p className="text-[10px] text-slate-600">Viento, tormentas, visibilidad</p>
         </div>

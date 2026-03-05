@@ -12,6 +12,17 @@ import { AEMET } from '../config/apiEndpoints';
 /** Track rate-limit state to fail fast on subsequent calls */
 let rateLimitUntil = 0;
 
+/** Check if AEMET is currently rate-limited (callers can skip silently) */
+export function isAemetRateLimited(): boolean {
+  return Date.now() < rateLimitUntil;
+}
+
+/** Remaining seconds of AEMET cooldown (0 = not rate-limited) */
+export function aemetCooldownRemaining(): number {
+  const remaining = rateLimitUntil - Date.now();
+  return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
+}
+
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
