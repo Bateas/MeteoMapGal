@@ -31,7 +31,7 @@ const ALL_SECTIONS: GuideSection[] = [
   { id: 'best', label: 'Mejores condiciones', sectorOnly: ['embalse'] },
   { id: 'reading', label: 'Leer el mapa' },
   { id: 'campo', label: 'Panel Alertas' },
-  { id: 'sailing', label: 'Navegación y fuentes', sectorOnly: ['embalse'] },
+  { id: 'sailing', label: 'Navegación y fuentes' },
 ];
 
 /** Single generic title — sector details go in the intro content */
@@ -73,31 +73,36 @@ export const MeteoGuide = memo(function MeteoGuide() {
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/98 overflow-hidden flex flex-col">
       {/* Header bar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="text-xl"><WeatherIcon id="thermal-wind" size={20} /></span>
-          <h1 className="text-lg font-bold text-white tracking-tight">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <span className="shrink-0"><WeatherIcon id="thermal-wind" size={isMobile ? 22 : 20} /></span>
+          <h1 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
             {GUIDE_TITLE}
           </h1>
         </div>
         <button
           onClick={() => setOpen(false)}
-          className="text-slate-500 hover:text-white transition-colors text-sm px-3 py-2 rounded hover:bg-slate-800 min-h-[44px] active:bg-slate-700"
+          className="shrink-0 ml-2 text-slate-500 hover:text-white transition-colors text-sm px-3 py-2 rounded hover:bg-slate-800 min-h-[44px] min-w-[44px] active:bg-slate-700 flex items-center gap-1"
         >
-          Cerrar {!isMobile && <kbd className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">G</kbd>}
+          <WeatherIcon id="x" size={18} />
+          {!isMobile && (
+            <>
+              Cerrar <kbd className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">G</kbd>
+            </>
+          )}
         </button>
       </div>
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Sidebar nav — horizontal scroll on mobile, vertical on desktop */}
         {isMobile ? (
-          <div className="shrink-0 bg-slate-950/95 border-b border-slate-800 overflow-x-auto">
-            <div className="flex gap-0.5 px-3 py-2">
+          <div className="shrink-0 bg-slate-950/95 border-b border-slate-800 overflow-x-auto scrollbar-none">
+            <div className="flex gap-1 px-2 py-2 min-w-max">
               {sections.map((s, i) => (
                 <button
                   key={s.id}
                   onClick={() => setActiveSection(s.id)}
-                  className={`shrink-0 px-3 py-2.5 rounded-lg text-xs font-medium transition-all min-h-[40px] ${
+                  className={`shrink-0 px-3 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[36px] whitespace-nowrap ${
                     activeSection === s.id
                       ? 'bg-blue-600/15 text-blue-400 font-semibold'
                       : 'text-slate-500 active:bg-slate-800'
@@ -129,7 +134,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
         )}
 
         {/* Content area */}
-        <div className={`flex-1 overflow-y-auto py-6 ${isMobile ? 'px-4' : 'px-8'}`}>
+        <div className={`flex-1 overflow-y-auto py-4 sm:py-6 ${isMobile ? 'px-3' : 'px-8'}`}>
           <div className="max-w-3xl mx-auto">
             {activeSection === 'intro' && (
               activeSector.id === 'embalse' ? <IntroSection /> : <RiasIntroSection />

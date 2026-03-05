@@ -178,7 +178,7 @@ export function ZonesMapSection() {
       {/* Zone detail card */}
       <div
         className="rounded-xl p-5 border transition-all"
-        style={{ background: `${zone.color}08`, borderColor: `${zone.color}25` }}
+        style={{ background: `${zone.color}08`, borderColor: `${zone.color}20` }}
       >
         <div className="flex items-start justify-between mb-3">
           <div>

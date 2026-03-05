@@ -7,11 +7,11 @@ import type { IconId } from '../../icons/WeatherIcons';
 export function SailingBannerSection() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Banner de navegación y fuentes</h2>
+      <h2 className="text-2xl font-bold text-white">Navegación, fuentes y atribuciones</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        El banner superior del mapa muestra un veredicto rápido de condiciones
-        de navegación. Combina viento real de las estaciones, alertas activas
-        y puntuación térmica.
+        MeteoMap combina múltiples fuentes de datos en tiempo real para ofrecer una visión
+        completa de las condiciones meteorológicas. El banner superior del mapa (sector Embalse)
+        muestra un veredicto rápido de navegación combinando viento, alertas y scoring térmico.
       </p>
 
       {/* Verdict levels */}
@@ -132,6 +132,43 @@ export function SailingBannerSection() {
         </div>
       </div>
 
+      {/* Supplementary data sources */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">Fuentes complementarias</h3>
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
+          <SourceRow
+            letter="O"
+            name="Open-Meteo"
+            desc="Previsión horaria + datos atmosféricos (CAPE, PBL, LI, CIN). Motor del scoring térmico."
+            color="#06b6d4"
+          />
+          <SourceRow
+            letter="R"
+            name="AEMET Radar (Cuntis)"
+            desc="Radar de precipitación, radio ~240 km. Actualización cada 10 min."
+            color="#ec4899"
+          />
+          <SourceRow
+            letter="S"
+            name="EUMETSAT Meteosat"
+            desc="Imagen satélite infrarroja (IR 10.8μm). Actualización cada 15 min. Funciona 24h."
+            color="#8b5cf6"
+          />
+          <SourceRow
+            letter="L"
+            name="MeteoGalicia (Rayos)"
+            desc="Impactos de rayos últimas 24h vía meteo2api. Actualización cada 2 min."
+            color="#f43f5e"
+          />
+          <SourceRow
+            letter="E"
+            name="ENAIRE"
+            desc="Zonas UAS y NOTAMs para pilotos de dron. Restricciones de espacio aéreo."
+            color="#6366f1"
+          />
+        </div>
+      </div>
+
       {/* Refresh */}
       <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50">
         <p className="text-[10px] text-slate-400">
@@ -140,6 +177,29 @@ export function SailingBannerSection() {
           <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">R</kbd>{' '}
           para forzar una recarga manual.
         </p>
+      </div>
+
+      {/* Technology & Attribution */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">Tecnología y atribuciones</h3>
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            MeteoMap es software de código abierto construido con tecnologías libres.
+            Agradecemos a las comunidades que hacen posible este proyecto:
+          </p>
+          <div className="space-y-1.5">
+            <AttrRow name="MapLibre GL JS" license="BSD-3" desc="Motor de mapas interactivos con terreno 3D" />
+            <AttrRow name="lucide-react" license="ISC" desc="Iconos SVG consistentes (todos los iconos de la app)" />
+            <AttrRow name="React + Vite" license="MIT" desc="Framework de UI y bundler de desarrollo" />
+            <AttrRow name="Zustand" license="MIT" desc="Gestión de estado ligera" />
+            <AttrRow name="Tailwind CSS" license="MIT" desc="Sistema de diseño utility-first" />
+            <AttrRow name="Recharts" license="MIT" desc="Gráficas y visualizaciones de datos" />
+          </div>
+          <p className="text-[9px] text-slate-600 italic">
+            Todas las librerías utilizadas son de código abierto con licencias permisivas
+            (MIT, BSD, ISC) que permiten uso libre, modificación y distribución.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -163,7 +223,7 @@ function VerdictCard({
   return (
     <div
       className="flex items-start gap-3 p-3 rounded-lg border"
-      style={{ borderColor: `${color}30`, background: `${color}08` }}
+      style={{ borderColor: `${color}20`, background: `${color}08` }}
     >
       <span className="text-lg" style={{ color }}><WeatherIcon id={iconId} size={20} /></span>
       <div className="flex-1">
@@ -200,6 +260,16 @@ function SourceRow({
         <span className="text-[10px] font-bold text-slate-300">{name}</span>
         <p className="text-[9px] text-slate-500">{desc}</p>
       </div>
+    </div>
+  );
+}
+
+function AttrRow({ name, license, desc }: { name: string; license: string; desc: string }) {
+  return (
+    <div className="flex items-start gap-3 text-[10px]">
+      <span className="text-slate-300 font-semibold shrink-0 w-28">{name}</span>
+      <span className="text-slate-600 font-mono shrink-0 w-10">{license}</span>
+      <span className="text-slate-500">{desc}</span>
     </div>
   );
 }

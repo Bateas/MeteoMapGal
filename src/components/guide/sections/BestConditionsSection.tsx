@@ -76,7 +76,7 @@ export function BestConditionsSection() {
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Escala de viento para el embalse</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {([
               { range: '0-1 kt', label: 'Calma', color: '#64748b', iconId: 'sleep' as IconId },
               { range: '1-3 kt', label: 'Ventolina', color: '#93c5fd', iconId: 'wind' as IconId },
@@ -91,6 +91,7 @@ export function BestConditionsSection() {
                 key={b.range}
                 className="text-center p-2 rounded border"
                 style={{ borderColor: `${b.color}20`, background: `${b.color}08` }}
+
               >
                 <div className="text-base" style={{ color: b.color }}><WeatherIcon id={b.iconId} size={18} /></div>
                 <div className="text-[10px] font-mono font-bold" style={{ color: b.color }}>{b.range}</div>

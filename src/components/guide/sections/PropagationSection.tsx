@@ -58,7 +58,7 @@ export function PropagationSection() {
             <div
               key={item.level}
               className="p-3 rounded-lg border"
-              style={{ background: `${item.color}06`, borderColor: `${item.color}20` }}
+              style={{ background: `${item.color}08`, borderColor: `${item.color}20` }}
             >
               <div className="flex items-center gap-2 mb-1">
                 <span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ background: item.color }} />

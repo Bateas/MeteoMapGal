@@ -2,6 +2,8 @@
  * Guide section: Glosario — meteorological terminology for non-experts.
  * Covers key concepts used throughout MeteoMap with practical examples.
  */
+import { WeatherIcon } from '../../icons/WeatherIcons';
+
 export function GlossarySection() {
   return (
     <div className="space-y-6">
@@ -235,8 +237,8 @@ export function GlossarySection() {
 
       {/* Quick-reference cheat sheet */}
       <div className="bg-gradient-to-r from-blue-900/20 to-cyan-900/20 rounded-lg p-4 border border-slate-700 space-y-2">
-        <h3 className="text-xs font-bold text-slate-300">📋 Referencia rápida de umbrales</h3>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+        <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5"><WeatherIcon id="clipboard-list" size={14} /> Referencia rápida de umbrales</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
           <ThresholdRow label="Viento ideal velero" value="6 – 20 kt" />
           <ThresholdRow label="Racha peligrosa" value="> 25 kt" />
           <ThresholdRow label="HR ideal térmicos" value="45 – 65%" />
@@ -283,7 +285,7 @@ function Term({
   return (
     <div
       className="rounded-lg border p-3 space-y-1"
-      style={{ borderColor: `${color}18`, background: `${color}05` }}
+      style={{ borderColor: `${color}20`, background: `${color}08` }}
     >
       <span className="text-xs font-bold" style={{ color }}>{term}</span>
       <p className="text-[10px] text-slate-400 leading-relaxed">{definition}</p>

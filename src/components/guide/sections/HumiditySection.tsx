@@ -18,15 +18,15 @@ export function HumiditySection() {
         <div className="grid grid-cols-1 gap-2">
           {[
             { range: '< 45%', prob: '25-30%', color: '#f59e0b', label: 'Seco — térmicos posibles pero aire inestable', bar: 28 },
-            { range: '45-65%', prob: '37-39%', color: '#22c55e', label: '✦ SWEET SPOT — máxima probabilidad térmica', bar: 38 },
+            { range: '45-65%', prob: '37-39%', color: '#22c55e', label: 'SWEET SPOT — máxima probabilidad térmica', bar: 38 },
             { range: '65-75%', prob: '20-25%', color: '#3b82f6', label: 'Húmedo — térmicos debilitados', bar: 22 },
             { range: '75-85%', prob: '~8%', color: '#f97316', label: 'Muy húmedo — térmicos casi imposibles', bar: 8 },
-            { range: '> 85%', prob: '0%', color: '#ef4444', label: '⛔ Saturado — SIN térmicos', bar: 0 },
+            { range: '> 85%', prob: '0%', color: '#ef4444', label: 'Saturado — SIN térmicos', bar: 0 },
           ].map((t) => (
             <div
               key={t.range}
               className="flex items-center gap-3 p-3 rounded-lg border"
-              style={{ background: `${t.color}06`, borderColor: `${t.color}15` }}
+              style={{ background: `${t.color}08`, borderColor: `${t.color}20` }}
             >
               <div className="w-20 shrink-0">
                 <span className="text-xs font-mono font-bold" style={{ color: t.color }}>{t.range}</span>
@@ -58,7 +58,7 @@ export function HumiditySection() {
           <TemperatureScale />
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <StatCard
             value="31°C"
             label="Tmax óptima"
@@ -158,7 +158,7 @@ function HumidityGauge() {
       {/* Top labels */}
       <text x="160" y="20" textAnchor="middle" className="text-[8px] fill-amber-500">Seco</text>
       <text x="270" y="16" textAnchor="middle" className="text-[10px] fill-emerald-400 font-bold">
-        ✦ Sweet Spot
+        Sweet Spot
       </text>
       <text x="370" y="20" textAnchor="middle" className="text-[8px] fill-blue-400">Húmedo</text>
       <text x="440" y="20" textAnchor="middle" className="text-[8px] fill-red-400">Saturado</text>
