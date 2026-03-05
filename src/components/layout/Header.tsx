@@ -66,8 +66,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   }, [forecastHourly, thermalRules]);
 
   return (
-    <header className="bg-slate-900 border-b border-slate-700 px-2 md:px-4 py-1.5 md:py-2 flex items-center justify-between gap-1 md:gap-2">
-      <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
+    <header className="bg-slate-900 border-b border-slate-700 px-3 md:px-4 py-2 md:py-2 flex items-center justify-between gap-1.5 md:gap-2">
+      <div className="flex items-center gap-2 md:gap-3 min-w-0">
         {/* Hamburger — mobile only, 44px touch target */}
         {isMobile && (
           <button
@@ -98,13 +98,13 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {!isMobile && <SourceStatusIndicator />}
         <button
           onClick={() => useUIStore.getState().toggleGuide()}
-          className={`text-slate-500 hover:text-blue-400 transition-colors rounded hover:bg-slate-800 ${
-            isMobile ? 'p-2.5 -m-1 text-base active:bg-slate-700' : 'text-[10px] px-1.5 py-0.5'
+          className={`text-slate-500 hover:text-blue-400 transition-colors rounded-lg hover:bg-slate-800 ${
+            isMobile ? 'p-2 active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center' : 'text-[10px] px-2 py-1'
           }`}
           title={isMobile ? 'Guía meteorológica' : 'Guía meteorológica (G)'}
           aria-label="Abrir guía meteorológica"
         >
-          <WeatherIcon id="book-open" size={14} />
+          <WeatherIcon id="book-open" size={isMobile ? 18 : 14} />
         </button>
       </div>
       <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">

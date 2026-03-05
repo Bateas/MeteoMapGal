@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useUIStore } from '../../store/uiStore';
 import { StationCard } from './StationCard';
 import type { NormalizedStation } from '../../types/station';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
@@ -15,6 +16,7 @@ export function StationTable() {
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const selectedStationId = useWeatherStore((s) => s.selectedStationId);
+  const isMobile = useUIStore((s) => s.isMobile);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Filters (persisted to localStorage)
@@ -110,7 +112,7 @@ export function StationTable() {
   return (
     <div className="space-y-2">
       {/* Source filter bar */}
-      <div className="flex items-center gap-1 px-1 flex-wrap">
+      <div className={`flex items-center gap-1.5 px-1 flex-wrap ${isMobile ? 'py-1' : ''}`}>
         {(Object.keys(SOURCE_CONFIG) as SourceKey[]).map((src) => {
           const count = sourceCounts.get(src);
           if (!count) return null;
@@ -120,7 +122,9 @@ export function StationTable() {
             <button
               key={src}
               onClick={() => toggleSource(src)}
-              className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold transition-all"
+              className={`flex items-center gap-0.5 rounded font-bold transition-all ${
+                isMobile ? 'px-2.5 py-1.5 text-[11px] min-h-[36px]' : 'px-1.5 py-0.5 text-[9px]'
+              }`}
               style={{
                 background: isHidden ? 'transparent' : color,
                 color: isHidden ? color : 'white',
@@ -130,7 +134,7 @@ export function StationTable() {
               title={`${isHidden ? 'Mostrar' : 'Ocultar'} ${src} (${count})`}
             >
               {label}
-              <span className="font-normal text-[8px]" style={{ opacity: 0.8 }}>
+              <span className={`font-normal ${isMobile ? 'text-[10px]' : 'text-[8px]'}`} style={{ opacity: 0.8 }}>
                 {count}
               </span>
             </button>
@@ -140,7 +144,9 @@ export function StationTable() {
         {/* Sort toggle */}
         <button
           onClick={cycleSortMode}
-          className="ml-auto text-[9px] px-1.5 py-0.5 rounded border border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors"
+          className={`ml-auto rounded border border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors ${
+            isMobile ? 'px-2.5 py-1.5 text-[11px] min-h-[36px] min-w-[36px] flex items-center justify-center' : 'text-[9px] px-1.5 py-0.5'
+          }`}
           title={`Orden: ${sortMode === 'wind' ? 'viento' : sortMode === 'temp' ? 'temperatura' : 'nombre'}`}
         >
           {sortLabels[sortMode]}

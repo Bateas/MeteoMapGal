@@ -88,22 +88,22 @@ export const MeteoGuide = memo(function MeteoGuide() {
         </button>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Sidebar nav — horizontal scroll on mobile, vertical on desktop */}
         {isMobile ? (
-          <div className="absolute top-[53px] left-0 right-0 z-10 bg-slate-950/95 border-b border-slate-800 overflow-x-auto">
-            <div className="flex gap-0.5 px-2 py-1.5">
+          <div className="shrink-0 bg-slate-950/95 border-b border-slate-800 overflow-x-auto">
+            <div className="flex gap-0.5 px-3 py-2">
               {sections.map((s, i) => (
                 <button
                   key={s.id}
                   onClick={() => setActiveSection(s.id)}
-                  className={`shrink-0 px-3 py-2 rounded-lg text-[11px] font-medium transition-all ${
+                  className={`shrink-0 px-3 py-2.5 rounded-lg text-xs font-medium transition-all min-h-[40px] ${
                     activeSection === s.id
                       ? 'bg-blue-600/15 text-blue-400 font-semibold'
                       : 'text-slate-500 active:bg-slate-800'
                   }`}
                 >
-                  <span className="text-[9px] font-mono text-slate-600 mr-1">{i + 1}</span>
+                  <span className="text-[10px] font-mono text-slate-600 mr-1">{i + 1}</span>
                   {s.label}
                 </button>
               ))}
@@ -129,7 +129,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
         )}
 
         {/* Content area */}
-        <div className={`flex-1 overflow-y-auto py-6 ${isMobile ? 'px-4 pt-16' : 'px-8'}`}>
+        <div className={`flex-1 overflow-y-auto py-6 ${isMobile ? 'px-4' : 'px-8'}`}>
           <div className="max-w-3xl mx-auto">
             {activeSection === 'intro' && (
               activeSector.id === 'embalse' ? <IntroSection /> : <RiasIntroSection />
@@ -170,7 +170,7 @@ function IntroSection() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
           <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="sun" size={16} /> Viento anabático (día)</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
@@ -331,7 +331,7 @@ function RiasIntroSection() {
         dominada por los vientos atlánticos y la brisa costera.
       </p>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
           <h3 className="text-sm font-bold text-cyan-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="thermal-wind" size={16} /> Vientos dominantes</h3>
           <p className="text-xs text-slate-500 leading-relaxed">
@@ -348,7 +348,7 @@ function RiasIntroSection() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="radar" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Estaciones en tiempo real</p>
