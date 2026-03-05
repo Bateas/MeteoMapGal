@@ -94,9 +94,35 @@ function buildQueryUrl(base: string, layer: number, bbox: [number, number, numbe
   return `${base}/${layer}/query?${params}`;
 }
 
+// ── Layer label fallbacks ──────────────────────────────────
+// When ENAIRE zones lack a NOMBRE field, derive a label from the layer category
+const LAYER_FALLBACK_LABELS = ['Zona aeroportuaria', 'ADIF', 'Zona protegida', 'Zona urbana'];
+
+function deriveZoneName(a: Record<string, unknown>, layerIndex: number): string {
+  const raw = a['NOMBRE'] ?? a['NAME'] ?? a['name'];
+  const name = raw != null ? String(raw) : '';
+  if (name && name !== 'Sin nombre' && name !== 'undefined' && name !== 'null') return name;
+
+  // Try to extract a meaningful label from other fields
+  const reasons = String(a['MOTIVO'] ?? a['REASON'] ?? a['REASONS'] ?? '').toLowerCase();
+  const variant = String(a['VARIANTE'] ?? a['VARIANT'] ?? '').toLowerCase();
+
+  // Railway infrastructure
+  if (reasons.includes('ferroviar') || variant.includes('ferroviar') || reasons.includes('adif') || variant.includes('adif')) {
+    return 'ADIF';
+  }
+  // Road infrastructure
+  if (reasons.includes('carretera') || reasons.includes('autopista') || variant.includes('carretera')) {
+    return 'Vía de tráfico';
+  }
+
+  // Fallback: use the ENAIRE layer category
+  return LAYER_FALLBACK_LABELS[layerIndex] ?? 'Zona restringida';
+}
+
 // ── Parsers ────────────────────────────────────────────────
 
-function parseUasFeature(f: ArcGISFeature): UasZone | null {
+function parseUasFeature(f: ArcGISFeature, layerIndex: number): UasZone | null {
   const a = f.attributes;
   if (!f.geometry?.rings) return null;
 
@@ -106,7 +132,7 @@ function parseUasFeature(f: ArcGISFeature): UasZone | null {
   );
 
   return {
-    name: String(a['NOMBRE'] ?? a['NAME'] ?? a['name'] ?? 'Sin nombre'),
+    name: deriveZoneName(a, layerIndex),
     type: String(a['RESTRICCION'] ?? a['RESTRICTION'] ?? a['TIPO'] ?? a['type'] ?? 'UNKNOWN'),
     variant: String(a['VARIANTE'] ?? a['VARIANT'] ?? ''),
     message: String(a['MENSAJE'] ?? a['MESSAGE'] ?? a['OBSERVACIONES'] ?? ''),
@@ -192,20 +218,20 @@ export async function fetchUasZones(
 
     const zones: UasZone[] = [];
 
-    for (const result of responses) {
-      if (result.status !== 'fulfilled') continue;
+    responses.forEach((result, layerIndex) => {
+      if (result.status !== 'fulfilled') return;
       const data = result.value;
       if (data.error) {
         console.debug('[ENAIRE UAS] Layer error:', data.error.message);
-        continue;
+        return;
       }
-      if (!data.features) continue;
+      if (!data.features) return;
 
       for (const feature of data.features) {
-        const zone = parseUasFeature(feature);
+        const zone = parseUasFeature(feature, layerIndex);
         if (zone) zones.push(zone);
       }
-    }
+    });
 
     cachedZones = zones;
     zonesCachedAt = Date.now();

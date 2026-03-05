@@ -103,9 +103,9 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
   return (
     <div
       ref={drawerRef}
-      className={`fixed z-30 bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ease-in-out ${
+      className={`fixed z-30 bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ease-in-out overflow-hidden ${
         isMobile
-          ? `inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 ${open ? 'translate-y-0' : 'translate-y-full'}`
+          ? `inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 max-w-full ${open ? 'translate-y-0' : 'translate-y-full'}`
           : `right-0 top-0 h-full w-72 border-l border-slate-700 ${open ? 'translate-x-0' : 'translate-x-full'}`
       }`}
       style={isMobile ? { maxHeight: '70vh' } : undefined}
@@ -179,13 +179,14 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             </>
           )}
 
-          {/* ── Dron tab: drone conditions + airspace + wind + rain ── */}
+          {/* ── Dron tab: drone conditions + airspace + wind + rain + fog ── */}
           {activeTab === 'dron' && (
             <>
               <DroneSection alerts={alerts} />
               <AirspaceSection />
               <WindPropagationSection alerts={alerts} />
               <RainSection alerts={alerts} />
+              <FogSection alerts={alerts} />
             </>
           )}
 
@@ -400,18 +401,18 @@ function WindPropagationSection({ alerts }: { alerts: FieldAlerts }) {
 
 function DroneSection({ alerts }: { alerts: FieldAlerts }) {
   return (
-    <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Vuelo Dron" level={alerts.drone.flyable ? 'none' : 'riesgo'}>
+    <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Vuelo Dron" level={alerts.drone.flyable ? 'none' : 'alto'}>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <span
             className="text-[10px] font-bold px-2 py-0.5 rounded"
             style={{
-              background: alerts.drone.flyable ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-              color: alerts.drone.flyable ? '#22c55e' : '#ef4444',
-              border: `1px solid ${alerts.drone.flyable ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+              background: alerts.drone.flyable ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
+              color: alerts.drone.flyable ? '#22c55e' : '#f59e0b',
+              border: `1px solid ${alerts.drone.flyable ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`,
             }}
           >
-            {alerts.drone.flyable ? 'APTO' : 'NO VOLAR'}
+            {alerts.drone.flyable ? 'APTO' : 'PRECAUCIÓN'}
           </span>
           <span className="text-[10px] text-slate-400">
             Viento: {alerts.drone.windKt.toFixed(0)} kt
@@ -422,7 +423,7 @@ function DroneSection({ alerts }: { alerts: FieldAlerts }) {
           <ul className="text-[9px] text-slate-400 space-y-0.5 mt-1">
             {alerts.drone.reasons.map((r, i) => (
               <li key={i} className="flex items-start gap-1">
-                <span className="text-red-400 mt-0.5">•</span>
+                <span className="text-amber-400 mt-0.5">•</span>
                 <span>{r}</span>
               </li>
             ))}
