@@ -10,6 +10,8 @@ import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { checkFrost, checkRainHail } from '../../services/fieldAlertEngine';
 import { useUIStore } from '../../store/uiStore';
 import { useAirspaceStore } from '../../store/airspaceStore';
+import { useAlertStore } from '../../store/alertStore';
+import type { AlertHistoryEntry } from '../../store/alertStore';
 import type { NotamSummary } from '../../services/airspaceService';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
@@ -52,7 +54,13 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<AlertTab>('nav');
   const isMobile = useUIStore((s) => s.isMobile);
+  const setDroneTabActive = useUIStore((s) => s.setDroneTabActive);
   const forecastHourly = useForecastStore((s) => s.hourly);
+
+  // Sync drone tab state to uiStore (controls AirspaceOverlay visibility)
+  useEffect(() => {
+    setDroneTabActive(open && activeTab === 'dron');
+  }, [open, activeTab, setDroneTabActive]);
 
   // Close on click outside
   useEffect(() => {
@@ -143,12 +151,14 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             </>
           )}
 
-          {/* ── Campo tab: frost + rain/hail + fog ── */}
+          {/* ── Campo tab: frost + rain/hail + fog + ET₀ + disease ── */}
           {activeTab === 'campo' && (
             <>
               <FrostSection alerts={alerts} />
               <RainSection alerts={alerts} />
               <FogSection alerts={alerts} />
+              <ET0Section alerts={alerts} />
+              <DiseaseSection alerts={alerts} />
             </>
           )}
 
@@ -162,7 +172,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             </>
           )}
 
-          {/* ── Meteo tab: all alerts + timeline ── */}
+          {/* ── Meteo tab: all alerts + history ── */}
           {activeTab === 'meteo' && (
             <>
               <FrostSection alerts={alerts} />
@@ -170,6 +180,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
               <FogSection alerts={alerts} />
               <WindPropagationSection alerts={alerts} />
               <DroneSection alerts={alerts} />
+              <AlertHistorySection />
             </>
           )}
 
@@ -479,9 +490,25 @@ function NotamItem({ notam }: { notam: NotamSummary }) {
   );
 }
 
+/** Compute centroid of a GeoJSON polygon (average of exterior ring). */
+function polygonCentroid(geom: GeoJSON.Polygon | GeoJSON.MultiPolygon): [number, number] {
+  const ring =
+    geom.type === 'MultiPolygon'
+      ? geom.coordinates[0][0]
+      : geom.coordinates[0];
+  let lonSum = 0, latSum = 0;
+  for (const coord of ring) {
+    lonSum += coord[0];
+    latSum += coord[1];
+  }
+  return [lonSum / ring.length, latSum / ring.length];
+}
+
 function AirspaceSection() {
   const airspaceCheck = useAirspaceStore((s) => s.check);
+  const rawZones = useAirspaceStore((s) => s.zones);
   const loading = useAirspaceStore((s) => s.loading);
+  const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
   if (loading && !airspaceCheck) {
     return (
@@ -548,18 +575,33 @@ function AirspaceSection() {
         {airspaceCheck.zones.length > 0 && (
           <div className="space-y-1 mt-1">
             <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Zonas UAS</span>
-            {airspaceCheck.zones.map((zone, i) => (
-              <div key={i} className="text-[9px] text-slate-400 flex items-start gap-1">
-                <span className="mt-0.5" style={{ color: zone.type.toUpperCase().includes('PROHIB') ? '#ef4444' : '#f59e0b' }}>•</span>
-                <div>
-                  <span className="font-semibold text-slate-300">{zone.name}</span>
-                  <span className="text-slate-500"> · {zone.type} · {zone.maxAltitudeM > 0 ? `≤${zone.maxAltitudeM}m` : 'sin límite alt.'}</span>
-                  {zone.contact && (
-                    <span className="text-slate-600 block">{zone.contact}</span>
-                  )}
+            {airspaceCheck.zones.map((zone, i) => {
+              // Find matching raw zone for geometry centroid
+              const raw = rawZones.find((z) => z.name === zone.name && z.type === zone.type);
+              const handleClick = raw ? () => {
+                const [lon, lat] = polygonCentroid(raw.geometry);
+                setFlyToTarget({ lon, lat, zoom: 11 });
+              } : undefined;
+
+              return (
+                <div
+                  key={i}
+                  className={`text-[9px] text-slate-400 flex items-start gap-1 ${raw ? 'cursor-pointer hover:bg-slate-700/30 rounded px-1 -mx-1 py-0.5 transition-colors' : ''}`}
+                  onClick={handleClick}
+                  title={raw ? 'Clic para centrar en el mapa' : undefined}
+                >
+                  <span className="mt-0.5" style={{ color: zone.type.toUpperCase().includes('PROHIB') ? '#ef4444' : '#f59e0b' }}>•</span>
+                  <div>
+                    <span className="font-semibold text-slate-300">{zone.name}</span>
+                    <span className="text-slate-500"> · {zone.type} · {zone.maxAltitudeM > 0 ? `≤${zone.maxAltitudeM}m` : 'sin límite alt.'}</span>
+                    {zone.contact && (
+                      <span className="text-slate-600 block">{zone.contact}</span>
+                    )}
+                    {raw && <span className="text-blue-500/50 text-[8px] ml-1">&#x2197;</span>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -579,6 +621,125 @@ function AirspaceSection() {
             No hay restricciones de espacio aéreo en esta zona
           </p>
         )}
+      </div>
+    </AlertSection>
+  );
+}
+
+function ET0Section({ alerts }: { alerts: FieldAlerts }) {
+  return (
+    <AlertSection icon={<WeatherIcon id="thermometer" size={14} />} title="ET₀ Evapotranspiración" level={alerts.et0.level}>
+      {alerts.et0.et0Daily !== null ? (
+        <div className="space-y-1">
+          <div className="flex justify-between text-[10px]">
+            <span className="text-slate-400">ET₀ diaria</span>
+            <span
+              className="font-bold"
+              style={{ color: alerts.et0.level === 'critico' ? '#ef4444' : alerts.et0.level === 'alto' ? '#f59e0b' : '#22c55e' }}
+            >
+              {alerts.et0.et0Daily.toFixed(1)} mm/día
+            </span>
+          </div>
+          <div className="text-[9px] text-slate-400 leading-snug mt-1">
+            {alerts.et0.irrigationAdvice}
+          </div>
+        </div>
+      ) : (
+        <p className="text-[10px] text-slate-500">Sin datos de previsión para cálculo ET₀</p>
+      )}
+    </AlertSection>
+  );
+}
+
+function DiseaseSection({ alerts }: { alerts: FieldAlerts }) {
+  const maxLevel: AlertLevel =
+    ({ none: 0, riesgo: 1, alto: 2, critico: 3 }[alerts.disease.mildiu.level] ?? 0) >=
+    ({ none: 0, riesgo: 1, alto: 2, critico: 3 }[alerts.disease.oidio.level] ?? 0)
+      ? alerts.disease.mildiu.level
+      : alerts.disease.oidio.level;
+
+  return (
+    <AlertSection icon={<WeatherIcon id="leaf" size={14} />} title="Riesgo Fitosanitario" level={maxLevel}>
+      <div className="space-y-2">
+        {/* Mildiu */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-[10px] font-semibold text-slate-300">Mildiu</span>
+            {alerts.disease.mildiu.level !== 'none' && (
+              <span
+                className="text-[8px] font-bold px-1 py-0.5 rounded"
+                style={{
+                  color: LEVEL_COLORS[alerts.disease.mildiu.level].text,
+                  background: LEVEL_COLORS[alerts.disease.mildiu.level].bg,
+                }}
+              >
+                {alerts.disease.mildiu.hours}h favorables
+              </span>
+            )}
+          </div>
+          <p className="text-[9px] text-slate-400">{alerts.disease.mildiu.detail}</p>
+        </div>
+        {/* Oídio */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className="text-[10px] font-semibold text-slate-300">Oídio</span>
+            {alerts.disease.oidio.level !== 'none' && (
+              <span
+                className="text-[8px] font-bold px-1 py-0.5 rounded"
+                style={{
+                  color: LEVEL_COLORS[alerts.disease.oidio.level].text,
+                  background: LEVEL_COLORS[alerts.disease.oidio.level].bg,
+                }}
+              >
+                {alerts.disease.oidio.hours}h favorables
+              </span>
+            )}
+          </div>
+          <p className="text-[9px] text-slate-400">{alerts.disease.oidio.detail}</p>
+        </div>
+        <p className="text-[8px] text-slate-600 italic border-t border-slate-700/30 pt-1">
+          Referencia: viñedo Ribeiro (Ourense). No sustituye asesoramiento técnico.
+        </p>
+      </div>
+    </AlertSection>
+  );
+}
+
+function AlertHistorySection() {
+  const history = useAlertStore((s) => s.alertHistory);
+
+  const SEVERITY_DOT: Record<string, string> = {
+    critical: '#ef4444',
+    high: '#f59e0b',
+    moderate: '#3b82f6',
+  };
+
+  if (history.length === 0) {
+    return (
+      <AlertSection icon={<WeatherIcon id="clock" size={14} />} title="Historial Alertas" level="none">
+        <p className="text-[10px] text-slate-500">Sin alertas recientes registradas</p>
+      </AlertSection>
+    );
+  }
+
+  return (
+    <AlertSection icon={<WeatherIcon id="clock" size={14} />} title="Historial Alertas" level="none">
+      <div className="max-h-48 overflow-y-auto space-y-1">
+        {history.slice(0, 20).map((entry, i) => {
+          const dt = new Date(entry.timestamp);
+          const timeStr = dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+          const dateStr = dt.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+          return (
+            <div key={`${entry.id}-${i}`} className="flex items-start gap-1.5 text-[9px]">
+              <span
+                className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0"
+                style={{ background: SEVERITY_DOT[entry.severity] ?? '#64748b' }}
+              />
+              <span className="text-slate-500 font-mono flex-shrink-0 w-16">{dateStr} {timeStr}</span>
+              <span className="text-slate-300 truncate">{entry.title}</span>
+            </div>
+          );
+        })}
       </div>
     </AlertSection>
   );

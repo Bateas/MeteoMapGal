@@ -34,6 +34,8 @@ import {
   Tag,
   CloudDrizzle,
   Map,
+  Leaf,
+  Clock,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -43,7 +45,8 @@ export type IconId =
   | 'snowflake' | 'zap' | 'fog' | 'alert-triangle' | 'ban' | 'sleep'
   | 'check-circle' | 'x-circle' | 'info' | 'book-open' | 'download'
   | 'map-pin' | 'drone' | 'waves' | 'flame' | 'hail' | 'thermal-wind'
-  | 'mountain' | 'beach' | 'tag' | 'cloud-drizzle' | 'map';
+  | 'mountain' | 'beach' | 'tag' | 'cloud-drizzle' | 'map'
+  | 'leaf' | 'clock';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -185,6 +188,8 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'flame': Flame,
   'tag': Tag,
   'map': Map,
+  'leaf': Leaf,
+  'clock': Clock,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────
@@ -260,6 +265,8 @@ const ICON_LABELS: Record<IconId, string> = {
   'beach': 'Costa',
   'tag': 'Etiqueta',
   'map': 'Mapa',
+  'leaf': 'Cultivo',
+  'clock': 'Tiempo',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */
