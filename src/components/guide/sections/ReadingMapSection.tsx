@@ -171,6 +171,26 @@ export function ReadingMapSection() {
             title="Presión y punto de rocío"
             text="Datos de 5 fuentes (AEMET, MG, MC, WU, Netatmo). Spread T−Td para predicción de niebla."
           />
+          <MiniExplainer
+            iconId="anchor"
+            title="Mareas (Rías)"
+            text="Panel de mareas IHM con curva SVG, tabla 48h y selector de puerto. Solo visible en sector Rías Baixas."
+          />
+          <MiniExplainer
+            iconId="gauge"
+            title="Perfil atmosférico (Embalse)"
+            text="Evaluación de estabilidad: BLH, CAPE, CIN, LI. Barra vertical SVG con indicadores. Solo sector Embalse."
+          />
+          <MiniExplainer
+            iconId="sailboat"
+            title="Briefing diario de navegación"
+            text="Veredicto GO/Marginal/No-Go con score 0-100, ventana de viento, ΔT, prob. térmicas y tendencia."
+          />
+          <MiniExplainer
+            iconId="wind"
+            title="Estadísticas de viento"
+            text="Wind stats por estación: velocidad media, racha máx, dirección dominante. Calculadas sobre lecturas acumuladas."
+          />
         </div>
       </div>
 
