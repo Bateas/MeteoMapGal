@@ -18,13 +18,13 @@ Requires `.env` with `VITE_AEMET_API_KEY`. Other sources (MeteoGalicia, Meteocli
 - **React 19.2 + TypeScript 5.9 + Vite 7.3 + Tailwind CSS 4.2**
 - **MapLibre GL JS 5.19** (react-map-gl/maplibre) with 3D terrain
 - **Zustand 5** for state (weatherStore, weatherLayerStore, alertStore, sectorStore, toastStore, etc.)
-- **Vitest 4** with 103 tests across 5 test files
+- **Vitest 4** with 159 tests across 7 test files
 - **Five real-time sources**: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo
-- **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), Lightning (meteo2api), AEMET Radar (Cuntis)
+- **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), Lightning (meteo2api), AEMET Radar (Cuntis), EUMETSAT satellite, ENAIRE airspace, IHM tides
 - **Multi-sector**: `sectorStore.ts` + `src/config/sectors.ts` define Embalse / Rías Baixas with independent center, radius, regions
 - **PWA**: Service worker (`public/sw.js`) + web manifest for installable app
 - **n8n webhook**: `src/api/webhookClient.ts` posts alerts to n8n for Telegram notifications (non-critical, fails silently)
-- **Vite proxy** for CORS (8 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`
+- **Vite proxy** for CORS (11 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`, `/enaire-api`, `/ihm-api`, `/eumetsat-api`
 - **Production deployment**: nginx reverse proxy (`nginx.conf`) to Proxmox LXC, mirrors all Vite proxy routes
 
 ## Key Conventions
@@ -73,12 +73,12 @@ npm test              # Vitest in watch mode
 npx vitest run        # Single run (CI)
 ```
 
-132 tests across 6 files: `normalizer.test.ts`, `windUtils.test.ts`, `alertService.test.ts`, `thermalScoringEngine.test.ts`, `toastStore.test.ts`, `csvUtils.test.ts`. Config in `vite.config.ts` (`test` block) with jsdom environment and `src/test/setup.ts`.
+159 tests across 7 files: `normalizer.test.ts`, `windUtils.test.ts`, `alertService.test.ts`, `thermalScoringEngine.test.ts`, `toastStore.test.ts`, `csvUtils.test.ts`, `airspaceService.test.ts`. Config in `vite.config.ts` (`test` block) with jsdom environment and `src/test/setup.ts`.
 
 ## Deployment
 
 **Production** runs via nginx reverse proxy on a Proxmox LXC container:
 1. `npm run build` produces `dist/` with hashed assets
-2. Copy `dist/` to `/var/www/meteomap` on the LXC
+2. Copy `dist/` to `/var/www/meteomapgal` on the LXC
 3. `nginx.conf` (root of repo) provides all CORS proxy routes + SPA fallback + gzip + PWA cache headers
 4. n8n webhook route (commented template in `nginx.conf`) proxies `/api/webhook/` to n8n instance for Telegram alert forwarding

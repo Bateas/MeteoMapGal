@@ -24,6 +24,7 @@ Pure functions and algorithms used across the app. No React dependencies.
 - **`notificationService.ts`** — Browser push notifications + audio alerts for escalated alerts.
 - **`stormTracker.ts`** — Lightning proximity analysis: danger <10km, warning <25km, watch <50km from reservoir center.
 - **`stormShadowDetector.ts`** — Detects storm cloud presence by analyzing solar radiation drops across stations, cross-referenced with lightning data and wind anomalies (gust fronts). Estimates storm position, movement vector, and approach to Castrelo.
+- **`airspaceService.ts`** — Evaluates drone flight restrictions: ENAIRE UAS zones + active NOTAMs for sector center. Used by FieldDrawer Dron panel.
 
 ## Forecast & History
 
@@ -36,9 +37,10 @@ Pure functions and algorithms used across the app. No React dependencies.
 
 ## Data Logging
 
-- **`stationDataLogger.ts`** — Logs readings to localStorage as CSV. Includes CSV injection defense (escapes `=`, `+`, `-`, `@` prefixes).
+- **`stationDataLogger.ts`** — Logs readings to localStorage as CSV. Uses `csvUtils` for safe escaping.
+- **`csvUtils.ts`** — CSV injection defense: escapes `=`, `+`, `-`, `@` prefixes and handles quoting.
 - **`tendencyDetector.ts`** — Detects rising/falling/stable trends in time series data.
 
 ## Testing
 
-Test files live alongside their source (`*.test.ts`). Currently tested: `normalizer`, `windUtils`, `alertService`, `thermalScoringEngine`, `toastStore`. Run with `npm test` (Vitest).
+Test files live alongside their source (`*.test.ts`). Currently tested: `normalizer`, `windUtils`, `alertService`, `thermalScoringEngine`, `toastStore`, `csvUtils`, `airspaceService`. Run with `npm test` (Vitest).

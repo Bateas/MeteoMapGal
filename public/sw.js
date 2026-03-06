@@ -1,5 +1,5 @@
 // MeteoMap Service Worker — cache-first for static assets, network-only for API proxies
-const CACHE_NAME = 'meteomap-v1';
+const CACHE_NAME = 'meteomap-v2';
 
 const STATIC_EXTENSIONS = /\.(js|css|woff2?|ttf|svg|png|jpg|webp|ico)$/;
 
@@ -8,7 +8,8 @@ const API_PATHS = [
   '/aemet-api', '/aemet-data',
   '/meteogalicia-api', '/meteoclimatic-api',
   '/netatmo-api', '/netatmo-auth',
-  '/meteo2api', '/thredds-wms', '/ideg-api',
+  '/meteo2api', '/ideg-api',
+  '/enaire-api', '/ihm-api', '/eumetsat-api',
   '/api/webhook',
 ];
 
