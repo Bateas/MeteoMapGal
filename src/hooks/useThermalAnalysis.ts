@@ -19,6 +19,7 @@ import { scoreRule } from '../services/thermalScoringEngine';
 import { estimateCloudCover } from '../services/stormShadowDetector';
 import { computeWindStatus } from '../services/windStatusService';
 import { MICRO_ZONES } from '../config/thermalZones';
+import { useVisibilityPolling } from './useVisibilityPolling';
 
 const FORECAST_INTERVAL_MS = 30 * 60 * 1000;
 const ATMOSPHERIC_INTERVAL_MS = 15 * 60 * 1000;
@@ -106,16 +107,8 @@ export function useThermalAnalysis() {
     }).catch((err) => console.warn('[ThermalAnalysis] Atmospheric context error:', err));
   }, [setAtmosphericContext]);
 
-  // Ref keeps latest callback so interval never needs re-creation
-  const fetchAtmosphericRef = useRef(fetchAtmospheric);
-  fetchAtmosphericRef.current = fetchAtmospheric;
-
-  useEffect(() => {
-    fetchAtmosphericRef.current();
-    const id = setInterval(() => fetchAtmosphericRef.current(), ATMOSPHERIC_INTERVAL_MS);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Visibility-aware polling — pauses atmospheric fetches when tab is hidden
+  useVisibilityPolling(fetchAtmospheric, ATMOSPHERIC_INTERVAL_MS);
 
   // ── Fetch Open-Meteo 24h history for tendency backfill ──
   // Station-based history may be sparse (only 10min readings since app opened).
@@ -333,16 +326,7 @@ export function useThermalAnalysis() {
     }
   }, [zones, rules, dailyContext, setZoneForecast, setForecastAlerts]);
 
-  // Ref keeps latest callback so interval never needs re-creation
-  const fetchForecastRef = useRef(fetchForecast);
-  fetchForecastRef.current = fetchForecast;
-
-  // Fetch forecast on mount and every 30 minutes
-  useEffect(() => {
-    fetchForecastRef.current();
-    const id = setInterval(() => fetchForecastRef.current(), FORECAST_INTERVAL_MS);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Visibility-aware polling — pauses forecast fetches when tab is hidden
+  useVisibilityPolling(fetchForecast, FORECAST_INTERVAL_MS);
 
 }

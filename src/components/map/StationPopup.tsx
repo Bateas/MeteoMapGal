@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { useWeatherStore } from '../../store/weatherStore';
@@ -35,7 +35,7 @@ interface StationPopupProps {
   reading?: NormalizedReading;
 }
 
-export function StationPopup({ station, reading }: StationPopupProps) {
+export const StationPopup = memo(function StationPopup({ station, reading }: StationPopupProps) {
   const selectStation = useWeatherStore((s) => s.selectStation);
   const toggleChartStation = useWeatherStore((s) => s.toggleChartStation);
   const chartStations = useWeatherStore((s) => s.chartSelectedStations);
@@ -238,7 +238,7 @@ export function StationPopup({ station, reading }: StationPopupProps) {
       {popupContent}
     </Popup>
   );
-}
+});
 
 // ── Mini SVG wind rose for popups ────────────────────────────
 
@@ -252,6 +252,14 @@ const DIRS_16 = [
   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
 ];
 
+// Cardinal labels — module-level constant (avoids recreating array on every render)
+const CARDINAL_LABELS = [
+  { label: 'N', angle: -90 },
+  { label: 'E', angle: 0 },
+  { label: 'S', angle: 90 },
+  { label: 'W', angle: 180 },
+] as const;
+
 function MiniWindRose({ data }: { data: WindRoseData }) {
   const maxPct = Math.max(...data.points.map((p) => p.percentage), 1);
 
@@ -263,14 +271,6 @@ function MiniWindRose({ data }: { data: WindRoseData }) {
     const y = ROSE_CENTER + r * Math.sin(angle);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
-
-  // Label positions (only 4 cardinals for compact display)
-  const cardinalLabels = [
-    { label: 'N', angle: -90 },
-    { label: 'E', angle: 0 },
-    { label: 'S', angle: 90 },
-    { label: 'W', angle: 180 },
-  ];
 
   return (
     <div style={{ marginTop: 8, borderTop: '1px solid #e2e8f0', paddingTop: 6 }}>
@@ -313,7 +313,7 @@ function MiniWindRose({ data }: { data: WindRoseData }) {
           strokeWidth={1.5}
         />
         {/* Cardinal labels */}
-        {cardinalLabels.map(({ label, angle }) => {
+        {CARDINAL_LABELS.map(({ label, angle }) => {
           const rad = angle * (Math.PI / 180);
           const lx = ROSE_CENTER + (ROSE_RADIUS + 8) * Math.cos(rad);
           const ly = ROSE_CENTER + (ROSE_RADIUS + 8) * Math.sin(rad);
