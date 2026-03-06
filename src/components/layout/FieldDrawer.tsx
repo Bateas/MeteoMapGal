@@ -17,6 +17,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import { useSectorStore } from '../../store/sectorStore';
 import { TidePanel } from '../dashboard/TidePanel';
+import { AtmosphericProfile } from '../dashboard/AtmosphericProfile';
 
 export type AlertTab = 'nav' | 'campo' | 'dron' | 'meteo';
 
@@ -58,7 +59,9 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
   const isMobile = useUIStore((s) => s.isMobile);
   const setDroneTabActive = useUIStore((s) => s.setDroneTabActive);
   const forecastHourly = useForecastStore((s) => s.hourly);
-  const isRias = useSectorStore((s) => s.activeSector.id === 'rias');
+  const activeSectorId = useSectorStore((s) => s.activeSector.id);
+  const isRias = activeSectorId === 'rias';
+  const isEmbalse = activeSectorId === 'embalse';
 
   // Sync drone tab state to uiStore (controls AirspaceOverlay visibility)
   useEffect(() => {
@@ -163,10 +166,11 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
         </div>
       ) : (
         <div className={`space-y-3 overflow-y-auto ${isMobile ? 'p-4 max-h-[calc(70vh-120px)]' : 'p-3 h-[calc(100%-92px)]'}`}>
-          {/* ── Navegación tab: wind propagation + fog + tides (Rías) ── */}
+          {/* ── Navegación tab: wind propagation + fog + tides (Rías) + atmospheric (Embalse) ── */}
           {activeTab === 'nav' && (
             <>
               {isRias && <TidePanel />}
+              {isEmbalse && <AtmosphericProfile />}
               <WindPropagationSection alerts={alerts} />
               <FogSection alerts={alerts} />
             </>
