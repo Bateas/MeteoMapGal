@@ -8,6 +8,7 @@ import type {
 } from '../types/thermal';
 import { MICRO_ZONES, DEFAULT_THERMAL_RULES } from '../config/thermalZones';
 import type { HumidityAssessment } from '../services/humidityWindAnalyzer';
+import type { WindStatus } from '../services/windStatusService';
 
 interface ThermalState {
   // Configuration
@@ -40,6 +41,9 @@ interface ThermalState {
   // Humidity cross-validation per zone
   humidityAssessments: Map<MicroZoneId, HumidityAssessment>;
 
+  // Wind status (consensus, trend, coherence, stability)
+  windStatus: WindStatus | null;
+
   // UI state
   showZoneOverlays: boolean;
   selectedZoneId: MicroZoneId | null;
@@ -55,6 +59,7 @@ interface ThermalState {
   setDailyContext: (ctx: DailyContext) => void;
   setAtmosphericContext: (ctx: AtmosphericContext) => void;
   setHumidityAssessments: (assessments: Map<MicroZoneId, HumidityAssessment>) => void;
+  setWindStatus: (status: WindStatus | null) => void;
   toggleZoneOverlays: () => void;
   selectZone: (id: MicroZoneId | null) => void;
   toggleRule: (ruleId: string) => void;
@@ -74,6 +79,7 @@ export const useThermalStore = create<ThermalState>()(devtools((set, get) => ({
   dailyContext: null,
   atmosphericContext: null,
   humidityAssessments: new Map(),
+  windStatus: null,
   showZoneOverlays: true,
   selectedZoneId: null,
 
@@ -87,6 +93,7 @@ export const useThermalStore = create<ThermalState>()(devtools((set, get) => ({
   setDailyContext: (dailyContext) => set({ dailyContext }),
   setAtmosphericContext: (atmosphericContext) => set({ atmosphericContext }),
   setHumidityAssessments: (humidityAssessments) => set({ humidityAssessments }),
+  setWindStatus: (windStatus) => set({ windStatus }),
 
   toggleZoneOverlays: () => set({ showZoneOverlays: !get().showZoneOverlays }),
 

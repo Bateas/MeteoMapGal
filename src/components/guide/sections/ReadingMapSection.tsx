@@ -149,7 +149,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="sailboat"
             title="Banner Go/No-Go"
-            text="Indicador en el mapa: verde (GO 6-20kt), ámbar (MARGINAL), rojo (NO-GO > 25kt o calma)."
+            text="Indicador en el mapa: verde (GO 6-20kt), ámbar (viento flojo o fuerte), rojo (calma o >25kt)."
           />
           <MiniExplainer
             iconId="drone"
@@ -184,7 +184,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="sailboat"
             title="Briefing diario de navegación"
-            text="Veredicto GO/Marginal/No-Go con score 0-100, ventana de viento, ΔT, prob. térmicas y tendencia."
+            text="Score 0-100 basado en consenso multi-estación, previsión, ΔT y condiciones térmicas. ≥45 = ¡A navegar!"
           />
           <MiniExplainer
             iconId="wind"

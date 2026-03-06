@@ -16,16 +16,16 @@ export function RoadmapSection() {
       </div>
 
       {/* ── Timeline ─────────────────────────────────────── */}
-      <div className="relative pl-6">
+      <div className="relative pl-8">
         {/* Vertical line */}
-        <div className="absolute left-[9px] top-0 bottom-0 w-px bg-slate-700" />
+        <div className="absolute left-[11px] top-0 bottom-0 w-px bg-slate-700" />
 
         {/* Últimas actualizaciones */}
         <TimelineGroup label="Últimas actualizaciones" dotColor="bg-emerald-500" textColor="text-emerald-400" />
         <TimelineMilestone
           iconId="sailboat"
           title="Briefing diario de navegación"
-          desc="Veredicto GO/Marginal/No-Go con score 0-100, ventana de viento y consenso multi-estación."
+          desc="Veredicto con score 0-100, consenso multi-estación y ventana de viento."
           status="done"
         />
         <TimelineMilestone
@@ -53,9 +53,16 @@ export function RoadmapSection() {
           status="done"
         />
 
+        <TimelineMilestone
+          iconId="radar"
+          title="Viento en estaciones (consenso)"
+          desc="Panel siempre visible con consenso multi-estación, tendencia, coherencia entre zonas y estabilidad."
+          status="done"
+        />
+
         {/* Minor updates — collapsed */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
-          <div className="absolute left-[-27px] top-1.5 w-[9px] h-[9px] rounded-full border bg-emerald-500/20 border-emerald-500/30" />
+          <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-emerald-500/20 border-emerald-500/30" />
           <span className="shrink-0 mt-0.5 text-emerald-400/50">
             <WeatherIcon id="check" size={15} />
           </span>
@@ -63,6 +70,21 @@ export function RoadmapSection() {
             <span className="text-[10px] text-slate-500">
               Otras mejoras: estadísticas de viento, caché offline (PWA), satélite IR, radar de precipitación.
             </span>
+          </div>
+        </div>
+
+        {/* Nota beta móvil */}
+        <div className="relative flex items-start gap-3 pb-4 ml-3">
+          <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-amber-500/30 border-amber-500/50" />
+          <span className="shrink-0 mt-0.5 text-amber-400/70">
+            <WeatherIcon id="alert-triangle" size={15} />
+          </span>
+          <div className="min-w-0">
+            <span className="text-[10px] font-bold text-amber-400">Versión beta en móviles</span>
+            <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+              La interfaz móvil está en fase beta. Puede haber elementos visuales sin pulir,
+              pequeños bugs de layout o funcionalidades pendientes de optimizar para pantallas pequeñas.
+            </p>
           </div>
         </div>
 
@@ -162,18 +184,12 @@ export function RoadmapSection() {
           </div>
         </div>
 
-        {/* Open source + refresh note */}
-        <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50 space-y-2">
+        {/* Open source note */}
+        <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50">
           <p className="text-[10px] text-slate-400">
             <strong className="text-slate-300">Código abierto:</strong> MeteoMap es un proyecto open source
             basado íntegramente en datos abiertos. Todas las licencias utilizadas (MIT, BSD, Apache)
             son libres — permiten su uso, modificación y distribución sin restricciones.
-          </p>
-          <p className="text-[10px] text-slate-400">
-            <strong className="text-slate-300">Actualización:</strong> Los datos se actualizan cada 5 min.
-            Pulsa{' '}
-            <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">R</kbd>{' '}
-            para recarga manual.
           </p>
         </div>
       </div>
@@ -186,7 +202,7 @@ export function RoadmapSection() {
 function TimelineGroup({ label, dotColor, textColor }: { label: string; dotColor: string; textColor: string }) {
   return (
     <div className="relative flex items-center gap-2 pt-5 pb-2">
-      <div className={`absolute left-[-15px] w-[21px] h-[21px] rounded-full ${dotColor} flex items-center justify-center ring-2 ring-slate-950`}>
+      <div className={`absolute left-[-21px] w-[21px] h-[21px] rounded-full ${dotColor} flex items-center justify-center ring-2 ring-slate-950`}>
         {dotColor.includes('emerald') && (
           <WeatherIcon id="check" size={12} className="text-white" />
         )}
@@ -220,7 +236,7 @@ function TimelineMilestone({
   return (
     <div className="relative flex items-start gap-3 pb-4 ml-3">
       {/* Small dot on timeline */}
-      <div className={`absolute left-[-27px] top-1.5 w-[9px] h-[9px] rounded-full border ${s.dot}`} />
+      <div className={`absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border ${s.dot}`} />
       <span className={`shrink-0 mt-0.5 ${s.icon}`}>
         <WeatherIcon id={iconId} size={15} />
       </span>

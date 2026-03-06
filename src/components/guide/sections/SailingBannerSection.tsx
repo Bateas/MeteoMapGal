@@ -21,22 +21,22 @@ export function SailingBannerSection() {
             iconId="sailboat"
             label="¡A navegar!"
             color="#10b981"
-            range="≥ 50 pts"
-            description="Buenas condiciones. Viento real consistente y/o buen potencial térmico."
+            range="≥ 45 pts"
+            description="Buen día. Viento real sostenido (>5kt) en varias estaciones. Con calor y cielos despejados, excelente."
           />
           <VerdictCard
-            iconId="alert-triangle"
-            label="MARGINAL"
+            iconId="wind"
+            label="Viento flojo"
             color="#f59e0b"
-            range="25 – 49 pts"
-            description="Condiciones mixtas: algo de viento o potencial térmico, pero no ideal."
+            range="20 – 44 pts"
+            description="Algo de viento pero no sostenido, o previsión favorable sin confirmación real aún."
           />
           <VerdictCard
             iconId="sleep"
-            label="POCO VIENTO"
+            label="Sin condiciones"
             color="#ef4444"
-            range="< 25 pts"
-            description="Viento insuficiente. Poco movimiento en estaciones y baja previsión."
+            range="< 20 pts"
+            description="Calma generalizada en estaciones. Sin viento suficiente para navegar."
           />
         </div>
       </div>
@@ -45,16 +45,16 @@ export function SailingBannerSection() {
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Composición del score (0-100)</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
-          <ScoreRow label="Consenso viento real" points="0-25" color="#10b981"
-            desc="Estaciones con viento consistente (misma dirección ±45°, ≥4kt). Más estaciones = más puntos." />
-          <ScoreRow label="ΔT diurno" points="0-25" color="#f59e0b"
-            desc="Diferencia entre Tmin y Tmax prevista. ΔT ≥20°C indica alto potencial térmico." />
-          <ScoreRow label="Atmósfera" points="0-20" color="#3b82f6"
-            desc="Nubes bajas, CAPE alto y PBL elevada favorecen la convección térmica." />
+          <ScoreRow label="Consenso viento real" points="0-40" color="#10b981"
+            desc="Factor dominante. Estaciones con viento consistente (±45°, ≥2kt). +5kt y +5 estaciones = máximo." />
           <ScoreRow label="Viento previsto" points="0-20" color="#06b6d4"
             desc="Ventana de viento ≥3kt entre 10h-20h en la previsión horaria." />
+          <ScoreRow label="ΔT diurno" points="0-15" color="#f59e0b"
+            desc="Bonus térmico. ΔT ≥20°C indica alto potencial de convección." />
+          <ScoreRow label="Atmósfera" points="0-15" color="#3b82f6"
+            desc="Bonus térmico. Nubes bajas + CAPE alto + PBL elevada favorecen térmicas." />
           <ScoreRow label="Zona térmica" points="0-10" color="#a855f7"
-            desc="Score máximo de las micro-zonas del embalse (confirmación en terreno)." />
+            desc="Score de las micro-zonas del embalse (confirmación en terreno)." />
           <div className="border-t border-slate-700/50 pt-2 mt-2">
             <div className="flex items-center justify-between text-[10px]">
               <span className="text-slate-300 font-bold">Penalizaciones</span>
@@ -62,6 +62,10 @@ export function SailingBannerSection() {
             </div>
           </div>
         </div>
+        <p className="text-[10px] text-slate-500 leading-relaxed">
+          <strong className="text-slate-400">Filosofía:</strong> Si hay &gt;5kt de viento real sostenido, ya es un buen día
+          para navegar. Las condiciones térmicas (ΔT, atmósfera) son un <em>bonus</em> que hacen el día excelente, no un requisito.
+        </p>
       </div>
 
       {/* Satellite + Storm shadow */}

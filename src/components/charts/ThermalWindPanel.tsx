@@ -15,9 +15,11 @@ import { BestDaysSearch } from './BestDaysSearch';
 import { WindRose } from './WindRose';
 import { loadAemetHistory, getParsedAemetHistory, filterByStation, buildWindRose, type ParsedDay } from '../../services/aemetHistoryParser';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
-import type { MicroZoneId, ZoneAlert, AlertLevel, TendencyLevel, RuleScore } from '../../types/thermal';
+import type { MicroZoneId, MicroZone, ZoneAlert, AlertLevel, TendencyLevel, RuleScore, PropagationEvent } from '../../types/thermal';
 import type { HumidityAssessment } from '../../services/humidityWindAnalyzer';
+import type { WindStatus } from '../../services/windStatusService';
 import { ALERT_COLORS } from '../../config/alertColors';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 const ALERT_LABELS: Record<AlertLevel, string> = {
   none: 'Sin alerta',
@@ -54,7 +56,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
     zones, rules, ruleScores, zoneAlerts, propagationEvents,
     zoneForecast, forecastAlerts, stationToZone, toggleRule,
     selectZone, selectedZoneId, dailyContext, atmosphericContext,
-    tendencySignals, humidityAssessments,
+    tendencySignals, humidityAssessments, windStatus,
   } = useThermalStore(
     useShallow((s) => ({
       zones: s.zones,
@@ -72,6 +74,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
       atmosphericContext: s.atmosphericContext,
       tendencySignals: s.tendencySignals,
       humidityAssessments: s.humidityAssessments,
+      windStatus: s.windStatus,
     }))
   );
   const [activeSection, setActiveSection] = useState<PanelSection>('alerts');
@@ -303,28 +306,8 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
             );
           })()}
 
-          {/* Propagation events */}
-          {propagationEvents.length > 0 && (
-            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2.5">
-              <div className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5">
-                Propagaci&oacute;n detectada
-              </div>
-              {propagationEvents.map((event, i) => {
-                const sourceZone = zones.find((z) => z.id === event.sourceZone);
-                const targetZone = zones.find((z) => z.id === event.targetZone);
-                return (
-                  <div key={i} className="text-[10px] text-slate-400 flex items-center gap-1.5">
-                    <span style={{ color: sourceZone?.color }}>{sourceZone?.name}</span>
-                    <span className="text-slate-600">&rarr;</span>
-                    <span style={{ color: targetZone?.color }}>{targetZone?.name}</span>
-                    <span className="text-slate-600 ml-auto">
-                      ~{event.estimatedArrivalMin} min
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {/* Wind Status — always visible */}
+          <WindStatusCard windStatus={windStatus} propagationEvents={propagationEvents} zones={zones} />
 
           {/* Zone cards */}
           {zones.map((zone) => {
@@ -722,6 +705,228 @@ function ZoneCard({
               </div>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Wind Status Card ─────────────────────────────────────
+
+function WindStatusCard({
+  windStatus,
+  propagationEvents,
+  zones,
+}: {
+  windStatus: WindStatus | null;
+  propagationEvents: PropagationEvent[];
+  zones: MicroZone[];
+}) {
+  if (!windStatus) {
+    return (
+      <div className="rounded-lg border border-slate-700 bg-slate-800/30 p-2.5">
+        <div className="flex items-center gap-1.5">
+          <WeatherIcon id="wind" size={13} className="text-slate-500" />
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+            Viento en estaciones
+          </span>
+        </div>
+        <div className="text-[10px] text-slate-600 mt-1">Cargando datos...</div>
+      </div>
+    );
+  }
+
+  const { consensus, trend, spreadDeg, zoneSummaries, consensusDurationMin, stableHours } = windStatus;
+
+  // Color logic for consensus
+  const consensusColor = consensus
+    ? consensus.stationCount >= 5 && consensus.avgSpeedKt >= 5
+      ? '#10b981' // emerald
+      : consensus.stationCount >= 3 && consensus.avgSpeedKt >= 3
+        ? '#f59e0b' // amber
+        : '#64748b' // slate
+    : '#64748b';
+
+  // Spread label
+  const spreadLabel = spreadDeg !== null
+    ? spreadDeg < 25 ? 'Muy consistente'
+      : spreadDeg < 45 ? 'Consistente'
+        : 'Variable'
+    : null;
+
+  const spreadColor = spreadDeg !== null
+    ? spreadDeg < 25 ? 'text-green-400'
+      : spreadDeg < 45 ? 'text-emerald-400'
+        : 'text-amber-400'
+    : 'text-slate-500';
+
+  // Trend icon
+  const trendIcon = trend
+    ? trend.direction === 'rising' ? '↑'
+      : trend.direction === 'falling' ? '↓'
+        : '→'
+    : null;
+
+  const trendColor = trend
+    ? trend.direction === 'rising' ? 'text-green-400'
+      : trend.direction === 'falling' ? 'text-amber-400'
+        : 'text-slate-400'
+    : 'text-slate-500';
+
+  const trendLabel = trend
+    ? trend.direction === 'rising' ? 'Subiendo'
+      : trend.direction === 'falling' ? 'Bajando'
+        : 'Estable'
+    : null;
+
+  // Zones with wind data
+  const zonesWithWind = zoneSummaries.filter((z) => z.stationCount > 0);
+  const agreeingZones = zoneSummaries.filter((z) => z.agrees);
+
+  return (
+    <div
+      className="rounded-lg border p-2.5 space-y-2"
+      style={{ borderColor: `${consensusColor}30`, background: `${consensusColor}06` }}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-1.5">
+        <WeatherIcon id="wind" size={13} style={{ color: consensusColor }} />
+        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: consensusColor }}>
+          Viento en estaciones
+        </span>
+      </div>
+
+      {/* Section 1: Consensus */}
+      {consensus ? (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-200">
+                {consensus.dominantDir} {consensus.avgSpeedKt.toFixed(0)}kt
+              </span>
+              <span className="text-[9px] text-slate-500">
+                · {consensus.stationCount} est.
+              </span>
+            </div>
+            {/* Progress bar: stations in consensus */}
+            <div className="flex items-center gap-1.5 mt-1">
+              <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, (consensus.stationCount / 15) * 100)}%`,
+                    background: consensusColor,
+                  }}
+                />
+              </div>
+              <span className="text-[8px] text-slate-500 w-8 text-right tabular-nums">
+                {consensus.stationCount}/15
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-[10px] text-slate-500">Sin viento consistente</div>
+      )}
+
+      {/* Section 2: Trend */}
+      {trend && (
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="text-slate-500 w-16 shrink-0">Tendencia</span>
+          <span className={`font-semibold ${trendColor}`}>
+            {trendIcon} {trendLabel}
+          </span>
+          <span className="text-[9px] text-slate-600 ml-auto tabular-nums">
+            {trend.rateKtPerHour >= 0 ? '+' : ''}{trend.rateKtPerHour.toFixed(1)} kt/h
+          </span>
+        </div>
+      )}
+
+      {/* Section 3: Direction spread */}
+      {spreadDeg !== null && (
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="text-slate-500 w-16 shrink-0">Dispersión</span>
+          <span className={`font-semibold ${spreadColor}`}>
+            {spreadLabel}
+          </span>
+          <span className="text-[9px] text-slate-600 ml-auto tabular-nums">
+            {spreadDeg.toFixed(0)}°
+          </span>
+        </div>
+      )}
+
+      {/* Section 4: Zone coherence — dots */}
+      {zonesWithWind.length > 0 && consensus && (
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="text-slate-500 w-16 shrink-0">Zonas</span>
+          <div className="flex items-center gap-1 flex-wrap">
+            {zoneSummaries.map((z) => {
+              const zone = zones.find((zz) => zz.id === z.zoneId);
+              if (!zone) return null;
+              // Short zone name (first word)
+              const shortName = zone.name.split(' ')[0];
+
+              return (
+                <span
+                  key={z.zoneId}
+                  className={`text-[9px] px-1 py-0.5 rounded ${
+                    z.stationCount === 0
+                      ? 'text-slate-600'
+                      : z.agrees
+                        ? 'text-green-400 bg-green-500/10'
+                        : 'text-slate-400 bg-slate-700/30'
+                  }`}
+                  title={z.dominantDir ? `${z.dominantDir} ${z.avgSpeedKt.toFixed(0)}kt (${z.stationCount} est.)` : 'Sin datos'}
+                >
+                  {shortName} {z.stationCount === 0 ? '○' : z.agrees ? '✓' : z.dominantDir ?? '○'}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Section 5: Stability duration */}
+      {consensusDurationMin !== null && consensusDurationMin > 0 && (
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="text-slate-500 w-16 shrink-0">Estabilidad</span>
+          <span className={`font-semibold ${
+            consensusDurationMin >= 120 ? 'text-green-400'
+              : consensusDurationMin >= 60 ? 'text-emerald-400'
+                : consensusDurationMin >= 20 ? 'text-slate-300'
+                  : 'text-slate-400'
+          }`}>
+            {stableHours !== null
+              ? `~${stableHours}h sostenido`
+              : `~${consensusDurationMin} min`
+            }
+          </span>
+          {consensusDurationMin < 20 && (
+            <span className="text-[8px] text-slate-600 ml-auto">monitorizar</span>
+          )}
+        </div>
+      )}
+
+      {/* Section 6 (conditional): Propagation events */}
+      {propagationEvents.length > 0 && (
+        <div className="rounded border border-blue-500/30 bg-blue-500/5 p-2 mt-1">
+          <div className="text-[9px] font-semibold text-blue-400 uppercase tracking-wider mb-1">
+            Propagación detectada
+          </div>
+          {propagationEvents.map((event, i) => {
+            const sourceZone = zones.find((z) => z.id === event.sourceZone);
+            const targetZone = zones.find((z) => z.id === event.targetZone);
+            return (
+              <div key={i} className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                <span style={{ color: sourceZone?.color }}>{sourceZone?.name}</span>
+                <span className="text-slate-600">&rarr;</span>
+                <span style={{ color: targetZone?.color }}>{targetZone?.name}</span>
+                <span className="text-slate-600 ml-auto">
+                  ~{event.estimatedArrivalMin} min
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
