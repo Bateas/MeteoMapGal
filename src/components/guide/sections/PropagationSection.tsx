@@ -23,6 +23,16 @@ export function PropagationSection() {
         observando múltiples estaciones simultáneamente.
       </p>
 
+      <div className="bg-slate-800/40 rounded-lg p-3 border border-slate-700/50">
+        <p className="text-[10px] text-slate-400 leading-relaxed">
+          <strong className="text-slate-300">Panel &quot;Viento en estaciones&quot;:</strong> En el panel lateral,
+          la sección de viento muestra consenso actual (dirección + velocidad + nº estaciones),
+          tendencia (subiendo/estable/bajando), dispersión direccional y coherencia entre zonas.
+          Los <strong className="text-slate-300">datos pasados</strong> de las estaciones se cruzan para
+          estimar la estabilidad del patrón — un consenso sostenido 2+ horas es muy fiable.
+        </p>
+      </div>
+
       {/* Confirmation diagram */}
       <div className="bg-slate-900/50 rounded-xl p-5 border border-slate-800">
         <ConfirmationDiagram />

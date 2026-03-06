@@ -16,6 +16,7 @@ import type { NotamSummary } from '../../services/airspaceService';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import { useSectorStore } from '../../store/sectorStore';
+import { useThermalStore } from '../../store/thermalStore';
 import { TidePanel } from '../dashboard/TidePanel';
 import { AtmosphericProfile } from '../dashboard/AtmosphericProfile';
 
@@ -171,7 +172,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             <>
               {isRias && <TidePanel />}
               {isEmbalse && <AtmosphericProfile />}
-              <WindPropagationSection alerts={alerts} />
+              <WindStatusSection alerts={alerts} />
               <FogSection alerts={alerts} />
             </>
           )}
@@ -192,7 +193,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             <>
               <DroneSection alerts={alerts} />
               <AirspaceSection />
-              <WindPropagationSection alerts={alerts} />
+              <WindStatusSection alerts={alerts} />
               <RainSection alerts={alerts} />
               <FogSection alerts={alerts} />
             </>
@@ -204,7 +205,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
               <FrostSection alerts={alerts} />
               <RainSection alerts={alerts} />
               <FogSection alerts={alerts} />
-              <WindPropagationSection alerts={alerts} />
+              <WindStatusSection alerts={alerts} />
               <DroneSection alerts={alerts} />
               <AlertHistorySection />
             </>
@@ -355,54 +356,142 @@ function FogSection({ alerts }: { alerts: FieldAlerts }) {
   );
 }
 
-function WindPropagationSection({ alerts }: { alerts: FieldAlerts }) {
+function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
+  const windStatus = useThermalStore((s) => s.windStatus);
+  const zones = useThermalStore((s) => s.zones);
+
+  const consensus = windStatus?.consensus ?? null;
+  const trend = windStatus?.trend ?? null;
+  const spreadDeg = windStatus?.spreadDeg ?? null;
+  const zoneSummaries = windStatus?.zoneSummaries ?? [];
+
+  // Consensus color
+  const consensusColor =
+    consensus && consensus.stationCount >= 5 && consensus.avgSpeedKt >= 5
+      ? '#22c55e'
+      : consensus && consensus.stationCount >= 3 && consensus.avgSpeedKt >= 3
+        ? '#f59e0b'
+        : '#64748b';
+
+  // Determine alert level for section header
+  const sectionLevel: AlertLevel =
+    alerts.wind.active ? 'riesgo' :
+    consensus && consensus.stationCount >= 3 ? 'none' : 'none';
+
   return (
-    <AlertSection icon={<WeatherIcon id="radar" size={14} />} title="Propagación Viento" level={alerts.wind.active ? 'riesgo' : 'none'}>
-      {alerts.wind.active ? (
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
+    <AlertSection icon={<WeatherIcon id="radar" size={14} />} title="Viento en estaciones" level={sectionLevel}>
+      <div className="space-y-1.5">
+        {/* A. Consensus */}
+        {consensus ? (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold font-mono" style={{ color: consensusColor }}>
+                {consensus.dominantDir}
+              </span>
+              <span className="text-[10px] font-bold text-slate-300">
+                {consensus.avgSpeedKt.toFixed(0)} kt
+              </span>
+            </div>
+            <span className="text-[9px] text-slate-500">
+              {consensus.stationCount} estaciones
+            </span>
+          </div>
+        ) : (
+          <p className="text-[10px] text-slate-500">Sin consenso de viento</p>
+        )}
+
+        {/* B. Trend */}
+        {trend && (
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-slate-500">Tendencia</span>
             <span
-              className="text-[10px] font-bold px-2 py-0.5 rounded"
+              className="font-semibold"
               style={{
-                background: 'rgba(245,158,11,0.15)',
-                color: '#f59e0b',
-                border: '1px solid rgba(245,158,11,0.3)',
+                color: trend.direction === 'rising' ? '#22c55e'
+                  : trend.direction === 'falling' ? '#f59e0b' : '#94a3b8',
               }}
             >
-              INTENSIFICÁNDOSE
+              {trend.direction === 'rising' ? '↑' : trend.direction === 'falling' ? '↓' : '→'}
+              {' '}{trend.direction === 'rising' ? 'Subiendo' : trend.direction === 'falling' ? 'Bajando' : 'Estable'}
+              <span className="text-[9px] text-slate-600 ml-1">
+                ({trend.rateKtPerHour > 0 ? '+' : ''}{trend.rateKtPerHour.toFixed(1)} kt/h)
+              </span>
             </span>
-            <span className="text-[10px] text-slate-400">
-              {alerts.wind.directionLabel}
+          </div>
+        )}
+
+        {/* C. Direction spread */}
+        {spreadDeg !== null && (
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-slate-500">Dispersión</span>
+            <span className="text-slate-400">
+              {spreadDeg < 25 ? 'Muy consistente' : spreadDeg < 45 ? 'Consistente' : 'Variable'}
+              <span className="text-[9px] text-slate-600 ml-1">({Math.round(spreadDeg)}°)</span>
             </span>
           </div>
-          <div className="flex justify-between text-[10px]">
-            <span className="text-slate-400">Estaciones barlovento</span>
-            <span className="text-amber-300 font-bold">{alerts.wind.upwindCount}</span>
+        )}
+
+        {/* D. Zone coherence — compact dots */}
+        {zoneSummaries.length > 0 && consensus && (
+          <div className="flex items-center gap-1 flex-wrap text-[9px] pt-0.5">
+            {zoneSummaries.map((z) => (
+              <span
+                key={z.zoneId}
+                className="inline-flex items-center gap-0.5"
+                title={`${z.zoneName}: ${z.dominantDir ?? 'sin viento'} ${z.avgSpeedKt.toFixed(0)}kt`}
+              >
+                <span style={{
+                  color: z.agrees ? '#22c55e' : z.stationCount === 0 ? '#475569' : '#f59e0b',
+                }}>
+                  {z.agrees ? '✓' : z.stationCount === 0 ? '○' : '✗'}
+                </span>
+                <span className="text-slate-600">{z.zoneName.slice(0, 4)}</span>
+              </span>
+            ))}
           </div>
-          <div className="flex justify-between text-[10px]">
-            <span className="text-slate-400">Subida media</span>
-            <span className="text-amber-300 font-bold">+{alerts.wind.avgIncreaseKt.toFixed(1)} kt/10min</span>
+        )}
+
+        {/* E. Stability duration */}
+        {windStatus?.stableHours !== null && windStatus?.stableHours !== undefined && (
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-slate-500">Estabilidad</span>
+            <span className="text-emerald-400/70 font-semibold">
+              ~{windStatus.stableHours}h sostenido
+            </span>
           </div>
-          <div className="flex justify-between text-[10px]">
-            <span className="text-slate-400">Frente actual</span>
-            <span className="text-amber-300 font-bold">{alerts.wind.frontSpeedKt.toFixed(0)} kt</span>
+        )}
+        {windStatus?.consensusDurationMin !== null && windStatus?.consensusDurationMin !== undefined && !windStatus?.stableHours && (
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-slate-500">Consenso</span>
+            <span className="text-slate-400">~{windStatus.consensusDurationMin} min</span>
           </div>
-          {alerts.wind.estimatedArrivalMin !== null && (
-            <div className="flex justify-between text-[10px]">
-              <span className="text-slate-400">Llegada estimada</span>
-              <span className="text-amber-300 font-bold font-mono">~{alerts.wind.estimatedArrivalMin} min</span>
+        )}
+
+        {/* F. Active propagation (conditional — original data) */}
+        {alerts.wind.active && (
+          <div className="mt-1.5 pt-1.5 border-t border-slate-700/50 space-y-1">
+            <div className="flex items-center gap-2">
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded"
+                style={{
+                  background: 'rgba(245,158,11,0.15)',
+                  color: '#f59e0b',
+                  border: '1px solid rgba(245,158,11,0.3)',
+                }}
+              >
+                INTENSIFICÁNDOSE
+              </span>
+              <span className="text-[10px] text-slate-400">
+                {alerts.wind.directionLabel}
+              </span>
             </div>
-          )}
-          <div className="mt-1.5 text-[9px] text-slate-400 italic leading-snug border-t border-slate-700/50 pt-1.5">
-            {alerts.wind.summary}
+            <div className="flex justify-between text-[10px]">
+              <span className="text-slate-400">Subida media</span>
+              <span className="text-amber-300 font-bold">+{alerts.wind.avgIncreaseKt.toFixed(1)} kt/10min</span>
+            </div>
           </div>
-          <ConfidenceBar value={alerts.wind.confidence} />
-        </div>
-      ) : (
-        <p className="text-[10px] text-slate-500">
-          {alerts.wind.summary}
-        </p>
-      )}
+        )}
+      </div>
     </AlertSection>
   );
 }

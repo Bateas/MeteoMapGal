@@ -76,7 +76,7 @@ function degToCardinal8(deg: number): string {
  * Groups stations reporting wind in the same ±45° sector.
  * Returns the largest group with avg speed ≥ 2kt (real wind).
  */
-function computeWindConsensus(
+export function computeWindConsensus(
   currentReadings: Map<string, NormalizedReading>,
 ): WindConsensus | null {
   // Collect all stations with valid wind data (≥2kt to exclude calm/noise)

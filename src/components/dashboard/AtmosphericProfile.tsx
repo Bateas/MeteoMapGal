@@ -163,7 +163,10 @@ export const AtmosphericProfile = memo(function AtmosphericProfile() {
     <div className="rounded-lg border border-slate-700/40 bg-slate-800/20 p-2.5 space-y-2">
       {/* Header + stability badge */}
       <div className="flex items-center gap-2">
-        <span className="text-[11px] font-bold text-slate-200">Perfil Atmosférico</span>
+        <div>
+          <span className="text-[11px] font-bold text-slate-200">Perfil Atmosférico</span>
+          <span className="text-[8px] text-slate-600 ml-1">(convección)</span>
+        </div>
         {assessment && (
           <span
             className="text-[9px] font-bold px-1.5 py-0.5 rounded ml-auto"
@@ -179,7 +182,12 @@ export const AtmosphericProfile = memo(function AtmosphericProfile() {
       </div>
 
       {assessment && (
-        <p className="text-[9px] text-slate-400 leading-snug">{assessment.description}</p>
+        <p className="text-[9px] text-slate-400 leading-snug">
+          {assessment.description}
+          {assessment.label === 'Marginal' && (
+            <span className="text-slate-600"> Este valor mide condiciones de convección, no viento para navegar.</span>
+          )}
+        </p>
       )}
 
       {/* Vertical profile visualization */}
