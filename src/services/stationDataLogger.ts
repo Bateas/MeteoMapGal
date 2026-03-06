@@ -25,7 +25,7 @@ import type { NormalizedReading } from '../types/station';
 import { escapeCSV } from './csvUtils';
 
 const STORAGE_KEY = 'meteomap_station_log';
-const HEADER = 'timestamp,stationId,stationName,source,windSpeed,windDirection,temperature,humidity,pressure';
+const HEADER = 'timestamp,stationId,windSpeed,windDirection,temperature,humidity,pressure';
 const MIN_INTERVAL_MS = 10 * 60 * 1000; // 10 min between logs per station
 const MAX_AGE_DAYS = 90;
 
@@ -52,13 +52,11 @@ export function logReadings(readings: NormalizedReading[]): void {
     const row = [
       ts,
       escapeCSV(r.stationId),
-      '',
-      '',
       r.windSpeed?.toFixed(2) ?? '',
       r.windDirection?.toFixed(0) ?? '',
       r.temperature?.toFixed(1) ?? '',
       r.humidity?.toFixed(0) ?? '',
-      '',
+      r.pressure?.toFixed(1) ?? '',
     ].join(',');
 
     newRows.push(row);

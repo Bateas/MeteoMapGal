@@ -8,7 +8,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
  * Lights up purple when real lightning activity is detected nearby.
  * Not clickable — purely informational.
  */
-export const SimulationToggle = memo(function StormIndicator() {
+export const StormIndicator = memo(function StormIndicator() {
   const isMobile = useUIStore((s) => s.isMobile);
   const stormLevel = useLightningStore((s) => s.stormAlert.level);
 
