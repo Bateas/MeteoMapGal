@@ -195,6 +195,40 @@ export function GlossarySection() {
         />
       </TermGroup>
 
+      {/* ── Tides & Navigation ── */}
+      <TermGroup title="Mareas y navegación">
+        <Term
+          term="Pleamar"
+          definition="Nivel máximo que alcanza la marea en un ciclo. Se produce aproximadamente cada 12h 25min (ciclo semidiurno)."
+          example="Pleamar en Vigo a las 14:32, altura 3.8m → nivel máximo del día. Acceso a fondeos poco profundos."
+          color="#0ea5e9"
+        />
+        <Term
+          term="Bajamar"
+          definition="Nivel mínimo de la marea en un ciclo. Los bajos y bancos de arena quedan expuestos."
+          example="Bajamar en Baiona a las 08:15, altura 0.6m → mínimo del día. Precaución con calados bajos."
+          color="#0ea5e9"
+        />
+        <Term
+          term="Datum de carta"
+          definition="Nivel de referencia (0 m) sobre el que se miden las alturas de marea. Corresponde aproximadamente a la bajamar más baja astronómica."
+          example="Marea de 2.5m = el agua está 2.5m por encima del datum. Los calados de la carta se miden desde aquí."
+          color="#0ea5e9"
+        />
+        <Term
+          term="Coeficiente de marea"
+          definition="Valor 20-120 que indica la amplitud relativa de la marea. > 95 = mareas vivas (gran amplitud), < 45 = mareas muertas."
+          example="Coeficiente 110 = mareas vivas de equinoccio → diferencia de 4m entre plea y baja en Vigo."
+          color="#0ea5e9"
+        />
+        <Term
+          term="IHM (Instituto Hidrográfico de la Marina)"
+          definition="Organismo español que publica las predicciones oficiales de mareas para puertos españoles."
+          example="MeteoMap obtiene datos de mareas del API IHM para 5 puertos de las Rías Baixas."
+          color="#0ea5e9"
+        />
+      </TermGroup>
+
       {/* ── Aviation & Drones ── */}
       <TermGroup title="Aviación y drones">
         <Term
@@ -282,6 +316,8 @@ export function GlossarySection() {
           <ThresholdRow label="Mildiu favorable" value="T>10°C + HR>90% + lluvia" />
           <ThresholdRow label="Oídio favorable" value="T 15-25°C + HR>70% seco" />
           <ThresholdRow label="Dron max viento" value="< 15 kt (18 kt rachas)" />
+          <ThresholdRow label="Mareas vivas" value="Coef. > 95" />
+          <ThresholdRow label="Estabilidad excelente" value="BLH > 1500m, CAPE > 200" />
         </div>
       </div>
     </div>
