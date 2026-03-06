@@ -16,7 +16,7 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 
 // ── Config ──────────────────────────────────────────────
 
-const EUMETSAT_WMS = 'https://view.eumetsat.int/geoserver/msg_fes/wms';
+const EUMETSAT_WMS = '/eumetsat-api/geoserver/msg_fes/wms';
 
 /** Bounding box covering Galicia + surrounding area (EPSG:4326) */
 const BBOX = {

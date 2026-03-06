@@ -27,22 +27,6 @@ export interface Sector {
 
 export const SECTORS: Sector[] = [
   {
-    id: 'embalse',
-    name: 'Embalse de Castrelo',
-    shortName: 'Embalse',
-    icon: 'sailboat',
-    center: [-8.1, 42.29],
-    radiusKm: 35,
-    initialView: {
-      longitude: -8.1,
-      latitude: 42.29,
-      zoom: 11,
-      pitch: 50,
-      bearing: -15,
-    },
-    meteoclimaticRegions: ['ESGAL32', 'ESGAL36'],
-  },
-  {
     id: 'rias',
     name: 'Rías Baixas',
     shortName: 'Rías',
@@ -57,6 +41,22 @@ export const SECTORS: Sector[] = [
       bearing: 0,
     },
     meteoclimaticRegions: ['ESGAL36'],
+  },
+  {
+    id: 'embalse',
+    name: 'Embalse de Castrelo',
+    shortName: 'Embalse',
+    icon: 'sailboat',
+    center: [-8.1, 42.29],
+    radiusKm: 35,
+    initialView: {
+      longitude: -8.1,
+      latitude: 42.29,
+      zoom: 11,
+      pitch: 50,
+      bearing: -15,
+    },
+    meteoclimaticRegions: ['ESGAL32', 'ESGAL36'],
   },
 ];
 

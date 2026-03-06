@@ -1,5 +1,5 @@
 /**
- * Guide section: Banner Go/No-Go — explains the sailing condition banner and data sources.
+ * Guide section: Sailing banner — explains the verdict system and scoring.
  */
 import { WeatherIcon } from '../../icons/WeatherIcons';
 import type { IconId } from '../../icons/WeatherIcons';
@@ -7,83 +7,60 @@ import type { IconId } from '../../icons/WeatherIcons';
 export function SailingBannerSection() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Navegación, fuentes y atribuciones</h2>
+      <h2 className="text-2xl font-bold text-white">Navegación — veredictos y scoring</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        MeteoMap combina múltiples fuentes de datos en tiempo real para ofrecer una visión
-        completa de las condiciones meteorológicas. El banner superior del mapa (sector Embalse)
-        muestra un veredicto rápido de navegación combinando viento, alertas y scoring térmico.
+        El banner de navegación (sector Embalse) muestra un veredicto rápido combinando
+        viento real, previsión, condiciones térmicas y alertas en un score 0-100.
       </p>
 
       {/* Verdict levels */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Veredictos</h3>
-        <p className="text-[10px] text-slate-500 italic">
-          El banner solo aparece cuando hay algo relevante que comunicar. Si las condiciones son favorables
-          (6-20 kt), el banner no se muestra — el viento ya es visible en los marcadores de estación.
-        </p>
         <div className="space-y-2">
           <VerdictCard
-            iconId="alert-triangle"
-            label="PRECAUCIÓN"
-            color="#ef4444"
-            wind="> 25 kt"
-            description="Viento muy fuerte o alertas críticas activas. Extremar precaución."
+            iconId="sailboat"
+            label="¡A navegar!"
+            color="#10b981"
+            range="≥ 50 pts"
+            description="Buenas condiciones. Viento real consistente y/o buen potencial térmico."
           />
           <VerdictCard
             iconId="alert-triangle"
             label="MARGINAL"
             color="#f59e0b"
-            wind="20 – 25 kt / 4 – 6 kt"
-            description="Viento fuerte (>20kt) o viento suave con potencial térmico. Navegar con precaución."
+            range="25 – 49 pts"
+            description="Condiciones mixtas: algo de viento o potencial térmico, pero no ideal."
           />
           <VerdictCard
             iconId="sleep"
-            label="CALMA"
-            color="#94a3b8"
-            wind="< 4 kt"
-            description="Sin viento o viento insuficiente. Si hay previsión térmica, indica «Esperar térmico»."
+            label="POCO VIENTO"
+            color="#ef4444"
+            range="< 25 pts"
+            description="Viento insuficiente. Poco movimiento en estaciones y baja previsión."
           />
         </div>
       </div>
 
-      {/* Data sources */}
+      {/* Scoring breakdown */}
       <div className="space-y-2">
-        <h3 className="text-sm font-bold text-white">Fuentes de datos</h3>
-        <p className="text-[10px] text-slate-400 leading-relaxed">
-          MeteoMap combina 5 fuentes de datos en tiempo real. Las letras dentro de cada
-          marcador de estación indican la fuente:
-        </p>
+        <h3 className="text-sm font-bold text-white">Composición del score (0-100)</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
-          <SourceRow
-            letter="A"
-            name="AEMET"
-            desc="Agencia estatal (España). 9 estaciones. Datos oficiales, actualización cada 10-30 min."
-            color="#ef4444"
-          />
-          <SourceRow
-            letter="M"
-            name="MeteoGalicia"
-            desc="Red autonómica (Galicia). 13 estaciones. Temperatura + humedad principalmente."
-            color="#3b82f6"
-          />
-          <SourceRow
-            letter="C"
-            name="Meteoclimatic"
-            desc="Red ciudadana verificada. 6 estaciones (Ourense + Pontevedra). Datos cada ~5 min."
-            color="#22c55e"
-          />
-          <SourceRow
-            letter="W"
-            name="Weather Underground"
-            desc="Estaciones personales. 1 estación local. Datos en tiempo real."
-            color="#f59e0b"
-          />
-          <SourceRow
-            letter="N"
-            name="Netatmo"
-            desc="Estaciones domésticas. 11 estaciones. Solo temperatura (sin anemómetro)."
-            color="#a855f7"
-          />
+          <ScoreRow label="Consenso viento real" points="0-25" color="#10b981"
+            desc="Estaciones con viento consistente (misma dirección ±45°, ≥4kt). Más estaciones = más puntos." />
+          <ScoreRow label="ΔT diurno" points="0-25" color="#f59e0b"
+            desc="Diferencia entre Tmin y Tmax prevista. ΔT ≥20°C indica alto potencial térmico." />
+          <ScoreRow label="Atmósfera" points="0-20" color="#3b82f6"
+            desc="Nubes bajas, CAPE alto y PBL elevada favorecen la convección térmica." />
+          <ScoreRow label="Viento previsto" points="0-20" color="#06b6d4"
+            desc="Ventana de viento ≥3kt entre 10h-20h en la previsión horaria." />
+          <ScoreRow label="Zona térmica" points="0-10" color="#a855f7"
+            desc="Score máximo de las micro-zonas del embalse (confirmación en terreno)." />
+          <div className="border-t border-slate-700/50 pt-2 mt-2">
+            <div className="flex items-center justify-between text-[10px]">
+              <span className="text-slate-300 font-bold">Penalizaciones</span>
+              <span className="text-red-400 text-[9px]">Tormenta: -40 · Alerta alta: -20 · Lluvia &gt;60%: -10</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -130,79 +107,6 @@ export function SailingBannerSection() {
             <AlertDistance color="#f59e0b" dist="< 25 km" label="Alerta — prepararse para recoger" />
             <AlertDistance color="#3b82f6" dist="< 50 km" label="Vigilancia — monitorizar evolución" />
           </div>
-          <p className="text-[9px] text-slate-500 italic">
-            Fuente: MeteoGalicia meteo2api. Actualización cada 2 minutos.
-          </p>
-        </div>
-      </div>
-
-      {/* Supplementary data sources */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-bold text-white">Fuentes complementarias</h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
-          <SourceRow
-            letter="O"
-            name="Open-Meteo"
-            desc="Previsión horaria + datos atmosféricos (CAPE, PBL, LI, CIN). Motor del scoring térmico."
-            color="#06b6d4"
-          />
-          <SourceRow
-            letter="R"
-            name="AEMET Radar (Cuntis)"
-            desc="Radar de precipitación, radio ~240 km. Actualización cada 10 min."
-            color="#ec4899"
-          />
-          <SourceRow
-            letter="S"
-            name="EUMETSAT Meteosat"
-            desc="Imagen satélite infrarroja (IR 10.8μm). Actualización cada 15 min. Funciona 24h."
-            color="#8b5cf6"
-          />
-          <SourceRow
-            letter="L"
-            name="MeteoGalicia (Rayos)"
-            desc="Impactos de rayos últimas 24h vía meteo2api. Actualización cada 2 min."
-            color="#f43f5e"
-          />
-          <SourceRow
-            letter="E"
-            name="ENAIRE"
-            desc="Zonas UAS y NOTAMs para pilotos de dron. Restricciones de espacio aéreo."
-            color="#6366f1"
-          />
-        </div>
-      </div>
-
-      {/* Refresh */}
-      <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400">
-          <strong className="text-slate-300">Actualización automática:</strong> Todas las fuentes
-          se actualizan cada 5 minutos (rayos cada 2 min). Pulsa{' '}
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">R</kbd>{' '}
-          para forzar una recarga manual.
-        </p>
-      </div>
-
-      {/* Technology & Attribution */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-bold text-white">Tecnología y atribuciones</h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
-          <p className="text-[10px] text-slate-400 leading-relaxed">
-            MeteoMap es software de código abierto construido con tecnologías libres.
-            Agradecemos a las comunidades que hacen posible este proyecto:
-          </p>
-          <div className="space-y-1.5">
-            <AttrRow name="MapLibre GL JS" license="BSD-3" desc="Motor de mapas interactivos con terreno 3D" />
-            <AttrRow name="lucide-react" license="ISC" desc="Iconos SVG consistentes (todos los iconos de la app)" />
-            <AttrRow name="React + Vite" license="MIT" desc="Framework de UI y bundler de desarrollo" />
-            <AttrRow name="Zustand" license="MIT" desc="Gestión de estado ligera" />
-            <AttrRow name="Tailwind CSS" license="MIT" desc="Sistema de diseño utility-first" />
-            <AttrRow name="Recharts" license="MIT" desc="Gráficas y visualizaciones de datos" />
-          </div>
-          <p className="text-[9px] text-slate-600 italic">
-            Todas las librerías utilizadas son de código abierto con licencias permisivas
-            (MIT, BSD, ISC) que permiten uso libre, modificación y distribución.
-          </p>
         </div>
       </div>
     </div>
@@ -215,13 +119,13 @@ function VerdictCard({
   iconId,
   label,
   color,
-  wind,
+  range,
   description,
 }: {
   iconId: IconId;
   label: string;
   color: string;
-  wind: string;
+  range: string;
   description: string;
 }) {
   return (
@@ -233,7 +137,7 @@ function VerdictCard({
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold" style={{ color }}>{label}</span>
-          <span className="text-[9px] text-slate-500 font-mono">{wind}</span>
+          <span className="text-[9px] text-slate-500 font-mono">{range}</span>
         </div>
         <p className="text-[10px] text-slate-500 mt-0.5">{description}</p>
       </div>
@@ -241,39 +145,17 @@ function VerdictCard({
   );
 }
 
-function SourceRow({
-  letter,
-  name,
-  desc,
-  color,
-}: {
-  letter: string;
-  name: string;
-  desc: string;
-  color: string;
-}) {
+function ScoreRow({ label, points, color, desc }: { label: string; points: string; color: string; desc: string }) {
   return (
     <div className="flex items-start gap-3">
-      <div
-        className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
-        style={{ background: color }}
-      >
-        {letter}
+      <div className="shrink-0 w-1.5 h-full min-h-[24px] rounded-full" style={{ background: color }} />
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-300">{label}</span>
+          <span className="text-[9px] font-mono" style={{ color }}>{points} pts</span>
+        </div>
+        <p className="text-[9px] text-slate-500 mt-0.5">{desc}</p>
       </div>
-      <div>
-        <span className="text-[10px] font-bold text-slate-300">{name}</span>
-        <p className="text-[9px] text-slate-500">{desc}</p>
-      </div>
-    </div>
-  );
-}
-
-function AttrRow({ name, license, desc }: { name: string; license: string; desc: string }) {
-  return (
-    <div className="flex items-start gap-3 text-[10px]">
-      <span className="text-slate-300 font-semibold shrink-0 w-28">{name}</span>
-      <span className="text-slate-600 font-mono shrink-0 w-10">{license}</span>
-      <span className="text-slate-500">{desc}</span>
     </div>
   );
 }

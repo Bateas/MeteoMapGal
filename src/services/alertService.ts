@@ -192,8 +192,22 @@ export function buildStormShadowAlerts(shadow: StormShadow | null): UnifiedAlert
 
   const now = new Date();
   const score = Math.min(95, shadow.confidence);
+  const hasLightning = shadow.lightningNearby > 0;
+  const hasWindConfirmation = shadow.windContext !== null && shadow.windContext.outflowCount > 0;
 
-  let title = 'Tormenta cercana detectada';
+  // ── Contextual title based on lightning presence ──
+  let title: string;
+  if (shadow.etaMinutes !== null) {
+    title = hasLightning
+      ? `Tormenta acercándose — ETA ~${shadow.etaMinutes} min`
+      : `Nubosidad densa acercándose — ETA ~${shadow.etaMinutes} min`;
+  } else if (hasLightning) {
+    title = 'Tormenta cercana detectada';
+  } else {
+    title = 'Nubosidad densa detectada';
+  }
+
+  // ── Detail ──
   let detail = `${shadow.shadowedStations.length} estación(es) afectada(s)`;
 
   if (shadow.movementSpeedKmh !== null) {
@@ -205,11 +219,17 @@ export function buildStormShadowAlerts(shadow: StormShadow | null): UnifiedAlert
     detail += ` hacia ${dirs[idx]}`;
   }
   if (shadow.etaMinutes !== null) {
-    title = `Tormenta acercándose — ETA ~${shadow.etaMinutes} min`;
     detail += ` · ETA ~${shadow.etaMinutes} min al embalse`;
   }
 
-  // Wind anomaly context — storms generate their own wind!
+  // Lightning context
+  if (hasLightning) {
+    detail += ` · ${shadow.lightningNearby} rayo(s)`;
+  } else {
+    detail += ' · Caída de radiación solar. Sin rayos por ahora.';
+  }
+
+  // Wind anomaly context
   if (shadow.windContext) {
     if (shadow.windContext.outflowCount > 0) {
       detail += ` · ${shadow.windContext.outflowCount} estación(es) con viento de tormenta`;
@@ -218,18 +238,27 @@ export function buildStormShadowAlerts(shadow: StormShadow | null): UnifiedAlert
     }
   }
 
-  // Severity escalation: wind outflow near target → more dangerous
-  const hasWindConfirmation = shadow.windContext !== null && shadow.windContext.outflowCount > 0;
+  // ── Severity: downgrade when no lightning and no wind confirmation ──
+  let severity: AlertSeverity;
+  if (shadow.etaMinutes !== null && shadow.etaMinutes < 30) {
+    severity = 'high';
+  } else if (hasWindConfirmation) {
+    severity = 'high';
+  } else if (hasLightning && shadow.confidence >= 60) {
+    severity = 'moderate';
+  } else if (!hasLightning) {
+    // No lightning, no wind outflow → just dense clouds, lower severity
+    severity = shadow.confidence >= 70 ? 'moderate' : 'info';
+  } else {
+    severity = shadow.confidence >= 60 ? 'moderate' : 'info';
+  }
 
   return [{
     id: 'storm-shadow',
     category: 'storm',
-    severity: shadow.etaMinutes !== null && shadow.etaMinutes < 30
-      ? 'high'
-      : hasWindConfirmation ? 'high'
-      : shadow.confidence >= 60 ? 'moderate' : 'info',
+    severity,
     score: hasWindConfirmation ? Math.min(100, score + 10) : score,
-    icon: 'zap',
+    icon: hasLightning ? 'zap' : 'cloud',
     title,
     detail,
     urgent: (shadow.etaMinutes !== null && shadow.etaMinutes < 20) || hasWindConfirmation,
