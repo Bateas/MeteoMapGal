@@ -88,9 +88,11 @@ export function ThermalCycleSection() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">El ciclo diario del viento térmico</h2>
+      <p className="text-xs text-slate-500 -mt-1 italic">Ciclo del viento térmico en el embalse de Castrelo de Miño</p>
       <p className="text-slate-400 text-sm leading-relaxed">
-        Cada día soleado de verano repite un patrón predecible. Entender este ciclo
-        te permite anticipar las condiciones horas antes de llegar al embalse.
+        Cada día soleado de verano repite un patrón predecible de viento térmico.
+        Entender este ciclo te permite anticipar las condiciones de navegación
+        horas antes de llegar al embalse.
       </p>
 
       {/* Animated clock/timeline */}

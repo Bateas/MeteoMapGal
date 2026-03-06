@@ -53,6 +53,8 @@ export interface StormShadow {
   windContext: WindContext | null;
   /** Estimated time to reach target point (minutes), null if not approaching */
   etaMinutes: number | null;
+  /** Number of lightning strikes near shadow zone (0 = no lightning) */
+  lightningNearby: number;
   /** Overall confidence score 0-100 */
   confidence: number;
   /** Timestamp of this analysis */
@@ -383,6 +385,7 @@ export function detectStormShadow(
     clearStations: clear,
     windContext,
     etaMinutes,
+    lightningNearby: lightning?.strikesNearShadow ?? 0,
     confidence,
     analyzedAt: new Date(),
   };

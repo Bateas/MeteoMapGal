@@ -118,24 +118,37 @@ export function PropagationSection() {
 
 /* ─── Confirmation diagram ──────────────────────────────── */
 function ConfirmationDiagram() {
+  /*
+   * Positions reflect real geography (top = North):
+   *   Embalse:     center-south
+   *   Ourense:     NE of embalse
+   *   Carballiño:  N of embalse (slightly NW)
+   */
   const stations = [
-    { name: 'Embalse', dir: 'W/SW', x: 250, y: 160, color: '#3b82f6', size: 12, confirmed: true },
-    { name: 'Ourense', dir: 'W', x: 400, y: 120, color: '#f59e0b', size: 9, confirmed: true },
-    { name: 'Carballiño', dir: 'NW', x: 100, y: 100, color: '#a78bfa', size: 7, confirmed: false },
+    { name: 'Embalse', dir: 'W/SW', x: 210, y: 165, color: '#3b82f6', size: 12, confirmed: true },
+    { name: 'Ourense', dir: 'W', x: 380, y: 105, color: '#f59e0b', size: 9, confirmed: true },
+    { name: 'Carballiño', dir: 'NW', x: 200, y: 70, color: '#a78bfa', size: 7, confirmed: false },
   ];
 
   return (
     <svg viewBox="0 0 500 240" className="w-full">
-      {/* Terrain background */}
+      {/* Terrain background — elevated north */}
       <path
-        d="M 0,220 Q 60,180 100,170 Q 150,120 180,100 Q 250,110 300,130 Q 360,110 400,100 Q 460,120 500,150 L 500,240 L 0,240 Z"
+        d="M 0,220 Q 60,180 120,140 Q 180,80 250,90 Q 320,80 400,100 Q 460,130 500,160 L 500,240 L 0,240 Z"
         fill="#1e293b"
         opacity="0.4"
       />
 
-      {/* River */}
+      {/* Compass indicator */}
+      <g>
+        <text x="460" y="30" textAnchor="middle" className="text-[9px] fill-slate-500 font-bold">N</text>
+        <line x1="460" y1="34" x2="460" y2="46" stroke="#475569" strokeWidth="1" />
+        <polygon points="460,30 457,38 463,38" fill="#475569" />
+      </g>
+
+      {/* River — runs W to E through center-south */}
       <path
-        d="M 180,175 Q 230,160 280,165 Q 320,175 360,165"
+        d="M 120,185 Q 180,170 240,175 Q 300,182 360,170"
         fill="none"
         stroke="#3b82f6"
         strokeWidth="3"
@@ -149,7 +162,7 @@ function ConfirmationDiagram() {
         </marker>
       </defs>
       <path
-        d="M 20,155 Q 100,140 200,155"
+        d="M 30,165 Q 90,155 170,162"
         fill="none"
         stroke="#22c55e"
         strokeWidth="3"
@@ -159,7 +172,7 @@ function ConfirmationDiagram() {
       >
         <animate attributeName="stroke-dashoffset" values="0;-45" dur="2s" repeatCount="indefinite" />
       </path>
-      <text x="60" y="135" className="text-[10px] fill-emerald-400/70 font-bold">Térmico W →</text>
+      <text x="60" y="145" className="text-[10px] fill-emerald-400/70 font-bold">Térmico W →</text>
 
       {/* Station dots */}
       {stations.map((s) => (
@@ -176,23 +189,23 @@ function ConfirmationDiagram() {
         </g>
       ))}
 
-      {/* Correlation line Embalse→Ourense */}
+      {/* Correlation line Embalse→Ourense (NE direction) */}
       <path
-        d="M 265,155 Q 330,130 390,125"
+        d="M 225,158 Q 300,125 370,110"
         fill="none"
         stroke="#f59e0b"
         strokeWidth="1"
         strokeDasharray="4,3"
         opacity="0.5"
       />
-      <text x="330" y="125" textAnchor="middle" className="text-[8px] fill-amber-500/60">63% correlación</text>
+      <text x="310" y="120" textAnchor="middle" className="text-[8px] fill-amber-500/60">63% correlación</text>
 
       {/* Legend */}
       <g>
-        <circle cx={380} cy={210} r="5" fill="#3b82f6" />
-        <text x={390} y={213} className="text-[8px] fill-slate-500">= dato real AEMET</text>
-        <circle cx={380} cy={225} r="5" fill="#a78bfa" opacity="0.4" />
-        <text x={390} y={228} className="text-[8px] fill-slate-500">= contexto (estación lejana)</text>
+        <circle cx={380} cy={205} r="5" fill="#3b82f6" />
+        <text x={390} y={208} className="text-[8px] fill-slate-500">= dato real AEMET</text>
+        <circle cx={380} cy={220} r="5" fill="#a78bfa" opacity="0.4" />
+        <text x={390} y={223} className="text-[8px] fill-slate-500">= contexto (estación lejana)</text>
       </g>
     </svg>
   );

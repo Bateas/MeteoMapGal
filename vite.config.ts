@@ -86,6 +86,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/ihm-api/, ''),
         secure: true,
       },
+      '/eumetsat-api': {
+        target: 'https://view.eumetsat.int',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/eumetsat-api/, ''),
+        secure: true,
+      },
     },
   },
 })
