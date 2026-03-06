@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useRef, useCallback } from 'react';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
@@ -8,6 +8,7 @@ import type { StormCluster } from '../services/stormTracker';
 import type { LightningStrike, StormAlert, StormAlertLevel } from '../types/lightning';
 import type { ClusterSnapshot } from '../services/stormTracker';
 import { useSectorStore } from '../store/sectorStore';
+import { useVisibilityPolling } from './useVisibilityPolling';
 
 /**
  * Alert distance thresholds (updated per user request):
@@ -228,14 +229,6 @@ export function useLightningData() {
     }
   }, [setStrikes, setAlert, setClusters, setClusterHistory, setLoading, setError, setLastFetch, sectorCenter]);
 
-  // Initial fetch + polling
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    fetchAndUpdate();
-    intervalRef.current = setInterval(fetchAndUpdate, POLL_INTERVAL_MS);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [fetchAndUpdate]);
+  // Visibility-aware polling — pauses when tab is hidden
+  useVisibilityPolling(fetchAndUpdate, POLL_INTERVAL_MS);
 }
