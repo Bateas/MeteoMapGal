@@ -196,6 +196,20 @@ export function RoadmapSection() {
             <strong className="text-slate-300">Código abierto:</strong> MeteoMapGal es un proyecto open source
             basado íntegramente en datos abiertos. Todas las licencias utilizadas (MIT, BSD, Apache)
             son libres — permiten su uso, modificación y distribución sin restricciones.
+            {' '}
+            <a
+              href="https://github.com/Bateas/MeteoMapGal"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+            >Ver en GitHub</a>
+            {' · '}
+            <a
+              href="https://github.com/Bateas/MeteoMapGal/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+            >Reportar bug / Sugerencias</a>
           </p>
         </div>
       </div>
