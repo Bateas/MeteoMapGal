@@ -10,7 +10,7 @@ import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { isWithinRadius } from '../services/geoUtils';
 
 // Public API key exposed in wunderground.com source code
-const API_KEY = 'e1f10a1e78da46f5b10a1e78da96f525';
+const API_KEY = import.meta.env.VITE_WU_API_KEY ?? 'e1f10a1e78da46f5b10a1e78da96f525';
 const BASE_URL = 'https://api.weather.com';
 
 // ── Types ────────────────────────────────────────────────
