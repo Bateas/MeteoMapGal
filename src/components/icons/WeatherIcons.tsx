@@ -39,6 +39,9 @@ import {
   X,
   ClipboardList,
   Anchor,
+  Database,
+  Gauge,
+  Check,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -49,7 +52,8 @@ export type IconId =
   | 'check-circle' | 'x-circle' | 'info' | 'book-open' | 'download'
   | 'map-pin' | 'drone' | 'waves' | 'flame' | 'hail' | 'thermal-wind'
   | 'mountain' | 'beach' | 'tag' | 'cloud-drizzle' | 'map'
-  | 'leaf' | 'clock' | 'x' | 'clipboard-list' | 'anchor';
+  | 'leaf' | 'clock' | 'x' | 'clipboard-list' | 'anchor'
+  | 'database' | 'gauge' | 'check';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -196,6 +200,9 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'x': X,
   'clipboard-list': ClipboardList,
   'anchor': Anchor,
+  'database': Database,
+  'gauge': Gauge,
+  'check': Check,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────
@@ -276,6 +283,9 @@ const ICON_LABELS: Record<IconId, string> = {
   'x': 'Cerrar',
   'clipboard-list': 'Lista',
   'anchor': 'Mareas',
+  'database': 'Base de datos',
+  'gauge': 'Indicador',
+  'check': 'Completado',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */
