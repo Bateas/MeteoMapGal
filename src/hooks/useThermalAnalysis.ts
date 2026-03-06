@@ -69,8 +69,6 @@ export function useThermalAnalysis() {
 
   const [, startTransition] = useTransition();
 
-  const forecastTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const atmosphericTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const openMeteoHistoryRef = useRef<Map<MicroZoneId, NormalizedReading[]>>(new Map());
   const lastScoringFingerprintRef = useRef<string>('');
 
@@ -106,13 +104,16 @@ export function useThermalAnalysis() {
     }).catch((err) => console.warn('[ThermalAnalysis] Atmospheric context error:', err));
   }, [setAtmosphericContext]);
 
+  // Ref keeps latest callback so interval never needs re-creation
+  const fetchAtmosphericRef = useRef(fetchAtmospheric);
+  fetchAtmosphericRef.current = fetchAtmospheric;
+
   useEffect(() => {
-    fetchAtmospheric();
-    atmosphericTimerRef.current = setInterval(fetchAtmospheric, ATMOSPHERIC_INTERVAL_MS);
-    return () => {
-      if (atmosphericTimerRef.current) clearInterval(atmosphericTimerRef.current);
-    };
-  }, [fetchAtmospheric]);
+    fetchAtmosphericRef.current();
+    const id = setInterval(() => fetchAtmosphericRef.current(), ATMOSPHERIC_INTERVAL_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Fetch Open-Meteo 24h history for tendency backfill ──
   // Station-based history may be sparse (only 10min readings since app opened).
@@ -324,14 +325,16 @@ export function useThermalAnalysis() {
     }
   }, [zones, rules, dailyContext, setZoneForecast, setForecastAlerts]);
 
+  // Ref keeps latest callback so interval never needs re-creation
+  const fetchForecastRef = useRef(fetchForecast);
+  fetchForecastRef.current = fetchForecast;
+
   // Fetch forecast on mount and every 30 minutes
   useEffect(() => {
-    fetchForecast();
-
-    forecastTimerRef.current = setInterval(fetchForecast, FORECAST_INTERVAL_MS);
-    return () => {
-      if (forecastTimerRef.current) clearInterval(forecastTimerRef.current);
-    };
-  }, [fetchForecast]);
+    fetchForecastRef.current();
+    const id = setInterval(() => fetchForecastRef.current(), FORECAST_INTERVAL_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 }
