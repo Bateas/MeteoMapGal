@@ -22,6 +22,7 @@ import { WindCompass } from '../common/WindCompass';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
+import { WindStatsPanel } from './WindStatsPanel';
 
 // ── Wind sparkline (last ~1h of wind speed) ────────────────
 
@@ -278,6 +279,11 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
         </div>
       ) : (
         <div className="text-xs text-slate-500">Cargando datos...</div>
+      )}
+
+      {/* Wind statistics — shown only when selected */}
+      {isSelected && reading && (
+        <WindStatsPanel stationId={station.id} />
       )}
     </div>
   );
