@@ -38,6 +38,7 @@ import {
   Clock,
   X,
   ClipboardList,
+  Anchor,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -48,7 +49,7 @@ export type IconId =
   | 'check-circle' | 'x-circle' | 'info' | 'book-open' | 'download'
   | 'map-pin' | 'drone' | 'waves' | 'flame' | 'hail' | 'thermal-wind'
   | 'mountain' | 'beach' | 'tag' | 'cloud-drizzle' | 'map'
-  | 'leaf' | 'clock' | 'x' | 'clipboard-list';
+  | 'leaf' | 'clock' | 'x' | 'clipboard-list' | 'anchor';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -194,6 +195,7 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'clock': Clock,
   'x': X,
   'clipboard-list': ClipboardList,
+  'anchor': Anchor,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────
@@ -273,6 +275,7 @@ const ICON_LABELS: Record<IconId, string> = {
   'clock': 'Tiempo',
   'x': 'Cerrar',
   'clipboard-list': 'Lista',
+  'anchor': 'Mareas',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */

@@ -80,6 +80,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/enaire-api/, ''),
         secure: true,
       },
+      '/ihm-api': {
+        target: 'https://ideihm.covam.es',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ihm-api/, ''),
+        secure: true,
+      },
     },
   },
 })
