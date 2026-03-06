@@ -99,10 +99,12 @@ export async function fetchStationInventory(): Promise<AemetRawStation[]> {
 
   const cached = localStorage.getItem(CACHE_KEY);
   if (cached) {
-    const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp < CACHE_TTL) {
-      return data;
-    }
+    try {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < CACHE_TTL) {
+        return data;
+      }
+    } catch { /* corrupted cache — refetch */ }
   }
 
   const stations = await aemetTwoStepFetch<AemetRawStation[]>(AEMET.stationInventory());
