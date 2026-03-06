@@ -66,37 +66,47 @@ async function getToken(): Promise<string> {
 }
 
 async function fetchTokenInternal(): Promise<string> {
-  // Token endpoint is at auth.netatmo.com (proxied via /netatmo-auth)
-  try {
-    const res = await fetch('/netatmo-auth/weathermap/token');
-    if (res.ok) {
-      const data = await res.json();
-      cachedToken = data.body;
-      tokenFetchedAt = Date.now();
-      console.debug('[Netatmo] Token obtained via proxy');
-      return cachedToken!;
-    }
-    console.warn(`[Netatmo] Proxy token failed: ${res.status}`);
-  } catch (e) {
-    console.warn('[Netatmo] Proxy token error:', e);
-  }
+  // 10s timeout to prevent hanging downstream fetches
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
 
-  // Fallback: direct URL (may have CORS issues)
   try {
-    const res = await fetch('https://auth.netatmo.com/weathermap/token');
-    if (res.ok) {
-      const data = await res.json();
-      cachedToken = data.body;
-      tokenFetchedAt = Date.now();
-      console.debug('[Netatmo] Token obtained via direct URL');
-      return cachedToken!;
+    // Token endpoint is at auth.netatmo.com (proxied via /netatmo-auth)
+    try {
+      const res = await fetch('/netatmo-auth/weathermap/token', { signal: controller.signal });
+      if (res.ok) {
+        const data = await res.json();
+        cachedToken = data.body;
+        tokenFetchedAt = Date.now();
+        console.debug('[Netatmo] Token obtained via proxy');
+        return cachedToken!;
+      }
+      console.warn(`[Netatmo] Proxy token failed: ${res.status}`);
+    } catch (e) {
+      if (controller.signal.aborted) throw new Error('Netatmo token timeout (10s)');
+      console.warn('[Netatmo] Proxy token error:', e);
     }
-    console.warn(`[Netatmo] Direct token failed: ${res.status}`);
-  } catch (e) {
-    console.warn('[Netatmo] Direct token error:', e);
-  }
 
-  throw new Error('Could not obtain Netatmo weathermap token');
+    // Fallback: direct URL (may have CORS issues)
+    try {
+      const res = await fetch('https://auth.netatmo.com/weathermap/token', { signal: controller.signal });
+      if (res.ok) {
+        const data = await res.json();
+        cachedToken = data.body;
+        tokenFetchedAt = Date.now();
+        console.debug('[Netatmo] Token obtained via direct URL');
+        return cachedToken!;
+      }
+      console.warn(`[Netatmo] Direct token failed: ${res.status}`);
+    } catch (e) {
+      if (controller.signal.aborted) throw new Error('Netatmo token timeout (10s)');
+      console.warn('[Netatmo] Direct token error:', e);
+    }
+
+    throw new Error('Could not obtain Netatmo weathermap token');
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // ── Raw types ────────────────────────────────────────────
@@ -166,6 +176,7 @@ export async function fetchNetatmoStations(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!res.ok) {
@@ -241,6 +252,7 @@ export async function fetchNetatmoObservations(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!res.ok) {
