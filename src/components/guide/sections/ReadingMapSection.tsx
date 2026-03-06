@@ -6,7 +6,7 @@ export function ReadingMapSection() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">Cómo leer el mapa</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        MeteoMap muestra muchas capas de información. Aquí te explicamos
+        MeteoMapGal muestra muchas capas de información. Aquí te explicamos
         cómo interpretar cada elemento visual del mapa.
       </p>
 

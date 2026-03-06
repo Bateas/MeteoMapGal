@@ -145,7 +145,7 @@ function sendBrowserNotification(alert: UnifiedAlert): void {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
   try {
-    const notification = new Notification(`MeteoMap — ${alert.title}`, {
+    const notification = new Notification(`MeteoMapGal — ${alert.title}`, {
       body: alert.detail,
       icon: '/favicon.ico',
       tag: alert.id, // Replaces existing notification with same tag

@@ -187,7 +187,7 @@ export function RoadmapSection() {
         {/* Open source note */}
         <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50">
           <p className="text-[10px] text-slate-400">
-            <strong className="text-slate-300">Código abierto:</strong> MeteoMap es un proyecto open source
+            <strong className="text-slate-300">Código abierto:</strong> MeteoMapGal es un proyecto open source
             basado íntegramente en datos abiertos. Todas las licencias utilizadas (MIT, BSD, Apache)
             son libres — permiten su uso, modificación y distribución sin restricciones.
           </p>

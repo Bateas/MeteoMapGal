@@ -62,9 +62,9 @@ export function BestConditionsSection() {
 
       {/* What the scoring system looks at */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">¿Cómo funciona el scoring de MeteoMap?</h3>
+        <h3 className="text-sm font-bold text-white">¿Cómo funciona el scoring de MeteoMapGal?</h3>
         <p className="text-slate-400 text-xs leading-relaxed">
-          MeteoMap calcula una puntuación de 0-100 puntos basada en las condiciones actuales
+          MeteoMapGal calcula una puntuación de 0-100 puntos basada en las condiciones actuales
           y la previsión. Cada factor contribuye con un peso específico derivado del análisis estadístico.
         </p>
         <div className="bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden">
