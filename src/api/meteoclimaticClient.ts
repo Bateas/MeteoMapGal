@@ -7,10 +7,17 @@ import { METEOCLIMATIC } from '../config/apiEndpoints';
  * Uses DOMParser to handle the XML response.
  */
 /** Decode HTML entities (e.g. &ntilde; → ñ) that some XML feeds leave unresolved. */
+const ENTITY_MAP: Record<string, string> = {
+  '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'",
+  '&ntilde;': 'ñ', '&Ntilde;': 'Ñ',
+  '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
+  '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
+  '&uuml;': 'ü', '&Uuml;': 'Ü', '&ccedil;': 'ç', '&Ccedil;': 'Ç',
+  '&deg;': '°', '&ordm;': 'º', '&ordf;': 'ª', '&iexcl;': '¡', '&iquest;': '¿',
+};
+
 function decodeEntities(text: string): string {
-  const ta = document.createElement('textarea');
-  ta.innerHTML = text;
-  return ta.value;
+  return text.replace(/&[a-zA-Z]+;/g, (m) => ENTITY_MAP[m] ?? m);
 }
 
 function parseXmlFeed(xmlText: string): MeteoclimaticRawStation[] {
