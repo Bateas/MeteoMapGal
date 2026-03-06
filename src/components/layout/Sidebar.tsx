@@ -15,6 +15,9 @@ const ForecastTimeline = lazy(() =>
 const ThermalWindPanel = lazy(() =>
   import('../charts/ThermalWindPanel').then((m) => ({ default: m.ThermalWindPanel })),
 );
+const DailySailingBriefing = lazy(() =>
+  import('../dashboard/DailySailingBriefing').then((m) => ({ default: m.DailySailingBriefing })),
+);
 
 type Tab = 'stations' | 'chart' | 'forecast' | 'thermal';
 
@@ -95,9 +98,16 @@ export function Sidebar() {
         <ErrorBanner />
         <Suspense fallback={<div className="text-center text-slate-500 text-xs py-8">Cargando...</div>}>
           {activeTab === 'stations' && (
-            <ErrorBoundary section="Estaciones">
-              <StationTable />
-            </ErrorBoundary>
+            <>
+              {isEmbalse && (
+                <ErrorBoundary section="Resumen Navegación">
+                  <DailySailingBriefing />
+                </ErrorBoundary>
+              )}
+              <ErrorBoundary section="Estaciones">
+                <StationTable />
+              </ErrorBoundary>
+            </>
           )}
           {activeTab === 'chart' && (
             <ErrorBoundary section="Gráfica">
