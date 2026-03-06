@@ -45,6 +45,7 @@ interface WeatherState {
   // Actions
   setStations: (stations: NormalizedStation[]) => void;
   updateReadings: (readings: NormalizedReading[]) => void;
+  appendHistory: (readings: NormalizedReading[]) => void;
   selectStation: (id: string | null) => void;
   highlightStation: (id: string | null) => void;
   toggleChartStation: (id: string) => void;
@@ -140,6 +141,35 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
       readingsEpoch: readingsEpoch + 1,
       lastFetchTime: new Date(),
     }, undefined, 'updateReadings');
+  },
+
+  // Append readings to history only (for model/interpolated data like Open-Meteo).
+  // Never touches currentReadings — real-time station data stays untouched.
+  appendHistory: (readings) => {
+    if (readings.length === 0) return;
+
+    const { readingHistory } = get();
+    const newHistory = new Map(readingHistory);
+    let changed = false;
+
+    for (const reading of readings) {
+      const history = newHistory.get(reading.stationId) || [];
+      const exists = history.some(
+        (h) => h.timestamp.getTime() === reading.timestamp.getTime()
+      );
+      if (!exists) {
+        history.push(reading);
+        if (history.length > MAX_HISTORY_ENTRIES) {
+          history.splice(0, history.length - MAX_HISTORY_ENTRIES);
+        }
+        newHistory.set(reading.stationId, history);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      set({ readingHistory: newHistory }, undefined, 'appendHistory');
+    }
   },
 
   selectStation: (id) => set({ selectedStationId: id }, undefined, 'selectStation'),
