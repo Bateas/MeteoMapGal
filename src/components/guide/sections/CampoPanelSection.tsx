@@ -27,8 +27,8 @@ export function CampoPanelSection() {
             num="1"
             iconId="sailboat"
             name="Navegación"
-            modules="Propagación viento + Niebla/Rocío"
-            desc="Para navegantes: viento entrante y visibilidad."
+            modules="Mareas (Rías) · Perfil atm. (Embalse) · Propagación · Niebla"
+            desc="Mareas IHM + perfil atmosférico + viento entrante + visibilidad."
           />
           <TabRow
             num="2"
@@ -204,6 +204,43 @@ export function CampoPanelSection() {
             { level: 'Sin restricción', condition: 'Ninguna zona UAS ni NOTAM activo' },
             { level: 'Precaución', condition: 'Zona con autorización requerida o NOTAM informativo' },
             { level: 'Prohibido', condition: 'Zona prohibida o NOTAM de restricción activa' },
+          ]}
+        />
+
+        <AlertModule
+          iconId="anchor"
+          title="Mareas (solo Rías Baixas)"
+          color="#0ea5e9"
+          items={[
+            { label: 'Próxima marea', desc: 'Indicador de la siguiente pleamar/bajamar con cuenta atrás' },
+            { label: 'Estado actual', desc: 'Subiendo o bajando + barra de progreso visual' },
+            { label: 'Curva SVG', desc: 'Gráfico de mareas con interpolación coseno. Línea roja = hora actual' },
+            { label: 'Tabla 48h', desc: 'Hoy + mañana con horas y alturas (metros sobre datum de carta)' },
+            { label: 'Selector puerto', desc: 'Vigo, Marín, Vilagarcía, Baiona, Sanxenxo (datos IHM)' },
+          ]}
+          levels={[
+            { level: 'Pleamar', condition: 'Nivel máximo alcanzado' },
+            { level: 'Bajamar', condition: 'Nivel mínimo alcanzado' },
+          ]}
+        />
+
+        <AlertModule
+          iconId="thermometer"
+          title="Perfil Atmosférico (solo Embalse)"
+          color="#8b5cf6"
+          items={[
+            { label: 'Estabilidad', desc: 'Evaluación combinada: Convección / Excelente / Buena / Marginal / Estable' },
+            { label: 'BLH (PBL)', desc: 'Altura de la capa límite: > 1500m = térmicos potentes' },
+            { label: 'CAPE', desc: 'Energía convectiva disponible (J/kg). > 500 = convección activa' },
+            { label: 'CIN', desc: 'Inhibición convectiva. < 50 J/kg = barrera mínima' },
+            { label: 'LI', desc: 'Lifted Index. Negativo = inestable, bueno para térmicos' },
+            { label: 'Perfil vertical', desc: 'SVG con barra BLH, cap CIN y coloreado CAPE' },
+          ]}
+          levels={[
+            { level: 'Excelente', condition: 'BLH > 1500m, CAPE > 200, CIN < 50' },
+            { level: 'Buena', condition: 'BLH > 1000m, CIN < 100' },
+            { level: 'Marginal', condition: 'BLH > 500m o CAPE > 100' },
+            { level: 'Estable', condition: 'BLH bajo, CIN alta, sin convección' },
           ]}
         />
       </div>
