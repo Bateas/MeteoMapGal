@@ -106,6 +106,12 @@ export function RoadmapSection() {
         {/* Futuras funcionalidades */}
         <TimelineGroup label="Futuras funcionalidades" dotColor="bg-slate-500" textColor="text-slate-400" />
         <TimelineMilestone
+          iconId="map-pin"
+          title="Nuevas zonas de monitorización"
+          desc="Expansión a más zonas de Galicia: A Coruña, Lugo, Costa da Morte, Ría de Arousa y más."
+          status="idea"
+        />
+        <TimelineMilestone
           iconId="alert-triangle"
           title="Alertas personalizadas"
           desc="Definir umbrales propios de viento, temperatura o humedad con notificación push."
