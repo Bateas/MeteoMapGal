@@ -90,7 +90,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         )}
 
         <h1 className="text-sm md:text-base font-bold text-white tracking-tight flex-shrink-0">
-          MeteoMap
+          MeteoMapGal
         </h1>
         {!isMobile && (
           <span className="text-[10px] text-slate-500 font-medium truncate inline-flex items-center gap-1">

@@ -1,5 +1,5 @@
 /**
- * WeatherIcons — Central icon registry for MeteoMap.
+ * WeatherIcons — Central icon registry for MeteoMapGal.
  *
  * Replaces all emoji characters with consistent SVG icons:
  * - Lucide React for standard icons (stroke-based, currentColor, tree-shakeable)

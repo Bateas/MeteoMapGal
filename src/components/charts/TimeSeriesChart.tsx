@@ -144,7 +144,7 @@ export function TimeSeriesChart() {
     const safeHeaders = headers.map((h) => escapeCSV(h, ';'));
     const safeRows = rows.map((r) => r.map((cell) => escapeCSV(cell, ';')));
     const csv = [
-      `# MeteoMap — ${metric.label} (${unit}) — Últimas ${timeRange}h`,
+      `# MeteoMapGal — ${metric.label} (${unit}) — Últimas ${timeRange}h`,
       safeHeaders.join(';'),
       ...safeRows.map((r) => r.join(';')),
     ].join('\n');

@@ -12,6 +12,7 @@ import { CampoPanelSection } from './sections/CampoPanelSection';
 import { SailingBannerSection } from './sections/SailingBannerSection';
 import { GlossarySection } from './sections/GlossarySection';
 import { RoadmapSection } from './sections/RoadmapSection';
+import { LegalSection } from './sections/LegalSection';
 
 // ── Section definitions per sector ─────────────────────────────
 
@@ -34,10 +35,11 @@ const ALL_SECTIONS: GuideSection[] = [
   { id: 'sailing', label: 'Navegación y scoring' },
   { id: 'glossary', label: 'Glosario' },
   { id: 'roadmap', label: 'Roadmap y fuentes' },
+  { id: 'legal', label: 'Aviso legal' },
 ];
 
 /** Single generic title — sector details go in the intro content */
-const GUIDE_TITLE = 'Guía MeteoMap';
+const GUIDE_TITLE = 'Guía MeteoMapGal';
 
 export const MeteoGuide = memo(function MeteoGuide() {
   const open = useUIStore((s) => s.guideOpen);
@@ -151,6 +153,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
             {activeSection === 'campo' && <CampoPanelSection />}
             {activeSection === 'sailing' && <SailingBannerSection />}
             {activeSection === 'roadmap' && <RoadmapSection />}
+            {activeSection === 'legal' && <LegalSection />}
           </div>
         </div>
       </div>

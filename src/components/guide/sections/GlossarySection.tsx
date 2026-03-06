@@ -1,6 +1,6 @@
 /**
  * Guide section: Glosario — meteorological terminology for non-experts.
- * Covers key concepts used throughout MeteoMap with practical examples.
+ * Covers key concepts used throughout MeteoMapGal with practical examples.
  */
 import { WeatherIcon } from '../../icons/WeatherIcons';
 
@@ -9,7 +9,7 @@ export function GlossarySection() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">Glosario meteorológico</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        Referencia rápida de los términos que encontrarás en MeteoMap.
+        Referencia rápida de los términos que encontrarás en MeteoMapGal.
         Cada concepto incluye un ejemplo práctico para facilitar su comprensión.
       </p>
 
@@ -42,7 +42,7 @@ export function GlossarySection() {
         <Term
           term="Frente de racha (gust front)"
           definition="Límite de avance de un flujo de aire frío, normalmente asociado a tormentas. Trae rachas violentas y repentinas."
-          example="MeteoMap detecta frentes de racha cuando varias estaciones a barlovento muestran incrementos súbitos coordinados."
+          example="MeteoMapGal detecta frentes de racha cuando varias estaciones a barlovento muestran incrementos súbitos coordinados."
           color="#22c55e"
         />
         <Term
@@ -144,19 +144,19 @@ export function GlossarySection() {
         <Term
           term="Cumulonimbus (Cb)"
           definition="Nube de desarrollo vertical que produce tormentas. Puede alcanzar 12+ km de altura y generar rayos, granizo y rachas."
-          example="En la imagen satelital IR de MeteoMap, los Cb se ven como manchas blancas brillantes (topes fríos a -50°C)."
+          example="En la imagen satelital IR de MeteoMapGal, los Cb se ven como manchas blancas brillantes (topes fríos a -50°C)."
           color="#ef4444"
         />
         <Term
           term="Sombra de tormenta (storm shadow)"
-          definition="Sistema de alerta de MeteoMap que cruza datos de radiación solar, rayos y anomalías de viento para detectar tormentas aproximándose."
+          definition="Sistema de alerta de MeteoMapGal que cruza datos de radiación solar, rayos y anomalías de viento para detectar tormentas aproximándose."
           example="Caída brusca de radiación solar + rayos a 30km + rachas anómalas = alerta de sombra de tormenta activada."
           color="#ef4444"
         />
         <Term
           term="Outflow / flujo de salida"
           definition="Masa de aire frío que escapa de la base de una tormenta. Produce rachas violentas y caída brusca de temperatura."
-          example="MeteoMap detecta outflows cuando 2+ estaciones consecutivas miden un incremento brusco de viento coordinado con la dirección de la tormenta."
+          example="MeteoMapGal detecta outflows cuando 2+ estaciones consecutivas miden un incremento brusco de viento coordinado con la dirección de la tormenta."
           color="#ef4444"
         />
         <Term
@@ -178,7 +178,7 @@ export function GlossarySection() {
         <Term
           term="Mildiu (Downy Mildew)"
           definition="Enfermedad fúngica de la vid (Plasmopara viticola). Necesita calor (>10°C), humedad alta (>90%) y lluvia para propagarse. Ataca hojas y racimos."
-          example="Noche con 14°C, HR 95% y lluvia durante 4h = alto riesgo de infección. MeteoMap cuenta las horas favorables en las próximas 24h."
+          example="Noche con 14°C, HR 95% y lluvia durante 4h = alto riesgo de infección. MeteoMapGal cuenta las horas favorables en las próximas 24h."
           color="#10b981"
         />
         <Term
@@ -190,7 +190,7 @@ export function GlossarySection() {
         <Term
           term="Hargreaves-Samani"
           definition="Fórmula empírica para estimar la evapotranspiración (ET₀) a partir de temperaturas mínima y máxima. Versión simplificada de Penman-Monteith cuando faltan datos de radiación."
-          example="MeteoMap calcula ET₀ diaria con Hargreaves-Samani usando las previsiones Open-Meteo de 48h, corrigiendo por viento y humedad."
+          example="MeteoMapGal calcula ET₀ diaria con Hargreaves-Samani usando las previsiones Open-Meteo de 48h, corrigiendo por viento y humedad."
           color="#10b981"
         />
       </TermGroup>
@@ -224,7 +224,7 @@ export function GlossarySection() {
         <Term
           term="IHM (Instituto Hidrográfico de la Marina)"
           definition="Organismo español que publica las predicciones oficiales de mareas para puertos españoles."
-          example="MeteoMap obtiene datos de mareas del API IHM para 5 puertos de las Rías Baixas."
+          example="MeteoMapGal obtiene datos de mareas del API IHM para 5 puertos de las Rías Baixas."
           color="#0ea5e9"
         />
       </TermGroup>
@@ -240,13 +240,13 @@ export function GlossarySection() {
         <Term
           term="UAS (Unmanned Aircraft System)"
           definition="Sistema de aeronave no tripulada (drones). Las zonas UAS (ZGUAS) de ENAIRE regulan dónde y cómo pueden operar."
-          example="Zona UAS prohibida sobre aeródromo → MeteoMap muestra en rojo en el mapa y bloquea el veredicto Dron."
+          example="Zona UAS prohibida sobre aeródromo → MeteoMapGal muestra en rojo en el mapa y bloquea el veredicto Dron."
           color="#a855f7"
         />
         <Term
           term="ZGUAS (Zona Geográfica UAS)"
           definition="Delimitación geográfica de ENAIRE que define restricciones para operaciones de drones: prohibidas, autorizadas con condiciones, o informativas."
-          example="ZGUAS de tipo prohibido sobre base militar → MeteoMap marca la zona en rojo y la lista en el tab Dron."
+          example="ZGUAS de tipo prohibido sobre base militar → MeteoMapGal marca la zona en rojo y la lista en el tab Dron."
           color="#a855f7"
         />
         <Term
@@ -273,14 +273,14 @@ export function GlossarySection() {
         />
         <Term
           term="Escala Beaufort"
-          definition="Escala de 0 a 12 que clasifica la fuerza del viento por sus efectos. MeteoMap usa su escala de colores para los marcadores."
+          definition="Escala de 0 a 12 que clasifica la fuerza del viento por sus efectos. MeteoMapGal usa su escala de colores para los marcadores."
           example="Fuerza 3 (7-10 kt) = hojas y banderas se mueven → ideal para velero pequeño."
           color="#a855f7"
         />
         <Term
           term="Propagación del viento"
           definition="Análisis que detecta cómo un cambio de viento se desplaza geográficamente de estación en estación."
-          example="Si Ribadavia marca 15 kt del SW y 10 min después Castrelo marca lo mismo, hay propagación — MeteoMap calcula el ETA al embalse."
+          example="Si Ribadavia marca 15 kt del SW y 10 min después Castrelo marca lo mismo, hay propagación — MeteoMapGal calcula el ETA al embalse."
           color="#a855f7"
         />
         <Term
