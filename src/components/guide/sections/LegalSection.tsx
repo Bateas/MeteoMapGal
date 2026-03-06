@@ -95,7 +95,13 @@ export function LegalSection() {
           <p className="text-xs text-slate-400 leading-relaxed">
             MeteoMapGal es software libre distribuido bajo licencia{' '}
             <strong className="text-blue-400">MIT</strong>. Puedes usar, modificar y redistribuir
-            el código sin restricciones. El código fuente está disponible en GitHub.
+            el código sin restricciones. El código fuente está disponible en{' '}
+            <a
+              href="https://github.com/Bateas/MeteoMapGal"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+            >GitHub</a>.
           </p>
           <p className="text-[10px] text-slate-500">
             Todas las dependencias del proyecto utilizan licencias compatibles (MIT, BSD-3, Apache-2.0).
@@ -110,7 +116,13 @@ export function LegalSection() {
       <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/50">
         <p className="text-[10px] text-slate-500">
           <strong className="text-slate-400">Contacto:</strong> Para reportar errores, sugerencias
-          o contribuir al proyecto, abre un issue en el repositorio de GitHub.
+          o contribuir al proyecto, abre un{' '}
+          <a
+            href="https://github.com/Bateas/MeteoMapGal/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+          >issue en GitHub</a>.
         </p>
       </div>
     </div>

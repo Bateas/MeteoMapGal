@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────
-# MeteoMap — Deploy to LXC Container on Proxmox
+# MeteoMapGal — Deploy to LXC Container on Proxmox
 # ─────────────────────────────────────────────────────────────
 # Builds locally, then rsync's dist + nginx config to LXC.
 #
@@ -49,7 +49,7 @@ if [ -n "$SSH_KEY" ]; then
 fi
 
 REMOTE="${LXC_USER}@${LXC_HOST}"
-REMOTE_WEB="/var/www/meteomap"
+REMOTE_WEB="/var/www/meteomapgal"
 REMOTE_NGINX="/etc/nginx/sites-available/meteomap.conf"
 
 # ── Helper functions ─────────────────────────────────────────
@@ -102,7 +102,7 @@ if [ "${1:-}" != "--push-only" ]; then
   fi
 
   echo "══════════════════════════════════════════════════════════"
-  echo "  MeteoMap — Build + Deploy to LXC"
+  echo "  MeteoMapGal — Build + Deploy to LXC"
   echo "══════════════════════════════════════════════════════════"
   echo ""
 
@@ -173,7 +173,7 @@ fi
 
 echo ""
 echo "══════════════════════════════════════════════════════════"
-echo "  ✓ MeteoMap deployed to LXC!"
+echo "  ✓ MeteoMapGal deployed to LXC!"
 echo ""
 echo "  URL:  http://${LXC_HOST}/"
 echo "  Logs: ssh ${REMOTE} journalctl -u nginx -f"
