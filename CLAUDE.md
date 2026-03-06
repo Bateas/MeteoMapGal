@@ -1,4 +1,4 @@
-# MeteoMap
+# MeteoMapGal
 
 Real-time weather monitoring app for Galicia (Spain), with multi-sector support: **Embalse de Castrelo** (thermal sailing, 35km radius) and **Rías Baixas** (coastal wind monitoring, 30km radius).
 

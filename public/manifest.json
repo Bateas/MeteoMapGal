@@ -1,6 +1,6 @@
 {
-  "name": "MeteoMap Galicia",
-  "short_name": "MeteoMap",
+  "name": "MeteoMapGal — Meteo interactivo para Galicia",
+  "short_name": "MeteoMapGal",
   "description": "Monitorización meteorológica en tiempo real para Galicia",
   "start_url": "/",
   "display": "standalone",

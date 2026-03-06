@@ -74,7 +74,7 @@ export function ZonesMapSection() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">Las 5 zonas térmicas</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        MeteoMap divide el área en 5 microzonas con condiciones térmicas distintas.
+        MeteoMapGal divide el área en 5 microzonas con condiciones térmicas distintas.
         Cada zona tiene estaciones asignadas que alimentan el análisis automático.
       </p>
       <div className="bg-slate-800/30 rounded-lg p-2.5 border border-slate-700/40">
