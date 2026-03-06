@@ -19,6 +19,7 @@ export function useWeatherData() {
   const { stations, retry: retryDiscovery } = useStations();
   const activeSector = useSectorStore((s) => s.activeSector);
   const updateReadings = useWeatherStore((s) => s.updateReadings);
+  const appendHistory = useWeatherStore((s) => s.appendHistory);
   const setLoading = useWeatherStore((s) => s.setLoading);
   const setError = useWeatherStore((s) => s.setError);
   const updateSourceStatus = useWeatherStore((s) => s.updateSourceStatus);
@@ -170,7 +171,8 @@ export function useWeatherData() {
 
   const { lastRefresh, isPolling, forceRefresh } = useAutoRefresh(fetchData, REFRESH_INTERVAL_MS);
 
-  // Load 24h historical data from Open-Meteo on first load (model data, fills charts)
+  // Load 24h historical data from Open-Meteo on first load (model data, fills charts only)
+  // Uses appendHistory — never overwrites currentReadings (real-time station data)
   const hasLoadedHistoryRef = useRef(false);
   const loadHistory = useCallback(async () => {
     if (stations.length === 0) return;
@@ -178,12 +180,12 @@ export function useWeatherData() {
       const stationCoords = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
       const historyReadings = await fetchOpenMeteoForStations(stationCoords);
       if (historyReadings.length > 0) {
-        updateReadings(historyReadings);
+        appendHistory(historyReadings);
       }
     } catch (err) {
       console.error('[WeatherData] Open-Meteo history load error:', err);
     }
-  }, [stations, updateReadings]);
+  }, [stations, appendHistory]);
 
   // Reset fetch flags when sector changes (stations go to [] then back)
   const hasFetchedRef = useRef(false);
