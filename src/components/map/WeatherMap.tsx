@@ -16,7 +16,7 @@ import { ThermalAlertMarkers } from './ThermalAlertMarker';
 import { PropagationArrows } from './PropagationArrow';
 import { LightningOverlay } from './LightningOverlay';
 import { StormClusterOverlay } from './StormClusterOverlay';
-import { SimulationToggle } from './SimulationToggle';
+import { StormIndicator } from './StormIndicator';
 import { TemperatureOverlay } from './TemperatureOverlay';
 import { TemperatureToggle } from './TemperatureToggle';
 import { AlertPanel } from './AlertPanel';
@@ -219,7 +219,7 @@ export function WeatherMap() {
         <div className="absolute z-20 bottom-2 left-0 right-0 px-2 pb-[env(safe-area-inset-bottom)] flex flex-col items-center gap-2 max-w-full overflow-x-hidden">
           <AlertPanel />
           <div className="flex items-center justify-center gap-1.5 max-w-full overflow-x-auto scrollbar-none">
-            <SimulationToggle />
+            <StormIndicator />
             <TemperatureToggle />
             <WeatherLayerSelector />
           </div>
@@ -229,7 +229,7 @@ export function WeatherMap() {
         <div className="absolute z-20 bottom-2 left-2 right-2 flex items-end gap-3">
           {/* Toolbar: shrinks to fit, never overlapped */}
           <div className="flex items-end gap-2 shrink-0">
-            <SimulationToggle />
+            <StormIndicator />
             <TemperatureToggle />
             <WeatherLayerSelector />
           </div>
