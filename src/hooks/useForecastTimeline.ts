@@ -1,8 +1,9 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useCallback } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { HourlyForecast, ForecastState } from '../types/forecast';
 import { MAP_CENTER } from '../config/constants';
+import { useVisibilityPolling } from './useVisibilityPolling';
 
 /** Reservoir center */
 const LAT = MAP_CENTER[1]; // 42.29
@@ -124,8 +125,6 @@ export function useForecastTimeline() {
       setFetchedAt: s.setFetchedAt,
     })),
   );
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const poll = useCallback(async () => {
     setLoading(true);
     try {
@@ -142,11 +141,6 @@ export function useForecastTimeline() {
     }
   }, [setHourly, setLoading, setError, setFetchedAt]);
 
-  useEffect(() => {
-    poll();
-    intervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [poll]);
+  // Visibility-aware polling — pauses when tab is hidden
+  useVisibilityPolling(poll, POLL_INTERVAL_MS);
 }
