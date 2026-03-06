@@ -1,12 +1,20 @@
 import { useState } from 'react';
 
+/*
+ * Positions reflect real geography (top = North):
+ *   Castrelo (embalse): center-south (-8.10, 42.20)
+ *   Ourense:            NE of embalse (-7.86, 42.34)
+ *   O Carballiño:       N of embalse  (-8.08, 42.43)
+ *   Montaña Norte:      further N     (~-8.1, 42.5)
+ *   Valle Sur (Miño):   S of embalse  (~-8.1, 42.10)
+ */
 const ZONES = [
   {
     id: 'embalse',
     name: 'Embalse',
     altitude: '110m',
     color: '#3b82f6',
-    position: { x: 240, y: 160 },
+    position: { x: 220, y: 195 },
     description:
       'Centro de actividad. Aquí navegamos. Viento dominante: W (74% tardes de verano). Térmico de 7-12 kt. Drenaje N nocturno (37%).',
     keyStats: ['W dominante 74%', 'Térmico pico 15:48h', 'Drenaje N 37%'],
@@ -17,9 +25,9 @@ const ZONES = [
     name: 'Ourense',
     altitude: '140m',
     color: '#f59e0b',
-    position: { x: 380, y: 120 },
+    position: { x: 370, y: 140 },
     description:
-      'Ciudad de referencia al este. Si Ourense también muestra W cuando el embalse tiene W/SW, el sistema térmico es regional y estable. Correlación real del 63% (AEMET 2022-2025). Tmax de referencia.',
+      'Ciudad de referencia al NE. Si Ourense también muestra W cuando el embalse tiene W/SW, el sistema térmico es regional y estable. Correlación real del 63% (AEMET 2022-2025). Tmax de referencia.',
     keyStats: ['W correlación 63%', 'Confirmación regional', 'Tmax referencia'],
     windDir: 270,
   },
@@ -28,7 +36,7 @@ const ZONES = [
     name: 'Montaña Norte',
     altitude: '630m',
     color: '#22c55e',
-    position: { x: 200, y: 50 },
+    position: { x: 190, y: 45 },
     description:
       'Zona de montaña al norte. Hipótesis: si detecta E por la mañana, podría indicar térmico vespertino. ⚠ Estaciones lejanas al embalse — dato sin confirmar con instrumentación local. Basado en modelo Open-Meteo, no en estaciones AEMET reales.',
     keyStats: ['E mañana → térmico?', 'Hipótesis', 'Estaciones lejanas'],
@@ -39,7 +47,7 @@ const ZONES = [
     name: 'Valle Sur',
     altitude: '200m',
     color: '#ec4899',
-    position: { x: 280, y: 240 },
+    position: { x: 210, y: 265 },
     description:
       'Valle al sur del embalse. Recibe el térmico como SW. Útil para detectar la extensión geográfica del flujo convectivo.',
     keyStats: ['SW cuando térmico activo', 'Extensión flujo', 'Precursor SE mañana'],
@@ -50,9 +58,9 @@ const ZONES = [
     name: 'O Carballiño',
     altitude: '450m',
     color: '#a78bfa',
-    position: { x: 100, y: 100 },
+    position: { x: 230, y: 95 },
     description:
-      'Estación interior a varios km del embalse. No es la montaña de referencia para Castrelo. Su principal valor: drenaje N nocturno muy consistente (48% noches de verano), que enfría el valle y genera el ΔT para el térmico del día siguiente.',
+      'Estación interior al norte del embalse. No es la montaña de referencia para Castrelo. Su principal valor: drenaje N nocturno muy consistente (48% noches de verano), que enfría el valle y genera el ΔT para el térmico del día siguiente.',
     keyStats: ['Drenaje N 48%', 'Contexto nocturno', 'Lejos del embalse'],
     windDir: 315,
   },
@@ -88,21 +96,28 @@ export function ZonesMapSection() {
             </radialGradient>
           </defs>
 
-          {/* Base terrain silhouette */}
+          {/* Base terrain — elevated north (mountains), lower south (valley) */}
           <path
-            d="M 0,280 Q 50,200 100,180 Q 150,100 200,60 Q 250,80 300,120 Q 350,100 400,90 Q 450,120 480,160 L 480,300 L 0,300 Z"
+            d="M 0,280 Q 40,240 80,200 Q 140,100 200,50 Q 260,70 320,110 Q 370,80 420,90 Q 460,130 480,180 L 480,300 L 0,300 Z"
             fill="#1e293b"
             opacity="0.5"
           />
 
-          {/* River / reservoir */}
+          {/* Compass rose (top-right) */}
+          <g>
+            <text x="440" y="30" textAnchor="middle" className="text-[10px] fill-slate-400 font-bold">N</text>
+            <line x1="440" y1="34" x2="440" y2="50" stroke="#64748b" strokeWidth="1.5" />
+            <polygon points="440,30 436,40 444,40" fill="#64748b" />
+          </g>
+
+          {/* River / reservoir — runs W-E through center-south */}
           <path
-            d="M 180,190 Q 220,175 260,170 Q 300,180 320,190"
+            d="M 140,210 Q 190,195 240,200 Q 290,208 340,195"
             fill="none"
             stroke="#3b82f6"
-            strokeWidth="6"
+            strokeWidth="5"
             strokeLinecap="round"
-            opacity="0.3"
+            opacity="0.25"
           />
 
           {/* Active zone glow */}

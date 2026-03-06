@@ -2,25 +2,23 @@ import { memo, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useThermalStore } from '../../store/thermalStore';
 import { useAlertStore } from '../../store/alertStore';
+import { useWeatherStore } from '../../store/weatherStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { generateSailingBriefing, type SailingBriefing, type SailingVerdict } from '../../services/dailyBriefingService';
-import { Sailboat, Wind, Sun, CloudRain, AlertTriangle, ChevronDown, ChevronUp, Thermometer, Cloud } from 'lucide-react';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 // ── Verdict styling ──────────────────────────────────────────
 
-const VERDICT_CONFIG: Record<SailingVerdict, { label: string; bg: string; border: string; text: string; icon: string }> = {
-  go:       { label: '¡A navegar!',   bg: 'bg-emerald-500/10', border: 'border-emerald-500/40', text: 'text-emerald-400', icon: '⛵' },
-  marginal: { label: 'Marginal',      bg: 'bg-amber-500/10',   border: 'border-amber-500/40',   text: 'text-amber-400',   icon: '⚠️' },
-  nogo:     { label: 'No favorable',  bg: 'bg-red-500/10',     border: 'border-red-500/40',     text: 'text-red-400',     icon: '🚫' },
-  unknown:  { label: 'Sin datos',     bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400',   icon: '⏳' },
+export const VERDICT_CONFIG: Record<SailingVerdict, { label: string; bg: string; border: string; text: string }> = {
+  go:       { label: '¡A navegar!',         bg: 'bg-emerald-500/10', border: 'border-emerald-500/40', text: 'text-emerald-400' },
+  marginal: { label: 'Viento flojo',        bg: 'bg-amber-500/10',   border: 'border-amber-500/40',   text: 'text-amber-400' },
+  nogo:     { label: 'Sin condiciones',     bg: 'bg-red-500/10',     border: 'border-red-500/40',     text: 'text-red-400' },
+  unknown:  { label: 'Sin datos',           bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400' },
 };
 
-// ── Component ────────────────────────────────────────────────
+// ── Hook for shared briefing logic ───────────────────────────
 
-export const DailySailingBriefing = memo(function DailySailingBriefing() {
-  const [expanded, setExpanded] = useState(false);
-
-  // Thermal store data
+export function useSailingBriefing(): SailingBriefing {
   const { zoneAlerts, tendencySignals, dailyContext, atmosphericContext } = useThermalStore(
     useShallow((s) => ({
       zoneAlerts: s.zoneAlerts,
@@ -29,19 +27,21 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
       atmosphericContext: s.atmosphericContext,
     })),
   );
-
-  // Alert store
   const alerts = useAlertStore((s) => s.alerts);
-
-  // Forecast store
   const forecast = useForecastStore((s) => s.hourly);
+  const currentReadings = useWeatherStore((s) => s.currentReadings);
 
-  // Generate briefing (memoized)
-  const briefing: SailingBriefing = useMemo(
-    () => generateSailingBriefing(forecast, dailyContext, atmosphericContext, zoneAlerts, tendencySignals, alerts),
-    [forecast, dailyContext, atmosphericContext, zoneAlerts, tendencySignals, alerts],
+  return useMemo(
+    () => generateSailingBriefing(forecast, dailyContext, atmosphericContext, zoneAlerts, tendencySignals, alerts, currentReadings),
+    [forecast, dailyContext, atmosphericContext, zoneAlerts, tendencySignals, alerts, currentReadings],
   );
+}
 
+// ── Component ────────────────────────────────────────────────
+
+export const DailySailingBriefing = memo(function DailySailingBriefing() {
+  const [expanded, setExpanded] = useState(false);
+  const briefing = useSailingBriefing();
   const v = VERDICT_CONFIG[briefing.verdict];
 
   return (
@@ -51,7 +51,7 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
         onClick={() => setExpanded((p) => !p)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left"
       >
-        <Sailboat className={`w-4 h-4 flex-shrink-0 ${v.text}`} />
+        <WeatherIcon id="sailboat" size={16} className={`flex-shrink-0 ${v.text}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className={`text-xs font-bold ${v.text}`}>{v.label}</span>
@@ -59,18 +59,33 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
           </div>
           <p className="text-[10px] text-slate-400 truncate mt-0.5">{briefing.summary}</p>
         </div>
-        {expanded
-          ? <ChevronUp className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-          : <ChevronDown className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-        }
+        <WeatherIcon
+          id={expanded ? 'x' : 'info'}
+          size={14}
+          className="text-slate-500 flex-shrink-0"
+        />
       </button>
 
       {/* ── Expanded details ────────────────────────────── */}
       {expanded && (
         <div className="px-3 pb-2.5 space-y-2 border-t border-slate-700/50">
-          {/* Wind window */}
+          {/* Real-time wind consensus (most important) */}
+          {briefing.windConsensus && (
+            <DetailRow
+              icon={<WeatherIcon id="wind" size={12} className="text-emerald-400" />}
+              label="Consenso real"
+              value={`${briefing.windConsensus.dominantDir} ${briefing.windConsensus.avgSpeedKt.toFixed(0)}kt · ${briefing.windConsensus.stationCount} estaciones`}
+              color={
+                briefing.windConsensus.stationCount >= 5 ? 'text-green-400'
+                  : briefing.windConsensus.stationCount >= 3 ? 'text-emerald-400'
+                  : 'text-amber-400'
+              }
+            />
+          )}
+
+          {/* Forecast wind window */}
           <DetailRow
-            icon={<Wind className="w-3 h-3 text-sky-400" />}
+            icon={<WeatherIcon id="wind" size={12} className="text-sky-400" />}
             label="Ventana viento"
             value={briefing.windWindow
               ? `${briefing.windWindow.dominantDir} ${briefing.windWindow.avgSpeedKt.toFixed(0)}kt (${briefing.windWindow.startHour}:00–${briefing.windWindow.endHour}:00)`
@@ -81,7 +96,7 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
 
           {/* ΔT */}
           <DetailRow
-            icon={<Thermometer className="w-3 h-3 text-orange-400" />}
+            icon={<WeatherIcon id="thermometer" size={12} className="text-orange-400" />}
             label="ΔT diurno"
             value={briefing.deltaT !== null ? `${briefing.deltaT.toFixed(1)}°C` : '—'}
             color={
@@ -96,7 +111,7 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
 
           {/* Thermal probability */}
           <DetailRow
-            icon={<Sun className="w-3 h-3 text-yellow-400" />}
+            icon={<WeatherIcon id="sun" size={12} className="text-yellow-400" />}
             label="Prob. térmicas"
             value={`${briefing.thermalProbability}%`}
             color={
@@ -109,7 +124,7 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
           {/* Cloud + CAPE */}
           {briefing.atmosphere.cloudCover !== null && (
             <DetailRow
-              icon={<Cloud className="w-3 h-3 text-slate-400" />}
+              icon={<WeatherIcon id="cloud" size={12} className="text-slate-400" />}
               label="Nubes / CAPE"
               value={`${Math.round(briefing.atmosphere.cloudCover)}%${briefing.atmosphere.cape !== null ? ` · ${Math.round(briefing.atmosphere.cape)} J/kg` : ''}`}
               color={
@@ -123,7 +138,7 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
           {/* Rain probability */}
           {briefing.rainProbability !== null && briefing.rainProbability > 20 && (
             <DetailRow
-              icon={<CloudRain className="w-3 h-3 text-blue-400" />}
+              icon={<WeatherIcon id="cloud-rain" size={12} className="text-blue-400" />}
               label="Prob. lluvia"
               value={`${briefing.rainProbability}%`}
               color={briefing.rainProbability > 60 ? 'text-red-400' : 'text-amber-400'}
@@ -133,7 +148,7 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
           {/* Storm alert */}
           {briefing.hasStormAlert && (
             <DetailRow
-              icon={<AlertTriangle className="w-3 h-3 text-red-400" />}
+              icon={<WeatherIcon id="alert-triangle" size={12} className="text-red-400" />}
               label="Alerta"
               value="Tormenta activa"
               color="text-red-400"
@@ -143,7 +158,7 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
           {/* Tendency */}
           {briefing.bestTendency !== 'none' && (
             <DetailRow
-              icon={<Sun className="w-3 h-3 text-amber-400" />}
+              icon={<WeatherIcon id="sun" size={12} className="text-amber-400" />}
               label="Tendencia"
               value={
                 briefing.bestTendency === 'active' ? 'Térmicas activas'
@@ -165,7 +180,7 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
 
 // ── Sub-components ───────────────────────────────────────────
 
-function ScoreBadge({ score, verdict }: { score: number; verdict: SailingVerdict }) {
+export function ScoreBadge({ score, verdict }: { score: number; verdict: SailingVerdict }) {
   const bg = verdict === 'go' ? 'bg-emerald-500/20'
     : verdict === 'marginal' ? 'bg-amber-500/20'
     : verdict === 'nogo' ? 'bg-red-500/20'

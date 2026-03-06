@@ -1,4 +1,5 @@
 import type { HourlyForecast } from '../types/forecast';
+import type { NormalizedReading } from '../types/station';
 import type { DailyContext, AtmosphericContext, ZoneAlert, TendencySignal, MicroZoneId } from '../types/thermal';
 import type { UnifiedAlert } from './alertService';
 import { msToKnots } from './windUtils';
@@ -15,6 +16,15 @@ export interface WindWindow {
   peakSpeedKt: number;
 }
 
+export interface WindConsensus {
+  /** Number of stations reporting consistent wind direction */
+  stationCount: number;
+  /** Average wind speed across consensus stations (kt) */
+  avgSpeedKt: number;
+  /** Dominant wind direction (cardinal) */
+  dominantDir: string;
+}
+
 export interface SailingBriefing {
   /** Overall sailing verdict */
   verdict: SailingVerdict;
@@ -28,6 +38,8 @@ export interface SailingBriefing {
   thermalProbability: number;
   /** Best forecast wind window for today */
   windWindow: WindWindow | null;
+  /** Real-time station wind consensus */
+  windConsensus: WindConsensus | null;
   /** Current atmospheric snapshot */
   atmosphere: {
     cloudCover: number | null;
@@ -57,8 +69,83 @@ function degToCardinal8(deg: number): string {
   return CARDINALS[idx];
 }
 
+// ── Real-time wind consensus ─────────────────────────────────
+
+/**
+ * Compute wind consensus from real-time station readings.
+ * Groups stations reporting wind in the same ±45° sector.
+ * Returns the largest group with avg speed ≥ 2kt (real wind).
+ */
+function computeWindConsensus(
+  currentReadings: Map<string, NormalizedReading>,
+): WindConsensus | null {
+  // Collect all stations with valid wind data (≥2kt to exclude calm/noise)
+  const windStations: { dir: number; speedKt: number }[] = [];
+
+  for (const [, reading] of currentReadings) {
+    if (
+      reading.windSpeed !== null &&
+      reading.windDirection !== null &&
+      msToKnots(reading.windSpeed) >= 2
+    ) {
+      windStations.push({
+        dir: reading.windDirection,
+        speedKt: msToKnots(reading.windSpeed),
+      });
+    }
+  }
+
+  if (windStations.length < 2) return null;
+
+  // For each possible 90° sector centered on a cardinal (8 sectors),
+  // count how many stations fall within ±45°
+  let bestGroup: typeof windStations = [];
+  let bestCardinal = 'N';
+
+  for (let sectorCenter = 0; sectorCenter < 360; sectorCenter += 45) {
+    const group = windStations.filter((ws) => {
+      const diff = Math.abs(((ws.dir - sectorCenter) + 180) % 360 - 180);
+      return diff <= 45;
+    });
+
+    if (group.length > bestGroup.length) {
+      bestGroup = group;
+      bestCardinal = degToCardinal8(sectorCenter);
+    }
+  }
+
+  if (bestGroup.length < 2) return null;
+
+  const avgSpeed = bestGroup.reduce((sum, ws) => sum + ws.speedKt, 0) / bestGroup.length;
+
+  // Return consensus if average is at least 2kt (real wind detected)
+  if (avgSpeed < 2) return null;
+
+  return {
+    stationCount: bestGroup.length,
+    avgSpeedKt: Math.round(avgSpeed * 10) / 10,
+    dominantDir: bestCardinal,
+  };
+}
+
 // ── Main briefing generator ──────────────────────────────────
 
+/**
+ * Scoring weights (100 total):
+ *   Consensus real-time:  0-40 pts  (DOMINANT — actual wind happening now)
+ *   Forecast wind:        0-20 pts  (predicted wind window)
+ *   ΔT diurnal:           0-15 pts  (thermal potential bonus)
+ *   Atmosphere:            0-15 pts  (clouds, CAPE, PBL — thermal bonus)
+ *   Thermal zone:          0-10 pts  (zone activity bonus)
+ *
+ * Verdict thresholds:
+ *   GO:       score ≥ 45  (achievable with good real wind alone)
+ *   MARGINAL: score 20-44 (light wind or pending conditions)
+ *   NOGO:     score < 20  (calm or storm)
+ *
+ * Philosophy: If stations report >5kt sustained wind, that's a sailing day
+ * regardless of thermals. Thermals are a BONUS that make it excellent.
+ */
 export function generateSailingBriefing(
   forecast: HourlyForecast[],
   dailyContext: DailyContext | null,
@@ -66,21 +153,22 @@ export function generateSailingBriefing(
   zoneAlerts: Map<MicroZoneId, ZoneAlert>,
   tendencySignals: Map<MicroZoneId, TendencySignal>,
   alerts: UnifiedAlert[],
+  currentReadings?: Map<string, NormalizedReading>,
 ): SailingBriefing {
   const now = new Date();
 
-  // ── ΔT score (0-30 points) ─────────────────────────────
+  // ── ΔT score (0-15 pts) ──────────────────────────────────
   const deltaT = dailyContext?.deltaT ?? null;
   let deltaTScore = 0;
   if (deltaT !== null) {
-    if (deltaT >= 20) deltaTScore = 30;
-    else if (deltaT >= 16) deltaTScore = 25;
-    else if (deltaT >= 12) deltaTScore = 18;
-    else if (deltaT >= 8) deltaTScore = 10;
-    else deltaTScore = 3;
+    if (deltaT >= 20) deltaTScore = 15;
+    else if (deltaT >= 16) deltaTScore = 12;
+    else if (deltaT >= 12) deltaTScore = 8;
+    else if (deltaT >= 8) deltaTScore = 4;
+    else deltaTScore = 2;
   }
 
-  // ── Atmosphere score (0-25 points) ─────────────────────
+  // ── Atmosphere score (0-15 pts) ──────────────────────────
   let atmosphereScore = 0;
   const cloudCover = atmosphericContext?.cloudCover ?? null;
   const cape = atmosphericContext?.cape ?? null;
@@ -88,28 +176,27 @@ export function generateSailingBriefing(
   const pblHeight = atmosphericContext?.boundaryLayerHeight ?? null;
 
   if (cloudCover !== null) {
-    if (cloudCover < 20) atmosphereScore += 10;
-    else if (cloudCover < 40) atmosphereScore += 7;
-    else if (cloudCover < 60) atmosphereScore += 4;
+    if (cloudCover < 20) atmosphereScore += 6;
+    else if (cloudCover < 40) atmosphereScore += 4;
+    else if (cloudCover < 60) atmosphereScore += 2;
   }
   if (cape !== null) {
-    if (cape > 1000) atmosphereScore += 10;
-    else if (cape > 500) atmosphereScore += 7;
-    else if (cape > 200) atmosphereScore += 4;
+    if (cape > 1000) atmosphereScore += 6;
+    else if (cape > 500) atmosphereScore += 4;
+    else if (cape > 200) atmosphereScore += 2;
   }
-  if (pblHeight !== null && pblHeight > 1500) atmosphereScore += 5;
+  if (pblHeight !== null && pblHeight > 1500) atmosphereScore += 3;
 
-  // ── Forecast wind window (0-25 points) ─────────────────
+  // ── Forecast wind window (0-20 pts) ──────────────────────
   const todayHours = forecast.filter((f) => {
     const h = f.time.getHours();
     return f.time.toDateString() === now.toDateString() && h >= 10 && h <= 20 && f.isDay;
   });
 
   let windWindow: WindWindow | null = null;
-  let windScore = 0;
+  let windForecastScore = 0;
 
   if (todayHours.length > 0) {
-    // Find consecutive hours with decent wind (>3kt)
     const withWind = todayHours.filter((f) => f.windSpeed !== null && msToKnots(f.windSpeed) >= 3);
 
     if (withWind.length > 0) {
@@ -117,7 +204,6 @@ export function generateSailingBriefing(
       const avgSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
       const peakSpeed = Math.max(...speeds);
 
-      // Dominant direction (mode of cardinal directions)
       const dirs = withWind
         .filter((f) => f.windDirection !== null)
         .map((f) => degToCardinal8(f.windDirection!));
@@ -134,19 +220,43 @@ export function generateSailingBriefing(
       };
 
       // Score based on avg speed for sailing (sweet spot 6-15kt)
-      if (avgSpeed >= 6 && avgSpeed <= 15) windScore = 25;
-      else if (avgSpeed >= 4) windScore = 18;
-      else if (avgSpeed >= 3) windScore = 12;
-      else windScore = 5;
+      if (avgSpeed >= 6 && avgSpeed <= 15) windForecastScore = 20;
+      else if (avgSpeed >= 4) windForecastScore = 15;
+      else if (avgSpeed >= 3) windForecastScore = 10;
+      else windForecastScore = 4;
     }
   }
 
-  // ── Thermal zone score (0-20 points) ───────────────────
+  // ── Thermal zone score (0-10 pts) ────────────────────────
   let maxZoneScore = 0;
   for (const [, alert] of zoneAlerts) {
     if (alert.maxScore > maxZoneScore) maxZoneScore = alert.maxScore;
   }
-  const thermalZoneScore = Math.min(maxZoneScore / 5, 20);
+  const thermalZoneScore = Math.min(maxZoneScore / 10, 10);
+
+  // ── Real-time wind consensus (0-40 pts, DOMINANT) ────────
+  const windConsensus = currentReadings ? computeWindConsensus(currentReadings) : null;
+  let consensusScore = 0;
+
+  if (windConsensus) {
+    const spd = windConsensus.avgSpeedKt;
+    const cnt = windConsensus.stationCount;
+
+    // Speed-based scoring (main factor)
+    if (spd >= 8 && cnt >= 5) consensusScore = 38;
+    else if (spd >= 8) consensusScore = 32;
+    else if (spd >= 6 && cnt >= 3) consensusScore = 28;
+    else if (spd >= 6) consensusScore = 22;
+    else if (spd >= 5 && cnt >= 3) consensusScore = 20;
+    else if (spd >= 5) consensusScore = 16;
+    else if (spd >= 4) consensusScore = 12;
+    else if (spd >= 3) consensusScore = 6;
+    else consensusScore = 3;
+
+    // Bonus for many stations confirming (very consistent)
+    if (cnt >= 10) consensusScore += 2;
+  }
+  consensusScore = Math.min(consensusScore, 40);
 
   // ── Tendency bonus ─────────────────────────────────────
   let bestTendency = 'none';
@@ -172,24 +282,25 @@ export function generateSailingBriefing(
     : null;
   if (rainProbability !== null && rainProbability > 60) alertPenalty += 10;
 
-  // ── Final score ────────────────────────────────────────
-  const rawScore = deltaTScore + atmosphereScore + windScore + thermalZoneScore;
+  // ── Final score (max 100) ──────────────────────────────
+  // Consensus(40) + Forecast(20) + ΔT(15) + Atmosphere(15) + Zone(10)
+  const rawScore = consensusScore + windForecastScore + deltaTScore + atmosphereScore + thermalZoneScore;
   const score = Math.max(0, Math.min(100, rawScore - alertPenalty));
 
   const thermalProbability = Math.min(100, Math.round(
-    (deltaTScore / 30) * 40 + (atmosphereScore / 25) * 35 + (thermalZoneScore / 20) * 25,
+    (deltaTScore / 15) * 40 + (atmosphereScore / 15) * 35 + (thermalZoneScore / 10) * 25,
   ));
 
   // ── Verdict ────────────────────────────────────────────
   let verdict: SailingVerdict = 'unknown';
   if (hasStormAlert) verdict = 'nogo';
-  else if (score >= 55) verdict = 'go';
-  else if (score >= 30) verdict = 'marginal';
-  else if (forecast.length > 0 || dailyContext) verdict = 'nogo';
+  else if (score >= 45) verdict = 'go';
+  else if (score >= 20) verdict = 'marginal';
+  else if (forecast.length > 0 || dailyContext || (currentReadings && currentReadings.size > 0)) verdict = 'nogo';
   // else stays 'unknown' (no data yet)
 
   // ── Summary text ───────────────────────────────────────
-  const summary = buildSummary(verdict, deltaT, windWindow, bestTendency, hasStormAlert, rainProbability);
+  const summary = buildSummary(verdict, score, deltaT, windWindow, windConsensus, bestTendency, hasStormAlert, rainProbability);
 
   return {
     verdict,
@@ -198,6 +309,7 @@ export function generateSailingBriefing(
     deltaT,
     thermalProbability,
     windWindow,
+    windConsensus,
     atmosphere: { cloudCover, cape, solarRadiation: solarRad, pblHeight },
     alertCount: alerts.length,
     hasStormAlert,
@@ -212,8 +324,10 @@ export function generateSailingBriefing(
 
 function buildSummary(
   verdict: SailingVerdict,
+  score: number,
   deltaT: number | null,
   windWindow: WindWindow | null,
+  consensus: WindConsensus | null,
   tendency: string,
   stormAlert: boolean,
   rainProb: number | null,
@@ -225,20 +339,30 @@ function buildSummary(
   const parts: string[] = [];
 
   if (verdict === 'go') {
-    parts.push('Buen día para navegar.');
+    if (score >= 75) {
+      parts.push('Condiciones excelentes.');
+    } else {
+      parts.push('Buen día para navegar.');
+    }
   } else if (verdict === 'marginal') {
-    parts.push('Condiciones marginales.');
+    parts.push('Condiciones justas.');
   } else {
-    parts.push('Condiciones desfavorables hoy.');
+    parts.push('Sin condiciones favorables.');
   }
 
-  if (windWindow) {
+  // Real-time consensus first (most actionable)
+  if (consensus) {
     parts.push(
-      `Viento ${windWindow.dominantDir} ~${windWindow.avgSpeedKt.toFixed(0)}kt` +
+      `Viento real ${consensus.dominantDir} ~${consensus.avgSpeedKt.toFixed(0)}kt · ${consensus.stationCount} estaciones.`,
+    );
+  }
+
+  // Forecast window
+  if (windWindow && !consensus) {
+    parts.push(
+      `Previsión ${windWindow.dominantDir} ~${windWindow.avgSpeedKt.toFixed(0)}kt` +
       ` (${windWindow.startHour}:00–${windWindow.endHour}:00).`,
     );
-  } else {
-    parts.push('Sin ventana de viento clara.');
   }
 
   if (deltaT !== null && deltaT >= 16) {

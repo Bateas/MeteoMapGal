@@ -24,16 +24,16 @@ interface GuideSection {
 
 const ALL_SECTIONS: GuideSection[] = [
   { id: 'intro', label: 'Introducción' },
-  { id: 'cycle', label: 'Ciclo diario', sectorOnly: ['embalse'] },
-  { id: 'zones', label: 'Nuestras zonas', sectorOnly: ['embalse'] },
+  { id: 'cycle', label: 'Ciclo del viento térmico', sectorOnly: ['embalse'] },
+  { id: 'zones', label: 'Zonas térmicas del embalse', sectorOnly: ['embalse'] },
   { id: 'humidity', label: 'Humedad e indicadores' },
-  { id: 'propagation', label: 'Propagación', sectorOnly: ['embalse'] },
+  { id: 'propagation', label: 'Confirmación del térmico', sectorOnly: ['embalse'] },
   { id: 'best', label: 'Mejores condiciones', sectorOnly: ['embalse'] },
   { id: 'reading', label: 'Leer el mapa' },
   { id: 'campo', label: 'Panel Alertas' },
-  { id: 'sailing', label: 'Navegación y fuentes' },
+  { id: 'sailing', label: 'Navegación y scoring' },
   { id: 'glossary', label: 'Glosario' },
-  { id: 'roadmap', label: 'Roadmap' },
+  { id: 'roadmap', label: 'Roadmap y fuentes' },
 ];
 
 /** Single generic title — sector details go in the intro content */
@@ -136,7 +136,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
         )}
 
         {/* Content area */}
-        <div className={`flex-1 overflow-y-auto py-4 sm:py-6 ${isMobile ? 'px-3' : 'px-8'}`}>
+        <div className={`flex-1 min-w-0 overflow-y-auto py-4 sm:py-6 ${isMobile ? 'px-3' : 'px-6'}`}>
           <div className="max-w-3xl mx-auto">
             {activeSection === 'intro' && (
               activeSector.id === 'embalse' ? <IntroSection /> : <RiasIntroSection />
@@ -257,15 +257,17 @@ function ThermalDiagram() {
         <animate attributeName="r" values="18;20;18" dur="3s" repeatCount="indefinite" />
       </circle>
 
-      {/* Left mountain */}
-      <polygon points="0,280 0,130 80,90 160,120 200,160 200,280" fill="url(#mountainGrad)" />
-      <text x="60" y="115" className="text-[9px] fill-slate-400" textAnchor="middle">Monte</text>
-      <text x="60" y="127" className="text-[8px] fill-slate-500" textAnchor="middle">ladera W</text>
+      {/* Left mountain — sierra silhouette */}
+      <polygon points="0,280 0,160 20,140 50,110 65,115 80,85 95,92 120,100 140,118 160,125 180,148 200,170 200,280" fill="url(#mountainGrad)" />
+      <polygon points="0,280 0,180 15,165 35,145 55,130 70,135 85,110 100,118 115,126 135,135 155,148 175,162 200,185 200,280" fill="#334155" opacity="0.4" />
+      <text x="65" y="105" className="text-[9px] fill-slate-400 font-medium" textAnchor="middle">Sierra W</text>
+      <text x="65" y="76" className="text-[7px] fill-slate-600" textAnchor="middle">▲ 600m</text>
 
-      {/* Right mountain */}
-      <polygon points="400,280 400,160 440,120 520,100 600,140 600,280" fill="url(#mountainGrad)" />
-      <text x="520" y="125" className="text-[9px] fill-slate-400" textAnchor="middle">Monte</text>
-      <text x="520" y="137" className="text-[8px] fill-slate-500" textAnchor="middle">ladera E</text>
+      {/* Right mountain — sierra silhouette */}
+      <polygon points="400,280 400,170 420,148 440,125 455,118 470,108 490,95 510,100 530,108 550,115 570,130 590,142 600,155 600,280" fill="url(#mountainGrad)" />
+      <polygon points="400,280 400,185 425,162 445,148 460,135 475,130 495,118 515,126 535,135 555,145 575,155 600,175 600,280" fill="#334155" opacity="0.4" />
+      <text x="510" y="113" className="text-[9px] fill-slate-400 font-medium" textAnchor="middle">Sierra E</text>
+      <text x="510" y="86" className="text-[7px] fill-slate-600" textAnchor="middle">▲ 500m</text>
 
       {/* Valley floor */}
       <rect x="200" y="220" width="200" height="60" fill="#1e293b" />
@@ -321,7 +323,7 @@ function ThermalDiagram() {
       {/* Temperature annotations */}
       <g className="text-[8px]">
         <text x="300" y="265" fill="#f59e0b" textAnchor="middle" opacity="0.6">31°C valle</text>
-        <text x="80" y="80" fill="#94a3b8" textAnchor="middle" opacity="0.6">22°C cumbre</text>
+        <text x="40" y="68" fill="#94a3b8" textAnchor="middle" opacity="0.6">22°C cumbre</text>
       </g>
     </svg>
   );

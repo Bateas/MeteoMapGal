@@ -124,27 +124,30 @@ function WindLegend() {
   );
 }
 
-/* ─── Humidity color legend (matches HumidityHeatmapOverlay colors) ─── */
+/* ─── Humidity color legend (matches humidityColor() in HumidityHeatmapOverlay) ─── */
 function HumidityLegend() {
   return (
     <div className="space-y-1">
       <span className="text-[9px] text-slate-500 font-semibold">Humedad relativa (%)</span>
-      <div className="h-2.5 rounded-sm overflow-hidden"
-        style={{
-          background: 'linear-gradient(to right, #22c55e, #22c55e 25%, #3b82f6 40%, #8b5cf6 65%, #ef4444 85%, #dc2626)',
-        }}
-      />
-      <div className="flex justify-between text-[8px] text-slate-600 font-mono">
-        <span>30%</span>
-        <span>50%</span>
-        <span>70%</span>
-        <span>85%</span>
-        <span>100%</span>
+      <div className="flex items-center gap-0">
+        {[
+          { color: '#ef7316', label: '0' },
+          { color: '#f59e0b', label: '30' },
+          { color: '#eab308', label: '50' },
+          { color: '#22c55e', label: '70' },
+          { color: '#3b82f6', label: '85' },
+          { color: '#1e40af', label: '100' },
+        ].map((s, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center">
+            <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
+            <span className="text-[8px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
+          </div>
+        ))}
       </div>
       <div className="flex justify-between text-[8px] text-slate-500">
         <span>Seco</span>
-        <span>Medio</span>
-        <span>Húmedo</span>
+        <span className="text-center">Medio</span>
+        <span className="text-center">Húmedo</span>
         <span>Saturado</span>
       </div>
     </div>

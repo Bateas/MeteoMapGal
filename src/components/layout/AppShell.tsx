@@ -31,6 +31,7 @@ import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { useToastStore } from '../../store/toastStore';
 import { useAirspace } from '../../hooks/useAirspace';
+import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 
 export function AppShell() {
   const { forceRefresh, retryDiscovery } = useWeatherData();
@@ -250,6 +251,11 @@ export function AppShell() {
           <ErrorBoundary section="Mapa">
             <WeatherMap />
           </ErrorBoundary>
+
+          {/* Mobile sailing banner: floating pill above the map */}
+          {isMobile && activeSector.id === 'embalse' && !sidebarOpen && (
+            <MobileSailingBanner />
+          )}
 
           {/* Loading / error overlay (only when no stations yet) */}
           {stations.length === 0 && (isLoading || error) && (
