@@ -42,6 +42,9 @@ interface WeatherState {
   error: string | null;
   sourceFreshness: Map<WeatherSource, SourceStatus>;
 
+  /** True when displaying cached/stale data before fresh fetch completes */
+  isUsingCachedData: boolean;
+
   // Actions
   setStations: (stations: NormalizedStation[]) => void;
   updateReadings: (readings: NormalizedReading[]) => void;
@@ -53,6 +56,50 @@ interface WeatherState {
   setError: (error: string | null) => void;
   pruneHistory: () => void;
   updateSourceStatus: (source: WeatherSource, ok: boolean, count?: number, errorMsg?: string) => void;
+  /** Persist current readings snapshot to localStorage for offline access */
+  cacheSnapshot: () => void;
+  /** Load cached readings from localStorage (returns true if cache was loaded) */
+  loadFromCache: (sectorId: string) => boolean;
+}
+
+// ── Offline cache helpers ────────────────────────────────────
+const CACHE_KEY_PREFIX = 'meteomap-readings-';
+const CACHE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour — stale beyond this
+
+interface CachedSnapshot {
+  stations: NormalizedStation[];
+  readings: Array<{ stationId: string; data: NormalizedReading }>;
+  savedAt: number; // epoch ms
+}
+
+function serializeReadings(
+  stations: NormalizedStation[],
+  readings: Map<string, NormalizedReading>,
+): string {
+  const snapshot: CachedSnapshot = {
+    stations,
+    readings: [...readings.entries()].map(([id, r]) => ({
+      stationId: id,
+      data: { ...r, timestamp: r.timestamp as unknown as Date },
+    })),
+    savedAt: Date.now(),
+  };
+  return JSON.stringify(snapshot, (_key, val) =>
+    val instanceof Date ? val.toISOString() : val,
+  );
+}
+
+function deserializeReadings(json: string): CachedSnapshot | null {
+  try {
+    const raw = JSON.parse(json) as CachedSnapshot;
+    // Revive Date objects
+    for (const entry of raw.readings) {
+      entry.data.timestamp = new Date(entry.data.timestamp as unknown as string);
+    }
+    return raw;
+  } catch {
+    return null;
+  }
 }
 
 export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
@@ -67,6 +114,7 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
   isLoading: false,
   error: null,
   sourceFreshness: new Map(),
+  isUsingCachedData: false,
 
   setStations: (stations) => {
     if (stations.length === 0) {
@@ -140,7 +188,11 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
       ...(historyChanged ? { readingHistory: newHistory } : {}),
       readingsEpoch: readingsEpoch + 1,
       lastFetchTime: new Date(),
+      isUsingCachedData: false,
     }, undefined, 'updateReadings');
+
+    // Auto-cache after successful fresh update
+    setTimeout(() => get().cacheSnapshot(), 0);
   },
 
   // Append readings to history only (for model/interpolated data like Open-Meteo).
@@ -213,5 +265,51 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
       newMap.set(source, { ...prev, lastError: new Date(), errorMessage: errorMsg ?? 'Error' });
     }
     set({ sourceFreshness: newMap }, undefined, 'updateSourceStatus');
+  },
+  // ── Offline cache ─────────────────────────────────────────
+  cacheSnapshot: () => {
+    const { stations, currentReadings } = get();
+    if (stations.length === 0 || currentReadings.size === 0) return;
+    try {
+      // Detect sector from station prefix patterns
+      const sectorId = stations[0]?.id?.startsWith('rias_') ? 'rias' : 'embalse';
+      const key = CACHE_KEY_PREFIX + sectorId;
+      localStorage.setItem(key, serializeReadings(stations, currentReadings));
+    } catch {
+      // localStorage full or unavailable — ignore silently
+    }
+  },
+
+  loadFromCache: (sectorId: string) => {
+    try {
+      const key = CACHE_KEY_PREFIX + sectorId;
+      const raw = localStorage.getItem(key);
+      if (!raw) return false;
+
+      const snapshot = deserializeReadings(raw);
+      if (!snapshot) return false;
+
+      // Skip if cache is too old (>1h)
+      if (Date.now() - snapshot.savedAt > CACHE_MAX_AGE_MS) {
+        localStorage.removeItem(key);
+        return false;
+      }
+
+      const cachedReadings = new Map<string, NormalizedReading>();
+      for (const entry of snapshot.readings) {
+        cachedReadings.set(entry.stationId, entry.data);
+      }
+
+      set({
+        stations: snapshot.stations,
+        currentReadings: cachedReadings,
+        lastFetchTime: new Date(snapshot.savedAt),
+        isUsingCachedData: true,
+      }, undefined, 'loadFromCache');
+
+      return true;
+    } catch {
+      return false;
+    }
   },
 }), { name: 'WeatherStore' }));
