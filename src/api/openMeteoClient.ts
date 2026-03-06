@@ -77,7 +77,7 @@ export async function fetchOpenMeteoHistory(
 
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&past_hours=${pastHours}&forecast_hours=0&wind_speed_unit=ms`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     console.warn(`[OpenMeteo] Failed for ${stationId}: ${res.status}`);
     return [];
@@ -153,7 +153,7 @@ export async function fetchOpenMeteoForecast(
     `&wind_speed_unit=ms` +
     `&timezone=Europe%2FMadrid`;
 
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     console.warn(`[OpenMeteo Forecast] Failed: ${res.status}`);
     return [];
@@ -227,7 +227,7 @@ export async function fetchDailyContext(
     `&timezone=Europe%2FMadrid`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return { tempMax: null, tempMin: null, deltaT: null };
 
     const data: OpenMeteoHourlyResponse = await res.json();
@@ -287,7 +287,7 @@ export async function fetchAtmosphericContext(
   };
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return nullContext;
 
     const data: OpenMeteoHourlyResponse = await res.json();

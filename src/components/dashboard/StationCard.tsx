@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import {
   formatWindSpeed,
@@ -97,11 +97,15 @@ function useWindTrend(stationId: string, currentSpeed: number | null): { symbol:
   }, [currentSpeed, history]);
 }
 
-export function StationCard({ station, reading }: StationCardProps) {
+export const StationCard = memo(function StationCard({ station, reading }: StationCardProps) {
   const selectStation = useWeatherStore((s) => s.selectStation);
   const selectedId = useWeatherStore((s) => s.selectedStationId);
   const isSelected = selectedId === station.id;
   const trend = useWindTrend(station.id, reading?.windSpeed ?? null);
+
+  const handleClick = useCallback(() => {
+    selectStation(isSelected ? null : station.id);
+  }, [selectStation, isSelected, station.id]);
 
   // Stale/offline detection based on reading timestamp
   const staleness = useMemo(() => {
@@ -113,9 +117,19 @@ export function StationCard({ station, reading }: StationCardProps) {
     return null;
   }, [reading]);
 
+  // Memoize source badge style to avoid inline object re-creation
+  const sourceBadgeStyle = useMemo(() => ({
+    background: SOURCE_CONFIG[station.source].color, color: 'white',
+  }), [station.source]);
+
+  // Memoize staleness badge style
+  const staleStyle = useMemo(() => staleness ? ({
+    background: `${staleness.color}20`, color: staleness.color, border: `1px solid ${staleness.color}40`,
+  }) : undefined, [staleness]);
+
   return (
     <div
-      onClick={() => selectStation(isSelected ? null : station.id)}
+      onClick={handleClick}
       className={`
         p-3 rounded-lg cursor-pointer transition-all border active:scale-[0.98] active:bg-slate-600/50
         ${isSelected
@@ -129,7 +143,7 @@ export function StationCard({ station, reading }: StationCardProps) {
         <div className="flex items-center gap-1.5">
           <span
             className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-            style={{ background: SOURCE_CONFIG[station.source].color, color: 'white' }}
+            style={sourceBadgeStyle}
           >
             {SOURCE_CONFIG[station.source].label}
           </span>
@@ -141,7 +155,7 @@ export function StationCard({ station, reading }: StationCardProps) {
           {staleness && (
             <span
               className="text-[8px] font-bold px-1 py-0.5 rounded"
-              style={{ background: `${staleness.color}20`, color: staleness.color, border: `1px solid ${staleness.color}40` }}
+              style={staleStyle}
             >
               {staleness.label}
             </span>
@@ -267,4 +281,4 @@ export function StationCard({ station, reading }: StationCardProps) {
       )}
     </div>
   );
-}
+});
