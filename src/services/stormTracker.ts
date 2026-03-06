@@ -25,7 +25,7 @@ const CLUSTER_WINDOW_MIN = 60;
 const MAX_VELOCITY_AGE_MS = 15 * 60 * 1000; // 15 min
 
 /** Min age of a snapshot before it can be used for velocity (prevents jitter) */
-const MIN_VELOCITY_AGE_MS = 8_000; // 8 seconds (was 60s — too slow for simulation mode)
+const MIN_VELOCITY_AGE_MS = 60_000; // 60 seconds
 
 // ── Types ────────────────────────────────────────────────────────
 

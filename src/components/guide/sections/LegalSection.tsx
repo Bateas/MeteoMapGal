@@ -2,6 +2,7 @@
  * Guide section: Legal — disclaimer, data attribution, privacy, license.
  */
 import { WeatherIcon } from '../../icons/WeatherIcons';
+import { APP_VERSION } from '../../../config/version';
 
 export function LegalSection() {
   return (
@@ -98,6 +99,9 @@ export function LegalSection() {
           </p>
           <p className="text-[10px] text-slate-500">
             Todas las dependencias del proyecto utilizan licencias compatibles (MIT, BSD-3, Apache-2.0).
+          </p>
+          <p className="text-[10px] text-slate-600 font-mono mt-1">
+            Versión {APP_VERSION}
           </p>
         </div>
       </div>
