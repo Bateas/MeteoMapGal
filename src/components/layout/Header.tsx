@@ -9,6 +9,7 @@ import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { scoreForecastThermal, thermalColor } from '../../services/forecastScoringUtils';
 import { useUIStore } from '../../store/uiStore';
+import { APP_VERSION } from '../../config/version';
 
 interface WindFrontInfo {
   active: boolean;
@@ -91,6 +92,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
 
         <h1 className="text-sm md:text-base font-bold text-white tracking-tight flex-shrink-0">
           MeteoMapGal
+          <span className="text-[9px] font-normal text-slate-600 ml-1">v{APP_VERSION}</span>
         </h1>
         {!isMobile && (
           <span className="text-[10px] text-slate-500 font-medium truncate inline-flex items-center gap-1">

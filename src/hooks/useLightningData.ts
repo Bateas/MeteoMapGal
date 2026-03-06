@@ -37,8 +37,6 @@ interface LightningState {
   isLoading: boolean;
   error: string | null;
   showOverlay: boolean;
-  /** Simulation mode: inject fake strikes for testing */
-  simulationActive: boolean;
   clusterHistory: ClusterSnapshot[];
 
   setStrikes: (strikes: LightningStrike[]) => void;
@@ -49,7 +47,6 @@ interface LightningState {
   setError: (error: string | null) => void;
   setLastFetch: (date: Date) => void;
   toggleOverlay: () => void;
-  toggleSimulation: () => void;
 }
 
 const NO_ALERT: StormAlert = {
@@ -74,7 +71,6 @@ export const useLightningStore = create<LightningState>()(
       isLoading: false,
       error: null,
       showOverlay: true,
-      simulationActive: false,
       clusterHistory: [],
 
       setStrikes: (strikes) => set({ strikes }),
@@ -85,7 +81,6 @@ export const useLightningStore = create<LightningState>()(
       setError: (error) => set({ error }),
       setLastFetch: (date) => set({ lastFetch: date }),
       toggleOverlay: () => set({ showOverlay: !get().showOverlay }),
-      toggleSimulation: () => set({ simulationActive: !get().simulationActive }),
     }),
     { name: 'lightning-store' },
   ),
@@ -165,91 +160,6 @@ function computeStormAlert(
 }
 
 // ---------------------------------------------------------------------------
-// Simulation: generates a storm approaching from the south
-// ---------------------------------------------------------------------------
-
-let simStep = 0;
-
-/**
- * Deterministic pseudo-random based on seed (for consistent scatter patterns).
- * Returns 0-1 value that is the same for the same seed.
- */
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-function generateSimulatedStrikes(centerLat: number, centerLon: number): LightningStrike[] {
-  const now = Date.now();
-  simStep++;
-
-  // Storm mass approaching from SSW, starting ~45km away, ~96 km/h
-  // Each step (3s) ≈ 0.08 km closer → full approach in ~9 min
-  const baseDistKm = Math.max(3, 45 - simStep * 0.08);
-  const baseBearing = 200; // from SSW toward NNE
-  const bearingRad = (baseBearing * Math.PI) / 180;
-
-  const baseLat = centerLat + (baseDistKm / 111.32) * Math.cos(bearingRad);
-  const baseLon = centerLon + (baseDistKm / (111.32 * Math.cos((centerLat * Math.PI) / 180))) * Math.sin(bearingRad);
-
-  const strikes: LightningStrike[] = [];
-  const clusterSize = 14;
-
-  for (let i = 0; i < clusterSize; i++) {
-    // DETERMINISTIC scatter: same pattern each step → stable centroid
-    // Symmetric angular distribution with seeded radial jitter
-    const angle = (i / clusterSize) * 2 * Math.PI;
-    const baseRadius = 5; // 5km radius
-    const jitter = seededRandom(i) * 2; // 0-2km jitter, deterministic per index
-    const scatterKm = baseRadius + jitter;
-
-    const lat = baseLat + (scatterKm / 111.32) * Math.cos(angle);
-    const lon = baseLon + (scatterKm / (111.32 * Math.cos((baseLat * Math.PI) / 180))) * Math.sin(angle);
-
-    // Stagger ages for realism (deterministic per index)
-    const ageMinutes = Math.floor(seededRandom(i + 100) * 25);
-    const timestamp = now - ageMinutes * 60_000;
-
-    strikes.push({
-      id: 9000 + simStep * 100 + i,
-      lat,
-      lon,
-      timestamp,
-      peakCurrent: 30 + Math.floor(seededRandom(i + 200) * 170),
-      cloudToCloud: seededRandom(i + 300) < 0.15,
-      multiplicity: 1,
-      ageMinutes,
-    });
-  }
-
-  // Secondary trailing cluster (deterministic activation at step 20+)
-  if (simStep > 20) {
-    const trailDist = baseDistKm + 18;
-    const trailBearing = 210; // slightly west of main cell
-    const trailRad = (trailBearing * Math.PI) / 180;
-    const trailLat = centerLat + (trailDist / 111.32) * Math.cos(trailRad);
-    const trailLon = centerLon + (trailDist / (111.32 * Math.cos((trailLat * Math.PI) / 180))) * Math.sin(trailRad);
-
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * 2 * Math.PI;
-      const r = 4 + seededRandom(i + 500);
-      strikes.push({
-        id: 8000 + simStep * 100 + i,
-        lat: trailLat + (r / 111.32) * Math.cos(angle),
-        lon: trailLon + (r / (111.32 * Math.cos((trailLat * Math.PI) / 180))) * Math.sin(angle),
-        timestamp: now - Math.floor(seededRandom(i + 600) * 40) * 60_000,
-        peakCurrent: 40 + Math.floor(seededRandom(i + 700) * 100),
-        cloudToCloud: false,
-        multiplicity: 1,
-        ageMinutes: Math.floor(seededRandom(i + 600) * 40),
-      });
-    }
-  }
-
-  return strikes;
-}
-
-// ---------------------------------------------------------------------------
 // Hook: polls lightning data and computes storm alerts
 // ---------------------------------------------------------------------------
 
@@ -266,7 +176,6 @@ export function useLightningData() {
     setError,
     setLastFetch,
     stormAlert,
-    simulationActive,
   } = useLightningStore(useShallow((s) => ({
     setStrikes: s.setStrikes,
     setAlert: s.setAlert,
@@ -276,7 +185,6 @@ export function useLightningData() {
     setError: s.setError,
     setLastFetch: s.setLastFetch,
     stormAlert: s.stormAlert,
-    simulationActive: s.simulationActive,
   })));
 
   const activeSector = useSectorStore((s) => s.activeSector);
@@ -291,14 +199,7 @@ export function useLightningData() {
 
     setLoading(true);
     try {
-      let strikes: LightningStrike[];
-
-      if (simulationActive) {
-        strikes = generateSimulatedStrikes(centerLat, centerLon);
-      } else {
-        strikes = await fetchLightningStrikes();
-      }
-
+      const strikes = await fetchLightningStrikes();
       setStrikes(strikes);
       setError(null);
 
@@ -325,22 +226,16 @@ export function useLightningData() {
     } finally {
       setLoading(false);
     }
-  }, [setStrikes, setAlert, setClusters, setClusterHistory, setLoading, setError, setLastFetch, simulationActive, sectorCenter]);
+  }, [setStrikes, setAlert, setClusters, setClusterHistory, setLoading, setError, setLastFetch, sectorCenter]);
 
   // Initial fetch + polling
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    // Reset simulation state when toggling
-    if (simulationActive) {
-      simStep = 0;
-      historyRef.current = []; // Clear tracker history for clean velocity computation
-    }
-
     fetchAndUpdate();
-    intervalRef.current = setInterval(fetchAndUpdate, simulationActive ? 3000 : POLL_INTERVAL_MS);
+    intervalRef.current = setInterval(fetchAndUpdate, POLL_INTERVAL_MS);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [fetchAndUpdate, simulationActive]);
+  }, [fetchAndUpdate]);
 }
