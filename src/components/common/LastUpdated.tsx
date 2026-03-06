@@ -40,14 +40,17 @@ export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
   const lastFetchTime = useWeatherStore((s) => s.lastFetchTime);
   const isLoading = useWeatherStore((s) => s.isLoading);
   const sourceFreshness = useWeatherStore((s) => s.sourceFreshness);
+  const isUsingCachedData = useWeatherStore((s) => s.isUsingCachedData);
 
   if (compact) {
     // Mobile: compact layout — age badge + dots + refresh icon button
     return (
       <div className="flex items-center gap-1.5">
-        {/* Age badge */}
+        {/* Age badge + cached indicator */}
         {isLoading ? (
           <span className="text-[10px] text-blue-400 animate-pulse">...</span>
+        ) : isUsingCachedData && lastFetchTime ? (
+          <span className="text-[10px] text-amber-400 font-mono" title="Datos en caché">⚡{compactAge(lastFetchTime)}</span>
         ) : lastFetchTime ? (
           <span className="text-[10px] text-slate-500 font-mono">{compactAge(lastFetchTime)}</span>
         ) : null}
@@ -88,6 +91,10 @@ export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
     <div className="flex items-center gap-2 text-xs text-slate-400">
       {isLoading ? (
         <span className="text-blue-400">Actualizando...</span>
+      ) : isUsingCachedData && lastFetchTime ? (
+        <span className="text-amber-400">
+          Caché — {formatDistanceToNow(lastFetchTime, { addSuffix: true, locale: es })}
+        </span>
       ) : lastFetchTime ? (
         <span>
           Actualizado{' '}

@@ -20,11 +20,21 @@ export function useWeatherData() {
   const activeSector = useSectorStore((s) => s.activeSector);
   const updateReadings = useWeatherStore((s) => s.updateReadings);
   const appendHistory = useWeatherStore((s) => s.appendHistory);
+  const loadFromCache = useWeatherStore((s) => s.loadFromCache);
   const setLoading = useWeatherStore((s) => s.setLoading);
   const setError = useWeatherStore((s) => s.setError);
   const updateSourceStatus = useWeatherStore((s) => s.updateSourceStatus);
   const addToast = useToastStore((s) => s.addToast);
   const toastedSourceErrors = useRef(new Set<string>());
+  const cacheLoadedRef = useRef(false);
+
+  // Load cached readings on first mount (instant display while fresh data loads)
+  useEffect(() => {
+    if (!cacheLoadedRef.current) {
+      cacheLoadedRef.current = true;
+      loadFromCache(activeSector.id);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = useCallback(async () => {
     if (stations.length === 0) return;
