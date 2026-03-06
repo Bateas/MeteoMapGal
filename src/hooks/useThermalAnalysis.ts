@@ -17,6 +17,7 @@ import type { MicroZoneId, ForecastAlert, TendencySignal, AtmosphericContext } f
 import type { NormalizedReading } from '../types/station';
 import { scoreRule } from '../services/thermalScoringEngine';
 import { estimateCloudCover } from '../services/stormShadowDetector';
+import { computeWindStatus } from '../services/windStatusService';
 import { MICRO_ZONES } from '../config/thermalZones';
 
 const FORECAST_INTERVAL_MS = 30 * 60 * 1000;
@@ -46,7 +47,7 @@ export function useThermalAnalysis() {
     zones, rules, dailyContext, stationToZone, atmosphericContext,
     setRuleScores, setZoneAlerts, setTendencySignals, setPropagationEvents,
     setStationToZone, setZoneForecast, setForecastAlerts, setDailyContext,
-    setAtmosphericContext, setHumidityAssessments,
+    setAtmosphericContext, setHumidityAssessments, setWindStatus,
   } = useThermalStore(
     useShallow((s) => ({
       zones: s.zones,
@@ -64,6 +65,7 @@ export function useThermalAnalysis() {
       setDailyContext: s.setDailyContext,
       setAtmosphericContext: s.setAtmosphericContext,
       setHumidityAssessments: s.setHumidityAssessments,
+      setWindStatus: s.setWindStatus,
     }))
   );
 
@@ -264,11 +266,17 @@ export function useThermalAnalysis() {
         humidityResults.set(zone.id, assessment);
       }
       setHumidityAssessments(humidityResults);
+
+      // ── Wind status (consensus, trend, coherence, stability) ──
+      const windStatusResult = computeWindStatus(
+        currentReadings, readingHistory, stations, stationToZone, zones,
+      );
+      setWindStatus(windStatusResult);
     });
   }, [
     currentReadings, stationToZone, rules, readingHistory, zones, dailyContext, atmosphericContext,
-    setRuleScores, setZoneAlerts, setPropagationEvents, setTendencySignals, setHumidityAssessments,
-    startTransition,
+    setRuleScores, setZoneAlerts, setPropagationEvents, setTendencySignals, setHumidityAssessments, setWindStatus,
+    startTransition, stations,
   ]);
 
   // ── Forecast fetching ──────────────────────────────────

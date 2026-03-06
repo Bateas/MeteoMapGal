@@ -299,7 +299,7 @@ export function detectWindPropagation(
  * Compute the spread of wind directions across all stations (degrees).
  * Lower values mean more consistent direction.
  */
-function computeDirectionSpread(
+export function computeDirectionSpread(
   currentReadings: Map<string, NormalizedReading>,
 ): number | null {
   const dirs: number[] = [];
