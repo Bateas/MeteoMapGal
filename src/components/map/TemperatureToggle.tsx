@@ -49,8 +49,8 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
 
   return (
     <div className="flex flex-col items-start gap-1 shrink-0">
-      {/* Gradient info badge — above button when overlay is on */}
-      {gradientInfo && (
+      {/* Gradient info badge — above button when overlay is on (desktop only to save space) */}
+      {gradientInfo && !isMobile && (
         <div
           className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-semibold tracking-wide
             backdrop-blur-md bg-slate-900/70 border border-slate-700/50

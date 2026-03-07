@@ -32,7 +32,7 @@ export function BigWindDisplay() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed z-30 bottom-20 left-3 p-2.5 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-700/50 text-slate-400 active:bg-slate-700 shadow-lg"
+        className="fixed z-30 bottom-[6.5rem] left-3 p-2.5 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-700/50 text-slate-400 active:bg-slate-700 shadow-lg"
         style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom, 0px))' }}
         aria-label="Vista grande de viento"
         title="Vista grande de viento"
