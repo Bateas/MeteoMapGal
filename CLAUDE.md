@@ -80,5 +80,6 @@ npx vitest run        # Single run (CI)
 **Production** runs via nginx reverse proxy on a Proxmox LXC container:
 1. `npm run build` produces `dist/` with hashed assets
 2. Copy `dist/` to `/var/www/meteomapgal` on the LXC
-3. `nginx.conf` (root of repo) provides all CORS proxy routes + SPA fallback + gzip + PWA cache headers
+3. `nginx.conf` (root of repo) provides all CORS proxy routes + SPA fallback + gzip + PWA cache headers + security blocking (dotfiles, CMS/admin paths, dangerous extensions → 444)
 4. n8n webhook route (commented template in `nginx.conf`) proxies `/api/webhook/` to n8n instance for Telegram alert forwarding
+5. **nginx.conf deploy is separate**: `update-meteomap` only copies `dist/`. To update nginx: `curl -o /etc/nginx/sites-available/meteomapgal https://raw.githubusercontent.com/Bateas/MeteoMapGal/master/nginx.conf && nginx -t && systemctl reload nginx`
