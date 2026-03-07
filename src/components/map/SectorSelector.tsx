@@ -15,7 +15,7 @@ export const SectorSelector = memo(function SectorSelector() {
   const switchSector = useSectorStore((s) => s.switchSector);
 
   return (
-    <div className="absolute top-2 left-2 z-20 flex gap-1">
+    <div className={`${isMobile ? 'fixed z-30' : 'absolute z-20'} top-2 left-2 flex gap-1`}>
       {SECTORS.map((sector) => {
         const isActive = sector.id === activeSectorId;
         return (
