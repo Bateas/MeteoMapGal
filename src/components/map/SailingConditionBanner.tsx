@@ -108,7 +108,8 @@ export function SailingConditionBanner() {
   // Don't show banner when conditions are good (verdict 'go') —
   // wind data is already visible on station markers, no need to state the obvious.
   // Only show when there's something noteworthy: calma, marginal, or nogo.
-  if (!condition || condition.verdict === 'go') return null;
+  // On mobile, MobileSailingBanner (AppShell) already covers the sailing condition.
+  if (!condition || condition.verdict === 'go' || isMobile) return null;
 
   const colors: Record<string, { bg: string; border: string; text: string; icon: IconId }> = {
     marginal: { bg: 'rgba(245, 158, 11, 0.15)', border: 'rgba(245, 158, 11, 0.4)', text: '#f59e0b', icon: 'alert-triangle' },
