@@ -216,7 +216,7 @@ export function WeatherMap() {
       {/* ── Bottom controls: toolbar + alerts ── */}
       {isMobile ? (
         /* Mobile: stacked column — toolbar (with expanding panels) above alerts strip */
-        <div className="absolute z-20 bottom-2 left-0 right-0 px-2 pb-[env(safe-area-inset-bottom)] flex flex-col items-center gap-2 max-w-full overflow-x-hidden">
+        <div className="absolute z-20 bottom-3 left-0 right-0 px-2 pb-[env(safe-area-inset-bottom,0px)] flex flex-col items-center gap-2 max-w-full overflow-x-hidden">
           <AlertPanel />
           <div className="flex items-center justify-center gap-1.5 max-w-full overflow-x-auto scrollbar-none">
             <StormIndicator />

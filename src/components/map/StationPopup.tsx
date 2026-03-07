@@ -203,7 +203,8 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
   if (isMobile) {
     return (
       <div className="fixed bottom-0 left-0 right-0 z-40 animate-slide-up">
-        <div className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[55vh] overflow-y-auto p-4 pb-6">
+        <div className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[55dvh] overflow-y-auto p-4"
+             style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
           {/* Drag handle */}
           <div className="flex justify-center mb-3">
             <div className="w-10 h-1 rounded-full bg-slate-600" />

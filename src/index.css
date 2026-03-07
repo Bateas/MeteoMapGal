@@ -44,8 +44,17 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
-  /* Safe area insets for notched phones */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ── Mobile viewport height fix ─────────────────────────
+ * `100vh` on mobile browsers includes area behind the browser chrome
+ * (URL bar + bottom toolbar), hiding bottom UI elements.
+ * `100dvh` (dynamic viewport height) accounts for visible area only.
+ * Fallback to 100vh for browsers without dvh support.
+ */
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
 }
 
 /* Loading spinner animation */

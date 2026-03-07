@@ -200,7 +200,7 @@ export function AppShell() {
   }, [isMobile, toggleFieldDrawer, forceRefresh]);
 
   return (
-    <div className="h-screen w-full flex flex-col bg-slate-950 text-white overflow-hidden">
+    <div className="h-screen-safe w-full flex flex-col bg-slate-950 text-white overflow-hidden">
       <Header
         onRefresh={forceRefresh}
         fieldDrawerOpen={fieldDrawerOpen}

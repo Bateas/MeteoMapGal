@@ -115,7 +115,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           ? `inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 max-w-full ${open ? 'translate-y-0' : 'translate-y-full'}`
           : `right-0 top-0 h-full w-72 border-l border-slate-700 ${open ? 'translate-x-0' : 'translate-x-full'}`
       }`}
-      style={isMobile ? { maxHeight: '70vh' } : undefined}
+      style={isMobile ? { maxHeight: '70dvh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' } : undefined}
     >
       {/* Mobile drag handle */}
       {isMobile && (
