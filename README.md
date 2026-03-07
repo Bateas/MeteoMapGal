@@ -3,7 +3,7 @@
 **Real-time weather monitoring for Galicia** — 41 stations, 3D interactive map, thermal wind analysis for sailing.
 
 <!-- TODO: Add hero screenshot -->
-<!-- ![MeteoMapGal](docs/screenshots/hero.png) -->
+<!-- ![MeteoMapGal](hero.png) -->
 
 ---
 
@@ -38,7 +38,7 @@ It aggregates data from **5 station networks**, numerical models, satellite imag
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/hero.png" width="100%" alt="MeteoMapGal — 3D map with real-time stations" />
+  <img src="hero.png" width="100%" alt="MeteoMapGal — 3D map with real-time stations" />
 </p>
 
 ## Quick Start
