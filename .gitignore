@@ -28,3 +28,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local editor settings
+.claude/settings.local.json
+
+# Playwright MCP debugging artifacts
+.playwright-mcp/
+
+# Temporary planning / review files
+plan.md
+review-*.png
+nul

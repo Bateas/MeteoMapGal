@@ -1,0 +1,26 @@
+# MeteoMapGal — robots.txt
+# Block crawlers from API proxy routes and internal paths
+
+User-agent: *
+
+# API proxy routes (not crawlable content)
+Disallow: /aemet-api/
+Disallow: /aemet-data/
+Disallow: /meteogalicia-api/
+Disallow: /meteoclimatic-api/
+Disallow: /netatmo-api/
+Disallow: /netatmo-auth/
+Disallow: /meteo2api/
+Disallow: /ideg-api/
+Disallow: /eumetsat-api/
+Disallow: /enaire-api/
+Disallow: /ihm-api/
+Disallow: /api/
+
+# Allow app assets and entry point
+Allow: /assets/
+Allow: /index.html
+Allow: /manifest.json
+Allow: /favicon.svg
+
+# Sitemap not applicable (SPA)

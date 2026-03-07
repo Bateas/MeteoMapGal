@@ -13,11 +13,15 @@ export const AEMET = {
   radarRegional: (radarId = 'ga') =>
     `/aemet-api/api/red/radar/regional/${radarId}?api_key=${AEMET_KEY}`,
 
-  /** Proxy for AEMET data URLs (step 2) */
+  /** Proxy for AEMET data URLs (step 2) — validates origin to prevent SSRF */
   proxyDataUrl: (url: string) => {
     // AEMET step 2 returns full URLs like https://opendata.aemet.es/opendata/sh/XXXXX
-    // We route through /aemet-data proxy
+    // We route through /aemet-data proxy.
+    // Security: whitelist only opendata.aemet.es to prevent SSRF via proxy.
     const parsed = new URL(url);
+    if (!parsed.hostname.endsWith('.aemet.es')) {
+      throw new Error(`Invalid AEMET data URL domain: ${parsed.hostname}`);
+    }
     return `/aemet-data${parsed.pathname}${parsed.search}`;
   },
 } as const;
