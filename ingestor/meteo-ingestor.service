@@ -1,0 +1,27 @@
+[Unit]
+Description=MeteoMapGal Weather Ingestor
+Documentation=https://github.com/Bateas/MeteoMapGal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/meteo-ingestor
+ExecStart=/usr/bin/node --import tsx index.ts
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=meteo-ingestor
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/meteo-ingestor/.env
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/meteo-ingestor
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
