@@ -20,7 +20,8 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 left-4 md:left-auto md:w-80 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed bottom-4 right-4 left-4 md:left-auto md:w-80 z-50 flex flex-col gap-2 pointer-events-none"
+         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {toasts.map((toast) => {
         const style = SEVERITY_STYLES[toast.severity];
         return (
