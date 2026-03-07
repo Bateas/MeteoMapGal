@@ -28,3 +28,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code local settings (may contain infrastructure IPs)
+.claude/settings.local.json
+
+# Playwright MCP debugging artifacts
+.playwright-mcp/
+
+# Temporary planning / review files
+plan.md
+review-*.png
+nul
