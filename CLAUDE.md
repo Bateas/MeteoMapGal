@@ -26,6 +26,7 @@ Requires `.env` with `VITE_AEMET_API_KEY`. Other sources (MeteoGalicia, Meteocli
 - **n8n webhook**: `src/api/webhookClient.ts` posts alerts to n8n for Telegram notifications (non-critical, fails silently)
 - **Vite proxy** for CORS (11 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`, `/enaire-api`, `/ihm-api`, `/eumetsat-api`
 - **Production deployment**: nginx reverse proxy (`nginx.conf`) to Proxmox LXC, mirrors all Vite proxy routes
+- **TimescaleDB ingestor**: `ingestor/` — standalone Node.js service polling 5 sources every 5min → TimescaleDB. Runs as `meteo-ingestor.service` (systemd) on LXC 305. Reuses `normalizer.ts` + `geoUtils.ts` from `src/`
 
 ## Key Conventions
 
@@ -54,6 +55,20 @@ src/
 ├── store/            # Zustand stores (weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui)
 ├── test/             # Test setup (vitest + jsdom + @testing-library)
 └── types/            # TypeScript types
+```
+
+### Ingestor (`ingestor/`)
+
+```
+ingestor/
+├── index.ts         # Main loop: 5min poll, 1h rediscovery, graceful shutdown
+├── db.ts            # pg Pool + batchUpsert (ON CONFLICT DO NOTHING)
+├── discover.ts      # Station discovery from 5 sources (both sectors)
+├── fetchers.ts      # Observation fetchers → NormalizedReading[]
+├── xml.ts           # Server-side Meteoclimatic XML parser (regex)
+├── logger.ts        # Colored console logger with timestamps
+├── schema.sql       # Idempotent DB schema (IF NOT EXISTS)
+└── meteo-ingestor.service  # systemd unit (Restart=always)
 ```
 
 ## Critical Gotchas
