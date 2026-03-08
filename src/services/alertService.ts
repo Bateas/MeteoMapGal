@@ -362,6 +362,20 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
 
 // ── Composite risk index ─────────────────────────────────────
 
+/**
+ * Compute composite risk from all active alerts.
+ *
+ * Uses weighted-max: the highest (score × weight) determines overall risk.
+ * Weights amplify dangerous categories (storm ×3.0) and suppress low-impact
+ * ones (drone ×0.5). The final score is normalized by dividing by the
+ * HIGHEST weight among active alerts, so the weight hierarchy is preserved.
+ *
+ * Example with raw score 55:
+ *   storm  (×3.0): 55×3.0 = 165, /3.0 = 55  → weights matter
+ *   frost  (×2.0): 55×2.0 = 110, /3.0 = 37  → deprioritized vs storm
+ *   fog    (×1.2): 55×1.2 =  66, /3.0 = 22  → further deprioritized
+ *   drone  (×0.5): 55×0.5 =  28, /3.0 =  9  → low composite impact
+ */
 export function computeCompositeRisk(alerts: UnifiedAlert[]): CompositeRisk {
   if (alerts.length === 0) {
     return { score: 0, severity: 'info', color: 'green', activeCount: 0 };
@@ -369,18 +383,23 @@ export function computeCompositeRisk(alerts: UnifiedAlert[]): CompositeRisk {
 
   // Weighted max: the highest (score × weight) determines overall risk
   let maxWeightedScore = 0;
+  let maxWeight = 1;
   let activeCount = 0;
 
   for (const a of alerts) {
     if (a.severity !== 'info') activeCount++;
-    const weighted = a.score * (CATEGORY_WEIGHT[a.category] ?? 1);
-    if (weighted > maxWeightedScore) maxWeightedScore = weighted;
+    const weight = CATEGORY_WEIGHT[a.category] ?? 1;
+    const weighted = a.score * weight;
+    if (weighted > maxWeightedScore) {
+      maxWeightedScore = weighted;
+      maxWeight = weight;
+    }
   }
 
-  // Normalize back to 0-100 (max possible weight is 3.0 for storm)
-  const normalizedScore = Math.min(100, Math.round(maxWeightedScore / 3));
-  // But never less than the raw max score
-  const finalScore = Math.max(normalizedScore, Math.max(...alerts.map(a => a.score)));
+  // Normalize by the winning alert's own weight → preserves its raw score,
+  // while alerts from lighter categories get scaled down proportionally
+  // when they compete via maxWeightedScore.
+  const finalScore = Math.min(100, Math.round(maxWeightedScore / maxWeight));
   const severity = severityFromScore(finalScore);
 
   return {
