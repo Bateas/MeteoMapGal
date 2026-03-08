@@ -54,10 +54,10 @@ export const DailySailingBriefing = memo(function DailySailingBriefing() {
         <WeatherIcon id="sailboat" size={16} className={`flex-shrink-0 ${v.text}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`text-xs font-bold ${v.text}`}>{v.label}</span>
+            <span className={`text-[13px] font-bold ${v.text}`}>{v.label}</span>
             <ScoreBadge score={briefing.score} verdict={briefing.verdict} />
           </div>
-          <p className="text-[10px] text-slate-400 truncate mt-0.5">{briefing.summary}</p>
+          <p className="text-[11px] text-slate-400 truncate mt-0.5">{briefing.summary}</p>
         </div>
         <WeatherIcon
           id={expanded ? 'x' : 'info'}
@@ -188,7 +188,7 @@ export function ScoreBadge({ score, verdict }: { score: number; verdict: Sailing
   const text = VERDICT_CONFIG[verdict].text;
 
   return (
-    <span className={`${bg} ${text} text-[9px] font-bold px-1.5 py-0.5 rounded-full tabular-nums`}>
+    <span className={`${bg} ${text} text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums`}>
       {score}/100
     </span>
   );
@@ -203,8 +203,8 @@ function DetailRow({ icon, label, value, color }: {
   return (
     <div className="flex items-center gap-2 pt-1.5 first:pt-2">
       {icon}
-      <span className="text-[10px] text-slate-500 w-20 flex-shrink-0">{label}</span>
-      <span className={`text-[11px] font-semibold ${color} truncate`}>{value}</span>
+      <span className="text-[11px] text-slate-500 w-20 flex-shrink-0">{label}</span>
+      <span className={`text-[12px] font-semibold ${color} truncate`}>{value}</span>
     </div>
   );
 }
