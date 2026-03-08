@@ -118,6 +118,13 @@ function calculateSpreadTrend(series: SpreadPoint[]): number | null {
  * - Future humidity trend (will HR keep climbing?)
  * - Cloud cover forecast (clear nights → fog, overcast → less likely)
  * - Wind forecast (will it stay calm?)
+ *
+ * Wind direction suppression:
+ * - Continental wind (N/NE/NW, 315°-45°) with speed >2 m/s and HR <80% → fog impossible
+ * - Any direction with speed >3 m/s and HR <75% → fog suppressed
+ *
+ * Solar suppression:
+ * - Solar radiation >200 W/m² during day → fog dissipated, suppress alert
  */
 export function analyzeFog(
   allReadings: Map<string, NormalizedReading[]>,
@@ -174,6 +181,66 @@ export function analyzeFog(
   const avgWind = windSpeeds.length > 0
     ? windSpeeds.reduce((a, b) => a + b, 0) / windSpeeds.length
     : null;
+
+  // Wind direction: circular mean of latest readings with valid wind
+  const windDirReadings = [...latestByStation.values()]
+    .filter((r) => r.windDirection !== null && r.windSpeed !== null && r.windSpeed >= 1.5);
+  let avgWindDir: number | null = null;
+  if (windDirReadings.length >= 2) {
+    const sinSum = windDirReadings.reduce((s, r) => s + Math.sin(r.windDirection! * Math.PI / 180), 0);
+    const cosSum = windDirReadings.reduce((s, r) => s + Math.cos(r.windDirection! * Math.PI / 180), 0);
+    avgWindDir = ((Math.atan2(sinSum, cosSum) * 180 / Math.PI) + 360) % 360;
+  }
+
+  // Solar radiation: average of latest readings (for daytime fog suppression)
+  const solarReadings = [...latestByStation.values()]
+    .map((r) => r.solarRadiation)
+    .filter((s): s is number => s !== null);
+  const avgSolar = solarReadings.length >= 2
+    ? solarReadings.reduce((a, b) => a + b, 0) / solarReadings.length
+    : null;
+
+  // Average humidity from latest readings
+  const humidityReadings = [...latestByStation.values()]
+    .map((r) => r.humidity)
+    .filter((h): h is number => h !== null);
+  const avgHumidity = humidityReadings.length > 0
+    ? humidityReadings.reduce((a, b) => a + b, 0) / humidityReadings.length
+    : null;
+
+  // ── Fog suppression checks (before any level assignment) ──
+  // Continental dry wind: N/NE/NW (315°-45°) + speed > 2 m/s + HR < 80% → fog impossible
+  const isContinentalWind = avgWindDir !== null && (avgWindDir >= 315 || avgWindDir <= 45);
+  const isDryWind = avgWind !== null && avgWind > 2 && avgHumidity !== null && avgHumidity < 80;
+  const fogSuppressedByWind =
+    (isContinentalWind && isDryWind) ||
+    (avgWind !== null && avgWind > 3 && avgHumidity !== null && avgHumidity < 75);
+
+  // Solar suppression: radiation > 200 W/m² → fog dissipated (daytime only)
+  const fogSuppressedBySolar = avgSolar !== null && avgSolar > 200;
+
+  if (fogSuppressedByWind || fogSuppressedBySolar) {
+    const suppressNotes: string[] = [];
+    if (fogSuppressedByWind && isContinentalWind) {
+      suppressNotes.push(`viento continental ${avgWindDir!.toFixed(0)}° ${avgWind!.toFixed(1)} m/s`);
+    } else if (fogSuppressedByWind) {
+      suppressNotes.push(`viento seco ${avgWind!.toFixed(1)} m/s HR ${avgHumidity!.toFixed(0)}%`);
+    }
+    if (fogSuppressedBySolar) {
+      suppressNotes.push(`radiación solar ${avgSolar!.toFixed(0)} W/m²`);
+    }
+    return {
+      level: 'none',
+      dewPoint: currentDewPoint,
+      spread: currentSpread,
+      spreadTrend: null,
+      fogEta: null,
+      humidity: currentHumidity,
+      windSpeed: avgWind,
+      confidence: 0,
+      hypothesis: `Niebla suprimida: ${suppressNotes.join(' · ')}`,
+    };
+  }
 
   // Trend: use readings from the last 3-4 hours for a stable trend
   const trendCutoff = new Date(now.getTime() - 4 * 3_600_000);
@@ -253,8 +320,8 @@ export function analyzeFog(
   else if (isEvening) notes.push('atardecer');
   if (currentHumidity >= 90) notes.push(`HR ${currentHumidity.toFixed(0)}%`);
 
-  // Downgrade if wind is too strong (disperses fog)
-  if (avgWind !== null && avgWind > 4 && level !== 'none') {
+  // Downgrade if wind is strong enough to disperse fog (≥3 m/s ≈ 6kt)
+  if (avgWind !== null && avgWind >= 3 && level !== 'none') {
     if (level === 'riesgo') level = 'none';
     else if (level === 'alto') level = 'riesgo';
     else if (level === 'critico') level = 'alto';
@@ -280,12 +347,13 @@ export function analyzeFog(
         const forecastHRTrend = forecastHumidities[forecastHumidities.length - 1] - forecastHumidities[0];
 
         // Forecast agrees: humidity rising above 90%
+        // Only promote to riesgo if wind is calm — forecast HR alone is not enough
         if (maxForecastHR >= 95 && forecastHRTrend > 0) {
           confidence = Math.min(100, confidence + 15);
           notes.push('previsión HR↑>95%');
-          if (level === 'none' && currentSpread <= 6) {
+          if (level === 'none' && currentSpread <= 6 && (avgWind === null || avgWind <= 2)) {
             level = 'riesgo';
-            notes.push('spread moderado + HR prevista alta');
+            notes.push('spread moderado + HR prevista alta + calma');
           }
         } else if (maxForecastHR >= 90) {
           confidence = Math.min(100, confidence + 8);
