@@ -115,7 +115,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           ? `inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 max-w-full ${open ? 'translate-y-0' : 'translate-y-full'}`
           : `right-0 top-0 h-full w-72 border-l border-slate-700 ${open ? 'translate-x-0' : 'translate-x-full'}`
       }`}
-      style={isMobile ? { maxHeight: '70dvh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' } : undefined}
+      style={isMobile ? { maxHeight: '55dvh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' } : undefined}
     >
       {/* Mobile drag handle */}
       {isMobile && (
@@ -166,7 +166,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           Cargando datos de previsión...
         </div>
       ) : (
-        <div className={`space-y-3 overflow-y-auto ${isMobile ? 'p-4 max-h-[calc(70vh-120px)]' : 'p-3 h-[calc(100%-92px)]'}`}>
+        <div className={`space-y-3 overflow-y-auto ${isMobile ? 'p-4 max-h-[calc(55dvh-120px)]' : 'p-3 h-[calc(100%-92px)]'}`}>
           {/* ── Navegación tab: wind propagation + fog + tides (Rías) + atmospheric (Embalse) ── */}
           {activeTab === 'nav' && (
             <>
@@ -891,6 +891,9 @@ function AlertSection({
   level: AlertLevel;
   children: React.ReactNode;
 }) {
+  const isMobile = useUIStore((s) => s.isMobile);
+  // On mobile, start collapsed if no alert; expanded if there's an active alert
+  const [collapsed, setCollapsed] = useState(isMobile && level === 'none');
   const colors = LEVEL_COLORS[level];
 
   return (
@@ -908,7 +911,10 @@ function AlertSection({
           style={{ background: colors.text }}
         />
       )}
-      <div className="flex items-center gap-2 mb-2">
+      <button
+        onClick={() => isMobile && setCollapsed((p) => !p)}
+        className={`flex items-center gap-2 w-full text-left ${collapsed ? '' : 'mb-2'}`}
+      >
         <span className="text-sm inline-flex">{icon}</span>
         <span className="text-[11px] font-bold text-slate-200">{title}</span>
         {level !== 'none' && (
@@ -919,8 +925,15 @@ function AlertSection({
             {LEVEL_LABELS[level]}
           </span>
         )}
-      </div>
-      {children}
+        {isMobile && (
+          <WeatherIcon
+            id={collapsed ? 'info' : 'x'}
+            size={12}
+            className={`text-slate-500 ${level !== 'none' ? '' : 'ml-auto'}`}
+          />
+        )}
+      </button>
+      {!collapsed && children}
     </div>
   );
 }
