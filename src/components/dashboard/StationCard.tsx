@@ -143,12 +143,12 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span
-            className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded"
             style={sourceBadgeStyle}
           >
             {SOURCE_CONFIG[station.source].label}
           </span>
-          <span className="text-xs font-semibold text-slate-200 truncate max-w-[140px]">
+          <span className="text-[13px] font-semibold text-slate-200 truncate max-w-[140px]">
             {station.name}
           </span>
         </div>
@@ -161,7 +161,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
               {staleness.label}
             </span>
           )}
-          <span className="text-[10px] text-slate-500">{station.altitude}m</span>
+          <span className="text-[11px] text-slate-500">{station.altitude}m</span>
         </div>
       </div>
 
@@ -177,7 +177,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
           {/* Data grid */}
           <div className="flex-1 grid grid-cols-2 gap-x-3 gap-y-1.5">
             <div>
-              <div className="text-[10px] text-slate-500">Viento</div>
+              <div className="text-[11px] text-slate-500">Viento</div>
               <div className="flex items-baseline gap-1">
                 <span
                   className="text-sm font-bold"
@@ -197,13 +197,13 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
                 <WindSparkline stationId={station.id} />
               </div>
               {reading.windGust !== null && reading.windGust > 0 && (
-                <div className="text-[9px] text-slate-500 mt-0.5" title="Racha máxima">
+                <div className="text-[10px] text-slate-500 mt-0.5" title="Racha máxima">
                   Racha {formatWindSpeed(reading.windGust)}
                 </div>
               )}
             </div>
             <div>
-              <div className="text-[10px] text-slate-500">Temp</div>
+              <div className="text-[11px] text-slate-500">Temp</div>
               <div
                 className="text-sm font-bold"
                 style={{ color: temperatureColor(reading.temperature) }}
@@ -212,14 +212,14 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-slate-500">Humedad</div>
+              <div className="text-[11px] text-slate-500">Humedad</div>
               <div className="text-sm font-semibold text-slate-300">
                 {formatHumidity(reading.humidity)}
               </div>
             </div>
             {reading.precipitation !== null && reading.precipitation > 0 && (
               <div>
-                <div className="text-[10px] text-slate-500">Lluvia</div>
+                <div className="text-[11px] text-slate-500">Lluvia</div>
                 <div
                   className="text-sm font-semibold"
                   style={{ color: precipitationColor(reading.precipitation) }}
@@ -230,7 +230,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
             )}
             {reading.solarRadiation != null && (
               <div>
-                <div className="text-[10px] text-slate-500">Radiación</div>
+                <div className="text-[11px] text-slate-500">Radiación</div>
                 <div className="flex items-baseline gap-1">
                   {solarRadiationIcon(reading.solarRadiation) && (
                     <WeatherIcon id={solarRadiationIcon(reading.solarRadiation) as IconId} size={12} />
@@ -246,7 +246,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
             )}
             {reading.pressure != null && (
               <div>
-                <div className="text-[10px] text-slate-500">Presión</div>
+                <div className="text-[11px] text-slate-500">Presión</div>
                 <div
                   className="text-sm font-semibold"
                   style={{ color: pressureColor(reading.pressure) }}
@@ -257,7 +257,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
             )}
             {reading.dewPoint != null && (
               <div>
-                <div className="text-[10px] text-slate-500">P. rocío</div>
+                <div className="text-[11px] text-slate-500">P. rocío</div>
                 <div className="flex items-baseline gap-1">
                   <span
                     className="text-sm font-semibold"
@@ -268,7 +268,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
                     {formatDewPoint(reading.dewPoint)}
                   </span>
                   {reading.temperature != null && reading.dewPoint != null && (
-                    <span className="text-[9px] text-slate-500" title="Spread T − Td">
+                    <span className="text-[10px] text-slate-500" title="Spread T − Td">
                       Δ{(reading.temperature - reading.dewPoint).toFixed(1)}°
                     </span>
                   )}

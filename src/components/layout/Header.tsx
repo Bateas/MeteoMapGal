@@ -108,7 +108,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {!isMobile && <SourceStatusIndicator />}
         <button
           onClick={() => useUIStore.getState().toggleGuide()}
-          className={`text-slate-500 hover:text-blue-400 transition-colors rounded-lg hover:bg-slate-800 ${
+          className={`btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 ${
             isMobile ? 'p-2 active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center' : 'text-[10px] px-2 py-1'
           }`}
           title={isMobile ? 'Guía meteorológica' : 'Guía meteorológica (G)'}
@@ -144,7 +144,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                 ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
                 : fieldAlertLevel !== 'none'
                 ? 'bg-slate-800 border animate-pulse'
-                : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                : 'btn-panel-glow bg-slate-800/60'
               }`}
             style={
               !fieldDrawerOpen && fieldAlertLevel !== 'none'

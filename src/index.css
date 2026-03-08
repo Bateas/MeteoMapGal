@@ -83,6 +83,43 @@ body {
   animation: slide-up 0.25s ease-out;
 }
 
+/* Header button glow effects */
+@keyframes glow-guide {
+  0%, 100% { box-shadow: 0 0 4px rgba(59, 130, 246, 0.3), inset 0 0 3px rgba(59, 130, 246, 0.08); }
+  50% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.45), inset 0 0 5px rgba(59, 130, 246, 0.12); }
+}
+
+@keyframes glow-panel {
+  0%, 100% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.3), inset 0 0 3px rgba(16, 185, 129, 0.08); }
+  50% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.45), inset 0 0 5px rgba(16, 185, 129, 0.12); }
+}
+
+.btn-guide-glow {
+  animation: glow-guide 3s ease-in-out infinite;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #93c5fd !important;
+}
+
+.btn-guide-glow:hover {
+  animation: none;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #60a5fa !important;
+}
+
+.btn-panel-glow {
+  animation: glow-panel 3s ease-in-out infinite;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #6ee7b7 !important;
+}
+
+.btn-panel-glow:hover {
+  animation: none;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+  border-color: rgba(16, 185, 129, 0.6);
+  color: #34d399 !important;
+}
+
 /* Map label halo (white outline for readability on any background) */
 .map-label-halo {
   text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white, 0 0 4px white;

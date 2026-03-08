@@ -41,7 +41,7 @@ export function Sidebar() {
           aria-selected={activeTab === 'stations'}
           aria-controls="tabpanel-stations"
           onClick={() => setActiveTab('stations')}
-          className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
+          className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
             activeTab === 'stations'
               ? 'text-white border-b-2 border-blue-500 bg-slate-800/50'
               : 'text-slate-500 hover:text-slate-300'
@@ -54,7 +54,7 @@ export function Sidebar() {
           aria-selected={activeTab === 'chart'}
           aria-controls="tabpanel-chart"
           onClick={() => setActiveTab('chart')}
-          className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
+          className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
             activeTab === 'chart'
               ? 'text-white border-b-2 border-blue-500 bg-slate-800/50'
               : 'text-slate-500 hover:text-slate-300'
@@ -68,7 +68,7 @@ export function Sidebar() {
             aria-selected={activeTab === 'forecast'}
             aria-controls="tabpanel-forecast"
             onClick={() => setActiveTab('forecast')}
-            className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
+            className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
               activeTab === 'forecast'
                 ? 'text-white border-b-2 border-sky-500 bg-slate-800/50'
                 : 'text-slate-500 hover:text-slate-300'
@@ -83,7 +83,7 @@ export function Sidebar() {
             aria-selected={activeTab === 'thermal'}
             aria-controls="tabpanel-thermal"
             onClick={() => setActiveTab('thermal')}
-            className={`flex-1 text-xs font-semibold py-2.5 uppercase tracking-wider transition-colors ${
+            className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
               activeTab === 'thermal'
                 ? 'text-white border-b-2 border-amber-500 bg-slate-800/50'
                 : 'text-slate-500 hover:text-slate-300'

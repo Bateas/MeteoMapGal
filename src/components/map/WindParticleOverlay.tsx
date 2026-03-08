@@ -10,11 +10,12 @@ import { windSpeedColor } from '../../services/windUtils';
 
 const PARTICLE_COUNT_DESKTOP = 400;
 const PARTICLE_COUNT_MOBILE = 150;
-const FADE_ALPHA = 0.92;
+const FADE_ALPHA = 0.94;
 const PARTICLE_MAX_AGE = 100;
-const SPEED_SCALE = 0.0015;
-const LINE_WIDTH = 1.6;
-const HEAD_RADIUS = 2;
+const SPEED_SCALE = 0.002;
+const LINE_WIDTH_BASE = 1.8;
+const LINE_WIDTH_MAX = 3.5;
+const HEAD_RADIUS = 2.5;
 
 // ── Particle type ──────────────────────────────────────────
 
@@ -155,9 +156,11 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       // Update and draw particles on trail canvas
       const particles = particlesRef.current;
 
-      // ── PERF: Batch path operations — one beginPath, many moveTo/lineTo ──
+      // ── PERF: Batch path operations ──
       trailCtx.lineCap = 'round';
-      trailCtx.lineWidth = LINE_WIDTH * dpr;
+
+      // Detect 3D pitch — particles projected behind camera need respawn
+      const hasPitch = map.getPitch() > 5;
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -186,7 +189,21 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
         const prev = map.project([prevLon, prevLat]);
         const curr = map.project([p.lon, p.lat]);
 
-        // Draw trail line
+        // ── 3D pitch safety: respawn if projected behind camera or off-viewport ──
+        if (hasPitch) {
+          const margin = 50; // px tolerance
+          if (
+            curr.x < -margin || curr.x > w / dpr + margin ||
+            curr.y < -margin || curr.y > h / dpr + margin ||
+            prev.x < -margin || prev.x > w / dpr + margin ||
+            prev.y < -margin || prev.y > h / dpr + margin
+          ) {
+            particles[i] = spawnParticle(cachedBounds);
+            continue;
+          }
+        }
+
+        // Draw trail line — width scales with wind speed for visual distinction
         const color = windSpeedColor(wind.speed);
         const ageFade = 1 - p.age / p.maxAge;
         const px = prev.x * dpr;
@@ -194,19 +211,24 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
         const cx = curr.x * dpr;
         const cy = curr.y * dpr;
 
+        // Speed-proportional line width: calm=thin, strong=thick
+        const speedFactor = Math.min(wind.speed / 8, 1); // 0-1 over 0-8 m/s (~16kt)
+        const lineWidth = (LINE_WIDTH_BASE + speedFactor * (LINE_WIDTH_MAX - LINE_WIDTH_BASE)) * dpr;
+
         trailCtx.beginPath();
         trailCtx.moveTo(px, py);
         trailCtx.lineTo(cx, cy);
+        trailCtx.lineWidth = lineWidth;
         trailCtx.strokeStyle = color;
-        trailCtx.globalAlpha = Math.max(ageFade * 0.9, 0.15);
+        trailCtx.globalAlpha = Math.max(ageFade * 0.95, 0.25);
         trailCtx.stroke();
 
         // Bright head dot for visibility (skip on mobile to reduce draw calls)
-        if (!isMobile && ageFade > 0.3) {
+        if (!isMobile && ageFade > 0.25) {
           trailCtx.beginPath();
           trailCtx.arc(cx, cy, HEAD_RADIUS * dpr, 0, Math.PI * 2);
           trailCtx.fillStyle = color;
-          trailCtx.globalAlpha = ageFade;
+          trailCtx.globalAlpha = Math.min(ageFade + 0.1, 1);
           trailCtx.fill();
         }
       }
