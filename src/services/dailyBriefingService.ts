@@ -292,9 +292,13 @@ export function generateSailingBriefing(
   ));
 
   // ── Verdict ────────────────────────────────────────────
+  // GO requires SOME real wind (consensusScore ≥ 10) — prevents GO from
+  // forecast/thermal alone when there's no actual wind on the water.
+  // Without real wind, maximum verdict is MARGINAL regardless of score.
   let verdict: SailingVerdict = 'unknown';
   if (hasStormAlert) verdict = 'nogo';
-  else if (score >= 45) verdict = 'go';
+  else if (score >= 45 && consensusScore >= 10) verdict = 'go';
+  else if (score >= 45) verdict = 'marginal'; // High score but no real wind → marginal
   else if (score >= 20) verdict = 'marginal';
   else if (forecast.length > 0 || dailyContext || (currentReadings && currentReadings.size > 0)) verdict = 'nogo';
   // else stays 'unknown' (no data yet)

@@ -246,6 +246,10 @@ export function buildWindAnomalies(
 /**
  * Detect storm shadow from solar radiation analysis.
  * Cross-references with lightning and wind anomaly contexts if available.
+ *
+ * NIGHT FILTER: Solar radiation-based detection is disabled between
+ * sunset and sunrise (all stations read ~0 W/m² → false positives).
+ * At night, only wind anomalies + lightning are used for detection.
  */
 export function detectStormShadow(
   snapshots: SolarSnapshot[],
@@ -254,6 +258,53 @@ export function detectStormShadow(
   windAnomalies?: WindAnomaly[],
 ): StormShadow | null {
   if (snapshots.length < MIN_STATIONS) return null;
+
+  // ── Night filter: solar detection is meaningless after sunset ──
+  // At night all stations read ~0 W/m² → every station looks "shadowed"
+  // Only rely on lightning + wind anomalies at night
+  const hour = new Date().getHours();
+  const isNight = hour >= 21 || hour < 7; // Conservative: civil twilight
+  if (isNight) {
+    // At night, skip solar analysis entirely — only use lightning + wind
+    if (!lightning || lightning.strikesNearShadow === 0) return null;
+    if (!windAnomalies || windAnomalies.length === 0) return null;
+
+    // We have both lightning and wind anomalies at night → build a storm alert
+    // from wind anomaly positions (no solar data available)
+    const anomalyCenter: [number, number] = [
+      windAnomalies.reduce((s, wa) => s + wa.lon, 0) / windAnomalies.length,
+      windAnomalies.reduce((s, wa) => s + wa.lat, 0) / windAnomalies.length,
+    ];
+
+    const gustCount = windAnomalies.filter((wa) => wa.gustDetected).length;
+    const outflowCount = windAnomalies.filter((wa) => wa.outflowSignature).length;
+    let confidence = 40; // Higher base for night (requires lightning + wind)
+    confidence += Math.min(lightning.strikesNearShadow * 5, 20);
+    confidence += Math.min(gustCount * 10, 20);
+    confidence += outflowCount > 0 ? 15 : 0;
+    confidence = Math.min(confidence, 100);
+
+    return {
+      center: anomalyCenter,
+      movementVector: null,
+      movementSpeedKmh: null,
+      movementBearing: null,
+      shadowedStations: [], // No solar data at night
+      clearStations: [],
+      windContext: {
+        anomalies: windAnomalies,
+        gustCount,
+        outflowCount,
+        avgSpeedChange: windAnomalies.reduce((s, wa) => s + wa.speedChange, 0) / windAnomalies.length,
+      },
+      etaMinutes: null,
+      lightningNearby: lightning.strikesNearShadow,
+      confidence,
+      analyzedAt: new Date(),
+    };
+  }
+
+  // ── Daytime: full solar + wind + lightning analysis ──
 
   // Separate shadowed vs clear stations
   const shadowed = snapshots.filter((s) => s.isShadowed);
@@ -341,7 +392,7 @@ export function detectStormShadow(
   }
 
   // ── Confidence scoring ─────────────────────────────────
-  let confidence = 30; // Base
+  let confidence = 40; // Base (requires at least 2 shadowed + some clear)
 
   // More shadowed stations = higher confidence
   confidence += Math.min(shadowed.length * 10, 30);
