@@ -24,6 +24,7 @@ import {
   type HealthInfo,
 } from '../../api/historyClient';
 import { msToKnots } from '../../services/windUtils';
+import { useWeatherStore } from '../../store/weatherStore';
 
 // ── Constants ──────────────────────────────────────────
 
@@ -98,6 +99,17 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Map station IDs → human names from live weatherStore
+  const liveStations = useWeatherStore((s) => s.stations);
+  const selectStation = useWeatherStore((s) => s.selectStation);
+  const stationNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of liveStations) {
+      map.set(s.id, s.name);
+    }
+    return map;
+  }, [liveStations]);
 
   // Determine interval: raw for 24h, hourly for 7d/30d
   const interval: Interval = timeRange === '24h' ? 'raw' : 'hourly';
@@ -201,7 +213,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
             <WeatherIcon id="database" size={15} className="text-amber-400" />
-            <span className="text-[11px] font-bold text-amber-300">Historial TimescaleDB</span>
+            <span className="text-[11px] font-bold text-amber-300">Historial meteorológico</span>
           </div>
           {health && (
             <span className="text-[9px] text-slate-500">
@@ -214,16 +226,22 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
         <div className="px-3 pb-2">
           <select
             value={selectedStation}
-            onChange={(e) => setSelectedStation(e.target.value)}
+            onChange={(e) => {
+              setSelectedStation(e.target.value);
+              selectStation(e.target.value); // highlight on map
+            }}
             className="w-full bg-slate-800 text-slate-200 text-[10px] rounded px-2 py-1.5 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
           >
             {Object.entries(stationsBySource).map(([source, stns]) => (
               <optgroup key={source} label={source.toUpperCase()}>
-                {stns.map((s) => (
-                  <option key={s.station_id} value={s.station_id}>
-                    {s.station_id} ({s.reading_count.toLocaleString()})
-                  </option>
-                ))}
+                {stns.map((s) => {
+                  const name = stationNames.get(s.station_id);
+                  return (
+                    <option key={s.station_id} value={s.station_id}>
+                      {name ? `${name}` : s.station_id} ({s.reading_count.toLocaleString()})
+                    </option>
+                  );
+                })}
               </optgroup>
             ))}
           </select>

@@ -76,8 +76,8 @@ export function RoadmapSection() {
 
         <TimelineMilestone
           iconId="database"
-          title="Historial TimescaleDB + Dashboard"
-          desc="API REST para datos históricos y pestaña Historial con gráficas, selector de estación y estadísticas."
+          title="Historial meteorológico"
+          desc="Pestaña Historial con gráficas de tendencias, selector de estación por nombre y estadísticas."
           status="done"
         />
 
