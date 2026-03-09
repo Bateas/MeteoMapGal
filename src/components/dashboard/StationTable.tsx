@@ -10,6 +10,18 @@ type SourceKey = NormalizedStation['source'];
 
 type SortMode = 'wind' | 'temp' | 'name';
 
+/**
+ * PERF: content-visibility tells the browser to skip layout/paint for off-screen
+ * cards. With ~40 cards and only ~7-10 visible at a time, this avoids rendering
+ * ~30 cards on every update. `contain-intrinsic-size: auto 140px` uses the real
+ * height after first render, 140px as initial estimate before first layout.
+ * Zero JS overhead — pure browser optimization.
+ */
+const CARD_CONTAIN_STYLE: React.CSSProperties = {
+  contentVisibility: 'auto',
+  containIntrinsicSize: 'auto 140px',
+};
+
 // ── Component ────────────────────────────────────────────
 
 export function StationTable() {
@@ -173,6 +185,7 @@ export function StationTable() {
             if (el) cardRefs.current.set(station.id, el);
             else cardRefs.current.delete(station.id);
           }}
+          style={CARD_CONTAIN_STYLE}
         >
           <StationCard
             station={station}

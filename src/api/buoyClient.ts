@@ -32,6 +32,20 @@
 
 const PORTUS_API = '/portus-api';  // proxied → portus.puertos.es/portussvr/api
 const TIMEOUT = 20_000;
+const MAX_RETRIES = 2;
+const RETRY_BASE_MS = 2000; // 2s, 4s exponential
+
+/** User-friendly error messages */
+function friendlyError(status: number): string {
+  switch (status) {
+    case 503: return 'Puertos del Estado no disponible temporalmente';
+    case 502: return 'Puertos del Estado no responde';
+    case 500: return 'Error en servidor de Puertos del Estado';
+    case 429: return 'Demasiadas solicitudes a Puertos del Estado';
+    case 404: return 'Estación no encontrada en Puertos del Estado';
+    default: return `Error de conexión con Puertos del Estado (${status})`;
+  }
+}
 
 // ── Types ──────────────────────────────────────────────
 
@@ -99,8 +113,9 @@ export const RIAS_BUOY_STATIONS: { id: number; name: string; lat: number; lon: n
 
 /**
  * Fetch from portussvr API (POST with JSON body).
+ * Retries on 5xx errors with exponential backoff.
  */
-async function portusPost<T>(path: string, body?: unknown): Promise<T> {
+async function portusPost<T>(path: string, body?: unknown, attempt = 0): Promise<T> {
   const res = await fetch(`${PORTUS_API}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -109,19 +124,33 @@ async function portusPost<T>(path: string, body?: unknown): Promise<T> {
   });
 
   if (!res.ok) {
-    throw new Error(`Portus API error ${res.status}: ${res.statusText}`);
+    // Retry on 5xx server errors
+    if (res.status >= 500 && attempt < MAX_RETRIES) {
+      const delay = RETRY_BASE_MS * Math.pow(2, attempt);
+      console.warn(`[Buoy] POST ${path} → ${res.status}, retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+      return portusPost<T>(path, body, attempt + 1);
+    }
+    throw new Error(friendlyError(res.status));
   }
 
   return res.json();
 }
 
-async function portusGet<T>(path: string): Promise<T> {
+async function portusGet<T>(path: string, attempt = 0): Promise<T> {
   const res = await fetch(`${PORTUS_API}${path}`, {
     signal: AbortSignal.timeout(TIMEOUT),
   });
 
   if (!res.ok) {
-    throw new Error(`Portus API error ${res.status}: ${res.statusText}`);
+    // Retry on 5xx server errors
+    if (res.status >= 500 && attempt < MAX_RETRIES) {
+      const delay = RETRY_BASE_MS * Math.pow(2, attempt);
+      console.warn(`[Buoy] GET ${path} → ${res.status}, retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+      return portusGet<T>(path, attempt + 1);
+    }
+    throw new Error(friendlyError(res.status));
   }
 
   return res.json();

@@ -3,7 +3,8 @@ import type { MapRef } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
-import { extractWindData, interpolateWind } from '../../services/idwInterpolation';
+import { extractWindData, buildWindGrid, lookupWindGrid } from '../../services/idwInterpolation';
+import type { WindGrid } from '../../services/idwInterpolation';
 import { windSpeedColor } from '../../services/windUtils';
 
 // ── Configuration ──────────────────────────────────────────
@@ -47,10 +48,15 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
   const isActive = activeLayer === 'wind-particles';
   const particleCount = isMobile ? PARTICLE_COUNT_MOBILE : PARTICLE_COUNT_DESKTOP;
 
-  // Build wind data for IDW
+  // Build wind data when stations/readings change
   const windDataRef = useRef(extractWindData(stations, readings));
+  const windGridRef = useRef<WindGrid | null>(null);
+  const gridBoundsRef = useRef<string>('');
+
   useEffect(() => {
     windDataRef.current = extractWindData(stations, readings);
+    // Invalidate grid — will be rebuilt on next frame with current viewport
+    windGridRef.current = null;
   }, [stations, readings]);
 
   // Spawn a particle at random position within map bounds
@@ -140,7 +146,7 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       trailCtx.fillRect(0, 0, w, h);
       trailCtx.globalCompositeOperation = 'source-over';
 
-      // ── PERF: Cache bounds ONCE per frame (was called 500x/frame!) ──
+      // ── PERF: Cache bounds ONCE per frame ──
       const mapBounds = map.getBounds();
       const bw = mapBounds.getWest() - 0.1;
       const be = mapBounds.getEast() + 0.1;
@@ -152,6 +158,19 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
         s: mapBounds.getSouth(),
         n: mapBounds.getNorth(),
       };
+
+      // ── PERF: Pre-compute wind grid (rebuild only when bounds/data change) ──
+      // Replaces per-particle IDW (O(particles × stations) → O(1) bilinear lookup).
+      // Grid: 24×24 = 576 IDW calls on rebuild vs 24,000 IDW calls/sec before.
+      const boundsKey = `${bw.toFixed(3)},${be.toFixed(3)},${bs.toFixed(3)},${bn.toFixed(3)}`;
+      if (!windGridRef.current || gridBoundsRef.current !== boundsKey) {
+        windGridRef.current = buildWindGrid(
+          { w: bw, e: be, s: bs, n: bn },
+          windData,
+        );
+        gridBoundsRef.current = boundsKey;
+      }
+      const grid = windGridRef.current;
 
       // Update and draw particles on trail canvas
       const particles = particlesRef.current;
@@ -165,8 +184,8 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
 
-        // Get wind at particle position
-        const wind = interpolateWind(p.lat, p.lon, windData);
+        // ── PERF: O(1) bilinear grid lookup instead of O(stations) IDW ──
+        const wind = lookupWindGrid(grid, p.lat, p.lon);
 
         // Move particle
         const prevLon = p.lon;
@@ -246,6 +265,8 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
 
     // Re-spawn particles on map move (zoom/pan) to avoid stale positions
     const handleMoveEnd = () => {
+      // Invalidate wind grid — will rebuild with new viewport bounds next frame
+      windGridRef.current = null;
       const particles = particlesRef.current;
       for (let i = 0; i < particles.length; i++) {
         if (Math.random() > 0.7) {

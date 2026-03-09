@@ -20,6 +20,7 @@ import { estimateCloudCover } from '../services/stormShadowDetector';
 import { computeWindStatus } from '../services/windStatusService';
 import { MICRO_ZONES } from '../config/thermalZones';
 import { useVisibilityPolling } from './useVisibilityPolling';
+import { useSectorStore } from '../store/sectorStore';
 
 const FORECAST_INTERVAL_MS = 30 * 60 * 1000;
 const ATMOSPHERIC_INTERVAL_MS = 15 * 60 * 1000;
@@ -36,6 +37,9 @@ const ATMOSPHERIC_INTERVAL_MS = 15 * 60 * 1000;
  *   5. Open-Meteo 24h history → backfill for tendency time series
  */
 export function useThermalAnalysis() {
+  // Thermal analysis is Embalse-only — skip all Open-Meteo fetches for other sectors
+  const isEmbalse = useSectorStore((s) => s.activeSector.id === 'embalse');
+
   const { stations, currentReadings, readingHistory } = useWeatherStore(
     useShallow((s) => ({
       stations: s.stations,
@@ -93,28 +97,31 @@ export function useThermalAnalysis() {
     setStationToZone(mapping);
   }, [stations, zones, setStationToZone]);
 
-  // ── Fetch daily context (ΔT) on mount ──────────────────
+  // ── Fetch daily context (ΔT) on mount — Embalse only ──
   useEffect(() => {
+    if (!isEmbalse) return;
     fetchDailyContextForEmbalse().then((ctx) => {
       setDailyContext(ctx);
     }).catch((err) => console.warn('[ThermalAnalysis] Daily context error:', err));
-  }, [setDailyContext]);
+  }, [isEmbalse, setDailyContext]);
 
-  // ── Fetch atmospheric context (cloud/radiation/CAPE) ────
+  // ── Fetch atmospheric context (cloud/radiation/CAPE) — Embalse only ──
   const fetchAtmospheric = useCallback(() => {
+    if (!isEmbalse) return;
     fetchAtmosphericContextForEmbalse().then((ctx) => {
       setAtmosphericContext(ctx);
     }).catch((err) => console.warn('[ThermalAnalysis] Atmospheric context error:', err));
-  }, [setAtmosphericContext]);
+  }, [isEmbalse, setAtmosphericContext]);
 
   // Visibility-aware polling — pauses atmospheric fetches when tab is hidden
   useVisibilityPolling(fetchAtmospheric, ATMOSPHERIC_INTERVAL_MS);
 
-  // ── Fetch Open-Meteo 24h history for tendency backfill ──
+  // ── Fetch Open-Meteo 24h history for tendency backfill — Embalse only ──
   // Station-based history may be sparse (only 10min readings since app opened).
   // Open-Meteo provides model data for the last 24h, giving the tendency detector
   // a complete time series to compute temperature rise rates, humidity trends, etc.
   useEffect(() => {
+    if (!isEmbalse) return;
     async function fetchHistory() {
       const historyMap = new Map<MicroZoneId, NormalizedReading[]>();
 
@@ -139,12 +146,13 @@ export function useThermalAnalysis() {
     }
 
     fetchHistory();
-  }, []);
+  }, [isEmbalse]);
 
-  // ── Re-score + tendency detection on every data update ──
+  // ── Re-score + tendency detection on every data update — Embalse only ──
   // Wrapped in startTransition to keep map/UI responsive during heavy scoring.
   // Fingerprint skips re-scoring when readings haven't changed meaningfully.
   useEffect(() => {
+    if (!isEmbalse) return;
     if (stationToZone.size === 0 || currentReadings.size === 0) return;
 
     // Build fingerprint from key fields (rounded to avoid float noise)
@@ -267,13 +275,14 @@ export function useThermalAnalysis() {
       setWindStatus(windStatusResult);
     });
   }, [
-    currentReadings, stationToZone, rules, readingHistory, zones, dailyContext, atmosphericContext,
+    isEmbalse, currentReadings, stationToZone, rules, readingHistory, zones, dailyContext, atmosphericContext,
     setRuleScores, setZoneAlerts, setPropagationEvents, setTendencySignals, setHumidityAssessments, setWindStatus,
     startTransition, stations,
   ]);
 
-  // ── Forecast fetching ──────────────────────────────────
+  // ── Forecast fetching — Embalse only ──────────────────
   const fetchForecast = useCallback(async () => {
+    if (!isEmbalse) return;
     try {
       const forecast = await fetchForecastForZones(zones);
       setZoneForecast(forecast);
@@ -324,7 +333,7 @@ export function useThermalAnalysis() {
     } catch (err) {
       console.warn('[ThermalAnalysis] Forecast error:', err);
     }
-  }, [zones, rules, dailyContext, setZoneForecast, setForecastAlerts]);
+  }, [isEmbalse, zones, rules, dailyContext, setZoneForecast, setForecastAlerts]);
 
   // Visibility-aware polling — pauses forecast fetches when tab is hidden
   useVisibilityPolling(fetchForecast, FORECAST_INTERVAL_MS);

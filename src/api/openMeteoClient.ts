@@ -1,6 +1,7 @@
 import type { NormalizedReading } from '../types/station';
 import type { ForecastPoint, DailyContext, MicroZoneId, AtmosphericContext } from '../types/thermal';
 import type { MicroZone } from '../types/thermal';
+import { openMeteoFetch } from './openMeteoQueue';
 
 // ── Session cache for Open-Meteo history (avoids redundant fetches) ──
 const HISTORY_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -81,7 +82,7 @@ export async function fetchOpenMeteoHistory(
 
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&past_hours=${pastHours}&forecast_hours=0&wind_speed_unit=ms`;
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) {
     console.warn(`[OpenMeteo] Failed for ${stationId}: ${res.status}`);
     return [];
@@ -116,8 +117,8 @@ export async function fetchOpenMeteoHistory(
  * rounded to 2 decimals) share identical model data, so we fetch each unique cell
  * only once and distribute the readings to all stations in that cell.
  *
- * Additionally, requests are batched (max 8 concurrent) to avoid 429 rate-limiting.
- * Open-Meteo free tier allows ~60 requests/minute.
+ * Additionally, requests are batched (max 6 per batch) and go through the global
+ * rate limiter queue (openMeteoQueue.ts) to avoid 429 rate-limiting.
  */
 export async function fetchOpenMeteoForStations(
   stations: { id: string; lat: number; lon: number }[],
@@ -137,9 +138,9 @@ export async function fetchOpenMeteoForStations(
 
   const uniqueCells = Array.from(gridMap.values());
   const allReadings: NormalizedReading[] = [];
-  const BATCH_SIZE = 8;
+  const BATCH_SIZE = 6; // Smaller batches — global queue handles concurrency
 
-  // Fetch in batches to respect rate limits
+  // Fetch in batches — each individual request goes through the global rate limiter
   for (let i = 0; i < uniqueCells.length; i += BATCH_SIZE) {
     const batch = uniqueCells.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
@@ -158,9 +159,9 @@ export async function fetchOpenMeteoForStations(
       }
     }
 
-    // Small delay between batches to avoid bursts
+    // Delay between batches — global queue adds per-request delays too
     if (i + BATCH_SIZE < uniqueCells.length) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
 
@@ -196,7 +197,7 @@ export async function fetchOpenMeteoForecast(
     `&wind_speed_unit=ms` +
     `&timezone=Europe%2FMadrid`;
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) {
     console.warn(`[OpenMeteo Forecast] Failed: ${res.status}`);
     return [];
@@ -270,7 +271,7 @@ export async function fetchDailyContext(
     `&timezone=Europe%2FMadrid`;
 
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return { tempMax: null, tempMin: null, deltaT: null };
 
     const data: OpenMeteoHourlyResponse = await res.json();
@@ -330,7 +331,7 @@ export async function fetchAtmosphericContext(
   };
 
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return nullContext;
 
     const data: OpenMeteoHourlyResponse = await res.json();

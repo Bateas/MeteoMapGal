@@ -4,6 +4,8 @@ import { useShallow } from 'zustand/react/shallow';
 import type { HourlyForecast, ForecastState } from '../types/forecast';
 import { MAP_CENTER } from '../config/constants';
 import { useVisibilityPolling } from './useVisibilityPolling';
+import { useSectorStore } from '../store/sectorStore';
+import { openMeteoFetch } from '../api/openMeteoQueue';
 
 /** Reservoir center */
 const LAT = MAP_CENTER[1]; // 42.29
@@ -85,7 +87,7 @@ async function fetchForecastTimeline(): Promise<HourlyForecast[]> {
     `&wind_speed_unit=ms` +
     `&timezone=Europe%2FMadrid`;
 
-  const res = await fetch(url);
+  const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`Open-Meteo forecast: ${res.status}`);
 
   const data: OMForecastResponse = await res.json();
@@ -127,7 +129,12 @@ export function useForecastTimeline() {
       setFetchedAt: s.setFetchedAt,
     })),
   );
+
+  // Only fetch forecast for Embalse sector — irrelevant for Rías Baixas
+  const isEmbalse = useSectorStore((s) => s.activeSector.id === 'embalse');
+
   const poll = useCallback(async () => {
+    if (!isEmbalse) return; // Skip entirely for non-Embalse sectors
     setLoading(true);
     try {
       const data = await fetchForecastTimeline();
@@ -141,7 +148,7 @@ export function useForecastTimeline() {
     } finally {
       setLoading(false);
     }
-  }, [setHourly, setLoading, setError, setFetchedAt]);
+  }, [isEmbalse, setHourly, setLoading, setError, setFetchedAt]);
 
   // Visibility-aware polling — pauses when tab is hidden
   useVisibilityPolling(poll, POLL_INTERVAL_MS);
