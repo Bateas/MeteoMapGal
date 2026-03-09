@@ -40,6 +40,21 @@ export function windSpeedColor(speed: number | null): string {
   return '#ef4444';                    // red-500    (>23 kt: gale+)
 }
 
+/**
+ * Tailwind text-color class for wind speed — matches windSpeedColor() thresholds.
+ * Use in components that need className-based coloring (e.g. BuoyPanel).
+ */
+export function windSpeedClass(speed: number | null): string {
+  if (speed === null || speed < 0.5) return 'text-slate-500';
+  if (speed < 1.5) return 'text-blue-300';
+  if (speed < 3.0) return 'text-cyan-400';
+  if (speed < 4.5) return 'text-green-500';
+  if (speed < 6.5) return 'text-lime-400';
+  if (speed < 8.5) return 'text-yellow-500';
+  if (speed < 12)  return 'text-orange-500';
+  return 'text-red-500';
+}
+
 /** Color for temperature visualization */
 export function temperatureColor(temp: number | null): string {
   if (temp === null) return '#6b7280'; // gray-500
