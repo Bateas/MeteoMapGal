@@ -29,6 +29,8 @@ import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { SectorSelector } from './SectorSelector';
 import { MapContextMenu } from './MapContextMenu';
+import { BuoyMarker } from './BuoyMarker';
+import { useBuoyStore } from '../../store/buoyStore';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -88,6 +90,10 @@ export function WeatherMap() {
   const isMobile = useUIStore((s) => s.isMobile);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
+
+  // Buoy data from shared store (populated by BuoyPanel in Rías Baixas sector)
+  const buoys = useBuoyStore((s) => s.buoys);
+  const selectedBuoyId = useBuoyStore((s) => s.selectedBuoyId);
 
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
@@ -169,6 +175,15 @@ export function WeatherMap() {
             />
           )
         )}
+
+        {/* Marine buoy markers — only for Rías Baixas sector */}
+        {activeSector.id === 'rias' && buoys.map((b) => (
+          <BuoyMarker
+            key={b.stationId}
+            reading={b}
+            isSelected={b.stationId === selectedBuoyId}
+          />
+        ))}
 
         {/* Thermal alert badges + propagation — only for Embalse sector */}
         {activeSector.id === 'embalse' && (
