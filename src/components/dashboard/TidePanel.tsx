@@ -20,6 +20,14 @@ interface TideData {
 
 const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
+/** Safely parse "HH:MM" → [hours, minutes]. Returns null if malformed. */
+function parseTimeHHMM(time: string): [number, number] | null {
+  if (!time || !time.includes(':')) return null;
+  const parts = time.split(':').map(Number);
+  if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
+  return [parts[0], parts[1]];
+}
+
 export const TidePanel = memo(function TidePanel() {
   const [data, setData] = useState<TideData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,9 +68,10 @@ export const TidePanel = memo(function TidePanel() {
     const todayStr = now.toISOString().slice(0, 10);
 
     for (const point of data.today) {
-      const [hh, mm] = point.time.split(':').map(Number);
+      const parsed = parseTimeHHMM(point.time);
+      if (!parsed) continue;
       const tideTime = new Date(todayStr);
-      tideTime.setHours(hh, mm, 0, 0);
+      tideTime.setHours(parsed[0], parsed[1], 0, 0);
       if (tideTime > now) {
         return { ...point, date: tideTime };
       }
@@ -74,10 +83,12 @@ export const TidePanel = memo(function TidePanel() {
       tmrw.setDate(tmrw.getDate() + 1);
       const tmrwStr = tmrw.toISOString().slice(0, 10);
       const first = data.tomorrow[0];
-      const [hh, mm] = first.time.split(':').map(Number);
-      const tideTime = new Date(tmrwStr);
-      tideTime.setHours(hh, mm, 0, 0);
-      return { ...first, date: tideTime };
+      const parsed = parseTimeHHMM(first.time);
+      if (parsed) {
+        const tideTime = new Date(tmrwStr);
+        tideTime.setHours(parsed[0], parsed[1], 0, 0);
+        return { ...first, date: tideTime };
+      }
     }
 
     return null;
@@ -94,9 +105,10 @@ export const TidePanel = memo(function TidePanel() {
     let next: { time: Date; type: 'high' | 'low' } | null = null;
 
     for (const point of data.today) {
-      const [hh, mm] = point.time.split(':').map(Number);
+      const parsed = parseTimeHHMM(point.time);
+      if (!parsed) continue;
       const tideTime = new Date(todayStr);
-      tideTime.setHours(hh, mm, 0, 0);
+      tideTime.setHours(parsed[0], parsed[1], 0, 0);
 
       if (tideTime.getTime() <= nowMs) {
         prev = { time: tideTime, type: point.type };
@@ -264,11 +276,16 @@ function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
   const H = 32;
   const PAD = 4;
 
-  // Parse times to fractional hours
-  const parsed = points.map((p) => {
-    const [hh, mm] = p.time.split(':').map(Number);
-    return { hour: hh + mm / 60, height: p.height, type: p.type };
-  });
+  // Parse times to fractional hours (skip malformed entries)
+  const parsed = points
+    .map((p) => {
+      const t = parseTimeHHMM(p.time);
+      if (!t) return null;
+      return { hour: t[0] + t[1] / 60, height: p.height, type: p.type };
+    })
+    .filter((p): p is NonNullable<typeof p> => p !== null);
+
+  if (parsed.length < 2) return null;
 
   const minH = Math.min(...parsed.map((p) => p.height));
   const maxH = Math.max(...parsed.map((p) => p.height));
@@ -305,11 +322,12 @@ function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
   const nowHour = now.getHours() + now.getMinutes() / 60;
   const firstHour = parsed[0].hour;
   const lastHour = parsed[parsed.length - 1].hour;
+  const hourSpan = lastHour - firstHour;
   let nowX: number | null = null;
   let nowY: number | null = null;
 
-  if (nowHour >= firstHour && nowHour <= lastHour) {
-    const t = (nowHour - firstHour) / (lastHour - firstHour);
+  if (hourSpan > 0 && nowHour >= firstHour && nowHour <= lastHour) {
+    const t = (nowHour - firstHour) / hourSpan;
     nowX = PAD + t * (W - 2 * PAD);
 
     // Interpolate height at current time
@@ -352,8 +370,8 @@ function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
       />
 
       {/* High/low markers */}
-      {parsed.map((p, i) => {
-        const t = (p.hour - firstHour) / (lastHour - firstHour);
+      {hourSpan > 0 && parsed.map((p, i) => {
+        const t = (p.hour - firstHour) / hourSpan;
         const x = PAD + t * (W - 2 * PAD);
         const y = H - PAD - ((p.height - minH) / range) * (H - 2 * PAD);
         return (
