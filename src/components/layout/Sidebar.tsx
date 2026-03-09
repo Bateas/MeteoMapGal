@@ -18,8 +18,11 @@ const ThermalWindPanel = lazy(() =>
 const DailySailingBriefing = lazy(() =>
   import('../dashboard/DailySailingBriefing').then((m) => ({ default: m.DailySailingBriefing })),
 );
+const HistoryDashboard = lazy(() =>
+  import('../dashboard/HistoryDashboard').then((m) => ({ default: m.HistoryDashboard })),
+);
 
-type Tab = 'stations' | 'chart' | 'forecast' | 'thermal';
+type Tab = 'stations' | 'chart' | 'forecast' | 'thermal' | 'history';
 
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
@@ -92,6 +95,19 @@ export function Sidebar() {
             Térmico
           </button>
         )}
+        <button
+          role="tab"
+          aria-selected={activeTab === 'history'}
+          aria-controls="tabpanel-history"
+          onClick={() => setActiveTab('history')}
+          className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
+            activeTab === 'history'
+              ? 'text-white border-b-2 border-amber-500 bg-slate-800/50'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          Historial
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -122,6 +138,11 @@ export function Sidebar() {
           {activeTab === 'thermal' && (
             <ErrorBoundary section="Panel Térmico">
               <ThermalWindPanel />
+            </ErrorBoundary>
+          )}
+          {activeTab === 'history' && (
+            <ErrorBoundary section="Historial">
+              <HistoryDashboard />
             </ErrorBoundary>
           )}
         </Suspense>
