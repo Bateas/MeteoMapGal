@@ -47,3 +47,23 @@ export function waterTempClass(t: number): string {
   if (t < 21) return 'text-yellow-500';
   return 'text-orange-400';
 }
+
+// ── Current speed color (m/s) ─────────────────────────────
+// Galician rías: 0–0.5 m/s typical range.
+export function currentSpeedColor(s: number | null): string {
+  if (s == null) return '#64748b';    // slate-500 (no data)
+  if (s < 0.05) return '#94a3b8';    // slate-400 — negligible
+  if (s < 0.1) return '#2dd4bf';     // teal-400 — gentle
+  if (s < 0.2) return '#06b6d4';     // cyan-500 — moderate
+  if (s < 0.35) return '#0284c7';    // sky-600 — strong
+  return '#7c3aed';                  // violet-600 — very strong
+}
+
+// Tailwind class version for BuoyPanel data cells
+export function currentSpeedClass(s: number): string {
+  if (s < 0.05) return 'text-slate-400';
+  if (s < 0.1) return 'text-teal-400';
+  if (s < 0.2) return 'text-cyan-400';
+  if (s < 0.35) return 'text-sky-500';
+  return 'text-violet-500';
+}
