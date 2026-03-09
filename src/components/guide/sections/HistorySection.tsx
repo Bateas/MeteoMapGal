@@ -37,6 +37,16 @@ export function HistorySection() {
             title="Cambia la métrica"
             desc="Temperatura (°C), viento (kt), humedad relativa (%) o presión (hPa). La gráfica y las estadísticas se actualizan al instante."
           />
+          <StepCard
+            num={4}
+            title="Rosa de vientos"
+            desc="Pulsa el botón Rosa para ver un diagrama polar con la frecuencia del viento por dirección y velocidad. Usa datos de alta resolución (5 min)."
+          />
+          <StepCard
+            num={5}
+            title="Compara estaciones"
+            desc="Activa Comparar estaciones, elige una segunda estación y verás ambas series superpuestas en colores distintos."
+          />
         </div>
       </div>
 
@@ -67,6 +77,18 @@ export function HistorySection() {
             title="Selección en mapa"
             desc="Al elegir una estación, se selecciona automáticamente en el mapa 3D para que la localices al instante."
             color="text-purple-400"
+          />
+          <FeatureCard
+            iconId="wind"
+            title="Rosa de vientos"
+            desc="Diagrama polar con 16 direcciones y 5 rangos de velocidad. Muestra de dónde sopla el viento con más frecuencia."
+            color="text-cyan-400"
+          />
+          <FeatureCard
+            iconId="gauge"
+            title="Comparar estaciones"
+            desc="Superpón dos estaciones en la misma gráfica para ver diferencias de temperatura, viento o presión."
+            color="text-amber-400"
           />
         </div>
       </div>
