@@ -34,8 +34,8 @@ export function CampoPanelSection() {
             num="2"
             iconId="sun"
             name="Campo"
-            modules="Helada + Lluvia + Niebla + ET₀ + Fitosanitario + Lunar"
-            desc="Para agricultura y viticultura: riesgos de cultivo, riego, enfermedades y calendario lunar."
+            modules="Helada + Lluvia + Niebla + ET₀ + Fitosanitario + GDD + Lunar"
+            desc="Para agricultura y viticultura: riesgos de cultivo, riego, enfermedades, fenología (GDD) y calendario lunar."
           />
           <TabRow
             num="3"
@@ -188,6 +188,25 @@ export function CampoPanelSection() {
             { level: 'Riesgo', condition: '2-3h favorables' },
             { level: 'Alto', condition: '4-5h favorables' },
             { level: 'Crítico', condition: '6+h favorables' },
+          ]}
+        />
+
+        <AlertModule
+          iconId="sprout"
+          title="Grados-Día (GDD)"
+          color="#22c55e"
+          items={[
+            { label: 'GDD acumulados', desc: 'Suma de grados-día desde 1 de marzo (base 10°C, Vitis vinifera)' },
+            { label: 'GDD hoy', desc: 'Contribución del día actual calculada desde previsión Tmax/Tmin' },
+            { label: 'Fase fenológica', desc: 'Etapa de crecimiento actual: Latencia → Desborre → Floración → Envero → Vendimia' },
+            { label: 'Barra progreso', desc: 'Avance dentro de la fase actual (0-100%)' },
+            { label: 'Próximo hito', desc: 'Siguiente fase fenológica y °C·d restantes para alcanzarla' },
+            { label: 'Consejo cultivo', desc: 'Recomendaciones vitícolas según la fase de crecimiento actual' },
+          ]}
+          levels={[
+            { level: 'Normal', condition: 'Fases vegetativas sin evento crítico' },
+            { level: 'Riesgo', condition: 'Envero o vendimia — fases sensibles' },
+            { level: 'Alto', condition: 'Floración — fase crítica para cuajado' },
           ]}
         />
 
