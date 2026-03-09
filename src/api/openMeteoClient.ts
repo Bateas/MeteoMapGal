@@ -138,7 +138,7 @@ export async function fetchOpenMeteoForStations(
 
   const uniqueCells = Array.from(gridMap.values());
   const allReadings: NormalizedReading[] = [];
-  const BATCH_SIZE = 6; // Smaller batches — global queue handles concurrency
+  const BATCH_SIZE = 3; // Small batches — global queue handles per-request rate limiting
 
   // Fetch in batches — each individual request goes through the global rate limiter
   for (let i = 0; i < uniqueCells.length; i += BATCH_SIZE) {
@@ -161,7 +161,7 @@ export async function fetchOpenMeteoForStations(
 
     // Delay between batches — global queue adds per-request delays too
     if (i + BATCH_SIZE < uniqueCells.length) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 1500));
     }
   }
 

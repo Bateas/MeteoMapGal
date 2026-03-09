@@ -10,7 +10,7 @@ import { memo } from 'react';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { BuoyReading } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
-import { msToKnots } from '../../services/windUtils';
+import { msToKnots, windSpeedClass } from '../../services/windUtils';
 import { waveHeightClass, waterTempClass, currentSpeedClass } from '../../services/buoyUtils';
 
 /** Compass label from degrees */
@@ -133,7 +133,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
             <DataCell
               label="Viento"
               value={`${msToKnots(b.windSpeed!).toFixed(1)} kt`}
-              className="text-blue-400"
+              className={windSpeedClass(b.windSpeed)}
             />
             <DataCell
               label="Dir viento"
@@ -144,7 +144,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
               <DataCell
                 label="Racha"
                 value={`${msToKnots(b.windGust).toFixed(1)} kt`}
-                className="text-orange-400"
+                className={windSpeedClass(b.windGust)}
               />
             ) : (
               <DataCell label="Racha" value="—" />

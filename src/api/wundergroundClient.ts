@@ -67,7 +67,7 @@ export async function fetchWUNearbyStations(
   url.searchParams.set('apiKey', API_KEY);
 
   try {
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) {
       console.warn(`[WU] Near endpoint failed: ${res.status}`);
       return [];
@@ -120,7 +120,7 @@ async function fetchWUCurrent(stationId: string): Promise<WUObservation | null> 
   url.searchParams.set('apiKey', API_KEY);
 
   try {
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) return null;
 
     const data = await res.json();
