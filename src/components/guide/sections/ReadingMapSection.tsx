@@ -193,8 +193,8 @@ export function ReadingMapSection() {
           />
           <MiniExplainer
             iconId="database"
-            title="Historial TimescaleDB"
-            text="Pestaña Historial en el sidebar: gráfica temporal de 93+ estaciones con selector de métrica (T, viento, HR, presión), rango (24h/7d/30d) y estadísticas agregadas."
+            title="Historial meteorológico"
+            text="Pestaña Historial en el sidebar: gráfica temporal con selector de estación por nombre, métrica (T, viento, HR, presión), rango (24h/7d/30d) y estadísticas. Ver sección dedicada en la guía."
           />
         </div>
       </div>

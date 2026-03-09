@@ -11,6 +11,7 @@ import { ReadingMapSection } from './sections/ReadingMapSection';
 import { CampoPanelSection } from './sections/CampoPanelSection';
 import { SailingBannerSection } from './sections/SailingBannerSection';
 import { GlossarySection } from './sections/GlossarySection';
+import { HistorySection } from './sections/HistorySection';
 import { RoadmapSection } from './sections/RoadmapSection';
 import { LegalSection } from './sections/LegalSection';
 
@@ -33,6 +34,7 @@ const ALL_SECTIONS: GuideSection[] = [
   { id: 'reading', label: 'Leer el mapa' },
   { id: 'campo', label: 'Panel Alertas' },
   { id: 'sailing', label: 'Navegación y scoring' },
+  { id: 'history', label: 'Historial meteorológico' },
   { id: 'glossary', label: 'Glosario' },
   { id: 'roadmap', label: 'Roadmap y fuentes' },
   { id: 'legal', label: 'Aviso legal' },
@@ -152,6 +154,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
             {activeSection === 'reading' && <ReadingMapSection />}
             {activeSection === 'campo' && <CampoPanelSection />}
             {activeSection === 'sailing' && <SailingBannerSection />}
+            {activeSection === 'history' && <HistorySection />}
             {activeSection === 'roadmap' && <RoadmapSection />}
             {activeSection === 'legal' && <LegalSection />}
           </div>
