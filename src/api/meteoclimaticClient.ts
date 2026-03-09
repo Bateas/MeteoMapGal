@@ -81,7 +81,7 @@ export async function fetchMeteoclimaticFeed(
   const results = await Promise.allSettled(
     regions.map(async (region) => {
       const url = METEOCLIMATIC.regionFeed(region);
-      const resp = await fetch(url);
+      const resp = await fetch(url, { signal: AbortSignal.timeout(15_000) });
       if (!resp.ok) throw new Error(`Meteoclimatic ${region} feed error: ${resp.status}`);
       const xmlText = await resp.text();
       return parseXmlFeed(xmlText);
