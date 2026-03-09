@@ -12,8 +12,18 @@ import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
 import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/windUtils';
-import { formatDistanceToNow } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { waveHeightColor, waterTempColor } from '../../services/buoyUtils';
+
+/** Lightweight relative-time in Spanish (avoids date-fns locale bundle) */
+function timeAgoEs(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.round(diff / 60_000);
+  if (mins < 1) return 'Actualizado ahora';
+  if (mins < 60) return `Actualizado hace ${mins} min`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `Actualizado hace ${hrs}h`;
+  return `Actualizado hace ${Math.round(hrs / 24)}d`;
+}
 
 // ── Type badge colors ──────────────────────────────────────
 const TYPE_COLORS: Record<string, string> = {
@@ -30,26 +40,6 @@ interface BuoyPopupProps {
 /** Get lat/lon + type from the predefined station list */
 function getBuoyInfo(stationId: number) {
   return RIAS_BUOY_STATIONS.find((s) => s.id === stationId) ?? null;
-}
-
-/** Wave height color scale */
-function waveHeightColor(h: number | null): string {
-  if (h == null) return '#64748b';
-  if (h < 0.5) return '#22c55e';  // green — calm
-  if (h < 1.0) return '#a3e635';  // lime — slight
-  if (h < 2.0) return '#eab308';  // yellow — moderate
-  if (h < 3.0) return '#f97316';  // orange — rough
-  return '#ef4444';               // red — high
-}
-
-/** Water temp color scale */
-function waterTempColor(t: number | null): string {
-  if (t == null) return '#64748b';
-  if (t < 12) return '#3b82f6';   // blue — cold
-  if (t < 15) return '#06b6d4';   // cyan — cool
-  if (t < 18) return '#22c55e';   // green — mild
-  if (t < 21) return '#eab308';   // yellow — warm
-  return '#f97316';               // orange — very warm
 }
 
 /** Format wave direction as arrow + cardinal */
@@ -218,9 +208,7 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
 
       {/* Timestamp */}
       <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 8, borderTop: '1px solid #334155', paddingTop: 6 }}>
-        {reading.timestamp
-          ? `Actualizado ${formatDistanceToNow(new Date(reading.timestamp), { addSuffix: true, locale: es })}`
-          : 'Hora desconocida'}
+        {reading.timestamp ? timeAgoEs(reading.timestamp) : 'Hora desconocida'}
       </div>
     </div>
   );

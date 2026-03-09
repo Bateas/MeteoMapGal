@@ -1,68 +1,130 @@
 /**
  * Map marker for marine buoy stations (Puertos del Estado).
- * Renders as a DOM marker with anchor icon + visual data:
- * - Wave height badge (top-right, cyan)
- * - Wind speed + direction arrow (color-coded like weather stations)
- * - Water temperature badge (bottom-right, blue)
- * - Wave direction indicator (separate from wind, dashed cyan)
  *
- * Cyan theme to distinguish from weather station markers.
+ * Visual design:
+ * - Cyan anchor icon (core identity)
+ * - WindArrow: reuses SAME component as weather stations for visual consistency
+ * - WaveGlyph: SVG wave indicator — amplitude scales with wave height,
+ *   peaks sharpen with bigger waves. Direction shown by glyph rotation.
+ * - Water temperature badge (bottom-right)
+ * - Wave height badge (top-right)
+ *
+ * Color scales from buoyUtils.ts — shared with BuoyPopup and BuoyPanel.
  */
 import { memo, useCallback } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
-import { msToKnots, windSpeedColor } from '../../services/windUtils';
+import { msToKnots, windSpeedColor, windArrowLength } from '../../services/windUtils';
+import { waveHeightColor, waterTempColor } from '../../services/buoyUtils';
 
 interface BuoyMarkerProps {
   reading: BuoyReading;
   isSelected?: boolean;
 }
 
-/** Get lat/lon from the predefined station list */
-function getBuoyCoords(stationId: number): { lat: number; lon: number } | null {
-  const st = RIAS_BUOY_STATIONS.find((s) => s.id === stationId);
-  return st ? { lat: st.lat, lon: st.lon } : null;
-}
+/** Buoy station coordinates lookup */
+const BUOY_COORDS = new Map(
+  RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]),
+);
 
 /** Data freshness color based on timestamp age */
-function getBuoyFreshnessColor(timestamp: string): string {
+function freshnessColor(timestamp: string): string {
   const age = (Date.now() - new Date(timestamp).getTime()) / 60000;
   if (age < 60) return '#06b6d4';    // cyan — fresh (buoys update hourly)
   if (age < 180) return '#eab308';   // yellow — stale
   return '#6b7280';                  // grey — offline
 }
 
-/** Wave height color */
-function waveColor(h: number): string {
-  if (h < 0.5) return '#22c55e';  // green — calm
-  if (h < 1.0) return '#a3e635';  // lime — slight
-  if (h < 2.0) return '#eab308';  // yellow — moderate
-  if (h < 3.0) return '#f97316';  // orange — rough
-  return '#ef4444';               // red — high
+// ── WaveGlyph — SVG wave indicator ────────────────────────
+// 3 wave arcs whose amplitude and sharpness scale with wave height.
+// Calm seas → smooth gentle curves. Rough seas → tall peaked waves.
+// The glyph rotates to show wave direction (oceanographic "from" convention).
+function WaveGlyph({ height, dir }: { height: number; dir: number | null }) {
+  const color = waveHeightColor(height);
+  // Amplitude: 3px (calm) → 8px (rough)
+  const amp = Math.min(3 + height * 2.5, 8);
+  // Sharpness: 0 = smooth sine, 1 = peaked. Scale with wave height.
+  const sharp = Math.min(height / 4, 0.85);
+  // Control point horizontal squeeze: smaller = more peaked
+  const cpx = 5 * (1 - sharp * 0.6);
+
+  // Build 3 wave crests as quadratic bezier arcs
+  const y0 = 0;
+  const wave = `
+    M -15,${y0}
+    Q ${-15 + cpx},${y0 - amp} -10,${y0}
+    Q ${-10 + cpx},${y0 + amp * 0.4} -5,${y0}
+    Q ${-5 + cpx},${y0 - amp} 0,${y0}
+    Q ${cpx},${y0 + amp * 0.4} 5,${y0}
+    Q ${5 + cpx},${y0 - amp} 10,${y0}
+    Q ${10 + cpx},${y0 + amp * 0.4} 15,${y0}
+  `;
+
+  const rotation = dir != null ? dir : 0;
+
+  return (
+    <g transform={`rotate(${rotation})`} opacity="0.8">
+      {/* Wave crests — positioned outside the anchor circle */}
+      <g transform="translate(0, 20)">
+        <path
+          d={wave}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+        {/* Second wave behind — subtler */}
+        <g transform="translate(0, 4)" opacity="0.4">
+          <path
+            d={wave}
+            fill="none"
+            stroke={color}
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </g>
+      </g>
+    </g>
+  );
 }
 
-/** Water temp color */
-function waterTempColor(t: number): string {
-  if (t < 12) return '#60a5fa';   // blue-400
-  if (t < 15) return '#22d3ee';   // cyan-400
-  if (t < 18) return '#34d399';   // emerald-400
-  return '#fbbf24';               // amber-400
+// ── Wind arrow — reuses same style as StationMarker ────────
+// Points "to" (dir + 180), color-coded by speed. Same visual language.
+function BuoyWindArrow({ speed, dir }: { speed: number; dir: number }) {
+  const color = windSpeedColor(speed);
+  const length = windArrowLength(speed);
+  const rotation = (dir + 180) % 360;
+
+  return (
+    <g transform={`rotate(${rotation})`}>
+      <line
+        x1="0" y1="0"
+        x2="0" y2={-length}
+        stroke={color}
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      <polygon
+        points={`-4.5,${-length + 3} 4.5,${-length + 3} 0,${-length - 6}`}
+        fill={color}
+      />
+    </g>
+  );
 }
 
 export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false }: BuoyMarkerProps) {
   const selectBuoy = useBuoyStore((s) => s.selectBuoy);
-  const coords = getBuoyCoords(reading.stationId);
+  const coords = BUOY_COORDS.get(reading.stationId);
   if (!coords) return null;
 
-  const freshnessColor = getBuoyFreshnessColor(reading.timestamp);
+  const fColor = freshnessColor(reading.timestamp);
   const hasWaves = reading.waveHeight != null;
-  const hasWind = reading.windSpeed != null && reading.windSpeed > 0.5;
+  const hasWind = reading.windSpeed != null && reading.windSpeed > 0.3;
   const hasWaterTemp = reading.waterTemp != null;
 
   const windKt = hasWind ? msToKnots(reading.windSpeed!) : 0;
-  const windColor = hasWind ? windSpeedColor(reading.windSpeed) : '#64748b';
 
   const handleClick = useCallback((e: { originalEvent: MouseEvent }) => {
     e.originalEvent.stopPropagation();
@@ -77,12 +139,25 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
       onClick={handleClick}
     >
       <div className="buoy-marker relative cursor-pointer" title={reading.stationName}>
-        <svg width="60" height="60" viewBox="-30 -30 60 60" role="img" aria-label={`Boya ${reading.stationName}`}>
-          {/* Outer ring — wave-like animation */}
+        <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Boya ${reading.stationName}`}>
+          {/* ── Wind arrow (same as StationMarker) ── */}
+          {hasWind && reading.windDir != null ? (
+            <BuoyWindArrow speed={reading.windSpeed!} dir={reading.windDir} />
+          ) : (
+            /* Calm dot when no wind */
+            <circle r="4" fill="#94a3b8" opacity={0.5} />
+          )}
+
+          {/* ── Wave direction glyph ── */}
+          {hasWaves && (
+            <WaveGlyph height={reading.waveHeight!} dir={reading.waveDir} />
+          )}
+
+          {/* Outer ring — animated dashes (marine identity) */}
           <circle
-            r="22"
+            r="16"
             fill="none"
-            stroke={freshnessColor}
+            stroke={fColor}
             strokeWidth="1.5"
             strokeDasharray="4,3"
             opacity="0.35"
@@ -98,66 +173,50 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
 
           {/* Main circle — cyan marine theme */}
           <circle
-            r="14"
+            r="12"
             fill="#0e7490"
-            stroke={isSelected ? '#ffffff' : freshnessColor}
+            stroke={isSelected ? '#ffffff' : fColor}
             strokeWidth={isSelected ? 3 : 2}
             opacity="0.95"
           />
 
           {/* Anchor icon (simplified) */}
-          <g transform="translate(0, -2)" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+          <g transform="translate(0, -1)" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
             <line x1="0" y1="-5" x2="0" y2="5" />
             <circle cx="0" cy="-6" r="1.5" fill="none" />
             <path d="M -5,2 Q -5,6 0,6 Q 5,6 5,2" />
             <line x1="-2" y1="-2" x2="2" y2="-2" />
           </g>
-
-          {/* Wind direction arrow — same style as StationMarker (color-coded) */}
-          {hasWind && reading.windDir != null && (
-            <g transform={`rotate(${reading.windDir + 180})`}>
-              <line x1="0" y1="-22" x2="0" y2="-14" stroke={windColor} strokeWidth="2" strokeLinecap="round" />
-              <polygon points="0,-24 -3,-18 3,-18" fill={windColor} />
-            </g>
-          )}
-
-          {/* Wave direction indicator — dashed arrow, distinct from wind */}
-          {reading.waveDir != null && hasWaves && (
-            <g transform={`rotate(${reading.waveDir})`} opacity="0.6">
-              <line x1="0" y1="14" x2="0" y2="22" stroke="#67e8f9" strokeWidth="1.5" strokeDasharray="2,2" strokeLinecap="round" />
-              <polygon points="0,24 -2,20 2,20" fill="#67e8f9" opacity="0.7" />
-            </g>
-          )}
         </svg>
 
         {/* ── Wave height badge (top-right) ── */}
         {hasWaves && (
           <div
-            className="absolute -top-2 -right-2 rounded px-1 py-0.5 pointer-events-none whitespace-nowrap border"
+            className="absolute -top-1 -right-1 rounded px-1 py-0.5 pointer-events-none whitespace-nowrap border"
             style={{
               fontSize: 9,
               fontWeight: 700,
               fontFamily: 'ui-monospace, monospace',
-              background: `${waveColor(reading.waveHeight!)}18`,
-              borderColor: `${waveColor(reading.waveHeight!)}60`,
-              color: waveColor(reading.waveHeight!),
+              background: `${waveHeightColor(reading.waveHeight!)}18`,
+              borderColor: `${waveHeightColor(reading.waveHeight!)}60`,
+              color: waveHeightColor(reading.waveHeight!),
             }}
           >
-            🌊 {reading.waveHeight!.toFixed(1)}m
+            {reading.waveHeight!.toFixed(1)}m
           </div>
         )}
 
         {/* ── Wind speed badge (top-left) ── */}
         {hasWind && (
           <div
-            className="absolute -top-2 -left-3 rounded px-1 py-0.5 pointer-events-none whitespace-nowrap border"
+            className="absolute -top-1 -left-2 rounded px-1 py-0.5 pointer-events-none whitespace-nowrap border"
             style={{
               fontSize: 9,
               fontWeight: 700,
               fontFamily: 'ui-monospace, monospace',
-              background: `${windColor}18`,
-              borderColor: `${windColor}60`,
-              color: windColor,
+              background: `${windSpeedColor(reading.windSpeed)}18`,
+              borderColor: `${windSpeedColor(reading.windSpeed)}60`,
+              color: windSpeedColor(reading.windSpeed),
             }}
           >
             {windKt.toFixed(0)}kt
@@ -167,7 +226,7 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
         {/* ── Water temperature badge (bottom-right) ── */}
         {hasWaterTemp && (
           <div
-            className="absolute -bottom-3 -right-2 rounded px-1 py-0.5 pointer-events-none whitespace-nowrap border"
+            className="absolute -bottom-2 -right-1 rounded px-1 py-0.5 pointer-events-none whitespace-nowrap border"
             style={{
               fontSize: 9,
               fontWeight: 600,
@@ -177,12 +236,12 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
               color: waterTempColor(reading.waterTemp!),
             }}
           >
-            💧{reading.waterTemp!.toFixed(1)}°
+            {reading.waterTemp!.toFixed(1)}°
           </div>
         )}
 
         {/* Station name label */}
-        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 translate-y-full whitespace-nowrap text-[10px] font-bold text-slate-900 map-label-halo pointer-events-none">
+        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 translate-y-full whitespace-nowrap text-[10px] font-bold text-slate-900 map-label-halo pointer-events-none">
           {reading.stationName}
         </div>
       </div>
