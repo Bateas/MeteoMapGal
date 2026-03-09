@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { ErrorBanner } from '../common/ErrorBanner';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useSectorStore } from '../../store/sectorStore';
+import { useUIStore } from '../../store/uiStore';
 
 const StationTable = lazy(() =>
   import('../dashboard/StationTable').then((m) => ({ default: m.StationTable })),
@@ -27,6 +28,7 @@ type Tab = 'stations' | 'chart' | 'forecast' | 'thermal' | 'history';
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
   const isEmbalse = useSectorStore((s) => s.activeSector.id === 'embalse');
+  const isMobile = useUIStore((s) => s.isMobile);
 
   // Reset to 'stations' if viewing an Embalse-only tab and sector changes
   useEffect(() => {
@@ -35,20 +37,23 @@ export function Sidebar() {
     }
   }, [isEmbalse, activeTab]);
 
+  // Compact tabs — mobile: scrollable horizontal; desktop: evenly distributed
+  const tabBase = isMobile
+    ? 'shrink-0 px-3 text-[11px] font-semibold py-2 uppercase whitespace-nowrap transition-colors'
+    : 'flex-1 text-[10px] font-semibold py-2 uppercase whitespace-nowrap transition-colors';
+  const tabOn = (color: string) => `text-white border-b-2 ${color} bg-slate-800/50`;
+  const tabOff = 'text-slate-500 hover:text-slate-300';
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Tab header — proper ARIA tab roles for accessibility */}
-      <div className="flex border-b border-slate-700" role="tablist" aria-label="Paneles de datos">
+      {/* Tab header — horizontally scrollable on mobile */}
+      <div className="flex border-b border-slate-700 overflow-x-auto scrollbar-none" role="tablist" aria-label="Paneles de datos">
         <button
           role="tab"
           aria-selected={activeTab === 'stations'}
           aria-controls="tabpanel-stations"
           onClick={() => setActiveTab('stations')}
-          className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
-            activeTab === 'stations'
-              ? 'text-white border-b-2 border-blue-500 bg-slate-800/50'
-              : 'text-slate-500 hover:text-slate-300'
-          }`}
+          className={`${tabBase} ${activeTab === 'stations' ? tabOn('border-blue-500') : tabOff}`}
         >
           Estaciones
         </button>
@@ -57,11 +62,7 @@ export function Sidebar() {
           aria-selected={activeTab === 'chart'}
           aria-controls="tabpanel-chart"
           onClick={() => setActiveTab('chart')}
-          className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
-            activeTab === 'chart'
-              ? 'text-white border-b-2 border-blue-500 bg-slate-800/50'
-              : 'text-slate-500 hover:text-slate-300'
-          }`}
+          className={`${tabBase} ${activeTab === 'chart' ? tabOn('border-blue-500') : tabOff}`}
         >
           Gráfica
         </button>
@@ -71,11 +72,7 @@ export function Sidebar() {
             aria-selected={activeTab === 'forecast'}
             aria-controls="tabpanel-forecast"
             onClick={() => setActiveTab('forecast')}
-            className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
-              activeTab === 'forecast'
-                ? 'text-white border-b-2 border-sky-500 bg-slate-800/50'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
+            className={`${tabBase} ${activeTab === 'forecast' ? tabOn('border-sky-500') : tabOff}`}
           >
             Previsión
           </button>
@@ -86,11 +83,7 @@ export function Sidebar() {
             aria-selected={activeTab === 'thermal'}
             aria-controls="tabpanel-thermal"
             onClick={() => setActiveTab('thermal')}
-            className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
-              activeTab === 'thermal'
-                ? 'text-white border-b-2 border-amber-500 bg-slate-800/50'
-                : 'text-slate-500 hover:text-slate-300'
-            }`}
+            className={`${tabBase} ${activeTab === 'thermal' ? tabOn('border-amber-500') : tabOff}`}
           >
             Térmico
           </button>
@@ -100,11 +93,7 @@ export function Sidebar() {
           aria-selected={activeTab === 'history'}
           aria-controls="tabpanel-history"
           onClick={() => setActiveTab('history')}
-          className={`flex-1 text-[13px] font-semibold py-2.5 uppercase tracking-wider transition-colors ${
-            activeTab === 'history'
-              ? 'text-white border-b-2 border-amber-500 bg-slate-800/50'
-              : 'text-slate-500 hover:text-slate-300'
-          }`}
+          className={`${tabBase} ${activeTab === 'history' ? tabOn('border-amber-500') : tabOff}`}
         >
           Historial
         </button>
