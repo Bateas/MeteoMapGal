@@ -37,6 +37,7 @@ export function useStations() {
           center: activeSector.center,
           radiusKm: activeSector.radiusKm,
           meteoclimaticRegions: activeSector.meteoclimaticRegions,
+          extraCoveragePoints: activeSector.extraCoveragePoints,
         }),
         DISCOVERY_TIMEOUT_MS,
       );

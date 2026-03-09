@@ -31,7 +31,7 @@ export interface TideData {
 }
 
 // ── Rías Baixas tide stations (IHM IDs) ──────────────────
-// These fall within the Rías Baixas sector (center -8.65, 42.25, r=30km)
+// Cover all 3 Rías: Vigo, Pontevedra, Arousa (sector center -8.68, 42.30, r=40km)
 
 export const RIAS_TIDE_STATIONS: TideStation[] = [
   { id: '29', name: 'Vigo',       lat: 42.240, lon: -8.730 },
