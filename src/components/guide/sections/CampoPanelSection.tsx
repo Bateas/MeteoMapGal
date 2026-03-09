@@ -34,8 +34,8 @@ export function CampoPanelSection() {
             num="2"
             iconId="sun"
             name="Campo"
-            modules="Helada + Lluvia + Niebla + ET₀ + Fitosanitario"
-            desc="Para agricultura y viticultura: riesgos de cultivo, riego y enfermedades."
+            modules="Helada + Lluvia + Niebla + ET₀ + Fitosanitario + Lunar"
+            desc="Para agricultura y viticultura: riesgos de cultivo, riego, enfermedades y calendario lunar."
           />
           <TabRow
             num="3"
@@ -188,6 +188,24 @@ export function CampoPanelSection() {
             { level: 'Riesgo', condition: '2-3h favorables' },
             { level: 'Alto', condition: '4-5h favorables' },
             { level: 'Crítico', condition: '6+h favorables' },
+          ]}
+        />
+
+        <AlertModule
+          iconId="moon"
+          title="Fase Lunar"
+          color="#7c5dfa"
+          items={[
+            { label: 'Fase actual', desc: 'Nombre y emoji de la fase lunar actual (8 fases en español)' },
+            { label: 'Iluminación', desc: 'Porcentaje de iluminación lunar (0-100%)' },
+            { label: 'Próxima fase', desc: 'Próxima fase significativa (nueva/llena/cuarto) con días restantes' },
+            { label: 'Siembra', desc: 'Consejo de siembra según la fase: creciente = aéreos, menguante = raíz' },
+            { label: 'Poda', desc: 'Momento óptimo de poda: cuarto menguante = mejor cicatrización' },
+            { label: 'Tratamientos', desc: 'Aplicaciones foliares/suelo recomendadas según fase lunar' },
+          ]}
+          levels={[
+            { level: 'Creciente', condition: 'Savia sube → siembra aérea, injertos' },
+            { level: 'Menguante', condition: 'Savia baja → poda, cosecha, tratamientos' },
           ]}
         />
 

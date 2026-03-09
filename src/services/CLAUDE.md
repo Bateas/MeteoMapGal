@@ -35,6 +35,10 @@ Pure functions and algorithms used across the app. No React dependencies.
 - **`aemetHistoryParser.ts`** — Parses AEMET daily historical JSON data.
 - **`bestDaysSearch.ts`** — Finds best historical sailing days from AEMET records.
 
+## Agriculture
+
+- **`lunarService.ts`** — Lunar phase calculation (Jean Meeus algorithm). 8 phases in Spanish, illumination %, moon age, next phase ETA, agricultural recommendations for Galician crops. Pure algorithmic — no API calls.
+
 ## Data Logging
 
 - **`stationDataLogger.ts`** — Logs readings to localStorage as CSV. Uses `csvUtils` for safe escaping.

@@ -15,6 +15,7 @@
 import { computeWindConsensus, type WindConsensus } from './dailyBriefingService';
 import { computeDirectionSpread } from './windPropagationService';
 import { msToKnots } from './windUtils';
+import { fastDistanceKm } from './idwInterpolation';
 import type { NormalizedReading, NormalizedStation } from '../types/station';
 import type { MicroZoneId, MicroZone } from '../types/thermal';
 
@@ -71,6 +72,39 @@ function angularDifference(a: number, b: number): number {
   return Math.abs(((a - b) + 180) % 360 - 180);
 }
 
+// ── Distance weighting helpers ───────────────────────────────
+
+/**
+ * Build inverse-distance weights for stations relative to a center point.
+ * Closer stations get higher weight. Uses 1/(d+1) to avoid division by zero.
+ * Returns normalized weights (sum to 1).
+ */
+function buildStationWeights(
+  stations: NormalizedStation[],
+  centerLon: number,
+  centerLat: number,
+): Map<string, number> {
+  const weights = new Map<string, number>();
+  let totalWeight = 0;
+
+  for (const s of stations) {
+    const distKm = fastDistanceKm(s.lon, s.lat, centerLon, centerLat);
+    // Inverse distance: 1/(d+1). Stations at 0km → weight 1, at 30km → weight ~0.03
+    const w = 1 / (distKm + 1);
+    weights.set(s.id, w);
+    totalWeight += w;
+  }
+
+  // Normalize so weights sum to 1
+  if (totalWeight > 0) {
+    for (const [id, w] of weights) {
+      weights.set(id, w / totalWeight);
+    }
+  }
+
+  return weights;
+}
+
 // ── Main entry point ─────────────────────────────────────────
 
 export function computeWindStatus(
@@ -80,14 +114,26 @@ export function computeWindStatus(
   stationToZone: Map<string, MicroZoneId>,
   zones: MicroZone[],
 ): WindStatus {
+  // Build distance-based weights from station centroid
+  // (avoids needing sector center — centroid of active stations is close enough)
+  let cLon = 0, cLat = 0;
+  const stationsWithCoords = stations.filter((s) => s.lon !== 0 && s.lat !== 0);
+  if (stationsWithCoords.length > 0) {
+    cLon = stationsWithCoords.reduce((sum, s) => sum + s.lon, 0) / stationsWithCoords.length;
+    cLat = stationsWithCoords.reduce((sum, s) => sum + s.lat, 0) / stationsWithCoords.length;
+  }
+  const stationWeights = stationsWithCoords.length > 0
+    ? buildStationWeights(stations, cLon, cLat)
+    : new Map<string, number>();
+
   // 1. Global consensus (reuses existing function)
   const consensus = computeWindConsensus(currentReadings);
 
   // 2. Direction spread (reuses existing function)
   const spreadDeg = computeDirectionSpread(currentReadings);
 
-  // 3. Wind trend from history
-  const trend = computeWindTrend(readingHistory);
+  // 3. Wind trend from history (distance-weighted)
+  const trend = computeWindTrend(readingHistory, stationWeights);
 
   // 4. Per-zone summaries with coherence check
   const zoneSummaries = computeZoneWindSummaries(
@@ -112,21 +158,24 @@ export function computeWindStatus(
 // ── Wind trend computation ───────────────────────────────────
 
 /**
- * Compare average wind speed in last 20min vs 20-40min ago.
- * Uses ALL stations with history to get a robust trend signal.
+ * Compare weighted average wind speed in last 20min vs 20-40min ago.
+ * Uses distance-based weights so closer stations contribute more.
  */
 function computeWindTrend(
   readingHistory: Map<string, NormalizedReading[]>,
+  stationWeights: Map<string, number>,
 ): WindTrend | null {
   const now = Date.now();
   const RECENT_WINDOW = 20 * 60 * 1000;  // 0-20 min ago
   const PREVIOUS_WINDOW_START = 20 * 60 * 1000; // 20 min ago
   const PREVIOUS_WINDOW_END = 40 * 60 * 1000;   // 40 min ago
 
-  const recentSpeeds: number[] = [];
-  const previousSpeeds: number[] = [];
+  const recentSpeeds: { speedKt: number; weight: number }[] = [];
+  const previousSpeeds: { speedKt: number; weight: number }[] = [];
 
-  for (const [, history] of readingHistory) {
+  for (const [stationId, history] of readingHistory) {
+    const w = stationWeights.get(stationId) ?? 1 / readingHistory.size;
+
     for (const reading of history) {
       if (reading.windSpeed === null || reading.windSpeed < 0) continue;
 
@@ -136,9 +185,9 @@ function computeWindTrend(
       const speedKt = msToKnots(reading.windSpeed);
 
       if (age <= RECENT_WINDOW) {
-        recentSpeeds.push(speedKt);
+        recentSpeeds.push({ speedKt, weight: w });
       } else if (age >= PREVIOUS_WINDOW_START && age <= PREVIOUS_WINDOW_END) {
-        previousSpeeds.push(speedKt);
+        previousSpeeds.push({ speedKt, weight: w });
       }
     }
   }
@@ -146,8 +195,13 @@ function computeWindTrend(
   // Need data in both windows
   if (recentSpeeds.length < 2 || previousSpeeds.length < 2) return null;
 
-  const recentAvg = recentSpeeds.reduce((a, b) => a + b, 0) / recentSpeeds.length;
-  const previousAvg = previousSpeeds.reduce((a, b) => a + b, 0) / previousSpeeds.length;
+  const weightedAvg = (items: { speedKt: number; weight: number }[]) => {
+    const totalW = items.reduce((s, i) => s + i.weight, 0);
+    return totalW > 0 ? items.reduce((s, i) => s + i.speedKt * i.weight, 0) / totalW : 0;
+  };
+
+  const recentAvg = weightedAvg(recentSpeeds);
+  const previousAvg = weightedAvg(previousSpeeds);
 
   const diff = recentAvg - previousAvg;
   // Rate in kt/h: diff over 20min window → multiply by 3
