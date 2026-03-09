@@ -16,9 +16,9 @@
  * Works with both api.open-meteo.com and archive-api.open-meteo.com.
  */
 
-const MIN_INTERVAL_MS = 250;
+const MIN_INTERVAL_MS = 600;  // 600ms between requests (~100/min safe for free tier)
 const MAX_RETRIES = 2;
-const RETRY_BASE_MS = 3000; // 3s, 6s exponential backoff
+const RETRY_BASE_MS = 5000; // 5s, 10s exponential backoff
 
 interface QueueItem {
   url: string;

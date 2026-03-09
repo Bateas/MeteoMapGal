@@ -136,19 +136,19 @@ function CurrentArrow({ speed, dir }: { speed: number; dir: number }) {
 /** Badge style factory — high-contrast dark bg with glow text */
 function badgeStyle(color: string, position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left') {
   const posClass = {
-    'top-right': '-top-3.5 -right-3',
-    'top-left': '-top-3.5 -left-4',
-    'bottom-right': '-bottom-4 -right-3',
-    'bottom-left': '-bottom-4 -left-4',
+    'top-right': '-top-1 -right-1',
+    'top-left': '-top-1 -left-2',
+    'bottom-right': '-bottom-1.5 -right-1',
+    'bottom-left': '-bottom-1.5 -left-2',
   }[position];
 
   return {
-    className: `absolute ${posClass} rounded px-1.5 py-0.5 pointer-events-none whitespace-nowrap border`,
+    className: `absolute ${posClass} rounded px-1 py-px pointer-events-none whitespace-nowrap border`,
     style: {
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: 700 as const,
       fontFamily: 'ui-monospace, monospace',
-      lineHeight: '15px',
+      lineHeight: '13px',
       background: 'rgba(15, 23, 42, 0.92)',
       borderColor: `${color}99`,
       color,

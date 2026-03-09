@@ -34,7 +34,7 @@ export const SECTORS: Sector[] = [
     shortName: 'Rías',
     icon: 'waves',
     center: [-8.68, 42.30],          // centered between Vigo/Pontevedra/Arousa
-    radiusKm: 40,                     // covers all 3 rías (Vigo + Pontevedra + Arousa)
+    radiusKm: 30,                     // coastal focus — covers 3 Rías without deep interior stations
     initialView: {
       longitude: -8.72,
       latitude: 42.35,
@@ -44,8 +44,10 @@ export const SECTORS: Sector[] = [
     },
     meteoclimaticRegions: ['ESGAL36', 'ESGAL15'],  // Pontevedra + A Coruña (Barbanza/Ribeira)
     extraCoveragePoints: [
-      { name: 'Corrubedo',  lon: -9.08, lat: 42.56 },  // 44km from center — Barbanza coast
-      { name: 'A Guarda',   lon: -8.88, lat: 41.90 },  // 47km from center — Miño estuary
+      { name: 'Corrubedo',   lon: -9.08, lat: 42.56 },  // 44km — Barbanza coast
+      { name: 'A Guarda',    lon: -8.88, lat: 41.90 },  // 47km — Miño estuary
+      { name: 'Vilagarcía',  lon: -8.77, lat: 42.60 },  // 34km — Arousa ría port
+      { name: 'Ribeira',     lon: -8.99, lat: 42.56 },  // 39km — Arousa south coast
     ],
   },
   {

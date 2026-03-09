@@ -8,6 +8,21 @@ import { METEOGALICIA } from '../config/apiEndpoints';
  */
 const BROKEN_STATIONS = new Set<number>();
 
+/** Retry helper for transient server errors (502/503/504) */
+async function fetchWithRetry(url: string, retries = 2, delayMs = 3000): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (res.ok || (res.status < 500 && res.status !== 429)) return res;
+    if (attempt < retries) {
+      console.warn(`[MeteoGalicia] ${res.status} on attempt ${attempt + 1}, retry in ${delayMs}ms`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    } else {
+      return res; // return last failed response
+    }
+  }
+  throw new Error('Unreachable');
+}
+
 /** Fetch all MeteoGalicia meteorological stations */
 export async function fetchStationList(): Promise<MeteoGaliciaStation[]> {
   const CACHE_KEY = 'mg_station_list';
@@ -23,7 +38,7 @@ export async function fetchStationList(): Promise<MeteoGaliciaStation[]> {
     } catch { /* corrupted cache — refetch */ }
   }
 
-  const res = await fetch(METEOGALICIA.stationList());
+  const res = await fetchWithRetry(METEOGALICIA.stationList());
   if (!res.ok) {
     throw new Error(`MeteoGalicia station list failed: ${res.status}`);
   }
@@ -43,7 +58,7 @@ export async function fetchStationList(): Promise<MeteoGaliciaStation[]> {
  *  Response: { listUltimos10min: [{ estacion, idEstacion, instanteLecturaUTC, listaMedidas: [...] }] }
  */
 export async function fetchLatestObservation(stationId: number): Promise<MeteoGaliciaObsEntry | null> {
-  const res = await fetch(METEOGALICIA.latestObservation(stationId));
+  const res = await fetchWithRetry(METEOGALICIA.latestObservation(stationId), 1, 2000);
   if (!res.ok) {
     console.warn(`MeteoGalicia observation failed for station ${stationId}: ${res.status}`);
     return null;

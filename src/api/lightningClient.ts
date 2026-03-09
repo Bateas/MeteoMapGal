@@ -129,6 +129,7 @@ export async function fetchLightningStrikes(): Promise<LightningStrike[]> {
         apikey: API_KEY,
         Accept: 'application/json',
       },
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) throw new Error(`Lightning API ${res.status}`);
 

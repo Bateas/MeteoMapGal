@@ -26,16 +26,23 @@ function isInExtraCoverage(
   return extraPoints.some((p) => isWithinRadius(p.lat, p.lon, lat, lon, 8));
 }
 
+/** Retry a fetch function after a delay */
+async function retryAfterDelay<T>(fn: () => Promise<T>, delayMs: number): Promise<T> {
+  await new Promise((r) => setTimeout(r, delayMs));
+  return fn();
+}
+
 /**
  * Discover all weather stations within the given sector params
  * from AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, and Netatmo.
+ * Auto-retries failed critical sources (MeteoGalicia, Netatmo) after 5s.
  */
 export async function discoverStations(params: DiscoveryParams): Promise<NormalizedStation[]> {
   const [centerLon, centerLat] = params.center;
   const radiusKm = params.radiusKm;
   const extraPoints = params.extraCoveragePoints;
 
-  const [aemetStations, mgStations, mcStations, wuStations, netatmoStations] =
+  let [aemetStations, mgStations, mcStations, wuStations, netatmoStations] =
     await Promise.allSettled([
       fetchStationInventory(),
       fetchStationList(),
@@ -43,6 +50,28 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
       fetchWUNearbyStations(params.center, radiusKm),
       fetchNetatmoStations(params.center, radiusKm, false),
     ]);
+
+  // Auto-retry failed critical sources (MeteoGalicia = ~38 stations, Netatmo = ~42 stations)
+  const retryTargets: Promise<void>[] = [];
+  if (mgStations.status === 'rejected') {
+    console.warn('[Discovery] MeteoGalicia failed — retrying in 5s...');
+    retryTargets.push(
+      retryAfterDelay(() => fetchStationList(), 5000)
+        .then((v) => { mgStations = { status: 'fulfilled', value: v }; })
+        .catch((e) => { console.error('[Discovery] MeteoGalicia retry failed:', e); })
+    );
+  }
+  if (netatmoStations.status === 'rejected') {
+    console.warn('[Discovery] Netatmo failed — retrying in 5s...');
+    retryTargets.push(
+      retryAfterDelay(() => fetchNetatmoStations(params.center, radiusKm, false), 5000)
+        .then((v) => { netatmoStations = { status: 'fulfilled', value: v }; })
+        .catch((e) => { console.error('[Discovery] Netatmo retry failed:', e); })
+    );
+  }
+  if (retryTargets.length > 0) {
+    await Promise.allSettled(retryTargets);
+  }
 
   const stations: NormalizedStation[] = [];
 
