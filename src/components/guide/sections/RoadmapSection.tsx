@@ -60,6 +60,20 @@ export function RoadmapSection() {
           status="done"
         />
 
+        <TimelineMilestone
+          iconId="sprout"
+          title="Grados-día de crecimiento (GDD)"
+          desc="Acumulación térmica para vid: etapa fenológica, progreso, próximo hito y consejo agrícola."
+          status="done"
+        />
+
+        <TimelineMilestone
+          iconId="moon"
+          title="Fases lunares y calendario agrícola"
+          desc="Fase lunar actual, iluminación, próxima fase y recomendaciones para cultivos gallegos."
+          status="done"
+        />
+
         {/* Minor updates — collapsed */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
           <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-emerald-500/20 border-emerald-500/30" />
@@ -68,7 +82,7 @@ export function RoadmapSection() {
           </span>
           <div className="min-w-0">
             <span className="text-[10px] text-slate-500">
-              Otras mejoras: estadísticas de viento, caché offline (PWA), satélite IR, radar de precipitación.
+              Otras mejoras: estadísticas de viento, caché offline (PWA), satélite IR, radar de precipitación, historial persistente (TimescaleDB).
             </span>
           </div>
         </div>
@@ -91,15 +105,15 @@ export function RoadmapSection() {
         {/* Próximamente */}
         <TimelineGroup label="Próximamente" dotColor="bg-amber-500" textColor="text-amber-400" />
         <TimelineMilestone
-          iconId="database"
-          title="Historial persistente"
-          desc="Base de datos para almacenar lecturas, alertas y estadísticas a largo plazo."
-          status="planned"
-        />
-        <TimelineMilestone
           iconId="waves"
           title="Boyas marinas (Puertos del Estado)"
           desc="Oleaje, temperatura del agua y viento mar adentro para Rías Baixas."
+          status="planned"
+        />
+        <TimelineMilestone
+          iconId="database"
+          title="Dashboard de tendencias"
+          desc="Consultas al historial TimescaleDB: gráficas comparativas, estadísticas y exportación."
           status="planned"
         />
 
@@ -127,6 +141,12 @@ export function RoadmapSection() {
           iconId="cloud"
           title="Calidad del aire"
           desc="Datos de calidad del aire integrados en el panel Campo."
+          status="idea"
+        />
+        <TimelineMilestone
+          iconId="info"
+          title="Apoya el proyecto"
+          desc="Sección de donaciones para contribuir al desarrollo y mantenimiento de MeteoMapGal."
           status="idea"
         />
       </div>

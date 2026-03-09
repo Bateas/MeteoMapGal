@@ -120,6 +120,27 @@ export interface DiseaseRisk {
   oidio: { risk: boolean; level: AlertLevel; hours: number; detail: string };
 }
 
+// ── Growing Degree Days (GDD) ────────────────────────────
+
+export interface GDDInfo {
+  /** Accumulated GDD from season start (°C·days), null if no season active */
+  accumulated: number | null;
+  /** Today's GDD contribution (°C·days) */
+  todayGDD: number | null;
+  /** Current phenological growth stage (Spanish) */
+  growthStage: string;
+  /** Growth stage progress within current phase (0-100%) */
+  stageProgress: number;
+  /** Spanish crop management advice */
+  advice: string;
+  /** Next phenological milestone */
+  nextMilestone: { name: string; gddNeeded: number } | null;
+  /** Days since season start */
+  daysSinceStart: number;
+  /** Alert level (critico during critical phases like flowering) */
+  level: AlertLevel;
+}
+
 // ── Combined field alerts ────────────────────────────────
 
 export interface FieldAlerts {
@@ -130,6 +151,7 @@ export interface FieldAlerts {
   wind: WindPropagationInfo;
   et0: ET0Result;
   disease: DiseaseRisk;
+  gdd: GDDInfo;
   /** Highest alert level across all checks */
   maxLevel: AlertLevel;
 }
