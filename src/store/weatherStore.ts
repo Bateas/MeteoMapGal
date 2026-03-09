@@ -66,6 +66,18 @@ interface WeatherState {
 const CACHE_KEY_PREFIX = 'meteomap-readings-';
 const CACHE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour — stale beyond this
 
+// ── PERF: Throttle cacheSnapshot to avoid serializing 90+ station readings
+// on every updateReadings() call (~5 sources × 5min = 5 calls per cycle).
+// Instead, cache at most every 30s.
+let _cacheSnapshotTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleCacheSnapshot(fn: () => void): void {
+  if (_cacheSnapshotTimer !== null) return; // already scheduled
+  _cacheSnapshotTimer = setTimeout(() => {
+    _cacheSnapshotTimer = null;
+    fn();
+  }, 30_000); // 30 seconds
+}
+
 interface CachedSnapshot {
   stations: NormalizedStation[];
   readings: Array<{ stationId: string; data: NormalizedReading }>;
@@ -191,8 +203,8 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
       isUsingCachedData: false,
     }, undefined, 'updateReadings');
 
-    // Auto-cache after successful fresh update
-    setTimeout(() => get().cacheSnapshot(), 0);
+    // Auto-cache after successful fresh update (throttled — at most every 30s)
+    scheduleCacheSnapshot(() => get().cacheSnapshot());
   },
 
   // Append readings to history only (for model/interpolated data like Open-Meteo).
