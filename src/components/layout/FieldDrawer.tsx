@@ -18,7 +18,7 @@ import type { IconId } from '../icons/WeatherIcons';
 import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { TidePanel } from '../dashboard/TidePanel';
-import { getLunarPhase } from '../../services/lunarService';
+import { getLunarPhase, getLunarCalendar } from '../../services/lunarService';
 import { AtmosphericProfile } from '../dashboard/AtmosphericProfile';
 
 export type AlertTab = 'nav' | 'campo' | 'dron' | 'meteo';
@@ -898,9 +898,95 @@ function LunarSection() {
             </div>
           </div>
 
+          {/* Collapsible monthly calendar */}
+          <LunarCalendarDropdown />
+
           <p className="text-[8px] text-slate-600 italic border-t border-slate-700/30 pt-1">
             Calendario agrícola tradicional gallego. Orientativo.
           </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Mini lunar calendar — 30 days from today in a compact grid. Collapsed by default. */
+function LunarCalendarDropdown() {
+  const [open, setOpen] = useState(false);
+  const calendar = useMemo(() => (open ? getLunarCalendar(new Date(), 30) : []), [open]);
+
+  // Group by week rows (7 cols)
+  const today = new Date();
+  const startDow = today.getDay(); // 0=Sun
+
+  return (
+    <div className="border-t border-slate-700/30 pt-1.5">
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="flex items-center gap-1.5 w-full text-left group"
+      >
+        <span className="text-[10px]">📅</span>
+        <span className="text-[10px] text-violet-400 font-medium group-hover:text-violet-300">
+          Calendario lunar 30 días
+        </span>
+        <span className="text-[9px] text-slate-500 ml-auto">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && calendar.length > 0 && (
+        <div className="mt-1.5 space-y-1">
+          {/* Day-of-week header */}
+          <div className="grid grid-cols-7 gap-px">
+            {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d) => (
+              <div key={d} className="text-[8px] text-slate-500 text-center font-bold">{d}</div>
+            ))}
+          </div>
+
+          {/* Calendar grid */}
+          <div className="grid grid-cols-7 gap-px">
+            {/* Empty cells for days before start (Mon-based: Mon=0) */}
+            {Array.from({ length: (startDow + 6) % 7 }, (_, i) => (
+              <div key={`pad-${i}`} className="h-7" />
+            ))}
+
+            {calendar.map((day, i) => {
+              const isToday = i === 0;
+              const dayNum = day.date.getDate();
+              return (
+                <div
+                  key={i}
+                  className={`h-7 flex flex-col items-center justify-center rounded ${
+                    isToday ? 'ring-1 ring-violet-500/50 bg-violet-500/10' : 'hover:bg-slate-700/20'
+                  }`}
+                  title={`${dayNum}/${day.date.getMonth() + 1} — ${day.name} (${day.illumination}%)`}
+                >
+                  <span className="text-[10px] leading-none">{day.emoji}</span>
+                  <span className={`text-[7px] leading-none mt-0.5 ${isToday ? 'text-violet-400 font-bold' : 'text-slate-500'}`}>
+                    {dayNum}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Key phases legend */}
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1">
+            {calendar
+              .filter((d) => ['nueva', 'llena', 'cuarto-creciente', 'cuarto-menguante'].includes(d.name))
+              .reduce((acc, d) => {
+                // Dedup: only first occurrence of each phase
+                if (!acc.find((x) => x.name === d.name)) acc.push(d);
+                return acc;
+              }, [] as typeof calendar)
+              .slice(0, 4)
+              .map((d, i) => (
+                <div key={i} className="text-[8px] text-slate-400">
+                  <span>{d.emoji}</span>{' '}
+                  <span className="text-slate-500">
+                    {d.date.getDate()}/{d.date.getMonth() + 1}
+                  </span>
+                </div>
+              ))}
+          </div>
         </div>
       )}
     </div>
