@@ -15,11 +15,15 @@ import { useEffect, useRef } from 'react';
 export function useVisibilityPolling(
   callback: () => void | Promise<void>,
   intervalMs: number,
+  /** When false, polling is completely paused. Defaults to true. */
+  enabled: boolean = true,
 ) {
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
 
   useEffect(() => {
+    if (!enabled) return;        // ← do nothing when disabled
+
     let timer: ReturnType<typeof setInterval> | null = null;
 
     function start() {
@@ -54,5 +58,5 @@ export function useVisibilityPolling(
       stop();
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [intervalMs]);
+  }, [intervalMs, enabled]);
 }

@@ -101,12 +101,23 @@ export function WeatherMap() {
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
-  // Cross-deselection: only one popup at a time (station XOR buoy)
+  // Cross-deselection: only one popup at a time (station XOR buoy).
+  // Track previous values to detect which one changed (= new selection wins).
+  const prevBuoyRef = useRef<number | null>(null);
+  const prevStationRef = useRef<string | null>(null);
   useEffect(() => {
     if (selectedBuoyId != null && selectedStationId != null) {
-      selectStation(null);
+      // Determine which was just selected by comparing to previous values
+      const buoyChanged = selectedBuoyId !== prevBuoyRef.current;
+      if (buoyChanged) {
+        selectStation(null);   // new buoy selected → clear station
+      } else {
+        selectBuoy(null);      // new station selected → clear buoy
+      }
     }
-  }, [selectedBuoyId, selectedStationId, selectStation]);
+    prevBuoyRef.current = selectedBuoyId;
+    prevStationRef.current = selectedStationId;
+  }, [selectedBuoyId, selectedStationId, selectStation, selectBuoy]);
 
   /** Fly to sector view when it changes. */
   useEffect(() => {
