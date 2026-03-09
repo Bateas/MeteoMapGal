@@ -11,6 +11,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { BuoyReading } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { msToKnots } from '../../services/windUtils';
+import { waveHeightClass, waterTempClass } from '../../services/buoyUtils';
 
 /** Compass label from degrees */
 function dirLabel(deg: number | null): string {
@@ -29,22 +30,7 @@ function timeAgo(ts: string): string {
   return `${Math.round(hrs / 24)}d`;
 }
 
-/** Wave height color */
-function waveColor(h: number): string {
-  if (h < 0.5) return 'text-green-400';
-  if (h < 1.5) return 'text-blue-400';
-  if (h < 2.5) return 'text-amber-400';
-  if (h < 4) return 'text-orange-400';
-  return 'text-red-400';
-}
-
-/** Water temperature color */
-function waterTempColor(t: number): string {
-  if (t < 12) return 'text-blue-400';
-  if (t < 16) return 'text-cyan-400';
-  if (t < 20) return 'text-green-400';
-  return 'text-amber-400';
-}
+// Color scales imported from buoyUtils.ts — shared with BuoyMarker & BuoyPopup
 
 export const BuoyPanel = memo(function BuoyPanel() {
   // Display-only — data fetching handled by useBuoyData hook in AppShell
@@ -127,7 +113,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
             <DataCell
               label="Oleaje"
               value={`${b.waveHeight!.toFixed(1)} m`}
-              className={waveColor(b.waveHeight!)}
+              className={waveHeightClass(b.waveHeight!)}
             />
             <DataCell
               label="Período"
@@ -171,7 +157,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
           <DataCell
             label="T agua"
             value={`${b.waterTemp.toFixed(1)}°C`}
-            className={waterTempColor(b.waterTemp)}
+            className={waterTempClass(b.waterTemp!)}
           />
         )}
         {b.airTemp != null && (
@@ -211,7 +197,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
           <DataCell
             label="Ola máx"
             value={`${b.waveHeightMax.toFixed(1)} m`}
-            className={waveColor(b.waveHeightMax)}
+            className={waveHeightClass(b.waveHeightMax!)}
           />
         )}
         {b.wavePeriodMean != null && (

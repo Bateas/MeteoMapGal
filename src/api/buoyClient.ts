@@ -53,7 +53,7 @@ export interface BuoyReading {
   // Pressure
   airPressure: number | null;      // hPa
   // Currents
-  currentSpeed: number | null;     // cm/s
+  currentSpeed: number | null;     // m/s (API returns cm/s, divided by 100 in parser)
   currentDir: number | null;       // deg
   // Salinity
   salinity: number | null;         // PSU
