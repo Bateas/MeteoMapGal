@@ -22,12 +22,17 @@ const DailySailingBriefing = lazy(() =>
 const HistoryDashboard = lazy(() =>
   import('../dashboard/HistoryDashboard').then((m) => ({ default: m.HistoryDashboard })),
 );
+const BuoyPanel = lazy(() =>
+  import('../dashboard/BuoyPanel').then((m) => ({ default: m.BuoyPanel })),
+);
 
 type Tab = 'stations' | 'chart' | 'forecast' | 'thermal' | 'history';
 
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
-  const isEmbalse = useSectorStore((s) => s.activeSector.id === 'embalse');
+  const activeSectorId = useSectorStore((s) => s.activeSector.id);
+  const isEmbalse = activeSectorId === 'embalse';
+  const isRias = activeSectorId === 'rias';
   const isMobile = useUIStore((s) => s.isMobile);
 
   // Reset to 'stations' if viewing an Embalse-only tab and sector changes
@@ -107,6 +112,11 @@ export function Sidebar() {
               {isEmbalse && (
                 <ErrorBoundary section="Resumen Navegación">
                   <DailySailingBriefing />
+                </ErrorBoundary>
+              )}
+              {isRias && (
+                <ErrorBoundary section="Boyas Marinas">
+                  <BuoyPanel />
                 </ErrorBoundary>
               )}
               <ErrorBoundary section="Estaciones">
