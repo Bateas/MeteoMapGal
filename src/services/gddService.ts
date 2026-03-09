@@ -14,6 +14,7 @@
  */
 
 import type { HourlyForecast } from '../types/forecast';
+import { openMeteoFetch } from '../api/openMeteoQueue';
 
 // ── Constants ────────────────────────────────────────────
 
@@ -151,7 +152,7 @@ export async function fetchSeasonGDD(
     `&timezone=Europe%2FMadrid`;
 
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) {
       console.warn(`[GDD] Archive API failed: ${res.status}`);
       return null;
