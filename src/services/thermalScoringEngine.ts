@@ -70,8 +70,8 @@ import { isDirectionInRange, averageWindDirection, msToKnots } from './windUtils
  *   Wind speed:       0-10 pts  (confirms, doesn't predict)
  *   ΔT context:       0-10 pts  (validated sky clarity proxy)
  *   Gust bonus:       0-5 pts
- *   Environment:      0-5 pts
- *   TOTAL:           max 110 → capped at 100
+ *   Environment:      0-20 pts  (CAPE/PBL/LI/CIN — strong indicators)
+ *   TOTAL:           max 125 → capped at 100
  *
  * Hard gates (score → 0):
  *   1. Season: far out of range
@@ -518,9 +518,9 @@ export function scoreRule(
     else if (avgGustKt >= 6) breakdown.gustBonus = 1;
   }
 
-  // ── Environment bonus (0-5) ────────────────────────────
-  // Clear sky + strong radiation + atmospheric stability indicators.
-  // v2.3: Enhanced with PBL height, lifted index, and CIN from Open-Meteo.
+  // ── Environment bonus (0-20) ───────────────────────────
+  // v2.4: PROMOTED from 0-5 to 0-20. CAPE, PBL, LI, CIN are strong
+  // indicators of convective potential — audit showed they were underweighted.
   //
   // PBL (Planetary Boundary Layer) height:
   //   >2000m = very deep mixing layer, excellent thermals (Galician summer peak)
@@ -532,41 +532,65 @@ export function scoreRule(
   //   < -2°C = moderately unstable, good thermals
   //   > 0°C  = stable, thermals suppressed
   //
+  // CAPE (Convective Available Potential Energy):
+  //   > 1000 J/kg = strong instability
+  //   > 500 J/kg = moderate instability
+  //   < 100 J/kg = stable
+  //
   // CIN (Convective Inhibition):
   //   < 25 J/kg = minimal barrier, thermals develop freely
   //   < 50 J/kg = low barrier, most thermals break through
   //   > 200 J/kg = strong cap, thermals unlikely to develop
   //
   if (atmosphericContext && isThermalRule) {
-    const { cloudCover, solarRadiation, boundaryLayerHeight, liftedIndex, convectiveInhibition } = atmosphericContext;
+    const { cloudCover, solarRadiation, boundaryLayerHeight, liftedIndex, convectiveInhibition, cape } = atmosphericContext;
     let envScore = 0;
 
-    // Cloud cover (0-1 pt)
-    if (cloudCover !== null && cloudCover < 20) {
-      envScore += 1;
+    // Cloud cover (0-3 pts)
+    if (cloudCover !== null) {
+      if (cloudCover < 10) envScore += 3;
+      else if (cloudCover < 20) envScore += 2;
+      else if (cloudCover < 35) envScore += 1;
     }
 
-    // Solar radiation (0-1 pt)
-    if (solarRadiation !== null && solarRadiation > 600) {
-      envScore += 1;
+    // Solar radiation (0-3 pts)
+    if (solarRadiation !== null) {
+      if (solarRadiation > 800) envScore += 3;
+      else if (solarRadiation > 600) envScore += 2;
+      else if (solarRadiation > 400) envScore += 1;
     }
 
-    // PBL height (0-1 pt) — deep mixing = strong thermals
+    // PBL height (0-4 pts) — deep mixing = strong thermals
     if (boundaryLayerHeight !== null) {
-      if (boundaryLayerHeight > 1500) envScore += 1;
+      if (boundaryLayerHeight > 2000) envScore += 4;
+      else if (boundaryLayerHeight > 1500) envScore += 3;
+      else if (boundaryLayerHeight > 1000) envScore += 2;
+      else if (boundaryLayerHeight > 800) envScore += 1;
     }
 
-    // Lifted index (0-1 pt) — negative = unstable = thermals
+    // Lifted index (0-4 pts) — negative = unstable = thermals
     if (liftedIndex !== null) {
-      if (liftedIndex < -2) envScore += 1;
+      if (liftedIndex < -6) envScore += 4;
+      else if (liftedIndex < -4) envScore += 3;
+      else if (liftedIndex < -2) envScore += 2;
+      else if (liftedIndex < 0) envScore += 1;
     }
 
-    // CIN (0-1 pt) — low inhibition = thermals develop
+    // CAPE (0-3 pts) — convective energy
+    if (cape !== null) {
+      if (cape > 1000) envScore += 3;
+      else if (cape > 500) envScore += 2;
+      else if (cape > 200) envScore += 1;
+    }
+
+    // CIN (0-3 pts) — low inhibition = thermals develop
     if (convectiveInhibition !== null) {
-      if (convectiveInhibition < 50) envScore += 1;
+      if (convectiveInhibition < 25) envScore += 3;
+      else if (convectiveInhibition < 50) envScore += 2;
+      else if (convectiveInhibition < 100) envScore += 1;
     }
 
-    breakdown.environmentBonus = Math.min(5, envScore);
+    breakdown.environmentBonus = Math.min(20, envScore);
   }
 
   const score = breakdown.temperature + breakdown.humidity + breakdown.timeOfDay +

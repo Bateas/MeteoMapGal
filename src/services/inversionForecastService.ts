@@ -7,6 +7,9 @@
  * 2. Calm wind (< 5 kt / ~2.5 m/s) → no mixing to break inversion
  * 3. High delta-T (Tmax - Tmin > 15°C) → strong nocturnal cooling
  * 4. Evening/night timing (inversions form after sunset)
+ * 5. Low PBL height (< 200m) → trapped air, shallow mixing layer
+ *
+ * Scoring: clearSky(0-25) + calmWind(0-25) + deltaT(0-20) + timing(0-15) + PBL(0-15) = max 100
  *
  * These are the classic conditions for radiation-type inversions
  * common in Ourense's valley geography.
@@ -37,10 +40,11 @@ export interface InversionForecast {
   hypothesis: string;
   /** Score factors for debugging */
   factors: {
-    clearSkyScore: number;    // 0-30
-    calmWindScore: number;    // 0-30
+    clearSkyScore: number;    // 0-25
+    calmWindScore: number;    // 0-25
     deltaTScore: number;      // 0-20
-    timingScore: number;      // 0-20
+    timingScore: number;      // 0-15
+    pblScore: number;         // 0-15
   };
 }
 
@@ -71,7 +75,7 @@ export function forecastInversion(forecast: HourlyForecast[]): InversionForecast
     expectedPeak: null,
     peakConditions: null,
     hypothesis: 'Sin condiciones de inversión previstas',
-    factors: { clearSkyScore: 0, calmWindScore: 0, deltaTScore: 0, timingScore: 0 },
+    factors: { clearSkyScore: 0, calmWindScore: 0, deltaTScore: 0, timingScore: 0, pblScore: 0 },
   };
 
   if (forecast.length < 12) return noInversion;
@@ -105,7 +109,7 @@ export function forecastInversion(forecast: HourlyForecast[]): InversionForecast
 
   // ── Score each factor ──────────────────────────────────
 
-  // 1. Clear sky score (0-30): average cloud cover during night
+  // 1. Clear sky score (0-25): average cloud cover during night
   const cloudCovers = nightPoints
     .map((p) => p.cloudCover)
     .filter((c): c is number => c !== null);
@@ -114,12 +118,12 @@ export function forecastInversion(forecast: HourlyForecast[]): InversionForecast
     : 50;
 
   let clearSkyScore = 0;
-  if (avgCloud <= 10) clearSkyScore = 30;
-  else if (avgCloud <= CLEAR_SKY_THRESHOLD) clearSkyScore = 25;
-  else if (avgCloud <= 35) clearSkyScore = 15;
-  else if (avgCloud <= 50) clearSkyScore = 5;
+  if (avgCloud <= 10) clearSkyScore = 25;
+  else if (avgCloud <= CLEAR_SKY_THRESHOLD) clearSkyScore = 20;
+  else if (avgCloud <= 35) clearSkyScore = 12;
+  else if (avgCloud <= 50) clearSkyScore = 4;
 
-  // 2. Calm wind score (0-30): average wind during night
+  // 2. Calm wind score (0-25): average wind during night
   const winds = nightPoints
     .map((p) => p.windSpeed)
     .filter((w): w is number => w !== null);
@@ -128,9 +132,9 @@ export function forecastInversion(forecast: HourlyForecast[]): InversionForecast
     : 3;
 
   let calmWindScore = 0;
-  if (avgWind <= 1.0) calmWindScore = 30;
-  else if (avgWind <= CALM_WIND_THRESHOLD) calmWindScore = 22;
-  else if (avgWind <= 4.0) calmWindScore = 10;
+  if (avgWind <= 1.0) calmWindScore = 25;
+  else if (avgWind <= CALM_WIND_THRESHOLD) calmWindScore = 18;
+  else if (avgWind <= 4.0) calmWindScore = 8;
   else if (avgWind <= 5.0) calmWindScore = 3;
 
   // 3. Delta-T score (0-20): bigger range = more cooling at night
@@ -142,18 +146,35 @@ export function forecastInversion(forecast: HourlyForecast[]): InversionForecast
     else if (deltaT >= 7) deltaTScore = 3;
   }
 
-  // 4. Timing score (0-20): are we approaching or in the right window?
+  // 4. Timing score (0-15): are we approaching or in the right window?
   const currentHour = now.getHours();
   let timingScore = 0;
-  if (currentHour >= 17 && currentHour < 20) timingScore = 20; // Evening: warn early
-  else if (currentHour >= 20 || currentHour < 2) timingScore = 18; // Night: forming now
-  else if (currentHour >= 2 && currentHour < 6) timingScore = 15; // Deep night: peak
-  else if (currentHour >= 14 && currentHour < 17) timingScore = 12; // Afternoon: heads-up
-  else timingScore = 5; // Morning/midday: low relevance
+  if (currentHour >= 17 && currentHour < 20) timingScore = 15; // Evening: warn early
+  else if (currentHour >= 20 || currentHour < 2) timingScore = 14; // Night: forming now
+  else if (currentHour >= 2 && currentHour < 6) timingScore = 12; // Deep night: peak
+  else if (currentHour >= 14 && currentHour < 17) timingScore = 9; // Afternoon: heads-up
+  else timingScore = 4; // Morning/midday: low relevance
+
+  // 5. PBL height score (0-15): low boundary layer = trapped air = inversion
+  const pblValues = nightPoints
+    .map((p) => p.boundaryLayerHeight)
+    .filter((v): v is number => v !== null);
+  const avgPbl = pblValues.length > 0
+    ? pblValues.reduce((a, b) => a + b, 0) / pblValues.length
+    : null;
+
+  let pblScore = 0;
+  if (avgPbl !== null) {
+    if (avgPbl < 100) pblScore = 15;       // Very shallow — strong trapping
+    else if (avgPbl < 200) pblScore = 12;
+    else if (avgPbl < 400) pblScore = 8;
+    else if (avgPbl < 600) pblScore = 4;
+    // >600m = well-mixed, no bonus
+  }
 
   // ── Composite ─────────────────────────────────────────
 
-  const totalScore = clearSkyScore + calmWindScore + deltaTScore + timingScore;
+  const totalScore = clearSkyScore + calmWindScore + deltaTScore + timingScore + pblScore;
   // Confidence: how reliable is the prediction
   const confidence = Math.min(100, Math.round(
     totalScore * (cloudCovers.length >= 6 ? 1.0 : 0.7),
@@ -212,7 +233,7 @@ export function forecastInversion(forecast: HourlyForecast[]): InversionForecast
       humidity: coldestNight.humidity ?? 80,
     } : null,
     hypothesis: notes.join(' · '),
-    factors: { clearSkyScore, calmWindScore, deltaTScore, timingScore },
+    factors: { clearSkyScore, calmWindScore, deltaTScore, timingScore, pblScore },
   };
 }
 

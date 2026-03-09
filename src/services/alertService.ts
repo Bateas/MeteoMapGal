@@ -135,13 +135,24 @@ export function buildInversionAlerts(profile: ThermalProfile | null): UnifiedAle
   if (!profile || !profile.hasInversion || !profile.regression) return [];
 
   const { slopePerKm, rSquared, stationCount } = profile.regression;
+  const isStrong = profile.status === 'strong-inversion';
+
+  // ── Nocturnal inversion filter ────────────────────────────
+  // Radiative inversions in Ourense valley are NORMAL at night (21h-07h).
+  // Only alert if: (a) it's daytime, OR (b) it's a STRONG inversion (≥5°C/km).
+  // Weak nocturnal inversions (1-5°C/km) are expected in enclosed valleys
+  // and break naturally after sunrise — no need to alarm the user.
+  const hour = new Date().getHours();
+  const isNight = hour >= 21 || hour < 7;
+  if (isNight && !isStrong) return [];
+
   // Score: slope +1 to +10 → 30 to 100, scaled by R²
   const rawScore = Math.min(100, 30 + (slopePerKm - 1) * 7.8);
   const score = Math.round(rawScore * Math.min(1, rSquared / 0.5));
 
-  const isStrong = profile.status === 'strong-inversion';
   const title = isStrong ? 'INVERSIÓN FUERTE' : 'Inversión térmica detectada';
-  const detail = `${slopePerKm > 0 ? '+' : ''}${slopePerKm.toFixed(1)}°C/km · ${stationCount} est. · R²=${rSquared.toFixed(2)}`;
+  const nightNote = isNight ? ' (nocturna persistente)' : '';
+  const detail = `${slopePerKm > 0 ? '+' : ''}${slopePerKm.toFixed(1)}°C/km · ${stationCount} est. · R²=${rSquared.toFixed(2)}${nightNote}`;
 
   return [{
     id: 'inversion-main',

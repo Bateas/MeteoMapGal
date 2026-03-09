@@ -27,6 +27,8 @@ export interface HourlyForecast {
   solarRadiation: number | null;
   /** CAPE (J/kg) — convective potential */
   cape: number | null;
+  /** Planetary boundary layer height (m) */
+  boundaryLayerHeight: number | null;
   /** Is it currently daytime? */
   isDay: boolean;
 }

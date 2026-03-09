@@ -18,6 +18,7 @@ import type { IconId } from '../icons/WeatherIcons';
 import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { TidePanel } from '../dashboard/TidePanel';
+import { getLunarPhase } from '../../services/lunarService';
 import { AtmosphericProfile } from '../dashboard/AtmosphericProfile';
 
 export type AlertTab = 'nav' | 'campo' | 'dron' | 'meteo';
@@ -185,6 +186,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
               <FogSection alerts={alerts} />
               <ET0Section alerts={alerts} />
               <DiseaseSection alerts={alerts} />
+              <LunarSection />
             </>
           )}
 
@@ -817,6 +819,91 @@ function DiseaseSection({ alerts }: { alerts: FieldAlerts }) {
         </p>
       </div>
     </AlertSection>
+  );
+}
+
+function LunarSection() {
+  const isMobile = useUIStore((s) => s.isMobile);
+  const [collapsed, setCollapsed] = useState(isMobile);
+  const lunar = useMemo(() => getLunarPhase(), []);
+
+  return (
+    <div
+      className="rounded-lg p-2.5 relative overflow-hidden"
+      style={{
+        background: 'rgba(124,93,250,0.08)',
+        border: '1px solid rgba(124,93,250,0.2)',
+      }}
+    >
+      <button
+        onClick={() => isMobile && setCollapsed((p) => !p)}
+        className={`flex items-center gap-2 w-full text-left ${collapsed ? '' : 'mb-2'}`}
+      >
+        <span className="text-sm">{lunar.emoji}</span>
+        <span className="text-[11px] font-bold text-slate-200">Fase Lunar</span>
+        <span
+          className="text-[9px] font-bold px-1.5 py-0.5 rounded ml-auto"
+          style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.12)' }}
+        >
+          {lunar.label}
+        </span>
+        {isMobile && (
+          <WeatherIcon
+            id={collapsed ? 'info' : 'x'}
+            size={12}
+            className="text-slate-500"
+          />
+        )}
+      </button>
+      {!collapsed && (
+        <div className="space-y-2">
+          {/* Phase + illumination row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{lunar.emoji}</span>
+              <div>
+                <div className="text-[11px] font-semibold text-slate-200">{lunar.label}</div>
+                <div className="text-[9px] text-slate-400">
+                  Día {lunar.ageDays} · {lunar.illumination}% iluminada
+                  {lunar.isWaxing ? ' · ↑ creciendo' : ' · ↓ menguando'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Next phase */}
+          <div className="flex justify-between text-[10px] border-t border-slate-700/30 pt-1.5">
+            <span className="text-slate-400">Próxima fase</span>
+            <span className="text-violet-400 font-medium">
+              {lunar.nextPhase.name} · {lunar.nextPhase.daysUntil}d
+            </span>
+          </div>
+
+          {/* Agriculture advice */}
+          <div className="space-y-1 border-t border-slate-700/30 pt-1.5">
+            <p className="text-[10px] text-violet-300 font-medium">{lunar.agriculture.summary}</p>
+            <div className="grid grid-cols-1 gap-1">
+              <div className="text-[9px]">
+                <span className="text-emerald-400 font-medium">Siembra: </span>
+                <span className="text-slate-400">{lunar.agriculture.sowing}</span>
+              </div>
+              <div className="text-[9px]">
+                <span className="text-amber-400 font-medium">Poda: </span>
+                <span className="text-slate-400">{lunar.agriculture.pruning}</span>
+              </div>
+              <div className="text-[9px]">
+                <span className="text-blue-400 font-medium">Tratamientos: </span>
+                <span className="text-slate-400">{lunar.agriculture.treatments}</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[8px] text-slate-600 italic border-t border-slate-700/30 pt-1">
+            Calendario agrícola tradicional gallego. Orientativo.
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
