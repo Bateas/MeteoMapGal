@@ -23,6 +23,8 @@ export interface Sector {
   };
   /** Meteoclimatic region codes to fetch for this sector */
   meteoclimaticRegions: string[];
+  /** Extra points outside the main radius — stations within 8km of these are included */
+  extraCoveragePoints?: { name: string; lon: number; lat: number }[];
 }
 
 export const SECTORS: Sector[] = [
@@ -31,16 +33,20 @@ export const SECTORS: Sector[] = [
     name: 'Rías Baixas',
     shortName: 'Rías',
     icon: 'waves',
-    center: [-8.65, 42.25],
-    radiusKm: 30,
+    center: [-8.68, 42.30],          // centered between Vigo/Pontevedra/Arousa
+    radiusKm: 40,                     // covers all 3 rías (Vigo + Pontevedra + Arousa)
     initialView: {
-      longitude: -8.65,
-      latitude: 42.25,
-      zoom: 11,
+      longitude: -8.72,
+      latitude: 42.35,
+      zoom: 10,
       pitch: 40,
       bearing: 0,
     },
-    meteoclimaticRegions: ['ESGAL36'],
+    meteoclimaticRegions: ['ESGAL36', 'ESGAL15'],  // Pontevedra + A Coruña (Barbanza/Ribeira)
+    extraCoveragePoints: [
+      { name: 'Corrubedo',  lon: -9.08, lat: 42.56 },  // 44km from center — Barbanza coast
+      { name: 'A Guarda',   lon: -8.88, lat: 41.90 },  // 47km from center — Miño estuary
+    ],
   },
   {
     id: 'embalse',
