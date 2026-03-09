@@ -1,10 +1,13 @@
+import { WeatherIcon } from '../../icons/WeatherIcons';
+
 export function HumiditySection() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">Humedad e indicadores clave</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        La humedad relativa (HR) es el factor que más mata los térmicos.
-        Comprender su impacto es crítico para predecir condiciones de navegación.
+        La humedad relativa (HR) es uno de los factores que más influye en la convección,
+        la visibilidad y el confort térmico. Comprender su impacto es clave para interpretar
+        las condiciones meteorológicas.
       </p>
 
       {/* Humidity gauge visualization */}
@@ -17,11 +20,11 @@ export function HumiditySection() {
         <h3 className="text-sm font-bold text-white">Umbrales de humedad</h3>
         <div className="grid grid-cols-1 gap-2">
           {[
-            { range: '< 45%', prob: '25-30%', color: '#f59e0b', label: 'Seco — térmicos posibles pero aire inestable', bar: 28 },
-            { range: '45-65%', prob: '37-39%', color: '#22c55e', label: 'SWEET SPOT — máxima probabilidad térmica', bar: 38 },
-            { range: '65-75%', prob: '20-25%', color: '#3b82f6', label: 'Húmedo — térmicos debilitados', bar: 22 },
-            { range: '75-85%', prob: '~8%', color: '#f97316', label: 'Muy húmedo — térmicos casi imposibles', bar: 8 },
-            { range: '> 85%', prob: '0%', color: '#ef4444', label: 'Saturado — SIN térmicos', bar: 0 },
+            { range: '< 45%', impact: 'Convección posible', color: '#f59e0b', label: 'Seco — térmicos posibles pero aire inestable', icon: '⬆' },
+            { range: '45-65%', impact: 'Óptimo', color: '#22c55e', label: 'SWEET SPOT — máxima probabilidad de convección', icon: '✓' },
+            { range: '65-75%', impact: 'Reducido', color: '#3b82f6', label: 'Húmedo — térmicos debilitados', icon: '⬇' },
+            { range: '75-85%', impact: 'Muy bajo', color: '#f97316', label: 'Muy húmedo — térmicos casi imposibles', icon: '⬇' },
+            { range: '> 85%', impact: 'Nulo', color: '#ef4444', label: 'Saturado — SIN térmicos, niebla probable', icon: '✕' },
           ].map((t) => (
             <div
               key={t.range}
@@ -32,15 +35,9 @@ export function HumiditySection() {
                 <span className="text-xs font-mono font-bold" style={{ color: t.color }}>{t.range}</span>
               </div>
               <div className="flex-1">
-                <div className="h-2 bg-slate-800 rounded-full overflow-hidden mb-1">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${t.bar}%`, background: t.color }}
-                  />
-                </div>
                 <span className="text-[10px] text-slate-500">{t.label}</span>
               </div>
-              <span className="text-xs font-mono shrink-0" style={{ color: t.color }}>{t.prob}</span>
+              <span className="text-xs font-semibold shrink-0" style={{ color: t.color }}>{t.impact}</span>
             </div>
           ))}
         </div>
@@ -58,25 +55,13 @@ export function HumiditySection() {
           <TemperatureScale />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <StatCard
-            value="31°C"
-            label="Tmax óptima"
-            detail="54% prob. térmico"
-            color="#ef4444"
-          />
-          <StatCard
-            value=">20°C"
-            label="ΔT ideal"
-            detail="42% prob. + bonus 15%"
-            color="#f59e0b"
-          />
-          <StatCard
-            value="<8°C"
-            label="ΔT pobre"
-            detail="Penalización −40%"
-            color="#6366f1"
-          />
+        <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/50">
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            <WeatherIcon id="info" size={12} className="inline-block mr-1 text-blue-400" />
+            Los valores óptimos de Tmax y ΔT varían según la geografía local: la profundidad
+            del valle, la orientación de las laderas y la presencia de masas de agua influyen
+            significativamente. MeteoMapGal incluye datos calibrados para cada sector.
+          </p>
         </div>
       </div>
 
@@ -93,30 +78,28 @@ export function HumiditySection() {
             <span className="text-[9px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25 font-semibold">
               TEORÍA GENERAL
             </span>
-            <span className="text-[9px] text-slate-600">Perfil idealizado de viento térmico — NO es una gráfica del embalse</span>
+            <span className="text-[9px] text-slate-600">Perfil idealizado de viento térmico</span>
           </div>
           <WindRampDiagram />
-          <div className="mt-3 p-2.5 rounded-lg bg-blue-900/15 border border-blue-800/30">
-            <p className="text-[10px] text-blue-300/80">
-              <strong className="text-blue-300">En Castrelo (observación local):</strong> el viento térmico
-              no sube gradualmente como en el esquema teórico. Suele llegar de forma más
-              abrupta por la tarde (~17-18h), pasando de calma a 7-12 kt en poco tiempo.
-              La hora pico media de rachas es 15:48h (AEMET), pero la llegada del térmico al embalse
-              puede ser más tardía y repentina.
+          <div className="mt-3 p-2.5 rounded-lg bg-slate-800/30 border border-slate-700/30">
+            <p className="text-[10px] text-slate-500">
+              En la práctica, el perfil real del viento varía según la geografía: en valles
+              estrechos el térmico puede llegar de forma abrupta, mientras que en zonas costeras
+              la transición suele ser más gradual.
             </p>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
 
-function StatCard({ value, label, detail, color }: { value: string; label: string; detail: string; color: string }) {
-  return (
-    <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
-      <div className="text-xl font-black" style={{ color }}>{value}</div>
-      <div className="text-[10px] text-slate-400 font-semibold mt-1">{label}</div>
-      <div className="text-[9px] text-slate-600 mt-0.5">{detail}</div>
+      {/* Breadcrumb to Castrelo section */}
+      <div className="bg-gradient-to-r from-emerald-900/15 to-slate-900/30 rounded-lg p-3 border border-emerald-800/20">
+        <p className="text-[10px] text-slate-400">
+          <WeatherIcon id="chart" size={12} className="inline-block mr-1 text-emerald-400" />
+          <strong className="text-emerald-400/80">Datos calibrados:</strong> Los umbrales exactos
+          y probabilidades basadas en registros AEMET para el sector Embalse de Castrelo están
+          en la sección «Mejores condiciones».
+        </p>
+      </div>
     </div>
   );
 }
@@ -124,7 +107,7 @@ function StatCard({ value, label, detail, color }: { value: string; label: strin
 /* ─── Humidity gauge SVG ─────────────────────────────────── */
 function HumidityGauge() {
   return (
-    <svg viewBox="0 0 500 120" className="w-full">
+    <svg viewBox="0 0 500 100" className="w-full">
       <defs>
         <linearGradient id="humGrad" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#f59e0b" />
@@ -163,12 +146,11 @@ function HumidityGauge() {
       <text x="370" y="20" textAnchor="middle" className="text-[8px] fill-blue-400">Húmedo</text>
       <text x="440" y="20" textAnchor="middle" className="text-[8px] fill-red-400">Saturado</text>
 
-      {/* Probability labels at bottom */}
-      <text x="140" y="105" textAnchor="middle" className="text-[9px] fill-slate-600">~28%</text>
-      <text x="270" y="100" textAnchor="middle" className="text-[10px] fill-emerald-500 font-bold">37-39%</text>
-      <text x="370" y="105" textAnchor="middle" className="text-[9px] fill-slate-600">~8%</text>
-      <text x="440" y="105" textAnchor="middle" className="text-[9px] fill-red-500/60">0%</text>
-      <text x="270" y="112" textAnchor="middle" className="text-[7px] fill-slate-700">probabilidad térmico</text>
+      {/* Qualitative impact labels at bottom */}
+      <text x="140" y="96" textAnchor="middle" className="text-[8px] fill-slate-600">Alta convección</text>
+      <text x="270" y="96" textAnchor="middle" className="text-[9px] fill-emerald-500 font-semibold">Óptima</text>
+      <text x="370" y="96" textAnchor="middle" className="text-[8px] fill-slate-600">Reducida</text>
+      <text x="440" y="96" textAnchor="middle" className="text-[8px] fill-red-500/60">Nula</text>
     </svg>
   );
 }
@@ -200,19 +182,15 @@ function TemperatureScale() {
         );
       })}
 
-      {/* Key markers */}
+      {/* Key markers — generic zone */}
       <g>
         <line x1={40} y1={22} x2={40} y2={45} stroke="#6366f1" strokeWidth="2" />
         <text x={40} y={14} textAnchor="middle" className="text-[8px] fill-indigo-400 font-bold">Umbral</text>
       </g>
-      <g>
-        <line x1={288} y1={22} x2={288} y2={45} stroke="#22c55e" strokeWidth="2" />
-        <text x={288} y={14} textAnchor="middle" className="text-[9px] fill-emerald-400 font-bold">Óptimo 31°C</text>
-      </g>
-      <g>
-        <line x1={384} y1={22} x2={384} y2={45} stroke="#ef4444" strokeWidth="2" />
-        <text x={384} y={14} textAnchor="middle" className="text-[8px] fill-red-400">54% prob</text>
-      </g>
+
+      {/* Favorable zone bracket (28-34°C) */}
+      <rect x={231} y={18} width={114} height={30} rx="4" fill="none" stroke="#22c55e" strokeWidth="1.5" strokeDasharray="3,2" opacity="0.6" />
+      <text x={288} y={14} textAnchor="middle" className="text-[9px] fill-emerald-400 font-bold">Zona favorable</text>
 
       <text x="250" y="82" textAnchor="middle" className="text-[8px] fill-slate-600">Tmax diaria</text>
     </svg>

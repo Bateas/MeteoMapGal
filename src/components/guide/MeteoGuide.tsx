@@ -33,7 +33,7 @@ const ALL_SECTIONS: GuideSection[] = [
   { id: 'best', label: 'Mejores condiciones', sectorOnly: ['embalse'] },
   { id: 'reading', label: 'Leer el mapa' },
   { id: 'campo', label: 'Panel Alertas' },
-  { id: 'sailing', label: 'Navegación y scoring' },
+  { id: 'sailing', label: 'Navegación y scoring', sectorOnly: ['embalse'] },
   { id: 'history', label: 'Historial meteorológico' },
   { id: 'glossary', label: 'Glosario' },
   { id: 'roadmap', label: 'Roadmap y fuentes' },

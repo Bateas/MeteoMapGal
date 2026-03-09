@@ -35,6 +35,39 @@ export function BestConditionsSection() {
         </div>
       </div>
 
+      {/* Humidity & temperature impact on thermals — moved from generic HumiditySection */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-white">Impacto de la humedad en el térmico</h3>
+        <p className="text-slate-400 text-xs leading-relaxed">
+          Datos calibrados con 1.412 registros diarios AEMET (Ribadavia, Ourense, Carballiño).
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <StatCard value="31°C" label="Tmax óptima" detail="54% prob. térmico" color="#ef4444" />
+          <StatCard value=">20°C" label="ΔT ideal" detail="42% prob. + bonus 15%" color="#f59e0b" />
+          <StatCard value="<8°C" label="ΔT pobre" detail="Penalización −40%" color="#6366f1" />
+        </div>
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
+          <div className="text-[10px] text-slate-400 space-y-1.5">
+            {[
+              { range: '< 45% HR', prob: '25-30%', color: '#f59e0b' },
+              { range: '45-65% HR', prob: '37-39%', color: '#22c55e' },
+              { range: '65-75% HR', prob: '20-25%', color: '#3b82f6' },
+              { range: '75-85% HR', prob: '~8%', color: '#f97316' },
+              { range: '> 85% HR', prob: '0%', color: '#ef4444' },
+            ].map((t) => (
+              <div key={t.range} className="flex items-center gap-2">
+                <span className="text-[10px] font-mono w-20 shrink-0" style={{ color: t.color }}>{t.range}</span>
+                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${parseFloat(t.prob) || 0}%`, background: t.color, minWidth: t.prob === '0%' ? '0' : '8px' }} />
+                </div>
+                <span className="text-[10px] font-mono w-12 text-right shrink-0" style={{ color: t.color }}>{t.prob}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[9px] text-slate-600 text-center">Probabilidad de térmico por rango de humedad — Castrelo de Miño</p>
+        </div>
+      </div>
+
       {/* Monthly statistics */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Probabilidad por mes</h3>
@@ -57,6 +90,13 @@ export function BestConditionsSection() {
             <div className="text-xs text-slate-500 mt-1">Hora pico de rachas</div>
             <div className="text-[10px] text-slate-600">Media racha: 9.7 m/s (19 kt)</div>
           </div>
+        </div>
+        <div className="p-2.5 rounded-lg bg-blue-900/15 border border-blue-800/30">
+          <p className="text-[10px] text-blue-300/80">
+            <strong className="text-blue-300">Observación local:</strong> En Castrelo, el viento térmico
+            no sube gradualmente como en el esquema teórico. Suele llegar de forma más
+            abrupta por la tarde (~17-18h), pasando de calma a 7-12 kt en poco tiempo.
+          </p>
         </div>
       </div>
 
@@ -104,6 +144,17 @@ export function BestConditionsSection() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─── Stat card (moved from HumiditySection) ────────── */
+function StatCard({ value, label, detail, color }: { value: string; label: string; detail: string; color: string }) {
+  return (
+    <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
+      <div className="text-xl font-black" style={{ color }}>{value}</div>
+      <div className="text-[10px] text-slate-400 font-semibold mt-1">{label}</div>
+      <div className="text-[9px] text-slate-600 mt-0.5">{detail}</div>
     </div>
   );
 }
