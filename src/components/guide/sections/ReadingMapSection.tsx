@@ -50,7 +50,7 @@ export function ReadingMapSection() {
                 <circle r="18" cx="30" cy="30" fill="none" stroke="#06b6d4" strokeWidth="1" strokeDasharray="4,3" opacity="0.3" />
               </svg>
             }
-            description="Icono de ancla cyan. Boyas de Puertos del Estado. Oleaje, viento y T agua. Solo Rías Baixas."
+            description="Icono de ancla cyan con badges de oleaje, viento (coloreado) y T agua. Clic para popup con todos los datos. Solo Rías Baixas."
           />
         </div>
       </div>
@@ -190,7 +190,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="anchor"
             title="Boyas marinas (Rías)"
-            text="Marcadores cyan con icono de ancla en el mapa. Muestran oleaje, viento y temperatura del agua de 6 boyas de Puertos del Estado. Clic para datos detallados. Solo Rías Baixas."
+            text="Marcadores cyan con icono de ancla y badges visuales (oleaje, viento coloreado, T agua). Clic abre popup con oleaje (Hm0, Hmax, periodo, dirección), viento (kt + racha), T agua/aire, presión, corrientes y salinidad. Solo Rías Baixas."
           />
           <MiniExplainer
             iconId="anchor"

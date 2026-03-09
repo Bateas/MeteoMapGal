@@ -84,7 +84,7 @@ export function RoadmapSection() {
         <TimelineMilestone
           iconId="waves"
           title="Boyas marinas (Puertos del Estado)"
-          desc="Oleaje, viento, temperatura del agua, corrientes y salinidad de 6 boyas en Rías Baixas con marcadores en el mapa."
+          desc="Oleaje, viento, T agua, corrientes y salinidad de 6 boyas en Rías Baixas. Marcadores con datos visuales y popup detallado al clic."
           status="done"
         />
 

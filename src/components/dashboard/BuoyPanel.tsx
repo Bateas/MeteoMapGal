@@ -6,13 +6,11 @@
  * Only visible in Rías Baixas sector.
  */
 
-import { memo, useEffect, useCallback, useRef } from 'react';
+import { memo } from 'react';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import { fetchAllRiasBuoys, type BuoyReading } from '../../api/buoyClient';
+import type { BuoyReading } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { msToKnots } from '../../services/windUtils';
-
-const REFRESH_INTERVAL = 30 * 60_000; // 30 min (buoys update hourly)
 
 /** Compass label from degrees */
 function dirLabel(deg: number | null): string {
@@ -49,37 +47,11 @@ function waterTempColor(t: number): string {
 }
 
 export const BuoyPanel = memo(function BuoyPanel() {
+  // Display-only — data fetching handled by useBuoyData hook in AppShell
   const buoys = useBuoyStore((s) => s.buoys);
   const loading = useBuoyStore((s) => s.loading);
   const error = useBuoyStore((s) => s.error);
-  const storeBuoys = useBuoyStore((s) => s.setBuoys);
-  const storeLoading = useBuoyStore((s) => s.setLoading);
-  const storeError = useBuoyStore((s) => s.setError);
   const lastFetch = useBuoyStore((s) => s.lastFetch);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
-
-  const fetchData = useCallback(async () => {
-    storeLoading(true);
-    try {
-      const data = await fetchAllRiasBuoys();
-      storeBuoys(data);
-    } catch (err) {
-      storeError((err as Error).message);
-      console.warn('[BuoyPanel] Fetch failed:', (err as Error).message);
-    }
-  }, [storeBuoys, storeLoading, storeError]);
-
-  useEffect(() => {
-    // Skip fetch if store has fresh data (e.g. component re-mount)
-    const age = Date.now() - lastFetch;
-    if (age > REFRESH_INTERVAL || buoys.length === 0) {
-      fetchData();
-    }
-    intervalRef.current = setInterval(fetchData, REFRESH_INTERVAL);
-    return () => clearInterval(intervalRef.current);
-  // Only depend on fetchData — lastFetch/buoys checked imperatively
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchData]);
 
   if (loading || lastFetch === 0) {
     return (

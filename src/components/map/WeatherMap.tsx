@@ -30,6 +30,7 @@ import { SailingConditionBanner } from './SailingConditionBanner';
 import { SectorSelector } from './SectorSelector';
 import { MapContextMenu } from './MapContextMenu';
 import { BuoyMarker } from './BuoyMarker';
+import { BuoyPopup } from './BuoyPopup';
 import { useBuoyStore } from '../../store/buoyStore';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
@@ -94,9 +95,18 @@ export function WeatherMap() {
   // Buoy data from shared store (populated by BuoyPanel in Rías Baixas sector)
   const buoys = useBuoyStore((s) => s.buoys);
   const selectedBuoyId = useBuoyStore((s) => s.selectedBuoyId);
+  const selectBuoy = useBuoyStore((s) => s.selectBuoy);
+  const selectedBuoy = buoys.find((b) => b.stationId === selectedBuoyId);
 
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
+
+  // Cross-deselection: only one popup at a time (station XOR buoy)
+  useEffect(() => {
+    if (selectedBuoyId != null && selectedStationId != null) {
+      selectStation(null);
+    }
+  }, [selectedBuoyId, selectedStationId, selectStation]);
 
   /** Fly to sector view when it changes. */
   useEffect(() => {
@@ -129,7 +139,8 @@ export function WeatherMap() {
 
   const handleMapClick = useCallback(() => {
     selectStation(null);
-  }, [selectStation]);
+    selectBuoy(null);
+  }, [selectStation, selectBuoy]);
 
   /** Register all wind-arrow icons (one per speed level) when the map loads. */
   const handleMapLoad = useCallback(() => {
@@ -214,6 +225,11 @@ export function WeatherMap() {
             station={selectedStation}
             reading={currentReadings.get(selectedStation.id)}
           />
+        )}
+
+        {/* Selected buoy popup — Rías Baixas only */}
+        {activeSector.id === 'rias' && selectedBuoy && (
+          <BuoyPopup reading={selectedBuoy} />
         )}
       </Map>
 
