@@ -77,7 +77,7 @@ ingestor/
 - **IDW per-pixel `unproject()` is fatal**: Use 4-corner pre-computation + linear interpolation instead.
 - **MapLibre `beforeId`**: `beforeId="osm-tiles"` on raster layers hides them below base tiles. Omit it.
 - **Vite HMR caching**: New `.tsx` files may require dev server restart.
-- **Wind particle SPEED_SCALE**: At Galician scale (~50km viewport), use 0.0015. Values <0.001 produce invisible sub-pixel movement.
+- **Wind particle SPEED_SCALE**: At Galician scale (~50km viewport), use 0.0006. Values >0.001 produce unnaturally fast particles; real scale (~0.00000014) is impractical.
 - **Sector switch cleanup**: `setStations([])` triggers full state reset (readings, history, selections, sourceFreshness). Fetch flags in `useWeatherData` also reset.
 - **Embalse-only features**: Thermal zones, forecast timeline, thermal panel, sailing banner, and propagation arrows are conditionally rendered only when `activeSector.id === 'embalse'`.
 
