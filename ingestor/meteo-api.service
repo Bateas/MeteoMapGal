@@ -1,0 +1,25 @@
+[Unit]
+Description=MeteoMapGal History API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/MeteoMapGal/ingestor
+ExecStart=/usr/bin/node --import tsx api.ts
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/MeteoMapGal/ingestor/.env
+
+# Logging
+StandardOutput=append:/var/log/meteo-api.log
+StandardError=append:/var/log/meteo-api.log
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/log/meteo-api.log
+
+[Install]
+WantedBy=multi-user.target

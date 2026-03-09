@@ -191,6 +191,11 @@ export function ReadingMapSection() {
             title="Estadísticas de viento"
             text="Wind stats por estación: velocidad media, racha máx, dirección dominante. Calculadas sobre lecturas acumuladas."
           />
+          <MiniExplainer
+            iconId="database"
+            title="Historial TimescaleDB"
+            text="Pestaña Historial en el sidebar: gráfica temporal de 93+ estaciones con selector de métrica (T, viento, HR, presión), rango (24h/7d/30d) y estadísticas agregadas."
+          />
         </div>
       </div>
 

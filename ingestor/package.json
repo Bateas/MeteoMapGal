@@ -6,7 +6,9 @@
   "description": "MeteoMapGal weather data ingestor → TimescaleDB",
   "scripts": {
     "start": "node --import tsx index.ts",
-    "dev": "node --import tsx --watch index.ts"
+    "dev": "node --import tsx --watch index.ts",
+    "api": "node --import tsx api.ts",
+    "api:dev": "node --import tsx --watch api.ts"
   },
   "dependencies": {
     "pg": "^8.13.1",

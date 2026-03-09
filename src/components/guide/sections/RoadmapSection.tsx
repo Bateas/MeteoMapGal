@@ -74,6 +74,13 @@ export function RoadmapSection() {
           status="done"
         />
 
+        <TimelineMilestone
+          iconId="database"
+          title="Historial TimescaleDB + Dashboard"
+          desc="API REST para datos históricos y pestaña Historial con gráficas, selector de estación y estadísticas."
+          status="done"
+        />
+
         {/* Minor updates — collapsed */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
           <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-emerald-500/20 border-emerald-500/30" />
@@ -108,12 +115,6 @@ export function RoadmapSection() {
           iconId="waves"
           title="Boyas marinas (Puertos del Estado)"
           desc="Oleaje, temperatura del agua y viento mar adentro para Rías Baixas."
-          status="planned"
-        />
-        <TimelineMilestone
-          iconId="database"
-          title="Dashboard de tendencias"
-          desc="Consultas al historial TimescaleDB: gráficas comparativas, estadísticas y exportación."
           status="planned"
         />
 
@@ -203,9 +204,10 @@ export function RoadmapSection() {
               <TechRow name="Recharts" license="MIT" />
             </div>
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[10px]">
-              <span className="text-slate-500">41+ estaciones</span>
-              <span className="text-slate-500">11 APIs</span>
+              <span className="text-slate-500">93+ estaciones</span>
+              <span className="text-slate-500">12 APIs</span>
               <span className="text-slate-500">159 tests</span>
+              <span className="text-slate-500">TimescaleDB</span>
             </div>
           </div>
         </div>
