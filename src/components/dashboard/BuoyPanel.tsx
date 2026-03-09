@@ -81,7 +81,7 @@ export const BuoyPanel = memo(function BuoyPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData]);
 
-  if (loading) {
+  if (loading || lastFetch === 0) {
     return (
       <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
         <div className="flex items-center gap-2 text-cyan-400 text-[10px]">

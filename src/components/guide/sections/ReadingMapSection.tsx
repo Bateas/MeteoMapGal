@@ -13,7 +13,7 @@ export function ReadingMapSection() {
       {/* Station markers */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Marcadores de estación</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <ExplainerCard
             title="Estación de viento"
             svg={
@@ -35,6 +35,22 @@ export function ReadingMapSection() {
               </svg>
             }
             description="Punto pequeño. Estaciones sin anemómetro. Contribuyen al gradiente térmico."
+          />
+          <ExplainerCard
+            title="Boya marina (Rías)"
+            svg={
+              <svg viewBox="0 0 60 60" className="w-12 h-12">
+                <circle cx="30" cy="30" r="14" fill="#0e7490" stroke="#06b6d4" strokeWidth="2" />
+                <g transform="translate(30, 28)" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="0" y1="-5" x2="0" y2="5" />
+                  <circle cx="0" cy="-6" r="1.5" fill="none" />
+                  <path d="M -5,2 Q -5,6 0,6 Q 5,6 5,2" />
+                  <line x1="-2" y1="-2" x2="2" y2="-2" />
+                </g>
+                <circle r="18" cx="30" cy="30" fill="none" stroke="#06b6d4" strokeWidth="1" strokeDasharray="4,3" opacity="0.3" />
+              </svg>
+            }
+            description="Icono de ancla cyan. Boyas de Puertos del Estado. Oleaje, viento y T agua. Solo Rías Baixas."
           />
         </div>
       </div>
@@ -170,6 +186,11 @@ export function ReadingMapSection() {
             iconId="thermometer"
             title="Presión y punto de rocío"
             text="Datos de 5 fuentes (AEMET, MG, MC, WU, Netatmo). Spread T−Td para predicción de niebla."
+          />
+          <MiniExplainer
+            iconId="anchor"
+            title="Boyas marinas (Rías)"
+            text="Marcadores cyan con icono de ancla en el mapa. Muestran oleaje, viento y temperatura del agua de 6 boyas de Puertos del Estado. Clic para datos detallados. Solo Rías Baixas."
           />
           <MiniExplainer
             iconId="anchor"
