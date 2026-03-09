@@ -3,18 +3,20 @@
  *
  * Queries TimescaleDB via the History API and displays
  * time series charts with station selector, date range,
- * and metric toggle. Available in both sectors.
+ * metric toggle, wind rose, and station comparison.
+ * Available in both sectors.
  */
 
 import { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
+  ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import {
   fetchHistoryStations,
   fetchReadings,
+  fetchCompare,
   fetchStationStats,
   fetchHealth,
   type HistoryStation,
@@ -23,6 +25,7 @@ import {
   type StationStats,
   type HealthInfo,
 } from '../../api/historyClient';
+import { WindRoseHistorical } from '../charts/WindRoseHistorical';
 import { msToKnots } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 
@@ -31,6 +34,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 type Metric = 'temperature' | 'wind_speed' | 'humidity' | 'pressure';
 type TimeRange = '24h' | '7d' | '30d';
 type Interval = 'raw' | 'hourly';
+type ViewMode = 'chart' | 'windrose';
 
 const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
   { key: 'temperature', label: 'Temp', unit: '°C', color: '#ef4444' },
@@ -44,6 +48,8 @@ const TIME_RANGES: { key: TimeRange; label: string; hours: number }[] = [
   { key: '7d', label: '7d', hours: 168 },
   { key: '30d', label: '30d', hours: 720 },
 ];
+
+const COMPARE_COLOR = '#f59e0b'; // amber-500 for second station
 
 /** Format timestamp for chart X axis */
 function formatTime(time: string, range: TimeRange): string {
@@ -61,7 +67,6 @@ function getMetricValue(
   let val: number | null = null;
 
   if ('bucket' in reading) {
-    // Hourly aggregate
     const r = reading as HourlyReading;
     switch (metric) {
       case 'temperature': val = r.avg_temp; break;
@@ -70,7 +75,6 @@ function getMetricValue(
       case 'pressure': val = r.avg_pressure; break;
     }
   } else {
-    // Raw reading
     const r = reading as HistoryReading;
     switch (metric) {
       case 'temperature': val = r.temperature; break;
@@ -81,7 +85,6 @@ function getMetricValue(
   }
 
   if (val == null) return null;
-  // Convert m/s → knots for display
   if (metric === 'wind_speed') return Math.round(msToKnots(val) * 10) / 10;
   return Math.round(val * 10) / 10;
 }
@@ -89,16 +92,26 @@ function getMetricValue(
 // ── Component ──────────────────────────────────────────
 
 export const HistoryDashboard = memo(function HistoryDashboard() {
-  // State
+  // Core state
   const [stations, setStations] = useState<HistoryStation[]>([]);
   const [selectedStation, setSelectedStation] = useState('');
   const [metric, setMetric] = useState<Metric>('temperature');
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
+  const [viewMode, setViewMode] = useState<ViewMode>('chart');
   const [readings, setReadings] = useState<(HistoryReading | HourlyReading)[]>([]);
   const [stats, setStats] = useState<StationStats | null>(null);
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Comparison state
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareStation, setCompareStation] = useState('');
+  const [compareReadings, setCompareReadings] = useState<(HistoryReading | HourlyReading)[]>([]);
+
+  // Wind rose raw readings (fetched separately when needed)
+  const [windRoseReadings, setWindRoseReadings] = useState<HistoryReading[]>([]);
+  const [windRoseLoading, setWindRoseLoading] = useState(false);
 
   // Map station IDs → human names from live weatherStore
   const liveStations = useWeatherStore((s) => s.stations);
@@ -110,6 +123,12 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
     }
     return map;
   }, [liveStations]);
+
+  /** Friendly station name */
+  const stationName = useCallback(
+    (id: string) => stationNames.get(id) || id,
+    [stationNames]
+  );
 
   // Determine interval: raw for 24h, hourly for 7d/30d
   const interval: Interval = timeRange === '24h' ? 'raw' : 'hourly';
@@ -129,7 +148,6 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
         setStations(stationList);
         setHealth(healthData);
 
-        // Auto-select first AEMET station if none selected
         if (!selectedStation && stationList.length > 0) {
           const aemet = stationList.find((s) => s.source === 'aemet');
           setSelectedStation(aemet?.station_id ?? stationList[0].station_id);
@@ -158,27 +176,109 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
       const from = new Date(Date.now() - range.hours * 3600_000).toISOString();
       const to = new Date().toISOString();
 
-      const [readingData, statsData] = await Promise.all([
+      // Parallel fetches
+      const promises: Promise<any>[] = [
         fetchReadings(selectedStation, from, to, interval),
         fetchStationStats(selectedStation, from, to),
-      ]);
+      ];
 
-      setReadings(readingData);
-      setStats(statsData);
+      // If comparison mode, also fetch compare station
+      if (compareMode && compareStation && compareStation !== selectedStation) {
+        promises.push(fetchCompare([selectedStation, compareStation], from, to, interval));
+      }
+
+      const results = await Promise.all(promises);
+
+      setReadings(results[0]);
+      setStats(results[1]);
+
+      // Extract compare readings (filter to only compareStation)
+      if (compareMode && compareStation && results[2]) {
+        const allCompare = results[2] as (HistoryReading | HourlyReading)[];
+        const compareOnly = allCompare.filter((r) => {
+          const sid = 'bucket' in r ? (r as HourlyReading).station_id : (r as HistoryReading).station_id;
+          return sid === compareStation;
+        });
+        setCompareReadings(compareOnly);
+      } else {
+        setCompareReadings([]);
+      }
     } catch (err) {
       setError((err as Error).message);
       console.warn('[HistoryDashboard] Data fetch failed:', (err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [selectedStation, timeRange, interval]);
+  }, [selectedStation, compareStation, compareMode, timeRange, interval]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // ── Chart data ───────────────────────────────────
+  // ── Fetch raw wind data for wind rose ────────────
+  useEffect(() => {
+    if (viewMode !== 'windrose' || !selectedStation) {
+      setWindRoseReadings([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadWindRose() {
+      setWindRoseLoading(true);
+      try {
+        const range = TIME_RANGES.find((r) => r.key === timeRange)!;
+        const from = new Date(Date.now() - range.hours * 3600_000).toISOString();
+        const to = new Date().toISOString();
+        // Always fetch raw for wind rose (need wind_dir)
+        const data = await fetchReadings(selectedStation, from, to, 'raw');
+        if (!cancelled) {
+          setWindRoseReadings(data as HistoryReading[]);
+        }
+      } catch (err) {
+        console.warn('[HistoryDashboard] Wind rose fetch failed:', (err as Error).message);
+        if (!cancelled) setWindRoseReadings([]);
+      } finally {
+        if (!cancelled) setWindRoseLoading(false);
+      }
+    }
+
+    loadWindRose();
+    return () => { cancelled = true; };
+  }, [viewMode, selectedStation, timeRange]);
+
+  // ── Chart data (primary station) ──────────────────
   const chartData = useMemo(() => {
+    if (compareMode && compareReadings.length > 0) {
+      // Build merged time series with both stations
+      const primaryMap = new Map<string, number | null>();
+      const compareMap = new Map<string, number | null>();
+      const allTimes: string[] = [];
+
+      for (const r of readings) {
+        const time = 'bucket' in r ? (r as HourlyReading).bucket : (r as HistoryReading).time;
+        const formatted = formatTime(time, timeRange);
+        primaryMap.set(formatted, getMetricValue(r, metric));
+        allTimes.push(formatted);
+      }
+
+      for (const r of compareReadings) {
+        const time = 'bucket' in r ? (r as HourlyReading).bucket : (r as HistoryReading).time;
+        const formatted = formatTime(time, timeRange);
+        compareMap.set(formatted, getMetricValue(r, metric));
+        if (!primaryMap.has(formatted)) allTimes.push(formatted);
+      }
+
+      return allTimes
+        .map((time) => ({
+          time,
+          value: primaryMap.get(time) ?? null,
+          compare: compareMap.get(time) ?? null,
+        }))
+        .filter((d) => d.value != null || d.compare != null);
+    }
+
+    // Single station mode
     return readings
       .map((r) => {
         const time = 'bucket' in r ? (r as HourlyReading).bucket : (r as HistoryReading).time;
@@ -190,7 +290,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
         };
       })
       .filter((d) => d.value != null);
-  }, [readings, metric, timeRange]);
+  }, [readings, compareReadings, compareMode, metric, timeRange]);
 
   // ── Current metric config ────────────────────────
   const currentMetric = METRICS.find((m) => m.key === metric)!;
@@ -228,7 +328,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
             value={selectedStation}
             onChange={(e) => {
               setSelectedStation(e.target.value);
-              selectStation(e.target.value); // highlight on map
+              selectStation(e.target.value);
             }}
             className="w-full bg-slate-800 text-slate-200 text-[10px] rounded px-2 py-1.5 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
           >
@@ -245,6 +345,50 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
               </optgroup>
             ))}
           </select>
+        </div>
+
+        {/* Compare toggle + second station */}
+        <div className="px-3 pb-2">
+          <button
+            onClick={() => {
+              setCompareMode(!compareMode);
+              if (compareMode) {
+                setCompareStation('');
+                setCompareReadings([]);
+              }
+            }}
+            className={`w-full text-[9px] font-semibold py-1 rounded transition-colors ${
+              compareMode
+                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                : 'bg-slate-800/40 text-slate-500 border border-slate-700/50 hover:text-slate-300'
+            }`}
+          >
+            {compareMode ? '✕ Quitar comparación' : '⊕ Comparar estaciones'}
+          </button>
+
+          {compareMode && (
+            <select
+              value={compareStation}
+              onChange={(e) => setCompareStation(e.target.value)}
+              className="w-full mt-1 bg-slate-800 text-amber-300 text-[10px] rounded px-2 py-1.5 border border-amber-500/30 focus:border-amber-500/50 focus:outline-none"
+            >
+              <option value="">Seleccionar 2ª estación...</option>
+              {Object.entries(stationsBySource).map(([source, stns]) => (
+                <optgroup key={source} label={source.toUpperCase()}>
+                  {stns
+                    .filter((s) => s.station_id !== selectedStation)
+                    .map((s) => {
+                      const name = stationNames.get(s.station_id);
+                      return (
+                        <option key={s.station_id} value={s.station_id}>
+                          {name ? `${name}` : s.station_id}
+                        </option>
+                      );
+                    })}
+                </optgroup>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Time range buttons */}
@@ -267,19 +411,22 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
           </span>
         </div>
 
-        {/* Metric toggle */}
+        {/* Metric toggle + Wind Rose button */}
         <div className="flex gap-1 px-3 pb-2">
           {METRICS.map((m) => (
             <button
               key={m.key}
-              onClick={() => setMetric(m.key)}
+              onClick={() => {
+                setMetric(m.key);
+                setViewMode('chart');
+              }}
               className={`flex-1 text-[9px] font-semibold py-1 rounded transition-colors ${
-                metric === m.key
+                metric === m.key && viewMode === 'chart'
                   ? 'text-white border'
                   : 'bg-slate-800/40 text-slate-500 border border-transparent hover:text-slate-300'
               }`}
               style={
-                metric === m.key
+                metric === m.key && viewMode === 'chart'
                   ? { borderColor: m.color + '60', backgroundColor: m.color + '15', color: m.color }
                   : undefined
               }
@@ -287,72 +434,135 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
               {m.label}
             </button>
           ))}
+
+          {/* Wind Rose toggle */}
+          <button
+            onClick={() => setViewMode(viewMode === 'windrose' ? 'chart' : 'windrose')}
+            className={`flex-1 text-[9px] font-semibold py-1 rounded transition-colors ${
+              viewMode === 'windrose'
+                ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
+                : 'bg-slate-800/40 text-slate-500 border border-transparent hover:text-slate-300'
+            }`}
+          >
+            Rosa
+          </button>
         </div>
       </div>
 
-      {/* Chart */}
+      {/* Chart / Wind Rose */}
       <div className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-2">
-        {loading && (
-          <div className="flex items-center justify-center h-[180px] text-slate-500 text-[10px]">
-            <WeatherIcon id="clock" size={14} className="animate-pulse mr-2" />
-            Cargando datos...
-          </div>
-        )}
+        {viewMode === 'windrose' ? (
+          // ── Wind Rose view ──
+          windRoseLoading ? (
+            <div className="flex items-center justify-center h-[260px] text-slate-500 text-[10px]">
+              <WeatherIcon id="wind" size={14} className="animate-pulse mr-2" />
+              Cargando rosa de vientos...
+            </div>
+          ) : (
+            <WindRoseHistorical
+              readings={windRoseReadings}
+              size={260}
+            />
+          )
+        ) : (
+          // ── Line chart view ──
+          <>
+            {loading && (
+              <div className="flex items-center justify-center h-[180px] text-slate-500 text-[10px]">
+                <WeatherIcon id="clock" size={14} className="animate-pulse mr-2" />
+                Cargando datos...
+              </div>
+            )}
 
-        {error && !loading && (
-          <div className="flex items-center justify-center h-[180px] text-red-400 text-[10px]">
-            <WeatherIcon id="alert-triangle" size={14} className="mr-2" />
-            {error}
-          </div>
-        )}
+            {error && !loading && (
+              <div className="flex items-center justify-center h-[180px] text-red-400 text-[10px]">
+                <WeatherIcon id="alert-triangle" size={14} className="mr-2" />
+                {error}
+              </div>
+            )}
 
-        {!loading && !error && chartData.length === 0 && (
-          <div className="flex items-center justify-center h-[180px] text-slate-500 text-[10px]">
-            Sin datos para este rango
-          </div>
-        )}
+            {!loading && !error && chartData.length === 0 && (
+              <div className="flex items-center justify-center h-[180px] text-slate-500 text-[10px]">
+                Sin datos para este rango
+              </div>
+            )}
 
-        {!loading && !error && chartData.length > 0 && (
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis
-                dataKey="time"
-                tick={{ fontSize: 8, fill: '#64748b' }}
-                interval="preserveStartEnd"
-                tickCount={6}
-              />
-              <YAxis
-                tick={{ fontSize: 8, fill: '#64748b' }}
-                domain={['auto', 'auto']}
-                width={40}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  borderRadius: '6px',
-                  fontSize: '10px',
-                }}
-                labelStyle={{ color: '#94a3b8', fontSize: '9px' }}
-                formatter={(value: number | string | undefined) => [`${value} ${currentMetric.unit}`, currentMetric.label]}
-              />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke={currentMetric.color}
-                strokeWidth={1.5}
-                dot={false}
-                activeDot={{ r: 3, fill: currentMetric.color }}
-                name={currentMetric.label}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+            {!loading && !error && chartData.length > 0 && (
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis
+                    dataKey="time"
+                    tick={{ fontSize: 8, fill: '#64748b' }}
+                    interval="preserveStartEnd"
+                    tickCount={6}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 8, fill: '#64748b' }}
+                    domain={['auto', 'auto']}
+                    width={40}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      border: '1px solid #334155',
+                      borderRadius: '6px',
+                      fontSize: '10px',
+                    }}
+                    labelStyle={{ color: '#94a3b8', fontSize: '9px' }}
+                    formatter={(value: number | string | undefined, name: string) => {
+                      if (name === 'compare') {
+                        return [`${value} ${currentMetric.unit}`, stationName(compareStation)];
+                      }
+                      return [`${value} ${currentMetric.unit}`, stationName(selectedStation)];
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke={currentMetric.color}
+                    strokeWidth={1.5}
+                    dot={false}
+                    activeDot={{ r: 3, fill: currentMetric.color }}
+                    name={currentMetric.label}
+                  />
+                  {compareMode && compareStation && (
+                    <Line
+                      type="monotone"
+                      dataKey="compare"
+                      stroke={COMPARE_COLOR}
+                      strokeWidth={1.5}
+                      dot={false}
+                      activeDot={{ r: 3, fill: COMPARE_COLOR }}
+                      name="compare"
+                      strokeDasharray="4 2"
+                    />
+                  )}
+                  {compareMode && compareStation && (
+                    <Legend
+                      wrapperStyle={{ fontSize: '9px' }}
+                      formatter={(value) => {
+                        if (value === 'compare') return stationName(compareStation);
+                        return stationName(selectedStation);
+                      }}
+                    />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </>
         )}
       </div>
 
+      {/* Compare legend (when wind rose + compare are both on) */}
+      {viewMode === 'windrose' && compareMode && compareStation && (
+        <div className="text-center text-[9px] text-slate-500">
+          Rosa de vientos solo muestra la estación principal
+        </div>
+      )}
+
       {/* Stats summary */}
-      {stats && !loading && (
+      {stats && !loading && viewMode === 'chart' && (
         <div className="rounded-lg border border-slate-700/50 bg-slate-900/50">
           <div className="grid grid-cols-4 gap-px bg-slate-700/30">
             <StatCell

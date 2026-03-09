@@ -92,6 +92,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/eumetsat-api/, ''),
         secure: true,
       },
+      '/portus-api': {
+        target: 'https://portus.puertos.es/portussvr/api',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/portus-api/, ''),
+        secure: true,
+      },
       '/api/v1': {
         target: 'http://REDACTED_APP_HOST:3001',
         changeOrigin: true,
