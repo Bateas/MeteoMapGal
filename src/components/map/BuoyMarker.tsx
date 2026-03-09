@@ -111,7 +111,7 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
         </div>
 
         {/* Station name label */}
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-cyan-800 map-label-halo pointer-events-none">
+        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-slate-900 map-label-halo pointer-events-none">
           {reading.stationName}
         </div>
       </div>
