@@ -92,6 +92,10 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/eumetsat-api/, ''),
         secure: true,
       },
+      '/api/v1': {
+        target: 'http://192.168.10.120:3001',
+        changeOrigin: true,
+      },
     },
   },
 })
