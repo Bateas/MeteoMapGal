@@ -3,11 +3,12 @@
  *
  * Visual design:
  * - Cyan anchor icon (core identity)
- * - WindArrow: reuses SAME component as weather stations for visual consistency
+ * - WindArrow: SHARED component with weather stations (identical visual)
+ * - CurrentArrow: teal dashed arrow showing current direction/speed
  * - WaveGlyph: SVG wave indicator — amplitude scales with wave height,
  *   peaks sharpen with bigger waves. Direction shown by glyph rotation.
- * - Water temperature badge (bottom-right)
- * - Wave height badge (top-right)
+ * - Badges: wave height (top-right), wind speed (top-left),
+ *   water temperature (bottom-right), current speed (bottom-left)
  *
  * Color scales from buoyUtils.ts — shared with BuoyPopup and BuoyPanel.
  */
@@ -16,8 +17,9 @@ import { Marker } from 'react-map-gl/maplibre';
 import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
-import { msToKnots, windSpeedColor, windArrowLength } from '../../services/windUtils';
-import { waveHeightColor, waterTempColor } from '../../services/buoyUtils';
+import { WindArrow } from './WindArrow';
+import { msToKnots, windSpeedColor } from '../../services/windUtils';
+import { waveHeightColor, waterTempColor, currentSpeedColor } from '../../services/buoyUtils';
 
 interface BuoyMarkerProps {
   reading: BuoyReading;
@@ -37,36 +39,40 @@ function freshnessColor(timestamp: string): string {
   return '#6b7280';                  // grey — offline
 }
 
-// ── WaveGlyph — SVG wave indicator ────────────────────────
-// 3 wave arcs whose amplitude and sharpness scale with wave height.
-// Calm seas → smooth gentle curves. Rough seas → tall peaked waves.
-// The glyph rotates to show wave direction (oceanographic "from" convention).
-function WaveGlyph({ height, dir }: { height: number; dir: number | null }) {
+// ── WaveGlyph — improved SVG wave indicator ──────────────
+// Multiple wave crests with amplitude and sharpness that scale with Hm0.
+// Calm seas → gentle curves. Rough seas → tall peaked waves with spray.
+// Direction shown by glyph rotation (oceanographic "from" convention).
+// Includes period info via spacing: short period = tighter waves.
+function WaveGlyph({ height, dir, period }: { height: number; dir: number | null; period: number | null }) {
   const color = waveHeightColor(height);
-  // Amplitude: 3px (calm) → 8px (rough)
-  const amp = Math.min(3 + height * 2.5, 8);
+  // Amplitude: 2.5px (calm 0m) → 9px (rough 4m+)
+  const amp = Math.min(2.5 + height * 2, 9);
   // Sharpness: 0 = smooth sine, 1 = peaked. Scale with wave height.
-  const sharp = Math.min(height / 4, 0.85);
+  const sharp = Math.min(height / 3.5, 0.9);
   // Control point horizontal squeeze: smaller = more peaked
   const cpx = 5 * (1 - sharp * 0.6);
+  // Wave spacing: shorter period → tighter waves (default ~8s)
+  const spacing = period != null ? Math.max(4, Math.min(period * 0.8, 7)) : 5;
 
-  // Build 3 wave crests as quadratic bezier arcs
+  // Build wave crests as quadratic bezier arcs
   const y0 = 0;
+  const halfW = spacing * 3;
   const wave = `
-    M -15,${y0}
-    Q ${-15 + cpx},${y0 - amp} -10,${y0}
-    Q ${-10 + cpx},${y0 + amp * 0.4} -5,${y0}
-    Q ${-5 + cpx},${y0 - amp} 0,${y0}
-    Q ${cpx},${y0 + amp * 0.4} 5,${y0}
-    Q ${5 + cpx},${y0 - amp} 10,${y0}
-    Q ${10 + cpx},${y0 + amp * 0.4} 15,${y0}
+    M ${-halfW},${y0}
+    Q ${-halfW + cpx},${y0 - amp} ${-halfW + spacing},${y0}
+    Q ${-halfW + spacing + cpx},${y0 + amp * 0.3} ${-halfW + spacing * 2},${y0}
+    Q ${-halfW + spacing * 2 + cpx},${y0 - amp} ${-halfW + spacing * 3},${y0}
+    Q ${-halfW + spacing * 3 + cpx},${y0 + amp * 0.3} ${-halfW + spacing * 4},${y0}
+    Q ${-halfW + spacing * 4 + cpx},${y0 - amp} ${-halfW + spacing * 5},${y0}
+    Q ${-halfW + spacing * 5 + cpx},${y0 + amp * 0.3} ${halfW},${y0}
   `;
 
   const rotation = dir != null ? dir : 0;
 
   return (
-    <g transform={`rotate(${rotation})`} opacity="0.8">
-      {/* Wave crests — positioned outside the anchor circle */}
+    <g transform={`rotate(${rotation})`} opacity="0.85">
+      {/* Primary wave crest */}
       <g transform="translate(0, 20)">
         <path
           d={wave}
@@ -75,8 +81,8 @@ function WaveGlyph({ height, dir }: { height: number; dir: number | null }) {
           strokeWidth="2"
           strokeLinecap="round"
         />
-        {/* Second wave behind — subtler */}
-        <g transform="translate(0, 4)" opacity="0.4">
+        {/* Secondary wave behind — subtler, offset */}
+        <g transform="translate(1.5, 4)" opacity="0.35">
           <path
             d={wave}
             fill="none"
@@ -85,29 +91,40 @@ function WaveGlyph({ height, dir }: { height: number; dir: number | null }) {
             strokeLinecap="round"
           />
         </g>
+        {/* Spray dots for rough seas (Hm0 > 2m) */}
+        {height > 2 && (
+          <g opacity={Math.min((height - 2) * 0.3, 0.6)}>
+            <circle cx={-spacing} cy={-amp - 2} r="1" fill={color} />
+            <circle cx={spacing * 0.5} cy={-amp - 3} r="0.8" fill={color} />
+            <circle cx={spacing * 2} cy={-amp - 1.5} r="1.2" fill={color} />
+          </g>
+        )}
       </g>
     </g>
   );
 }
 
-// ── Wind arrow — reuses same style as StationMarker ────────
-// Points "to" (dir + 180), color-coded by speed. Same visual language.
-function BuoyWindArrow({ speed, dir }: { speed: number; dir: number }) {
-  const color = windSpeedColor(speed);
-  const length = windArrowLength(speed);
-  const rotation = (dir + 180) % 360;
+// ── Current arrow — teal dashed indicator ─────────────────
+// Distinct from wind arrow: dashed line, teal color, smaller, with
+// a wave-like arrowhead. Current direction is oceanographic "going to".
+function CurrentArrow({ speed, dir }: { speed: number; dir: number }) {
+  const color = currentSpeedColor(speed);
+  // Length: 12px (slow) → 28px (fast). Currents are typically 0-0.5 m/s.
+  const length = Math.min(12 + speed * 40, 28);
 
   return (
-    <g transform={`rotate(${rotation})`}>
+    <g transform={`rotate(${dir})`} opacity="0.85">
       <line
         x1="0" y1="0"
         x2="0" y2={-length}
         stroke={color}
-        strokeWidth="3"
+        strokeWidth="2"
         strokeLinecap="round"
+        strokeDasharray="3,2"
       />
+      {/* Smaller arrowhead */}
       <polygon
-        points={`-4.5,${-length + 3} 4.5,${-length + 3} 0,${-length - 6}`}
+        points={`-3,${-length + 2} 3,${-length + 2} 0,${-length - 4}`}
         fill={color}
       />
     </g>
@@ -123,6 +140,7 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
   const hasWaves = reading.waveHeight != null;
   const hasWind = reading.windSpeed != null && reading.windSpeed > 0.3;
   const hasWaterTemp = reading.waterTemp != null;
+  const hasCurrent = reading.currentSpeed != null && reading.currentSpeed > 0.01 && reading.currentDir != null;
 
   const windKt = hasWind ? msToKnots(reading.windSpeed!) : 0;
 
@@ -140,17 +158,24 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
     >
       <div className="buoy-marker relative cursor-pointer" title={reading.stationName}>
         <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Boya ${reading.stationName}`}>
-          {/* ── Wind arrow (same as StationMarker) ── */}
-          {hasWind && reading.windDir != null ? (
-            <BuoyWindArrow speed={reading.windSpeed!} dir={reading.windDir} />
-          ) : (
-            /* Calm dot when no wind */
-            <circle r="4" fill="#94a3b8" opacity={0.5} />
+          {/* ── Wind arrow — SHARED component with StationMarker ── */}
+          <WindArrow
+            direction={reading.windDir ?? null}
+            speed={reading.windSpeed ?? null}
+          />
+
+          {/* ── Current direction arrow (dashed teal, distinct from wind) ── */}
+          {hasCurrent && (
+            <CurrentArrow speed={reading.currentSpeed!} dir={reading.currentDir!} />
           )}
 
           {/* ── Wave direction glyph ── */}
           {hasWaves && (
-            <WaveGlyph height={reading.waveHeight!} dir={reading.waveDir} />
+            <WaveGlyph
+              height={reading.waveHeight!}
+              dir={reading.waveDir}
+              period={reading.wavePeriod}
+            />
           )}
 
           {/* Outer ring — animated dashes (marine identity) */}
@@ -237,6 +262,23 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
             }}
           >
             {reading.waterTemp!.toFixed(1)}°
+          </div>
+        )}
+
+        {/* ── Current speed badge (bottom-left) ── */}
+        {hasCurrent && (
+          <div
+            className="absolute -bottom-2 -left-2 rounded px-1 py-0.5 pointer-events-none whitespace-nowrap border"
+            style={{
+              fontSize: 9,
+              fontWeight: 600,
+              fontFamily: 'ui-monospace, monospace',
+              background: `${currentSpeedColor(reading.currentSpeed!)}18`,
+              borderColor: `${currentSpeedColor(reading.currentSpeed!)}60`,
+              color: currentSpeedColor(reading.currentSpeed!),
+            }}
+          >
+            {(reading.currentSpeed! * 100).toFixed(0)}cm/s
           </div>
         )}
 

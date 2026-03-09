@@ -12,7 +12,7 @@ import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
 import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/windUtils';
-import { waveHeightColor, waterTempColor } from '../../services/buoyUtils';
+import { waveHeightColor, waterTempColor, currentSpeedColor } from '../../services/buoyUtils';
 
 /** Lightweight relative-time in Spanish (avoids date-fns locale bundle) */
 function timeAgoEs(ts: string): string {
@@ -179,11 +179,14 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
             <DataCell
               label="Corriente"
               value={`${(reading.currentSpeed! * 100).toFixed(0)} cm/s`}
+              color={currentSpeedColor(reading.currentSpeed)}
+              large
             />
             {reading.currentDir != null && (
               <DataCell
                 label="Dir. corriente"
-                value={`${degreesToCardinal(reading.currentDir)} ${Math.round(reading.currentDir)}°`}
+                value={`→ ${degreesToCardinal(reading.currentDir)} ${Math.round(reading.currentDir)}°`}
+                color={currentSpeedColor(reading.currentSpeed)}
               />
             )}
           </>

@@ -11,7 +11,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { BuoyReading } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { msToKnots } from '../../services/windUtils';
-import { waveHeightClass, waterTempClass } from '../../services/buoyUtils';
+import { waveHeightClass, waterTempClass, currentSpeedClass } from '../../services/buoyUtils';
 
 /** Compass label from degrees */
 function dirLabel(deg: number | null): string {
@@ -177,6 +177,8 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
             label="Corriente"
             value={`${(b.currentSpeed * 100).toFixed(0)} cm/s`}
             sub={dirLabel(b.currentDir)}
+            className={currentSpeedClass(b.currentSpeed)}
+            dirDeg={b.currentDir}
           />
         )}
         {b.salinity != null && (
@@ -218,16 +220,27 @@ function DataCell({
   value,
   sub,
   className = 'text-slate-200',
+  dirDeg,
 }: {
   label: string;
   value: string;
   sub?: string;
   className?: string;
+  /** Optional direction in degrees — shows a small direction arrow */
+  dirDeg?: number | null;
 }) {
   return (
     <div className="bg-slate-900/80 px-2 py-1.5 text-center">
       <div className="text-[8px] text-slate-500 uppercase">{label}</div>
-      <div className={`text-[10px] font-bold mt-0.5 ${className}`}>
+      <div className={`text-[10px] font-bold mt-0.5 ${className} flex items-center justify-center gap-1`}>
+        {dirDeg != null && (
+          <svg width="10" height="10" viewBox="-5 -5 10 10" className="inline-block shrink-0">
+            <g transform={`rotate(${dirDeg})`}>
+              <line x1="0" y1="3" x2="0" y2="-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <polygon points="-2,-1 2,-1 0,-4" fill="currentColor" />
+            </g>
+          </svg>
+        )}
         {value}
         {sub && <span className="text-[8px] text-slate-500 ml-0.5">{sub}</span>}
       </div>

@@ -5,13 +5,27 @@
  * - portussvr: Station metadata + last readings (integer-encoded, /factor)
  * - poem: Time series data (real units)
  *
- * Stations relevant for Rías Baixas:
- *   2248 Boya de Cabo Silleiro (42.12, -9.43) — REDEXT deep-water
+ * 12 stations covering all 3 Rías Baixas:
+ *
+ * Ría de Vigo:
  *   1251 Plataforma de Rande   (42.29, -8.66) — CETMAR/Ría de Vigo
- *   1253 Boya de A Guarda       (41.90, -8.90) — External
- *   1255 Boya de Ribeira        (42.55, -8.95) — External
- *   4271 Lourizan (Pontevedra)  (42.41, -8.66) — REMPOR port met
- *   3221 Vigo 2                  (42.24, -8.73) — REDMAR tide gauge
+ *   1252 Islas Cíes             (42.17, -8.91) — CETMAR/bocana Vigo
+ *   3221 Vigo 2                 (42.24, -8.73) — REDMAR tide gauge
+ *
+ * Ría de Pontevedra:
+ *   4271 Lourizán               (42.41, -8.66) — REMPOR port met
+ *   4272 Ons                    (42.38, -8.94) — REMPOR isla
+ *   4273 Cabo Udra              (42.34, -8.83) — REMPOR costa
+ *   3223 Marín                  (42.41, -8.69) — REDMAR tide gauge
+ *
+ * Ría de Arousa:
+ *   1250 Cortegada              (42.63, -8.78) — CETMAR/batea
+ *   1255 Ribeira                (42.55, -8.95) — CETMAR/externa
+ *   3220 Vilagarcía             (42.60, -8.77) — REDMAR tide gauge
+ *
+ * Exterior:
+ *   2248 Cabo Silleiro          (42.12, -9.43) — REDEXT deep-water
+ *   1253 A Guarda               (41.90, -8.90) — CETMAR/externa
  *
  * No auth required. Hourly updates for buoys, 10-min for REMPOR.
  */
@@ -61,14 +75,24 @@ export interface BuoyReading {
   seaLevel: number | null;         // cm
 }
 
-/** Predefined stations for Rías Baixas sector */
+/** Predefined stations for Rías Baixas sector — all 3 Rías covered */
 export const RIAS_BUOY_STATIONS: { id: number; name: string; lat: number; lon: number; type: string }[] = [
-  { id: 2248, name: 'Cabo Silleiro', lat: 42.12, lon: -9.43, type: 'REDEXT' },
-  { id: 1251, name: 'Rande (Ría Vigo)', lat: 42.29, lon: -8.66, type: 'CETMAR' },
-  { id: 1253, name: 'A Guarda', lat: 41.90, lon: -8.90, type: 'CETMAR' },
-  { id: 1255, name: 'Ribeira', lat: 42.55, lon: -8.95, type: 'CETMAR' },
-  { id: 4271, name: 'Lourizán', lat: 42.41, lon: -8.66, type: 'REMPOR' },
-  { id: 3221, name: 'Vigo (marea)', lat: 42.24, lon: -8.73, type: 'REDMAR' },
+  // ── Exterior / Atlántico ──
+  { id: 2248, name: 'Cabo Silleiro',      lat: 42.12, lon: -9.43, type: 'REDEXT' },
+  { id: 1253, name: 'A Guarda',           lat: 41.90, lon: -8.90, type: 'CETMAR' },
+  // ── Ría de Vigo ──
+  { id: 1252, name: 'Islas Cíes',         lat: 42.17, lon: -8.91, type: 'CETMAR' },
+  { id: 1251, name: 'Rande (Ría Vigo)',   lat: 42.29, lon: -8.66, type: 'CETMAR' },
+  { id: 3221, name: 'Vigo (marea)',       lat: 42.24, lon: -8.73, type: 'REDMAR' },
+  // ── Ría de Pontevedra ──
+  { id: 4272, name: 'Ons',                lat: 42.38, lon: -8.94, type: 'REMPOR' },
+  { id: 4273, name: 'Cabo Udra',          lat: 42.34, lon: -8.83, type: 'REMPOR' },
+  { id: 4271, name: 'Lourizán',           lat: 42.41, lon: -8.66, type: 'REMPOR' },
+  { id: 3223, name: 'Marín (marea)',      lat: 42.41, lon: -8.69, type: 'REDMAR' },
+  // ── Ría de Arousa ──
+  { id: 1250, name: 'Cortegada (Arousa)', lat: 42.63, lon: -8.78, type: 'CETMAR' },
+  { id: 1255, name: 'Ribeira',            lat: 42.55, lon: -8.95, type: 'CETMAR' },
+  { id: 3220, name: 'Vilagarcía (marea)', lat: 42.60, lon: -8.77, type: 'REDMAR' },
 ];
 
 // ── Helpers ──────────────────────────────────────────────

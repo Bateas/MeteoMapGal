@@ -12,6 +12,18 @@ export interface DiscoveryParams {
   center: [number, number];        // [lon, lat]
   radiusKm: number;
   meteoclimaticRegions: string[];
+  /** Extra coverage points outside the main radius (stations within 8km included) */
+  extraCoveragePoints?: { name: string; lon: number; lat: number }[];
+}
+
+/** Check if a station falls within any extra coverage point (8km mini-radius) */
+function isInExtraCoverage(
+  lat: number,
+  lon: number,
+  extraPoints?: { name: string; lon: number; lat: number }[]
+): boolean {
+  if (!extraPoints?.length) return false;
+  return extraPoints.some((p) => isWithinRadius(p.lat, p.lon, lat, lon, 8));
 }
 
 /**
@@ -21,6 +33,7 @@ export interface DiscoveryParams {
 export async function discoverStations(params: DiscoveryParams): Promise<NormalizedStation[]> {
   const [centerLon, centerLat] = params.center;
   const radiusKm = params.radiusKm;
+  const extraPoints = params.extraCoveragePoints;
 
   const [aemetStations, mgStations, mcStations, wuStations, netatmoStations] =
     await Promise.allSettled([
@@ -37,7 +50,8 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
   if (aemetStations.status === 'fulfilled') {
     for (const raw of aemetStations.value) {
       const station = normalizeAemetStation(raw);
-      if (isWithinRadius(centerLat, centerLon, station.lat, station.lon, radiusKm)) {
+      if (isWithinRadius(centerLat, centerLon, station.lat, station.lon, radiusKm) ||
+          isInExtraCoverage(station.lat, station.lon, extraPoints)) {
         stations.push(station);
       }
     }
@@ -51,7 +65,8 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
     const mgCount = stations.length;
     for (const raw of mgStations.value) {
       const station = normalizeMeteoGaliciaStation(raw);
-      if (isWithinRadius(centerLat, centerLon, station.lat, station.lon, radiusKm)) {
+      if (isWithinRadius(centerLat, centerLon, station.lat, station.lon, radiusKm) ||
+          isInExtraCoverage(station.lat, station.lon, extraPoints)) {
         const isDuplicate = stations.some(
           (s) => s.source === 'aemet' &&
             Math.abs(s.lat - station.lat) < 0.005 &&
@@ -76,7 +91,8 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
       const meta = metaMap.get(raw.id);
       if (!meta) continue;
 
-      if (isWithinRadius(centerLat, centerLon, meta.lat, meta.lon, radiusKm)) {
+      if (isWithinRadius(centerLat, centerLon, meta.lat, meta.lon, radiusKm) ||
+          isInExtraCoverage(meta.lat, meta.lon, extraPoints)) {
         const isDuplicate = stations.some(
           (s) =>
             Math.abs(s.lat - meta.lat) < 0.005 &&
