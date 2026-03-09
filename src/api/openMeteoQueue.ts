@@ -1,17 +1,22 @@
 /**
  * Global rate limiter for Open-Meteo API requests.
  *
- * Open-Meteo free tier allows ~60 requests/minute with burst limits.
- * This queue ensures ALL Open-Meteo calls across the app are coordinated:
- *   - Max 3 concurrent requests
- *   - Minimum 350ms between request starts (~170 req/min theoretical max)
+ * Open-Meteo free tier has burst limits (~60 req/min).
+ * This queue ensures ALL Open-Meteo calls across the app are serialized:
+ *   - Strictly sequential: one request at a time (no concurrency)
+ *   - Minimum 250ms between request starts
  *   - Auto-retry on 429 with exponential backoff
  *
+ * Previous implementation had a race condition where `await` inside the
+ * while loop allowed `.finally()` callbacks to re-enter `processQueue()`
+ * concurrently, breaking the MAX_CONCURRENT limit. This rewrite uses a
+ * fully sequential drain loop that is immune to re-entrance.
+ *
  * Usage: replace `fetch(url)` with `openMeteoFetch(url)` for any Open-Meteo call.
+ * Works with both api.open-meteo.com and archive-api.open-meteo.com.
  */
 
-const MAX_CONCURRENT = 3;
-const MIN_INTERVAL_MS = 350;
+const MIN_INTERVAL_MS = 250;
 const MAX_RETRIES = 2;
 const RETRY_BASE_MS = 3000; // 3s, 6s exponential backoff
 
@@ -22,44 +27,48 @@ interface QueueItem {
   reject: (err: Error) => void;
 }
 
-let activeCount = 0;
 let lastRequestTime = 0;
 const pending: QueueItem[] = [];
-let processing = false;
+let draining = false;
 
-async function processQueue(): Promise<void> {
-  if (processing) return;
-  processing = true;
+/**
+ * Sequential drain loop — processes one request at a time.
+ *
+ * Immune to re-entrance: `draining` flag stays true for the entire
+ * duration of the loop, including across all `await` points. New items
+ * pushed to `pending` during processing are picked up by the while loop.
+ * Items arriving after the loop exits are handled by the `finally` guard.
+ */
+async function drain(): Promise<void> {
+  if (draining) return;
+  draining = true;
 
-  while (pending.length > 0 && activeCount < MAX_CONCURRENT) {
-    const item = pending.shift();
-    if (!item) break;
+  try {
+    while (pending.length > 0) {
+      const item = pending.shift()!;
 
-    // Enforce minimum interval between request starts
-    const now = Date.now();
-    const elapsed = now - lastRequestTime;
-    if (elapsed < MIN_INTERVAL_MS) {
-      await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
+      // Enforce minimum interval between request starts
+      const elapsed = Date.now() - lastRequestTime;
+      if (elapsed < MIN_INTERVAL_MS) {
+        await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
+      }
+
+      lastRequestTime = Date.now();
+
+      try {
+        const res = await fetchWithRetry(item.url, item.options);
+        item.resolve(res);
+      } catch (err) {
+        item.reject(err as Error);
+      }
     }
-
-    activeCount++;
-    lastRequestTime = Date.now();
-
-    // Fire request (don't await — let it resolve independently)
-    fetchWithRetry(item.url, item.options)
-      .then(item.resolve)
-      .catch(item.reject)
-      .finally(() => {
-        activeCount--;
-        // Re-trigger queue processing
-        if (pending.length > 0) {
-          processing = false;
-          processQueue();
-        }
-      });
+  } finally {
+    draining = false;
+    // Guard: if new items arrived between while-loop exit and here, re-drain
+    if (pending.length > 0) {
+      drain();
+    }
   }
-
-  processing = false;
 }
 
 async function fetchWithRetry(
@@ -84,6 +93,9 @@ async function fetchWithRetry(
 /**
  * Rate-limited fetch for Open-Meteo API.
  * Drop-in replacement for `fetch()` — same signature and return type.
+ *
+ * All requests are serialized: one at a time, 250ms apart minimum.
+ * Works for both api.open-meteo.com and archive-api.open-meteo.com.
  */
 export function openMeteoFetch(
   url: string,
@@ -91,7 +103,7 @@ export function openMeteoFetch(
 ): Promise<Response> {
   return new Promise<Response>((resolve, reject) => {
     pending.push({ url, options, resolve, reject });
-    processQueue();
+    drain();
   });
 }
 

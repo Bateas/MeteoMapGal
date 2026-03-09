@@ -4,7 +4,10 @@
  * Free, no API key, no CORS restrictions.
  *
  * Archive API: https://archive-api.open-meteo.com/v1/archive
+ *
+ * All requests go through openMeteoQueue.ts rate limiter to prevent 429 errors.
  */
+import { openMeteoFetch } from './openMeteoQueue';
 
 export interface HourlyDataPoint {
   time: Date;
@@ -44,7 +47,7 @@ export async function fetchHistoricalData(
     `&wind_speed_unit=ms` +
     `&timezone=Europe%2FMadrid`;
 
-  const res = await fetch(url);
+  const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) {
     throw new Error(`Open-Meteo Archive API error: ${res.status} ${res.statusText}`);
   }
@@ -66,8 +69,8 @@ export async function fetchHistoricalData(
 }
 
 /**
- * Fetch historical data for multiple locations in parallel.
- * Useful for comparing zones.
+ * Fetch historical data for multiple locations sequentially.
+ * All requests go through the global rate limiter queue.
  */
 export async function fetchHistoricalMultiLocation(
   locations: { id: string; lat: number; lon: number }[],
@@ -76,16 +79,13 @@ export async function fetchHistoricalMultiLocation(
 ): Promise<Map<string, HourlyDataPoint[]>> {
   const results = new Map<string, HourlyDataPoint[]>();
 
-  const settled = await Promise.allSettled(
-    locations.map(async (loc) => {
+  // Sequential — each request goes through rate limiter queue
+  for (const loc of locations) {
+    try {
       const data = await fetchHistoricalData(loc.lat, loc.lon, startDate, endDate);
-      return { id: loc.id, data };
-    })
-  );
-
-  for (const result of settled) {
-    if (result.status === 'fulfilled') {
-      results.set(result.value.id, result.value.data);
+      results.set(loc.id, data);
+    } catch (err) {
+      console.warn(`[Archive] Historical data failed for ${loc.id}:`, (err as Error).message);
     }
   }
 
