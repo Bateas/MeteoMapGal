@@ -32,6 +32,7 @@ import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { useToastStore } from '../../store/toastStore';
 import { useAirspace } from '../../hooks/useAirspace';
+import { useBuoyData } from '../../hooks/useBuoyData';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 
 export function AppShell() {
@@ -83,6 +84,9 @@ export function AppShell() {
 
   // Airspace restrictions: ENAIRE UAS zones + NOTAMs (polls every 30 min)
   const airspaceCheck = useAirspace();
+
+  // Marine buoy data: Puertos del Estado (30 min refresh, only active for Rías)
+  useBuoyData();
 
   // Prune stale reading history every 30 min (entries > 24h old)
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
