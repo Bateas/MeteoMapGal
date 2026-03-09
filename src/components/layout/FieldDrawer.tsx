@@ -186,6 +186,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
               <FogSection alerts={alerts} />
               <ET0Section alerts={alerts} />
               <DiseaseSection alerts={alerts} />
+              <GDDSection alerts={alerts} />
               <LunarSection />
             </>
           )}
@@ -818,6 +819,78 @@ function DiseaseSection({ alerts }: { alerts: FieldAlerts }) {
           Referencia: viñedo Ribeiro (Ourense). No sustituye asesoramiento técnico.
         </p>
       </div>
+    </AlertSection>
+  );
+}
+
+function GDDSection({ alerts }: { alerts: FieldAlerts }) {
+  const { gdd } = alerts;
+
+  // Color for accumulated GDD value
+  const gddColor = gdd.level === 'alto' ? '#f59e0b' : gdd.level === 'riesgo' ? '#3b82f6' : '#22c55e';
+
+  return (
+    <AlertSection icon={<WeatherIcon id="sprout" size={14} />} title="Grados-Día (GDD)" level={gdd.level}>
+      {gdd.accumulated !== null || gdd.todayGDD !== null ? (
+        <div className="space-y-1.5">
+          {/* Main GDD values */}
+          <div className="flex justify-between text-[10px]">
+            <span className="text-slate-400">GDD acumulados</span>
+            <span className="font-bold" style={{ color: gddColor }}>
+              {gdd.accumulated !== null ? `${gdd.accumulated.toFixed(0)} °C·d` : '—'}
+            </span>
+          </div>
+          {gdd.todayGDD !== null && (
+            <div className="flex justify-between text-[10px]">
+              <span className="text-slate-400">Hoy</span>
+              <span className="text-slate-300">+{gdd.todayGDD.toFixed(1)} °C·d</span>
+            </div>
+          )}
+
+          {/* Growth stage with progress bar */}
+          <div className="mt-1">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[10px] font-semibold text-slate-300">
+                🌱 {gdd.growthStage}
+              </span>
+              <span className="text-[8px] text-slate-500">{gdd.stageProgress}%</span>
+            </div>
+            <div className="h-1 bg-slate-700/50 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${gdd.stageProgress}%`,
+                  background: `linear-gradient(90deg, #22c55e, ${gddColor})`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Next milestone */}
+          {gdd.nextMilestone && gdd.nextMilestone.gddNeeded > 0 && (
+            <div className="flex justify-between text-[9px] text-slate-500">
+              <span>→ {gdd.nextMilestone.name}</span>
+              <span>faltan ~{gdd.nextMilestone.gddNeeded} °C·d</span>
+            </div>
+          )}
+
+          {/* Advice */}
+          <div className="text-[9px] text-slate-400 leading-snug border-t border-slate-700/30 pt-1 mt-1">
+            {gdd.advice}
+          </div>
+
+          {/* Footer */}
+          <p className="text-[8px] text-slate-600 italic">
+            Base 10°C (Vitis vinifera). Temporada desde 1 marzo. Día {gdd.daysSinceStart}.
+          </p>
+        </div>
+      ) : (
+        <p className="text-[10px] text-slate-500">
+          {gdd.growthStage === 'Fuera de temporada'
+            ? 'La temporada de crecimiento comienza en marzo.'
+            : 'Sin datos suficientes para cálculo GDD'}
+        </p>
+      )}
     </AlertSection>
   );
 }
