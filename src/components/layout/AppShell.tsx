@@ -12,6 +12,7 @@ import { useLightningData, useLightningStore } from '../../hooks/useLightningDat
 import { useStormShadow, useStormShadowStore } from '../../hooks/useStormShadow';
 import { useForecastTimeline, useForecastStore } from '../../hooks/useForecastTimeline';
 import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
+import { fetchSeasonGDD } from '../../services/gddService';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -99,11 +100,24 @@ export function AppShell() {
   const forecastHourly = useForecastStore((s) => s.hourly);
   const readingHistory = useWeatherStore((s) => s.readingHistory);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
+
+  // GDD season accumulation (fetched once per session, cached 1h)
+  const [seasonGDD, setSeasonGDD] = useState<{ accumulated: number; days: number } | null>(null);
+  const gddFetchedRef = useRef(false);
+  useEffect(() => {
+    if (gddFetchedRef.current) return;
+    gddFetchedRef.current = true;
+    const [lon, lat] = activeSector.center;
+    fetchSeasonGDD(lat, lon).then((result) => {
+      if (result) setSeasonGDD(result);
+    });
+  }, [activeSector.center]);
+
   const fieldAlerts = useMemo(
     () => (forecastHourly.length > 0 || readingHistory.size > 0
-      ? checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck)
+      ? checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD)
       : null),
-    [forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck],
+    [forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD],
   );
   const toggleFieldDrawer = useCallback(() => {
     setFieldDrawerOpen((o) => {

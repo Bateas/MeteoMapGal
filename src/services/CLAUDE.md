@@ -37,6 +37,7 @@ Pure functions and algorithms used across the app. No React dependencies.
 
 ## Agriculture
 
+- **`gddService.ts`** — Growing Degree Days (GDD) for Vitis vinifera. `dailyGDD()` formula (base 10°C), `fetchSeasonGDD()` via Open-Meteo archive API (session-cached 1h), `computeTodayGDD()` from forecast, `getGrowthStage()` returns 9 phenological stages calibrated for Galician viticulture (Latencia → Vendimia). Season starts March 1.
 - **`lunarService.ts`** — Lunar phase calculation (Jean Meeus algorithm). 8 phases in Spanish, illumination %, moon age, next phase ETA, agricultural recommendations for Galician crops. Pure algorithmic — no API calls.
 
 ## Data Logging

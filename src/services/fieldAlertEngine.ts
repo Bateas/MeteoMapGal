@@ -5,12 +5,13 @@
 
 import type { HourlyForecast } from '../types/forecast';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
-import type { FrostAlert, RainAlert, DroneConditions, FieldAlerts, AlertLevel, WindPropagationInfo, ET0Result, DiseaseRisk } from '../types/campo';
+import type { FrostAlert, RainAlert, DroneConditions, FieldAlerts, AlertLevel, WindPropagationInfo, ET0Result, DiseaseRisk, GDDInfo } from '../types/campo';
 import type { AirspaceCheck } from './airspaceService';
 import { msToKnots } from './windUtils';
 import { getSunTimes } from './solarUtils';
 import { analyzeFog } from './dewPointService';
 import { detectWindPropagation } from './windPropagationService';
+import { computeTodayGDD, getGrowthStage, getSeasonStart } from './gddService';
 
 // ── Frost detection ──────────────────────────────────────
 
@@ -331,6 +332,60 @@ export function checkDiseaseRisk(forecast: HourlyForecast[]): DiseaseRisk {
   };
 }
 
+// ── GDD info (sync — uses forecast only for today) ──────
+
+/**
+ * Compute GDD info from forecast data.
+ * Today's GDD comes from the forecast. Season accumulation is set externally
+ * (fetched async and passed in). This keeps the function pure and sync.
+ */
+export function computeGDDInfo(
+  forecast: HourlyForecast[],
+  seasonAccumulated?: number | null,
+  seasonDays?: number,
+): GDDInfo {
+  const noData: GDDInfo = {
+    accumulated: null, todayGDD: null, growthStage: 'Sin datos',
+    stageProgress: 0, advice: 'Sin datos suficientes para calcular GDD',
+    nextMilestone: null, daysSinceStart: 0, level: 'none',
+  };
+
+  const seasonStart = getSeasonStart();
+  if (!seasonStart) {
+    return { ...noData, growthStage: 'Fuera de temporada', advice: 'La temporada de crecimiento comienza en marzo.' };
+  }
+
+  const todayGDD = computeTodayGDD(forecast);
+  const accumulated = seasonAccumulated ?? null;
+
+  if (accumulated === null && todayGDD === null) return noData;
+
+  // Use accumulated if available, otherwise just today's
+  const totalGDD = accumulated ?? (todayGDD ?? 0);
+
+  const { stage, progress, nextMilestone } = getGrowthStage(totalGDD);
+
+  const diffMs = Date.now() - seasonStart.getTime();
+  const daysSinceStart = seasonDays ?? Math.floor(diffMs / (24 * 60 * 60 * 1000));
+
+  // Alert level: flowering and harvest are critical phenological phases
+  let level: AlertLevel = 'none';
+  if (stage.name === 'Floración') level = 'alto';
+  else if (stage.name === 'Vendimia') level = 'riesgo';
+  else if (stage.name === 'Envero') level = 'riesgo';
+
+  return {
+    accumulated: accumulated !== null ? Math.round(accumulated * 10) / 10 : null,
+    todayGDD,
+    growthStage: stage.name,
+    stageProgress: progress,
+    advice: stage.advice,
+    nextMilestone,
+    daysSinceStart,
+    level,
+  };
+}
+
 // ── Combined check ───────────────────────────────────────
 
 /**
@@ -347,6 +402,7 @@ export function checkAllFieldAlerts(
   currentReadings?: Map<string, NormalizedReading>,
   center?: [number, number],
   airspace?: AirspaceCheck,
+  seasonGDD?: { accumulated: number; days: number } | null,
 ): FieldAlerts {
   const frost = checkFrost(forecast, center);
   const rain = checkRainHail(forecast);
@@ -354,6 +410,7 @@ export function checkAllFieldAlerts(
   const fog = analyzeFog(readingHistory ?? new Map(), new Date(), forecast);
   const et0 = computeET0(forecast);
   const disease = checkDiseaseRisk(forecast);
+  const gdd = computeGDDInfo(forecast, seasonGDD?.accumulated, seasonGDD?.days);
 
   // Wind propagation detection (needs stations + current + history)
   let wind: WindPropagationInfo = {
@@ -381,9 +438,9 @@ export function checkAllFieldAlerts(
     };
   }
 
-  const levels: AlertLevel[] = [frost.level, rain.level, fog.level, et0.level, disease.mildiu.level, disease.oidio.level];
+  const levels: AlertLevel[] = [frost.level, rain.level, fog.level, et0.level, disease.mildiu.level, disease.oidio.level, gdd.level];
   const priority: Record<AlertLevel, number> = { none: 0, riesgo: 1, alto: 2, critico: 3 };
   const maxLevel = levels.reduce<AlertLevel>((max, l) => priority[l] > priority[max] ? l : max, 'none');
 
-  return { frost, rain, fog, drone, wind, et0, disease, maxLevel };
+  return { frost, rain, fog, drone, wind, et0, disease, gdd, maxLevel };
 }
