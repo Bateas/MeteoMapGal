@@ -81,6 +81,27 @@ export function RoadmapSection() {
           status="done"
         />
 
+        <TimelineMilestone
+          iconId="waves"
+          title="Boyas marinas (Puertos del Estado)"
+          desc="Oleaje, viento, temperatura del agua, corrientes y salinidad de 6 boyas en Rías Baixas."
+          status="done"
+        />
+
+        <TimelineMilestone
+          iconId="wind"
+          title="Rosa de vientos histórica"
+          desc="Diagrama polar de frecuencia de viento por dirección y velocidad. Disponible en Historial."
+          status="done"
+        />
+
+        <TimelineMilestone
+          iconId="radar"
+          title="Comparación de estaciones"
+          desc="Superponer gráficas de 2 estaciones para comparar tendencias históricas lado a lado."
+          status="done"
+        />
+
         {/* Minor updates — collapsed */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
           <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-emerald-500/20 border-emerald-500/30" />
@@ -108,15 +129,6 @@ export function RoadmapSection() {
             </p>
           </div>
         </div>
-
-        {/* Próximamente */}
-        <TimelineGroup label="Próximamente" dotColor="bg-amber-500" textColor="text-amber-400" />
-        <TimelineMilestone
-          iconId="waves"
-          title="Boyas marinas (Puertos del Estado)"
-          desc="Oleaje, temperatura del agua y viento mar adentro para Rías Baixas."
-          status="planned"
-        />
 
         {/* Futuras funcionalidades */}
         <TimelineGroup label="Futuras funcionalidades" dotColor="bg-slate-500" textColor="text-slate-400" />
@@ -186,6 +198,7 @@ export function RoadmapSection() {
             <SourceRow letter="L" name="MeteoGalicia" desc="Red de detección de rayos" color="#f43f5e" />
             <SourceRow letter="E" name="ENAIRE" desc="Espacio aéreo y NOTAMs para drones" color="#6366f1" />
             <SourceRow letter="T" name="IHM / Puertos del Estado" desc="Predicciones de mareas (5 puertos)" color="#14b8a6" />
+            <SourceRow letter="B" name="Puertos del Estado (PORTUS)" desc="Boyas marinas — oleaje, viento, corrientes (6 estaciones)" color="#06b6d4" />
           </div>
         </div>
 
@@ -205,7 +218,7 @@ export function RoadmapSection() {
             </div>
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[10px]">
               <span className="text-slate-500">93+ estaciones</span>
-              <span className="text-slate-500">12 APIs</span>
+              <span className="text-slate-500">13 APIs</span>
               <span className="text-slate-500">159 tests</span>
               <span className="text-slate-500">TimescaleDB</span>
             </div>
