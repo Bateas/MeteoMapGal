@@ -18,7 +18,6 @@ import { Marker } from 'react-map-gl/maplibre';
 import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
-import { WindArrow } from './WindArrow';
 import { msToKnots, windSpeedColor } from '../../services/windUtils';
 import { waveHeightColor, waterTempColor, currentSpeedColor } from '../../services/buoyUtils';
 
@@ -161,13 +160,6 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
     >
       <div className="buoy-marker relative cursor-pointer" title={reading.stationName}>
         <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Boya ${reading.stationName}`}>
-          {/* Dark outline filter for wind arrow contrast */}
-          <defs>
-            <filter id={`buoy-arrow-shadow-${reading.stationId}`} x="-30%" y="-30%" width="160%" height="160%">
-              <feDropShadow dx="0" dy="0" stdDeviation="1.5" floodColor="#000" floodOpacity="0.6" />
-            </filter>
-          </defs>
-
           {/* ── Secondary indicators — rendered FIRST (behind everything) ── */}
           {hasCurrent && (
             <CurrentArrow speed={reading.currentSpeed!} dir={reading.currentDir!} />
@@ -180,14 +172,7 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
             />
           )}
 
-          {/* ── Wind arrow — rendered BEFORE circle (same as StationMarker) ── */}
-          {/* Circle covers the arrow base; tip extends outward cleanly */}
-          <g filter={`url(#buoy-arrow-shadow-${reading.stationId})`}>
-            <WindArrow
-              direction={reading.windDir ?? null}
-              speed={reading.windSpeed ?? null}
-            />
-          </g>
+          {/* Wind arrows now rendered by WindFieldOverlay (hex-pattern around buoy) */}
 
           {/* Outer ring — animated dashes (marine identity) */}
           <circle
