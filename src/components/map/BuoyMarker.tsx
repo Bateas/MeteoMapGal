@@ -18,7 +18,6 @@ import { Marker } from 'react-map-gl/maplibre';
 import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
-import { msToKnots, windSpeedColor } from '../../services/windUtils';
 import { waveHeightColor, waterTempColor, currentSpeedColor } from '../../services/buoyUtils';
 
 interface BuoyMarkerProps {
@@ -109,22 +108,22 @@ function CurrentArrow({ speed, dir }: { speed: number; dir: number }) {
   );
 }
 
-/** Badge style factory — high-contrast dark bg with glow text */
+/** Badge style factory — high-contrast dark bg with glow text, tight to icon */
 function badgeStyle(color: string, position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left') {
   const posClass = {
-    'top-right': '-top-1 -right-1',
-    'top-left': '-top-1 -left-2',
-    'bottom-right': '-bottom-1.5 -right-1',
-    'bottom-left': '-bottom-1.5 -left-2',
+    'top-right': 'top-2 right-2',
+    'top-left': 'top-2 left-1',
+    'bottom-right': 'bottom-2 right-2',
+    'bottom-left': 'bottom-2 left-1',
   }[position];
 
   return {
     className: `absolute ${posClass} rounded px-1 py-px pointer-events-none whitespace-nowrap border`,
     style: {
-      fontSize: 10,
+      fontSize: 9,
       fontWeight: 700 as const,
       fontFamily: 'ui-monospace, monospace',
-      lineHeight: '13px',
+      lineHeight: '12px',
       background: 'rgba(15, 23, 42, 0.92)',
       borderColor: `${color}99`,
       color,
@@ -140,11 +139,8 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
 
   const fColor = freshnessColor(reading.timestamp);
   const hasWaves = reading.waveHeight != null;
-  const hasWind = reading.windSpeed != null && reading.windSpeed > 0.3;
   const hasWaterTemp = reading.waterTemp != null;
   const hasCurrent = reading.currentSpeed != null && reading.currentSpeed > 0.01 && reading.currentDir != null;
-
-  const windKt = hasWind ? msToKnots(reading.windSpeed!) : 0;
 
   const handleClick = useCallback((e: { originalEvent: MouseEvent }) => {
     e.originalEvent.stopPropagation();
@@ -210,7 +206,7 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
           </g>
         </svg>
 
-        {/* ── Data badges — always shown when data available ── */}
+        {/* ── Data badges — wave, temp, current (no wind — shown by field arrows) ── */}
 
         {/* Wave height (top-right) */}
         {hasWaves && (() => {
@@ -219,21 +215,14 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
           return <div className={b.className} style={b.style}>{reading.waveHeight!.toFixed(1)}m</div>;
         })()}
 
-        {/* Wind speed (top-left) */}
-        {hasWind && (() => {
-          const wColor = windSpeedColor(reading.windSpeed);
-          const b = badgeStyle(wColor, 'top-left');
-          return <div className={b.className} style={b.style}>{windKt.toFixed(0)}kt</div>;
-        })()}
-
-        {/* Water temperature (bottom-right) — always shown */}
+        {/* Water temperature (bottom-right) */}
         {hasWaterTemp && (() => {
           const wColor = waterTempColor(reading.waterTemp!);
           const b = badgeStyle(wColor, 'bottom-right');
           return <div className={b.className} style={b.style}>{reading.waterTemp!.toFixed(0)}°</div>;
         })()}
 
-        {/* Current speed (bottom-left) — always shown when available */}
+        {/* Current speed (bottom-left) */}
         {hasCurrent && (() => {
           const cColor = currentSpeedColor(reading.currentSpeed!);
           const b = badgeStyle(cColor, 'bottom-left');
