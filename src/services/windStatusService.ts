@@ -14,7 +14,7 @@
 
 import { computeWindConsensus, type WindConsensus } from './dailyBriefingService';
 import { computeDirectionSpread } from './windPropagationService';
-import { msToKnots } from './windUtils';
+import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { fastDistanceKm } from './idwInterpolation';
 import type { NormalizedReading, NormalizedStation } from '../types/station';
 import type { MicroZoneId, MicroZone } from '../types/thermal';
@@ -57,19 +57,6 @@ export interface WindStatus {
   consensusDurationMin: number | null;
   /** Rough stability estimate in hours, null if insufficient data */
   stableHours: number | null;
-}
-
-// ── Cardinal helpers ─────────────────────────────────────────
-
-const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
-
-function degToCardinal8(deg: number): string {
-  const idx = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
-  return CARDINALS[idx];
-}
-
-function angularDifference(a: number, b: number): number {
-  return Math.abs(((a - b) + 180) % 360 - 180);
 }
 
 // ── Distance weighting helpers ───────────────────────────────

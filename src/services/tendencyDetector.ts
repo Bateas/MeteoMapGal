@@ -17,7 +17,7 @@
 
 import type { NormalizedReading } from '../types/station';
 import type { MicroZoneId, TendencySignal, TendencyLevel, DailyContext } from '../types/thermal';
-import { isDirectionInRange } from './windUtils';
+import { isDirectionInRange, angleDifference } from './windUtils';
 
 // ── Thermal sector: W/SW/NW (202.5° to 337.5°) ──────────
 const THERMAL_SECTOR = { from: 202.5, to: 337.5 };
@@ -393,18 +393,14 @@ function computeDirectionTrend(
 
   // Distance to center of thermal sector (270° = W)
   const thermalCenter = 270;
-  const currentDist = angleDiff(latest.windDirection, thermalCenter);
-  const oldDist = angleDiff(oldDir, thermalCenter);
+  const currentDist = angleDifference(latest.windDirection, thermalCenter);
+  const oldDist = angleDifference(oldDir, thermalCenter);
 
   if (oldDist - currentDist > 15) return 'approaching'; // Getting closer
   if (currentDist - oldDist > 15) return 'departing';
   return 'stable';
 }
 
-function angleDiff(a: number, b: number): number {
-  const diff = Math.abs(a - b) % 360;
-  return diff > 180 ? 360 - diff : diff;
-}
 
 function buildSummary(
   level: TendencyLevel,

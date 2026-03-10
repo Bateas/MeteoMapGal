@@ -109,6 +109,11 @@ export const RIAS_BUOY_STATIONS: { id: number; name: string; lat: number; lon: n
   { id: 3220, name: 'Vilagarcía (marea)', lat: 42.60, lon: -8.77, type: 'REDMAR' },
 ];
 
+/** Pre-built coordinates lookup for all buoy stations (shared across components) */
+export const BUOY_COORDS_MAP = new Map(
+  RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]),
+);
+
 // ── Helpers ──────────────────────────────────────────────
 
 /**

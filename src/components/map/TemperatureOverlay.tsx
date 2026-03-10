@@ -5,7 +5,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSectorStore } from '../../store/sectorStore';
-import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
+import { BUOY_COORDS_MAP } from '../../api/buoyClient';
 import { temperatureColor } from '../../services/windUtils';
 import { waterTempColor } from '../../services/buoyUtils';
 import { extractStationTemps } from '../../services/lapseRateService';
@@ -104,11 +104,6 @@ const stationSubLabelLayer: LayerProps = {
 
 
 // ── Component ───────────────────────────────────────────────
-
-/** Buoy coords lookup (module-level for performance) */
-const BUOY_COORDS_MAP = new Map(
-  RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]),
-);
 
 export const TemperatureOverlay = memo(function TemperatureOverlay() {
   const showOverlay = useTemperatureOverlayStore((s) => s.showOverlay);

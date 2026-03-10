@@ -3,20 +3,18 @@
  *
  * Visual design:
  * - Cyan anchor icon (core identity)
- * - WindArrow: SHARED component with weather stations — solid arrow, warm colors
- *   **Rendered OUTSIDE the shadow group** for maximum visibility (same as stations)
+ * - Wind arrows rendered via WindFieldOverlay (hex-pattern, GPU-accelerated)
  * - CurrentArrow: DOTTED blue arrow with open chevron — visually distinct from wind
  * - WaveGlyph: 3-crest wave line — amplitude scales with wave height
- * - 4 corner badges: wave height, wind speed, water temp, current speed
- *   Always shown when data available (not gated by wind presence).
- *   Dark near-opaque backgrounds with glow text for ocean map contrast.
+ * - 3 corner badges: wave height, water temp, current speed
+ *   Always shown when data available. Dark backgrounds with glow text.
  *
  * Color scales from buoyUtils.ts — shared with BuoyPopup and BuoyPanel.
  */
 import { memo, useCallback } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import type { BuoyReading } from '../../api/buoyClient';
-import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
+import { BUOY_COORDS_MAP } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { waveHeightColor, waterTempColor, currentSpeedColor } from '../../services/buoyUtils';
 
@@ -24,11 +22,6 @@ interface BuoyMarkerProps {
   reading: BuoyReading;
   isSelected?: boolean;
 }
-
-/** Buoy station coordinates lookup */
-const BUOY_COORDS = new Map(
-  RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]),
-);
 
 /** Data freshness color based on timestamp age */
 function freshnessColor(timestamp: string): string {
@@ -134,7 +127,7 @@ function badgeStyle(color: string, position: 'top-right' | 'top-left' | 'bottom-
 
 export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false }: BuoyMarkerProps) {
   const selectBuoy = useBuoyStore((s) => s.selectBuoy);
-  const coords = BUOY_COORDS.get(reading.stationId);
+  const coords = BUOY_COORDS_MAP.get(reading.stationId);
   if (!coords) return null;
 
   const fColor = freshnessColor(reading.timestamp);

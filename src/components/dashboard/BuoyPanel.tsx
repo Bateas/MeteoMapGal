@@ -11,7 +11,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { BuoyReading } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { msToKnots, windSpeedClass } from '../../services/windUtils';
-import { waveHeightClass, waterTempClass, currentSpeedClass } from '../../services/buoyUtils';
+import { waveHeightClass, waterTempClass, currentSpeedClass, seaStateLabel } from '../../services/buoyUtils';
 
 /** Compass label from degrees */
 function dirLabel(deg: number | null): string {
@@ -111,7 +111,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
         {hasWaves && (
           <>
             <DataCell
-              label="Oleaje"
+              label={seaStateLabel(b.waveHeight)}
               value={`${b.waveHeight!.toFixed(1)} m`}
               className={waveHeightClass(b.waveHeight!)}
             />
