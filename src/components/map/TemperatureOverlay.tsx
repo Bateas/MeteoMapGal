@@ -3,7 +3,11 @@ import { Source, Layer } from 'react-map-gl/maplibre';
 import type { LayerProps } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
+import { useBuoyStore } from '../../store/buoyStore';
+import { useSectorStore } from '../../store/sectorStore';
+import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { temperatureColor } from '../../services/windUtils';
+import { waterTempColor } from '../../services/buoyUtils';
 import { extractStationTemps } from '../../services/lapseRateService';
 
 // ── Empty GeoJSON for stable reference when overlay is off ──
@@ -101,27 +105,31 @@ const stationSubLabelLayer: LayerProps = {
 
 // ── Component ───────────────────────────────────────────────
 
+/** Buoy coords lookup (module-level for performance) */
+const BUOY_COORDS_MAP = new Map(
+  RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]),
+);
+
 export const TemperatureOverlay = memo(function TemperatureOverlay() {
   const showOverlay = useTemperatureOverlayStore((s) => s.showOverlay);
   const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
+  const buoys = useBuoyStore((s) => s.buoys);
+  const isRias = useSectorStore((s) => s.activeSector.id === 'rias');
 
-  // ── Temperature circles GeoJSON ──────────────────────────
+  // ── Temperature circles GeoJSON (stations + buoy water temps) ──
   const circlesGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay) return EMPTY_FC;
 
-    const temps = extractStationTemps(stations, currentReadings);
-    if (temps.length === 0) return EMPTY_FC;
+    const features: GeoJSON.Feature[] = [];
 
-    return {
-      type: 'FeatureCollection',
-      features: temps.map((t) => ({
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [t.lon, t.lat],
-        },
+    // Weather station air temps
+    const temps = extractStationTemps(stations, currentReadings);
+    for (const t of temps) {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [t.lon, t.lat] },
         properties: {
           temperature: t.temperature,
           color: temperatureColor(t.temperature),
@@ -130,9 +138,34 @@ export const TemperatureOverlay = memo(function TemperatureOverlay() {
           label: `${t.temperature.toFixed(1)}°`,
           sublabel: `${t.name} · ${t.altitude}m`,
         },
-      })),
-    };
-  }, [showOverlay, stations, currentReadings]);
+      });
+    }
+
+    // Buoy water temps (Rías sector only)
+    if (isRias) {
+      for (const b of buoys) {
+        if (b.waterTemp == null) continue;
+        const coords = BUOY_COORDS_MAP.get(b.stationId);
+        if (!coords) continue;
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [coords.lon, coords.lat] },
+          properties: {
+            temperature: b.waterTemp,
+            color: waterTempColor(b.waterTemp),
+            altitude: 0,
+            name: b.stationName,
+            label: `${b.waterTemp.toFixed(1)}°`,
+            sublabel: `${b.stationName} · agua`,
+          },
+        });
+      }
+    }
+
+    if (features.length === 0) return EMPTY_FC;
+
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, stations, currentReadings, buoys, isRias]);
 
   // Don't render any sources when completely off
   if (!showOverlay) return null;
