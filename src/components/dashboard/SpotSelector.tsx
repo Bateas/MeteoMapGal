@@ -1,21 +1,23 @@
 /**
- * Spot selection + per-spot verdict cards.
+ * Unified spot scoring panel — single source of truth for sailing verdicts.
  *
  * Sector-aware: shows RIAS_SPOTS or EMBALSE_SPOTS based on active sector.
- * Shows GO/MARGINAL/NOGO verdicts. Clicking a spot selects it as active (persisted).
- * Collapsed by default — expands to show detail cards.
- * Includes beta disclaimer — pattern matching is experimental.
+ * Shows GO/MARGINAL/NOGO verdicts per spot.
+ * For spots with thermalDetection (Castrelo, Cesantes), shows thermal detail rows
+ * (ΔT, thermal probability, wind window, atmosphere, tendency, alerts).
+ *
+ * Collapsed by default — expands to show all spot cards + detail.
  */
 import { memo, useState, useMemo } from 'react';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { getSpotsForSector } from '../../config/spots';
-import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
+import type { SpotScore, SpotVerdict, SpotThermalContext } from '../../services/spotScoringEngine';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
-// ── Verdict styling (shared palette with DailySailingBriefing) ─────
+// ── Verdict styling ──────────────────────────────────────────────
 
-const VERDICT_STYLE: Record<SpotVerdict, { label: string; bg: string; border: string; text: string; dot: string }> = {
+export const VERDICT_STYLE: Record<SpotVerdict, { label: string; bg: string; border: string; text: string; dot: string }> = {
   go:       { label: 'GO',           bg: 'bg-emerald-500/10', border: 'border-emerald-500/40', text: 'text-emerald-400', dot: 'bg-emerald-400' },
   marginal: { label: 'MARGINAL',     bg: 'bg-amber-500/10',   border: 'border-amber-500/40',   text: 'text-amber-400',   dot: 'bg-amber-400' },
   nogo:     { label: 'NO GO',        bg: 'bg-red-500/10',     border: 'border-red-500/40',     text: 'text-red-400',     dot: 'bg-red-400' },
@@ -68,7 +70,7 @@ export const SpotSelector = memo(function SpotSelector() {
         />
       </button>
 
-      {/* ── Expanded: all spots + beta warning ── */}
+      {/* ── Expanded: all spots + thermal detail + beta warning ── */}
       {expanded && (
         <div className="px-2 pb-2.5 space-y-1.5 border-t border-slate-700/50 pt-2">
           {spots.map((spot) => {
@@ -163,10 +165,149 @@ function SpotCard({
         </div>
       )}
 
+      {/* Thermal detail rows (only for spots with thermalDetection) */}
+      {isActive && score?.thermal && (
+        <ThermalDetails thermal={score.thermal} />
+      )}
+
+      {/* Storm alert — shown for ALL spots, not just thermal ones */}
+      {isActive && score?.hasStormAlert && !score.thermal?.hasStormAlert && (
+        <div className="mt-1 pt-1 border-t border-slate-700/30">
+          <DetailRow
+            icon="alert-triangle"
+            iconColor="text-red-400"
+            label="Alerta"
+            value="Tormenta activa"
+            color="text-red-400"
+          />
+        </div>
+      )}
+
       {/* Description (only for active spot) */}
       {isActive && (
         <p className="text-[10px] text-slate-500 mt-1">{description}</p>
       )}
     </button>
+  );
+}
+
+// ── Thermal detail rows ──────────────────────────────────────────
+
+function ThermalDetails({ thermal }: { thermal: SpotThermalContext }) {
+  return (
+    <div className="mt-1.5 pt-1.5 border-t border-slate-700/30 space-y-0.5">
+      {/* ΔT */}
+      <DetailRow
+        icon="thermometer"
+        iconColor="text-orange-400"
+        label="ΔT diurno"
+        value={thermal.deltaT !== null ? `${thermal.deltaT.toFixed(1)}°C` : '—'}
+        color={
+          thermal.deltaT !== null
+            ? thermal.deltaT >= 20 ? 'text-green-400'
+              : thermal.deltaT >= 16 ? 'text-emerald-400'
+              : thermal.deltaT >= 12 ? 'text-amber-400'
+              : 'text-red-400'
+            : 'text-slate-500'
+        }
+      />
+
+      {/* Thermal probability */}
+      <DetailRow
+        icon="sun"
+        iconColor="text-yellow-400"
+        label="Prob. térmicas"
+        value={`${thermal.thermalProbability}%`}
+        color={
+          thermal.thermalProbability >= 60 ? 'text-green-400'
+            : thermal.thermalProbability >= 35 ? 'text-amber-400'
+            : 'text-red-400'
+        }
+      />
+
+      {/* Wind window */}
+      <DetailRow
+        icon="wind"
+        iconColor="text-sky-400"
+        label="Ventana viento"
+        value={thermal.windWindow
+          ? `${thermal.windWindow.dominantDir} ${thermal.windWindow.avgSpeedKt.toFixed(0)}kt (${thermal.windWindow.startHour}:00–${thermal.windWindow.endHour}:00)`
+          : 'Sin ventana clara'
+        }
+        color={thermal.windWindow ? 'text-sky-300' : 'text-slate-500'}
+      />
+
+      {/* Clouds + CAPE */}
+      {thermal.atmosphere.cloudCover !== null && (
+        <DetailRow
+          icon="cloud"
+          iconColor="text-slate-400"
+          label="Nubes / CAPE"
+          value={`${Math.round(thermal.atmosphere.cloudCover)}%${thermal.atmosphere.cape !== null ? ` · ${Math.round(thermal.atmosphere.cape)} J/kg` : ''}`}
+          color={
+            thermal.atmosphere.cloudCover < 30 ? 'text-green-400'
+              : thermal.atmosphere.cloudCover < 60 ? 'text-amber-400'
+              : 'text-red-400'
+          }
+        />
+      )}
+
+      {/* Tendency */}
+      {thermal.bestTendency !== 'none' && (
+        <DetailRow
+          icon="sun"
+          iconColor="text-amber-400"
+          label="Tendencia"
+          value={
+            thermal.bestTendency === 'active' ? 'Térmicas activas'
+              : thermal.bestTendency === 'likely' ? 'Térmicas probables'
+              : 'En formación'
+          }
+          color={
+            thermal.bestTendency === 'active' ? 'text-green-400'
+              : thermal.bestTendency === 'likely' ? 'text-amber-400'
+              : 'text-sky-400'
+          }
+        />
+      )}
+
+      {/* Storm alert */}
+      {thermal.hasStormAlert && (
+        <DetailRow
+          icon="alert-triangle"
+          iconColor="text-red-400"
+          label="Alerta"
+          value="Tormenta activa"
+          color="text-red-400"
+        />
+      )}
+
+      {/* Rain probability */}
+      {thermal.rainProbability !== null && thermal.rainProbability > 20 && (
+        <DetailRow
+          icon="cloud-rain"
+          iconColor="text-blue-400"
+          label="Prob. lluvia"
+          value={`${thermal.rainProbability}%`}
+          color={thermal.rainProbability > 60 ? 'text-red-400' : 'text-amber-400'}
+        />
+      )}
+    </div>
+  );
+}
+
+function DetailRow({ icon, iconColor, label, value, color }: {
+  icon: IconId;
+  iconColor: string;
+  label: string;
+  value: string;
+  color: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <WeatherIcon id={icon} size={11} className={`flex-shrink-0 ${iconColor}`} />
+      <span className="text-[10px] text-slate-500 w-[72px] flex-shrink-0">{label}</span>
+      <span className={`text-[11px] font-semibold ${color} truncate`}>{value}</span>
+    </div>
   );
 }
