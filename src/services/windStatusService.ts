@@ -253,7 +253,7 @@ function computeZoneWindSummaries(
 
     for (let center = 0; center < 360; center += 45) {
       const group = zoneReadings.filter(
-        (r) => angularDifference(r.dir, center) <= 45,
+        (r) => angleDifference(r.dir, center) <= 45,
       );
       if (group.length > bestGroup.length) {
         bestGroup = group;
