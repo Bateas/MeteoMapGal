@@ -284,34 +284,38 @@ function scoreSpot(
   let score = 0;
 
   // ── Wind speed scoring ─────────────────────────────────
-  // Sweet spot: 6-15kt for all types of sailing
+  // Rías sailing scale: <5kt nogo, 5-8kt marginal, 8-13kt decent,
+  // 13-20kt good day, 20-25kt strong but sailable, 25-30kt experts only
   const spd = wind.avgSpeedKt;
   if (spot.id === 'cesantes') {
-    // Cesantes: thermal hunting — any wind is good, >6kt is great
-    if (spd >= 10) score += 45;
-    else if (spd >= 8) score += 40;
-    else if (spd >= 6) score += 35;
-    else if (spd >= 4) score += 25;
-    else if (spd >= 2) score += 10;
+    // Cesantes: thermal/flat water — lighter wind is still useful
+    if (spd >= 13 && spd <= 20) score += 45;      // buen día
+    else if (spd >= 20 && spd <= 25) score += 40;  // fuerte, viable
+    else if (spd >= 8 && spd < 13) score += 35;    // decentillo
+    else if (spd >= 5 && spd < 8) score += 18;     // marginal
+    else if (spd >= 3 && spd < 5) score += 8;      // casi nada
+    else if (spd > 25) score += 25;                 // solo expertos
   } else if (spot.id === 'bocana') {
-    // Bocana: bocana wind is THE event — moderate wind is ideal
-    if (spd >= 8 && spd <= 18) score += 40;
-    else if (spd >= 6) score += 32;
-    else if (spd >= 4) score += 20;
-    else if (spd >= 2) score += 8;
+    // Bocana: bocana wind is THE event — moderate-strong ideal
+    if (spd >= 13 && spd <= 20) score += 45;
+    else if (spd >= 8 && spd < 13) score += 35;
+    else if (spd >= 20 && spd <= 25) score += 35;
+    else if (spd >= 5 && spd < 8) score += 15;
+    else if (spd > 25) score += 20;
   } else if (spot.id === 'cies-ria') {
-    // Cíes-Ría: need solid wind, ocean conditions
-    if (spd >= 10 && spd <= 20) score += 30;
-    else if (spd >= 8) score += 25;
-    else if (spd >= 6) score += 20;
-    else if (spd >= 4) score += 12;
-    else score += 5;
+    // Cíes-Ría: ocean conditions, needs solid wind
+    if (spd >= 13 && spd <= 20) score += 40;
+    else if (spd >= 8 && spd < 13) score += 30;
+    else if (spd >= 20 && spd <= 25) score += 30;
+    else if (spd >= 5 && spd < 8) score += 12;
+    else if (spd > 25) score += 15;
   } else {
     // Centro Ría: medium requirements
-    if (spd >= 8 && spd <= 18) score += 35;
-    else if (spd >= 6) score += 28;
-    else if (spd >= 4) score += 18;
-    else if (spd >= 2) score += 8;
+    if (spd >= 13 && spd <= 20) score += 42;
+    else if (spd >= 8 && spd < 13) score += 35;
+    else if (spd >= 20 && spd <= 25) score += 32;
+    else if (spd >= 5 && spd < 8) score += 15;
+    else if (spd > 25) score += 18;
   }
 
   // ── Wind pattern match ─────────────────────────────────
@@ -355,9 +359,10 @@ function scoreSpot(
   score = Math.max(0, Math.min(100, score));
 
   // ── Verdict ────────────────────────────────────────────
+  // GO: solid conditions (≥50), MARGINAL: sailable but marginal (≥25), NOGO: not worth it
   let verdict: SpotVerdict;
-  if (score >= 45) verdict = 'go';
-  else if (score >= 20) verdict = 'marginal';
+  if (score >= 50) verdict = 'go';
+  else if (score >= 25) verdict = 'marginal';
   else verdict = 'nogo';
 
   // ── Summary ────────────────────────────────────────────
@@ -378,13 +383,21 @@ function buildSpotSummary(
   const parts: string[] = [];
 
   if (verdict === 'go') {
-    parts.push(wind.matchedPattern
-      ? `${wind.matchedPattern} activa.`
-      : 'Buen viento para navegar.');
+    if (wind.avgSpeedKt >= 13) {
+      parts.push(wind.matchedPattern
+        ? `${wind.matchedPattern} activa. Buen día!`
+        : 'Buen día de navegación.');
+    } else {
+      parts.push(wind.matchedPattern
+        ? `${wind.matchedPattern} activa.`
+        : 'Condiciones navegables.');
+    }
   } else if (verdict === 'marginal') {
-    parts.push('Condiciones justas.');
+    parts.push(wind.avgSpeedKt >= 5
+      ? 'Decentillo — se puede navegar.'
+      : 'Condiciones justas.');
   } else {
-    parts.push('Sin condiciones favorables.');
+    parts.push('Poco viento, no merece la pena.');
   }
 
   parts.push(`${wind.dominantDir} ~${wind.avgSpeedKt.toFixed(0)}kt`);

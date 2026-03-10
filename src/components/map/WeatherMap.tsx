@@ -181,8 +181,8 @@ export function WeatherMap() {
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
 
-        {/* Wind field arrows around stations */}
-        <WindFieldOverlay stations={stations} readings={currentReadings} compact={stations.length > 35} />
+        {/* Wind field arrows around stations + buoys */}
+        <WindFieldOverlay stations={stations} readings={currentReadings} buoys={activeSector.id === 'rias' ? buoys : undefined} compact={stations.length > 35} />
 
         {/* Temp-only station dots — GPU-accelerated (single source + 3 layers) */}
         <TempOnlyOverlay stations={stations} readings={currentReadings} />
