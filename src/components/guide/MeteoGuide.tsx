@@ -376,7 +376,7 @@ function RiasIntroSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="anchor" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Boyas marinas</p>
-          <p className="text-[10px] text-slate-600">Oleaje, viento, T agua, corrientes de 6 boyas</p>
+          <p className="text-[10px] text-slate-600">Oleaje, viento, T agua, humedad de 12+ boyas</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="map" size={24} /></span>
@@ -393,9 +393,10 @@ function RiasIntroSection() {
       <div className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-lg p-4 border border-slate-700">
         <p className="text-xs text-slate-400 italic">
           <strong className="text-slate-300">Modo Rías Baixas:</strong> Este sector se centra en la
-          monitorización del viento costero, oleaje y condiciones marinas. Incluye boyas marinas en
-          el mapa y mareas de 5 puertos. Las funcionalidades de análisis térmico, zonas de embalse
-          y navegación a vela están disponibles en el sector Embalse de Castrelo.
+          monitorización del viento costero, oleaje y condiciones marinas. Incluye boyas marinas
+          (PORTUS + Observatorio Costeiro) en el mapa y mareas de 5 puertos. Las funcionalidades
+          de análisis térmico, zonas de embalse y navegación a vela están disponibles en el sector
+          Embalse de Castrelo.
         </p>
       </div>
     </div>

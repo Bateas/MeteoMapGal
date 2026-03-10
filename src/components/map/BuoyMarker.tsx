@@ -199,7 +199,14 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
           </g>
         </svg>
 
-        {/* ── Data badges — wave, temp, current (no wind — shown by field arrows) ── */}
+        {/* ── Data badges — wave, temp, current, humidity ── */}
+
+        {/* Humidity (top-left) — Observatorio Costeiro exclusive */}
+        {reading.humidity != null && (() => {
+          const hColor = reading.humidity > 85 ? '#93c5fd' : '#94a3b8';
+          const b = badgeStyle(hColor, 'top-left');
+          return <div className={b.className} style={b.style}>{reading.humidity.toFixed(0)}%</div>;
+        })()}
 
         {/* Wave height (top-right) */}
         {hasWaves && (() => {

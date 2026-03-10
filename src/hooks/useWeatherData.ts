@@ -220,5 +220,21 @@ export function useWeatherData() {
     }
   }, [stations.length, forceRefresh, loadHistory]);
 
+  // ── Auto-refresh 90s after initial discovery — catches late arrivals ──
+  const initialRefreshDone = useRef(false);
+  useEffect(() => {
+    if (stations.length === 0) {
+      initialRefreshDone.current = false; // Reset on sector switch
+      return;
+    }
+    if (initialRefreshDone.current) return;
+    const timer = setTimeout(() => {
+      initialRefreshDone.current = true;
+      console.log('[WeatherData] Auto-refresh 90s — catching late arrivals');
+      forceRefresh();
+    }, 90_000);
+    return () => clearTimeout(timer);
+  }, [stations.length > 0, forceRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return { stations, lastRefresh, isPolling, forceRefresh, retryDiscovery };
 }

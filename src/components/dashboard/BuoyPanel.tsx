@@ -73,7 +73,7 @@ export const BuoyPanel = memo(function BuoyPanel() {
             </span>
           </div>
           <span className="text-[9px] text-slate-500">
-            {buoys.length} estaciones · Puertos del Estado
+            {buoys.length} estaciones · PORTUS + Obs. Costeiro
           </span>
         </div>
       </div>
@@ -101,6 +101,11 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
             ⚓
           </span>
           <span className="text-[11px] font-bold text-slate-200">{b.stationName}</span>
+          {b.source === 'obscosteiro' && (
+            <span className="text-[7px] font-bold text-teal-400 bg-teal-500/10 px-1 py-0.5 rounded">
+              OBS
+            </span>
+          )}
         </div>
         <span className="text-[8px] text-slate-500">{timeAgo(b.timestamp)}</span>
       </div>
@@ -191,6 +196,21 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
           <DataCell
             label="Nivel mar"
             value={`${b.seaLevel.toFixed(0)} cm`}
+          />
+        )}
+
+        {/* Humidity & dew point — Observatorio Costeiro exclusive */}
+        {b.humidity != null && (
+          <DataCell
+            label="Humedad"
+            value={`${b.humidity.toFixed(0)}%`}
+            className={b.humidity > 85 ? 'text-blue-300' : 'text-slate-200'}
+          />
+        )}
+        {b.dewPoint != null && (
+          <DataCell
+            label="P. rocío"
+            value={`${b.dewPoint.toFixed(1)}°C`}
           />
         )}
 

@@ -86,11 +86,23 @@ export function AppShell() {
   // Airspace restrictions: ENAIRE UAS zones + NOTAMs (polls every 30 min)
   const airspaceCheck = useAirspace();
 
-  // Marine buoy data: Puertos del Estado (30 min refresh, only active for Rías)
+  // Marine buoy data: PORTUS + Observatorio Costeiro (10 min refresh, only active for Rías)
   useBuoyData();
 
   // Spot-based sailing scores: re-scores when station/buoy data changes (only for Rías)
   useSpotScoring();
+
+  // ── Map reveal crossfade — smooth transition as loading screen fades out ──
+  const [mapRevealed, setMapRevealed] = useState(false);
+  useEffect(() => {
+    if (stations.length === 0) {
+      setMapRevealed(false);
+      return;
+    }
+    // Delay map reveal slightly so the loading screen starts fading first
+    const t = setTimeout(() => setMapRevealed(true), 300);
+    return () => clearTimeout(t);
+  }, [stations.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prune stale reading history every 30 min (entries > 24h old)
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
@@ -269,7 +281,7 @@ export function AppShell() {
           </>
         )}
 
-        <main className="flex-1 relative">
+        <main className={`flex-1 relative transition-opacity duration-1000 ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
           <ErrorBoundary section="Mapa">
             <WeatherMap />
           </ErrorBoundary>

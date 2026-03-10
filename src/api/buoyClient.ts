@@ -87,6 +87,11 @@ export interface BuoyReading {
   salinity: number | null;         // PSU
   // Sea level (tide gauges)
   seaLevel: number | null;         // cm
+  // Observatorio Costeiro-exclusive fields
+  humidity: number | null;         // % — only from Observatorio Costeiro
+  dewPoint: number | null;         // °C — only from Observatorio Costeiro
+  /** Data source: 'portus' (default) or 'obscosteiro' (Observatorio Costeiro da Xunta) */
+  source?: 'portus' | 'obscosteiro';
 }
 
 /** Predefined stations for Rías Baixas sector — all 3 Rías covered */
@@ -107,6 +112,8 @@ export const RIAS_BUOY_STATIONS: { id: number; name: string; lat: number; lon: n
   { id: 1250, name: 'Cortegada (Arousa)', lat: 42.63, lon: -8.78, type: 'CETMAR' },
   { id: 1255, name: 'Ribeira',            lat: 42.55, lon: -8.95, type: 'CETMAR' },
   { id: 3220, name: 'Vilagarcía (marea)', lat: 42.60, lon: -8.77, type: 'REDMAR' },
+  // ── Ría de Muros-Noia (Observatorio Costeiro only) ──
+  { id: 15009, name: 'Muros',             lat: 42.7195, lon: -9.0153, type: 'OBSCOSTEIRO' },
 ];
 
 /** Pre-built coordinates lookup for all buoy stations (shared across components) */
@@ -216,6 +223,9 @@ export async function fetchBuoyLastReading(stationId: number, stationName?: stri
       currentDir: null,
       salinity: null,
       seaLevel: null,
+      humidity: null,
+      dewPoint: null,
+      source: 'portus',
     };
 
     for (const d of result.datos) {
@@ -266,4 +276,56 @@ export async function fetchAllRiasBuoys(): Promise<BuoyReading[]> {
     .filter((r): r is PromiseFulfilledResult<BuoyReading | null> => r.status === 'fulfilled')
     .map((r) => r.value)
     .filter((r): r is BuoyReading => r != null);
+}
+
+// ── Merge PORTUS + Observatorio readings ──────────────────────
+
+/**
+ * Merge buoy readings from two sources, preferring the NEWEST timestamp.
+ * For overlapping stations (same canonicalId):
+ * - If Observatorio is newer → use it, but preserve PORTUS-exclusive fields (wave, current, seaLevel)
+ * - If PORTUS is newer → keep PORTUS
+ * For Muros (15009) → always added (no PORTUS equivalent)
+ */
+export function mergeBuoyReadings(portus: BuoyReading[], obs: BuoyReading[]): BuoyReading[] {
+  const map = new Map<number, BuoyReading>();
+
+  // Seed with PORTUS readings
+  for (const r of portus) {
+    map.set(r.stationId, r);
+  }
+
+  // Merge Observatorio readings
+  for (const obsR of obs) {
+    const existing = map.get(obsR.stationId);
+
+    if (!existing) {
+      // New station (Muros) — add directly
+      map.set(obsR.stationId, obsR);
+      continue;
+    }
+
+    // Compare timestamps — prefer newest
+    const existingTime = new Date(existing.timestamp).getTime();
+    const obsTime = new Date(obsR.timestamp).getTime();
+
+    if (obsTime > existingTime) {
+      // Observatorio is newer — use it, but preserve PORTUS-exclusive fields
+      map.set(obsR.stationId, {
+        ...obsR,
+        waveHeight: obsR.waveHeight ?? existing.waveHeight,
+        waveHeightMax: obsR.waveHeightMax ?? existing.waveHeightMax,
+        wavePeriod: obsR.wavePeriod ?? existing.wavePeriod,
+        wavePeriodMean: obsR.wavePeriodMean ?? existing.wavePeriodMean,
+        waveDir: obsR.waveDir ?? existing.waveDir,
+        currentSpeed: obsR.currentSpeed ?? existing.currentSpeed,
+        currentDir: obsR.currentDir ?? existing.currentDir,
+        seaLevel: obsR.seaLevel ?? existing.seaLevel,
+        airPressure: obsR.airPressure ?? existing.airPressure,
+      });
+    }
+    // If PORTUS is newer, keep it as-is
+  }
+
+  return Array.from(map.values());
 }
