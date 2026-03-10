@@ -1,16 +1,16 @@
 /**
- * Map markers for sailing spots (Rías Baixas sector).
+ * Map markers for sailing spots (multi-sector).
  *
  * Shows a pulsing circle at each spot center with an SVG icon,
  * verdict badge (GO/MARGINAL/NOGO), and click-to-select behavior.
  * Active spot has a brighter ring + larger size.
- *
- * Rendered only when activeSector === 'rias'.
+ * Sector-aware: renders spots for the active sector.
  */
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
-import { RIAS_SPOTS } from '../../config/spots';
+import { getSpotsForSector } from '../../config/spots';
 import { useSpotStore } from '../../store/spotStore';
+import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
@@ -26,10 +26,12 @@ export const SpotMarkers = memo(function SpotMarkers() {
   const activeSpotId = useSpotStore((s) => s.activeSpotId);
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const scores = useSpotStore((s) => s.scores);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
 
   return (
     <>
-      {RIAS_SPOTS.map((spot) => {
+      {spots.map((spot) => {
         const score = scores.get(spot.id);
         const verdict: SpotVerdict = score?.verdict ?? 'unknown';
         const isActive = spot.id === activeSpotId;

@@ -208,8 +208,8 @@ export function WeatherMap() {
           />
         ))}
 
-        {/* Sailing spot markers — only for Rías Baixas sector */}
-        {activeSector.id === 'rias' && <SpotMarkers />}
+        {/* Sailing spot markers — both sectors */}
+        <SpotMarkers />
 
         {/* Thermal alert badges + propagation — only for Embalse sector */}
         {activeSector.id === 'embalse' && (

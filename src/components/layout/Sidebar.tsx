@@ -117,11 +117,9 @@ export function Sidebar() {
                   <DailySailingBriefing />
                 </ErrorBoundary>
               )}
-              {isRias && (
-                <ErrorBoundary section="Spots Navegación">
-                  <SpotSelector />
-                </ErrorBoundary>
-              )}
+              <ErrorBoundary section="Spots Navegación">
+                <SpotSelector />
+              </ErrorBoundary>
               {isRias && (
                 <ErrorBoundary section="Boyas Marinas">
                   <BuoyPanel />

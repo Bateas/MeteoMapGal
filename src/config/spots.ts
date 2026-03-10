@@ -1,21 +1,24 @@
 /**
- * Sailing spot definitions for Rías Baixas sector.
+ * Sailing spot definitions — multi-sector.
  *
  * A "spot" is a micro-zone within a sector with its own scoring profile,
  * preferred stations/buoys, and wind pattern knowledge. The sector fetches
  * ALL stations; the spot narrows scoring to what matters locally.
  *
- * 4 spots in Ría de Vigo (expandable to other Rías):
+ * Rías Baixas — 4 spots in Ría de Vigo (expandable to other Rías):
  * - Cesantes: interior, thermal-dominant, flat water
  * - Bocana: Vigo–Rande narrows, bocana wind zone, sheltered water
  * - Centro Ría: mid-ría, virazón territory, moderate wave exposure
  * - Cíes-Ría: exterior, full ocean conditions, swell-critical
+ *
+ * Embalse — 1 spot (expandable):
+ * - Castrelo: reservoir center, thermal WSW dominant
  */
 
 import type { IconId } from '../components/icons/WeatherIcons';
 
 /** Type-safe spot identifiers for exhaustive matching */
-export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria';
+export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'castrelo';
 
 export interface WindPattern {
   name: string;
@@ -62,7 +65,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     id: 'cesantes',
     name: 'Cesantes (Interior)',
     shortName: 'Cesantes',
-    icon: 'anchor',
+    icon: 'sailboat',
     center: [-8.619, 42.307],
     radiusKm: 8,
     description: 'Ensenada de San Simón. Agua plana, viento térmico WSW dominante.',
@@ -97,7 +100,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     id: 'bocana',
     name: 'Bocana (Vigo–Rande)',
     shortName: 'Bocana',
-    icon: 'anchor',
+    icon: 'sailboat',
     center: [-8.70, 42.265],
     radiusKm: 6,
     description: 'Estrecho de Rande → Vigo. Zona del viento de bocana: sale del estrecho y recorre la ría.',
@@ -133,7 +136,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     id: 'centro-ria',
     name: 'Centro Ría (Canido–Limens)',
     shortName: 'C. Ría',
-    icon: 'anchor',
+    icon: 'sailboat',
     center: [-8.80, 42.215],
     radiusKm: 10,
     description: 'Zona media de la ría. Bocana matutina, virazón de tarde. Oleaje moderado.',
@@ -174,7 +177,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     id: 'cies-ria',
     name: 'Cíes-Ría (Baiona–Cíes)',
     shortName: 'Cíes-Ría',
-    icon: 'anchor',
+    icon: 'sailboat',
     center: [-8.92, 42.17],
     radiusKm: 12,
     description: 'Entrada de la ría y costa exterior. Condiciones oceánicas: mar de fondo, nortada, upwelling.',
@@ -205,5 +208,55 @@ export const RIAS_SPOTS: SailingSpot[] = [
     hardGates: { maxWindKt: 30, maxWaveHeight: 3.0 },
   },
 ];
+
+export const EMBALSE_SPOTS: SailingSpot[] = [
+  {
+    id: 'castrelo',
+    name: 'Castrelo de Miño (Embalse)',
+    shortName: 'Castrelo',
+    icon: 'sailboat',
+    center: [-8.1, 42.29],
+    radiusKm: 15,
+    description: 'Embalse de Castrelo de Miño. Viento térmico WSW dominante en tardes de verano.',
+    windPatterns: [
+      {
+        name: 'Térmica WSW',
+        direction: 250,
+        season: 'Feb–Oct, tardes',
+        description: 'Térmica del valle, 12-20kt. Necesita: T>16°C, cielo despejado, sin norte.',
+      },
+      {
+        name: 'Norte',
+        direction: 0,
+        season: 'Todo el año',
+        description: 'Norte racheado, frío, mata la térmica.',
+      },
+    ],
+    preferredStations: [
+      'aemet_1484C', // Ribadavia (~5km)
+      'aemet_1496',  // Ourense (~15km)
+    ],
+    preferredBuoys: [], // No buoys in freshwater reservoir
+    waveRelevance: 'none',
+    thermalDetection: true,
+    hardGates: { maxWindKt: 30 },
+  },
+];
+
+/** All spots from both sectors */
+export const ALL_SPOTS: SailingSpot[] = [...RIAS_SPOTS, ...EMBALSE_SPOTS];
+
+/** Get spots for a specific sector */
+export function getSpotsForSector(sectorId: string): SailingSpot[] {
+  if (sectorId === 'rias') return RIAS_SPOTS;
+  if (sectorId === 'embalse') return EMBALSE_SPOTS;
+  return [];
+}
+
+/** Default spot per sector */
+export function getDefaultSpotId(sectorId: string): SpotId {
+  if (sectorId === 'embalse') return 'castrelo';
+  return 'cesantes'; // Rías default
+}
 
 export const DEFAULT_SPOT_ID = 'cesantes';

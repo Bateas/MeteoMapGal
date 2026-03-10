@@ -1,13 +1,15 @@
 /**
- * Spot selection + per-spot verdict cards for Rías Baixas.
+ * Spot selection + per-spot verdict cards.
  *
- * Shows 4 spots (Cesantes, Bocana, Centro Ría, Cíes-Ría) with live
- * GO/MARGINAL/NOGO verdicts. Clicking a spot selects it as active (persisted).
+ * Sector-aware: shows RIAS_SPOTS or EMBALSE_SPOTS based on active sector.
+ * Shows GO/MARGINAL/NOGO verdicts. Clicking a spot selects it as active (persisted).
  * Collapsed by default — expands to show detail cards.
+ * Includes beta disclaimer — pattern matching is experimental.
  */
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { useSpotStore } from '../../store/spotStore';
-import { RIAS_SPOTS } from '../../config/spots';
+import { useSectorStore } from '../../store/sectorStore';
+import { getSpotsForSector } from '../../config/spots';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
@@ -26,13 +28,18 @@ export const SpotSelector = memo(function SpotSelector() {
   const activeSpotId = useSpotStore((s) => s.activeSpotId);
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const scores = useSpotStore((s) => s.scores);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
   const [expanded, setExpanded] = useState(false);
 
-  // Quick verdict overview for header
-  const activeScore = scores.get(activeSpotId);
-  const activeSpot = RIAS_SPOTS.find((s) => s.id === activeSpotId);
+  const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
+
+  // Find active spot for this sector (fallback to first spot)
+  const activeSpot = spots.find((s) => s.id === activeSpotId) ?? spots[0];
+  const activeScore = activeSpot ? scores.get(activeSpot.id) : undefined;
   const activeVerdict = activeScore?.verdict ?? 'unknown';
   const v = VERDICT_STYLE[activeVerdict];
+
+  if (!activeSpot) return null;
 
   return (
     <div className={`rounded-lg border ${v.border} ${v.bg} transition-all`}>
@@ -41,10 +48,10 @@ export const SpotSelector = memo(function SpotSelector() {
         onClick={() => setExpanded((p) => !p)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left"
       >
-        <WeatherIcon id={activeSpot?.icon ?? 'waves'} size={18} className="text-slate-300 flex-shrink-0" />
+        <WeatherIcon id={activeSpot.icon} size={18} className="text-slate-300 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-[13px] font-bold text-slate-200">{activeSpot?.shortName ?? 'Spot'}</span>
+            <span className="text-[13px] font-bold text-slate-200">{activeSpot.shortName}</span>
             <span className={`${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full ${v.bg}`}>
               {v.label}
               {activeScore ? ` ${activeScore.score}` : ''}
@@ -61,10 +68,10 @@ export const SpotSelector = memo(function SpotSelector() {
         />
       </button>
 
-      {/* ── Expanded: all spots ── */}
+      {/* ── Expanded: all spots + beta warning ── */}
       {expanded && (
         <div className="px-2 pb-2.5 space-y-1.5 border-t border-slate-700/50 pt-2">
-          {RIAS_SPOTS.map((spot) => {
+          {spots.map((spot) => {
             const score = scores.get(spot.id);
             return (
               <SpotCard
@@ -74,11 +81,21 @@ export const SpotSelector = memo(function SpotSelector() {
                 name={spot.shortName}
                 description={spot.description}
                 score={score ?? null}
-                isActive={spot.id === activeSpotId}
+                isActive={spot.id === activeSpot.id}
                 onSelect={() => selectSpot(spot.id)}
               />
             );
           })}
+
+          {/* Beta disclaimer */}
+          <div className="flex items-start gap-1.5 px-1.5 pt-1.5 text-[10px] text-amber-500/80 leading-tight">
+            <span className="flex-shrink-0 mt-px">&#9888;</span>
+            <span>
+              Sistema en pruebas. Los patrones de viento son orientativos
+              y pueden no reflejar condiciones reales (ej. detectar
+              &ldquo;t&eacute;rmica&rdquo; por coincidencia de direcci&oacute;n).
+            </span>
+          </div>
         </div>
       )}
     </div>
