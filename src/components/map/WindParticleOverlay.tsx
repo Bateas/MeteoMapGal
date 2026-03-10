@@ -3,7 +3,8 @@ import type { MapRef } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
-import { extractWindData, buildWindGrid, lookupWindGrid } from '../../services/idwInterpolation';
+import { useBuoyStore } from '../../store/buoyStore';
+import { extractWindData, extractBuoyWindData, buildWindGrid, lookupWindGrid } from '../../services/idwInterpolation';
 import type { WindGrid } from '../../services/idwInterpolation';
 import { windSpeedColor } from '../../services/windUtils';
 
@@ -43,21 +44,24 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
   const opacity = useWeatherLayerStore((s) => s.layerOpacity);
   const stations = useWeatherStore((s) => s.stations);
   const readings = useWeatherStore((s) => s.currentReadings);
+  const buoys = useBuoyStore((s) => s.buoys);
   const isMobile = useUIStore((s) => s.isMobile);
 
   const isActive = activeLayer === 'wind-particles';
   const particleCount = isMobile ? PARTICLE_COUNT_MOBILE : PARTICLE_COUNT_DESKTOP;
 
-  // Build wind data when stations/readings change
+  // Build wind data when stations/readings/buoys change — merges weather stations + marine buoys
   const windDataRef = useRef(extractWindData(stations, readings));
   const windGridRef = useRef<WindGrid | null>(null);
   const gridBoundsRef = useRef<string>('');
 
   useEffect(() => {
-    windDataRef.current = extractWindData(stations, readings);
+    const stationWind = extractWindData(stations, readings);
+    const buoyWind = extractBuoyWindData(buoys);
+    windDataRef.current = [...stationWind, ...buoyWind];
     // Invalidate grid — will be rebuilt on next frame with current viewport
     windGridRef.current = null;
-  }, [stations, readings]);
+  }, [stations, readings, buoys]);
 
   // Spawn a particle at random position within map bounds
   const spawnParticle = useCallback((bounds?: { w: number; e: number; s: number; n: number }): Particle => {
