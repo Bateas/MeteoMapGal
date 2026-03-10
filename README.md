@@ -145,7 +145,7 @@ All data comes from **open and public sources** — no paid APIs required (only 
 
 ### Planned
 
-- [ ] Spot-based sailing intelligence (Cesantes, Cangas, Bocana)
+- [ ] Spot-based sailing intelligence (Cesantes, Bocana, Centro Ría, Cíes-Ría)
 - [ ] New monitoring zones (A Coruña, Lugo, Costa da Morte)
 - [ ] Fog & inversion forecast improvements
 - [ ] Feedback form + community suggestions

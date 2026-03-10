@@ -43,6 +43,8 @@ import {
   Gauge,
   Check,
   Sprout,
+  Compass,
+  Navigation,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -54,7 +56,8 @@ export type IconId =
   | 'map-pin' | 'drone' | 'waves' | 'flame' | 'hail' | 'thermal-wind'
   | 'mountain' | 'beach' | 'tag' | 'cloud-drizzle' | 'map'
   | 'leaf' | 'clock' | 'x' | 'clipboard-list' | 'anchor'
-  | 'database' | 'gauge' | 'check' | 'sprout';
+  | 'database' | 'gauge' | 'check' | 'sprout'
+  | 'compass' | 'navigation';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -205,6 +208,8 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'gauge': Gauge,
   'check': Check,
   'sprout': Sprout,
+  'compass': Compass,
+  'navigation': Navigation,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────
@@ -289,6 +294,8 @@ const ICON_LABELS: Record<IconId, string> = {
   'gauge': 'Indicador',
   'check': 'Completado',
   'sprout': 'Crecimiento',
+  'compass': 'Brújula',
+  'navigation': 'Navegación',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */

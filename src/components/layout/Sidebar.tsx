@@ -25,6 +25,9 @@ const HistoryDashboard = lazy(() =>
 const BuoyPanel = lazy(() =>
   import('../dashboard/BuoyPanel').then((m) => ({ default: m.BuoyPanel })),
 );
+const SpotSelector = lazy(() =>
+  import('../dashboard/SpotSelector').then((m) => ({ default: m.SpotSelector })),
+);
 
 type Tab = 'stations' | 'chart' | 'forecast' | 'thermal' | 'history';
 
@@ -112,6 +115,11 @@ export function Sidebar() {
               {isEmbalse && (
                 <ErrorBoundary section="Resumen Navegación">
                   <DailySailingBriefing />
+                </ErrorBoundary>
+              )}
+              {isRias && (
+                <ErrorBoundary section="Spots Navegación">
+                  <SpotSelector />
                 </ErrorBoundary>
               )}
               {isRias && (

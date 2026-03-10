@@ -33,6 +33,7 @@ import { useUIStore } from '../../store/uiStore';
 import { useToastStore } from '../../store/toastStore';
 import { useAirspace } from '../../hooks/useAirspace';
 import { useBuoyData } from '../../hooks/useBuoyData';
+import { useSpotScoring } from '../../hooks/useSpotScoring';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 
 export function AppShell() {
@@ -87,6 +88,9 @@ export function AppShell() {
 
   // Marine buoy data: Puertos del Estado (30 min refresh, only active for Rías)
   useBuoyData();
+
+  // Spot-based sailing scores: re-scores when station/buoy data changes (only for Rías)
+  useSpotScoring();
 
   // Prune stale reading history every 30 min (entries > 24h old)
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
