@@ -1,12 +1,12 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.5.2-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-1.5.3-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-159%20passed-brightgreen)](src/test/)
 
-**Real-time weather monitoring for Galicia** — 90+ weather stations, 12 marine buoys, 3D interactive map, thermal wind analysis for sailing, and agricultural alerts for viticulture.
+**Real-time weather monitoring for Galicia** — 100+ weather stations, 12 marine buoys, 3D interactive map, thermal wind analysis for sailing, and agricultural alerts for viticulture.
 
-> **Monitorización meteorolóxica en tempo real para Galicia** — 90+ estacións meteorolóxicas, 12 boias mariñas, mapa 3D interactivo, análise de vento térmico para navegación e alertas agrícolas para viticultura.
+> **Monitorización meteorolóxica en tempo real para Galicia** — 100+ estacións meteorolóxicas, 12 boias mariñas, mapa 3D interactivo, análise de vento térmico para navegación e alertas agrícolas para viticultura.
 
 <!-- TODO: Add hero screenshot -->
 <!-- ![MeteoMapGal](hero.png) -->
@@ -22,7 +22,7 @@ Currently monitoring two zones:
 | Zone | Location | Focus | Coverage |
 |------|----------|-------|----------|
 | **Embalse de Castrelo de Miño** | Ourense (inland) | Thermal wind analysis for sailing | 35 km radius, 90+ stations |
-| **Rías Baixas** | Pontevedra (coast) | Coastal wind, waves, tides & marine monitoring | 40 km radius, 90+ stations + 12 buoys |
+| **Rías Baixas** | Pontevedra (coast) | Coastal wind, waves, tides & marine monitoring | 30 km radius, 60+ stations + 11 buoys |
 
 > **Roadmap:** New monitoring zones across Galicia are planned for future releases (A Coruña, Lugo, Costa da Morte...).
 
@@ -35,7 +35,7 @@ Actualmente monitoriza dúas zonas:
 | Zona | Localización | Enfoque | Cobertura |
 |------|--------------|---------|-----------|
 | **Encoro de Castrelo de Miño** | Ourense (interior) | Análise de vento térmico para navegación | Radio 35 km, 90+ estacións |
-| **Rías Baixas** | Pontevedra (costa) | Vento costeiro, ondas, mareas e monitorización mariña | Radio 40 km, 90+ estacións + 12 boias |
+| **Rías Baixas** | Pontevedra (costa) | Vento costeiro, ondas, mareas e monitorización mariña | Radio 30 km, 60+ estacións + 11 boias |
 
 > **Folla de ruta:** Prevense novas zonas de monitorización en futuras versións (A Coruña, Lugo, Costa da Morte...).
 
@@ -57,7 +57,7 @@ Actualmente monitoriza dúas zonas:
 
 | Feature | Description |
 |---------|-------------|
-| **90+ weather stations** | From 5 networks: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo |
+| **100+ weather stations** | From 5 networks: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo |
 | **12 marine buoys** | Wave height, period, direction, water temperature, currents and sea level |
 | **Wind consensus** | Multi-station trend analysis with zone coherence and stability duration |
 | **Lightning detection** | Real-time strikes with proximity alerts |
@@ -139,6 +139,7 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [x] Drone airspace (UAS zones + NOTAMs)
 - [x] Historical data dashboard (TimescaleDB)
 - [x] Wind rose & station comparison
+- [x] Smart station filtering (interior exclusion zones + cross-source proximity dedup)
 - [x] PWA (installable, offline mode)
 - [x] CSV export
 
