@@ -178,6 +178,65 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
     console.error('[Discovery] Netatmo station fetch failed:', netatmoStations.reason);
   }
 
-  console.debug(`[Discovery] Total stations: ${stations.length}`);
-  return stations;
+  const filtered = deduplicateByProximity(stations);
+  console.debug(`[Discovery] Total stations: ${filtered.length}`);
+  return filtered;
+}
+
+// ── Cross-source proximity deduplication ─────────────────────
+
+/** Source priority for proximity dedup — higher value = keep over lower */
+const SOURCE_PRIORITY: Record<string, number> = {
+  aemet: 50,          // official national agency, calibrated
+  meteogalicia: 40,   // official regional agency, calibrated
+  meteoclimatic: 30,  // curated amateur network, consistent
+  wunderground: 20,   // personal weather stations, variable quality
+  netatmo: 10,        // consumer devices
+};
+
+/**
+ * Final proximity-based deduplication across ALL sources.
+ *
+ * Sorts stations by source priority (best first). When a lower-priority
+ * station falls within ~1.2km of an already-kept station, it's dropped.
+ * Netatmo tempOnly stations use a wider 2km radius (most redundant).
+ *
+ * This eliminates the visual clutter of 4-5 markers on top of each other
+ * in cities like Vigo, while keeping the best-quality data source.
+ */
+function deduplicateByProximity(stations: NormalizedStation[]): NormalizedStation[] {
+  // Sort: highest priority first; within same priority, wind > tempOnly
+  const sorted = [...stations].sort((a, b) => {
+    const pa = SOURCE_PRIORITY[a.source] ?? 0;
+    const pb = SOURCE_PRIORITY[b.source] ?? 0;
+    if (pa !== pb) return pb - pa;
+    return (a.tempOnly ? 1 : 0) - (b.tempOnly ? 1 : 0);
+  });
+
+  const kept: NormalizedStation[] = [];
+
+  for (const station of sorted) {
+    // tempOnly stations: wider dedup radius (they only add temperature)
+    // Wind stations: moderate radius — we don't want to lose wind data points
+    const threshold = station.tempOnly ? 0.018 : 0.012; // ~2km / ~1.3km
+
+    const tooClose = kept.some(
+      (s) =>
+        Math.abs(s.lat - station.lat) < threshold &&
+        Math.abs(s.lon - station.lon) < threshold
+    );
+
+    if (!tooClose) {
+      kept.push(station);
+    }
+  }
+
+  if (kept.length < sorted.length) {
+    console.debug(
+      `[Discovery] Proximity filter: ${sorted.length} → ${kept.length} stations ` +
+      `(${sorted.length - kept.length} nearby duplicates removed)`
+    );
+  }
+
+  return kept;
 }
