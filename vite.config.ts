@@ -98,6 +98,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/portus-api/, ''),
         secure: true,
       },
+      '/obscosteiro-api': {
+        target: 'https://apis-ext.xunta.gal',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/obscosteiro-api/, '/mgplatpubapi/v1/api'),
+        secure: true,
+      },
       '/api/v1': {
         target: 'http://192.168.10.120:3001',
         changeOrigin: true,

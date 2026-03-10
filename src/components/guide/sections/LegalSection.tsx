@@ -52,6 +52,8 @@ export function LegalSection() {
             <AttrRow name="IHM / Puertos del Estado" license="Datos públicos" desc="Predicciones de mareas" />
             <AttrRow name="EUMETSAT" license="Uso no comercial" desc="Imagen satelital infrarroja Meteosat" />
             <AttrRow name="ENAIRE" license="Datos públicos" desc="Espacio aéreo y NOTAMs" />
+            <AttrRow name="Puertos del Estado (PORTUS)" license="Datos públicos" desc="Boyas marinas — oleaje, corrientes, nivel del mar" />
+            <AttrRow name="Observatorio Costeiro (Xunta)" license="Datos abiertos Xunta" desc="Boyas suplementarias — humedad, punto de rocío" />
           </ul>
         </div>
       </div>

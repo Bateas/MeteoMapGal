@@ -11,12 +11,13 @@
  * reporting failure here.
  */
 import { useCallback, useRef } from 'react';
-import { fetchAllRiasBuoys } from '../api/buoyClient';
+import { fetchAllRiasBuoys, mergeBuoyReadings } from '../api/buoyClient';
+import { fetchAllObsReadings } from '../api/observatorioCosteiro';
 import { useBuoyStore } from '../store/buoyStore';
 import { useSectorStore } from '../store/sectorStore';
 import { useVisibilityPolling } from './useVisibilityPolling';
 
-const REFRESH_INTERVAL = 30 * 60_000; // 30 min (buoys update ~hourly)
+const REFRESH_INTERVAL = 10 * 60_000; // 10 min (Observatorio Costeiro cadence)
 const ERROR_RETRY_MS = 5 * 60_000;    // 5 min retry on error
 
 export function useBuoyData() {
@@ -36,9 +37,31 @@ export function useBuoyData() {
     }
     setLoading(true);
     try {
-      const data = await fetchAllRiasBuoys();
-      setBuoys(data);
+      // Fetch PORTUS + Observatorio Costeiro in parallel — fail silently per source
+      const [portusData, obsData] = await Promise.all([
+        fetchAllRiasBuoys().catch((err) => {
+          console.warn('[useBuoyData] PORTUS fetch failed:', (err as Error).message);
+          return [];
+        }),
+        fetchAllObsReadings().catch((err) => {
+          console.warn('[useBuoyData] ObsCosteiro fetch failed:', (err as Error).message);
+          return [];
+        }),
+      ]);
+
+      // Merge — prefer newest timestamp, preserve PORTUS-exclusive fields
+      const merged = mergeBuoyReadings(portusData, obsData);
+
+      if (merged.length === 0) {
+        throw new Error('Sin datos de boyas (PORTUS + Observatorio Costeiro fallaron)');
+      }
+
+      setBuoys(merged);
       setError(null);
+
+      if (obsData.length > 0) {
+        console.log(`[useBuoyData] Merged: ${portusData.length} PORTUS + ${obsData.length} ObsCosteiro → ${merged.length} total`);
+      }
     } catch (err) {
       const msg = (err as Error).message;
       setError(msg);

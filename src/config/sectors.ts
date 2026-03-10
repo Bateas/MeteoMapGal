@@ -49,6 +49,7 @@ export const SECTORS: Sector[] = [
       { name: 'A Guarda',    lon: -8.88, lat: 41.90 },  // 47km — Miño estuary
       { name: 'Vilagarcía',  lon: -8.77, lat: 42.60 },  // 34km — Arousa ría port
       { name: 'Ribeira',     lon: -8.99, lat: 42.56 },  // 39km — Arousa south coast
+      { name: 'Muros',       lon: -9.0153, lat: 42.7195 }, // ~45km — Ría de Muros-Noia (Obs. Costeiro)
     ],
   },
   {
