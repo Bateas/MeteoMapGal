@@ -178,9 +178,9 @@ export const RIAS_SPOTS: SailingSpot[] = [
     name: 'Cíes-Ría (Baiona–Cíes)',
     shortName: 'Cíes-Ría',
     icon: 'sailboat',
-    center: [-8.92, 42.17],
+    center: [-8.8648, 42.1849],
     radiusKm: 12,
-    description: 'Entrada de la ría y costa exterior. Condiciones oceánicas: mar de fondo, nortada, upwelling.',
+    description: 'Zona Estelas/Cíes – entrada de la ría. Condiciones oceánicas: mar de fondo, nortada, upwelling.',
     windPatterns: [
       {
         name: 'Nortada',
@@ -215,7 +215,7 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     name: 'Castrelo de Miño (Embalse)',
     shortName: 'Castrelo',
     icon: 'sailboat',
-    center: [-8.1, 42.29],
+    center: [-8.1087, 42.2991],
     radiusKm: 15,
     description: 'Embalse de Castrelo de Miño. Viento térmico WSW dominante en tardes de verano.',
     windPatterns: [
