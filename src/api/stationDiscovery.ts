@@ -14,6 +14,8 @@ export interface DiscoveryParams {
   meteoclimaticRegions: string[];
   /** Extra coverage points outside the main radius (stations within 8km included) */
   extraCoveragePoints?: { name: string; lon: number; lat: number }[];
+  /** Sector ID — used to skip dedup for Embalse and apply Rías exclusion zones */
+  sectorId?: string;
 }
 
 /** Check if a station falls within any extra coverage point (8km mini-radius) */
@@ -178,14 +180,68 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
     console.error('[Discovery] Netatmo station fetch failed:', netatmoStations.reason);
   }
 
-  const filtered = deduplicateByProximity(stations);
-  console.debug(`[Discovery] Total stations: ${filtered.length}`);
+  // Post-processing: exclusion zones + proximity dedup (Rías only)
+  const sectorId = params.sectorId ?? '';
+
+  let result = stations;
+
+  if (sectorId === 'rias') {
+    result = excludeRiasInterior(result);
+    result = deduplicateByProximity(result);
+  }
+
+  console.debug(`[Discovery] Total stations: ${result.length}`);
+  return result;
+}
+
+// ── Rías interior exclusion zone ─────────────────────────────
+
+/**
+ * Polygon defining interior mountain area to exclude from Rías Baixas.
+ * Removes inland stations (A Lama, Ponte Caldelas, Campo Lameiro,
+ * Pazos de Borbén, A Granxa, Ponteareas, Fornelos, Gargamala, Meder,
+ * San Nomedio) that don't contribute to coastal wind monitoring.
+ *
+ * Western boundary at -8.55 separates interior (lon > -8.55) from
+ * coastal corridor (O Viso -8.60, Atios -8.61, Vigo -8.62).
+ */
+const RIAS_INTERIOR_EXCLUSION: [number, number][] = [
+  [-8.55, 42.42],   // NW — captures Ponte Caldelas, Campo Lameiro, A Lama
+  [-8.25, 42.42],   // NE — east of A Lama
+  [-8.15, 42.25],   // E — Covelo area
+  [-8.20, 42.05],   // SE — south of Mondariz
+  [-8.55, 41.95],   // SW — southern interior
+];
+
+/** Point-in-polygon test (ray casting algorithm) */
+function isInsidePolygon(lon: number, lat: number, polygon: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Remove interior mountain stations from Rías Baixas sector */
+function excludeRiasInterior(stations: NormalizedStation[]): NormalizedStation[] {
+  const before = stations.length;
+  const filtered = stations.filter((s) => !isInsidePolygon(s.lon, s.lat, RIAS_INTERIOR_EXCLUSION));
+  if (filtered.length < before) {
+    console.debug(
+      `[Discovery] Rías interior exclusion: ${before} → ${filtered.length} ` +
+      `(${before - filtered.length} inland stations removed)`
+    );
+  }
   return filtered;
 }
 
-// ── Cross-source proximity deduplication ─────────────────────
+// ── Cross-source proximity deduplication (Rías only) ─────────
 
-/** Source priority for proximity dedup — higher value = keep over lower */
+/** Source priority — higher value = keep over lower */
 const SOURCE_PRIORITY: Record<string, number> = {
   aemet: 50,          // official national agency, calibrated
   meteogalicia: 40,   // official regional agency, calibrated
@@ -195,45 +251,63 @@ const SOURCE_PRIORITY: Record<string, number> = {
 };
 
 /**
- * Final proximity-based deduplication across ALL sources.
+ * Score a station by data richness — stations with more sensor types rank higher.
+ * Wind is essential for Rías (coastal monitoring). Solar, pressure, humidity add value.
+ */
+function dataRichnessScore(s: NormalizedStation): number {
+  if (s.tempOnly) return 0;
+  let score = 10; // has wind = base 10
+  // Source-specific data richness (AEMET/MG report more fields)
+  if (s.source === 'aemet' || s.source === 'meteogalicia') score += 5;
+  return score;
+}
+
+/**
+ * Proximity dedup for Rías Baixas only.
  *
- * Sorts stations by source priority (best first). When a lower-priority
- * station falls within ~1.2km of an already-kept station, it's dropped.
- * Netatmo tempOnly stations use a wider 2km radius (most redundant).
- *
- * This eliminates the visual clutter of 4-5 markers on top of each other
- * in cities like Vigo, while keeping the best-quality data source.
+ * Rules:
+ * 1. Sort by: source priority → data richness → wind over tempOnly
+ * 2. When a lower-ranked station is within ~1.3km of kept station, drop it
+ * 3. BUT: guarantee at least 2 wind stations per cluster (redundancy)
+ * 4. tempOnly stations use wider 2km radius (less useful in Rías)
  */
 function deduplicateByProximity(stations: NormalizedStation[]): NormalizedStation[] {
-  // Sort: highest priority first; within same priority, wind > tempOnly
   const sorted = [...stations].sort((a, b) => {
     const pa = SOURCE_PRIORITY[a.source] ?? 0;
     const pb = SOURCE_PRIORITY[b.source] ?? 0;
     if (pa !== pb) return pb - pa;
+    const da = dataRichnessScore(a);
+    const db = dataRichnessScore(b);
+    if (da !== db) return db - da;
     return (a.tempOnly ? 1 : 0) - (b.tempOnly ? 1 : 0);
   });
 
   const kept: NormalizedStation[] = [];
 
   for (const station of sorted) {
-    // tempOnly stations: wider dedup radius (they only add temperature)
-    // Wind stations: moderate radius — we don't want to lose wind data points
     const threshold = station.tempOnly ? 0.018 : 0.012; // ~2km / ~1.3km
 
-    const tooClose = kept.some(
+    // Find how many already-kept stations are nearby
+    const nearbyKept = kept.filter(
       (s) =>
         Math.abs(s.lat - station.lat) < threshold &&
         Math.abs(s.lon - station.lon) < threshold
     );
 
-    if (!tooClose) {
+    if (nearbyKept.length === 0) {
+      // No nearby stations — always keep
+      kept.push(station);
+    } else if (!station.tempOnly && nearbyKept.length < 2) {
+      // Wind station with only 1 neighbor — keep for redundancy
+      // (never leave just 1 station alone)
       kept.push(station);
     }
+    // else: already 2+ nearby → skip this one
   }
 
   if (kept.length < sorted.length) {
     console.debug(
-      `[Discovery] Proximity filter: ${sorted.length} → ${kept.length} stations ` +
+      `[Discovery] Proximity dedup: ${sorted.length} → ${kept.length} ` +
       `(${sorted.length - kept.length} nearby duplicates removed)`
     );
   }

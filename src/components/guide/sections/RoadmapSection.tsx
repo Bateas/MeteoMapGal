@@ -84,7 +84,7 @@ export function RoadmapSection() {
         <TimelineMilestone
           iconId="waves"
           title="Boyas marinas (Puertos del Estado)"
-          desc="Oleaje, viento, T agua, corrientes y salinidad de 6 boyas en Rías Baixas. Marcadores con datos visuales y popup detallado al clic."
+          desc="Oleaje, viento, T agua, corrientes y salinidad de 11 boyas en Rías Baixas. Marcadores con datos visuales y popup detallado al clic."
           status="done"
         />
 
@@ -99,6 +99,13 @@ export function RoadmapSection() {
           iconId="radar"
           title="Comparación de estaciones"
           desc="Superponer gráficas de 2 estaciones para comparar tendencias históricas lado a lado."
+          status="done"
+        />
+
+        <TimelineMilestone
+          iconId="map-pin"
+          title="Filtrado inteligente de estaciones"
+          desc="Exclusión automática de estaciones de interior irrelevantes en Rías Baixas y deduplicación por proximidad entre fuentes para eliminar clustering."
           status="done"
         />
 
@@ -198,7 +205,7 @@ export function RoadmapSection() {
             <SourceRow letter="L" name="MeteoGalicia" desc="Red de detección de rayos" color="#f43f5e" />
             <SourceRow letter="E" name="ENAIRE" desc="Espacio aéreo y NOTAMs para drones" color="#6366f1" />
             <SourceRow letter="T" name="IHM / Puertos del Estado" desc="Predicciones de mareas (5 puertos)" color="#14b8a6" />
-            <SourceRow letter="B" name="Puertos del Estado (PORTUS)" desc="Boyas marinas — oleaje, viento, corrientes (6 estaciones)" color="#06b6d4" />
+            <SourceRow letter="B" name="Puertos del Estado (PORTUS)" desc="Boyas marinas — oleaje, viento, corrientes (11 estaciones)" color="#06b6d4" />
           </div>
         </div>
 

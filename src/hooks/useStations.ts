@@ -38,6 +38,7 @@ export function useStations() {
           radiusKm: activeSector.radiusKm,
           meteoclimaticRegions: activeSector.meteoclimaticRegions,
           extraCoveragePoints: activeSector.extraCoveragePoints,
+          sectorId: activeSector.id,
         }),
         DISCOVERY_TIMEOUT_MS,
       );
