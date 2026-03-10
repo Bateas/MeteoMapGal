@@ -173,7 +173,15 @@ export function dewPointSpreadColor(spread: number | null | undefined): string {
   return '#f59e0b';                        // amber-500 (very dry)
 }
 
-// ── Thermal wind utilities ───────────────────────────────
+// ── Direction utilities ──────────────────────────────────
+
+const CARDINALS_8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
+
+/** Convert degrees (0-360) to 8-point cardinal (N, NE, E, SE, S, SW, W, NW) */
+export function degToCardinal8(deg: number): string {
+  const idx = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
+  return CARDINALS_8[idx];
+}
 
 /**
  * Angular difference between two directions (0-180°).

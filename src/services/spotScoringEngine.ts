@@ -13,10 +13,10 @@
 
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
-import { RIAS_BUOY_STATIONS } from '../api/buoyClient';
-import type { SailingSpot } from '../config/spots';
+import { BUOY_COORDS_MAP } from '../api/buoyClient';
+import type { SailingSpot, SpotId } from '../config/spots';
 import { RIAS_SPOTS } from '../config/spots';
-import { msToKnots } from './windUtils';
+import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { fastDistanceKm } from './idwInterpolation';
 
 // ── Types ────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ export interface SpotWaveConditions {
 }
 
 export interface SpotScore {
-  spotId: string;
+  spotId: SpotId;
   spotName: string;
   verdict: SpotVerdict;
   score: number; // 0-100
@@ -55,20 +55,6 @@ export interface SpotScore {
   /** Hard gate that triggered NOGO, if any */
   hardGateTriggered: string | null;
   computedAt: Date;
-}
-
-// ── Cardinals ────────────────────────────────────────────────
-
-const CARDINALS_8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
-
-function degToCardinal8(deg: number): string {
-  const idx = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
-  return CARDINALS_8[idx];
-}
-
-/** Angular difference (0-180°) */
-function angleDiff(a: number, b: number): number {
-  return Math.abs(((a - b + 180) % 360 + 360) % 360 - 180);
 }
 
 // ── Station Selection ────────────────────────────────────────
@@ -112,12 +98,10 @@ function selectBuoysForSpot(
 ): { buoy: BuoyReading; distKm: number; lat: number; lon: number }[] {
   const [spotLon, spotLat] = spot.center;
   const preferredSet = new Set(spot.preferredBuoys);
-  const coordsMap = new Map(RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]));
-
   const result: { buoy: BuoyReading; distKm: number; lat: number; lon: number }[] = [];
 
   for (const b of buoys) {
-    const coords = coordsMap.get(b.stationId);
+    const coords = BUOY_COORDS_MAP.get(b.stationId);
     if (!coords) continue;
 
     const distKm = fastDistanceKm(coords.lat, coords.lon, spotLat, spotLon);
@@ -183,7 +167,7 @@ function computeSpotWindConsensus(
   // Check wind pattern match
   let matchedPattern: string | null = null;
   for (const pattern of spot.windPatterns) {
-    if (angleDiff(avgDir, pattern.direction) <= 45 && avgSpeed >= 4) {
+    if (angleDifference(avgDir, pattern.direction) <= 45 && avgSpeed >= 4) {
       matchedPattern = pattern.name;
       break;
     }
