@@ -2,10 +2,19 @@ import { useMemo, memo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import type maplibregl from 'maplibre-gl';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
+import type { BuoyReading } from '../../api/buoyClient';
+import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
+
+/** Buoy coordinates lookup (cached at module level) */
+const BUOY_COORDS = new Map(
+  RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]),
+);
 
 interface WindFieldOverlayProps {
   stations: NormalizedStation[];
   readings: Map<string, NormalizedReading>;
+  /** Optional buoy readings — generates hex-pattern arrows around buoys too */
+  buoys?: BuoyReading[];
   /** When true, uses smaller arrows and skips outer ring (for dense sectors). */
   compact?: boolean;
 }
@@ -163,12 +172,14 @@ export async function registerWindArrowIcons(
 export const WindFieldOverlay = memo(function WindFieldOverlay({
   stations,
   readings,
+  buoys,
   compact = false,
 }: WindFieldOverlayProps) {
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
     const offsetScale = compact ? 0.6 : 1;
 
+    // ── Station arrows ─────────────────────────────────
     for (const station of stations) {
       if (station.tempOnly) continue; // no wind sensor → no arrows
       const reading = readings.get(station.id);
@@ -230,13 +241,69 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
       }
     }
 
+    // ── Buoy arrows — same hex-pattern as stations ────
+    if (buoys) {
+      for (const buoy of buoys) {
+        if (buoy.windSpeed == null || buoy.windDir == null || buoy.windSpeed < 0.1) continue;
+        const coords = BUOY_COORDS.get(buoy.stationId);
+        if (!coords) continue;
+
+        const rotation = (buoy.windDir + 180) % 360;
+        const level = speedToLevel(buoy.windSpeed);
+
+        // Inner ring
+        for (let i = 0; i < OFFSETS.length; i++) {
+          const [dx, dy] = OFFSETS[i];
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [
+                coords.lon + dx * OFFSET_LON * offsetScale,
+                coords.lat + dy * OFFSET_LAT * offsetScale,
+              ],
+            },
+            properties: {
+              rotation,
+              speed: buoy.windSpeed,
+              speedLevel: level,
+              opacity: compact ? 0.65 : 0.75,
+            },
+          });
+        }
+
+        // Outer ring — skip in compact mode
+        if (!compact) {
+          for (let i = 0; i < OFFSETS_OUTER.length; i++) {
+            const [dx, dy] = OFFSETS_OUTER[i];
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [
+                  coords.lon + dx * OFFSET_LON * 1.8,
+                  coords.lat + dy * OFFSET_LAT * 1.8,
+                ],
+              },
+              properties: {
+                rotation,
+                speed: buoy.windSpeed,
+                speedLevel: level,
+                opacity: 0.5,
+              },
+            });
+          }
+        }
+      }
+    }
+
     if (features.length === 0) return EMPTY_FC;
 
     return {
       type: 'FeatureCollection',
       features,
     };
-  }, [stations, readings, compact]);
+  }, [stations, readings, buoys, compact]);
 
   return (
     <Source id="wind-field" type="geojson" data={geojson}>
