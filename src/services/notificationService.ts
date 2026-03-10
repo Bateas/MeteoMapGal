@@ -56,27 +56,31 @@ function meetsMinSeverity(severity: AlertSeverity, min: AlertSeverity): boolean 
 
 // ── Audio tones (Web Audio API) ─────────────────────────────
 
-/** Frequency + duration profiles for each severity */
+/**
+ * Frequency + duration profiles for each severity.
+ * Design: subtle, non-alarming tones — soft sine waves with gentle intervals.
+ * Think "soft chime" not "alarm siren". Lower frequencies = warmer, less piercing.
+ */
 const TONE_PROFILES: Record<AlertSeverity, { freq: number[]; duration: number; type: OscillatorType }> = {
   info: {
-    freq: [440],        // single A4
-    duration: 0.15,
+    freq: [392],          // G4 — warm single note
+    duration: 0.12,
     type: 'sine',
   },
   moderate: {
-    freq: [523, 659],   // C5, E5 — gentle two-note
-    duration: 0.18,
+    freq: [349, 440],     // F4, A4 — soft ascending third
+    duration: 0.14,
     type: 'sine',
   },
   high: {
-    freq: [587, 784, 587], // D5, G5, D5 — warning triple
-    duration: 0.15,
-    type: 'triangle',
+    freq: [392, 494],     // G4, B4 — mellow two-note chime
+    duration: 0.13,
+    type: 'sine',
   },
   critical: {
-    freq: [880, 660, 880, 660], // A5, E5 alternating — urgent
+    freq: [440, 523, 440], // A4, C5, A4 — gentle three-note pattern
     duration: 0.12,
-    type: 'sawtooth',
+    type: 'sine',         // sine instead of sawtooth (much softer)
   },
 };
 
@@ -112,13 +116,12 @@ export function playAlertTone(severity: AlertSeverity, volume: number = 0.5): vo
       osc.frequency.setValueAtTime(freq, startTime);
       osc.connect(gainNode);
 
-      // Envelope: quick attack, sustain, quick release
+      // Envelope: gentle attack → sustain → smooth release (softer than before)
+      const maxGain = volume * (severity === 'critical' ? 0.35 : 0.2);
       gainNode.gain.setValueAtTime(0, startTime);
-      gainNode.gain.linearRampToValueAtTime(
-        volume * (severity === 'critical' ? 0.6 : 0.4),
-        startTime + 0.02,
-      );
-      gainNode.gain.linearRampToValueAtTime(0, startTime + profile.duration);
+      gainNode.gain.linearRampToValueAtTime(maxGain, startTime + 0.04); // slower attack
+      gainNode.gain.setValueAtTime(maxGain, startTime + profile.duration * 0.6); // sustain
+      gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + profile.duration); // smooth fade
 
       osc.start(startTime);
       osc.stop(startTime + profile.duration + 0.01);

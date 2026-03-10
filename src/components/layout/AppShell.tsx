@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar';
 import { FieldDrawer } from './FieldDrawer';
 import { WeatherMap } from '../map/WeatherMap';
 import { useWeatherData } from '../../hooks/useWeatherData';
-import { LoadingSpinner } from '../common/LoadingSpinner';
+import { LoadingScreen } from '../common/LoadingScreen';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
@@ -279,30 +279,13 @@ export function AppShell() {
             <MobileSailingBanner />
           )}
 
-          {/* Loading / error overlay (only when no stations yet) */}
-          {stations.length === 0 && (isLoading || error) && (
-            <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center z-10">
-              <div className="flex flex-col items-center gap-3">
-                {isLoading ? (
-                  <>
-                    <LoadingSpinner size={40} />
-                    <span className="text-sm text-slate-400">
-                      Descubriendo estaciones en {activeSector.name}...
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-sm text-red-400">{error}</span>
-                    <button
-                      onClick={retryDiscovery}
-                      className="px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-                    >
-                      Reintentar
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+          {/* Loading screen (only when no stations yet OR still loading initial data) */}
+          {(stations.length === 0 && (isLoading || error)) && (
+            <LoadingScreen
+              sectorName={activeSector.name}
+              error={error}
+              onRetry={retryDiscovery}
+            />
           )}
 
           {/* Campo (field alerts) drawer */}
