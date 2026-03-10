@@ -204,8 +204,8 @@ export function ReadingMapSection() {
           />
           <MiniExplainer
             iconId="sailboat"
-            title="Briefing diario de navegación"
-            text="Score 0-100 basado en consenso multi-estación, previsión, ΔT y condiciones térmicas. ≥45 = ¡A navegar!"
+            title="Spots de navegación"
+            text="Panel unificado de spots con score 0-100 por zona: viento real, olas, patrones locales + detalle térmico en spots con thermalDetection. GO≥50, MARGINAL≥25."
           />
           <MiniExplainer
             iconId="wind"

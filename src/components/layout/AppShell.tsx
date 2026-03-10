@@ -274,8 +274,8 @@ export function AppShell() {
             <WeatherMap />
           </ErrorBoundary>
 
-          {/* Mobile sailing banner: floating pill above the map */}
-          {isMobile && activeSector.id === 'embalse' && !sidebarOpen && (
+          {/* Mobile sailing banner: floating pill above the map (both sectors) */}
+          {isMobile && !sidebarOpen && (
             <MobileSailingBanner />
           )}
 
