@@ -15,7 +15,6 @@ import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
-import { RIAS_SPOTS } from '../config/spots';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { fastDistanceKm } from './idwInterpolation';
 
@@ -271,8 +270,8 @@ function scoreSpot(
   // Rías sailing scale: <5kt nogo, 5-8kt marginal, 8-13kt decent,
   // 13-20kt good day, 20-25kt strong but sailable, 25-30kt experts only
   const spd = wind.avgSpeedKt;
-  if (spot.id === 'cesantes') {
-    // Cesantes: thermal/flat water — lighter wind is still useful
+  if (spot.id === 'cesantes' || spot.id === 'castrelo') {
+    // Thermal/flat water spots — lighter wind is still useful
     if (spd >= 13 && spd <= 20) score += 45;      // buen día
     else if (spd >= 20 && spd <= 25) score += 40;  // fuerte, viable
     else if (spd >= 8 && spd < 13) score += 35;    // decentillo
@@ -406,15 +405,17 @@ function buildSpotSummary(
 /**
  * Score all spots with current data.
  * Returns a Map of spotId → SpotScore.
+ * Accepts spots array to support multiple sectors.
  */
 export function scoreAllSpots(
+  spots: SailingSpot[],
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
   buoys: BuoyReading[],
 ): Map<string, SpotScore> {
   const results = new Map<string, SpotScore>();
 
-  for (const spot of RIAS_SPOTS) {
+  for (const spot of spots) {
     const stationData = selectStationsForSpot(spot, stations, readings);
     const buoyData = selectBuoysForSpot(spot, buoys);
 

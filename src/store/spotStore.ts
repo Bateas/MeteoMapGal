@@ -1,12 +1,12 @@
 /**
- * Zustand store for sailing spot selection (Rías Baixas sector).
+ * Zustand store for sailing spot selection (multi-sector).
  *
  * Tracks active spot, per-spot scoring results, and loading state.
  * Persisted to localStorage so spot selection survives page refresh.
  */
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
-import { RIAS_SPOTS, DEFAULT_SPOT_ID, type SailingSpot } from '../config/spots';
+import { ALL_SPOTS, DEFAULT_SPOT_ID, type SailingSpot } from '../config/spots';
 import type { SpotScore } from '../services/spotScoringEngine';
 
 interface SpotState {
@@ -30,12 +30,12 @@ export const useSpotStore = create<SpotState & SpotActions>()(
     persist(
       (set) => ({
         activeSpotId: DEFAULT_SPOT_ID,
-        activeSpot: RIAS_SPOTS.find((s) => s.id === DEFAULT_SPOT_ID)!,
+        activeSpot: ALL_SPOTS.find((s) => s.id === DEFAULT_SPOT_ID)!,
         scores: new Map(),
         lastScored: 0,
 
         selectSpot: (spotId: string) => {
-          const spot = RIAS_SPOTS.find((s) => s.id === spotId);
+          const spot = ALL_SPOTS.find((s) => s.id === spotId);
           if (!spot) return;
           set({ activeSpotId: spotId, activeSpot: spot }, undefined, 'selectSpot');
         },
@@ -54,7 +54,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
 
 // Rehydrate activeSpot from persisted activeSpotId
 const persisted = useSpotStore.getState();
-const match = RIAS_SPOTS.find((s) => s.id === persisted.activeSpotId);
+const match = ALL_SPOTS.find((s) => s.id === persisted.activeSpotId);
 if (match && match.id !== persisted.activeSpot.id) {
   useSpotStore.setState({ activeSpot: match });
 }
