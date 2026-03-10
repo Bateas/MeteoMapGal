@@ -27,10 +27,11 @@ function timeAgoEs(ts: string): string {
 
 // ── Type badge colors ──────────────────────────────────────
 const TYPE_COLORS: Record<string, string> = {
-  REDEXT:  '#06b6d4', // cyan — deep-water buoy
-  CETMAR:  '#0891b2', // cyan-600 — coastal buoy
-  REMPOR:  '#0d9488', // teal-600 — port met station
-  REDMAR:  '#0ea5e9', // sky-500 — tide gauge
+  REDEXT:      '#06b6d4', // cyan — deep-water buoy
+  CETMAR:      '#0891b2', // cyan-600 — coastal buoy
+  REMPOR:      '#0d9488', // teal-600 — port met station
+  REDMAR:      '#0ea5e9', // sky-500 — tide gauge
+  OBSCOSTEIRO: '#14b8a6', // teal-400 — Observatorio Costeiro da Xunta
 };
 
 interface BuoyPopupProps {
@@ -205,6 +206,21 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
           <DataCell
             label="Nivel del mar"
             value={`${reading.seaLevel.toFixed(0)} cm`}
+          />
+        )}
+
+        {/* ── Humidity & dew point (Obs. Costeiro) ─ */}
+        {reading.humidity != null && (
+          <DataCell
+            label="Humedad"
+            value={`${reading.humidity.toFixed(0)}%`}
+            color={reading.humidity > 85 ? '#93c5fd' : undefined}
+          />
+        )}
+        {reading.dewPoint != null && (
+          <DataCell
+            label="Punto de rocío"
+            value={`${reading.dewPoint.toFixed(1)}°C`}
           />
         )}
       </div>
