@@ -1,6 +1,6 @@
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
-import { RIAS_BUOY_STATIONS } from '../api/buoyClient';
+import { BUOY_COORDS_MAP } from '../api/buoyClient';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -236,11 +236,10 @@ export function extractWindData(
 /** Extract wind data from marine buoy readings for IDW wind interpolation */
 export function extractBuoyWindData(buoys: BuoyReading[]): StationWindData[] {
   const result: StationWindData[] = [];
-  const coordsMap = new Map(RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]));
   for (const b of buoys) {
     if (b.windSpeed == null || b.windDir == null) continue;
     if (b.windSpeed < 0.1) continue;
-    const coords = coordsMap.get(b.stationId);
+    const coords = BUOY_COORDS_MAP.get(b.stationId);
     if (!coords) continue;
     result.push({
       lat: coords.lat,

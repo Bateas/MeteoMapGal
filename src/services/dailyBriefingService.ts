@@ -2,7 +2,7 @@ import type { HourlyForecast } from '../types/forecast';
 import type { NormalizedReading } from '../types/station';
 import type { DailyContext, AtmosphericContext, ZoneAlert, TendencySignal, MicroZoneId } from '../types/thermal';
 import type { UnifiedAlert } from './alertService';
-import { msToKnots } from './windUtils';
+import { msToKnots, degToCardinal8 } from './windUtils';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -58,15 +58,6 @@ export interface SailingBriefing {
   rainProbability: number | null;
   /** Computed at */
   computedAt: Date;
-}
-
-// ── Cardinal helper ──────────────────────────────────────────
-
-const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
-
-function degToCardinal8(deg: number): string {
-  const idx = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
-  return CARDINALS[idx];
 }
 
 // ── Real-time wind consensus ─────────────────────────────────

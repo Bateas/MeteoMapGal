@@ -12,7 +12,7 @@ import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
 import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/windUtils';
-import { waveHeightColor, waterTempColor, currentSpeedColor } from '../../services/buoyUtils';
+import { waveHeightColor, waterTempColor, currentSpeedColor, seaStateLabel } from '../../services/buoyUtils';
 
 /** Lightweight relative-time in Spanish (avoids date-fns locale bundle) */
 function timeAgoEs(ts: string): string {
@@ -87,7 +87,7 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
         {hasWaves && (
           <>
             <DataCell
-              label="Oleaje (Hm0)"
+              label={`Oleaje — ${seaStateLabel(reading.waveHeight)}`}
               value={`${reading.waveHeight!.toFixed(1)} m`}
               color={waveHeightColor(reading.waveHeight)}
               large
