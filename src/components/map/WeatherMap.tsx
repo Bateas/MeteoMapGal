@@ -31,6 +31,7 @@ import { SectorSelector } from './SectorSelector';
 import { MapContextMenu } from './MapContextMenu';
 import { BuoyMarker } from './BuoyMarker';
 import { BuoyPopup } from './BuoyPopup';
+import { SpotMarkers } from './SpotMarker';
 import { useBuoyStore } from '../../store/buoyStore';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
@@ -206,6 +207,9 @@ export function WeatherMap() {
             isSelected={b.stationId === selectedBuoyId}
           />
         ))}
+
+        {/* Sailing spot markers — only for Rías Baixas sector */}
+        {activeSector.id === 'rias' && <SpotMarkers />}
 
         {/* Thermal alert badges + propagation — only for Embalse sector */}
         {activeSector.id === 'embalse' && (
