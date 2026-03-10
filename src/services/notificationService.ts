@@ -38,7 +38,7 @@ const DEFAULT_CONFIG: NotificationConfig = {
   volume: 0.5,
   minSeverity: 'high',
   mutedCategories: new Set(),
-  cooldownMs: 5 * 60 * 1000, // 5 min cooldown per alert
+  cooldownMs: 30 * 60 * 1000, // 30 min cooldown per alert (subtle, not spammy)
 };
 
 // ── Severity ordering ───────────────────────────────────────
@@ -63,24 +63,24 @@ function meetsMinSeverity(severity: AlertSeverity, min: AlertSeverity): boolean 
  */
 const TONE_PROFILES: Record<AlertSeverity, { freq: number[]; duration: number; type: OscillatorType }> = {
   info: {
-    freq: [392],          // G4 — warm single note
-    duration: 0.12,
+    freq: [330],          // E4 — warm, low single note
+    duration: 0.15,
     type: 'sine',
   },
   moderate: {
-    freq: [349, 440],     // F4, A4 — soft ascending third
-    duration: 0.14,
+    freq: [294, 370],     // D4, F#4 — very soft ascending third
+    duration: 0.18,
     type: 'sine',
   },
   high: {
-    freq: [392, 494],     // G4, B4 — mellow two-note chime
-    duration: 0.13,
+    freq: [330, 415],     // E4, G#4 — gentle two-note chime
+    duration: 0.16,
     type: 'sine',
   },
   critical: {
-    freq: [440, 523, 440], // A4, C5, A4 — gentle three-note pattern
-    duration: 0.12,
-    type: 'sine',         // sine instead of sawtooth (much softer)
+    freq: [370, 440],     // F#4, A4 — soft two-note (was 3 notes, now 2)
+    duration: 0.15,
+    type: 'sine',
   },
 };
 
@@ -116,8 +116,8 @@ export function playAlertTone(severity: AlertSeverity, volume: number = 0.5): vo
       osc.frequency.setValueAtTime(freq, startTime);
       osc.connect(gainNode);
 
-      // Envelope: gentle attack → sustain → smooth release (softer than before)
-      const maxGain = volume * (severity === 'critical' ? 0.35 : 0.2);
+      // Envelope: very gentle attack → sustain → smooth release
+      const maxGain = volume * (severity === 'critical' ? 0.18 : 0.10);
       gainNode.gain.setValueAtTime(0, startTime);
       gainNode.gain.linearRampToValueAtTime(maxGain, startTime + 0.04); // slower attack
       gainNode.gain.setValueAtTime(maxGain, startTime + profile.duration * 0.6); // sustain
@@ -173,6 +173,9 @@ const lastNotified = new Map<string, number>();
 let previousAlertIds = new Set<string>();
 /** Track previous max severity for escalation detection */
 let previousMaxSeverity: AlertSeverity = 'info';
+/** Global cooldown — minimum 10 min between ANY sound, regardless of alert ID */
+let lastSoundTime = 0;
+const GLOBAL_SOUND_COOLDOWN_MS = 10 * 60 * 1000; // 10 min
 
 /**
  * Process a new set of alerts and trigger notifications for:
@@ -211,13 +214,14 @@ export function processAlertNotifications(
     && meetsMinSeverity(risk.severity, config.minSeverity);
 
   if (notifiableAlerts.length > 0 || escalated) {
-    // Play sound for the highest-severity new alert
-    if (config.soundEnabled) {
+    // Play sound — with global cooldown to prevent spam during persistent alerts
+    if (config.soundEnabled && (now - lastSoundTime >= GLOBAL_SOUND_COOLDOWN_MS)) {
       const highestSeverity = notifiableAlerts.reduce<AlertSeverity>(
         (max, a) => SEVERITY_ORDER[a.severity] > SEVERITY_ORDER[max] ? a.severity : max,
         escalated ? risk.severity : 'info',
       );
       playAlertTone(highestSeverity, config.volume);
+      lastSoundTime = now;
     }
 
     // Send browser notifications
