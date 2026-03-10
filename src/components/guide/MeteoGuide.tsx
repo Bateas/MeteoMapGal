@@ -10,6 +10,7 @@ import { BestConditionsSection } from './sections/BestConditionsSection';
 import { ReadingMapSection } from './sections/ReadingMapSection';
 import { CampoPanelSection } from './sections/CampoPanelSection';
 import { SailingBannerSection } from './sections/SailingBannerSection';
+import { SpotScoringSection } from './sections/SpotScoringSection';
 import { GlossarySection } from './sections/GlossarySection';
 import { HistorySection } from './sections/HistorySection';
 import { RoadmapSection } from './sections/RoadmapSection';
@@ -34,6 +35,7 @@ const ALL_SECTIONS: GuideSection[] = [
   { id: 'reading', label: 'Leer el mapa' },
   { id: 'campo', label: 'Panel Alertas' },
   { id: 'sailing', label: 'Navegación y scoring', sectorOnly: ['embalse'] },
+  { id: 'spots', label: 'Spots de navegación' },
   { id: 'history', label: 'Historial meteorológico' },
   { id: 'glossary', label: 'Glosario' },
   { id: 'roadmap', label: 'Roadmap y fuentes' },
@@ -154,6 +156,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
             {activeSection === 'reading' && <ReadingMapSection />}
             {activeSection === 'campo' && <CampoPanelSection />}
             {activeSection === 'sailing' && <SailingBannerSection />}
+            {activeSection === 'spots' && <SpotScoringSection />}
             {activeSection === 'history' && <HistorySection />}
             {activeSection === 'roadmap' && <RoadmapSection />}
             {activeSection === 'legal' && <LegalSection />}

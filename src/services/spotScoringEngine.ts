@@ -41,6 +41,17 @@ export interface SpotWaveConditions {
   sourceBuoy: string | null;
 }
 
+/** Thermal context for spots with thermalDetection: true */
+export interface SpotThermalContext {
+  deltaT: number | null;
+  thermalProbability: number;
+  windWindow: { startHour: number; endHour: number; avgSpeedKt: number; dominantDir: string } | null;
+  atmosphere: { cloudCover: number | null; cape: number | null };
+  bestTendency: string;
+  hasStormAlert: boolean;
+  rainProbability: number | null;
+}
+
 export interface SpotScore {
   spotId: SpotId;
   spotName: string;
@@ -53,6 +64,10 @@ export interface SpotScore {
   waterTemp: number | null;
   /** Hard gate that triggered NOGO, if any */
   hardGateTriggered: string | null;
+  /** Thermal context — only for spots with thermalDetection: true */
+  thermal: SpotThermalContext | null;
+  /** Active storm alert — applies to ALL spots in the sector */
+  hasStormAlert: boolean;
   computedAt: Date;
 }
 
@@ -412,8 +427,10 @@ export function scoreAllSpots(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
   buoys: BuoyReading[],
+  thermalData?: SpotThermalContext,
 ): Map<string, SpotScore> {
   const results = new Map<string, SpotScore>();
+  const computedAt = new Date();
 
   for (const spot of spots) {
     const stationData = selectStationsForSpot(spot, stations, readings);
@@ -443,7 +460,9 @@ export function scoreAllSpots(
       waves,
       waterTemp,
       hardGateTriggered: hardGate,
-      computedAt: new Date(),
+      thermal: spot.thermalDetection ? (thermalData ?? null) : null,
+      hasStormAlert: thermalData?.hasStormAlert ?? false,
+      computedAt,
     });
   }
 

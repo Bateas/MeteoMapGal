@@ -109,6 +109,13 @@ export function RoadmapSection() {
           status="done"
         />
 
+        <TimelineMilestone
+          iconId="sailboat"
+          title="Spots de navegación unificados"
+          desc="Scoring multi-spot con detalle térmico integrado. 4 spots en Rías + 1 en Embalse. GO/MARGINAL/NOGO con veredicto 0-100."
+          status="done"
+        />
+
         {/* Minor updates — collapsed */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
           <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-emerald-500/20 border-emerald-500/30" />
