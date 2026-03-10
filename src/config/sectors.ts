@@ -45,6 +45,7 @@ export const SECTORS: Sector[] = [
     meteoclimaticRegions: ['ESGAL36', 'ESGAL15'],  // Pontevedra + A Coruña (Barbanza/Ribeira)
     extraCoveragePoints: [
       { name: 'Corrubedo',   lon: -9.08, lat: 42.56 },  // 44km — Barbanza coast
+      { name: 'Sálvora',     lon: -9.006, lat: 42.471 }, // 33km — Isla Sálvora (MG 10134)
       { name: 'A Guarda',    lon: -8.88, lat: 41.90 },  // 47km — Miño estuary
       { name: 'Vilagarcía',  lon: -8.77, lat: 42.60 },  // 34km — Arousa ría port
       { name: 'Ribeira',     lon: -8.99, lat: 42.56 },  // 39km — Arousa south coast
