@@ -9,8 +9,9 @@ export function SailingBannerSection() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">Navegación — veredictos y scoring</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        El banner de navegación (sector Embalse) muestra un veredicto rápido combinando
+        El banner de navegación en el mapa (sector Embalse) muestra un veredicto rápido combinando
         viento real, previsión, condiciones térmicas y alertas en un score 0-100.
+        El scoring detallado por spot está en el panel «Spots de navegación» del sidebar (ver sección dedicada).
       </p>
 
       {/* Verdict levels */}
