@@ -14,6 +14,9 @@
 
 import type { IconId } from '../components/icons/WeatherIcons';
 
+/** Type-safe spot identifiers for exhaustive matching */
+export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria';
+
 export interface WindPattern {
   name: string;
   /** Typical direction (degrees from north) */
@@ -25,7 +28,7 @@ export interface WindPattern {
 }
 
 export interface SailingSpot {
-  id: string;
+  id: SpotId;
   name: string;
   shortName: string;
   /** Icon from WeatherIcons registry */

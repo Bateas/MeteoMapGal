@@ -3,12 +3,7 @@ import { Source, Layer } from 'react-map-gl/maplibre';
 import type maplibregl from 'maplibre-gl';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import type { BuoyReading } from '../../api/buoyClient';
-import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
-
-/** Buoy coordinates lookup (cached at module level) */
-const BUOY_COORDS = new Map(
-  RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]),
-);
+import { BUOY_COORDS_MAP } from '../../api/buoyClient';
 
 interface WindFieldOverlayProps {
   stations: NormalizedStation[];
@@ -47,6 +42,64 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
   features: [],
 };
+
+/** Push hex-pattern arrow features for a single wind source (station or buoy). */
+function pushHexArrows(
+  features: GeoJSON.Feature[],
+  lon: number,
+  lat: number,
+  windSpeed: number,
+  windDir: number,
+  offsetScale: number,
+  compact: boolean,
+): void {
+  const rotation = (windDir + 180) % 360;
+  const level = speedToLevel(windSpeed);
+
+  // Inner ring (6 arrows)
+  for (let i = 0; i < OFFSETS.length; i++) {
+    const [dx, dy] = OFFSETS[i];
+    features.push({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [
+          lon + dx * OFFSET_LON * offsetScale,
+          lat + dy * OFFSET_LAT * offsetScale,
+        ],
+      },
+      properties: {
+        rotation,
+        speed: windSpeed,
+        speedLevel: level,
+        opacity: compact ? 0.65 : 0.75,
+      },
+    });
+  }
+
+  // Outer ring — skip in compact mode
+  if (!compact) {
+    for (let i = 0; i < OFFSETS_OUTER.length; i++) {
+      const [dx, dy] = OFFSETS_OUTER[i];
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [
+            lon + dx * OFFSET_LON * 1.8,
+            lat + dy * OFFSET_LAT * 1.8,
+          ],
+        },
+        properties: {
+          rotation,
+          speed: windSpeed,
+          speedLevel: level,
+          opacity: 0.5,
+        },
+      });
+    }
+  }
+}
 
 /**
  * Speed-based color palette for wind arrows — matches windSpeedColor() in windUtils.ts.
@@ -181,119 +234,19 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
 
     // ── Station arrows ─────────────────────────────────
     for (const station of stations) {
-      if (station.tempOnly) continue; // no wind sensor → no arrows
+      if (station.tempOnly) continue;
       const reading = readings.get(station.id);
-      if (
-        !reading ||
-        reading.windDirection === null ||
-        reading.windSpeed === null ||
-        reading.windSpeed < 0.1
-      ) {
-        continue;
-      }
-
-      // Arrow points where wind goes TO
-      const rotation = (reading.windDirection + 180) % 360;
-      const level = speedToLevel(reading.windSpeed);
-
-      // Inner ring
-      for (let i = 0; i < OFFSETS.length; i++) {
-        const [dx, dy] = OFFSETS[i];
-        features.push({
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [
-              station.lon + dx * OFFSET_LON * offsetScale,
-              station.lat + dy * OFFSET_LAT * offsetScale,
-            ],
-          },
-          properties: {
-            rotation,
-            speed: reading.windSpeed,
-            speedLevel: level,
-            opacity: compact ? 0.65 : 0.75,
-          },
-        });
-      }
-
-      // Outer ring — skip in compact mode
-      if (!compact) {
-        for (let i = 0; i < OFFSETS_OUTER.length; i++) {
-          const [dx, dy] = OFFSETS_OUTER[i];
-          features.push({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [
-                station.lon + dx * OFFSET_LON * 1.8,
-                station.lat + dy * OFFSET_LAT * 1.8,
-              ],
-            },
-            properties: {
-              rotation,
-              speed: reading.windSpeed,
-              speedLevel: level,
-              opacity: 0.5,
-            },
-          });
-        }
-      }
+      if (!reading || reading.windDirection === null || reading.windSpeed === null || reading.windSpeed < 0.1) continue;
+      pushHexArrows(features, station.lon, station.lat, reading.windSpeed, reading.windDirection, offsetScale, compact);
     }
 
-    // ── Buoy arrows — same hex-pattern as stations ────
+    // ── Buoy arrows ─────────────────────────────────────
     if (buoys) {
       for (const buoy of buoys) {
         if (buoy.windSpeed == null || buoy.windDir == null || buoy.windSpeed < 0.1) continue;
-        const coords = BUOY_COORDS.get(buoy.stationId);
+        const coords = BUOY_COORDS_MAP.get(buoy.stationId);
         if (!coords) continue;
-
-        const rotation = (buoy.windDir + 180) % 360;
-        const level = speedToLevel(buoy.windSpeed);
-
-        // Inner ring
-        for (let i = 0; i < OFFSETS.length; i++) {
-          const [dx, dy] = OFFSETS[i];
-          features.push({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [
-                coords.lon + dx * OFFSET_LON * offsetScale,
-                coords.lat + dy * OFFSET_LAT * offsetScale,
-              ],
-            },
-            properties: {
-              rotation,
-              speed: buoy.windSpeed,
-              speedLevel: level,
-              opacity: compact ? 0.65 : 0.75,
-            },
-          });
-        }
-
-        // Outer ring — skip in compact mode
-        if (!compact) {
-          for (let i = 0; i < OFFSETS_OUTER.length; i++) {
-            const [dx, dy] = OFFSETS_OUTER[i];
-            features.push({
-              type: 'Feature',
-              geometry: {
-                type: 'Point',
-                coordinates: [
-                  coords.lon + dx * OFFSET_LON * 1.8,
-                  coords.lat + dy * OFFSET_LAT * 1.8,
-                ],
-              },
-              properties: {
-                rotation,
-                speed: buoy.windSpeed,
-                speedLevel: level,
-                opacity: 0.5,
-              },
-            });
-          }
-        }
+        pushHexArrows(features, coords.lon, coords.lat, buoy.windSpeed, buoy.windDir, offsetScale, compact);
       }
     }
 

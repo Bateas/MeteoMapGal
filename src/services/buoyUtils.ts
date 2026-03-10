@@ -48,6 +48,41 @@ export function waterTempClass(t: number): string {
   return 'text-orange-400';
 }
 
+// ── WMO Sea State Code (0-9) ──────────────────────────────
+// Based on significant wave height (Hm0).
+// Spanish labels matching official maritime terminology.
+
+const SEA_STATES = [
+  { maxH: 0,    label: 'Calma',           code: 0 },
+  { maxH: 0.1,  label: 'Rizada',          code: 1 },
+  { maxH: 0.5,  label: 'Marejadilla',     code: 2 },
+  { maxH: 1.25, label: 'Marejada',        code: 3 },
+  { maxH: 2.5,  label: 'Fuerte marejada', code: 4 },
+  { maxH: 4,    label: 'Gruesa',          code: 5 },
+  { maxH: 6,    label: 'Muy gruesa',      code: 6 },
+  { maxH: 9,    label: 'Arbolada',        code: 7 },
+  { maxH: 14,   label: 'Montañosa',       code: 8 },
+  { maxH: Infinity, label: 'Enorme',      code: 9 },
+] as const;
+
+/** WMO Sea State description from significant wave height (Hm0 in meters) */
+export function seaStateLabel(h: number | null): string {
+  if (h == null) return '--';
+  for (const state of SEA_STATES) {
+    if (h <= state.maxH) return state.label;
+  }
+  return SEA_STATES[SEA_STATES.length - 1].label;
+}
+
+/** WMO Sea State code (0-9) from significant wave height */
+export function seaStateCode(h: number | null): number | null {
+  if (h == null) return null;
+  for (const state of SEA_STATES) {
+    if (h <= state.maxH) return state.code;
+  }
+  return 9;
+}
+
 // ── Current speed color (m/s) ─────────────────────────────
 // Galician rías: 0–0.5 m/s typical range.
 export function currentSpeedColor(s: number | null): string {
