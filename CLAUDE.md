@@ -82,6 +82,16 @@ ingestor/
 - **Embalse-only features**: Thermal zones, forecast timeline, thermal panel, sailing banner, and propagation arrows are conditionally rendered only when `activeSector.id === 'embalse'`.
 - **Rías-only features**: BuoyPanel (marine buoys from Puertos del Estado + Observatorio Costeiro) in Stations tab, tide predictions (IHM). Rendered when `activeSector.id === 'rias'`.
 
+## Performance Rules
+
+- **All polling intervals MUST use `useVisibilityPolling`**: Never use raw `setInterval` for API fetches. Background tabs must not waste network/CPU. All 9 polling intervals are visibility-aware as of v1.9.0.
+- **New overlays MUST be toggle-guarded**: MapLibre layers should not render when their toggle is off. Use `if (!isActive) return null`.
+- **New sidebar components MUST be `React.lazy`**: Any component >5KB in sidebar tabs must be lazy-loaded (8 components already lazy).
+- **Pure computation services = low impact**: Alert services that compute from existing data (no new fetches, no new intervals) are safe to add. Examples: pressureTrendService, maritimeFogService, crossSeaService.
+- **Avoid adding stores to AppShell.tsx**: Already has 10 Zustand store subscriptions (24 selectors). Consider extracting to a dedicated hook if more are needed.
+- **Canvas animation = O(1) per entity**: Wind particles use pre-computed 24×24 grid. Never do per-pixel/per-particle IDW in animation loops.
+- **Bundle**: Main chunk ~564KB gzip 183KB. Heavy data (aemetDailyHistory 501KB) already lazy via `import()`. Recharts (420KB) lazy via React.lazy tabs.
+
 ## Testing
 
 ```bash
