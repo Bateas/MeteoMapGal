@@ -50,7 +50,7 @@ export function SpotScoringSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-blue-500/20 space-y-1.5">
           <div className="text-[11px] font-bold text-blue-400">Rías Baixas</div>
           <SpotRow name="Cesantes" desc="Interior Ría de Vigo. Agua plana, térmica WSW." thermal />
-          <SpotRow name="Bocana" desc="Estrecho de Rande → Vigo. Catabático matutino E/ENE." />
+          <SpotRow name="Bocana" desc="Viento terral del interior: aire frío drena desde Rande hacia Vigo." />
           <SpotRow name="Centro Ría" desc="Zona media. Virazón SW tardes, oleaje moderado." />
           <SpotRow name="Cíes-Ría" desc="Zona exterior. Nortada, swell oceánico." />
         </div>

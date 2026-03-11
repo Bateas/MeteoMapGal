@@ -228,9 +228,9 @@ function extractWaveConditions(
  *   N wind penalty: 0 to -20 pts
  *   Calm penalty: -10 if all calm
  *
- * BOCANA (Vigo–Rande, bocana wind zone):
- *   Wind speed: 0-40 pts (bocana wind = prime condition)
- *   Wind pattern match: 0-25 pts (bocana detection = big bonus)
+ * BOCANA (Vigo–Rande, terral wind from ría interior):
+ *   Wind speed: 0-40 pts (terral wind = prime condition)
+ *   Wind pattern match: 0-25 pts (terral detection = big bonus)
  *   Station consensus: 0-15 pts
  *   Flat water bonus: +10 pts (sheltered from ocean swell)
  *
@@ -294,7 +294,7 @@ function scoreSpot(
     else if (spd >= 3 && spd < 5) score += 8;      // casi nada
     else if (spd > 25) score += 25;                 // solo expertos
   } else if (spot.id === 'bocana') {
-    // Bocana: bocana wind is THE event — moderate-strong ideal
+    // Bocana: terral wind is THE event — moderate-strong ideal
     if (spd >= 13 && spd <= 20) score += 45;
     else if (spd >= 8 && spd < 13) score += 35;
     else if (spd >= 20 && spd <= 25) score += 35;
@@ -318,7 +318,7 @@ function scoreSpot(
 
   // ── Wind pattern match ─────────────────────────────────
   if (wind.matchedPattern) {
-    // Bocana spot gets extra bonus for bocana wind detection (it's THE event)
+    // Bocana spot gets extra bonus for terral wind detection (it's THE event)
     score += spot.id === 'bocana' ? 25 : 20;
   } else if (spd >= 4) {
     score += 5; // Wind present but no known pattern
