@@ -3,7 +3,7 @@ import { devtools, persist } from 'zustand/middleware';
 
 // ── Types ──────────────────────────────────────────────────
 
-export type WeatherLayerType = 'none' | 'wind-particles' | 'humidity' | 'satellite' | 'radar';
+export type WeatherLayerType = 'none' | 'wind-particles' | 'humidity' | 'satellite' | 'radar' | 'currents';
 
 // ── State ──────────────────────────────────────────────────
 

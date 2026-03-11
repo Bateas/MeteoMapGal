@@ -24,6 +24,7 @@ import { WindParticleOverlay } from './WindParticleOverlay';
 import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
 import { SatelliteOverlay } from './SatelliteOverlay';
 import { RadarOverlay } from './RadarOverlay';
+import { CurrentsOverlay } from './CurrentsOverlay';
 import { AirspaceOverlay } from './AirspaceOverlay';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
@@ -230,6 +231,9 @@ export function WeatherMap() {
 
         {/* AEMET Radar de Cuntis — regional Galicia precipitation radar */}
         <RadarOverlay />
+
+        {/* RADAR ON RAIA — HF radar surface currents (Rías Baixas only) */}
+        <CurrentsOverlay />
 
         {/* ENAIRE airspace zones + NOTAMs — only visible when Dron tab is active */}
         <AirspaceOverlay />
