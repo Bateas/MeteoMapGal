@@ -7,7 +7,8 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import { useUIStore } from '../../store/uiStore';
 
 /**
- * Compact floating pill that shows the active spot verdict above the map on mobile.
+ * Compact floating pill above the map on mobile.
+ * Shows: "Cesantes · Buen día · 15kt SW"
  * Tapping it opens the sidebar where the full SpotSelector is rendered.
  * Works for all sectors (Embalse + Rías).
  */
@@ -25,6 +26,13 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
 
   if (!activeSpot) return null;
 
+  // Build concise info: "15kt SW"
+  const windKt = activeScore?.wind?.avgSpeedKt;
+  const windDir = activeScore?.wind?.dominantDir;
+  const windInfo = windKt != null && verdict !== 'calm' && verdict !== 'unknown'
+    ? `${windKt.toFixed(0)}kt ${windDir ?? ''}`
+    : null;
+
   return (
     <button
       onClick={() => setSidebarOpen(true)}
@@ -38,12 +46,19 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
     >
       <WeatherIcon id="sailboat" size={14} className={`flex-shrink-0 ${v.text}`} />
       <span className={`text-[11px] font-bold ${v.text} whitespace-nowrap`}>
-        {activeSpot.shortName} {v.label}
+        {activeSpot.shortName}
       </span>
-      {activeScore && (
-        <span className={`${v.bg} ${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${verdict === 'go' ? 'badge-shimmer' : ''}`}>
-          {activeScore.score}/100
-        </span>
+      <span className="text-slate-600 text-[10px]">&middot;</span>
+      <span className={`text-[11px] font-bold ${v.text} whitespace-nowrap`}>
+        {v.label}
+      </span>
+      {windInfo && (
+        <>
+          <span className="text-slate-600 text-[10px]">&middot;</span>
+          <span className={`text-[10px] font-semibold ${v.text} whitespace-nowrap tabular-nums`}>
+            {windInfo}
+          </span>
+        </>
       )}
       <WeatherIcon id="info" size={12} className="text-slate-500 flex-shrink-0 ml-0.5" />
     </button>
