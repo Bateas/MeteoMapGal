@@ -179,11 +179,13 @@ export function AppShell() {
       fieldAlerts,
       forecast: forecastRef.current,
       stormShadow,
+      currentReadings,
+      readingHistory,
     });
     setUnifiedAlerts(alerts, risk);
     // Trigger notifications for new/escalated alerts
     processAlertNotifications(alerts, risk, notifConfig);
-  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig]);
+  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, readingHistory]);
 
   // ── Keyboard shortcuts (desktop only) ───────────────────
   useEffect(() => {
