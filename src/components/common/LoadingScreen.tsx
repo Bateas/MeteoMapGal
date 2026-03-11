@@ -27,11 +27,13 @@ interface LoadingScreenProps {
   onRetry: () => void;
 }
 
+/** Minimum time (ms) the loading screen stays visible — ensures smooth UX even with fast loads */
+const MIN_DISPLAY_MS = 1800;
+
 export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps) {
   const stations = useWeatherStore((s) => s.stations);
   const readingsCount = useWeatherStore((s) => s.currentReadings.size);
   const sourceFreshness = useWeatherStore((s) => s.sourceFreshness);
-  const isUsingCachedData = useWeatherStore((s) => s.isUsingCachedData);
 
   // ── Phase progression ─────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>('init');
@@ -103,19 +105,20 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
     return () => cancelAnimationFrame(frameRef.current);
   }, [phase, stations.length, activeSources.size, readingsCount]);
 
-  // Fade-out when ready
+  // Fade-out when ready — but respect minimum display time
   useEffect(() => {
-    if (phase === 'ready') {
-      const t = setTimeout(() => setFadeOut(true), 600);
-      const t2 = setTimeout(() => setVisible(false), 1400);
-      return () => { clearTimeout(t); clearTimeout(t2); };
-    }
+    if (phase !== 'ready') return;
+
+    const elapsed = Date.now() - startTime.current;
+    const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
+
+    // Wait for min display time, then start fade
+    const t = setTimeout(() => setFadeOut(true), remaining);
+    const t2 = setTimeout(() => setVisible(false), remaining + 800);
+    return () => { clearTimeout(t); clearTimeout(t2); };
   }, [phase]);
 
   if (!visible) return null;
-
-  // If loading from cache, show a minimal overlay that fades fast
-  if (isUsingCachedData && stations.length > 0) return null;
 
   return (
     <div

@@ -94,16 +94,37 @@ export function AppShell() {
   useSpotScoring();
 
   // ── Map reveal crossfade — smooth transition as loading screen fades out ──
-  // Wait for actual readings (not just station discovery) before revealing the map
   const readingsCount = useWeatherStore((s) => s.currentReadings.size);
   const [mapRevealed, setMapRevealed] = useState(false);
+  // showLoading tracks whether LoadingScreen should be mounted —
+  // true on initial load AND on sector switch, false after data arrives + min time
+  const [showLoading, setShowLoading] = useState(true);
+  const loadingStartRef = useRef(Date.now());
+
+  // Reset loading state on sector switch
+  useEffect(() => {
+    setShowLoading(true);
+    setMapRevealed(false);
+    loadingStartRef.current = Date.now();
+  }, [activeSector.id]);
+
+  // Reveal map after readings arrive — with a slight delay for crossfade
   useEffect(() => {
     if (readingsCount === 0) {
       setMapRevealed(false);
       return;
     }
-    // Delay map reveal slightly so the loading screen starts fading first
-    const t = setTimeout(() => setMapRevealed(true), 300);
+    // Delay map reveal so the loading screen starts fading first
+    const t = setTimeout(() => setMapRevealed(true), 500);
+    return () => clearTimeout(t);
+  }, [readingsCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hide LoadingScreen after min display + data ready
+  useEffect(() => {
+    if (readingsCount === 0) return;
+    const elapsed = Date.now() - loadingStartRef.current;
+    const remaining = Math.max(0, 2200 - elapsed); // match LoadingScreen min + fade
+    const t = setTimeout(() => setShowLoading(false), remaining);
     return () => clearTimeout(t);
   }, [readingsCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -301,16 +322,6 @@ export function AppShell() {
             <MobileSailingBanner />
           )}
 
-          {/* Loading screen: visible until we have real readings (not just discovered stations).
-              The LoadingScreen handles its own fade-out animation when data arrives. */}
-          {readingsCount === 0 && (
-            <LoadingScreen
-              sectorName={activeSector.name}
-              error={error}
-              onRetry={retryDiscovery}
-            />
-          )}
-
           {/* Campo (field alerts) drawer */}
           <FieldDrawer
             open={fieldDrawerOpen}
@@ -318,6 +329,16 @@ export function AppShell() {
             alerts={fieldAlerts}
           />
         </main>
+
+        {/* Loading screen: OUTSIDE <main> so it's not affected by map opacity transition.
+            Mounted on initial load & sector switch. Handles its own fade-out. */}
+        {showLoading && (
+          <LoadingScreen
+            sectorName={activeSector.name}
+            error={error}
+            onRetry={retryDiscovery}
+          />
+        )}
       </div>
       <BigWindDisplay />
       <Suspense fallback={null}><MeteoGuide /></Suspense>
