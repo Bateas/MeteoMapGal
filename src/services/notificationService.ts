@@ -36,7 +36,7 @@ const DEFAULT_CONFIG: NotificationConfig = {
   pushEnabled: true,
   soundEnabled: true,
   volume: 0.5,
-  minSeverity: 'high',
+  minSeverity: 'critical', // Only PELIGRO triggers sound by default — user can lower to 'high'
   mutedCategories: new Set(),
   cooldownMs: 30 * 60 * 1000, // 30 min cooldown per alert (subtle, not spammy)
 };
@@ -57,30 +57,34 @@ function meetsMinSeverity(severity: AlertSeverity, min: AlertSeverity): boolean 
 // ── Audio tones (Web Audio API) ─────────────────────────────
 
 /**
- * Frequency + duration profiles for each severity.
- * Design: subtle, non-alarming tones — soft sine waves with gentle intervals.
- * Think "soft chime" not "alarm siren". Lower frequencies = warmer, less piercing.
+ * Softer, warmer tones — think "gentle wind chime", not alarm.
+ * Lower frequencies feel warmer and less piercing on speakers/headphones.
+ * Even critical uses a soft two-note chord, just slightly brighter.
  */
-const TONE_PROFILES: Record<AlertSeverity, { freq: number[]; duration: number; type: OscillatorType }> = {
+const TONE_PROFILES: Record<AlertSeverity, { freq: number[]; duration: number; type: OscillatorType; gainPeak: number }> = {
   info: {
-    freq: [330],          // E4 — warm, low single note
-    duration: 0.15,
+    freq: [262],            // C4 — single warm note
+    duration: 0.12,
     type: 'sine',
+    gainPeak: 0.05,
   },
   moderate: {
-    freq: [294, 370],     // D4, F#4 — very soft ascending third
-    duration: 0.18,
+    freq: [262, 330],       // C4, E4 — soft major third
+    duration: 0.14,
     type: 'sine',
+    gainPeak: 0.06,
   },
   high: {
-    freq: [330, 415],     // E4, G#4 — gentle two-note chime
-    duration: 0.16,
-    type: 'sine',
-  },
-  critical: {
-    freq: [370, 440],     // F#4, A4 — soft two-note (was 3 notes, now 2)
+    freq: [294, 370],       // D4, F#4 — gentle ascending third
     duration: 0.15,
     type: 'sine',
+    gainPeak: 0.08,
+  },
+  critical: {
+    freq: [330, 415],       // E4, G#4 — slightly brighter two-note chime
+    duration: 0.18,
+    type: 'sine',
+    gainPeak: 0.12,         // Still subtle — 12% of master volume
   },
 };
 
@@ -117,7 +121,7 @@ export function playAlertTone(severity: AlertSeverity, volume: number = 0.5): vo
       osc.connect(gainNode);
 
       // Envelope: very gentle attack → sustain → smooth release
-      const maxGain = volume * (severity === 'critical' ? 0.18 : 0.10);
+      const maxGain = volume * profile.gainPeak;
       gainNode.gain.setValueAtTime(0, startTime);
       gainNode.gain.linearRampToValueAtTime(maxGain, startTime + 0.04); // slower attack
       gainNode.gain.setValueAtTime(maxGain, startTime + profile.duration * 0.6); // sustain
