@@ -123,7 +123,7 @@ export function AppShell() {
   useEffect(() => {
     if (readingsCount === 0) return;
     const elapsed = Date.now() - loadingStartRef.current;
-    const remaining = Math.max(0, 2200 - elapsed); // match LoadingScreen min + fade
+    const remaining = Math.max(0, 3200 - elapsed); // match LoadingScreen min (2500) + fade (700)
     const t = setTimeout(() => setShowLoading(false), remaining);
     return () => clearTimeout(t);
   }, [readingsCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
