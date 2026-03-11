@@ -171,17 +171,19 @@ export function RoadmapSection() {
           </div>
         </div>
 
-        {/* Nota beta móvil */}
+        {/* Nota funcionalidades en beta */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
           <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-amber-500/30 border-amber-500/50" />
           <span className="shrink-0 mt-0.5 text-amber-400/70">
             <WeatherIcon id="alert-triangle" size={15} />
           </span>
           <div className="min-w-0">
-            <span className="text-[10px] font-bold text-amber-400">Versión beta en móviles</span>
+            <span className="text-[10px] font-bold text-amber-400">Funcionalidades en <span className="badge-beta" style={{ borderColor: 'rgba(245,158,11,0.3)', color: '#f59e0b', background: 'rgba(245,158,11,0.1)' }}>Beta</span></span>
             <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
-              La interfaz móvil está en fase beta. Puede haber elementos visuales sin pulir,
-              pequeños bugs de layout o funcionalidades pendientes de optimizar para pantallas pequeñas.
+              Algunas funcionalidades están marcadas con <span className="badge-beta">Beta</span> en la interfaz.
+              Esto incluye: spots de navegación, alertas meteorológicas, niebla marítima, viento por consenso,
+              perfil atmosférico, alertas dron, riesgo fitosanitario y evapotranspiración.
+              Pueden tener imprecisiones o falsos positivos — úsalas como orientación, no como fuente definitiva.
             </p>
           </div>
         </div>

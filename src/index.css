@@ -298,3 +298,76 @@ body {
 .animate-stagger > *:nth-child(6) { animation-delay: 250ms; }
 .animate-stagger > *:nth-child(7) { animation-delay: 300ms; }
 .animate-stagger > *:nth-child(8) { animation-delay: 350ms; }
+
+/* ── Animated gradient border — selected station card ──── */
+@keyframes border-rotate {
+  0% { --border-angle: 0deg; }
+  100% { --border-angle: 360deg; }
+}
+
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.card-glow-border {
+  --border-angle: 0deg;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(#1e293b, #1e293b) padding-box,
+    conic-gradient(from var(--border-angle), #3b82f6 0%, #06b6d4 25%, #8b5cf6 50%, #3b82f6 75%, #06b6d4 100%) border-box;
+  animation: border-rotate 4s linear infinite;
+}
+
+/* ── Alert glow pulse — critical/active alerts ─────────── */
+@keyframes alert-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.15); }
+  50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.35), 0 0 40px rgba(239, 68, 68, 0.1); }
+}
+
+.alert-glow-critical {
+  animation: alert-glow 2s ease-in-out infinite;
+}
+
+@keyframes alert-glow-amber {
+  0%, 100% { box-shadow: 0 0 6px rgba(245, 158, 11, 0.1); }
+  50% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.25), 0 0 30px rgba(245, 158, 11, 0.08); }
+}
+
+.alert-glow-amber {
+  animation: alert-glow-amber 2.5s ease-in-out infinite;
+}
+
+/* ── Card 3D hover lift ────────────────────────────────── */
+.card-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(100, 116, 139, 0.15);
+}
+
+.card-lift:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: none;
+  transition-duration: 0.1s;
+}
+
+/* ── BETA badge ────────────────────────────────────────── */
+.badge-beta {
+  display: inline-flex;
+  align-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(100, 116, 139, 0.15);
+  color: #64748b;
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  line-height: 1.4;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
