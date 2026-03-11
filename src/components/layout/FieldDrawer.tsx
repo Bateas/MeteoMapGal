@@ -4,7 +4,7 @@
  * Overlays the map. Doesn't touch the sidebar.
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import type { FieldAlerts, AlertLevel } from '../../types/campo';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { checkFrost, checkRainHail } from '../../services/fieldAlertEngine';
@@ -17,9 +17,11 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
-import { TidePanel } from '../dashboard/TidePanel';
 import { getLunarPhase, getLunarCalendar } from '../../services/lunarService';
-import { AtmosphericProfile } from '../dashboard/AtmosphericProfile';
+
+// Lazy-load heavy dashboard components (~400 lines each)
+const TidePanel = lazy(() => import('../dashboard/TidePanel').then(m => ({ default: m.TidePanel })));
+const AtmosphericProfile = lazy(() => import('../dashboard/AtmosphericProfile').then(m => ({ default: m.AtmosphericProfile })));
 
 export type AlertTab = 'nav' | 'campo' | 'dron' | 'meteo';
 
@@ -171,8 +173,10 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           {/* ── Navegación tab: wind propagation + fog + tides (Rías) + atmospheric (Embalse) ── */}
           {activeTab === 'nav' && (
             <>
-              {isRias && <TidePanel />}
-              {isEmbalse && <AtmosphericProfile />}
+              <Suspense fallback={null}>
+                {isRias && <TidePanel />}
+                {isEmbalse && <AtmosphericProfile />}
+              </Suspense>
               <WindStatusSection alerts={alerts} />
               <FogSection alerts={alerts} />
             </>

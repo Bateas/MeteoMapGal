@@ -17,7 +17,7 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 
 - **React 19.2 + TypeScript 5.9 + Vite 7.3 + Tailwind CSS 4.2**
 - **MapLibre GL JS 5.19** (react-map-gl/maplibre) with 3D terrain
-- **Zustand 5** for state (weatherStore, weatherLayerStore, alertStore, sectorStore, toastStore, etc.)
+- **Zustand 5** for state (11 stores: weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy)
 - **Vitest 4** with 159 tests across 7 test files
 - **Five real-time sources**: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo
 - **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), Lightning (meteo2api), AEMET Radar (Cuntis), EUMETSAT satellite, ENAIRE airspace, IHM tides, Puertos del Estado (marine buoys), Observatorio Costeiro da Xunta (supplementary buoy data — humidity, dew point, 10min resolution), RADAR ON RAIA / INTECMAR (HF radar surface currents WMS — Rías only)
@@ -41,18 +41,18 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 
 ```
 src/
-├── api/              # API clients (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, Open-Meteo, lightning, radar, webhook, buoys, Obs Costeiro, history)
+├── api/              # API clients (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, Open-Meteo, lightning, radar, webhook, buoys, Obs Costeiro, history, stationDiscovery, openMeteoQueue)
 ├── components/
 │   ├── charts/       # Recharts visualizations (TimeSeriesChart, WindRose, WindRoseHistorical, ForecastTimeline, ThermalWindPanel, BestDaysSearch)
 │   ├── common/       # Shared UI (LoadingSpinner, ErrorBoundary, ToastContainer, KeyboardShortcutHelp, SourceStatusIndicator)
 │   ├── dashboard/    # Sidebar components (StationCard, StationTable, BuoyPanel, HistoryDashboard)
-│   ├── guide/        # MeteoGuide modal + 10 section pages (thermal cycle, zones, sailing, campo panel, history, etc.)
+│   ├── guide/        # MeteoGuide modal + 13 section pages (thermal, zones, sailing, spots, campo, history, glossary, etc.)
 │   ├── layout/       # AppShell, Header, Sidebar, FieldDrawer
 │   └── map/          # MapLibre overlays (Wind, Humidity, Satellite, Radar, Lightning, Currents, Bathymetry, Markers, CriticalAlertBanner)
 ├── config/           # Constants, thermal zones, source config
 ├── hooks/            # useWeatherData, useStations, useThermalAnalysis, useLightningData, useStormShadow, useForecastTimeline, useAutoRefresh
 ├── services/         # Business logic (see src/services/CLAUDE.md)
-├── store/            # Zustand stores (weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot)
+├── store/            # Zustand stores (weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy)
 ├── test/             # Test setup (vitest + jsdom + @testing-library)
 └── types/            # TypeScript types
 ```
@@ -85,11 +85,11 @@ ingestor/
 
 ## Performance Rules
 
-- **All polling intervals MUST use `useVisibilityPolling`**: Never use raw `setInterval` for API fetches. Background tabs must not waste network/CPU. All 9 polling intervals are visibility-aware as of v1.9.0.
+- **All polling intervals MUST use `useVisibilityPolling`**: Never use raw `setInterval` for API fetches. Background tabs must not waste network/CPU. All 9 polling intervals are visibility-aware. Exception: `AppShell.tsx` uses raw `setInterval` for non-network housekeeping (pruneHistory, pruneAlertHistory) — this is intentional.
 - **New overlays MUST be toggle-guarded**: MapLibre layers should not render when their toggle is off. Use `if (!isActive) return null`.
-- **New sidebar components MUST be `React.lazy`**: Any component >5KB in sidebar tabs must be lazy-loaded (8 components already lazy).
+- **New sidebar components MUST be `React.lazy`**: Any component >5KB in sidebar tabs must be lazy-loaded (7 in Sidebar + 2 in FieldDrawer already lazy: TidePanel, AtmosphericProfile).
 - **Pure computation services = low impact**: Alert services that compute from existing data (no new fetches, no new intervals) are safe to add. Examples: pressureTrendService, maritimeFogService, crossSeaService.
-- **Avoid adding stores to AppShell.tsx**: Already has 10 Zustand store subscriptions (24 selectors). Consider extracting to a dedicated hook if more are needed.
+- **Avoid adding stores to AppShell.tsx**: Already has 13 store subscriptions (24 selectors, 349 lines). Consider extracting to a dedicated hook if more are needed.
 - **Canvas animation = O(1) per entity**: Wind particles use pre-computed 24×24 grid. Never do per-pixel/per-particle IDW in animation loops.
 - **Bundle**: Main chunk ~564KB gzip 183KB. Heavy data (aemetDailyHistory 501KB) already lazy via `import()`. Recharts (420KB) lazy via React.lazy tabs.
 
