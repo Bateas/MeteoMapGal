@@ -29,7 +29,7 @@ export const BathymetryToggle = memo(function BathymetryToggle() {
         ${btnClasses}`}
       title={visible ? 'Ocultar batimetría (EMODnet)' : 'Mostrar batimetría submarina (EMODnet)'}
     >
-      <WeatherIcon id="anchor" size={isMobile ? 18 : 14} />
+      <WeatherIcon id="layers" size={isMobile ? 18 : 14} />
       {!isMobile && <span>{visible ? 'Fondo ON' : 'Fondo'}</span>}
     </button>
   );
