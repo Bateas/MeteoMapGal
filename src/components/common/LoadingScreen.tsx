@@ -28,7 +28,10 @@ interface LoadingScreenProps {
 }
 
 /** Minimum time (ms) the loading screen stays visible — ensures smooth UX even with fast loads */
-const MIN_DISPLAY_MS = 1800;
+const MIN_DISPLAY_MS = 2500;
+
+/** Minimum sources that must report before we transition to 'ready' */
+const MIN_SOURCES_FOR_READY = 3;
 
 export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps) {
   const stations = useWeatherStore((s) => s.stations);
@@ -57,7 +60,7 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
   // Phase transitions based on real state
   // 'ready' requires actual readings, not just station discovery
   useEffect(() => {
-    if (readingsCount > 0 && activeSources.size >= 2) {
+    if (readingsCount > 0 && activeSources.size >= MIN_SOURCES_FOR_READY) {
       setPhase('ready');
     } else if (stations.length > 0 && activeSources.size >= 1) {
       setPhase('connecting');
