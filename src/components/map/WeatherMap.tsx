@@ -30,6 +30,7 @@ import { BathymetryOverlay } from './BathymetryOverlay';
 import { BathymetryToggle } from './BathymetryToggle';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
+import { CriticalAlertBanner } from './CriticalAlertBanner';
 import { SectorSelector } from './SectorSelector';
 import { MapContextMenu } from './MapContextMenu';
 import { BuoyMarker } from './BuoyMarker';
@@ -267,6 +268,7 @@ export function WeatherMap() {
       {/* HTML overlays on top of map */}
       <SectorSelector />
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
+      <CriticalAlertBanner />
 
       {/* ── Bottom controls: toolbar + alerts ── */}
       {isMobile ? (
