@@ -1,16 +1,18 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import type { WeatherLayerType } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
+import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 // ── Layer button configs ───────────────────────────────────
 
-const LAYER_BUTTONS: { id: WeatherLayerType; icon: IconId; label: string }[] = [
+const LAYER_BUTTONS: { id: WeatherLayerType; icon: IconId; label: string; sector?: string }[] = [
   { id: 'wind-particles', icon: 'wind', label: 'Viento' },
   { id: 'humidity', icon: 'droplets', label: 'Humedad' },
   { id: 'satellite', icon: 'satellite', label: 'Satélite' },
   { id: 'radar', icon: 'radar', label: 'Radar' },
+  { id: 'currents', icon: 'waves', label: 'Corrientes', sector: 'rias' },
 ];
 
 // ── Component ──────────────────────────────────────────────
@@ -19,9 +21,16 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   const isMobile = useUIStore((s) => s.isMobile);
   const activeLayer = useWeatherLayerStore((s) => s.activeLayer);
   const layerOpacity = useWeatherLayerStore((s) => s.layerOpacity);
+  const activeSector = useSectorStore((s) => s.activeSector);
 
   const setActiveLayer = useWeatherLayerStore((s) => s.setActiveLayer);
   const setLayerOpacity = useWeatherLayerStore((s) => s.setLayerOpacity);
+
+  // Filter sector-restricted buttons (e.g. 'currents' only in Rías)
+  const buttons = useMemo(
+    () => LAYER_BUTTONS.filter((b) => !b.sector || b.sector === activeSector.id),
+    [activeSector.id],
+  );
 
   const handleLayerClick = (id: WeatherLayerType) => {
     setActiveLayer(activeLayer === id ? 'none' : id);
@@ -66,12 +75,15 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 
             {/* ── Radar info ── */}
             {activeLayer === 'radar' && <RadarLegend />}
+
+            {/* ── Currents info ── */}
+            {activeLayer === 'currents' && <CurrentsLegend />}
           </div>
         )}
 
         {/* Layer toggle buttons — always visible, bottom row */}
         <div className={`flex items-center gap-0.5 ${isMobile ? 'p-0.5' : 'p-1.5'}`} role="group" aria-label="Capas meteorológicas">
-          {LAYER_BUTTONS.map((btn) => {
+          {buttons.map((btn) => {
             const isOn = activeLayer === btn.id;
             return (
               <button
@@ -177,6 +189,35 @@ function SatelliteLegend() {
           <span className="text-[8px] text-slate-500">Despejado</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─── Surface currents info panel ─── */
+function CurrentsLegend() {
+  return (
+    <div className="space-y-1">
+      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="waves" size={10} /> RADAR ON RAIA — Corrientes superficiales</span>
+      <div className="text-[9px] text-slate-400">
+        Radar HF costero (INTECMAR). Flechas indican dirección y velocidad
+        de corrientes superficiales. Actualización horaria (~2h retardo).
+      </div>
+      <div className="flex items-center gap-0">
+        {[
+          { color: '#0000ff', label: '0' },
+          { color: '#00ccff', label: '0.1' },
+          { color: '#00ff00', label: '0.2' },
+          { color: '#ffff00', label: '0.3' },
+          { color: '#ff8800', label: '0.4' },
+          { color: '#ff0000', label: '0.5+' },
+        ].map((s, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center">
+            <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
+            <span className="text-[8px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="text-[8px] text-slate-500 text-center">m/s</div>
     </div>
   );
 }

@@ -104,6 +104,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/obscosteiro-api/, '/mgplatpubapi/v1/api'),
         secure: true,
       },
+      '/hfradar-api': {
+        target: 'https://opendap.intecmar.gal',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/hfradar-api/, '/thredds/wms/HFRADAR_Galicia_Aggr_NRT_v2.2_Totals'),
+        secure: true,
+      },
       '/api/v1': {
         target: 'http://REDACTED_APP_HOST:3001',
         changeOrigin: true,

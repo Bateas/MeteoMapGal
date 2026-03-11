@@ -109,7 +109,8 @@ export function ReadingMapSection() {
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Capas interactivas (tecla W)</h3>
         <p className="text-[10px] text-slate-400 leading-relaxed">
-          Cuatro capas mutuamente excluyentes. Pulsa W para ciclar entre ellas.
+          Cinco capas mutuamente excluyentes. Pulsa W para ciclar entre las 4 primeras.
+          Corrientes solo aparece en el sector Rías Baixas.
         </p>
         <div className="space-y-2">
           <LayerCard
@@ -139,6 +140,13 @@ export function ReadingMapSection() {
             shortcut="W ×4"
             description="Radar AEMET de Cuntis (Galicia), radio ~240 km. Actualiza cada 10 min. Colores indican intensidad de precipitación: azul=débil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
             color="#06b6d4"
+          />
+          <LayerCard
+            iconId="waves"
+            name="Corrientes superficiales"
+            shortcut="Solo Rías"
+            description="RADAR ON RAIA (INTECMAR): radar HF costero. Flechas muestran dirección y velocidad de corrientes superficiales en toda la costa gallega. Actualización horaria (~2h retardo). Escala: azul=0, verde=0.2, rojo=0.5+ m/s."
+            color="#14b8a6"
           />
         </div>
       </div>
