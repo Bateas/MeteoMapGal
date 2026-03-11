@@ -41,7 +41,7 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
         {activeSpot.shortName} {v.label}
       </span>
       {activeScore && (
-        <span className={`${v.bg} ${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums`}>
+        <span className={`${v.bg} ${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums ${verdict === 'go' ? 'badge-shimmer' : ''}`}>
           {activeScore.score}/100
         </span>
       )}
