@@ -28,6 +28,8 @@ import { CurrentsOverlay } from './CurrentsOverlay';
 import { AirspaceOverlay } from './AirspaceOverlay';
 import { BathymetryOverlay } from './BathymetryOverlay';
 import { BathymetryToggle } from './BathymetryToggle';
+import { SSTOverlay } from './SSTOverlay';
+import { SSTToggle } from './SSTToggle';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { CriticalAlertBanner } from './CriticalAlertBanner';
@@ -182,6 +184,9 @@ export function WeatherMap() {
         {/* EMODnet bathymetry — seabed depth tiles (Rías only, below all other layers) */}
         <BathymetryOverlay />
 
+        {/* CMEMS SST — sea surface temperature tiles (Rías only) */}
+        <SSTOverlay />
+
         {/* Thermal zone polygons — only for Embalse sector */}
         {activeSector.id === 'embalse' && <ThermalZoneOverlay />}
 
@@ -283,6 +288,7 @@ export function WeatherMap() {
             <StormIndicator />
             <TemperatureToggle />
             <BathymetryToggle />
+            <SSTToggle />
             <WeatherLayerSelector />
           </div>
         </div>
@@ -294,6 +300,7 @@ export function WeatherMap() {
             <StormIndicator />
             <TemperatureToggle />
             <BathymetryToggle />
+            <SSTToggle />
             <WeatherLayerSelector />
           </div>
 
