@@ -231,19 +231,76 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
   );
 }
 
-// ── Animated wind icon (SVG) ────────────────────────────────────
+// ── Animated wind + wave logo (SVG) with glow effects ─────────────
 function WindIcon({ className = '' }: { className?: string }) {
   return (
-    <div className={`relative w-16 h-16 ${className}`}>
-      <svg viewBox="0 0 64 64" className="w-full h-full">
-        {/* Wind lines with staggered animation */}
-        <g stroke="#3b82f6" strokeWidth="2.5" fill="none" strokeLinecap="round">
-          <path d="M8 24 Q28 18, 48 24 Q56 26, 52 20 Q50 16, 44 18" className="animate-wind-1" />
-          <path d="M12 32 Q32 28, 52 32 Q58 33, 56 28 Q54 24, 48 27" className="animate-wind-2" opacity="0.7" />
-          <path d="M6 40 Q26 36, 44 40 Q50 41, 48 36 Q46 32, 40 35" className="animate-wind-3" opacity="0.5" />
+    <div className={`relative w-20 h-20 ${className}`}>
+      <svg viewBox="0 0 80 80" className="w-full h-full">
+        <defs>
+          {/* Gradient for wind strokes */}
+          <linearGradient id="wind-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#1e40af" />
+            <stop offset="60%" stopColor="#3b82f6" />
+            <stop offset="100%" stopColor="#93c5fd" />
+          </linearGradient>
+          {/* Gradient for wave */}
+          <linearGradient id="wave-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#0e7490" />
+            <stop offset="100%" stopColor="#22d3ee" />
+          </linearGradient>
+          {/* Glow filter */}
+          <filter id="wind-glow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          {/* Subtle outer ring glow */}
+          <filter id="ring-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" />
+          </filter>
+        </defs>
+
+        {/* Compass ring — subtle frame */}
+        <circle cx="40" cy="40" r="36" fill="none" stroke="#1e3a5f" strokeWidth="0.8" opacity="0.3" />
+        <circle cx="40" cy="40" r="36" fill="none" stroke="#3b82f6" strokeWidth="0.5" opacity="0.12" filter="url(#ring-glow)" />
+
+        {/* 3 wind strokes — WiFi-like: shortest at top, widest at bottom, each with curled end */}
+        <g fill="none" stroke="url(#wind-grad)" strokeLinecap="round" filter="url(#wind-glow)">
+          {/* Wind 1 (top, shortest) */}
+          <path
+            d="M22 18 Q34 13, 46 18 Q52 20, 50 15 Q48 10, 43 14"
+            strokeWidth="2.4"
+            className="animate-wind-1"
+          />
+          {/* Wind 2 (middle) */}
+          <path
+            d="M16 32 Q34 25, 54 32 Q61 35, 58 28 Q55 22, 50 26"
+            strokeWidth="3"
+            className="animate-wind-2"
+            opacity="0.8"
+          />
+          {/* Wind 3 (bottom, widest) */}
+          <path
+            d="M10 46 Q30 38, 58 46 Q65 49, 62 42 Q59 36, 54 40"
+            strokeWidth="3.5"
+            className="animate-wind-3"
+            opacity="0.6"
+          />
         </g>
-        {/* Subtle compass dot */}
-        <circle cx="32" cy="50" r="2" fill="#1e40af" opacity="0.4" />
+
+        {/* Wave line — 2 undulations, schematic ocean */}
+        <path
+          d="M8 64 Q20 56, 32 64 Q44 72, 56 64 Q62 60, 72 64"
+          fill="none"
+          stroke="url(#wave-grad)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          opacity="0.5"
+          filter="url(#wind-glow)"
+          className="animate-wave"
+        />
       </svg>
     </div>
   );
