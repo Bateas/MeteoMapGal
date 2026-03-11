@@ -251,6 +251,151 @@ export async function queryHealth(): Promise<HealthInfo> {
   }
 }
 
+// ── Buoy Queries ──────────────────────────────────────
+
+export interface BuoyReadingRow {
+  time: string;
+  station_id: number;
+  station_name: string;
+  source: string;
+  wave_height: number | null;
+  wave_height_max: number | null;
+  wave_period: number | null;
+  wave_period_mean: number | null;
+  wave_dir: number | null;
+  wind_speed: number | null;
+  wind_dir: number | null;
+  wind_gust: number | null;
+  water_temp: number | null;
+  air_temp: number | null;
+  air_pressure: number | null;
+  current_speed: number | null;
+  current_dir: number | null;
+  salinity: number | null;
+  sea_level: number | null;
+  humidity: number | null;
+  dew_point: number | null;
+}
+
+export interface BuoyStationInfo {
+  station_id: number;
+  station_name: string;
+  source: string;
+  last_reading: string;
+  reading_count: number;
+}
+
+/** List all buoy stations with their last reading time */
+export async function queryBuoyStations(): Promise<BuoyStationInfo[]> {
+  const db = getPool();
+  const result = await db.query<BuoyStationInfo>(`
+    SELECT
+      station_id,
+      station_name,
+      source,
+      MAX(time)::text AS last_reading,
+      COUNT(*)::int AS reading_count
+    FROM buoy_readings
+    GROUP BY station_id, station_name, source
+    ORDER BY station_id
+  `);
+  return result.rows;
+}
+
+/** Get buoy readings for a station within a time range */
+export async function queryBuoyReadings(
+  stationId: number,
+  from: string,
+  to: string,
+  limit = 2000
+): Promise<BuoyReadingRow[]> {
+  const db = getPool();
+  const result = await db.query<BuoyReadingRow>(
+    `SELECT
+      time::text,
+      station_id, station_name, source,
+      wave_height, wave_height_max, wave_period, wave_period_mean, wave_dir,
+      wind_speed, wind_dir, wind_gust,
+      water_temp, air_temp, air_pressure,
+      current_speed, current_dir,
+      salinity, sea_level, humidity, dew_point
+    FROM buoy_readings
+    WHERE station_id = $1
+      AND time >= $2::timestamptz
+      AND time <= $3::timestamptz
+    ORDER BY time ASC
+    LIMIT $4`,
+    [stationId, from, to, limit]
+  );
+  return result.rows;
+}
+
+/** Get latest buoy reading per station */
+export async function queryBuoyLatest(stationId?: number): Promise<BuoyReadingRow[]> {
+  const db = getPool();
+
+  if (stationId) {
+    const result = await db.query<BuoyReadingRow>(
+      `SELECT
+        time::text,
+        station_id, station_name, source,
+        wave_height, wave_height_max, wave_period, wave_period_mean, wave_dir,
+        wind_speed, wind_dir, wind_gust,
+        water_temp, air_temp, air_pressure,
+        current_speed, current_dir,
+        salinity, sea_level, humidity, dew_point
+      FROM buoy_readings
+      WHERE station_id = $1
+      ORDER BY time DESC
+      LIMIT 1`,
+      [stationId]
+    );
+    return result.rows;
+  }
+
+  const result = await db.query<BuoyReadingRow>(`
+    SELECT DISTINCT ON (station_id)
+      time::text,
+      station_id, station_name, source,
+      wave_height, wave_height_max, wave_period, wave_period_mean, wave_dir,
+      wind_speed, wind_dir, wind_gust,
+      water_temp, air_temp, air_pressure,
+      current_speed, current_dir,
+      salinity, sea_level, humidity, dew_point
+    FROM buoy_readings
+    WHERE time > NOW() - INTERVAL '3 hours'
+    ORDER BY station_id, time DESC
+  `);
+  return result.rows;
+}
+
+/** Get hourly buoy aggregates for a station */
+export async function queryBuoyHourly(
+  stationId: number,
+  from: string,
+  to: string,
+  limit = 744
+): Promise<any[]> {
+  const db = getPool();
+  const result = await db.query(
+    `SELECT
+      bucket::text,
+      station_id, source,
+      avg_wave_height, max_wave_height, avg_wave_period,
+      avg_wind, max_gust,
+      avg_water_temp, avg_air_temp, avg_pressure,
+      avg_current, avg_humidity, avg_sea_level
+    FROM buoy_readings_hourly
+    WHERE station_id = $1
+      AND bucket >= $2::timestamptz
+      AND bucket <= $3::timestamptz
+    ORDER BY bucket ASC
+    LIMIT $4`,
+    [stationId, from, to, limit]
+  );
+  return result.rows;
+}
+
 /**
  * Get readings for multiple stations (comparison view).
  * Returns interleaved readings sorted by time.
