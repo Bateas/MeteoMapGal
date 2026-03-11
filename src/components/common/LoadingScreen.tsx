@@ -29,6 +29,7 @@ interface LoadingScreenProps {
 
 export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps) {
   const stations = useWeatherStore((s) => s.stations);
+  const readingsCount = useWeatherStore((s) => s.currentReadings.size);
   const sourceFreshness = useWeatherStore((s) => s.sourceFreshness);
   const isUsingCachedData = useWeatherStore((s) => s.isUsingCachedData);
 
@@ -52,15 +53,18 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
   }, [sourceFreshness]);
 
   // Phase transitions based on real state
+  // 'ready' requires actual readings, not just station discovery
   useEffect(() => {
-    if (stations.length > 0 && activeSources.size >= 2) {
+    if (readingsCount > 0 && activeSources.size >= 2) {
       setPhase('ready');
+    } else if (stations.length > 0 && activeSources.size >= 1) {
+      setPhase('connecting');
     } else if (stations.length > 0) {
       setPhase('connecting');
     } else if (Date.now() - startTime.current > 800) {
       setPhase('discovering');
     }
-  }, [stations.length, activeSources.size]);
+  }, [stations.length, activeSources.size, readingsCount]);
 
   // Auto-advance from 'init' to 'discovering' after brief delay
   useEffect(() => {
@@ -97,7 +101,7 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
 
     frameRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frameRef.current);
-  }, [phase, stations.length, activeSources.size]);
+  }, [phase, stations.length, activeSources.size, readingsCount]);
 
   // Fade-out when ready
   useEffect(() => {

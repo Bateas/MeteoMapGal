@@ -94,16 +94,18 @@ export function AppShell() {
   useSpotScoring();
 
   // ── Map reveal crossfade — smooth transition as loading screen fades out ──
+  // Wait for actual readings (not just station discovery) before revealing the map
+  const readingsCount = useWeatherStore((s) => s.currentReadings.size);
   const [mapRevealed, setMapRevealed] = useState(false);
   useEffect(() => {
-    if (stations.length === 0) {
+    if (readingsCount === 0) {
       setMapRevealed(false);
       return;
     }
     // Delay map reveal slightly so the loading screen starts fading first
     const t = setTimeout(() => setMapRevealed(true), 300);
     return () => clearTimeout(t);
-  }, [stations.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [readingsCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prune stale reading history every 30 min (entries > 24h old)
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
@@ -299,8 +301,9 @@ export function AppShell() {
             <MobileSailingBanner />
           )}
 
-          {/* Loading screen (only when no stations yet OR still loading initial data) */}
-          {(stations.length === 0 && (isLoading || error)) && (
+          {/* Loading screen: visible until we have real readings (not just discovered stations).
+              The LoadingScreen handles its own fade-out animation when data arrives. */}
+          {readingsCount === 0 && (
             <LoadingScreen
               sectorName={activeSector.name}
               error={error}

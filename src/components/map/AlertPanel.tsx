@@ -51,7 +51,7 @@ const SEMAPHORE: Record<CompositeRisk['color'], {
     bg: 'rgba(234, 179, 8, 0.10)',
     border: 'rgba(234, 179, 8, 0.35)',
     text: '#eab308',
-    label: 'ATENCIÓN',
+    label: 'AVISO',
     glow: '0 0 12px rgba(234, 179, 8, 0.12)',
   },
   orange: {

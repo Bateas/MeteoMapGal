@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
-import { useAlertStore } from '../../store/alertStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { useUIStore } from '../../store/uiStore';
 import { msToKnots } from '../../services/windUtils';
@@ -14,7 +13,6 @@ import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 export function SailingConditionBanner() {
   const stations = useWeatherStore((s) => s.stations);
   const readings = useWeatherStore((s) => s.currentReadings);
-  const risk = useAlertStore((s) => s.risk);
   const thermalRules = useThermalStore((s) => s.rules);
   const isMobile = useUIStore((s) => s.isMobile);
 
@@ -60,11 +58,7 @@ export function SailingConditionBanner() {
     let label: string;
     let sublabel: string;
 
-    if (risk.severity === 'critical') {
-      verdict = 'nogo';
-      label = 'PRECAUCIÓN';
-      sublabel = risk.activeCount > 0 ? `${risk.activeCount} alertas activas` : 'Condiciones adversas';
-    } else if (bestWindKt > 25) {
+    if (bestWindKt > 25) {
       verdict = 'nogo';
       label = `${bestWindKt.toFixed(0)} kt`;
       sublabel = 'Viento muy fuerte';
@@ -75,9 +69,7 @@ export function SailingConditionBanner() {
     } else if (bestWindKt >= 6) {
       verdict = 'go';
       label = `${bestWindKt.toFixed(0)} kt`;
-      sublabel = risk.severity === 'high'
-        ? bestStationName
-        : bestStationName;
+      sublabel = bestStationName;
     } else if (bestWindKt >= 4 && thermalScore >= 30) {
       verdict = 'marginal';
       label = `${bestWindKt.toFixed(0)} kt`;
@@ -103,7 +95,7 @@ export function SailingConditionBanner() {
     }
 
     return { verdict, label, sublabel, bestWindKt, bestWindDir };
-  }, [stations, readings, risk, thermalRules]);
+  }, [stations, readings, thermalRules]);
 
   // Don't show banner when conditions are good (verdict 'go') —
   // wind data is already visible on station markers, no need to state the obvious.

@@ -78,8 +78,11 @@ const CATEGORY_WEIGHT: Record<AlertCategory, number> = {
 // ── Conversion helpers ───────────────────────────────────────
 
 function severityFromScore(score: number): AlertSeverity {
-  if (score >= 80) return 'critical';
-  if (score >= 50) return 'high';
+  // Thresholds calibrated so "PELIGRO" (critical) is reserved for truly dangerous
+  // situations: confirmed storms, severe frost, extreme wind — NOT for dense clouds
+  // or light rain forecasts. Most common weather events stay at moderate/high.
+  if (score >= 85) return 'critical';
+  if (score >= 55) return 'high';
   if (score >= 25) return 'moderate';
   return 'info';
 }
@@ -270,11 +273,20 @@ export function buildStormShadowAlerts(shadow: StormShadow | null): UnifiedAlert
     severity = shadow.confidence >= 60 ? 'moderate' : 'info';
   }
 
+  // Cap score for non-confirmed events: dense clouds without lightning or wind
+  // outflow are NOT dangerous — just notable. Prevents "PELIGRO" for plain clouds.
+  let finalScore = score;
+  if (!hasLightning && !hasWindConfirmation) {
+    finalScore = Math.min(45, score); // max "moderate" — just clouds
+  } else if (hasWindConfirmation) {
+    finalScore = Math.min(100, score + 10);
+  }
+
   return [{
     id: 'storm-shadow',
     category: 'storm',
     severity,
-    score: hasWindConfirmation ? Math.min(100, score + 10) : score,
+    score: finalScore,
     icon: hasLightning ? 'zap' : 'cloud',
     title,
     detail,
@@ -455,11 +467,71 @@ export function aggregateAllAlerts(sources: {
     ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),
   ];
 
+  // ── Category dedup: merge alerts from same category into one ──
+  // When multiple services emit for the same phenomenon (e.g., fog-alert + maritime-fog),
+  // keep the highest-score alert and append other sources' context to its detail.
+  const dedupedAlerts = deduplicateByCategory(allAlerts);
+
   // Sort by score descending (highest priority first)
-  allAlerts.sort((a, b) => b.score - a.score);
+  dedupedAlerts.sort((a, b) => b.score - a.score);
 
   return {
-    alerts: allAlerts,
-    risk: computeCompositeRisk(allAlerts),
+    alerts: dedupedAlerts,
+    risk: computeCompositeRisk(dedupedAlerts),
   };
+}
+
+/**
+ * Merge alerts that share the same category into a single alert per category.
+ * - Winner: the alert with the highest score
+ * - Detail: winner's detail + " · También: " + losers' titles (abbreviated)
+ * - Score: max score across merged alerts
+ * - Severity: highest severity across merged alerts
+ *
+ * Exception: 'thermal' alerts are NOT merged (each zone is independent).
+ */
+function deduplicateByCategory(alerts: UnifiedAlert[]): UnifiedAlert[] {
+  const categoryMap = new Map<AlertCategory, UnifiedAlert[]>();
+
+  for (const alert of alerts) {
+    const existing = categoryMap.get(alert.category);
+    if (existing) existing.push(alert);
+    else categoryMap.set(alert.category, [alert]);
+  }
+
+  const result: UnifiedAlert[] = [];
+
+  for (const [category, group] of categoryMap) {
+    // Thermal alerts: keep all (each zone is independent)
+    if (category === 'thermal') {
+      result.push(...group);
+      continue;
+    }
+
+    if (group.length === 1) {
+      result.push(group[0]);
+      continue;
+    }
+
+    // Sort by score desc, then by severity
+    group.sort((a, b) => b.score - a.score);
+    const winner = { ...group[0] };
+
+    // Merge: upgrade severity if any secondary is higher
+    const SEVERITY_ORDER: Record<AlertSeverity, number> = { info: 0, moderate: 1, high: 2, critical: 3 };
+    for (let i = 1; i < group.length; i++) {
+      if (SEVERITY_ORDER[group[i].severity] > SEVERITY_ORDER[winner.severity]) {
+        winner.severity = group[i].severity;
+      }
+      if (group[i].urgent) winner.urgent = true;
+    }
+
+    // Append secondary sources' titles to detail
+    const secondaryTitles = group.slice(1).map(a => a.title);
+    winner.detail += ` · También: ${secondaryTitles.join(', ')}`;
+
+    result.push(winner);
+  }
+
+  return result;
 }
