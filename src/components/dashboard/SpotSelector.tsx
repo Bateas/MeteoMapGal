@@ -8,7 +8,7 @@
  *
  * Collapsed by default — expands to show all spot cards + detail.
  */
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useRef, useEffect } from 'react';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { getSpotsForSector } from '../../config/spots';
@@ -41,6 +41,19 @@ export const SpotSelector = memo(function SpotSelector() {
   const activeVerdict = activeScore?.verdict ?? 'unknown';
   const v = VERDICT_STYLE[activeVerdict];
 
+  // Animate verdict changes with a pop effect
+  const prevVerdictRef = useRef(activeVerdict);
+  const [verdictPop, setVerdictPop] = useState(false);
+  useEffect(() => {
+    if (prevVerdictRef.current !== activeVerdict && activeVerdict !== 'unknown') {
+      setVerdictPop(true);
+      const t = setTimeout(() => setVerdictPop(false), 450);
+      prevVerdictRef.current = activeVerdict;
+      return () => clearTimeout(t);
+    }
+    prevVerdictRef.current = activeVerdict;
+  }, [activeVerdict]);
+
   if (!activeSpot) return null;
 
   return (
@@ -54,7 +67,7 @@ export const SpotSelector = memo(function SpotSelector() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-bold text-slate-200">{activeSpot.shortName}</span>
-            <span className={`${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full ${v.bg}`}>
+            <span className={`${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'go' ? 'badge-shimmer' : ''}`}>
               {v.label}
               {activeScore ? ` ${activeScore.score}` : ''}
             </span>
@@ -72,7 +85,7 @@ export const SpotSelector = memo(function SpotSelector() {
 
       {/* ── Expanded: all spots + thermal detail + beta warning ── */}
       {expanded && (
-        <div className="px-2 pb-2.5 space-y-1.5 border-t border-slate-700/50 pt-2">
+        <div className="px-2 pb-2.5 space-y-1.5 border-t border-slate-700/50 pt-2 animate-stagger">
           {spots.map((spot) => {
             const score = scores.get(spot.id);
             return (

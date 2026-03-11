@@ -1,4 +1,4 @@
-import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback, useRef, useEffect, useState } from 'react';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import {
   formatWindSpeed,
@@ -104,6 +104,20 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
   const isSelected = selectedId === station.id;
   const trend = useWindTrend(station.id, reading?.windSpeed ?? null);
 
+  // Data freshness pulse — brief highlight when wind speed changes
+  const prevWindRef = useRef(reading?.windSpeed ?? null);
+  const [pulse, setPulse] = useState(false);
+  useEffect(() => {
+    const curr = reading?.windSpeed ?? null;
+    if (prevWindRef.current !== null && curr !== null && prevWindRef.current !== curr) {
+      setPulse(true);
+      const t = setTimeout(() => setPulse(false), 1500);
+      prevWindRef.current = curr;
+      return () => clearTimeout(t);
+    }
+    prevWindRef.current = curr;
+  }, [reading?.windSpeed]);
+
   const handleClick = useCallback(() => {
     selectStation(isSelected ? null : station.id);
   }, [selectStation, isSelected, station.id]);
@@ -180,7 +194,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
               <div className="text-[11px] text-slate-500">Viento</div>
               <div className="flex items-baseline gap-1">
                 <span
-                  className="text-sm font-bold"
+                  className={`text-sm font-bold rounded px-0.5 -mx-0.5 ${pulse ? 'animate-data-pulse' : ''}`}
                   style={{ color: windSpeedColor(reading.windSpeed) }}
                 >
                   {formatWindSpeed(reading.windSpeed)}
