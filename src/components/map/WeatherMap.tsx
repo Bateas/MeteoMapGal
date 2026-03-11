@@ -26,6 +26,8 @@ import { SatelliteOverlay } from './SatelliteOverlay';
 import { RadarOverlay } from './RadarOverlay';
 import { CurrentsOverlay } from './CurrentsOverlay';
 import { AirspaceOverlay } from './AirspaceOverlay';
+import { BathymetryOverlay } from './BathymetryOverlay';
+import { BathymetryToggle } from './BathymetryToggle';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { SectorSelector } from './SectorSelector';
@@ -176,6 +178,9 @@ export function WeatherMap() {
       >
         <NavigationControl position="top-right" visualizePitch />
 
+        {/* EMODnet bathymetry — seabed depth tiles (Rías only, below all other layers) */}
+        <BathymetryOverlay />
+
         {/* Thermal zone polygons — only for Embalse sector */}
         {activeSector.id === 'embalse' && <ThermalZoneOverlay />}
 
@@ -275,6 +280,7 @@ export function WeatherMap() {
           <div className="flex items-center justify-center gap-1.5 max-w-full overflow-x-auto scrollbar-none pointer-events-auto">
             <StormIndicator />
             <TemperatureToggle />
+            <BathymetryToggle />
             <WeatherLayerSelector />
           </div>
         </div>
@@ -285,6 +291,7 @@ export function WeatherMap() {
           <div className="flex items-end gap-2 shrink-0">
             <StormIndicator />
             <TemperatureToggle />
+            <BathymetryToggle />
             <WeatherLayerSelector />
           </div>
 
