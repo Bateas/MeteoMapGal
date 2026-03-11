@@ -2,6 +2,7 @@ import { useEffect, useState, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 /**
  * RADAR ON RAIA — HF Radar surface currents overlay (INTECMAR / Puertos del Estado).
@@ -73,20 +74,16 @@ export const CurrentsOverlay = memo(function CurrentsOverlay() {
   const isActive = activeLayer === 'currents' && activeSector.id === 'rias';
   const [currentsUrl, setCurrentsUrl] = useState<string | null>(null);
 
-  // Fetch on activation + periodic refresh
+  // Visibility-aware polling — pauses when tab is hidden
+  useVisibilityPolling(
+    () => { setCurrentsUrl(buildCurrentsUrl()); },
+    REFRESH_INTERVAL,
+    isActive,
+  );
+
+  // Cleanup when deactivated
   useEffect(() => {
-    if (!isActive) {
-      setCurrentsUrl(null);
-      return;
-    }
-
-    setCurrentsUrl(buildCurrentsUrl());
-
-    const timer = setInterval(() => {
-      setCurrentsUrl(buildCurrentsUrl());
-    }, REFRESH_INTERVAL);
-
-    return () => clearInterval(timer);
+    if (!isActive) setCurrentsUrl(null);
   }, [isActive]);
 
   // Update image source when URL changes (prevents MapLibre stale source)
