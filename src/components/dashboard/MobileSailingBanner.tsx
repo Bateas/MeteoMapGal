@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { useAlertStore } from '../../store/alertStore';
 import { getSpotsForSector } from '../../config/spots';
 import { VERDICT_STYLE } from './SpotSelector';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -17,6 +18,7 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
   const activeSpotId = useSpotStore((s) => s.activeSpotId);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const riskSeverity = useAlertStore((s) => s.risk.severity);
 
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
   const activeSpot = spots.find((s) => s.id === activeSpotId) ?? spots[0];
@@ -24,7 +26,8 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
   const verdict = activeScore?.verdict ?? 'unknown';
   const v = VERDICT_STYLE[verdict];
 
-  if (!activeSpot) return null;
+  // Hide when CriticalAlertBanner is active — critical alert takes priority
+  if (!activeSpot || riskSeverity === 'critical') return null;
 
   // Build concise info: "15kt SW"
   const windKt = activeScore?.wind?.avgSpeedKt;
