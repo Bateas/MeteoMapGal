@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-Real-time weather monitoring app for Galicia (Spain), with multi-sector support: **Embalse de Castrelo** (thermal sailing, 35km radius) and **Rías Baixas** (coastal wind monitoring, 30km radius).
+Real-time weather monitoring app for Galicia (Spain), with multi-sector support: **Embalse de Castrelo** (thermal sailing, 35km radius) and **Rías Baixas** (coastal wind monitoring, 40km radius).
 
 ## Quick Start
 
@@ -24,7 +24,7 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 - **Multi-sector**: `sectorStore.ts` + `src/config/sectors.ts` define Embalse / Rías Baixas with independent center, radius, regions
 - **PWA**: Service worker (`public/sw.js`) + web manifest for installable app
 - **n8n webhook**: `src/api/webhookClient.ts` posts alerts to n8n for Telegram notifications (non-critical, fails silently)
-- **Vite proxy** for CORS (14 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`, `/enaire-api`, `/ihm-api`, `/eumetsat-api`, `/portus-api`, `/obscosteiro-api`, `/hfradar-api`
+- **Vite proxy** for CORS (15 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`, `/enaire-api`, `/ihm-api`, `/eumetsat-api`, `/portus-api`, `/obscosteiro-api`, `/hfradar-api`, `/api/v1` (history)
 - **Production deployment**: nginx reverse proxy (`nginx.conf`) to Proxmox LXC, mirrors all Vite proxy routes
 - **TimescaleDB ingestor**: `ingestor/` — standalone Node.js service polling 5 sources every 5min → TimescaleDB. Runs as `meteo-ingestor.service` (systemd) on LXC 305. Reuses `normalizer.ts` + `geoUtils.ts` from `src/`
 
@@ -41,18 +41,18 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 
 ```
 src/
-├── api/              # API clients (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, Open-Meteo, lightning, radar, webhook, buoys)
+├── api/              # API clients (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, Open-Meteo, lightning, radar, webhook, buoys, Obs Costeiro, history)
 ├── components/
 │   ├── charts/       # Recharts visualizations (TimeSeriesChart, WindRose, WindRoseHistorical, ForecastTimeline, ThermalWindPanel, BestDaysSearch)
 │   ├── common/       # Shared UI (LoadingSpinner, ErrorBoundary, ToastContainer, KeyboardShortcutHelp, SourceStatusIndicator)
 │   ├── dashboard/    # Sidebar components (StationCard, StationTable, BuoyPanel, HistoryDashboard)
-│   ├── guide/        # MeteoGuide modal + 9 section pages (thermal cycle, zones, sailing, campo panel, etc.)
+│   ├── guide/        # MeteoGuide modal + 10 section pages (thermal cycle, zones, sailing, campo panel, history, etc.)
 │   ├── layout/       # AppShell, Header, Sidebar, FieldDrawer
-│   └── map/          # MapLibre overlays (Wind, Humidity, Satellite, Radar, Lightning, Markers)
+│   └── map/          # MapLibre overlays (Wind, Humidity, Satellite, Radar, Lightning, Currents, Bathymetry, Markers, CriticalAlertBanner)
 ├── config/           # Constants, thermal zones, source config
 ├── hooks/            # useWeatherData, useStations, useThermalAnalysis, useLightningData, useStormShadow, useForecastTimeline, useAutoRefresh
 ├── services/         # Business logic (see src/services/CLAUDE.md)
-├── store/            # Zustand stores (weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui)
+├── store/            # Zustand stores (weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot)
 ├── test/             # Test setup (vitest + jsdom + @testing-library)
 └── types/            # TypeScript types
 ```
@@ -80,7 +80,8 @@ ingestor/
 - **Wind particle SPEED_SCALE**: At Galician scale (~50km viewport), use 0.0006. Values >0.001 produce unnaturally fast particles; real scale (~0.00000014) is impractical.
 - **Sector switch cleanup**: `setStations([])` triggers full state reset (readings, history, selections, sourceFreshness). Fetch flags in `useWeatherData` also reset.
 - **Embalse-only features**: Thermal zones, forecast timeline, thermal panel, sailing banner, and propagation arrows are conditionally rendered only when `activeSector.id === 'embalse'`.
-- **Rías-only features**: BuoyPanel (marine buoys from Puertos del Estado + Observatorio Costeiro) in Stations tab, tide predictions (IHM). Rendered when `activeSector.id === 'rias'`.
+- **Rías-only features**: BuoyPanel (marine buoys from Puertos del Estado + Observatorio Costeiro) in Stations tab, tide predictions (IHM), surface currents overlay (RADAR ON RAIA), bathymetry overlay (EMODnet). Rendered when `activeSector.id === 'rias'`.
+- **Both-sector features**: CriticalAlertBanner (top-of-screen PELIGRO banner), AlertPanel, spot-based sailing scoring.
 
 ## Performance Rules
 
