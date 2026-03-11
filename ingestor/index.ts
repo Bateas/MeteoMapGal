@@ -10,9 +10,10 @@
  */
 
 import 'dotenv/config';
-import { initPool, pingDb, batchUpsert, closePool } from './db.js';
+import { initPool, pingDb, batchUpsert, batchUpsertBuoys, closePool } from './db.js';
 import { discoverAllStations } from './discover.js';
 import { fetchAllObservations } from './fetchers.js';
+import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
@@ -42,26 +43,33 @@ async function runCycle(): Promise<void> {
   log.info(`── Cycle ${cycleCount} ──────────────────────────────`);
 
   if (stations.size === 0) {
-    log.warn('No stations discovered — skipping fetch cycle');
-    return;
+    log.warn('No stations discovered — skipping weather fetch (buoys still run)');
   }
 
   try {
-    // 1. Fetch observations from all 5 sources
-    const readings = await fetchAllObservations(stations);
+    // 1. Fetch weather observations from all 5 sources (requires stations)
+    if (stations.size > 0) {
+      const readings = await fetchAllObservations(stations);
 
-    if (readings.length === 0) {
-      log.warn('No readings fetched this cycle');
-      return;
+      if (readings.length === 0) {
+        log.warn('No weather readings fetched this cycle');
+      } else {
+        // 2. Persist weather readings to TimescaleDB
+        const { inserted, skipped } = await batchUpsert(readings);
+        log.info(`Weather: ${readings.length} readings → ${inserted} new, ${skipped} dedup`);
+      }
     }
 
-    // 2. Persist to TimescaleDB
-    const { inserted, skipped } = await batchUpsert(readings);
+    // 3. Fetch buoy observations (PORTUS + Observatorio Costeiro)
+    const buoyReadings = await fetchBuoyObservations();
+
+    if (buoyReadings.length > 0) {
+      const { inserted: bInserted, skipped: bSkipped } = await batchUpsertBuoys(buoyReadings);
+      log.info(`Buoys: ${buoyReadings.length} readings → ${bInserted} new, ${bSkipped} dedup`);
+    }
 
     const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
-    log.ok(
-      `Cycle ${cycleCount} complete: ${readings.length} readings → ${inserted} new, ${skipped} dedup (${elapsed}s)`
-    );
+    log.ok(`Cycle ${cycleCount} complete (${elapsed}s)`);
   } catch (err) {
     log.error('Cycle failed:', (err as Error).message);
   }
