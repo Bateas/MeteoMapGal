@@ -1,14 +1,21 @@
 /**
- * Spot-based sailing scoring engine for Rías Baixas.
+ * Spot-based sailing scoring engine for Rías Baixas + Embalse.
  *
- * Each spot gets its own GO/MARGINAL/NOGO verdict based on:
+ * Each spot gets its own verdict based on:
  *   - Nearby station wind consensus (filtered by spot radius + preferred stations)
  *   - Buoy wave conditions (per-spot wave relevance)
  *   - Wind pattern recognition (thermal, nortada, virazón detection)
  *   - Safety hard gates (max wind, max wave height)
  *
- * Philosophy: Coastal sailing decisions are WIND + WAVE. No thermal scoring
- * (that's Embalse). The key question is: "Can I sail safely and enjoyably?"
+ * 5-level verdict system calibrated to real sailing experience:
+ *   calm    (<6kt)  — nobody sails
+ *   light   (6-8kt) — marginal, not worth it
+ *   sailing (8-12kt)— racers maybe, casual no
+ *   good    (12-18kt)— good day for everyone
+ *   strong  (18+kt) — experts only
+ *
+ * Philosophy: Coastal sailing decisions are WIND + WAVE. The key question
+ * is "¿merece la pena preparar el barco?"
  */
 
 import type { NormalizedStation, NormalizedReading } from '../types/station';
@@ -20,7 +27,7 @@ import { fastDistanceKm } from './idwInterpolation';
 
 // ── Types ────────────────────────────────────────────────────
 
-export type SpotVerdict = 'go' | 'marginal' | 'nogo' | 'unknown';
+export type SpotVerdict = 'calm' | 'light' | 'sailing' | 'good' | 'strong' | 'unknown';
 
 export interface SpotWindConsensus {
   stationCount: number;
@@ -62,7 +69,7 @@ export interface SpotScore {
   waves: SpotWaveConditions | null;
   /** Water temperature from nearest buoy */
   waterTemp: number | null;
-  /** Hard gate that triggered NOGO, if any */
+  /** Hard gate that triggered calm/nogo, if any */
   hardGateTriggered: string | null;
   /** Thermal context — only for spots with thermalDetection: true */
   thermal: SpotThermalContext | null;
@@ -178,12 +185,14 @@ function computeSpotWindConsensus(
   const avgSpeed = weightedSpeed / totalWeight;
   const avgDir = ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
 
-  // Check wind pattern match
+  // Check wind pattern match — require minimum 8kt to acknowledge pattern
   let matchedPattern: string | null = null;
-  for (const pattern of spot.windPatterns) {
-    if (angleDifference(avgDir, pattern.direction) <= 45 && avgSpeed >= 4) {
-      matchedPattern = pattern.name;
-      break;
+  if (avgSpeed >= 8) {
+    for (const pattern of spot.windPatterns) {
+      if (angleDifference(avgDir, pattern.direction) <= 45) {
+        matchedPattern = pattern.name;
+        break;
+      }
     }
   }
 
@@ -214,39 +223,38 @@ function extractWaveConditions(
   return null;
 }
 
+// ── Verdict from wind speed ──────────────────────────────────
+
+/**
+ * Determine base verdict purely from wind speed (kt).
+ * This is the PRIMARY driver — score adjustments are secondary.
+ */
+function windVerdict(spd: number, spotId: SpotId): SpotVerdict {
+  // Cíes-Ría: ocean conditions need more wind
+  if (spotId === 'cies-ria') {
+    if (spd < 8) return 'calm';       // ocean <8kt = nothing
+    if (spd < 12) return 'sailing';
+    if (spd < 18) return 'good';
+    if (spd <= 25) return 'strong';
+    return 'strong'; // >25 still strong (hard gate catches danger)
+  }
+
+  // All other spots (interior / sheltered)
+  if (spd < 6) return 'calm';
+  if (spd < 8) return 'light';
+  if (spd < 12) return 'sailing';
+  if (spd < 18) return 'good';
+  return 'strong'; // ≥18kt
+}
+
 // ── Per-Spot Scoring ─────────────────────────────────────────
 
 /**
  * Score a single spot.
  *
- * Scoring breakdown varies by spot type:
- *
- * CESANTES (thermal, flat water):
- *   Wind speed: 0-45 pts (dominant — thermal detection)
- *   Wind pattern match: 0-20 pts (WSW thermal = bonus)
- *   Station consensus: 0-15 pts (how many stations agree)
- *   N wind penalty: 0 to -20 pts
- *   Calm penalty: -10 if all calm
- *
- * BOCANA (Vigo–Rande, terral wind from ría interior):
- *   Wind speed: 0-40 pts (terral wind = prime condition)
- *   Wind pattern match: 0-25 pts (terral detection = big bonus)
- *   Station consensus: 0-15 pts
- *   Flat water bonus: +10 pts (sheltered from ocean swell)
- *
- * CENTRO RÍA (mid-ría, mixed):
- *   Wind speed: 0-35 pts
- *   Wind pattern match: 0-20 pts (virazón detection)
- *   Wave conditions: 0-15 pts (moderate check)
- *   Station consensus: 0-15 pts
- *   Visibility/safety: 0-15 pts
- *
- * CÍES-RÍA (ocean entrance, Baiona-Cíes):
- *   Wind speed: 0-30 pts
- *   Wave height+period: 0-30 pts (critical!)
- *   Wind pattern match: 0-15 pts
- *   Station consensus: 0-10 pts
- *   Safety margin: 0-15 pts
+ * The VERDICT is driven primarily by wind speed (windVerdict above).
+ * The SCORE (0-100) adds nuance from patterns, consensus, waves, and context.
+ * Score is used for sorting/comparison but verdict drives the color on the map.
  */
 function scoreSpot(
   spot: SailingSpot,
@@ -254,13 +262,13 @@ function scoreSpot(
   waves: SpotWaveConditions | null,
   waterTemp: number | null,
 ): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string } {
-  // ── Hard gates (instant NOGO) ──────────────────────────
+  // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
     return {
       score: 0,
-      verdict: 'nogo',
-      hardGate: `Viento ${wind.avgSpeedKt.toFixed(0)}kt > ${spot.hardGates.maxWindKt}kt máx`,
-      summary: `Viento excesivo (${wind.avgSpeedKt.toFixed(0)}kt). No navegar.`,
+      verdict: 'strong',
+      hardGate: `Viento ${wind.avgSpeedKt.toFixed(0)}kt > ${spot.hardGates.maxWindKt}kt`,
+      summary: `Viento excesivo (${wind.avgSpeedKt.toFixed(0)}kt). Peligroso.`,
     };
   }
 
@@ -268,60 +276,63 @@ function scoreSpot(
       waves.waveHeight > spot.hardGates.maxWaveHeight) {
     return {
       score: 0,
-      verdict: 'nogo',
-      hardGate: `Oleaje ${waves.waveHeight.toFixed(1)}m > ${spot.hardGates.maxWaveHeight}m máx`,
-      summary: `Oleaje excesivo (${waves.waveHeight.toFixed(1)}m). No navegar.`,
+      verdict: 'strong',
+      hardGate: `Oleaje ${waves.waveHeight.toFixed(1)}m > ${spot.hardGates.maxWaveHeight}m`,
+      summary: `Oleaje excesivo (${waves.waveHeight.toFixed(1)}m). Peligroso.`,
     };
   }
 
   // ── No data ────────────────────────────────────────────
   if (!wind) {
-    return { score: 0, verdict: 'unknown', hardGate: null, summary: 'Sin datos de viento para este spot.' };
+    return { score: 0, verdict: 'unknown', hardGate: null, summary: 'Sin datos de viento.' };
   }
 
+  const spd = wind.avgSpeedKt;
+
+  // ── Primary verdict from wind speed ────────────────────
+  const verdict = windVerdict(spd, spot.id);
+
+  // ── Score computation (0-100) for ranking ──────────────
   let score = 0;
 
-  // ── Wind speed scoring ─────────────────────────────────
-  // Rías sailing scale: <5kt nogo, 5-8kt marginal, 8-13kt decent,
-  // 13-20kt good day, 20-25kt strong but sailable, 25-30kt experts only
-  const spd = wind.avgSpeedKt;
+  // Wind speed score — calibrated to real Rías experience
   if (spot.id === 'cesantes' || spot.id === 'castrelo') {
-    // Thermal/flat water spots — lighter wind is still useful
-    if (spd >= 13 && spd <= 20) score += 45;      // buen día
-    else if (spd >= 20 && spd <= 25) score += 40;  // fuerte, viable
-    else if (spd >= 8 && spd < 13) score += 35;    // decentillo
-    else if (spd >= 5 && spd < 8) score += 18;     // marginal
-    else if (spd >= 3 && spd < 5) score += 8;      // casi nada
-    else if (spd > 25) score += 25;                 // solo expertos
+    if (spd < 6) score += 0;
+    else if (spd < 8) score += 10;
+    else if (spd < 12) score += 22;
+    else if (spd < 15) score += 38;
+    else if (spd <= 22) score += 48;
+    else score += 35;
   } else if (spot.id === 'bocana') {
-    // Bocana: terral wind is THE event — moderate-strong ideal
-    if (spd >= 13 && spd <= 20) score += 45;
-    else if (spd >= 8 && spd < 13) score += 35;
-    else if (spd >= 20 && spd <= 25) score += 35;
-    else if (spd >= 5 && spd < 8) score += 15;
-    else if (spd > 25) score += 20;
+    if (spd < 6) score += 0;
+    else if (spd < 8) score += 8;
+    else if (spd < 12) score += 20;
+    else if (spd < 15) score += 38;
+    else if (spd <= 22) score += 48;
+    else score += 30;
   } else if (spot.id === 'cies-ria') {
-    // Cíes-Ría: ocean conditions, needs solid wind
-    if (spd >= 13 && spd <= 20) score += 40;
-    else if (spd >= 8 && spd < 13) score += 30;
-    else if (spd >= 20 && spd <= 25) score += 30;
-    else if (spd >= 5 && spd < 8) score += 12;
-    else if (spd > 25) score += 15;
+    if (spd < 8) score += 0;
+    else if (spd < 12) score += 15;
+    else if (spd < 15) score += 30;
+    else if (spd <= 22) score += 42;
+    else score += 25;
   } else {
-    // Centro Ría: medium requirements
-    if (spd >= 13 && spd <= 20) score += 42;
-    else if (spd >= 8 && spd < 13) score += 35;
-    else if (spd >= 20 && spd <= 25) score += 32;
-    else if (spd >= 5 && spd < 8) score += 15;
-    else if (spd > 25) score += 18;
+    // Centro Ría
+    if (spd < 6) score += 0;
+    else if (spd < 8) score += 8;
+    else if (spd < 12) score += 18;
+    else if (spd < 15) score += 35;
+    else if (spd <= 22) score += 45;
+    else score += 28;
   }
 
-  // ── Wind pattern match ─────────────────────────────────
+  // ── Wind pattern match (requires ≥8kt) ─────────────────
   if (wind.matchedPattern) {
-    // Bocana spot gets extra bonus for terral wind detection (it's THE event)
-    score += spot.id === 'bocana' ? 25 : 20;
-  } else if (spd >= 4) {
-    score += 5; // Wind present but no known pattern
+    score += spot.id === 'bocana' ? 20 : 15;
+    // Cesantes thermal channel bonus: stations underestimate water wind
+    if (spot.id === 'cesantes' && wind.matchedPattern === 'Térmica WSW') {
+      score += 8;
+    }
   }
 
   // ── Station/buoy consensus bonus ───────────────────────
@@ -332,36 +343,25 @@ function scoreSpot(
   // ── Wave scoring (per spot relevance) ──────────────────
   if (spot.waveRelevance === 'critical' && waves?.waveHeight !== null) {
     const wh = waves.waveHeight!;
-    // Cíes-Ría: ideal 0.5-2m, manageable ocean swell
     if (wh >= 0.3 && wh <= 1.5) score += 25;
     else if (wh <= 2.5) score += 15;
     else if (wh <= 3.0) score += 5;
-    // >3m already blocked by hard gate
   } else if (spot.waveRelevance === 'moderate' && waves?.waveHeight !== null) {
     const wh = waves.waveHeight!;
-    // Centro Ría: prefer calm, tolerate moderate
     if (wh <= 0.5) score += 15;
     else if (wh <= 1.0) score += 10;
     else if (wh <= 1.5) score += 5;
-    // >2m already blocked by hard gate
   } else if (spot.waveRelevance === 'none') {
-    score += 10; // Flat water bonus (Cesantes)
+    score += 10; // Flat water bonus
   }
 
   // ── N wind penalty for Cesantes ────────────────────────
   if (spot.id === 'cesantes' && wind.dominantDir === 'N') {
-    score -= 15; // N wind kills thermal at Cesantes
+    score -= 15;
   }
 
   // Cap score
   score = Math.max(0, Math.min(100, score));
-
-  // ── Verdict ────────────────────────────────────────────
-  // GO: solid conditions (≥50), MARGINAL: sailable but marginal (≥25), NOGO: not worth it
-  let verdict: SpotVerdict;
-  if (score >= 50) verdict = 'go';
-  else if (score >= 25) verdict = 'marginal';
-  else verdict = 'nogo';
 
   // ── Summary ────────────────────────────────────────────
   const summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp);
@@ -379,37 +379,53 @@ function buildSpotSummary(
   waterTemp: number | null,
 ): string {
   const parts: string[] = [];
+  const spd = wind.avgSpeedKt;
+  const dir = wind.dominantDir;
+  const pattern = wind.matchedPattern;
 
-  if (verdict === 'go') {
-    if (wind.avgSpeedKt >= 13) {
-      parts.push(wind.matchedPattern
-        ? `${wind.matchedPattern} activa. Buen día!`
-        : 'Buen día de navegación.');
-    } else {
-      parts.push(wind.matchedPattern
-        ? `${wind.matchedPattern} activa.`
-        : 'Condiciones navegables.');
-    }
-  } else if (verdict === 'marginal') {
-    parts.push(wind.avgSpeedKt >= 5
-      ? 'Decentillo — se puede navegar.'
-      : 'Condiciones justas.');
-  } else {
-    parts.push('Poco viento, no merece la pena.');
+  switch (verdict) {
+    case 'good':
+      if (pattern) {
+        parts.push(`${pattern} activa.`);
+      }
+      parts.push(`Buen d\u00eda (${dir} ${spd.toFixed(0)}kt).`);
+      if (spd >= 15) {
+        parts.push('Regata y ocio.');
+      } else {
+        parts.push('Regata bien, ocio justo.');
+      }
+      break;
+    case 'strong':
+      parts.push(`Viento fuerte (${dir} ${spd.toFixed(0)}kt).`);
+      parts.push('Solo con experiencia.');
+      break;
+    case 'sailing':
+      if (pattern) {
+        parts.push(`${pattern} d\u00e9bil.`);
+      }
+      parts.push(`Navegable (${dir} ${spd.toFixed(0)}kt).`);
+      parts.push('Regata puede, ocio escaso.');
+      break;
+    case 'light':
+      parts.push(`Flojo (${dir} ${spd.toFixed(0)}kt). No merece.`);
+      break;
+    case 'calm':
+      parts.push('Sin viento. No se navega.');
+      break;
+    default:
+      parts.push('Sin datos.');
   }
 
-  parts.push(`${wind.dominantDir} ~${wind.avgSpeedKt.toFixed(0)}kt`);
-
-  if (wind.stationCount > 1) {
+  if (wind.stationCount > 1 && verdict !== 'calm') {
     parts.push(`(${wind.stationCount} fuentes)`);
   }
 
   if (waves?.waveHeight !== null && spot.waveRelevance !== 'none') {
-    parts.push(`· Olas ${waves.waveHeight!.toFixed(1)}m`);
+    parts.push(`\u00b7 Olas ${waves.waveHeight!.toFixed(1)}m`);
   }
 
-  if (waterTemp !== null) {
-    parts.push(`· Agua ${waterTemp.toFixed(0)}°C`);
+  if (waterTemp !== null && verdict !== 'calm') {
+    parts.push(`\u00b7 Agua ${waterTemp.toFixed(0)}\u00b0C`);
   }
 
   return parts.join(' ');

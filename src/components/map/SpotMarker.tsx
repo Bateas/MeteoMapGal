@@ -2,8 +2,9 @@
  * Map markers for sailing spots (multi-sector).
  *
  * Shows a pulsing circle at each spot center with an SVG icon,
- * verdict badge (GO/MARGINAL/NOGO), and click-to-select behavior.
+ * verdict badge (CALMA/FLOJO/NAVEG./BUENO/FUERTE), and click-to-select.
  * Active spot has a brighter ring + larger size.
+ * Badge shows wind in knots — the data a sailor actually needs.
  * Sector-aware: renders spots for the active sector.
  */
 import { memo, useCallback, useMemo } from 'react';
@@ -14,12 +15,24 @@ import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
-// ── Verdict colors ──────────────────────────────────────────────
+// ── Verdict colors (5-level scale) ───────────────────────────────
 const VERDICT_COLORS: Record<SpotVerdict, { ring: string; bg: string; text: string; glow: string }> = {
-  go:       { ring: '#34d399', bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399', glow: '#10b981' },
-  marginal: { ring: '#fbbf24', bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24', glow: '#f59e0b' },
-  nogo:     { ring: '#f87171', bg: 'rgba(239, 68, 68, 0.15)',  text: '#f87171', glow: '#ef4444' },
-  unknown:  { ring: '#94a3b8', bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', glow: '#64748b' },
+  calm:    { ring: '#94a3b8', bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', glow: '#64748b' },
+  light:   { ring: '#f87171', bg: 'rgba(239, 68, 68, 0.12)',   text: '#f87171', glow: '#ef4444' },
+  sailing: { ring: '#fbbf24', bg: 'rgba(245, 158, 11, 0.15)',  text: '#fbbf24', glow: '#f59e0b' },
+  good:    { ring: '#34d399', bg: 'rgba(16, 185, 129, 0.15)',   text: '#34d399', glow: '#10b981' },
+  strong:  { ring: '#22d3ee', bg: 'rgba(6, 182, 212, 0.15)',    text: '#22d3ee', glow: '#06b6d4' },
+  unknown: { ring: '#94a3b8', bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', glow: '#64748b' },
+};
+
+/** Short map labels — must fit in a tiny badge */
+const VERDICT_MAP_LABEL: Record<SpotVerdict, string> = {
+  calm:    'CALMA',
+  light:   'FLOJO',
+  sailing: 'NAVEG.',
+  good:    'BUENO',
+  strong:  'FUERTE',
+  unknown: '—',
 };
 
 export const SpotMarkers = memo(function SpotMarkers() {
@@ -44,7 +57,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
             lon={spot.center[0]}
             lat={spot.center[1]}
             verdict={verdict}
-            scoreValue={score?.score}
+            windKt={score?.wind?.avgSpeedKt ?? null}
             isActive={isActive}
             onSelect={selectSpot}
           />
@@ -63,7 +76,7 @@ interface SpotMarkerItemProps {
   lon: number;
   lat: number;
   verdict: SpotVerdict;
-  scoreValue?: number;
+  windKt: number | null;
   isActive: boolean;
   onSelect: (id: string) => void;
 }
@@ -75,7 +88,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   lon,
   lat,
   verdict,
-  scoreValue,
+  windKt,
   isActive,
   onSelect,
 }: SpotMarkerItemProps) {
@@ -92,10 +105,11 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
     [onSelect, spotId],
   );
 
-  const verdictLabel =
-    verdict === 'go' ? 'GO' :
-    verdict === 'marginal' ? 'MARG' :
-    verdict === 'nogo' ? 'NOGO' : '—';
+  // Badge text: "BUENO 15kt" or "CALMA" (no kt when calm/unknown)
+  const label = VERDICT_MAP_LABEL[verdict];
+  const badgeText = windKt !== null && verdict !== 'calm' && verdict !== 'unknown'
+    ? `${label} ${windKt.toFixed(0)}kt`
+    : label;
 
   return (
     <Marker longitude={lon} latitude={lat} anchor="center" onClick={handleClick}>
@@ -160,7 +174,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
           </foreignObject>
         </svg>
 
-        {/* Verdict badge — top-right */}
+        {/* Verdict badge — top-right — shows kt for sailor glance value */}
         <div
           className="absolute -top-0.5 -right-0.5 rounded-full px-1.5 py-px pointer-events-none whitespace-nowrap border"
           style={{
@@ -174,8 +188,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
             textShadow: `0 0 5px ${colors.glow}66`,
           }}
         >
-          {verdictLabel}
-          {scoreValue != null ? ` ${scoreValue}` : ''}
+          {badgeText}
         </div>
 
         {/* Name label — below marker (dark pill for legibility on any terrain) */}

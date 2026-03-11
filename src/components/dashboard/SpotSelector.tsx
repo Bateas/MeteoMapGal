@@ -2,7 +2,7 @@
  * Unified spot scoring panel — single source of truth for sailing verdicts.
  *
  * Sector-aware: shows RIAS_SPOTS or EMBALSE_SPOTS based on active sector.
- * Shows GO/MARGINAL/NOGO verdicts per spot.
+ * 5-level verdict system: Calma / Flojo / Navegable / Buen día / Fuerte.
  * For spots with thermalDetection (Castrelo, Cesantes), shows thermal detail rows
  * (ΔT, thermal probability, wind window, atmosphere, tendency, alerts).
  *
@@ -15,13 +15,15 @@ import { getSpotsForSector } from '../../config/spots';
 import type { SpotScore, SpotVerdict, SpotThermalContext } from '../../services/spotScoringEngine';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
-// ── Verdict styling ──────────────────────────────────────────────
+// ── Verdict styling (5-level) ─────────────────────────────────────
 
 export const VERDICT_STYLE: Record<SpotVerdict, { label: string; bg: string; border: string; text: string; dot: string }> = {
-  go:       { label: 'GO',           bg: 'bg-emerald-500/10', border: 'border-emerald-500/40', text: 'text-emerald-400', dot: 'bg-emerald-400' },
-  marginal: { label: 'MARGINAL',     bg: 'bg-amber-500/10',   border: 'border-amber-500/40',   text: 'text-amber-400',   dot: 'bg-amber-400' },
-  nogo:     { label: 'NO GO',        bg: 'bg-red-500/10',     border: 'border-red-500/40',     text: 'text-red-400',     dot: 'bg-red-400' },
-  unknown:  { label: 'SIN DATOS',    bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400',   dot: 'bg-slate-400' },
+  calm:    { label: 'Calma',     bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400',   dot: 'bg-slate-400' },
+  light:   { label: 'Flojo',     bg: 'bg-red-500/10',     border: 'border-red-500/40',     text: 'text-red-400',     dot: 'bg-red-400' },
+  sailing: { label: 'Navegable', bg: 'bg-amber-500/10',   border: 'border-amber-500/40',   text: 'text-amber-400',   dot: 'bg-amber-400' },
+  good:    { label: 'Buen d\u00eda',  bg: 'bg-emerald-500/10', border: 'border-emerald-500/40', text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  strong:  { label: 'Fuerte',    bg: 'bg-cyan-500/10',    border: 'border-cyan-500/40',    text: 'text-cyan-400',    dot: 'bg-cyan-400' },
+  unknown: { label: 'Sin datos', bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400',   dot: 'bg-slate-400' },
 };
 
 // ── Main component ────────────────────────────────────────────────
@@ -56,6 +58,10 @@ export const SpotSelector = memo(function SpotSelector() {
 
   if (!activeSpot) return null;
 
+  // Wind info for header
+  const windKt = activeScore?.wind?.avgSpeedKt;
+  const windDir = activeScore?.wind?.dominantDir;
+
   return (
     <div className={`rounded-lg border ${v.border} ${v.bg} transition-all`}>
       {/* ── Header: active spot + verdict ── */}
@@ -68,9 +74,9 @@ export const SpotSelector = memo(function SpotSelector() {
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-bold text-slate-200">{activeSpot.shortName}</span>
             <span className="badge-beta">Beta</span>
-            <span className={`${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'go' ? 'badge-shimmer' : ''}`}>
+            <span className={`${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'good' ? 'badge-shimmer' : ''}`}>
               {v.label}
-              {activeScore ? ` ${activeScore.score}` : ''}
+              {windKt != null && activeVerdict !== 'calm' ? ` ${windKt.toFixed(0)}kt` : ''}
             </span>
           </div>
           <p className="text-[11px] text-slate-400 truncate mt-0.5">
@@ -139,6 +145,7 @@ function SpotCard({
 }) {
   const verdict = score?.verdict ?? 'unknown';
   const v = VERDICT_STYLE[verdict];
+  const windKt = score?.wind?.avgSpeedKt;
 
   return (
     <button
@@ -151,10 +158,11 @@ function SpotCard({
       <div className="flex items-center gap-2">
         <WeatherIcon id={icon} size={14} className="text-slate-300 flex-shrink-0" />
         <span className="text-[12px] font-bold text-slate-200 flex-1">{name}</span>
-        {/* Verdict badge */}
+        {/* Verdict badge with kt */}
         <span className={`flex items-center gap-1 text-[10px] font-bold ${v.text}`}>
           <span className={`w-2 h-2 rounded-full ${v.dot}`} />
           {v.label}
+          {windKt != null && verdict !== 'calm' && verdict !== 'unknown' ? ` ${windKt.toFixed(0)}kt` : ''}
         </span>
       </div>
 
@@ -171,7 +179,7 @@ function SpotCard({
             <span>Olas {score.waves.waveHeight.toFixed(1)}m</span>
           )}
           {score.waterTemp != null && (
-            <span>Agua {score.waterTemp.toFixed(0)}°</span>
+            <span>Agua {score.waterTemp.toFixed(0)}&deg;</span>
           )}
           {score.hardGateTriggered && (
             <span className="text-red-400">{score.hardGateTriggered}</span>
@@ -214,8 +222,8 @@ function ThermalDetails({ thermal }: { thermal: SpotThermalContext }) {
       <DetailRow
         icon="thermometer"
         iconColor="text-orange-400"
-        label="ΔT diurno"
-        value={thermal.deltaT !== null ? `${thermal.deltaT.toFixed(1)}°C` : '—'}
+        label="\u0394T diurno"
+        value={thermal.deltaT !== null ? `${thermal.deltaT.toFixed(1)}\u00b0C` : '\u2014'}
         color={
           thermal.deltaT !== null
             ? thermal.deltaT >= 20 ? 'text-green-400'
@@ -230,7 +238,7 @@ function ThermalDetails({ thermal }: { thermal: SpotThermalContext }) {
       <DetailRow
         icon="sun"
         iconColor="text-yellow-400"
-        label="Prob. térmicas"
+        label="Prob. t\u00e9rmicas"
         value={`${thermal.thermalProbability}%`}
         color={
           thermal.thermalProbability >= 60 ? 'text-green-400'
@@ -245,7 +253,7 @@ function ThermalDetails({ thermal }: { thermal: SpotThermalContext }) {
         iconColor="text-sky-400"
         label="Ventana viento"
         value={thermal.windWindow
-          ? `${thermal.windWindow.dominantDir} ${thermal.windWindow.avgSpeedKt.toFixed(0)}kt (${thermal.windWindow.startHour}:00–${thermal.windWindow.endHour}:00)`
+          ? `${thermal.windWindow.dominantDir} ${thermal.windWindow.avgSpeedKt.toFixed(0)}kt (${thermal.windWindow.startHour}:00\u2013${thermal.windWindow.endHour}:00)`
           : 'Sin ventana clara'
         }
         color={thermal.windWindow ? 'text-sky-300' : 'text-slate-500'}
@@ -257,7 +265,7 @@ function ThermalDetails({ thermal }: { thermal: SpotThermalContext }) {
           icon="cloud"
           iconColor="text-slate-400"
           label="Nubes / CAPE"
-          value={`${Math.round(thermal.atmosphere.cloudCover)}%${thermal.atmosphere.cape !== null ? ` · ${Math.round(thermal.atmosphere.cape)} J/kg` : ''}`}
+          value={`${Math.round(thermal.atmosphere.cloudCover)}%${thermal.atmosphere.cape !== null ? ` \u00b7 ${Math.round(thermal.atmosphere.cape)} J/kg` : ''}`}
           color={
             thermal.atmosphere.cloudCover < 30 ? 'text-green-400'
               : thermal.atmosphere.cloudCover < 60 ? 'text-amber-400'
@@ -273,9 +281,9 @@ function ThermalDetails({ thermal }: { thermal: SpotThermalContext }) {
           iconColor="text-amber-400"
           label="Tendencia"
           value={
-            thermal.bestTendency === 'active' ? 'Térmicas activas'
-              : thermal.bestTendency === 'likely' ? 'Térmicas probables'
-              : 'En formación'
+            thermal.bestTendency === 'active' ? 'T\u00e9rmicas activas'
+              : thermal.bestTendency === 'likely' ? 'T\u00e9rmicas probables'
+              : 'En formaci\u00f3n'
           }
           color={
             thermal.bestTendency === 'active' ? 'text-green-400'
