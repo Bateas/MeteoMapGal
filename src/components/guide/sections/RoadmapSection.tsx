@@ -84,7 +84,7 @@ export function RoadmapSection() {
         <TimelineMilestone
           iconId="waves"
           title="Boyas marinas (Puertos del Estado)"
-          desc="Oleaje, viento, T agua, corrientes y salinidad de 11 boyas en Rías Baixas. Marcadores con datos visuales y popup detallado al clic."
+          desc="Oleaje, viento, T agua, corrientes y salinidad de 12 boyas en Rías Baixas. Marcadores con datos visuales y popup detallado al clic."
           status="done"
         />
 
@@ -155,6 +155,13 @@ export function RoadmapSection() {
           iconId="map-pin"
           title="Overlay de batimetría"
           desc="Capa visual de profundidades en Rías Baixas basada en datos EMODnet con escala de color."
+          status="done"
+        />
+
+        <TimelineMilestone
+          iconId="alert-triangle"
+          title="Sistema de alertas coherente"
+          desc="PELIGRO reservado para condiciones peligrosas reales (≥85 score). Banner rojo superior con sonido sutil. Sonido desactivado por defecto para avisos menores."
           status="done"
         />
 

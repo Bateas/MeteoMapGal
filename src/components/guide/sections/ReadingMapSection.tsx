@@ -225,6 +225,21 @@ export function ReadingMapSection() {
             title="Historial meteorológico"
             text="Pestaña Historial en el sidebar: gráfica temporal con selector de estación por nombre, métrica (T, viento, HR, presión), rango (24h/7d/30d) y estadísticas. Ver sección dedicada en la guía."
           />
+          <MiniExplainer
+            iconId="alert-triangle"
+            title="Banner PELIGRO"
+            text="Banner rojo superior cuando hay alertas críticas (≥85 score). Sonido sutil tipo 'wind chime'. Clic abre panel de alertas. Ambos sectores."
+          />
+          <MiniExplainer
+            iconId="gauge"
+            title="Tendencia barométrica"
+            text="Detección por consenso de bajadas/subidas rápidas de presión en 3h. Alertas automáticas para aproximación de frentes."
+          />
+          <MiniExplainer
+            iconId="map-pin"
+            title="Batimetría (Rías)"
+            text="Overlay EMODnet con contornos de profundidad. Toggle independiente de capas de viento. Solo Rías Baixas."
+          />
         </div>
       </div>
 
