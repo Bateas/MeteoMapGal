@@ -14,6 +14,7 @@ import type { ZoneAlert, MicroZoneId } from '../types/thermal';
 import type { HourlyForecast } from '../types/forecast';
 import type { StormShadow } from './stormShadowDetector';
 import { buildInversionForecastAlert } from './inversionForecastService';
+import { buildPressureTrendAlerts } from './pressureTrendService';
 
 // ── Unified Alert Types ──────────────────────────────────────
 
@@ -25,7 +26,8 @@ export type AlertCategory =
   | 'fog'            // 🌫️  Niebla
   | 'rain'           // 🌧️  Lluvia / Granizo
   | 'drone'          // 🛩️  Vuelo dron
-  | 'wind-front';    // 📡  Frente de viento
+  | 'wind-front'     // 📡  Frente de viento
+  | 'pressure';      // 📊  Tendencia barométrica
 
 export type AlertSeverity = 'info' | 'moderate' | 'high' | 'critical';
 
@@ -66,6 +68,7 @@ const CATEGORY_WEIGHT: Record<AlertCategory, number> = {
   'fog':         1.2,   // Visibility
   'thermal':     1.0,   // Sailing / recreation
   'wind-front':  1.0,   // Propagation info
+  'pressure':    2.5,   // Early storm indicator
   'drone':       0.5,   // Convenience
 };
 
@@ -430,6 +433,8 @@ export function aggregateAllAlerts(sources: {
   fieldAlerts: FieldAlerts | null;
   forecast?: HourlyForecast[];
   stormShadow?: StormShadow | null;
+  currentReadings?: Map<string, import('../types/station').NormalizedReading>;
+  readingHistory?: Map<string, import('../types/station').NormalizedReading[]>;
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
   const allAlerts: UnifiedAlert[] = [
     ...(sources.stormAlert ? buildStormAlerts(sources.stormAlert) : []),
@@ -438,6 +443,8 @@ export function aggregateAllAlerts(sources: {
     ...(sources.forecast ? buildInversionForecastAlert(sources.forecast) : []),
     ...buildThermalAlerts(sources.zoneAlerts),
     ...buildFieldAlerts(sources.fieldAlerts),
+    ...(sources.currentReadings && sources.readingHistory
+      ? buildPressureTrendAlerts(sources.currentReadings, sources.readingHistory) : []),
   ];
 
   // Sort by score descending (highest priority first)
