@@ -15,6 +15,8 @@ import type { HourlyForecast } from '../types/forecast';
 import type { StormShadow } from './stormShadowDetector';
 import { buildInversionForecastAlert } from './inversionForecastService';
 import { buildPressureTrendAlerts } from './pressureTrendService';
+import { buildMaritimeFogAlerts } from './maritimeFogService';
+import type { BuoyReading } from '../api/buoyClient';
 
 // ── Unified Alert Types ──────────────────────────────────────
 
@@ -435,6 +437,8 @@ export function aggregateAllAlerts(sources: {
   stormShadow?: StormShadow | null;
   currentReadings?: Map<string, import('../types/station').NormalizedReading>;
   readingHistory?: Map<string, import('../types/station').NormalizedReading[]>;
+  buoys?: BuoyReading[];
+  stationsGeo?: { id: string; lat: number; lon: number }[];
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
   const allAlerts: UnifiedAlert[] = [
     ...(sources.stormAlert ? buildStormAlerts(sources.stormAlert) : []),
@@ -445,6 +449,8 @@ export function aggregateAllAlerts(sources: {
     ...buildFieldAlerts(sources.fieldAlerts),
     ...(sources.currentReadings && sources.readingHistory
       ? buildPressureTrendAlerts(sources.currentReadings, sources.readingHistory) : []),
+    ...(sources.buoys && sources.currentReadings && sources.stationsGeo
+      ? buildMaritimeFogAlerts(sources.buoys, sources.currentReadings, sources.stationsGeo) : []),
   ];
 
   // Sort by score descending (highest priority first)
