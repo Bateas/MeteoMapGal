@@ -2,6 +2,7 @@ import { useEffect, useState, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { fetchRadarImageUrl } from '../../api/aemetRadarClient';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 /**
  * AEMET Radar overlay — Radar de Cuntis (Galicia) regional composite.
@@ -48,22 +49,16 @@ export const RadarOverlay = memo(function RadarOverlay() {
 
   const [radarUrl, setRadarUrl] = useState<string | null>(null);
 
-  // Fetch radar URL on activation and refresh periodically
+  // Visibility-aware polling — pauses when tab is hidden
+  useVisibilityPolling(
+    () => { fetchRadarImageUrl().then(setRadarUrl); },
+    REFRESH_INTERVAL,
+    isActive,
+  );
+
+  // Cleanup when deactivated
   useEffect(() => {
-    if (!isActive) {
-      setRadarUrl(null);
-      return;
-    }
-
-    // Initial fetch
-    fetchRadarImageUrl().then(setRadarUrl);
-
-    // Periodic refresh
-    const timer = setInterval(() => {
-      fetchRadarImageUrl().then(setRadarUrl);
-    }, REFRESH_INTERVAL);
-
-    return () => clearInterval(timer);
+    if (!isActive) setRadarUrl(null);
   }, [isActive]);
 
   // Update image source when URL changes

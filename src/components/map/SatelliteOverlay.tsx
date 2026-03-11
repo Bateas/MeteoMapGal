@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 /**
  * EUMETSAT Meteosat satellite cloud imagery overlay.
@@ -132,30 +133,26 @@ export const SatelliteOverlay = memo(function SatelliteOverlay() {
     }
   }, []);
 
+  // Visibility-aware polling — pauses when tab is hidden
+  useVisibilityPolling(
+    () => {
+      clearRetryTimer();
+      retryCountRef.current = 0;
+      loadSatelliteImage();
+    },
+    REFRESH_INTERVAL,
+    isActive,
+  );
+
+  // Cleanup when deactivated
   useEffect(() => {
     if (!isActive) {
       setSatelliteUrl(null);
       setLoadStatus('idle');
       clearRetryTimer();
       retryCountRef.current = 0;
-      return;
     }
-
-    // Initial load
-    loadSatelliteImage();
-
-    // Refresh periodically
-    const timer = setInterval(() => {
-      clearRetryTimer();
-      retryCountRef.current = 0;
-      loadSatelliteImage();
-    }, REFRESH_INTERVAL);
-
-    return () => {
-      clearInterval(timer);
-      clearRetryTimer();
-    };
-  }, [isActive, loadSatelliteImage, clearRetryTimer]);
+  }, [isActive, clearRetryTimer]);
 
   // Update image source when URL changes (for refresh)
   useEffect(() => {

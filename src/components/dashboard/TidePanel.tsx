@@ -6,10 +6,11 @@
  * Only rendered when activeSector === 'rias'.
  */
 
-import { memo, useState, useEffect, useMemo, useCallback } from 'react';
+import { memo, useState, useMemo, useCallback } from 'react';
 import { fetchTides48h, RIAS_TIDE_STATIONS, DEFAULT_TIDE_STATION } from '../../api/tideClient';
 import type { TidePoint, TideStation } from '../../api/tideClient';
 import { Anchor, ChevronDown, ChevronUp } from 'lucide-react';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 interface TideData {
   today: TidePoint[];
@@ -54,12 +55,8 @@ export const TidePanel = memo(function TidePanel() {
     }
   }, [station]);
 
-  // Fetch on mount and every hour
-  useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, REFRESH_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [fetchData]);
+  // Visibility-aware polling — pauses when tab is hidden
+  useVisibilityPolling(fetchData, REFRESH_INTERVAL_MS);
 
   // Find next tide event
   const nextTide = useMemo(() => {
