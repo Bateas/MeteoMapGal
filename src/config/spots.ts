@@ -7,7 +7,7 @@
  *
  * Rías Baixas — 4 spots in Ría de Vigo (expandable to other Rías):
  * - Cesantes: interior, thermal-dominant, flat water
- * - Bocana: Vigo–Rande narrows, bocana wind zone, sheltered water
+ * - Bocana: Vigo–Rande narrows, terral wind from ría interior, sheltered water
  * - Centro Ría: mid-ría, virazón territory, moderate wave exposure
  * - Cíes-Ría: exterior, full ocean conditions, swell-critical
  *
@@ -103,13 +103,13 @@ export const RIAS_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-8.70, 42.265],
     radiusKm: 6,
-    description: 'Estrecho de Rande → Vigo. Zona del viento de bocana: sale del estrecho y recorre la ría.',
+    description: 'Viento terral del interior de la ría: aire frío drena desde Rande hacia Vigo por el estrecho. No es la boca exterior.',
     windPatterns: [
       {
-        name: 'Bocana',
+        name: 'Terral (Bocana)',
         direction: 75,
         season: 'Otoño–Primavera, mañanas frías (0-9h)',
-        description: 'Catabático E/ENE (50-100°): aire frío drena por Rande. Requiere noche clara y fría. Ausente en verano y con nubes.',
+        description: 'Terral E/ENE (50-100°): aire frío del interior drena por Rande hacia Vigo. Requiere noche clara y fría. Ausente en verano y con nubes.',
       },
       {
         name: 'Norte canalizado',
@@ -139,13 +139,13 @@ export const RIAS_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-8.80, 42.215],
     radiusKm: 10,
-    description: 'Zona media de la ría. Bocana matutina, virazón de tarde. Oleaje moderado.',
+    description: 'Zona media de la ría. Terral matutino debilitado, virazón de tarde. Oleaje moderado.',
     windPatterns: [
       {
-        name: 'Bocana',
+        name: 'Terral (debilitado)',
         direction: 75,
         season: 'Otoño–Primavera, mañanas frías',
-        description: 'Catabático E/ENE debilitado. Llega desde Rande, pierde fuerza en centro ría.',
+        description: 'Terral E/ENE llega desde Rande pero pierde fuerza al ensancharse la ría.',
       },
       {
         name: 'Virazón SW',
