@@ -297,7 +297,7 @@ function RainSection({ alerts }: { alerts: FieldAlerts }) {
 
 function FogSection({ alerts }: { alerts: FieldAlerts }) {
   return (
-    <AlertSection icon={<WeatherIcon id="fog" size={14} />} title="Niebla / Rocío" level={alerts.fog.level}>
+    <AlertSection icon={<WeatherIcon id="fog" size={14} />} title="Niebla / Rocío" level={alerts.fog.level} beta>
       {alerts.fog.dewPoint !== null ? (
         <div className="space-y-1">
           <div className="flex justify-between text-[10px]">
@@ -382,7 +382,7 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
     consensus && consensus.stationCount >= 3 ? 'none' : 'none';
 
   return (
-    <AlertSection icon={<WeatherIcon id="radar" size={14} />} title="Viento en estaciones" level={sectionLevel}>
+    <AlertSection icon={<WeatherIcon id="radar" size={14} />} title="Viento en estaciones" level={sectionLevel} beta>
       <div className="space-y-1.5">
         {/* A. Consensus */}
         {consensus ? (
@@ -501,7 +501,7 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
 
 function DroneSection({ alerts }: { alerts: FieldAlerts }) {
   return (
-    <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Vuelo Dron" level={alerts.drone.flyable ? 'none' : 'alto'}>
+    <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Vuelo Dron" level={alerts.drone.flyable ? 'none' : 'alto'} beta>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <span
@@ -746,7 +746,7 @@ function AirspaceSection() {
 
 function ET0Section({ alerts }: { alerts: FieldAlerts }) {
   return (
-    <AlertSection icon={<WeatherIcon id="thermometer" size={14} />} title="ET₀ Evapotranspiración" level={alerts.et0.level}>
+    <AlertSection icon={<WeatherIcon id="thermometer" size={14} />} title="ET₀ Evapotranspiración" level={alerts.et0.level} beta>
       {alerts.et0.et0Daily !== null ? (
         <div className="space-y-1">
           <div className="flex justify-between text-[10px]">
@@ -777,7 +777,7 @@ function DiseaseSection({ alerts }: { alerts: FieldAlerts }) {
       : alerts.disease.oidio.level;
 
   return (
-    <AlertSection icon={<WeatherIcon id="leaf" size={14} />} title="Riesgo Fitosanitario" level={maxLevel}>
+    <AlertSection icon={<WeatherIcon id="leaf" size={14} />} title="Riesgo Fitosanitario" level={maxLevel} beta>
       <div className="space-y-2">
         {/* Mildiu */}
         <div>
@@ -1131,11 +1131,13 @@ function AlertSection({
   title,
   level,
   children,
+  beta,
 }: {
   icon: React.ReactNode;
   title: string;
   level: AlertLevel;
   children: React.ReactNode;
+  beta?: boolean;
 }) {
   const isMobile = useUIStore((s) => s.isMobile);
   // On mobile, start collapsed if no alert; expanded if there's an active alert
@@ -1163,6 +1165,7 @@ function AlertSection({
       >
         <span className="text-sm inline-flex">{icon}</span>
         <span className="text-[11px] font-bold text-slate-200">{title}</span>
+        {beta && <span className="badge-beta">Beta</span>}
         {level !== 'none' && (
           <span
             className="text-[9px] font-bold px-1.5 py-0.5 rounded ml-auto"

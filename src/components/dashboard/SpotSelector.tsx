@@ -67,6 +67,7 @@ export const SpotSelector = memo(function SpotSelector() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-bold text-slate-200">{activeSpot.shortName}</span>
+            <span className="badge-beta">Beta</span>
             <span className={`${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'go' ? 'badge-shimmer' : ''}`}>
               {v.label}
               {activeScore ? ` ${activeScore.score}` : ''}

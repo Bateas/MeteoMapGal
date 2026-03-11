@@ -105,7 +105,8 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
   return (
     <div
       className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg
-        ${alert.urgent ? 'animate-pulse' : ''}`}
+        ${alert.urgent ? 'animate-pulse' : ''}
+        ${alert.severity === 'critical' ? 'alert-glow-critical' : alert.severity === 'high' ? 'alert-glow-amber' : ''}`}
       style={{
         background: colors.bg,
         border: `1px solid ${colors.border}`,
@@ -198,7 +199,7 @@ export const AlertPanel = memo(function AlertPanel() {
           {/* Header */}
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">
-              Alertas activas
+              Alertas activas <span className="badge-beta ml-1">Beta</span>
             </span>
             {!isMobile && (
               <span className="text-[9px] text-slate-600 font-mono">

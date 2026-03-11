@@ -152,7 +152,7 @@ export const AtmosphericProfile = memo(function AtmosphericProfile() {
     return (
       <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold text-slate-200">Perfil Atmosférico</span>
+          <span className="text-[11px] font-bold text-slate-200">Perfil Atmosférico</span> <span className="badge-beta">Beta</span>
           <span className="text-[10px] text-slate-500 ml-auto">Cargando...</span>
         </div>
       </div>
@@ -164,7 +164,7 @@ export const AtmosphericProfile = memo(function AtmosphericProfile() {
       {/* Header + stability badge */}
       <div className="flex items-center gap-2">
         <div>
-          <span className="text-[11px] font-bold text-slate-200">Perfil Atmosférico</span>
+          <span className="text-[11px] font-bold text-slate-200">Perfil Atmosférico</span> <span className="badge-beta">Beta</span>
           <span className="text-[8px] text-slate-600 ml-1">(convección)</span>
         </div>
         {assessment && (

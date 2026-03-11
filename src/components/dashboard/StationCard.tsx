@@ -146,10 +146,10 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
     <div
       onClick={handleClick}
       className={`
-        p-3 rounded-lg cursor-pointer transition-all border active:scale-[0.98] active:bg-slate-600/50
+        p-3 rounded-lg cursor-pointer transition-all
         ${isSelected
-          ? 'bg-slate-700 border-blue-500 shadow-lg shadow-blue-500/10'
-          : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+          ? 'card-glow-border shadow-lg shadow-blue-500/10'
+          : 'bg-slate-800 border border-slate-700 hover:border-slate-600 card-lift'
         }
       `}
     >
