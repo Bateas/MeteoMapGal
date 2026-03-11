@@ -52,7 +52,7 @@ export function Sidebar() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab header — horizontally scrollable on mobile */}
-      <div className="flex border-b border-slate-700 overflow-x-auto scrollbar-none" role="tablist" aria-label="Paneles de datos">
+      <div className="flex border-b border-slate-700 overflow-x-auto scrollbar-none scroll-hint-right" role="tablist" aria-label="Paneles de datos">
         <button
           role="tab"
           aria-selected={activeTab === 'stations'}

@@ -29,7 +29,7 @@ export const CriticalAlertBanner = memo(function CriticalAlertBanner() {
 
   return (
     <div
-      className={`${isMobile ? 'fixed z-40 top-14' : 'absolute z-30 top-3'} left-1/2 -translate-x-1/2 pointer-events-auto`}
+      className={`${isMobile ? 'fixed z-30 top-[4.25rem]' : 'absolute z-30 top-3'} left-1/2 -translate-x-1/2 pointer-events-auto`}
     >
       <div
         className={`flex items-center rounded-lg backdrop-blur-md font-semibold shadow-lg cursor-pointer
@@ -46,7 +46,7 @@ export const CriticalAlertBanner = memo(function CriticalAlertBanner() {
       >
         <WeatherIcon id={topAlert.icon as IconId} size={isMobile ? 14 : 18} />
         <div className="flex flex-col min-w-0">
-          <span className={`font-black tracking-wide ${isMobile ? 'text-xs' : 'text-sm'}`}>
+          <span className={`font-black tracking-wide truncate ${isMobile ? 'text-xs' : 'text-sm'}`}>
             PELIGRO · {topAlert.title}
           </span>
           {!isMobile && (

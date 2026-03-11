@@ -230,7 +230,7 @@ export const AlertPanel = memo(function AlertPanel() {
       {/* Compact strip: semaphore + top alert chips (always visible) */}
       <div
         className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 backdrop-blur-md cursor-pointer
-          ${isMobile ? 'max-w-[calc(100vw-1rem)] overflow-x-auto' : ''}`}
+          ${isMobile ? 'max-w-[calc(100vw-1rem)] overflow-x-auto scroll-hint-right' : ''}`}
         style={{
           background: 'rgba(15, 23, 42, 0.85)',
           border: `1px solid rgba(100, 116, 139, 0.2)`,

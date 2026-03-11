@@ -71,7 +71,7 @@ export const SpotSelector = memo(function SpotSelector() {
       >
         <WeatherIcon id={activeSpot.icon} size={18} className="text-slate-300 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[13px] font-bold text-slate-200">{activeSpot.shortName}</span>
             <span className="badge-beta">Beta</span>
             <span className={`${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'good' ? 'badge-shimmer' : ''}`}>
@@ -168,7 +168,7 @@ function SpotCard({
 
       {/* Score detail row */}
       {score && (
-        <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400">
+        <div className="flex items-center gap-2 flex-wrap mt-1 text-[10px] text-slate-400">
           {score.wind && (
             <span>{score.wind.dominantDir} ~{score.wind.avgSpeedKt.toFixed(0)}kt</span>
           )}

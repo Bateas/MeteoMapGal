@@ -238,6 +238,14 @@ body {
   animation: fade-in 0.5s ease-out;
 }
 
+/* ── Scroll affordance ──────────────────────────────── */
+
+/* Right-edge gradient fade to hint horizontal scrollability */
+.scroll-hint-right {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+}
+
 /* ── Interactive effects ──────────────────────────────── */
 
 /* Data freshness pulse — brief glow when a value updates */
