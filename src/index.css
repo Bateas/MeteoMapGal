@@ -228,3 +228,73 @@ body {
 .animate-fade-in {
   animation: fade-in 0.5s ease-out;
 }
+
+/* ── Interactive effects ──────────────────────────────── */
+
+/* Data freshness pulse — brief glow when a value updates */
+@keyframes data-pulse {
+  0% { background-color: rgba(56, 189, 248, 0.25); }
+  100% { background-color: transparent; }
+}
+
+.animate-data-pulse {
+  animation: data-pulse 1.5s ease-out;
+}
+
+/* Verdict pop — scale bounce on score/verdict changes */
+@keyframes verdict-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.08); }
+  60% { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+
+.animate-verdict-pop {
+  animation: verdict-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Toast slide-out (exit animation) */
+@keyframes slide-out-down {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(16px) scale(0.95); }
+}
+
+.animate-slide-out-down {
+  animation: slide-out-down 0.2s ease-in forwards;
+}
+
+/* Shimmer sweep — subtle highlight for active GO / critical badges */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.badge-shimmer {
+  background-size: 200% 100%;
+  background-image: linear-gradient(
+    110deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.12) 37%,
+    transparent 50%
+  );
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Stagger children — cascading fade-in for lists */
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-stagger > * {
+  opacity: 0;
+  animation: stagger-in 0.3s ease-out forwards;
+}
+.animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger > *:nth-child(2) { animation-delay: 50ms; }
+.animate-stagger > *:nth-child(3) { animation-delay: 100ms; }
+.animate-stagger > *:nth-child(4) { animation-delay: 150ms; }
+.animate-stagger > *:nth-child(5) { animation-delay: 200ms; }
+.animate-stagger > *:nth-child(6) { animation-delay: 250ms; }
+.animate-stagger > *:nth-child(7) { animation-delay: 300ms; }
+.animate-stagger > *:nth-child(8) { animation-delay: 350ms; }

@@ -130,6 +130,34 @@ export function RoadmapSection() {
           status="done"
         />
 
+        <TimelineMilestone
+          iconId="gauge"
+          title="Tendencia barométrica (alertas 3h)"
+          desc="Detección por consenso multi-estación de subidas/bajadas rápidas de presión con alertas automáticas."
+          status="done"
+        />
+
+        <TimelineMilestone
+          iconId="cloud"
+          title="Predictor de niebla marítima"
+          desc="Detección de advección y niebla marina para Rías Baixas con alertas por spread T-Td, viento y humedad."
+          status="done"
+        />
+
+        <TimelineMilestone
+          iconId="alert-triangle"
+          title="Alertas de mar cruzado"
+          desc="Detección de oleaje cruzado (diferencia >45° entre viento y olas) con alertas de seguridad para navegación."
+          status="done"
+        />
+
+        <TimelineMilestone
+          iconId="map-pin"
+          title="Overlay de batimetría"
+          desc="Capa visual de profundidades en Rías Baixas basada en datos EMODnet con escala de color."
+          status="done"
+        />
+
         {/* Minor updates — collapsed */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
           <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-emerald-500/20 border-emerald-500/30" />
@@ -138,7 +166,7 @@ export function RoadmapSection() {
           </span>
           <div className="min-w-0">
             <span className="text-[10px] text-slate-500">
-              Otras mejoras: estadísticas de viento, caché offline (PWA), satélite IR, radar de precipitación, historial persistente (TimescaleDB).
+              Otras mejoras: estadísticas de viento, caché offline (PWA), satélite IR, radar de precipitación, historial meteorológico (TimescaleDB), micro-animaciones CSS, auditoría de rendimiento.
             </span>
           </div>
         </div>
@@ -176,6 +204,18 @@ export function RoadmapSection() {
           iconId="sun"
           title="Predicción avanzada de térmicos"
           desc="Análisis con datos históricos AEMET para probabilidad de térmicos a 2-3 días."
+          status="idea"
+        />
+        <TimelineMilestone
+          iconId="sailboat"
+          title="Mejor ventana de navegación"
+          desc="Búsqueda automática de la mejor franja horaria para navegar en los próximos 3 días según previsión."
+          status="idea"
+        />
+        <TimelineMilestone
+          iconId="thermometer"
+          title="Detector de afloramiento"
+          desc="Detección de upwelling costero gallego: bajadas de T agua + viento NE persistente = corrientes frías ricas."
           status="idea"
         />
         <TimelineMilestone
@@ -248,7 +288,7 @@ export function RoadmapSection() {
             </div>
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[10px]">
               <span className="text-slate-500">93+ estaciones</span>
-              <span className="text-slate-500">13 APIs</span>
+              <span className="text-slate-500">15 APIs</span>
               <span className="text-slate-500">159 tests</span>
               <span className="text-slate-500">TimescaleDB</span>
             </div>
