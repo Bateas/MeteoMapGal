@@ -7,11 +7,14 @@
  *
  * Endpoints:
  *   GET /api/v1/health           → DB status + row counts
- *   GET /api/v1/stations         → All stations with last reading
- *   GET /api/v1/readings         → Time series (raw or hourly)
- *   GET /api/v1/readings/latest  → Latest reading per station
+ *   GET /api/v1/stations         → All weather stations with last reading
+ *   GET /api/v1/readings         → Weather time series (raw or hourly)
+ *   GET /api/v1/readings/latest  → Latest weather reading per station
  *   GET /api/v1/readings/compare → Multi-station comparison
  *   GET /api/v1/stats            → Aggregate statistics
+ *   GET /api/v1/buoys            → All buoy stations with last reading
+ *   GET /api/v1/buoys/readings   → Buoy time series (raw or hourly)
+ *   GET /api/v1/buoys/latest     → Latest buoy reading per station
  *
  * Usage:
  *   node --import tsx api.ts
@@ -29,6 +32,10 @@ import {
   queryLatest,
   queryStats,
   queryMultiStation,
+  queryBuoyStations,
+  queryBuoyReadings,
+  queryBuoyLatest,
+  queryBuoyHourly,
 } from './queries.js';
 
 // ── Configuration ──────────────────────────────────────
@@ -204,6 +211,57 @@ async function handleStats(
   json(res, { from, to, stats }, 200, origin);
 }
 
+// ── Buoy route handlers ────────────────────────────────
+
+async function handleBuoyStations(
+  _params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const stations = await queryBuoyStations();
+  json(res, { count: stations.length, stations }, 200, origin);
+}
+
+async function handleBuoyReadings(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const { station_id, interval, limit: limitStr } = params;
+
+  if (!station_id) {
+    error(res, 'Missing required parameter: station_id (integer)', 400, origin);
+    return;
+  }
+
+  const id = parseInt(station_id, 10);
+  if (isNaN(id)) {
+    error(res, 'station_id must be an integer', 400, origin);
+    return;
+  }
+
+  const [from, to] = defaultTimeRange(params.from, params.to);
+  const limit = Math.min(parseInt(limitStr || '2000', 10), 10000);
+
+  if (interval === 'hourly') {
+    const rows = await queryBuoyHourly(id, from, to, limit);
+    json(res, { count: rows.length, interval: 'hourly', from, to, readings: rows }, 200, origin);
+  } else {
+    const rows = await queryBuoyReadings(id, from, to, limit);
+    json(res, { count: rows.length, interval: 'raw', from, to, readings: rows }, 200, origin);
+  }
+}
+
+async function handleBuoyLatest(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const stationId = params.station_id ? parseInt(params.station_id, 10) : undefined;
+  const rows = await queryBuoyLatest(stationId);
+  json(res, { count: rows.length, readings: rows }, 200, origin);
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -219,6 +277,10 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/readings/latest': handleLatest,
   '/api/v1/readings/compare': handleCompare,
   '/api/v1/stats': handleStats,
+  // Buoy endpoints
+  '/api/v1/buoys': handleBuoyStations,
+  '/api/v1/buoys/readings': handleBuoyReadings,
+  '/api/v1/buoys/latest': handleBuoyLatest,
 };
 
 // ── Server ─────────────────────────────────────────────

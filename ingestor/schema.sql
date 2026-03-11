@@ -76,6 +76,85 @@ BEGIN
   END IF;
 END $$;
 
+-- ── Buoy readings hypertable ───────────────────────────
+CREATE TABLE IF NOT EXISTS buoy_readings (
+  time             TIMESTAMPTZ      NOT NULL,
+  station_id       INTEGER          NOT NULL,
+  station_name     TEXT             NOT NULL,
+  source           TEXT             NOT NULL,  -- 'portus' or 'obscosteiro'
+  -- Wave
+  wave_height      DOUBLE PRECISION,  -- Hm0 (m)
+  wave_height_max  DOUBLE PRECISION,  -- Hmax (m)
+  wave_period      DOUBLE PRECISION,  -- Tp (s)
+  wave_period_mean DOUBLE PRECISION,  -- Tm02 (s)
+  wave_dir         DOUBLE PRECISION,  -- MeanDir (deg)
+  -- Wind
+  wind_speed       DOUBLE PRECISION,  -- m/s
+  wind_dir         DOUBLE PRECISION,  -- deg (from)
+  wind_gust        DOUBLE PRECISION,  -- m/s
+  -- Temperature
+  water_temp       DOUBLE PRECISION,  -- °C
+  air_temp         DOUBLE PRECISION,  -- °C
+  -- Pressure
+  air_pressure     DOUBLE PRECISION,  -- hPa
+  -- Currents
+  current_speed    DOUBLE PRECISION,  -- m/s
+  current_dir      DOUBLE PRECISION,  -- deg
+  -- Salinity
+  salinity         DOUBLE PRECISION,  -- PSU
+  -- Sea level
+  sea_level        DOUBLE PRECISION,  -- cm
+  -- Observatorio Costeiro extras
+  humidity         DOUBLE PRECISION,  -- %
+  dew_point        DOUBLE PRECISION   -- °C
+);
+
+SELECT create_hypertable('buoy_readings', 'time', if_not_exists => TRUE);
+
+-- Unique constraint for dedup
+CREATE UNIQUE INDEX IF NOT EXISTS buoy_readings_time_station_idx
+  ON buoy_readings (time, station_id);
+
+-- Station index for per-station history
+CREATE INDEX IF NOT EXISTS buoy_readings_station_idx
+  ON buoy_readings (station_id, time DESC);
+
+-- Source index
+CREATE INDEX IF NOT EXISTS buoy_readings_source_idx
+  ON buoy_readings (source, time DESC);
+
+-- ── Buoy hourly continuous aggregate ───────────────────
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM timescaledb_information.continuous_aggregates
+    WHERE view_name = 'buoy_readings_hourly'
+  ) THEN
+    EXECUTE '
+      CREATE MATERIALIZED VIEW buoy_readings_hourly
+      WITH (timescaledb.continuous) AS
+      SELECT
+        time_bucket(''1 hour'', time) AS bucket,
+        station_id,
+        source,
+        AVG(wave_height)   AS avg_wave_height,
+        MAX(wave_height)   AS max_wave_height,
+        AVG(wave_period)   AS avg_wave_period,
+        AVG(wind_speed)    AS avg_wind,
+        MAX(wind_gust)     AS max_gust,
+        AVG(water_temp)    AS avg_water_temp,
+        AVG(air_temp)      AS avg_air_temp,
+        AVG(air_pressure)  AS avg_pressure,
+        AVG(current_speed) AS avg_current,
+        AVG(humidity)      AS avg_humidity,
+        AVG(sea_level)     AS avg_sea_level
+      FROM buoy_readings
+      GROUP BY bucket, station_id, source
+      WITH NO DATA
+    ';
+  END IF;
+END $$;
+
 -- ── Compression (uncomment after data starts flowing) ─
 -- ALTER TABLE readings SET (
 --   timescaledb.compress,

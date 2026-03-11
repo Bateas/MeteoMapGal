@@ -115,6 +115,95 @@ export async function batchUpsert(
   };
 }
 
+// ── Buoy readings ──────────────────────────────────────
+
+export interface BuoyReadingRow {
+  time: string;
+  stationId: number;
+  stationName: string;
+  source: 'portus' | 'obscosteiro';
+  waveHeight: number | null;
+  waveHeightMax: number | null;
+  wavePeriod: number | null;
+  wavePeriodMean: number | null;
+  waveDir: number | null;
+  windSpeed: number | null;
+  windDir: number | null;
+  windGust: number | null;
+  waterTemp: number | null;
+  airTemp: number | null;
+  airPressure: number | null;
+  currentSpeed: number | null;
+  currentDir: number | null;
+  salinity: number | null;
+  seaLevel: number | null;
+  humidity: number | null;
+  dewPoint: number | null;
+}
+
+const BUOY_COLS = 21;
+
+/**
+ * Batch upsert buoy readings into TimescaleDB.
+ * Uses multi-row INSERT with ON CONFLICT DO NOTHING for dedup.
+ */
+export async function batchUpsertBuoys(
+  readings: BuoyReadingRow[]
+): Promise<{ inserted: number; skipped: number }> {
+  if (readings.length === 0) return { inserted: 0, skipped: 0 };
+
+  const db = getPool();
+  const BATCH_SIZE = 50; // Fewer rows per batch (more columns)
+  let totalInserted = 0;
+
+  for (let i = 0; i < readings.length; i += BATCH_SIZE) {
+    const batch = readings.slice(i, i + BATCH_SIZE);
+    const values: unknown[] = [];
+    const placeholders: string[] = [];
+
+    for (let j = 0; j < batch.length; j++) {
+      const r = batch[j];
+      const o = j * BUOY_COLS;
+      placeholders.push(
+        `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5},$${o+6},$${o+7},$${o+8},$${o+9},$${o+10},$${o+11},$${o+12},$${o+13},$${o+14},$${o+15},$${o+16},$${o+17},$${o+18},$${o+19},$${o+20},$${o+21})`
+      );
+      values.push(
+        r.time, r.stationId, r.stationName, r.source,
+        r.waveHeight, r.waveHeightMax, r.wavePeriod, r.wavePeriodMean, r.waveDir,
+        r.windSpeed, r.windDir, r.windGust,
+        r.waterTemp, r.airTemp, r.airPressure,
+        r.currentSpeed, r.currentDir, r.salinity, r.seaLevel,
+        r.humidity, r.dewPoint,
+      );
+    }
+
+    const sql = `
+      INSERT INTO buoy_readings (
+        time, station_id, station_name, source,
+        wave_height, wave_height_max, wave_period, wave_period_mean, wave_dir,
+        wind_speed, wind_dir, wind_gust,
+        water_temp, air_temp, air_pressure,
+        current_speed, current_dir, salinity, sea_level,
+        humidity, dew_point
+      )
+      VALUES ${placeholders.join(', ')}
+      ON CONFLICT (time, station_id) DO NOTHING
+    `;
+
+    try {
+      const result = await db.query(sql, values);
+      totalInserted += result.rowCount ?? 0;
+    } catch (err) {
+      log.error(`Buoy batch insert failed (${batch.length} rows):`, (err as Error).message);
+    }
+  }
+
+  return {
+    inserted: totalInserted,
+    skipped: readings.length - totalInserted,
+  };
+}
+
 /** Quick connectivity check */
 export async function pingDb(): Promise<boolean> {
   try {
