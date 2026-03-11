@@ -159,7 +159,7 @@ interface ObsParametro {
   altura: number;
   medicions: ObsMedicion[];
 }
-interface ObsResponse { parametros: ObsParametro[]; }
+// API returns ObsParametro[] directly (array, not wrapped object)
 
 function extractObs(params: ObsParametro[], code: string, func: string, maxDepth?: number): number | null {
   for (const p of params) {
@@ -207,8 +207,9 @@ async function fetchObsStation(station: ObsStation, apiKey: string): Promise<Buo
   }
 }
 
-function parseObsResponse(station: ObsStation, data: ObsResponse): BuoyReadingRow | null {
-  const params = data?.parametros;
+function parseObsResponse(station: ObsStation, data: ObsParametro[] | { parametros?: ObsParametro[] }): BuoyReadingRow | null {
+  // API returns array directly, but handle wrapped format too
+  const params = Array.isArray(data) ? data : data?.parametros;
   if (!params?.length) return null;
 
   const timestamp = extractObsTimestamp(params);
