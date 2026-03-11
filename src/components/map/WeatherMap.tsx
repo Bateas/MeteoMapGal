@@ -30,6 +30,7 @@ import { BathymetryOverlay } from './BathymetryOverlay';
 import { BathymetryToggle } from './BathymetryToggle';
 import { SSTOverlay } from './SSTOverlay';
 import { SSTToggle } from './SSTToggle';
+import { SSTLegend } from './SSTLegend';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { CriticalAlertBanner } from './CriticalAlertBanner';
@@ -272,6 +273,7 @@ export function WeatherMap() {
 
       {/* HTML overlays on top of map */}
       <SectorSelector />
+      <SSTLegend />
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
 
