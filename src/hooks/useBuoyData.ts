@@ -10,7 +10,7 @@
  * buoyClient.ts already retries 5xx errors 2x with exponential backoff before
  * reporting failure here.
  */
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { fetchAllRiasBuoys, mergeBuoyReadings } from '../api/buoyClient';
 import { fetchAllObsReadings } from '../api/observatorioCosteiro';
 import { useBuoyStore } from '../store/buoyStore';
@@ -72,6 +72,13 @@ export function useBuoyData() {
       }, ERROR_RETRY_MS);
     }
   }, [setBuoys, setLoading, setError]);
+
+  // Clear buoy data when leaving Rías — prevents stale maritime alerts in Embalse
+  useEffect(() => {
+    if (!isRias) {
+      setBuoys([]);
+    }
+  }, [isRias, setBuoys]);
 
   // Single polling loop — enabled only on Rías sector.
   // useVisibilityPolling fires callback immediately on start → no double fetch.

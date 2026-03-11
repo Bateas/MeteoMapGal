@@ -230,9 +230,9 @@ export function useWeatherData() {
     if (initialRefreshDone.current) return;
     const timer = setTimeout(() => {
       initialRefreshDone.current = true;
-      console.log('[WeatherData] Auto-refresh 90s — catching late arrivals');
+      console.log('[WeatherData] Auto-refresh 15s — catching late arrivals');
       forceRefresh();
-    }, 90_000);
+    }, 15_000);
     return () => clearTimeout(timer);
   }, [stations.length > 0, forceRefresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
