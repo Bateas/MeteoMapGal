@@ -29,6 +29,7 @@ import {
   analyzeThermalProfile,
 } from '../../services/lapseRateService';
 import { useSectorStore } from '../../store/sectorStore';
+import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
 import { useToastStore } from '../../store/toastStore';
 import { useAirspace } from '../../hooks/useAirspace';
@@ -166,12 +167,15 @@ export function AppShell() {
   const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
   const setUnifiedAlerts = useAlertStore((s) => s.setAlerts);
   const notifConfig = useNotificationStore((s) => s.config);
+  const buoys = useBuoyStore((s) => s.buoys);
   // Use fetchedAt as stable trigger instead of the array (avoids React deps size warning)
   const forecastFetchedAt = useForecastStore((s) => s.fetchedAt);
   const forecastRef = useRef(forecastHourly);
   forecastRef.current = forecastHourly;
 
   useEffect(() => {
+    // Station geo for maritime fog (nearby station lookup)
+    const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
     const { alerts, risk } = aggregateAllAlerts({
       stormAlert,
       thermalProfile,
@@ -181,11 +185,13 @@ export function AppShell() {
       stormShadow,
       currentReadings,
       readingHistory,
+      buoys: buoys.length > 0 ? buoys : undefined,
+      stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
     });
     setUnifiedAlerts(alerts, risk);
     // Trigger notifications for new/escalated alerts
     processAlertNotifications(alerts, risk, notifConfig);
-  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, readingHistory]);
+  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, readingHistory, buoys, stations]);
 
   // ── Keyboard shortcuts (desktop only) ───────────────────
   useEffect(() => {
