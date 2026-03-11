@@ -55,9 +55,8 @@ interface ObsParametro {
   medicions: ObsMedicion[];
 }
 
-interface ObsResponse {
-  parametros: ObsParametro[];
-}
+// API returns ObsParametro[] directly (array, not wrapped object)
+type ObsResponse = ObsParametro[] | { parametros?: ObsParametro[] };
 
 // ── Fetch helpers ───────────────────────────────────────────────
 
@@ -101,17 +100,22 @@ function extractValue(params: ObsParametro[], code: string, func: string, maxDep
 }
 
 function extractTimestamp(params: ObsParametro[]): string | null {
+  let newest: string | null = null;
+  let newestMs = 0;
   for (const p of params) {
     const m = p.medicions?.[0];
-    if (m?.data) return m.data;
+    if (!m?.data) continue;
+    const ms = new Date(m.data).getTime();
+    if (ms > newestMs) { newestMs = ms; newest = m.data; }
   }
-  return null;
+  return newest;
 }
 
 // ── Convert API response to BuoyReading ─────────────────────────
 
 function parseObsReading(station: ObsStation, data: ObsResponse): BuoyReading | null {
-  const params = data.parametros;
+  // API returns array directly, but handle wrapped format too
+  const params = Array.isArray(data) ? data : data?.parametros;
   if (!params || params.length === 0) return null;
 
   const timestamp = extractTimestamp(params);
