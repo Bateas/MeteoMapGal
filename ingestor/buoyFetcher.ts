@@ -173,11 +173,15 @@ function extractObs(params: ObsParametro[], code: string, func: string, maxDepth
 }
 
 function extractObsTimestamp(params: ObsParametro[]): string | null {
+  let newest: string | null = null;
+  let newestMs = 0;
   for (const p of params) {
     const m = p.medicions?.[0];
-    if (m?.data) return m.data;
+    if (!m?.data) continue;
+    const ms = new Date(m.data).getTime();
+    if (ms > newestMs) { newestMs = ms; newest = m.data; }
   }
-  return null;
+  return newest;
 }
 
 async function fetchObsStation(station: ObsStation, apiKey: string): Promise<BuoyReadingRow | null> {
