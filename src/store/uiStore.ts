@@ -12,6 +12,7 @@ interface UIState {
   isMobile: boolean;
   droneTabActive: boolean;
   bathymetryVisible: boolean;
+  sstVisible: boolean;
   flyToTarget: FlyToTarget | null;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -20,6 +21,7 @@ interface UIState {
   setIsMobile: (mobile: boolean) => void;
   setDroneTabActive: (active: boolean) => void;
   toggleBathymetry: () => void;
+  toggleSST: () => void;
   setFlyToTarget: (target: FlyToTarget | null) => void;
 }
 
@@ -29,6 +31,7 @@ export const useUIStore = create<UIState>((set) => ({
   isMobile: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
   droneTabActive: false,
   bathymetryVisible: false,
+  sstVisible: false,
   flyToTarget: null,
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -37,5 +40,6 @@ export const useUIStore = create<UIState>((set) => ({
   setIsMobile: (mobile) => set({ isMobile: mobile }),
   setDroneTabActive: (active) => set({ droneTabActive: active }),
   toggleBathymetry: () => set((s) => ({ bathymetryVisible: !s.bathymetryVisible })),
+  toggleSST: () => set((s) => ({ sstVisible: !s.sstVisible })),
   setFlyToTarget: (target) => set({ flyToTarget: target }),
 }));
