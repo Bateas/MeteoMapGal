@@ -16,6 +16,7 @@ import type { StormShadow } from './stormShadowDetector';
 import { buildInversionForecastAlert } from './inversionForecastService';
 import { buildPressureTrendAlerts } from './pressureTrendService';
 import { buildMaritimeFogAlerts } from './maritimeFogService';
+import { buildCrossSeaAlerts } from './crossSeaService';
 import type { BuoyReading } from '../api/buoyClient';
 
 // ── Unified Alert Types ──────────────────────────────────────
@@ -451,6 +452,7 @@ export function aggregateAllAlerts(sources: {
       ? buildPressureTrendAlerts(sources.currentReadings, sources.readingHistory) : []),
     ...(sources.buoys && sources.currentReadings && sources.stationsGeo
       ? buildMaritimeFogAlerts(sources.buoys, sources.currentReadings, sources.stationsGeo) : []),
+    ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),
   ];
 
   // Sort by score descending (highest priority first)
