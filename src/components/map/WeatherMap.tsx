@@ -39,7 +39,9 @@ import { MapContextMenu } from './MapContextMenu';
 import { BuoyMarker } from './BuoyMarker';
 import { BuoyPopup } from './BuoyPopup';
 import { SpotMarkers } from './SpotMarker';
+import { SpotPopup } from './SpotPopup';
 import { useBuoyStore } from '../../store/buoyStore';
+import { useSpotStore } from '../../store/spotStore';
 
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -106,26 +108,46 @@ export function WeatherMap() {
   const selectBuoy = useBuoyStore((s) => s.selectBuoy);
   const selectedBuoy = buoys.find((b) => b.stationId === selectedBuoyId);
 
+  // Spot state
+  const activeSpotId = useSpotStore((s) => s.activeSpotId);
+  const activeSpot = useSpotStore((s) => s.activeSpot);
+  const spotScores = useSpotStore((s) => s.scores);
+  const selectSpot = useSpotStore((s) => s.selectSpot);
+  const showSpotPopup = activeSpotId !== '';
+
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
-  // Cross-deselection: only one popup at a time (station XOR buoy).
+  // Cross-deselection: only one popup at a time (station XOR buoy XOR spot).
   // Track previous values to detect which one changed (= new selection wins).
   const prevBuoyRef = useRef<number | null>(null);
   const prevStationRef = useRef<string | null>(null);
+  const prevSpotRef = useRef<string>('');
   useEffect(() => {
-    if (selectedBuoyId != null && selectedStationId != null) {
-      // Determine which was just selected by comparing to previous values
-      const buoyChanged = selectedBuoyId !== prevBuoyRef.current;
-      if (buoyChanged) {
-        selectStation(null);   // new buoy selected → clear station
-      } else {
-        selectBuoy(null);      // new station selected → clear buoy
-      }
+    const spotChanged = activeSpotId !== prevSpotRef.current;
+    const buoyChanged = selectedBuoyId !== prevBuoyRef.current;
+    const stationChanged = selectedStationId !== prevStationRef.current;
+
+    // Spot selected → clear station + buoy
+    if (spotChanged && activeSpotId) {
+      if (selectedStationId) selectStation(null);
+      if (selectedBuoyId != null) selectBuoy(null);
     }
+    // Station selected → clear buoy + spot
+    else if (stationChanged && selectedStationId) {
+      if (selectedBuoyId != null) selectBuoy(null);
+      if (activeSpotId) selectSpot('');
+    }
+    // Buoy selected → clear station + spot
+    else if (buoyChanged && selectedBuoyId != null) {
+      if (selectedStationId) selectStation(null);
+      if (activeSpotId) selectSpot('');
+    }
+
     prevBuoyRef.current = selectedBuoyId;
     prevStationRef.current = selectedStationId;
-  }, [selectedBuoyId, selectedStationId, selectStation, selectBuoy]);
+    prevSpotRef.current = activeSpotId;
+  }, [selectedBuoyId, selectedStationId, activeSpotId, selectStation, selectBuoy, selectSpot]);
 
   /** Fly to sector view when it changes. */
   useEffect(() => {
@@ -159,7 +181,8 @@ export function WeatherMap() {
   const handleMapClick = useCallback(() => {
     selectStation(null);
     selectBuoy(null);
-  }, [selectStation, selectBuoy]);
+    selectSpot('');
+  }, [selectStation, selectBuoy, selectSpot]);
 
   /** Register all wind-arrow icons (one per speed level) when the map loads. */
   const handleMapLoad = useCallback(() => {
@@ -261,6 +284,11 @@ export function WeatherMap() {
         {/* Selected buoy popup — Rías Baixas only */}
         {activeSector.id === 'rias' && selectedBuoy && (
           <BuoyPopup reading={selectedBuoy} />
+        )}
+
+        {/* Selected spot popup */}
+        {showSpotPopup && activeSpot && (
+          <SpotPopup spot={activeSpot} score={spotScores.get(activeSpotId)} />
         )}
       </Map>
 

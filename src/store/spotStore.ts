@@ -35,6 +35,11 @@ export const useSpotStore = create<SpotState & SpotActions>()(
         lastScored: 0,
 
         selectSpot: (spotId: string) => {
+          // Empty string = deselect (close popup, keep last activeSpot for reference)
+          if (!spotId) {
+            set({ activeSpotId: '' }, undefined, 'deselectSpot');
+            return;
+          }
           const spot = ALL_SPOTS.find((s) => s.id === spotId);
           if (!spot) return;
           set({ activeSpotId: spotId, activeSpot: spot }, undefined, 'selectSpot');
