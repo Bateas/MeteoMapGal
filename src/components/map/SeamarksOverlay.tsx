@@ -23,11 +23,13 @@ export const SeamarksOverlay = memo(function SeamarksOverlay() {
       tiles={['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png']}
       tileSize={256}
       attribution="&copy; OpenSeaMap contributors"
+      minzoom={8}
       maxzoom={18}
     >
       <Layer
         id="openseamap-tiles"
         type="raster"
+        minzoom={8}
         paint={{ 'raster-opacity': 0.9 }}
       />
     </Source>

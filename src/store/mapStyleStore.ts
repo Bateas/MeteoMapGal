@@ -107,10 +107,19 @@ interface MapStyleState {
   showSeamarks: boolean;
   /** IHM Electronic Navigational Chart overlay */
   showNauticalChart: boolean;
+  /** IGN MDT hillshade — pre-rendered terrain relief */
+  showIGNHillshade: boolean;
+  /** IGN MDT contour lines — 25m spacing from BTN25 */
+  showIGNContours: boolean;
+  /** IGN PNOA aerial orthophotos — 25cm resolution */
+  showIGNOrtho: boolean;
 
   setStyle: (id: MapStyleId) => void;
   toggleSeamarks: () => void;
   toggleNauticalChart: () => void;
+  toggleIGNHillshade: () => void;
+  toggleIGNContours: () => void;
+  toggleIGNOrtho: () => void;
 }
 
 export const useMapStyleStore = create<MapStyleState>()(
@@ -120,6 +129,9 @@ export const useMapStyleStore = create<MapStyleState>()(
         activeStyleId: 'osm' as MapStyleId,
         showSeamarks: false,
         showNauticalChart: false,
+        showIGNHillshade: false,
+        showIGNContours: false,
+        showIGNOrtho: false,
 
         setStyle: (activeStyleId) =>
           set({ activeStyleId }, undefined, 'setStyle'),
@@ -129,6 +141,15 @@ export const useMapStyleStore = create<MapStyleState>()(
 
         toggleNauticalChart: () =>
           set({ showNauticalChart: !get().showNauticalChart }, undefined, 'toggleNauticalChart'),
+
+        toggleIGNHillshade: () =>
+          set({ showIGNHillshade: !get().showIGNHillshade }, undefined, 'toggleIGNHillshade'),
+
+        toggleIGNContours: () =>
+          set({ showIGNContours: !get().showIGNContours }, undefined, 'toggleIGNContours'),
+
+        toggleIGNOrtho: () =>
+          set({ showIGNOrtho: !get().showIGNOrtho }, undefined, 'toggleIGNOrtho'),
       }),
       {
         name: 'meteomap-map-style',
@@ -136,6 +157,9 @@ export const useMapStyleStore = create<MapStyleState>()(
           activeStyleId: state.activeStyleId,
           showSeamarks: state.showSeamarks,
           showNauticalChart: state.showNauticalChart,
+          showIGNHillshade: state.showIGNHillshade,
+          showIGNContours: state.showIGNContours,
+          showIGNOrtho: state.showIGNOrtho,
         }),
       },
     ),

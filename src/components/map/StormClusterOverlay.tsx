@@ -362,6 +362,38 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'fill-antialias': true,
           }}
         />
+        {/* Glow halos — wider, semi-transparent lines behind the main rings */}
+        <Layer
+          id="storm-ring-glow-watch"
+          type="line"
+          filter={['==', ['get', 'ring'], 'watch']}
+          paint={{
+            'line-color': 'rgba(234, 179, 8, 0.08)',
+            'line-width': 6,
+            'line-blur': 4,
+          }}
+        />
+        <Layer
+          id="storm-ring-glow-warning"
+          type="line"
+          filter={['==', ['get', 'ring'], 'warning']}
+          paint={{
+            'line-color': 'rgba(249, 115, 22, 0.12)',
+            'line-width': 8,
+            'line-blur': 5,
+          }}
+        />
+        <Layer
+          id="storm-ring-glow-danger"
+          type="line"
+          filter={['==', ['get', 'ring'], 'danger']}
+          paint={{
+            'line-color': 'rgba(239, 68, 68, 0.15)',
+            'line-width': 10,
+            'line-blur': 6,
+          }}
+        />
+        {/* Main dashed rings on top of glow */}
         <Layer
           id="storm-ring-line-watch"
           type="line"

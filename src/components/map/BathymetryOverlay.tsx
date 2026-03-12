@@ -19,12 +19,14 @@ export function BathymetryOverlay() {
       type="raster"
       tiles={['https://tiles.emodnet-bathymetry.eu/v12/mean_atlas_land/web_mercator/{z}/{x}/{y}.png']}
       tileSize={256}
+      minzoom={8}
       maxzoom={14}
       attribution="&copy; EMODnet Bathymetry"
     >
       <Layer
         id="bathymetry-layer"
         type="raster"
+        minzoom={8}
         paint={{
           'raster-opacity': 0.55,
           'raster-fade-duration': 300,
