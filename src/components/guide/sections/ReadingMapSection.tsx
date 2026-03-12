@@ -213,7 +213,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="sailboat"
             title="Spots de navegación"
-            text="Panel unificado de spots con score 0-100 por zona: viento real, olas, patrones locales + detalle térmico en spots con thermalDetection. GO≥50, MARGINAL≥25."
+            text="Clic en el marcador del spot para ver popup con veredicto, viento (kt), oleaje, T agua, patrón detectado y resumen. Score 0-100 por zona. GO≥50, MARGINAL≥25. En móvil: panel inferior deslizante."
           />
           <MiniExplainer
             iconId="wind"
