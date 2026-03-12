@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useCallback, useState } from 'react';
 import { useAlertStore } from '../../store/alertStore';
 import { useUIStore } from '../../store/uiStore';
 import { NotificationControl } from './NotificationControl';
@@ -101,6 +101,28 @@ function AlertChip({ alert }: { alert: UnifiedAlert }) {
 
 function AlertRow({ alert }: { alert: UnifiedAlert }) {
   const colors = SEVERITY_COLORS[alert.severity];
+  const validateAlert = useAlertStore((s) => s.validateAlert);
+  const validations = useAlertStore((s) => s.validations);
+  const [justValidated, setJustValidated] = useState<boolean | null>(null);
+
+  // Check if this alert was recently validated (within last 30min)
+  const recentValidation = useMemo(() => {
+    const cutoff = Date.now() - 30 * 60 * 1000;
+    return validations.find(
+      (v) => v.alertId === alert.id && v.validatedAt > cutoff,
+    );
+  }, [validations, alert.id]);
+
+  const handleValidate = useCallback((valid: boolean, e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't toggle panel
+    validateAlert(alert.id, valid);
+    setJustValidated(valid);
+    // Reset feedback after 3s
+    setTimeout(() => setJustValidated(null), 3000);
+  }, [alert.id, validateAlert]);
+
+  const showValidation = recentValidation || justValidated !== null;
+  const validValue = justValidated ?? recentValidation?.valid;
 
   return (
     <div
@@ -121,11 +143,44 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
           >
             {alert.title}
           </span>
-          {/* Score hidden — internal metric */}
         </div>
         <div className="text-[10px] text-slate-400 truncate mt-0.5">
           {alert.detail}
         </div>
+      </div>
+
+      {/* Validation buttons */}
+      <div className="flex items-center gap-0.5 shrink-0 ml-1">
+        {showValidation ? (
+          <span
+            className="text-xs px-1.5 py-0.5 rounded"
+            style={{
+              background: validValue ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+              color: validValue ? '#22c55e' : '#ef4444',
+            }}
+          >
+            {validValue ? '✓' : '✗'}
+          </span>
+        ) : (
+          <>
+            <button
+              onClick={(e) => handleValidate(true, e)}
+              className="text-[11px] px-1 py-0.5 rounded opacity-50 hover:opacity-100 transition-opacity"
+              style={{ color: '#22c55e' }}
+              title="Alerta correcta"
+            >
+              👍
+            </button>
+            <button
+              onClick={(e) => handleValidate(false, e)}
+              className="text-[11px] px-1 py-0.5 rounded opacity-50 hover:opacity-100 transition-opacity"
+              style={{ color: '#ef4444' }}
+              title="Falso positivo"
+            >
+              👎
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -174,6 +229,7 @@ export const AlertPanel = memo(function AlertPanel() {
   const risk = useAlertStore((s) => s.risk);
   const panelExpanded = useAlertStore((s) => s.panelExpanded);
   const togglePanel = useAlertStore((s) => s.togglePanel);
+  const validationCount = useAlertStore((s) => s.validations.length);
 
   // Separate alerts by importance
   const { topAlerts, otherAlerts } = useMemo(() => {
@@ -200,10 +256,15 @@ export const AlertPanel = memo(function AlertPanel() {
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">
               Alertas activas <span className="badge-beta ml-1">Beta</span>
+              {validationCount > 0 && (
+                <span className="ml-2 text-[9px] font-normal text-slate-600" title="Alertas validadas (30 días)">
+                  {validationCount} validadas
+                </span>
+              )}
             </span>
             {!isMobile && (
               <span className="text-[9px] text-slate-600 font-mono">
-                Pulsa A para cerrar
+                👍👎 para validar · A para cerrar
               </span>
             )}
           </div>
