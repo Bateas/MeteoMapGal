@@ -47,7 +47,10 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           <WeatherIcon id={spot.icon} size={16} className="text-slate-200" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-bold text-slate-100 truncate">{spot.name}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold text-slate-100 truncate">{spot.name}</span>
+            <span className="text-[8px] font-bold tracking-wider text-amber-400/80 bg-amber-400/10 px-1.5 py-0.5 rounded-full border border-amber-400/20 shrink-0 leading-none">BETA</span>
+          </div>
           <div className="text-[10px] text-slate-400">{spot.description}</div>
         </div>
       </div>
