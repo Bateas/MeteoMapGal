@@ -331,15 +331,40 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
   // Rain / Hail
   if (field.rain.level !== 'none') {
     const score = campoLevelToScore(field.rain.level);
-    let detail = `${field.rain.maxPrecip.toFixed(1)} mm/h · ${field.rain.maxProbability}% prob`;
+
+    // Temporal context: WHEN is rain expected?
+    let timeLabel: string;
+    if (field.rain.hoursUntilRain !== null && field.rain.hoursUntilRain <= 1) {
+      timeLabel = 'inminente';
+    } else if (field.rain.hoursUntilRain !== null && field.rain.hoursUntilRain <= 3) {
+      timeLabel = `en ~${Math.round(field.rain.hoursUntilRain)}h`;
+    } else if (field.rain.firstRainAt) {
+      timeLabel = `~${field.rain.firstRainAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      timeLabel = 'próximas horas';
+    }
+
+    let detail = `${field.rain.maxPrecip.toFixed(1)} mm/h · ${timeLabel}`;
+    if (field.rain.rainAccum6h > 0) detail += ` · ${field.rain.rainAccum6h}mm en 6h`;
     if (field.rain.hailRisk) detail += ' · GRANIZO';
+
+    // Title reflects imminence
+    let title: string;
+    if (field.rain.hailRisk) {
+      title = 'Riesgo de GRANIZO';
+    } else if (field.rain.hoursUntilRain !== null && field.rain.hoursUntilRain <= 1) {
+      title = 'Lluvia inminente';
+    } else {
+      title = 'Lluvia prevista';
+    }
+
     results.push({
       id: 'rain-forecast',
       category: 'rain',
       severity: severityFromScore(score),
       score: Math.min(100, field.rain.hailRisk ? score + 20 : score),
       icon: field.rain.hailRisk ? 'hail' : 'cloud-rain',
-      title: field.rain.hailRisk ? 'Riesgo de GRANIZO' : 'Lluvia prevista',
+      title,
       detail,
       urgent: field.rain.hailRisk || field.rain.level === 'critico',
       updatedAt: now,
