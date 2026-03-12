@@ -43,7 +43,7 @@ export function SpotScoringSection() {
         {/* Embalse */}
         <div className="bg-slate-900/50 rounded-lg p-3 border border-amber-500/20 space-y-1.5">
           <div className="text-[11px] font-bold text-amber-400">Embalse de Castrelo</div>
-          <SpotRow name="Castrelo" desc="Centro del embalse. Viento t&eacute;rmico WSW dominante." thermal />
+          <SpotRow name="Castrelo" desc="Valle del Mi&ntilde;o. Agua dulce y plana, t&eacute;rmico WSW en tardes soleadas." thermal />
           <p className="text-[9px] text-slate-500 italic pt-1">
             Pr&oacute;ximamente: m&aacute;s spots (vi&ntilde;edos, valles colindantes).
           </p>
@@ -52,10 +52,10 @@ export function SpotScoringSection() {
         {/* Rías */}
         <div className="bg-slate-900/50 rounded-lg p-3 border border-blue-500/20 space-y-1.5">
           <div className="text-[11px] font-bold text-blue-400">R&iacute;as Baixas</div>
-          <SpotRow name="Cesantes" desc="Interior R&iacute;a de Vigo. Agua plana, t&eacute;rmica WSW." thermal />
-          <SpotRow name="Bocana" desc="Viento terral del interior: aire fr&iacute;o drena desde Rande hacia Vigo." />
-          <SpotRow name="Centro R&iacute;a" desc="Zona media. Viraz&oacute;n SW tardes, oleaje moderado." />
-          <SpotRow name="C&iacute;es-R&iacute;a" desc="Zona exterior. Nortada, swell oce&aacute;nico." />
+          <SpotRow name="Cesantes" desc="Ensenada de San Sim&oacute;n. Agua plana y protegida, t&eacute;rmica WSW por las tardes." thermal />
+          <SpotRow name="Bocana" desc="Estrecho de Rande. Viento terral matutino, agua protegida." />
+          <SpotRow name="Centro R&iacute;a" desc="Canido&ndash;Limens. Viraz&oacute;n SW en verano, oleaje moderado." />
+          <SpotRow name="C&iacute;es-R&iacute;a" desc="Baiona&ndash;C&iacute;es. Condiciones oce&aacute;nicas, solo con experiencia." />
         </div>
       </div>
 
