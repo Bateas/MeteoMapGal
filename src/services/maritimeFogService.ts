@@ -289,16 +289,40 @@ function assessBuoyFogRisk(
   let confidence = 0;
   const notes: string[] = [];
 
+  // Factor 0: SIGN check — advection fog requires warm air over cold water.
+  // When air is COLDER than water (delta < 0), the water WARMS the air →
+  // air moves AWAY from dew point → advection fog mechanism is inactive.
+  // Only sea smoke (steam fog) could form, which is a different phenomenon.
+  if (delta < -1) {
+    return {
+      level: 'none',
+      airWaterDelta: delta,
+      humidity, windSpeed: wind?.speed ?? null, windDir: wind?.dir ?? null,
+      isOnshore: onshore, waterTemp: buoy.waterTemp, airTemp,
+      confidence: 0,
+      hypothesis: `ΔT ${delta.toFixed(1)}°C — aire más frío que agua, sin advección`,
+      sourceBuoy: buoy.stationName,
+    };
+  }
+
+  // Near-equilibrium (delta -1 to 0): marginally possible but weak mechanism
+  const isNearEquilibrium = delta < 0;
+
   // Factor 1: Air-water ΔT (most important for advection fog)
-  if (delta <= DELTA_T_CRITICAL) {
+  // Only POSITIVE deltas indicate warm-air-over-cold-water mechanism
+  if (delta >= 0 && delta <= DELTA_T_CRITICAL) {
     confidence += 40;
-    notes.push(`ΔT aire-agua ${delta.toFixed(1)}°C — condensación muy probable`);
+    notes.push(`ΔT aire-agua +${delta.toFixed(1)}°C — condensación muy probable`);
+  } else if (isNearEquilibrium) {
+    // Air barely colder than water — weak signal, cap contribution
+    confidence += 10;
+    notes.push(`ΔT aire-agua ${delta.toFixed(1)}°C — equilibrio térmico, señal débil`);
   } else if (delta <= DELTA_T_HIGH) {
     confidence += 30;
-    notes.push(`ΔT aire-agua ${delta.toFixed(1)}°C — riesgo de condensación`);
+    notes.push(`ΔT aire-agua +${delta.toFixed(1)}°C — riesgo de condensación`);
   } else if (delta <= DELTA_T_RISK) {
     confidence += 15;
-    notes.push(`ΔT aire-agua ${delta.toFixed(1)}°C — moderado`);
+    notes.push(`ΔT aire-agua +${delta.toFixed(1)}°C — moderado`);
   } else {
     // Large ΔT — no fog risk
     return {
@@ -307,7 +331,7 @@ function assessBuoyFogRisk(
       humidity, windSpeed: wind?.speed ?? null, windDir: wind?.dir ?? null,
       isOnshore: onshore, waterTemp: buoy.waterTemp, airTemp,
       confidence: 0,
-      hypothesis: `ΔT aire-agua ${delta.toFixed(1)}°C — sin riesgo (aire mucho más cálido que agua)`,
+      hypothesis: `ΔT aire-agua +${delta.toFixed(1)}°C — sin riesgo (aire mucho más cálido que agua)`,
       sourceBuoy: buoy.stationName,
     };
   }
@@ -370,12 +394,18 @@ function assessBuoyFogRisk(
   confidence = Math.min(100, Math.max(0, confidence));
 
   // ── Level determination ──────────────────────────────────
-  if (delta <= DELTA_T_CRITICAL && humidity !== null && humidity >= MIN_HUMIDITY_HIGH && onshore) {
+  if (delta >= 0 && delta <= DELTA_T_CRITICAL && humidity !== null && humidity >= MIN_HUMIDITY_HIGH && onshore) {
     level = 'critico';
-  } else if (delta <= DELTA_T_HIGH && confidence >= 50) {
+  } else if (delta >= 0 && delta <= DELTA_T_HIGH && confidence >= 50) {
     level = 'alto';
   } else if (delta <= DELTA_T_RISK && confidence >= 35) {
     level = 'riesgo';
+  }
+
+  // Near-equilibrium: cap at 'riesgo' — advection mechanism is marginal
+  if (isNearEquilibrium && (level === 'critico' || level === 'alto')) {
+    level = 'riesgo';
+    notes.push('cap: ΔT negativo limita severidad');
   }
 
   // Downgrade if wind is offshore or too strong
