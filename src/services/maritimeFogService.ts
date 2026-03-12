@@ -72,6 +72,15 @@ const DELTA_T_RISK = 5.0;      // °C — elevated risk with other factors
 const MIN_HUMIDITY_RISK = 80;
 const MIN_HUMIDITY_HIGH = 88;
 
+/**
+ * Solar radiation threshold (W/m²) — above this, fog has dissipated or cannot form.
+ * At 250+ W/m² the sun is clearly shining on the stations — no fog overhead.
+ * More conservative than inland threshold (200) because coastal fog can be patchy.
+ */
+const SOLAR_SUPPRESSION_THRESHOLD = 250;
+/** Minimum stations with solar data for reliable suppression */
+const MIN_SOLAR_STATIONS = 2;
+
 // ── Helpers ──────────────────────────────────────────────────
 
 /** Check if wind direction is onshore for the Galician Atlantic coast */
@@ -180,6 +189,38 @@ function getWindNearBuoy(
   };
 }
 
+/**
+ * Get average solar radiation from stations near a buoy.
+ * Returns null if fewer than MIN_SOLAR_STATIONS have data.
+ */
+function getSolarRadiationNearBuoy(
+  buoy: BuoyReading,
+  stationReadings: Map<string, NormalizedReading>,
+  stations: { id: string; lat: number; lon: number }[],
+): number | null {
+  const coords = BUOY_COORDS_MAP.get(buoy.stationId);
+  if (!coords) return null;
+
+  const nearby: number[] = [];
+  for (const s of stations) {
+    const reading = stationReadings.get(s.id);
+    if (!reading || reading.solarRadiation === null) continue;
+    const dist = fastDistanceKm(coords.lat, coords.lon, s.lat, s.lon);
+    if (dist <= 30) nearby.push(reading.solarRadiation);
+  }
+
+  if (nearby.length < MIN_SOLAR_STATIONS) return null;
+  return nearby.reduce((a, b) => a + b, 0) / nearby.length;
+}
+
+/**
+ * Check if it's daytime (solar suppression only applies when sun should be up).
+ */
+function isDaytime(): boolean {
+  const hour = new Date().getHours();
+  return hour >= 9 && hour <= 19;
+}
+
 // ── Main Assessment ──────────────────────────────────────────
 
 /**
@@ -206,8 +247,25 @@ function assessBuoyFogRisk(
   const delta = airTemp - buoy.waterTemp;
   const humidity = getHumidityNearBuoy(buoy, stationReadings, stations);
   const wind = getWindNearBuoy(buoy, stationReadings, stations);
+  const avgSolar = getSolarRadiationNearBuoy(buoy, stationReadings, stations);
 
   const onshore = wind ? isOnshoreWind(wind.dir) : false;
+
+  // ── Solar suppression (daytime only) ─────────────────────
+  // If stations near this buoy report sustained high solar radiation,
+  // the sky is clear — fog has dissipated or cannot form, regardless of
+  // other parameters (humidity stays high after fog clears).
+  if (isDaytime() && avgSolar !== null && avgSolar > SOLAR_SUPPRESSION_THRESHOLD) {
+    return {
+      level: 'none',
+      airWaterDelta: delta,
+      humidity, windSpeed: wind?.speed ?? null, windDir: wind?.dir ?? null,
+      isOnshore: onshore, waterTemp: buoy.waterTemp, airTemp,
+      confidence: 0,
+      hypothesis: `Niebla suprimida por radiación solar (${avgSolar.toFixed(0)} W/m²) — cielo despejado en estaciones costeras`,
+      sourceBuoy: buoy.stationName,
+    };
+  }
 
   // ── Scoring ──────────────────────────────────────────────
   let level: AlertLevel = 'none';
@@ -270,7 +328,21 @@ function assessBuoyFogRisk(
     }
   }
 
-  // Factor 4: Time of day — advection fog more common in evening/night
+  // Factor 4: Solar radiation (daytime partial suppression)
+  // Even below full suppression threshold, moderate sun reduces confidence
+  if (isDaytime() && avgSolar !== null) {
+    if (avgSolar > 150) {
+      // Significant sun — fog unlikely to persist
+      confidence = Math.max(0, confidence - 20);
+      notes.push(`radiación solar ${avgSolar.toFixed(0)} W/m² — sol parcial, niebla improbable`);
+    } else if (avgSolar > 80) {
+      // Some sun filtering through — fog may be thinning
+      confidence = Math.max(0, confidence - 10);
+      notes.push(`radiación ${avgSolar.toFixed(0)} W/m² — posible niebla delgada`);
+    }
+  }
+
+  // Factor 5: Time of day — advection fog more common in evening/night
   // (warm air arrives, sea is cold from daytime upwelling)
   const hour = new Date().getHours();
   if (hour >= 20 || hour < 8) {

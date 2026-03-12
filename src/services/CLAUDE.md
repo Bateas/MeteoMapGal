@@ -26,7 +26,7 @@ Pure functions and algorithms used across the app. No React dependencies.
 - **`stormShadowDetector.ts`** — Detects storm cloud presence by analyzing solar radiation drops across stations, cross-referenced with lightning data and wind anomalies (gust fronts). Estimates storm position, movement vector, and approach to Castrelo.
 - **`airspaceService.ts`** — Evaluates drone flight restrictions: ENAIRE UAS zones + active NOTAMs for sector center. Used by FieldDrawer Dron panel.
 - **`pressureTrendService.ts`** — 3h barometric pressure trend detection across stations. Consensus-based rapid drop/rise alerts. Pure computation on existing readings.
-- **`maritimeFogService.ts`** — Advection fog predictor for Rías. Uses buoy SST vs air temp delta, coastal humidity, wind direction. Pure computation — no new fetches.
+- **`maritimeFogService.ts`** — Advection fog predictor for Rías. Uses buoy SST vs air temp delta, coastal humidity, wind direction, **solar radiation suppression** (≥250 W/m² daytime = fog cleared). Pure computation — no new fetches.
 - **`crossSeaService.ts`** — Cross-sea risk from wave-wind angular divergence >45°. Uses buoy waveDir vs windDir. Wave height amplification for severity. Pure computation.
 
 ## Forecast & History
