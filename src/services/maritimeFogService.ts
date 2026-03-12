@@ -230,6 +230,7 @@ function assessBuoyFogRisk(
   buoy: BuoyReading,
   stationReadings: Map<string, NormalizedReading>,
   stations: { id: string; lat: number; lon: number }[],
+  northWindActive: boolean,
 ): MaritimeFogRisk {
   const noRisk: MaritimeFogRisk = {
     level: 'none', airWaterDelta: null, humidity: null,
@@ -267,35 +268,20 @@ function assessBuoyFogRisk(
     };
   }
 
-  // ── North/NE wind exclusion ───────────────────────────────
-  // Continental N/NE wind brings dry air from inland — fog impossible.
-  // Stronger than generic offshore check: even moderate N/NE kills fog.
-  if (wind) {
-    const isNortherly = wind.dir >= 350 || wind.dir <= 60; // N through ENE
-    if (isNortherly && wind.speed >= 3) {
-      // Strong N/NE component — dry continental air
-      return {
-        level: 'none',
-        airWaterDelta: delta,
-        humidity, windSpeed: wind.speed, windDir: wind.dir,
-        isOnshore: false, waterTemp: buoy.waterTemp, airTemp,
-        confidence: 0,
-        hypothesis: `Niebla suprimida: viento N/NE ${wind.dir.toFixed(0)}° a ${wind.speed.toFixed(1)} m/s — aire continental seco`,
-        sourceBuoy: buoy.stationName,
-      };
-    }
-    // Moderate N/NE with low humidity — also suppress
-    if (isNortherly && wind.speed >= 1.5 && humidity !== null && humidity < 75) {
-      return {
-        level: 'none',
-        airWaterDelta: delta,
-        humidity, windSpeed: wind.speed, windDir: wind.dir,
-        isOnshore: false, waterTemp: buoy.waterTemp, airTemp,
-        confidence: 0,
-        hypothesis: `Niebla suprimida: viento N/NE ${wind.dir.toFixed(0)}° + HR ${humidity.toFixed(0)}% baja`,
-        sourceBuoy: buoy.stationName,
-      };
-    }
+  // ── North/NE wind exclusion (sector-wide consensus) ──────
+  // A true Galician norte is unmistakable: ≥6kt (3 m/s) from N/NE across
+  // practically ALL stations. Not just 1-2 nearby with residual breeze.
+  // Check is done at sector level via the northWindSuppression flag.
+  if (northWindActive) {
+    return {
+      level: 'none',
+      airWaterDelta: delta,
+      humidity, windSpeed: wind?.speed ?? null, windDir: wind?.dir ?? null,
+      isOnshore: false, waterTemp: buoy.waterTemp, airTemp,
+      confidence: 0,
+      hypothesis: `Niebla suprimida: norte claro en estaciones del sector — aire continental seco`,
+      sourceBuoy: buoy.stationName,
+    };
   }
 
   // ── Scoring ──────────────────────────────────────────────
@@ -417,6 +403,46 @@ function assessBuoyFogRisk(
 // ── Public API ───────────────────────────────────────────────
 
 /**
+ * Detect sector-wide north wind consensus.
+ *
+ * A true Galician norte = N/NE (350°-60°) at ≥3 m/s (~6kt) across the
+ * MAJORITY of stations. Not 2 stations with residual breeze — it must be
+ * a clear, unmistakable signal from the whole network.
+ *
+ * Requirements:
+ * - At least 4 stations with valid wind data
+ * - ≥60% of those stations report N/NE direction
+ * - Average speed of northerly stations ≥ 3 m/s (~6kt)
+ */
+function detectNorthWindConsensus(
+  stationReadings: Map<string, NormalizedReading>,
+): boolean {
+  const MIN_STATIONS = 4;
+  const CONSENSUS_RATIO = 0.6; // 60% must agree
+  const MIN_NORTH_SPEED = 3.0; // ~6kt
+
+  const windReports: { dir: number; speed: number }[] = [];
+
+  for (const [, reading] of stationReadings) {
+    if (reading.windSpeed !== null && reading.windDirection !== null && reading.windSpeed >= 1.5) {
+      windReports.push({ dir: reading.windDirection, speed: reading.windSpeed });
+    }
+  }
+
+  if (windReports.length < MIN_STATIONS) return false;
+
+  // Count northerly stations (N/NE: 350°-60°)
+  const northerly = windReports.filter((w) => w.dir >= 350 || w.dir <= 60);
+  const ratio = northerly.length / windReports.length;
+
+  if (ratio < CONSENSUS_RATIO) return false;
+
+  // Average speed of northerly stations must be meaningful
+  const avgNorthSpeed = northerly.reduce((s, w) => s + w.speed, 0) / northerly.length;
+  return avgNorthSpeed >= MIN_NORTH_SPEED;
+}
+
+/**
  * Assess maritime fog risk across all buoys.
  * Returns the HIGHEST risk found (worst-case scenario for the sector).
  */
@@ -434,11 +460,14 @@ export function assessMaritimeFogRisk(
     };
   }
 
+  // Sector-wide north wind check — done ONCE for all buoys
+  const northWindActive = detectNorthWindConsensus(stationReadings);
+
   let worst: MaritimeFogRisk | null = null;
   const LEVEL_ORDER: Record<AlertLevel, number> = { none: 0, riesgo: 1, alto: 2, critico: 3 };
 
   for (const buoy of buoys) {
-    const risk = assessBuoyFogRisk(buoy, stationReadings, stations);
+    const risk = assessBuoyFogRisk(buoy, stationReadings, stations, northWindActive);
     if (!worst || LEVEL_ORDER[risk.level] > LEVEL_ORDER[worst.level] ||
         (risk.level === worst.level && risk.confidence > worst.confidence)) {
       worst = risk;
