@@ -82,7 +82,8 @@ ingestor/
 - **Sector switch cleanup**: `setStations([])` triggers full state reset (readings, history, selections, sourceFreshness). Fetch flags in `useWeatherData` also reset.
 - **Embalse-only features**: Thermal zones, forecast timeline, thermal panel, sailing banner, and propagation arrows are conditionally rendered only when `activeSector.id === 'embalse'`.
 - **Rías-only features**: BuoyPanel (marine buoys from Puertos del Estado + Observatorio Costeiro) in Stations tab, tide predictions (IHM), surface currents overlay (RADAR ON RAIA), bathymetry overlay (EMODnet), SST overlay (CMEMS WMTS), OpenSeaMap seamarks, IHM nautical chart overlay. Rendered when `activeSector.id === 'rias'`.
-- **Map style selector**: `MapStyleSelector` component with `mapStyleStore` (persisted). Nautical overlay toggles (OpenSeaMap, IHM ENC) only visible in Rías sector. Dark mode auto-adjusts hillshade colors.
+- **Map style selector**: `MapStyleSelector` component with `mapStyleStore` (persisted). Nautical overlay toggles (OpenSeaMap, IHM ENC) only visible in Rías sector. IGN overlays (Ortofotos PNOA, Sombreado MDT, Curvas de nivel) available in both sectors. All raster overlays have `minzoom` optimized to avoid wasted tile requests.
+- **Spot scoring**: `spotScoringEngine.ts` computes per-spot verdicts (5-level: calm/light/sailing/good/strong) from nearby station wind consensus + buoy waves. `SpotScore` includes airTemp, humidity, windChill (Environment Canada formula, T<10°C), windDirDeg (for arrow display). Storm alerts ONLY from lightning-confirmed storms (not storm-shadow).
 - **Both-sector features**: CriticalAlertBanner (top-of-screen PELIGRO banner), AlertPanel, spot-based sailing scoring.
 
 ## Performance Rules
