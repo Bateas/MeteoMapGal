@@ -142,6 +142,27 @@ export function SpotScoringSection() {
         </div>
       </div>
 
+      {/* Webcams */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">
+          <WeatherIcon id="camera" size={14} className="inline-block mr-1.5 text-sky-400" />
+          Webcams
+        </h3>
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+          <p>
+            Algunos spots incluyen webcams accesibles desde el popup. Despliega la secci&oacute;n
+            <strong className="text-slate-300"> Webcams</strong> en el popup del spot.
+          </p>
+          <ul className="space-y-1 pl-3">
+            <li><strong className="text-slate-300">C&iacute;es-R&iacute;a</strong> &mdash; Imagen est&aacute;tica de playa de Rodas (MeteoGalicia, cada 5 min). Se puede refrescar manualmente.</li>
+            <li><strong className="text-slate-300">Cesantes</strong> &mdash; Enlace a stream en vivo de tmkites.com (se abre en nueva pesta&ntilde;a).</li>
+          </ul>
+          <p className="text-[9px] text-slate-500 italic">
+            Las webcams son fuentes externas. La disponibilidad depende del proveedor.
+          </p>
+        </div>
+      </div>
+
       {/* Mobile */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">En m&oacute;vil</h3>
