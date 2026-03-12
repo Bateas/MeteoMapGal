@@ -18,7 +18,6 @@ import { useThermalStore } from '../../store/thermalStore';
 import { useAlertStore } from '../../store/alertStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
-import { BigWindDisplay } from '../map/BigWindDisplay';
 const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default: m.MeteoGuide })));
 import { ToastContainer } from '../common/ToastContainer';
 import { aggregateAllAlerts } from '../../services/alertService';
@@ -340,7 +339,6 @@ export function AppShell() {
           />
         )}
       </div>
-      <BigWindDisplay />
       <Suspense fallback={null}><MeteoGuide /></Suspense>
       {!isMobile && <KeyboardShortcutHelp />}
       <ToastContainer />

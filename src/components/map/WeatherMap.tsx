@@ -309,7 +309,7 @@ export function WeatherMap() {
       {isMobile ? (
         /* Mobile: FIXED positioning to escape MapLibre's stacking context.
            absolute z-20 renders behind the canvas; fixed z-30 floats above it
-           (same pattern as BigWindDisplay & MobileSailingBanner). */
+           (same pattern as MobileSailingBanner). */
         <div className="fixed z-30 bottom-3 left-0 right-0 px-2 pb-[env(safe-area-inset-bottom,0px)] flex flex-col items-center gap-2 pointer-events-none">
           <div className="pointer-events-auto w-full flex justify-center">
             <AlertPanel />
