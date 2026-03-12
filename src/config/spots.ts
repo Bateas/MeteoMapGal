@@ -30,6 +30,21 @@ export interface WindPattern {
   description: string;
 }
 
+export interface SpotWebcam {
+  /** Display label */
+  label: string;
+  /** URL to open or embed */
+  url: string;
+  /** 'image' = static JPG (auto-refresh), 'page' = external page/stream link */
+  type: 'image' | 'page';
+  /** Provider name */
+  source: string;
+  /** Compass direction the camera faces (degrees from north) */
+  azimuth: number;
+  /** Auto-refresh interval in seconds (only for type='image') */
+  refreshInterval?: number;
+}
+
 export interface SailingSpot {
   id: SpotId;
   name: string;
@@ -56,6 +71,8 @@ export interface SailingSpot {
     /** Max significant wave height (m) before NOGO */
     maxWaveHeight?: number;
   };
+  /** Webcams near this spot (Phase 1) */
+  webcams?: SpotWebcam[];
 }
 
 // ── Spot Definitions ──────────────────────────────────────────
@@ -95,6 +112,15 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'none',
     thermalDetection: true,
     hardGates: { maxWindKt: 30 },
+    webcams: [
+      {
+        label: 'Cesantes (tmkites)',
+        url: 'https://www.tmkites.com/playas/cesantes/',
+        type: 'page',
+        source: 'tmkites',
+        azimuth: 270, // Mirando al oeste (ría)
+      },
+    ],
   },
   {
     id: 'bocana',
@@ -206,6 +232,16 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'critical',
     thermalDetection: false,
     hardGates: { maxWindKt: 30, maxWaveHeight: 3.0 },
+    webcams: [
+      {
+        label: 'Cíes – Rodas (MeteoGalicia)',
+        url: 'https://www.meteogalicia.gal/datosred/infoweb/clima/webcams/Ciesrodas/ultima.jpg',
+        type: 'image',
+        source: 'MeteoGalicia',
+        azimuth: 180, // Mirando al sur (playa de Rodas)
+        refreshInterval: 300, // 5 min
+      },
+    ],
   },
 ];
 

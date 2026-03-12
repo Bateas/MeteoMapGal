@@ -40,12 +40,15 @@ export const StationMarker = memo(function StationMarker({ station, reading, isS
       onClick={handleClick}
     >
       <div className="station-marker cursor-pointer" title={station.name}>
-        <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Estación ${station.name}`}>
+        <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Estación ${station.name}`} style={{ pointerEvents: 'none' }}>
           {/* Wind arrow */}
           <WindArrow
             direction={reading?.windDirection ?? null}
             speed={reading?.windSpeed ?? null}
           />
+
+          {/* Clickable hit area (tighter than full SVG to avoid blocking spot markers) */}
+          <circle r="22" fill="transparent" style={{ pointerEvents: 'auto' }} />
 
           {/* Station dot */}
           <circle
@@ -53,6 +56,7 @@ export const StationMarker = memo(function StationMarker({ station, reading, isS
             fill={tempColor}
             stroke={isSelected ? '#ffffff' : freshnessColor}
             strokeWidth={isSelected ? 3.5 : 2.5}
+            style={{ pointerEvents: 'none' }}
           />
 
           {/* Source indicator */}

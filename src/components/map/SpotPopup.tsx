@@ -12,7 +12,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
-import type { SailingSpot, WindPattern } from '../../config/spots';
+import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
 
 // ── Verdict palette (synced with SpotMarker) ────────────────
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -151,6 +151,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Webcams (collapsible) ── */}
+      {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} />}
+
       {/* ── Wind patterns (collapsible) ── */}
       {spot.windPatterns.length > 0 && <WindPatterns patterns={spot.windPatterns} />}
 
@@ -249,6 +252,77 @@ function WindPatterns({ patterns }: { patterns: WindPattern[] }) {
                 <span className="text-slate-500 ml-auto">{p.season}</span>
               </div>
               <p className="text-[9px] text-slate-400 mt-0.5 leading-snug">{p.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Webcam section (collapsible) ─────────────────────────────
+
+/** Compass label from azimuth degrees */
+function azimuthLabel(deg: number): string {
+  const labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return labels[Math.round(deg / 45) % 8];
+}
+
+function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
+  const [open, setOpen] = useState(false);
+  const [imgKey, setImgKey] = useState(0);
+
+  return (
+    <div className="mt-2 pt-1.5 border-t border-slate-700/40">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+      >
+        <WeatherIcon id="camera" size={11} className="text-slate-500 shrink-0" />
+        <span className="font-semibold">Webcams</span>
+        <span className="text-slate-500 text-[9px] ml-1">({webcams.length})</span>
+        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-2">
+          {webcams.map((cam) => (
+            <div key={cam.url} className="bg-slate-800/40 rounded px-2 py-1.5">
+              <div className="flex items-center gap-1.5 text-[10px] mb-1">
+                <span className="font-bold text-slate-200">{cam.label}</span>
+                <span className="text-slate-500 ml-auto">{azimuthLabel(cam.azimuth)}</span>
+              </div>
+
+              {cam.type === 'image' ? (
+                <>
+                  <img
+                    key={imgKey}
+                    src={`${cam.url}?_t=${imgKey || Date.now()}`}
+                    alt={cam.label}
+                    className="w-full rounded border border-slate-700/60"
+                    loading="lazy"
+                  />
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[9px] text-slate-500">{cam.source}</span>
+                    <button
+                      onClick={() => setImgKey(Date.now())}
+                      className="text-[9px] text-sky-400 hover:text-sky-300 transition-colors"
+                    >
+                      ↻ Actualizar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <a
+                  href={cam.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[10px] text-sky-400 hover:text-sky-300 transition-colors"
+                >
+                  <span>▶</span>
+                  <span>Ver stream en vivo</span>
+                  <span className="text-slate-500 ml-auto">{cam.source}</span>
+                </a>
+              )}
             </div>
           ))}
         </div>

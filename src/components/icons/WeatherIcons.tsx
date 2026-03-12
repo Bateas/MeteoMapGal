@@ -47,6 +47,7 @@ import {
   Navigation,
   Layers,
   Eye,
+  Camera,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -59,7 +60,7 @@ export type IconId =
   | 'mountain' | 'beach' | 'tag' | 'cloud-drizzle' | 'map'
   | 'leaf' | 'clock' | 'x' | 'clipboard-list' | 'anchor'
   | 'database' | 'gauge' | 'check' | 'sprout'
-  | 'compass' | 'navigation' | 'layers' | 'eye';
+  | 'compass' | 'navigation' | 'layers' | 'eye' | 'camera';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -214,6 +215,7 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'navigation': Navigation,
   'layers': Layers,
   'eye': Eye,
+  'camera': Camera,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────
@@ -302,6 +304,7 @@ const ICON_LABELS: Record<IconId, string> = {
   'navigation': 'Navegación',
   'layers': 'Batimetría',
   'eye': 'Privacidad',
+  'camera': 'Webcam',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */

@@ -130,6 +130,11 @@ body {
   z-index: 20 !important;
 }
 
+/* Spot markers sit ABOVE station/buoy markers so they're always clickable */
+.maplibregl-marker:has(.spot-marker) {
+  z-index: 25 !important;
+}
+
 .maplibregl-popup {
   z-index: 30 !important;
 }
