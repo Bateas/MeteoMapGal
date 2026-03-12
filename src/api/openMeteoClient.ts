@@ -47,6 +47,7 @@ interface OpenMeteoHourlyResponse {
     boundary_layer_height?: (number | null)[];
     lifted_index?: (number | null)[];
     convective_inhibition?: (number | null)[];
+    visibility?: (number | null)[];
   };
   daily?: {
     time: string[];
@@ -188,6 +189,7 @@ export async function fetchOpenMeteoForecast(
     'wind_speed_10m', 'wind_direction_10m',
     'cloud_cover', 'shortwave_radiation', 'cape',
     'boundary_layer_height', 'lifted_index', 'convective_inhibition',
+    'visibility',
   ].join(',');
 
   const url = `https://api.open-meteo.com/v1/forecast` +
@@ -219,6 +221,7 @@ export async function fetchOpenMeteoForecast(
       boundaryLayerHeight: data.hourly.boundary_layer_height?.[i] ?? null,
       liftedIndex: data.hourly.lifted_index?.[i] ?? null,
       convectiveInhibition: data.hourly.convective_inhibition?.[i] ?? null,
+      visibility: data.hourly.visibility?.[i] ?? null,
     });
   }
 

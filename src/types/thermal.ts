@@ -110,6 +110,8 @@ export interface ForecastPoint {
   liftedIndex: number | null;
   /** Convective Inhibition (J/kg) — energy barrier. <50 = thermals develop freely */
   convectiveInhibition: number | null;
+  /** Visibility (m) — <1000m = fog, <5000m = mist, >10000m = clear */
+  visibility: number | null;
 }
 
 export interface ForecastAlert {

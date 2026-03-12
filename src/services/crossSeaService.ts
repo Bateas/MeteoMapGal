@@ -55,6 +55,10 @@ const MIN_WAVE_HEIGHT = 0.5;
 /** Minimum wind speed to produce meaningful wind waves (m/s) */
 const MIN_WIND_SPEED = 3.0;
 
+/** Wave period thresholds (seconds) — Tp distinguishes swell from wind-sea */
+const TP_SWELL = 8;      // Tp ≥8s = ocean swell (long-traveled, more dangerous cross-sea)
+const TP_WIND_SEA = 4;   // Tp <4s = local wind-sea (short-lived, less dangerous)
+
 // ── Main Assessment ──────────────────────────────────────────
 
 /**
@@ -128,6 +132,31 @@ function assessBuoyCrossSeaRisk(buoy: BuoyReading): CrossSeaRisk {
   } else if (buoy.waveHeight >= 3.0 && level === 'alto') {
     level = 'critico';
     notes.push(`Hm0 ${buoy.waveHeight.toFixed(1)} m — condiciones peligrosas`);
+  }
+
+  // Wave period factor: Tp distinguishes dangerous ocean swell from local chop
+  if (buoy.wavePeriod !== null) {
+    if (buoy.wavePeriod >= TP_SWELL && delta >= CROSS_SEA_MODERATE) {
+      // Long-period swell crossed with wind → very dangerous (persistent energy)
+      if (level === 'riesgo') {
+        level = 'alto';
+        notes.push(`Tp ${buoy.wavePeriod.toFixed(1)}s (swell oceánico) — energía persistente`);
+      } else if (level === 'alto') {
+        level = 'critico';
+        notes.push(`Tp ${buoy.wavePeriod.toFixed(1)}s swell + cruce → peligroso`);
+      } else {
+        notes.push(`Tp ${buoy.wavePeriod.toFixed(1)}s (swell oceánico)`);
+      }
+    } else if (buoy.wavePeriod < TP_WIND_SEA) {
+      // Short-period wind-sea → less dangerous cross-sea, can downgrade
+      if (level === 'riesgo') {
+        level = 'none';
+        notes.push(`Tp ${buoy.wavePeriod.toFixed(1)}s (mar de viento local) — cruce poco peligroso`);
+      } else if (level === 'alto') {
+        level = 'riesgo';
+        notes.push(`Tp ${buoy.wavePeriod.toFixed(1)}s (mar de viento) — riesgo reducido`);
+      }
+    }
   }
 
   return {

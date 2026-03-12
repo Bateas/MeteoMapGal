@@ -267,6 +267,37 @@ function assessBuoyFogRisk(
     };
   }
 
+  // ── North/NE wind exclusion ───────────────────────────────
+  // Continental N/NE wind brings dry air from inland — fog impossible.
+  // Stronger than generic offshore check: even moderate N/NE kills fog.
+  if (wind) {
+    const isNortherly = wind.dir >= 350 || wind.dir <= 60; // N through ENE
+    if (isNortherly && wind.speed >= 3) {
+      // Strong N/NE component — dry continental air
+      return {
+        level: 'none',
+        airWaterDelta: delta,
+        humidity, windSpeed: wind.speed, windDir: wind.dir,
+        isOnshore: false, waterTemp: buoy.waterTemp, airTemp,
+        confidence: 0,
+        hypothesis: `Niebla suprimida: viento N/NE ${wind.dir.toFixed(0)}° a ${wind.speed.toFixed(1)} m/s — aire continental seco`,
+        sourceBuoy: buoy.stationName,
+      };
+    }
+    // Moderate N/NE with low humidity — also suppress
+    if (isNortherly && wind.speed >= 1.5 && humidity !== null && humidity < 75) {
+      return {
+        level: 'none',
+        airWaterDelta: delta,
+        humidity, windSpeed: wind.speed, windDir: wind.dir,
+        isOnshore: false, waterTemp: buoy.waterTemp, airTemp,
+        confidence: 0,
+        hypothesis: `Niebla suprimida: viento N/NE ${wind.dir.toFixed(0)}° + HR ${humidity.toFixed(0)}% baja`,
+        sourceBuoy: buoy.stationName,
+      };
+    }
+  }
+
   // ── Scoring ──────────────────────────────────────────────
   let level: AlertLevel = 'none';
   let confidence = 0;

@@ -396,6 +396,32 @@ export function analyzeFog(
         }
       }
 
+      // Visibility cross-validation (Open-Meteo forecast visibility)
+      const forecastVisibility = next6h
+        .map((p) => p.visibility)
+        .filter((v): v is number => v !== null);
+      if (forecastVisibility.length >= 2) {
+        const minVis = Math.min(...forecastVisibility);
+        const avgVis = forecastVisibility.reduce((a, b) => a + b, 0) / forecastVisibility.length;
+
+        if (minVis < 1000) {
+          // Forecast predicts fog (visibility <1km)
+          confidence = Math.min(100, confidence + 15);
+          notes.push(`visibilidad prevista <1km (${(minVis / 1000).toFixed(1)}km)`);
+          if (level === 'none' && currentSpread <= 6) {
+            level = 'riesgo';
+          }
+        } else if (minVis < 5000) {
+          // Forecast predicts mist/haze
+          confidence = Math.min(100, confidence + 8);
+          notes.push(`visibilidad prevista reducida (${(minVis / 1000).toFixed(1)}km)`);
+        } else if (avgVis > 10000 && level !== 'none') {
+          // Forecast: excellent visibility → fog unlikely, suppress
+          confidence = Math.max(10, confidence - 15);
+          notes.push(`visibilidad prevista buena (>${(avgVis / 1000).toFixed(0)}km)`);
+        }
+      }
+
       // Better ETA from forecast: find first hour where forecast HR >= 98%
       if (!fogEta && level === 'none') {
         for (const p of next6h) {

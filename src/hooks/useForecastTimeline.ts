@@ -39,6 +39,7 @@ interface OMForecastResponse {
     cape: (number | null)[];
     boundary_layer_height: (number | null)[];
     is_day: (number | null)[];
+    visibility: (number | null)[];
   };
 }
 
@@ -75,7 +76,7 @@ async function fetchForecastTimeline(): Promise<HourlyForecast[]> {
     'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
     'precipitation', 'precipitation_probability',
     'cloud_cover', 'surface_pressure',
-    'shortwave_radiation', 'cape', 'boundary_layer_height', 'is_day',
+    'shortwave_radiation', 'cape', 'boundary_layer_height', 'is_day', 'visibility',
   ].join(',');
 
   const url =
@@ -109,6 +110,7 @@ async function fetchForecastTimeline(): Promise<HourlyForecast[]> {
       solarRadiation: h.shortwave_radiation[i],
       cape: h.cape[i],
       boundaryLayerHeight: h.boundary_layer_height[i],
+      visibility: h.visibility[i],
       isDay: h.is_day[i] === 1,
     });
   }
