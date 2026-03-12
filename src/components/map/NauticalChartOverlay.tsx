@@ -29,11 +29,13 @@ export const NauticalChartOverlay = memo(function NauticalChartOverlay() {
       tiles={[IHM_WMS_URL]}
       tileSize={256}
       attribution="&copy; IHM — Instituto Hidrográfico de la Marina"
+      minzoom={9}
       maxzoom={17}
     >
       <Layer
         id="ihm-enc-tiles"
         type="raster"
+        minzoom={9}
         paint={{ 'raster-opacity': 0.75 }}
       />
     </Source>
