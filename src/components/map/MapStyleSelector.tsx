@@ -11,15 +11,23 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { MAP_STYLES, useMapStyleStore } from '../../store/mapStyleStore';
 import type { MapStyleId } from '../../store/mapStyleStore';
 import { useUIStore } from '../../store/uiStore';
+import { useSectorStore } from '../../store/sectorStore';
 
 export const MapStyleSelector = memo(function MapStyleSelector() {
   const isMobile = useUIStore((s) => s.isMobile);
+  const isRias = useSectorStore((s) => s.activeSector.id === 'rias');
   const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
   const setStyle = useMapStyleStore((s) => s.setStyle);
   const showSeamarks = useMapStyleStore((s) => s.showSeamarks);
   const showNauticalChart = useMapStyleStore((s) => s.showNauticalChart);
   const toggleSeamarks = useMapStyleStore((s) => s.toggleSeamarks);
   const toggleNauticalChart = useMapStyleStore((s) => s.toggleNauticalChart);
+  const showIGNHillshade = useMapStyleStore((s) => s.showIGNHillshade);
+  const showIGNContours = useMapStyleStore((s) => s.showIGNContours);
+  const showIGNOrtho = useMapStyleStore((s) => s.showIGNOrtho);
+  const toggleIGNHillshade = useMapStyleStore((s) => s.toggleIGNHillshade);
+  const toggleIGNContours = useMapStyleStore((s) => s.toggleIGNContours);
+  const toggleIGNOrtho = useMapStyleStore((s) => s.toggleIGNOrtho);
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -78,8 +86,8 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
 
       {/* Dropdown panel */}
       {open && (
-        <div className={`mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-2xl overflow-hidden
-          ${isMobile ? 'w-40' : 'w-48'}`}
+        <div className={`mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-2xl overflow-hidden overflow-y-auto
+          ${isMobile ? 'w-40 max-h-[calc(100dvh-8rem)]' : 'w-48 max-h-[70vh]'}`}
         >
           <div className="px-2 py-1.5 border-b border-slate-700/40">
             <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Mapa base</span>
@@ -121,25 +129,60 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
             })}
           </div>
 
-          {/* ── Nautical overlay toggles ── */}
+          {/* ── Nautical overlay toggles (Rías sector only) ── */}
+          {isRias && (
+            <>
+              <div className="border-t border-slate-700/40 px-2 py-1.5">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Capas náuticas</span>
+              </div>
+              <div className="pb-1.5 px-1">
+                <OverlayToggle
+                  label="OpenSeaMap"
+                  sublabel="Boyas, faros, marcas"
+                  active={showSeamarks}
+                  onClick={toggleSeamarks}
+                  color="#0ea5e9"
+                  isMobile={isMobile}
+                />
+                <OverlayToggle
+                  label="Carta náutica"
+                  sublabel="IHM — ENC oficial"
+                  active={showNauticalChart}
+                  onClick={toggleNauticalChart}
+                  color="#14b8a6"
+                  isMobile={isMobile}
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── IGN terrain overlay toggles (both sectors) ── */}
           <div className="border-t border-slate-700/40 px-2 py-1.5">
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Capas náuticas</span>
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Capas IGN</span>
           </div>
           <div className="pb-1.5 px-1">
             <OverlayToggle
-              label="OpenSeaMap"
-              sublabel="Boyas, faros, marcas"
-              active={showSeamarks}
-              onClick={toggleSeamarks}
-              color="#0ea5e9"
+              label="Ortofotos"
+              sublabel="PNOA — foto aérea 25cm"
+              active={showIGNOrtho}
+              onClick={toggleIGNOrtho}
+              color="#22c55e"
               isMobile={isMobile}
             />
             <OverlayToggle
-              label="Carta náutica"
-              sublabel="IHM — ENC oficial"
-              active={showNauticalChart}
-              onClick={toggleNauticalChart}
-              color="#14b8a6"
+              label="Sombreado"
+              sublabel="MDT — relieve del terreno"
+              active={showIGNHillshade}
+              onClick={toggleIGNHillshade}
+              color="#a78bfa"
+              isMobile={isMobile}
+            />
+            <OverlayToggle
+              label="Curvas de nivel"
+              sublabel="MDT — isohipsas 25m"
+              active={showIGNContours}
+              onClick={toggleIGNContours}
+              color="#f59e0b"
               isMobile={isMobile}
             />
           </div>

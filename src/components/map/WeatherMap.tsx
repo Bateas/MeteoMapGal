@@ -44,6 +44,9 @@ import { SpotMarkers } from './SpotMarker';
 import { SpotPopup } from './SpotPopup';
 import { SeamarksOverlay } from './SeamarksOverlay';
 import { NauticalChartOverlay } from './NauticalChartOverlay';
+import { IGNHillshadeOverlay } from './IGNHillshadeOverlay';
+import { IGNContoursOverlay } from './IGNContoursOverlay';
+import { IGNOrthoOverlay } from './IGNOrthoOverlay';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 
@@ -214,11 +217,16 @@ export function WeatherMap() {
       >
         <NavigationControl position="top-right" visualizePitch />
 
-        {/* IHM nautical chart — below everything except base tiles */}
-        <NauticalChartOverlay />
+        {/* IHM nautical chart — Rías only, below everything except base tiles */}
+        {activeSector.id === 'rias' && <NauticalChartOverlay />}
 
-        {/* OpenSeaMap seamarks — above nautical chart, below weather overlays */}
-        <SeamarksOverlay />
+        {/* OpenSeaMap seamarks — Rías only, above nautical chart, below weather overlays */}
+        {activeSector.id === 'rias' && <SeamarksOverlay />}
+
+        {/* IGN terrain overlays — available in both sectors */}
+        <IGNOrthoOverlay />
+        <IGNHillshadeOverlay />
+        <IGNContoursOverlay />
 
         {/* EMODnet bathymetry — seabed depth tiles (Rías only, below all other layers) */}
         <BathymetryOverlay />
