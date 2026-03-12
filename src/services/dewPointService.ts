@@ -209,12 +209,13 @@ export function analyzeFog(
     : null;
 
   // ── Fog suppression checks (before any level assignment) ──
-  // Continental dry wind: N/NE/NW (315°-45°) + speed > 2 m/s + HR < 80% → fog impossible
-  const isContinentalWind = avgWindDir !== null && (avgWindDir >= 315 || avgWindDir <= 45);
-  const isDryWind = avgWind !== null && avgWind > 2 && avgHumidity !== null && avgHumidity < 80;
+  // Continental dry wind: N/NE/NW (315°-60°) + speed ≥ 3 m/s (~6kt) + HR < 78% → fog impossible
+  // Must be a clear signal: avgWindDir already requires ≥2 stations with wind ≥1.5 m/s
+  const isContinentalWind = avgWindDir !== null && (avgWindDir >= 315 || avgWindDir <= 60);
+  const isDryWind = avgWind !== null && avgWind >= 3 && avgHumidity !== null && avgHumidity < 78;
   const fogSuppressedByWind =
     (isContinentalWind && isDryWind) ||
-    (avgWind !== null && avgWind > 3 && avgHumidity !== null && avgHumidity < 75);
+    (avgWind !== null && avgWind > 4 && avgHumidity !== null && avgHumidity < 72);
 
   // Solar suppression: radiation > 200 W/m² → fog dissipated (daytime only)
   const fogSuppressedBySolar = avgSolar !== null && avgSolar > 200;
