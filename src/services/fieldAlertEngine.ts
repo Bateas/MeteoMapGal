@@ -75,45 +75,113 @@ export function checkFrost(forecast: HourlyForecast[], center?: [number, number]
 /**
  * Check rain and hail risk in the forecast window.
  * Hail: CAPE > 1000 + heavy precipitation.
+ *
+ * Uses TWO time windows:
+ * - Imminent (0-3h): lower thresholds, more aggressive alerts
+ * - Extended (3-12h): higher thresholds, only alerts for heavy rain or hail
+ *
+ * Beyond 12h: no alerts (too uncertain for actionable info).
  */
 export function checkRainHail(forecast: HourlyForecast[]): RainAlert {
-  const noAlert: RainAlert = { level: 'none', maxPrecip: 0, maxProbability: 0, rainAccum6h: 0, hailRisk: false };
+  const noAlert: RainAlert = {
+    level: 'none', maxPrecip: 0, maxProbability: 0, rainAccum6h: 0,
+    hailRisk: false, firstRainAt: null, hoursUntilRain: null,
+  };
   if (forecast.length === 0) return noAlert;
+
+  const now = Date.now();
+  const THREE_H = 3 * 60 * 60 * 1000;
+  const SIX_H = 6 * 60 * 60 * 1000;
+  const TWELVE_H = 12 * 60 * 60 * 1000;
 
   let maxPrecip = 0;
   let maxProb = 0;
   let hailRisk = false;
+  let firstRainAt: Date | null = null;
+  let rainAccum6h = 0;
+
+  // Imminent window (0-3h): even light rain counts
+  let imminentMaxPrecip = 0;
+  let imminentMaxProb = 0;
+  let imminentHail = false;
+
+  // Extended window (3-12h): only significant rain
+  let extendedMaxPrecip = 0;
+  let extendedMaxProb = 0;
+  let extendedHail = false;
 
   for (const p of forecast) {
+    const elapsed = p.time.getTime() - now;
+    if (elapsed < 0) continue; // skip past hours
+
     const precip = p.precipitation ?? 0;
     const prob = p.precipProbability ?? 0;
     const cape = p.cape ?? 0;
+    const isHail = cape > 1000 && precip > 5;
 
-    if (precip > maxPrecip) maxPrecip = precip;
-    if (prob > maxProb) maxProb = prob;
+    // Track first significant rain (>0.5mm AND >50% probability)
+    if (!firstRainAt && precip > 0.5 && prob > 50 && elapsed <= TWELVE_H) {
+      firstRainAt = p.time;
+    }
 
-    // Hail conditions: high CAPE + significant precipitation
-    if (cape > 1000 && precip > 5) hailRisk = true;
-  }
+    // 6-hour accumulation
+    if (elapsed <= SIX_H) {
+      rainAccum6h += precip;
+    }
 
-  // 6-hour accumulation from now
-  const now = Date.now();
-  const sixHoursMs = 6 * 60 * 60 * 1000;
-  let rainAccum6h = 0;
-  for (const p of forecast) {
-    const elapsed = p.time.getTime() - now;
-    if (elapsed >= 0 && elapsed <= sixHoursMs) {
-      rainAccum6h += p.precipitation ?? 0;
+    // Global maximums (for display)
+    if (elapsed <= TWELVE_H) {
+      if (precip > maxPrecip) maxPrecip = precip;
+      if (prob > maxProb) maxProb = prob;
+      if (isHail) hailRisk = true;
+    }
+
+    // Window-specific tracking
+    if (elapsed <= THREE_H) {
+      if (precip > imminentMaxPrecip) imminentMaxPrecip = precip;
+      if (prob > imminentMaxProb) imminentMaxProb = prob;
+      if (isHail) imminentHail = true;
+    } else if (elapsed <= TWELVE_H) {
+      if (precip > extendedMaxPrecip) extendedMaxPrecip = precip;
+      if (prob > extendedMaxProb) extendedMaxProb = prob;
+      if (isHail) extendedHail = true;
     }
   }
+
   rainAccum6h = Math.round(rainAccum6h * 10) / 10;
 
-  let level: AlertLevel = 'none';
-  if (hailRisk) level = 'critico';
-  else if (maxPrecip > 10 || maxProb > 80) level = 'alto';
-  else if (maxPrecip > 2 || maxProb > 60) level = 'riesgo';
+  const hoursUntilRain = firstRainAt
+    ? Math.round((firstRainAt.getTime() - now) / (60 * 60 * 1000) * 10) / 10
+    : null;
 
-  return { level, maxPrecip, maxProbability: maxProb, rainAccum6h, hailRisk };
+  // ── Level determination: imminent takes priority ──
+  let level: AlertLevel = 'none';
+
+  // Imminent (0-3h): actionable, lower thresholds
+  if (imminentHail) {
+    level = 'critico';
+  } else if (imminentMaxPrecip > 10 || (imminentMaxPrecip > 2 && imminentMaxProb > 70)) {
+    level = 'alto';
+  } else if (imminentMaxPrecip > 1 || imminentMaxProb > 70) {
+    level = 'riesgo';
+  }
+
+  // Extended (3-12h): only upgrade if no imminent alert, and only for heavy rain/hail
+  if (level === 'none') {
+    if (extendedHail) {
+      level = 'alto'; // hail in 3-12h = alto (not critico — still time)
+    } else if (extendedMaxPrecip > 10 && extendedMaxProb > 70) {
+      level = 'alto'; // heavy rain confirmed
+    } else if (extendedMaxPrecip > 5 && extendedMaxProb > 60) {
+      level = 'riesgo'; // moderate rain likely
+    }
+    // Light rain in 3-12h with just high prob → NO alert (too uncertain, too far)
+  }
+
+  return {
+    level, maxPrecip, maxProbability: maxProb, rainAccum6h,
+    hailRisk, firstRainAt, hoursUntilRain,
+  };
 }
 
 // ── Drone flight conditions ──────────────────────────────

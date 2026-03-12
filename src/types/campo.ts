@@ -32,6 +32,10 @@ export interface RainAlert {
   rainAccum6h: number;
   /** Hail risk detected (CAPE > 1000 + heavy precip) */
   hailRisk: boolean;
+  /** When the first significant rain (>0.5mm && >50% prob) is expected */
+  firstRainAt: Date | null;
+  /** Hours until first significant rain */
+  hoursUntilRain: number | null;
 }
 
 // ── Fog / dew point alert ────────────────────────────────
