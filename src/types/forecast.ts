@@ -29,6 +29,8 @@ export interface HourlyForecast {
   cape: number | null;
   /** Planetary boundary layer height (m) */
   boundaryLayerHeight: number | null;
+  /** Visibility (m) — from Open-Meteo. <1000m = fog, <5000m = mist */
+  visibility: number | null;
   /** Is it currently daytime? */
   isDay: boolean;
 }
