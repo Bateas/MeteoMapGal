@@ -6,13 +6,13 @@
  * matched pattern, score, and summary text.
  * Themed per verdict color to match SpotMarker.
  */
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
-import type { SailingSpot } from '../../config/spots';
+import type { SailingSpot, WindPattern } from '../../config/spots';
 
 // ── Verdict palette (synced with SpotMarker) ────────────────
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -130,6 +130,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Wind patterns (collapsible) ── */}
+      {spot.windPatterns.length > 0 && <WindPatterns patterns={spot.windPatterns} />}
+
       {/* ── Timestamp ── */}
       {score?.computedAt && (
         <div className="text-[9px] text-slate-500 mt-2 text-right">
@@ -191,6 +194,44 @@ function Cell({ label, value, color }: { label: string; value: string; color?: s
       <span className="font-bold text-slate-200" style={color ? { color } : undefined}>
         {value}
       </span>
+    </div>
+  );
+}
+
+// ── Wind patterns (collapsible) ──────────────────────────────
+
+/** Cardinal arrow for wind direction (degrees) */
+function dirArrow(deg: number): string {
+  const arrows = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
+  return arrows[Math.round(deg / 45) % 8];
+}
+
+function WindPatterns({ patterns }: { patterns: WindPattern[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-2 pt-1.5 border-t border-slate-700/40">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+      >
+        <WeatherIcon id="wind" size={11} className="text-slate-500 shrink-0" />
+        <span className="font-semibold">Patrones de viento</span>
+        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-1.5">
+          {patterns.map((p) => (
+            <div key={p.name} className="bg-slate-800/40 rounded px-2 py-1.5">
+              <div className="flex items-center gap-1.5 text-[10px]">
+                <span className="text-slate-300 font-mono">{dirArrow(p.direction)}</span>
+                <span className="font-bold text-slate-200">{p.name}</span>
+                <span className="text-slate-500 ml-auto">{p.season}</span>
+              </div>
+              <p className="text-[9px] text-slate-400 mt-0.5 leading-snug">{p.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@
 import { memo, useState, useMemo, useRef, useEffect } from 'react';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
 import type { SpotScore, SpotVerdict, SpotThermalContext } from '../../services/spotScoringEngine';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
@@ -33,6 +34,9 @@ export const SpotSelector = memo(function SpotSelector() {
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const scores = useSpotStore((s) => s.scores);
   const sectorId = useSectorStore((s) => s.activeSector.id);
+  const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const isMobile = useUIStore((s) => s.isMobile);
   const [expanded, setExpanded] = useState(false);
 
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
@@ -104,7 +108,11 @@ export const SpotSelector = memo(function SpotSelector() {
                 description={spot.description}
                 score={score ?? null}
                 isActive={spot.id === activeSpot.id}
-                onSelect={() => selectSpot(spot.id)}
+                onSelect={() => {
+                  selectSpot(spot.id);
+                  setFlyToTarget({ lon: spot.center[0], lat: spot.center[1], zoom: 12 });
+                  if (isMobile) setSidebarOpen(false);
+                }}
               />
             );
           })}
