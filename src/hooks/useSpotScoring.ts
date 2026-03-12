@@ -148,11 +148,10 @@ function buildThermalContext(
     else if (signal.level === 'building' && bestTendency === 'none') bestTendency = 'building';
   }
 
-  // Storm alert — only lightning-confirmed storms, not mere cloud density
+  // Storm alert — ONLY lightning-confirmed storms (category='storm' from stormTracker).
+  // Excludes storm-shadow (cloud density / solar drops — not confirmed electrical activity).
   const hasStormAlert = alerts.some(
     (a) => a.category === 'storm' && a.score >= 60 && a.id !== 'storm-shadow',
-  ) || alerts.some(
-    (a) => a.id === 'storm-shadow' && a.score >= 60 && a.title.includes('Tormenta'),
   );
 
   return {

@@ -68,7 +68,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-8.619, 42.307],
     radiusKm: 8,
-    description: 'Interior de la Ría de Vigo, ensenada de San Simón. Agua plana y protegida, ideal para iniciación. Viento térmico WSW por las tardes.',
+    description: 'Interior Ría de Vigo, ensenada de San Simón. Agua plana, viento térmico WSW tardes.',
     windPatterns: [
       {
         name: 'Térmica WSW',
@@ -103,7 +103,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-8.70, 42.265],
     radiusKm: 6,
-    description: 'Estrecho de Rande entre Vigo y la ensenada de San Simón. Zona de viento terral matutino (aire frío del interior). Agua protegida.',
+    description: 'Estrecho de Rande, Vigo–San Simón. Terral matutino E/ENE, agua protegida.',
     windPatterns: [
       {
         name: 'Terral (Bocana)',
@@ -139,7 +139,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-8.80, 42.215],
     radiusKm: 10,
-    description: 'Zona media de la Ría de Vigo, entre Canido y Limens. Virazón SW por las tardes en verano. Oleaje moderado con mar de fondo.',
+    description: 'Zona media Ría de Vigo, Canido–Limens. Virazón SW tardes, oleaje moderado.',
     windPatterns: [
       {
         name: 'Terral (debilitado)',
@@ -180,7 +180,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-8.8648, 42.1849],
     radiusKm: 12,
-    description: 'Entrada de la Ría de Vigo, entre Baiona e islas Cíes. Condiciones oceánicas: nortada en verano, mar de fondo y upwelling. Solo con experiencia.',
+    description: 'Entrada Ría de Vigo, Baiona–Cíes. Condiciones oceánicas, nortada verano, mar de fondo.',
     windPatterns: [
       {
         name: 'Nortada',
@@ -217,7 +217,7 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-8.1087, 42.2991],
     radiusKm: 15,
-    description: 'Embalse de Castrelo de Miño, valle del Miño. Agua dulce y plana. Viento térmico WSW dominante en tardes soleadas (febrero a octubre).',
+    description: 'Embalse Castrelo de Miño, valle del Miño. Agua dulce, térmica WSW tardes.',
     windPatterns: [
       {
         name: 'Térmica WSW',

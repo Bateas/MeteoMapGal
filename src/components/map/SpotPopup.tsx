@@ -74,7 +74,17 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {score?.wind && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
           <Cell label="Viento" value={`${score.wind.avgSpeedKt.toFixed(0)} kt`} color={windKtColor(score.wind.avgSpeedKt)} />
-          <Cell label="Dirección" value={score.wind.dominantDir} />
+          <div className="flex items-baseline gap-1">
+            <span className="text-slate-500 text-[10px]">Dirección</span>
+            <span className="font-bold text-slate-200 flex items-center gap-1">
+              <span
+                className="inline-block text-sm leading-none"
+                style={{ transform: `rotate(${(score.wind.dirDeg + 180) % 360}deg)`, display: 'inline-block' }}
+                title={`${score.wind.dirDeg}°`}
+              >↑</span>
+              {score.wind.dominantDir}
+            </span>
+          </div>
           {score.wind.matchedPattern && (
             <div className="col-span-2 text-[10px] text-amber-400/80 italic">
               ⚡ {score.wind.matchedPattern}
@@ -94,10 +104,21 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Water temp ── */}
-      {score?.waterTemp != null && (
-        <div className="text-xs mb-2 pt-1 border-t border-slate-700/40">
-          <Cell label="Agua" value={`${score.waterTemp.toFixed(1)}°C`} color={waterTColor(score.waterTemp)} />
+      {/* ── Temperatures & conditions ── */}
+      {(score?.airTemp != null || score?.waterTemp != null || score?.humidity != null) && (
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2 pt-1 border-t border-slate-700/40">
+          {score?.airTemp != null && (
+            <Cell label="Aire" value={`${score.airTemp.toFixed(1)}°C`} />
+          )}
+          {score?.waterTemp != null && (
+            <Cell label="Agua" value={`${score.waterTemp.toFixed(1)}°C`} color={waterTColor(score.waterTemp)} />
+          )}
+          {score?.humidity != null && (
+            <Cell label="Humedad" value={`${score.humidity.toFixed(0)}%`} color={humidityColor(score.humidity)} />
+          )}
+          {score?.windChill != null && (
+            <Cell label="Sensación" value={`${score.windChill.toFixed(1)}°C`} color="#60a5fa" />
+          )}
         </div>
       )}
 
@@ -250,6 +271,13 @@ function waveColor(m: number): string {
   if (m < 1.0) return '#34d399';
   if (m < 2.0) return '#fbbf24';
   return '#f87171';
+}
+
+function humidityColor(h: number): string {
+  if (h < 40) return '#fbbf24';
+  if (h < 60) return '#34d399';
+  if (h < 80) return '#60a5fa';
+  return '#a78bfa';
 }
 
 function waterTColor(t: number): string {
