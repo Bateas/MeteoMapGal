@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import Map, { NavigationControl } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
@@ -7,6 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useSectorStore } from '../../store/sectorStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useUIStore } from '../../store/uiStore';
+import { useMapStyleStore, getStyleDef } from '../../store/mapStyleStore';
 import { StationMarker } from './StationMarker';
 import { TempOnlyOverlay } from './TempOnlyMarker';
 import { StationPopup } from './StationPopup';
@@ -32,6 +33,7 @@ import { SSTOverlay } from './SSTOverlay';
 import { SSTToggle } from './SSTToggle';
 import { SSTLegend } from './SSTLegend';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
+import { MapStyleSelector } from './MapStyleSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { CriticalAlertBanner } from './CriticalAlertBanner';
 import { SectorSelector } from './SectorSelector';
@@ -40,60 +42,67 @@ import { BuoyMarker } from './BuoyMarker';
 import { BuoyPopup } from './BuoyPopup';
 import { SpotMarkers } from './SpotMarker';
 import { SpotPopup } from './SpotPopup';
+import { SeamarksOverlay } from './SeamarksOverlay';
+import { NauticalChartOverlay } from './NauticalChartOverlay';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 
-const MAP_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: [
-        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      ],
-      tileSize: 256,
-      attribution: '&copy; OpenStreetMap contributors',
-      maxzoom: 19,
-    },
-    terrainDEM: {
-      type: 'raster-dem',
-      tiles: [
-        'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
-      ],
-      encoding: 'terrarium',
-      tileSize: 256,
-      maxzoom: 15,
-    },
-  },
-  layers: [
-    {
-      id: 'osm-tiles',
-      type: 'raster',
-      source: 'osm',
-    },
-    {
-      id: 'hillshade',
-      type: 'hillshade',
-      source: 'terrainDEM',
-      paint: {
-        'hillshade-shadow-color': '#473B24',
-        'hillshade-illumination-direction': 315,
-        'hillshade-exaggeration': 0.5,
+/** Build a MapLibre StyleSpecification for the given base map style + 3D terrain */
+function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
+  const def = getStyleDef(styleId as any);
+  const isDark = styleId === 'dark';
+  return {
+    version: 8,
+    glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
+    sources: {
+      'base-tiles': {
+        type: 'raster',
+        tiles: def.tiles,
+        tileSize: def.tileSize,
+        attribution: def.attribution,
+        maxzoom: def.maxzoom,
+      },
+      terrainDEM: {
+        type: 'raster-dem',
+        tiles: [
+          'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
+        ],
+        encoding: 'terrarium',
+        tileSize: 256,
+        maxzoom: 15,
       },
     },
-  ],
-  terrain: {
-    source: 'terrainDEM',
-    exaggeration: 1.5,
-  },
-  sky: {},
-};
+    layers: [
+      {
+        id: 'base-tiles',
+        type: 'raster',
+        source: 'base-tiles',
+      },
+      {
+        id: 'hillshade',
+        type: 'hillshade',
+        source: 'terrainDEM',
+        paint: {
+          'hillshade-shadow-color': isDark ? '#000000' : '#473B24',
+          'hillshade-highlight-color': isDark ? '#333333' : '#FFFFFF',
+          'hillshade-illumination-direction': 315,
+          'hillshade-exaggeration': isDark ? 0.3 : 0.5,
+        },
+      },
+    ],
+    terrain: {
+      source: 'terrainDEM',
+      exaggeration: 1.5,
+    },
+    sky: {},
+  };
+}
 
 export function WeatherMap() {
   const mapRef = useRef<MapRef | null>(null);
   const activeSector = useSectorStore((s) => s.activeSector);
+  const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
+  const mapStyle = useMemo(() => buildMapStyle(activeStyleId), [activeStyleId]);
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const selectedStationId = useWeatherStore((s) => s.selectedStationId);
@@ -198,12 +207,18 @@ export function WeatherMap() {
         mapLib={maplibregl}
         initialViewState={activeSector.initialView}
         style={{ width: '100%', height: '100%' }}
-        mapStyle={MAP_STYLE}
+        mapStyle={mapStyle}
         maxPitch={85}
         onClick={handleMapClick}
         onLoad={handleMapLoad}
       >
         <NavigationControl position="top-right" visualizePitch />
+
+        {/* IHM nautical chart — below everything except base tiles */}
+        <NauticalChartOverlay />
+
+        {/* OpenSeaMap seamarks — above nautical chart, below weather overlays */}
+        <SeamarksOverlay />
 
         {/* EMODnet bathymetry — seabed depth tiles (Rías only, below all other layers) */}
         <BathymetryOverlay />
@@ -301,6 +316,7 @@ export function WeatherMap() {
 
       {/* HTML overlays on top of map */}
       <SectorSelector />
+      <MapStyleSelector />
       <SSTLegend />
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
