@@ -33,6 +33,8 @@ export interface SpotWindConsensus {
   stationCount: number;
   avgSpeedKt: number;
   dominantDir: string;
+  /** Consensus wind direction in degrees (for arrow display) */
+  dirDeg: number;
   /** Matched wind pattern name, if any */
   matchedPattern: string | null;
 }
@@ -69,6 +71,14 @@ export interface SpotScore {
   waves: SpotWaveConditions | null;
   /** Water temperature from nearest buoy */
   waterTemp: number | null;
+  /** Air temperature from nearest station (°C) */
+  airTemp: number | null;
+  /** Humidity from nearest station (%) */
+  humidity: number | null;
+  /** Wind chill / thermal sensation (°C) — when T<10°C and wind>4.8km/h */
+  windChill: number | null;
+  /** Consensus wind direction in degrees (for arrow display) */
+  windDirDeg: number | null;
   /** Hard gate that triggered calm/nogo, if any */
   hardGateTriggered: string | null;
   /** Thermal context — only for spots with thermalDetection: true */
@@ -200,6 +210,7 @@ function computeSpotWindConsensus(
     stationCount: windPoints.length,
     avgSpeedKt: Math.round(avgSpeed * 10) / 10,
     dominantDir: degToCardinal8(avgDir),
+    dirDeg: Math.round(avgDir),
     matchedPattern,
   };
 }
@@ -466,6 +477,30 @@ export function scoreAllSpots(
 
     const { score, verdict, hardGate, summary } = scoreSpot(spot, wind, waves, waterTemp);
 
+    // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
+    let airTemp: number | null = null;
+    let humidity: number | null = null;
+    // Sort by distance, pick nearest with data
+    const sortedStations = [...stationData].sort((a, b) => a.distKm - b.distKm);
+    for (const { reading } of sortedStations) {
+      if (airTemp === null && reading.temperature !== null) airTemp = reading.temperature;
+      if (humidity === null && reading.humidity !== null) humidity = reading.humidity;
+      if (airTemp !== null && humidity !== null) break;
+    }
+
+    // Wind chill (sensación térmica) — Environment Canada formula
+    // Valid when T < 10°C and wind > 4.8 km/h
+    let windChill: number | null = null;
+    if (airTemp !== null && wind !== null) {
+      const windKmh = wind.avgSpeedKt * 1.852; // kt → km/h
+      if (airTemp < 10 && windKmh > 4.8) {
+        windChill = Math.round(
+          (13.12 + 0.6215 * airTemp - 11.37 * Math.pow(windKmh, 0.16) +
+            0.3965 * airTemp * Math.pow(windKmh, 0.16)) * 10,
+        ) / 10;
+      }
+    }
+
     results.set(spot.id, {
       spotId: spot.id,
       spotName: spot.name,
@@ -475,6 +510,10 @@ export function scoreAllSpots(
       wind,
       waves,
       waterTemp,
+      airTemp,
+      humidity,
+      windChill,
+      windDirDeg: wind?.dirDeg ?? null,
       hardGateTriggered: hardGate,
       thermal: spot.thermalDetection ? (thermalData ?? null) : null,
       hasStormAlert: thermalData?.hasStormAlert ?? false,
