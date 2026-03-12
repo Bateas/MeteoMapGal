@@ -28,8 +28,10 @@ export function SpotScoringSection() {
             para calcular un scoring espec&iacute;fico.
           </p>
           <p>
-            Puedes seleccionar el spot activo en el panel lateral. El marcador del spot
-            aparece en el mapa con el color de su veredicto y los <strong className="text-slate-300">nudos de viento</strong>.
+            <strong className="text-slate-300">Clica en el marcador del spot en el mapa</strong> para ver
+            un popup con el veredicto, viento (kt + direcci&oacute;n), oleaje, temperatura del agua,
+            patr&oacute;n de viento detectado y resumen de condiciones. En m&oacute;vil aparece como
+            panel inferior deslizante.
           </p>
         </div>
       </div>
@@ -125,8 +127,8 @@ export function SpotScoringSection() {
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">En m&oacute;vil</h3>
         <p className="text-[10px] text-slate-400 leading-relaxed">
-          Una pastilla flotante sobre el mapa muestra el veredicto del spot activo con los nudos
-          y la direcci&oacute;n del viento. Al tocarla se abre el panel lateral completo.
+          Al tocar un spot en el mapa aparece un panel inferior deslizante con toda la info:
+          veredicto, viento, oleaje y resumen. Solo un popup a la vez (spot, estaci&oacute;n o boya).
         </p>
       </div>
     </div>
