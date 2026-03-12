@@ -7,7 +7,6 @@ const SHORTCUTS = [
   { key: 'T', desc: 'Gradiente temperatura' },
   { key: 'A', desc: 'Panel alertas unificado' },
   { key: 'W', desc: 'Ciclar capas (viento → humedad → satélite → radar)' },
-  { key: 'B', desc: 'Números grandes — viento a pantalla completa' },
   { key: 'G', desc: 'Guía meteorológica — térmicos y navegación' },
   { key: '?', desc: 'Mostrar/ocultar esta ayuda' },
 ];
