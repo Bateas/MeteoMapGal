@@ -93,9 +93,9 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   onSelect,
 }: SpotMarkerItemProps) {
   const colors = VERDICT_COLORS[verdict];
-  const size = isActive ? 44 : 36;
+  const size = isActive ? 48 : 40;
   const ringWidth = isActive ? 3 : 2;
-  const iconSize = isActive ? 20 : 16;
+  const iconSize = isActive ? 22 : 18;
 
   const handleClick = useCallback(
     (e: { originalEvent: MouseEvent }) => {
@@ -115,18 +115,33 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
     <Marker longitude={lon} latitude={lat} anchor="center" onClick={handleClick}>
       <div className="spot-marker relative cursor-pointer" title={shortName}>
         <svg
-          width={size + 20}
-          height={size + 20}
-          viewBox={`${-(size / 2 + 10)} ${-(size / 2 + 10)} ${size + 20} ${size + 20}`}
+          width={size + 30}
+          height={size + 30}
+          viewBox={`${-(size / 2 + 15)} ${-(size / 2 + 15)} ${size + 30} ${size + 30}`}
           role="img"
           aria-label={`Spot ${shortName}`}
         >
+          <defs>
+            {/* Radial gradient for ambient glow */}
+            <radialGradient id={`spot-glow-${spotId}`}>
+              <stop offset="0%" stopColor={colors.glow} stopOpacity="0.25" />
+              <stop offset="70%" stopColor={colors.glow} stopOpacity="0.06" />
+              <stop offset="100%" stopColor={colors.glow} stopOpacity="0" />
+            </radialGradient>
+          </defs>
+
+          {/* Invisible larger hit area for easier clicking */}
+          <circle r={size / 2 + 14} fill="transparent" />
+
+          {/* Ambient glow circle (always visible, subtle) */}
+          <circle r={size / 2 + 10} fill={`url(#spot-glow-${spotId})`} />
+
           {/* Pulse ring for active spot */}
           {isActive && (
-            <circle r={size / 2 + 6} fill="none" stroke={colors.glow} strokeWidth="1.5" opacity="0.4">
+            <circle r={size / 2 + 8} fill="none" stroke={colors.glow} strokeWidth="1.5" opacity="0.4">
               <animate
                 attributeName="r"
-                values={`${size / 2 + 4};${size / 2 + 12};${size / 2 + 4}`}
+                values={`${size / 2 + 6};${size / 2 + 14};${size / 2 + 6}`}
                 dur="3s"
                 repeatCount="indefinite"
               />
@@ -139,14 +154,23 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
             </circle>
           )}
 
-          {/* Outer dashed ring — zone radius indicator */}
+          {/* Outer dashed ring — zone indicator */}
           <circle
-            r={size / 2 + 2}
+            r={size / 2 + 4}
             fill="none"
             stroke={colors.ring}
             strokeWidth="1"
             strokeDasharray="5,3"
-            opacity={isActive ? 0.6 : 0.3}
+            opacity={isActive ? 0.6 : 0.35}
+          />
+
+          {/* Secondary solid ring (new — makes spot pop vs station dots) */}
+          <circle
+            r={size / 2 + 1}
+            fill="none"
+            stroke={colors.ring}
+            strokeWidth="0.8"
+            opacity={isActive ? 0.5 : 0.2}
           />
 
           {/* Main circle */}
@@ -156,7 +180,9 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
             stroke={colors.ring}
             strokeWidth={ringWidth}
             style={{
-              filter: isActive ? `drop-shadow(0 0 6px ${colors.glow}66)` : undefined,
+              filter: isActive
+                ? `drop-shadow(0 0 8px ${colors.glow}88)`
+                : `drop-shadow(0 0 4px ${colors.glow}44)`,
             }}
           />
 
