@@ -26,14 +26,14 @@ Pure functions and algorithms used across the app. No React dependencies.
 - **`stormShadowDetector.ts`** — Detects storm cloud presence by analyzing solar radiation drops across stations, cross-referenced with lightning data and wind anomalies (gust fronts). Estimates storm position, movement vector, and approach to Castrelo.
 - **`airspaceService.ts`** — Evaluates drone flight restrictions: ENAIRE UAS zones + active NOTAMs for sector center. Used by FieldDrawer Dron panel.
 - **`pressureTrendService.ts`** — 3h barometric pressure trend detection across stations. Consensus-based rapid drop/rise alerts. Pure computation on existing readings.
-- **`maritimeFogService.ts`** — Advection fog predictor for Rías. Uses buoy SST vs air temp delta, coastal humidity, wind direction, **solar radiation suppression** (≥250 W/m² daytime = fog cleared). Pure computation — no new fetches.
-- **`crossSeaService.ts`** — Cross-sea risk from wave-wind angular divergence >45°. Uses buoy waveDir vs windDir. Wave height amplification for severity. Pure computation.
+- **`maritimeFogService.ts`** — Advection fog predictor for Rías. Uses buoy SST vs air temp delta, coastal humidity, wind direction, **solar radiation suppression** (≥250 W/m² daytime = fog cleared), **N/NE wind exclusion** (continental dry air kills fog). Pure computation — no new fetches.
+- **`crossSeaService.ts`** — Cross-sea risk from wave-wind angular divergence >45°. Uses buoy waveDir vs windDir. **Wave period (Tp)**: ≥8s swell escalates risk, <4s wind-sea downgrades. Wave height amplification for severity. Pure computation.
 
 ## Forecast & History
 
 - **`forecastScoringUtils.ts`** — Scores forecast hours for sailing conditions.
 - **`inversionForecastService.ts`** — Predicts temperature inversions from forecast data.
-- **`dewPointService.ts`** — Dew point calculation and fog probability estimation.
+- **`dewPointService.ts`** — Dew point calculation and fog probability estimation. **Forecast visibility cross-validation**: Open-Meteo visibility <1km reinforces fog, >10km suppresses. Continental wind + solar suppression built in.
 - **`solarUtils.ts`** — Sunrise/sunset times for the region.
 - **`aemetHistoryParser.ts`** — Parses AEMET daily historical JSON data.
 - **`bestDaysSearch.ts`** — Finds best historical sailing days from AEMET records.

@@ -155,6 +155,35 @@ BEGIN
   END IF;
 END $$;
 
+-- ── Alert evaluation log (for validation & calibration) ──
+-- Records every alert evaluation with input parameters so the user
+-- can validate (thumbs up/down) and we can measure accuracy over time.
+CREATE TABLE IF NOT EXISTS alert_log (
+  time          TIMESTAMPTZ      NOT NULL,
+  alert_type    TEXT             NOT NULL,  -- 'maritime-fog', 'radiative-fog', 'cross-sea', 'frost', 'inversion', 'storm', 'pressure-drop', 'thermal'
+  sector        TEXT             NOT NULL,  -- 'embalse' or 'rias'
+  level         TEXT             NOT NULL,  -- 'none', 'riesgo', 'alto', 'critico'
+  score         DOUBLE PRECISION,           -- 0-100 confidence/score
+  -- Key input parameters (JSONB for flexibility across alert types)
+  params        JSONB,                      -- e.g. {"delta_t": 2.1, "humidity": 88, "wind_dir": 210, "solar_rad": 45}
+  hypothesis    TEXT,                       -- Human-readable hypothesis text
+  -- User validation (null = not yet validated)
+  validated     BOOLEAN,                    -- true = correct alert, false = false positive/negative
+  validated_at  TIMESTAMPTZ,                -- when the user validated
+  user_notes    TEXT                        -- optional user feedback
+);
+
+SELECT create_hypertable('alert_log', 'time', if_not_exists => TRUE);
+
+-- Index for querying by alert type + validation status
+CREATE INDEX IF NOT EXISTS alert_log_type_idx
+  ON alert_log (alert_type, time DESC);
+
+-- Index for finding unvalidated alerts
+CREATE INDEX IF NOT EXISTS alert_log_unvalidated_idx
+  ON alert_log (validated, time DESC)
+  WHERE validated IS NULL;
+
 -- ── Compression (uncomment after data starts flowing) ─
 -- ALTER TABLE readings SET (
 --   timescaledb.compress,
