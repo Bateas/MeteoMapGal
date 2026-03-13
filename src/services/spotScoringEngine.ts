@@ -253,20 +253,22 @@ function extractWaveConditions(
  * This is the PRIMARY driver — score adjustments are secondary.
  */
 function windVerdict(spd: number, spotId: SpotId): SpotVerdict {
+  // Round to integer — same as displayed value, avoids "CALMA 8kt" incoherence
+  const kt = Math.round(spd);
+
   // Cíes-Ría: ocean conditions need more wind
   if (spotId === 'cies-ria') {
-    if (spd < 8) return 'calm';       // ocean <8kt = nothing
-    if (spd < 12) return 'sailing';
-    if (spd < 18) return 'good';
-    if (spd <= 25) return 'strong';
-    return 'strong'; // >25 still strong (hard gate catches danger)
+    if (kt < 8) return 'calm';       // ocean <8kt = nothing
+    if (kt < 12) return 'sailing';
+    if (kt < 18) return 'good';
+    return 'strong'; // ≥18kt (hard gate catches danger)
   }
 
   // All other spots (interior / sheltered)
-  if (spd < 6) return 'calm';
-  if (spd < 8) return 'light';
-  if (spd < 12) return 'sailing';
-  if (spd < 18) return 'good';
+  if (kt < 6) return 'calm';
+  if (kt < 8) return 'light';
+  if (kt < 12) return 'sailing';
+  if (kt < 18) return 'good';
   return 'strong'; // ≥18kt
 }
 
@@ -383,7 +385,8 @@ function scoreSpot(
     score -= 15;
   }
 
-  // Cap score
+  // Cap score — calm verdict should never score high (confusing to see "CALMA 30/100")
+  if (verdict === 'calm') score = Math.min(score, 10);
   score = Math.max(0, Math.min(100, score));
 
   // ── Summary ────────────────────────────────────────────
@@ -433,7 +436,11 @@ function buildSpotSummary(
       parts.push(`Flojo (${dir} ${spd.toFixed(0)}kt). No merece.`);
       break;
     case 'calm':
-      parts.push('Sin viento. No se navega.');
+      if (spd >= 3) {
+        parts.push(`Calma (${dir} ${spd.toFixed(0)}kt). No se navega.`);
+      } else {
+        parts.push('Sin viento. No se navega.');
+      }
       break;
     default:
       parts.push('Sin datos.');
