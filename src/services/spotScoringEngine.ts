@@ -106,7 +106,7 @@ function selectStationsForSpot(
   for (const s of stations) {
     const reading = readings.get(s.id);
     if (!reading) continue;
-    if (reading.windSpeed === null || reading.windDirection === null) continue;
+    if (reading.windSpeed === null) continue; // Direction is optional (SkyX, some Netatmo)
 
     const distKm = fastDistanceKm(s.lat, s.lon, spotLat, spotLon);
     const isPreferred = preferredSet.has(s.id);
@@ -156,44 +156,56 @@ function computeSpotWindConsensus(
   stationData: { reading: NormalizedReading; distKm: number }[],
   buoyData: { buoy: BuoyReading; distKm: number }[],
 ): SpotWindConsensus | null {
-  // Collect all wind readings (stations + buoys)
-  const windPoints: { dir: number; speedKt: number; weight: number }[] = [];
+  // Collect speed and direction separately — direction is optional
+  const speedPoints: { speedKt: number; weight: number }[] = [];
+  const dirPoints: { dir: number; weight: number }[] = [];
 
   for (const { reading, distKm } of stationData) {
-    if (reading.windSpeed === null || reading.windDirection === null) continue;
+    if (reading.windSpeed === null) continue;
     const speedKt = msToKnots(reading.windSpeed);
     if (speedKt < 1) continue;
-    // Inverse-distance weighting: closer stations matter more
     const weight = 1 / (distKm + 1);
-    windPoints.push({ dir: reading.windDirection, speedKt, weight });
+    speedPoints.push({ speedKt, weight });
+    // Direction only if available (SkyX, some Netatmo lack wind vanes)
+    if (reading.windDirection !== null) {
+      dirPoints.push({ dir: reading.windDirection, weight });
+    }
   }
 
   for (const { buoy, distKm } of buoyData) {
-    if (buoy.windSpeed === null || buoy.windDir === null) continue;
+    if (buoy.windSpeed === null) continue;
     const speedKt = msToKnots(buoy.windSpeed);
     if (speedKt < 1) continue;
     const weight = 1 / (distKm + 1);
-    windPoints.push({ dir: buoy.windDir, speedKt, weight });
+    speedPoints.push({ speedKt, weight });
+    if (buoy.windDir !== null) {
+      dirPoints.push({ dir: buoy.windDir, weight });
+    }
   }
 
-  if (windPoints.length < 1) return null;
+  if (speedPoints.length < 1) return null;
 
-  // Weighted average speed
+  // Weighted average speed (from ALL sources with speed)
   let totalWeight = 0;
   let weightedSpeed = 0;
-  let sinSum = 0;
-  let cosSum = 0;
-
-  for (const wp of windPoints) {
-    weightedSpeed += wp.speedKt * wp.weight;
-    totalWeight += wp.weight;
-    const rad = (wp.dir * Math.PI) / 180;
-    sinSum += Math.sin(rad) * wp.weight;
-    cosSum += Math.cos(rad) * wp.weight;
+  for (const sp of speedPoints) {
+    weightedSpeed += sp.speedKt * sp.weight;
+    totalWeight += sp.weight;
   }
-
   const avgSpeed = weightedSpeed / totalWeight;
-  const avgDir = ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
+
+  // Weighted average direction (only from sources WITH direction)
+  let avgDir = 0;
+  if (dirPoints.length > 0) {
+    let sinSum = 0;
+    let cosSum = 0;
+    for (const dp of dirPoints) {
+      const rad = (dp.dir * Math.PI) / 180;
+      sinSum += Math.sin(rad) * dp.weight;
+      cosSum += Math.cos(rad) * dp.weight;
+    }
+    avgDir = ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
+  }
 
   // Check wind pattern match — require minimum 8kt to acknowledge pattern
   let matchedPattern: string | null = null;
@@ -207,7 +219,7 @@ function computeSpotWindConsensus(
   }
 
   return {
-    stationCount: windPoints.length,
+    stationCount: speedPoints.length,
     avgSpeedKt: Math.round(avgSpeed * 10) / 10,
     dominantDir: degToCardinal8(avgDir),
     dirDeg: Math.round(avgDir),

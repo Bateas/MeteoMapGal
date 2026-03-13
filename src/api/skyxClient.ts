@@ -5,7 +5,7 @@ const SKYX_SN = 'SKY-100A0B765294EA4';
 const SKYX_AUTH = 'a21bd737-a714-4a5c-9b08-e7d3d2693a51';
 const SKYX_STATION_ID = 'skyx_SKY100';
 const SKYX_STATION_NAME = 'SkyX1';
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 5_000;
 
 interface SkyXReport {
   sn: string;

@@ -84,7 +84,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     shortName: 'Cesantes',
     icon: 'sailboat',
     center: [-8.619, 42.307],
-    radiusKm: 8,
+    radiusKm: 12,
     description: 'Interior Ría de Vigo, ensenada de San Simón. Agua plana, viento térmico WSW tardes.',
     windPatterns: [
       {
@@ -128,7 +128,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     shortName: 'Bocana',
     icon: 'sailboat',
     center: [-8.70, 42.265],
-    radiusKm: 6,
+    radiusKm: 10,
     description: 'Estrecho de Rande, Vigo–San Simón. Terral matutino E/ENE, agua protegida.',
     windPatterns: [
       {

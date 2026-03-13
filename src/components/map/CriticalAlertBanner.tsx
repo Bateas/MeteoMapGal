@@ -30,6 +30,8 @@ export const CriticalAlertBanner = memo(function CriticalAlertBanner() {
   return (
     <div
       className={`${isMobile ? 'fixed z-30 top-[4.25rem]' : 'absolute z-30 top-3'} left-1/2 -translate-x-1/2 pointer-events-auto`}
+      role="alert"
+      aria-live="assertive"
     >
       <div
         className={`flex items-center rounded-lg backdrop-blur-md font-semibold shadow-lg cursor-pointer
@@ -42,6 +44,9 @@ export const CriticalAlertBanner = memo(function CriticalAlertBanner() {
           boxShadow: '0 0 25px rgba(239, 68, 68, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4)',
         }}
         onClick={togglePanel}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePanel(); } }}
+        tabIndex={0}
+        role="button"
         title="Click para ver todas las alertas"
       >
         <WeatherIcon id={topAlert.icon as IconId} size={isMobile ? 14 : 18} />
