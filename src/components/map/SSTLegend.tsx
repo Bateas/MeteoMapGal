@@ -43,7 +43,7 @@ export function SSTLegend() {
   return (
     <div
       className={`absolute z-20 flex flex-col items-center gap-0.5 pointer-events-none
-        ${isMobile ? 'right-2 top-[7.5rem]' : 'left-2 top-20'}`}
+        ${isMobile ? 'right-2 top-[12.5rem]' : 'left-2 top-20'}`}
     >
       {/* Title */}
       <span className="text-[9px] font-semibold text-white/80 tracking-wide drop-shadow-md">
