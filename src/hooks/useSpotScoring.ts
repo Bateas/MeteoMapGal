@@ -19,8 +19,14 @@ import { scoreAllSpots, type SpotThermalContext } from '../services/spotScoringE
 import { getSpotsForSector } from '../config/spots';
 import { msToKnots, degToCardinal8 } from '../services/windUtils';
 
-/** Minimum interval between re-scores (ms) */
-const RESCORE_INTERVAL = 30_000; // 30s
+/**
+ * Throttle intervals:
+ * - Startup phase (first 90s): re-score every 5s as sources arrive in waves
+ * - Steady state: re-score max every 30s (readings change infrequently)
+ */
+const STARTUP_INTERVAL = 5_000;
+const STEADY_INTERVAL = 30_000;
+const STARTUP_WINDOW = 90_000; // 90s after first mount
 
 export function useSpotScoring() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
@@ -31,6 +37,7 @@ export function useSpotScoring() {
   const setScores = useSpotStore((s) => s.setScores);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const lastScoredRef = useRef(0);
+  const mountTimeRef = useRef(Date.now());
 
   // Thermal stores (for enriching spots with thermalDetection)
   const { dailyContext, atmosphericContext, tendencySignals } = useThermalStore(
@@ -51,9 +58,10 @@ export function useSpotScoring() {
     if (spots.length === 0) return;
     if (stations.length === 0 && buoys.length === 0) return;
 
-    // Throttle re-scores — shorter interval on first score for fast startup
+    // Throttle: fast during startup (sources arriving), slow in steady state
     const now = Date.now();
-    const minInterval = lastScoredRef.current === 0 ? 2_000 : RESCORE_INTERVAL;
+    const isStartup = (now - mountTimeRef.current) < STARTUP_WINDOW;
+    const minInterval = isStartup ? STARTUP_INTERVAL : STEADY_INTERVAL;
     if (now - lastScoredRef.current < minInterval) return;
 
     // Build thermal context if any spot in this sector uses thermalDetection
@@ -70,7 +78,7 @@ export function useSpotScoring() {
       const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData);
       setScores(scores);
       lastScoredRef.current = Date.now();
-    }, 100);
+    }, 50);
 
     return () => clearTimeout(timerRef.current);
   }, [sectorId, stations, readingsEpoch, buoys, setScores, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast]);
