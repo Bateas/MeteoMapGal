@@ -32,7 +32,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 // ── Constants ──────────────────────────────────────────
 
 type Metric = 'temperature' | 'wind_speed' | 'humidity' | 'pressure';
-type TimeRange = '24h' | '7d' | '30d';
+type TimeRange = '24h' | '7d' | '30d' | 'custom';
 type Interval = 'raw' | 'hourly';
 type ViewMode = 'chart' | 'windrose';
 
@@ -56,6 +56,7 @@ function formatTime(time: string, range: TimeRange): string {
   const d = new Date(time);
   if (range === '24h') return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
   if (range === '7d') return d.toLocaleDateString('es', { weekday: 'short', hour: '2-digit' });
+  if (range === 'custom') return d.toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit' });
   return d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
 }
 
@@ -104,6 +105,13 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Custom date range
+  const [customFrom, setCustomFrom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 3);
+    return d.toISOString().slice(0, 10);
+  });
+  const [customTo, setCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
+
   // Comparison state
   const [compareMode, setCompareMode] = useState(false);
   const [compareStation, setCompareStation] = useState('');
@@ -130,8 +138,15 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
     [stationNames]
   );
 
-  // Determine interval: raw for 24h, hourly for 7d/30d
-  const interval: Interval = timeRange === '24h' ? 'raw' : 'hourly';
+  // Determine interval: raw for 24h, hourly for longer ranges
+  const interval: Interval = useMemo(() => {
+    if (timeRange === '24h') return 'raw';
+    if (timeRange === 'custom') {
+      const diffMs = new Date(customTo).getTime() - new Date(customFrom).getTime();
+      return diffMs <= 2 * 86400_000 ? 'raw' : 'hourly'; // raw if ≤2 days
+    }
+    return 'hourly';
+  }, [timeRange, customFrom, customTo]);
 
   // ── Fetch station list on mount ──────────────────
   useEffect(() => {
@@ -172,9 +187,15 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
     setError(null);
 
     try {
-      const range = TIME_RANGES.find((r) => r.key === timeRange)!;
-      const from = new Date(Date.now() - range.hours * 3600_000).toISOString();
-      const to = new Date().toISOString();
+      let from: string, to: string;
+      if (timeRange === 'custom') {
+        from = new Date(customFrom + 'T00:00:00').toISOString();
+        to = new Date(customTo + 'T23:59:59').toISOString();
+      } else {
+        const range = TIME_RANGES.find((r) => r.key === timeRange)!;
+        from = new Date(Date.now() - range.hours * 3600_000).toISOString();
+        to = new Date().toISOString();
+      }
 
       // Parallel fetches
       const promises: Promise<any>[] = [
@@ -209,7 +230,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedStation, compareStation, compareMode, timeRange, interval]);
+  }, [selectedStation, compareStation, compareMode, timeRange, interval, customFrom, customTo]);
 
   useEffect(() => {
     fetchData();
@@ -406,10 +427,39 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
               {r.label}
             </button>
           ))}
+          <button
+            onClick={() => setTimeRange('custom')}
+            className={`flex-1 text-[10px] font-bold py-1 rounded transition-colors ${
+              timeRange === 'custom'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                : 'bg-slate-800/60 text-slate-500 border border-slate-700/50 hover:text-slate-300'
+            }`}
+          >
+            Rango
+          </button>
           <span className="text-[8px] text-slate-600 self-center ml-1">
             {interval === 'hourly' ? 'horario' : '5min'}
           </span>
         </div>
+
+        {/* Custom date range picker */}
+        {timeRange === 'custom' && (
+          <div className="flex gap-1.5 px-3 pb-2 items-center">
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              className="flex-1 bg-slate-800 text-slate-200 text-[10px] rounded px-1.5 py-1 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
+            />
+            <span className="text-[9px] text-slate-500">→</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              className="flex-1 bg-slate-800 text-slate-200 text-[10px] rounded px-1.5 py-1 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
+            />
+          </div>
+        )}
 
         {/* Metric toggle + Wind Rose button */}
         <div className="flex gap-1 px-3 pb-2">

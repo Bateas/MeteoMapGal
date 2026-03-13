@@ -25,8 +25,11 @@ const BuoyPanel = lazy(() =>
 const SpotSelector = lazy(() =>
   import('../dashboard/SpotSelector').then((m) => ({ default: m.SpotSelector })),
 );
+const RankingsPanel = lazy(() =>
+  import('../dashboard/RankingsPanel').then((m) => ({ default: m.RankingsPanel })),
+);
 
-type Tab = 'stations' | 'chart' | 'forecast' | 'thermal' | 'history';
+type Tab = 'stations' | 'chart' | 'forecast' | 'thermal' | 'history' | 'rankings';
 
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
@@ -95,6 +98,15 @@ export function Sidebar() {
         )}
         <button
           role="tab"
+          aria-selected={activeTab === 'rankings'}
+          aria-controls="tabpanel-rankings"
+          onClick={() => setActiveTab('rankings')}
+          className={`${tabBase} ${activeTab === 'rankings' ? tabOn('border-emerald-500') : tabOff}`}
+        >
+          Rankings
+        </button>
+        <button
+          role="tab"
           aria-selected={activeTab === 'history'}
           aria-controls="tabpanel-history"
           onClick={() => setActiveTab('history')}
@@ -135,6 +147,11 @@ export function Sidebar() {
           {activeTab === 'thermal' && (
             <ErrorBoundary section="Panel Térmico">
               <ThermalWindPanel />
+            </ErrorBoundary>
+          )}
+          {activeTab === 'rankings' && (
+            <ErrorBoundary section="Rankings">
+              <RankingsPanel />
             </ErrorBoundary>
           )}
           {activeTab === 'history' && (
