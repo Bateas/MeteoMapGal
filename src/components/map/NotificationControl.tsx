@@ -44,7 +44,7 @@ export const NotificationControl = memo(function NotificationControl() {
           background: config.enabled
             ? 'rgba(59, 130, 246, 0.12)'
             : 'rgba(100, 116, 139, 0.1)',
-          border: `1px solid ${config.enabled ? 'rgba(59, 130, 246, 0.3)' : 'rgba(100, 116, 139, 0.15)'}`,
+          border: `1px solid ${config.enabled ? 'rgba(59, 130, 246, 0.3)' : 'rgba(100, 116, 139, 0.25)'}`,
           color: config.enabled ? '#3b82f6' : '#64748b',
         }}
         onClick={() => setSettingsOpen(true)}

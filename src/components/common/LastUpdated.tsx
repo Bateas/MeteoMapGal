@@ -75,7 +75,7 @@ export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
         <button
           onClick={onRefresh}
           disabled={isLoading}
-          className="p-2 -m-0.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:bg-slate-700 disabled:opacity-50 transition-colors"
+          className="p-2 -m-0.5 rounded-lg border border-slate-700/50 bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800/90 hover:shadow-[0_0_12px_rgba(148,163,184,0.15)] hover:border-slate-500/40 active:bg-slate-700 disabled:opacity-50 transition-all"
           aria-label="Refrescar datos"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -106,7 +106,7 @@ export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
       <button
         onClick={onRefresh}
         disabled={isLoading}
-        className="px-2 py-0.5 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 disabled:opacity-50 transition-colors"
+        className="px-2 py-0.5 rounded text-xs border border-slate-600/50 bg-slate-700 text-slate-300 hover:bg-slate-600 hover:shadow-[0_0_10px_rgba(148,163,184,0.12)] hover:border-slate-500/40 disabled:opacity-50 transition-all"
       >
         Refrescar
       </button>
