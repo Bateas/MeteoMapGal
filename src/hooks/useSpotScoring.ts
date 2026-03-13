@@ -13,7 +13,7 @@ import { useBuoyStore } from '../store/buoyStore';
 import { useSpotStore } from '../store/spotStore';
 import { useSectorStore } from '../store/sectorStore';
 import { useThermalStore } from '../store/thermalStore';
-import { useAlertStore } from '../store/alertStore';
+import { useLightningStore } from './useLightningData';
 import { useForecastStore } from './useForecastTimeline';
 import { scoreAllSpots, type SpotThermalContext } from '../services/spotScoringEngine';
 import { getSpotsForSector } from '../config/spots';
@@ -39,7 +39,10 @@ export function useSpotScoring() {
       tendencySignals: s.tendencySignals,
     })),
   );
-  const alerts = useAlertStore((s) => s.alerts);
+  // Use raw stormAlert from lightning store — NOT deduped alerts.
+  // Dedup can merge storm-shadow into storm-main, causing false positives.
+  // Only real lightning proximity (warning/danger level) should trigger spot alerts.
+  const stormAlert = useLightningStore((s) => s.stormAlert);
   const forecast = useForecastStore((s) => s.hourly);
 
   useEffect(() => {
@@ -56,7 +59,7 @@ export function useSpotScoring() {
     let thermalData: SpotThermalContext | undefined;
 
     if (hasThermalSpots) {
-      thermalData = buildThermalContext(dailyContext, atmosphericContext, tendencySignals, alerts, forecast);
+      thermalData = buildThermalContext(dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast);
     }
 
     // Defer scoring to avoid blocking render
@@ -67,7 +70,7 @@ export function useSpotScoring() {
     }, 100);
 
     return () => clearTimeout(timerRef.current);
-  }, [sectorId, stations, readings, buoys, setScores, dailyContext, atmosphericContext, tendencySignals, alerts, forecast]);
+  }, [sectorId, stations, readings, buoys, setScores, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast]);
 }
 
 /**
@@ -78,7 +81,7 @@ function buildThermalContext(
   dailyContext: ReturnType<typeof useThermalStore.getState>['dailyContext'],
   atmosphericContext: ReturnType<typeof useThermalStore.getState>['atmosphericContext'],
   tendencySignals: ReturnType<typeof useThermalStore.getState>['tendencySignals'],
-  alerts: ReturnType<typeof useAlertStore.getState>['alerts'],
+  stormAlert: ReturnType<typeof useLightningStore.getState>['stormAlert'],
   forecast: ReturnType<typeof useForecastStore.getState>['hourly'],
 ): SpotThermalContext {
   const deltaT = dailyContext?.deltaT ?? null;
@@ -148,11 +151,12 @@ function buildThermalContext(
     else if (signal.level === 'building' && bestTendency === 'none') bestTendency = 'building';
   }
 
-  // Storm alert — ONLY lightning-confirmed storms (category='storm' from stormTracker).
-  // Excludes storm-shadow (cloud density / solar drops — not confirmed electrical activity).
-  const hasStormAlert = alerts.some(
-    (a) => a.category === 'storm' && a.score >= 60 && a.id !== 'storm-shadow',
-  );
+  // Storm alert — ONLY lightning-confirmed proximity threats.
+  // Uses raw stormAlert from lightning store (NOT deduped alerts from alertStore).
+  // 'warning' = lightning within 25km, 'danger' = lightning within 5km.
+  // Excludes 'watch' (25-50km — distant, not actionable for spots) and
+  // storm-shadow (cloud density / solar drops — not confirmed electrical activity).
+  const hasStormAlert = stormAlert.level === 'warning' || stormAlert.level === 'danger';
 
   return {
     deltaT,

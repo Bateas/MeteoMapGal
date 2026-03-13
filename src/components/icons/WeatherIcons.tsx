@@ -48,6 +48,10 @@ import {
   Layers,
   Eye,
   Camera,
+  ThumbsUp,
+  ThumbsDown,
+  Bell,
+  BellOff,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -60,7 +64,8 @@ export type IconId =
   | 'mountain' | 'beach' | 'tag' | 'cloud-drizzle' | 'map'
   | 'leaf' | 'clock' | 'x' | 'clipboard-list' | 'anchor'
   | 'database' | 'gauge' | 'check' | 'sprout'
-  | 'compass' | 'navigation' | 'layers' | 'eye' | 'camera';
+  | 'compass' | 'navigation' | 'layers' | 'eye' | 'camera'
+  | 'thumbs-up' | 'thumbs-down' | 'bell' | 'bell-off';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -216,6 +221,10 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'layers': Layers,
   'eye': Eye,
   'camera': Camera,
+  'thumbs-up': ThumbsUp,
+  'thumbs-down': ThumbsDown,
+  'bell': Bell,
+  'bell-off': BellOff,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────
@@ -305,6 +314,10 @@ const ICON_LABELS: Record<IconId, string> = {
   'layers': 'Batimetría',
   'eye': 'Privacidad',
   'camera': 'Webcam',
+  'thumbs-up': 'Correcto',
+  'thumbs-down': 'Incorrecto',
+  'bell': 'Notificaciones',
+  'bell-off': 'Sin notificaciones',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */
