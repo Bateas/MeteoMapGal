@@ -104,6 +104,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/obscosteiro-api/, '/mgplatpubapi/v1/api'),
         secure: true,
       },
+      '/skyx-api': {
+        target: 'https://api.skyxglobal.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/skyx-api/, ''),
+        secure: true,
+      },
       '/hfradar-api': {
         target: 'https://opendap.intecmar.gal',
         changeOrigin: true,
