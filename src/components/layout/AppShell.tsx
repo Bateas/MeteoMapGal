@@ -35,6 +35,7 @@ import { useAirspace } from '../../hooks/useAirspace';
 import { useBuoyData } from '../../hooks/useBuoyData';
 import { useSpotScoring } from '../../hooks/useSpotScoring';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
+import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 
 export function AppShell() {
   const { forceRefresh, retryDiscovery } = useWeatherData();
@@ -91,6 +92,14 @@ export function AppShell() {
 
   // Spot-based sailing scores: re-scores when station/buoy data changes (only for Rías)
   useSpotScoring();
+
+  // NAO/AO teleconnection indices — fetched once, cached 6h in naoClient
+  const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
+  useEffect(() => {
+    fetchTeleconnections()
+      .then((data) => { teleconnectionsRef.current = data; })
+      .catch(() => { /* graceful degradation — alerts work without */ });
+  }, []);
 
   // ── Map reveal crossfade — smooth transition as loading screen fades out ──
   const readingsCount = useWeatherStore((s) => s.currentReadings.size);
@@ -210,6 +219,7 @@ export function AppShell() {
       // Maritime alerts (cross-sea, fog) only apply to coastal Rías sector
       buoys: activeSector.id === 'rias' && buoys.length > 0 ? buoys : undefined,
       stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
+      teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
     });
     setUnifiedAlerts(alerts, risk);
     // Trigger notifications for new/escalated alerts

@@ -18,6 +18,29 @@ import { buildPressureTrendAlerts } from './pressureTrendService';
 import { buildMaritimeFogAlerts } from './maritimeFogService';
 import { buildCrossSeaAlerts } from './crossSeaService';
 import type { BuoyReading } from '../api/buoyClient';
+import type { TeleconnectionIndex } from '../api/naoClient';
+
+// ── NAO/AO context helpers ──────────────────────────────────
+
+/** Translate NAO/AO phase into actionable Spanish context for alert details */
+function naoContext(nao: TeleconnectionIndex | undefined): string | null {
+  if (!nao) return null;
+  const v = nao.value;
+  if (v > 1.5) return 'NAO muy positiva: borrascas atlánticas activas';
+  if (v > 0.5) return 'NAO positiva: flujo atlántico activo';
+  if (v < -1.5) return 'NAO muy negativa: bloqueo severo, frío persistente';
+  if (v < -0.5) return 'NAO negativa: bloqueo anticiclónico, calmas';
+  return null; // neutral — no context worth adding
+}
+
+function aoContext(ao: TeleconnectionIndex | undefined): string | null {
+  if (!ao) return null;
+  const v = ao.value;
+  if (v < -1.5) return 'AO negativa: irrupciones de aire ártico probables';
+  if (v < -0.5) return 'AO negativa: vórtice polar débil, frío posible';
+  if (v > 1.5) return 'AO positiva: chorro polar fuerte, westerlies activos';
+  return null; // neutral or moderate positive — not notable
+}
 
 // ── Unified Alert Types ──────────────────────────────────────
 
@@ -140,17 +163,17 @@ export function buildStormAlerts(storm: StormAlert): UnifiedAlert[] {
 
 // ── Inversion alerts → UnifiedAlert ──────────────────────────
 
-export function buildInversionAlerts(profile: ThermalProfile | null): UnifiedAlert[] {
+export function buildInversionAlerts(
+  profile: ThermalProfile | null,
+  nao?: TeleconnectionIndex,
+  ao?: TeleconnectionIndex,
+): UnifiedAlert[] {
   if (!profile || !profile.hasInversion || !profile.regression) return [];
 
   const { slopePerKm, rSquared, stationCount } = profile.regression;
   const isStrong = profile.status === 'strong-inversion';
 
   // ── Nocturnal inversion filter ────────────────────────────
-  // Radiative inversions in Ourense valley are NORMAL at night (21h-07h).
-  // Only alert if: (a) it's daytime, OR (b) it's a STRONG inversion (≥5°C/km).
-  // Weak nocturnal inversions (1-5°C/km) are expected in enclosed valleys
-  // and break naturally after sunrise — no need to alarm the user.
   const hour = new Date().getHours();
   const isNight = hour >= 21 || hour < 7;
   if (isNight && !isStrong) return [];
@@ -161,7 +184,11 @@ export function buildInversionAlerts(profile: ThermalProfile | null): UnifiedAle
 
   const title = isStrong ? 'INVERSIÓN FUERTE' : 'Inversión térmica detectada';
   const nightNote = isNight ? ' (nocturna persistente)' : '';
-  const detail = `${slopePerKm > 0 ? '+' : ''}${slopePerKm.toFixed(1)}°C/km · ${stationCount} est. · R²=${rSquared.toFixed(2)}${nightNote}`;
+  let detail = `${slopePerKm > 0 ? '+' : ''}${slopePerKm.toFixed(1)}°C/km · ${stationCount} est. · R²=${rSquared.toFixed(2)}${nightNote}`;
+
+  // NAO/AO context: negative NAO = blocking pattern sustains inversions
+  if (nao && nao.value < -0.5) detail += ' · NAO−: bloqueo persistente';
+  else if (ao && ao.value < -0.5) detail += ' · AO−: aire frío atrapado';
 
   return [{
     id: 'inversion-main',
@@ -306,7 +333,11 @@ function campoLevelToScore(level: CampoAlertLevel): number {
   }
 }
 
-export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
+export function buildFieldAlerts(
+  field: FieldAlerts | null,
+  nao?: TeleconnectionIndex,
+  ao?: TeleconnectionIndex,
+): UnifiedAlert[] {
   if (!field) return [];
   const now = new Date();
   const results: UnifiedAlert[] = [];
@@ -315,6 +346,10 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
   if (field.frost.level !== 'none') {
     const score = campoLevelToScore(field.frost.level);
     const tempStr = field.frost.minTemp != null ? `${field.frost.minTemp.toFixed(1)}°C` : '?';
+    let frostDetail = `Mín prevista ${tempStr}`;
+    // NAO/AO context: negative phases amplify and sustain cold events
+    if (nao && nao.value < -1) frostDetail += ' · NAO−: patrón frío persistente';
+    else if (ao && ao.value < -1) frostDetail += ' · AO−: aire ártico activo';
     results.push({
       id: 'frost-forecast',
       category: 'frost',
@@ -322,7 +357,7 @@ export function buildFieldAlerts(field: FieldAlerts | null): UnifiedAlert[] {
       score,
       icon: 'snowflake',
       title: field.frost.level === 'critico' ? 'HELADA SEVERA' : 'Riesgo de helada',
-      detail: `Mín prevista ${tempStr}`,
+      detail: frostDetail,
       urgent: field.frost.level === 'critico',
       updatedAt: now,
     });
@@ -464,6 +499,14 @@ export function computeCompositeRisk(alerts: UnifiedAlert[]): CompositeRisk {
   };
 }
 
+/** Append NAO context to pressure trend alerts (enrichment at call site) */
+function enrichPressureAlerts(alerts: UnifiedAlert[], nao?: TeleconnectionIndex): UnifiedAlert[] {
+  if (!nao || alerts.length === 0) return alerts;
+  const ctx = naoContext(nao);
+  if (!ctx) return alerts;
+  return alerts.map((a) => ({ ...a, detail: `${a.detail} · ${ctx}` }));
+}
+
 // ── Main aggregator — call this from AppShell ────────────────
 
 export function aggregateAllAlerts(sources: {
@@ -477,16 +520,21 @@ export function aggregateAllAlerts(sources: {
   readingHistory?: Map<string, import('../types/station').NormalizedReading[]>;
   buoys?: BuoyReading[];
   stationsGeo?: { id: string; lat: number; lon: number }[];
+  teleconnections?: TeleconnectionIndex[];
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
+  // Extract NAO/AO for context enrichment
+  const nao = sources.teleconnections?.find((t) => t.name === 'NAO');
+  const ao = sources.teleconnections?.find((t) => t.name === 'AO');
+
   const allAlerts: UnifiedAlert[] = [
     ...(sources.stormAlert ? buildStormAlerts(sources.stormAlert) : []),
     ...buildStormShadowAlerts(sources.stormShadow ?? null),
-    ...buildInversionAlerts(sources.thermalProfile),
+    ...buildInversionAlerts(sources.thermalProfile, nao, ao),
     ...(sources.forecast ? buildInversionForecastAlert(sources.forecast) : []),
     ...buildThermalAlerts(sources.zoneAlerts),
-    ...buildFieldAlerts(sources.fieldAlerts),
+    ...buildFieldAlerts(sources.fieldAlerts, nao, ao),
     ...(sources.currentReadings && sources.readingHistory
-      ? buildPressureTrendAlerts(sources.currentReadings, sources.readingHistory) : []),
+      ? enrichPressureAlerts(buildPressureTrendAlerts(sources.currentReadings, sources.readingHistory), nao) : []),
     ...(sources.buoys && sources.currentReadings && sources.stationsGeo
       ? buildMaritimeFogAlerts(sources.buoys, sources.currentReadings, sources.stationsGeo) : []),
     ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),

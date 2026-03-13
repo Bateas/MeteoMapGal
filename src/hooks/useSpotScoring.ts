@@ -18,6 +18,7 @@ import { useForecastStore } from './useForecastTimeline';
 import { scoreAllSpots, type SpotThermalContext } from '../services/spotScoringEngine';
 import { getSpotsForSector } from '../config/spots';
 import { msToKnots, degToCardinal8 } from '../services/windUtils';
+import { fetchTeleconnections, type TeleconnectionIndex } from '../api/naoClient';
 
 /**
  * Throttle intervals:
@@ -38,6 +39,14 @@ export function useSpotScoring() {
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const lastScoredRef = useRef(0);
   const mountTimeRef = useRef(Date.now());
+  const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
+
+  // Fetch NAO/AO once on mount (cached 6h in naoClient)
+  useEffect(() => {
+    fetchTeleconnections()
+      .then((data) => { teleconnectionsRef.current = data; })
+      .catch(() => { /* graceful — scoring works without teleconnections */ });
+  }, []);
 
   // Thermal stores (for enriching spots with thermalDetection)
   const { dailyContext, atmosphericContext, tendencySignals } = useThermalStore(
@@ -75,7 +84,8 @@ export function useSpotScoring() {
     // Defer scoring to avoid blocking render — read readings fresh from store
     timerRef.current = setTimeout(() => {
       const currentReadings = useWeatherStore.getState().currentReadings;
-      const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData);
+      const tc = teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined;
+      const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc);
       setScores(scores);
       lastScoredRef.current = Date.now();
     }, 50);

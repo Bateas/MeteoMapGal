@@ -1,4 +1,4 @@
-import { useMemo, lazy, Suspense } from 'react';
+import { useMemo } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
 import {
   msToKnots,
@@ -7,10 +7,6 @@ import {
   degreesToCardinal,
 } from '../../services/windUtils';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
-
-const TeleconnectionWidget = lazy(() =>
-  import('./TeleconnectionWidget').then((m) => ({ default: m.TeleconnectionWidget })),
-);
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -178,9 +174,6 @@ export function RankingsPanel() {
       {categories.map((cat) => (
         <RankingCard key={cat.label} category={cat} />
       ))}
-      <Suspense fallback={null}>
-        <TeleconnectionWidget />
-      </Suspense>
     </div>
   );
 }
