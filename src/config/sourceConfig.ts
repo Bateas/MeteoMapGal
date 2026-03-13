@@ -14,4 +14,5 @@ export const SOURCE_CONFIG: Record<SourceKey, SourceMeta> = {
   meteoclimatic: { label: 'MC', fullName: 'Meteoclimatic',       color: '#10b981' },
   wunderground:  { label: 'WU', fullName: 'Weather Underground', color: '#f59e0b' },
   netatmo:       { label: 'NT', fullName: 'Netatmo',             color: '#06b6d4' },
+  skyx:          { label: 'SX', fullName: 'SkyX',               color: '#ec4899' },
 };
