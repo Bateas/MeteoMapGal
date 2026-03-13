@@ -29,7 +29,7 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
   } else {
     btnClasses = hasInversion
       ? `bg-slate-800/60 border border-red-600/40 text-red-400 hover:bg-red-900/30${isStrongInversion ? ' animate-pulse' : ''}`
-      : 'bg-slate-800/60 border border-slate-600/40 text-slate-400 hover:bg-slate-700/60 hover:text-slate-300';
+      : 'bg-slate-800/60 border border-slate-600/40 text-slate-400 hover:bg-slate-700/60 hover:text-slate-300 hover:shadow-[0_0_12px_rgba(6,182,212,0.2)] hover:border-cyan-500/30';
   }
 
   // Build gradient info text when overlay is active

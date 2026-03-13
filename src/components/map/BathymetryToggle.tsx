@@ -17,7 +17,7 @@ export const BathymetryToggle = memo(function BathymetryToggle() {
 
   const btnClasses = visible
     ? 'bg-teal-500/25 border border-teal-400/50 text-teal-300 shadow-[0_0_15px_rgba(20,184,166,0.3)]'
-    : 'bg-slate-800/60 border border-slate-600/40 text-slate-400 hover:bg-slate-700/60 hover:text-slate-300';
+    : 'bg-slate-800/60 border border-slate-600/40 text-slate-400 hover:bg-slate-700/60 hover:text-slate-300 hover:shadow-[0_0_12px_rgba(20,184,166,0.2)] hover:border-teal-500/30';
 
   return (
     <button

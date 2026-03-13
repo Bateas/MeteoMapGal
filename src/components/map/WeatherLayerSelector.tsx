@@ -95,7 +95,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
                   ${isMobile ? 'min-w-[44px] min-h-[44px] px-2.5 py-2 text-base' : 'px-2.5 py-1 text-[11px]'}
                   ${isOn
                     ? 'bg-sky-500/25 border border-sky-400/50 text-sky-300'
-                    : 'border border-transparent text-slate-400 hover:bg-slate-700/60 hover:text-slate-300'
+                    : 'border border-transparent text-slate-400 hover:bg-slate-700/60 hover:text-slate-300 hover:shadow-[0_0_12px_rgba(56,189,248,0.15)] hover:border-sky-500/20'
                   }`}
                 title={isMobile ? btn.label : `${btn.label} (W para ciclar)`}
               >

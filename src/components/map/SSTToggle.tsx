@@ -18,7 +18,7 @@ export const SSTToggle = memo(function SSTToggle() {
 
   const btnClasses = visible
     ? 'bg-orange-500/25 border border-orange-400/50 text-orange-300 shadow-[0_0_15px_rgba(249,115,22,0.3)]'
-    : 'bg-slate-800/60 border border-slate-600/40 text-slate-400 hover:bg-slate-700/60 hover:text-slate-300';
+    : 'bg-slate-800/60 border border-slate-600/40 text-slate-400 hover:bg-slate-700/60 hover:text-slate-300 hover:shadow-[0_0_12px_rgba(249,115,22,0.2)] hover:border-orange-500/30';
 
   return (
     <button

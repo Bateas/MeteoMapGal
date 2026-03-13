@@ -29,7 +29,7 @@ export const SectorSelector = memo(function SectorSelector() {
               ${isMobile ? 'gap-0 min-w-[44px] min-h-[44px] px-2.5 py-2 text-base' : 'gap-1 px-2.5 py-1.5 text-[11px]'}
               ${isActive
                 ? 'bg-blue-600/90 text-white border-blue-500/50'
-                : 'bg-slate-900/80 text-slate-400 border-slate-700/50 hover:text-white hover:bg-slate-800/90'
+                : 'bg-slate-900/80 text-slate-400 border-slate-700/50 hover:text-white hover:bg-slate-800/90 hover:shadow-[0_0_12px_rgba(148,163,184,0.15)] hover:border-slate-500/40'
             }`}
           >
             <WeatherIcon id={sector.icon} size={isMobile ? 18 : 14} />
