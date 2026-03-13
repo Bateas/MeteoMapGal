@@ -9,6 +9,7 @@ const SOURCE_LABELS: Record<WeatherSource, string> = {
   meteoclimatic: 'MC',
   wunderground: 'WU',
   netatmo: 'NT',
+  skyx: 'SX',
 };
 
 const STALE_MS = 20 * 60 * 1000; // 20 min → stale
