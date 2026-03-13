@@ -14,6 +14,7 @@ import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
 import type { SpotScore, SpotVerdict, SpotThermalContext } from '../../services/spotScoringEngine';
+import type { SpotWindowResult } from '../../services/sailingWindowService';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 // ── Verdict styling (5-level) ─────────────────────────────────────
@@ -33,6 +34,7 @@ export const SpotSelector = memo(function SpotSelector() {
   const activeSpotId = useSpotStore((s) => s.activeSpotId);
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const scores = useSpotStore((s) => s.scores);
+  const sailingWindows = useSpotStore((s) => s.sailingWindows);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
@@ -86,6 +88,7 @@ export const SpotSelector = memo(function SpotSelector() {
           <p className="text-[11px] text-slate-400 truncate mt-0.5">
             {activeScore?.summary ?? 'Esperando datos...'}
           </p>
+          <NextWindowSummary spotId={activeSpot.id} sailingWindows={sailingWindows} />
         </div>
         <WeatherIcon
           id={expanded ? 'x' : 'info'}
@@ -339,5 +342,25 @@ function DetailRow({ icon, iconColor, label, value, color }: {
       <span className="text-[10px] text-slate-500 w-[72px] flex-shrink-0">{label}</span>
       <span className={`text-[11px] font-semibold ${color} truncate`}>{value}</span>
     </div>
+  );
+}
+
+// ── Next sailing window summary (in header) ──────────────────────
+
+function NextWindowSummary({ spotId, sailingWindows }: {
+  spotId: string;
+  sailingWindows: Map<string, SpotWindowResult>;
+}) {
+  const result = sailingWindows.get(spotId);
+  if (!result || result.windows.length === 0) return null;
+
+  const best = result.bestWindow;
+  if (!best) return null;
+
+  const dot = best.verdict === 'good' ? '🟢' : '🟡';
+  return (
+    <p className="text-[10px] text-emerald-400/80 truncate mt-0.5">
+      {dot} {best.summary}
+    </p>
   );
 }

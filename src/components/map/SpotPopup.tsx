@@ -13,6 +13,7 @@ import { useUIStore } from '../../store/uiStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
+import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 
 // ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -31,7 +32,9 @@ interface SpotPopupProps {
 
 export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps) {
   const selectSpot = useSpotStore((s) => s.selectSpot);
+  const sailingWindows = useSpotStore((s) => s.sailingWindows);
   const isMobile = useUIStore((s) => s.isMobile);
+  const windowResult = sailingWindows.get(spot.id);
 
   const verdict: SpotVerdict = score?.verdict ?? 'unknown';
   const vs = VERDICT_STYLE[verdict];
@@ -151,6 +154,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Sailing windows (collapsible) ── */}
+      {windowResult && <SailingWindowsSection result={windowResult} />}
+
       {/* ── Webcams (collapsible) ── */}
       {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} />}
 
@@ -218,6 +224,61 @@ function Cell({ label, value, color }: { label: string; value: string; color?: s
       <span className="font-bold text-slate-200" style={color ? { color } : undefined}>
         {value}
       </span>
+    </div>
+  );
+}
+
+// ── Sailing windows (collapsible) ─────────────────────────────
+
+function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
+  const [open, setOpen] = useState(false);
+  const { windows, bestWindow } = result;
+
+  if (windows.length === 0) {
+    return (
+      <div className="mt-2 pt-1.5 border-t border-slate-700/40">
+        <div className="flex items-center gap-1 text-[10px] text-slate-500">
+          <span>📅</span>
+          <span>Sin ventanas de viento en 48h</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 pt-1.5 border-t border-slate-700/40">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+      >
+        <span className="shrink-0">📅</span>
+        <span className="font-semibold">Mejores ventanas</span>
+        <span className="text-slate-500 text-[9px] ml-1">({windows.length})</span>
+        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-1">
+          {windows.map((w, i) => (
+            <WindowRow key={i} window={w} isBest={bestWindow === w} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WindowRow({ window: w, isBest }: { window: SailingWindow; isBest: boolean }) {
+  const dot = w.verdict === 'good' ? '🟢' : '🟡';
+  return (
+    <div className={`bg-slate-800/40 rounded px-2 py-1 ${isBest ? 'ring-1 ring-emerald-500/30' : ''}`}>
+      <div className="flex items-center gap-1.5 text-[10px]">
+        <span className="shrink-0">{dot}</span>
+        <span className="font-bold text-slate-200 flex-1">{w.summary}</span>
+        <span className="text-slate-500 font-mono text-[9px]">{w.avgScore}</span>
+      </div>
+      {isBest && (
+        <div className="text-[9px] text-emerald-400 mt-0.5">★ Mejor ventana</div>
+      )}
     </div>
   );
 }
