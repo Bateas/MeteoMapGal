@@ -25,7 +25,8 @@ const RESCORE_INTERVAL = 30_000; // 30s
 export function useSpotScoring() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const stations = useWeatherStore((s) => s.stations);
-  const readings = useWeatherStore((s) => s.currentReadings);
+  // Use readingsEpoch as reactive trigger — Map references can fool Zustand's Object.is check
+  const readingsEpoch = useWeatherStore((s) => s.readingsEpoch);
   const buoys = useBuoyStore((s) => s.buoys);
   const setScores = useSpotStore((s) => s.setScores);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -50,9 +51,10 @@ export function useSpotScoring() {
     if (spots.length === 0) return;
     if (stations.length === 0 && buoys.length === 0) return;
 
-    // Throttle re-scores
+    // Throttle re-scores — shorter interval on first score for fast startup
     const now = Date.now();
-    if (now - lastScoredRef.current < RESCORE_INTERVAL) return;
+    const minInterval = lastScoredRef.current === 0 ? 2_000 : RESCORE_INTERVAL;
+    if (now - lastScoredRef.current < minInterval) return;
 
     // Build thermal context if any spot in this sector uses thermalDetection
     const hasThermalSpots = spots.some((s) => s.thermalDetection);
@@ -62,15 +64,16 @@ export function useSpotScoring() {
       thermalData = buildThermalContext(dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast);
     }
 
-    // Defer scoring to avoid blocking render
+    // Defer scoring to avoid blocking render — read readings fresh from store
     timerRef.current = setTimeout(() => {
-      const scores = scoreAllSpots(spots, stations, readings, buoys, thermalData);
+      const currentReadings = useWeatherStore.getState().currentReadings;
+      const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData);
       setScores(scores);
       lastScoredRef.current = Date.now();
     }, 100);
 
     return () => clearTimeout(timerRef.current);
-  }, [sectorId, stations, readings, buoys, setScores, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast]);
+  }, [sectorId, stations, readingsEpoch, buoys, setScores, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast]);
 }
 
 /**
