@@ -41,6 +41,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
   const scores = useSpotStore((s) => s.scores);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
+  const isLoading = scores.size === 0;
 
   return (
     <>
@@ -59,6 +60,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
             verdict={verdict}
             windKt={score?.wind?.avgSpeedKt ?? null}
             isActive={isActive}
+            isLoading={isLoading}
             onSelect={selectSpot}
           />
         );
@@ -78,6 +80,7 @@ interface SpotMarkerItemProps {
   verdict: SpotVerdict;
   windKt: number | null;
   isActive: boolean;
+  isLoading: boolean;
   onSelect: (id: string) => void;
 }
 
@@ -90,6 +93,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   verdict,
   windKt,
   isActive,
+  isLoading,
   onSelect,
 }: SpotMarkerItemProps) {
   const colors = VERDICT_COLORS[verdict];
@@ -202,19 +206,20 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
 
         {/* Verdict badge — top-right — shows kt for sailor glance value */}
         <div
-          className="absolute -top-0.5 -right-0.5 rounded-full px-1.5 py-px pointer-events-none whitespace-nowrap border"
+          className="absolute -top-0.5 -right-0.5 rounded-full pointer-events-none whitespace-nowrap border flex items-center gap-0.5"
           style={{
             fontSize: 9,
             fontWeight: 800,
             fontFamily: 'ui-monospace, monospace',
             lineHeight: '12px',
+            padding: isLoading ? '2px 5px' : '1px 6px',
             background: 'rgba(15, 23, 42, 0.92)',
-            borderColor: `${colors.ring}80`,
-            color: colors.text,
-            textShadow: `0 0 5px ${colors.glow}66`,
+            borderColor: isLoading ? '#60a5fa80' : `${colors.ring}80`,
+            color: isLoading ? '#93c5fd' : colors.text,
+            textShadow: isLoading ? 'none' : `0 0 5px ${colors.glow}66`,
           }}
         >
-          {badgeText}
+          {isLoading ? <LoadingSpinner /> : badgeText}
         </div>
 
         {/* Name label — below marker (dark pill for legibility on any terrain) */}
@@ -233,3 +238,24 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
     </Marker>
   );
 });
+
+// ── Loading spinner for spot badges ─────────────────────────────
+/** Tiny animated arc spinner — shown while scoring data loads */
+function LoadingSpinner() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" style={{ display: 'block' }}>
+      <circle cx="6" cy="6" r="4.5" fill="none" stroke="#334155" strokeWidth="1.5" />
+      <circle
+        cx="6" cy="6" r="4.5" fill="none"
+        stroke="#60a5fa" strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeDasharray="14 14"
+      >
+        <animateTransform
+          attributeName="transform" type="rotate"
+          values="0 6 6;360 6 6" dur="1s" repeatCount="indefinite"
+        />
+      </circle>
+    </svg>
+  );
+}
