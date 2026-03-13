@@ -192,8 +192,14 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
   }
 
   // Process SkyX personal station AFTER dedup (user's own — never deduped)
+  // Non-blocking: race against 5s timeout to prevent blocking other sources
   try {
-    const skyxResult = await fetchSkyXData(params.center, radiusKm);
+    const skyxResult = await Promise.race([
+      fetchSkyXData(params.center, radiusKm),
+      new Promise<{ station: null; reading: null }>((resolve) =>
+        setTimeout(() => resolve({ station: null, reading: null }), 5_000)
+      ),
+    ]);
     if (skyxResult.station) {
       result.push(skyxResult.station);
     }
