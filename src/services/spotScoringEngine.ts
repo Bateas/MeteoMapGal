@@ -256,11 +256,12 @@ function windVerdict(spd: number, spotId: SpotId): SpotVerdict {
   // Round to integer — same as displayed value, avoids "CALMA 8kt" incoherence
   const kt = Math.round(spd);
 
-  // Cíes-Ría: ocean conditions need more wind
+  // Cíes-Ría: ocean conditions — needs "light" category for coherence
   if (spotId === 'cies-ria') {
-    if (kt < 8) return 'calm';       // ocean <8kt = nothing
-    if (kt < 12) return 'sailing';
-    if (kt < 18) return 'good';
+    if (kt < 5) return 'calm';        // ocean <5kt = truly nothing
+    if (kt < 10) return 'light';      // 5-9kt = breeze but not enough for ocean
+    if (kt < 14) return 'sailing';    // 10-13kt = navigable ocean
+    if (kt < 18) return 'good';       // 14-17kt = good ocean sailing
     return 'strong'; // ≥18kt (hard gate catches danger)
   }
 
@@ -336,11 +337,12 @@ function scoreSpot(
     else if (spd <= 22) score += 48;
     else score += 30;
   } else if (spot.id === 'cies-ria') {
-    if (spd < 8) score += 0;
-    else if (spd < 12) score += 15;
-    else if (spd < 15) score += 30;
-    else if (spd <= 22) score += 42;
-    else score += 25;
+    if (spd < 5) score += 0;
+    else if (spd < 10) score += 8;     // light — not enough for ocean
+    else if (spd < 14) score += 22;    // sailing
+    else if (spd < 18) score += 38;    // good
+    else if (spd <= 22) score += 42;   // strong but manageable
+    else score += 25;                  // overpowered
   } else {
     // Centro Ría
     if (spd < 6) score += 0;
