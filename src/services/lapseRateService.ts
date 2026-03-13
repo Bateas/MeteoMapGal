@@ -94,6 +94,7 @@ export const MIN_INVERSION_SLOPE = 1.0;
 
 /**
  * Extract stations with valid, fresh temperature readings and reliable altitude.
+ * Used for **lapse rate regression** — requires altitude ≥ MIN_VALID_ALTITUDE.
  *
  * Filters out:
  * - Stations with altitude < MIN_VALID_ALTITUDE (bad data from APIs returning 0)
@@ -104,12 +105,32 @@ export function extractStationTemps(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
 ): StationTempData[] {
+  return extractTemps(stations, readings, true);
+}
+
+/**
+ * Extract ALL stations with valid, fresh temperature readings.
+ * Used for the **temperature overlay** — no altitude filter, so coastal
+ * stations at 0-29m are included for visual display.
+ */
+export function extractAllStationTemps(
+  stations: NormalizedStation[],
+  readings: Map<string, NormalizedReading>,
+): StationTempData[] {
+  return extractTemps(stations, readings, false);
+}
+
+function extractTemps(
+  stations: NormalizedStation[],
+  readings: Map<string, NormalizedReading>,
+  requireAltitude: boolean,
+): StationTempData[] {
   const now = Date.now();
   const result: StationTempData[] = [];
 
   for (const s of stations) {
-    // Skip stations with unreliable altitude
-    if (s.altitude < MIN_VALID_ALTITUDE) continue;
+    // Skip stations with unreliable altitude (only for lapse rate analysis)
+    if (requireAltitude && s.altitude < MIN_VALID_ALTITUDE) continue;
 
     const r = readings.get(s.id);
     if (!r || r.temperature === null) continue;
