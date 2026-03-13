@@ -7,6 +7,7 @@ import { fetchNetatmoStations } from './netatmoClient';
 import { normalizeAemetStation, normalizeMeteoGaliciaStation, normalizeMeteoclimaticStation } from '../services/normalizer';
 import { isWithinRadius } from '../services/geoUtils';
 import { METEOCLIMATIC_STATIONS } from '../types/meteoclimatic';
+import { fetchSkyXData } from './skyxClient';
 
 export interface DiscoveryParams {
   center: [number, number];        // [lon, lat]
@@ -190,6 +191,16 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
     result = deduplicateByProximity(result);
   }
 
+  // Process SkyX personal station AFTER dedup (user's own — never deduped)
+  try {
+    const skyxResult = await fetchSkyXData(params.center, radiusKm);
+    if (skyxResult.station) {
+      result.push(skyxResult.station);
+    }
+  } catch (err) {
+    console.debug('[Discovery] SkyX fetch failed:', err);
+  }
+
   console.debug(`[Discovery] Total stations: ${result.length}`);
   return result;
 }
@@ -248,6 +259,7 @@ const SOURCE_PRIORITY: Record<string, number> = {
   meteoclimatic: 30,  // curated amateur network, consistent
   wunderground: 20,   // personal weather stations, variable quality
   netatmo: 10,        // consumer devices
+  skyx: 5,            // personal consumer device
 };
 
 /**
