@@ -417,7 +417,16 @@ export function buildFieldAlerts(
       score,
       icon: 'fog',
       title: field.fog.level === 'critico' ? 'NIEBLA INMINENTE' : 'Riesgo de niebla',
-      detail: `${spreadStr} · ${field.fog.confidence}% confianza`,
+      detail: [
+        spreadStr,
+        field.fog.spreadTrend !== null
+          ? `${field.fog.spreadTrend > 0 ? '+' : ''}${field.fog.spreadTrend.toFixed(1)}°C/h`
+          : '',
+        field.fog.fogEta
+          ? `ETA ~${field.fog.fogEta.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+          : '',
+        `${field.fog.confidence}% confianza`,
+      ].filter(Boolean).join(' · '),
       urgent: field.fog.level === 'critico',
       updatedAt: now,
     });
