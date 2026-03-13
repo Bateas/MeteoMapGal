@@ -8,7 +8,7 @@ import { useSectorStore } from '../../store/sectorStore';
 import { BUOY_COORDS_MAP } from '../../api/buoyClient';
 import { temperatureColor } from '../../services/windUtils';
 import { waterTempColor } from '../../services/buoyUtils';
-import { extractStationTemps } from '../../services/lapseRateService';
+import { extractAllStationTemps } from '../../services/lapseRateService';
 
 // ── Empty GeoJSON for stable reference when overlay is off ──
 const EMPTY_FC: GeoJSON.FeatureCollection = {
@@ -120,7 +120,7 @@ export const TemperatureOverlay = memo(function TemperatureOverlay() {
     const features: GeoJSON.Feature[] = [];
 
     // Weather station air temps
-    const temps = extractStationTemps(stations, currentReadings);
+    const temps = extractAllStationTemps(stations, currentReadings);
     for (const t of temps) {
       features.push({
         type: 'Feature',
