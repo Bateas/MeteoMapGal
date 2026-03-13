@@ -23,6 +23,15 @@ import { SOURCE_CONFIG } from '../../config/sourceConfig';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import { WindStatsPanel } from './WindStatsPanel';
+import { useSpotStore } from '../../store/spotStore';
+import { useForecastStore } from '../../hooks/useForecastTimeline';
+import { useSectorStore } from '../../store/sectorStore';
+import {
+  findNearestForecastHour,
+  computeDelta,
+  formatWindDelta,
+  formatTempDelta,
+} from '../../services/forecastDeltaService';
 
 // ── Wind sparkline (last ~1h of wind speed) ────────────────
 
@@ -98,11 +107,34 @@ function useWindTrend(stationId: string, currentSpeed: number | null): { symbol:
   }, [currentSpeed, history]);
 }
 
+/** Compute forecast delta for a single station reading */
+function useForecastDelta(reading?: NormalizedReading) {
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const embalseForecast = useForecastStore((s) => s.hourly);
+  const sectorForecast = useSpotStore((s) => s.sectorForecast);
+
+  return useMemo(() => {
+    if (!reading) return null;
+
+    // Pick forecast source: Embalse uses dedicated forecast store, Rías uses spot store
+    const forecast = sectorId === 'embalse' ? embalseForecast : sectorForecast;
+    if (!forecast || forecast.length === 0) return null;
+
+    const fcst = findNearestForecastHour(forecast, reading.timestamp);
+    if (!fcst) return null;
+
+    return computeDelta(reading, fcst);
+  }, [reading, sectorId, embalseForecast, sectorForecast]);
+}
+
 export const StationCard = memo(function StationCard({ station, reading }: StationCardProps) {
   const selectStation = useWeatherStore((s) => s.selectStation);
   const selectedId = useWeatherStore((s) => s.selectedStationId);
   const isSelected = selectedId === station.id;
   const trend = useWindTrend(station.id, reading?.windSpeed ?? null);
+  const delta = useForecastDelta(reading);
+  const windDelta = useMemo(() => formatWindDelta(delta?.windDeltaKt ?? null), [delta?.windDeltaKt]);
+  const tempDelta = useMemo(() => formatTempDelta(delta?.tempDelta ?? null), [delta?.tempDelta]);
 
   // Data freshness pulse — brief highlight when wind speed changes
   const prevWindRef = useRef(reading?.windSpeed ?? null);
@@ -208,6 +240,14 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
                     {trend.symbol}
                   </span>
                 )}
+                {windDelta && (
+                  <span
+                    className={`text-[10px] font-bold ${windDelta.color}`}
+                    title={windDelta.title}
+                  >
+                    {windDelta.text}
+                  </span>
+                )}
                 <WindSparkline stationId={station.id} />
               </div>
               {reading.windGust !== null && reading.windGust > 0 && (
@@ -218,11 +258,21 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
             </div>
             <div>
               <div className="text-[11px] text-slate-500">Temp</div>
-              <div
-                className="text-sm font-bold"
-                style={{ color: temperatureColor(reading.temperature) }}
-              >
-                {formatTemperature(reading.temperature)}
+              <div className="flex items-baseline gap-1">
+                <span
+                  className="text-sm font-bold"
+                  style={{ color: temperatureColor(reading.temperature) }}
+                >
+                  {formatTemperature(reading.temperature)}
+                </span>
+                {tempDelta && (
+                  <span
+                    className={`text-[10px] font-bold ${tempDelta.color}`}
+                    title={tempDelta.title}
+                  >
+                    {tempDelta.text}
+                  </span>
+                )}
               </div>
             </div>
             <div>
