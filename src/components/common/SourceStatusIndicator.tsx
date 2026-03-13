@@ -8,9 +8,10 @@ const SOURCE_LABELS: Record<WeatherSource, string> = {
   meteoclimatic: 'MC',
   wunderground: 'WU',
   netatmo: 'NT',
+  skyx: 'SX',
 };
 
-const SOURCE_ORDER: WeatherSource[] = ['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo'];
+const SOURCE_ORDER: WeatherSource[] = ['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx'];
 
 function formatAge(date: Date | null): string {
   if (!date) return 'Sin datos';

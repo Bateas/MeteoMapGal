@@ -3,7 +3,7 @@ import { devtools } from 'zustand/middleware';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MAX_HISTORY_ENTRIES } from '../config/constants';
 
-export type WeatherSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo';
+export type WeatherSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx';
 
 export interface SourceStatus {
   lastSuccess: Date | null;

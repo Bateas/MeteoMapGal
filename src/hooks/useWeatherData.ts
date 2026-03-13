@@ -8,6 +8,7 @@ import { fetchLatestForStations } from '../api/meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
 import { fetchWUObservations } from '../api/wundergroundClient';
 import { fetchNetatmoObservations } from '../api/netatmoClient';
+import { fetchSkyXReading } from '../api/skyxClient';
 import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
 import { normalizeAemetObservation, normalizeMeteoGaliciaObservation, normalizeMeteoclimaticObservation } from '../services/normalizer';
 import type { NormalizedReading } from '../types/station';
@@ -148,6 +149,22 @@ export function useWeatherData() {
       );
     }
 
+    // SkyX personal station
+    const skyxStations = stations.filter((s) => s.source === 'skyx');
+    if (skyxStations.length > 0) {
+      tasks.push(
+        fetchSkyXReading().then((reading) => {
+          const readings = reading ? [reading] : [];
+          updateSourceStatus('skyx', true, readings.length);
+          return readings;
+        }).catch((err) => {
+          console.error('[WeatherData] SkyX fetch error:', err);
+          updateSourceStatus('skyx', false, 0, String(err));
+          return [];
+        })
+      );
+    }
+
     try {
       const results = await Promise.all(tasks);
       const allReadings = results.flat();
@@ -159,7 +176,7 @@ export function useWeatherData() {
 
       // Toast for source errors (once per source)
       // Derive "ok" from timestamps — SourceStatus has no `.ok` property
-      const sourceNames: Record<string, string> = { aemet: 'AEMET', meteogalicia: 'MeteoGalicia', meteoclimatic: 'Meteoclimatic', wunderground: 'Weather Underground', netatmo: 'Netatmo' };
+      const sourceNames: Record<string, string> = { aemet: 'AEMET', meteogalicia: 'MeteoGalicia', meteoclimatic: 'Meteoclimatic', wunderground: 'Weather Underground', netatmo: 'Netatmo', skyx: 'SkyX' };
       for (const [src, name] of Object.entries(sourceNames)) {
         const status = useWeatherStore.getState().sourceFreshness.get(src);
         const isOk = status?.lastSuccess && (!status.lastError || status.lastSuccess > status.lastError);
