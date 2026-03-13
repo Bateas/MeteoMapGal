@@ -7,7 +7,7 @@
  * Badge shows wind in knots — the data a sailor actually needs.
  * Sector-aware: renders spots for the active sector.
  */
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import { getSpotsForSector } from '../../config/spots';
 import { useSpotStore } from '../../store/spotStore';
@@ -15,14 +15,14 @@ import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
-// ── Verdict colors (5-level scale) ───────────────────────────────
+// ── Verdict colors — matches windSpeedColor() scale for coherence ──
 const VERDICT_COLORS: Record<SpotVerdict, { ring: string; bg: string; text: string; glow: string }> = {
-  calm:    { ring: '#94a3b8', bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', glow: '#64748b' },
-  light:   { ring: '#f87171', bg: 'rgba(239, 68, 68, 0.12)',   text: '#f87171', glow: '#ef4444' },
-  sailing: { ring: '#fbbf24', bg: 'rgba(245, 158, 11, 0.15)',  text: '#fbbf24', glow: '#f59e0b' },
-  good:    { ring: '#34d399', bg: 'rgba(16, 185, 129, 0.15)',   text: '#34d399', glow: '#10b981' },
-  strong:  { ring: '#22d3ee', bg: 'rgba(6, 182, 212, 0.15)',    text: '#22d3ee', glow: '#06b6d4' },
-  unknown: { ring: '#94a3b8', bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', glow: '#64748b' },
+  calm:    { ring: '#94a3b8', bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', glow: '#64748b' },  // slate (calm)
+  light:   { ring: '#22c55e', bg: 'rgba(34, 197, 94, 0.12)',   text: '#4ade80', glow: '#22c55e' },   // green (6-8kt)
+  sailing: { ring: '#a3e635', bg: 'rgba(163, 230, 53, 0.12)',  text: '#bef264', glow: '#84cc16' },   // lime (8-12kt)
+  good:    { ring: '#eab308', bg: 'rgba(234, 179, 8, 0.12)',   text: '#facc15', glow: '#ca8a04' },   // yellow (12-18kt)
+  strong:  { ring: '#f97316', bg: 'rgba(249, 115, 22, 0.12)',  text: '#fb923c', glow: '#ea580c' },   // orange (18kt+)
+  unknown: { ring: '#94a3b8', bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', glow: '#64748b' },  // slate
 };
 
 /** Short map labels — must fit in a tiny badge */
@@ -39,9 +39,19 @@ export const SpotMarkers = memo(function SpotMarkers() {
   const activeSpotId = useSpotStore((s) => s.activeSpotId);
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const scores = useSpotStore((s) => s.scores);
+  const lastScored = useSpotStore((s) => s.lastScored);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
-  const isLoading = scores.size === 0;
+
+  // Show spinner until scoring has run + 3s grace period.
+  // Spots mount under the loading screen (~10s), so we delay dismissal
+  // after first scoring to give a visible spinner during map reveal.
+  const [showSpinner, setShowSpinner] = useState(true);
+  useEffect(() => {
+    if (lastScored === 0) return; // not scored yet — keep spinner
+    const timer = setTimeout(() => setShowSpinner(false), 3_000);
+    return () => clearTimeout(timer);
+  }, [lastScored > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -49,6 +59,8 @@ export const SpotMarkers = memo(function SpotMarkers() {
         const score = scores.get(spot.id);
         const verdict: SpotVerdict = score?.verdict ?? 'unknown';
         const isActive = spot.id === activeSpotId;
+        // Show spinner while global grace period OR this spot has no data
+        const spotLoading = showSpinner || verdict === 'unknown';
         return (
           <SpotMarkerItem
             key={spot.id}
@@ -60,7 +72,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
             verdict={verdict}
             windKt={score?.wind?.avgSpeedKt ?? null}
             isActive={isActive}
-            isLoading={isLoading}
+            isLoading={spotLoading}
             onSelect={selectSpot}
           />
         );
