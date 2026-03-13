@@ -126,7 +126,7 @@ export const useMapStyleStore = create<MapStyleState>()(
   devtools(
     persist(
       (set, get) => ({
-        activeStyleId: 'osm' as MapStyleId,
+        activeStyleId: 'voyager' as MapStyleId,
         showSeamarks: false,
         showNauticalChart: false,
         showIGNHillshade: false,
