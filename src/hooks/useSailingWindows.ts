@@ -84,6 +84,7 @@ async function fetchRiasForecast(): Promise<HourlyForecast[]> {
 export function useSailingWindows() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const setSailingWindows = useSpotStore((s) => s.setSailingWindows);
+  const setSectorForecast = useSpotStore((s) => s.setSectorForecast);
 
   const embalseHourly = useForecastStore((s) => s.hourly);
   const thermalRules = useThermalStore((s) => s.rules);
@@ -115,13 +116,14 @@ export function useSailingWindows() {
       }
 
       setSailingWindows(windows);
+      setSectorForecast(forecast);
 
       const totalWindows = Array.from(windows.values()).reduce((s, w) => s + w.windows.length, 0);
       console.log(`[SailingWindows] Computed ${totalWindows} windows for ${spots.length} spots`);
     } catch (err) {
       console.error('[SailingWindows] Error:', err);
     }
-  }, [sectorId, embalseHourly, thermalRules, setSailingWindows]);
+  }, [sectorId, embalseHourly, thermalRules, setSailingWindows, setSectorForecast]);
 
   useVisibilityPolling(poll, POLL_INTERVAL_MS);
 }
