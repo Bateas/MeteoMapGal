@@ -303,6 +303,10 @@ export const AlertPanel = memo(function AlertPanel() {
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
         }}
         onClick={togglePanel}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePanel(); } }}
+        tabIndex={0}
+        role="button"
+        aria-label="Ver panel de alertas"
       >
         <SemaphoreDot risk={risk} />
 
