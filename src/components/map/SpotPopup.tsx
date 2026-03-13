@@ -14,13 +14,13 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
 
-// ── Verdict palette (synced with SpotMarker) ────────────────
+// ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
   calm:    { color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', label: 'CALMA' },
-  light:   { color: '#f87171', bg: 'rgba(239,68,68,0.12)',   label: 'FLOJO' },
-  sailing: { color: '#fbbf24', bg: 'rgba(245,158,11,0.15)',  label: 'NAVEGABLE' },
-  good:    { color: '#34d399', bg: 'rgba(16,185,129,0.15)',   label: 'BUENO' },
-  strong:  { color: '#22d3ee', bg: 'rgba(6,182,212,0.15)',    label: 'FUERTE' },
+  light:   { color: '#4ade80', bg: 'rgba(34,197,94,0.12)',   label: 'FLOJO' },
+  sailing: { color: '#bef264', bg: 'rgba(163,230,53,0.12)',  label: 'NAVEGABLE' },
+  good:    { color: '#facc15', bg: 'rgba(234,179,8,0.12)',   label: 'BUENO' },
+  strong:  { color: '#fb923c', bg: 'rgba(249,115,22,0.12)',  label: 'FUERTE' },
   unknown: { color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', label: 'SIN DATOS' },
 };
 
