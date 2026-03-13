@@ -207,13 +207,14 @@ export function AppShell() {
       stormShadow,
       currentReadings,
       readingHistory,
-      buoys: buoys.length > 0 ? buoys : undefined,
+      // Maritime alerts (cross-sea, fog) only apply to coastal Rías sector
+      buoys: activeSector.id === 'rias' && buoys.length > 0 ? buoys : undefined,
       stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
     });
     setUnifiedAlerts(alerts, risk);
     // Trigger notifications for new/escalated alerts
     processAlertNotifications(alerts, risk, notifConfig);
-  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, readingHistory, buoys, stations]);
+  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, readingHistory, buoys, stations, activeSector.id]);
 
   // ── Keyboard shortcuts (desktop only) ───────────────────
   useEffect(() => {
