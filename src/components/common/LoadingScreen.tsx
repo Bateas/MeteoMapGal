@@ -8,6 +8,7 @@ const SOURCE_META: Record<WeatherSource, { label: string; abbr: string; color: s
   meteoclimatic: { label: 'Meteoclimatic', abbr: 'MC', color: '#f59e0b' },
   wunderground: { label: 'Weather Underground', abbr: 'WU', color: '#8b5cf6' },
   netatmo: { label: 'Netatmo', abbr: 'NT', color: '#06b6d4' },
+  skyx: { label: 'SkyX', abbr: 'SX', color: '#ec4899' },
 };
 
 const SOURCES: WeatherSource[] = ['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo'];

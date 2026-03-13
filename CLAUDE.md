@@ -19,13 +19,13 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 - **MapLibre GL JS 5.19** (react-map-gl/maplibre) with 3D terrain
 - **Zustand 5** for state (12 stores: weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy, mapStyle)
 - **Vitest 4** with 159 tests across 7 test files
-- **Five real-time sources**: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo
+- **Six real-time sources**: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo, SkyX
 - **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), Lightning (meteo2api), AEMET Radar (Cuntis), EUMETSAT satellite, ENAIRE airspace, IHM tides, Puertos del Estado (marine buoys), Observatorio Costeiro da Xunta (supplementary buoy data — humidity, dew point, 10min resolution), RADAR ON RAIA / INTECMAR (HF radar surface currents WMS — Rías only), CMEMS / Copernicus Marine (SST WMTS tiles — Rías only), OpenSeaMap (seamark overlay — Rías only), IHM ENC (official nautical charts WMS — Rías only)
 - **Map base styles**: 6 switchable base maps via `mapStyleStore` — OSM, Positron (light), Dark Matter, Voyager, IGN Topográfico, IGN Base Gris. All free, no API keys. Dynamic `buildMapStyle()` rebuilds full MapLibre StyleSpecification on switch
 - **Multi-sector**: `sectorStore.ts` + `src/config/sectors.ts` define Embalse / Rías Baixas with independent center, radius, regions
 - **PWA**: Service worker (`public/sw.js`) + web manifest for installable app
 - **n8n webhook**: `src/api/webhookClient.ts` posts alerts to n8n for Telegram notifications (non-critical, fails silently)
-- **Vite proxy** for CORS (15 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`, `/enaire-api`, `/ihm-api`, `/eumetsat-api`, `/portus-api`, `/obscosteiro-api`, `/hfradar-api`, `/api/v1` (history)
+- **Vite proxy** for CORS (16 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`, `/enaire-api`, `/ihm-api`, `/eumetsat-api`, `/portus-api`, `/obscosteiro-api`, `/hfradar-api`, `/skyx-api`, `/api/v1` (history)
 - **Production deployment**: nginx reverse proxy (`nginx.conf`) to Proxmox LXC, mirrors all Vite proxy routes
 - **TimescaleDB ingestor**: `ingestor/` — standalone Node.js service polling 5 sources every 5min → TimescaleDB. Runs as `meteo-ingestor.service` (systemd) on LXC 305. Reuses `normalizer.ts` + `geoUtils.ts` from `src/`
 
@@ -33,7 +33,7 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 
 - **Internal units**: m/s for wind speed. Display in **knots (kt)** via `msToKnots()`.
 - **Wind direction**: meteorological "from" convention. Arrows point "to" (add 180°).
-- **Station IDs**: prefixed by source (`aemet_`, `mg_`, `mc_`, `wu_`, `nt_`).
+- **Station IDs**: prefixed by source (`aemet_`, `mg_`, `mc_`, `wu_`, `nt_`, `skyx_`).
 - **Normalization**: All vendor types → `NormalizedStation` / `NormalizedReading` (see `src/services/normalizer.ts`). Includes `pressure` (hPa), `dewPoint` (°C), `solarRadiation` (W/m²) — all `number | null`.
 - **Language**: UI in Spanish. Git commits in English.
 - **AEMET `dir` field**: In **decadegrees** (0-36), NOT real degrees. Multiply by 10. `dir=99` = variable, `dir=0` = calm.
