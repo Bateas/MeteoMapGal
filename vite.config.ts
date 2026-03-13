@@ -116,6 +116,12 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/hfradar-api/, '/thredds/wms/HFRADAR_Galicia_Aggr_NRT_v2.2_Totals'),
         secure: true,
       },
+      '/noaa-api': {
+        target: 'https://ftp.cpc.ncep.noaa.gov',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/noaa-api/, ''),
+        secure: true,
+      },
       '/api/v1': {
         target: 'http://192.168.10.120:3001',
         changeOrigin: true,
