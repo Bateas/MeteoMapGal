@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { ALL_SPOTS, DEFAULT_SPOT_ID, type SailingSpot } from '../config/spots';
 import type { SpotScore } from '../services/spotScoringEngine';
+import type { SpotWindowResult } from '../services/sailingWindowService';
 
 interface SpotState {
   /** Currently selected spot ID */
@@ -18,11 +19,16 @@ interface SpotState {
   scores: Map<string, SpotScore>;
   /** Last scoring computation timestamp */
   lastScored: number;
+  /** Per-spot sailing window results (keyed by spot.id) */
+  sailingWindows: Map<string, SpotWindowResult>;
+  /** Last sailing window computation timestamp */
+  windowsFetchedAt: number;
 }
 
 interface SpotActions {
   selectSpot: (spotId: string) => void;
   setScores: (scores: Map<string, SpotScore>) => void;
+  setSailingWindows: (windows: Map<string, SpotWindowResult>) => void;
 }
 
 export const useSpotStore = create<SpotState & SpotActions>()(
@@ -33,6 +39,8 @@ export const useSpotStore = create<SpotState & SpotActions>()(
         activeSpot: ALL_SPOTS.find((s) => s.id === DEFAULT_SPOT_ID)!,
         scores: new Map(),
         lastScored: 0,
+        sailingWindows: new Map(),
+        windowsFetchedAt: 0,
 
         selectSpot: (spotId: string) => {
           // Empty string = deselect (close popup, keep last activeSpot for reference)
@@ -47,6 +55,9 @@ export const useSpotStore = create<SpotState & SpotActions>()(
 
         setScores: (scores) =>
           set({ scores, lastScored: Date.now() }, undefined, 'setScores'),
+
+        setSailingWindows: (sailingWindows) =>
+          set({ sailingWindows, windowsFetchedAt: Date.now() }, undefined, 'setSailingWindows'),
       }),
       {
         name: 'spot-store',

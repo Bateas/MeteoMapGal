@@ -34,6 +34,7 @@ import { useToastStore } from '../../store/toastStore';
 import { useAirspace } from '../../hooks/useAirspace';
 import { useBuoyData } from '../../hooks/useBuoyData';
 import { useSpotScoring } from '../../hooks/useSpotScoring';
+import { useSailingWindows } from '../../hooks/useSailingWindows';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 
@@ -92,6 +93,9 @@ export function AppShell() {
 
   // Spot-based sailing scores: re-scores when station/buoy data changes (only for Rías)
   useSpotScoring();
+
+  // Best Sailing Windows: 48h forecast → per-spot window detection (polls every 30 min)
+  useSailingWindows();
 
   // NAO/AO teleconnection indices — fetched once, cached 6h in naoClient
   const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
