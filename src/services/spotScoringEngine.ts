@@ -24,6 +24,7 @@ import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { fastDistanceKm } from './idwInterpolation';
+import type { TeleconnectionIndex } from '../api/naoClient';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -476,9 +477,14 @@ export function scoreAllSpots(
   readings: Map<string, NormalizedReading>,
   buoys: BuoyReading[],
   thermalData?: SpotThermalContext,
+  teleconnections?: TeleconnectionIndex[],
 ): Map<string, SpotScore> {
   const results = new Map<string, SpotScore>();
   const computedAt = new Date();
+
+  // Extract NAO/AO for score modulation
+  const nao = teleconnections?.find((t) => t.name === 'NAO');
+  const ao = teleconnections?.find((t) => t.name === 'AO');
 
   for (const spot of spots) {
     const stationData = selectStationsForSpot(spot, stations, readings);
@@ -496,7 +502,25 @@ export function scoreAllSpots(
       }
     }
 
-    const { score, verdict, hardGate, summary } = scoreSpot(spot, wind, waves, waterTemp);
+    let { score, verdict, hardGate, summary } = scoreSpot(spot, wind, waves, waterTemp);
+
+    // ── NAO/AO score modulation ──────────────────────────
+    // NAO+ = Atlantic storms → consistent wind patterns (+5-8%)
+    // NAO− = anticyclonic blocking → unreliable wind, calms (−5-8%)
+    // AO− = weak polar vortex → variable patterns (−3-5%)
+    // Modulation is multiplicative, capped, and only when NOT calm/unknown
+    if (nao && verdict !== 'calm' && verdict !== 'unknown' && !hardGate) {
+      const naoMod = nao.value * 0.04; // ±4% per index unit (typ. range ±2)
+      const aoMod = ao ? ao.value * 0.02 : 0; // ±2% per AO unit
+      const totalMod = Math.max(-0.12, Math.min(0.12, naoMod + aoMod)); // cap ±12%
+      score = Math.max(0, Math.min(100, Math.round(score * (1 + totalMod))));
+    }
+
+    // ── NAO/AO context line in summary ───────────────────
+    if (nao && verdict !== 'calm' && verdict !== 'unknown') {
+      const naoCtx = naoSummaryContext(nao, ao);
+      if (naoCtx) summary += ` · ${naoCtx}`;
+    }
 
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
     let airTemp: number | null = null;
@@ -543,4 +567,19 @@ export function scoreAllSpots(
   }
 
   return results;
+}
+
+// ── NAO/AO summary context (user-friendly Spanish) ──────────
+
+function naoSummaryContext(nao: TeleconnectionIndex, ao?: TeleconnectionIndex): string | null {
+  const v = nao.value;
+  // Strong signals only — don't clutter summary with neutral
+  if (v > 1.0) return 'Patrón atlántico activo: viento consistente';
+  if (v < -1.0) {
+    if (ao && ao.value < -0.5) return 'Bloqueo + aire frío: calmas y frío';
+    return 'Bloqueo anticiclónico: patrones débiles';
+  }
+  if (ao && ao.value < -1.0) return 'Vórtice polar débil: patrones variables';
+  if (ao && ao.value > 1.0) return 'Chorro polar activo: westerlies fuertes';
+  return null; // neutral — no context worth showing
 }
