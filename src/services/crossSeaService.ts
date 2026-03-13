@@ -36,6 +36,8 @@ export interface CrossSeaRisk {
   waveHeight: number | null;
   /** Wind speed (m/s) */
   windSpeed: number | null;
+  /** Peak wave period (s) — distinguishes swell (≥8s) from wind-sea (<4s) */
+  wavePeriod: number | null;
   /** Source buoy name */
   sourceBuoy: string | null;
   /** Human-readable explanation (Spanish) */
@@ -73,6 +75,7 @@ function assessBuoyCrossSeaRisk(buoy: BuoyReading): CrossSeaRisk {
     windDir: buoy.windDir,
     waveHeight: buoy.waveHeight,
     windSpeed: buoy.windSpeed,
+    wavePeriod: buoy.wavePeriod,
     sourceBuoy: buoy.stationName,
     hypothesis: 'Sin datos de dirección de oleaje o viento',
   };
@@ -120,6 +123,7 @@ function assessBuoyCrossSeaRisk(buoy: BuoyReading): CrossSeaRisk {
       windDir: buoy.windDir,
       waveHeight: buoy.waveHeight,
       windSpeed: buoy.windSpeed,
+      wavePeriod: buoy.wavePeriod,
       sourceBuoy: buoy.stationName,
       hypothesis: `Oleaje alineado con viento (${delta.toFixed(0)}°) — sin mar cruzada`,
     };
@@ -166,6 +170,7 @@ function assessBuoyCrossSeaRisk(buoy: BuoyReading): CrossSeaRisk {
     windDir: buoy.windDir,
     waveHeight: buoy.waveHeight,
     windSpeed: buoy.windSpeed,
+    wavePeriod: buoy.wavePeriod,
     sourceBuoy: buoy.stationName,
     hypothesis: notes.join(' · '),
   };
@@ -181,7 +186,7 @@ export function assessCrossSeaRisk(buoys: BuoyReading[]): CrossSeaRisk {
   if (buoys.length === 0) {
     return {
       level: 'none', angleDelta: null, waveDir: null, windDir: null,
-      waveHeight: null, windSpeed: null, sourceBuoy: null,
+      waveHeight: null, windSpeed: null, wavePeriod: null, sourceBuoy: null,
       hypothesis: 'Sin datos de boyas',
     };
   }
@@ -202,7 +207,7 @@ export function assessCrossSeaRisk(buoys: BuoyReading[]): CrossSeaRisk {
 
   return worst ?? {
     level: 'none', angleDelta: null, waveDir: null, windDir: null,
-    waveHeight: null, windSpeed: null, sourceBuoy: null,
+    waveHeight: null, windSpeed: null, wavePeriod: null, sourceBuoy: null,
     hypothesis: 'Ninguna boya con datos de oleaje direccional',
   };
 }
@@ -223,7 +228,7 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
 
   const angleStr = risk.angleDelta !== null ? `${risk.angleDelta.toFixed(0)}°` : '';
   const buoyStr = risk.sourceBuoy ? ` (${risk.sourceBuoy})` : '';
-  const waveStr = risk.waveHeight !== null ? ` · Hm0 ${risk.waveHeight.toFixed(1)}m` : '';
+  const waveStr = risk.waveHeight !== null ? `Hm0 ${risk.waveHeight.toFixed(1)}m` : '';
 
   return [{
     id: 'cross-sea',
@@ -236,7 +241,17 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
       : risk.level === 'alto'
         ? 'Mar cruzada significativa'
         : 'Mar cruzada moderada',
-    detail: `${angleStr} oleaje-viento${buoyStr}${waveStr}`,
+    detail: [
+      `${angleStr} oleaje-viento${buoyStr}`,
+      waveStr,
+      risk.wavePeriod !== null
+        ? risk.wavePeriod >= TP_SWELL
+          ? `Tp ${risk.wavePeriod.toFixed(0)}s (swell)`
+          : risk.wavePeriod < TP_WIND_SEA
+            ? `Tp ${risk.wavePeriod.toFixed(0)}s (mar viento)`
+            : `Tp ${risk.wavePeriod.toFixed(0)}s`
+        : '',
+    ].filter(Boolean).join(' · '),
     urgent: risk.level === 'critico',
     updatedAt: new Date(),
   }];

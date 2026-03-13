@@ -539,7 +539,12 @@ export function buildMaritimeFogAlerts(
       : risk.level === 'alto'
         ? 'Niebla marítima probable'
         : 'Riesgo de niebla marítima',
-    detail: `${deltaStr}${buoyStr} · ${risk.confidence}% confianza`,
+    detail: [
+      `${deltaStr}${buoyStr}`,
+      risk.humidity !== null ? `HR ${risk.humidity.toFixed(0)}%` : '',
+      risk.isOnshore ? 'viento onshore' : risk.windDir !== null ? 'viento offshore' : '',
+      `${risk.confidence}% confianza`,
+    ].filter(Boolean).join(' · '),
     urgent: risk.level === 'critico',
     updatedAt: new Date(),
   }];
