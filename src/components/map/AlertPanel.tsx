@@ -6,6 +6,11 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import type { UnifiedAlert, AlertSeverity, CompositeRisk } from '../../services/alertService';
 
+// Compact inline icon for validation buttons (smaller than WeatherIcon)
+function MiniIcon({ id, size = 12, className = '' }: { id: IconId; size?: number; className?: string }) {
+  return <WeatherIcon id={id} size={size} className={className} />;
+}
+
 // ── Severity color palette ───────────────────────────────────
 
 const SEVERITY_COLORS: Record<AlertSeverity, {
@@ -165,19 +170,19 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
           <>
             <button
               onClick={(e) => handleValidate(true, e)}
-              className="text-[11px] px-1 py-0.5 rounded opacity-50 hover:opacity-100 transition-opacity"
+              className="px-1 py-0.5 rounded opacity-50 hover:opacity-100 transition-opacity"
               style={{ color: '#22c55e' }}
               title="Alerta correcta"
             >
-              👍
+              <MiniIcon id="thumbs-up" size={13} />
             </button>
             <button
               onClick={(e) => handleValidate(false, e)}
-              className="text-[11px] px-1 py-0.5 rounded opacity-50 hover:opacity-100 transition-opacity"
+              className="px-1 py-0.5 rounded opacity-50 hover:opacity-100 transition-opacity"
               style={{ color: '#ef4444' }}
               title="Falso positivo"
             >
-              👎
+              <MiniIcon id="thumbs-down" size={13} />
             </button>
           </>
         )}
@@ -263,8 +268,8 @@ export const AlertPanel = memo(function AlertPanel() {
               )}
             </span>
             {!isMobile && (
-              <span className="text-[9px] text-slate-600 font-mono">
-                👍👎 para validar · A para cerrar
+              <span className="text-[9px] text-slate-600 font-mono flex items-center gap-0.5">
+                <MiniIcon id="thumbs-up" size={9} /><MiniIcon id="thumbs-down" size={9} /> para validar · A para cerrar
               </span>
             )}
           </div>

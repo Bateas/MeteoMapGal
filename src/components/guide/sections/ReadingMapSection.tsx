@@ -240,6 +240,41 @@ export function ReadingMapSection() {
             title="Batimetría (Rías)"
             text="Overlay EMODnet con contornos de profundidad. Toggle independiente de capas de viento. Solo Rías Baixas."
           />
+          <MiniExplainer
+            iconId="thermometer"
+            title="SST — Temperatura del mar (Rías)"
+            text="Overlay CMEMS/Copernicus Marine con mosaico WMTS de temperatura superficial del mar. Escala azul-rojo (10-22°C). Toggle independiente. Solo Rías Baixas."
+          />
+          <MiniExplainer
+            iconId="map"
+            title="Selector de mapa base"
+            text="6 estilos de mapa: OSM, Positron (claro), Dark Matter (oscuro), Voyager, IGN Topográfico e IGN Base Gris. Selector en esquina del mapa, sin claves API."
+          />
+          <MiniExplainer
+            iconId="anchor"
+            title="Señalización marítima — OpenSeaMap (Rías)"
+            text="Overlay con balizas, faros y señales marítimas del catálogo OpenSeaMap. Toggle en selector de mapa. Solo Rías Baixas."
+          />
+          <MiniExplainer
+            iconId="compass"
+            title="Carta náutica IHM (Rías)"
+            text="Overlay WMS de cartas electrónicas oficiales del Instituto Hidrográfico de la Marina. Toggle en selector de mapa. Solo Rías Baixas."
+          />
+          <MiniExplainer
+            iconId="layers"
+            title="Overlays IGN"
+            text="Tres capas opcionales del IGN: ortofotos PNOA (vista aérea), sombreado MDT (relieve 3D) y curvas de nivel. Toggle en selector de mapa. Ambos sectores."
+          />
+          <MiniExplainer
+            iconId="thumbs-up"
+            title="Validación de alertas"
+            text="Botones ✓/✗ en cada alerta del panel expandido. Tu feedback ayuda a mejorar la precisión del sistema de alertas. Las validaciones se almacenan 30 días."
+          />
+          <MiniExplainer
+            iconId="camera"
+            title="Webcams en spots"
+            text="Algunos spots incluyen imagen o enlace a webcam en vivo directamente en el popup del spot. Permite verificar condiciones reales antes de navegar."
+          />
         </div>
       </div>
 

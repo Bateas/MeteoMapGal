@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react';
 import { useNotificationStore } from '../../store/notificationStore';
 import { requestNotificationPermission, playAlertTone } from '../../services/notificationService';
 import type { AlertSeverity } from '../../services/alertService';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 // ── Severity options ────────────────────────────────────────
 
@@ -49,7 +50,7 @@ export const NotificationControl = memo(function NotificationControl() {
         onClick={() => setSettingsOpen(true)}
         title="Configurar notificaciones"
       >
-        {config.enabled ? '🔔' : '🔕'}
+        <WeatherIcon id={config.enabled ? 'bell' : 'bell-off'} size={11} />
         <span className="font-mono tracking-wide">
           {config.enabled ? 'ON' : 'OFF'}
         </span>
