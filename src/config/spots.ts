@@ -91,13 +91,13 @@ export const RIAS_SPOTS: SailingSpot[] = [
         name: 'Térmica WSW',
         direction: 250,
         season: 'Feb–Oct, tardes',
-        description: 'Térmica del valle, 12-20kt. Necesita: T>16°C, cielo despejado, sin norte.',
+        description: 'Térmica del valle WSW 250°, 12-20kt. Requiere T>16°C, cielo despejado, sin componente norte.',
       },
       {
         name: 'Norte canalizado',
         direction: 0,
         season: 'Todo el año',
-        description: 'Norte que entra por Rande. Racheado, frío, mata la térmica.',
+        description: 'Norte N 0° canalizado por Rande. Racheado e irregular, anula la térmica.',
       },
     ],
     // Closest stations to Cesantes scoring zone
@@ -132,16 +132,16 @@ export const RIAS_SPOTS: SailingSpot[] = [
     description: 'Estrecho de Rande, Vigo–San Simón. Terral matutino E/ENE, agua protegida.',
     windPatterns: [
       {
-        name: 'Terral (Bocana)',
+        name: 'Terral E/ENE',
         direction: 75,
-        season: 'Otoño–Primavera, mañanas frías (0-9h)',
-        description: 'Terral E/ENE (50-100°): aire frío del interior drena por Rande hacia Vigo. Requiere noche clara y fría. Ausente en verano y con nubes.',
+        season: 'Otoño–Primavera, mañanas (0-9h)',
+        description: 'Terral E/ENE 50-100°, aire frío drena por Rande hacia Vigo. Requiere noche clara y fría.',
       },
       {
         name: 'Norte canalizado',
         direction: 0,
         season: 'Todo el año',
-        description: 'Norte que entra desde el estrecho. Racheado, frío.',
+        description: 'Norte N 0° canalizado por el estrecho. Racheado e irregular.',
       },
     ],
     // Stations closest to the Rande–Vigo channel
@@ -168,22 +168,22 @@ export const RIAS_SPOTS: SailingSpot[] = [
     description: 'Zona media Ría de Vigo, Canido–Limens. Virazón SW tardes, oleaje moderado.',
     windPatterns: [
       {
-        name: 'Terral (debilitado)',
+        name: 'Terral E/ENE',
         direction: 75,
-        season: 'Otoño–Primavera, mañanas frías',
-        description: 'Terral E/ENE llega desde Rande pero pierde fuerza al ensancharse la ría.',
+        season: 'Otoño–Primavera, mañanas',
+        description: 'Terral E/ENE 50-100° desde Rande, pierde intensidad al ensancharse la ría.',
       },
       {
         name: 'Virazón SW',
         direction: 225,
         season: 'Tardes de verano',
-        description: 'Brisa marina SW. Se desarrolla tras mañanas de calma.',
+        description: 'Brisa marina SW 225°, se desarrolla tras mañanas de calma.',
       },
       {
         name: 'Norte NW',
         direction: 330,
         season: 'Frentes fríos',
-        description: 'Patrón pluridía, frío. Crea mar cruzada en centro ría.',
+        description: 'NW 330° asociado a frentes. Patrón pluridía con mar cruzada.',
       },
     ],
     preferredStations: [
@@ -209,16 +209,16 @@ export const RIAS_SPOTS: SailingSpot[] = [
     description: 'Entrada Ría de Vigo, Baiona–Cíes. Condiciones oceánicas, nortada verano, mar de fondo.',
     windPatterns: [
       {
-        name: 'Nortada',
+        name: 'Nortada NW',
         direction: 330,
-        season: 'Verano',
-        description: 'NW 295-330° dominante 12-20kt en verano (42% NW tardes). Buena navegación, agua fría (upwelling).',
+        season: 'Verano, tardes',
+        description: 'NW 295-330°, 12-20kt. Dominante en tardes de verano. Mar de fondo variable.',
       },
       {
         name: 'SW frontal',
         direction: 225,
         season: 'Invierno',
-        description: 'Fuerte con mar de 2-4m. Peligroso para embarcaciones pequeñas.',
+        description: 'SW 225° asociado a borrascas atlánticas. Mar de 2-4m, viento fuerte.',
       },
     ],
     preferredStations: [
@@ -259,13 +259,13 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
         name: 'Térmica WSW',
         direction: 250,
         season: 'Feb–Oct, tardes',
-        description: 'Térmica del valle, 12-20kt. Necesita: T>16°C, cielo despejado, sin norte.',
+        description: 'Térmica del valle WSW 250°, 12-20kt. Requiere T>16°C, cielo despejado, sin componente norte.',
       },
       {
         name: 'Norte',
         direction: 0,
         season: 'Todo el año',
-        description: 'Norte racheado, frío, mata la térmica.',
+        description: 'Norte N 0° racheado e irregular. Anula el desarrollo de la térmica.',
       },
     ],
     preferredStations: [
