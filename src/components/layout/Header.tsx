@@ -81,7 +81,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {isMobile && (
           <button
             onClick={toggleSidebar}
-            className="p-2.5 -m-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex-shrink-0 active:bg-slate-700"
+            className="p-2.5 -m-1 rounded-lg border border-slate-700/50 bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800/90 hover:shadow-[0_0_12px_rgba(148,163,184,0.15)] hover:border-slate-500/40 transition-all flex-shrink-0 active:bg-slate-700"
             aria-label="Abrir panel lateral"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
