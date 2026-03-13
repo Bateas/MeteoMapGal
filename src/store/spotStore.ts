@@ -9,6 +9,7 @@ import { devtools, persist } from 'zustand/middleware';
 import { ALL_SPOTS, DEFAULT_SPOT_ID, type SailingSpot } from '../config/spots';
 import type { SpotScore } from '../services/spotScoringEngine';
 import type { SpotWindowResult } from '../services/sailingWindowService';
+import type { HourlyForecast } from '../types/forecast';
 
 interface SpotState {
   /** Currently selected spot ID */
@@ -23,12 +24,15 @@ interface SpotState {
   sailingWindows: Map<string, SpotWindowResult>;
   /** Last sailing window computation timestamp */
   windowsFetchedAt: number;
+  /** Raw sector forecast (for forecast vs observation delta) */
+  sectorForecast: HourlyForecast[];
 }
 
 interface SpotActions {
   selectSpot: (spotId: string) => void;
   setScores: (scores: Map<string, SpotScore>) => void;
   setSailingWindows: (windows: Map<string, SpotWindowResult>) => void;
+  setSectorForecast: (forecast: HourlyForecast[]) => void;
 }
 
 export const useSpotStore = create<SpotState & SpotActions>()(
@@ -41,6 +45,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
         lastScored: 0,
         sailingWindows: new Map(),
         windowsFetchedAt: 0,
+        sectorForecast: [],
 
         selectSpot: (spotId: string) => {
           // Empty string = deselect (close popup, keep last activeSpot for reference)
@@ -58,6 +63,9 @@ export const useSpotStore = create<SpotState & SpotActions>()(
 
         setSailingWindows: (sailingWindows) =>
           set({ sailingWindows, windowsFetchedAt: Date.now() }, undefined, 'setSailingWindows'),
+
+        setSectorForecast: (sectorForecast) =>
+          set({ sectorForecast }, undefined, 'setSectorForecast'),
       }),
       {
         name: 'spot-store',
