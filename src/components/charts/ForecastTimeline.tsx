@@ -4,7 +4,7 @@ import { useThermalStore } from '../../store/thermalStore';
 import { msToKnots, degreesToCardinal, windSpeedColor, isDirectionInRange, angleDifference } from '../../services/windUtils';
 import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { scoreForecastThermal, thermalColor, thermalBg } from '../../services/forecastScoringUtils';
-import type { ThermalScore } from '../../services/forecastScoringUtils';
+import type { ThermalScore, ForecastBreakdown } from '../../services/forecastScoringUtils';
 import { ForecastTable } from './ForecastTable';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
@@ -55,6 +55,22 @@ function WindArrow({ dir, size = 14 }: { dir: number | null; size?: number }) {
       <path d="M8 2 L12 10 L8 8 L4 10 Z" fill="currentColor" />
     </svg>
   );
+}
+
+/** Build a readable tooltip string from thermal score breakdown */
+function buildBreakdownTooltip(ts: ThermalScore): string {
+  if (!ts.breakdown || ts.score < 20) return ts.mainRule ?? 'Sin señal térmica';
+  const b = ts.breakdown;
+  const lines: string[] = [];
+  if (ts.mainRule) lines.push(ts.mainRule);
+  lines.push(`Temp ${b.temperature}/25 · Hora ${b.timeOfDay}/20 · Mes ${b.season}/15`);
+  lines.push(`HR ${b.humidity}/10 · Dir ${b.windDirection}/15 · Viento ${b.windSpeed}/15`);
+  lines.push(`Base: ${b.baseTotal}`);
+  if (b.multipliers.length > 0) {
+    lines.push(b.multipliers.map((m) => `${m.label} ×${m.factor.toFixed(2)}`).join(' · '));
+  }
+  lines.push(`→ Final: ${ts.score}`);
+  return lines.join('\n');
 }
 
 // Thermal scoring imported from forecastScoringUtils.ts
@@ -143,10 +159,10 @@ function ForecastRow({
         {cloudIcon(point.cloudCover) && <WeatherIcon id={cloudIcon(point.cloudCover) as IconId} size={14} />}
       </div>
 
-      {/* Thermal score indicator */}
+      {/* Thermal score indicator — hover shows full breakdown */}
       <div
-        className="text-center"
-        title={thermalScore.mainRule ?? 'Sin señal térmica'}
+        className="text-center cursor-default"
+        title={buildBreakdownTooltip(thermalScore)}
       >
         {thermalScore.score >= 20 ? (
           <span

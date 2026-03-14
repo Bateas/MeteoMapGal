@@ -10,11 +10,24 @@ import { isDirectionInRange } from './windUtils';
 
 // ── Types ────────────────────────────────────────────────
 
+/** Breakdown of forecast thermal score components (for tooltip display) */
+export interface ForecastBreakdown {
+  temperature: number;     // 0-25
+  timeOfDay: number;       // 0-20
+  season: number;          // 0-15
+  humidity: number;        // -15 to 10
+  windDirection: number;   // 0-15
+  windSpeed: number;       // 0-15
+  baseTotal: number;       // Sum before multipliers
+  multipliers: { label: string; factor: number }[];
+}
+
 export interface ThermalScore {
   score: number;           // 0-100
   mainRule: string | null;  // Rule name that scored highest
   isNavigable: boolean;    // Score > 50 on a primary rule
   isPrecursor: boolean;    // Score > 40 on a precursor rule
+  breakdown: ForecastBreakdown | null; // Detailed breakdown (only for best rule)
 }
 
 // ── Scoring function ─────────────────────────────────────
@@ -33,6 +46,7 @@ export function scoreForecastThermal(
   let bestRule: string | null = null;
   let isNavigable = false;
   let isPrecursor = false;
+  let bestBreakdown: ForecastBreakdown | null = null;
 
   const hour = point.time.getHours();
   const month = point.time.getMonth() + 1;
@@ -56,13 +70,22 @@ export function scoreForecastThermal(
     }
     if (temp !== null && c.minTemp !== undefined && temp < c.minTemp - 4) continue;
 
+    // Track component scores for breakdown
+    let bkTemp = 0;
+    let bkTime = 0;
+    let bkSeason = 0;
+    let bkHumidity = 0;
+    let bkDir = 0;
+    let bkSpeed = 0;
+
     // Temperature (0-25)
     if (temp !== null && c.minTemp !== undefined) {
       if (temp >= c.minTemp) {
-        score += Math.min(25, 15 + (temp - c.minTemp) * 2);
+        bkTemp = Math.min(25, 15 + (temp - c.minTemp) * 2);
       } else {
-        score += Math.max(0, 15 - (c.minTemp - temp) * 5);
+        bkTemp = Math.max(0, 15 - (c.minTemp - temp) * 5);
       }
+      score += bkTemp;
     }
 
     // Time of day (0-20)
@@ -72,92 +95,105 @@ export function scoreForecastThermal(
         const mid = (from + to) / 2;
         const dist = Math.abs(hour - mid);
         const windowSize = (to - from) / 2;
-        score += 20 - Math.round((dist / windowSize) * 8);
+        bkTime = 20 - Math.round((dist / windowSize) * 8);
       } else {
         const distToWindow = Math.min(Math.abs(hour - from), Math.abs(hour - to));
         if (distToWindow <= 2) {
-          score += Math.max(0, 8 - distToWindow * 4);
+          bkTime = Math.max(0, 8 - distToWindow * 4);
         }
       }
+      score += bkTime;
     }
 
     // Season (0-15)
     if (c.months) {
       if (c.months.includes(month)) {
-        if (month === 8) score += 15;
-        else if (month === 7) score += 14;
-        else if (month === 6) score += 9;
-        else if (month === 9) score += 8;
-        else score += 5;
+        if (month === 8) bkSeason = 15;
+        else if (month === 7) bkSeason = 14;
+        else if (month === 6) bkSeason = 9;
+        else if (month === 9) bkSeason = 8;
+        else bkSeason = 5;
       } else {
-        score += 3;
+        bkSeason = 3;
       }
+      score += bkSeason;
     }
 
     // Humidity (0-10)
     if (humidity !== null) {
       if (c.maxHumidity && humidity > c.maxHumidity) {
-        score -= Math.min(15, (humidity - c.maxHumidity) * 1.5);
+        bkHumidity = -Math.min(15, (humidity - c.maxHumidity) * 1.5);
       } else if (humidity >= 45 && humidity <= 65) {
-        score += 10;
+        bkHumidity = 10;
       } else if (humidity < 45) {
-        score += 6;
+        bkHumidity = 6;
       } else {
-        score += 4;
+        bkHumidity = 4;
       }
+      score += bkHumidity;
     }
 
     // Wind direction (0-15)
     if (windDir !== null) {
       if (isDirectionInRange(windDir, rule.expectedWind.directionRange)) {
-        score += 15;
+        bkDir = 15;
       }
+      score += bkDir;
     }
 
     // Wind speed (0-15)
     if (windSpeed !== null) {
       if (windSpeed >= rule.expectedWind.minSpeed) {
-        score += Math.min(15, 8 + windSpeed * 1.5);
+        bkSpeed = Math.min(15, 8 + windSpeed * 1.5);
       } else if (windSpeed > 0.5) {
-        score += 4;
+        bkSpeed = 4;
       }
+      score += bkSpeed;
     }
+
+    const baseTotal = Math.round(score);
+
+    // Collect multipliers
+    const multipliers: ForecastBreakdown['multipliers'] = [];
 
     // ΔT scaling
     if (deltaT !== null) {
-      if (deltaT >= 20) score *= 1.15;
-      else if (deltaT >= 16) score *= 1.08;
-      else if (deltaT < 8) score *= 0.6;
+      if (deltaT >= 20) { score *= 1.15; multipliers.push({ label: 'ΔT alto', factor: 1.15 }); }
+      else if (deltaT >= 16) { score *= 1.08; multipliers.push({ label: 'ΔT mod.', factor: 1.08 }); }
+      else if (deltaT < 8) { score *= 0.6; multipliers.push({ label: 'ΔT bajo', factor: 0.6 }); }
     }
 
     // Cloud cover penalty
     if (point.cloudCover !== null && point.cloudCover > 70) {
       score *= 0.8;
+      multipliers.push({ label: 'Nubes', factor: 0.8 });
     }
 
     // CAPE bonus
     if (point.cape !== null && point.cape > 200) {
       score *= 1.05;
+      multipliers.push({ label: 'CAPE', factor: 1.05 });
     }
 
     // Evening decay — thermals die after 17:00
     if (hour >= 17) {
       const decayFactor = hour >= 20 ? 0.15 : hour >= 19 ? 0.35 : hour >= 18 ? 0.6 : 0.85;
       score *= decayFactor;
+      multipliers.push({ label: 'Atardecer', factor: decayFactor });
     }
 
     // Pressure trend — lower pressure favors convection
     if (point.pressure !== null) {
-      if (point.pressure < 1010) score *= 1.08;
-      else if (point.pressure < 1015) score *= 1.04;
-      else if (point.pressure > 1025) score *= 0.92;
+      if (point.pressure < 1010) { score *= 1.08; multipliers.push({ label: 'P baja', factor: 1.08 }); }
+      else if (point.pressure < 1015) { score *= 1.04; multipliers.push({ label: 'P baja', factor: 1.04 }); }
+      else if (point.pressure > 1025) { score *= 0.92; multipliers.push({ label: 'P alta', factor: 0.92 }); }
     }
 
     // Solar radiation boost — strong insolation heats ground → better thermals
     if (point.solarRadiation !== null) {
-      if (point.solarRadiation > 700) score *= 1.15;
-      else if (point.solarRadiation > 500) score *= 1.08;
-      else if (point.solarRadiation < 200 && hour >= 10 && hour <= 16) score *= 0.7;
+      if (point.solarRadiation > 700) { score *= 1.15; multipliers.push({ label: 'Sol fuerte', factor: 1.15 }); }
+      else if (point.solarRadiation > 500) { score *= 1.08; multipliers.push({ label: 'Sol', factor: 1.08 }); }
+      else if (point.solarRadiation < 200 && hour >= 10 && hour <= 16) { score *= 0.7; multipliers.push({ label: 'Sin sol', factor: 0.7 }); }
     }
 
     score = Math.min(100, Math.max(0, Math.round(score)));
@@ -165,6 +201,16 @@ export function scoreForecastThermal(
     if (score > bestScore) {
       bestScore = score;
       bestRule = rule.name;
+      bestBreakdown = {
+        temperature: Math.round(bkTemp),
+        timeOfDay: Math.round(bkTime),
+        season: bkSeason,
+        humidity: Math.round(bkHumidity),
+        windDirection: bkDir,
+        windSpeed: Math.round(bkSpeed),
+        baseTotal,
+        multipliers,
+      };
 
       const isPrimaryRule = rule.id.startsWith('thermal_');
       const isPrecursorRule = rule.id.startsWith('precursor_');
@@ -173,7 +219,7 @@ export function scoreForecastThermal(
     }
   }
 
-  return { score: bestScore, mainRule: bestRule, isNavigable, isPrecursor };
+  return { score: bestScore, mainRule: bestRule, isNavigable, isPrecursor, breakdown: bestBreakdown };
 }
 
 // ── Color helpers ────────────────────────────────────────
