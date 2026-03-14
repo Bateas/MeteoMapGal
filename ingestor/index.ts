@@ -1,7 +1,7 @@
 /**
  * MeteoMapGal Weather Ingestor
  *
- * Standalone service that polls 5 weather sources every 5 minutes
+ * Standalone service that polls 6 weather sources every 5 minutes
  * and persists readings into TimescaleDB.
  *
  * Usage:
