@@ -1,0 +1,156 @@
+{
+  "name": "MeteoMapGal Alertas → Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meteomap-alert",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-alert",
+      "name": "Webhook Alert",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "meteomap-alert"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "severity-check",
+              "leftValue": "={{ $json.body.severity }}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "severity-high",
+              "leftValue": "={{ $json.body.severity }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "filter-severity",
+      "name": "Filtro Severidad",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "160912482",
+        "text": "={{ $json.body.severity === 'critical' ? '🔴' : '🟠' }} *{{ $json.body.title }}*\n\n{{ {'storm':'⛈️','frost':'❄️','inversion':'🌡️','thermal':'🌬️','fog':'🌫️','rain':'🌧️','pressure':'📊','drone':'🛩️','wind-front':'📡'}[$json.body.category] || '⚠️' }} Categoría: {{ $json.body.category }}\n📍 Sector: {{ $json.body.sector }}\n📊 Score: {{ $json.body.score }}/100\n📋 {{ $json.body.detail }}{{ $json.body.confidence ? '\\n🎯 Confianza: ' + $json.body.confidence + '%' : '' }}{{ $json.body.compositeRisk ? '\\n🚦 Riesgo global: ' + $json.body.compositeRisk.severity.toUpperCase() + ' (' + $json.body.compositeRisk.activeCount + ' alertas)' : '' }}\n\n🕐 {{ new Date($json.body.timestamp).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }) }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-send",
+      "name": "Telegram Alerta",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [700, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Meteomapgal_alertas_bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meteomap-summary",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-summary",
+      "name": "Webhook Resumen",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 550],
+      "webhookId": "meteomap-summary"
+    },
+    {
+      "parameters": {
+        "chatId": "160912482",
+        "text": "={{ {'green':'🟢','yellow':'🟡','orange':'🟠','red':'🔴'}[$json.body.risk.color] || '⚪' }} *Resumen MeteoMapGal*\n📍 {{ $json.body.sector }}\n\n*Estado:* {{ $json.body.risk.severity.toUpperCase() }} ({{ $json.body.risk.activeCount }} alertas)\n\n*Alertas:*\n{{ $json.body.alerts && $json.body.alerts.length > 0 ? $json.body.alerts.map(a => '  • ' + a.severity.toUpperCase() + ': ' + a.title + ' — ' + a.detail).join('\\n') : '  Sin alertas activas ✅' }}\n\n{{ $json.body.sailing ? '⛵ Mejor ventana: ' + $json.body.sailing.spot + ' ' + $json.body.sailing.start + '-' + $json.body.sailing.end + ' · ' + $json.body.sailing.avgWindKt + 'kt · ' + $json.body.sailing.verdict : '⛵ Sin ventanas de viento próximas' }}\n\n🕐 {{ new Date($json.body.timestamp).toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }) }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-summary",
+      "name": "Telegram Resumen",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [480, 550],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Meteomapgal_alertas_bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Alert": {
+      "main": [
+        [
+          {
+            "node": "Filtro Severidad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro Severidad": {
+      "main": [
+        [
+          {
+            "node": "Telegram Alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Resumen": {
+      "main": [
+        [
+          {
+            "node": "Telegram Resumen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "MeteoMapGal"
+    }
+  ],
+  "triggerCount": 2
+}
