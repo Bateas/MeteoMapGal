@@ -28,6 +28,7 @@ Pure functions and algorithms used across the app. No React dependencies.
 - **`pressureTrendService.ts`** — 3h barometric pressure trend detection across stations. Consensus-based rapid drop/rise alerts. Pure computation on existing readings.
 - **`maritimeFogService.ts`** — Advection fog predictor for Rías. Uses buoy SST vs air temp delta, coastal humidity, wind direction, **solar radiation suppression** (≥250 W/m² daytime = fog cleared), **N/NE wind exclusion** (continental dry air kills fog). Pure computation — no new fetches.
 - **`crossSeaService.ts`** — Cross-sea risk from wave-wind angular divergence >45°. Uses buoy waveDir vs windDir. **Wave period (Tp)**: ≥8s swell escalates risk, <4s wind-sea downgrades. Wave height amplification for severity. Pure computation.
+- **`upwellingService.ts`** — Galician coastal upwelling detector. N/NW wind ≥12kt for ≥6h → Ekman transport → cold deep water rises. Uses buoy SST history buffer (24h, accumulated in `buoyStore`). Thresholds: SST drop ≥1.5°C moderate, ≥2.5°C high, ≥4.0°C critical. Wind confirmation boosts confidence. Pure computation — no extra API calls.
 
 ## Forecast & History
 
