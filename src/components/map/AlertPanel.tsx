@@ -149,8 +149,20 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
             {alert.title}
           </span>
         </div>
-        <div className="text-[10px] text-slate-400 truncate mt-0.5">
-          {alert.detail}
+        <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+          <span className="truncate">{alert.detail}</span>
+          {alert.confidence != null && (
+            <span
+              className="shrink-0 text-[9px] font-mono px-1 rounded"
+              style={{
+                background: alert.confidence >= 70 ? 'rgba(34,197,94,0.15)' : alert.confidence >= 40 ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)',
+                color: alert.confidence >= 70 ? '#22c55e' : alert.confidence >= 40 ? '#eab308' : '#ef4444',
+              }}
+              title={`Confianza: ${alert.confidence}%`}
+            >
+              {alert.confidence}%
+            </span>
+          )}
         </div>
       </div>
 

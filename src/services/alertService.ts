@@ -71,6 +71,8 @@ export interface UnifiedAlert {
   updatedAt: Date;
   /** Optional: which zone/area is affected */
   zoneId?: MicroZoneId;
+  /** Optional confidence 0-100 (shown as badge in AlertPanel) */
+  confidence?: number;
 }
 
 export interface CompositeRisk {
@@ -429,6 +431,7 @@ export function buildFieldAlerts(
       ].filter(Boolean).join(' · '),
       urgent: field.fog.level === 'critico',
       updatedAt: now,
+      confidence: field.fog.confidence,
     });
   }
 
