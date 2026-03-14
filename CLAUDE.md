@@ -92,7 +92,7 @@ ingestor/
 
 - **All polling intervals MUST use `useVisibilityPolling`**: Never use raw `setInterval` for API fetches. Background tabs must not waste network/CPU. All 9 polling intervals are visibility-aware. Exception: `AppShell.tsx` uses raw `setInterval` for non-network housekeeping (pruneHistory, pruneAlertHistory) — this is intentional.
 - **New overlays MUST be toggle-guarded**: MapLibre layers should not render when their toggle is off. Use `if (!isActive) return null`.
-- **New sidebar components MUST be `React.lazy`**: Any component >5KB in sidebar tabs must be lazy-loaded (7 in Sidebar + 2 in FieldDrawer already lazy: TidePanel, AtmosphericProfile).
+- **New sidebar components MUST be `React.lazy`**: Any component >5KB in sidebar tabs must be lazy-loaded (8 in Sidebar + 2 in FieldDrawer already lazy: TidePanel, AtmosphericProfile).
 - **Pure computation services = low impact**: Alert services that compute from existing data (no new fetches, no new intervals) are safe to add. Examples: pressureTrendService, maritimeFogService, crossSeaService.
 - **Avoid adding stores to AppShell.tsx**: Already has 13 store subscriptions (24 selectors, 349 lines). Consider extracting to a dedicated hook if more are needed.
 - **Canvas animation = O(1) per entity**: Wind particles use pre-computed 24×24 grid. Never do per-pixel/per-particle IDW in animation loops.
