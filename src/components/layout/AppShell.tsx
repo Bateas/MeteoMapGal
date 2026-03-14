@@ -203,6 +203,7 @@ export function AppShell() {
   const setUnifiedAlerts = useAlertStore((s) => s.setAlerts);
   const notifConfig = useNotificationStore((s) => s.config);
   const buoys = useBuoyStore((s) => s.buoys);
+  const sstHistory = useBuoyStore((s) => s.sstHistory);
   // Use fetchedAt as stable trigger instead of the array (avoids React deps size warning)
   const forecastFetchedAt = useForecastStore((s) => s.fetchedAt);
   const forecastRef = useRef(forecastHourly);
@@ -220,15 +221,16 @@ export function AppShell() {
       stormShadow,
       currentReadings,
       readingHistory,
-      // Maritime alerts (cross-sea, fog) only apply to coastal Rías sector
+      // Maritime alerts (cross-sea, fog, upwelling) only apply to coastal Rías sector
       buoys: activeSector.id === 'rias' && buoys.length > 0 ? buoys : undefined,
+      sstHistory: activeSector.id === 'rias' && sstHistory.size > 0 ? sstHistory : undefined,
       stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
       teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
     });
     setUnifiedAlerts(alerts, risk);
     // Trigger notifications for new/escalated alerts
     processAlertNotifications(alerts, risk, notifConfig);
-  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, readingHistory, buoys, stations, activeSector.id]);
+  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, readingHistory, buoys, sstHistory, stations, activeSector.id]);
 
   // ── Keyboard shortcuts (desktop only) ───────────────────
   useEffect(() => {
