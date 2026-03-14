@@ -11,6 +11,7 @@
 
 import type { AlertSeverity, AlertCategory, UnifiedAlert, CompositeRisk } from './alertService';
 import { postAlertWebhook } from '../api/webhookClient';
+import { useSectorStore } from '../store/sectorStore';
 
 // ── Configuration ────────────────────────────────────────────
 
@@ -237,6 +238,7 @@ export function processAlertNotifications(
     }
 
     // Send webhook alerts to n8n (severity >= high only)
+    const sectorName = useSectorStore.getState().activeSector.name;
     for (const a of notifiableAlerts) {
       if (meetsMinSeverity(a.severity, 'high')) {
         postAlertWebhook({
@@ -247,8 +249,9 @@ export function processAlertNotifications(
           detail: a.detail,
           icon: a.icon,
           score: a.score,
-          sector: '', // Filled by caller if needed
+          sector: sectorName,
           timestamp: new Date().toISOString(),
+          confidence: a.confidence,
           compositeRisk: {
             score: risk.score,
             severity: risk.severity,
