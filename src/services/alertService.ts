@@ -17,7 +17,9 @@ import { buildInversionForecastAlert } from './inversionForecastService';
 import { buildPressureTrendAlerts } from './pressureTrendService';
 import { buildMaritimeFogAlerts } from './maritimeFogService';
 import { buildCrossSeaAlerts } from './crossSeaService';
+import { buildUpwellingAlerts } from './upwellingService';
 import type { BuoyReading } from '../api/buoyClient';
+import type { SSTSnapshot } from '../store/buoyStore';
 import type { TeleconnectionIndex } from '../api/naoClient';
 
 // ── NAO/AO context helpers ──────────────────────────────────
@@ -531,6 +533,7 @@ export function aggregateAllAlerts(sources: {
   currentReadings?: Map<string, import('../types/station').NormalizedReading>;
   readingHistory?: Map<string, import('../types/station').NormalizedReading[]>;
   buoys?: BuoyReading[];
+  sstHistory?: Map<number, SSTSnapshot[]>;
   stationsGeo?: { id: string; lat: number; lon: number }[];
   teleconnections?: TeleconnectionIndex[];
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
@@ -550,6 +553,7 @@ export function aggregateAllAlerts(sources: {
     ...(sources.buoys && sources.currentReadings && sources.stationsGeo
       ? buildMaritimeFogAlerts(sources.buoys, sources.currentReadings, sources.stationsGeo) : []),
     ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),
+    ...(sources.buoys && sources.sstHistory ? buildUpwellingAlerts(sources.buoys, sources.sstHistory) : []),
   ];
 
   // ── Category dedup: merge alerts from same category into one ──
