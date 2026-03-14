@@ -547,5 +547,6 @@ export function buildMaritimeFogAlerts(
     ].filter(Boolean).join(' · '),
     urgent: risk.level === 'critico',
     updatedAt: new Date(),
+    confidence: risk.confidence,
   }];
 }

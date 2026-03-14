@@ -154,6 +154,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Scoring breakdown (collapsible) ── */}
+      {score && score.verdict !== 'unknown' && <ScoringBreakdown score={score} spot={spot} />}
+
       {/* ── Sailing windows (collapsible) ── */}
       {windowResult && <SailingWindowsSection result={windowResult} />}
 
@@ -278,6 +281,96 @@ function WindowRow({ window: w, isBest }: { window: SailingWindow; isBest: boole
       </div>
       {isBest && (
         <div className="text-[9px] text-emerald-400 mt-0.5">★ Mejor ventana</div>
+      )}
+    </div>
+  );
+}
+
+// ── Scoring breakdown "¿Por qué?" (collapsible) ─────────────
+
+function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: SailingSpot }) {
+  const [open, setOpen] = useState(false);
+
+  const lines: { label: string; value: string; color?: string }[] = [];
+
+  // Wind consensus
+  if (score.wind) {
+    const w = score.wind;
+    lines.push({
+      label: 'Consenso viento',
+      value: `${w.stationCount} estaciones, ${w.avgSpeedKt.toFixed(0)} kt ${w.dominantDir}`,
+      color: windKtColor(w.avgSpeedKt),
+    });
+    if (w.matchedPattern) {
+      lines.push({ label: 'Patrón', value: w.matchedPattern, color: '#fbbf24' });
+    }
+  }
+
+  // Wave conditions
+  if (score.waves?.waveHeight != null) {
+    const wh = score.waves.waveHeight;
+    const relevance = spot.waveRelevance === 'critical' ? 'oceánico' : spot.waveRelevance === 'moderate' ? 'moderado' : 'interior';
+    lines.push({
+      label: `Oleaje (${relevance})`,
+      value: `${wh.toFixed(1)} m${score.waves.wavePeriod != null ? ` · Tp ${score.waves.wavePeriod.toFixed(0)}s` : ''}`,
+      color: waveColor(wh),
+    });
+  } else if (spot.waveRelevance === 'none') {
+    lines.push({ label: 'Aguas', value: 'Aguas planas (bonus)', color: '#22c55e' });
+  }
+
+  // Thermal context
+  if (score.thermal && score.thermal.thermalProbability > 0) {
+    lines.push({
+      label: 'Térmica',
+      value: `${score.thermal.thermalProbability}% prob${score.thermal.deltaT != null ? ` · ΔT ${score.thermal.deltaT.toFixed(0)}°C` : ''}`,
+      color: '#fbbf24',
+    });
+    if (score.thermal.windWindow) {
+      const tw = score.thermal.windWindow;
+      lines.push({
+        label: 'Ventana térmica',
+        value: `${tw.startHour}h–${tw.endHour}h · ~${tw.avgSpeedKt.toFixed(0)} kt ${tw.dominantDir}`,
+      });
+    }
+  }
+
+  // Hard gate
+  if (score.hardGateTriggered) {
+    lines.push({ label: 'Límite', value: score.hardGateTriggered, color: '#ef4444' });
+  }
+
+  // Wind direction penalty
+  if (score.wind && spot.id === 'cesantes' && score.wind.dominantDir === 'N') {
+    lines.push({ label: 'Penalización', value: 'Norte en Cesantes (−15)', color: '#f97316' });
+  }
+
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="mt-2 pt-1.5 border-t border-slate-700/40">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+      >
+        <span className="shrink-0">🔍</span>
+        <span className="font-semibold">¿Por qué {VERDICT_STYLE[score.verdict].label.toLowerCase()}?</span>
+        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-1">
+          {lines.map((line, i) => (
+            <div key={i} className="flex items-baseline gap-1.5 text-[10px]">
+              <span className="text-slate-500 shrink-0 w-[72px] text-right">{line.label}</span>
+              <span className="font-semibold" style={line.color ? { color: line.color } : { color: '#e2e8f0' }}>
+                {line.value}
+              </span>
+            </div>
+          ))}
+          <div className="text-[9px] text-slate-600 mt-1 italic">
+            Score: {score.score}/100 · {score.wind?.stationCount ?? 0} estaciones
+          </div>
+        </div>
       )}
     </div>
   );
