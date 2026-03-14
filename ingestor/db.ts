@@ -48,6 +48,7 @@ function sourceLabel(stationId: string): string {
   if (stationId.startsWith('mc_')) return 'meteoclimatic';
   if (stationId.startsWith('wu_')) return 'wunderground';
   if (stationId.startsWith('nt_')) return 'netatmo';
+  if (stationId.startsWith('skyx_')) return 'skyx';
   return 'unknown';
 }
 

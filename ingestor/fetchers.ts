@@ -1,5 +1,5 @@
 /**
- * Observation fetchers — server-side fetch of current readings from all 5 sources.
+ * Observation fetchers — server-side fetch of current readings from all 6 sources.
  * Calls APIs directly (no proxy), normalizes with shared normalizer functions.
  */
 
@@ -364,10 +364,86 @@ async function fetchNetatmo(
   return readings;
 }
 
+// ── SkyX ─────────────────────────────────────────────
+
+const SKYX_API = 'https://api.skyxglobal.com';
+const SKYX_SN = 'SKY-100A0B765294EA4';
+const SKYX_AUTH = 'a21bd737-a714-4a5c-9b08-e7d3d2693a51';
+const SKYX_STATION_ID = 'skyx_SKY100';
+
+interface SkyXReport {
+  sn: string;
+  ts: string;
+  t: number;
+  h: number;
+  p: number;
+  wmax: number;
+  wav: number;
+  extra: { gps: string };
+}
+
+interface SkyXResponse {
+  code: number;
+  message: string;
+  data: SkyXReport;
+}
+
+function cleanSkyX(v: number): number | null {
+  return v === 9999 ? null : v;
+}
+
+async function fetchSkyX(
+  stations: NormalizedStation[]
+): Promise<NormalizedReading[]> {
+  const skyxStations = stations.filter((s) => s.source === 'skyx');
+  if (skyxStations.length === 0) return [];
+
+  try {
+    const res = await fetch(
+      `${SKYX_API}/api/v1/pub/device/last/report/${SKYX_SN}`,
+      {
+        headers: { 'X-Auth': SKYX_AUTH },
+        signal: AbortSignal.timeout(5_000),
+      }
+    );
+    if (!res.ok) {
+      log.warn(`SkyX: HTTP ${res.status}`);
+      return [];
+    }
+
+    const json: SkyXResponse = await res.json();
+    if (json.code !== 200 || !json.data || json.data.t === 9999) {
+      log.warn('SkyX: offline or error');
+      return [];
+    }
+
+    const report = json.data;
+    const reading: NormalizedReading = {
+      stationId: SKYX_STATION_ID,
+      timestamp: new Date(report.ts),
+      temperature: cleanSkyX(report.t),
+      humidity: cleanSkyX(report.h),
+      windSpeed: cleanSkyX(report.wav),
+      windGust: cleanSkyX(report.wmax),
+      windDirection: null, // SKY-100 has no wind vane
+      precipitation: null,
+      pressure: cleanSkyX(report.p),
+      dewPoint: null,
+      solarRadiation: null,
+    };
+
+    log.info('SkyX: 1 reading');
+    return [reading];
+  } catch (err) {
+    log.error('SkyX fetch failed:', (err as Error).message);
+    return [];
+  }
+}
+
 // ── Orchestrator ──────────────────────────────────────
 
 /**
- * Fetch observations from all 5 sources in parallel.
+ * Fetch observations from all 6 sources in parallel.
  * Returns array of NormalizedReading ready for DB insert.
  */
 export async function fetchAllObservations(
@@ -385,10 +461,11 @@ export async function fetchAllObservations(
     fetchMeteoclimatic(mcIds),
     fetchWunderground(stationList),
     fetchNetatmo(stationList),
+    fetchSkyX(stationList),
   ]);
 
   const allReadings: NormalizedReading[] = [];
-  const sourceNames = ['AEMET', 'MeteoGalicia', 'Meteoclimatic', 'WU', 'Netatmo'];
+  const sourceNames = ['AEMET', 'MeteoGalicia', 'Meteoclimatic', 'WU', 'Netatmo', 'SkyX'];
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i];

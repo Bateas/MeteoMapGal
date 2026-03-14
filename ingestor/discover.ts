@@ -1,5 +1,5 @@
 /**
- * Station discovery — fetches station lists from all 5 sources,
+ * Station discovery — fetches station lists from all 6 sources,
  * filters by sector radius, and deduplicates.
  * Runs once at startup and every ~1 hour to pick up new stations.
  */
@@ -245,6 +245,85 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
   return allStations;
 }
 
+// ── SkyX ─────────────────────────────────────────────
+
+const SKYX_API = 'https://api.skyxglobal.com';
+const SKYX_SN = 'SKY-100A0B765294EA4';
+const SKYX_AUTH = 'a21bd737-a714-4a5c-9b08-e7d3d2693a51';
+const SKYX_STATION_ID = 'skyx_SKY100';
+const SKYX_TIMEOUT = 5_000;
+
+interface SkyXResponse {
+  code: number;
+  message: string;
+  data: {
+    sn: string;
+    ts: string;
+    t: number;
+    extra: { gps: string };
+  };
+}
+
+async function discoverSkyX(): Promise<NormalizedStation[]> {
+  try {
+    const res = await fetch(
+      `${SKYX_API}/api/v1/pub/device/last/report/${SKYX_SN}`,
+      {
+        headers: { 'X-Auth': SKYX_AUTH },
+        signal: AbortSignal.timeout(SKYX_TIMEOUT),
+      }
+    );
+    if (!res.ok) {
+      log.warn(`SkyX discovery: HTTP ${res.status}`);
+      return [];
+    }
+
+    const json: SkyXResponse = await res.json();
+    if (json.code !== 200 || !json.data) {
+      log.warn(`SkyX discovery: API error ${json.message}`);
+      return [];
+    }
+
+    // Parse GPS from "lat,lon" string
+    const gps = json.data.extra?.gps ?? '';
+    const parts = gps.split(',');
+    if (parts.length !== 2) {
+      log.warn('SkyX discovery: no GPS data');
+      return [];
+    }
+    const lat = parseFloat(parts[0]);
+    const lon = parseFloat(parts[1]);
+    if (isNaN(lat) || isNaN(lon)) return [];
+
+    // Only include if within any sector
+    if (!inAnySector(lat, lon)) {
+      log.info(`SkyX: station out of all sector ranges (${lat.toFixed(4)}, ${lon.toFixed(4)})`);
+      return [];
+    }
+
+    // Check if sensor is offline
+    if (json.data.t === 9999) {
+      log.warn('SkyX: station offline (sentinel 9999)');
+      return [];
+    }
+
+    const station: NormalizedStation = {
+      id: SKYX_STATION_ID,
+      source: 'skyx',
+      name: 'SkyX1',
+      lat,
+      lon,
+      altitude: 0,
+    };
+
+    log.info(`SkyX: 1 station at ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+    return [station];
+  } catch (err) {
+    log.error('SkyX discovery failed:', (err as Error).message);
+    return [];
+  }
+}
+
 // ── Orchestrator ──────────────────────────────────────
 
 /**
@@ -260,6 +339,7 @@ export async function discoverAllStations(): Promise<Map<string, NormalizedStati
     Promise.resolve(discoverMeteoclimatic()),
     discoverWunderground(),
     discoverNetatmo(),
+    discoverSkyX(),
   ]);
 
   const stationMap = new Map<string, NormalizedStation>();
