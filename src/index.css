@@ -174,6 +174,15 @@ body {
   border-top-color: #1e293b !important;
 }
 
+/* Hide scrollbar but keep scrollable (tab bars, horizontal scroll containers) */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
