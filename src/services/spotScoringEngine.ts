@@ -158,22 +158,45 @@ function selectBuoysForSpot(
   return result;
 }
 
+// ── Source Quality Multipliers ────────────────────────────────
+// Official agencies > curated amateur > consumer PWS
+// Applied to IDW weighting in consensus — AEMET/MG readings "out-vote" nearby WU/Netatmo
+
+const SOURCE_QUALITY: Record<string, number> = {
+  aemet: 1.0,           // calibrated professional instruments
+  meteogalicia: 1.0,    // calibrated professional instruments
+  meteoclimatic: 0.85,  // amateur but curated network, good placement
+  wunderground: 0.7,    // variable quality, placement unknown
+  netatmo: 0.6,         // consumer devices, often building-mounted
+  skyx: 0.6,            // single consumer device
+};
+
+function getSourceQuality(stationId: string): number {
+  const source = stationId.split('_')[0];
+  return SOURCE_QUALITY[source] ?? 0.7;
+}
+
 // ── Wind Consensus ───────────────────────────────────────────
 
 function computeSpotWindConsensus(
   spot: SailingSpot,
-  stationData: { reading: NormalizedReading; distKm: number }[],
+  stationData: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
   buoyData: { buoy: BuoyReading; distKm: number }[],
 ): SpotWindConsensus | null {
   // Collect speed and direction separately — direction is optional
   const speedPoints: { speedKt: number; weight: number }[] = [];
   const dirPoints: { dir: number; weight: number }[] = [];
 
-  for (const { reading, distKm } of stationData) {
+  for (const { station, reading, distKm } of stationData) {
     if (reading.windSpeed === null) continue;
     const speedKt = msToKnots(reading.windSpeed);
     if (speedKt < 1) continue;
-    const weight = 1 / (distKm + 1);
+    // Composite weight: distance × source quality × freshness
+    const distWeight = 1 / (distKm + 1);
+    const qualityMul = getSourceQuality(station.id);
+    const ageMin = (Date.now() - reading.timestamp.getTime()) / 60_000;
+    const freshnessMul = ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;
+    const weight = distWeight * qualityMul * freshnessMul;
     speedPoints.push({ speedKt, weight });
     // Direction only if available (SkyX, some Netatmo lack wind vanes)
     if (reading.windDirection !== null) {
