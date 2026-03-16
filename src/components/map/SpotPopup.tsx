@@ -148,7 +148,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Thermal context (if applicable) ── */}
       {score?.thermal && score.thermal.thermalProbability > 0 && (
         <div className="text-[10px] text-amber-300/70 mb-1">
-          ☀️ Térmica {score.thermal.thermalProbability}% prob
+          <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Térmica {score.thermal.thermalProbability}% prob
           {score.thermal.windWindow && ` · ${score.thermal.windWindow.startHour}h–${score.thermal.windWindow.endHour}h`}
         </div>
       )}
@@ -188,7 +188,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Storm alert ── */}
       {score?.hasStormAlert && (
         <div className="text-[10px] text-red-400 font-bold mt-1">
-          🌩️ Alerta de tormenta activa
+          <WeatherIcon id="alert-triangle" size={12} className="inline -mt-px" /> Alerta de tormenta activa
         </div>
       )}
 
@@ -285,7 +285,7 @@ function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
     return (
       <div className="mt-2 pt-1.5 border-t border-slate-700/40">
         <div className="flex items-center gap-1 text-[10px] text-slate-500">
-          <span>📅</span>
+          <WeatherIcon id="clock" size={11} className="text-slate-500" />
           <span>Sin ventanas de viento en 48h</span>
         </div>
       </div>
@@ -298,7 +298,7 @@ function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
-        <span className="shrink-0">📅</span>
+        <WeatherIcon id="clock" size={11} className="text-slate-400 shrink-0" />
         <span className="font-semibold">Mejores ventanas</span>
         <span className="text-slate-500 text-[9px] ml-1">({windows.length})</span>
         <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
@@ -315,11 +315,11 @@ function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
 }
 
 function WindowRow({ window: w, isBest }: { window: SailingWindow; isBest: boolean }) {
-  const dot = w.verdict === 'good' ? '🟢' : '🟡';
+  const dotColor = w.verdict === 'good' ? '#22c55e' : '#eab308';
   return (
     <div className={`bg-slate-800/40 rounded px-2 py-1 ${isBest ? 'ring-1 ring-emerald-500/30' : ''}`}>
       <div className="flex items-center gap-1.5 text-[10px]">
-        <span className="shrink-0">{dot}</span>
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
         <span className="font-bold text-slate-200 flex-1">{w.summary}</span>
         <span className="text-slate-500 font-mono text-[9px]">{w.avgScore}</span>
       </div>
@@ -397,7 +397,7 @@ function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: SailingSpot
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
-        <span className="shrink-0">🔍</span>
+        <WeatherIcon id="info" size={11} className="text-slate-400 shrink-0" />
         <span className="font-semibold">¿Por qué {VERDICT_STYLE[score.verdict].label.toLowerCase()}?</span>
         <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
       </button>
@@ -467,11 +467,11 @@ function azimuthLabel(deg: number): string {
 }
 
 // ── Thermal precursor early warning ────────────────────────
-const PRECURSOR_LEVEL_STYLE: Record<string, { color: string; bg: string; icon: string }> = {
-  watch:    { color: '#94a3b8', bg: 'rgba(100,116,139,0.12)', icon: '👁️' },
-  probable: { color: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  icon: '🌡️' },
-  imminent: { color: '#fb923c', bg: 'rgba(249,115,22,0.12)',  icon: '🔥' },
-  active:   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: '⚡' },
+const PRECURSOR_LEVEL_STYLE: Record<string, { color: string; bg: string }> = {
+  watch:    { color: '#94a3b8', bg: 'rgba(100,116,139,0.12)' },
+  probable: { color: '#fbbf24', bg: 'rgba(251,191,36,0.10)' },
+  imminent: { color: '#fb923c', bg: 'rgba(249,115,22,0.12)' },
+  active:   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
 };
 
 function ThermalPrecursorSection({ precursor }: { precursor: ThermalPrecursorResult }) {
@@ -557,7 +557,7 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
       className="mt-2 pt-2 border-t border-slate-700/40 text-[10px]"
     >
       <div className="flex items-center gap-2">
-        <span className="text-slate-400">👁️ Visión webcam:</span>
+        <span className="text-slate-400 flex items-center gap-1"><WeatherIcon id="camera" size={11} /> Visión webcam:</span>
         <span
           className="font-bold px-1.5 py-0.5 rounded"
           style={{ color, background: `${color}15`, border: `1px solid ${color}33` }}

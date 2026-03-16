@@ -12,12 +12,74 @@
  *   3. Cross-station validation (inter-zone coherence)
  */
 
-import { computeWindConsensus, type WindConsensus } from './dailyBriefingService';
 import { computeDirectionSpread } from './windPropagationService';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { fastDistanceKm } from './idwInterpolation';
 import type { NormalizedReading, NormalizedStation } from '../types/station';
 import type { MicroZoneId, MicroZone } from '../types/thermal';
+
+// ── Wind Consensus ──────────────────────────────────────────
+
+export interface WindConsensus {
+  /** Number of stations reporting consistent wind direction */
+  stationCount: number;
+  /** Average wind speed across consensus stations (kt) */
+  avgSpeedKt: number;
+  /** Dominant wind direction (cardinal) */
+  dominantDir: string;
+}
+
+/**
+ * Compute wind consensus from real-time station readings.
+ * Groups stations reporting wind in the same ±45° sector.
+ * Returns the largest group with avg speed ≥ 2kt (real wind).
+ */
+export function computeWindConsensus(
+  currentReadings: Map<string, NormalizedReading>,
+): WindConsensus | null {
+  const windStations: { dir: number; speedKt: number }[] = [];
+
+  for (const [, reading] of currentReadings) {
+    if (
+      reading.windSpeed !== null &&
+      reading.windDirection !== null &&
+      msToKnots(reading.windSpeed) >= 2
+    ) {
+      windStations.push({
+        dir: reading.windDirection,
+        speedKt: msToKnots(reading.windSpeed),
+      });
+    }
+  }
+
+  if (windStations.length < 2) return null;
+
+  let bestGroup: typeof windStations = [];
+  let bestCardinal = 'N';
+
+  for (let sectorCenter = 0; sectorCenter < 360; sectorCenter += 45) {
+    const group = windStations.filter((ws) => {
+      const diff = Math.abs(((ws.dir - sectorCenter) + 180) % 360 - 180);
+      return diff <= 45;
+    });
+
+    if (group.length > bestGroup.length) {
+      bestGroup = group;
+      bestCardinal = degToCardinal8(sectorCenter);
+    }
+  }
+
+  if (bestGroup.length < 2) return null;
+
+  const avgSpeed = bestGroup.reduce((sum, ws) => sum + ws.speedKt, 0) / bestGroup.length;
+  if (avgSpeed < 2) return null;
+
+  return {
+    stationCount: bestGroup.length,
+    avgSpeedKt: Math.round(avgSpeed * 10) / 10,
+    dominantDir: bestCardinal,
+  };
+}
 
 // ── Types ────────────────────────────────────────────────────
 
