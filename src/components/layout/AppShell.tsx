@@ -35,6 +35,7 @@ import { useAirspace } from '../../hooks/useAirspace';
 import { useBuoyData } from '../../hooks/useBuoyData';
 import { useSpotScoring } from '../../hooks/useSpotScoring';
 import { useSailingWindows } from '../../hooks/useSailingWindows';
+import { useWebcamVision } from '../../hooks/useWebcamVision';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 
@@ -96,6 +97,9 @@ export function AppShell() {
 
   // Best Sailing Windows: 48h forecast → per-spot window detection (polls every 30 min)
   useSailingWindows();
+
+  // Webcam Vision: Beaufort estimation via LLM (dev only, VITE_VISION_ENABLED=true)
+  useWebcamVision();
 
   // NAO/AO teleconnection indices — fetched once, cached 6h in naoClient
   const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
