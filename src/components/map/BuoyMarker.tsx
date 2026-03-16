@@ -17,6 +17,7 @@ import type { BuoyReading } from '../../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { waveHeightColor, waterTempColor, currentSpeedColor } from '../../services/buoyUtils';
+import { msToKnots, windSpeedColor } from '../../services/windUtils';
 
 interface BuoyMarkerProps {
   reading: BuoyReading;
@@ -134,6 +135,8 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
   const hasWaves = reading.waveHeight != null;
   const hasWaterTemp = reading.waterTemp != null;
   const hasCurrent = reading.currentSpeed != null && reading.currentSpeed > 0.01 && reading.currentDir != null;
+  const hasWind = reading.windSpeed != null && reading.windSpeed >= 0.1;
+  const hasWindDir = hasWind && reading.windDir != null;
 
   const handleClick = useCallback((e: { originalEvent: MouseEvent }) => {
     e.originalEvent.stopPropagation();
@@ -161,7 +164,21 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
             />
           )}
 
-          {/* Wind arrows now rendered by WindFieldOverlay (hex-pattern around buoy) */}
+          {/* Wind arrow — single arrow on buoy when direction available */}
+          {hasWindDir && (() => {
+            const wColor = windSpeedColor(reading.windSpeed!);
+            const rotation = (reading.windDir! + 180) % 360;
+            const len = Math.min(18 + msToKnots(reading.windSpeed!) * 0.8, 32);
+            return (
+              <g transform={`rotate(${rotation})`}>
+                <line x1="0" y1="4" x2="0" y2={-len + 4} stroke={wColor} strokeWidth="2.5" strokeLinecap="round" />
+                <polyline
+                  points={`-4,${-len + 8} 0,${-len} 4,${-len + 8}`}
+                  fill="none" stroke={wColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                />
+              </g>
+            );
+          })()}
 
           {/* Outer ring — animated dashes (marine identity) */}
           <circle
@@ -222,11 +239,19 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
           return <div className={b.className} style={b.style}>{reading.waterTemp!.toFixed(0)}°</div>;
         })()}
 
-        {/* Current speed (bottom-left) */}
-        {hasCurrent && (() => {
+        {/* Current speed (bottom-left) — only if no wind to show */}
+        {hasCurrent && !hasWind && (() => {
           const cColor = currentSpeedColor(reading.currentSpeed!);
           const b = badgeStyle(cColor, 'bottom-left');
           return <div className={b.className} style={b.style}>{(reading.currentSpeed! * 100).toFixed(0)}cm/s</div>;
+        })()}
+
+        {/* Wind speed (bottom-left) — higher priority than current */}
+        {hasWind && (() => {
+          const kt = msToKnots(reading.windSpeed!);
+          const wColor = windSpeedColor(reading.windSpeed!);
+          const b = badgeStyle(wColor, 'bottom-left');
+          return <div className={b.className} style={b.style}>{kt.toFixed(0)}kt</div>;
         })()}
 
         {/* Station name — larger, with halo for map contrast */}
