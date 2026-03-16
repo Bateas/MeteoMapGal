@@ -218,14 +218,38 @@ export function RoadmapSection() {
         <TimelineMilestone
           iconId="sailboat"
           title="Mejor ventana de navegación"
-          desc="Búsqueda automática de la mejor franja horaria para navegar en los próximos 3 días según previsión."
-          status="idea"
+          desc="'¿Cuándo salgo?' — 48h forecast por spot, ventanas contiguas con scoring dual (térmico/viento). Timeline en popup + resumen en selector."
+          status="done"
         />
         <TimelineMilestone
           iconId="thermometer"
           title="Detector de afloramiento"
-          desc="Detección de upwelling costero gallego: bajadas de T agua + viento NE persistente = corrientes frías ricas."
-          status="idea"
+          desc="Upwelling costero gallego: bajada SST + viento N/NW persistente ≥12kt × 6h = alerta Ekman. Datos de boyas en tiempo real."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="gauge"
+          title="Verificación de previsión"
+          desc="'¿Acertó?' — compara forecasts pasados (Open-Meteo Previous Runs) con observaciones reales (TimescaleDB). MAE, bias, accuracy."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="radar"
+          title="Delta forecast vs observación"
+          desc="Badges Δ en cada estación: diferencia en tiempo real entre previsión y lectura actual (viento kt, temperatura °C)."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="thermal-wind"
+          title="Alerta térmica temprana"
+          desc="6 señales precursoras (terral, ΔT agua-aire, solar, humedad, divergencia, forecast) → probabilidad 0-100% con ETA. Panel colapsable en popup."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="thermal-wind"
+          title="Amplificación térmica en spots"
+          desc="Detección de térmicas localizadas donde las estaciones en tierra subestiman el viento real en el agua (hasta +50%). Aviso de baja confianza."
+          status="done"
         />
         <TimelineMilestone
           iconId="cloud"
