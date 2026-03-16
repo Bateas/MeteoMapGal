@@ -11,6 +11,12 @@ import type { SpotScore } from '../services/spotScoringEngine';
 import type { SpotWindowResult } from '../services/sailingWindowService';
 import type { HourlyForecast } from '../types/forecast';
 
+/** Historical wind speed entry for sparkline */
+export interface SpotWindSnapshot {
+  ts: number;
+  kt: number;
+}
+
 interface SpotState {
   /** Currently selected spot ID */
   activeSpotId: string;
@@ -20,6 +26,8 @@ interface SpotState {
   scores: Map<string, SpotScore>;
   /** Last scoring computation timestamp */
   lastScored: number;
+  /** Per-spot wind speed history for sparklines (keyed by spot.id, last ~2h) */
+  windHistory: Map<string, SpotWindSnapshot[]>;
   /** Per-spot sailing window results (keyed by spot.id) */
   sailingWindows: Map<string, SpotWindowResult>;
   /** Last sailing window computation timestamp */
@@ -43,6 +51,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
         activeSpot: ALL_SPOTS.find((s) => s.id === DEFAULT_SPOT_ID)!,
         scores: new Map(),
         lastScored: 0,
+        windHistory: new Map(),
         sailingWindows: new Map(),
         windowsFetchedAt: 0,
         sectorForecast: [],
@@ -58,8 +67,23 @@ export const useSpotStore = create<SpotState & SpotActions>()(
           set({ activeSpotId: spotId, activeSpot: spot }, undefined, 'selectSpot');
         },
 
-        setScores: (scores) =>
-          set({ scores, lastScored: Date.now() }, undefined, 'setScores'),
+        setScores: (scores) => {
+          const now = Date.now();
+          const MAX_HISTORY = 24; // ~2h at 5min intervals
+          const prev = useSpotStore.getState().windHistory;
+          const next = new Map(prev);
+          for (const [spotId, sc] of scores) {
+            if (sc.wind) {
+              const arr = next.get(spotId) ?? [];
+              // Avoid duplicate if scored within 60s of last entry
+              if (arr.length === 0 || now - arr[arr.length - 1].ts > 60_000) {
+                const updated = [...arr, { ts: now, kt: sc.wind.avgSpeedKt }];
+                next.set(spotId, updated.length > MAX_HISTORY ? updated.slice(-MAX_HISTORY) : updated);
+              }
+            }
+          }
+          set({ scores, lastScored: now, windHistory: next }, undefined, 'setScores');
+        },
 
         setSailingWindows: (sailingWindows) =>
           set({ sailingWindows, windowsFetchedAt: Date.now() }, undefined, 'setSailingWindows'),
