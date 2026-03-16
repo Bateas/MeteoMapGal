@@ -316,10 +316,10 @@ export function AppShell() {
               {/* Close button */}
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="absolute top-2 right-2 z-50 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                className="absolute top-2 right-2 z-50 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors active:bg-slate-600"
                 aria-label="Cerrar panel"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
