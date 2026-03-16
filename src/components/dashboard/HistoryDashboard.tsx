@@ -90,6 +90,13 @@ function getMetricValue(
   return Math.round(val * 10) / 10;
 }
 
+// ── Constants ─────────────────────────────────────────
+
+const SOURCE_LABELS: Record<string, string> = {
+  aemet: 'AEMET', meteogalicia: 'MG', meteoclimatic: 'MC',
+  wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX',
+};
+
 // ── Component ──────────────────────────────────────────
 
 export const HistoryDashboard = memo(function HistoryDashboard() {
@@ -124,18 +131,30 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
   // Map station IDs → human names from live weatherStore
   const liveStations = useWeatherStore((s) => s.stations);
   const selectStation = useWeatherStore((s) => s.selectStation);
-  const stationNames = useMemo(() => {
-    const map = new Map<string, string>();
+  const stationInfo = useMemo(() => {
+    const map = new Map<string, { name: string; source: string }>();
     for (const s of liveStations) {
-      map.set(s.id, s.name);
+      map.set(s.id, { name: s.name, source: s.source });
     }
     return map;
   }, [liveStations]);
 
-  /** Friendly station name */
+  // Backwards-compat: plain name map for selectors
+  const stationNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [id, info] of stationInfo) map.set(id, info.name);
+    return map;
+  }, [stationInfo]);
+
+  /** Friendly station name with source label */
   const stationName = useCallback(
-    (id: string) => stationNames.get(id) || id,
-    [stationNames]
+    (id: string) => {
+      const info = stationInfo.get(id);
+      if (!info) return id;
+      const srcLabel = SOURCE_LABELS[info.source] ?? info.source;
+      return `${info.name} (${srcLabel})`;
+    },
+    [stationInfo]
   );
 
   // Determine interval: raw for 24h, hourly for longer ranges
@@ -357,9 +376,10 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
               <optgroup key={source} label={source.toUpperCase()}>
                 {stns.map((s) => {
                   const name = stationNames.get(s.station_id);
+                  const srcLabel = SOURCE_LABELS[s.source] ?? s.source;
                   return (
                     <option key={s.station_id} value={s.station_id}>
-                      {name ? `${name}` : s.station_id} ({s.reading_count.toLocaleString()})
+                      {name ? `${name} (${srcLabel})` : s.station_id} — {s.reading_count.toLocaleString()} lecturas
                     </option>
                   );
                 })}
@@ -400,9 +420,10 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
                     .filter((s) => s.station_id !== selectedStation)
                     .map((s) => {
                       const name = stationNames.get(s.station_id);
+                      const srcLabel = SOURCE_LABELS[s.source] ?? s.source;
                       return (
                         <option key={s.station_id} value={s.station_id}>
-                          {name ? `${name}` : s.station_id}
+                          {name ? `${name} (${srcLabel})` : s.station_id}
                         </option>
                       );
                     })}

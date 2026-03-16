@@ -40,6 +40,13 @@ const PAST_DAYS_OPTIONS = [
   { value: 3, label: 'Hace 3 días' },
 ];
 
+// ── Constants ─────────────────────────────────────
+
+const SOURCE_LABELS: Record<string, string> = {
+  aemet: 'AEMET', meteogalicia: 'MG', meteoclimatic: 'MC',
+  wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX',
+};
+
 // ── Component ──────────────────────────────────────
 
 export const ForecastVerification = memo(function ForecastVerification() {
@@ -50,10 +57,13 @@ export const ForecastVerification = memo(function ForecastVerification() {
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Sort stations by name for selector
   const sortedStations = useMemo(() =>
-    [...stations].sort((a, b) => a.name.localeCompare(b.name)),
+    [...stations]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(s => ({
+        ...s,
+        displayName: `${s.name} (${SOURCE_LABELS[s.source] ?? s.source})`,
+      })),
     [stations]
   );
 
@@ -139,7 +149,7 @@ export const ForecastVerification = memo(function ForecastVerification() {
           aria-label="Estación"
         >
           {sortedStations.map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
+            <option key={s.id} value={s.id}>{s.displayName}</option>
           ))}
         </select>
 
