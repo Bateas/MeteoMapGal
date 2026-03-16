@@ -140,10 +140,27 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
     console.error('[Discovery] Meteoclimatic feed fetch failed:', mcStations.reason);
   }
 
-  // Process Weather Underground PWS stations
+  // Process Weather Underground PWS stations (center + extra coverage points)
   if (wuStations.status === 'fulfilled') {
     const wuCount = stations.length;
-    for (const station of wuStations.value) {
+    const allWU = [...wuStations.value];
+
+    // Also query WU from extra coverage points (WU API is geocode-based, needs multiple queries)
+    if (extraPoints?.length) {
+      const extraWU = await Promise.allSettled(
+        extraPoints.map((p) => fetchWUNearbyStations([p.lon, p.lat], 10))
+      );
+      for (const r of extraWU) {
+        if (r.status === 'fulfilled') allWU.push(...r.value);
+      }
+    }
+
+    for (const station of allWU) {
+      // Accept if within main radius OR within extra coverage
+      const inRadius = isWithinRadius(centerLat, centerLon, station.lat, station.lon, radiusKm);
+      const inExtra = isInExtraCoverage(station.lat, station.lon, extraPoints);
+      if (!inRadius && !inExtra) continue;
+
       const isDuplicate = stations.some(
         (s) =>
           Math.abs(s.lat - station.lat) < 0.005 &&
