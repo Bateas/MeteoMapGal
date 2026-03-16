@@ -35,7 +35,7 @@ Pure functions and algorithms used across the app. No React dependencies.
 - **`sailingWindowService.ts`** — Best Sailing Window: scores 48h forecast per-spot, groups contiguous good hours into `SailingWindow[]`. Dual scoring: thermal-dominant (Embalse) via `scoreForecastThermal()`, wind-dominant (Rías) with direction/speed curves. Min 2h window, 1h merge gap.
 - **`forecastDeltaService.ts`** — Compares Open-Meteo forecast to live station readings: wind (kt), temp (°C) deltas. `findNearestForecastHour()` aligns within ±90min. `formatWindDelta()`/`formatTempDelta()` return colored badge data. Used by StationCard.
 - **`forecastVerificationService.ts`** — "¿Acertó la previsión?": fetches past Open-Meteo forecasts via Previous Runs API, compares with TimescaleDB hourly observations. Computes MAE, bias, accuracy rate (wind ±3kt, temp ±2°C). No backend changes needed.
-- **`forecastScoringUtils.ts`** — Scores forecast hours for sailing conditions.
+- **`forecastScoringUtils.ts`** — Scores forecast hours for sailing conditions. Exports `ForecastBreakdown` type with per-component scores (temp, hour, month, humidity, direction, wind speed) + multipliers. `scoreForecastThermalWithBreakdown()` returns breakdown for tooltip display in ForecastTimeline.
 - **`inversionForecastService.ts`** — Predicts temperature inversions from forecast data.
 - **`dewPointService.ts`** — Dew point calculation and fog probability estimation. **Forecast visibility cross-validation**: Open-Meteo visibility <1km reinforces fog, >10km suppresses. Continental wind + solar suppression built in.
 - **`solarUtils.ts`** — Sunrise/sunset times for the region.
