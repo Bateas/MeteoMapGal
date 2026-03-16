@@ -1,6 +1,7 @@
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
+import { STALE_THRESHOLD_MIN } from '../config/constants';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -212,17 +213,22 @@ export function lookupWindGrid(grid: WindGrid, lat: number, lon: number): WindVe
 
 // ── Helper: extract wind data from store ───────────────────
 
-/** Build StationWindData[] from stations + readings for IDW wind interpolation */
+/** Build StationWindData[] from stations + readings for IDW wind interpolation.
+ *  Filters out stale readings (>STALE_THRESHOLD_MIN) to prevent offline stations
+ *  from corrupting interpolated wind fields. */
 export function extractWindData(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
 ): StationWindData[] {
   const result: StationWindData[] = [];
+  const maxAgeMs = STALE_THRESHOLD_MIN * 60_000;
+  const now = Date.now();
   for (const station of stations) {
     if (station.tempOnly) continue;
     const reading = readings.get(station.id);
     if (!reading || reading.windSpeed === null || reading.windDirection === null) continue;
     if (reading.windSpeed < 0.1) continue; // skip truly calm (< 0.1 m/s)
+    if (now - reading.timestamp.getTime() > maxAgeMs) continue; // skip stale
     result.push({
       lat: station.lat,
       lon: station.lon,
@@ -251,15 +257,19 @@ export function extractBuoyWindData(buoys: BuoyReading[]): StationWindData[] {
   return result;
 }
 
-/** Build StationScalarData[] for humidity IDW interpolation */
+/** Build StationScalarData[] for humidity IDW interpolation.
+ *  Filters out stale readings to match wind data freshness. */
 export function extractHumidityData(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
 ): StationScalarData[] {
   const result: StationScalarData[] = [];
+  const maxAgeMs = STALE_THRESHOLD_MIN * 60_000;
+  const now = Date.now();
   for (const station of stations) {
     const reading = readings.get(station.id);
     if (!reading || reading.humidity === null) continue;
+    if (now - reading.timestamp.getTime() > maxAgeMs) continue; // skip stale
     result.push({
       lat: station.lat,
       lon: station.lon,

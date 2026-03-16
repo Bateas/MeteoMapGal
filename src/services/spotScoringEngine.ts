@@ -24,6 +24,7 @@ import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { fastDistanceKm } from './idwInterpolation';
+import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
 
 // ── Types ────────────────────────────────────────────────────
@@ -105,7 +106,7 @@ function selectStationsForSpot(
   const preferredSet = new Set(spot.preferredStations);
 
   const now = Date.now();
-  const MAX_READING_AGE_MS = 30 * 60_000; // 30min — discard stale readings from offline stations
+  const MAX_READING_AGE_MS = STALE_THRESHOLD_MIN * 60_000;
 
   for (const s of stations) {
     const reading = readings.get(s.id);
