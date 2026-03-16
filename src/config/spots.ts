@@ -187,7 +187,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036440A', // Cangas do Morrazo (~8km N)
+      'mc_ESGAL3600000036940A', // Cangas do Morrazo (~8km N) — fixed: was 36440A/404
       'mc_ESGAL3600000036041A', // Vigo Bouzas (~5km S)
     ],
     preferredBuoys: [
