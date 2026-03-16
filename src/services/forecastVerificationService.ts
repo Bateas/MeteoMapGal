@@ -140,9 +140,13 @@ async function fetchHourlyObservations(
 
   const map = new Map<string, { temp: number | null; humidity: number | null; windMs: number | null }>();
   for (const r of readings) {
-    // Bucket format from TimescaleDB: "2026-03-13T10:00:00.000Z"
-    // Normalize to match Open-Meteo format: "2026-03-13T10:00"
-    const date = new Date(r.bucket);
+    // Bucket from TimescaleDB: may be "2026-03-13 10:00:00+00" (pg text cast) or ISO with Z
+    // Ensure UTC interpretation: append Z if no timezone indicator present
+    const raw = r.bucket;
+    const utcStr = (raw.endsWith('Z') || /[+-]\d{2}(:\d{2})?$/.test(raw))
+      ? raw
+      : raw.replace(' ', 'T') + 'Z';
+    const date = new Date(utcStr);
     const key = formatTimeKey(date);
     map.set(key, {
       temp: r.avg_temp,
@@ -196,6 +200,16 @@ export async function verifyForecast(
     fetchPreviousRunForecast(lat, lon, pastDays, 2),
     fetchHourlyObservations(stationId, from, to),
   ]);
+
+  // Debug: log key counts and sample keys to diagnose mismatches
+  if (forecastMap.size > 0 || obsMap.size > 0) {
+    const fcstKeys = [...forecastMap.keys()].slice(0, 3);
+    const obsKeys = [...obsMap.keys()].slice(0, 3);
+    console.debug(
+      `[ForecastVerification] fcst=${forecastMap.size} keys (${fcstKeys.join(', ')}), ` +
+      `obs=${obsMap.size} keys (${obsKeys.join(', ')})`
+    );
+  }
 
   // Match hours
   const points: VerificationPoint[] = [];

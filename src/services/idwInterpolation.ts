@@ -16,12 +16,16 @@ export interface StationWindData {
   lon: number;
   speed: number; // m/s
   dirDeg: number; // meteorological "from" direction
+  /** Freshness multiplier 0.0-1.0 (recent=1.0, older=decayed). Default 1.0 */
+  freshness?: number;
 }
 
 export interface StationScalarData {
   lat: number;
   lon: number;
   value: number;
+  /** Freshness multiplier 0.0-1.0 (recent=1.0, older=decayed). Default 1.0 */
+  freshness?: number;
 }
 
 // ── Fast distance approximation ────────────────────────────
@@ -80,7 +84,7 @@ export function interpolateWind(
       return { vx: v.vx, vy: v.vy, speed: s.speed };
     }
 
-    const w = 1 / Math.pow(d, power);
+    const w = (1 / Math.pow(d, power)) * (s.freshness ?? 1.0);
     const v = windToVector(s.speed, s.dirDeg);
     vxSum += w * v.vx;
     vySum += w * v.vy;
@@ -113,7 +117,7 @@ export function interpolateScalar(
 
     if (d < 0.05) return s.value;
 
-    const w = 1 / Math.pow(d, power);
+    const w = (1 / Math.pow(d, power)) * (s.freshness ?? 1.0);
     valueSum += w * s.value;
     weightSum += w;
   }
@@ -211,11 +215,22 @@ export function lookupWindGrid(grid: WindGrid, lat: number, lon: number): WindVe
   return { vx, vy, speed };
 }
 
+// ── Helper: freshness decay ──────────────────────────────────
+// Gradual decay instead of binary cutoff — recent readings contribute more
+
+/** Compute freshness multiplier (0.5–1.0) from reading age in minutes */
+function freshnessDecay(ageMin: number): number {
+  if (ageMin <= 5) return 1.0;     // just updated
+  if (ageMin <= 10) return 0.95;   // normal interval
+  if (ageMin <= 20) return 0.85;   // slightly behind
+  return 0.7;                       // approaching stale threshold
+}
+
 // ── Helper: extract wind data from store ───────────────────
 
 /** Build StationWindData[] from stations + readings for IDW wind interpolation.
- *  Filters out stale readings (>STALE_THRESHOLD_MIN) to prevent offline stations
- *  from corrupting interpolated wind fields. */
+ *  Filters out stale readings (>STALE_THRESHOLD_MIN) and applies freshness decay
+ *  so recently-updated stations contribute more to interpolation. */
 export function extractWindData(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
@@ -228,12 +243,14 @@ export function extractWindData(
     const reading = readings.get(station.id);
     if (!reading || reading.windSpeed === null || reading.windDirection === null) continue;
     if (reading.windSpeed < 0.1) continue; // skip truly calm (< 0.1 m/s)
-    if (now - reading.timestamp.getTime() > maxAgeMs) continue; // skip stale
+    const ageMs = now - reading.timestamp.getTime();
+    if (ageMs > maxAgeMs) continue; // skip stale
     result.push({
       lat: station.lat,
       lon: station.lon,
       speed: reading.windSpeed,
       dirDeg: reading.windDirection,
+      freshness: freshnessDecay(ageMs / 60_000),
     });
   }
   return result;
@@ -258,7 +275,7 @@ export function extractBuoyWindData(buoys: BuoyReading[]): StationWindData[] {
 }
 
 /** Build StationScalarData[] for humidity IDW interpolation.
- *  Filters out stale readings to match wind data freshness. */
+ *  Filters out stale readings and applies freshness decay. */
 export function extractHumidityData(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
@@ -269,11 +286,13 @@ export function extractHumidityData(
   for (const station of stations) {
     const reading = readings.get(station.id);
     if (!reading || reading.humidity === null) continue;
-    if (now - reading.timestamp.getTime() > maxAgeMs) continue; // skip stale
+    const ageMs = now - reading.timestamp.getTime();
+    if (ageMs > maxAgeMs) continue; // skip stale
     result.push({
       lat: station.lat,
       lon: station.lon,
       value: reading.humidity,
+      freshness: freshnessDecay(ageMs / 60_000),
     });
   }
   return result;
