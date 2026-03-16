@@ -10,7 +10,7 @@ const API_PATHS = [
   '/netatmo-api', '/netatmo-auth',
   '/meteo2api', '/ideg-api',
   '/enaire-api', '/ihm-api', '/eumetsat-api', '/portus-api', '/obscosteiro-api', '/hfradar-api', '/skyx-api',
-  '/api/webhook', '/api/v1',
+  '/noaa-api', '/api/webhook', '/api/v1',
 ];
 
 self.addEventListener('install', (event) => {
