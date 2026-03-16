@@ -6,7 +6,7 @@ Pure functions and algorithms used across the app. No React dependencies.
 
 - **`windUtils.ts`** — `msToKnots()`, `windSpeedColor()` (Beaufort scale), `degreesToCardinal()`. All wind display formatting. Also includes `formatPressure()`, `formatDewPoint()`, `pressureColor()`, `dewPointSpreadColor()` for barometric and moisture display.
 - **`normalizer.ts`** — Converts vendor-specific API responses to `NormalizedStation`/`NormalizedReading`. AEMET `dir` field is in decadegrees (multiply by 10).
-- **`idwInterpolation.ts`** — Inverse Distance Weighting for wind vectors and scalar fields (humidity). `fastDistanceKm()` uses equirectangular approximation (~100x faster than haversine). Shared by WindParticleOverlay and HumidityHeatmapOverlay.
+- **`idwInterpolation.ts`** — Inverse Distance Weighting for wind vectors and scalar fields (humidity). `fastDistanceKm()` uses equirectangular approximation (~100x faster than haversine). Shared by WindParticleOverlay and HumidityHeatmapOverlay. **Freshness decay**: IDW weights include `freshness` multiplier (1.0→0.7) based on reading age — recent readings contribute more.
 - **`geoUtils.ts`** — `isWithinRadius()` for station discovery filtering.
 
 ## Thermal Analysis
