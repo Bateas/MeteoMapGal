@@ -166,8 +166,55 @@ async function discoverWunderground(): Promise<NormalizedStation[]> {
     }
   }
 
-  log.info(`Weather Underground: ${allStations.length} stations`);
-  return allStations;
+  // Intra-WU dedup: cluster WU stations within 500m, keep closest to sector center
+  const beforeDedup = allStations.length;
+  const THRESHOLD = 0.0045; // ~500m
+  const used = new Set<number>();
+  const kept: NormalizedStation[] = [];
+
+  for (let i = 0; i < allStations.length; i++) {
+    if (used.has(i)) continue;
+    const cluster = [i];
+    used.add(i);
+
+    for (let j = i + 1; j < allStations.length; j++) {
+      if (used.has(j)) continue;
+      const isNear = cluster.some((k) =>
+        Math.abs(allStations[k].lat - allStations[j].lat) < THRESHOLD &&
+        Math.abs(allStations[k].lon - allStations[j].lon) < THRESHOLD
+      );
+      if (isNear) {
+        cluster.push(j);
+        used.add(j);
+      }
+    }
+
+    if (cluster.length === 1) {
+      kept.push(allStations[i]);
+    } else {
+      // Pick closest to nearest sector center
+      let bestIdx = cluster[0];
+      let bestDist = Infinity;
+      for (const idx of cluster) {
+        for (const sector of SECTORS) {
+          const [clon, clat] = sector.center;
+          const d = (allStations[idx].lat - clat) ** 2 + (allStations[idx].lon - clon) ** 2;
+          if (d < bestDist) { bestDist = d; bestIdx = idx; }
+        }
+      }
+      kept.push(allStations[bestIdx]);
+      log.info(
+        `WU cluster: kept ${allStations[bestIdx].id}, dropped ${cluster.length - 1} nearby`
+      );
+    }
+  }
+
+  if (kept.length < beforeDedup) {
+    log.info(`WU intra-dedup: ${beforeDedup} → ${kept.length} (${beforeDedup - kept.length} merged)`);
+  }
+
+  log.info(`Weather Underground: ${kept.length} stations`);
+  return kept;
 }
 
 // ── Netatmo ───────────────────────────────────────────
