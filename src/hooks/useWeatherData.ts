@@ -229,10 +229,10 @@ export function useWeatherData() {
     if (stations.length > 0 && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
       forceRefresh();
-      // Load 24h history in background
+      // Defer 24h history load — let forecast/thermal requests process first
       if (!hasLoadedHistoryRef.current) {
         hasLoadedHistoryRef.current = true;
-        loadHistory();
+        setTimeout(() => loadHistory(), 8_000);
       }
     }
   }, [stations.length, forceRefresh, loadHistory]);

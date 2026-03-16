@@ -14,6 +14,7 @@ export default defineConfig({
           'maplibre': ['maplibre-gl'],
           'recharts': ['recharts'],
           'date-fns': ['date-fns'],
+          'zustand': ['zustand'],
         },
       },
     },

@@ -1,7 +1,7 @@
-// MeteoMap Service Worker — cache-first for static assets, network-only for API proxies
-const CACHE_NAME = 'meteomap-v2';
+// MeteoMap Service Worker — cache-first for static assets, network-first for HTML, network-only for API
+const CACHE_NAME = 'meteomap-v3';
 
-const STATIC_EXTENSIONS = /\.(js|css|woff2?|ttf|svg|png|jpg|webp|ico)$/;
+const STATIC_EXTENSIONS = /\.(js|css|woff2?|ttf|svg|png|jpg|webp|ico|json)$/;
 
 // API proxy paths — always network, never cache
 const API_PATHS = [
@@ -10,7 +10,7 @@ const API_PATHS = [
   '/netatmo-api', '/netatmo-auth',
   '/meteo2api', '/ideg-api',
   '/enaire-api', '/ihm-api', '/eumetsat-api', '/portus-api', '/obscosteiro-api', '/hfradar-api', '/skyx-api',
-  '/api/webhook',
+  '/api/webhook', '/api/v1',
 ];
 
 self.addEventListener('install', (event) => {
@@ -33,8 +33,8 @@ self.addEventListener('fetch', (event) => {
     return; // Let the browser handle it normally
   }
 
-  // Cache-first for static assets (hashed filenames from Vite)
-  if (STATIC_EXTENSIONS.test(url.pathname) && url.pathname.includes('/assets/')) {
+  // Cache-first for static assets (hashed filenames from Vite + public assets)
+  if (STATIC_EXTENSIONS.test(url.pathname) && (url.pathname.includes('/assets/') || url.pathname.startsWith('/'))) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) return cached;
@@ -50,10 +50,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for HTML (SPA navigation)
+  // Network-first for HTML (SPA navigation) — cache successful response for offline
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match('/index.html'))
+      fetch(event.request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match('/index.html'))
     );
     return;
   }
