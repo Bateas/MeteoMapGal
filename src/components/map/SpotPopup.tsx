@@ -6,7 +6,7 @@
  * matched pattern, score, and summary text.
  * Themed per verdict color to match SpotMarker.
  */
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
@@ -15,6 +15,8 @@ import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import { temperatureColor } from '../../services/windUtils';
+import { fetchTidePredictions } from '../../api/tideClient';
+import type { TidePoint } from '../../api/tideClient';
 
 // ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -98,7 +100,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           </div>
           {score.wind.matchedPattern && (
             <div className="col-span-2 text-[10px] text-amber-400/80 italic">
-              ⚡ {score.wind.matchedPattern}
+              <WeatherIcon id="thermal-wind" size={11} className="inline -mt-px" /> {score.wind.matchedPattern}
             </div>
           )}
           <Cell label="Estaciones" value={`${score.wind.stationCount}`} />
@@ -133,6 +135,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Tide summary (Rías spots only) ── */}
+      {spot.tideStationId && <SpotTideSummary tideStationId={spot.tideStationId} />}
+
       {/* ── Thermal context (if applicable) ── */}
       {score?.thermal && score.thermal.thermalProbability > 0 && (
         <div className="text-[10px] text-amber-300/70 mb-1">
@@ -147,14 +152,15 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           className="text-[10px] font-semibold mb-1 px-1.5 py-0.5 rounded"
           style={{ background: 'rgba(251,191,36,0.10)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.20)' }}
         >
-          ⚡ Térmica detectada — estaciones en tierra subestiman el viento en el agua
+          <WeatherIcon id="thermal-wind" size={12} className="inline -mt-px" />{' '}
+          Térmica detectada — estaciones en tierra subestiman el viento en el agua
         </div>
       )}
 
       {/* ── Scoring confidence ── */}
       {score && score.scoringConfidence === 'low' && (
         <div className="text-[10px] text-slate-500 italic mb-1">
-          ⚠ Baja confianza: solo {score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)
+          <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" /> Baja confianza: solo {score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)
         </div>
       )}
 
@@ -168,7 +174,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Hard gate warning ── */}
       {score?.hardGateTriggered && (
         <div className="text-[10px] text-red-400 font-bold mt-1">
-          ⚠️ {score.hardGateTriggered}
+          <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" /> {score.hardGateTriggered}
         </div>
       )}
 
@@ -563,6 +569,65 @@ function SpotWindTrend({ spotId }: { spotId: string }) {
     <span className="text-xs font-bold leading-none" style={{ color: trend.color }} title="Tendencia viento">
       {trend.symbol}
     </span>
+  );
+}
+
+// ── Spot tide summary ─────────────────────────────────────────
+
+function SpotTideSummary({ tideStationId }: { tideStationId: string }) {
+  const [tides, setTides] = useState<TidePoint[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchTidePredictions(tideStationId)
+      .then((pts) => { if (!cancelled) setTides(pts); })
+      .catch(() => { if (!cancelled) setTides(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [tideStationId]);
+
+  // Find next tide from now
+  const nextTide = useMemo(() => {
+    if (!tides || tides.length === 0) return null;
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    for (const t of tides) {
+      const parts = t.time.split(':').map(Number);
+      if (parts.length < 2) continue;
+      const tideMins = parts[0] * 60 + parts[1];
+      if (tideMins > nowMins) return t;
+    }
+    return tides[0]; // wrap to first tomorrow
+  }, [tides]);
+
+  if (loading) return null;
+  if (!tides || tides.length === 0) return null;
+
+  return (
+    <div className="text-[10px] mb-1.5 pt-1 border-t border-slate-700/40">
+      <div className="flex items-center gap-1 text-slate-400 mb-0.5">
+        <WeatherIcon id="anchor" size={10} className="text-cyan-500/70" />
+        <span className="font-semibold">Mareas hoy</span>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {tides.map((t, i) => {
+          const isNext = t === nextTide;
+          const icon = t.type === 'high' ? '▲' : '▼';
+          const color = t.type === 'high' ? '#22d3ee' : '#60a5fa';
+          return (
+            <span
+              key={i}
+              className={`font-mono ${isNext ? 'font-bold' : 'opacity-60'}`}
+              style={{ color: isNext ? color : undefined }}
+              title={t.type === 'high' ? 'Pleamar' : 'Bajamar'}
+            >
+              {icon} {t.time} ({t.height.toFixed(1)}m)
+            </span>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
