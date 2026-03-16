@@ -72,10 +72,10 @@ export const SECTORS: Sector[] = [
     },
     meteoclimaticRegions: ['ESGAL32', 'ESGAL36'],
     extraCoveragePoints: [
-      { name: 'Ribadavia',    lon: -8.308, lat: 42.290 },  // ~17km W — wine valley, thermal corridor
-      { name: 'Ourense',      lon: -7.850, lat: 42.333 },  // ~20km E — major city, many PWS
-      { name: 'O Carballiño', lon: -8.067, lat: 42.417 },  // ~15km NW — thermal wind path
-      { name: 'Leiro',        lon: -8.130, lat: 42.380 },  // ~10km N — Avia valley
+      { name: 'Ribadavia',    lon: -8.308, lat: 42.290 },  // ~17km W — Miño valley, thermal corridor WSW (upstream)
+      { name: 'Ourense',      lon: -7.850, lat: 42.333 },  // ~20km E — Miño valley downstream, many PWS
+      // Leiro (10km N) — within 35km radius, no extra point needed
+      // O Carballiño EXCLUIDO: valle del Arenteiro, ~420m, sierra interpuesta — sin correlación térmica
     ],
   },
 ];
