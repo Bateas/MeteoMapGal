@@ -44,8 +44,12 @@ export const METEOCLIMATIC_STATIONS: MeteoclimaticStationMeta[] = [
   { id: 'ESGAL3600000036380A', lat: 42.399, lon: -8.698, altitude: 35 },    // Sanxenxo
   { id: 'ESGAL3600000036041A', lat: 42.233, lon: -8.720, altitude: 12 },    // Vigo - Bouzas
   { id: 'ESGAL3600000036057A', lat: 42.233, lon: -8.683, altitude: 30 },    // Vigo - Centro
+  { id: 'ESGAL3600000036212A', lat: 42.200, lon: -8.750, altitude: 77 },    // Vigo - Navia
+  { id: 'ESGAL3600000036316A', lat: 42.300, lon: -8.700, altitude: 320 },   // Vigo - Teis
   { id: 'ESGAL3600000036300A', lat: 42.428, lon: -8.644, altitude: 20 },    // Pontevedra
-  { id: 'ESGAL3600000036440A', lat: 42.342, lon: -8.717, altitude: 15 },    // Cangas do Morrazo
+  { id: 'ESGAL3600000036940A', lat: 42.250, lon: -8.783, altitude: 70 },    // Cangas do Morrazo (fixed: was 36440A/404)
+  { id: 'ESGAL3600000036350A', lat: 42.100, lon: -8.767, altitude: 15 },    // Nigrán
+  { id: 'ESGAL3600000036750A', lat: 41.933, lon: -8.767, altitude: 38 },    // Goián - Tomiño (Miño estuary)
   { id: 'ESGAL3600000036340A', lat: 42.442, lon: -8.808, altitude: 8 },     // O Grove - A Toxa
   { id: 'ESGAL3600000036260A', lat: 42.325, lon: -8.601, altitude: 50 },    // Redondela
   { id: 'ESGAL3600000036510A', lat: 42.196, lon: -8.748, altitude: 5 },     // Baiona
