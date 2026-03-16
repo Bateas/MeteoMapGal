@@ -71,12 +71,9 @@ export const SECTORS: Sector[] = [
       bearing: -15,
     },
     meteoclimaticRegions: ['ESGAL32', 'ESGAL36'],
-    extraCoveragePoints: [
-      { name: 'Ribadavia',    lon: -8.308, lat: 42.290 },  // ~17km W — Miño valley, thermal corridor WSW (upstream)
-      { name: 'Ourense',      lon: -7.850, lat: 42.333 },  // ~20km E — Miño valley downstream, many PWS
-      // Leiro (10km N) — within 35km radius, no extra point needed
-      // O Carballiño EXCLUIDO: valle del Arenteiro, ~420m, sierra interpuesta — sin correlación térmica
-    ],
+    // No extraCoveragePoints needed: 35km radius covers Ribadavia (17km), Ourense (20km),
+    // San Amaro (15km), Remuño (8km). Thermal wind is W/WSW (solar-driven, NOT river-channeled).
+    // Altitude matters: embalse ~95m — stations >300m are different wind regimes.
   },
 ];
 
