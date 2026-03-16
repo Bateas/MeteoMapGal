@@ -96,13 +96,14 @@ async function fetchPreviousRunForecast(
     'wind_speed_10m', 'wind_direction_10m',
   ].join(',');
 
+  // Use UTC timezone — DB stores UTC, so both sides must match
   const url = `https://previous-runs-api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}&longitude=${lon}` +
     `&hourly=${params}` +
     `&past_days=${pastDays}` +
     `&forecast_days=${forecastDays}` +
     `&wind_speed_unit=ms` +
-    `&timezone=Europe%2FMadrid`;
+    `&timezone=GMT`;
 
   const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) {
@@ -152,13 +153,13 @@ async function fetchHourlyObservations(
   return map;
 }
 
-/** Format date to Open-Meteo's time key format: "2026-03-13T10:00" */
+/** Format date to UTC time key matching Open-Meteo GMT format: "2026-03-13T10:00" */
 function formatTimeKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const h = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const h = String(d.getUTCHours()).padStart(2, '0');
+  const min = String(d.getUTCMinutes()).padStart(2, '0');
   return `${y}-${m}-${day}T${h}:${min}`;
 }
 
@@ -183,12 +184,12 @@ export async function verifyForecast(
 ): Promise<VerificationResult> {
   const now = new Date();
   const from = new Date(now);
-  from.setDate(from.getDate() - pastDays);
-  from.setHours(0, 0, 0, 0);
+  from.setUTCDate(from.getUTCDate() - pastDays);
+  from.setUTCHours(0, 0, 0, 0);
 
   const to = new Date(from);
-  to.setDate(to.getDate() + 1);
-  to.setHours(23, 59, 59, 999);
+  to.setUTCDate(to.getUTCDate() + 1);
+  to.setUTCHours(23, 59, 59, 999);
 
   // Fetch forecast and observations in parallel
   const [forecastMap, obsMap] = await Promise.all([

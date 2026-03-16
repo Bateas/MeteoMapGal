@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import type { UnifiedAlert, CompositeRisk } from '../services/alertService';
+import { useSectorStore } from './sectorStore';
 
 // ── Alert history entry (persisted) ─────────────────────────
 
@@ -17,6 +18,8 @@ export interface AlertHistoryEntry {
 export interface AlertValidation {
   /** Alert id (e.g. "maritime-fog", "cross-sea") */
   alertId: string;
+  /** Sector where the alert was validated (prevents cross-sector bleed) */
+  sectorId: string;
   /** When the alert fired */
   alertTime: number; // epoch ms
   /** Alert details at time of validation */
@@ -119,8 +122,11 @@ export const useAlertStore = create<AlertState>()(
           const alert = get().alerts.find((a) => a.id === alertId);
           if (!alert) return;
 
+          const sectorId = useSectorStore.getState().activeSector.id;
+
           const validation: AlertValidation = {
             alertId: alert.id,
+            sectorId,
             alertTime: alert.updatedAt.getTime(),
             title: alert.title,
             detail: alert.detail,
