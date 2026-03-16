@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>MeteoMapGal</title>
-    <meta name="description" content="Monitorización meteorológica en tiempo real para Galicia. Viento, temperatura, humedad y análisis térmico con 40+ estaciones." />
+    <meta name="description" content="Monitorización meteorológica en tiempo real para Galicia. Viento, temperatura, humedad y análisis térmico con 90+ estaciones." />
     <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -12,17 +12,89 @@
 
     <!-- Open Graph -->
     <meta property="og:title" content="MeteoMapGal — Meteo interactivo para Galicia" />
-    <meta property="og:description" content="Monitorización meteorológica en tiempo real para Galicia. Viento, temperatura, humedad y análisis térmico." />
+    <meta property="og:description" content="Monitorización meteorológica en tiempo real para Galicia. Viento, temperatura, humedad y análisis térmico con 90+ estaciones." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/icon-512.png" />
+    <meta property="og:url" content="https://meteomapgal.navia3d.com" />
+    <meta property="og:image" content="https://meteomapgal.navia3d.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="es_ES" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MeteoMapGal — Meteo interactivo para Galicia" />
+    <meta name="twitter:description" content="Viento, temperatura, olas y análisis térmico en tiempo real. 90+ estaciones, 12 boyas, 6 fuentes." />
+    <meta name="twitter:image" content="https://meteomapgal.navia3d.com/og-image.png" />
 
     <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
+
+    <!-- Resource hints — reduce DNS/TLS latency for API calls -->
+    <link rel="dns-prefetch" href="https://api.open-meteo.com" />
+    <link rel="dns-prefetch" href="https://opendata.aemet.es" />
+    <link rel="dns-prefetch" href="https://servizos.meteogalicia.gal" />
+    <link rel="preconnect" href="https://api.open-meteo.com" crossorigin />
+
+    <!-- Inline loading skeleton — visible before JS loads (~0ms) -->
+    <style>
+      #loading-skeleton {
+        position: fixed; inset: 0; z-index: 9999;
+        background: #0f172a;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        font-family: system-ui, -apple-system, sans-serif;
+        color: #94a3b8;
+        transition: opacity 0.5s;
+      }
+      #loading-skeleton.fade-out { opacity: 0; pointer-events: none; }
+      #loading-skeleton svg { width: 64px; height: 64px; margin-bottom: 16px; }
+      #loading-skeleton .title { font-size: 18px; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
+      #loading-skeleton .sub { font-size: 12px; color: #64748b; }
+      #loading-skeleton .bar {
+        width: 120px; height: 3px; margin-top: 20px;
+        background: #1e293b; border-radius: 2px; overflow: hidden;
+      }
+      #loading-skeleton .bar::after {
+        content: ''; display: block; width: 40%; height: 100%;
+        background: linear-gradient(90deg, #1e40af, #60a5fa);
+        border-radius: 2px;
+        animation: slide 1.2s ease-in-out infinite;
+      }
+      @keyframes slide { 0%{transform:translateX(-100%)} 100%{transform:translateX(350%)} }
+    </style>
   </head>
   <body>
+    <!-- Lightweight skeleton — renders instantly before React hydrates -->
+    <div id="loading-skeleton">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+        <rect width="64" height="64" rx="14" fill="#0f172a"/>
+        <g fill="none" stroke="#60a5fa" stroke-linecap="round" opacity="0.7">
+          <path d="M18 16 Q30 12, 40 16 Q45 18, 43 13 Q41 9, 36 12" stroke-width="3.5"/>
+          <path d="M14 28 Q30 22, 46 28 Q53 31, 50 24 Q47 18, 42 22" stroke-width="4"/>
+          <path d="M10 40 Q28 33, 50 40 Q56 42, 54 36 Q51 30, 46 34" stroke-width="4.5" opacity="0.6"/>
+        </g>
+        <path d="M8 52 Q16 46, 24 52 Q32 58, 40 52 Q48 46, 56 52" fill="none" stroke="#22d3ee" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+      </svg>
+      <div class="title">MeteoMapGal</div>
+      <div class="sub">Cargando datos meteorológicos...</div>
+      <div class="bar"></div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Remove skeleton once React renders (detected by #root having children)
+      const obs = new MutationObserver(() => {
+        const root = document.getElementById('root');
+        if (root && root.children.length > 0) {
+          const sk = document.getElementById('loading-skeleton');
+          if (sk) { sk.classList.add('fade-out'); setTimeout(() => sk.remove(), 600); }
+          obs.disconnect();
+        }
+      });
+      obs.observe(document.getElementById('root'), { childList: true });
+    </script>
   </body>
 </html>
