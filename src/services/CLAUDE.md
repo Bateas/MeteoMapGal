@@ -47,6 +47,15 @@ Pure functions and algorithms used across the app. No React dependencies.
 - **`gddService.ts`** — Growing Degree Days (GDD) for Vitis vinifera. `dailyGDD()` formula (base 10°C), `fetchSeasonGDD()` via Open-Meteo archive API (session-cached 1h), `computeTodayGDD()` from forecast, `getGrowthStage()` returns 9 phenological stages calibrated for Galician viticulture (Latencia → Vendimia). Season starts March 1.
 - **`lunarService.ts`** — Lunar phase calculation (Jean Meeus algorithm). 8 phases in Spanish, illumination %, moon age, next phase ETA, agricultural recommendations for Galician crops. Pure algorithmic — no API calls.
 
+## Thermal Early Warning
+
+- **`thermalPrecursorService.ts`** — Detects 6 precursor signals for thermal wind from existing data: morning terral (25%), ΔT water-air from buoy (20%), solar ramp (20%), humidity gradient coast-inland (15%), cross-station wind divergence (10%), forecast favorable (10%). Returns probability 0-100%, confidence, ETA, signal breakdown. Pure computation — no new API calls. Spot-agnostic via `thermalDetection: true`.
+- **`thermalVerificationService.ts`** — Logs thermal precursor predictions vs actual outcomes to localStorage. Computes hit/miss/false-alarm accuracy over 30 days. Analogous to forecastVerificationService. Tracks prediction lead time, hit rate, false alarm rate.
+
+## Webcam Vision
+
+- **`webcamVisionService.ts`** — Beaufort estimation from webcam images via LLM Vision API (OpenAI-compatible). Provider-agnostic: supports LM Studio (dev), DeepSeek API (prod cheap), Ollama (prod free). Fetches image → base64 → vision API → parses JSON response → Beaufort 0-7 + confidence + description. Config via `VITE_VISION_*` env vars. Only processes `type: 'image'` webcams (direct URL). Disabled by default (`VITE_VISION_ENABLED=false`).
+
 ## Data Logging
 
 - **`stationDataLogger.ts`** — Logs readings to localStorage as CSV. Uses `csvUtils` for safe escaping.

@@ -16,6 +16,8 @@ import { useThermalStore } from '../store/thermalStore';
 import { useLightningStore } from './useLightningData';
 import { useForecastStore } from './useForecastTimeline';
 import { scoreAllSpots, type SpotThermalContext } from '../services/spotScoringEngine';
+import { computeThermalPrecursors } from '../services/thermalPrecursorService';
+import { logPrediction } from '../services/thermalVerificationService';
 import { getSpotsForSector } from '../config/spots';
 import { msToKnots, degToCardinal8 } from '../services/windUtils';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../api/naoClient';
@@ -36,6 +38,8 @@ export function useSpotScoring() {
   const readingsEpoch = useWeatherStore((s) => s.readingsEpoch);
   const buoys = useBuoyStore((s) => s.buoys);
   const setScores = useSpotStore((s) => s.setScores);
+  const setThermalPrecursors = useSpotStore((s) => s.setThermalPrecursors);
+  const sectorForecast = useSpotStore((s) => s.sectorForecast);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const lastScoredRef = useRef(0);
   const mountTimeRef = useRef(Date.now());
@@ -88,10 +92,30 @@ export function useSpotScoring() {
       const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc);
       setScores(scores);
       lastScoredRef.current = Date.now();
+
+      // ── Thermal precursors — compute for all thermalDetection spots ──
+      const thermalSpots = spots.filter(s => s.thermalDetection);
+      if (thermalSpots.length > 0) {
+        const precursors = new Map<string, ReturnType<typeof computeThermalPrecursors>>();
+        const currentBuoys = useBuoyStore.getState().buoys;
+        const fcst = useSpotStore.getState().sectorForecast;
+        for (const sp of thermalSpots) {
+          const result = computeThermalPrecursors(
+            sp, stations, currentReadings, currentBuoys,
+            fcst.length > 0 ? fcst : null,
+          );
+          precursors.set(sp.id, result);
+          // Log prediction for verification tracking
+          if (result.probability > 0) {
+            logPrediction(result);
+          }
+        }
+        setThermalPrecursors(precursors);
+      }
     }, 50);
 
     return () => clearTimeout(timerRef.current);
-  }, [sectorId, stations, readingsEpoch, buoys, setScores, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast]);
+  }, [sectorId, stations, readingsEpoch, buoys, setScores, setThermalPrecursors, sectorForecast, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast]);
 }
 
 /**
