@@ -220,15 +220,17 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
         <div
           className="absolute -top-0.5 -right-0.5 rounded-full pointer-events-none whitespace-nowrap border flex items-center gap-0.5"
           style={{
-            fontSize: 9,
+            fontSize: 10,
             fontWeight: 800,
             fontFamily: 'ui-monospace, monospace',
-            lineHeight: '12px',
+            lineHeight: '13px',
             padding: isLoading ? '2px 5px' : '1px 6px',
             background: 'rgba(15, 23, 42, 0.92)',
             borderColor: isLoading ? '#60a5fa80' : `${colors.ring}80`,
             color: isLoading ? '#93c5fd' : colors.text,
             textShadow: isLoading ? 'none' : `0 0 5px ${colors.glow}66`,
+            backfaceVisibility: 'hidden',
+            WebkitFontSmoothing: 'antialiased',
           }}
         >
           {isLoading ? <LoadingSpinner /> : badgeText}
@@ -236,12 +238,14 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
 
         {/* Name label — below marker (dark pill for legibility on any terrain) */}
         <div
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full whitespace-nowrap text-[10px] font-extrabold pointer-events-none rounded-full px-2 py-0.5"
+          className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full whitespace-nowrap text-[11px] font-extrabold pointer-events-none rounded-full px-2 py-0.5"
           style={{
             background: 'rgba(15, 23, 42, 0.85)',
             color: '#e2e8f0',
             border: `1px solid ${colors.ring}60`,
             letterSpacing: '0.02em',
+            backfaceVisibility: 'hidden',
+            WebkitFontSmoothing: 'antialiased',
           }}
         >
           {shortName}

@@ -6,7 +6,7 @@
  * matched pattern, score, and summary text.
  * Themed per verdict color to match SpotMarker.
  */
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
@@ -40,21 +40,21 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const vs = VERDICT_STYLE[verdict];
 
   const popupContent = (
-    <div className="min-w-[220px] max-w-[280px]">
+    <div className={isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[220px] max-w-[280px]'}>
       {/* ── Header ── */}
       <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700/60">
         <div
-          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+          className={`${isMobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-full flex items-center justify-center shrink-0`}
           style={{ background: vs.bg, border: `2px solid ${vs.color}` }}
         >
-          <WeatherIcon id={spot.icon} size={16} className="text-slate-200" />
+          <WeatherIcon id={spot.icon} size={isMobile ? 20 : 16} className="text-slate-200" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-slate-100 truncate">{spot.name}</span>
-            <span className="text-[8px] font-bold tracking-wider text-amber-400/80 bg-amber-400/10 px-1.5 py-0.5 rounded-full border border-amber-400/20 shrink-0 leading-none">BETA</span>
+            <span className={`${isMobile ? 'text-base' : 'text-sm'} font-bold text-slate-100 truncate`}>{spot.name}</span>
+            <span className={`${isMobile ? 'text-[9px]' : 'text-[8px]'} font-bold tracking-wider text-amber-400/80 bg-amber-400/10 px-1.5 py-0.5 rounded-full border border-amber-400/20 shrink-0 leading-none`}>BETA</span>
           </div>
-          <div className="text-[10px] text-slate-400">{spot.description}</div>
+          <div className={`${isMobile ? 'text-[11px]' : 'text-[10px]'} text-slate-400`}>{spot.description}</div>
         </div>
       </div>
 
@@ -76,16 +76,23 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Wind consensus ── */}
       {score?.wind && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
-          <Cell label="Viento" value={`${score.wind.avgSpeedKt.toFixed(0)} kt`} color={windKtColor(score.wind.avgSpeedKt)} />
+          <div className="flex items-baseline gap-1">
+            <span className="text-slate-500 text-[10px]">Viento</span>
+            <span className="font-bold" style={{ color: windKtColor(score.wind.avgSpeedKt) }}>
+              {score.wind.avgSpeedKt.toFixed(0)} kt
+            </span>
+            <SpotWindTrend spotId={spot.id} />
+            <SpotWindSparkline spotId={spot.id} />
+          </div>
           <div className="flex items-baseline gap-1">
             <span className="text-slate-500 text-[10px]">Dirección</span>
             <span className="font-bold text-slate-200 flex items-center gap-1">
               <span
                 className="inline-block text-sm leading-none"
                 style={{ transform: `rotate(${(score.wind.dirDeg + 180) % 360}deg)`, display: 'inline-block' }}
-                title={`${score.wind.dirDeg}°`}
               >↑</span>
               {score.wind.dominantDir}
+              <span className="text-[10px] text-slate-400 font-normal">{Math.round(score.wind.dirDeg)}°</span>
             </span>
           </div>
           {score.wind.matchedPattern && (
@@ -190,10 +197,10 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           {/* Close button */}
           <button
             onClick={() => selectSpot('')}
-            className="absolute top-3 right-3 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+            className="absolute top-3 right-3 p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
             aria-label="Cerrar"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -482,6 +489,62 @@ function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Wind trend + sparkline for spots ─────────────────────────
+
+const SPARK_W = 40;
+const SPARK_H = 16;
+
+function SpotWindSparkline({ spotId }: { spotId: string }) {
+  const history = useSpotStore((s) => s.windHistory.get(spotId));
+
+  const path = useMemo(() => {
+    if (!history || history.length < 3) return null;
+    const speeds = history.map((h) => h.kt);
+    const max = Math.max(...speeds, 1);
+    const step = SPARK_W / (speeds.length - 1);
+    return speeds
+      .map((s, i) => {
+        const x = (i * step).toFixed(1);
+        const y = (SPARK_H - (s / max) * (SPARK_H - 2) - 1).toFixed(1);
+        return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+      })
+      .join(' ');
+  }, [history]);
+
+  if (!path) return null;
+
+  return (
+    <svg width={SPARK_W} height={SPARK_H} className="ml-0.5 flex-shrink-0 opacity-60" aria-label="Tendencia viento spot">
+      <path fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
+    </svg>
+  );
+}
+
+function SpotWindTrend({ spotId }: { spotId: string }) {
+  const history = useSpotStore((s) => s.windHistory.get(spotId));
+
+  const trend = useMemo(() => {
+    if (!history || history.length < 3) return null;
+    const recent = history.slice(-3);
+    const older = history.slice(-6, -3);
+    if (older.length === 0) return null;
+    const avgRecent = recent.reduce((a, b) => a + b.kt, 0) / recent.length;
+    const avgOlder = older.reduce((a, b) => a + b.kt, 0) / older.length;
+    const diff = avgRecent - avgOlder;
+    if (diff > 1) return { symbol: '\u2191', color: '#22c55e' };
+    if (diff < -1) return { symbol: '\u2193', color: '#ef4444' };
+    return { symbol: '\u2192', color: '#64748b' };
+  }, [history]);
+
+  if (!trend) return null;
+
+  return (
+    <span className="text-xs font-bold leading-none" style={{ color: trend.color }} title="Tendencia viento">
+      {trend.symbol}
+    </span>
   );
 }
 
