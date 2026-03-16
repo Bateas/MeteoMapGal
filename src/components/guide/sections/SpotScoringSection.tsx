@@ -71,10 +71,10 @@ export function SpotScoringSection() {
           </p>
           <div className="space-y-1.5 pt-1">
             <VerdictRow color="#94a3b8" label="Calma"     wind="< 6kt"   desc="Sin viento. No se navega." />
-            <VerdictRow color="#ef4444" label="Flojo"     wind="6-8kt"   desc="Poco viento. No merece preparar el barco." />
-            <VerdictRow color="#f59e0b" label="Navegable" wind="8-12kt"  desc="Regatistas motivados. Ocio escaso." />
-            <VerdictRow color="#10b981" label="Buen d&iacute;a"  wind="12-18kt" desc="Regata y ocio. Merece la pena ir." />
-            <VerdictRow color="#06b6d4" label="Fuerte"    wind="18+ kt"  desc="Solo con experiencia. Viento potente." />
+            <VerdictRow color="#4ade80" label="Flojo"     wind="6-8kt"   desc="Poco viento. No merece preparar el barco." />
+            <VerdictRow color="#bef264" label="Navegable" wind="8-12kt"  desc="Regatistas motivados. Ocio escaso." />
+            <VerdictRow color="#facc15" label="Buen d&iacute;a"  wind="12-18kt" desc="Regata y ocio. Merece la pena ir." />
+            <VerdictRow color="#fb923c" label="Fuerte"    wind="18+ kt"  desc="Solo con experiencia. Viento potente." />
           </div>
           <p className="text-[9px] text-slate-500 italic pt-2">
             Las estaciones meteorol&oacute;gicas est&aacute;n en tierra, no en el agua. El viento real en la
@@ -136,9 +136,17 @@ export function SpotScoringSection() {
             <li><strong className="text-sky-400">Ventana viento</strong> — horas previstas con viento &ge;3kt (10h-20h).</li>
             <li><strong className="text-slate-300">Nubes / CAPE</strong> — cobertura nubosa + energ&iacute;a convectiva.</li>
             <li><strong className="text-amber-400">Tendencia</strong> — se&ntilde;ales precursoras (activas, probables, en formaci&oacute;n).</li>
+            <li><strong className="text-red-400">Alerta t&eacute;rmica temprana</strong> — panel colapsable con 6 se&ntilde;ales precursoras:
+              terral matutino (25%), &Delta;T agua-aire desde boya (20%), rampa solar (20%),
+              gradiente de humedad costa-interior (15%), divergencia de viento entre estaciones (10%)
+              y previsi&oacute;n favorable (10%). Muestra probabilidad 0-100%, confianza y ETA.</li>
+            <li><strong className="text-orange-400">Amplificaci&oacute;n t&eacute;rmica</strong> — cuando se detecta t&eacute;rmica activa
+              (probabilidad &ge;40% + WSW + viento &ge;3kt), el scoring aplica un factor de amplificaci&oacute;n
+              (hasta +50%) porque las estaciones en tierra subestiman el viento real en el agua.
+              Muestra aviso de &ldquo;baja confianza&rdquo; con el n&uacute;mero de fuentes.</li>
           </ul>
           <p className="text-[9px] text-slate-500 italic">
-            Estos datos proceden de Open-Meteo (previsi&oacute;n) y del an&aacute;lisis t&eacute;rmico en tiempo real.
+            Estos datos proceden de Open-Meteo (previsi&oacute;n), an&aacute;lisis t&eacute;rmico en tiempo real y boyas marinas.
           </p>
         </div>
       </div>

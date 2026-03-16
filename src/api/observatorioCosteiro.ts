@@ -188,7 +188,7 @@ export async function fetchAllObsReadings(): Promise<BuoyReading[]> {
     .filter((r): r is BuoyReading => r != null);
 
   if (readings.length > 0) {
-    console.log(`[ObsCosteiro] ${readings.length} readings fetched (${readings.map(r => r.stationName).join(', ')})`);
+    console.debug(`[ObsCosteiro] ${readings.length} readings fetched (${readings.map(r => r.stationName).join(', ')})`);
   }
 
   return readings;

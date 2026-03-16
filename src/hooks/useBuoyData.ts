@@ -60,7 +60,7 @@ export function useBuoyData() {
       setError(null);
 
       if (obsData.length > 0) {
-        console.log(`[useBuoyData] Merged: ${portusData.length} PORTUS + ${obsData.length} ObsCosteiro → ${merged.length} total`);
+        console.debug(`[useBuoyData] Merged: ${portusData.length} PORTUS + ${obsData.length} ObsCosteiro → ${merged.length} total`);
       }
     } catch (err) {
       const msg = (err as Error).message;
