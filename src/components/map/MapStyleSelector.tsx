@@ -53,7 +53,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
   return (
     <div
       ref={panelRef}
-      className={`${isMobile ? 'fixed z-30 top-[9rem] right-2' : 'absolute z-20 top-2 right-12'}`}
+      className={`${isMobile ? 'fixed z-30 top-[9rem] right-2' : 'absolute z-30 top-2 right-12'}`}
     >
       {/* Trigger button — swatch preview */}
       <button

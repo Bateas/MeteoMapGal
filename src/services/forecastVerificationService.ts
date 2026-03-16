@@ -105,7 +105,7 @@ async function fetchPreviousRunForecast(
     `&wind_speed_unit=ms` +
     `&timezone=GMT`;
 
-  const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
+  const res = await openMeteoFetch(url, undefined, 15_000);
   if (!res.ok) {
     console.warn(`[ForecastVerification] Previous runs API failed: ${res.status}`);
     return new Map();

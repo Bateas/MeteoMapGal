@@ -11,7 +11,7 @@ import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
-import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/windUtils';
+import { msToKnots, degreesToCardinal, windSpeedColor, temperatureColor } from '../../services/windUtils';
 import { waveHeightColor, waterTempColor, currentSpeedColor, seaStateLabel } from '../../services/buoyUtils';
 
 /** Lightweight relative-time in Spanish (avoids date-fns locale bundle) */
@@ -161,6 +161,7 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
               <DataCell
                 label="T aire"
                 value={`${reading.airTemp.toFixed(1)}°C`}
+                color={temperatureColor(reading.airTemp)}
               />
             )}
           </>

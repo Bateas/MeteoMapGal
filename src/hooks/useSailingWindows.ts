@@ -49,7 +49,7 @@ async function fetchRiasForecast(): Promise<HourlyForecast[]> {
     `&wind_speed_unit=ms` +
     `&timezone=Europe%2FMadrid`;
 
-  const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
+  const res = await openMeteoFetch(url, undefined, 15_000);
   if (!res.ok) throw new Error(`Open-Meteo sailing windows: ${res.status}`);
 
   const data = await res.json();
