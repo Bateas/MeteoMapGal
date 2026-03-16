@@ -18,7 +18,7 @@
 import type { IconId } from '../components/icons/WeatherIcons';
 
 /** Type-safe spot identifiers for exhaustive matching */
-export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'castrelo';
+export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourido' | 'castrelo';
 
 export interface WindPattern {
   name: string;
@@ -73,6 +73,8 @@ export interface SailingSpot {
   };
   /** Webcams near this spot (Phase 1) */
   webcams?: SpotWebcam[];
+  /** Nearest IHM tide station ID (from tideClient.ts) for tide summary in popup */
+  tideStationId?: string;
 }
 
 // ── Spot Definitions ──────────────────────────────────────────
@@ -112,6 +114,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'none',
     thermalDetection: true,
     hardGates: { maxWindKt: 30 },
+    tideStationId: '29', // Vigo
     webcams: [
       {
         label: 'Cesantes (tmkites)',
@@ -157,6 +160,16 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'none', // Protected from ocean swell by the ría
     thermalDetection: false,
     hardGates: { maxWindKt: 30 },
+    tideStationId: '29', // Vigo
+    webcams: [
+      {
+        label: 'Vigo Móvil (Ría)',
+        url: 'https://www.g24.gal/-/vigo-mobil-',
+        type: 'page',
+        source: 'G24',
+        azimuth: 315, // Mirando NW (bocana → Cangas)
+      },
+    ],
   },
   {
     id: 'centro-ria',
@@ -198,6 +211,16 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'moderate',
     thermalDetection: false,
     hardGates: { maxWindKt: 30, maxWaveHeight: 2.0 },
+    tideStationId: '29', // Vigo
+    webcams: [
+      {
+        label: 'Vigo Móvil (Ría)',
+        url: 'https://www.g24.gal/-/vigo-mobil-',
+        type: 'page',
+        source: 'G24',
+        azimuth: 315, // Mirando NW (centro ría)
+      },
+    ],
   },
   {
     id: 'cies-ria',
@@ -232,6 +255,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'critical',
     thermalDetection: false,
     hardGates: { maxWindKt: 30, maxWaveHeight: 3.0 },
+    tideStationId: '30', // Baiona
     webcams: [
       {
         label: 'Cíes – Rodas (MeteoGalicia)',
@@ -240,6 +264,50 @@ export const RIAS_SPOTS: SailingSpot[] = [
         source: 'MeteoGalicia',
         azimuth: 180, // Mirando al sur (playa de Rodas)
         refreshInterval: 300, // 5 min
+      },
+    ],
+  },
+  {
+    id: 'lourido',
+    name: 'Lourido (Ría de Pontevedra)',
+    shortName: 'Lourido',
+    icon: 'beach',
+    center: [-8.679265, 42.420740],
+    radiusKm: 10,
+    description: 'Playa de Lourido, Ría de Pontevedra. Kite/windsurf spot con virazón SW tardes.',
+    windPatterns: [
+      {
+        name: 'Virazón SW',
+        direction: 225,
+        season: 'Primavera–Otoño, tardes',
+        description: 'Brisa marina SW 200-240°, 10-18kt. Se desarrolla con ΔT tierra-mar y cielo despejado.',
+      },
+      {
+        name: 'Norte NW',
+        direction: 330,
+        season: 'Frentes fríos',
+        description: 'NW 310-350° asociado a frentes. Choppy con marejadilla en la ría.',
+      },
+    ],
+    preferredStations: [
+      'mc_ESGAL3600000036940A', // Cangas do Morrazo (~10km W)
+    ],
+    preferredBuoys: [
+      4271, // Lourizán REMPOR (~3km SE, has wind!)
+      4273, // Cabo Udra REMPOR (~8km W, has wind)
+      3223, // Marín REDMAR (tide gauge, ~3km S)
+    ],
+    waveRelevance: 'moderate',
+    thermalDetection: false,
+    hardGates: { maxWindKt: 30, maxWaveHeight: 2.5 },
+    tideStationId: '28', // Marín
+    webcams: [
+      {
+        label: 'Lourido (KiteGalicia)',
+        url: 'https://kitegalicia.com/playas/centro-kg-lourido/',
+        type: 'page',
+        source: 'KiteGalicia',
+        azimuth: 225, // Mirando SW (ría)
       },
     ],
   },
