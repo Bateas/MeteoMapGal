@@ -104,10 +104,17 @@ function selectStationsForSpot(
   const [spotLon, spotLat] = spot.center;
   const preferredSet = new Set(spot.preferredStations);
 
+  const now = Date.now();
+  const MAX_READING_AGE_MS = 30 * 60_000; // 30min — discard stale readings from offline stations
+
   for (const s of stations) {
     const reading = readings.get(s.id);
     if (!reading) continue;
     if (reading.windSpeed === null) continue; // Direction is optional (SkyX, some Netatmo)
+
+    // Skip stale readings — prevents offline stations from dragging consensus
+    const ageMs = now - reading.timestamp.getTime();
+    if (ageMs > MAX_READING_AGE_MS) continue;
 
     const distKm = fastDistanceKm(s.lat, s.lon, spotLat, spotLon);
     const isPreferred = preferredSet.has(s.id);
