@@ -88,7 +88,7 @@ async function fetchForecastTimeline(): Promise<HourlyForecast[]> {
     `&wind_speed_unit=ms` +
     `&timezone=Europe%2FMadrid`;
 
-  const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
+  const res = await openMeteoFetch(url, undefined, 15_000);
   if (!res.ok) throw new Error(`Open-Meteo forecast: ${res.status}`);
 
   const data: OMForecastResponse = await res.json();

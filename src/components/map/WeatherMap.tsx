@@ -348,7 +348,7 @@ export function WeatherMap() {
         </div>
       ) : (
         /* Desktop: single flex row — toolbar left, alerts fill remaining space */
-        <div className="absolute z-20 bottom-2 left-2 right-2 flex items-end gap-3">
+        <div className="absolute z-30 bottom-2 left-2 right-2 flex items-end gap-3">
           {/* Toolbar: shrinks to fit, never overlapped */}
           <div className="flex items-end gap-2 shrink-0">
             <StormIndicator />
