@@ -328,7 +328,7 @@ export function AppShell() {
           </>
         )}
 
-        <main className={`flex-1 relative transition-opacity duration-1000 ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
+        <main className={`flex-1 relative isolate transition-opacity duration-1000 ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
           <ErrorBoundary section="Mapa">
             <WeatherMap />
           </ErrorBoundary>
