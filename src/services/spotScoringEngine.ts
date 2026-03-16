@@ -208,7 +208,11 @@ function computeSpotWindConsensus(
     if (buoy.windSpeed === null) continue;
     const speedKt = msToKnots(buoy.windSpeed);
     if (speedKt < 1) continue;
-    const weight = 1 / (distKm + 1);
+    // Buoys are professional instruments (quality=1.0) but still decay by freshness
+    const distWeight = 1 / (distKm + 1);
+    const buoyAgeMin = buoy.timestamp ? (Date.now() - new Date(buoy.timestamp).getTime()) / 60_000 : 0;
+    const buoyFreshness = buoyAgeMin <= 10 ? 1.0 : buoyAgeMin <= 30 ? 0.95 : buoyAgeMin <= 60 ? 0.85 : 0.7;
+    const weight = distWeight * buoyFreshness;
     speedPoints.push({ speedKt, weight });
     if (buoy.windDir !== null) {
       dirPoints.push({ dir: buoy.windDir, weight });
