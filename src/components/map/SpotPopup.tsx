@@ -14,6 +14,9 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
+import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
+import type { WebcamVisionResult } from '../../services/webcamVisionService';
+import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor } from '../../services/windUtils';
 import { fetchTidePredictions } from '../../api/tideClient';
 import type { TidePoint } from '../../api/tideClient';
@@ -36,8 +39,12 @@ interface SpotPopupProps {
 export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps) {
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const sailingWindows = useSpotStore((s) => s.sailingWindows);
+  const thermalPrecursors = useSpotStore((s) => s.thermalPrecursors);
+  const webcamVision = useSpotStore((s) => s.webcamVision);
   const isMobile = useUIStore((s) => s.isMobile);
   const windowResult = sailingWindows.get(spot.id);
+  const precursor = spot.thermalDetection ? thermalPrecursors.get(spot.id) : undefined;
+  const visionResult = webcamVision.get(spot.id);
 
   const verdict: SpotVerdict = score?.verdict ?? 'unknown';
   const vs = VERDICT_STYLE[verdict];
@@ -190,6 +197,12 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Sailing windows (collapsible) ── */}
       {windowResult && <SailingWindowsSection result={windowResult} />}
+
+      {/* ── Thermal precursor early warning (collapsible) ── */}
+      {precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
+
+      {/* ── Webcam Vision — Beaufort from LLM (dev mode) ── */}
+      {visionResult && visionResult.beaufort > 0 && <WebcamVisionBadge result={visionResult} />}
 
       {/* ── Webcams (collapsible) ── */}
       {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} />}
@@ -451,6 +464,116 @@ function WindPatterns({ patterns }: { patterns: WindPattern[] }) {
 function azimuthLabel(deg: number): string {
   const labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return labels[Math.round(deg / 45) % 8];
+}
+
+// ── Thermal precursor early warning ────────────────────────
+const PRECURSOR_LEVEL_STYLE: Record<string, { color: string; bg: string; icon: string }> = {
+  watch:    { color: '#94a3b8', bg: 'rgba(100,116,139,0.12)', icon: '👁️' },
+  probable: { color: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  icon: '🌡️' },
+  imminent: { color: '#fb923c', bg: 'rgba(249,115,22,0.12)',  icon: '🔥' },
+  active:   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: '⚡' },
+};
+
+function ThermalPrecursorSection({ precursor }: { precursor: ThermalPrecursorResult }) {
+  const [open, setOpen] = useState(false);
+  const style = PRECURSOR_LEVEL_STYLE[precursor.level] ?? PRECURSOR_LEVEL_STYLE.watch;
+
+  const activeSignals = Object.entries(precursor.signals).filter(([, s]) => s.active);
+
+  return (
+    <div className="mt-2 pt-2 border-t border-slate-700/40">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between text-left group"
+      >
+        <span className="text-[11px] font-semibold" style={{ color: style.color }}>
+          <WeatherIcon id="thermal-wind" size={12} className="inline -mt-px" />{' '}
+          Alerta térmica temprana
+        </span>
+        <span className="text-[10px] text-slate-500 group-hover:text-slate-400">{open ? '▴' : '▾'}</span>
+      </button>
+
+      {/* Summary always visible */}
+      <div
+        className="text-[10px] mt-1 px-1.5 py-1 rounded"
+        style={{ background: style.bg, color: style.color, border: `1px solid ${style.color}33` }}
+      >
+        {precursor.summary}
+        {precursor.eta && (
+          <span className="ml-1 opacity-80">· ventana {precursor.eta}</span>
+        )}
+      </div>
+
+      {/* Confidence badge */}
+      <div className="flex items-center gap-2 mt-1 text-[9px] text-slate-500">
+        <span>Probabilidad: <strong style={{ color: style.color }}>{precursor.probability}%</strong></span>
+        <span>· Confianza: {precursor.confidence}</span>
+        <span>· {activeSignals.length}/6 señales</span>
+      </div>
+
+      {/* Expanded signal details */}
+      {open && (
+        <div className="mt-1.5 space-y-0.5">
+          {Object.entries(precursor.signals).map(([key, signal]) => (
+            <PrecursorSignalRow key={key} name={SIGNAL_NAMES[key] ?? key} signal={signal} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SIGNAL_NAMES: Record<string, string> = {
+  terral: 'Terral matutino',
+  deltaTWaterAir: 'ΔT agua-aire',
+  solarRamp: 'Radiación solar',
+  humidityGradient: 'Gradiente humedad',
+  windDivergence: 'Divergencia viento',
+  forecastFavorable: 'Previsión favorable',
+};
+
+function PrecursorSignalRow({ name, signal }: { name: string; signal: { active: boolean; score: number; value: string; weight: number } }) {
+  const barWidth = Math.min(100, signal.score);
+  const color = signal.active ? '#22c55e' : '#475569';
+
+  return (
+    <div className="flex items-center gap-1.5 text-[9px]">
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+      <span className="text-slate-400 w-[90px] truncate">{name}</span>
+      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, background: color }} />
+      </div>
+      <span className="text-slate-500 w-[80px] truncate text-right" title={signal.value}>{signal.value}</span>
+    </div>
+  );
+}
+
+// ── Webcam Vision result badge ─────────────────────────────
+function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
+  const color = beaufortToColor(result.beaufort);
+  const ago = timeAgoEs(result.analyzedAt);
+  return (
+    <div
+      className="mt-2 pt-2 border-t border-slate-700/40 text-[10px]"
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-slate-400">👁️ Visión webcam:</span>
+        <span
+          className="font-bold px-1.5 py-0.5 rounded"
+          style={{ color, background: `${color}15`, border: `1px solid ${color}33` }}
+        >
+          Beaufort {result.beaufort} · {result.beaufortLabel} · ~{result.windEstimateKt}kt
+        </span>
+        <span className="text-slate-600">{result.confidence}</span>
+      </div>
+      <div className="text-slate-500 mt-0.5 truncate" title={result.description}>
+        {result.description}
+      </div>
+      <div className="text-[9px] text-slate-600 mt-0.5">
+        vía {result.providerUsed} · {result.latencyMs}ms · {ago}
+      </div>
+    </div>
+  );
 }
 
 function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {

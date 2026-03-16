@@ -9,6 +9,8 @@ import { devtools, persist } from 'zustand/middleware';
 import { ALL_SPOTS, DEFAULT_SPOT_ID, type SailingSpot } from '../config/spots';
 import type { SpotScore } from '../services/spotScoringEngine';
 import type { SpotWindowResult } from '../services/sailingWindowService';
+import type { ThermalPrecursorResult } from '../services/thermalPrecursorService';
+import type { WebcamVisionResult } from '../services/webcamVisionService';
 import type { HourlyForecast } from '../types/forecast';
 
 /** Historical wind speed entry for sparkline */
@@ -34,6 +36,14 @@ interface SpotState {
   windowsFetchedAt: number;
   /** Raw sector forecast (for forecast vs observation delta) */
   sectorForecast: HourlyForecast[];
+  /** Per-spot thermal precursor results (keyed by spot.id) */
+  thermalPrecursors: Map<string, ThermalPrecursorResult>;
+  /** Last thermal precursor computation timestamp */
+  precursorsFetchedAt: number;
+  /** Per-spot webcam vision results (keyed by spot.id) */
+  webcamVision: Map<string, WebcamVisionResult>;
+  /** Last webcam vision analysis timestamp */
+  visionAnalyzedAt: number;
 }
 
 interface SpotActions {
@@ -41,6 +51,8 @@ interface SpotActions {
   setScores: (scores: Map<string, SpotScore>) => void;
   setSailingWindows: (windows: Map<string, SpotWindowResult>) => void;
   setSectorForecast: (forecast: HourlyForecast[]) => void;
+  setThermalPrecursors: (precursors: Map<string, ThermalPrecursorResult>) => void;
+  setWebcamVision: (results: Map<string, WebcamVisionResult>) => void;
 }
 
 export const useSpotStore = create<SpotState & SpotActions>()(
@@ -55,6 +67,10 @@ export const useSpotStore = create<SpotState & SpotActions>()(
         sailingWindows: new Map(),
         windowsFetchedAt: 0,
         sectorForecast: [],
+        thermalPrecursors: new Map(),
+        precursorsFetchedAt: 0,
+        webcamVision: new Map(),
+        visionAnalyzedAt: 0,
 
         selectSpot: (spotId: string) => {
           // Empty string = deselect (close popup, keep last activeSpot for reference)
@@ -90,6 +106,12 @@ export const useSpotStore = create<SpotState & SpotActions>()(
 
         setSectorForecast: (sectorForecast) =>
           set({ sectorForecast }, undefined, 'setSectorForecast'),
+
+        setThermalPrecursors: (thermalPrecursors) =>
+          set({ thermalPrecursors, precursorsFetchedAt: Date.now() }, undefined, 'setThermalPrecursors'),
+
+        setWebcamVision: (webcamVision) =>
+          set({ webcamVision, visionAnalyzedAt: Date.now() }, undefined, 'setWebcamVision'),
       }),
       {
         name: 'spot-store',
