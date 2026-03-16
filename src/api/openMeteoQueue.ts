@@ -16,7 +16,7 @@
  * Works with both api.open-meteo.com and archive-api.open-meteo.com.
  */
 
-const MIN_INTERVAL_MS = 600;  // 600ms between requests (~100/min safe for free tier)
+const MIN_INTERVAL_MS = 350;  // 350ms between requests (~170/min, well within free tier burst limits)
 const MAX_RETRIES = 2;
 const RETRY_BASE_MS = 5000; // 5s, 10s exponential backoff
 
@@ -97,13 +97,6 @@ async function fetchWithRetry(
   return res;
 }
 
-/**
- * Rate-limited fetch for Open-Meteo API.
- * Drop-in replacement for `fetch()` — same signature and return type.
- *
- * All requests are serialized: one at a time, 250ms apart minimum.
- * Works for both api.open-meteo.com and archive-api.open-meteo.com.
- */
 /**
  * Rate-limited fetch for Open-Meteo API.
  * Drop-in replacement for `fetch()` — same signature and return type.
