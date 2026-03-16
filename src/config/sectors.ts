@@ -51,6 +51,9 @@ export const SECTORS: Sector[] = [
       { name: 'Ribeira',     lon: -8.99, lat: 42.56 },  // 39km — Arousa south coast
       { name: 'Muros',       lon: -9.0153, lat: 42.7195 }, // ~45km — Ría de Muros-Noia (Obs. Costeiro)
       { name: 'Vigo Costa', lon: -8.73, lat: 42.22 },  // ~9km — Vigo coastal PWS (WU, Bouzas, Alcabre, Baia)
+      { name: 'Baiona',     lon: -8.85, lat: 42.12 },  // ~22km — Baiona/Nigrán coast
+      { name: 'Sanxenxo',   lon: -8.81, lat: 42.40 },  // ~16km — Sanxenxo/Portonovo coast
+      { name: 'O Grove',    lon: -8.86, lat: 42.49 },  // ~24km — O Grove/Cambados/Arousa inner ría
     ],
   },
   {

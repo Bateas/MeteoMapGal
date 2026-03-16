@@ -21,10 +21,20 @@ function getFreshnessColor(reading?: NormalizedReading): string {
   return '#6b7280';
 }
 
+/** Reduce opacity for stale/offline stations so they don't mislead */
+function getFreshnessOpacity(reading?: NormalizedReading): number {
+  if (!reading || !reading.timestamp || isNaN(reading.timestamp.getTime())) return 0.4;
+  const ageMin = (Date.now() - reading.timestamp.getTime()) / 60000;
+  if (ageMin < STALE_THRESHOLD_MIN) return 1;
+  if (ageMin < OFFLINE_THRESHOLD_MIN) return 0.6;
+  return 0.4;
+}
+
 export const StationMarker = memo(function StationMarker({ station, reading, isSelected = false }: StationMarkerProps) {
   // Only subscribe to the action (stable ref), NOT to selectedStationId
   const selectStation = useWeatherStore((s) => s.selectStation);
   const freshnessColor = getFreshnessColor(reading);
+  const freshnessOpacity = getFreshnessOpacity(reading);
   const tempColor = temperatureColor(reading?.temperature ?? null);
 
   const handleClick = useCallback((e: { originalEvent: MouseEvent }) => {
@@ -39,7 +49,7 @@ export const StationMarker = memo(function StationMarker({ station, reading, isS
       anchor="center"
       onClick={handleClick}
     >
-      <div className="station-marker cursor-pointer" title={station.name}>
+      <div className="station-marker cursor-pointer" title={station.name} style={freshnessOpacity < 1 ? { opacity: freshnessOpacity } : undefined}>
         <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Estación ${station.name}`} style={{ pointerEvents: 'none' }}>
           {/* Wind arrow */}
           <WindArrow
