@@ -143,8 +143,8 @@ async function fetchHourlyObservations(
     // Bucket from TimescaleDB: may be "2026-03-13 10:00:00+00" (pg text cast) or ISO with Z
     // Ensure UTC interpretation: append Z if no timezone indicator present
     const raw = r.bucket;
-    const utcStr = (raw.endsWith('Z') || /[+-]\d{2}(:\d{2})?$/.test(raw))
-      ? raw
+    const utcStr = (raw.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(raw) || /[+-]\d{2}$/.test(raw))
+      ? raw.replace(' ', 'T')
       : raw.replace(' ', 'T') + 'Z';
     const date = new Date(utcStr);
     const key = formatTimeKey(date);
