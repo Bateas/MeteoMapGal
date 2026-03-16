@@ -1,6 +1,7 @@
 import { memo, useMemo, useCallback, useState } from 'react';
 import { useAlertStore } from '../../store/alertStore';
 import { useUIStore } from '../../store/uiStore';
+import { useSectorStore } from '../../store/sectorStore';
 import { NotificationControl } from './NotificationControl';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
@@ -108,15 +109,17 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
   const colors = SEVERITY_COLORS[alert.severity];
   const validateAlert = useAlertStore((s) => s.validateAlert);
   const validations = useAlertStore((s) => s.validations);
+  const activeSectorId = useSectorStore((s) => s.activeSector.id);
   const [justValidated, setJustValidated] = useState<boolean | null>(null);
 
-  // Check if this alert was recently validated (within last 30min)
+  // Check if this alert was recently validated (within last 30min) — sector-specific
   const recentValidation = useMemo(() => {
     const cutoff = Date.now() - 30 * 60 * 1000;
     return validations.find(
-      (v) => v.alertId === alert.id && v.validatedAt > cutoff,
+      (v) => v.alertId === alert.id && v.validatedAt > cutoff &&
+        (!v.sectorId || v.sectorId === activeSectorId),
     );
-  }, [validations, alert.id]);
+  }, [validations, alert.id, activeSectorId]);
 
   const handleValidate = useCallback((valid: boolean, e: React.MouseEvent) => {
     e.stopPropagation(); // Don't toggle panel
