@@ -143,7 +143,7 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
   // Process Weather Underground PWS stations (center + extra coverage points)
   if (wuStations.status === 'fulfilled') {
     const wuCount = stations.length;
-    const allWU = [...wuStations.value];
+    let allWU = [...wuStations.value];
 
     // Also query WU from extra coverage points (WU API is geocode-based, needs multiple queries)
     if (extraPoints?.length) {
@@ -154,6 +154,9 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
         if (r.status === 'fulfilled') allWU.push(...r.value);
       }
     }
+
+    // Intra-WU dedup: cluster WU stations within 500m, keep closest to center
+    allWU = deduplicateWUByProximity(allWU, centerLat, centerLon);
 
     for (const station of allWU) {
       // Accept if within main radius OR within extra coverage
@@ -226,6 +229,89 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
 
   console.debug(`[Discovery] Total stations: ${result.length}`);
   return result;
+}
+
+// ── WU intra-source proximity deduplication ───────────────────
+
+/**
+ * Dedup WU stations within ~500m of each other.
+ * When multiple PWS are clustered (e.g. neighbors in the same street),
+ * keep only the one closest to sector center (most representative).
+ *
+ * 500m ≈ 0.0045° latitude at Galician latitudes.
+ * Uses simple union-find clustering: stations within threshold of ANY
+ * member of a cluster get merged into that cluster.
+ */
+function deduplicateWUByProximity(
+  wuStations: NormalizedStation[],
+  centerLat: number,
+  centerLon: number,
+): NormalizedStation[] {
+  if (wuStations.length <= 1) return wuStations;
+
+  const THRESHOLD = 0.0045; // ~500m
+  const used = new Set<number>();
+  const kept: NormalizedStation[] = [];
+
+  // Remove exact ID duplicates first (from overlapping extra coverage queries)
+  const uniqueById = new Map<string, NormalizedStation>();
+  for (const s of wuStations) {
+    if (!uniqueById.has(s.id)) uniqueById.set(s.id, s);
+  }
+  const unique = [...uniqueById.values()];
+
+  for (let i = 0; i < unique.length; i++) {
+    if (used.has(i)) continue;
+
+    // Build cluster: all stations within 500m of station[i]
+    const cluster = [i];
+    used.add(i);
+
+    for (let j = i + 1; j < unique.length; j++) {
+      if (used.has(j)) continue;
+      // Check against any member of the cluster
+      const isNear = cluster.some((k) =>
+        Math.abs(unique[k].lat - unique[j].lat) < THRESHOLD &&
+        Math.abs(unique[k].lon - unique[j].lon) < THRESHOLD
+      );
+      if (isNear) {
+        cluster.push(j);
+        used.add(j);
+      }
+    }
+
+    if (cluster.length === 1) {
+      kept.push(unique[i]);
+    } else {
+      // Pick the one closest to sector center
+      let bestIdx = cluster[0];
+      let bestDist = Infinity;
+      for (const idx of cluster) {
+        const dlat = unique[idx].lat - centerLat;
+        const dlon = unique[idx].lon - centerLon;
+        const dist = dlat * dlat + dlon * dlon;
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = idx;
+        }
+      }
+      kept.push(unique[bestIdx]);
+      console.debug(
+        `[Discovery] WU cluster dedup: kept ${unique[bestIdx].id} ` +
+        `(${unique[bestIdx].name}), dropped ${cluster.length - 1}: ` +
+        `${cluster.filter(k => k !== bestIdx).map(k => unique[k].id).join(', ')}`
+      );
+    }
+  }
+
+  if (kept.length < unique.length) {
+    console.debug(
+      `[Discovery] WU intra-dedup: ${unique.length} → ${kept.length} ` +
+      `(${unique.length - kept.length} nearby WU stations merged)`
+    );
+  }
+
+  return kept;
 }
 
 // ── Rías interior exclusion zone ─────────────────────────────
