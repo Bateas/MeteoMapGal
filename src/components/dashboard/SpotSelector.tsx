@@ -16,6 +16,7 @@ import { getSpotsForSector } from '../../config/spots';
 import type { SpotScore, SpotVerdict, SpotThermalContext } from '../../services/spotScoringEngine';
 import type { SpotWindowResult } from '../../services/sailingWindowService';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
+import { waterTempColor } from '../../services/buoyUtils';
 
 // ── Verdict styling (5-level) ─────────────────────────────────────
 
@@ -190,7 +191,7 @@ function SpotCard({
             <span>Olas {score.waves.waveHeight.toFixed(1)}m</span>
           )}
           {score.waterTemp != null && (
-            <span>Agua {score.waterTemp.toFixed(0)}&deg;</span>
+            <span style={{ color: waterTempColor(score.waterTemp) }}>Agua {score.waterTemp.toFixed(0)}°</span>
           )}
           {score.hardGateTriggered && (
             <span className="text-red-400">{score.hardGateTriggered}</span>

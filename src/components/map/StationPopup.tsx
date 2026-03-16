@@ -12,6 +12,7 @@ import {
   formatDewPoint,
   windSpeedColor,
   precipitationColor,
+  temperatureColor,
   solarRadiationColor,
   solarRadiationIcon,
   pressureColor,
@@ -99,7 +100,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
                 </div>
                 <div>
                   <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Temperatura</div>
-                  <div style={{ fontWeight: 600 }}>{formatTemperature(reading.temperature)}</div>
+                  <div style={{ fontWeight: 600, color: temperatureColor(reading.temperature) }}>{formatTemperature(reading.temperature)}</div>
                 </div>
                 <div>
                   <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Humedad</div>

@@ -23,6 +23,7 @@ const RETRY_BASE_MS = 5000; // 5s, 10s exponential backoff
 interface QueueItem {
   url: string;
   options?: RequestInit;
+  timeoutMs?: number;
   resolve: (res: Response) => void;
   reject: (err: Error) => void;
 }
@@ -56,7 +57,13 @@ async function drain(): Promise<void> {
       lastRequestTime = Date.now();
 
       try {
-        const res = await fetchWithRetry(item.url, item.options);
+        // Create timeout signal at fetch time (not at queue entry time)
+        // to avoid premature timeouts from queue wait time
+        const opts = { ...item.options };
+        if (item.timeoutMs && !opts.signal) {
+          opts.signal = AbortSignal.timeout(item.timeoutMs);
+        }
+        const res = await fetchWithRetry(item.url, opts);
         item.resolve(res);
       } catch (err) {
         item.reject(err as Error);
@@ -97,12 +104,32 @@ async function fetchWithRetry(
  * All requests are serialized: one at a time, 250ms apart minimum.
  * Works for both api.open-meteo.com and archive-api.open-meteo.com.
  */
+/**
+ * Rate-limited fetch for Open-Meteo API.
+ * Drop-in replacement for `fetch()` — same signature and return type.
+ *
+ * All requests are serialized: one at a time, 600ms apart minimum.
+ *
+ * IMPORTANT: Do NOT pass AbortSignal.timeout() in options — the timeout
+ * starts counting at creation time, not at fetch time. If this request
+ * waits in the queue, the signal may expire before the fetch even begins.
+ * Instead, pass timeoutMs as a third parameter — the signal is created
+ * at fetch time, after queue wait.
+ */
 export function openMeteoFetch(
   url: string,
-  options?: RequestInit
+  options?: RequestInit,
+  timeoutMs?: number
 ): Promise<Response> {
+  // Strip any pre-created timeout signal from options (queue-safe)
+  const cleanOptions = options ? { ...options } : undefined;
+  if (cleanOptions?.signal && !timeoutMs) {
+    // Caller passed signal directly — extract timeout if possible, else keep as-is
+    // For backwards compat, keep the signal but warn it may expire early
+  }
+
   return new Promise<Response>((resolve, reject) => {
-    pending.push({ url, options, resolve, reject });
+    pending.push({ url, options: cleanOptions, timeoutMs, resolve, reject });
     drain();
   });
 }

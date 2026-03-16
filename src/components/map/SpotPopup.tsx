@@ -14,6 +14,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
+import { temperatureColor } from '../../services/windUtils';
 
 // ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -118,7 +119,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {(score?.airTemp != null || score?.waterTemp != null || score?.humidity != null) && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2 pt-1 border-t border-slate-700/40">
           {score?.airTemp != null && (
-            <Cell label="Aire" value={`${score.airTemp.toFixed(1)}°C`} />
+            <Cell label="Aire" value={`${score.airTemp.toFixed(1)}°C`} color={temperatureColor(score.airTemp)} />
           )}
           {score?.waterTemp != null && (
             <Cell label="Agua" value={`${score.waterTemp.toFixed(1)}°C`} color={waterTColor(score.waterTemp)} />
@@ -127,7 +128,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             <Cell label="Humedad" value={`${score.humidity.toFixed(0)}%`} color={humidityColor(score.humidity)} />
           )}
           {score?.windChill != null && (
-            <Cell label="Sensación" value={`${score.windChill.toFixed(1)}°C`} color="#60a5fa" />
+            <Cell label="Sensación" value={`${score.windChill.toFixed(1)}°C`} color={temperatureColor(score.windChill)} />
           )}
         </div>
       )}
