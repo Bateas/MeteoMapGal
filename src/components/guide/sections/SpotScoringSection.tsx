@@ -56,6 +56,7 @@ export function SpotScoringSection() {
           <SpotRow name="Bocana" desc="Estrecho de Rande, Vigo&ndash;San Sim&oacute;n. Terral matutino E/ENE." />
           <SpotRow name="Centro R&iacute;a" desc="Canido&ndash;Limens. Viraz&oacute;n SW tardes, oleaje moderado." />
           <SpotRow name="C&iacute;es-R&iacute;a" desc="Baiona&ndash;C&iacute;es. Condiciones oce&aacute;nicas, nortada verano." />
+          <SpotRow name="Lourido" desc="Playa Lourido, R&iacute;a de Pontevedra. Kite/windsurf, viraz&oacute;n SW." />
         </div>
       </div>
 
@@ -90,7 +91,7 @@ export function SpotScoringSection() {
             Adem&aacute;s del viento, el score (0-100) incorpora factores que matizan:
           </p>
           <ul className="space-y-1 pl-3">
-            <li><strong className="text-slate-300">Patr&oacute;n reconocido</strong> — t&eacute;rmica, nortada, terral, viraz&oacute;n. Se detecta solo con &ge;8kt.</li>
+            <li><strong className="text-slate-300">Patr&oacute;n reconocido</strong> — t&eacute;rmica, nortada, terral, viraz&oacute;n. Umbral: &ge;5kt en spots t&eacute;rmicos, &ge;8kt en el resto.</li>
             <li><strong className="text-slate-300">Consenso</strong> — cu&aacute;ntas estaciones confirman viento (m&aacute;s = mayor fiabilidad).</li>
             <li><strong className="text-slate-300">Oleaje</strong> — cr&iacute;tico en C&iacute;es-R&iacute;a, moderado en Centro R&iacute;a, ignorado en Cesantes.</li>
             <li><strong className="text-slate-300">Norte en Cesantes</strong> — penaliza: el norte mata la t&eacute;rmica.</li>
@@ -156,9 +157,50 @@ export function SpotScoringSection() {
           <ul className="space-y-1 pl-3">
             <li><strong className="text-slate-300">C&iacute;es-R&iacute;a</strong> &mdash; Imagen est&aacute;tica de playa de Rodas (MeteoGalicia, cada 5 min). Se puede refrescar manualmente.</li>
             <li><strong className="text-slate-300">Cesantes</strong> &mdash; Enlace a stream en vivo de tmkites.com (se abre en nueva pesta&ntilde;a).</li>
+            <li><strong className="text-slate-300">Bocana / Centro R&iacute;a</strong> &mdash; Vigo M&oacute;vil (G24): visi&oacute;n desde Porto de Vigo hacia la bocana y medio de la r&iacute;a.</li>
+            <li><strong className="text-slate-300">Lourido</strong> &mdash; KiteGalicia: enlace a p&aacute;gina del centro KG Lourido con condiciones en vivo.</li>
           </ul>
           <p className="text-[9px] text-slate-500 italic">
             Las webcams son fuentes externas. La disponibilidad depende del proveedor.
+          </p>
+        </div>
+      </div>
+
+      {/* Tides in spots */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">
+          <WeatherIcon id="anchor" size={14} className="inline-block mr-1.5 text-cyan-400" />
+          Mareas en spots
+        </h3>
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+          <p>
+            Cada spot R&iacute;as muestra un <strong className="text-slate-300">resumen de mareas</strong> integrado
+            en el popup, con las pleamares (&blacktriangle;) y bajamares (&blacktriangledown;) del d&iacute;a.
+            La pr&oacute;xima marea se resalta en color para referencia r&aacute;pida.
+          </p>
+          <ul className="space-y-1 pl-3">
+            <li><strong className="text-slate-300">Cesantes, Bocana, C. R&iacute;a</strong> &mdash; Mareas de Vigo (IHM).</li>
+            <li><strong className="text-slate-300">C&iacute;es-R&iacute;a</strong> &mdash; Mareas de Baiona (IHM).</li>
+            <li><strong className="text-slate-300">Lourido</strong> &mdash; Mareas de Mar&iacute;n (IHM).</li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Buoy wind arrows */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">
+          <WeatherIcon id="wind" size={14} className="inline-block mr-1.5 text-emerald-400" />
+          Viento en boyas
+        </h3>
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+          <p>
+            Las boyas con anem&oacute;metro (REMPOR, CETMAR, REDEXT) muestran una
+            <strong className="text-slate-300"> flecha de viento</strong> directamente sobre el marcador,
+            m&aacute;s un <strong className="text-slate-300">badge con nudos</strong> (bottom-left).
+          </p>
+          <p className="text-[9px] text-slate-500 italic">
+            Las boyas REDMAR (Vigo, Mar&iacute;n, Vilagarc&iacute;a) son mare&oacute;grafos y <strong>no tienen anem&oacute;metro</strong>.
+            La boya Rande (1251) tampoco mide viento &mdash; solo temperatura del agua y del aire.
           </p>
         </div>
       </div>
