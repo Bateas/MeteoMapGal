@@ -7,6 +7,7 @@ import { useSectorStore } from './sectorStore';
 
 export interface AlertHistoryEntry {
   id: string;
+  sectorId: string;
   category: string;
   severity: string;
   title: string;
@@ -77,17 +78,19 @@ export const useAlertStore = create<AlertState>()(
         setAlerts: (alerts, risk) => {
           const now = Date.now();
           const prev = get().alertHistory;
+          const sectorId = useSectorStore.getState().activeSector.id;
 
-          // Record notable alerts (severity > info) with dedup
+          // Record notable alerts (severity > info) with sector-aware dedup
           const newEntries: AlertHistoryEntry[] = [];
           for (const a of alerts) {
             if (a.severity === 'info') continue;
             const isDupe = prev.some(
-              (h) => h.id === a.id && now - h.timestamp < DEDUP_WINDOW_MS,
+              (h) => h.id === a.id && (!h.sectorId || h.sectorId === sectorId) && now - h.timestamp < DEDUP_WINDOW_MS,
             );
             if (!isDupe) {
               newEntries.push({
                 id: a.id,
+                sectorId,
                 category: a.category,
                 severity: a.severity,
                 title: a.title,
