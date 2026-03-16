@@ -87,6 +87,10 @@ export interface SpotScore {
   thermal: SpotThermalContext | null;
   /** Active storm alert — applies to ALL spots in the sector */
   hasStormAlert: boolean;
+  /** True when thermal boost was applied (land stations underestimate water wind) */
+  thermalBoosted: boolean;
+  /** Scoring confidence: 'high' (3+ sources), 'medium' (2), 'low' (1 or only land) */
+  scoringConfidence: 'high' | 'medium' | 'low';
   computedAt: Date;
 }
 
@@ -243,9 +247,10 @@ function computeSpotWindConsensus(
     avgDir = ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
   }
 
-  // Check wind pattern match — require minimum 8kt to acknowledge pattern
+  // Check wind pattern match — lower threshold for thermal spots (land stations underestimate)
+  const patternThreshold = spot.thermalDetection ? 5 : 8;
   let matchedPattern: string | null = null;
-  if (avgSpeed >= 8) {
+  if (avgSpeed >= patternThreshold) {
     for (const pattern of spot.windPatterns) {
       if (angleDifference(avgDir, pattern.direction) <= 45) {
         matchedPattern = pattern.name;
@@ -323,7 +328,8 @@ function scoreSpot(
   wind: SpotWindConsensus | null,
   waves: SpotWaveConditions | null,
   waterTemp: number | null,
-): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string } {
+  thermalData?: SpotThermalContext,
+): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
     return {
@@ -331,6 +337,7 @@ function scoreSpot(
       verdict: 'strong',
       hardGate: `Viento ${wind.avgSpeedKt.toFixed(0)}kt > ${spot.hardGates.maxWindKt}kt`,
       summary: `Viento excesivo (${wind.avgSpeedKt.toFixed(0)}kt). Peligroso.`,
+      thermalBoosted: false,
     };
   }
 
@@ -341,51 +348,79 @@ function scoreSpot(
       verdict: 'strong',
       hardGate: `Oleaje ${waves.waveHeight.toFixed(1)}m > ${spot.hardGates.maxWaveHeight}m`,
       summary: `Oleaje excesivo (${waves.waveHeight.toFixed(1)}m). Peligroso.`,
+      thermalBoosted: false,
     };
   }
 
   // ── No data ────────────────────────────────────────────
   if (!wind) {
-    return { score: 0, verdict: 'unknown', hardGate: null, summary: 'Sin datos de viento.' };
+    return { score: 0, verdict: 'unknown', hardGate: null, summary: 'Sin datos de viento.', thermalBoosted: false };
   }
 
   const spd = wind.avgSpeedKt;
 
-  // ── Primary verdict from wind speed ────────────────────
-  const verdict = windVerdict(spd, spot.id);
+  // ── Thermal boost: land stations systematically underestimate water wind ──
+  // During thermal conditions, sheltered land stations read 30-50% below actual
+  // water surface wind. When thermal probability is high AND direction matches
+  // a thermal pattern, we apply an amplification factor to the consensus.
+  let thermalBoosted = false;
+  let effectiveSpd = spd;
+
+  if (spot.thermalDetection && thermalData && thermalData.thermalProbability >= 40) {
+    // Check if current wind direction matches a thermal pattern
+    const dirMatchesThermal = spot.windPatterns.some(
+      (p) => angleDifference(wind.dirDeg, p.direction) <= 50,
+    );
+    // Also check forecast wind window direction
+    const forecastMatchesThermal = thermalData.windWindow?.dominantDir &&
+      ['SW', 'WSW', 'W', 'SSW'].includes(thermalData.windWindow.dominantDir);
+
+    if ((dirMatchesThermal || forecastMatchesThermal) && spd >= 3) {
+      // Amplification factor: +20% at 40% probability → +50% at 100% probability
+      // Capped at +50% (e.g., 5kt consensus → 7.5kt effective)
+      const boostFactor = 1 + (thermalData.thermalProbability / 100) * 0.5;
+      effectiveSpd = spd * boostFactor;
+      thermalBoosted = true;
+    }
+  }
+
+  // ── Primary verdict from wind speed (using effective speed with thermal boost) ──
+  const verdict = windVerdict(effectiveSpd, spot.id);
 
   // ── Score computation (0-100) for ranking ──────────────
   let score = 0;
 
   // Wind speed score — calibrated to real Rías experience
+  // Uses effectiveSpd (includes thermal boost when applicable)
+  const spdForScore = effectiveSpd;
   if (spot.id === 'cesantes' || spot.id === 'castrelo') {
-    if (spd < 6) score += 0;
-    else if (spd < 8) score += 10;
-    else if (spd < 12) score += 22;
-    else if (spd < 15) score += 38;
-    else if (spd <= 22) score += 48;
+    if (spdForScore < 6) score += 0;
+    else if (spdForScore < 8) score += 10;
+    else if (spdForScore < 12) score += 22;
+    else if (spdForScore < 15) score += 38;
+    else if (spdForScore <= 22) score += 48;
     else score += 35;
   } else if (spot.id === 'bocana') {
-    if (spd < 6) score += 0;
-    else if (spd < 8) score += 8;
-    else if (spd < 12) score += 20;
-    else if (spd < 15) score += 38;
-    else if (spd <= 22) score += 48;
+    if (spdForScore < 6) score += 0;
+    else if (spdForScore < 8) score += 8;
+    else if (spdForScore < 12) score += 20;
+    else if (spdForScore < 15) score += 38;
+    else if (spdForScore <= 22) score += 48;
     else score += 30;
   } else if (spot.id === 'cies-ria') {
-    if (spd < 5) score += 0;
-    else if (spd < 10) score += 8;     // light — not enough for ocean
-    else if (spd < 14) score += 22;    // sailing
-    else if (spd < 18) score += 38;    // good
-    else if (spd <= 22) score += 42;   // strong but manageable
+    if (spdForScore < 5) score += 0;
+    else if (spdForScore < 10) score += 8;     // light — not enough for ocean
+    else if (spdForScore < 14) score += 22;    // sailing
+    else if (spdForScore < 18) score += 38;    // good
+    else if (spdForScore <= 22) score += 42;   // strong but manageable
     else score += 25;                  // overpowered
   } else {
     // Centro Ría
-    if (spd < 6) score += 0;
-    else if (spd < 8) score += 8;
-    else if (spd < 12) score += 18;
-    else if (spd < 15) score += 35;
-    else if (spd <= 22) score += 45;
+    if (spdForScore < 6) score += 0;
+    else if (spdForScore < 8) score += 8;
+    else if (spdForScore < 12) score += 18;
+    else if (spdForScore < 15) score += 35;
+    else if (spdForScore <= 22) score += 45;
     else score += 28;
   }
 
@@ -424,13 +459,14 @@ function scoreSpot(
   }
 
   // Cap score — calm verdict should never score high (confusing to see "CALMA 30/100")
-  if (verdict === 'calm') score = Math.min(score, 10);
+  // Exception: when thermal boost is active, don't cap — the score reflects thermal potential
+  if (verdict === 'calm' && !thermalBoosted) score = Math.min(score, 10);
   score = Math.max(0, Math.min(100, score));
 
   // ── Summary ────────────────────────────────────────────
-  const summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp);
+  const summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData);
 
-  return { score, verdict, hardGate: null, summary };
+  return { score, verdict, hardGate: null, summary, thermalBoosted };
 }
 
 // ── Summary Builder ──────────────────────────────────────────
@@ -441,6 +477,8 @@ function buildSpotSummary(
   wind: SpotWindConsensus,
   waves: SpotWaveConditions | null,
   waterTemp: number | null,
+  thermalBoosted = false,
+  thermalData?: SpotThermalContext,
 ): string {
   const parts: string[] = [];
   const spd = wind.avgSpeedKt;
@@ -496,6 +534,11 @@ function buildSpotSummary(
     parts.push(`\u00b7 Agua ${waterTemp.toFixed(0)}\u00b0C`);
   }
 
+  // Thermal boost indicator — tell user the score accounts for localized thermal
+  if (thermalBoosted && thermalData) {
+    parts.push(`\u00b7 Térmica ${thermalData.thermalProbability}% (estaciones en tierra subestiman)`);
+  }
+
   return parts.join(' ');
 }
 
@@ -537,7 +580,14 @@ export function scoreAllSpots(
       }
     }
 
-    let { score, verdict, hardGate, summary } = scoreSpot(spot, wind, waves, waterTemp);
+    // Pass thermal data to scoring when spot has thermalDetection
+    const spotThermal = spot.thermalDetection ? thermalData : undefined;
+    let { score, verdict, hardGate, summary, thermalBoosted } = scoreSpot(spot, wind, waves, waterTemp, spotThermal);
+
+    // Scoring confidence based on source count and type
+    const sourceCount = wind?.stationCount ?? 0;
+    const scoringConfidence: 'high' | 'medium' | 'low' =
+      sourceCount >= 3 ? 'high' : sourceCount >= 2 ? 'medium' : 'low';
 
     // ── NAO/AO score modulation ──────────────────────────
     // NAO+ = Atlantic storms → consistent wind patterns (+5-8%)
@@ -597,6 +647,8 @@ export function scoreAllSpots(
       hardGateTriggered: hardGate,
       thermal: spot.thermalDetection ? (thermalData ?? null) : null,
       hasStormAlert: thermalData?.hasStormAlert ?? false,
+      thermalBoosted,
+      scoringConfidence,
       computedAt,
     });
   }

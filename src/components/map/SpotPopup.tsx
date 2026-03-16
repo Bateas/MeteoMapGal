@@ -141,6 +141,23 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Thermal boost indicator ── */}
+      {score?.thermalBoosted && (
+        <div
+          className="text-[10px] font-semibold mb-1 px-1.5 py-0.5 rounded"
+          style={{ background: 'rgba(251,191,36,0.10)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.20)' }}
+        >
+          ⚡ Térmica detectada — estaciones en tierra subestiman el viento en el agua
+        </div>
+      )}
+
+      {/* ── Scoring confidence ── */}
+      {score && score.scoringConfidence === 'low' && (
+        <div className="text-[10px] text-slate-500 italic mb-1">
+          ⚠ Baja confianza: solo {score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)
+        </div>
+      )}
+
       {/* ── Summary ── */}
       {score?.summary && (
         <div className="text-[10px] text-slate-400 leading-snug mt-1 pt-1 border-t border-slate-700/40">
