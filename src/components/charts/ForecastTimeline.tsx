@@ -897,7 +897,7 @@ export function ForecastTimeline() {
           <div className="flex-1 overflow-y-auto min-h-0">
             {visibleData.length === 0 && !isLoading && (
               <div className="text-slate-500 text-xs text-center py-8">
-                Sin datos de previsión
+                {error ? `Error: ${error}` : 'Cargando previsión…'}
               </div>
             )}
 

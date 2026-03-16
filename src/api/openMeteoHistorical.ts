@@ -47,7 +47,7 @@ export async function fetchHistoricalData(
     `&wind_speed_unit=ms` +
     `&timezone=Europe%2FMadrid`;
 
-  const res = await openMeteoFetch(url, { signal: AbortSignal.timeout(15_000) });
+  const res = await openMeteoFetch(url, undefined, 15_000);
   if (!res.ok) {
     throw new Error(`Open-Meteo Archive API error: ${res.status} ${res.statusText}`);
   }
