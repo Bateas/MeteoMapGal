@@ -116,16 +116,16 @@ async function discoverWunderground(): Promise<NormalizedStation[]> {
   const apiKey = process.env.WU_API_KEY || 'e1f10a1e78da46f5b10a1e78da96f525';
   const allStations: NormalizedStation[] = [];
 
-  for (const sector of SECTORS) {
+  /** Fetch WU stations near a geocode point and add unique ones to allStations */
+  async function fetchWUNear(lat: number, lon: number, label: string): Promise<void> {
     try {
-      const [lon, lat] = sector.center;
       const res = await fetch(
         `${WU_BASE}/v3/location/near?geocode=${lat},${lon}&product=pws&format=json&apiKey=${apiKey}`,
         { signal: AbortSignal.timeout(TIMEOUT) }
       );
       const data = await res.json();
       const loc = data?.location;
-      if (!loc?.stationId) continue;
+      if (!loc?.stationId) return;
 
       for (let i = 0; i < loc.stationId.length; i++) {
         const sLat = loc.latitude[i];
@@ -145,7 +145,24 @@ async function discoverWunderground(): Promise<NormalizedStation[]> {
         });
       }
     } catch (err) {
-      log.error(`WU discovery (${sector.id}) failed:`, (err as Error).message);
+      log.error(`WU discovery (${label}) failed:`, (err as Error).message);
+    }
+  }
+
+  for (const sector of SECTORS) {
+    // Query from sector center
+    const [lon, lat] = sector.center;
+    await fetchWUNear(lat, lon, sector.id);
+
+    // Query from extra coverage points (matches client-side stationDiscovery.ts)
+    if (sector.extraCoveragePoints?.length) {
+      const extraResults = await Promise.allSettled(
+        sector.extraCoveragePoints.map((p) =>
+          fetchWUNear(p.lat, p.lon, `${sector.id}/${p.name}`)
+        )
+      );
+      // Promise.allSettled handles errors per-point — no extra catch needed
+      void extraResults;
     }
   }
 
