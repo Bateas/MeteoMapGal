@@ -13,6 +13,7 @@ import { useAirspaceStore } from '../../store/airspaceStore';
 import { useAlertStore } from '../../store/alertStore';
 import type { AlertHistoryEntry } from '../../store/alertStore';
 import type { NotamSummary } from '../../services/airspaceService';
+import { SkeletonLoader } from '../common/SkeletonLoader';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import { useSectorStore } from '../../store/sectorStore';
@@ -173,7 +174,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           {/* ── Navegación tab: wind propagation + fog + tides (Rías) + atmospheric (Embalse) ── */}
           {activeTab === 'nav' && (
             <>
-              <Suspense fallback={null}>
+              <Suspense fallback={<SkeletonLoader lines={3} compact />}>
                 {isRias && <TidePanel />}
                 {isEmbalse && <AtmosphericProfile />}
               </Suspense>

@@ -1,4 +1,4 @@
-import { useEffect, useState, memo } from 'react';
+import { useEffect, useState, useRef, useCallback, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { fetchRadarImageUrl } from '../../api/aemetRadarClient';
@@ -15,6 +15,8 @@ import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
  *
  * Updates every 10 min (we poll every 5 min to catch fresh images).
  * Rendered as MapLibre native image source, same pattern as SatelliteOverlay.
+ *
+ * Error handling: retry with exponential backoff (10s, 30s, 60s) + user banner.
  */
 
 // ── Config ──────────────────────────────────────────
@@ -38,6 +40,11 @@ const IMAGE_COORDINATES: [[number, number], [number, number], [number, number], 
 /** Refresh interval — 5 min (AEMET radar updates every 10 min) */
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
+/** Retry delays for exponential backoff */
+const RETRY_DELAYS = [10_000, 30_000, 60_000];
+
+type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error';
+
 // ── Component ───────────────────────────────────────
 
 export const RadarOverlay = memo(function RadarOverlay() {
@@ -48,18 +55,58 @@ export const RadarOverlay = memo(function RadarOverlay() {
   const isActive = activeLayer === 'radar';
 
   const [radarUrl, setRadarUrl] = useState<string | null>(null);
+  const [loadStatus, setLoadStatus] = useState<LoadStatus>('idle');
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  /** Fetch radar image with error handling + retry */
+  const loadRadar = useCallback(async () => {
+    setLoadStatus('loading');
+    try {
+      const url = await fetchRadarImageUrl();
+      if (url) {
+        setRadarUrl(url);
+        setLoadStatus('loaded');
+        retryCountRef.current = 0;
+      } else {
+        throw new Error('No radar URL returned');
+      }
+    } catch {
+      setLoadStatus('error');
+      // Schedule retry with exponential backoff
+      const attempt = retryCountRef.current;
+      if (attempt < RETRY_DELAYS.length) {
+        retryTimerRef.current = setTimeout(() => {
+          retryCountRef.current = attempt + 1;
+          loadRadar();
+        }, RETRY_DELAYS[attempt]);
+      }
+    }
+  }, []);
 
   // Visibility-aware polling — pauses when tab is hidden
   useVisibilityPolling(
-    () => { fetchRadarImageUrl().then(setRadarUrl); },
+    () => {
+      retryCountRef.current = 0;
+      clearTimeout(retryTimerRef.current);
+      loadRadar();
+    },
     REFRESH_INTERVAL,
     isActive,
   );
 
   // Cleanup when deactivated
   useEffect(() => {
-    if (!isActive) setRadarUrl(null);
+    if (!isActive) {
+      setRadarUrl(null);
+      setLoadStatus('idle');
+      retryCountRef.current = 0;
+      clearTimeout(retryTimerRef.current);
+    }
   }, [isActive]);
+
+  // Cleanup on unmount
+  useEffect(() => () => clearTimeout(retryTimerRef.current), []);
 
   // Update image source when URL changes
   useEffect(() => {
@@ -77,23 +124,45 @@ export const RadarOverlay = memo(function RadarOverlay() {
     }
   }, [isActive, radarUrl, mapInstance]);
 
-  if (!isActive || !radarUrl) return null;
+  if (!isActive) return null;
 
   return (
-    <Source
-      id="radar-image"
-      type="image"
-      url={radarUrl}
-      coordinates={IMAGE_COORDINATES}
-    >
-      <Layer
-        id="radar-raster"
-        type="raster"
-        paint={{
-          'raster-opacity': opacity,
-          'raster-fade-duration': 500,
-        }}
-      />
-    </Source>
+    <>
+      {radarUrl && (
+        <Source
+          id="radar-image"
+          type="image"
+          url={radarUrl}
+          coordinates={IMAGE_COORDINATES}
+        >
+          <Layer
+            id="radar-raster"
+            type="raster"
+            paint={{
+              'raster-opacity': opacity,
+              'raster-fade-duration': 500,
+            }}
+          />
+        </Source>
+      )}
+
+      {/* Error banner */}
+      {loadStatus === 'error' && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="bg-red-900/80 text-red-200 text-xs px-3 py-1.5 rounded-full backdrop-blur-sm border border-red-700/50">
+            Error cargando radar · reintentando…
+          </div>
+        </div>
+      )}
+
+      {/* Loading banner (first load only) */}
+      {loadStatus === 'loading' && !radarUrl && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="bg-slate-800/80 text-slate-300 text-xs px-3 py-1.5 rounded-full backdrop-blur-sm border border-slate-600/50">
+            Cargando imagen radar…
+          </div>
+        </div>
+      )}
+    </>
   );
 });
