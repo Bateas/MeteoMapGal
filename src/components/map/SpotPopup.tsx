@@ -139,6 +139,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           {score?.windChill != null && (
             <Cell label="Sensación" value={`${score.windChill.toFixed(1)}°C`} color={temperatureColor(score.windChill)} />
           )}
+          {score?.heatIndex != null && (
+            <Cell label="Calor" value={`${score.heatIndex.toFixed(1)}°C`} color={score.heatIndex > 35 ? '#ef4444' : score.heatIndex > 32 ? '#fb923c' : '#facc15'} />
+          )}
         </div>
       )}
 
