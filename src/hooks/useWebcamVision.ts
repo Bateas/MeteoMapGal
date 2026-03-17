@@ -85,9 +85,14 @@ export function useWebcamVision() {
       if (results.size > 0) {
         setWebcamVision(results);
         for (const [spotId, result] of results) {
+          const w = result.weather;
           console.log(
             `[WebcamVision] ${spotId}: Beaufort ${result.beaufort} (${result.beaufortLabel}) ` +
-            `~${result.windEstimateKt}kt · ${result.confidence} · ${result.latencyMs}ms · ${result.description}`,
+            `~${result.windEstimateKt}kt · ${result.confidence} · ${result.latencyMs}ms\n` +
+            `  Wind: ${result.description}\n` +
+            `  Weather: ${w.sky} · vis:${w.visibility} · precip:${w.precipitation} · fog:${w.fogVisible}` +
+            (w.cloudType ? ` · clouds:${w.cloudType}` : '') +
+            (w.weatherDescription ? `\n  ${w.weatherDescription}` : ''),
           );
         }
       }
