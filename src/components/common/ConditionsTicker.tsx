@@ -6,19 +6,18 @@
  * Minimal overhead: reads from existing stores (no new fetches).
  */
 import { memo, useMemo } from 'react';
-import { useSpotStore } from '../../store/spotStore';
-import { useWeatherStore } from '../../store/weatherStore';
-import { useBuoyStore } from '../../store/buoyStore';
+import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
 import { useSectorStore } from '../../store/sectorStore';
 import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../dashboard/SpotSelector';
 
 export const ConditionsTicker = memo(function ConditionsTicker() {
-  const scores = useSpotStore((s) => s.scores);
-  const readings = useWeatherStore((s) => s.currentReadings);
-  const stations = useWeatherStore((s) => s.stations);
-  const buoyReadings = useBuoyStore((s) => s.buoys);
+  // Typed selectors — compile error if property name is wrong (R6, prevents v1.21.0 crash)
+  const scores = useSpot.use.scores();
+  const readings = useWeather.use.currentReadings();
+  const stations = useWeather.use.stations();
+  const buoyReadings = useBuoy.use.buoys();
   const sectorId = useSectorStore((s) => s.activeSector.id);
 
   const items = useMemo(() => {
