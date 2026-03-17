@@ -91,6 +91,15 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
+    // ── Fallback: station count + sector when no wind/score data yet ──
+    if (result.length === 0 && stations.length > 0) {
+      result.push({
+        key: 'station-count',
+        text: `${stations.length} estaciones activas`,
+        color: 'text-slate-400',
+      });
+    }
+
     return result;
   }, [scores, readings, stations, buoyReadings, sectorId]);
 
