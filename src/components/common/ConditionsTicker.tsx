@@ -16,9 +16,9 @@ import { VERDICT_STYLE } from '../dashboard/SpotSelector';
 
 export const ConditionsTicker = memo(function ConditionsTicker() {
   const scores = useSpotStore((s) => s.scores);
-  const readings = useWeatherStore((s) => s.readings);
+  const readings = useWeatherStore((s) => s.currentReadings);
   const stations = useWeatherStore((s) => s.stations);
-  const buoyReadings = useBuoyStore((s) => s.readings);
+  const buoyReadings = useBuoyStore((s) => s.buoys);
   const sectorId = useSectorStore((s) => s.activeSector.id);
 
   const items = useMemo(() => {
