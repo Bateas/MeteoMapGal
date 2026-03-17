@@ -24,6 +24,8 @@ interface SpotState {
   activeSpotId: string;
   /** Resolved spot object */
   activeSpot: SailingSpot;
+  /** User's favorite spot ID (persisted, auto-flyto on load) */
+  favoriteSpotId: string | null;
   /** Per-spot scoring results (keyed by spot.id) */
   scores: Map<string, SpotScore>;
   /** Last scoring computation timestamp */
@@ -48,6 +50,7 @@ interface SpotState {
 
 interface SpotActions {
   selectSpot: (spotId: string) => void;
+  toggleFavorite: (spotId: string) => void;
   setScores: (scores: Map<string, SpotScore>) => void;
   setSailingWindows: (windows: Map<string, SpotWindowResult>) => void;
   setSectorForecast: (forecast: HourlyForecast[]) => void;
@@ -61,6 +64,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
       (set) => ({
         activeSpotId: DEFAULT_SPOT_ID,
         activeSpot: ALL_SPOTS.find((s) => s.id === DEFAULT_SPOT_ID)!,
+        favoriteSpotId: null,
         scores: new Map(),
         lastScored: 0,
         windHistory: new Map(),
@@ -71,6 +75,11 @@ export const useSpotStore = create<SpotState & SpotActions>()(
         precursorsFetchedAt: 0,
         webcamVision: new Map(),
         visionAnalyzedAt: 0,
+
+        toggleFavorite: (spotId: string) => {
+          const current = useSpotStore.getState().favoriteSpotId;
+          set({ favoriteSpotId: current === spotId ? null : spotId }, undefined, 'toggleFavorite');
+        },
 
         selectSpot: (spotId: string) => {
           // Empty string = deselect (close popup, keep last activeSpot for reference)
@@ -115,7 +124,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
       }),
       {
         name: 'spot-store',
-        partialize: (state) => ({ activeSpotId: state.activeSpotId }),
+        partialize: (state) => ({ activeSpotId: state.activeSpotId, favoriteSpotId: state.favoriteSpotId }),
       },
     ),
     { name: 'SpotStore' },
