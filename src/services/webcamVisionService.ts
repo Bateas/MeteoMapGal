@@ -96,6 +96,14 @@ export const VISION_PROVIDERS: Record<string, VisionProviderConfig> = {
     maxTokens: 300,
     timeout: 30_000,
   },
+  gemini: {
+    id: 'gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    model: 'gemini-2.0-flash',  // Free tier: 15 req/min, vision support
+    apiKey: '',                   // Set via VITE_VISION_API_KEY
+    maxTokens: 300,
+    timeout: 15_000,
+  },
 };
 
 // ── Active configuration ─────────────────────────────────
@@ -251,9 +259,18 @@ export async function analyzeAllSpotWebcams(
 }
 
 // ── Image Fetching ───────────────────────────────────────
+/** Rewrite known webcam URLs to use Vite/nginx proxy (avoids CORS) */
+function proxyImageUrl(url: string): string {
+  if (url.includes('www.meteogalicia.gal/')) {
+    return url.replace('https://www.meteogalicia.gal/', '/meteogalicia-api/');
+  }
+  return url;
+}
+
 
 async function fetchImageAsBase64(url: string): Promise<string> {
-  const response = await fetch(url, {
+  const proxiedUrl = proxyImageUrl(url);
+  const response = await fetch(proxiedUrl, {
     signal: AbortSignal.timeout(10_000),
   });
 
