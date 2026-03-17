@@ -8,11 +8,19 @@
  *   - Night silence (23:00-07:00): only critical alerts pass through
  *   - Per-alert cooldown (10 min) + global cooldown (5 min)
  *   - Daily summary endpoint for morning sailing briefing
+ *   - n8n health check (non-blocking)
  *
+ * Thresholds defined in src/config/alertPipeline.ts (single source of truth).
  * Fails silently — webhook is non-critical for app functionality.
  */
 
 import type { AlertSeverity, AlertCategory } from '../services/alertService';
+import {
+  WEBHOOK_PER_ALERT_COOLDOWN_MS,
+  WEBHOOK_GLOBAL_COOLDOWN_MS,
+  NIGHT_SILENCE_START,
+  NIGHT_SILENCE_END,
+} from '../config/alertPipeline';
 
 // ── Configuration ────────────────────────────────────────
 
@@ -24,10 +32,6 @@ const ALERT_ENDPOINT = `${WEBHOOK_BASE}/meteomap-alert`;
 
 /** Endpoint for daily sailing summary */
 const SUMMARY_ENDPOINT = `${WEBHOOK_BASE}/meteomap-summary`;
-
-/** Night silence hours: 23:00 - 07:00 (only critical passes through) */
-const NIGHT_START = 23;
-const NIGHT_END = 7;
 
 // ── Types ────────────────────────────────────────────────
 
@@ -65,17 +69,54 @@ export interface WebhookSummaryPayload {
 
 function isNightSilence(): boolean {
   const hour = new Date().getHours();
-  return hour >= NIGHT_START || hour < NIGHT_END;
+  return hour >= NIGHT_SILENCE_START || hour < NIGHT_SILENCE_END;
+}
+
+// ── n8n health check ────────────────────────────────────
+
+let lastHealthCheck = 0;
+let n8nHealthy = true;
+const HEALTH_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 min
+
+/**
+ * Non-blocking n8n health check. Logs warning if n8n is unreachable.
+ * Called before sending webhooks — skips if n8n was recently unhealthy.
+ */
+async function checkN8nHealth(): Promise<boolean> {
+  if (import.meta.env.DEV) return true;
+
+  const now = Date.now();
+  if (now - lastHealthCheck < HEALTH_CHECK_INTERVAL_MS) return n8nHealthy;
+
+  lastHealthCheck = now;
+  try {
+    const res = await fetch(`${WEBHOOK_BASE}/meteomap-alert`, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(5_000),
+    });
+    // n8n returns 404 for HEAD but the connection succeeds = n8n is up
+    n8nHealthy = res.status < 500;
+    if (!n8nHealthy) {
+      console.warn(`[Webhook] n8n unhealthy (status ${res.status})`);
+    }
+  } catch {
+    n8nHealthy = false;
+    console.warn('[Webhook] n8n unreachable — Telegram alerts will not be delivered');
+  }
+  return n8nHealthy;
+}
+
+/** Check if n8n is currently considered healthy */
+export function isN8nHealthy(): boolean {
+  return n8nHealthy;
 }
 
 // ── Webhook client ───────────────────────────────────────
 
 /** Cooldown tracker to avoid spamming the webhook */
 const webhookCooldowns = new Map<string, number>();
-const WEBHOOK_COOLDOWN_MS = 10 * 60 * 1000; // 10 min per alert ID
-/** Global cooldown — minimum 5 min between ANY webhook post */
+/** Global cooldown — minimum gap between ANY webhook post */
 let lastWebhookTime = 0;
-const GLOBAL_WEBHOOK_COOLDOWN_MS = 5 * 60 * 1000;
 
 /**
  * Post an alert to the n8n webhook endpoint.
@@ -91,14 +132,17 @@ export async function postAlertWebhook(payload: WebhookAlertPayload): Promise<vo
     // Night silence: only critical alerts pass through
     if (isNightSilence() && payload.severity !== 'critical') return;
 
+    // Skip if n8n was recently unhealthy (non-blocking check)
+    if (!await checkN8nHealth()) return;
+
     const now = Date.now();
 
     // Global cooldown
-    if (now - lastWebhookTime < GLOBAL_WEBHOOK_COOLDOWN_MS) return;
+    if (now - lastWebhookTime < WEBHOOK_GLOBAL_COOLDOWN_MS) return;
 
     // Per-alert cooldown check
     const lastSent = webhookCooldowns.get(payload.alertId);
-    if (lastSent && now - lastSent < WEBHOOK_COOLDOWN_MS) return;
+    if (lastSent && now - lastSent < WEBHOOK_PER_ALERT_COOLDOWN_MS) return;
 
     const response = await fetch(ALERT_ENDPOINT, {
       method: 'POST',
@@ -113,7 +157,7 @@ export async function postAlertWebhook(payload: WebhookAlertPayload): Promise<vo
 
     // Prune old cooldowns
     if (webhookCooldowns.size > 30) {
-      const cutoff = now - WEBHOOK_COOLDOWN_MS * 2;
+      const cutoff = now - WEBHOOK_PER_ALERT_COOLDOWN_MS * 2;
       for (const [id, time] of webhookCooldowns) {
         if (time < cutoff) webhookCooldowns.delete(id);
       }
