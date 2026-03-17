@@ -17,6 +17,22 @@
 
 // ── Types ────────────────────────────────────────────────
 
+/** Weather conditions detected from webcam image */
+export interface VisionWeatherConditions {
+  /** Sky condition: clear, partly_cloudy, overcast, fog, rain, storm */
+  sky: 'clear' | 'partly_cloudy' | 'overcast' | 'fog' | 'rain' | 'storm' | 'night' | 'unknown';
+  /** Estimated visibility: good (>10km), moderate (1-10km), poor (<1km) */
+  visibility: 'good' | 'moderate' | 'poor';
+  /** Is precipitation visible? */
+  precipitation: boolean;
+  /** Is fog/mist visible? */
+  fogVisible: boolean;
+  /** Cloud types if identifiable */
+  cloudType: string | null;
+  /** Brief weather description in Spanish */
+  weatherDescription: string;
+}
+
 export interface WebcamVisionResult {
   spotId: string;
   webcamLabel: string;
@@ -25,10 +41,12 @@ export interface WebcamVisionResult {
   windEstimateKt: number;      // Estimated wind in knots from Beaufort
   confidence: 'high' | 'medium' | 'low';
   description: string;         // LLM's description of water surface
+  /** Multi-parameter weather analysis from vision */
+  weather: VisionWeatherConditions;
   rawResponse: string;         // Full LLM response for debugging
   imageUrl: string;
   analyzedAt: Date;
-  providerUsed: string;        // 'lmstudio' | 'deepseek' | 'ollama' | 'claude'
+  providerUsed: string;        // 'lmstudio' | 'deepseek' | 'ollama' | 'claude' | 'gemini'
   latencyMs: number;
 }
 
@@ -77,8 +95,8 @@ export const VISION_PROVIDERS: Record<string, VisionProviderConfig> = {
     baseUrl: 'http://localhost:1234/v1',
     model: 'local-model',  // LM Studio uses whatever is loaded
     apiKey: '',
-    maxTokens: 300,
-    timeout: 30_000,
+    maxTokens: 500,
+    timeout: 120_000,
   },
   deepseek: {
     id: 'deepseek',
@@ -120,28 +138,36 @@ export function getVisionProvider(): VisionProviderConfig {
 
 // ── Prompt Engineering ───────────────────────────────────
 
-const BEAUFORT_PROMPT = `You are a maritime meteorologist analyzing a webcam image of a water surface (ría, bay, or coast in Galicia, Spain).
+const BEAUFORT_PROMPT = `You are a maritime meteorologist analyzing a webcam image from a coastal location in Galicia, Spain (Rías Baixas area).
 
-Estimate the Beaufort wind force scale (0-7) based ONLY on the water surface texture visible in the image.
+Analyze the image for TWO things:
 
-Visual cues for each Beaufort level:
-- 0 (Calm): Mirror-like, perfectly smooth, reflections sharp
-- 1 (Light air): Tiny ripples, scale-like pattern, no crests
-- 2 (Light breeze): Small wavelets, crests look glassy and don't break
-- 3 (Gentle breeze): Larger wavelets, crests begin to break, scattered whitecaps (< 10%)
-- 4 (Moderate): Small waves 0.5-1m, frequent whitecaps (10-30%)
-- 5 (Fresh): Moderate waves, many whitecaps (30-50%), some spray
-- 6 (Strong): Large waves, extensive whitecaps (> 50%), spray
-- 7 (Near gale): Sea heaps up, foam streaks, spray reduces visibility
+1. WIND (Beaufort scale 0-7) — based on water surface texture:
+- 0: Mirror-like, glassy
+- 1: Tiny ripples, no crests
+- 2: Small wavelets, glassy crests
+- 3: Wavelets breaking, scattered whitecaps (<10%)
+- 4: Small waves, frequent whitecaps (10-30%)
+- 5: Moderate waves, many whitecaps (30-50%)
+- 6: Large waves, extensive whitecaps (>50%)
+- 7: Sea heaps up, foam streaks
+
+2. WEATHER CONDITIONS — based on sky, visibility, and atmosphere:
+- sky: "clear" | "partly_cloudy" | "overcast" | "fog" | "rain" | "storm" | "night" | "unknown"
+- visibility: "good" (>10km, distant features sharp) | "moderate" (1-10km, hazy) | "poor" (<1km, fog/rain)
+- precipitation: true/false (rain drops, wet surfaces, or active rain visible)
+- fog: true/false (fog, mist, or low cloud obscuring view)
+- clouds: cloud type if visible (e.g. "cumulus", "stratus", "cumulonimbus", "cirrus") or null
 
 Respond in this EXACT JSON format (no markdown, no code blocks):
-{"beaufort": <0-7>, "confidence": "<high|medium|low>", "description": "<brief description of water surface in Spanish>"}
+{"beaufort": <0-7>, "confidence": "<high|medium|low>", "description": "<brief water surface description in Spanish>", "sky": "<condition>", "visibility": "<level>", "precipitation": <true/false>, "fog": <true/false>, "clouds": "<type or null>", "weather_description": "<brief weather description in Spanish>"}
 
 Rules:
-- If the image is unclear, nighttime, foggy, or doesn't show water: {"beaufort": -1, "confidence": "low", "description": "Imagen no válida para análisis"}
-- Focus ONLY on the water surface texture, ignore boats, land, sky
-- Be conservative: when uncertain between two levels, choose the lower one
-- "confidence" should be "high" only when the water surface is clearly visible and the Beaufort estimation is unambiguous`;
+- If nighttime or image unclear: set beaufort to -1 but STILL analyze sky/visibility if possible
+- Be conservative with Beaufort: when uncertain, choose lower
+- For sky: if you can see stars or it's clearly dark, use "night"
+- For fog: true only if actual fog/mist reduces visibility, not just clouds
+- weather_description: one sentence in Spanish about overall conditions`;
 
 // ── Core Analysis Function ───────────────────────────────
 
@@ -181,6 +207,7 @@ export async function analyzeWebcamImage(
         windEstimateKt: 0,
         confidence: 'low',
         description: parsed.description || 'Imagen no válida',
+        weather: parsed.weather,
         rawResponse: response,
         imageUrl,
         analyzedAt: new Date(),
@@ -200,6 +227,7 @@ export async function analyzeWebcamImage(
       windEstimateKt: midKt,
       confidence: parsed.confidence as 'high' | 'medium' | 'low',
       description: parsed.description,
+      weather: parsed.weather,
       rawResponse: response,
       imageUrl,
       analyzedAt: new Date(),
@@ -217,6 +245,7 @@ export async function analyzeWebcamImage(
       windEstimateKt: 0,
       confidence: 'low',
       description: `Error: ${error instanceof Error ? error.message : 'Unknown'}`,
+      weather: { ...DEFAULT_WEATHER },
       rawResponse: '',
       imageUrl,
       analyzedAt: new Date(),
@@ -354,11 +383,23 @@ interface ParsedVisionResponse {
   beaufort: number;
   confidence: string;
   description: string;
+  weather: VisionWeatherConditions;
 }
+
+const DEFAULT_WEATHER: VisionWeatherConditions = {
+  sky: 'unknown',
+  visibility: 'good',
+  precipitation: false,
+  fogVisible: false,
+  cloudType: null,
+  weatherDescription: '',
+};
+
+const VALID_SKY = new Set(['clear', 'partly_cloudy', 'overcast', 'fog', 'rain', 'storm', 'night', 'unknown']);
+const VALID_VISIBILITY = new Set(['good', 'moderate', 'poor']);
 
 function parseVisionResponse(raw: string): ParsedVisionResponse {
   try {
-    // Try direct JSON parse first
     let jsonStr = raw;
 
     // Strip markdown code blocks if present
@@ -370,10 +411,22 @@ function parseVisionResponse(raw: string): ParsedVisionResponse {
     if (jsonMatch) jsonStr = jsonMatch[0];
 
     const parsed = JSON.parse(jsonStr);
+
+    const sky = VALID_SKY.has(parsed.sky) ? parsed.sky : 'unknown';
+    const visibility = VALID_VISIBILITY.has(parsed.visibility) ? parsed.visibility : 'good';
+
     return {
       beaufort: typeof parsed.beaufort === 'number' ? Math.max(-1, Math.min(7, parsed.beaufort)) : -1,
       confidence: parsed.confidence ?? 'low',
       description: parsed.description ?? '',
+      weather: {
+        sky,
+        visibility,
+        precipitation: !!parsed.precipitation,
+        fogVisible: !!parsed.fog,
+        cloudType: parsed.clouds || null,
+        weatherDescription: parsed.weather_description ?? '',
+      },
     };
   } catch {
     // Fallback: try to extract Beaufort number from text
@@ -383,6 +436,7 @@ function parseVisionResponse(raw: string): ParsedVisionResponse {
         beaufort: parseInt(numMatch[1]),
         confidence: 'low',
         description: raw.slice(0, 100),
+        weather: { ...DEFAULT_WEATHER },
       };
     }
 
@@ -390,6 +444,7 @@ function parseVisionResponse(raw: string): ParsedVisionResponse {
       beaufort: -1,
       confidence: 'low',
       description: `No se pudo parsear respuesta: ${raw.slice(0, 100)}`,
+      weather: { ...DEFAULT_WEATHER },
     };
   }
 }
