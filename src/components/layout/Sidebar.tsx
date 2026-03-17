@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { ErrorBanner } from '../common/ErrorBanner';
 import { ErrorBoundary } from '../common/ErrorBoundary';
+import { SkeletonLoader } from '../common/SkeletonLoader';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 
@@ -130,7 +131,7 @@ export function Sidebar() {
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         <ErrorBanner />
-        <Suspense fallback={<div className="text-center text-slate-500 text-xs py-8">Cargando...</div>}>
+        <Suspense fallback={<SkeletonLoader lines={4} title />}>
           {activeTab === 'stations' && (
             <>
               <ErrorBoundary section="Spots Navegación">
