@@ -68,14 +68,12 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
         <span
           style={{
-            fontSize: 9,
+            fontSize: 10,
             fontWeight: 700,
             padding: '1px 5px',
             borderRadius: 3,
             background: typeColor,
             color: 'white',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
           }}
         >
           {info.type}
@@ -248,10 +246,10 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
           {/* Close button */}
           <button
             onClick={() => selectBuoy(null)}
-            className="absolute top-3 right-3 p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+            className="absolute top-3 right-3 p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="Cerrar"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
