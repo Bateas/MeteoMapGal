@@ -237,10 +237,10 @@ export function processAlertNotifications(
       }
     }
 
-    // Send webhook alerts to n8n (severity >= high only)
+    // Send webhook alerts to n8n (severity >= moderate)
     const sectorName = useSectorStore.getState().activeSector.name;
     for (const a of notifiableAlerts) {
-      if (meetsMinSeverity(a.severity, 'high')) {
+      if (meetsMinSeverity(a.severity, 'moderate')) {
         postAlertWebhook({
           alertId: a.id,
           category: a.category,
