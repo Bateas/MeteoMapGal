@@ -105,20 +105,30 @@ export const CurrentsOverlay = memo(function CurrentsOverlay() {
   if (!isActive || !currentsUrl) return null;
 
   return (
-    <Source
-      id="currents-image"
-      type="image"
-      url={currentsUrl}
-      coordinates={IMAGE_COORDINATES}
-    >
-      <Layer
-        id="currents-raster"
-        type="raster"
-        paint={{
-          'raster-opacity': opacity,
-          'raster-fade-duration': 500,
-        }}
-      />
-    </Source>
+    <>
+      <Source
+        id="currents-image"
+        type="image"
+        url={currentsUrl}
+        coordinates={IMAGE_COORDINATES}
+      >
+        <Layer
+          id="currents-raster"
+          type="raster"
+          paint={{
+            'raster-opacity': opacity,
+            'raster-fade-duration': 500,
+          }}
+        />
+      </Source>
+
+      {/* Data age indicator — HF radar has ~2h lag */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+        <div className="bg-slate-800/80 text-slate-300 text-[10px] px-2.5 py-1 rounded-full backdrop-blur-sm border border-slate-600/50 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          Corrientes HF Radar · datos con ~2h de retardo
+        </div>
+      </div>
+    </>
   );
 });

@@ -102,6 +102,27 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
                   <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Temperatura</div>
                   <div style={{ fontWeight: 600, color: temperatureColor(reading.temperature) }}>{formatTemperature(reading.temperature)}</div>
                 </div>
+                {reading.windGust != null && reading.windGust > 0 && (
+                  <div>
+                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Racha</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                      <span style={{ fontWeight: 600, color: windSpeedColor(reading.windGust) }}>
+                        {formatWindSpeed(reading.windGust)}
+                      </span>
+                      {reading.windSpeed != null && reading.windSpeed > 0.5 && (() => {
+                        const gf = reading.windGust! / reading.windSpeed!;
+                        return gf >= 1.3 ? (
+                          <span
+                            style={{ fontSize: 9, color: gf >= 2 ? '#f87171' : gf >= 1.6 ? '#fb923c' : '#94a3b8' }}
+                            title={`Factor racha: ${gf.toFixed(1)}× — ${gf >= 2 ? 'turbulencia severa' : gf >= 1.6 ? 'turbulencia moderada' : 'ligera'}`}
+                          >
+                            ×{gf.toFixed(1)}
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Humedad</div>
                   <div style={{ fontWeight: 600 }}>{formatHumidity(reading.humidity)}</div>
