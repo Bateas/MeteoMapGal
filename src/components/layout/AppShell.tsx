@@ -300,7 +300,7 @@ export function AppShell() {
         } : null}
       />
 
-      <ConditionsTicker />
+      <ErrorBoundary section="Ticker"><ConditionsTicker /></ErrorBoundary>
 
       <div className="flex-1 flex overflow-hidden relative">
         {/* Desktop sidebar: always visible */}
