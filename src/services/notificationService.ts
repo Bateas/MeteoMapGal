@@ -12,6 +12,12 @@
 import type { AlertSeverity, AlertCategory, UnifiedAlert, CompositeRisk } from './alertService';
 import { postAlertWebhook } from '../api/webhookClient';
 import { useSectorStore } from '../store/sectorStore';
+import {
+  WEBHOOK_MIN_SEVERITY,
+  NOTIFICATION_DEFAULT_MIN_SEVERITY,
+  NOTIFICATION_SOUND_COOLDOWN_MS,
+  NOTIFICATION_PER_ALERT_COOLDOWN_MS,
+} from '../config/alertPipeline';
 
 // ── Configuration ────────────────────────────────────────────
 
@@ -37,9 +43,9 @@ const DEFAULT_CONFIG: NotificationConfig = {
   pushEnabled: true,
   soundEnabled: true,
   volume: 0.5,
-  minSeverity: 'critical', // Only PELIGRO triggers sound by default — user can lower to 'high'
+  minSeverity: NOTIFICATION_DEFAULT_MIN_SEVERITY, // Only PELIGRO triggers sound by default
   mutedCategories: new Set(),
-  cooldownMs: 30 * 60 * 1000, // 30 min cooldown per alert (subtle, not spammy)
+  cooldownMs: NOTIFICATION_PER_ALERT_COOLDOWN_MS, // 30 min cooldown per alert
 };
 
 // ── Severity ordering ───────────────────────────────────────
@@ -178,9 +184,8 @@ const lastNotified = new Map<string, number>();
 let previousAlertIds = new Set<string>();
 /** Track previous max severity for escalation detection */
 let previousMaxSeverity: AlertSeverity = 'info';
-/** Global cooldown — minimum 10 min between ANY sound, regardless of alert ID */
+/** Global cooldown — minimum gap between ANY sound, regardless of alert ID */
 let lastSoundTime = 0;
-const GLOBAL_SOUND_COOLDOWN_MS = 10 * 60 * 1000; // 10 min
 
 /**
  * Process a new set of alerts and trigger notifications for:
@@ -220,7 +225,7 @@ export function processAlertNotifications(
 
   if (notifiableAlerts.length > 0 || escalated) {
     // Play sound — with global cooldown to prevent spam during persistent alerts
-    if (config.soundEnabled && (now - lastSoundTime >= GLOBAL_SOUND_COOLDOWN_MS)) {
+    if (config.soundEnabled && (now - lastSoundTime >= NOTIFICATION_SOUND_COOLDOWN_MS)) {
       const highestSeverity = notifiableAlerts.reduce<AlertSeverity>(
         (max, a) => SEVERITY_ORDER[a.severity] > SEVERITY_ORDER[max] ? a.severity : max,
         escalated ? risk.severity : 'info',
@@ -237,10 +242,10 @@ export function processAlertNotifications(
       }
     }
 
-    // Send webhook alerts to n8n (severity >= moderate)
+    // Send webhook alerts to n8n (threshold from alertPipeline.ts)
     const sectorName = useSectorStore.getState().activeSector.name;
     for (const a of notifiableAlerts) {
-      if (meetsMinSeverity(a.severity, 'moderate')) {
+      if (meetsMinSeverity(a.severity, WEBHOOK_MIN_SEVERITY)) {
         postAlertWebhook({
           alertId: a.id,
           category: a.category,
