@@ -127,6 +127,11 @@ export default defineConfig({
         target: 'http://REDACTED_APP_HOST:3001',
         changeOrigin: true,
       },
+      '/lmstudio-api': {
+        target: 'http://192.168.10.39:1234',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/lmstudio-api/, ''),
+      },
     },
   },
 })
