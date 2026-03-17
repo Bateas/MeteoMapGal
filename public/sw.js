@@ -1,5 +1,5 @@
 // MeteoMap Service Worker — cache-first for static assets, network-first for HTML, network-only for API
-const CACHE_NAME = 'meteomap-v3';
+const CACHE_NAME = 'meteomap-v4';
 
 const STATIC_EXTENSIONS = /\.(js|css|woff2?|ttf|svg|png|jpg|webp|ico|json)$/;
 
@@ -26,6 +26,9 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Skip non-HTTP(S) requests (chrome-extension://, moz-extension://, etc.)
+  if (!event.request.url.startsWith('http')) return;
+
   const url = new URL(event.request.url);
 
   // Network-only for API routes
