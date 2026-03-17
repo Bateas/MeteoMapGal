@@ -50,7 +50,7 @@ export function Sidebar() {
 
   // Compact tabs — mobile: scrollable horizontal; desktop: scrollable too
   const tabBase = isMobile
-    ? 'shrink-0 px-3 text-[11px] font-semibold py-2.5 uppercase whitespace-nowrap transition-colors rounded-t'
+    ? 'shrink-0 px-3 text-xs font-semibold py-2.5 uppercase whitespace-nowrap transition-colors rounded-t'
     : 'shrink-0 px-2 text-[10.5px] font-semibold py-2 uppercase whitespace-nowrap transition-colors rounded-t tracking-wide';
   const tabOn = (color: string) => `text-white border-b-2 ${color} bg-slate-800/50`;
   const tabOff = 'text-slate-500 hover:text-slate-300 border-b-2 border-transparent';
