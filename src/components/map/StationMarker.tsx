@@ -1,10 +1,11 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Marker } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { WindArrow } from './WindArrow';
-import { temperatureColor } from '../../services/windUtils';
+import { temperatureColor, msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { STALE_THRESHOLD_MIN, OFFLINE_THRESHOLD_MIN } from '../../config/constants';
+import { SOURCE_CONFIG } from '../../config/sourceConfig';
 
 interface StationMarkerProps {
   station: NormalizedStation;
@@ -42,6 +43,31 @@ export const StationMarker = memo(function StationMarker({ station, reading, isS
     selectStation(isSelected ? null : station.id);
   }, [selectStation, isSelected, station.id]);
 
+  // Rich tooltip with wind + temp (no extra renders — pure string)
+  const tooltip = useMemo(() => {
+    const src = SOURCE_CONFIG[station.source]?.fullName ?? station.source;
+    const parts = [`${station.name} (${src})`];
+    if (reading) {
+      if (reading.windSpeed != null) {
+        const kt = msToKnots(reading.windSpeed).toFixed(0);
+        const dir = reading.windDirection != null ? degreesToCardinal(reading.windDirection) : '';
+        parts.push(`Viento: ${dir} ${kt} kt`);
+      }
+      if (reading.windGust != null && reading.windGust > 0) {
+        parts.push(`Racha: ${msToKnots(reading.windGust).toFixed(0)} kt`);
+      }
+      if (reading.temperature != null) {
+        parts.push(`Temp: ${reading.temperature.toFixed(1)}°C`);
+      }
+      if (reading.humidity != null) {
+        parts.push(`Hum: ${reading.humidity.toFixed(0)}%`);
+      }
+    } else {
+      parts.push('Sin datos');
+    }
+    return parts.join('\n');
+  }, [station.name, station.source, reading]);
+
   return (
     <Marker
       longitude={station.lon}
@@ -49,7 +75,7 @@ export const StationMarker = memo(function StationMarker({ station, reading, isS
       anchor="center"
       onClick={handleClick}
     >
-      <div className="station-marker cursor-pointer" title={station.name} style={freshnessOpacity < 1 ? { opacity: freshnessOpacity } : undefined}>
+      <div className="station-marker cursor-pointer" title={tooltip} style={freshnessOpacity < 1 ? { opacity: freshnessOpacity } : undefined}>
         <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Estación ${station.name}`} style={{ pointerEvents: 'none' }}>
           {/* Wind arrow */}
           <WindArrow
