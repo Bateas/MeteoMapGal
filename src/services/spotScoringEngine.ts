@@ -79,6 +79,8 @@ export interface SpotScore {
   humidity: number | null;
   /** Wind chill / thermal sensation (°C) — when T<10°C and wind>4.8km/h */
   windChill: number | null;
+  /** Heat index / thermal sensation (°C) — when T>27°C and HR>40% */
+  heatIndex: number | null;
   /** Consensus wind direction in degrees (for arrow display) */
   windDirDeg: number | null;
   /** Hard gate that triggered calm/nogo, if any */
@@ -631,6 +633,20 @@ export function scoreAllSpots(
       }
     }
 
+    // Heat index (sensación térmica calor) — Rothfusz regression (NWS)
+    // Valid when T > 27°C and HR > 40%
+    let heatIndex: number | null = null;
+    if (airTemp !== null && humidity !== null && airTemp > 27 && humidity > 40) {
+      const tf = airTemp * 9 / 5 + 32; // °C → °F for formula
+      const rh = humidity;
+      let hi = -42.379 + 2.04901523 * tf + 10.14333127 * rh
+        - 0.22475541 * tf * rh - 0.00683783 * tf * tf
+        - 0.05481717 * rh * rh + 0.00122874 * tf * tf * rh
+        + 0.00085282 * tf * rh * rh - 0.00000199 * tf * tf * rh * rh;
+      hi = (hi - 32) * 5 / 9; // °F → °C
+      heatIndex = Math.round(hi * 10) / 10;
+    }
+
     results.set(spot.id, {
       spotId: spot.id,
       spotName: spot.name,
@@ -643,6 +659,7 @@ export function scoreAllSpots(
       airTemp,
       humidity,
       windChill,
+      heatIndex,
       windDirDeg: wind?.dirDeg ?? null,
       hardGateTriggered: hardGate,
       thermal: spot.thermalDetection ? (thermalData ?? null) : null,
