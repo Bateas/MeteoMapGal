@@ -20,6 +20,7 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
 const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default: m.MeteoGuide })));
 import { ToastContainer } from '../common/ToastContainer';
+import { ConditionsTicker } from '../common/ConditionsTicker';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { processAlertNotifications } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
@@ -298,6 +299,8 @@ export function AppShell() {
           frontSpeedKt: fieldAlerts.wind.frontSpeedKt,
         } : null}
       />
+
+      <ConditionsTicker />
 
       <div className="flex-1 flex overflow-hidden relative">
         {/* Desktop sidebar: always visible */}
