@@ -349,7 +349,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
   return (
     <div className="space-y-3">
       {/* Header + health status */}
-      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 overflow-hidden">
+      <div className="rounded-lg border border-amber-600/30 bg-amber-900/20 overflow-hidden">
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center gap-2">
             <WeatherIcon id="database" size={15} className="text-amber-400" />
