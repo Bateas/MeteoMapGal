@@ -34,6 +34,8 @@ export const VERDICT_STYLE: Record<SpotVerdict, { label: string; bg: string; bor
 export const SpotSelector = memo(function SpotSelector() {
   const activeSpotId = useSpotStore((s) => s.activeSpotId);
   const selectSpot = useSpotStore((s) => s.selectSpot);
+  const favoriteSpotId = useSpotStore((s) => s.favoriteSpotId);
+  const toggleFavorite = useSpotStore((s) => s.toggleFavorite);
   const scores = useSpotStore((s) => s.scores);
   const sailingWindows = useSpotStore((s) => s.sailingWindows);
   const sectorId = useSectorStore((s) => s.activeSector.id);
@@ -80,6 +82,7 @@ export const SpotSelector = memo(function SpotSelector() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[13px] font-bold text-slate-200">{activeSpot.shortName}</span>
+            {activeSpot.id === favoriteSpotId && <span className="text-amber-400 text-xs" title="Tu spot favorito">{'\u2605'}</span>}
             <span className="badge-beta">Beta</span>
             <span className={`${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'good' ? 'badge-shimmer' : ''}`}>
               {v.label}
@@ -112,11 +115,13 @@ export const SpotSelector = memo(function SpotSelector() {
                 description={spot.description}
                 score={score ?? null}
                 isActive={spot.id === activeSpot.id}
+                isFavorite={spot.id === favoriteSpotId}
                 onSelect={() => {
                   selectSpot(spot.id);
                   setFlyToTarget({ lon: spot.center[0], lat: spot.center[1], zoom: 12 });
                   if (isMobile) setSidebarOpen(false);
                 }}
+                onToggleFavorite={() => toggleFavorite(spot.id)}
               />
             );
           })}
@@ -145,7 +150,9 @@ function SpotCard({
   description,
   score,
   isActive,
+  isFavorite,
   onSelect,
+  onToggleFavorite,
 }: {
   spotId: string;
   icon: IconId;
@@ -153,7 +160,9 @@ function SpotCard({
   description: string;
   score: SpotScore | null;
   isActive: boolean;
+  isFavorite: boolean;
   onSelect: () => void;
+  onToggleFavorite: () => void;
 }) {
   const verdict = score?.verdict ?? 'unknown';
   const v = VERDICT_STYLE[verdict];
@@ -170,6 +179,16 @@ function SpotCard({
       <div className="flex items-center gap-2">
         <WeatherIcon id={icon} size={14} className="text-slate-300 flex-shrink-0" />
         <span className="text-[12px] font-bold text-slate-200 flex-1">{name}</span>
+        {/* Favorite star */}
+        <span
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+          className={`text-sm cursor-pointer transition-colors ${isFavorite ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'}`}
+          title={isFavorite ? 'Quitar de favorito' : 'Marcar como favorito'}
+          role="button"
+          aria-label={isFavorite ? 'Quitar favorito' : 'Marcar favorito'}
+        >
+          {isFavorite ? '\u2605' : '\u2606'}
+        </span>
         {/* Verdict badge with kt */}
         <span className={`flex items-center gap-1 text-[10px] font-bold ${v.text}`}>
           <span className={`w-2 h-2 rounded-full ${v.dot}`} />
