@@ -23,7 +23,7 @@ import { waterTempColor } from '../../services/buoyUtils';
 export const VERDICT_STYLE: Record<SpotVerdict, { label: string; bg: string; border: string; text: string; dot: string }> = {
   calm:    { label: 'Calma',     bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400',   dot: 'bg-slate-400' },
   light:   { label: 'Flojo',     bg: 'bg-red-500/10',     border: 'border-red-500/40',     text: 'text-red-400',     dot: 'bg-red-400' },
-  sailing: { label: 'Navegable', bg: 'bg-amber-500/10',   border: 'border-amber-500/40',   text: 'text-amber-400',   dot: 'bg-amber-400' },
+  sailing: { label: 'Navegable', bg: 'bg-amber-500/15',   border: 'border-amber-500/40',   text: 'text-amber-300',   dot: 'bg-amber-400' },
   good:    { label: 'Buen d\u00eda',  bg: 'bg-emerald-500/10', border: 'border-emerald-500/40', text: 'text-emerald-400', dot: 'bg-emerald-400' },
   strong:  { label: 'Fuerte',    bg: 'bg-cyan-500/10',    border: 'border-cyan-500/40',    text: 'text-cyan-400',    dot: 'bg-cyan-400' },
   unknown: { label: 'Sin datos', bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400',   dot: 'bg-slate-400' },
