@@ -12,6 +12,8 @@ interface StationMarkerProps {
   reading?: NormalizedReading;
   /** Passed from parent to avoid each marker subscribing to selectedStationId */
   isSelected?: boolean;
+  /** Hide text label at low zoom to reduce clutter */
+  showLabel?: boolean;
 }
 
 function getFreshnessColor(reading?: NormalizedReading): string {
@@ -31,7 +33,7 @@ function getFreshnessOpacity(reading?: NormalizedReading): number {
   return 0.4;
 }
 
-export const StationMarker = memo(function StationMarker({ station, reading, isSelected = false }: StationMarkerProps) {
+export const StationMarker = memo(function StationMarker({ station, reading, isSelected = false, showLabel = true }: StationMarkerProps) {
   // Only subscribe to the action (stable ref), NOT to selectedStationId
   const selectStation = useWeatherStore((s) => s.selectStation);
   const freshnessColor = getFreshnessColor(reading);
@@ -113,10 +115,12 @@ export const StationMarker = memo(function StationMarker({ station, reading, isS
           </text>
         </svg>
 
-        {/* Station name label */}
-        <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-bold text-slate-900 map-label-halo pointer-events-none">
-          {station.name}
-        </div>
+        {/* Station name label — hidden at low zoom to reduce clutter */}
+        {showLabel && (
+          <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-bold text-slate-900 map-label-halo pointer-events-none">
+            {station.name}
+          </div>
+        )}
       </div>
     </Marker>
   );
