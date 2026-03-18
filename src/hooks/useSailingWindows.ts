@@ -49,7 +49,7 @@ async function fetchRiasForecast(): Promise<HourlyForecast[]> {
     `&wind_speed_unit=ms` +
     `&timezone=Europe%2FMadrid`;
 
-  const res = await openMeteoFetch(url, undefined, 15_000);
+  const res = await openMeteoFetch(url, undefined, 25_000);
   if (!res.ok) throw new Error(`Open-Meteo sailing windows: ${res.status}`);
 
   const data = await res.json();
@@ -125,5 +125,15 @@ export function useSailingWindows() {
     }
   }, [sectorId, embalseHourly, thermalRules, setSailingWindows, setSectorForecast]);
 
-  useVisibilityPolling(poll, POLL_INTERVAL_MS);
+  // Defer first load to let critical data (stations, forecast) load first
+  const deferredPoll = useCallback(async () => {
+    const windowsFetched = useSpotStore.getState().windowsFetchedAt;
+    if (windowsFetched === 0) {
+      // First run — wait 10s to avoid competing with startup burst
+      await new Promise(r => setTimeout(r, 10_000));
+    }
+    return poll();
+  }, [poll]);
+
+  useVisibilityPolling(deferredPoll, POLL_INTERVAL_MS);
 }
