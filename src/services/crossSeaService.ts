@@ -57,6 +57,14 @@ const MIN_WAVE_HEIGHT = 0.5;
 /** Minimum wind speed to produce meaningful wind waves (m/s) */
 const MIN_WIND_SPEED = 3.0;
 
+/**
+ * Ocean-facing buoys outside the Ría interior.
+ * Cross-sea alerts from these buoys are downgraded one level because
+ * conditions at Cabo Silleiro (open ocean) don't directly translate
+ * to conditions inside the Ría de Vigo / Rías Baixas.
+ */
+const OCEAN_BUOYS = new Set(['Cabo Silleiro', 'Ons']);
+
 /** Wave period thresholds (seconds) — Tp distinguishes swell from wind-sea */
 const TP_SWELL = 8;      // Tp ≥8s = ocean swell (long-traveled, more dangerous cross-sea)
 const TP_WIND_SEA = 4;   // Tp <4s = local wind-sea (short-lived, less dangerous)
@@ -220,10 +228,21 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
   const risk = assessCrossSeaRisk(buoys);
   if (risk.level === 'none') return [];
 
+  // Downgrade ocean buoys one level — Cabo Silleiro/Ons are open ocean,
+  // conditions don't translate directly inside the Ría
+  let effectiveLevel = risk.level;
+  if (risk.sourceBuoy && OCEAN_BUOYS.has(risk.sourceBuoy)) {
+    const downgrade: Record<AlertLevel, AlertLevel> = {
+      critico: 'alto', alto: 'riesgo', riesgo: 'none', none: 'none',
+    };
+    effectiveLevel = downgrade[risk.level];
+    if (effectiveLevel === 'none') return [];
+  }
+
   const levelToScore: Record<AlertLevel, number> = {
     none: 0, riesgo: 30, alto: 55, critico: 80,
   };
-  const score = levelToScore[risk.level];
+  const score = levelToScore[effectiveLevel];
   const severity = score >= 80 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'moderate' : 'info';
 
   const angleStr = risk.angleDelta !== null ? `${risk.angleDelta.toFixed(0)}°` : '';
@@ -236,9 +255,9 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
     severity: severity as 'info' | 'moderate' | 'high' | 'critical',
     score,
     icon: 'waves',
-    title: risk.level === 'critico'
+    title: effectiveLevel === 'critico'
       ? 'MAR CRUZADA PELIGROSA'
-      : risk.level === 'alto'
+      : effectiveLevel === 'alto'
         ? 'Mar cruzada significativa'
         : 'Mar cruzada moderada',
     detail: [
@@ -252,7 +271,7 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
             : `Tp ${risk.wavePeriod.toFixed(0)}s`
         : '',
     ].filter(Boolean).join(' · '),
-    urgent: risk.level === 'critico',
+    urgent: effectiveLevel === 'critico',
     updatedAt: new Date(),
   }];
 }
