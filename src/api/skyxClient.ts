@@ -1,5 +1,6 @@
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { isWithinRadius } from '../services/geoUtils';
+import { fetchWithRetry } from './fetchWithRetry';
 
 const SKYX_SN = 'SKY-100A0B765294EA4';
 const SKYX_AUTH = 'a21bd737-a714-4a5c-9b08-e7d3d2693a51';
@@ -51,13 +52,12 @@ export async function fetchSkyXData(
   center: [number, number],
   radiusKm: number
 ): Promise<{ station: NormalizedStation | null; reading: NormalizedReading | null }> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
   try {
-    const res = await fetch(`/skyx-api/api/v1/pub/device/last/report/${SKYX_SN}`, {
+    const res = await fetchWithRetry(`/skyx-api/api/v1/pub/device/last/report/${SKYX_SN}`, {
+      label: 'SkyX',
       headers: { 'X-Auth': SKYX_AUTH },
-      signal: controller.signal,
+      timeout: TIMEOUT_MS,
+      maxRetries: 1,
     });
 
     if (!res.ok) {
@@ -123,8 +123,6 @@ export async function fetchSkyXData(
       console.error('[SkyX] Fetch error:', err);
     }
     return { station: null, reading: null };
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -133,13 +131,12 @@ export async function fetchSkyXData(
  * Skips radius check — station was already discovered.
  */
 export async function fetchSkyXReading(): Promise<NormalizedReading | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
   try {
-    const res = await fetch(`/skyx-api/api/v1/pub/device/last/report/${SKYX_SN}`, {
+    const res = await fetchWithRetry(`/skyx-api/api/v1/pub/device/last/report/${SKYX_SN}`, {
+      label: 'SkyX',
       headers: { 'X-Auth': SKYX_AUTH },
-      signal: controller.signal,
+      timeout: TIMEOUT_MS,
+      maxRetries: 1,
     });
 
     if (!res.ok) return null;
@@ -163,7 +160,5 @@ export async function fetchSkyXReading(): Promise<NormalizedReading | null> {
     };
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
