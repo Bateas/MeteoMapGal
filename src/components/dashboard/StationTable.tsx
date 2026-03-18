@@ -1,4 +1,6 @@
 import { useMemo, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+
+const INITIAL_VISIBLE = 5;
 import { useWeatherStore } from '../../store/weatherStore';
 import { useUIStore } from '../../store/uiStore';
 import { StationCard } from './StationCard';
@@ -41,6 +43,7 @@ export function StationTable() {
   const [sortMode, setSortMode] = useState<SortMode>(() => {
     return (localStorage.getItem('meteomap_sortMode') as SortMode) || 'wind';
   });
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('meteomap_hiddenSources', JSON.stringify([...hiddenSources]));
@@ -50,14 +53,19 @@ export function StationTable() {
     localStorage.setItem('meteomap_sortMode', sortMode);
   }, [sortMode]);
 
-  // Auto-scroll to selected station
+  // Auto-expand + scroll to selected station
   useEffect(() => {
     if (!selectedStationId) return;
-    const el = cardRefs.current.get(selectedStationId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // If selected station isn't in the visible subset, expand all
+    if (!showAll) {
+      const idx = sortedStations.findIndex((s) => s.id === selectedStationId);
+      if (idx >= INITIAL_VISIBLE) setShowAll(true);
     }
-  }, [selectedStationId]);
+    requestAnimationFrame(() => {
+      const el = cardRefs.current.get(selectedStationId);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }, [selectedStationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Memo 1: full stations (exclude temp-only) + source counts
   const { fullStations, sourceCounts, tempOnlyCount } = useMemo(() => {
@@ -178,7 +186,7 @@ export function StationTable() {
           : `${filteredStations.length} de ${fullStations.length} estaciones`}
       </div>
 
-      {sortedStations.map((station) => (
+      {(showAll ? sortedStations : sortedStations.slice(0, INITIAL_VISIBLE)).map((station) => (
         <div
           key={station.id}
           ref={(el) => {
@@ -193,6 +201,18 @@ export function StationTable() {
           />
         </div>
       ))}
+
+      {/* Show more / less button */}
+      {sortedStations.length > INITIAL_VISIBLE && (
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="w-full py-2 text-[11px] font-semibold text-slate-400 hover:text-slate-200 border border-slate-700/50 rounded-lg hover:bg-slate-800/50 transition-colors cursor-pointer"
+        >
+          {showAll
+            ? 'Mostrar menos'
+            : `Ver ${sortedStations.length - INITIAL_VISIBLE} estaciones mas`}
+        </button>
+      )}
     </div>
   );
 }

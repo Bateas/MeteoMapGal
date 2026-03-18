@@ -28,9 +28,7 @@ import { RadarOverlay } from './RadarOverlay';
 import { CurrentsOverlay } from './CurrentsOverlay';
 import { AirspaceOverlay } from './AirspaceOverlay';
 import { BathymetryOverlay } from './BathymetryOverlay';
-import { BathymetryToggle } from './BathymetryToggle';
 import { SSTOverlay } from './SSTOverlay';
-import { SSTToggle } from './SSTToggle';
 import { SSTLegend } from './SSTLegend';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { MapStyleSelector } from './MapStyleSelector';
@@ -341,8 +339,6 @@ export function WeatherMap() {
           <div className="flex items-center justify-center gap-1.5 max-w-full overflow-x-auto scrollbar-none pointer-events-auto">
             <StormIndicator />
             <TemperatureToggle />
-            <BathymetryToggle />
-            <SSTToggle />
             <WeatherLayerSelector />
           </div>
         </div>
@@ -353,8 +349,6 @@ export function WeatherMap() {
           <div className="flex items-end gap-2 shrink-0">
             <StormIndicator />
             <TemperatureToggle />
-            <BathymetryToggle />
-            <SSTToggle />
             <WeatherLayerSelector />
           </div>
 

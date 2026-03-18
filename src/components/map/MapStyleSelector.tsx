@@ -12,6 +12,7 @@ import { MAP_STYLES, useMapStyleStore } from '../../store/mapStyleStore';
 import type { MapStyleId } from '../../store/mapStyleStore';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 export const MapStyleSelector = memo(function MapStyleSelector() {
   const isMobile = useUIStore((s) => s.isMobile);
@@ -28,6 +29,10 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
   const toggleIGNHillshade = useMapStyleStore((s) => s.toggleIGNHillshade);
   const toggleIGNContours = useMapStyleStore((s) => s.toggleIGNContours);
   const toggleIGNOrtho = useMapStyleStore((s) => s.toggleIGNOrtho);
+  const bathymetryVisible = useUIStore((s) => s.bathymetryVisible);
+  const toggleBathymetry = useUIStore((s) => s.toggleBathymetry);
+  const sstVisible = useUIStore((s) => s.sstVisible);
+  const toggleSST = useUIStore((s) => s.toggleSST);
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -129,13 +134,31 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
             })}
           </div>
 
-          {/* ── Nautical overlay toggles (Rías sector only) ── */}
+          {/* ── Marine overlay toggles (Rías sector only) ── */}
           {isRias && (
             <>
               <div className="border-t border-slate-700/40 px-2 py-1.5">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Capas náuticas</span>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Capas marinas</span>
               </div>
               <div className="pb-1.5 px-1">
+                <OverlayToggle
+                  label="Batimetría"
+                  sublabel="EMODnet — fondo marino"
+                  active={bathymetryVisible}
+                  onClick={toggleBathymetry}
+                  color="#14b8a6"
+                  isMobile={isMobile}
+                  icon={<WeatherIcon id="layers" size={12} />}
+                />
+                <OverlayToggle
+                  label="SST"
+                  sublabel="CMEMS — temp. superficial mar"
+                  active={sstVisible}
+                  onClick={toggleSST}
+                  color="#f97316"
+                  isMobile={isMobile}
+                  icon={<WeatherIcon id="thermometer" size={12} />}
+                />
                 <OverlayToggle
                   label="OpenSeaMap"
                   sublabel="Boyas, faros, marcas"
@@ -149,7 +172,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
                   sublabel="IHM — ENC oficial"
                   active={showNauticalChart}
                   onClick={toggleNauticalChart}
-                  color="#14b8a6"
+                  color="#06b6d4"
                   isMobile={isMobile}
                 />
               </div>
@@ -201,6 +224,7 @@ function OverlayToggle({
   onClick,
   color,
   isMobile,
+  icon,
 }: {
   label: string;
   sublabel: string;
@@ -208,6 +232,7 @@ function OverlayToggle({
   onClick: () => void;
   color: string;
   isMobile: boolean;
+  icon?: React.ReactNode;
 }) {
   return (
     <button
