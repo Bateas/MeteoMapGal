@@ -159,7 +159,7 @@ All data comes from **open and public sources** — no paid APIs required (only 
 
 ## Roadmap
 
-### Done (v1.0 → v1.21)
+### Done (v1.0 → v1.22)
 
 - [x] Multi-sector support (Embalse + Rías Baixas)
 - [x] 100+ weather stations from 6 networks (incl. SkyX personal PWS with GPS auto-discovery)
@@ -191,11 +191,15 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [x] Wind gust factor — turbulence indicator in station popups
 - [x] Webcam vision IA — LLM-powered multiparameter analysis (Beaufort, sky, fog, visibility, precipitation) — experimental, dev only
 - [x] Typed Zustand selectors — compile-time safety for store property access
+- [x] Sailing Windows — "¿Cuándo salgo?" 48h per-spot forecast with best sailing window detection
+- [x] Forecast mini-timeline — 12h hourly forecast inline in SpotPopup
+- [x] Swipe-to-dismiss on mobile bottom sheets (spots, stations, buoys)
+- [x] Focus trap + ARIA roles for accessible modals
+- [x] Zoom-dependent station labels (hidden at low zoom to reduce clutter)
+- [x] Web Vitals performance monitoring (LCP, INP, CLS)
 
 ### Planned
 
-- [x] Sailing Windows — "¿Cuándo salgo?" 48h per-spot forecast with best sailing window detection
-- [x] Forecast mini-timeline — 6h hourly forecast inline in SpotPopup
 - [ ] Daily summary Telegram bot (N2-Bot) — morning conditions report
 - [ ] Proactive spot alerts (N3-Bot) — push when spot goes from bad to good
 - [ ] New monitoring zones (A Coruña, Lugo, Costa da Morte)
