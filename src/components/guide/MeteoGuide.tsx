@@ -5,6 +5,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import { ReadingMapSection } from './sections/ReadingMapSection';
 import { SpotScoringSection } from './sections/SpotScoringSection';
 import { ThermalCastreloSection } from './sections/ThermalCastreloSection';
+import { RiasBaixasSection } from './sections/RiasBaixasSection';
 import { CampoPanelSection } from './sections/CampoPanelSection';
 import { HistorySection } from './sections/HistorySection';
 import { GlossarySection } from './sections/GlossarySection';
@@ -25,6 +26,7 @@ const ALL_SECTIONS: GuideSection[] = [
   { id: 'reading', label: 'Cómo leer el mapa' },
   { id: 'spots', label: 'Spots de navegación' },
   { id: 'thermal', label: 'El térmico de Castrelo', sectorOnly: ['embalse'] },
+  { id: 'rias-winds', label: 'Vientos de las Rías', sectorOnly: ['rias'] },
   { id: 'panels', label: 'Paneles y alertas' },
   { id: 'history', label: 'Historial' },
   { id: 'glossary', label: 'Glosario' },
@@ -140,6 +142,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
             {activeSection === 'reading' && <ReadingMapSection />}
             {activeSection === 'spots' && <SpotScoringSection />}
             {activeSection === 'thermal' && <ThermalCastreloSection />}
+            {activeSection === 'rias-winds' && <RiasBaixasSection />}
             {activeSection === 'panels' && <CampoPanelSection />}
             {activeSection === 'history' && <HistorySection />}
             {activeSection === 'glossary' && <GlossarySection />}
