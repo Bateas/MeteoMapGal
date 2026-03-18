@@ -1,8 +1,8 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.21.5-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-1.22.9-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-163%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-185%20passed-brightgreen)](src/test/)
 [![Stations](https://img.shields.io/badge/stations-100%2B-orange)](src/api/)
 [![Buoys](https://img.shields.io/badge/buoys-13-cyan)](src/api/buoyClient.ts)
 
@@ -194,7 +194,8 @@ All data comes from **open and public sources** — no paid APIs required (only 
 
 ### Planned
 
-- [ ] Sailing Windows — "¿Cuándo salgo?" killer feature with 48h per-spot forecast
+- [x] Sailing Windows — "¿Cuándo salgo?" 48h per-spot forecast with best sailing window detection
+- [x] Forecast mini-timeline — 6h hourly forecast inline in SpotPopup
 - [ ] Daily summary Telegram bot (N2-Bot) — morning conditions report
 - [ ] Proactive spot alerts (N3-Bot) — push when spot goes from bad to good
 - [ ] New monitoring zones (A Coruña, Lugo, Costa da Morte)
@@ -231,7 +232,7 @@ cp .env.example .env
 
 npm run dev       # http://localhost:5173
 npm run build     # Production build → dist/
-npm test          # 163 tests (Vitest)
+npm test          # 185 tests (Vitest)
 ```
 
 </details>
@@ -247,7 +248,7 @@ npm test          # 163 tests (Vitest)
 | Zustand 5 | Global state (13 stores, typed selectors) |
 | Tailwind CSS 4.2 | Utility-first styling |
 | Recharts | Time series charts |
-| Vitest 4 | 163 unit tests |
+| Vitest 4 | 185 unit tests |
 | TimescaleDB 2.25 | Historical readings (PostgreSQL + hypertables, 2y retention) |
 
 </details>
