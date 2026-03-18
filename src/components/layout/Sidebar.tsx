@@ -179,6 +179,19 @@ export function Sidebar() {
           )}
         </Suspense>
       </div>
+
+      {/* Ko-fi support link */}
+      <a
+        href="https://ko-fi.com/meteomapgal"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-1.5 px-3 py-2 mx-3 mb-2 rounded-lg
+          border border-slate-700/40 text-slate-500 text-[10px]
+          hover:text-amber-400 hover:border-amber-500/30 hover:bg-slate-800/60
+          transition-all shrink-0"
+      >
+        <span>☕</span> Apoya MeteoMapGal
+      </a>
     </div>
   );
 }
