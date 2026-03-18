@@ -73,14 +73,19 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
             : 'bg-slate-900/80 text-slate-400 border-slate-700/50 hover:text-white hover:bg-slate-800/90 hover:shadow-[0_0_12px_rgba(148,163,184,0.15)] hover:border-slate-500/40'
           }`}
       >
-        {/* Swatch circle */}
-        <div
-          className="w-4 h-4 rounded-full border border-slate-600 shrink-0"
-          style={{
-            background: `linear-gradient(135deg, ${activeStyle.swatch[0]} 50%, ${activeStyle.swatch[1]} 50%)`,
-          }}
-        />
-        {!isMobile && <span>{activeStyle.shortName}</span>}
+        {/* Map icon (mobile) or swatch + name (desktop) */}
+        <WeatherIcon id="layers" size={isMobile ? 18 : 14} className="shrink-0" />
+        {!isMobile && (
+          <>
+            <div
+              className="w-4 h-4 rounded-full border border-slate-600 shrink-0"
+              style={{
+                background: `linear-gradient(135deg, ${activeStyle.swatch[0]} 50%, ${activeStyle.swatch[1]} 50%)`,
+              }}
+            />
+            <span>{activeStyle.shortName}</span>
+          </>
+        )}
         <svg
           className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''} ${isMobile ? 'hidden' : ''}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
