@@ -30,9 +30,13 @@ Pure functions and algorithms used across the app. No React dependencies.
 - **`crossSeaService.ts`** — Cross-sea risk from wave-wind angular divergence >45°. Uses buoy waveDir vs windDir. **Wave period (Tp)**: ≥8s swell escalates risk, <4s wind-sea downgrades. Wave height amplification for severity. Pure computation.
 - **`upwellingService.ts`** — Galician coastal upwelling detector. N/NW wind ≥12kt for ≥6h → Ekman transport → cold deep water rises. Uses buoy SST history buffer (24h, accumulated in `buoyStore`). Thresholds: SST drop ≥1.5°C moderate, ≥2.5°C high, ≥4.0°C critical. Wind confirmation boosts confidence. Pure computation — no extra API calls.
 
-## Forecast & History
+## Sailing & Spots
 
+- **`spotScoringEngine.ts`** — Per-spot wind verdict scoring (5-level: calm/light/sailing/good/strong). Composite weighting: distance x sourceQuality x freshness. Includes airTemp, humidity, windChill (Environment Canada), windDirDeg. Storm alerts ONLY from lightning-confirmed storms.
 - **`sailingWindowService.ts`** — Best Sailing Window: scores 48h forecast per-spot, groups contiguous good hours into `SailingWindow[]`. Dual scoring: thermal-dominant (Embalse) via `scoreForecastThermal()`, wind-dominant (Rías) with direction/speed curves. Min 2h window, 1h merge gap.
+- **`buoyUtils.ts`** — Marine buoy color scales (wave height, temperature, period). Single source of truth for shared color functions.
+
+## Forecast & History
 - **`forecastDeltaService.ts`** — Compares Open-Meteo forecast to live station readings: wind (kt), temp (°C) deltas. `findNearestForecastHour()` aligns within ±90min. `formatWindDelta()`/`formatTempDelta()` return colored badge data. Used by StationCard.
 - **`forecastVerificationService.ts`** — "¿Acertó la previsión?": fetches past Open-Meteo forecasts via Previous Runs API, compares with TimescaleDB hourly observations. Computes MAE, bias, accuracy rate (wind ±3kt, temp ±2°C). No backend changes needed.
 - **`forecastScoringUtils.ts`** — Scores forecast hours for sailing conditions. Exports `ForecastBreakdown` type with per-component scores (temp, hour, month, humidity, direction, wind speed) + multipliers. `scoreForecastThermalWithBreakdown()` returns breakdown for tooltip display in ForecastTimeline.
@@ -64,4 +68,4 @@ Pure functions and algorithms used across the app. No React dependencies.
 
 ## Testing
 
-Test files live alongside their source (`*.test.ts`). Currently tested: `normalizer`, `windUtils`, `alertService`, `thermalScoringEngine`, `toastStore`, `csvUtils`, `airspaceService`. Run with `npm test` (Vitest).
+Test files live alongside their source (`*.test.ts`). 185 tests across 11 files: `normalizer`, `windUtils`, `alertService`, `thermalScoringEngine`, `toastStore`, `csvUtils`, `airspaceService`, `sailingWindowService`, `ConditionsTicker`, `MobileSailingBanner`, `Header`. Run with `npm test` (Vitest).
