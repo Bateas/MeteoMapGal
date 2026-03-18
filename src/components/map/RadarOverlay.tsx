@@ -21,12 +21,12 @@ import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 // ── Config ──────────────────────────────────────────
 
-/** Approximate bounds for AEMET Galicia regional radar (ga) */
+/** Bounds for AEMET Galicia regional radar (ga) — Cuntis at 42.75°N -8.5°W, 240km radius */
 const BBOX = {
-  west: -11.5,
-  south: 40.0,
-  east: -4.5,
-  north: 45.0,
+  west: -11.44,
+  south: 40.59,
+  east: -5.56,
+  north: 44.91,
 };
 
 /** Image coordinates for MapLibre (top-left, top-right, bottom-right, bottom-left) */
