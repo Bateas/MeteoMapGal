@@ -258,6 +258,7 @@ export function WeatherMap() {
               reading={currentReadings.get(station.id)}
               isSelected={station.id === selectedStationId}
               showLabel={showStationLabels}
+              zoomLevel={zoomLevel}
             />
           )
         )}
@@ -268,6 +269,7 @@ export function WeatherMap() {
             key={b.stationId}
             reading={b}
             isSelected={b.stationId === selectedBuoyId}
+            zoomLevel={zoomLevel}
           />
         ))}
 

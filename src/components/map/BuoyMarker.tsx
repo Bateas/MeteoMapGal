@@ -22,6 +22,8 @@ import { msToKnots, windSpeedColor } from '../../services/windUtils';
 interface BuoyMarkerProps {
   reading: BuoyReading;
   isSelected?: boolean;
+  /** Current map zoom level for progressive scaling */
+  zoomLevel?: number;
 }
 
 /** Data freshness color based on timestamp age */
@@ -126,7 +128,7 @@ function badgeStyle(color: string, position: 'top-right' | 'top-left' | 'bottom-
   };
 }
 
-export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false }: BuoyMarkerProps) {
+export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false, zoomLevel = 12 }: BuoyMarkerProps) {
   const selectBuoy = useBuoyStore((s) => s.selectBuoy);
   const coords = BUOY_COORDS_MAP.get(reading.stationId);
   if (!coords) return null;
@@ -150,7 +152,14 @@ export const BuoyMarker = memo(function BuoyMarker({ reading, isSelected = false
       anchor="center"
       onClick={handleClick}
     >
-      <div className="buoy-marker relative cursor-pointer" title={reading.stationName}>
+      <div
+        className="buoy-marker relative cursor-pointer"
+        title={reading.stationName}
+        style={zoomLevel < 12 ? {
+          transform: `scale(${Math.max(0.5, 0.5 + (zoomLevel - 9) * 0.167)})`,
+          transition: 'transform 0.3s ease-out',
+        } : undefined}
+      >
         <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Boya ${reading.stationName}`}>
           {/* ── Secondary indicators — rendered FIRST (behind everything) ── */}
           {hasCurrent && (
