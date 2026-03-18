@@ -275,6 +275,41 @@ export function ReadingMapSection() {
             title="Webcams en spots"
             text="Algunos spots incluyen imagen o enlace a webcam en vivo directamente en el popup del spot. Permite verificar condiciones reales antes de navegar."
           />
+          <MiniExplainer
+            iconId="wind"
+            title="Ticker de condiciones"
+            text="Banner animado en la cabecera con resumen en tiempo real: veredictos de spots, racha máxima, oleaje, rango de temperaturas. Se desplaza automáticamente."
+          />
+          <MiniExplainer
+            iconId="database"
+            title="Rankings de estaciones"
+            text="Pestaña Rankings: top estaciones por viento, temperatura, humedad y presión en tiempo real. Actualización automática."
+          />
+          <MiniExplainer
+            iconId="wind"
+            title="Factor de racha"
+            text="Ratio racha/viento sostenido (×N.N) en popup de estaciones. Valores altos (>2.0) indican turbulencia e inestabilidad del flujo."
+          />
+          <MiniExplainer
+            iconId="thermometer"
+            title="Índice de calor"
+            text="Sensación térmica real cuando T>27°C y HR>40% (fórmula NWS). Se muestra en el popup del spot con código de color: amarillo >27°C, naranja >32°C, rojo >35°C."
+          />
+          <MiniExplainer
+            iconId="map-pin"
+            title="Spot favorito ★"
+            text="Marca tu spot preferido con ★ en el popup. Se muestra primero en el ticker y en selectores. Persiste entre sesiones (localStorage)."
+          />
+          <MiniExplainer
+            iconId="alert-triangle"
+            title="Alertas por Telegram"
+            text="MeteoMapGal envía alertas moderadas, altas y críticas a un bot de Telegram en tiempo real. Silencio nocturno 23:00-07:00 (solo pasan críticas)."
+          />
+          <MiniExplainer
+            iconId="gauge"
+            title="Estación SkyX"
+            text="Estación personal portátil con GPS. Se auto-descubre en el sector correspondiente. Mueves la estación → MeteoMapGal la detecta automáticamente."
+          />
         </div>
       </div>
 
