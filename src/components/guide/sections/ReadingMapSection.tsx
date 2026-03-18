@@ -10,6 +10,43 @@ export function ReadingMapSection() {
         cómo interpretar cada elemento visual del mapa.
       </p>
 
+      {/* Interface overview */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-white">Elementos de la interfaz</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <MiniExplainer
+            iconId="layers"
+            title="Panel lateral (izquierda)"
+            text="Panel fijo con pestañas: Estaciones (lista completa), Gráfica (series temporales), Rankings (top por métrica), Verificar (forecast vs real) e Historial (datos almacenados). Colapsable con el botón ◀."
+          />
+          <MiniExplainer
+            iconId="gauge"
+            title="Panel desplegable (derecha)"
+            text="Botón 'Panel' en la cabecera. Abre el drawer con 4 tabs: Navegación (veredicto viento), Campo (helada, riego, fitosanitario), Dron (espacio aéreo, NOTAMs), Meteo (alertas activas, presión, teleconexiones)."
+          />
+          <MiniExplainer
+            iconId="wind"
+            title="Barra inferior — capas de datos"
+            text="Botones en la parte inferior del mapa para activar/desactivar capas: Viento (partículas), Humedad, Satélite IR, Radar precipitación, Corrientes. Solo una activa a la vez. Tecla W para ciclar."
+          />
+          <MiniExplainer
+            iconId="map"
+            title="Selector de mapa base"
+            text="Botón en la esquina del mapa. 6 estilos: OSM, Positron, Dark Matter, Voyager (default), IGN Topográfico, IGN Base Gris. También toggles para overlays náuticos (OpenSeaMap, IHM) e IGN (ortofotos, sombreado, curvas)."
+          />
+          <MiniExplainer
+            iconId="sailboat"
+            title="Marcadores de spot"
+            text="Marcadores grandes con icono de actividad (⛵, 🪁). Clic abre popup detallado con veredicto GO/MARGINAL/NO-GO, viento, oleaje, mareas, webcam y scoring. Estrella ★ para marcar favorito."
+          />
+          <MiniExplainer
+            iconId="wind"
+            title="Ticker de condiciones"
+            text="Banner horizontal animado en la cabecera. Muestra en tiempo real: veredictos de cada spot, racha máxima, oleaje, rango de temperaturas. Se desplaza automáticamente."
+          />
+        </div>
+      </div>
+
       {/* Station markers */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Marcadores de estación</h3>
