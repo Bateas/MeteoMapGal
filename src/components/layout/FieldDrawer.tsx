@@ -24,13 +24,12 @@ import { getLunarPhase, getLunarCalendar } from '../../services/lunarService';
 const TidePanel = lazy(() => import('../dashboard/TidePanel').then(m => ({ default: m.TidePanel })));
 const AtmosphericProfile = lazy(() => import('../dashboard/AtmosphericProfile').then(m => ({ default: m.AtmosphericProfile })));
 
-export type AlertTab = 'nav' | 'campo' | 'dron' | 'meteo';
+export type AlertTab = 'nav' | 'campo' | 'dron';
 
 const TABS: { id: AlertTab; label: string; icon: IconId | null; shortcut: string }[] = [
   { id: 'nav', label: 'Naveg.', icon: 'sailboat', shortcut: '1' },
   { id: 'campo', label: 'Campo', icon: null, shortcut: '2' },
   { id: 'dron', label: 'Dron', icon: 'drone', shortcut: '3' },
-  { id: 'meteo', label: 'Meteo', icon: null, shortcut: '4' },
 ];
 
 interface FieldDrawerProps {
@@ -180,6 +179,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
               </Suspense>
               <WindStatusSection alerts={alerts} />
               <FogSection alerts={alerts} />
+              <AlertHistorySection />
             </>
           )}
 
@@ -204,18 +204,6 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
               <WindStatusSection alerts={alerts} />
               <RainSection alerts={alerts} />
               <FogSection alerts={alerts} />
-            </>
-          )}
-
-          {/* ── Meteo tab: all alerts + history ── */}
-          {activeTab === 'meteo' && (
-            <>
-              <FrostSection alerts={alerts} />
-              <RainSection alerts={alerts} />
-              <FogSection alerts={alerts} />
-              <WindStatusSection alerts={alerts} />
-              <DroneSection alerts={alerts} />
-              <AlertHistorySection />
             </>
           )}
 
