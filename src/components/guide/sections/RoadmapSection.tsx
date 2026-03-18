@@ -310,9 +310,19 @@ export function RoadmapSection() {
         <TimelineMilestone
           iconId="info"
           title="Apoya el proyecto"
-          desc="Sección de donaciones para contribuir al desarrollo y mantenimiento de MeteoMapGal."
-          status="idea"
+          desc="Si MeteoMapGal te resulta útil, puedes apoyar su desarrollo invitando a un café."
+          status="done"
         />
+        <div className="ml-8 -mt-1 mb-3">
+          <a
+            href="https://ko-fi.com/meteomapgal"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
+          >
+            <span>☕</span> ko-fi.com/meteomapgal
+          </a>
+        </div>
       </div>
 
       {/* ── Fuentes de datos ─────────────────────────────── */}
