@@ -67,7 +67,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
         aria-label={`Cambiar mapa base (actual: ${activeStyle.name})`}
         className={`flex items-center gap-1.5 rounded-lg font-semibold
           backdrop-blur-sm border transition-all shadow-md cursor-pointer
-          ${isMobile ? 'min-w-[44px] min-h-[44px] px-2 py-2' : 'px-2 py-1.5 text-[11px]'}
+          ${isMobile ? 'min-w-[44px] min-h-[44px] px-2 py-2 justify-center' : 'px-2 py-1.5 text-[11px]'}
           ${open
             ? 'bg-blue-600/90 text-white border-blue-500/50'
             : 'bg-slate-900/80 text-slate-400 border-slate-700/50 hover:text-white hover:bg-slate-800/90 hover:shadow-[0_0_12px_rgba(148,163,184,0.15)] hover:border-slate-500/40'
