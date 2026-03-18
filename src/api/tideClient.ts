@@ -44,6 +44,8 @@ export const RIAS_TIDE_STATIONS: TideStation[] = [
 // Default station (closest to sector center)
 export const DEFAULT_TIDE_STATION = RIAS_TIDE_STATIONS[0]; // Vigo
 
+import { fetchWithRetry } from './fetchWithRetry';
+
 const IHM_BASE = '/ihm-api';
 
 /**
@@ -69,8 +71,10 @@ export async function fetchTidePredictions(
 
   const url = `${IHM_BASE}/api-ihm/getmarea?${params}`;
 
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(10_000),
+  const response = await fetchWithRetry(url, {
+    label: 'Tide',
+    timeout: 10_000,
+    maxRetries: 2,
   });
 
   if (!response.ok) {
