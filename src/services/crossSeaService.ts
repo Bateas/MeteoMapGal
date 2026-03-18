@@ -232,8 +232,9 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
   // conditions don't translate directly inside the Ría
   let effectiveLevel = risk.level;
   if (risk.sourceBuoy && OCEAN_BUOYS.has(risk.sourceBuoy)) {
+    // 2-level downgrade: open ocean conditions rarely reflect inside Ría
     const downgrade: Record<AlertLevel, AlertLevel> = {
-      critico: 'alto', alto: 'riesgo', riesgo: 'none', none: 'none',
+      critico: 'riesgo', alto: 'none', riesgo: 'none', none: 'none',
     };
     effectiveLevel = downgrade[risk.level];
     if (effectiveLevel === 'none') return [];
