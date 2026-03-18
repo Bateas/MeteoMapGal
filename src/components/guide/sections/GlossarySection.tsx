@@ -167,6 +167,40 @@ export function GlossarySection() {
         />
       </TermGroup>
 
+      {/* ── Comfort & Safety ── */}
+      <TermGroup title="Confort y seguridad">
+        <Term
+          term="Índice de calor (Heat Index)"
+          definition="Temperatura aparente que combina aire y humedad relativa. A partir de 27°C y HR>40%, el cuerpo percibe más calor del real."
+          example="32°C con 60% HR → sensación de 38°C. MeteoMapGal muestra alerta amarilla >27°C, naranja >32°C, roja >35°C en el popup del spot."
+          color="#f59e0b"
+        />
+        <Term
+          term="Wind Chill (sensación térmica)"
+          definition="Temperatura percibida por el efecto refrigerante del viento. Se aplica cuando T<10°C. Fórmula Environment Canada."
+          example="8°C con 15kt → sensación de 4°C. MeteoMapGal lo muestra en popups de spots para que lleves ropa adecuada."
+          color="#f59e0b"
+        />
+        <Term
+          term="Factor de racha (Gust Factor)"
+          definition="Ratio entre la racha máxima y el viento sostenido (×N.N). Valores altos (>2.0) indican turbulencia y condiciones impredecibles."
+          example="Viento 8kt con racha 18kt → factor ×2.3, aire muy turbulento. MeteoMapGal lo muestra en el popup de la estación."
+          color="#f59e0b"
+        />
+        <Term
+          term="Afloramiento (Upwelling)"
+          definition="Ascenso de agua fría profunda a la superficie por efecto del viento N/NW sostenido (transporte de Ekman). Típico de la costa gallega en verano."
+          example="Viento NW ≥12kt durante 6+ horas → bajada brusca de SST de 3-5°C. MeteoMapGal detecta y alerta sobre el evento."
+          color="#f59e0b"
+        />
+        <Term
+          term="NAO (Oscilación del Atlántico Norte)"
+          definition="Índice climático que mide la diferencia de presión entre Islandia y Azores. NAO+ = más viento y lluvia en el norte de Europa; NAO- = más borrasca en Galicia."
+          example="NAO negativa en invierno → mayor probabilidad de temporales atlánticos en Galicia. MeteoMapGal muestra el índice actual."
+          color="#f59e0b"
+        />
+      </TermGroup>
+
       {/* ── Agriculture & Viticulture ── */}
       <TermGroup title="Agricultura y viticultura">
         <Term
