@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.23.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-1.23.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-185%20passed-brightgreen)](src/test/)
 [![Stations](https://img.shields.io/badge/stations-100%2B-orange)](src/api/)
@@ -204,7 +204,8 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [ ] Proactive spot alerts (N3-Bot) — push when spot goes from bad to good
 - [ ] New monitoring zones (A Coruña, Lugo, Costa da Morte)
 - [ ] More sailing spots (Sanxenxo, Lanzada, A Illa de Arousa, Samil)
-- [ ] Ko-fi donations + feedback form
+- [x] Ko-fi donations link + share spot conditions (Web Share API)
+- [ ] Feedback form (in-app suggestions via n8n webhook)
 - [ ] Vision IA cross-validation with real-time alerts
 
 ---
