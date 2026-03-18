@@ -79,17 +79,26 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   return (
     <header className="bg-slate-900 border-b border-slate-700 px-3 md:px-4 py-2 md:py-2 flex items-center justify-between gap-1.5 md:gap-2">
       <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
-        {/* Hamburger — mobile only, 44px touch target */}
+        {/* Hamburger + Guide — mobile only, same size/style */}
         {isMobile && (
-          <button
-            onClick={toggleSidebar}
-            className="p-2 rounded-lg border border-slate-600/60 bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 transition-all flex-shrink-0 active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
-            aria-label="Abrir panel lateral"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          <div className="flex gap-1 flex-shrink-0">
+            <button
+              onClick={toggleSidebar}
+              className="p-2 rounded-lg border border-slate-600/60 bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
+              aria-label="Abrir panel lateral"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <button
+              onClick={() => useUIStore.getState().toggleGuide()}
+              className="p-2 rounded-lg border border-slate-600/60 bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center btn-guide-glow"
+              aria-label="Abrir guía meteorológica"
+            >
+              <WeatherIcon id="book-open" size={16} />
+            </button>
+          </div>
         )}
 
         <h1 className="text-sm md:text-base font-bold text-white tracking-tight flex-shrink-0">
@@ -130,17 +139,17 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         )}
         {/* Source status — hide on mobile */}
         {!isMobile && <SourceStatusIndicator />}
-        {/* Guide button — compact on mobile */}
-        <button
-          onClick={() => useUIStore.getState().toggleGuide()}
-          className={`btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 flex-shrink-0 ${
-            isMobile ? 'p-1.5 active:bg-slate-700' : 'text-[10px] px-2 py-1'
-          }`}
-          title={isMobile ? 'Guía meteorológica' : 'Guía meteorológica (G)'}
-          aria-label="Abrir guía meteorológica"
-        >
-          <WeatherIcon id="book-open" size={isMobile ? 14 : 14} />
-        </button>
+        {/* Guide button — desktop only (mobile version is next to hamburger) */}
+        {!isMobile && (
+          <button
+            onClick={() => useUIStore.getState().toggleGuide()}
+            className="btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 flex-shrink-0 text-[10px] px-2 py-1"
+            title="Guía meteorológica (G)"
+            aria-label="Abrir guía meteorológica"
+          >
+            <WeatherIcon id="book-open" size={14} />
+          </button>
+        )}
       </div>
       <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
         {/* Sunrise / Sunset — hide on mobile */}
