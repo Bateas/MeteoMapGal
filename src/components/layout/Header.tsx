@@ -79,12 +79,12 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   return (
     <header className="bg-slate-900 border-b border-slate-700 px-3 md:px-4 py-2 md:py-2 flex items-center justify-between gap-1.5 md:gap-2">
       <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
-        {/* Hamburger + Guide — mobile only, same size/style */}
+        {/* Hamburger + Guide — mobile only, subtle (navigation, not primary actions) */}
         {isMobile && (
-          <div className="flex gap-1 flex-shrink-0">
+          <div className="flex gap-0.5 flex-shrink-0">
             <button
               onClick={toggleSidebar}
-              className="p-2 rounded-lg border border-slate-600/60 bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
               aria-label="Abrir panel lateral"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -93,7 +93,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             </button>
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
-              className="p-2 rounded-lg border border-slate-600/60 bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center btn-guide-glow"
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
               aria-label="Abrir guía meteorológica"
             >
               <WeatherIcon id="book-open" size={16} />
@@ -117,8 +117,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   aria-label={`Cambiar a sector ${sector.name}`}
                   className={`flex items-center gap-1 rounded-lg font-bold border transition-all min-h-[36px]
                     ${isActive
-                      ? 'text-[11px] px-2 py-1.5 bg-blue-600 text-white border-blue-400/60 shadow-sm shadow-blue-500/20'
-                      : 'px-2 py-1.5 bg-slate-800/80 text-slate-500 border-slate-700/50 active:bg-slate-700'
+                      ? 'text-[11px] px-2.5 py-1.5 bg-blue-600 text-white border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.35)]'
+                      : 'px-2 py-1.5 bg-transparent text-slate-500 border-slate-600/40 border-dashed hover:text-slate-200 hover:bg-slate-800/60 hover:border-slate-500/60 active:bg-slate-700'
                   }`}
                 >
                   <WeatherIcon id={sector.icon} size={14} />
@@ -179,19 +179,21 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {onToggleFieldDrawer && (
           <button
             onClick={onToggleFieldDrawer}
-            className={`flex items-center gap-1 rounded-lg font-bold transition-colors
+            className={`flex items-center gap-1 rounded-lg font-bold transition-all
               ${isMobile ? 'px-3 py-1.5 text-xs min-h-[36px]' : 'px-2 py-0.5 text-[10px]'}
               ${fieldDrawerOpen
                 ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
                 : fieldAlertLevel !== 'none'
-                ? 'bg-slate-800 border animate-pulse'
-                : 'btn-panel-glow bg-slate-800/60'
+                ? 'border animate-pulse hover:brightness-125 hover:scale-105'
+                : 'text-slate-400 border border-slate-600/40 hover:text-white hover:bg-slate-800'
               }`}
             style={
               !fieldDrawerOpen && fieldAlertLevel !== 'none'
                 ? {
                     color: fieldAlertLevel === 'critico' ? '#ef4444' : fieldAlertLevel === 'alto' ? '#f59e0b' : '#3b82f6',
-                    borderColor: fieldAlertLevel === 'critico' ? 'rgba(239,68,68,0.3)' : fieldAlertLevel === 'alto' ? 'rgba(245,158,11,0.3)' : 'rgba(59,130,246,0.3)',
+                    borderColor: fieldAlertLevel === 'critico' ? 'rgba(239,68,68,0.4)' : fieldAlertLevel === 'alto' ? 'rgba(245,158,11,0.4)' : 'rgba(59,130,246,0.3)',
+                    background: fieldAlertLevel === 'critico' ? 'rgba(239,68,68,0.12)' : fieldAlertLevel === 'alto' ? 'rgba(245,158,11,0.10)' : 'rgba(59,130,246,0.08)',
+                    boxShadow: fieldAlertLevel === 'critico' ? '0 0 14px rgba(239,68,68,0.3)' : fieldAlertLevel === 'alto' ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
                   }
                 : undefined
             }
