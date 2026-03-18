@@ -16,6 +16,7 @@ import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
 import type { WebcamVisionResult } from '../../services/webcamVisionService';
+import type { HourlyForecast } from '../../types/forecast';
 import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor } from '../../services/windUtils';
 import { fetchTidePredictions } from '../../api/tideClient';
@@ -42,6 +43,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const thermalPrecursors = useSpotStore((s) => s.thermalPrecursors);
   const webcamVision = useSpotStore((s) => s.webcamVision);
   const isMobile = useUIStore((s) => s.isMobile);
+  const sectorForecast = useSpotStore((s) => s.sectorForecast);
   const windowResult = sailingWindows.get(spot.id);
   const precursor = spot.thermalDetection ? thermalPrecursors.get(spot.id) : undefined;
   const visionResult = webcamVision.get(spot.id);
@@ -200,6 +202,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Sailing windows (collapsible) ── */}
       {windowResult && <SailingWindowsSection result={windowResult} />}
+
+      {/* ── Forecast mini-timeline (12h) ── */}
+      {sectorForecast.length > 0 && <ForecastMiniTimeline forecast={sectorForecast} />}
 
       {/* ── Thermal precursor early warning (collapsible) ── */}
       {precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
@@ -834,6 +839,75 @@ function SpotTideSummary({ tideStationId }: { tideStationId: string }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Forecast mini-timeline (next 12h) ────────────────────────
+
+function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
+  const [open, setOpen] = useState(false);
+
+  // Filter to next 12 hours from now, pick every 2h for compactness
+  const hours = useMemo(() => {
+    const now = new Date();
+    const upcoming = forecast.filter((f) => f.time > now);
+    const result: HourlyForecast[] = [];
+    for (let i = 0; i < Math.min(12, upcoming.length); i += 2) {
+      result.push(upcoming[i]);
+    }
+    return result; // max 6 slots
+  }, [forecast]);
+
+  if (hours.length === 0) return null;
+
+  const fmt = (d: Date) => `${d.getHours()}h`;
+  const msToKt = (ms: number) => Math.round(ms * 1.94384);
+
+  return (
+    <div className="mt-2 pt-1.5 border-t border-slate-700/40">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+      >
+        <WeatherIcon id="clock" size={11} className="text-cyan-500/70 shrink-0" />
+        <span className="font-semibold">Prevision 12h</span>
+        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 flex gap-0.5 overflow-x-auto">
+          {hours.map((h, i) => {
+            const kt = msToKt(h.windSpeed);
+            const precip = h.precipProbability > 30;
+            return (
+              <div
+                key={i}
+                className="flex flex-col items-center min-w-[38px] bg-slate-800/40 rounded px-1 py-1 text-[9px]"
+              >
+                <span className="text-slate-500 font-mono">{fmt(h.time)}</span>
+                <span
+                  className="font-bold text-[10px] mt-0.5"
+                  style={{ color: windKtColor(kt) }}
+                  title={`${kt} kt ${h.windDirection}°`}
+                >
+                  {kt}
+                </span>
+                <span
+                  className="inline-block text-[8px] leading-none"
+                  style={{ transform: `rotate(${(h.windDirection + 180) % 360}deg)` }}
+                  title={`Dir: ${Math.round(h.windDirection)}°`}
+                >↑</span>
+                <span className="text-slate-400 text-[8px]">{h.temperature.toFixed(0)}°</span>
+                {precip && (
+                  <span className="text-sky-400 text-[8px]" title={`${h.precipProbability}% lluvia`}>
+                    {h.precipProbability}%
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
