@@ -126,8 +126,11 @@ body {
 }
 
 /* Ensure station markers & popups float above canvas overlays (Wind/Humidity z-index:14-15) */
+/* will-change + contain promote markers to GPU layers for smoother pan/zoom with 90+ markers */
 .maplibregl-marker {
   z-index: 20 !important;
+  will-change: transform;
+  contain: layout style;
 }
 
 /* Spot markers sit ABOVE station/buoy markers so they're always clickable */
