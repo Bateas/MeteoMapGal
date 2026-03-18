@@ -1,13 +1,13 @@
 /**
- * OnboardingTour — first-visit walkthrough (5 steps).
+ * OnboardingTour — first-visit walkthrough (5 steps) with element highlighting.
  *
- * Shows a centered modal dialog for each step. No element highlighting
- * (lightweight v1). Persisted via Zustand → localStorage.
+ * Each step highlights a target element via `data-tour` attribute by
+ * pulling it above the backdrop with z-index and adding a pulsing ring.
+ * Dialog positions itself near the highlighted element.
  *
- * Auto-launches 3s after first load if onboardingCompleted is false.
- * Skippable at any step. Sector-aware welcome message.
+ * Persisted via Zustand → localStorage. Auto-launches 3s after first load.
  */
-import { memo, useEffect, useCallback } from 'react';
+import { memo, useEffect, useCallback, useState, useRef } from 'react';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -18,6 +18,8 @@ interface Step {
   title: string;
   desc: string;
   tip?: string;
+  /** CSS selector for the element to highlight (via data-tour attribute) */
+  highlight?: string;
 }
 
 const STEPS: Step[] = [
@@ -26,32 +28,39 @@ const STEPS: Step[] = [
     title: 'Bienvenido a MeteoMapGal',
     desc: 'Monitoriza las condiciones meteorol\u00f3gicas de Galicia en tiempo real. Datos de 6 fuentes, m\u00e1s de 100 estaciones y 13 boyas marinas.',
     tip: 'Puedes cambiar de zona (Embalse / R\u00edas) en los botones superiores.',
+    highlight: '[data-tour="sectors"]',
   },
   {
     icon: 'map-pin',
     title: 'Spots de navegaci\u00f3n',
-    desc: 'Los marcadores grandes en el mapa son spots de navegaci\u00f3n con scoring autom\u00e1tico (0-100). Toca uno para ver condiciones, pron\u00f3stico 12h y ventanas de viento.',
+    desc: 'Los marcadores grandes en el mapa son spots con scoring autom\u00e1tico (0-100). Toca uno para ver condiciones, pron\u00f3stico 12h y ventanas de viento.',
     tip: 'Marca tu spot favorito con \u2605 para acceso r\u00e1pido.',
   },
   {
     icon: 'wind',
-    title: 'Estaciones y boyas',
-    desc: 'Los c\u00edrculos peque\u00f1os son estaciones meteorol\u00f3gicas. Las flechas indican direcci\u00f3n del viento. Los anclas son boyas marinas con oleaje y corrientes.',
-    tip: 'Al hacer zoom ver\u00e1s m\u00e1s detalles y etiquetas.',
+    title: 'Men\u00fa principal',
+    desc: 'Abre el panel lateral para ver estaciones, gr\u00e1ficas, historial, boyas y rankings. Todo organizado por pesta\u00f1as.',
+    tip: 'En desktop el panel est\u00e1 siempre visible a la izquierda.',
+    highlight: '[data-tour="sidebar"]',
   },
   {
     icon: 'alert-triangle',
     title: 'Panel de alertas',
-    desc: 'El bot\u00f3n "Panel" abre alertas inteligentes: viento, niebla, tormentas, mar cruzado y m\u00e1s. Las alertas cr\u00edticas se env\u00edan por Telegram.',
-    tip: 'Bot\u00f3n verde = todo bien. Naranja/rojo = revisar alertas.',
+    desc: 'Alertas inteligentes de viento, niebla, tormentas, mar cruzado y m\u00e1s. Las cr\u00edticas se env\u00edan por Telegram.',
+    tip: 'Verde = todo bien. Naranja/rojo = revisar alertas.',
+    highlight: '[data-tour="panel"]',
   },
   {
-    icon: 'info',
-    title: '\u00a1Listo para explorar!',
-    desc: 'Usa el men\u00fa \u2630 para ver estaciones, gr\u00e1ficas e historial. La gu\u00eda \uD83D\uDCD6 tiene informaci\u00f3n detallada de cada funci\u00f3n.',
+    icon: 'book-open',
+    title: 'Gu\u00eda y ayuda',
+    desc: 'La gu\u00eda tiene informaci\u00f3n detallada de cada funci\u00f3n: spots, t\u00e9rmicos, alertas, fuentes de datos y m\u00e1s.',
     tip: 'Pulsa ? en cualquier momento para ver atajos de teclado.',
+    highlight: '[data-tour="guide"]',
   },
 ];
+
+/** Ring animation styles applied to highlighted element */
+const HIGHLIGHT_RING_CLASS = 'onboarding-highlight';
 
 export const OnboardingTour = memo(function OnboardingTour() {
   const step = useUIStore((s) => s.onboardingStep);
@@ -61,12 +70,58 @@ export const OnboardingTour = memo(function OnboardingTour() {
   const isMobile = useUIStore((s) => s.isMobile);
   const sectorName = useSectorStore((s) => s.activeSector.name);
 
+  const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
+  const prevHighlightRef = useRef<Element | null>(null);
+
   // Auto-launch on first visit, 3s after load
   useEffect(() => {
     if (completed || step !== null) return;
     const timer = setTimeout(() => setStep(0), 3000);
     return () => clearTimeout(timer);
   }, [completed, step, setStep]);
+
+  // Highlight target element for current step
+  useEffect(() => {
+    // Clean up previous highlight
+    if (prevHighlightRef.current) {
+      prevHighlightRef.current.classList.remove(HIGHLIGHT_RING_CLASS);
+      (prevHighlightRef.current as HTMLElement).style.removeProperty('z-index');
+      (prevHighlightRef.current as HTMLElement).style.removeProperty('position');
+      prevHighlightRef.current = null;
+    }
+
+    if (step === null) {
+      setHighlightRect(null);
+      return;
+    }
+
+    const current = STEPS[step];
+    if (!current.highlight) {
+      setHighlightRect(null);
+      return;
+    }
+
+    const el = document.querySelector(current.highlight);
+    if (!el) {
+      setHighlightRect(null);
+      return;
+    }
+
+    // Pull element above backdrop
+    const htmlEl = el as HTMLElement;
+    htmlEl.style.position = 'relative';
+    htmlEl.style.zIndex = '51';
+    htmlEl.classList.add(HIGHLIGHT_RING_CLASS);
+    prevHighlightRef.current = el;
+
+    setHighlightRect(el.getBoundingClientRect());
+
+    return () => {
+      htmlEl.classList.remove(HIGHLIGHT_RING_CLASS);
+      htmlEl.style.removeProperty('z-index');
+      htmlEl.style.removeProperty('position');
+    };
+  }, [step]);
 
   const handleNext = useCallback(() => {
     if (step === null) return;
@@ -91,18 +146,33 @@ export const OnboardingTour = memo(function OnboardingTour() {
   const isLast = step >= STEPS.length - 1;
   const isFirst = step === 0;
 
+  // Position dialog near highlighted element or center
+  const dialogStyle: React.CSSProperties = {};
+  if (highlightRect && !isMobile) {
+    // Desktop: position below the highlighted element
+    dialogStyle.position = 'fixed';
+    dialogStyle.top = highlightRect.bottom + 12;
+    dialogStyle.left = Math.max(16, Math.min(highlightRect.left, window.innerWidth - 380));
+  }
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
       onClick={handleSkip}
       role="dialog"
       aria-modal="true"
       aria-label="Tour de bienvenida"
     >
+      {/* Dialog */}
       <div
-        className={`bg-slate-900 border border-slate-700 rounded-xl shadow-2xl
-          ${isMobile ? 'mx-4 p-5 max-w-[340px]' : 'p-6 max-w-sm'}
-          w-full animate-fade-in`}
+        className={`bg-slate-900 border border-slate-700 rounded-xl shadow-2xl animate-fade-in
+          ${highlightRect && !isMobile
+            ? ''
+            : 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'
+          }
+          ${isMobile ? 'mx-4 p-5 max-w-[340px] fixed bottom-20 left-0 right-0 mx-auto' : 'p-6 max-w-sm'}
+          w-full`}
+        style={highlightRect && !isMobile ? dialogStyle : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Icon + Title */}
@@ -134,7 +204,6 @@ export const OnboardingTour = memo(function OnboardingTour() {
 
         {/* Footer: step counter + buttons */}
         <div className="flex items-center justify-between">
-          {/* Step dots */}
           <div className="flex items-center gap-1.5">
             {STEPS.map((_, i) => (
               <div
@@ -146,7 +215,6 @@ export const OnboardingTour = memo(function OnboardingTour() {
             ))}
           </div>
 
-          {/* Buttons */}
           <div className="flex items-center gap-2">
             {!isFirst && (
               <button
