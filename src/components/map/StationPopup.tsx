@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { useWeatherStore } from '../../store/weatherStore';
@@ -58,6 +58,45 @@ function DataCell({ label, value, color, icon, children }: {
   );
 }
 
+// ── Wind sparkline (last ~1h trend) — reused from StationCard pattern ──
+const SPK_W = 40, SPK_H = 14, SPK_PTS = 12;
+
+function PopupSparkline({ stationId }: { stationId: string }) {
+  const history = useWeatherStore((s) => s.readingHistory.get(stationId));
+  const path = useMemo(() => {
+    if (!history || history.length < 3) return null;
+    const recent = history.slice(-SPK_PTS);
+    const speeds = recent.map((r) => r.windSpeed ?? 0);
+    const max = Math.max(...speeds, 1);
+    const step = SPK_W / (speeds.length - 1);
+    return speeds.map((s, i) => {
+      const x = (i * step).toFixed(1);
+      const y = (SPK_H - (s / max) * (SPK_H - 2) - 1).toFixed(1);
+      return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+    }).join(' ');
+  }, [history]);
+  if (!path) return null;
+  return (
+    <svg width={SPK_W} height={SPK_H} className="ml-1 shrink-0 opacity-60" aria-label="Tendencia viento 1h">
+      <path fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
+    </svg>
+  );
+}
+
+function usePopupWindTrend(stationId: string, currentSpeed: number | null) {
+  const history = useWeatherStore((s) => s.readingHistory.get(stationId));
+  return useMemo(() => {
+    if (currentSpeed == null || !history || history.length < 3) return null;
+    const prev = history.slice(-4, -1);
+    const avg = prev.reduce((s, r) => s + (r.windSpeed ?? 0), 0) / prev.length;
+    const diff = currentSpeed - avg;
+    if (Math.abs(diff) < 0.5) return { symbol: '\u2192', color: '#94a3b8' }; // stable
+    return diff > 0
+      ? { symbol: '\u2191', color: '#4ade80' }  // rising
+      : { symbol: '\u2193', color: '#f87171' };  // falling
+  }, [history, currentSpeed]);
+}
+
 export const StationPopup = memo(function StationPopup({ station, reading }: StationPopupProps) {
   const selectStation = useWeatherStore((s) => s.selectStation);
   const toggleChartStation = useWeatherStore((s) => s.toggleChartStation);
@@ -66,6 +105,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
   const isMobile = useUIStore((s) => s.isMobile);
   const dismiss = () => selectStation(null);
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
+  const windTrend = usePopupWindTrend(station.id, reading?.windSpeed ?? null);
 
   // Mini wind rose for AEMET stations with historical data (lazy-loaded)
   const hasHistory = AEMET_HISTORY_STATIONS.includes(station.id);
@@ -122,7 +162,19 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
               size={64}
             />
             <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs flex-1">
-              <DataCell label="Viento" value={formatWindSpeed(reading.windSpeed)} color={windSpeedColor(reading.windSpeed)} />
+              <DataCell label="Viento">
+                <div className="flex items-center gap-0.5">
+                  <span className="font-semibold" style={{ color: windSpeedColor(reading.windSpeed) }}>
+                    {formatWindSpeed(reading.windSpeed)}
+                  </span>
+                  {windTrend && (
+                    <span className="text-[10px] font-bold" style={{ color: windTrend.color }} title="Tendencia 1h">
+                      {windTrend.symbol}
+                    </span>
+                  )}
+                  <PopupSparkline stationId={station.id} />
+                </div>
+              </DataCell>
               <DataCell label="Temperatura" value={formatTemperature(reading.temperature)} color={temperatureColor(reading.temperature)} />
 
               {reading.windGust != null && reading.windGust > 0 && (

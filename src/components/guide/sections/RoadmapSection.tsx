@@ -20,165 +20,60 @@ export function RoadmapSection() {
         {/* Vertical line */}
         <div className="absolute left-[11px] top-0 bottom-0 w-px bg-slate-700" />
 
-        {/* Últimas actualizaciones */}
-        <TimelineGroup label="Últimas actualizaciones" dotColor="bg-emerald-500" textColor="text-emerald-400" />
-        <TimelineMilestone
-          iconId="sailboat"
-          title="Briefing diario de navegación"
-          desc="Veredicto con score 0-100, consenso multi-estación y ventana de viento."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="anchor"
-          title="Mareas IHM (Rías Baixas)"
-          desc="Predicciones de mareas de 5 puertos gallegos con curva visual y tabla 48h."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="gauge"
-          title="Perfil atmosférico"
-          desc="Panel de estabilidad atmosférica con evaluación combinada para térmicos."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="drone"
-          title="Espacio aéreo ENAIRE"
-          desc="Zonas UAS y NOTAMs en mapa con veredicto automático para drones."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="leaf"
-          title="Panel Campo (fitosanitario + riego)"
-          desc="Riesgo mildiu/oídio para viñedo y evapotranspiración con consejo de riego."
-          status="done"
-        />
+        {/* Funcionalidades principales — resumen compacto */}
+        <TimelineGroup label="Funcionalidades actuales" dotColor="bg-emerald-500" textColor="text-emerald-400" />
 
-        <TimelineMilestone
-          iconId="radar"
-          title="Viento en estaciones (consenso)"
-          desc="Panel siempre visible con consenso multi-estación, tendencia, coherencia entre zonas y estabilidad."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="sprout"
-          title="Grados-día de crecimiento (GDD)"
-          desc="Acumulación térmica para vid: etapa fenológica, progreso, próximo hito y consejo agrícola."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="moon"
-          title="Fases lunares y calendario agrícola"
-          desc="Fase lunar actual, iluminación, próxima fase y recomendaciones para cultivos gallegos."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="database"
-          title="Historial meteorológico"
-          desc="Pestaña Historial con gráficas de tendencias, selector de estación por nombre y estadísticas."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="waves"
-          title="Boyas marinas (Puertos del Estado)"
-          desc="Oleaje, viento, T agua, corrientes y salinidad de 12 boyas en Rías Baixas. Marcadores con datos visuales y popup detallado al clic."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="wind"
-          title="Rosa de vientos histórica"
-          desc="Diagrama polar de frecuencia de viento por dirección y velocidad. Disponible en Historial."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="radar"
-          title="Comparación de estaciones"
-          desc="Superponer gráficas de 2 estaciones para comparar tendencias históricas lado a lado."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="map-pin"
-          title="Filtrado inteligente de estaciones"
-          desc="Exclusión automática de estaciones de interior irrelevantes en Rías Baixas y deduplicación por proximidad entre fuentes para eliminar clustering."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="sailboat"
-          title="Spots de navegación unificados"
-          desc="Scoring multi-spot con detalle térmico integrado. 4 spots en Rías + 1 en Embalse. GO/MARGINAL/NOGO con veredicto 0-100."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="droplets"
-          title="Observatorio Costeiro da Xunta"
-          desc="Fuente suplementaria de boyas: humedad, punto de rocío, resolución 10min. Merge dual con PORTUS. Estación nueva: Muros (Ría Muros-Noia)."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="waves"
-          title="Corrientes superficiales (RADAR ON RAIA)"
-          desc="Overlay WMS de radar HF costero (INTECMAR). Corrientes superficiales en tiempo real para toda la costa gallega. Solo en sector Rías Baixas."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="gauge"
-          title="Tendencia barométrica (alertas 3h)"
-          desc="Detección por consenso multi-estación de subidas/bajadas rápidas de presión con alertas automáticas."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="cloud"
-          title="Predictor de niebla marítima"
-          desc="Detección de advección y niebla marina para Rías Baixas con alertas por spread T-Td, viento y humedad."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="alert-triangle"
-          title="Alertas de mar cruzado"
-          desc="Detección de oleaje cruzado (diferencia >45° entre viento y olas) con alertas de seguridad para navegación."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="map-pin"
-          title="Overlay de batimetría"
-          desc="Capa visual de profundidades en Rías Baixas basada en datos EMODnet con escala de color."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="alert-triangle"
-          title="Sistema de alertas coherente"
-          desc="PELIGRO reservado para condiciones peligrosas reales (≥85 score). Banner rojo superior con sonido sutil. Sonido desactivado por defecto para avisos menores."
-          status="done"
-        />
-
-        {/* Minor updates — collapsed */}
+        {/* Collapsed summary of core features */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
           <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-emerald-500/20 border-emerald-500/30" />
           <span className="shrink-0 mt-0.5 text-emerald-400/50">
             <WeatherIcon id="check" size={15} />
           </span>
-          <div className="min-w-0">
-            <span className="text-[10px] text-slate-500">
-              Otras mejoras: estadísticas de viento, caché offline (PWA), satélite IR, radar de precipitación, historial meteorológico (TimescaleDB), micro-animaciones CSS, auditoría de rendimiento.
-            </span>
+          <div className="min-w-0 space-y-1">
+            <span className="text-[10px] font-bold text-emerald-400">30+ funcionalidades implementadas</span>
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              Scoring de spots (0-100), consenso multi-estaci&oacute;n, alertas inteligentes (Telegram),
+              mareas (5 puertos), boyas marinas (13), radar, sat&eacute;lite IR, corrientes superficiales,
+              batimetr&iacute;a, carta n&aacute;utica, perfil atmosf&eacute;rico, historial con rosa de vientos,
+              pan&oacute;ptico de campo (mildiu, riego, GDD), espacio a&eacute;reo UAS, rankings, PWA offline.
+            </p>
           </div>
         </div>
 
-        {/* Nota funcionalidades en beta */}
+        {/* Destacadas recientes */}
+        <TimelineGroup label="Novedades recientes" dotColor="bg-sky-500" textColor="text-sky-400" />
+        <TimelineMilestone
+          iconId="sailboat"
+          title="Ventana de navegaci&oacute;n 48h"
+          desc="Forecast por spot con scoring dual (t&eacute;rmico/viento). Timeline en popup + resumen."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="clock"
+          title="Mini-timeline 12h en spots"
+          desc="Pron&oacute;stico horario directo en el popup: viento, direcci&oacute;n y temperatura."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="alert-triangle"
+          title="Alertas por Telegram"
+          desc="Notificaciones push para alertas moderadas, altas y cr&iacute;ticas. Silencio nocturno."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="navigation"
+          title="Gestos nativos en m&oacute;vil"
+          desc="Swipe-down para cerrar paneles. Zoom-scale en marcadores. Accesibilidad mejorada."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="map-pin"
+          title="Compartir y favoritos"
+          desc="Comparte condiciones de spots por WhatsApp/Telegram. Marca favoritos con ★."
+          status="done"
+        />
+
+        {/* Nota beta */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
           <div className="absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border bg-amber-500/30 border-amber-500/50" />
           <span className="shrink-0 mt-0.5 text-amber-400/70">
@@ -187,130 +82,36 @@ export function RoadmapSection() {
           <div className="min-w-0">
             <span className="text-[10px] font-bold text-amber-400">Funcionalidades en <span className="badge-beta" style={{ borderColor: 'rgba(245,158,11,0.3)', color: '#f59e0b', background: 'rgba(245,158,11,0.1)' }}>Beta</span></span>
             <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
-              Algunas funcionalidades están marcadas con <span className="badge-beta">Beta</span> en la interfaz.
-              Esto incluye: spots de navegación, alertas meteorológicas, niebla marítima, viento por consenso,
-              perfil atmosférico, alertas dron, riesgo fitosanitario y evapotranspiración.
-              Pueden tener imprecisiones o falsos positivos — úsalas como orientación, no como fuente definitiva.
+              Spots, alertas, niebla, viento por consenso, perfil atmosf&eacute;rico, dron, campo.
+              Pueden tener imprecisiones — &uacute;salas como orientaci&oacute;n, no como fuente definitiva.
             </p>
           </div>
         </div>
 
-        <TimelineMilestone
-          iconId="sailboat"
-          title="Mejor ventana de navegación"
-          desc="'¿Cuándo salgo?' — 48h forecast por spot, ventanas contiguas con scoring dual (térmico/viento). Timeline en popup + resumen en selector."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="thermometer"
-          title="Detector de afloramiento"
-          desc="Upwelling costero gallego: bajada SST + viento N/NW persistente ≥12kt × 6h = alerta Ekman. Datos de boyas en tiempo real."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="gauge"
-          title="Verificación de previsión"
-          desc="'¿Acertó?' — compara forecasts pasados (Open-Meteo Previous Runs) con observaciones reales (TimescaleDB). MAE, bias, accuracy."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="radar"
-          title="Delta forecast vs observación"
-          desc="Badges Δ en cada estación: diferencia en tiempo real entre previsión y lectura actual (viento kt, temperatura °C)."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="thermal-wind"
-          title="Alerta térmica temprana"
-          desc="6 señales precursoras (terral, ΔT agua-aire, solar, humedad, divergencia, forecast) → probabilidad 0-100% con ETA."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="thermal-wind"
-          title="Amplificación térmica en spots"
-          desc="Detección de térmicas donde las estaciones en tierra subestiman el viento en el agua (hasta +50%)."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="wind"
-          title="Ticker de condiciones"
-          desc="Banner animado con condiciones actuales: veredictos de spots, racha máxima, oleaje, rango de temperaturas."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="map-pin"
-          title="Spot favorito"
-          desc="Marca tu spot preferido con ★ para acceso rápido. Se muestra primero en el ticker y en la barra de navegación."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="thermometer"
-          title="Índice de calor"
-          desc="Sensación térmica real cuando T>27°C y HR>40% (fórmula NWS). Alerta visual en popup del spot."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="wind"
-          title="Factor de racha"
-          desc="Indicador de turbulencia: ratio racha/viento sostenido (×N.N) en popup de estaciones."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="database"
-          title="Rankings de estaciones"
-          desc="Pestaña Rankings: top estaciones por viento, temperatura, humedad y presión en tiempo real."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="alert-triangle"
-          title="Alertas por Telegram"
-          desc="Notificaciones push vía bot de Telegram para alertas moderadas, altas y críticas. Silencio nocturno 23:00-07:00."
-          status="done"
-        />
-
-        <TimelineMilestone
-          iconId="clock"
-          title="Mini-timeline de pronóstico"
-          desc="Pronóstico horario de 12h directamente en el popup del spot: viento, dirección y temperatura con colores."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="navigation"
-          title="Gestos nativos en móvil"
-          desc="Arrastra hacia abajo los paneles de spot, estación y boya para cerrarlos. Accesibilidad mejorada con focus trap y roles ARIA."
-          status="done"
-        />
-
         {/* Futuras funcionalidades */}
-        <TimelineGroup label="Futuras funcionalidades" dotColor="bg-slate-500" textColor="text-slate-400" />
+        <TimelineGroup label="Pr&oacute;ximamente" dotColor="bg-slate-500" textColor="text-slate-400" />
         <TimelineMilestone
           iconId="map-pin"
-          title="Nuevas zonas de monitorización"
-          desc="Expansión a más zonas de Galicia: A Coruña, Lugo, Costa da Morte, Ría de Arousa y más."
+          title="Nuevas zonas de monitorizaci&oacute;n"
+          desc="Costa da Morte, R&iacute;a de Arousa, A Coru&ntilde;a y m&aacute;s zonas de Galicia."
           status="idea"
         />
         <TimelineMilestone
           iconId="alert-triangle"
           title="Alertas personalizadas"
-          desc="Definir umbrales propios de viento, temperatura o humedad con notificación push."
+          desc="Define tus propios umbrales de viento o temperatura con notificaci&oacute;n push."
           status="idea"
         />
         <TimelineMilestone
           iconId="sun"
-          title="Predicción avanzada de térmicos"
-          desc="Análisis con datos históricos AEMET para probabilidad de térmicos a 2-3 días."
-          status="idea"
-        />
-        <TimelineMilestone
-          iconId="cloud"
-          title="Calidad del aire"
-          desc="Datos de calidad del aire integrados en el panel Campo."
+          title="Predicci&oacute;n de t&eacute;rmicos a 2-3 d&iacute;as"
+          desc="An&aacute;lisis con datos hist&oacute;ricos AEMET para planificar con antelaci&oacute;n."
           status="idea"
         />
         <TimelineMilestone
           iconId="info"
           title="Apoya el proyecto"
-          desc="Si MeteoMapGal te resulta útil, puedes apoyar su desarrollo invitando a un café."
+          desc="Si MeteoMapGal te resulta &uacute;til, puedes apoyar su desarrollo."
           status="done"
         />
         <div className="ml-8 -mt-1 mb-3">

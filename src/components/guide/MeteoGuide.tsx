@@ -158,61 +158,62 @@ export const MeteoGuide = memo(function MeteoGuide() {
   );
 });
 
-/* ─── Intro Section ──────────────────────────────────────────── */
+/* ─── Intro Section (Embalse) — Generic overview, NOT thermal-specific ───── */
 function IntroSection() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">¿Qué son los vientos térmicos?</h2>
+      <h2 className="text-2xl font-bold text-white">Embalse de Castrelo de Miño</h2>
 
       <p className="text-slate-400 leading-relaxed">
-        Los vientos térmicos son brisas locales generadas por el calentamiento diferencial del terreno.
-        Cuando el sol calienta las laderas más rápido que el valle, el aire caliente asciende y el aire
-        más fresco del valle se desplaza para reemplazarlo, creando un flujo predecible.
+        MeteoMapGal monitoriza en tiempo real las condiciones meteorológicas del embalse de Castrelo
+        de Miño y su entorno (radio 35 km). Diseñada para navegantes, kitesurfistas, windsurfistas
+        y cualquier persona que necesite datos fiables de viento, temperatura y condiciones.
       </p>
-
-      {/* Animated thermal diagram */}
-      <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-800">
-        <ThermalDiagram />
-        <p className="text-[9px] text-slate-600 text-center mt-2 italic">
-          Esquema conceptual — los térmicos de valle siguen este patrón en cualquier cuenca fluvial
-        </p>
-      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="sun" size={16} /> Viento anabático (día)</h3>
+          <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-1.5">
+            <WeatherIcon id="wind" size={16} /> Datos en tiempo real
+          </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            El sol calienta las laderas. El aire asciende por la montaña, creando un flujo
-            desde el valle hacia arriba, típicamente por las tardes.
-          </p>
-          <p className="text-[9px] text-slate-600 mt-1.5 italic">
-            Ej: en Ribadavia, viento del W/SW por las tardes de verano.
+            6 fuentes meteorol&oacute;gicas combinadas: AEMET, MeteoGalicia, Meteoclimatic,
+            Weather Underground, Netatmo y SkyX. M&aacute;s de 40 estaciones en la zona.
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-blue-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="moon" size={16} /> Viento catabático (noche)</h3>
+          <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-1.5">
+            <WeatherIcon id="sun" size={16} /> Viento t&eacute;rmico
+          </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Al enfriarse, el aire denso desciende por las laderas hacia el valle.
-            Más intenso en noches despejadas y secas.
+            Detecci&oacute;n autom&aacute;tica de vientos t&eacute;rmicos del W/SW, con scoring
+            basado en datos hist&oacute;ricos AEMET. Ver secci&oacute;n &quot;El t&eacute;rmico de Castrelo&quot;.
           </p>
-          <p className="text-[9px] text-slate-600 mt-1.5 italic">
-            Ej: drenaje N nocturno en Castrelo, 37% frecuencia, 3-4 m/s.
+        </div>
+        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
+          <h3 className="text-sm font-bold text-sky-400 mb-2 flex items-center gap-1.5">
+            <WeatherIcon id="alert" size={16} /> Alertas inteligentes
+          </h3>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Avisos autom&aacute;ticos de condiciones adversas: tormentas, niebla,
+            inversiones t&eacute;rmicas, rachas fuertes y m&aacute;s. Notificaciones por Telegram.
+          </p>
+        </div>
+        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
+          <h3 className="text-sm font-bold text-violet-400 mb-2 flex items-center gap-1.5">
+            <WeatherIcon id="thermometer" size={16} /> Spots de navegaci&oacute;n
+          </h3>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Scoring autom&aacute;tico del spot Castrelo: calma/flojo/navegable/bueno/fuerte.
+            Pron&oacute;stico 12h, ventanas de navegaci&oacute;n y favoritos.
           </p>
         </div>
       </div>
 
-      <div className="bg-gradient-to-r from-blue-900/20 to-amber-900/20 rounded-lg p-4 border border-slate-700 space-y-2">
-        <p className="text-xs text-slate-400 italic">
-          <strong className="text-slate-300">Dato real (AEMET 2022-2025):</strong> En el embalse de Castrelo de Miño,
-          los térmicos del W/SW soplan el 74% de las tardes de verano con Tmax {'>'}31°C,
-          alcanzando 7-12 nudos entre las 13h y 20h. Basado en 1.412 registros diarios de
-          3 estaciones AEMET (Ribadavia, Ourense, Carballiño).
-        </p>
-        <p className="text-[10px] text-slate-500">
-          <strong className="text-amber-500/70">Nota:</strong> Esta guía distingue entre{' '}
-          <span className="text-emerald-400">datos reales de AEMET</span> y{' '}
-          <span className="text-amber-400">teoría meteorológica general</span>.
-          Los conceptos teóricos se marcan claramente.
+      <div className="bg-gradient-to-r from-blue-900/20 to-emerald-900/20 rounded-lg p-4 border border-slate-700">
+        <p className="text-xs text-slate-400">
+          <strong className="text-slate-300">Tip:</strong> Esta gu&iacute;a tiene secciones espec&iacute;ficas
+          para cada tema. Consulta &quot;El t&eacute;rmico de Castrelo&quot; para entender los vientos
+          t&eacute;rmicos del embalse en detalle.
         </p>
       </div>
     </div>
