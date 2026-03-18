@@ -20,6 +20,7 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
 const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default: m.MeteoGuide })));
 import { ToastContainer } from '../common/ToastContainer';
+import { OnboardingTour } from '../common/OnboardingTour';
 import { ConditionsTicker } from '../common/ConditionsTicker';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { processAlertNotifications } from '../../services/notificationService';
@@ -365,6 +366,7 @@ export function AppShell() {
       </div>
       <Suspense fallback={null}><MeteoGuide /></Suspense>
       {!isMobile && <KeyboardShortcutHelp />}
+      <OnboardingTour />
       <ToastContainer />
 
       {/* Ko-fi support link — subtle, bottom-right on desktop */}
