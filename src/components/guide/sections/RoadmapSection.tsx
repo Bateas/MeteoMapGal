@@ -268,6 +268,19 @@ export function RoadmapSection() {
           status="done"
         />
 
+        <TimelineMilestone
+          iconId="clock"
+          title="Mini-timeline de pronóstico"
+          desc="Pronóstico horario de 12h directamente en el popup del spot: viento, dirección y temperatura con colores."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="navigation"
+          title="Gestos nativos en móvil"
+          desc="Arrastra hacia abajo los paneles de spot, estación y boya para cerrarlos. Accesibilidad mejorada con focus trap y roles ARIA."
+          status="done"
+        />
+
         {/* Futuras funcionalidades */}
         <TimelineGroup label="Futuras funcionalidades" dotColor="bg-slate-500" textColor="text-slate-400" />
         <TimelineMilestone
@@ -364,7 +377,7 @@ export function RoadmapSection() {
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[10px]">
               <span className="text-slate-500">100+ estaciones</span>
               <span className="text-slate-500">17 APIs</span>
-              <span className="text-slate-500">163 tests</span>
+              <span className="text-slate-500">185 tests</span>
               <span className="text-slate-500">TimescaleDB</span>
             </div>
           </div>
