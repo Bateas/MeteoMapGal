@@ -132,6 +132,11 @@ export function WeatherMap() {
   const [zoomLevel, setZoomLevel] = useState(activeSector.initialView.zoom);
   const showStationLabels = zoomLevel >= 11;
 
+  // Hide markers during map drag for smooth panning (95 DOM markers = jank)
+  const [mapMoving, setMapMoving] = useState(false);
+  const handleMoveStart = useCallback(() => setMapMoving(true), []);
+  const handleMoveEnd = useCallback(() => setMapMoving(false), []);
+
   // Cross-deselection: only one popup at a time (station XOR buoy XOR spot).
   // Track previous values to detect which one changed (= new selection wins).
   const prevBuoyRef = useRef<number | null>(null);
@@ -206,7 +211,7 @@ export function WeatherMap() {
   }, []);
 
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div className={`relative w-full h-full overflow-hidden ${mapMoving ? 'map-panning' : ''}`}>
       <Map
         ref={mapRef}
         mapLib={maplibregl}
@@ -216,7 +221,8 @@ export function WeatherMap() {
         maxPitch={85}
         onClick={handleMapClick}
         onLoad={handleMapLoad}
-        onZoomEnd={(e) => setZoomLevel(Math.round(e.viewState.zoom * 10) / 10)}
+        onMoveStart={handleMoveStart}
+        onMoveEnd={(e) => { handleMoveEnd(); setZoomLevel(Math.round(e.viewState.zoom * 10) / 10); }}
       >
         <NavigationControl position="top-right" visualizePitch />
 
