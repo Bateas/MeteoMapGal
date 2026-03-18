@@ -138,36 +138,26 @@ export function getVisionProvider(): VisionProviderConfig {
 
 // ── Prompt Engineering ───────────────────────────────────
 
-const BEAUFORT_PROMPT = `You are a maritime meteorologist analyzing a webcam image from a coastal location in Galicia, Spain (Rías Baixas area).
+const BEAUFORT_PROMPT = `TASK: Analyze this coastal webcam image. Output ONLY a single JSON object, nothing else.
 
-Analyze the image for TWO things:
+WIND — estimate Beaufort 0-7 from water surface:
+0=mirror-like 1=ripples 2=small wavelets 3=whitecaps<10% 4=whitecaps 10-30% 5=whitecaps 30-50% 6=whitecaps>50% 7=foam streaks
 
-1. WIND (Beaufort scale 0-7) — based on water surface texture:
-- 0: Mirror-like, glassy
-- 1: Tiny ripples, no crests
-- 2: Small wavelets, glassy crests
-- 3: Wavelets breaking, scattered whitecaps (<10%)
-- 4: Small waves, frequent whitecaps (10-30%)
-- 5: Moderate waves, many whitecaps (30-50%)
-- 6: Large waves, extensive whitecaps (>50%)
-- 7: Sea heaps up, foam streaks
+OUTPUT FORMAT (raw JSON, no markdown, no explanation):
+{"beaufort":0,"confidence":"medium","description":"superficie calmada sin olas","sky":"overcast","visibility":"good","precipitation":false,"fog":false,"clouds":"stratus","weather_description":"cielo nublado sin lluvia"}
 
-2. WEATHER CONDITIONS — based on sky, visibility, and atmosphere:
-- sky: "clear" | "partly_cloudy" | "overcast" | "fog" | "rain" | "storm" | "night" | "unknown"
-- visibility: "good" (>10km, distant features sharp) | "moderate" (1-10km, hazy) | "poor" (<1km, fog/rain)
-- precipitation: true/false (rain drops, wet surfaces, or active rain visible)
-- fog: true/false (fog, mist, or low cloud obscuring view)
-- clouds: cloud type if visible (e.g. "cumulus", "stratus", "cumulonimbus", "cirrus") or null
+FIELD VALUES:
+- beaufort: integer 0-7 (or -1 if night/unclear)
+- confidence: "high" | "medium" | "low"
+- description: water surface in Spanish, max 15 words
+- sky: "clear" | "partly_cloudy" | "overcast" | "fog" | "rain" | "storm" | "night"
+- visibility: "good" (>10km) | "moderate" (1-10km) | "poor" (<1km)
+- precipitation: true/false
+- fog: true/false (actual fog reducing visibility, not just clouds)
+- clouds: cloud type string or null
+- weather_description: one sentence in Spanish
 
-Respond in this EXACT JSON format (no markdown, no code blocks):
-{"beaufort": <0-7>, "confidence": "<high|medium|low>", "description": "<brief water surface description in Spanish>", "sky": "<condition>", "visibility": "<level>", "precipitation": <true/false>, "fog": <true/false>, "clouds": "<type or null>", "weather_description": "<brief weather description in Spanish>"}
-
-Rules:
-- If nighttime or image unclear: set beaufort to -1 but STILL analyze sky/visibility if possible
-- Be conservative with Beaufort: when uncertain, choose lower
-- For sky: if you can see stars or it's clearly dark, use "night"
-- For fog: true only if actual fog/mist reduces visibility, not just clouds
-- weather_description: one sentence in Spanish about overall conditions`;
+CRITICAL: Output ONLY the JSON object. No text before or after.`;
 
 // ── Core Analysis Function ───────────────────────────────
 
