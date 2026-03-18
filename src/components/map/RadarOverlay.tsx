@@ -5,13 +5,17 @@ import { fetchRadarImageUrl } from '../../api/aemetRadarClient';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 /**
- * AEMET Radar overlay — Radar de Cuntis (Galicia) regional composite.
+ * AEMET Radar overlay — National composite radar.
  *
- * The AEMET regional radar PNG covers a ~240km radius centered on Cuntis.
- * Image is roughly 480×480px covering NW Iberia.
+ * Uses the national radar composite endpoint (/api/red/radar/nacional)
+ * which covers all of Spain including Galicia (Cerceda/A Coruña radar).
  *
- * Approximate geo-referenced bounds (EPSG:4326) for the Galicia regional radar:
- *   West: -11.5, East: -4.5, North: 45.0, South: 40.0
+ * Note: The regional endpoint does NOT have a code for Galicia.
+ * 'ga' was never valid — the Cerceda radar was added after the regional API.
+ *
+ * The national PNG covers all of Spain (~1000x1000px).
+ * Approximate geo-referenced bounds (EPSG:4326):
+ *   West: -10.0, East: 5.5, North: 44.5, South: 35.0
  *
  * Updates every 10 min (we poll every 5 min to catch fresh images).
  * Rendered as MapLibre native image source, same pattern as SatelliteOverlay.
@@ -21,14 +25,13 @@ import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 // ── Config ──────────────────────────────────────────
 
-/** Bounds for AEMET Galicia regional radar (ga) — Cuntis at ~42.75°N -8.5°W, 240km radius.
- * Original empirical values that worked in production. Calculated values [-11.44, 40.59, -5.56, 44.91]
- * need verification with actual radar PNG metadata before applying. */
+/** Bounds for AEMET national radar composite — covers all Spain.
+ * Approximate geo-referenced bounds. May need fine-tuning with actual PNG metadata. */
 const BBOX = {
-  west: -11.5,
-  south: 40.0,
-  east: -4.5,
-  north: 45.0,
+  west: -10.0,
+  south: 35.0,
+  east: 5.5,
+  north: 44.5,
 };
 
 /** Image coordinates for MapLibre (top-left, top-right, bottom-right, bottom-left) */

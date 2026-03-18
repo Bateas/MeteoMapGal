@@ -9,9 +9,9 @@ export const AEMET = {
   stationInventory: () =>
     `/aemet-api/api/valores/climatologicos/inventarioestaciones/todasestaciones?api_key=${AEMET_KEY}`,
 
-  /** Regional radar image (two-step: returns URL to PNG) — 'ga' = Galicia/Cuntis */
-  radarRegional: (radarId = 'ga') =>
-    `/aemet-api/api/red/radar/regional/${radarId}?api_key=${AEMET_KEY}`,
+  /** National radar composite (two-step: returns URL to PNG) — covers all Spain including Galicia */
+  radarNacional: () =>
+    `/aemet-api/api/red/radar/nacional?api_key=${AEMET_KEY}`,
 
   /** Proxy for AEMET data URLs (step 2) — validates origin to prevent SSRF */
   proxyDataUrl: (url: string) => {

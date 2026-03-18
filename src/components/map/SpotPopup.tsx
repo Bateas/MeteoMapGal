@@ -40,6 +40,8 @@ interface SpotPopupProps {
 
 export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps) {
   const selectSpot = useSpotStore((s) => s.selectSpot);
+  const favoriteSpotId = useSpotStore((s) => s.favoriteSpotId);
+  const toggleFavorite = useSpotStore((s) => s.toggleFavorite);
   const sailingWindows = useSpotStore((s) => s.sailingWindows);
   const thermalPrecursors = useSpotStore((s) => s.thermalPrecursors);
   const webcamVision = useSpotStore((s) => s.webcamVision);
@@ -67,6 +69,16 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className={`${isMobile ? 'text-base' : 'text-sm'} font-bold text-slate-100 truncate`}>{spot.name}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleFavorite(spot.id); }}
+              className={`shrink-0 transition-colors ${isMobile ? 'text-base' : 'text-sm'} ${
+                favoriteSpotId === spot.id ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300'
+              }`}
+              title={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
+              aria-label={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
+            >
+              {favoriteSpotId === spot.id ? '\u2605' : '\u2606'}
+            </button>
             <span className={`${isMobile ? 'text-[9px]' : 'text-[8px]'} font-bold tracking-wider text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-full border border-amber-500/30 shrink-0 leading-none`}>BETA</span>
           </div>
           <div className={`${isMobile ? 'text-[11px]' : 'text-[10px]'} text-slate-400`}>{spot.description}</div>
