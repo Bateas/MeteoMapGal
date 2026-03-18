@@ -38,6 +38,8 @@ export const BuoyPanel = memo(function BuoyPanel() {
   const loading = useBuoyStore((s) => s.loading);
   const error = useBuoyStore((s) => s.error);
   const lastFetch = useBuoyStore((s) => s.lastFetch);
+  // Hook MUST be before any early returns (React hooks rules)
+  const [expanded, setExpanded] = useState(true);
 
   if (loading || lastFetch === 0) {
     return (
@@ -60,8 +62,6 @@ export const BuoyPanel = memo(function BuoyPanel() {
       </div>
     );
   }
-
-  const [expanded, setExpanded] = useState(true);
 
   return (
     <div className="space-y-2">
