@@ -253,8 +253,10 @@ export const AlertPanel = memo(function AlertPanel() {
 
   // Separate alerts by importance
   const { topAlerts, otherAlerts } = useMemo(() => {
-    const top = alerts.filter(a => a.severity !== 'info');
-    const other = alerts.filter(a => a.severity === 'info');
+    // Drone alerts only shown in FieldDrawer Dron panel, not here
+    const visible = alerts.filter(a => a.category !== 'drone');
+    const top = visible.filter(a => a.severity !== 'info');
+    const other = visible.filter(a => a.severity === 'info');
     return { topAlerts: top, otherAlerts: other };
   }, [alerts]);
 

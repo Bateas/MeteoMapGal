@@ -245,7 +245,7 @@ export function processAlertNotifications(
     // Send webhook alerts to n8n (threshold from alertPipeline.ts)
     const sectorName = useSectorStore.getState().activeSector.name;
     for (const a of notifiableAlerts) {
-      if (meetsMinSeverity(a.severity, WEBHOOK_MIN_SEVERITY)) {
+      if (a.category !== 'drone' && meetsMinSeverity(a.severity, WEBHOOK_MIN_SEVERITY)) {
         postAlertWebhook({
           alertId: a.id,
           category: a.category,
