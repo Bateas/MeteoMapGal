@@ -179,7 +179,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
                 {isRias && <TidePanel />}
                 {isEmbalse && <AtmosphericProfile />}
               </Suspense>
-              <WindStatusSection alerts={alerts} />
+              {isEmbalse && <WindStatusSection alerts={alerts} />}
               <FogSection alerts={alerts} />
               <AlertHistorySection />
             </>
@@ -203,7 +203,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             <>
               <DroneSection alerts={alerts} />
               <AirspaceSection />
-              <WindStatusSection alerts={alerts} />
+              {isEmbalse && <WindStatusSection alerts={alerts} />}
               <RainSection alerts={alerts} />
               <FogSection alerts={alerts} />
             </>
