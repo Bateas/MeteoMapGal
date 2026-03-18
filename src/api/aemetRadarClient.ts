@@ -33,7 +33,7 @@ export async function fetchRadarImageUrl(): Promise<string | null> {
   try {
     // Step 1: get the metadata with PNG URL
     const endpoint = AEMET.radarRegional('ga');
-    const metaRes = await fetch(endpoint);
+    const metaRes = await fetch(endpoint, { signal: AbortSignal.timeout(10_000) });
 
     if (!metaRes.ok) {
       console.warn(`[AEMET Radar] Step 1 failed: ${metaRes.status}`);
@@ -46,12 +46,20 @@ export async function fetchRadarImageUrl(): Promise<string | null> {
       return cachedRadarUrl;
     }
 
-    // Step 2: build the proxied URL (don't fetch the PNG — MapLibre will load it)
+    // Step 2: build the proxied URL
     const imageUrl = AEMET.proxyDataUrl(meta.datos);
+
+    // Step 3: validate the image is actually loadable (prevents MapLibre silent failures)
+    const imgRes = await fetch(imageUrl, { method: 'HEAD', signal: AbortSignal.timeout(8_000) });
+    if (!imgRes.ok) {
+      console.warn(`[AEMET Radar] Image validation failed: ${imgRes.status} for ${imageUrl}`);
+      // Try fetching the datos URL directly (sometimes the proxy path differs)
+      return cachedRadarUrl;
+    }
 
     cachedRadarUrl = imageUrl;
     cachedAt = Date.now();
-    console.debug('[AEMET Radar] Image URL updated');
+    console.debug('[AEMET Radar] Image URL updated + validated');
 
     return imageUrl;
   } catch (err) {
