@@ -78,15 +78,15 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
 
   return (
     <header className="bg-slate-900 border-b border-slate-700 px-3 md:px-4 py-2 md:py-2 flex items-center justify-between gap-1.5 md:gap-2">
-      <div className="flex items-center gap-2 md:gap-3 min-w-0">
+      <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
         {/* Hamburger — mobile only, 44px touch target */}
         {isMobile && (
           <button
             onClick={toggleSidebar}
-            className="p-2.5 -m-1 rounded-lg border border-slate-700/50 bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800/90 hover:shadow-[0_0_12px_rgba(148,163,184,0.15)] hover:border-slate-500/40 transition-all flex-shrink-0 active:bg-slate-700"
+            className="p-2 rounded-lg border border-slate-600/60 bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-700 transition-all flex-shrink-0 active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
             aria-label="Abrir panel lateral"
           >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
@@ -94,9 +94,9 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
 
         <h1 className="text-sm md:text-base font-bold text-white tracking-tight flex-shrink-0">
           MeteoMapGal
-          <span className="text-[9px] font-normal text-slate-600 ml-1">v{APP_VERSION}</span>
+          <span className="text-[9px] font-normal text-slate-600 ml-1 hidden md:inline">v{APP_VERSION}</span>
         </h1>
-        {/* Sector selector — inline on mobile, label on desktop */}
+        {/* Sector selector — prominent on mobile, label on desktop */}
         {isMobile ? (
           <div className="flex gap-1">
             {SECTORS.map((sector) => {
@@ -106,14 +106,14 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   key={sector.id}
                   onClick={() => switchSector(sector.id)}
                   aria-label={`Cambiar a sector ${sector.name}`}
-                  className={`flex items-center gap-1 rounded-lg font-semibold text-[10px] px-2 py-1.5 border transition-all
+                  className={`flex items-center gap-1 rounded-lg font-bold text-[11px] px-2 py-1.5 border transition-all min-h-[36px]
                     ${isActive
-                      ? 'bg-blue-600/90 text-white border-blue-500/50'
-                      : 'bg-slate-800/80 text-slate-400 border-slate-700/50 active:bg-slate-700'
+                      ? 'bg-blue-600 text-white border-blue-400/60 shadow-sm shadow-blue-500/20'
+                      : 'bg-slate-800/80 text-slate-500 border-slate-700/50 active:bg-slate-700'
                   }`}
                 >
                   <WeatherIcon id={sector.icon} size={14} />
-                  <span>{sector.shortName}</span>
+                  <span className="max-w-[4rem] truncate">{sector.shortName}</span>
                 </button>
               );
             })}
@@ -124,21 +124,22 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </span>
         )}
         {stationCount > 0 && (
-          <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded flex-shrink-0">
+          <span className={`bg-slate-800 text-slate-400 rounded flex-shrink-0 ${isMobile ? 'text-[9px] px-1 py-0.5' : 'text-[10px] px-1.5 py-0.5'}`}>
             {readingCount}/{stationCount}
           </span>
         )}
         {/* Source status — hide on mobile */}
         {!isMobile && <SourceStatusIndicator />}
+        {/* Guide button — compact on mobile */}
         <button
           onClick={() => useUIStore.getState().toggleGuide()}
-          className={`btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 ${
-            isMobile ? 'p-2 active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center' : 'text-[10px] px-2 py-1'
+          className={`btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 flex-shrink-0 ${
+            isMobile ? 'p-1.5 active:bg-slate-700' : 'text-[10px] px-2 py-1'
           }`}
           title={isMobile ? 'Guía meteorológica' : 'Guía meteorológica (G)'}
           aria-label="Abrir guía meteorológica"
         >
-          <WeatherIcon id="book-open" size={isMobile ? 18 : 14} />
+          <WeatherIcon id="book-open" size={isMobile ? 14 : 14} />
         </button>
       </div>
       <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
@@ -162,8 +163,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {onToggleFieldDrawer && (
           <button
             onClick={onToggleFieldDrawer}
-            className={`flex items-center gap-1 rounded font-semibold transition-colors
-              ${isMobile ? 'px-3 py-2 text-xs' : 'px-2 py-0.5 text-[10px]'}
+            className={`flex items-center gap-1 rounded-lg font-bold transition-colors
+              ${isMobile ? 'px-3 py-1.5 text-xs min-h-[36px]' : 'px-2 py-0.5 text-[10px]'}
               ${fieldDrawerOpen
                 ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
                 : fieldAlertLevel !== 'none'
