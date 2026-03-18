@@ -1,14 +1,14 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.19.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-1.21.5-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-159%20passed-brightgreen)](src/test/)
-[![Stations](https://img.shields.io/badge/stations-90%2B-orange)](src/api/)
+[![Tests](https://img.shields.io/badge/tests-163%20passed-brightgreen)](src/test/)
+[![Stations](https://img.shields.io/badge/stations-100%2B-orange)](src/api/)
 [![Buoys](https://img.shields.io/badge/buoys-13-cyan)](src/api/buoyClient.ts)
 
-**Real-time weather monitoring for Galicia** — 90+ weather stations from 6 networks, 13 marine buoys, 3D interactive map, spot-based sailing intelligence with thermal wind detection, tide predictions, webcams, and agricultural alerts for viticulture.
+**Real-time weather monitoring for Galicia** — 100+ weather stations from 6 networks, 13 marine buoys, 3D interactive map, spot-based sailing intelligence with thermal wind detection, tide predictions, webcams, Telegram alerts, and agricultural monitoring for viticulture.
 
-> **Monitorización meteorolóxica en tempo real para Galicia** — 90+ estacións de 6 redes, 13 boias mariñas, mapa 3D interactivo, intelixencia de navegación por spots con detección de vento térmico, predición de mareas, webcams e alertas agrícolas para viticultura.
+> **Monitorización meteorolóxica en tempo real para Galicia** — 100+ estacións de 6 redes, 13 boias mariñas, mapa 3D interactivo, intelixencia de navegación por spots con detección de vento térmico, predición de mareas, webcams, alertas por Telegram e monitorización agrícola para viticultura.
 
 <p align="center">
   <img src="hero.png" width="100%" alt="MeteoMapGal — 3D map with real-time weather stations, wind arrows, and sailing spots" />
@@ -24,8 +24,8 @@ Currently monitoring two zones:
 
 | Zone | Location | Focus | Coverage |
 |------|----------|-------|----------|
-| **Embalse de Castrelo de Miño** | Ourense (inland) | Thermal wind analysis for sailing & viticulture | 35 km radius, 90+ stations |
-| **Rías Baixas** | Pontevedra (coast) | Coastal wind, waves, tides, spots & marine monitoring | 40 km radius, 60+ stations + 13 buoys |
+| **Embalse de Castrelo de Miño** | Ourense (inland) | Thermal wind analysis for sailing & viticulture | 35 km radius |
+| **Rías Baixas** | Pontevedra (coast) | Coastal wind, waves, tides, spots & marine monitoring | 40 km radius, 100+ stations + 13 buoys |
 
 **Live**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com)
 
@@ -37,8 +37,8 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 
 | Zona | Localización | Enfoque | Cobertura |
 |------|--------------|---------|-----------|
-| **Encoro de Castrelo de Miño** | Ourense (interior) | Análise de vento térmico para navegación e viticultura | Radio 35 km, 90+ estacións |
-| **Rías Baixas** | Pontevedra (costa) | Vento costeiro, ondas, mareas, spots e monitorización mariña | Radio 40 km, 60+ estacións + 13 boias |
+| **Encoro de Castrelo de Miño** | Ourense (interior) | Análise de vento térmico para navegación e viticultura | Radio 35 km |
+| **Rías Baixas** | Pontevedra (costa) | Vento costeiro, ondas, mareas, spots e monitorización mariña | Radio 40 km, 100+ estacións + 13 boias |
 
 ---
 
@@ -159,10 +159,10 @@ All data comes from **open and public sources** — no paid APIs required (only 
 
 ## Roadmap
 
-### Done (v1.0 → v1.19)
+### Done (v1.0 → v1.21)
 
 - [x] Multi-sector support (Embalse + Rías Baixas)
-- [x] 90+ weather stations from 6 networks (incl. SkyX personal PWS)
+- [x] 100+ weather stations from 6 networks (incl. SkyX personal PWS with GPS auto-discovery)
 - [x] 13 marine buoys (Puertos del Estado + Observatorio Costeiro) with wind arrows
 - [x] 6 sailing spots with 5-level scoring, thermal boost, webcams, tide summary
 - [x] Wind particles, humidity heatmap, satellite, radar, currents overlays
@@ -182,17 +182,25 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [x] Historical data dashboard (TimescaleDB, 93 stations, 5min cadence)
 - [x] Wind rose, station comparison, rankings, NAO/AO indices
 - [x] Quality-weighted scoring (source quality × distance × freshness)
-- [x] n8n + Telegram bot for push notifications
+- [x] n8n + Telegram bot for push notifications (moderate + high + critical severity)
 - [x] PWA (installable, offline mode) + CSV export
 - [x] Smart station filtering (interior exclusion + cross-source proximity dedup)
+- [x] Conditions ticker — scrolling banner with spot verdicts, max wind, waves, temperature range
+- [x] Spot favorites — persistent per-user favorite spot with quick access
+- [x] Heat index — NWS formula for apparent temperature when T>27°C and HR>40%
+- [x] Wind gust factor — turbulence indicator in station popups
+- [x] Webcam vision IA — LLM-powered multiparameter analysis (Beaufort, sky, fog, visibility, precipitation) — experimental, dev only
+- [x] Typed Zustand selectors — compile-time safety for store property access
 
 ### Planned
 
-- [ ] Thermal precursor service (early warning 2-4h before thermal onset)
-- [ ] Webcam LLM analysis (Beaufort estimation from water surface)
+- [ ] Sailing Windows — "¿Cuándo salgo?" killer feature with 48h per-spot forecast
+- [ ] Daily summary Telegram bot (N2-Bot) — morning conditions report
+- [ ] Proactive spot alerts (N3-Bot) — push when spot goes from bad to good
 - [ ] New monitoring zones (A Coruña, Lugo, Costa da Morte)
 - [ ] More sailing spots (Sanxenxo, Lanzada, A Illa de Arousa, Samil)
 - [ ] Ko-fi donations + feedback form
+- [ ] Vision IA cross-validation with real-time alerts
 
 ---
 
@@ -223,7 +231,7 @@ cp .env.example .env
 
 npm run dev       # http://localhost:5173
 npm run build     # Production build → dist/
-npm test          # 159 tests (Vitest)
+npm test          # 163 tests (Vitest)
 ```
 
 </details>
@@ -234,12 +242,12 @@ npm test          # 159 tests (Vitest)
 | Technology | Purpose |
 |------------|---------|
 | React 19.2 + TypeScript 5.9 | Strictly typed UI |
-| Vite 7.3 | Build tool + HMR + CORS proxy (16 routes) |
+| Vite 7.3 | Build tool + HMR + CORS proxy (17 routes) |
 | MapLibre GL JS 5.19 | 3D map with terrain |
-| Zustand 5 | Global state (13 stores) |
+| Zustand 5 | Global state (13 stores, typed selectors) |
 | Tailwind CSS 4.2 | Utility-first styling |
 | Recharts | Time series charts |
-| Vitest 4 | 159 unit tests |
+| Vitest 4 | 163 unit tests |
 | TimescaleDB 2.25 | Historical readings (PostgreSQL + hypertables, 2y retention) |
 
 </details>
@@ -279,7 +287,7 @@ Production runs on **nginx reverse proxy** on a Proxmox LXC container (Debian 12
 ```bash
 npm run build     # Build → dist/
 # Copy dist/ to /var/www/meteomapgal on the LXC
-# nginx.conf provides 16 CORS proxy routes + SPA fallback + gzip + security
+# nginx.conf provides 17 CORS proxy routes + SPA fallback + gzip + security
 ```
 
 Public access via Cloudflare Tunnel.
