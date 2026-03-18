@@ -14,6 +14,8 @@ interface StationMarkerProps {
   isSelected?: boolean;
   /** Hide text label at low zoom to reduce clutter */
   showLabel?: boolean;
+  /** Current map zoom level for progressive scaling */
+  zoomLevel?: number;
 }
 
 function getFreshnessColor(reading?: NormalizedReading): string {
@@ -33,12 +35,27 @@ function getFreshnessOpacity(reading?: NormalizedReading): number {
   return 0.4;
 }
 
-export const StationMarker = memo(function StationMarker({ station, reading, isSelected = false, showLabel = true }: StationMarkerProps) {
-  // Only subscribe to the action (stable ref), NOT to selectedStationId
+/**
+ * Zoom-dependent scale for station markers.
+ * Spots stay full size; stations shrink at low zoom to avoid overwhelming.
+ * zoom <9.5 → 0.45 (tiny dot), 9.5-11 → 0.55-0.75, 11-12 → 0.75-0.9, ≥12 → 1.0
+ */
+function getZoomScale(zoom: number): number {
+  if (zoom >= 12) return 1;
+  if (zoom >= 11) return 0.75 + (zoom - 11) * 0.25; // 0.75→1.0
+  if (zoom >= 9.5) return 0.55 + (zoom - 9.5) * (0.2 / 1.5); // 0.55→0.75
+  return 0.45;
+}
+
+export const StationMarker = memo(function StationMarker({
+  station, reading, isSelected = false, showLabel = true, zoomLevel = 12,
+}: StationMarkerProps) {
   const selectStation = useWeatherStore((s) => s.selectStation);
   const freshnessColor = getFreshnessColor(reading);
   const freshnessOpacity = getFreshnessOpacity(reading);
   const tempColor = temperatureColor(reading?.temperature ?? null);
+  const scale = getZoomScale(zoomLevel);
+  const isCompact = zoomLevel < 11;
 
   const handleClick = useCallback((e: { originalEvent: MouseEvent }) => {
     e.originalEvent.stopPropagation();
@@ -77,20 +94,30 @@ export const StationMarker = memo(function StationMarker({ station, reading, isS
       anchor="center"
       onClick={handleClick}
     >
-      <div className="station-marker cursor-pointer" title={tooltip} style={freshnessOpacity < 1 ? { opacity: freshnessOpacity } : undefined}>
+      <div
+        className="station-marker cursor-pointer"
+        title={tooltip}
+        style={{
+          opacity: freshnessOpacity,
+          transform: scale < 1 ? `scale(${scale})` : undefined,
+          transition: 'transform 0.3s ease-out, opacity 0.3s ease-out',
+        }}
+      >
         <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Estación ${station.name}`} style={{ pointerEvents: 'none' }}>
-          {/* Wind arrow */}
-          <WindArrow
-            direction={reading?.windDirection ?? null}
-            speed={reading?.windSpeed ?? null}
-          />
+          {/* Wind arrow — hidden at very low zoom for cleaner look */}
+          {!isCompact && (
+            <WindArrow
+              direction={reading?.windDirection ?? null}
+              speed={reading?.windSpeed ?? null}
+            />
+          )}
 
-          {/* Clickable hit area (tighter than full SVG to avoid blocking spot markers) */}
+          {/* Clickable hit area */}
           <circle r="22" fill="transparent" style={{ pointerEvents: 'auto' }} />
 
           {/* Station dot */}
           <circle
-            r="12"
+            r={isCompact ? 10 : 12}
             fill={tempColor}
             stroke={isSelected ? '#ffffff' : freshnessColor}
             strokeWidth={isSelected ? 3.5 : 2.5}
@@ -101,7 +128,7 @@ export const StationMarker = memo(function StationMarker({ station, reading, isS
           <text
             y="3"
             textAnchor="middle"
-            fontSize="9"
+            fontSize={isCompact ? 8 : 9}
             fontWeight="bold"
             fill="white"
             className="pointer-events-none"
@@ -115,7 +142,7 @@ export const StationMarker = memo(function StationMarker({ station, reading, isS
           </text>
         </svg>
 
-        {/* Station name label — hidden at low zoom to reduce clutter */}
+        {/* Station name label — hidden at low zoom */}
         {showLabel && (
           <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-bold text-slate-900 map-label-halo pointer-events-none">
             {station.name}
