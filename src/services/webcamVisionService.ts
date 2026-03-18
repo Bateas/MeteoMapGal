@@ -29,6 +29,10 @@ export interface VisionWeatherConditions {
   fogVisible: boolean;
   /** Cloud types if identifiable */
   cloudType: string | null;
+  /** Sea state description in Spanish */
+  seaState: string | null;
+  /** Light conditions: bright, diffuse, dim, dark */
+  light: 'bright' | 'diffuse' | 'dim' | 'dark' | null;
   /** Brief weather description in Spanish */
   weatherDescription: string;
 }
@@ -138,24 +142,34 @@ export function getVisionProvider(): VisionProviderConfig {
 
 // ── Prompt Engineering ───────────────────────────────────
 
-const BEAUFORT_PROMPT = `TASK: Analyze this coastal webcam image. Output ONLY a single JSON object, nothing else.
+const BEAUFORT_PROMPT = `TASK: Analyze this coastal webcam from Rías Baixas, Galicia. Output ONLY JSON.
 
-WIND — estimate Beaufort 0-7 from water surface:
-0=mirror-like 1=ripples 2=small wavelets 3=whitecaps<10% 4=whitecaps 10-30% 5=whitecaps 30-50% 6=whitecaps>50% 7=foam streaks
+This webcam shows a beach/coastal area. The water may not be the main focus — analyze what you CAN see.
 
-OUTPUT FORMAT (raw JSON, no markdown, no explanation):
-{"beaufort":0,"confidence":"medium","description":"superficie calmada sin olas","sky":"overcast","visibility":"good","precipitation":false,"fog":false,"clouds":"stratus","weather_description":"cielo nublado sin lluvia"}
+ANALYZE:
+1. WIND (Beaufort 0-7) from water surface texture. If water not visible, estimate from trees/flags/waves
+2. SKY condition and cloud types
+3. VISIBILITY — can you see distant hills/islands clearly?
+4. PRECIPITATION — rain drops, wet surfaces, active rain?
+5. FOG/MIST — reduced visibility from fog?
+6. SEA STATE — wave height, whitecaps, choppiness
+7. LIGHT — brightness level for sailing/outdoor activity
+
+OUTPUT (raw JSON, no markdown):
+{"beaufort":1,"confidence":"medium","description":"pequeñas rizaduras en la superficie","sky":"partly_cloudy","visibility":"good","precipitation":false,"fog":false,"clouds":"cumulus","sea_state":"mar llana con rizaduras","light":"bright","weather_description":"parcialmente nublado con buena visibilidad, condiciones aptas para navegación"}
 
 FIELD VALUES:
-- beaufort: integer 0-7 (or -1 if night/unclear)
+- beaufort: 0-7 (-1 if night/unclear). Conservative: pick lower when uncertain
 - confidence: "high" | "medium" | "low"
-- description: water surface in Spanish, max 15 words
-- sky: "clear" | "partly_cloudy" | "overcast" | "fog" | "rain" | "storm" | "night"
-- visibility: "good" (>10km) | "moderate" (1-10km) | "poor" (<1km)
+- description: water/wind signs in Spanish, max 20 words
+- sky: "clear"|"partly_cloudy"|"overcast"|"fog"|"rain"|"storm"|"night"
+- visibility: "good" >10km | "moderate" 1-10km | "poor" <1km
 - precipitation: true/false
-- fog: true/false (actual fog reducing visibility, not just clouds)
-- clouds: cloud type string or null
-- weather_description: one sentence in Spanish
+- fog: true/false
+- clouds: cloud type or null (cumulus/stratus/cumulonimbus/cirrus/altocumulus)
+- sea_state: sea description in Spanish or null if not visible
+- light: "bright"|"diffuse"|"dim"|"dark"
+- weather_description: 1-2 sentences in Spanish, include sailing relevance
 
 CRITICAL: Output ONLY the JSON object. No text before or after.`;
 
@@ -287,10 +301,13 @@ function proxyImageUrl(url: string): string {
 }
 
 
+/** Max image dimension for LLM vision (LLaVA struggles with large images) */
+const MAX_IMAGE_DIM = 512;
+
 async function fetchImageAsBase64(url: string): Promise<string> {
   const proxiedUrl = proxyImageUrl(url);
   const response = await fetch(proxiedUrl, {
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {
@@ -298,11 +315,34 @@ async function fetchImageAsBase64(url: string): Promise<string> {
   }
 
   const blob = await response.blob();
+
+  // Resize large images via canvas to avoid LLM processing failures
+  const imageBitmap = await createImageBitmap(blob);
+  const { width, height } = imageBitmap;
+
+  if (width > MAX_IMAGE_DIM || height > MAX_IMAGE_DIM) {
+    const scale = MAX_IMAGE_DIM / Math.max(width, height);
+    const newW = Math.round(width * scale);
+    const newH = Math.round(height * scale);
+
+    const canvas = new OffscreenCanvas(newW, newH);
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(imageBitmap, 0, 0, newW, newH);
+    imageBitmap.close();
+
+    const resizedBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+    return blobToBase64(resizedBlob);
+  }
+
+  imageBitmap.close();
+  return blobToBase64(blob);
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      // Extract base64 data after "data:image/...;base64,"
       const base64 = result.split(',')[1];
       if (!base64) reject(new Error('Failed to convert image to base64'));
       else resolve(base64);
@@ -382,6 +422,8 @@ const DEFAULT_WEATHER: VisionWeatherConditions = {
   precipitation: false,
   fogVisible: false,
   cloudType: null,
+  seaState: null,
+  light: null,
   weatherDescription: '',
 };
 
@@ -415,6 +457,8 @@ function parseVisionResponse(raw: string): ParsedVisionResponse {
         precipitation: !!parsed.precipitation,
         fogVisible: !!parsed.fog,
         cloudType: parsed.clouds || null,
+        seaState: parsed.sea_state || null,
+        light: ['bright', 'diffuse', 'dim', 'dark'].includes(parsed.light) ? parsed.light : null,
         weatherDescription: parsed.weather_description ?? '',
       },
     };

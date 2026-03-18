@@ -204,8 +204,10 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Thermal precursor early warning (collapsible) ── */}
       {precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
 
-      {/* ── Webcam Vision — Beaufort from LLM (dev mode) ── */}
-      {visionResult && visionResult.beaufort > 0 && <WebcamVisionBadge result={visionResult} />}
+      {/* ── Webcam Vision — weather analysis from LLM ── */}
+      {visionResult && (visionResult.beaufort >= 0 || visionResult.weather.weatherDescription) && (
+        <WebcamVisionBadge result={visionResult} />
+      )}
 
       {/* ── Webcams (collapsible) ── */}
       {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} />}
@@ -551,29 +553,108 @@ function PrecursorSignalRow({ name, signal }: { name: string; signal: { active: 
   );
 }
 
+// ── Sky condition icons ─────────────────────────────────────
+const SKY_LABELS: Record<string, { icon: string; label: string }> = {
+  clear: { icon: '☀️', label: 'Despejado' },
+  partly_cloudy: { icon: '⛅', label: 'Parcial' },
+  overcast: { icon: '☁️', label: 'Nublado' },
+  fog: { icon: '🌫️', label: 'Niebla' },
+  rain: { icon: '🌧️', label: 'Lluvia' },
+  storm: { icon: '⛈️', label: 'Tormenta' },
+  night: { icon: '🌙', label: 'Noche' },
+  unknown: { icon: '❓', label: '—' },
+};
+
+const VIS_LABELS: Record<string, { color: string; label: string }> = {
+  good: { color: '#4ade80', label: 'Buena' },
+  moderate: { color: '#fbbf24', label: 'Moderada' },
+  poor: { color: '#f87171', label: 'Pobre' },
+};
+
+const LIGHT_LABELS: Record<string, string> = {
+  bright: '☀ Luminoso',
+  diffuse: '🌥 Difuso',
+  dim: '🌆 Tenue',
+  dark: '🌑 Oscuro',
+};
+
 // ── Webcam Vision result badge ─────────────────────────────
 function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
   const color = beaufortToColor(result.beaufort);
   const ago = timeAgoEs(result.analyzedAt);
+  const w = result.weather;
+  const skyInfo = SKY_LABELS[w.sky] ?? SKY_LABELS.unknown;
+  const visInfo = VIS_LABELS[w.visibility] ?? VIS_LABELS.good;
+
   return (
-    <div
-      className="mt-2 pt-2 border-t border-slate-700/40 text-[10px]"
-    >
-      <div className="flex items-center gap-2">
-        <span className="text-slate-400 flex items-center gap-1"><WeatherIcon id="camera" size={11} /> Visión webcam:</span>
-        <span
-          className="font-bold px-1.5 py-0.5 rounded"
-          style={{ color, background: `${color}15`, border: `1px solid ${color}33` }}
-        >
-          Beaufort {result.beaufort} · {result.beaufortLabel} · ~{result.windEstimateKt}kt
-        </span>
-        <span className="text-slate-600">{result.confidence}</span>
+    <div className="mt-2 pt-2 border-t border-slate-700/40 text-[10px]">
+      <div className="flex items-center gap-1.5 mb-1">
+        <WeatherIcon id="camera" size={11} className="text-cyan-400" />
+        <span className="text-slate-300 font-semibold">Visión IA</span>
+        <span className="text-[9px] text-slate-600 ml-auto">{ago}</span>
       </div>
-      <div className="text-slate-500 mt-0.5 truncate" title={result.description}>
-        {result.description}
+
+      {/* Weather description */}
+      {w.weatherDescription && (
+        <div className="text-slate-300 mb-1.5 leading-snug">
+          {w.weatherDescription}
+        </div>
+      )}
+
+      {/* Conditions grid */}
+      <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[9px]">
+        {/* Sky */}
+        <div className="text-slate-500">Cielo</div>
+        <div className="col-span-2">{skyInfo.icon} {skyInfo.label}{w.cloudType ? ` · ${w.cloudType}` : ''}</div>
+
+        {/* Wind/Beaufort */}
+        {result.beaufort >= 0 && (
+          <>
+            <div className="text-slate-500">Viento</div>
+            <div className="col-span-2">
+              <span className="font-bold" style={{ color }}>B{result.beaufort}</span>
+              <span className="text-slate-400"> {result.beaufortLabel} · ~{result.windEstimateKt}kt</span>
+            </div>
+          </>
+        )}
+
+        {/* Sea state */}
+        {w.seaState && (
+          <>
+            <div className="text-slate-500">Mar</div>
+            <div className="col-span-2 text-slate-400">{w.seaState}</div>
+          </>
+        )}
+
+        {/* Visibility */}
+        <div className="text-slate-500">Visib.</div>
+        <div className="col-span-2" style={{ color: visInfo.color }}>{visInfo.label}</div>
+
+        {/* Light */}
+        {w.light && (
+          <>
+            <div className="text-slate-500">Luz</div>
+            <div className="col-span-2 text-slate-400">{LIGHT_LABELS[w.light] ?? w.light}</div>
+          </>
+        )}
+
+        {/* Alerts */}
+        {w.precipitation && (
+          <>
+            <div className="text-slate-500">Precip.</div>
+            <div className="col-span-2 text-amber-400">⚠ Lluvia visible</div>
+          </>
+        )}
+        {w.fogVisible && (
+          <>
+            <div className="text-slate-500">Niebla</div>
+            <div className="col-span-2 text-amber-400">⚠ Niebla/bruma</div>
+          </>
+        )}
       </div>
-      <div className="text-[9px] text-slate-600 mt-0.5">
-        vía {result.providerUsed} · {result.latencyMs}ms · {ago}
+
+      <div className="text-[8px] text-slate-600 mt-1 flex items-center gap-1">
+        <span className="opacity-60">🤖</span> {result.providerUsed} · {result.latencyMs}ms · {result.confidence}
       </div>
     </div>
   );
