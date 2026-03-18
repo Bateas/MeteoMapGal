@@ -114,7 +114,9 @@ export function SpotScoringSection() {
             <li><strong className="text-slate-300">Temperatura aire</strong> — de la estaci&oacute;n m&aacute;s pr&oacute;xima con dato v&aacute;lido.</li>
             <li><strong className="text-sky-400">Humedad</strong> — porcentaje relativo. Color: verde &lt;60%, azul &lt;80%, morado &ge;80%.</li>
             <li><strong className="text-blue-400">Sensaci&oacute;n t&eacute;rmica</strong> — wind chill (f&oacute;rmula Environment Canada). Solo aparece cuando T&lt;10&deg;C y viento&gt;4.8 km/h. &Uacute;til en invierno con norte.</li>
+            <li><strong className="text-amber-400">&Iacute;ndice de calor</strong> — sensaci&oacute;n t&eacute;rmica real cuando T&gt;27&deg;C y HR&gt;40% (f&oacute;rmula NWS). Amarillo &gt;27&deg;C, naranja &gt;32&deg;C, rojo &gt;35&deg;C.</li>
             <li><strong className="text-slate-300">Flecha de direcci&oacute;n</strong> — flecha rotada seg&uacute;n bearing real + cardinal (N, SW, etc.). Indica de d&oacute;nde viene el viento.</li>
+            <li><strong className="text-yellow-400">Spot favorito ★</strong> — pulsa ★ en el popup para marcar tu spot. Aparece primero en el ticker y selectores. Se guarda en localStorage.</li>
           </ul>
         </div>
       </div>

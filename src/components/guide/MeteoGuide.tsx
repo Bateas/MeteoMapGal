@@ -376,7 +376,7 @@ function RiasIntroSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="anchor" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Boyas marinas</p>
-          <p className="text-[10px] text-slate-600">Oleaje, viento, T agua, humedad de 12+ boyas</p>
+          <p className="text-[10px] text-slate-600">Oleaje, viento, T agua, humedad de 13 boyas</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="map" size={24} /></span>
