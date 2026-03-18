@@ -84,6 +84,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           <div className="flex gap-0.5 flex-shrink-0">
             <button
               onClick={toggleSidebar}
+              data-tour="sidebar"
               className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
               aria-label="Abrir panel lateral"
             >
@@ -93,6 +94,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             </button>
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
+              data-tour="guide"
               className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
               aria-label="Abrir guía meteorológica"
             >
@@ -107,7 +109,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         </h1>
         {/* Sector selector — compact on mobile (icon-only for inactive), label on desktop */}
         {isMobile ? (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" data-tour="sectors">
             {SECTORS.map((sector) => {
               const isActive = sector.id === activeSector.id;
               return (
@@ -179,6 +181,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {onToggleFieldDrawer && (
           <button
             onClick={onToggleFieldDrawer}
+            data-tour="panel"
             className={`flex items-center gap-1 rounded-lg font-bold transition-all
               ${isMobile ? 'px-3 py-1.5 text-xs min-h-[36px]' : 'px-2 py-0.5 text-[10px]'}
               ${fieldDrawerOpen
