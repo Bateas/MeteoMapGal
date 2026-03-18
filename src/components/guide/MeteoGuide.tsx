@@ -2,17 +2,12 @@ import { useEffect, useMemo, useState, memo } from 'react';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import { ThermalCycleSection } from './sections/ThermalCycleSection';
-import { ZonesMapSection } from './sections/ZonesMapSection';
-import { HumiditySection } from './sections/HumiditySection';
-import { PropagationSection } from './sections/PropagationSection';
-import { BestConditionsSection } from './sections/BestConditionsSection';
 import { ReadingMapSection } from './sections/ReadingMapSection';
-import { CampoPanelSection } from './sections/CampoPanelSection';
-import { SailingBannerSection } from './sections/SailingBannerSection';
 import { SpotScoringSection } from './sections/SpotScoringSection';
-import { GlossarySection } from './sections/GlossarySection';
+import { ThermalCastreloSection } from './sections/ThermalCastreloSection';
+import { CampoPanelSection } from './sections/CampoPanelSection';
 import { HistorySection } from './sections/HistorySection';
+import { GlossarySection } from './sections/GlossarySection';
 import { RoadmapSection } from './sections/RoadmapSection';
 import { LegalSection } from './sections/LegalSection';
 
@@ -27,16 +22,11 @@ interface GuideSection {
 
 const ALL_SECTIONS: GuideSection[] = [
   { id: 'intro', label: 'Introducción' },
-  { id: 'cycle', label: 'Ciclo del viento térmico', sectorOnly: ['embalse'] },
-  { id: 'zones', label: 'Zonas térmicas del embalse', sectorOnly: ['embalse'] },
-  { id: 'humidity', label: 'Humedad e indicadores' },
-  { id: 'propagation', label: 'Confirmación del térmico', sectorOnly: ['embalse'] },
-  { id: 'best', label: 'Mejores condiciones', sectorOnly: ['embalse'] },
-  { id: 'reading', label: 'Leer el mapa' },
-  { id: 'campo', label: 'Panel Alertas' },
-  { id: 'sailing', label: 'Navegación y scoring', sectorOnly: ['embalse'] },
+  { id: 'reading', label: 'Cómo leer el mapa' },
   { id: 'spots', label: 'Spots de navegación' },
-  { id: 'history', label: 'Historial meteorológico' },
+  { id: 'thermal', label: 'El térmico de Castrelo', sectorOnly: ['embalse'] },
+  { id: 'panels', label: 'Paneles y alertas' },
+  { id: 'history', label: 'Historial' },
   { id: 'glossary', label: 'Glosario' },
   { id: 'roadmap', label: 'Roadmap y fuentes' },
   { id: 'legal', label: 'Aviso legal' },
@@ -147,17 +137,12 @@ export const MeteoGuide = memo(function MeteoGuide() {
             {activeSection === 'intro' && (
               activeSector.id === 'embalse' ? <IntroSection /> : <RiasIntroSection />
             )}
-            {activeSection === 'glossary' && <GlossarySection />}
-            {activeSection === 'cycle' && <ThermalCycleSection />}
-            {activeSection === 'zones' && <ZonesMapSection />}
-            {activeSection === 'humidity' && <HumiditySection />}
-            {activeSection === 'propagation' && <PropagationSection />}
-            {activeSection === 'best' && <BestConditionsSection />}
             {activeSection === 'reading' && <ReadingMapSection />}
-            {activeSection === 'campo' && <CampoPanelSection />}
-            {activeSection === 'sailing' && <SailingBannerSection />}
             {activeSection === 'spots' && <SpotScoringSection />}
+            {activeSection === 'thermal' && <ThermalCastreloSection />}
+            {activeSection === 'panels' && <CampoPanelSection />}
             {activeSection === 'history' && <HistorySection />}
+            {activeSection === 'glossary' && <GlossarySection />}
             {activeSection === 'roadmap' && <RoadmapSection />}
             {activeSection === 'legal' && <LegalSection />}
           </div>
