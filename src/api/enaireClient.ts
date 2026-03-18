@@ -11,6 +11,7 @@
  *
  * Cache: zones 24h (semi-static), NOTAMs 30min (dynamic)
  */
+import { fetchWithRetry } from './fetchWithRetry';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -208,7 +209,7 @@ export async function fetchUasZones(
     // Fetch all 4 layers in parallel
     const responses = await Promise.allSettled(
       UAS_LAYERS.map(layer =>
-        fetch(buildQueryUrl(UAS_BASE, layer, bbox))
+        fetchWithRetry(buildQueryUrl(UAS_BASE, layer, bbox), { label: 'ENAIRE', timeout: 15000, maxRetries: 1 })
           .then(r => {
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             return r.json() as Promise<ArcGISResponse>;
@@ -259,7 +260,7 @@ export async function fetchActiveNotams(
   try {
     const responses = await Promise.allSettled(
       [0, 1].map(layer =>
-        fetch(buildQueryUrl(NOTAM_BASE, layer, bbox))
+        fetchWithRetry(buildQueryUrl(NOTAM_BASE, layer, bbox), { label: 'ENAIRE NOTAM', timeout: 15000, maxRetries: 1 })
           .then(r => {
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             return r.json() as Promise<ArcGISResponse>;
