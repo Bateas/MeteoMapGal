@@ -5,6 +5,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
+import { SECTORS } from '../../config/sectors';
 import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { scoreForecastThermal, thermalColor } from '../../services/forecastScoringUtils';
@@ -30,6 +31,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   const stationCount = useWeatherStore((s) => s.stations.length);
   const readingCount = useWeatherStore((s) => s.currentReadings.size);
   const activeSector = useSectorStore((s) => s.activeSector);
+  const switchSector = useSectorStore((s) => s.switchSector);
   const isEmbalse = activeSector.id === 'embalse';
   const forecastHourly = useForecastStore((s) => s.hourly);
   const thermalRules = useThermalStore((s) => s.rules);
@@ -94,7 +96,29 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           MeteoMapGal
           <span className="text-[9px] font-normal text-slate-600 ml-1">v{APP_VERSION}</span>
         </h1>
-        {!isMobile && (
+        {/* Sector selector — inline on mobile, label on desktop */}
+        {isMobile ? (
+          <div className="flex gap-1">
+            {SECTORS.map((sector) => {
+              const isActive = sector.id === activeSector.id;
+              return (
+                <button
+                  key={sector.id}
+                  onClick={() => switchSector(sector.id)}
+                  aria-label={`Cambiar a sector ${sector.name}`}
+                  className={`flex items-center gap-1 rounded-lg font-semibold text-[10px] px-2 py-1.5 border transition-all
+                    ${isActive
+                      ? 'bg-blue-600/90 text-white border-blue-500/50'
+                      : 'bg-slate-800/80 text-slate-400 border-slate-700/50 active:bg-slate-700'
+                  }`}
+                >
+                  <WeatherIcon id={sector.icon} size={14} />
+                  <span>{sector.shortName}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
           <span className="text-[10px] text-slate-500 font-medium truncate inline-flex items-center gap-1">
             <WeatherIcon id={activeSector.icon} size={12} /> {activeSector.name}
           </span>
