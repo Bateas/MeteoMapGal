@@ -113,6 +113,8 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
   return (
     <div
       ref={drawerRef}
+      role="dialog"
+      aria-label="Panel de alertas y campo"
       className={`fixed z-30 bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ease-in-out overflow-hidden ${
         isMobile
           ? `inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 max-w-full ${open ? 'translate-y-0' : 'translate-y-full'}`
