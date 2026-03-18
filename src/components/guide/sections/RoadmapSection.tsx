@@ -195,26 +195,6 @@ export function RoadmapSection() {
           </div>
         </div>
 
-        {/* Futuras funcionalidades */}
-        <TimelineGroup label="Futuras funcionalidades" dotColor="bg-slate-500" textColor="text-slate-400" />
-        <TimelineMilestone
-          iconId="map-pin"
-          title="Nuevas zonas de monitorización"
-          desc="Expansión a más zonas de Galicia: A Coruña, Lugo, Costa da Morte, Ría de Arousa y más."
-          status="idea"
-        />
-        <TimelineMilestone
-          iconId="alert-triangle"
-          title="Alertas personalizadas"
-          desc="Definir umbrales propios de viento, temperatura o humedad con notificación push."
-          status="idea"
-        />
-        <TimelineMilestone
-          iconId="sun"
-          title="Predicción avanzada de térmicos"
-          desc="Análisis con datos históricos AEMET para probabilidad de térmicos a 2-3 días."
-          status="idea"
-        />
         <TimelineMilestone
           iconId="sailboat"
           title="Mejor ventana de navegación"
@@ -242,14 +222,71 @@ export function RoadmapSection() {
         <TimelineMilestone
           iconId="thermal-wind"
           title="Alerta térmica temprana"
-          desc="6 señales precursoras (terral, ΔT agua-aire, solar, humedad, divergencia, forecast) → probabilidad 0-100% con ETA. Panel colapsable en popup."
+          desc="6 señales precursoras (terral, ΔT agua-aire, solar, humedad, divergencia, forecast) → probabilidad 0-100% con ETA."
           status="done"
         />
         <TimelineMilestone
           iconId="thermal-wind"
           title="Amplificación térmica en spots"
-          desc="Detección de térmicas localizadas donde las estaciones en tierra subestiman el viento real en el agua (hasta +50%). Aviso de baja confianza."
+          desc="Detección de térmicas donde las estaciones en tierra subestiman el viento en el agua (hasta +50%)."
           status="done"
+        />
+        <TimelineMilestone
+          iconId="wind"
+          title="Ticker de condiciones"
+          desc="Banner animado con condiciones actuales: veredictos de spots, racha máxima, oleaje, rango de temperaturas."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="map-pin"
+          title="Spot favorito"
+          desc="Marca tu spot preferido con ★ para acceso rápido. Se muestra primero en el ticker y en la barra de navegación."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="thermometer"
+          title="Índice de calor"
+          desc="Sensación térmica real cuando T>27°C y HR>40% (fórmula NWS). Alerta visual en popup del spot."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="wind"
+          title="Factor de racha"
+          desc="Indicador de turbulencia: ratio racha/viento sostenido (×N.N) en popup de estaciones."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="database"
+          title="Rankings de estaciones"
+          desc="Pestaña Rankings: top estaciones por viento, temperatura, humedad y presión en tiempo real."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="alert-triangle"
+          title="Alertas por Telegram"
+          desc="Notificaciones push vía bot de Telegram para alertas moderadas, altas y críticas. Silencio nocturno 23:00-07:00."
+          status="done"
+        />
+
+        {/* Futuras funcionalidades */}
+        <TimelineGroup label="Futuras funcionalidades" dotColor="bg-slate-500" textColor="text-slate-400" />
+        <TimelineMilestone
+          iconId="map-pin"
+          title="Nuevas zonas de monitorización"
+          desc="Expansión a más zonas de Galicia: A Coruña, Lugo, Costa da Morte, Ría de Arousa y más."
+          status="idea"
+        />
+        <TimelineMilestone
+          iconId="alert-triangle"
+          title="Alertas personalizadas"
+          desc="Definir umbrales propios de viento, temperatura o humedad con notificación push."
+          status="idea"
+        />
+        <TimelineMilestone
+          iconId="sun"
+          title="Predicción avanzada de térmicos"
+          desc="Análisis con datos históricos AEMET para probabilidad de térmicos a 2-3 días."
+          status="idea"
         />
         <TimelineMilestone
           iconId="cloud"
@@ -284,7 +321,8 @@ export function RoadmapSection() {
             <SourceRow letter="M" name="MeteoGalicia" desc="Xunta de Galicia — 13 estaciones" color="#3b82f6" />
             <SourceRow letter="C" name="Meteoclimatic" desc="Red ciudadana — 6 estaciones" color="#22c55e" />
             <SourceRow letter="W" name="Weather Underground" desc="Estaciones personales — 1 estación" color="#f59e0b" />
-            <SourceRow letter="N" name="Netatmo" desc="Red doméstica IoT — 11 estaciones" color="#a855f7" />
+            <SourceRow letter="N" name="Netatmo" desc="Red doméstica IoT — 31+ estaciones" color="#a855f7" />
+            <SourceRow letter="S" name="SkyX" desc="Estación personal portátil — auto-descubrimiento por GPS" color="#64748b" />
           </div>
         </div>
 
@@ -302,6 +340,10 @@ export function RoadmapSection() {
             <SourceRow letter="B" name="Puertos del Estado (PORTUS)" desc="Boyas marinas — oleaje, viento, corrientes (12 estaciones)" color="#06b6d4" />
             <SourceRow letter="X" name="Observatorio Costeiro (Xunta)" desc="Boyas suplementarias — humedad, punto de rocío, 10min (6 plataformas)" color="#14b8a6" />
             <SourceRow letter="H" name="RADAR ON RAIA (INTECMAR)" desc="Corrientes superficiales — radar HF costero, actualización horaria" color="#0ea5e9" />
+            <SourceRow letter="C" name="CMEMS / Copernicus Marine" desc="Temperatura superficial del mar (SST) — WMTS tiles" color="#0d9488" />
+            <SourceRow letter="D" name="EMODnet" desc="Batimetría — profundidades marinas WMS" color="#475569" />
+            <SourceRow letter="N" name="NOAA" desc="Índices NAO/AO — teleconexiones atlánticas" color="#059669" />
+            <SourceRow letter="I" name="IGN" desc="Cartografía: ortofotos PNOA, sombreado MDT, curvas de nivel" color="#7c3aed" />
           </div>
         </div>
 
@@ -320,9 +362,9 @@ export function RoadmapSection() {
               <TechRow name="Recharts" license="MIT" />
             </div>
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[10px]">
-              <span className="text-slate-500">93+ estaciones</span>
-              <span className="text-slate-500">15 APIs</span>
-              <span className="text-slate-500">159 tests</span>
+              <span className="text-slate-500">100+ estaciones</span>
+              <span className="text-slate-500">17 APIs</span>
+              <span className="text-slate-500">163 tests</span>
               <span className="text-slate-500">TimescaleDB</span>
             </div>
           </div>
