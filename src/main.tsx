@@ -9,6 +9,10 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
+// Web Vitals performance reporting (dev + prod)
+import { initWebVitals } from './services/webVitals';
+initWebVitals();
+
 // Register service worker in production
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
