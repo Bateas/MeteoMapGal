@@ -366,6 +366,23 @@ export function AppShell() {
       <Suspense fallback={null}><MeteoGuide /></Suspense>
       {!isMobile && <KeyboardShortcutHelp />}
       <ToastContainer />
+
+      {/* Ko-fi support link — subtle, bottom-right on desktop */}
+      {!isMobile && (
+        <a
+          href="https://ko-fi.com/meteomapgal"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fixed bottom-2 right-2 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+            bg-slate-900/80 border border-slate-700/40 text-slate-500 text-[10px]
+            hover:text-amber-400 hover:border-amber-500/30 hover:bg-slate-900/95
+            backdrop-blur-sm transition-all group"
+          title="Apoya MeteoMapGal"
+        >
+          <span className="text-sm group-hover:animate-bounce">☕</span>
+          <span className="hidden lg:inline">Apoya el proyecto</span>
+        </a>
+      )}
     </div>
   );
 }

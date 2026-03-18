@@ -223,12 +223,15 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Wind patterns (collapsible) ── */}
       {spot.windPatterns.length > 0 && <WindPatterns patterns={spot.windPatterns} />}
 
-      {/* ── Timestamp ── */}
-      {score?.computedAt && (
-        <div className="text-[9px] text-slate-500 mt-2 text-right">
-          Scoring: {timeAgoEs(score.computedAt)}
-        </div>
-      )}
+      {/* ── Share + Timestamp ── */}
+      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-700/30">
+        <ShareButton spot={spot} score={score} verdict={verdict} vs={vs} />
+        {score?.computedAt && (
+          <span className="text-[9px] text-slate-500">
+            {timeAgoEs(score.computedAt)}
+          </span>
+        )}
+      </div>
     </div>
   );
 
@@ -954,4 +957,66 @@ function timeAgoEs(ts: Date): string {
   if (mins < 60) return `hace ${mins} min`;
   const hrs = Math.round(mins / 60);
   return `hace ${hrs}h`;
+}
+
+// ── Share button — Web Share API with clipboard fallback ──────────
+
+function ShareButton({ spot, score, verdict, vs }: {
+  spot: SailingSpot;
+  score?: SpotScore;
+  verdict: SpotVerdict;
+  vs: typeof VERDICT_STYLE[SpotVerdict];
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const shareText = useMemo(() => {
+    const parts = [`${spot.name}: ${vs.label}`];
+    if (score?.wind) {
+      parts.push(`${score.wind.avgSpeedKt.toFixed(0)}kt ${score.wind.dominantDir}`);
+    }
+    if (score?.airTemp != null) {
+      parts.push(`${score.airTemp.toFixed(0)}°C`);
+    }
+    if (score?.waves?.waveHeight != null) {
+      parts.push(`olas ${score.waves.waveHeight.toFixed(1)}m`);
+    }
+    parts.push('— MeteoMapGal');
+    return parts.join(' | ');
+  }, [spot.name, vs.label, score]);
+
+  const handleShare = async () => {
+    const shareData = {
+      title: `${spot.name} — MeteoMapGal`,
+      text: shareText,
+      url: 'https://meteomapgal.navia3d.com',
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {
+        // User cancelled — not an error
+      }
+    } else {
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${shareData.url}`);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Clipboard failed silently
+      }
+    }
+  };
+
+  return (
+    <button
+      onClick={handleShare}
+      className="flex items-center gap-1 text-[9px] text-slate-500 hover:text-slate-300 transition-colors rounded px-1.5 py-0.5 hover:bg-slate-800/60"
+      title="Compartir condiciones"
+    >
+      <WeatherIcon id="navigation" size={10} />
+      {copied ? 'Copiado' : 'Compartir'}
+    </button>
+  );
 }
