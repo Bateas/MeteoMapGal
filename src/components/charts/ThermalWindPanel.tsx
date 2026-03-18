@@ -105,12 +105,28 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
     return embalseFC.map((point) => {
       const hourAlerts = forecastAlerts.filter(
         (a) => a.expectedTime.getHours() === point.timestamp.getHours()
+          && a.expectedTime.getDate() === point.timestamp.getDate()
       );
-      const maxScore = hourAlerts.reduce((max, a) => Math.max(max, a.score), 0);
+      const alertScore = hourAlerts.reduce((max, a) => Math.max(max, a.score), 0);
+
+      // Base thermal score from temperature/humidity even without rule alerts
+      const temp = point.temperature ?? 0;
+      const hum = point.humidity ?? 50;
+      const isDay = point.timestamp.getHours() >= 9 && point.timestamp.getHours() <= 19;
+      let baseScore = 0;
+      if (isDay && temp > 15) {
+        baseScore = Math.min(40, Math.max(0, (temp - 15) * 3));
+        // Humidity sweet spot 45-65%
+        if (hum >= 45 && hum <= 65) baseScore += 10;
+        else if (hum > 75) baseScore = Math.max(0, baseScore - 15);
+        // Peak hours 13-17
+        const h = point.timestamp.getHours();
+        if (h >= 13 && h <= 17) baseScore += 10;
+      }
 
       return {
         time: point.timestamp.getTime(),
-        score: maxScore,
+        score: Math.max(alertScore, baseScore),
         temp: point.temperature,
         wind: point.windSpeed != null ? msToKnots(point.windSpeed) : null,
         cloud: point.cloudCover,
