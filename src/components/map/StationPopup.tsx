@@ -2,6 +2,7 @@ import { useState, useEffect, memo } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import {
   formatWindSpeed,
   formatTemperature,
@@ -36,19 +37,42 @@ interface StationPopupProps {
   reading?: NormalizedReading;
 }
 
+/** Reusable data cell: label + colored value */
+function DataCell({ label, value, color, icon, children }: {
+  label: string;
+  value?: string;
+  color?: string;
+  icon?: IconId;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="text-slate-500 text-[10px] mb-0.5 flex items-center gap-0.5">
+        {icon && <WeatherIcon id={icon} size={10} />}
+        {label}
+      </div>
+      {children ?? (
+        <div className="font-semibold" style={color ? { color } : undefined}>{value}</div>
+      )}
+    </div>
+  );
+}
+
 export const StationPopup = memo(function StationPopup({ station, reading }: StationPopupProps) {
   const selectStation = useWeatherStore((s) => s.selectStation);
   const toggleChartStation = useWeatherStore((s) => s.toggleChartStation);
   const chartStations = useWeatherStore((s) => s.chartSelectedStations);
   const isInChart = chartStations.includes(station.id);
   const isMobile = useUIStore((s) => s.isMobile);
+  const dismiss = () => selectStation(null);
+  const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
 
   // Mini wind rose for AEMET stations with historical data (lazy-loaded)
   const hasHistory = AEMET_HISTORY_STATIONS.includes(station.id);
   const [windRoseData, setWindRoseData] = useState<WindRoseData | null>(null);
   useEffect(() => {
     if (!hasHistory) {
-      setWindRoseData(null); // Clear stale data from previous AEMET station
+      setWindRoseData(null);
       return;
     }
     let cancelled = false;
@@ -62,173 +86,143 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
     return () => { cancelled = true; };
   }, [hasHistory, station.id]);
 
+  const sourceColor = SOURCE_CONFIG[station.source].color;
+
+  // Gust factor
+  const gustFactor = reading?.windGust != null && reading.windSpeed != null && reading.windSpeed > 0.5
+    ? reading.windGust / reading.windSpeed
+    : null;
+
+  // Dew point spread
+  const dpSpread = reading?.temperature != null && reading?.dewPoint != null
+    ? reading.temperature - reading.dewPoint
+    : null;
+
   // ── Shared popup content ──────────────────────────────
   const popupContent = (
-      <div style={{ minWidth: 200, fontFamily: 'system-ui, sans-serif' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              padding: '1px 5px',
-              borderRadius: 3,
-              background: SOURCE_CONFIG[station.source].color,
-              color: 'white',
-            }}
-          >
-            {SOURCE_CONFIG[station.source].fullName}
-          </span>
-          <strong style={{ fontSize: 13 }}>{station.name}</strong>
-        </div>
-
-        {reading ? (
-          <>
-            {/* Wind compass + data */}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 6 }}>
-              <WindCompass
-                direction={reading.windDirection}
-                speed={reading.windSpeed}
-                size={64}
-              />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', fontSize: 12, flex: 1 }}>
-                <div>
-                  <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Viento</div>
-                  <div style={{ fontWeight: 600, color: windSpeedColor(reading.windSpeed) }}>
-                    {formatWindSpeed(reading.windSpeed)}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Temperatura</div>
-                  <div style={{ fontWeight: 600, color: temperatureColor(reading.temperature) }}>{formatTemperature(reading.temperature)}</div>
-                </div>
-                {reading.windGust != null && reading.windGust > 0 && (
-                  <div>
-                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Racha</div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                      <span style={{ fontWeight: 600, color: windSpeedColor(reading.windGust) }}>
-                        {formatWindSpeed(reading.windGust)}
-                      </span>
-                      {reading.windSpeed != null && reading.windSpeed > 0.5 && (() => {
-                        const gf = reading.windGust! / reading.windSpeed!;
-                        return gf >= 1.3 ? (
-                          <span
-                            style={{ fontSize: 9, color: gf >= 2 ? '#f87171' : gf >= 1.6 ? '#fb923c' : '#94a3b8' }}
-                            title={`Factor racha: ${gf.toFixed(1)}× — ${gf >= 2 ? 'turbulencia severa' : gf >= 1.6 ? 'turbulencia moderada' : 'ligera'}`}
-                          >
-                            ×{gf.toFixed(1)}
-                          </span>
-                        ) : null;
-                      })()}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Humedad</div>
-                  <div style={{ fontWeight: 600 }}>{formatHumidity(reading.humidity)}</div>
-                </div>
-                {reading.precipitation != null && reading.precipitation > 0 && (
-                  <div>
-                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Lluvia</div>
-                    <div style={{ fontWeight: 600, color: precipitationColor(reading.precipitation) }}>
-                      {formatPrecipitation(reading.precipitation)}
-                    </div>
-                  </div>
-                )}
-                {reading.solarRadiation != null && (
-                  <div>
-                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-                      {solarRadiationIcon(reading.solarRadiation) && (
-                        <WeatherIcon id={solarRadiationIcon(reading.solarRadiation) as IconId} size={10} />
-                      )}
-                      Radiación
-                    </div>
-                    <div style={{ fontWeight: 600, color: solarRadiationColor(reading.solarRadiation) }}>
-                      {formatSolarRadiation(reading.solarRadiation)}
-                    </div>
-                  </div>
-                )}
-                {reading.pressure != null && (
-                  <div>
-                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>Presión</div>
-                    <div style={{ fontWeight: 600, color: pressureColor(reading.pressure) }}>
-                      {formatPressure(reading.pressure)}
-                    </div>
-                  </div>
-                )}
-                {reading.dewPoint != null && (
-                  <div>
-                    <div style={{ color: '#64748b', fontSize: 10, marginBottom: 2 }}>P. rocío</div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                      <span style={{
-                        fontWeight: 600,
-                        color: dewPointSpreadColor(
-                          reading.temperature != null && reading.dewPoint != null ? reading.temperature - reading.dewPoint : null
-                        ),
-                      }}>
-                        {formatDewPoint(reading.dewPoint)}
-                      </span>
-                      {reading.temperature != null && reading.dewPoint != null && (
-                        <span style={{ fontSize: 9, color: '#94a3b8' }} title="Spread T − Td">
-                          Δ{(reading.temperature - reading.dewPoint).toFixed(1)}°
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Altitude */}
-            <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6 }}>
-              Alt: {station.altitude}m
-            </div>
-
-            {/* Mini wind rose for AEMET stations */}
-            {windRoseData && windRoseData.totalDays > 0 && (
-              <MiniWindRose data={windRoseData} />
-            )}
-
-            {/* Timestamp */}
-            <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>
-              {reading.timestamp && !isNaN(reading.timestamp.getTime())
-                ? `Actualizado ${formatDistanceToNow(reading.timestamp, { addSuffix: true, locale: es })}`
-                : 'Hora desconocida'}
-            </div>
-          </>
-        ) : (
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>Sin datos disponibles</div>
-        )}
-
-        {/* Add to chart button */}
-        <button
-          onClick={() => toggleChartStation(station.id)}
-          style={{
-            marginTop: 8,
-            width: '100%',
-            padding: '4px 8px',
-            fontSize: 11,
-            fontWeight: 600,
-            border: '1px solid #e2e8f0',
-            borderRadius: 4,
-            background: isInChart ? '#eff6ff' : 'white',
-            color: isInChart ? '#3b82f6' : '#64748b',
-            cursor: 'pointer',
-          }}
+    <div className="min-w-[200px] font-sans">
+      {/* Header */}
+      <div className="flex items-center gap-1.5 mb-2">
+        <span
+          className="text-[10px] font-bold px-1.5 py-px rounded text-white"
+          style={{ background: sourceColor }}
         >
-          {isInChart ? 'Quitar de gráfica' : 'Añadir a gráfica'}
-        </button>
+          {SOURCE_CONFIG[station.source].fullName}
+        </span>
+        <strong className="text-[13px]">{station.name}</strong>
       </div>
+
+      {reading ? (
+        <>
+          {/* Wind compass + data grid */}
+          <div className="flex gap-2.5 items-start mb-1.5">
+            <WindCompass
+              direction={reading.windDirection}
+              speed={reading.windSpeed}
+              size={64}
+            />
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs flex-1">
+              <DataCell label="Viento" value={formatWindSpeed(reading.windSpeed)} color={windSpeedColor(reading.windSpeed)} />
+              <DataCell label="Temperatura" value={formatTemperature(reading.temperature)} color={temperatureColor(reading.temperature)} />
+
+              {reading.windGust != null && reading.windGust > 0 && (
+                <DataCell label="Racha">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-semibold" style={{ color: windSpeedColor(reading.windGust) }}>
+                      {formatWindSpeed(reading.windGust)}
+                    </span>
+                    {gustFactor != null && gustFactor >= 1.3 && (
+                      <span
+                        className="text-[9px]"
+                        style={{ color: gustFactor >= 2 ? '#f87171' : gustFactor >= 1.6 ? '#fb923c' : '#94a3b8' }}
+                        title={`Factor racha: ${gustFactor.toFixed(1)}× — ${gustFactor >= 2 ? 'turbulencia severa' : gustFactor >= 1.6 ? 'turbulencia moderada' : 'ligera'}`}
+                      >
+                        ×{gustFactor.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
+                </DataCell>
+              )}
+
+              <DataCell label="Humedad" value={formatHumidity(reading.humidity)} />
+
+              {reading.precipitation != null && reading.precipitation > 0 && (
+                <DataCell label="Lluvia" value={formatPrecipitation(reading.precipitation)} color={precipitationColor(reading.precipitation)} />
+              )}
+
+              {reading.solarRadiation != null && (
+                <DataCell
+                  label="Radiación"
+                  value={formatSolarRadiation(reading.solarRadiation)}
+                  color={solarRadiationColor(reading.solarRadiation)}
+                  icon={solarRadiationIcon(reading.solarRadiation) as IconId | undefined}
+                />
+              )}
+
+              {reading.pressure != null && (
+                <DataCell label="Presión" value={formatPressure(reading.pressure)} color={pressureColor(reading.pressure)} />
+              )}
+
+              {reading.dewPoint != null && (
+                <DataCell label="P. rocío">
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-semibold" style={{ color: dewPointSpreadColor(dpSpread) }}>
+                      {formatDewPoint(reading.dewPoint)}
+                    </span>
+                    {dpSpread != null && (
+                      <span className="text-[9px] text-slate-400" title="Spread T − Td">
+                        Δ{dpSpread.toFixed(1)}°
+                      </span>
+                    )}
+                  </div>
+                </DataCell>
+              )}
+            </div>
+          </div>
+
+          {/* Altitude */}
+          <div className="text-[10px] text-slate-400 mt-1.5">
+            Alt: {station.altitude}m
+          </div>
+
+          {/* Mini wind rose for AEMET stations */}
+          {windRoseData && windRoseData.totalDays > 0 && (
+            <MiniWindRose data={windRoseData} />
+          )}
+
+          {/* Timestamp */}
+          <div className="text-[10px] text-slate-400 mt-0.5">
+            {reading.timestamp && !isNaN(reading.timestamp.getTime())
+              ? `Actualizado ${formatDistanceToNow(reading.timestamp, { addSuffix: true, locale: es })}`
+              : 'Hora desconocida'}
+          </div>
+        </>
+      ) : (
+        <div className="text-xs text-slate-400">Sin datos disponibles</div>
+      )}
+
+      {/* Add to chart button */}
+      <button
+        onClick={() => toggleChartStation(station.id)}
+        className={`mt-2 w-full py-1 px-2 text-[11px] font-semibold border rounded cursor-pointer transition-colors
+          ${isInChart
+            ? 'bg-blue-50 text-blue-500 border-blue-200 hover:bg-blue-100'
+            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+          }`}
+      >
+        {isInChart ? 'Quitar de gráfica' : 'Añadir a gráfica'}
+      </button>
+    </div>
   );
 
   // ── Mobile: bottom sheet ──────────────────────────────
   if (isMobile) {
     return (
       <div className="fixed bottom-0 left-0 right-0 z-40 animate-slide-up">
-        <div className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[55dvh] overflow-y-auto p-4"
+        <div ref={sheetRef} className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[55dvh] overflow-y-auto p-4"
              style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
-          {/* Drag handle */}
-          <div className="flex justify-center mb-3">
+          {/* Drag handle — swipe down to dismiss */}
+          <div className="flex justify-center mb-3" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
             <div className="w-10 h-1 rounded-full bg-slate-600" />
           </div>
           {/* Close button */}
@@ -269,13 +263,11 @@ const ROSE_SIZE = 100;
 const ROSE_CENTER = ROSE_SIZE / 2;
 const ROSE_RADIUS = 38;
 
-// 16-point cardinal labels with angles
 const DIRS_16 = [
   'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
 ];
 
-// Cardinal labels — module-level constant (avoids recreating array on every render)
 const CARDINAL_LABELS = [
   { label: 'N', angle: -90 },
   { label: 'E', angle: 0 },
@@ -286,7 +278,6 @@ const CARDINAL_LABELS = [
 function MiniWindRose({ data }: { data: WindRoseData }) {
   const maxPct = Math.max(...data.points.map((p) => p.percentage), 1);
 
-  // Build polygon points
   const polyPoints = data.points.map((p, i) => {
     const angle = ((i * 360) / 16 - 90) * (Math.PI / 180);
     const r = (p.percentage / maxPct) * ROSE_RADIUS;
@@ -296,75 +287,44 @@ function MiniWindRose({ data }: { data: WindRoseData }) {
   }).join(' ');
 
   return (
-    <div style={{ marginTop: 8, borderTop: '1px solid #e2e8f0', paddingTop: 6 }}>
-      <div style={{ fontSize: 9, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+    <div className="mt-2 border-t border-slate-200 pt-1.5">
+      <div className="text-[9px] text-slate-400 mb-1 font-semibold">
         Rosa Vientos (Jun-Sep, {data.totalDays} días)
       </div>
-      <svg width={ROSE_SIZE} height={ROSE_SIZE} viewBox={`0 0 ${ROSE_SIZE} ${ROSE_SIZE}`} style={{ display: 'block', margin: '0 auto' }}>
-        {/* Grid circles */}
+      <svg width={ROSE_SIZE} height={ROSE_SIZE} viewBox={`0 0 ${ROSE_SIZE} ${ROSE_SIZE}`} className="block mx-auto">
         {[0.33, 0.66, 1].map((f) => (
-          <circle
-            key={f}
-            cx={ROSE_CENTER}
-            cy={ROSE_CENTER}
-            r={ROSE_RADIUS * f}
-            fill="none"
-            stroke="#e2e8f0"
-            strokeWidth={0.5}
-          />
+          <circle key={f} cx={ROSE_CENTER} cy={ROSE_CENTER} r={ROSE_RADIUS * f} fill="none" stroke="#e2e8f0" strokeWidth={0.5} />
         ))}
-        {/* Cross lines */}
         {[0, 45, 90, 135].map((deg) => {
           const rad = (deg - 90) * (Math.PI / 180);
           return (
-            <line
-              key={deg}
-              x1={ROSE_CENTER - ROSE_RADIUS * Math.cos(rad)}
-              y1={ROSE_CENTER - ROSE_RADIUS * Math.sin(rad)}
-              x2={ROSE_CENTER + ROSE_RADIUS * Math.cos(rad)}
-              y2={ROSE_CENTER + ROSE_RADIUS * Math.sin(rad)}
-              stroke="#e2e8f0"
-              strokeWidth={0.3}
+            <line key={deg}
+              x1={ROSE_CENTER - ROSE_RADIUS * Math.cos(rad)} y1={ROSE_CENTER - ROSE_RADIUS * Math.sin(rad)}
+              x2={ROSE_CENTER + ROSE_RADIUS * Math.cos(rad)} y2={ROSE_CENTER + ROSE_RADIUS * Math.sin(rad)}
+              stroke="#e2e8f0" strokeWidth={0.3}
             />
           );
         })}
-        {/* Data polygon */}
-        <polygon
-          points={polyPoints}
-          fill="rgba(245, 158, 11, 0.3)"
-          stroke="#f59e0b"
-          strokeWidth={1.5}
-        />
-        {/* Cardinal labels */}
+        <polygon points={polyPoints} fill="rgba(245, 158, 11, 0.3)" stroke="#f59e0b" strokeWidth={1.5} />
         {CARDINAL_LABELS.map(({ label, angle }) => {
           const rad = angle * (Math.PI / 180);
-          const lx = ROSE_CENTER + (ROSE_RADIUS + 8) * Math.cos(rad);
-          const ly = ROSE_CENTER + (ROSE_RADIUS + 8) * Math.sin(rad);
           return (
-            <text
-              key={label}
-              x={lx}
-              y={ly}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontSize={8}
-              fontWeight={700}
-              fill="#64748b"
+            <text key={label}
+              x={ROSE_CENTER + (ROSE_RADIUS + 8) * Math.cos(rad)}
+              y={ROSE_CENTER + (ROSE_RADIUS + 8) * Math.sin(rad)}
+              textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight={700} fill="#64748b"
             >
               {label}
             </text>
           );
         })}
-        {/* Dominant direction indicator */}
         {data.points.length > 0 && (() => {
           const dominant = data.points.reduce((a, b) => (b.percentage > a.percentage ? b : a));
           const idx = DIRS_16.indexOf(dominant.direction);
           if (idx < 0) return null;
           const angle = ((idx * 360) / 16 - 90) * (Math.PI / 180);
           const r = (dominant.percentage / maxPct) * ROSE_RADIUS;
-          const cx = ROSE_CENTER + r * Math.cos(angle);
-          const cy = ROSE_CENTER + r * Math.sin(angle);
-          return <circle cx={cx} cy={cy} r={2.5} fill="#f59e0b" stroke="white" strokeWidth={0.5} />;
+          return <circle cx={ROSE_CENTER + r * Math.cos(angle)} cy={ROSE_CENTER + r * Math.sin(angle)} r={2.5} fill="#f59e0b" stroke="white" strokeWidth={0.5} />;
         })()}
       </svg>
     </div>

@@ -10,6 +10,7 @@ import { memo, useState, useMemo, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
+import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
@@ -43,6 +44,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const thermalPrecursors = useSpotStore((s) => s.thermalPrecursors);
   const webcamVision = useSpotStore((s) => s.webcamVision);
   const isMobile = useUIStore((s) => s.isMobile);
+  const dismiss = () => selectSpot('');
+  const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
   const sectorForecast = useSpotStore((s) => s.sectorForecast);
   const windowResult = sailingWindows.get(spot.id);
   const precursor = spot.thermalDetection ? thermalPrecursors.get(spot.id) : undefined;
@@ -234,17 +237,18 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     return (
       <div className="fixed bottom-0 left-0 right-0 z-40 animate-slide-up">
         <div
+          ref={sheetRef}
           className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[55dvh] overflow-y-auto p-4"
           style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
         >
-          {/* Drag handle */}
-          <div className="flex justify-center mb-3">
+          {/* Drag handle — swipe down to dismiss */}
+          <div className="flex justify-center mb-3" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
             <div className="w-10 h-1 rounded-full bg-slate-600" />
           </div>
           {/* Close button */}
           <button
-            onClick={() => selectSpot('')}
-            className="absolute top-3 right-3 p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+            onClick={dismiss}
+            className="absolute top-3 right-3 p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="Cerrar"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

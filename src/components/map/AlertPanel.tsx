@@ -93,8 +93,9 @@ function AlertChip({ alert }: { alert: UnifiedAlert }) {
     >
       <span className="text-xs leading-none"><WeatherIcon id={alert.icon as IconId} size={12} /></span>
       <span
-        className="font-bold tracking-wide truncate max-w-[100px] md:max-w-[140px]"
+        className="font-bold tracking-wide truncate max-w-[140px] md:max-w-[200px]"
         style={{ color: colors.text }}
+        title={`${alert.title} — ${alert.detail}`}
       >
         {alert.title}
       </span>

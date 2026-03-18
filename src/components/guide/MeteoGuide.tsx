@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, memo } from 'react';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { ReadingMapSection } from './sections/ReadingMapSection';
 import { SpotScoringSection } from './sections/SpotScoringSection';
@@ -68,10 +69,12 @@ export const MeteoGuide = memo(function MeteoGuide() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, setOpen]);
 
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(open);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/98 overflow-hidden flex flex-col max-w-full">
+    <div ref={focusTrapRef} className="fixed inset-0 z-50 bg-slate-950/98 overflow-hidden flex flex-col max-w-full" role="dialog" aria-modal="true" aria-label="Guía MeteoMapGal">
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm shrink-0 max-w-full overflow-hidden">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">

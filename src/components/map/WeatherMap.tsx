@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Map, { NavigationControl } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
@@ -128,6 +128,10 @@ export function WeatherMap() {
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
+  // Track zoom level for label visibility (hide station names at low zoom to reduce clutter)
+  const [zoomLevel, setZoomLevel] = useState(activeSector.initialView.zoom);
+  const showStationLabels = zoomLevel >= 11;
+
   // Cross-deselection: only one popup at a time (station XOR buoy XOR spot).
   // Track previous values to detect which one changed (= new selection wins).
   const prevBuoyRef = useRef<number | null>(null);
@@ -212,6 +216,7 @@ export function WeatherMap() {
         maxPitch={85}
         onClick={handleMapClick}
         onLoad={handleMapLoad}
+        onZoomEnd={(e) => setZoomLevel(Math.round(e.viewState.zoom * 10) / 10)}
       >
         <NavigationControl position="top-right" visualizePitch />
 
@@ -252,6 +257,7 @@ export function WeatherMap() {
               station={station}
               reading={currentReadings.get(station.id)}
               isSelected={station.id === selectedStationId}
+              showLabel={showStationLabels}
             />
           )
         )}

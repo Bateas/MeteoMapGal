@@ -50,6 +50,7 @@ export function ReadingMapSection() {
       {/* Station markers */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Marcadores de estación</h3>
+        <p className="text-xs text-slate-400">Los nombres de estación se muestran al hacer zoom. Aleja para ver solo los marcadores sin solapamiento de texto.</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <ExplainerCard
             title="Estación de viento"
@@ -250,7 +251,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="sailboat"
             title="Spots de navegación"
-            text="Clic en el marcador del spot para ver popup con veredicto, viento (kt), oleaje, T agua, patrón detectado y resumen. Score 0-100 por zona. GO≥50, MARGINAL≥25. En móvil: panel inferior deslizante."
+            text="Clic en el marcador del spot para ver popup con veredicto, viento (kt), oleaje, T agua, patrón detectado y resumen. Score 0-100 por zona. GO≥50, MARGINAL≥25. En móvil: panel inferior deslizable (arrastra hacia abajo para cerrar)."
           />
           <MiniExplainer
             iconId="wind"
