@@ -105,9 +105,9 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           MeteoMapGal
           <span className="text-[9px] font-normal text-slate-600 ml-1">v{APP_VERSION}</span>
         </h1>
-        {/* Sector selector — prominent on mobile, label on desktop */}
+        {/* Sector selector — compact on mobile (icon-only for inactive), label on desktop */}
         {isMobile ? (
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
             {SECTORS.map((sector) => {
               const isActive = sector.id === activeSector.id;
               return (
@@ -115,27 +115,34 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   key={sector.id}
                   onClick={() => switchSector(sector.id)}
                   aria-label={`Cambiar a sector ${sector.name}`}
-                  className={`flex items-center gap-1 rounded-lg font-bold text-[11px] px-2 py-1.5 border transition-all min-h-[36px]
+                  className={`flex items-center gap-1 rounded-lg font-bold border transition-all min-h-[36px]
                     ${isActive
-                      ? 'bg-blue-600 text-white border-blue-400/60 shadow-sm shadow-blue-500/20'
-                      : 'bg-slate-800/80 text-slate-500 border-slate-700/50 active:bg-slate-700'
+                      ? 'text-[11px] px-2 py-1.5 bg-blue-600 text-white border-blue-400/60 shadow-sm shadow-blue-500/20'
+                      : 'px-2 py-1.5 bg-slate-800/80 text-slate-500 border-slate-700/50 active:bg-slate-700'
                   }`}
                 >
                   <WeatherIcon id={sector.icon} size={14} />
-                  <span className="max-w-[4rem] truncate">{sector.shortName}</span>
+                  {isActive && <span className="truncate max-w-[3.5rem]">{sector.shortName}</span>}
                 </button>
               );
             })}
+            {stationCount > 0 && (
+              <span className="bg-slate-800 text-slate-400 rounded text-[9px] px-1 py-0.5 flex-shrink-0">
+                {readingCount}/{stationCount}
+              </span>
+            )}
           </div>
         ) : (
-          <span className="text-[10px] text-slate-500 font-medium truncate inline-flex items-center gap-1">
-            <WeatherIcon id={activeSector.icon} size={12} /> {activeSector.name}
-          </span>
-        )}
-        {stationCount > 0 && (
-          <span className={`bg-slate-800 text-slate-400 rounded flex-shrink-0 ${isMobile ? 'text-[9px] px-1 py-0.5' : 'text-[10px] px-1.5 py-0.5'}`}>
-            {readingCount}/{stationCount}
-          </span>
+          <>
+            <span className="text-[10px] text-slate-500 font-medium truncate inline-flex items-center gap-1">
+              <WeatherIcon id={activeSector.icon} size={12} /> {activeSector.name}
+            </span>
+            {stationCount > 0 && (
+              <span className="bg-slate-800 text-slate-400 rounded text-[10px] px-1.5 py-0.5 flex-shrink-0">
+                {readingCount}/{stationCount}
+              </span>
+            )}
+          </>
         )}
         {/* Source status — hide on mobile */}
         {!isMobile && <SourceStatusIndicator />}
