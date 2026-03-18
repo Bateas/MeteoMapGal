@@ -18,7 +18,7 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 - **React 19.2 + TypeScript 5.9 + Vite 7.3 + Tailwind CSS 4.2**
 - **MapLibre GL JS 5.19** (react-map-gl/maplibre) with 3D terrain
 - **Zustand 5** for state (12 stores: weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy, mapStyle)
-- **Vitest 4** with 163 tests across 8 test files
+- **Vitest 4** with 172 tests across 10 test files
 - **Six real-time sources**: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo, SkyX
 - **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), Lightning (meteo2api), AEMET Radar (Cuntis), EUMETSAT satellite, ENAIRE airspace, IHM tides, Puertos del Estado (marine buoys), Observatorio Costeiro da Xunta (supplementary buoy data — humidity, dew point, 10min resolution), RADAR ON RAIA / INTECMAR (HF radar surface currents WMS — Rías only), CMEMS / Copernicus Marine (SST WMTS tiles — Rías only), OpenSeaMap (seamark overlay — Rías only), IHM ENC (official nautical charts WMS — Rías only)
 - **Map base styles**: 6 switchable base maps via `mapStyleStore` — OSM, Positron (light), Dark Matter, Voyager, IGN Topográfico, IGN Base Gris. All free, no API keys. Dynamic `buildMapStyle()` rebuilds full MapLibre StyleSpecification on switch
@@ -105,7 +105,7 @@ npm test              # Vitest in watch mode
 npx vitest run        # Single run (CI)
 ```
 
-163 tests across 8 files: `normalizer.test.ts`, `windUtils.test.ts`, `alertService.test.ts`, `thermalScoringEngine.test.ts`, `toastStore.test.ts`, `csvUtils.test.ts`, `airspaceService.test.ts`, `ConditionsTicker.test.tsx`. Config in `vite.config.ts` (`test` block) with jsdom environment and `src/test/setup.ts`.
+172 tests across 10 files: `normalizer.test.ts`, `windUtils.test.ts`, `alertService.test.ts`, `thermalScoringEngine.test.ts`, `toastStore.test.ts`, `csvUtils.test.ts`, `airspaceService.test.ts`, `ConditionsTicker.test.tsx`, `MobileSailingBanner.test.tsx`, `Header.test.tsx`. Config in `vite.config.ts` (`test` block) with jsdom environment and `src/test/setup.ts`.
 
 ## Deployment
 
