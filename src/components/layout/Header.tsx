@@ -103,7 +103,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
 
         <h1 className="text-sm md:text-base font-bold text-white tracking-tight flex-shrink-0">
           MeteoMapGal
-          <span className="text-[9px] font-normal text-slate-600 ml-1 hidden md:inline">v{APP_VERSION}</span>
+          <span className="text-[9px] font-normal text-slate-600 ml-1">v{APP_VERSION}</span>
         </h1>
         {/* Sector selector — prominent on mobile, label on desktop */}
         {isMobile ? (
