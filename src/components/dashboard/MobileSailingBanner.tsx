@@ -3,7 +3,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useAlertStore } from '../../store/alertStore';
 import { getSpotsForSector } from '../../config/spots';
-import { VERDICT_STYLE } from './SpotSelector';
+import { VERDICT_STYLE } from '../../config/verdictStyles';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { useUIStore } from '../../store/uiStore';
 
