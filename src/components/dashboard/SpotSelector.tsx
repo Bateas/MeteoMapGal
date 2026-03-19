@@ -18,8 +18,9 @@ import type { SpotWindowResult } from '../../services/sailingWindowService';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import { waterTempColor } from '../../services/buoyUtils';
 
-// Re-export for backward compat (moved to config/verdictStyles.ts to fix bundle splitting)
-export { VERDICT_STYLE } from '../../config/verdictStyles';
+// Moved to config/verdictStyles.ts to fix bundle splitting — import + re-export
+import { VERDICT_STYLE } from '../../config/verdictStyles';
+export { VERDICT_STYLE };
 
 // ── Main component ────────────────────────────────────────────────
 
