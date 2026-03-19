@@ -40,6 +40,9 @@ export function useWeatherData() {
   const fetchData = useCallback(async () => {
     if (stations.length === 0) return;
 
+    // Capture sector at fetch start — if it changes mid-flight, discard results
+    const fetchSectorId = activeSector.id;
+
     setLoading(true);
     setError(null);
 
@@ -167,6 +170,13 @@ export function useWeatherData() {
 
     try {
       const results = await Promise.all(tasks);
+
+      // Sector guard: if user switched sector while fetching, discard stale results
+      if (useSectorStore.getState().activeSector.id !== fetchSectorId) {
+        console.debug(`[WeatherData] Sector changed during fetch (${fetchSectorId}→${useSectorStore.getState().activeSector.id}), discarding`);
+        return;
+      }
+
       const allReadings = results.flat();
 
       if (allReadings.length > 0) {

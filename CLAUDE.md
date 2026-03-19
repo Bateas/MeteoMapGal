@@ -87,6 +87,11 @@ ingestor/
 - **Spot webcams**: `SpotWebcam` config in `spots.ts`. Phase 1: Cíes-Ría (MeteoGalicia JPG, auto-refresh) + Cesantes (tmkites stream link). Collapsible section in `SpotPopup.tsx`.
 - **Marker z-ordering**: Spot markers z-index 25 (CSS `:has(.spot-marker)`), station markers z-index 20. Station SVG `pointerEvents: none` with r=22 hit circle to avoid blocking spots.
 - **Both-sector features**: CriticalAlertBanner (top-of-screen PELIGRO banner), AlertPanel, spot-based sailing scoring.
+- **Onboarding tour**: `OnboardingTour.tsx` — 5-step first-visit walkthrough with element highlighting (pulsing ring via `data-tour` attributes). Persisted via Zustand → localStorage (`meteomap-ui`). Auto-launches 3s after first load.
+- **Geolocation auto-sector**: `geolocationService.ts` — detects user location on first visit, switches to nearest sector within 80km. Runs once per device (localStorage flag).
+- **Daily Telegram summary**: `dailySummaryService.ts` — sends morning sailing briefing at 8:00 AM via n8n webhook. Collects spots, alerts, best sailing window.
+- **Sector switch guard**: `useWeatherData` captures sector ID before fetch — discards results if sector changed mid-flight (prevents stale data injection).
+- **Wind sparkline in popups**: `StationPopup` shows 40×14px SVG trend line (last 12 readings) + ↑↓→ arrow indicator.
 
 ## Performance Rules
 
