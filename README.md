@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.23.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-1.24.3-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-185%20passed-brightgreen)](src/test/)
 [![Stations](https://img.shields.io/badge/stations-100%2B-orange)](src/api/)
@@ -54,7 +54,7 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **Humidity heatmap** | IDW-interpolated humidity layer across all stations |
 | **Temperature overlay** | Per-station temperature circles with color gradient |
 | **IR satellite** | EUMETSAT Meteosat infrared imagery, updated every 15 minutes |
-| **Precipitation radar** | AEMET Cuntis radar with time animation |
+| **Precipitation radar** | AEMET national composite radar (Cerceda/A Coruña) |
 | **Surface currents** | RADAR ON RAIA HF radar WMS overlay (Rías only) |
 | **Bathymetry** | EMODnet depth contour overlay for marine context |
 | **SST overlay** | Copernicus Marine (CMEMS) sea surface temperature WMTS tiles (Rías only) |
@@ -128,7 +128,10 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **Keyboard shortcuts** | Full keyboard navigation (W, A, T, E, B keys + more) |
 | **MeteoGuide** | 13-section in-app guide with animated diagrams (press G) |
 | **Visibility polling** | All API fetches pause in background tabs to save bandwidth |
-| **Mobile-first** | Bottom sheets, touch-optimized controls, responsive sidebar |
+| **Mobile-first** | Bottom sheets, swipe-to-dismiss, touch-optimized controls, responsive sidebar |
+| **Onboarding tour** | 5-step first-visit walkthrough with element highlighting |
+| **Share conditions** | Web Share API — share spot conditions via WhatsApp/Telegram |
+| **Geolocation** | Auto-detects nearest sector on first visit |
 
 ---
 
@@ -138,7 +141,7 @@ All data comes from **open and public sources** — no paid APIs required (only 
 
 | Source | Type | Data |
 |--------|------|------|
-| **AEMET** OpenData | Official network | ~9 stations, Cuntis precipitation radar |
+| **AEMET** OpenData | Official network | ~9 stations, national precipitation radar |
 | **MeteoGalicia** | Regional network | ~13 stations, lightning detection |
 | **Meteoclimatic** | Citizen network | ~10 stations |
 | **Weather Underground** | Personal stations | ~10 stations (auto-discovered) |
@@ -197,16 +200,24 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [x] Focus trap + ARIA roles for accessible modals
 - [x] Zoom-dependent station labels (hidden at low zoom to reduce clutter)
 - [x] Web Vitals performance monitoring (LCP, INP, CLS)
+- [x] Onboarding tour — 5-step first-visit walkthrough with element highlighting
+- [x] Geolocation auto-sector — detects nearest zone on first visit
+- [x] Share spot conditions via Web Share API (WhatsApp, Telegram, etc.)
+- [x] Ko-fi support link in MeteoGuide sidebar
+- [x] Wind sparkline + trend arrow in station popups
+- [x] Sector switch guard — discards stale fetches on sector change
+- [x] Typed Portus API responses (eliminated all `any[]`)
+- [x] Computed Zustand selectors (useMaxAlertLevel, useActiveAlerts, useStationCount)
+- [x] Daily Telegram summary service (8:00 AM morning briefing, ready for n8n)
 
 ### Planned
 
-- [ ] Daily summary Telegram bot (N2-Bot) — morning conditions report
+- [ ] N2-Bot Telegram activation — connect dailySummaryService to n8n workflow
 - [ ] Proactive spot alerts (N3-Bot) — push when spot goes from bad to good
 - [ ] New monitoring zones (A Coruña, Lugo, Costa da Morte)
 - [ ] More sailing spots (Sanxenxo, Lanzada, A Illa de Arousa, Samil)
-- [x] Ko-fi donations link + share spot conditions (Web Share API)
+- [ ] Custom alert thresholds (user-defined notifications)
 - [ ] Feedback form (in-app suggestions via n8n webhook)
-- [ ] Vision IA cross-validation with real-time alerts
 
 ---
 
@@ -302,6 +313,12 @@ Public access via Cloudflare Tunnel.
 
 ---
 
+## Support
+
+If you find MeteoMapGal useful, you can support its development:
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20MeteoMapGal-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/meteomapgal)
+
 ## License
 
 [MIT](LICENSE)
@@ -313,5 +330,5 @@ Built with the assistance of [Claude](https://claude.ai) (Anthropic).
 ---
 
 <p align="center">
-  <sub>Feito en Galicia · Datos abertos · Código aberto</sub>
+  <sub>Feito en Galicia · Datos abertos · Codigo aberto</sub>
 </p>
