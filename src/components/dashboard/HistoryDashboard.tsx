@@ -28,6 +28,7 @@ import {
 import { WindRoseHistorical } from '../charts/WindRoseHistorical';
 import { msToKnots } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 
 // ── Constants ──────────────────────────────────────────
 
@@ -130,7 +131,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
 
   // Map station IDs → human names from live weatherStore
   const liveStations = useWeatherStore((s) => s.stations);
-  const selectStation = useWeatherStore((s) => s.selectStation);
+  const selectStation = useWeatherSelectionStore((s) => s.selectStation);
   const stationInfo = useMemo(() => {
     const map = new Map<string, { name: string; source: string }>();
     for (const s of liveStations) {

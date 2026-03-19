@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MAX_HISTORY_ENTRIES } from '../config/constants';
+import { useWeatherSelectionStore } from './weatherSelectionStore';
 
 export type WeatherSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx';
 
@@ -31,11 +32,6 @@ interface WeatherState {
   // Components can use this for cheap change detection.
   readingsEpoch: number;
 
-  // UI state
-  selectedStationId: string | null;
-  highlightedStationId: string | null;
-  chartSelectedStations: string[];
-
   // Status
   lastFetchTime: Date | null;
   isLoading: boolean;
@@ -49,9 +45,6 @@ interface WeatherState {
   setStations: (stations: NormalizedStation[]) => void;
   updateReadings: (readings: NormalizedReading[]) => void;
   appendHistory: (readings: NormalizedReading[]) => void;
-  selectStation: (id: string | null) => void;
-  highlightStation: (id: string | null) => void;
-  toggleChartStation: (id: string) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   pruneHistory: () => void;
@@ -119,9 +112,6 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
   currentReadings: new Map(),
   readingHistory: new Map(),
   readingsEpoch: 0,
-  selectedStationId: null,
-  highlightedStationId: null,
-  chartSelectedStations: [],
   lastFetchTime: null,
   isLoading: false,
   error: null,
@@ -136,11 +126,10 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
         currentReadings: new Map(),
         readingHistory: new Map(),
         readingsEpoch: 0,
-        selectedStationId: null,
-        highlightedStationId: null,
-        chartSelectedStations: [],
         sourceFreshness: new Map(),
       }, undefined, 'setStations/reset');
+      // Reset selection state in the dedicated selection store
+      useWeatherSelectionStore.getState().resetSelection();
     } else {
       set({ stations }, undefined, 'setStations');
     }
@@ -236,19 +225,6 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
     }
   },
 
-  selectStation: (id) => set({ selectedStationId: id }, undefined, 'selectStation'),
-  highlightStation: (id) => set({ highlightedStationId: id }, undefined, 'highlightStation'),
-
-  toggleChartStation: (id) => {
-    const { chartSelectedStations } = get();
-    const index = chartSelectedStations.indexOf(id);
-    if (index >= 0) {
-      set({ chartSelectedStations: chartSelectedStations.filter((s) => s !== id) }, undefined, 'toggleChartStation');
-    } else {
-      set({ chartSelectedStations: [...chartSelectedStations, id] }, undefined, 'toggleChartStation');
-    }
-  },
-
   setLoading: (isLoading) => set({ isLoading }, undefined, 'setLoading'),
   setError: (error) => set({ error }, undefined, 'setError'),
 
@@ -325,3 +301,6 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
     }
   },
 }), { name: 'WeatherStore' }));
+
+// Re-export selection store for discoverability
+export { useWeatherSelectionStore } from './weatherSelectionStore';
