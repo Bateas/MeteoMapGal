@@ -100,6 +100,8 @@ ingestor/
 - **Map pan optimization**: `will-change: transform` + `contain: layout style` on marker containers. Markers get `pointer-events: none` during map movement via `movestart`/`moveend` events.
 - **Typed selectors**: `typedSelectors.ts` — `useMaxAlertLevel()`, `useActiveAlerts()`, `useStationCount()` computed selectors to avoid inline re-derivation.
 - **Typed Portus**: `PortusStationResponse`, `PortusDatoEntry`, `PortusLastDataResponse` interfaces replace `any[]` in buoyClient.
+- **Persisted preferences**: `weatherLayerStore` persists activeLayer + opacity. `uiStore` persists bathymetry/SST toggles. `mapStyleStore` persists base map + overlays. `spotStore` persists favorites. All via Zustand `persist` middleware → localStorage.
+- **AEMET Radar**: Code 'ga' NEVER existed. Galicia radar = Cerceda (A Coruña), NOT Cuntis. Use `/api/red/radar/nacional` (national composite). Regional endpoint returns 404.
 
 ## Performance Rules
 
