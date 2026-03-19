@@ -16,6 +16,7 @@
  */
 import { createSelectors } from './createSelectors';
 import { useWeatherStore } from './weatherStore';
+import { useWeatherSelectionStore } from './weatherSelectionStore';
 import { useBuoyStore } from './buoyStore';
 import { useSpotStore } from './spotStore';
 import { useSectorStore } from './sectorStore';
@@ -24,6 +25,7 @@ import { useAlertStore } from './alertStore';
 import type { AlertSeverity } from '../services/alertService';
 
 export const useWeather = createSelectors(useWeatherStore);
+export const useWeatherSelection = createSelectors(useWeatherSelectionStore);
 export const useBuoy = createSelectors(useBuoyStore);
 export const useSpot = createSelectors(useSpotStore);
 export const useSector = createSelectors(useSectorStore);
