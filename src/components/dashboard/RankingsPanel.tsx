@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import {
   msToKnots,
   windSpeedColor,
@@ -181,7 +182,7 @@ export function RankingsPanel() {
 // ── Ranking card ───────────────────────────────────────────
 
 function RankingCard({ category }: { category: RankingCategory }) {
-  const selectStation = useWeatherStore((s) => s.selectStation);
+  const selectStation = useWeatherSelectionStore((s) => s.selectStation);
 
   return (
     <div className="bg-slate-800/60 rounded-lg border border-slate-700/50 overflow-hidden">

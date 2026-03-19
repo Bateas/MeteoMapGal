@@ -3,7 +3,7 @@ import { Marker } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { WindArrow } from './WindArrow';
 import { temperatureColor, msToKnots, degreesToCardinal } from '../../services/windUtils';
-import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { STALE_THRESHOLD_MIN, OFFLINE_THRESHOLD_MIN } from '../../config/constants';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
 
@@ -50,7 +50,7 @@ function getZoomScale(zoom: number): number {
 export const StationMarker = memo(function StationMarker({
   station, reading, isSelected = false, showLabel = true, zoomLevel = 12,
 }: StationMarkerProps) {
-  const selectStation = useWeatherStore((s) => s.selectStation);
+  const selectStation = useWeatherSelectionStore((s) => s.selectStation);
   const freshnessColor = getFreshnessColor(reading);
   const freshnessOpacity = getFreshnessOpacity(reading);
   const tempColor = temperatureColor(reading?.temperature ?? null);

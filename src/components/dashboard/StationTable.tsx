@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback, useEffect, useRef, type ReactNode } fro
 
 const INITIAL_VISIBLE = 5;
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useUIStore } from '../../store/uiStore';
 import { StationCard } from './StationCard';
 import type { NormalizedStation } from '../../types/station';
@@ -29,7 +30,7 @@ const CARD_CONTAIN_STYLE: React.CSSProperties = {
 export function StationTable() {
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
-  const selectedStationId = useWeatherStore((s) => s.selectedStationId);
+  const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
   const isMobile = useUIStore((s) => s.isMobile);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 

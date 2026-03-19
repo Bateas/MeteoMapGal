@@ -7,6 +7,7 @@ import { useWeatherData } from '../../hooks/useWeatherData';
 import { LoadingScreen } from '../common/LoadingScreen';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
 import { useLightningData, useLightningStore } from '../../hooks/useLightningData';
 import { useStormShadow, useStormShadowStore } from '../../hooks/useStormShadow';
@@ -68,7 +69,7 @@ export function AppShell() {
   }, [setIsMobile, setSidebarOpen]);
 
   // Auto-close sidebar when a station is selected on mobile
-  const selectedStationId = useWeatherStore((s) => s.selectedStationId);
+  const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
   useEffect(() => {
     if (isMobile && selectedStationId) setSidebarOpen(false);
   }, [selectedStationId, isMobile, setSidebarOpen]);

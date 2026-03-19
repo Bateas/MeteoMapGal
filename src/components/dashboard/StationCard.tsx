@@ -18,6 +18,7 @@ import {
   msToKnots,
 } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { WindCompass } from '../common/WindCompass';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -128,8 +129,8 @@ function useForecastDelta(reading?: NormalizedReading) {
 }
 
 export const StationCard = memo(function StationCard({ station, reading }: StationCardProps) {
-  const selectStation = useWeatherStore((s) => s.selectStation);
-  const selectedId = useWeatherStore((s) => s.selectedStationId);
+  const selectStation = useWeatherSelectionStore((s) => s.selectStation);
+  const selectedId = useWeatherSelectionStore((s) => s.selectedStationId);
   const isSelected = selectedId === station.id;
   const trend = useWindTrend(station.id, reading?.windSpeed ?? null);
   const delta = useForecastDelta(reading);

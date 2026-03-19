@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { msToKnots } from '../../services/windUtils';
@@ -44,10 +45,10 @@ function downloadCsv(filename: string, csvContent: string) {
 }
 
 export function TimeSeriesChart() {
-  const chartStations = useWeatherStore((s) => s.chartSelectedStations);
+  const chartStations = useWeatherSelectionStore((s) => s.chartSelectedStations);
   const stations = useWeatherStore((s) => s.stations);
   const readingHistory = useWeatherStore((s) => s.readingHistory);
-  const toggleChartStation = useWeatherStore((s) => s.toggleChartStation);
+  const toggleChartStation = useWeatherSelectionStore((s) => s.toggleChartStation);
 
   const [activeMetric, setActiveMetric] = useState<MetricKey>('windSpeed');
   const [timeRange, setTimeRange] = useState(24);

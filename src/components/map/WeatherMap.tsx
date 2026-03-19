@@ -6,6 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useSectorStore } from '../../store/sectorStore';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useUIStore } from '../../store/uiStore';
 import { useMapStyleStore, getStyleDef } from '../../store/mapStyleStore';
 import { StationMarker } from './StationMarker';
@@ -106,8 +107,8 @@ export function WeatherMap() {
   const mapStyle = useMemo(() => buildMapStyle(activeStyleId), [activeStyleId]);
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
-  const selectedStationId = useWeatherStore((s) => s.selectedStationId);
-  const selectStation = useWeatherStore((s) => s.selectStation);
+  const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
+  const selectStation = useWeatherSelectionStore((s) => s.selectStation);
   const isMobile = useUIStore((s) => s.isMobile);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);

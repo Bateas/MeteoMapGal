@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, memo } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import {
   formatWindSpeed,
@@ -98,9 +99,9 @@ function usePopupWindTrend(stationId: string, currentSpeed: number | null) {
 }
 
 export const StationPopup = memo(function StationPopup({ station, reading }: StationPopupProps) {
-  const selectStation = useWeatherStore((s) => s.selectStation);
-  const toggleChartStation = useWeatherStore((s) => s.toggleChartStation);
-  const chartStations = useWeatherStore((s) => s.chartSelectedStations);
+  const selectStation = useWeatherSelectionStore((s) => s.selectStation);
+  const toggleChartStation = useWeatherSelectionStore((s) => s.toggleChartStation);
+  const chartStations = useWeatherSelectionStore((s) => s.chartSelectedStations);
   const isInChart = chartStations.includes(station.id);
   const isMobile = useUIStore((s) => s.isMobile);
   const dismiss = () => selectStation(null);
