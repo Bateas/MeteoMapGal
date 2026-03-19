@@ -10,7 +10,7 @@ import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
 import { useSectorStore } from '../../store/sectorStore';
 import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
-import { VERDICT_STYLE } from '../dashboard/SpotSelector';
+import { VERDICT_STYLE } from '../../config/verdictStyles';
 
 export const ConditionsTicker = memo(function ConditionsTicker() {
   // Typed selectors — compile error if property name is wrong (R6, prevents v1.21.0 crash)
