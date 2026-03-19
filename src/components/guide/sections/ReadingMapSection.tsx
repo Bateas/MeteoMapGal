@@ -176,7 +176,7 @@ export function ReadingMapSection() {
             iconId="radar"
             name="Radar de precipitación"
             shortcut="W ×4"
-            description="Radar AEMET de Cuntis (Galicia), radio ~240 km. Actualiza cada 10 min. Colores indican intensidad de precipitación: azul=débil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
+            description="Radar AEMET nacional (Cerceda/A Coruña incluido). Actualiza cada 10 min. Colores indican intensidad: azul=débil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
             color="#06b6d4"
           />
           <LayerCard

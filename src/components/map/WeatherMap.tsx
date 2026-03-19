@@ -299,7 +299,7 @@ export function WeatherMap() {
         {/* EUMETSAT satellite cloud imagery (inside Map for native raster rendering) */}
         <SatelliteOverlay />
 
-        {/* AEMET Radar de Cuntis — regional Galicia precipitation radar */}
+        {/* AEMET Radar nacional — includes Cerceda/A Coruña */}
         <RadarOverlay />
 
         {/* RADAR ON RAIA — HF radar surface currents (Rías Baixas only) */}
