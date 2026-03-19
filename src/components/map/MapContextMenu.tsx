@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import type maplibregl from 'maplibre-gl';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useToastStore } from '../../store/toastStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
 
@@ -25,7 +26,7 @@ export const MapContextMenu = memo(function MapContextMenu({
   const menuRef = useRef<HTMLDivElement>(null);
 
   const stations = useWeatherStore((s) => s.stations);
-  const selectStation = useWeatherStore((s) => s.selectStation);
+  const selectStation = useWeatherSelectionStore((s) => s.selectStation);
 
   // ── Open on right-click ────────────────────────────────
   const handleContextMenu = useCallback((e: maplibregl.MapMouseEvent) => {
