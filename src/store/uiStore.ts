@@ -58,7 +58,11 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'meteomap-ui',
-      partialize: (state) => ({ onboardingCompleted: state.onboardingCompleted }),
+      partialize: (state) => ({
+        onboardingCompleted: state.onboardingCompleted,
+        bathymetryVisible: state.bathymetryVisible,
+        sstVisible: state.sstVisible,
+      }),
     },
   ),
 );
