@@ -226,9 +226,9 @@ function CurrentsLegend() {
 function RadarLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> AEMET Radar de Cuntis (Galicia)</span>
+      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> AEMET Radar nacional</span>
       <div className="text-[9px] text-slate-400">
-        Radar regional cada 10 min. Radio ~240 km.
+        Radar nacional cada 10 min. Incluye Cerceda (A Coruña).
         Colores indican reflectividad (intensidad de precipitación).
       </div>
       <div className="flex items-center gap-0">

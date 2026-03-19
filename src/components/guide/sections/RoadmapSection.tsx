@@ -121,7 +121,8 @@ export function RoadmapSection() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
           >
-            <span>☕</span> ko-fi.com/meteomapgal
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+            ko-fi.com/meteomapgal
           </a>
         </div>
       </div>
@@ -156,7 +157,7 @@ export function RoadmapSection() {
           </h3>
           <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
             <SourceRow letter="O" name="Open-Meteo" desc="Modelo numérico (ECMWF/GFS) — previsión horaria" color="#06b6d4" />
-            <SourceRow letter="R" name="AEMET Radar" desc="Radar de precipitación de Cuntis" color="#ec4899" />
+            <SourceRow letter="R" name="AEMET Radar" desc="Radar nacional (Cerceda/A Coruña)" color="#ec4899" />
             <SourceRow letter="S" name="EUMETSAT" desc="Satélite Meteosat — imagen infrarroja" color="#8b5cf6" />
             <SourceRow letter="L" name="MeteoGalicia" desc="Red de detección de rayos" color="#f43f5e" />
             <SourceRow letter="E" name="ENAIRE" desc="Espacio aéreo y NOTAMs para drones" color="#6366f1" />
