@@ -17,7 +17,7 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 
 - **React 19.2 + TypeScript 5.9 + Vite 7.3 + Tailwind CSS 4.2**
 - **MapLibre GL JS 5.19** (react-map-gl/maplibre) with 3D terrain
-- **Zustand 5** for state (13 stores: weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy, mapStyle)
+- **Zustand 5** for state (14 stores: weather, weatherSelection, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy, mapStyle)
 - **Vitest 4** with 185 tests across 11 test files
 - **Six real-time sources**: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo, SkyX
 - **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), Lightning (meteo2api), AEMET Radar (national composite, Cerceda/A Coruña), EUMETSAT satellite, ENAIRE airspace, IHM tides, Puertos del Estado (marine buoys), Observatorio Costeiro da Xunta (supplementary buoy data — humidity, dew point, 10min resolution), RADAR ON RAIA / INTECMAR (HF radar surface currents WMS — Rías only), CMEMS / Copernicus Marine (SST WMTS tiles — Rías only), OpenSeaMap (seamark overlay — Rías only), IHM ENC (official nautical charts WMS — Rías only)
@@ -53,7 +53,7 @@ src/
 ├── config/           # Constants, thermal zones, source config
 ├── hooks/            # useWeatherData, useStations, useThermalAnalysis, useLightningData, useStormShadow, useForecastTimeline, useAutoRefresh
 ├── services/         # Business logic (see src/services/CLAUDE.md)
-├── store/            # Zustand stores (weather, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy, mapStyle)
+├── store/            # Zustand stores (weather, weatherSelection, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy, mapStyle)
 ├── test/             # Test setup (vitest + jsdom + @testing-library)
 └── types/            # TypeScript types
 ```
@@ -79,7 +79,7 @@ ingestor/
 - **MapLibre `beforeId`**: `beforeId="base-tiles"` on raster layers hides them below base tiles. Omit it. Source/layer IDs are `base-tiles` (not `osm-tiles`) since style is now dynamic.
 - **Vite HMR caching**: New `.tsx` files may require dev server restart.
 - **Wind particle SPEED_SCALE**: At Galician scale (~50km viewport), use 0.0006. Values >0.001 produce unnaturally fast particles; real scale (~0.00000014) is impractical.
-- **Sector switch cleanup**: `setStations([])` triggers full state reset (readings, history, selections, sourceFreshness). Fetch flags in `useWeatherData` also reset.
+- **Sector switch cleanup**: `setStations([])` triggers full state reset (readings, history, sourceFreshness) + `weatherSelectionStore.resetSelection()`. Fetch flags in `useWeatherData` also reset.
 - **Embalse-only features**: Thermal zones, forecast timeline, thermal panel, sailing banner, and propagation arrows are conditionally rendered only when `activeSector.id === 'embalse'`.
 - **Rías-only features**: BuoyPanel (marine buoys from Puertos del Estado + Observatorio Costeiro) in Stations tab, tide predictions (IHM), surface currents overlay (RADAR ON RAIA), bathymetry overlay (EMODnet), SST overlay (CMEMS WMTS), OpenSeaMap seamarks, IHM nautical chart overlay. Rendered when `activeSector.id === 'rias'`.
 - **Map style selector**: `MapStyleSelector` component with `mapStyleStore` (persisted). Nautical overlay toggles (OpenSeaMap, IHM ENC) only visible in Rías sector. IGN overlays (Ortofotos PNOA, Sombreado MDT, Curvas de nivel) available in both sectors. All raster overlays have `minzoom` optimized to avoid wasted tile requests.
@@ -98,7 +98,9 @@ ingestor/
 - **Zoom-scale markers**: Stations/buoys scale 0.45→1.0 (zoom 9.5→12). Spots always 100%. Wind arrows hidden below zoom 11.
 - **Header visual hierarchy**: 3-tier design — nav buttons (hamburger/guide) transparent, sector buttons blue glow when active + dashed when inactive, Panel button color-coded by alert level.
 - **Map pan optimization**: `will-change: transform` + `contain: layout style` on marker containers. Markers get `pointer-events: none` during map movement via `movestart`/`moveend` events.
-- **Typed selectors**: `typedSelectors.ts` — `useMaxAlertLevel()`, `useActiveAlerts()`, `useStationCount()` computed selectors to avoid inline re-derivation.
+- **Typed selectors**: `typedSelectors.ts` — `useMaxAlertLevel()`, `useActiveAlerts()`, `useStationCount()`, `useWeatherSelection()` computed selectors to avoid inline re-derivation.
+- **weatherSelectionStore**: Split from weatherStore (R1). UI selection state (selectedStationId, highlightedStationId, chartSelectedStations) lives here. weatherStore is data-only.
+- **Alert service modular**: `src/services/alerts/` — split from 626-line monolith into 7 files: types, riskEngine, stormAlerts, thermalAlerts, fieldAlerts, aggregator, index. Original `alertService.ts` is now a 20-line re-export barrel.
 - **Typed Portus**: `PortusStationResponse`, `PortusDatoEntry`, `PortusLastDataResponse` interfaces replace `any[]` in buoyClient.
 - **Persisted preferences**: `weatherLayerStore` persists activeLayer + opacity. `uiStore` persists bathymetry/SST toggles. `mapStyleStore` persists base map + overlays. `spotStore` persists favorites. All via Zustand `persist` middleware → localStorage.
 - **AEMET Radar**: Code 'ga' NEVER existed. Galicia radar = Cerceda (A Coruña), NOT Cuntis. Use `/api/red/radar/nacional` (national composite). Regional endpoint returns 404.
@@ -109,7 +111,7 @@ ingestor/
 - **New overlays MUST be toggle-guarded**: MapLibre layers should not render when their toggle is off. Use `if (!isActive) return null`.
 - **New sidebar components MUST be `React.lazy`**: Any component >5KB in sidebar tabs must be lazy-loaded (8 in Sidebar + 2 in FieldDrawer already lazy: TidePanel, AtmosphericProfile).
 - **Pure computation services = low impact**: Alert services that compute from existing data (no new fetches, no new intervals) are safe to add. Examples: pressureTrendService, maritimeFogService, crossSeaService.
-- **Avoid adding stores to AppShell.tsx**: Already has 13 store subscriptions (24 selectors, 349 lines). Consider extracting to a dedicated hook if more are needed.
+- **Avoid adding stores to AppShell.tsx**: Already has 14 store subscriptions. Consider extracting to a dedicated hook if more are needed.
 - **Canvas animation = O(1) per entity**: Wind particles use pre-computed 24×24 grid. Never do per-pixel/per-particle IDW in animation loops.
 - **Bundle**: Main chunk ~564KB gzip 183KB. Heavy data (aemetDailyHistory 501KB) already lazy via `import()`. Recharts (420KB) lazy via React.lazy tabs.
 

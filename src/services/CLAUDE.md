@@ -20,7 +20,13 @@ Pure functions and algorithms used across the app. No React dependencies.
 ## Alert Systems
 
 - **`fieldAlertEngine.ts`** — Agricultural alert checks: frost (helada), rain, fog/dew, wind propagation. Returns severity levels (none/low/medium/high/critical).
-- **`alertService.ts`** — `aggregateAllAlerts()` merges storm alerts, thermal profile, zone alerts, field alerts, and forecast into unified risk level.
+- **`alertService.ts`** — Re-export barrel for modular `alerts/` directory:
+  - `alerts/types.ts` — AlertCategory, AlertSeverity, UnifiedAlert, CompositeRisk, CATEGORY_WEIGHT
+  - `alerts/riskEngine.ts` — severityFromScore(), colorFromSeverity(), computeCompositeRisk()
+  - `alerts/stormAlerts.ts` — buildStormAlerts(), buildStormShadowAlerts()
+  - `alerts/thermalAlerts.ts` — buildInversionAlerts(), buildThermalAlerts()
+  - `alerts/fieldAlerts.ts` — buildFieldAlerts()
+  - `alerts/aggregator.ts` — aggregateAllAlerts(), deduplicateByCategory(), enrichPressureAlerts()
 - **`notificationService.ts`** — Browser push notifications + audio alerts for escalated alerts.
 - **`stormTracker.ts`** — Lightning proximity analysis: danger <10km, warning <25km, watch <50km from reservoir center.
 - **`stormShadowDetector.ts`** — Detects storm cloud presence by analyzing solar radiation drops across stations, cross-referenced with lightning data and wind anomalies (gust fronts). Estimates storm position, movement vector, and approach to Castrelo.
