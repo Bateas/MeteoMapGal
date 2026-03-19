@@ -92,6 +92,14 @@ ingestor/
 - **Daily Telegram summary**: `dailySummaryService.ts` — sends morning sailing briefing at 8:00 AM via n8n webhook. Collects spots, alerts, best sailing window.
 - **Sector switch guard**: `useWeatherData` captures sector ID before fetch — discards results if sector changed mid-flight (prevents stale data injection).
 - **Wind sparkline in popups**: `StationPopup` shows 40×14px SVG trend line (last 12 readings) + ↑↓→ arrow indicator.
+- **Favorite spots**: Star ★ button in `SpotPopup` + `SpotSelector` header. Persisted in `spotStore` → localStorage.
+- **Share conditions**: Web Share API in `SpotPopup` — shares spot name, wind, verdict, temp. Falls back to clipboard.
+- **Ko-fi donations**: SVG cup icon (no emoji). Prominent card in MeteoGuide sidebar + link in main sidebar footer.
+- **Zoom-scale markers**: Stations/buoys scale 0.45→1.0 (zoom 9.5→12). Spots always 100%. Wind arrows hidden below zoom 11.
+- **Header visual hierarchy**: 3-tier design — nav buttons (hamburger/guide) transparent, sector buttons blue glow when active + dashed when inactive, Panel button color-coded by alert level.
+- **Map pan optimization**: `will-change: transform` + `contain: layout style` on marker containers. Markers get `pointer-events: none` during map movement via `movestart`/`moveend` events.
+- **Typed selectors**: `typedSelectors.ts` — `useMaxAlertLevel()`, `useActiveAlerts()`, `useStationCount()` computed selectors to avoid inline re-derivation.
+- **Typed Portus**: `PortusStationResponse`, `PortusDatoEntry`, `PortusLastDataResponse` interfaces replace `any[]` in buoyClient.
 
 ## Performance Rules
 
