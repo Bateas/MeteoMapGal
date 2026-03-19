@@ -121,6 +121,43 @@ export const BUOY_COORDS_MAP = new Map(
   RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]),
 );
 
+// ── Portus API response types ────────────────────────────
+
+/** Station object returned by /estaciones/rt/{category} endpoint */
+interface PortusStationResponse {
+  id: number;
+  nombre: string;
+  latitud: number;
+  longitud: number;
+  red?: { descripcion?: string; tipoRed?: string };
+  tipoSensor?: string;
+  cadencia?: number;
+  disponible?: boolean;
+  altitudProfundidad?: number;
+}
+
+/** Individual data point within lastData response */
+interface PortusDatoEntry {
+  /** ESEOO parameter name: Hm0, Tp, WindSpeed, WaterTemp, etc. */
+  paramEseoo: string;
+  /** Integer-encoded value (divide by factor for real units) */
+  valor: string;
+  /** Divisor to convert integer to real value (default: 1) */
+  factor?: number;
+  /** True if sensor is broken / data invalid */
+  averia?: boolean;
+  /** Quality control flag (non-null = suspect data) */
+  paramQC?: string | number | null;
+}
+
+/** Response from POST /lastData/station/{id} endpoint */
+interface PortusLastDataResponse {
+  /** ISO timestamp of the reading */
+  fecha: string;
+  /** Array of parameter readings for the station */
+  datos: PortusDatoEntry[];
+}
+
 // ── Helpers ──────────────────────────────────────────────
 
 /**
@@ -175,7 +212,7 @@ async function portusGet<T>(path: string, attempt = 0): Promise<T> {
  * Categories: WAVE, WIND, SEA_LEVEL, WATER_TEMP, AIR_TEMP, CURRENTS, SALINITY
  */
 export async function fetchBuoyStations(category: string = 'WAVE'): Promise<BuoyStation[]> {
-  const raw = await portusGet<any[]>(`/estaciones/rt/${category}?locale=es`);
+  const raw = await portusGet<PortusStationResponse[]>(`/estaciones/rt/${category}?locale=es`);
 
   return raw.map((s) => ({
     id: s.id,
@@ -197,7 +234,7 @@ export async function fetchBuoyStations(category: string = 'WAVE'): Promise<Buoy
 export async function fetchBuoyLastReading(stationId: number, stationName?: string): Promise<BuoyReading | null> {
   try {
     const categories = ['WAVE', 'WIND', 'WATER_TEMP', 'AIR_TEMP', 'SEA_LEVEL', 'CURRENTS', 'SALINITY'];
-    const result = await portusPost<{ fecha: string; datos: any[] }>(
+    const result = await portusPost<PortusLastDataResponse>(
       `/lastData/station/${stationId}?locale=es`,
       categories
     );
