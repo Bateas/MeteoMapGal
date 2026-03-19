@@ -22,6 +22,7 @@ const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default
 import { ToastContainer } from '../common/ToastContainer';
 import { OnboardingTour } from '../common/OnboardingTour';
 import { shouldSendDailySummary, sendDailySummary } from '../../services/dailySummaryService';
+import { tryAutoSector } from '../../services/geolocationService';
 import { ConditionsTicker } from '../common/ConditionsTicker';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { processAlertNotifications } from '../../services/notificationService';
@@ -146,6 +147,9 @@ export function AppShell() {
     const t = setTimeout(() => setShowLoading(false), remaining);
     return () => clearTimeout(t);
   }, [readingsCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Geolocation auto-sector (runs once per device, first visit only)
+  useEffect(() => { tryAutoSector(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prune stale reading history every 30 min (entries > 24h old) + daily summary check
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
