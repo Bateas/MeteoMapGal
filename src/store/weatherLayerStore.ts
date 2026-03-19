@@ -42,6 +42,7 @@ export const useWeatherLayerStore = create<WeatherLayerState>()(
       {
         name: 'meteomap-layer-prefs',
         partialize: (state) => ({
+          activeLayer: state.activeLayer,
           layerOpacity: state.layerOpacity,
         }),
       },
