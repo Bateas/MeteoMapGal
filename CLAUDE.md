@@ -45,7 +45,7 @@ src/
 ├── api/              # API clients (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, Open-Meteo, lightning, radar, webhook, buoys, Obs Costeiro, history, stationDiscovery, openMeteoQueue)
 ├── components/
 │   ├── charts/       # Recharts visualizations (TimeSeriesChart, WindRose, WindRoseHistorical, ForecastTimeline, ThermalWindPanel, BestDaysSearch)
-│   ├── common/       # Shared UI (LoadingSpinner, ErrorBoundary, ToastContainer, KeyboardShortcutHelp, SourceStatusIndicator)
+│   ├── common/       # Shared UI (LoadingSpinner, ErrorBoundary, ToastContainer, KeyboardShortcutHelp, SourceStatusIndicator, SourceStatusBanner)
 │   ├── dashboard/    # Sidebar components (StationCard, StationTable, BuoyPanel, HistoryDashboard)
 │   ├── guide/        # MeteoGuide modal + 13 section pages (thermal, zones, sailing, spots, campo, history, glossary, etc.)
 │   ├── layout/       # AppShell, Header, Sidebar, FieldDrawer
@@ -109,6 +109,9 @@ ingestor/
 - **Typed Portus**: `PortusStationResponse`, `PortusDatoEntry`, `PortusLastDataResponse` interfaces replace `any[]` in buoyClient.
 - **Persisted preferences**: `weatherLayerStore` persists activeLayer + opacity. `uiStore` persists bathymetry/SST toggles. `mapStyleStore` persists base map + overlays. `spotStore` persists favorites. All via Zustand `persist` middleware → localStorage.
 - **AEMET Radar**: Code 'ga' NEVER existed. Galicia radar = Cerceda (A Coruña), NOT Cuntis. Use `/api/red/radar/nacional` (national composite). Regional endpoint returns 404.
+- **Source status banner**: `SourceStatusBanner.tsx` — amber warning bar below header when critical sources (AEMET/MG) are down >10min. Auto-dismisses on recovery. Dismissible by user. `role="alert"` + `aria-live="polite"`.
+- **Skip-to-content**: `<a href="#main-map">` in AppShell — `sr-only` until keyboard-focused, then visible at z-60.
+- **Keyboard accessibility**: All interactive `<div>`s have `onKeyDown` (Enter/Space), `tabIndex`, `role="button"`. Backdrop overlays have Escape handlers.
 
 ## Performance Rules
 
@@ -118,7 +121,7 @@ ingestor/
 - **Pure computation services = low impact**: Alert services that compute from existing data (no new fetches, no new intervals) are safe to add. Examples: pressureTrendService, maritimeFogService, crossSeaService.
 - **Avoid adding stores to AppShell.tsx**: Already has 14 store subscriptions. Consider extracting to a dedicated hook if more are needed.
 - **Canvas animation = O(1) per entity**: Wind particles use pre-computed 24×24 grid. Never do per-pixel/per-particle IDW in animation loops.
-- **Bundle**: Main chunk ~564KB gzip 183KB. Heavy data (aemetDailyHistory 501KB) already lazy via `import()`. Recharts (420KB) lazy via React.lazy tabs.
+- **Bundle**: Main chunk ~658KB gzip 210KB. Heavy data (aemetDailyHistory 501KB) already lazy via `import()`. Recharts (412KB) lazy via React.lazy tabs.
 
 ## Testing
 
