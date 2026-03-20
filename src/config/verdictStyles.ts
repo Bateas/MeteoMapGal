@@ -9,3 +9,9 @@ export const VERDICT_STYLE: Record<SpotVerdict, { label: string; bg: string; bor
   strong:  { label: 'Fuerte',    bg: 'bg-cyan-500/10',    border: 'border-cyan-500/40',    text: 'text-cyan-400',    dot: 'bg-cyan-400' },
   unknown: { label: 'Sin datos', bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400',   dot: 'bg-slate-400' },
 };
+
+/** Verdict hex colors for inline styles (popups, comparator badges). Single source of truth. */
+export const VERDICT_HEX: Record<SpotVerdict, string> = {
+  calm: '#94a3b8', light: '#38bdf8', sailing: '#fbbf24',
+  good: '#34d399', strong: '#22d3ee', unknown: '#64748b',
+};
