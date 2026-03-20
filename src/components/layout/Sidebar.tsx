@@ -4,6 +4,9 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { SkeletonLoader } from '../common/SkeletonLoader';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
+import { useWeatherStore } from '../../store/weatherStore';
+import { useBuoyStore } from '../../store/buoyStore';
+import { downloadGeoJSON } from '../../services/exportService';
 
 const StationTable = lazy(() =>
   import('../dashboard/StationTable').then((m) => ({ default: m.StationTable })),
@@ -180,8 +183,23 @@ export function Sidebar() {
         </Suspense>
       </div>
 
-      {/* Footer: Feedback + Ko-fi */}
+      {/* Footer: Export + Feedback + Ko-fi */}
       <div className="flex gap-1.5 mx-3 mb-2 shrink-0">
+        <button
+          onClick={() => {
+            const { stations, currentReadings } = useWeatherStore.getState();
+            const buoys = useBuoyStore.getState().readings;
+            const sector = useSectorStore.getState().activeSector;
+            downloadGeoJSON(stations, currentReadings, buoys, sector.name);
+          }}
+          className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg
+            border border-slate-700/40 text-slate-500 text-[10px]
+            hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-slate-800/60
+            transition-all"
+          title="Exportar datos GeoJSON"
+        >
+          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
         <button
           onClick={() => useUIStore.getState().setFeedbackOpen(true)}
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
