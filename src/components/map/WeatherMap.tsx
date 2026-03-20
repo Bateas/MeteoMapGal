@@ -190,13 +190,19 @@ export function WeatherMap() {
   // so the linter sees all values used inside the effect are listed.
   }, [activeSector.id, activeSector.initialView]);
 
-  /** Fly to a specific target (triggered from FieldDrawer zone click). */
+  /** Fly to a specific target (triggered from FieldDrawer zone click / SpotComparator). */
   useEffect(() => {
     if (!flyToTarget) return;
     const map = mapRef.current;
     if (!map) return;
+    const { lon, lat } = flyToTarget;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      console.warn('[WeatherMap] Invalid flyToTarget coords:', lon, lat);
+      setFlyToTarget(null);
+      return;
+    }
     map.flyTo({
-      center: [flyToTarget.lon, flyToTarget.lat],
+      center: [lon, lat],
       zoom: flyToTarget.zoom ?? 12,
       duration: 1500,
     });
@@ -328,7 +334,7 @@ export function WeatherMap() {
         )}
 
         {/* Selected spot popup */}
-        {showSpotPopup && activeSpot && (
+        {showSpotPopup && activeSpot && Number.isFinite(activeSpot.center?.[0]) && (
           <SpotPopup spot={activeSpot} score={spotScores.get(activeSpotId)} />
         )}
 

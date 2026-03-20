@@ -27,6 +27,9 @@ const RIAS_LON = -8.68;
 /** Poll every 30 min */
 const POLL_INTERVAL_MS = 30 * 60_000;
 
+/** Cooldown after 429 error — skip polls for 5 min */
+let rateLimitedUntil = 0;
+
 /** Forecast hours to fetch */
 const FORECAST_HOURS = 48;
 
@@ -90,6 +93,9 @@ export function useSailingWindows() {
   const thermalRules = useThermalStore((s) => s.rules);
 
   const poll = useCallback(async () => {
+    // Skip if rate-limited recently
+    if (Date.now() < rateLimitedUntil) return;
+
     try {
       let forecast: HourlyForecast[];
 
@@ -121,7 +127,13 @@ export function useSailingWindows() {
       const totalWindows = Array.from(windows.values()).reduce((s, w) => s + w.windows.length, 0);
       console.log(`[SailingWindows] Computed ${totalWindows} windows for ${spots.length} spots`);
     } catch (err) {
-      console.error('[SailingWindows] Error:', err);
+      const msg = (err as Error).message ?? '';
+      if (msg.includes('429')) {
+        rateLimitedUntil = Date.now() + 5 * 60_000; // 5 min cooldown
+        console.warn('[SailingWindows] Rate limited, cooldown 5min');
+      } else {
+        console.error('[SailingWindows] Error:', err);
+      }
     }
   }, [sectorId, embalseHourly, thermalRules, setSailingWindows, setSectorForecast]);
 
