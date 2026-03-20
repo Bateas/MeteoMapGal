@@ -35,8 +35,11 @@ const RankingsPanel = lazy(() =>
 const ForecastVerification = lazy(() =>
   import('../dashboard/ForecastVerification').then((m) => ({ default: m.ForecastVerification })),
 );
+const SpotComparator = lazy(() =>
+  import('../dashboard/SpotComparator').then((m) => ({ default: m.SpotComparator })),
+);
 
-type Tab = 'stations' | 'chart' | 'forecast' | 'thermal' | 'history' | 'rankings' | 'verify';
+type Tab = 'stations' | 'chart' | 'compare' | 'forecast' | 'thermal' | 'history' | 'rankings' | 'verify';
 
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
@@ -80,6 +83,15 @@ export function Sidebar() {
           className={`${tabBase} ${activeTab === 'chart' ? tabOn('border-blue-500') : tabOff}`}
         >
           Gráfica
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'compare'}
+          aria-controls="tabpanel-compare"
+          onClick={() => setActiveTab('compare')}
+          className={`${tabBase} ${activeTab === 'compare' ? tabOn('border-cyan-500') : tabOff}`}
+        >
+          Comparar
         </button>
         {isEmbalse && (
           <button
@@ -153,6 +165,11 @@ export function Sidebar() {
           {activeTab === 'chart' && (
             <ErrorBoundary section="Gráfica">
               <TimeSeriesChart />
+            </ErrorBoundary>
+          )}
+          {activeTab === 'compare' && (
+            <ErrorBoundary section="Comparador">
+              <SpotComparator />
             </ErrorBoundary>
           )}
           {activeTab === 'forecast' && (
