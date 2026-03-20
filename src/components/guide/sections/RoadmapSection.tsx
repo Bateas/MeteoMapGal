@@ -90,6 +90,18 @@ export function RoadmapSection() {
           desc="Descarga estaciones y boyas como archivo GeoJSON para QGIS u otras herramientas GIS."
           status="done"
         />
+        <TimelineMilestone
+          iconId="alert-triangle"
+          title="Avisos proactivos de viento"
+          desc="Notificaci&oacute;n autom&aacute;tica cuando un spot pasa de calma a condiciones navegables. Telegram + push en navegador."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="info"
+          title="Banner de estado de fuentes"
+          desc="Aviso visual cuando AEMET, MeteoGalicia u otras fuentes no responden. Datos parciales indicados."
+          status="done"
+        />
 
         {/* Nota beta */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">

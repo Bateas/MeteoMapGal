@@ -26,6 +26,7 @@ import { OnboardingTour } from '../common/OnboardingTour';
 import { shouldSendDailySummary, sendDailySummary } from '../../services/dailySummaryService';
 import { tryAutoSector } from '../../services/geolocationService';
 import { ConditionsTicker } from '../common/ConditionsTicker';
+import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { processAlertNotifications } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
@@ -297,6 +298,13 @@ export function AppShell() {
 
   return (
     <div className="h-screen-safe w-full flex flex-col bg-slate-950 text-white overflow-hidden">
+      {/* Skip to content — visible only on keyboard focus */}
+      <a
+        href="#main-map"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-lg focus:text-sm focus:font-bold"
+      >
+        Saltar al mapa
+      </a>
       <Header
         onRefresh={forceRefresh}
         fieldDrawerOpen={fieldDrawerOpen}
@@ -311,6 +319,7 @@ export function AppShell() {
       />
 
       <ErrorBoundary section="Ticker"><ConditionsTicker /></ErrorBoundary>
+      <SourceStatusBanner />
 
       <div className="flex-1 flex overflow-hidden relative">
         {/* Desktop sidebar: always visible */}
@@ -328,6 +337,8 @@ export function AppShell() {
             <div
               className="fixed inset-0 bg-black/60 z-30 transition-opacity"
               onClick={() => setSidebarOpen(false)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setSidebarOpen(false); }}
+              role="presentation"
             />
             <aside className="fixed inset-y-0 left-0 z-40 w-72 bg-slate-900 shadow-2xl flex flex-col overflow-hidden animate-slide-in-left">
               {/* Close button */}
@@ -345,7 +356,7 @@ export function AppShell() {
           </>
         )}
 
-        <main className={`flex-1 relative isolate transition-opacity duration-1000 ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
+        <main id="main-map" className={`flex-1 relative isolate transition-opacity duration-1000 ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
           <ErrorBoundary section="Mapa">
             <WeatherMap />
           </ErrorBoundary>

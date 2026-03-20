@@ -175,6 +175,8 @@ function SpotCard({
         {/* Favorite star */}
         <span
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onToggleFavorite(); } }}
+          tabIndex={0}
           className={`text-sm cursor-pointer transition-colors ${isFavorite ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'}`}
           title={isFavorite ? 'Quitar de favorito' : 'Marcar como favorito'}
           role="button"
