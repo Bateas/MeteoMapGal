@@ -15,8 +15,10 @@ interface UIState {
   bathymetryVisible: boolean;
   sstVisible: boolean;
   flyToTarget: FlyToTarget | null;
+  feedbackOpen: boolean;
   onboardingStep: number | null;
   onboardingCompleted: boolean;
+  setFeedbackOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   toggleGuide: () => void;
@@ -41,8 +43,10 @@ export const useUIStore = create<UIState>()(
       bathymetryVisible: false,
       sstVisible: false,
       flyToTarget: null,
+      feedbackOpen: false,
       onboardingStep: null,
       onboardingCompleted: false,
+      setFeedbackOpen: (open) => set({ feedbackOpen: open }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleGuide: () => set((s) => ({ guideOpen: !s.guideOpen })),

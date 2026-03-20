@@ -180,19 +180,31 @@ export function Sidebar() {
         </Suspense>
       </div>
 
-      {/* Ko-fi support link */}
-      <a
-        href="https://ko-fi.com/meteomapgal"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-1.5 px-3 py-2 mx-3 mb-2 rounded-lg
-          border border-slate-700/40 text-slate-500 text-[10px]
-          hover:text-amber-400 hover:border-amber-500/30 hover:bg-slate-800/60
-          transition-all shrink-0"
-      >
-        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
-        Apoya MeteoMapGal
-      </a>
+      {/* Footer: Feedback + Ko-fi */}
+      <div className="flex gap-1.5 mx-3 mb-2 shrink-0">
+        <button
+          onClick={() => useUIStore.getState().setFeedbackOpen(true)}
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
+            border border-slate-700/40 text-slate-500 text-[10px]
+            hover:text-blue-400 hover:border-blue-500/30 hover:bg-slate-800/60
+            transition-all"
+        >
+          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+          Feedback
+        </button>
+        <a
+          href="https://ko-fi.com/meteomapgal"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
+            border border-slate-700/40 text-slate-500 text-[10px]
+            hover:text-amber-400 hover:border-amber-500/30 hover:bg-slate-800/60
+            transition-all"
+        >
+          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+          Apoyar
+        </a>
+      </div>
     </div>
   );
 }
