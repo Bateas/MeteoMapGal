@@ -234,7 +234,9 @@ function computeSpotWindConsensus(
     weightedSpeed += sp.speedKt * sp.weight;
     totalWeight += sp.weight;
   }
-  const avgSpeed = weightedSpeed / totalWeight;
+  // Apply per-spot calibration offset (compensates for amateur station bias / exposed locations)
+  const calibration = spot.windCalibrationKt ?? 0;
+  const avgSpeed = Math.max(0, weightedSpeed / totalWeight + calibration);
 
   // Weighted average direction (only from sources WITH direction)
   let avgDir = 0;
