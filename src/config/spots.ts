@@ -71,6 +71,9 @@ export interface SailingSpot {
     /** Max significant wave height (m) before NOGO */
     maxWaveHeight?: number;
   };
+  /** Wind speed calibration offset (kt). Added to consensus avg to compensate
+   *  for amateur station low-mounting bias or exposed locations. Default 0. */
+  windCalibrationKt?: number;
   /** Webcams near this spot (Phase 1) */
   webcams?: SpotWebcam[];
   /** Nearest IHM tide station ID (from tideClient.ts) for tide summary in popup */
@@ -299,6 +302,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     ],
     waveRelevance: 'moderate',
     thermalDetection: false,
+    windCalibrationKt: 2, // Exposed beach, stations ~10km away + amateur low-mount bias
     hardGates: { maxWindKt: 30, maxWaveHeight: 2.5 },
     tideStationId: '28', // Marín
     webcams: [
