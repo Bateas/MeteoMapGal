@@ -6,6 +6,7 @@ import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { scoreForecastThermal, thermalColor, thermalBg } from '../../services/forecastScoringUtils';
 import type { ThermalScore, ForecastBreakdown } from '../../services/forecastScoringUtils';
 import { ForecastTable } from './ForecastTable';
+import { LoadingSpinner } from '../common/LoadingSpinner';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import type { HourlyForecast } from '../../types/forecast';
@@ -760,7 +761,7 @@ export function ForecastTimeline() {
             Previsión Embalse
           </h3>
           {isLoading && (
-            <div className="w-3 h-3 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+            <LoadingSpinner size={12} />
           )}
         </div>
 
@@ -901,7 +902,7 @@ export function ForecastTimeline() {
                   <span className="text-amber-400">Error: {error}</span>
                 ) : isLoading ? (
                   <div className="space-y-2">
-                    <div className="w-5 h-5 mx-auto rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+                    <div className="mx-auto w-fit"><LoadingSpinner size={20} /></div>
                     <div>Cargando previsión Open-Meteo...</div>
                     <div className="text-[9px] text-slate-600">La cola de peticiones puede tardar unos segundos</div>
                   </div>
