@@ -200,7 +200,7 @@ export function Sidebar() {
         </Suspense>
       </div>
 
-      {/* Footer: Export + Feedback + Ko-fi */}
+      {/* Footer: Export + Ko-fi */}
       <div className="flex gap-1.5 mx-3 mb-2 shrink-0">
         <button
           onClick={() => {
@@ -216,16 +216,6 @@ export function Sidebar() {
           title="Exportar datos GeoJSON"
         >
           <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        </button>
-        <button
-          onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
-            border border-slate-700/40 text-slate-500 text-[10px]
-            hover:text-blue-400 hover:border-blue-500/30 hover:bg-slate-800/60
-            transition-all"
-        >
-          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-          Feedback
         </button>
         <a
           href="https://ko-fi.com/meteomapgal"
