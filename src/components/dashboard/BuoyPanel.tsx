@@ -64,9 +64,10 @@ export const BuoyPanel = memo(function BuoyPanel() {
   }
 
   return (
-    <div className="space-y-2">
+    <section aria-label="Datos de boyas marinas" className="space-y-2">
       {/* Collapsible Header */}
       <button
+        aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
         className="w-full rounded-lg border border-cyan-500/20 bg-cyan-500/5 overflow-hidden cursor-pointer hover:bg-cyan-500/10 transition-colors"
       >
@@ -92,7 +93,7 @@ export const BuoyPanel = memo(function BuoyPanel() {
       {expanded && buoys.map((b) => (
         <BuoyCard key={b.stationId} reading={b} />
       ))}
-    </div>
+    </section>
   );
 });
 

@@ -108,7 +108,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   const tickerContent = [...items, ...items];
 
   return (
-    <div className="h-7 bg-slate-900/80 border-b border-slate-700/50 overflow-hidden relative flex-shrink-0">
+    <div role="marquee" aria-label="Condiciones meteorológicas en tiempo real" className="h-7 bg-slate-900/80 border-b border-slate-700/50 overflow-hidden relative flex-shrink-0">
       <div className="ticker-scroll flex items-center h-full gap-6 whitespace-nowrap px-4">
         {tickerContent.map((item, i) => (
           <span key={`${item.key}-${i}`} className={`text-[10px] font-medium ${item.color} flex items-center gap-1`}>
