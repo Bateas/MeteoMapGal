@@ -78,6 +78,18 @@ export function RoadmapSection() {
           desc="Env&iacute;a sugerencias, reporta bugs o propone nuevos spots desde la app. Bot&oacute;n en el pie del panel lateral."
           status="done"
         />
+        <TimelineMilestone
+          iconId="sailboat"
+          title="Comparador de spots"
+          desc="Compara todos los spots en una tabla: veredicto, viento, direcci&oacute;n, olas, temperatura. Pesta&ntilde;a Comparar."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="navigation"
+          title="Exportar datos GeoJSON"
+          desc="Descarga estaciones y boyas como archivo GeoJSON para QGIS u otras herramientas GIS."
+          status="done"
+        />
 
         {/* Nota beta */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
