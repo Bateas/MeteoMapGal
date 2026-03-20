@@ -45,6 +45,12 @@ function bearing(a: Point, b: Point): number {
   return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
 }
 
+/** Convert degrees to cardinal direction (N, NNE, NE, etc.) */
+function degreesToCardinal(deg: number): string {
+  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
 const lineLayer: LineLayerSpecification = {
   id: 'distance-line',
   type: 'line',
@@ -136,26 +142,41 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
     properties: {},
   } : null;
 
+  const cardinal = hasLine ? degreesToCardinal(brg) : '';
+
   return (
     <>
       {/* Instruction banner */}
       {!hasLine && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 border border-amber-500/30 rounded-lg px-4 py-2 text-sm text-amber-300 shadow-lg backdrop-blur-sm pointer-events-none">
-          {clickPhaseRef.current === 'A' ? 'Haz clic en el punto de inicio' : 'Haz clic en el punto final'}
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 border border-amber-500/30 rounded-lg px-4 py-2 text-sm text-amber-300 shadow-lg backdrop-blur-sm flex items-center gap-3">
+          <span>{clickPhaseRef.current === 'A' ? 'Toca el punto de inicio' : 'Toca el punto final'}</span>
+          <button
+            onClick={onDeactivate}
+            className="text-slate-400 hover:text-white text-xs ml-1 px-1.5 py-0.5 rounded bg-slate-700/50 hover:bg-slate-600/50 transition-colors"
+            aria-label="Cerrar herramienta de medición"
+          >
+            &times;
+          </button>
         </div>
       )}
 
       {/* Point A marker */}
       {pointA && (
         <Marker longitude={pointA.lng} latitude={pointA.lat} anchor="center">
-          <div className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-lg" />
+          <div className="relative">
+            <div className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-lg" />
+            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-amber-300 bg-slate-900/80 px-1 rounded">A</span>
+          </div>
         </Marker>
       )}
 
       {/* Point B marker */}
       {pointB && (
         <Marker longitude={pointB.lng} latitude={pointB.lat} anchor="center">
-          <div className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-lg" />
+          <div className="relative">
+            <div className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-lg" />
+            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-amber-300 bg-slate-900/80 px-1 rounded">B</span>
+          </div>
         </Marker>
       )}
 
@@ -169,9 +190,16 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
       {/* Distance label at midpoint */}
       {hasLine && (
         <Marker longitude={midLng} latitude={midLat} anchor="bottom">
-          <div className="bg-slate-800/95 border border-amber-500/40 rounded-lg px-3 py-1.5 text-center shadow-xl backdrop-blur-sm pointer-events-none">
-            <div className="text-amber-300 font-bold text-sm">{distNm.toFixed(1)} nm</div>
-            <div className="text-slate-400 text-xs">{distKm.toFixed(1)} km &middot; {brg.toFixed(0)}&deg;</div>
+          <div className="bg-slate-800/95 border border-amber-500/40 rounded-lg px-3 py-2 text-center shadow-xl backdrop-blur-sm">
+            <div className="text-amber-300 font-bold text-sm">{distKm.toFixed(1)} km</div>
+            <div className="text-slate-400 text-xs">{distNm.toFixed(1)} mn &middot; {cardinal} ({brg.toFixed(0)}&deg;)</div>
+            <button
+              onClick={onDeactivate}
+              className="mt-1.5 text-[10px] text-slate-500 hover:text-amber-300 transition-colors"
+              aria-label="Cerrar medición"
+            >
+              Cerrar
+            </button>
           </div>
         </Marker>
       )}
