@@ -372,10 +372,11 @@ function NextWindowSummary({ spotId, sailingWindows }: {
   const best = result.bestWindow;
   if (!best) return null;
 
-  const dot = best.verdict === 'good' ? '🟢' : '🟡';
+  const dotColor = best.verdict === 'good' ? 'bg-emerald-400' : 'bg-amber-400';
   return (
-    <p className="text-[10px] text-emerald-400/80 truncate mt-0.5">
-      {dot} {best.summary}
+    <p className="text-[10px] text-emerald-400/80 truncate mt-0.5 flex items-center gap-1">
+      <span className={`inline-block w-2 h-2 rounded-full ${dotColor} shrink-0`} />
+      {best.summary}
     </p>
   );
 }

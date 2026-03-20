@@ -146,10 +146,10 @@ export function RiasBaixasSection() {
         </h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
           <div className="space-y-1.5">
-            <SeasonRow season="Primavera (Mar–May)" pattern="Virazón SW + días variables" quality="🟡 Irregular" />
-            <SeasonRow season="Verano (Jun–Sep)" pattern="Nortada NW estable + térmicas SW" quality="🟢 Mejor época" />
-            <SeasonRow season="Otoño (Oct–Nov)" pattern="SW frontal + terral matutino" quality="🟡 Días sueltos" />
-            <SeasonRow season="Invierno (Dic–Feb)" pattern="Temporales SW, días de N" quality="🔴 Solo expertos" />
+            <SeasonRow season="Primavera (Mar–May)" pattern="Virazón SW + días variables" quality="Irregular" dotColor="bg-amber-400" />
+            <SeasonRow season="Verano (Jun–Sep)" pattern="Nortada NW estable + térmicas SW" quality="Mejor época" dotColor="bg-emerald-400" />
+            <SeasonRow season="Otoño (Oct–Nov)" pattern="SW frontal + terral matutino" quality="Días sueltos" dotColor="bg-amber-400" />
+            <SeasonRow season="Invierno (Dic–Feb)" pattern="Temporales SW, días de N" quality="Solo expertos" dotColor="bg-red-400" />
           </div>
         </div>
       </div>
@@ -240,14 +240,17 @@ function PhenomenonCard({ icon, title, desc, color }: {
   );
 }
 
-function SeasonRow({ season, pattern, quality }: {
-  season: string; pattern: string; quality: string;
+function SeasonRow({ season, pattern, quality, dotColor }: {
+  season: string; pattern: string; quality: string; dotColor: string;
 }) {
   return (
     <div className="flex items-center gap-3 py-1">
       <span className="text-[10px] font-bold text-slate-300 w-36 shrink-0">{season}</span>
       <span className="text-[10px] text-slate-500 flex-1">{pattern}</span>
-      <span className="text-[10px] font-bold shrink-0">{quality}</span>
+      <span className="text-[10px] font-bold shrink-0 flex items-center gap-1">
+        <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
+        {quality}
+      </span>
     </div>
   );
 }
