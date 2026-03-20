@@ -37,7 +37,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="sailboat"
             title="Marcadores de spot"
-            text="Marcadores grandes con icono de actividad (⛵, 🪁). Clic abre popup detallado con veredicto GO/MARGINAL/NO-GO, viento, oleaje, mareas, webcam y scoring. Estrella ★ para marcar favorito."
+            text="Marcadores grandes con icono de actividad. Clic abre popup detallado con veredicto, viento, oleaje, mareas, webcam y scoring. Estrella para marcar favorito."
           />
           <MiniExplainer
             iconId="wind"
