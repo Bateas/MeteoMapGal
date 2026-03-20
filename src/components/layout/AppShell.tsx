@@ -20,6 +20,7 @@ import { useAlertStore } from '../../store/alertStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
 const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default: m.MeteoGuide })));
+const FeedbackModal = lazy(() => import('../common/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
 import { ToastContainer } from '../common/ToastContainer';
 import { OnboardingTour } from '../common/OnboardingTour';
 import { shouldSendDailySummary, sendDailySummary } from '../../services/dailySummaryService';
@@ -373,6 +374,7 @@ export function AppShell() {
         )}
       </div>
       <Suspense fallback={null}><MeteoGuide /></Suspense>
+      <Suspense fallback={null}><FeedbackModal /></Suspense>
       {!isMobile && <KeyboardShortcutHelp />}
       <OnboardingTour />
       <ToastContainer />

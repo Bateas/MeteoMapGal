@@ -167,6 +167,35 @@ export async function postAlertWebhook(payload: WebhookAlertPayload): Promise<vo
   }
 }
 
+// ── Feedback endpoint ───────────────────────────────────
+
+/** Endpoint for user feedback */
+const FEEDBACK_ENDPOINT = `${WEBHOOK_BASE}/meteomap-feedback`;
+
+export interface WebhookFeedbackPayload {
+  category: string;
+  message: string;
+  email?: string;
+  sector: string;
+  timestamp: string;
+}
+
+/**
+ * Post user feedback to n8n.
+ * n8n workflow forwards to Telegram channel for review.
+ * Throws on network error so caller can show error toast.
+ */
+export async function postFeedbackWebhook(payload: WebhookFeedbackPayload): Promise<void> {
+  // Allow in dev for testing the form UX (n8n won't receive it)
+  const res = await fetch(FEEDBACK_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`Webhook error ${res.status}`);
+}
+
 /**
  * Post a daily sailing summary to n8n.
  * Called once per day (morning) — n8n workflow forwards to Telegram.
