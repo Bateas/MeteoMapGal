@@ -5,8 +5,12 @@ import {
   msToKnots,
   windSpeedColor,
   temperatureColor,
+  humidityColor,
+  pressureColor,
   degreesToCardinal,
 } from '../../services/windUtils';
+import { WeatherIcon } from '../icons/WeatherIcons';
+import type { IconId } from '../icons/WeatherIcons';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 
 // ── Types ──────────────────────────────────────────────────
@@ -18,7 +22,7 @@ interface RankedEntry {
 
 interface RankingCategory {
   label: string;
-  icon: string;
+  icon: IconId;
   entries: { entry: RankedEntry; display: string; color: string }[];
 }
 
@@ -123,7 +127,7 @@ export function RankingsPanel() {
       .map((e) => ({
         entry: e,
         display: `${Math.round(e.reading.humidity ?? 0)}%`,
-        color: (e.reading.humidity ?? 0) > 90 ? '#3b82f6' : (e.reading.humidity ?? 0) > 70 ? '#22c55e' : '#eab308',
+        color: humidityColor(e.reading.humidity),
       }));
 
     // ── Highest pressure ──
@@ -134,7 +138,7 @@ export function RankingsPanel() {
       .map((e) => ({
         entry: e,
         display: `${(e.reading.pressure ?? 0).toFixed(1)} hPa`,
-        color: (e.reading.pressure ?? 0) > 1020 ? '#3b82f6' : '#22c55e',
+        color: pressureColor(e.reading.pressure),
       }));
 
     // ── Lowest pressure ──
@@ -145,17 +149,17 @@ export function RankingsPanel() {
       .map((e) => ({
         entry: e,
         display: `${(e.reading.pressure ?? 0).toFixed(1)} hPa`,
-        color: (e.reading.pressure ?? 0) < 1010 ? '#f97316' : '#22c55e',
+        color: pressureColor(e.reading.pressure),
       }));
 
     return [
-      { label: 'Más ventosa', icon: '💨', entries: windiest },
-      { label: 'Rachas más fuertes', icon: '🌊', entries: gustiest },
-      { label: 'Más cálida', icon: '🌡️', entries: warmest },
-      { label: 'Más fría', icon: '❄️', entries: coldest },
-      { label: 'Más húmeda', icon: '💧', entries: mostHumid },
-      { label: 'Mayor presión', icon: '⬆', entries: highPressure },
-      { label: 'Menor presión', icon: '⬇', entries: lowPressure },
+      { label: 'Más ventosa', icon: 'wind', entries: windiest },
+      { label: 'Rachas más fuertes', icon: 'waves', entries: gustiest },
+      { label: 'Más cálida', icon: 'thermometer', entries: warmest },
+      { label: 'Más fría', icon: 'snowflake', entries: coldest },
+      { label: 'Más húmeda', icon: 'droplets', entries: mostHumid },
+      { label: 'Mayor presión', icon: 'gauge', entries: highPressure },
+      { label: 'Menor presión', icon: 'gauge', entries: lowPressure },
     ].filter((c) => c.entries.length > 0);
   }, [stations, currentReadings]);
 
@@ -187,7 +191,7 @@ function RankingCard({ category }: { category: RankingCategory }) {
   return (
     <div className="bg-slate-800/60 rounded-lg border border-slate-700/50 overflow-hidden">
       <div className="px-3 py-1.5 bg-slate-700/40 text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
-        <span>{category.icon}</span>
+        <WeatherIcon id={category.icon} size={14} />
         <span>{category.label}</span>
       </div>
       <div className="divide-y divide-slate-700/30">

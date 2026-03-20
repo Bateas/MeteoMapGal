@@ -10,19 +10,9 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
-import { VERDICT_STYLE } from '../../config/verdictStyles';
+import { VERDICT_STYLE, VERDICT_HEX } from '../../config/verdictStyles';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
-
-// ── Verdict color for inline styles (popup palette) ──
-const VERDICT_COLOR: Record<SpotVerdict, string> = {
-  calm: '#94a3b8',
-  light: '#38bdf8',
-  sailing: '#fbbf24',
-  good: '#34d399',
-  strong: '#22d3ee',
-  unknown: '#64748b',
-};
 
 export const SpotComparator = memo(function SpotComparator() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
@@ -112,9 +102,9 @@ export const SpotComparator = memo(function SpotComparator() {
             <span
               className="text-[10px] font-bold text-center rounded px-1.5 py-0.5"
               style={{
-                color: VERDICT_COLOR[verdict],
-                background: `${VERDICT_COLOR[verdict]}18`,
-                border: `1px solid ${VERDICT_COLOR[verdict]}40`,
+                color: VERDICT_HEX[verdict],
+                background: `${VERDICT_HEX[verdict]}18`,
+                border: `1px solid ${VERDICT_HEX[verdict]}40`,
               }}
             >
               {vs.label}
