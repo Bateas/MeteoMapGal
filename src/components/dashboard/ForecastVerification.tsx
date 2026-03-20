@@ -106,7 +106,12 @@ export const ForecastVerification = memo(function ForecastVerification() {
       }
     } catch (err) {
       console.warn('[ForecastVerification] Error:', err);
-      setError('Error al obtener datos de verificación');
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('ECONNREFUSED') || msg.includes('fetch') || msg.includes('network')) {
+        setError('No se puede conectar al servidor de historial. Verifica que el backend esté activo.');
+      } else {
+        setError(`Error al obtener datos: ${msg || 'conexión fallida'}`);
+      }
     } finally {
       setLoading(false);
     }

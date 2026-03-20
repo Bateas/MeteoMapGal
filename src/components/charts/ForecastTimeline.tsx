@@ -895,9 +895,17 @@ export function ForecastTimeline() {
 
           {/* Timeline rows */}
           <div className="flex-1 overflow-y-auto min-h-0">
-            {visibleData.length === 0 && !isLoading && (
+            {visibleData.length === 0 && (
               <div className="text-slate-500 text-xs text-center py-8">
-                {error ? `Error: ${error}` : 'Cargando previsión…'}
+                {error ? (
+                  <span className="text-amber-400">Error: {error}</span>
+                ) : isLoading ? (
+                  <div className="space-y-2">
+                    <div className="w-5 h-5 mx-auto rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+                    <div>Cargando previsión Open-Meteo...</div>
+                    <div className="text-[9px] text-slate-600">La cola de peticiones puede tardar unos segundos</div>
+                  </div>
+                ) : 'Sin datos de previsión disponibles'}
               </div>
             )}
 
