@@ -173,6 +173,16 @@ export function dewPointSpreadColor(spread: number | null | undefined): string {
   return '#f59e0b';                        // amber-500 (very dry)
 }
 
+/** Color for humidity visualization:
+ *  Very high (>90%) → blue. High (>70%) → green. Moderate → amber. Low → orange. */
+export function humidityColor(hr: number | null | undefined): string {
+  if (hr == null) return '#64748b';       // slate-500
+  if (hr > 90) return '#3b82f6';          // blue-500 (saturated)
+  if (hr > 70) return '#22c55e';          // green-500 (high)
+  if (hr > 50) return '#eab308';          // yellow-500 (moderate)
+  return '#f97316';                       // orange-500 (dry)
+}
+
 // ── Direction utilities ──────────────────────────────────
 
 const CARDINALS_8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
