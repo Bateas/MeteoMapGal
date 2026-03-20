@@ -96,6 +96,7 @@ export function SpotScoringSection() {
             <li><strong className="text-slate-300">Oleaje</strong> — cr&iacute;tico en C&iacute;es-R&iacute;a, moderado en Centro R&iacute;a, ignorado en Cesantes.</li>
             <li><strong className="text-slate-300">Norte en Cesantes</strong> — penaliza: el norte mata la t&eacute;rmica.</li>
             <li><strong className="text-slate-300">Canalizaci&oacute;n t&eacute;rmica</strong> — bonus si en Cesantes hay t&eacute;rmica WSW activa (amplifica viento).</li>
+            <li><strong className="text-slate-300">Calibraci&oacute;n por spot</strong> — offset en nudos que compensa estaciones amateurs montadas a baja altura o spots expuestos donde el viento real es superior al medido. Ej: Lourido +2kt.</li>
           </ul>
         </div>
       </div>
