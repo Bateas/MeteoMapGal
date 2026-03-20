@@ -74,8 +74,8 @@ export function RoadmapSection() {
         />
         <TimelineMilestone
           iconId="info"
-          title="Formulario de feedback"
-          desc="Env&iacute;a sugerencias, reporta bugs o propone nuevos spots desde la app. Bot&oacute;n en el pie del panel lateral."
+          title="Feedback"
+          desc="Sugerencias, bugs y propuestas de spots: usa GitHub Issues o contacto directo."
           status="done"
         />
         <TimelineMilestone
