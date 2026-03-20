@@ -87,6 +87,7 @@ export function checkSpotAlerts(scores: Map<string, SpotScore>, sectorName: stri
     const title = `${score.spotName} ${VERDICT_LABEL[current]} ${windKt}kt ${dir}`;
     const detail = score.summary;
 
+    // Webhook to n8n → Telegram
     sendSpotAlert({
       alertId: `spot-${spotId}-${current}`,
       category: 'spot' as never,
@@ -98,6 +99,9 @@ export function checkSpotAlerts(scores: Map<string, SpotScore>, sectorName: stri
       sector: sectorName,
       timestamp: new Date().toISOString(),
     });
+
+    // Browser push notification
+    sendBrowserNotification(title, detail, spotId);
 
     lastAlertTimes.set(spotId, now);
 
@@ -119,6 +123,29 @@ async function sendSpotAlert(payload: Record<string, unknown>): Promise<void> {
     });
   } catch {
     // Non-critical — fail silently
+  }
+}
+
+/**
+ * Send browser push notification for spot wind alert.
+ * Uses Web Notification API — requires prior permission grant.
+ */
+function sendBrowserNotification(title: string, body: string, spotId: string): void {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  try {
+    const notification = new Notification(`MeteoMapGal — ${title}`, {
+      body,
+      icon: '/favicon.ico',
+      tag: `spot-${spotId}`, // Replace previous notification for same spot
+      silent: false,
+      requireInteraction: false,
+    });
+
+    // Auto-close after 10 seconds
+    setTimeout(() => notification.close(), 10_000);
+  } catch {
+    // Notification API not available — fail silently
   }
 }
 
