@@ -98,7 +98,9 @@ ingestor/
 - **Ko-fi donations**: SVG cup icon (no emoji). Prominent card in MeteoGuide sidebar + link in main sidebar footer.
 - **Zoom-scale markers**: Stations/buoys scale 0.45→1.0 (zoom 9.5→12). Spots always 100%. Wind arrows hidden below zoom 11.
 - **Header visual hierarchy**: 3-tier design — nav buttons (hamburger/guide) transparent, sector buttons blue glow when active + dashed when inactive, Panel button color-coded by alert level.
-- **Map pan optimization**: `will-change: transform` + `contain: layout style` on marker containers. Markers get `pointer-events: none` during map movement via `movestart`/`moveend` events.
+- **Map pan optimization**: `will-change: transform` + `contain: layout style` on marker containers. Markers `visibility: hidden` during pan (freed from GPU compositor). Wind particles pause during `movestart→moveend`. All marker transitions killed during pan.
+- **Mobile z-index stack**: Bottom toolbar = z-40. Mobile bottom sheets (Spot/Station/Buoy popups) = z-50. MapLibre popups = z-30. Markers = z-20/25.
+- **Distance tool**: `DistanceTool.tsx` — click-to-measure in nautical miles + km + bearing. Dashed amber line + midpoint label. Toggle in bottom toolbar. Escape to cancel.
 - **Typed selectors**: `typedSelectors.ts` — `useMaxAlertLevel()`, `useActiveAlerts()`, `useStationCount()`, `useWeatherSelection()` computed selectors to avoid inline re-derivation.
 - **weatherSelectionStore**: Split from weatherStore (R1). UI selection state (selectedStationId, highlightedStationId, chartSelectedStations) lives here. weatherStore is data-only.
 - **Alert service modular**: `src/services/alerts/` — split from 626-line monolith into 7 files: types, riskEngine, stormAlerts, thermalAlerts, fieldAlerts, aggregator, index. Original `alertService.ts` is now a 20-line re-export barrel.
