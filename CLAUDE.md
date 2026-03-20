@@ -24,7 +24,7 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 - **Map base styles**: 6 switchable base maps via `mapStyleStore` — OSM, Positron (light), Dark Matter, Voyager, IGN Topográfico, IGN Base Gris. All free, no API keys. Dynamic `buildMapStyle()` rebuilds full MapLibre StyleSpecification on switch
 - **Multi-sector**: `sectorStore.ts` + `src/config/sectors.ts` define Embalse / Rías Baixas with independent center, radius, regions
 - **PWA**: Service worker (`public/sw.js`) + web manifest for installable app
-- **n8n webhook**: `src/api/webhookClient.ts` posts alerts to n8n for Telegram notifications (non-critical, fails silently)
+- **n8n webhook**: `src/api/webhookClient.ts` posts alerts, daily summaries, and user feedback to n8n for Telegram (non-critical, fails silently). Endpoints: `meteomap-alert`, `meteomap-summary`, `meteomap-feedback`
 - **Vite proxy** for CORS (17 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`, `/enaire-api`, `/ihm-api`, `/eumetsat-api`, `/portus-api`, `/obscosteiro-api`, `/hfradar-api`, `/skyx-api`, `/noaa-api`, `/api/v1` (history)
 - **Production deployment**: nginx reverse proxy (`nginx.conf`) to Proxmox LXC, mirrors all Vite proxy routes
 - **TimescaleDB ingestor**: `ingestor/` — standalone Node.js service polling 5 sources every 5min → TimescaleDB. Runs as `meteo-ingestor.service` (systemd) on LXC 305. Reuses `normalizer.ts` + `geoUtils.ts` from `src/`
@@ -94,6 +94,7 @@ ingestor/
 - **Wind sparkline in popups**: `StationPopup` shows 40×14px SVG trend line (last 12 readings) + ↑↓→ arrow indicator.
 - **Favorite spots**: Star ★ button in `SpotPopup` + `SpotSelector` header. Persisted in `spotStore` → localStorage.
 - **Share conditions**: Web Share API in `SpotPopup` — shares spot name, wind, verdict, temp. Falls back to clipboard.
+- **Feedback form**: `FeedbackModal.tsx` — in-app form (bug/sugerencia/spot/otra). Posts to `/api/webhook/meteomap-feedback`. Rate limit 3/day per device (localStorage). Lazy loaded in AppShell.
 - **Ko-fi donations**: SVG cup icon (no emoji). Prominent card in MeteoGuide sidebar + link in main sidebar footer.
 - **Zoom-scale markers**: Stations/buoys scale 0.45→1.0 (zoom 9.5→12). Spots always 100%. Wind arrows hidden below zoom 11.
 - **Header visual hierarchy**: 3-tier design — nav buttons (hamburger/guide) transparent, sector buttons blue glow when active + dashed when inactive, Panel button color-coded by alert level.
