@@ -158,7 +158,7 @@ export function TimeSeriesChart() {
   if (chartStations.length === 0) {
     return (
       <div className="text-center text-slate-500 text-xs py-6 px-4">
-        <div className="text-lg mb-2">📊</div>
+        <div className="mb-2"><WeatherIcon id="activity" size={24} className="mx-auto text-slate-500" /></div>
         <div>Haz click en una estación del mapa</div>
         <div>y pulsa "Añadir a gráfica"</div>
         <div className="mt-1 text-slate-600">para ver la evolución temporal</div>
