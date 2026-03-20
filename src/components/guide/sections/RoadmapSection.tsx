@@ -108,6 +108,12 @@ export function RoadmapSection() {
           desc="Offset por spot para compensar estaciones amateurs a baja altura o ubicaciones expuestas. Mejora la precisi&oacute;n del veredicto."
           status="done"
         />
+        <TimelineMilestone
+          iconId="info"
+          title="Widget embeddable"
+          desc="Mini widget para incrustar en webs de clubs y escuelas. Muestra condiciones de spots en tiempo real. Modo oscuro/claro + compacto."
+          status="done"
+        />
 
         {/* Nota beta */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">

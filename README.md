@@ -132,6 +132,27 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **Onboarding tour** | 5-step first-visit walkthrough with element highlighting |
 | **Share conditions** | Web Share API — share spot conditions via WhatsApp/Telegram |
 | **Geolocation** | Auto-detects nearest sector on first visit |
+| **Embeddable widget** | Compact iframe for clubs/schools — dark/light theme, compact mode |
+
+### Widget
+
+Embed real-time spot conditions on any website:
+
+```html
+<!-- All spots (dark) -->
+<iframe src="https://meteomapgal.navia3d.com/widget.html?sector=rias"
+  width="700" height="400" frameborder="0"></iframe>
+
+<!-- Single spot (light) -->
+<iframe src="https://meteomapgal.navia3d.com/widget.html?spot=cesantes&theme=light"
+  width="380" height="180" frameborder="0"></iframe>
+
+<!-- Compact row -->
+<iframe src="https://meteomapgal.navia3d.com/widget.html?sector=rias&compact=true&theme=light"
+  width="700" height="60" frameborder="0"></iframe>
+```
+
+**Parameters:** `spot` (single spot ID), `sector` (rias/embalse), `theme` (dark/light), `compact` (true/false).
 
 ---
 
@@ -218,6 +239,7 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [x] Distance tool — click-to-measure in nautical miles + km + bearing
 - [x] Keyboard accessibility — all interactive elements have Enter/Space handlers + skip-to-content
 - [x] Per-spot wind calibration — offset to compensate for amateur station low-mount bias
+- [x] Embeddable widget — compact iframe for clubs/schools with dark/light + compact modes
 
 ### Planned
 
