@@ -105,7 +105,13 @@ async function fetchPreviousRunForecast(
     `&wind_speed_unit=ms` +
     `&timezone=GMT`;
 
-  const res = await openMeteoFetch(url, undefined, 15_000);
+  let res: Response;
+  try {
+    res = await openMeteoFetch(url, undefined, 15_000);
+  } catch (err) {
+    console.warn(`[ForecastVerification] Previous runs API fetch error:`, err);
+    return new Map();
+  }
   if (!res.ok) {
     console.warn(`[ForecastVerification] Previous runs API failed: ${res.status}`);
     return new Map();
@@ -202,13 +208,34 @@ export async function verifyForecast(
   ]);
 
   // Debug: log key counts and sample keys to diagnose mismatches
-  if (forecastMap.size > 0 || obsMap.size > 0) {
-    const fcstKeys = [...forecastMap.keys()].slice(0, 3);
-    const obsKeys = [...obsMap.keys()].slice(0, 3);
-    console.debug(
-      `[ForecastVerification] fcst=${forecastMap.size} keys (${fcstKeys.join(', ')}), ` +
-      `obs=${obsMap.size} keys (${obsKeys.join(', ')})`
-    );
+  const fcstKeys = [...forecastMap.keys()].slice(0, 3);
+  const obsKeys = [...obsMap.keys()].slice(0, 3);
+  console.debug(
+    `[ForecastVerification] fcst=${forecastMap.size} keys (${fcstKeys.join(', ')}), ` +
+    `obs=${obsMap.size} keys (${obsKeys.join(', ')})`
+  );
+
+  // Early diagnostics — return structured error info via empty points + diagnostic modelRun
+  if (forecastMap.size === 0 && obsMap.size === 0) {
+    return {
+      points: [], stats: computeStats([]), stationId, stationName,
+      period: { from, to },
+      modelRun: 'error:no_data',
+    };
+  }
+  if (forecastMap.size === 0) {
+    return {
+      points: [], stats: computeStats([]), stationId, stationName,
+      period: { from, to },
+      modelRun: 'error:no_forecast',
+    };
+  }
+  if (obsMap.size === 0) {
+    return {
+      points: [], stats: computeStats([]), stationId, stationName,
+      period: { from, to },
+      modelRun: 'error:no_observations',
+    };
   }
 
   // Match hours
