@@ -112,6 +112,8 @@ ingestor/
 - **Source status banner**: `SourceStatusBanner.tsx` — amber warning bar below header when critical sources (AEMET/MG) are down >10min. Auto-dismisses on recovery. Dismissible by user. `role="alert"` + `aria-live="polite"`.
 - **Skip-to-content**: `<a href="#main-map">` in AppShell — `sr-only` until keyboard-focused, then visible at z-60.
 - **Keyboard accessibility**: All interactive `<div>`s have `onKeyDown` (Enter/Space), `tabIndex`, `role="button"`. Backdrop overlays have Escape handlers.
+- **FlyTo NaN guard**: `WeatherMap.tsx` validates `flyToTarget` coords with `Number.isFinite()` before `map.flyTo()`. Popup render also guarded against invalid `activeSpot.center`.
+- **SailingWindows rate limit cooldown**: `useSailingWindows.ts` skips polls for 5min after Open-Meteo 429. Prevents error log spam in console.
 
 ## Performance Rules
 
