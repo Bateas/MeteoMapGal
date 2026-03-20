@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.24.3-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-1.31.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-185%20passed-brightgreen)](src/test/)
 [![Stations](https://img.shields.io/badge/stations-100%2B-orange)](src/api/)
@@ -126,7 +126,7 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **PWA** | Installable on mobile and desktop, works offline with data cache |
 | **24h charts** | Time series with CSV export for any station |
 | **Keyboard shortcuts** | Full keyboard navigation (W, A, T, E, B keys + more) |
-| **MeteoGuide** | 13-section in-app guide with animated diagrams (press G) |
+| **MeteoGuide** | 9-section in-app guide with animated diagrams (press G) |
 | **Visibility polling** | All API fetches pause in background tabs to save bandwidth |
 | **Mobile-first** | Bottom sheets, swipe-to-dismiss, touch-optimized controls, responsive sidebar |
 | **Onboarding tour** | 5-step first-visit walkthrough with element highlighting |
@@ -162,7 +162,7 @@ All data comes from **open and public sources** — no paid APIs required (only 
 
 ## Roadmap
 
-### Done (v1.0 → v1.22)
+### Done (v1.0 → v1.31)
 
 - [x] Multi-sector support (Embalse + Rías Baixas)
 - [x] 100+ weather stations from 6 networks (incl. SkyX personal PWS with GPS auto-discovery)
@@ -209,15 +209,22 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [x] Typed Portus API responses (eliminated all `any[]`)
 - [x] Computed Zustand selectors (useMaxAlertLevel, useActiveAlerts, useStationCount)
 - [x] Daily Telegram summary service (8:00 AM morning briefing, ready for n8n)
+- [x] Proactive spot alerts (N3-Bot) — Telegram push when spot transitions from calm to sailing
+- [x] Browser push notifications — per-spot wind alerts with permission management
+- [x] Feedback form — in-app bug/suggestion form via n8n webhook (rate-limited)
+- [x] Spot comparator — side-by-side comparison table for all spots (verdict, wind, waves, temp)
+- [x] GeoJSON export — download stations + buoys as GeoJSON FeatureCollection for QGIS
+- [x] Source status banner — amber warning when critical sources (AEMET/MG) are down
+- [x] Distance tool — click-to-measure in nautical miles + km + bearing
+- [x] Keyboard accessibility — all interactive elements have Enter/Space handlers + skip-to-content
+- [x] Per-spot wind calibration — offset to compensate for amateur station low-mount bias
 
 ### Planned
 
 - [ ] N2-Bot Telegram activation — connect dailySummaryService to n8n workflow
-- [ ] Proactive spot alerts (N3-Bot) — push when spot goes from bad to good
 - [ ] New monitoring zones (A Coruña, Lugo, Costa da Morte)
 - [ ] More sailing spots (Sanxenxo, Lanzada, A Illa de Arousa, Samil)
 - [ ] Custom alert thresholds (user-defined notifications)
-- [ ] Feedback form (in-app suggestions via n8n webhook)
 
 ---
 
