@@ -578,15 +578,15 @@ function PrecursorSignalRow({ name, signal }: { name: string; signal: { active: 
 }
 
 // ── Sky condition icons ─────────────────────────────────────
-const SKY_LABELS: Record<string, { icon: string; label: string }> = {
-  clear: { icon: '☀️', label: 'Despejado' },
-  partly_cloudy: { icon: '⛅', label: 'Parcial' },
-  overcast: { icon: '☁️', label: 'Nublado' },
-  fog: { icon: '🌫️', label: 'Niebla' },
-  rain: { icon: '🌧️', label: 'Lluvia' },
-  storm: { icon: '⛈️', label: 'Tormenta' },
-  night: { icon: '🌙', label: 'Noche' },
-  unknown: { icon: '❓', label: '—' },
+const SKY_LABELS: Record<string, { label: string; color: string }> = {
+  clear: { label: 'Despejado', color: '#fbbf24' },
+  partly_cloudy: { label: 'Parcial', color: '#94a3b8' },
+  overcast: { label: 'Nublado', color: '#64748b' },
+  fog: { label: 'Niebla', color: '#a78bfa' },
+  rain: { label: 'Lluvia', color: '#60a5fa' },
+  storm: { label: 'Tormenta', color: '#f87171' },
+  night: { label: 'Noche', color: '#818cf8' },
+  unknown: { label: '--', color: '#64748b' },
 };
 
 const VIS_LABELS: Record<string, { color: string; label: string }> = {
@@ -596,10 +596,10 @@ const VIS_LABELS: Record<string, { color: string; label: string }> = {
 };
 
 const LIGHT_LABELS: Record<string, string> = {
-  bright: '☀ Luminoso',
-  diffuse: '🌥 Difuso',
-  dim: '🌆 Tenue',
-  dark: '🌑 Oscuro',
+  bright: 'Luminoso',
+  diffuse: 'Difuso',
+  dim: 'Tenue',
+  dark: 'Oscuro',
 };
 
 // ── Webcam Vision result badge ─────────────────────────────
@@ -629,7 +629,7 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
       <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[9px]">
         {/* Sky */}
         <div className="text-slate-500">Cielo</div>
-        <div className="col-span-2">{skyInfo.icon} {skyInfo.label}{w.cloudType ? ` · ${w.cloudType}` : ''}</div>
+        <div className="col-span-2"><span style={{ color: skyInfo.color }}>{skyInfo.label}</span>{w.cloudType ? ` · ${w.cloudType}` : ''}</div>
 
         {/* Wind/Beaufort */}
         {result.beaufort >= 0 && (
@@ -666,13 +666,13 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
         {w.precipitation && (
           <>
             <div className="text-slate-500">Precip.</div>
-            <div className="col-span-2 text-amber-400">⚠ Lluvia visible</div>
+            <div className="col-span-2 text-amber-400">Lluvia visible</div>
           </>
         )}
         {w.fogVisible && (
           <>
             <div className="text-slate-500">Niebla</div>
-            <div className="col-span-2 text-amber-400">⚠ Niebla/bruma</div>
+            <div className="col-span-2 text-amber-400">Niebla/bruma</div>
           </>
         )}
       </div>
