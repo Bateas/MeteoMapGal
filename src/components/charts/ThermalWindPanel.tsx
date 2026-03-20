@@ -138,7 +138,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
   if (stations.length === 0) {
     return (
       <div className="text-center text-slate-500 text-xs py-6 px-4">
-        <div className="text-lg mb-2">&#x1F32C;&#xFE0F;</div>
+        <div className="mb-2"><WeatherIcon id="wind" size={24} className="mx-auto text-slate-500" /></div>
         <div>Cargando estaciones...</div>
       </div>
     );
@@ -347,12 +347,13 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
             );
           })}
 
-          {/* Forecast timeline */}
+          {/* Forecast timeline — thermal window summary + chart */}
           {forecastChartData.length > 0 && (
             <div>
               <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Predicci&oacute;n T&eacute;rmica (pr&oacute;x. horas)
               </div>
+              <ThermalWindowSummary data={forecastChartData} />
               <div className="bg-slate-800/50 rounded-lg p-2">
                 <ResponsiveContainer width="100%" height={120}>
                   <AreaChart data={forecastChartData}>
@@ -451,6 +452,80 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
     </div>
   );
 });
+
+// ── Thermal Window Summary ────────────────────────────────
+// Detects contiguous hours with thermal score ≥35 and shows a plain-text summary
+// e.g. "Térmico probable 13–17h (pico 85% a las 15h)"
+
+function ThermalWindowSummary({ data }: { data: { time: number; score: number }[] }) {
+  const now = Date.now();
+  const futureData = data.filter((d) => d.time >= now - 3600_000); // include current hour
+  if (futureData.length === 0) return null;
+
+  // Find contiguous windows with score ≥ 35
+  const windows: { start: number; end: number; peak: number; peakTime: number }[] = [];
+  let current: { start: number; end: number; peak: number; peakTime: number } | null = null;
+
+  for (const point of futureData) {
+    if (point.score >= 35) {
+      if (!current) {
+        current = { start: point.time, end: point.time, peak: point.score, peakTime: point.time };
+      } else {
+        current.end = point.time;
+        if (point.score > current.peak) {
+          current.peak = point.score;
+          current.peakTime = point.time;
+        }
+      }
+    } else if (current) {
+      // Check gap tolerance (1h)
+      if (point.time - current.end <= 3600_000) continue;
+      windows.push(current);
+      current = null;
+    }
+  }
+  if (current) windows.push(current);
+
+  // Only show windows with ≥2 hours
+  const validWindows = windows.filter((w) => w.end - w.start >= 3600_000);
+  if (validWindows.length === 0) {
+    // Check if any hour has score ≥ 20 (weak signal)
+    const maxScore = futureData.reduce((max, d) => Math.max(max, d.score), 0);
+    if (maxScore < 20) return null;
+    return (
+      <div className="rounded border border-slate-700/50 bg-slate-800/30 px-2.5 py-1.5 mb-1.5">
+        <span className="text-[10px] text-slate-500">
+          Sin ventana t&eacute;rmica clara. M&aacute;x. probabilidad: <span className="text-slate-400 font-mono">{maxScore}%</span>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1 mb-1.5">
+      {validWindows.slice(0, 2).map((w, i) => {
+        const startH = format(new Date(w.start), 'HH:mm', { locale: es });
+        const endH = format(new Date(w.end), 'HH:mm', { locale: es });
+        const peakH = format(new Date(w.peakTime), 'HH:mm', { locale: es });
+        const color = w.peak >= 75 ? 'text-green-400 border-green-500/30 bg-green-500/5'
+          : w.peak >= 55 ? 'text-amber-400 border-amber-500/30 bg-amber-500/5'
+          : 'text-sky-400 border-sky-500/30 bg-sky-500/5';
+
+        return (
+          <div key={i} className={`rounded border px-2.5 py-1.5 flex items-center justify-between ${color}`}>
+            <div className="text-[10px] font-semibold">
+              T&eacute;rmico {w.peak >= 75 ? 'muy probable' : w.peak >= 55 ? 'probable' : 'posible'}{' '}
+              <span className="font-mono">{startH}&ndash;{endH}</span>
+            </div>
+            <div className="text-[10px] font-mono">
+              pico {w.peak}% ({peakH})
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ── Sub-components ────────────────────────────────────────
 

@@ -55,17 +55,17 @@ export function Sidebar() {
     }
   }, [isEmbalse, activeTab]);
 
-  // Compact tabs — mobile: scrollable horizontal; desktop: scrollable too
+  // Compact tabs — wrap to multiple rows so all tabs are always visible
   const tabBase = isMobile
-    ? 'shrink-0 px-3 text-xs font-semibold py-2.5 uppercase whitespace-nowrap transition-colors rounded-t'
-    : 'shrink-0 px-2 text-[10.5px] font-semibold py-2 uppercase whitespace-nowrap transition-colors rounded-t tracking-wide';
+    ? 'px-2.5 text-[10px] font-semibold py-1.5 uppercase whitespace-nowrap transition-colors rounded-t'
+    : 'px-2 text-[10px] font-semibold py-1.5 uppercase whitespace-nowrap transition-colors rounded-t tracking-wide';
   const tabOn = (color: string) => `text-white border-b-2 ${color} bg-slate-800/50`;
   const tabOff = 'text-slate-500 hover:text-slate-300 border-b-2 border-transparent';
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Tab header — horizontally scrollable on mobile */}
-      <div className="flex gap-0.5 border-b border-slate-700 overflow-x-auto scrollbar-none scroll-hint-right pr-4" role="tablist" aria-label="Paneles de datos">
+      {/* Tab header — wraps to multiple rows so all tabs are visible */}
+      <div className="flex flex-wrap gap-0.5 border-b border-slate-700 px-1 py-0.5" role="tablist" aria-label="Paneles de datos">
         <button
           role="tab"
           aria-selected={activeTab === 'stations'}

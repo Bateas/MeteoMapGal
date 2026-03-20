@@ -293,7 +293,8 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036940A', // Cangas do Morrazo (~10km W)
+      'mc_ESGAL3600000036300A', // Pontevedra (~3km E, closest MC station!)
+      'mc_ESGAL3600000036380A', // Sanxenxo (~3km SW, coastal, same ría)
     ],
     preferredBuoys: [
       4271, // Lourizán REMPOR (~3km SE, has wind!)
@@ -302,7 +303,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     ],
     waveRelevance: 'moderate',
     thermalDetection: false,
-    windCalibrationKt: 2, // Exposed beach, stations ~10km away + amateur low-mount bias
+    windCalibrationKt: 1, // Closer stations now (3km vs 20km), less compensation needed
     hardGates: { maxWindKt: 30, maxWaveHeight: 2.5 },
     tideStationId: '28', // Marín
     webcams: [

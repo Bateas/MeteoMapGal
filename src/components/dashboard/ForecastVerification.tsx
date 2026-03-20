@@ -91,7 +91,16 @@ export const ForecastVerification = memo(function ForecastVerification() {
         pastDays
       );
       if (res.points.length === 0) {
-        setError('Sin datos suficientes para verificación. ¿La estación tiene historial?');
+        const diag = res.modelRun;
+        if (diag === 'error:no_forecast') {
+          setError('Open-Meteo no devolvió datos de previsión para este período. Prueba con "Ayer" o "Hace 2 días".');
+        } else if (diag === 'error:no_observations') {
+          setError('Sin observaciones en la base de datos para esta estación. Selecciona una estación AEMET o MG con historial.');
+        } else if (diag === 'error:no_data') {
+          setError('Sin datos de previsión ni observaciones. Verifica la conexión al servidor.');
+        } else {
+          setError('Las horas de previsión y observación no coinciden. Prueba otra estación o período.');
+        }
       } else {
         setResult(res);
       }
