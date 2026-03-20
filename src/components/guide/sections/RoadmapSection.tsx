@@ -102,6 +102,12 @@ export function RoadmapSection() {
           desc="Aviso visual cuando AEMET, MeteoGalicia u otras fuentes no responden. Datos parciales indicados."
           status="done"
         />
+        <TimelineMilestone
+          iconId="sailboat"
+          title="Calibraci&oacute;n de viento por spot"
+          desc="Offset por spot para compensar estaciones amateurs a baja altura o ubicaciones expuestas. Mejora la precisi&oacute;n del veredicto."
+          status="done"
+        />
 
         {/* Nota beta */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
