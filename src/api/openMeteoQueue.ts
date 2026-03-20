@@ -4,7 +4,7 @@
  * Open-Meteo free tier has burst limits (~60 req/min).
  * This queue ensures ALL Open-Meteo calls across the app are serialized:
  *   - Strictly sequential: one request at a time (no concurrency)
- *   - Minimum 250ms between request starts
+ *   - Minimum 1000ms between request starts (~60/min, matching free tier)
  *   - Auto-retry on 429 with exponential backoff
  *
  * Previous implementation had a race condition where `await` inside the
@@ -16,7 +16,7 @@
  * Works with both api.open-meteo.com and archive-api.open-meteo.com.
  */
 
-const MIN_INTERVAL_MS = 350;  // 350ms between requests (~170/min, well within free tier burst limits)
+const MIN_INTERVAL_MS = 1000;  // 1s between requests (~60/min, matches Open-Meteo free tier burst limit)
 const MAX_RETRIES = 2;
 const RETRY_BASE_MS = 5000; // 5s, 10s exponential backoff
 
@@ -101,7 +101,7 @@ async function fetchWithRetry(
  * Rate-limited fetch for Open-Meteo API.
  * Drop-in replacement for `fetch()` — same signature and return type.
  *
- * All requests are serialized: one at a time, 600ms apart minimum.
+ * All requests are serialized: one at a time, 1000ms apart minimum.
  *
  * IMPORTANT: Do NOT pass AbortSignal.timeout() in options — the timeout
  * starts counting at creation time, not at fetch time. If this request
