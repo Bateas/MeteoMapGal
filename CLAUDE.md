@@ -90,6 +90,8 @@ ingestor/
 - **Onboarding tour**: `OnboardingTour.tsx` — 5-step first-visit walkthrough with element highlighting (pulsing ring via `data-tour` attributes). Persisted via Zustand → localStorage (`meteomap-ui`). Auto-launches 3s after first load.
 - **Geolocation auto-sector**: `geolocationService.ts` — detects user location on first visit, switches to nearest sector within 80km. Runs once per device (localStorage flag).
 - **Daily Telegram summary**: `dailySummaryService.ts` — sends morning sailing briefing at 8:00 AM via n8n webhook. Collects spots, alerts, best sailing window.
+- **Proactive spot alerts**: `spotAlertService.ts` — detects verdict transitions (calm/light → sailing/good/strong), posts to n8n webhook for Telegram. 2h cooldown per spot, night silence, sector-switch reset.
+- **GeoJSON export**: `exportService.ts` — downloads current station + buoy data as GeoJSON FeatureCollection. Button in sidebar footer.
 - **Sector switch guard**: `useWeatherData` captures sector ID before fetch — discards results if sector changed mid-flight (prevents stale data injection).
 - **Wind sparkline in popups**: `StationPopup` shows 40×14px SVG trend line (last 12 readings) + ↑↓→ arrow indicator.
 - **Favorite spots**: Star ★ button in `SpotPopup` + `SpotSelector` header. Persisted in `spotStore` → localStorage.
