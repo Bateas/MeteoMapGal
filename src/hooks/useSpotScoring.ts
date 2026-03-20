@@ -18,6 +18,7 @@ import { useForecastStore } from './useForecastTimeline';
 import { scoreAllSpots, type SpotThermalContext } from '../services/spotScoringEngine';
 import { computeThermalPrecursors } from '../services/thermalPrecursorService';
 import { logPrediction } from '../services/thermalVerificationService';
+import { checkSpotAlerts, resetSpotAlerts } from '../services/spotAlertService';
 import { getSpotsForSector } from '../config/spots';
 import { msToKnots, degToCardinal8 } from '../services/windUtils';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../api/naoClient';
@@ -44,6 +45,9 @@ export function useSpotScoring() {
   const lastScoredRef = useRef(0);
   const mountTimeRef = useRef(Date.now());
   const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
+
+  // Reset spot alert state on sector switch to avoid false transitions
+  useEffect(() => { resetSpotAlerts(); }, [sectorId]);
 
   // Fetch NAO/AO once on mount (cached 6h in naoClient)
   useEffect(() => {
@@ -92,6 +96,10 @@ export function useSpotScoring() {
       const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc);
       setScores(scores);
       lastScoredRef.current = Date.now();
+
+      // Proactive Telegram alerts when spots transition to good conditions
+      const sectorName = useSectorStore.getState().activeSector.name;
+      checkSpotAlerts(scores, sectorName);
 
       // ── Thermal precursors — compute for all thermalDetection spots ──
       const thermalSpots = spots.filter(s => s.thermalDetection);

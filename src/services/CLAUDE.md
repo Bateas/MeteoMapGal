@@ -68,6 +68,7 @@ Pure functions and algorithms used across the app. No React dependencies.
 
 ## Data Logging
 
+- **`exportService.ts`** — GeoJSON export of current station + buoy data. `buildGeoJSON()` creates FeatureCollection with wind (kt), temperature, humidity, pressure, wave data, coordinates. `downloadGeoJSON()` triggers browser file download. Compatible with QGIS, Google Earth, and GIS tools.
 - **`stationDataLogger.ts`** — Logs readings to localStorage as CSV. Uses `csvUtils` for safe escaping.
 - **`csvUtils.ts`** — CSV injection defense: escapes `=`, `+`, `-`, `@` prefixes and handles quoting.
 - **`tendencyDetector.ts`** — Detects rising/falling/stable trends in time series data.
