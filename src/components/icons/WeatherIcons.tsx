@@ -52,6 +52,7 @@ import {
   ThumbsDown,
   Bell,
   BellOff,
+  Ruler,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -65,7 +66,8 @@ export type IconId =
   | 'leaf' | 'clock' | 'x' | 'clipboard-list' | 'anchor'
   | 'database' | 'gauge' | 'check' | 'sprout'
   | 'compass' | 'navigation' | 'layers' | 'eye' | 'camera'
-  | 'thumbs-up' | 'thumbs-down' | 'bell' | 'bell-off';
+  | 'thumbs-up' | 'thumbs-down' | 'bell' | 'bell-off'
+  | 'ruler';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -225,6 +227,7 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'thumbs-down': ThumbsDown,
   'bell': Bell,
   'bell-off': BellOff,
+  'ruler': Ruler,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────
@@ -318,6 +321,7 @@ const ICON_LABELS: Record<IconId, string> = {
   'thumbs-down': 'Incorrecto',
   'bell': 'Notificaciones',
   'bell-off': 'Sin notificaciones',
+  'ruler': 'Medir distancia',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */
