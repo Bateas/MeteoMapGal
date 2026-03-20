@@ -138,12 +138,21 @@ body {
   z-index: 25 !important;
 }
 
-/* During map pan/zoom: fade station+buoy markers for smooth dragging.
-   Spots stay visible (they're the hero elements). */
+/* During map pan/zoom: HIDE station+buoy markers entirely to free GPU compositor.
+   visibility:hidden removes from paint/composite but keeps layout (no reflow on reappear).
+   Spots stay visible (they're the hero elements users track). */
 .map-panning .maplibregl-marker:has(.station-marker),
 .map-panning .maplibregl-marker:has(.buoy-marker) {
-  opacity: 0.15 !important;
-  transition: opacity 0.1s ease-out;
+  visibility: hidden !important;
+}
+/* Kill all marker transitions during pan — avoids GPU compositing overhead */
+.map-panning .maplibregl-marker {
+  transition: none !important;
+}
+/* Smooth fade-in when pan ends — markers reappear gracefully */
+.maplibregl-marker:has(.station-marker),
+.maplibregl-marker:has(.buoy-marker) {
+  transition: opacity 0.25s ease-out;
 }
 .map-panning .maplibregl-marker:has(.spot-marker) {
   opacity: 1 !important;

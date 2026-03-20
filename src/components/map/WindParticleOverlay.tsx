@@ -54,6 +54,7 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
   const windDataRef = useRef(extractWindData(stations, readings));
   const windGridRef = useRef<WindGrid | null>(null);
   const gridBoundsRef = useRef<string>('');
+  const mapMovingRef = useRef(false);
 
   useEffect(() => {
     const stationWind = extractWindData(stations, readings);
@@ -124,6 +125,12 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
     if (!ctx || !trailCtx) return;
 
     const animate = () => {
+      // Skip animation during map pan/zoom — frees frame budget for smooth dragging
+      if (mapMovingRef.current) {
+        animFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
       const dpr = effectiveDpr;
       const w = canvas.width;
       const h = canvas.height;
@@ -267,8 +274,12 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
 
     animFrameRef.current = requestAnimationFrame(animate);
 
+    // Pause animation during pan/zoom for smoother map interaction
+    const handleMoveStart = () => { mapMovingRef.current = true; };
+
     // Re-spawn particles on map move (zoom/pan) to avoid stale positions
     const handleMoveEnd = () => {
+      mapMovingRef.current = false;
       // Invalidate wind grid — will rebuild with new viewport bounds next frame
       windGridRef.current = null;
       const particles = particlesRef.current;
@@ -278,6 +289,7 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
         }
       }
     };
+    map.on('movestart', handleMoveStart);
     map.on('moveend', handleMoveEnd);
 
     const resizeObs = new ResizeObserver(resize);
@@ -285,6 +297,7 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
 
     return () => {
       cancelAnimationFrame(animFrameRef.current);
+      map.off('movestart', handleMoveStart);
       map.off('moveend', handleMoveEnd);
       resizeObs.disconnect();
     };

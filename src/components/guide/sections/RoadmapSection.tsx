@@ -72,6 +72,12 @@ export function RoadmapSection() {
           desc="Comparte condiciones de spots por WhatsApp/Telegram. Marca favoritos con ★."
           status="done"
         />
+        <TimelineMilestone
+          iconId="info"
+          title="Formulario de feedback"
+          desc="Env&iacute;a sugerencias, reporta bugs o propone nuevos spots desde la app. Bot&oacute;n en el pie del panel lateral."
+          status="done"
+        />
 
         {/* Nota beta */}
         <div className="relative flex items-start gap-3 pb-4 ml-3">
