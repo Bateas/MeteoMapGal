@@ -178,6 +178,10 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
   return (
     <div
       onClick={handleClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
+      tabIndex={0}
+      role="button"
+      aria-label={`Estación ${station.name} (${SOURCE_CONFIG[station.source].label})`}
       className={`
         p-3 rounded-lg cursor-pointer transition-all
         ${isSelected

@@ -52,7 +52,7 @@ export const SpotComparator = memo(function SpotComparator() {
     const spot = spots.find(s => s.id === spotId);
     if (!spot) return;
     selectSpot(spotId);
-    setFlyToTarget({ lon: spot.lon, lat: spot.lat, zoom: 13 });
+    setFlyToTarget({ lon: spot.center[0], lat: spot.center[1], zoom: 13 });
     if (isMobile) setSidebarOpen(false);
   };
 

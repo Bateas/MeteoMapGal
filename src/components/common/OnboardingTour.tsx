@@ -159,6 +159,8 @@ export const OnboardingTour = memo(function OnboardingTour() {
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
       onClick={handleSkip}
+      onKeyDown={(e) => { if (e.key === 'Escape') handleSkip(); }}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label="Tour de bienvenida"
