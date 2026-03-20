@@ -3,27 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>MeteoMapGal</title>
-    <meta name="description" content="Monitorización meteorológica en tiempo real para Galicia. Viento, temperatura, humedad y análisis térmico con 90+ estaciones." />
+    <title>MeteoMapGal — Meteorolog&iacute;a en tiempo real para Galicia</title>
+    <meta name="description" content="Monitorización meteorológica en tiempo real para Galicia. Viento, temperatura, olas, mareas y análisis térmico con 90+ estaciones, 13 boyas y 6 fuentes de datos." />
+    <meta name="keywords" content="meteorología Galicia, viento Rías Baixas, tiempo Vigo, meteo Galicia, vela Galicia, kitesurf Galicia, mareas Galicia, boyas Galicia, estaciones meteorológicas, embalse Castrelo" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://meteomapgal.navia3d.com" />
+    <meta name="author" content="NAVIA 3D" />
     <meta name="theme-color" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="MeteoMapGal" />
 
+    <!-- Geo tags — Galicia region targeting -->
+    <meta name="geo.region" content="ES-GA" />
+    <meta name="geo.placename" content="Galicia, Spain" />
+    <meta name="geo.position" content="42.23;-8.72" />
+    <meta name="ICBM" content="42.23, -8.72" />
+
     <!-- Open Graph -->
-    <meta property="og:title" content="MeteoMapGal — Meteo interactivo para Galicia" />
-    <meta property="og:description" content="Monitorización meteorológica en tiempo real para Galicia. Viento, temperatura, humedad y análisis térmico con 90+ estaciones." />
+    <meta property="og:title" content="MeteoMapGal — Meteorolog&iacute;a en tiempo real para Galicia" />
+    <meta property="og:description" content="Viento, olas, mareas y an&aacute;lisis t&eacute;rmico en tiempo real. 90+ estaciones, 13 boyas, 6 fuentes. Scoring de spots de navegaci&oacute;n." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://meteomapgal.navia3d.com" />
     <meta property="og:image" content="https://meteomapgal.navia3d.com/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:locale" content="es_ES" />
+    <meta property="og:site_name" content="MeteoMapGal" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="MeteoMapGal — Meteo interactivo para Galicia" />
-    <meta name="twitter:description" content="Viento, temperatura, olas y análisis térmico en tiempo real. 90+ estaciones, 12 boyas, 6 fuentes." />
+    <meta name="twitter:title" content="MeteoMapGal — Meteo en tiempo real para Galicia" />
+    <meta name="twitter:description" content="Viento, olas, mareas y an&aacute;lisis t&eacute;rmico. 90+ estaciones, 13 boyas, 6 fuentes. Spots de vela y kitesurf." />
     <meta name="twitter:image" content="https://meteomapgal.navia3d.com/og-image.png" />
 
     <!-- Icons -->
@@ -36,6 +47,27 @@
     <link rel="dns-prefetch" href="https://opendata.aemet.es" />
     <link rel="dns-prefetch" href="https://servizos.meteogalicia.gal" />
     <link rel="preconnect" href="https://api.open-meteo.com" crossorigin />
+
+    <!-- Structured data — Google rich results -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "MeteoMapGal",
+      "description": "Monitorización meteorológica en tiempo real para Galicia. Viento, temperatura, olas, mareas y análisis térmico con 90+ estaciones.",
+      "url": "https://meteomapgal.navia3d.com",
+      "applicationCategory": "WeatherApplication",
+      "operatingSystem": "Web",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+      "author": { "@type": "Organization", "name": "NAVIA 3D", "url": "https://navia3d.com" },
+      "areaServed": {
+        "@type": "Place",
+        "name": "Galicia, Spain",
+        "geo": { "@type": "GeoCoordinates", "latitude": 42.23, "longitude": -8.72 }
+      },
+      "inLanguage": "es"
+    }
+    </script>
 
     <!-- Inline loading skeleton — visible before JS loads (~0ms) -->
     <style>
