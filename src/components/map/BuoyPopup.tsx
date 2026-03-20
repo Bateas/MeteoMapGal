@@ -148,9 +148,9 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
   // ── Mobile: bottom sheet with swipe-to-dismiss ──────────
   if (isMobile) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-40 animate-slide-up">
-        <div ref={sheetRef} className="bg-slate-900 border-t border-cyan-800/50 rounded-t-2xl shadow-2xl max-h-[55dvh] overflow-y-auto p-4"
-             style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up">
+        <div ref={sheetRef} className="bg-slate-900 border-t border-cyan-800/50 rounded-t-2xl shadow-2xl max-h-[60dvh] overflow-y-auto p-4"
+             style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
           <div className="flex justify-center mb-3" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
             <div className="w-10 h-1 rounded-full bg-cyan-700/50" />
           </div>
