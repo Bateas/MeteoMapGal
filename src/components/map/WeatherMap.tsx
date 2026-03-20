@@ -46,6 +46,7 @@ import { NauticalChartOverlay } from './NauticalChartOverlay';
 import { IGNHillshadeOverlay } from './IGNHillshadeOverlay';
 import { IGNContoursOverlay } from './IGNContoursOverlay';
 import { IGNOrthoOverlay } from './IGNOrthoOverlay';
+import { DistanceTool } from './DistanceTool';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 
@@ -132,6 +133,10 @@ export function WeatherMap() {
   // Track zoom level for label visibility (hide station names at low zoom to reduce clutter)
   const [zoomLevel, setZoomLevel] = useState(activeSector.initialView.zoom);
   const showStationLabels = zoomLevel >= 11;
+
+  // Distance measurement tool
+  const [distanceActive, setDistanceActive] = useState(false);
+  const deactivateDistance = useCallback(() => setDistanceActive(false), []);
 
   // Hide markers during map drag for smooth panning (95 DOM markers = jank)
   const [mapMoving, setMapMoving] = useState(false);
@@ -326,6 +331,9 @@ export function WeatherMap() {
         {showSpotPopup && activeSpot && (
           <SpotPopup spot={activeSpot} score={spotScores.get(activeSpotId)} />
         )}
+
+        {/* Distance measurement tool — line + markers rendered inside Map */}
+        <DistanceTool mapRef={mapRef} isActive={distanceActive} onDeactivate={deactivateDistance} />
       </Map>
 
       {/* Canvas overlays on top of map (need project/unproject) */}
@@ -355,6 +363,14 @@ export function WeatherMap() {
             <StormIndicator />
             <TemperatureToggle />
             <WeatherLayerSelector />
+            <button
+              onClick={() => setDistanceActive((v) => !v)}
+              className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}
+              title="Medir distancia"
+              aria-label="Medir distancia"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>
+            </button>
           </div>
         </div>
       ) : (
@@ -365,6 +381,14 @@ export function WeatherMap() {
             <StormIndicator />
             <TemperatureToggle />
             <WeatherLayerSelector />
+            <button
+              onClick={() => setDistanceActive((v) => !v)}
+              className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}
+              title="Medir distancia (nm)"
+              aria-label="Medir distancia"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>
+            </button>
           </div>
 
           {/* Alerts: fills remaining width, centered within its space */}
