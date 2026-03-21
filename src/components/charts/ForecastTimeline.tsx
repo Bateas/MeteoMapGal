@@ -9,7 +9,8 @@ import { ForecastTable } from './ForecastTable';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
-import type { HourlyForecast } from '../../types/forecast';
+import { FORECAST_MODELS } from '../../types/forecast';
+import type { HourlyForecast, ForecastModel } from '../../types/forecast';
 import type { ThermalWindRule } from '../../types/thermal';
 
 // ── Time range selector ──────────────────────────────────
@@ -752,6 +753,9 @@ export function ForecastTimeline() {
     );
   }
 
+  const activeModel = useForecastStore((s) => s.activeModel);
+  const setActiveModel = useForecastStore((s) => s.setActiveModel);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -809,6 +813,24 @@ export function ForecastTimeline() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Model selector */}
+      <div className="flex gap-0.5 mb-2 bg-slate-800/50 rounded p-0.5">
+        {FORECAST_MODELS.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => setActiveModel(m.id)}
+            className={`px-1.5 py-0.5 text-[9px] font-semibold rounded transition-colors ${
+              activeModel === m.id
+                ? 'bg-sky-600 text-white'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+            title={m.desc}
+          >
+            {m.short}
+          </button>
+        ))}
       </div>
 
       {/* Thermal windows forecast */}
