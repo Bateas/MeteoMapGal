@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import type { HourlyForecast, ForecastState } from '../types/forecast';
+import type { HourlyForecast, ForecastState, ForecastModel } from '../types/forecast';
 import { MAP_CENTER } from '../config/constants';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { useSectorStore } from '../store/sectorStore';
@@ -52,6 +52,7 @@ interface ForecastStore extends ForecastState {
   setLoading: (v: boolean) => void;
   setError: (e: string | null) => void;
   setFetchedAt: (d: Date) => void;
+  setActiveModel: (m: ForecastModel) => void;
 }
 
 export const useForecastStore = create<ForecastStore>((set) => ({
@@ -59,18 +60,20 @@ export const useForecastStore = create<ForecastStore>((set) => ({
   fetchedAt: null,
   isLoading: false,
   error: null,
+  activeModel: 'best_match',
 
   setHourly: (hourly) => set({ hourly }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
   setFetchedAt: (fetchedAt) => set({ fetchedAt }),
+  setActiveModel: (activeModel) => set({ activeModel, hourly: [], fetchedAt: null }),
 }));
 
 // ---------------------------------------------------------------------------
 // Fetch function
 // ---------------------------------------------------------------------------
 
-async function fetchForecastTimeline(): Promise<HourlyForecast[]> {
+async function fetchForecastTimeline(model: ForecastModel = 'best_match'): Promise<HourlyForecast[]> {
   const params = [
     'temperature_2m', 'relative_humidity_2m',
     'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
@@ -79,6 +82,7 @@ async function fetchForecastTimeline(): Promise<HourlyForecast[]> {
     'shortwave_radiation', 'cape', 'boundary_layer_height', 'is_day', 'visibility',
   ].join(',');
 
+  const modelParam = model !== 'best_match' ? `&models=${model}` : '';
   const url =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${LAT}&longitude=${LON}` +
@@ -86,7 +90,8 @@ async function fetchForecastTimeline(): Promise<HourlyForecast[]> {
     `&past_hours=${PAST_HOURS}` +
     `&forecast_hours=${FORECAST_HOURS}` +
     `&wind_speed_unit=ms` +
-    `&timezone=Europe%2FMadrid`;
+    `&timezone=Europe%2FMadrid` +
+    modelParam;
 
   const res = await openMeteoFetch(url, undefined, 15_000);
   if (!res.ok) throw new Error(`Open-Meteo forecast: ${res.status}`);
@@ -123,12 +128,13 @@ async function fetchForecastTimeline(): Promise<HourlyForecast[]> {
 // ---------------------------------------------------------------------------
 
 export function useForecastTimeline() {
-  const { setHourly, setLoading, setError, setFetchedAt } = useForecastStore(
+  const { setHourly, setLoading, setError, setFetchedAt, activeModel } = useForecastStore(
     useShallow((s) => ({
       setHourly: s.setHourly,
       setLoading: s.setLoading,
       setError: s.setError,
       setFetchedAt: s.setFetchedAt,
+      activeModel: s.activeModel,
     })),
   );
 
@@ -139,7 +145,7 @@ export function useForecastTimeline() {
     if (!isEmbalse) return; // Skip entirely for non-Embalse sectors
     setLoading(true);
     try {
-      const data = await fetchForecastTimeline();
+      const data = await fetchForecastTimeline(activeModel);
       setHourly(data);
       setError(null);
       setFetchedAt(new Date());
@@ -150,7 +156,7 @@ export function useForecastTimeline() {
     } finally {
       setLoading(false);
     }
-  }, [isEmbalse, setHourly, setLoading, setError, setFetchedAt]);
+  }, [isEmbalse, activeModel, setHourly, setLoading, setError, setFetchedAt]);
 
   // Visibility-aware polling — pauses when tab is hidden
   useVisibilityPolling(poll, POLL_INTERVAL_MS);
