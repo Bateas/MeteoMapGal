@@ -455,6 +455,11 @@ function scoreSpot(
     thermalBoosted = true;
   }
 
+  // ── Upwind propagation check (frontal only, not thermal) ─────
+  // If upwind stations have wind in a pattern direction but spot is calm,
+  // this signals approaching wind. Only for frontal patterns.
+  // Note: humidityPrecursorBoost already handles thermal/bruma separately.
+
   // ── Primary verdict from wind speed (using effective speed with thermal boost) ──
   const verdict = windVerdict(effectiveSpd, spot.id);
 
@@ -685,6 +690,26 @@ export function scoreAllSpots(
     if (nao && verdict !== 'calm' && verdict !== 'unknown') {
       const naoCtx = naoSummaryContext(nao, ao);
       if (naoCtx) summary += ` · ${naoCtx}`;
+    }
+
+    // ── Upwind propagation signal (frontal only) ─────────
+    // If upwind stations show wind in a pattern direction but spot is calm → score boost
+    if (spot.upwindStations && spot.upwindStations.length > 0 && verdict === 'calm') {
+      for (const upId of spot.upwindStations) {
+        const upReading = readings.get(upId);
+        if (!upReading?.windSpeed || !upReading.windDirection) continue;
+        const upKt = msToKnots(upReading.windSpeed);
+        if (upKt < 6) continue; // Need meaningful wind upwind
+        // Check if upwind direction matches a frontal pattern (NOT thermal — thermal is local)
+        const isFrontalDir = spot.windPatterns.some(
+          (p) => angleDifference(upReading.windDirection!, p.direction) <= 45,
+        );
+        if (isFrontalDir) {
+          score = Math.min(100, score + 8);
+          summary += ` · Viento ${upKt.toFixed(0)}kt detectado en costa`;
+          break;
+        }
+      }
     }
 
     // ── Wind trend detection (30min window) ──────────────
