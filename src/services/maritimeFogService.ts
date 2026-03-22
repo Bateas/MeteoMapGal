@@ -456,13 +456,13 @@ function detectNorthWindConsensus(
 ): boolean {
   const MIN_STATIONS = 4;
   const CONSENSUS_RATIO = 0.6; // 60% must agree
-  const MIN_NORTH_SPEED = 3.0; // ~6kt
+  const MIN_NORTH_SPEED = 2.5; // ~5kt — lowered: 77% N consensus at 5.7kt was missing suppression
 
-  const windReports: { dir: number; speed: number }[] = [];
+  const windReports: { dir: number; speed: number; gust: number }[] = [];
 
   for (const [, reading] of stationReadings) {
     if (reading.windSpeed !== null && reading.windDirection !== null && reading.windSpeed >= 1.5) {
-      windReports.push({ dir: reading.windDirection, speed: reading.windSpeed });
+      windReports.push({ dir: reading.windDirection, speed: reading.windSpeed, gust: reading.windGust ?? reading.windSpeed });
     }
   }
 
@@ -475,9 +475,11 @@ function detectNorthWindConsensus(
 
   if (ratio < CONSENSUS_RATIO) return false;
 
-  // Average speed of northerly stations must be meaningful
+  // Use MAX of avg speed and avg gust — gusts are unequivocal signal of wind
+  // Even if avg speed is 2.5 m/s, gusts of 5+ m/s mean there IS real wind
   const avgNorthSpeed = northerly.reduce((s, w) => s + w.speed, 0) / northerly.length;
-  return avgNorthSpeed >= MIN_NORTH_SPEED;
+  const avgNorthGust = northerly.reduce((s, w) => s + w.gust, 0) / northerly.length;
+  return Math.max(avgNorthSpeed, avgNorthGust * 0.7) >= MIN_NORTH_SPEED;
 }
 
 /**
