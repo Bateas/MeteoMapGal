@@ -63,6 +63,10 @@ export interface WebhookSummaryPayload {
   alerts: { id: string; severity: AlertSeverity; title: string; detail: string }[];
   /** Best sailing window if available */
   sailing?: { spot: string; start: string; end: string; avgWindKt: number; verdict: string };
+  /** Spot verdicts summary */
+  spots?: string[];
+  /** Environmental data from buoys */
+  environment?: { humidity?: number; waterTemp?: number; airTemp?: number };
 }
 
 // ── Night silence check ─────────────────────────────────
