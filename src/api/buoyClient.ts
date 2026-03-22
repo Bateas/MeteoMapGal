@@ -360,8 +360,18 @@ export function mergeBuoyReadings(portus: BuoyReading[], obs: BuoyReading[]): Bu
         seaLevel: obsR.seaLevel ?? existing.seaLevel,
         airPressure: obsR.airPressure ?? existing.airPressure,
       });
+    } else {
+      // PORTUS is newer — keep it, but merge ObsCosteiro-exclusive fields
+      // (humidity, dewPoint only come from Observatorio Costeiro)
+      map.set(obsR.stationId, {
+        ...existing,
+        humidity: existing.humidity ?? obsR.humidity,
+        dewPoint: existing.dewPoint ?? obsR.dewPoint,
+        // Also fill gaps in shared fields if PORTUS has nulls
+        airTemp: existing.airTemp ?? obsR.airTemp,
+        waterTemp: existing.waterTemp ?? obsR.waterTemp,
+      });
     }
-    // If PORTUS is newer, keep it as-is
   }
 
   return Array.from(map.values());
