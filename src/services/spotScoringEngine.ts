@@ -200,12 +200,17 @@ function computeSpotWindConsensus(
   const speedPoints: { speedKt: number; weight: number }[] = [];
   const dirPoints: { dir: number; weight: number }[] = [];
 
+  const preferredSet = new Set(spot.preferredStations);
+
   for (const { station, reading, distKm } of stationData) {
     if (reading.windSpeed === null) continue;
     const speedKt = msToKnots(reading.windSpeed);
     if (speedKt < 1) continue;
     // Composite weight: distance × source quality × freshness
-    const distWeight = 1 / (distKm + 1);
+    // Preferred stations within 2km get quality boost (they're at the spot — trust them)
+    const isPreferred = preferredSet.has(station.id);
+    const proximityBoost = (isPreferred && distKm <= 2) ? 1.5 : 1.0;
+    const distWeight = proximityBoost / (distKm + 1);
     const qualityMul = getSourceQuality(station.id);
     const ageMin = (Date.now() - reading.timestamp.getTime()) / 60_000;
     const freshnessMul = ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;

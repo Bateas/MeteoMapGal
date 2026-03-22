@@ -351,8 +351,9 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'aemet_1484C', // Ribadavia (~5km)
-      'aemet_1496',  // Ourense (~15km)
+      'skyx_SKY100',  // SkyX at reservoir edge (~0km) — best source, NO direction
+      'aemet_1484C',  // Ribadavia (~5km) — has direction
+      'aemet_1496',   // Ourense (~15km) — has direction, but different valley
     ],
     preferredBuoys: [], // No buoys in freshwater reservoir
     waveRelevance: 'none',
