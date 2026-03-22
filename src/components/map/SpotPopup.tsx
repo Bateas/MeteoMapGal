@@ -197,16 +197,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Thermal boost indicator ── */}
-      {score?.thermalBoosted && (
-        <div
-          className="text-[10px] font-semibold mb-1 px-1.5 py-0.5 rounded"
-          style={{ background: 'rgba(251,191,36,0.10)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.20)' }}
-        >
-          <WeatherIcon id="thermal-wind" size={12} className="inline -mt-px" />{' '}
-          Térmica detectada — estaciones en tierra subestiman el viento en el agua
-        </div>
-      )}
+      {/* Thermal boost indicator removed — redundant with "Térmica X% prob" already shown above */}
 
       {/* ── Scoring confidence ── */}
       {score && score.scoringConfidence === 'low' && (

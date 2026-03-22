@@ -617,7 +617,7 @@ function buildSpotSummary(
 
   // Thermal boost indicator — tell user the score accounts for localized thermal
   if (thermalBoosted && thermalData) {
-    parts.push(`\u00b7 Térmica ${thermalData.thermalProbability}% (estaciones en tierra subestiman)`);
+    parts.push(`\u00b7 Térmica ${thermalData.thermalProbability}%`);
   }
 
   // Humidity precursor indicator (bruma pattern)
