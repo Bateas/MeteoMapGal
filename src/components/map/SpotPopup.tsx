@@ -131,6 +131,20 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Wind trend (30min ramp detection) ── */}
+      {score?.windTrend && score.windTrend.signal !== 'none' && (
+        <div className={`text-[10px] rounded px-2 py-1 mb-2 ${
+          score.windTrend.signal === 'rapid' ? 'text-red-400 bg-red-500/10' :
+          score.windTrend.signal === 'building' ? 'text-sky-400 bg-sky-500/10' :
+          'text-amber-400 bg-amber-500/10'
+        }`}>
+          {score.windTrend.signal === 'rapid' && <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px mr-1" />}
+          {score.windTrend.signal === 'building' && <WeatherIcon id="wind" size={11} className="inline -mt-px mr-1" />}
+          {score.windTrend.signal === 'dropping' && <WeatherIcon id="wind" size={11} className="inline -mt-px mr-1" />}
+          {score.windTrend.label}
+        </div>
+      )}
+
       {/* ── Wave conditions (coastal spots) ── */}
       {score?.waves && score.waves.waveHeight != null && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2 pt-1 border-t border-slate-700/40">
