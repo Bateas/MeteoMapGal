@@ -212,7 +212,7 @@ export function analyzeFog(
   // Continental dry wind: N/NE/NW (315°-80°) + speed ≥ 3 m/s (~6kt) + HR < 78% → fog impossible
   // Wide range because Galician NE channels at 40-80° in valleys — still dry continental air
   const isContinentalWind = avgWindDir !== null && (avgWindDir >= 315 || avgWindDir <= 80);
-  const isDryWind = avgWind !== null && avgWind >= 3 && avgHumidity !== null && avgHumidity < 78;
+  const isDryWind = avgWind !== null && avgWind >= 2.5 && avgHumidity !== null && avgHumidity < 78;
   const fogSuppressedByWind =
     (isContinentalWind && isDryWind) ||
     (avgWind !== null && avgWind > 4 && avgHumidity !== null && avgHumidity < 72);
