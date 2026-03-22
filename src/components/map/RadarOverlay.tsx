@@ -160,30 +160,12 @@ export const RadarOverlay = memo(function RadarOverlay() {
 
       {/* ── Animated RainViewer tiles ── */}
       {mode === 'animated' && currentTileUrl && (
-        <Source
-          key={`rv-${frameIndex}`}
-          id="rainviewer-tiles"
-          type="raster"
-          tiles={[currentTileUrl]}
-          tileSize={256}
-          maxzoom={7}
-          attribution='<a href="https://www.rainviewer.com" target="_blank">RainViewer</a>'
-        >
-          <Layer
-            id="rainviewer-raster"
-            type="raster"
-            paint={{
-              'raster-opacity': opacity,
-              'raster-opacity-transition': { duration: 0, delay: 0 },
-              'raster-fade-duration': 0,
-            }}
-          />
-        </Source>
+        <RainViewerLayer tileUrl={currentTileUrl} opacity={opacity} />
       )}
 
       {/* ── Animation controls (bottom-center over map) ── */}
       {mode === 'animated' && frames.length > 0 && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
           <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/50 rounded-xl px-3 py-2 flex items-center gap-2 shadow-lg">
             {/* Play/Pause */}
             <button
@@ -228,7 +210,7 @@ export const RadarOverlay = memo(function RadarOverlay() {
 
       {/* ── Mode toggle (static mode — small button to switch to animated) ── */}
       {mode === 'static' && frames.length > 0 && (
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
           <button
             onClick={() => setMode('animated')}
             className="bg-slate-900/85 backdrop-blur-md border border-slate-700/50 rounded-full px-3 py-1.5 flex items-center gap-1.5 text-slate-400 hover:text-sky-400 transition-colors shadow-lg text-[10px]"
@@ -261,6 +243,54 @@ export const RadarOverlay = memo(function RadarOverlay() {
     </>
   );
 });
+
+/** RainViewer tile layer — updates tiles via map API without remounting */
+function RainViewerLayer({ tileUrl, opacity }: { tileUrl: string; opacity: number }) {
+  const { current: mapInstance } = useMap();
+
+  useEffect(() => {
+    if (!mapInstance) return;
+    const map = mapInstance.getMap();
+    if (!map) return;
+
+    const sourceId = 'rainviewer-tiles';
+    const layerId = 'rainviewer-raster';
+
+    // If source exists, update tiles
+    const existing = map.getSource(sourceId) as maplibregl.RasterTileSource | undefined;
+    if (existing) {
+      // MapLibre doesn't have setTiles — remove and re-add
+      if (map.getLayer(layerId)) map.removeLayer(layerId);
+      map.removeSource(sourceId);
+    }
+
+    map.addSource(sourceId, {
+      type: 'raster',
+      tiles: [tileUrl],
+      tileSize: 256,
+      maxzoom: 7,
+      attribution: '<a href="https://www.rainviewer.com" target="_blank">RainViewer</a>',
+    });
+
+    map.addLayer({
+      id: layerId,
+      type: 'raster',
+      source: sourceId,
+      paint: {
+        'raster-opacity': opacity,
+        'raster-opacity-transition': { duration: 0, delay: 0 },
+        'raster-fade-duration': 0,
+      },
+    });
+
+    return () => {
+      if (map.getLayer(layerId)) map.removeLayer(layerId);
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
+    };
+  }, [tileUrl, mapInstance, opacity]);
+
+  return null;
+}
 
 /** Format unix timestamp (seconds) to HH:MM local time */
 function formatFrameTime(unixSeconds: number): string {
