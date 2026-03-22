@@ -74,6 +74,12 @@ export interface SailingSpot {
   /** Wind speed calibration offset (kt). Added to consensus avg to compensate
    *  for amateur station low-mounting bias or exposed locations. Default 0. */
   windCalibrationKt?: number;
+  /** Upwind indicator stations — if these show wind in a pattern direction
+   *  while the spot is calm, it signals approaching wind (frontal propagation).
+   *  NOT used for thermal/bruma patterns (those generate locally).
+   *  Format: station IDs from the sector's station pool. */
+  upwindStations?: string[];
+
   /** Webcams near this spot (Phase 1) */
   webcams?: SpotWebcam[];
   /** Nearest IHM tide station ID (from tideClient.ts) for tide summary in popup */
@@ -117,6 +123,9 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'none',
     thermalDetection: true,
     hardGates: { maxWindKt: 30 },
+    // Upwind for frontal WSW: Bouzas (mouth of ría) shows wind before interior
+    // NOT used for thermal/bruma (local generation, Bouzas stays calm)
+    upwindStations: ['mc_ESGAL3600000036041A'], // Vigo Bouzas (12m, boca ría)
     tideStationId: '29', // Vigo
     webcams: [
       {
