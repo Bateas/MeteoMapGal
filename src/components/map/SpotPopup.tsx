@@ -122,6 +122,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
               <span className="text-[10px] text-slate-400 font-normal">{Math.round(score.wind.dirDeg)}°</span>
             </span>
           </div>
+          {score.gustKt != null && score.gustKt > score.wind.avgSpeedKt && (
+            <Cell label="Racha" value={`${score.gustKt.toFixed(0)} kt`} color={windKtColor(score.gustKt)} />
+          )}
           {score.wind.matchedPattern && (
             <div className="col-span-2 text-[10px] text-amber-400/80 italic">
               <WeatherIcon id="thermal-wind" size={11} className="inline -mt-px" /> {score.wind.matchedPattern}
