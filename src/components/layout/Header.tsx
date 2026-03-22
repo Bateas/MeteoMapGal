@@ -10,6 +10,7 @@ import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { scoreForecastThermal, thermalColor } from '../../services/forecastScoringUtils';
 import { useUIStore } from '../../store/uiStore';
+import { useThemeStore } from '../../store/themeStore';
 import { APP_VERSION } from '../../config/version';
 
 interface WindFrontInfo {
@@ -37,6 +38,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   const thermalRules = useThermalStore((s) => s.rules);
   const isMobile = useUIStore((s) => s.isMobile);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const theme = useThemeStore((s) => s.theme);
 
   const sun = useMemo(() => getSunTimes(new Date(), activeSector.center), [activeSector.center]);
   const daylight = useMemo(() => {
@@ -246,6 +249,15 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             </span>
           </div>
         )}
+
+        {/* Theme toggle — sun/moon */}
+        <button
+          onClick={toggleTheme}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/60 transition-all min-w-[32px] min-h-[32px] flex items-center justify-center"
+          aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        >
+          <WeatherIcon id={theme === 'dark' ? 'sun' : 'moon'} size={14} />
+        </button>
 
         <LastUpdated onRefresh={onRefresh} compact={isMobile} />
       </div>

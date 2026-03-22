@@ -28,6 +28,7 @@ import { tryAutoSector } from '../../services/geolocationService';
 import { ConditionsTicker } from '../common/ConditionsTicker';
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { aggregateAllAlerts } from '../../services/alertService';
+import { useThemeStore } from '../../store/themeStore';
 import { processAlertNotifications } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
 import {
@@ -55,6 +56,13 @@ export function AppShell() {
 
   // ── Responsive state ──────────────────────────────────
   const isMobile = useUIStore((s) => s.isMobile);
+  const theme = useThemeStore((s) => s.theme);
+
+  // Apply theme to <html> element
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#ffffff' : '#0f172a');
+  }, [theme]);
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setIsMobile = useUIStore((s) => s.setIsMobile);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
@@ -356,7 +364,7 @@ export function AppShell() {
           </>
         )}
 
-        <main id="main-map" className={`flex-1 relative isolate transition-opacity duration-1000 ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
+        <main id="main-map" className={`flex-1 relative isolate transition-opacity duration-1000 map-dark-scope ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
           <ErrorBoundary section="Mapa">
             <WeatherMap />
           </ErrorBoundary>
