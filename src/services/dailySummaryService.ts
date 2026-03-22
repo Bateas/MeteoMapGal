@@ -18,8 +18,8 @@ import type { WebhookSummaryPayload } from '../api/webhookClient';
 /** localStorage key to track last summary date */
 const LAST_SUMMARY_KEY = 'meteomap-last-summary';
 
-/** Hour to send the daily summary (8:00 AM local) */
-const SUMMARY_HOUR = 8;
+/** Hour to send the daily summary (9:00 AM local — enough daylight for fresh data) */
+const SUMMARY_HOUR = 9;
 
 /**
  * Check if a daily summary should be sent now.
