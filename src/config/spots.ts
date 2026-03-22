@@ -302,7 +302,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       3223, // Marín REDMAR (tide gauge, ~3km S)
     ],
     waveRelevance: 'moderate',
-    thermalDetection: false,
+    thermalDetection: true, // Same ría thermal/bruma dynamics as Cesantes
     windCalibrationKt: 1, // Closer stations now (3km vs 20km), less compensation needed
     hardGates: { maxWindKt: 30, maxWaveHeight: 2.5 },
     tideStationId: '28', // Marín
