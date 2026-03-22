@@ -96,6 +96,10 @@ export interface SpotScore {
   scoringConfidence: 'high' | 'medium' | 'low';
   /** Wind trend from reading history (30min window) */
   windTrend: WindTrend | null;
+  /** Dew point from nearest buoy (°C) — Rande/ObsCosteiro */
+  dewPoint: number | null;
+  /** Buoy humidity precursor signal (bruma pattern) */
+  humiditySignal: string | null;
   computedAt: Date;
 }
 
@@ -386,7 +390,7 @@ function scoreSpot(
   waterTemp: number | null,
   thermalData?: SpotThermalContext,
   buoyData?: { buoy: BuoyReading; distKm: number }[],
-): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean } {
+): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; humiditySignal: string | null } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
     return {
@@ -394,7 +398,7 @@ function scoreSpot(
       verdict: 'strong',
       hardGate: `Viento ${wind.avgSpeedKt.toFixed(0)}kt > ${spot.hardGates.maxWindKt}kt`,
       summary: `Viento excesivo (${wind.avgSpeedKt.toFixed(0)}kt). Peligroso.`,
-      thermalBoosted: false,
+      thermalBoosted: false, humiditySignal: null,
     };
   }
 
@@ -405,7 +409,7 @@ function scoreSpot(
       verdict: 'strong',
       hardGate: `Oleaje ${waves.waveHeight.toFixed(1)}m > ${spot.hardGates.maxWaveHeight}m`,
       summary: `Oleaje excesivo (${waves.waveHeight.toFixed(1)}m). Peligroso.`,
-      thermalBoosted: false,
+      thermalBoosted: false, humiditySignal: null,
     };
   }
 
@@ -538,7 +542,7 @@ function scoreSpot(
   // ── Summary ────────────────────────────────────────────
   const summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData);
 
-  return { score, verdict, hardGate: null, summary, thermalBoosted };
+  return { score, verdict, hardGate: null, summary, thermalBoosted, humiditySignal: precursor.signal };
 }
 
 // ── Summary Builder ──────────────────────────────────────────
@@ -647,13 +651,13 @@ export function scoreAllSpots(
     const wind = computeSpotWindConsensus(spot, stationData, buoyData);
     const waves = extractWaveConditions(buoyData);
 
-    // Water temp from nearest buoy
+    // Water temp + dew point from nearest buoy
     let waterTemp: number | null = null;
+    let dewPoint: number | null = null;
     for (const { buoy } of buoyData) {
-      if (buoy.waterTemp !== null) {
-        waterTemp = buoy.waterTemp;
-        break;
-      }
+      if (waterTemp === null && buoy.waterTemp !== null) waterTemp = buoy.waterTemp;
+      if (dewPoint === null && buoy.dewPoint !== null) dewPoint = buoy.dewPoint;
+      if (waterTemp !== null && dewPoint !== null) break;
     }
 
     // Pass thermal data to scoring when spot has thermalDetection
@@ -762,6 +766,8 @@ export function scoreAllSpots(
       thermalBoosted,
       scoringConfidence,
       windTrend,
+      dewPoint,
+      humiditySignal,
       computedAt,
     });
   }
