@@ -226,10 +226,10 @@ function CurrentsLegend() {
 function RadarLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> AEMET Radar nacional</span>
+      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> Radar</span>
       <div className="text-[9px] text-slate-400">
-        Radar nacional cada 10 min. Incluye Cerceda (A Coruña).
-        Colores indican reflectividad (intensidad de precipitación).
+        AEMET nacional (estático) + RainViewer (animación 2h).
+        Pulsa el botón del mapa para animar.
       </div>
       <div className="flex items-center gap-0">
         {[
