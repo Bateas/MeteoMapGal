@@ -461,7 +461,7 @@ function detectNorthWindConsensus(
   const windReports: { dir: number; speed: number; gust: number }[] = [];
 
   for (const [, reading] of stationReadings) {
-    if (reading.windSpeed !== null && reading.windDirection !== null && reading.windSpeed >= 1.5) {
+    if (reading.windSpeed !== null && reading.windDirection !== null && reading.windSpeed >= 1.0) {
       windReports.push({ dir: reading.windDirection, speed: reading.windSpeed, gust: reading.windGust ?? reading.windSpeed });
     }
   }
@@ -469,17 +469,23 @@ function detectNorthWindConsensus(
   if (windReports.length < MIN_STATIONS) return false;
 
   // Count northerly stations (N/NE: 330°-80°) — wide range for Galician nortada
-  // Channeled NE can read 40-80° in valleys but it's still continental dry air
   const northerly = windReports.filter((w) => w.dir >= 330 || w.dir <= 80);
   const ratio = northerly.length / windReports.length;
 
   if (ratio < CONSENSUS_RATIO) return false;
 
-  // Use MAX of avg speed and avg gust — gusts are unequivocal signal of wind
-  // Even if avg speed is 2.5 m/s, gusts of 5+ m/s mean there IS real wind
-  const avgNorthSpeed = northerly.reduce((s, w) => s + w.speed, 0) / northerly.length;
-  const avgNorthGust = northerly.reduce((s, w) => s + w.gust, 0) / northerly.length;
-  return Math.max(avgNorthSpeed, avgNorthGust * 0.7) >= MIN_NORTH_SPEED;
+  // Multiple checks — ANY of these means real wind = no fog:
+  // 1. Max gust from any northerly station > 5 m/s (~10kt) = unambiguous
+  // 2. Median speed (not mean — avoids amateur stations dragging avg down)
+  // 3. Mean gust × 0.7
+  const maxGust = Math.max(...northerly.map((w) => w.gust));
+  if (maxGust >= 5.0) return true; // 10kt gust = clear wind, no fog possible
+
+  const speeds = northerly.map((w) => w.speed).sort((a, b) => a - b);
+  const medianSpeed = speeds[Math.floor(speeds.length / 2)];
+  const avgGust = northerly.reduce((s, w) => s + w.gust, 0) / northerly.length;
+
+  return Math.max(medianSpeed, avgGust * 0.7) >= MIN_NORTH_SPEED;
 }
 
 /**
