@@ -214,8 +214,11 @@ function computeSpotWindConsensus(
     if (buoy.windSpeed === null) continue;
     const speedKt = msToKnots(buoy.windSpeed);
     if (speedKt < 1) continue;
-    // Buoys are professional instruments (quality=1.0) but still decay by freshness
-    const distWeight = 1 / (distKm + 1);
+    // Buoys measure wind ON WATER — exactly what sailors need.
+    // Preferred buoys within 5km get 2x weight boost (they represent the spot directly).
+    const isPreferred = spot.preferredBuoys.includes(buoy.stationId);
+    const proximityBoost = (isPreferred && distKm <= 5) ? 2.0 : 1.0;
+    const distWeight = proximityBoost / (distKm + 1);
     const buoyAgeMin = buoy.timestamp ? (Date.now() - new Date(buoy.timestamp).getTime()) / 60_000 : 0;
     const buoyFreshness = buoyAgeMin <= 10 ? 1.0 : buoyAgeMin <= 30 ? 0.95 : buoyAgeMin <= 60 ? 0.85 : 0.7;
     const weight = distWeight * buoyFreshness;
@@ -327,12 +330,59 @@ function windVerdict(spd: number, spotId: SpotId): SpotVerdict {
  * The SCORE (0-100) adds nuance from patterns, consensus, waves, and context.
  * Score is used for sorting/comparison but verdict drives the color on the map.
  */
+/** Check humidity precursor from buoy data for ría thermal/bruma detection.
+ * Historical analysis (2023-2025): 96% of WSW wind events at Cesantes
+ * had humidity >65% three hours before. Rande buoy has humidity but NO wind.
+ * Returns boost factor (0-1) based on humidity + time of day + direction. */
+function humidityPrecursorBoost(
+  spot: SailingSpot,
+  buoyData: { buoy: BuoyReading; distKm: number }[],
+  wind: SpotWindConsensus | null,
+): { boost: number; humidity: number | null; signal: string | null } {
+  if (!spot.thermalDetection) return { boost: 0, humidity: null, signal: null };
+
+  // Find nearest buoy with humidity data (Rande for Cesantes)
+  let nearestHumidity: number | null = null;
+  for (const { buoy } of buoyData) {
+    if (buoy.humidity !== null && buoy.humidity > 0) {
+      nearestHumidity = buoy.humidity;
+      break;
+    }
+  }
+  if (nearestHumidity === null) return { boost: 0, humidity: null, signal: null };
+
+  const hour = new Date().getHours();
+  // Pattern active 9-18h (thermal window)
+  if (hour < 9 || hour > 18) return { boost: 0, humidity: nearestHumidity, signal: null };
+
+  // Humidity >65% = precursor signal (96% correlation in 3-year analysis)
+  if (nearestHumidity < 65) return { boost: 0, humidity: nearestHumidity, signal: null };
+
+  // Direction check: if wind exists, should be WSW-ish (200-280°)
+  const dirOk = !wind || (wind.dirDeg >= 200 && wind.dirDeg <= 280) || wind.avgSpeedKt < 3;
+
+  if (!dirOk) return { boost: 0, humidity: nearestHumidity, signal: null };
+
+  // Boost scales with humidity level and time of day
+  // Peak at 12-16h (thermal prime), lower at edges
+  const timeFactor = (hour >= 12 && hour <= 16) ? 1.0 : (hour >= 10 && hour <= 17) ? 0.7 : 0.4;
+  const humFactor = nearestHumidity >= 80 ? 1.0 : nearestHumidity >= 70 ? 0.7 : 0.4;
+  const boost = timeFactor * humFactor;
+
+  const signal = nearestHumidity >= 80
+    ? `Bruma alta (${nearestHumidity}%) — viento probable`
+    : `Humedad ${nearestHumidity}% — condiciones favorables`;
+
+  return { boost, humidity: nearestHumidity, signal };
+}
+
 function scoreSpot(
   spot: SailingSpot,
   wind: SpotWindConsensus | null,
   waves: SpotWaveConditions | null,
   waterTemp: number | null,
   thermalData?: SpotThermalContext,
+  buoyData?: { buoy: BuoyReading; distKm: number }[],
 ): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
@@ -386,6 +436,16 @@ function scoreSpot(
       effectiveSpd = spd * boostFactor;
       thermalBoosted = true;
     }
+  }
+
+  // ── Humidity precursor boost (ría bruma pattern) ──────────
+  // Historical analysis: 96% of Cesantes wind events preceded by humidity >65%
+  // When buoy humidity is high + time is right + direction is WSW → boost score
+  const precursor = buoyData ? humidityPrecursorBoost(spot, buoyData, wind) : { boost: 0, humidity: null, signal: null };
+  if (precursor.boost > 0 && effectiveSpd >= 2) {
+    // Additive boost: up to +3kt at max precursor signal
+    effectiveSpd += precursor.boost * 3;
+    thermalBoosted = true;
   }
 
   // ── Primary verdict from wind speed (using effective speed with thermal boost) ──
@@ -460,6 +520,11 @@ function scoreSpot(
   // ── N wind penalty for Cesantes ────────────────────────
   if (spot.id === 'cesantes' && wind.dominantDir === 'N') {
     score -= 15;
+  }
+
+  // ── Humidity precursor bonus (bruma pattern) ────────────
+  if (precursor.boost > 0) {
+    score += Math.round(precursor.boost * 12); // up to +12 pts
   }
 
   // Cap score — calm verdict should never score high (confusing to see "CALMA 30/100")
@@ -543,6 +608,9 @@ function buildSpotSummary(
     parts.push(`\u00b7 Térmica ${thermalData.thermalProbability}% (estaciones en tierra subestiman)`);
   }
 
+  // Humidity precursor indicator (bruma pattern)
+  // Note: precursor data not available here directly — handled via thermalBoosted flag
+
   return parts.join(' ');
 }
 
@@ -586,7 +654,7 @@ export function scoreAllSpots(
 
     // Pass thermal data to scoring when spot has thermalDetection
     const spotThermal = spot.thermalDetection ? thermalData : undefined;
-    let { score, verdict, hardGate, summary, thermalBoosted } = scoreSpot(spot, wind, waves, waterTemp, spotThermal);
+    let { score, verdict, hardGate, summary, thermalBoosted } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData);
 
     // Scoring confidence based on source count and type
     const sourceCount = wind?.stationCount ?? 0;
@@ -620,6 +688,15 @@ export function scoreAllSpots(
       if (airTemp === null && reading.temperature !== null) airTemp = reading.temperature;
       if (humidity === null && reading.humidity !== null) humidity = reading.humidity;
       if (airTemp !== null && humidity !== null) break;
+    }
+    // Fallback: check buoy humidity (Rande has humidity from ObsCosteiro but no wind)
+    if (humidity === null) {
+      for (const { buoy } of buoyData) {
+        if (buoy.humidity !== null && buoy.humidity > 0) {
+          humidity = buoy.humidity;
+          break;
+        }
+      }
     }
 
     // Wind chill (sensación térmica) — Environment Canada formula
