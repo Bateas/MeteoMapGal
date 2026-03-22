@@ -33,6 +33,52 @@
   --color-tooltip-border: #334155;
 }
 
+/* ── Light mode overrides ─────────────────────────────
+ * Tailwind v4 compiles bg-slate-900 → var(--color-slate-900).
+ * Overriding the palette flips ALL usages automatically.
+ * Map container restores dark values via .map-dark-scope.
+ */
+[data-theme="light"] {
+  --color-slate-950: #ffffff;
+  --color-slate-900: #f8fafc;
+  --color-slate-800: #f1f5f9;
+  --color-slate-700: #e2e8f0;
+  --color-slate-600: #cbd5e1;
+  --color-slate-500: #94a3b8;
+  --color-slate-400: #64748b;
+  --color-slate-300: #475569;
+  --color-slate-200: #334155;
+  --color-slate-100: #1e293b;
+  --color-slate-50: #0f172a;
+
+  --color-surface-base: #ffffff;
+  --color-surface-card: #f8fafc;
+  --color-surface-elevated: #f1f5f9;
+  --color-surface-overlay: rgba(255, 255, 255, 0.85);
+
+  --color-tooltip-bg: #ffffff;
+  --color-tooltip-border: #e2e8f0;
+
+  /* Text: white → dark in light mode */
+  --color-white: #1e293b;
+}
+
+/* Map + overlays stay dark in light mode */
+[data-theme="light"] .map-dark-scope {
+  --color-white: #ffffff;
+  --color-slate-950: #0f172a;
+  --color-slate-900: #1e293b;
+  --color-slate-800: #334155;
+  --color-slate-700: #475569;
+  --color-slate-600: #64748b;
+  --color-slate-500: #94a3b8;
+  --color-slate-400: #94a3b8;
+  --color-slate-300: #cbd5e1;
+  --color-slate-200: #e2e8f0;
+  --color-slate-100: #f1f5f9;
+  --color-slate-50: #f8fafc;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -164,16 +210,20 @@ body {
 
 /* MapLibre popup overrides */
 .maplibregl-popup-content {
-  background: #1e293b !important;
-  color: #e2e8f0 !important;
+  background: var(--color-surface-card, #1e293b) !important;
+  color: var(--color-slate-200, #e2e8f0) !important;
   border-radius: 8px !important;
   padding: 12px !important;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-  border: 1px solid #334155 !important;
+  border: 1px solid var(--color-slate-700, #334155) !important;
+}
+
+[data-theme="light"] .maplibregl-popup-content {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12) !important;
 }
 
 .maplibregl-popup-close-button {
-  color: #94a3b8 !important;
+  color: var(--color-slate-500, #94a3b8) !important;
   font-size: 16px !important;
   padding: 4px 8px !important;
 }
@@ -189,12 +239,12 @@ body {
 }
 
 .maplibregl-popup-close-button:hover {
-  color: #f1f5f9 !important;
+  color: var(--color-slate-200, #f1f5f9) !important;
   background: transparent !important;
 }
 
 .maplibregl-popup-tip {
-  border-top-color: #1e293b !important;
+  border-top-color: var(--color-surface-card, #1e293b) !important;
 }
 
 /* Hide scrollbar but keep scrollable (tab bars, horizontal scroll containers) */
@@ -212,16 +262,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: var(--color-surface-base, #0f172a);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--color-slate-700, #334155);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--color-slate-600, #475569);
 }
 
 /* ── Loading screen animations ─────────────────────────── */
@@ -408,7 +458,7 @@ body {
   --border-angle: 0deg;
   border: 1px solid transparent;
   background:
-    linear-gradient(#1e293b, #1e293b) padding-box,
+    linear-gradient(var(--color-surface-card, #1e293b), var(--color-surface-card, #1e293b)) padding-box,
     conic-gradient(from var(--border-angle), #3b82f6 0%, #06b6d4 25%, #8b5cf6 50%, #3b82f6 75%, #06b6d4 100%) border-box;
   animation: border-rotate 4s linear infinite;
 }
