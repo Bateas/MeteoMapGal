@@ -415,7 +415,7 @@ function scoreSpot(
 
   // ── No data ────────────────────────────────────────────
   if (!wind) {
-    return { score: 0, verdict: 'unknown', hardGate: null, summary: 'Sin datos de viento.', thermalBoosted: false };
+    return { score: 0, verdict: 'unknown', hardGate: null, summary: 'Sin datos de viento.', thermalBoosted: false, humiditySignal: null };
   }
 
   const spd = wind.avgSpeedKt;
