@@ -209,13 +209,40 @@ export function analyzeFog(
     : null;
 
   // ── Fog suppression checks (before any level assignment) ──
-  // Continental dry wind: N/NE/NW (315°-80°) + speed ≥ 3 m/s (~6kt) + HR < 78% → fog impossible
-  // Wide range because Galician NE channels at 40-80° in valleys — still dry continental air
+  // Max gust from any station — unambiguous wind signal
+  const allGusts = [...latestByStation.values()]
+    .map((r) => r.windGust ?? r.windSpeed)
+    .filter((g): g is number => g !== null && g > 0);
+  const maxGust = allGusts.length > 0 ? Math.max(...allGusts) : 0;
+
+  // If ANY station has gusts > 5 m/s (~10kt), no fog is possible regardless
+  if (maxGust >= 5.0) {
+    return {
+      level: 'none',
+      dewPoint: currentDewPoint,
+      spread: currentSpread,
+      spreadTrend: null,
+      fogEta: null,
+      humidity: currentHumidity,
+      temperature: currentTemp,
+      windSpeed: avgWind,
+      windDir: avgWindDir,
+      solarRadiation: avgSolar,
+      confidence: 0,
+      hypothesis: `Niebla suprimida: rachas ${(maxGust * 1.94).toFixed(0)}kt — viento impide formación`,
+    };
+  }
+
+  // Continental dry wind: N/NE/NW (315°-80°) + speed/gust check + HR < 78%
   const isContinentalWind = avgWindDir !== null && (avgWindDir >= 315 || avgWindDir <= 80);
-  const isDryWind = avgWind !== null && avgWind >= 2.5 && avgHumidity !== null && avgHumidity < 78;
+  const medianWind = windReadings.length >= 3
+    ? [...windReadings].sort((a, b) => a - b)[Math.floor(windReadings.length / 2)]
+    : avgWind;
+  const effectiveWind = Math.max(medianWind ?? 0, maxGust * 0.7);
+  const isDryWind = effectiveWind >= 2.5 && avgHumidity !== null && avgHumidity < 78;
   const fogSuppressedByWind =
     (isContinentalWind && isDryWind) ||
-    (avgWind !== null && avgWind > 4 && avgHumidity !== null && avgHumidity < 72);
+    (effectiveWind > 4 && avgHumidity !== null && avgHumidity < 72);
 
   // Solar suppression: radiation > 200 W/m² → fog dissipated (daytime only)
   const fogSuppressedBySolar = avgSolar !== null && avgSolar > 200;
