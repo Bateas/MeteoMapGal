@@ -662,7 +662,7 @@ export function scoreAllSpots(
 
     // Pass thermal data to scoring when spot has thermalDetection
     const spotThermal = spot.thermalDetection ? thermalData : undefined;
-    let { score, verdict, hardGate, summary, thermalBoosted } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData);
+    let { score, verdict, hardGate, summary, thermalBoosted, humiditySignal } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData);
 
     // Scoring confidence based on source count and type
     const sourceCount = wind?.stationCount ?? 0;
