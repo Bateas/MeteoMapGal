@@ -91,9 +91,9 @@ export function useSpotScoring() {
 
     // Defer scoring to avoid blocking render — read readings fresh from store
     timerRef.current = setTimeout(() => {
-      const currentReadings = useWeatherStore.getState().currentReadings;
+      const { currentReadings, readingHistory } = useWeatherStore.getState();
       const tc = teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined;
-      const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc);
+      const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc, readingHistory);
       setScores(scores);
       lastScoredRef.current = Date.now();
 
