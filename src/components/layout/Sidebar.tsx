@@ -49,8 +49,9 @@ export function Sidebar() {
   const isMobile = useUIStore((s) => s.isMobile);
 
   // Reset to 'stations' if viewing an Embalse-only tab and sector changes
+  // Forecast is now available for both sectors; thermal remains Embalse-only
   useEffect(() => {
-    if (!isEmbalse && (activeTab === 'forecast' || activeTab === 'thermal')) {
+    if (!isEmbalse && activeTab === 'thermal') {
       setActiveTab('stations');
     }
   }, [isEmbalse, activeTab]);
@@ -93,17 +94,15 @@ export function Sidebar() {
         >
           Comparar
         </button>
-        {isEmbalse && (
-          <button
-            role="tab"
-            aria-selected={activeTab === 'forecast'}
-            aria-controls="tabpanel-forecast"
-            onClick={() => setActiveTab('forecast')}
-            className={`${tabBase} ${activeTab === 'forecast' ? tabOn('border-sky-500') : tabOff}`}
-          >
-            Previsión
-          </button>
-        )}
+        <button
+          role="tab"
+          aria-selected={activeTab === 'forecast'}
+          aria-controls="tabpanel-forecast"
+          onClick={() => setActiveTab('forecast')}
+          className={`${tabBase} ${activeTab === 'forecast' ? tabOn('border-sky-500') : tabOff}`}
+        >
+          Previsión
+        </button>
         {isEmbalse && (
           <button
             role="tab"
