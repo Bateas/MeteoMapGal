@@ -118,6 +118,9 @@ ingestor/
 - **SailingWindows rate limit cooldown**: `useSailingWindows.ts` skips polls for 5min after Open-Meteo 429. Prevents error log spam in console.
 - **Radar animation**: `RadarOverlay.tsx` dual mode — static (AEMET national composite) + animated (RainViewer past 2h, 12 frames). `rainviewerClient.ts` fetches frame list from public API (no key). Animation controls: play/pause, frame slider, timestamp. RainViewer tiles max zoom 7 (upscaled beyond). Toggle button over map.
 - **Dark/Light theme**: `themeStore.ts` (persisted). Overrides Tailwind v4 `--color-slate-*` CSS variables via `[data-theme="light"]` on `<html>`. Also overrides `--color-white` for text inversion. Map container has `.map-dark-scope` class that restores dark palette for all map overlays. Toggle button (sun/moon) in Header.
+- **Humidity precursor (bruma pattern)**: `spotScoringEngine.ts` → `humidityPrecursorBoost()`. Uses buoy humidity (Rande for Cesantes) to detect ría thermal/bruma pattern. 96% correlation in 3-year Open-Meteo analysis. When humidity >65% + WSW direction + daytime → boost +3kt and +12pts. Rande has NO wind data — only humidity/temp/dewpoint from Observatorio Costeiro.
+- **Buoy proximity boost**: Preferred buoys within 5km of a spot get 2x weight in wind consensus. Buoys measure wind ON WATER = sailor's truth. Marín (3223) is key for Lourido.
+- **Wind trend detection**: `windTrendService.ts` analyzes 30min reading history for wind ramps. Signals: `building` (+3kt), `rapid` (+6kt), `dropping`. Trend label added to spot summary. `windTrendAlerts.ts` triggers alert for rapid changes → Telegram via webhook pipeline. SpotScore includes `windTrend` field.
 
 ## Performance Rules
 
