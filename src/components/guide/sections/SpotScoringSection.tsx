@@ -56,7 +56,7 @@ export function SpotScoringSection() {
           <SpotRow name="Bocana" desc="Estrecho de Rande, Vigo&ndash;San Sim&oacute;n. Terral matutino E/ENE." />
           <SpotRow name="Centro R&iacute;a" desc="Canido&ndash;Limens. Viraz&oacute;n SW tardes, oleaje moderado." />
           <SpotRow name="C&iacute;es-R&iacute;a" desc="Baiona&ndash;C&iacute;es. Condiciones oce&aacute;nicas, nortada verano." />
-          <SpotRow name="Lourido" desc="Playa Lourido, R&iacute;a de Pontevedra. Kite/windsurf, viraz&oacute;n SW." />
+          <SpotRow name="Lourido" desc="Playa Lourido, R&iacute;a de Pontevedra. Kite/windsurf, viraz&oacute;n SW." thermal />
         </div>
       </div>
 
@@ -96,7 +96,11 @@ export function SpotScoringSection() {
             <li><strong className="text-slate-300">Oleaje</strong> — cr&iacute;tico en C&iacute;es-R&iacute;a, moderado en Centro R&iacute;a, ignorado en Cesantes.</li>
             <li><strong className="text-slate-300">Norte en Cesantes</strong> — penaliza: el norte mata la t&eacute;rmica.</li>
             <li><strong className="text-slate-300">Canalizaci&oacute;n t&eacute;rmica</strong> — bonus si en Cesantes hay t&eacute;rmica WSW activa (amplifica viento).</li>
-            <li><strong className="text-slate-300">Calibraci&oacute;n por spot</strong> — offset en nudos que compensa estaciones amateurs montadas a baja altura o spots expuestos donde el viento real es superior al medido. Ej: Lourido +2kt.</li>
+            <li><strong className="text-slate-300">Calibraci&oacute;n por spot</strong> — offset en nudos que compensa estaciones montadas a baja altura.</li>
+            <li><strong className="text-amber-400">Precursor humedad (bruma)</strong> — si la boya cercana detecta humedad &gt;65% + direcci&oacute;n WSW + horario diurno, el sistema anticipa viento probable. Correlaci&oacute;n 96% en an&aacute;lisis hist&oacute;rico 3 a&ntilde;os.</li>
+            <li><strong className="text-sky-400">Tendencia de viento</strong> — analiza los &uacute;ltimos 30 minutos. Si sube &gt;3kt marca &ldquo;viento subiendo&rdquo;, si sube &gt;6kt marca &ldquo;subida r&aacute;pida&rdquo; con alerta.</li>
+            <li><strong className="text-blue-400">Boost boya 2x</strong> — las boyas preferidas dentro de 5km pesan el doble. Miden viento en el agua = lo que siente el navegante.</li>
+            <li><strong className="text-emerald-400">Viento en costa</strong> — si una estaci&oacute;n costera (aguas arriba) marca viento y el spot est&aacute; en calma, indica viento frontal aproxim&aacute;ndose.</li>
           </ul>
         </div>
       </div>
@@ -131,7 +135,7 @@ export function SpotScoringSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
           <p>
             Los spots con <strong className="text-slate-300">detecci&oacute;n t&eacute;rmica</strong> (Castrelo,
-            Cesantes) muestran filas adicionales al expandir la tarjeta:
+            Cesantes, Lourido) muestran filas adicionales al expandir la tarjeta:
           </p>
           <ul className="space-y-1 pl-3">
             <li><strong className="text-orange-400">&Delta;T diurno</strong> — diferencia entre Tmax y Tmin previstas. &ge;16&deg;C favorece t&eacute;rmicas.</li>
