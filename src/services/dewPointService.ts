@@ -120,7 +120,7 @@ function calculateSpreadTrend(series: SpreadPoint[]): number | null {
  * - Wind forecast (will it stay calm?)
  *
  * Wind direction suppression:
- * - Continental wind (N/NE/NW, 315°-45°) with speed >2 m/s and HR <80% → fog impossible
+ * - Continental wind (N/NE/NW, 315°-80°) with speed >2 m/s and HR <78% → fog impossible
  * - Any direction with speed >3 m/s and HR <75% → fog suppressed
  *
  * Solar suppression:
