@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useThermalStore } from '../../store/thermalStore';
+import { useSectorStore } from '../../store/sectorStore';
 import { msToKnots, degreesToCardinal, windSpeedColor, isDirectionInRange, angleDifference } from '../../services/windUtils';
 import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { scoreForecastThermal, thermalColor, thermalBg } from '../../services/forecastScoringUtils';
@@ -680,6 +681,7 @@ export function ForecastTimeline() {
   const rules = useThermalStore((s) => s.rules);
   const dailyContext = useThermalStore((s) => s.dailyContext);
   const deltaT = dailyContext?.deltaT ?? null;
+  const sectorName = useSectorStore((s) => s.activeSector.shortName);
 
   // Filter data by selected time range
   const visibleData = useMemo(() => {
@@ -762,7 +764,7 @@ export function ForecastTimeline() {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-slate-200">
-            Previsión Embalse
+            Previsión {sectorName}
           </h3>
           {isLoading && (
             <LoadingSpinner size={12} />
