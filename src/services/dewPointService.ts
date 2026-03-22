@@ -209,9 +209,9 @@ export function analyzeFog(
     : null;
 
   // ── Fog suppression checks (before any level assignment) ──
-  // Continental dry wind: N/NE/NW (315°-60°) + speed ≥ 3 m/s (~6kt) + HR < 78% → fog impossible
-  // Must be a clear signal: avgWindDir already requires ≥2 stations with wind ≥1.5 m/s
-  const isContinentalWind = avgWindDir !== null && (avgWindDir >= 315 || avgWindDir <= 60);
+  // Continental dry wind: N/NE/NW (315°-80°) + speed ≥ 3 m/s (~6kt) + HR < 78% → fog impossible
+  // Wide range because Galician NE channels at 40-80° in valleys — still dry continental air
+  const isContinentalWind = avgWindDir !== null && (avgWindDir >= 315 || avgWindDir <= 80);
   const isDryWind = avgWind !== null && avgWind >= 3 && avgHumidity !== null && avgHumidity < 78;
   const fogSuppressedByWind =
     (isContinentalWind && isDryWind) ||
