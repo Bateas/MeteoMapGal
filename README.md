@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.31.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-1.35.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-185%20passed-brightgreen)](src/test/)
 [![Stations](https://img.shields.io/badge/stations-100%2B-orange)](src/api/)
@@ -54,7 +54,7 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **Humidity heatmap** | IDW-interpolated humidity layer across all stations |
 | **Temperature overlay** | Per-station temperature circles with color gradient |
 | **IR satellite** | EUMETSAT Meteosat infrared imagery, updated every 15 minutes |
-| **Precipitation radar** | AEMET national composite radar (Cerceda/A Coruña) |
+| **Precipitation radar** | AEMET national composite + RainViewer animated 2h playback (play/pause/slider) |
 | **Surface currents** | RADAR ON RAIA HF radar WMS overlay (Rías only) |
 | **Bathymetry** | EMODnet depth contour overlay for marine context |
 | **SST overlay** | Copernicus Marine (CMEMS) sea surface temperature WMTS tiles (Rías only) |
@@ -67,7 +67,9 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 |---------|-------------|
 | **90+ weather stations** | From 6 networks: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo, SkyX |
 | **13 marine buoys** | Wave height, period, direction, water temperature, wind, currents, sea level, humidity |
-| **Wind consensus** | Quality-weighted multi-station analysis (source quality × distance × freshness) |
+| **Wind consensus** | Proximity-weighted multi-station analysis (distance × freshness × buoy boost) |
+| **Wind trend detection** | 30min ramp analysis — building, rapid, dropping signals with alerts |
+| **Humidity precursor** | Buoy humidity-based bruma/thermal early warning (96% correlation in 3yr analysis) |
 | **Wind arrows on buoys** | Direct wind arrow + speed badge on buoy markers with anemometers |
 | **Lightning detection** | Real-time strikes with proximity alerts |
 | **Unified alert system** | Prioritized alerts with coherent severity: PELIGRO (critical), ALERTA, AVISO, OK |
@@ -80,7 +82,8 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **Forecast verification** | "¿Acertó?" — compares past Open-Meteo forecasts vs actual observations (MAE, bias, accuracy) |
 | **Forecast delta** | Real-time Δ badges showing forecast vs observation deviation |
 | **Stale indicator** | Visual opacity fade on stations with outdated readings |
-| **Telegram alerts** | n8n webhook → Telegram bot for real-time push notifications |
+| **Telegram alerts** | n8n webhook → Telegram bot for alerts + daily sailing summary (8:00 AM) |
+| **Dark/light theme** | CSS variable override with map-dark-scope — sun/moon toggle in header |
 
 ### Sailing & Spot Intelligence
 
@@ -88,9 +91,12 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 |---------|-------------|
 | **6 sailing spots** | Cesantes, Bocana, Centro Ría, Cíes-Ría, Lourido (Rías) + Castrelo (Embalse) |
 | **5-level scoring** | CALMA → FLOJO → NAVEGABLE → BUENO → FUERTE with GO/Marginal/No-Go verdict |
-| **Thermal boost** | Amplifies scoring when thermal probability ≥40% + WSW direction (land stations underestimate water wind) |
+| **Thermal boost** | Amplifies scoring when thermal probability ≥40% + WSW direction |
+| **Upwind propagation** | Detects approaching frontal wind from coastal stations before it reaches interior spots |
+| **Buoy-prioritized scoring** | Preferred buoys within 5km get 2x weight — water surface wind = sailor's truth |
 | **Tide summary per spot** | Integrated IHM tide predictions (▲ pleamar / ▼ bajamar) with next-tide highlight |
-| **Best sailing window** | "¿Cuándo salgo?" — 48h forecast per-spot window detection with dual scoring |
+| **Best sailing window** | "¿Cuándo salgo?" — 48h forecast per-spot window (both sectors, unified fetch) |
+| **Multi-model forecast** | Auto/ICON-EU/GFS/ECMWF selector — compare model accuracy for your area |
 | **Scoring breakdown** | "¿Por qué?" — transparent per-component score explanation |
 | **Webcams** | Live camera feeds in spot popups (Cíes image, Cesantes stream, Vigo Móvil, Lourido) |
 | **Wind trend + sparkline** | 2h wind history graph + trend indicator (↑/→/↓) in spot popup |
@@ -240,13 +246,25 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [x] Keyboard accessibility — all interactive elements have Enter/Space handlers + skip-to-content
 - [x] Per-spot wind calibration — offset to compensate for amateur station low-mount bias
 - [x] Embeddable widget — compact iframe for clubs/schools with dark/light + compact modes
+- [x] Multi-model forecast selector (Auto/ICON-EU/GFS/ECMWF)
+- [x] RainViewer animated radar — 2h playback with play/pause/slider controls
+- [x] Dark/light theme toggle — CSS variable override, map stays dark
+- [x] Humidity precursor detector — buoy humidity-based bruma/thermal early warning (96% correlation)
+- [x] Wind trend detection — 30min ramp analysis (building/rapid/dropping) with Telegram alerts
+- [x] Buoy proximity boost — preferred buoys 2x weight for on-water accuracy
+- [x] Upwind propagation — coastal station wind signals approaching frontal wind
+- [x] Unified forecast — single Open-Meteo fetch for both sectors (no duplicate calls)
+- [x] Thermal precursors connected to real forecast data for Rías
+- [x] Bidirectional buoy merge — all PORTUS + ObsCosteiro fields preserved
+- [x] Daily Telegram summary — automated 8:00 AM sailing briefing via n8n
+- [x] Lourido thermalDetection — same ría dynamics as Cesantes
 
 ### Planned
 
-- [ ] N2-Bot Telegram activation — connect dailySummaryService to n8n workflow
+- [ ] Historical pattern correlation — Rande humidity vs actual wind events (needs 30+ days data)
 - [ ] New monitoring zones (A Coruña, Lugo, Costa da Morte)
 - [ ] More sailing spots (Sanxenxo, Lanzada, A Illa de Arousa, Samil)
-- [ ] Custom alert thresholds (user-defined notifications)
+- [ ] ML thermal prediction — regression from historical correlations
 
 ---
 
@@ -290,7 +308,7 @@ npm test          # 185 tests (Vitest)
 | React 19.2 + TypeScript 5.9 | Strictly typed UI |
 | Vite 7.3 | Build tool + HMR + CORS proxy (17 routes) |
 | MapLibre GL JS 5.19 | 3D map with terrain |
-| Zustand 5 | Global state (13 stores, typed selectors) |
+| Zustand 5 | Global state (15 stores, typed selectors) |
 | Tailwind CSS 4.2 | Utility-first styling |
 | Recharts | Time series charts |
 | Vitest 4 | 185 unit tests |
@@ -312,7 +330,7 @@ src/
 ├── config/        # Constants, thermal zones, sectors, spots
 ├── hooks/         # Custom hooks (weather, thermal, forecast, buoys, spots...)
 ├── services/      # Business logic (25+ services: scoring, alerts, IDW, GDD...)
-├── store/         # Zustand stores (13 stores)
+├── store/         # Zustand stores (15 stores)
 └── types/         # TypeScript types
 
 ingestor/          # Standalone Node.js service → TimescaleDB
