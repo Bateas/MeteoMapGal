@@ -11,6 +11,7 @@ import { useWeatherStore } from '../store/weatherStore';
 import { useSectorStore } from '../store/sectorStore';
 import { useSpotStore } from '../store/spotStore';
 import { useAlertStore } from '../store/alertStore';
+import { useBuoyStore } from '../store/buoyStore';
 import { postSailingSummary } from '../api/webhookClient';
 import { msToKnots } from './windUtils';
 import type { WebhookSummaryPayload } from '../api/webhookClient';
@@ -102,6 +103,20 @@ export async function sendDailySummary(): Promise<void> {
     // Count stations with readings
     const stationsWithData = stations.filter((s) => readings.has(s.id)).length;
 
+    // Environmental data from buoys (Rande humidity for bruma pattern)
+    const buoys = useBuoyStore.getState().buoys;
+    let environment: WebhookSummaryPayload['environment'];
+    for (const b of buoys) {
+      if (b.humidity != null || b.waterTemp != null) {
+        environment = {
+          humidity: b.humidity ?? undefined,
+          waterTemp: b.waterTemp ?? undefined,
+          airTemp: b.airTemp ?? undefined,
+        };
+        break;
+      }
+    }
+
     const payload: WebhookSummaryPayload = {
       sector: sector.name,
       timestamp: new Date().toISOString(),
@@ -118,6 +133,8 @@ export async function sendDailySummary(): Promise<void> {
         detail: a.detail,
       })),
       sailing: bestWindow,
+      spots: spotSummaries.length > 0 ? spotSummaries : undefined,
+      environment,
     };
 
     await postSailingSummary(payload);
