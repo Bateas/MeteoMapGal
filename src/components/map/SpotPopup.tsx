@@ -153,12 +153,22 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           {score?.humidity != null && (
             <Cell label="Humedad" value={`${score.humidity.toFixed(0)}%`} color={humidityColor(score.humidity)} />
           )}
+          {score?.dewPoint != null && (
+            <Cell label="P. rocío" value={`${score.dewPoint.toFixed(1)}°C`} />
+          )}
           {score?.windChill != null && (
             <Cell label="Sensación" value={`${score.windChill.toFixed(1)}°C`} color={temperatureColor(score.windChill)} />
           )}
           {score?.heatIndex != null && (
             <Cell label="Calor" value={`${score.heatIndex.toFixed(1)}°C`} color={score.heatIndex > 35 ? '#ef4444' : score.heatIndex > 32 ? '#fb923c' : '#facc15'} />
           )}
+        </div>
+      )}
+
+      {/* ── Humidity precursor signal (bruma pattern) ── */}
+      {score?.humiditySignal && (
+        <div className="text-[10px] text-amber-400 bg-amber-500/10 rounded px-2 py-1 mb-2">
+          {score.humiditySignal}
         </div>
       )}
 
