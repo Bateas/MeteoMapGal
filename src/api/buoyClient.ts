@@ -346,32 +346,31 @@ export function mergeBuoyReadings(portus: BuoyReading[], obs: BuoyReading[]): Bu
     const existingTime = new Date(existing.timestamp).getTime();
     const obsTime = new Date(obsR.timestamp).getTime();
 
-    if (obsTime > existingTime) {
-      // Observatorio is newer — use it, but preserve PORTUS-exclusive fields
-      map.set(obsR.stationId, {
-        ...obsR,
-        waveHeight: obsR.waveHeight ?? existing.waveHeight,
-        waveHeightMax: obsR.waveHeightMax ?? existing.waveHeightMax,
-        wavePeriod: obsR.wavePeriod ?? existing.wavePeriod,
-        wavePeriodMean: obsR.wavePeriodMean ?? existing.wavePeriodMean,
-        waveDir: obsR.waveDir ?? existing.waveDir,
-        currentSpeed: obsR.currentSpeed ?? existing.currentSpeed,
-        currentDir: obsR.currentDir ?? existing.currentDir,
-        seaLevel: obsR.seaLevel ?? existing.seaLevel,
-        airPressure: obsR.airPressure ?? existing.airPressure,
-      });
-    } else {
-      // PORTUS is newer — keep it, but merge ObsCosteiro-exclusive fields
-      // (humidity, dewPoint only come from Observatorio Costeiro)
-      map.set(obsR.stationId, {
-        ...existing,
-        humidity: existing.humidity ?? obsR.humidity,
-        dewPoint: existing.dewPoint ?? obsR.dewPoint,
-        // Also fill gaps in shared fields if PORTUS has nulls
-        airTemp: existing.airTemp ?? obsR.airTemp,
-        waterTemp: existing.waterTemp ?? obsR.waterTemp,
-      });
-    }
+    // Always merge ALL fields from both sources — neither has complete data alone.
+    // Use newer timestamp as the record timestamp, but fill nulls from the other.
+    const newer = obsTime > existingTime ? obsR : existing;
+    const older = obsTime > existingTime ? existing : obsR;
+    map.set(obsR.stationId, {
+      ...newer,
+      // Fill any null in the newer record from the older one
+      windSpeed: newer.windSpeed ?? older.windSpeed,
+      windDir: newer.windDir ?? older.windDir,
+      windGust: newer.windGust ?? older.windGust,
+      waveHeight: newer.waveHeight ?? older.waveHeight,
+      waveHeightMax: newer.waveHeightMax ?? older.waveHeightMax,
+      wavePeriod: newer.wavePeriod ?? older.wavePeriod,
+      wavePeriodMean: newer.wavePeriodMean ?? older.wavePeriodMean,
+      waveDir: newer.waveDir ?? older.waveDir,
+      currentSpeed: newer.currentSpeed ?? older.currentSpeed,
+      currentDir: newer.currentDir ?? older.currentDir,
+      seaLevel: newer.seaLevel ?? older.seaLevel,
+      airPressure: newer.airPressure ?? older.airPressure,
+      waterTemp: newer.waterTemp ?? older.waterTemp,
+      airTemp: newer.airTemp ?? older.airTemp,
+      humidity: newer.humidity ?? older.humidity,
+      dewPoint: newer.dewPoint ?? older.dewPoint,
+      salinity: newer.salinity ?? older.salinity,
+    });
   }
 
   return Array.from(map.values());
