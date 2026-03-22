@@ -142,6 +142,13 @@ function getHumidityNearBuoy(
   }
 
   if (nearby.length === 0) return null;
+
+  // Filter outliers: if most stations show <80% but 1-2 show 99%, those are likely
+  // defective sensors (condensation on probe). Use median instead of mean.
+  if (nearby.length >= 3) {
+    const sorted = [...nearby].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)]; // median
+  }
   return nearby.reduce((a, b) => a + b, 0) / nearby.length;
 }
 
@@ -461,8 +468,9 @@ function detectNorthWindConsensus(
 
   if (windReports.length < MIN_STATIONS) return false;
 
-  // Count northerly stations (N/NE: 350°-60°)
-  const northerly = windReports.filter((w) => w.dir >= 350 || w.dir <= 60);
+  // Count northerly stations (N/NE: 330°-80°) — wide range for Galician nortada
+  // Channeled NE can read 40-80° in valleys but it's still continental dry air
+  const northerly = windReports.filter((w) => w.dir >= 330 || w.dir <= 80);
   const ratio = northerly.length / windReports.length;
 
   if (ratio < CONSENSUS_RATIO) return false;
