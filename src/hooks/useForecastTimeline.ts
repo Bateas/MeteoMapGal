@@ -7,9 +7,11 @@ import { useVisibilityPolling } from './useVisibilityPolling';
 import { useSectorStore } from '../store/sectorStore';
 import { openMeteoFetch } from '../api/openMeteoQueue';
 
-/** Reservoir center */
-const LAT = MAP_CENTER[1]; // 42.29
-const LON = MAP_CENTER[0]; // -8.1
+/** Sector-specific forecast coordinates */
+const SECTOR_COORDS: Record<string, [number, number]> = {
+  embalse: [MAP_CENTER[1], MAP_CENTER[0]],  // 42.29, -8.1
+  rias: [42.307, -8.619],                    // Cesantes center (inner ría)
+};
 
 /** Refresh forecast every 30 minutes */
 const POLL_INTERVAL_MS = 30 * 60 * 1000;
@@ -73,7 +75,7 @@ export const useForecastStore = create<ForecastStore>((set) => ({
 // Fetch function
 // ---------------------------------------------------------------------------
 
-async function fetchForecastTimeline(model: ForecastModel = 'best_match'): Promise<HourlyForecast[]> {
+async function fetchForecastTimeline(model: ForecastModel = 'best_match', lat = 42.29, lon = -8.1): Promise<HourlyForecast[]> {
   const params = [
     'temperature_2m', 'relative_humidity_2m',
     'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
@@ -85,7 +87,7 @@ async function fetchForecastTimeline(model: ForecastModel = 'best_match'): Promi
   const modelParam = model !== 'best_match' ? `&models=${model}` : '';
   const url =
     `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${LAT}&longitude=${LON}` +
+    `?latitude=${lat}&longitude=${lon}` +
     `&hourly=${params}` +
     `&past_hours=${PAST_HOURS}` +
     `&forecast_hours=${FORECAST_HOURS}` +
@@ -138,14 +140,14 @@ export function useForecastTimeline() {
     })),
   );
 
-  // Only fetch forecast for Embalse sector — irrelevant for Rías Baixas
-  const isEmbalse = useSectorStore((s) => s.activeSector.id === 'embalse');
+  // Fetch forecast for both sectors using sector-specific coordinates
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const coords = SECTOR_COORDS[sectorId] ?? SECTOR_COORDS.embalse;
 
   const poll = useCallback(async () => {
-    if (!isEmbalse) return; // Skip entirely for non-Embalse sectors
     setLoading(true);
     try {
-      const data = await fetchForecastTimeline(activeModel);
+      const data = await fetchForecastTimeline(activeModel, coords[0], coords[1]);
       setHourly(data);
       setError(null);
       setFetchedAt(new Date());
@@ -156,7 +158,7 @@ export function useForecastTimeline() {
     } finally {
       setLoading(false);
     }
-  }, [isEmbalse, activeModel, setHourly, setLoading, setError, setFetchedAt]);
+  }, [sectorId, activeModel, coords, setHourly, setLoading, setError, setFetchedAt]);
 
   // Visibility-aware polling — pauses when tab is hidden
   useVisibilityPolling(poll, POLL_INTERVAL_MS);
