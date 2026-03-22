@@ -26,6 +26,7 @@ import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { fastDistanceKm } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
+import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -93,6 +94,8 @@ export interface SpotScore {
   thermalBoosted: boolean;
   /** Scoring confidence: 'high' (3+ sources), 'medium' (2), 'low' (1 or only land) */
   scoringConfidence: 'high' | 'medium' | 'low';
+  /** Wind trend from reading history (30min window) */
+  windTrend: WindTrend | null;
   computedAt: Date;
 }
 
@@ -628,6 +631,7 @@ export function scoreAllSpots(
   buoys: BuoyReading[],
   thermalData?: SpotThermalContext,
   teleconnections?: TeleconnectionIndex[],
+  readingHistory?: Map<string, NormalizedReading[]>,
 ): Map<string, SpotScore> {
   const results = new Map<string, SpotScore>();
   const computedAt = new Date();
@@ -677,6 +681,18 @@ export function scoreAllSpots(
     if (nao && verdict !== 'calm' && verdict !== 'unknown') {
       const naoCtx = naoSummaryContext(nao, ao);
       if (naoCtx) summary += ` · ${naoCtx}`;
+    }
+
+    // ── Wind trend detection (30min window) ──────────────
+    const stationIds = stationData.map((s) => s.station.id);
+    const windTrend = readingHistory ? analyzeSpotWindTrend(stationIds, readingHistory, readings) : null;
+
+    // Wind building → score bonus (early signal for user)
+    if (windTrend && verdict !== 'unknown') {
+      if (windTrend.signal === 'rapid') score = Math.min(100, score + 10);
+      else if (windTrend.signal === 'building') score = Math.min(100, score + 5);
+      // Add trend to summary
+      if (windTrend.label) summary += ` · ${windTrend.label}`;
     }
 
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
@@ -745,6 +761,7 @@ export function scoreAllSpots(
       hasStormAlert: thermalData?.hasStormAlert ?? false,
       thermalBoosted,
       scoringConfidence,
+      windTrend,
       computedAt,
     });
   }
