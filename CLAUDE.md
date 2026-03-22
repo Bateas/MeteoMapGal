@@ -17,10 +17,10 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 
 - **React 19.2 + TypeScript 5.9 + Vite 7.3 + Tailwind CSS 4.2**
 - **MapLibre GL JS 5.19** (react-map-gl/maplibre) with 3D terrain
-- **Zustand 5** for state (14 stores: weather, weatherSelection, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy, mapStyle)
+- **Zustand 5** for state (15 stores: weather, weatherSelection, weatherLayer, sector, alert, notification, toast, thermal, temperatureOverlay, ui, airspace, spot, buoy, mapStyle, theme)
 - **Vitest 4** with 185 tests across 11 test files
 - **Six real-time sources**: AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, Netatmo, SkyX
-- **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), Lightning (meteo2api), AEMET Radar (national composite, Cerceda/A Coruña), EUMETSAT satellite, ENAIRE airspace, IHM tides, Puertos del Estado (marine buoys), Observatorio Costeiro da Xunta (supplementary buoy data — humidity, dew point, 10min resolution), RADAR ON RAIA / INTECMAR (HF radar surface currents WMS — Rías only), CMEMS / Copernicus Marine (SST WMTS tiles — Rías only), OpenSeaMap (seamark overlay — Rías only), IHM ENC (official nautical charts WMS — Rías only)
+- **Supplementary sources**: Open-Meteo (forecast/history + atmospheric context: CAPE, PBL, LI, CIN), Lightning (meteo2api), AEMET Radar (national composite, Cerceda/A Coruña), RainViewer (animated radar past 2h, free tier), EUMETSAT satellite, ENAIRE airspace, IHM tides, Puertos del Estado (marine buoys), Observatorio Costeiro da Xunta (supplementary buoy data — humidity, dew point, 10min resolution), RADAR ON RAIA / INTECMAR (HF radar surface currents WMS — Rías only), CMEMS / Copernicus Marine (SST WMTS tiles — Rías only), OpenSeaMap (seamark overlay — Rías only), IHM ENC (official nautical charts WMS — Rías only)
 - **Map base styles**: 6 switchable base maps via `mapStyleStore` — OSM, Positron (light), Dark Matter, Voyager, IGN Topográfico, IGN Base Gris. All free, no API keys. Dynamic `buildMapStyle()` rebuilds full MapLibre StyleSpecification on switch
 - **Multi-sector**: `sectorStore.ts` + `src/config/sectors.ts` define Embalse / Rías Baixas with independent center, radius, regions
 - **PWA**: Service worker (`public/sw.js`) + web manifest for installable app
@@ -108,13 +108,15 @@ ingestor/
 - **weatherSelectionStore**: Split from weatherStore (R1). UI selection state (selectedStationId, highlightedStationId, chartSelectedStations) lives here. weatherStore is data-only.
 - **Alert service modular**: `src/services/alerts/` — split from 626-line monolith into 7 files: types, riskEngine, stormAlerts, thermalAlerts, fieldAlerts, aggregator, index. Original `alertService.ts` is now a 20-line re-export barrel.
 - **Typed Portus**: `PortusStationResponse`, `PortusDatoEntry`, `PortusLastDataResponse` interfaces replace `any[]` in buoyClient.
-- **Persisted preferences**: `weatherLayerStore` persists activeLayer + opacity. `uiStore` persists bathymetry/SST toggles. `mapStyleStore` persists base map + overlays. `spotStore` persists favorites. All via Zustand `persist` middleware → localStorage.
+- **Persisted preferences**: `weatherLayerStore` persists activeLayer + opacity. `uiStore` persists bathymetry/SST toggles. `mapStyleStore` persists base map + overlays. `spotStore` persists favorites. `themeStore` persists dark/light mode. All via Zustand `persist` middleware → localStorage.
 - **AEMET Radar**: Code 'ga' NEVER existed. Galicia radar = Cerceda (A Coruña), NOT Cuntis. Use `/api/red/radar/nacional` (national composite). Regional endpoint returns 404.
 - **Source status banner**: `SourceStatusBanner.tsx` — amber warning bar below header when critical sources (AEMET/MG) are down >10min. Auto-dismisses on recovery. Dismissible by user. `role="alert"` + `aria-live="polite"`.
 - **Skip-to-content**: `<a href="#main-map">` in AppShell — `sr-only` until keyboard-focused, then visible at z-60.
 - **Keyboard accessibility**: All interactive `<div>`s have `onKeyDown` (Enter/Space), `tabIndex`, `role="button"`. Backdrop overlays have Escape handlers.
 - **FlyTo NaN guard**: `WeatherMap.tsx` validates `flyToTarget` coords with `Number.isFinite()` before `map.flyTo()`. Popup render also guarded against invalid `activeSpot.center`.
 - **SailingWindows rate limit cooldown**: `useSailingWindows.ts` skips polls for 5min after Open-Meteo 429. Prevents error log spam in console.
+- **Radar animation**: `RadarOverlay.tsx` dual mode — static (AEMET national composite) + animated (RainViewer past 2h, 12 frames). `rainviewerClient.ts` fetches frame list from public API (no key). Animation controls: play/pause, frame slider, timestamp. RainViewer tiles max zoom 7 (upscaled beyond). Toggle button over map.
+- **Dark/Light theme**: `themeStore.ts` (persisted). Overrides Tailwind v4 `--color-slate-*` CSS variables via `[data-theme="light"]` on `<html>`. Also overrides `--color-white` for text inversion. Map container has `.map-dark-scope` class that restores dark palette for all map overlays. Toggle button (sun/moon) in Header.
 
 ## Performance Rules
 
