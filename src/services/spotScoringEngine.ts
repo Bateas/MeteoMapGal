@@ -96,6 +96,8 @@ export interface SpotScore {
   scoringConfidence: 'high' | 'medium' | 'low';
   /** Wind trend from reading history (30min window) */
   windTrend: WindTrend | null;
+  /** Max wind gust from nearby stations (kt) */
+  gustKt: number | null;
   /** Dew point from nearest buoy (°C) — Rande/ObsCosteiro */
   dewPoint: number | null;
   /** Buoy humidity precursor signal (bruma pattern) */
@@ -729,6 +731,23 @@ export function scoreAllSpots(
       if (windTrend.label) summary += ` · ${windTrend.label}`;
     }
 
+    // Max gust from nearby stations
+    let gustKt: number | null = null;
+    for (const { reading } of stationData) {
+      if (reading.windGust != null) {
+        const gKt = msToKnots(reading.windGust);
+        if (gustKt === null || gKt > gustKt) gustKt = gKt;
+      }
+    }
+    // Also check buoy gusts
+    for (const { buoy } of buoyData) {
+      if (buoy.windGust != null) {
+        const gKt = msToKnots(buoy.windGust);
+        if (gustKt === null || gKt > gustKt) gustKt = gKt;
+      }
+    }
+    if (gustKt !== null) gustKt = Math.round(gustKt * 10) / 10;
+
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
     let airTemp: number | null = null;
     let humidity: number | null = null;
@@ -795,6 +814,7 @@ export function scoreAllSpots(
       hasStormAlert: thermalData?.hasStormAlert ?? false,
       thermalBoosted,
       scoringConfidence,
+      gustKt,
       windTrend,
       dewPoint,
       humiditySignal,
