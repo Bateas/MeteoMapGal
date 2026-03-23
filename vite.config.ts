@@ -4,10 +4,10 @@ import { resolve } from 'path'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
   esbuild: {
-    drop: ['console'],
+    ...(mode === 'production' ? { drop: ['console'] } : {}),
   },
   build: {
     target: 'esnext',
@@ -142,4 +142,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))
