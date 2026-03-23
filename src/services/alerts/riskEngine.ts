@@ -51,7 +51,8 @@ export function computeCompositeRisk(alerts: UnifiedAlert[]): CompositeRisk {
   let activeCount = 0;
 
   for (const a of alerts) {
-    if (a.severity !== 'info') activeCount++;
+    if (a.severity === 'info') continue; // Info alerts don't affect composite risk
+    activeCount++;
     const weight = CATEGORY_WEIGHT[a.category] ?? 1;
     const weighted = a.score * weight;
     if (weighted > maxWeightedScore) {
