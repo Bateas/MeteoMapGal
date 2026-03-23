@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
-import { FieldDrawer } from './FieldDrawer';
+const FieldDrawer = lazy(() => import('./FieldDrawer').then(m => ({ default: m.FieldDrawer })));
 import { WeatherMap } from '../map/WeatherMap';
 import { useWeatherData } from '../../hooks/useWeatherData';
 import { LoadingScreen } from '../common/LoadingScreen';
@@ -22,7 +22,7 @@ import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
 const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default: m.MeteoGuide })));
 // const FeedbackModal = lazy(() => import('../common/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
 import { ToastContainer } from '../common/ToastContainer';
-import { OnboardingTour } from '../common/OnboardingTour';
+const OnboardingTour = lazy(() => import('../common/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
 import { shouldSendDailySummary, sendDailySummary } from '../../services/dailySummaryService';
 import { tryAutoSector } from '../../services/geolocationService';
 import { ConditionsTicker } from '../common/ConditionsTicker';
@@ -380,12 +380,14 @@ export function AppShell() {
             <MobileSailingBanner />
           )}
 
-          {/* Campo (field alerts) drawer */}
-          <FieldDrawer
-            open={fieldDrawerOpen}
-            onClose={() => setFieldDrawerOpen(false)}
-            alerts={fieldAlerts}
-          />
+          {/* Campo (field alerts) drawer — lazy loaded */}
+          <Suspense fallback={null}>
+            <FieldDrawer
+              open={fieldDrawerOpen}
+              onClose={() => setFieldDrawerOpen(false)}
+              alerts={fieldAlerts}
+            />
+          </Suspense>
         </main>
 
         {/* Loading screen: OUTSIDE <main> so it's not affected by map opacity transition.
@@ -401,7 +403,7 @@ export function AppShell() {
       <Suspense fallback={null}><MeteoGuide /></Suspense>
       {/* FeedbackModal disabled — RGPD/bot concerns (S90). Code kept for future use. */}
       {!isMobile && <KeyboardShortcutHelp />}
-      <OnboardingTour />
+      <Suspense fallback={null}><OnboardingTour /></Suspense>
       <ToastContainer />
 
       {/* Ko-fi link moved to MeteoGuide (below Aviso Legal) + Sidebar */}
