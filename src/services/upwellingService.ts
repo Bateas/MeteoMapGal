@@ -289,7 +289,7 @@ export function buildUpwellingAlerts(
 
   return [{
     id: 'upwelling',
-    category: 'storm', // Safety: uses storm for high visibility
+    category: 'upwelling',
     severity: severity as 'info' | 'moderate' | 'high' | 'critical',
     score,
     icon: 'thermometer',
