@@ -18,7 +18,9 @@ export type AlertCategory =
   | 'rain'           // Lluvia / Granizo
   | 'drone'          // Vuelo dron
   | 'wind-front'     // Frente de viento
-  | 'pressure';      // Tendencia barométrica
+  | 'pressure'       // Tendencia barométrica
+  | 'marine'         // Mar cruzada / oleaje
+  | 'upwelling';     // Afloramiento costero
 
 export type AlertSeverity = 'info' | 'moderate' | 'high' | 'critical';
 
@@ -62,5 +64,7 @@ export const CATEGORY_WEIGHT: Record<AlertCategory, number> = {
   'thermal':     1.0,   // Sailing / recreation
   'wind-front':  1.0,   // Propagation info
   'pressure':    2.5,   // Early storm indicator
+  'marine':      2.0,   // Cross-sea / wave safety
+  'upwelling':   1.0,   // Coastal upwelling info
   'drone':       0.5,   // Convenience
 };
