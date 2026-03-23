@@ -91,7 +91,7 @@ export function scoreHourForSpot(
     score >= GOOD_THRESHOLD ? 'good' :
     score >= MARGINAL_THRESHOLD ? 'marginal' : 'poor';
 
-  const dayIcon = hour.isDay ? '☀️' : '🌙';
+  const dayIcon = hour.isDay ? 'dia' : 'noche';
   const label = windKt > 0
     ? `${windKt}kt ${dirLabel} ${dayIcon}`
     : `Calma ${dayIcon}`;
