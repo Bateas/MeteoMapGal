@@ -263,7 +263,10 @@ export function detectStormShadow(
   // At night all stations read ~0 W/m² → every station looks "shadowed"
   // Only rely on lightning + wind anomalies at night
   const hour = new Date().getHours();
-  const isNight = hour >= 21 || hour < 7; // Conservative: civil twilight
+  const month = new Date().getMonth(); // 0-11
+  // Galicia sunset: ~18:30 Dec, ~19:30 Mar/Sep, ~21:30 Jun
+  const sunsetHour = month >= 4 && month <= 8 ? 21 : month >= 2 && month <= 9 ? 19 : 18;
+  const isNight = hour >= sunsetHour || hour < 7;
   if (isNight) {
     // At night, skip solar analysis entirely — only use lightning + wind
     if (!lightning || lightning.strikesNearShadow === 0) return null;
