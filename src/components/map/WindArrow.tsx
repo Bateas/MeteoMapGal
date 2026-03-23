@@ -23,12 +23,27 @@ export function WindArrow({ direction, speed, gust }: WindArrowProps) {
 
   return (
     <g transform={`rotate(${rotation})`}>
-      {/* Gust halo — pulsing glow for strong gusts (>=15kt) */}
+      {/* Gust glow — pulsing shadow on the arrow itself for strong gusts (>=15kt) */}
       {hasStrongGust && (
-        <circle r={length + 4} fill="none" stroke={color} strokeWidth="1.5" opacity={0.4}>
-          <animate attributeName="r" values={`${length + 2};${length + 8};${length + 2}`} dur="2s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite" />
-        </circle>
+        <>
+          <line
+            x1="0" y1="0"
+            x2="0" y2={-length}
+            stroke={color}
+            strokeWidth="7"
+            strokeLinecap="round"
+            opacity={0.3}
+          >
+            <animate attributeName="opacity" values="0.3;0.1;0.3" dur="1.5s" repeatCount="indefinite" />
+          </line>
+          <polygon
+            points={`-7,${-length + 3} 7,${-length + 3} 0,${-length - 9}`}
+            fill={color}
+            opacity={0.3}
+          >
+            <animate attributeName="opacity" values="0.3;0.1;0.3" dur="1.5s" repeatCount="indefinite" />
+          </polygon>
+        </>
       )}
       <line
         x1="0" y1="0"
