@@ -234,7 +234,7 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
 
   pruneHistory: () => {
     const { readingHistory } = get();
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000; // 24h ago
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000; // 48h ago (matches MAX_HISTORY_ENTRIES)
     const newHistory = new Map<string, NormalizedReading[]>();
     let pruned = 0;
     for (const [id, entries] of readingHistory) {
