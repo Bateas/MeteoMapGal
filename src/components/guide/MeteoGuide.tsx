@@ -243,116 +243,6 @@ function IntroSection() {
   );
 }
 
-/* ─── Animated thermal convection SVG ─────────────────────────── */
-function ThermalDiagram() {
-  return (
-    <svg viewBox="0 0 600 280" className="w-full" aria-label="Diagrama de convección térmica">
-      <defs>
-        {/* Sun glow */}
-        <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#facc15" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#facc15" stopOpacity="0" />
-        </radialGradient>
-        {/* Mountain gradient */}
-        <linearGradient id="mountainGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#475569" />
-          <stop offset="100%" stopColor="#1e293b" />
-        </linearGradient>
-        {/* Water gradient */}
-        <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#1e40af" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#1e3a5f" stopOpacity="0.5" />
-        </linearGradient>
-        {/* Animated arrow marker */}
-        <marker id="arrowRed" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
-          <polygon points="0,0 10,3 0,6" fill="#ef4444" />
-        </marker>
-        <marker id="arrowBlue" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto">
-          <polygon points="0,0 10,3 0,6" fill="#60a5fa" />
-        </marker>
-      </defs>
-
-      {/* Sky */}
-      <rect width="600" height="280" fill="#0f172a" rx="8" />
-
-      {/* Sun */}
-      <circle cx="500" cy="50" r="60" fill="url(#sunGlow)" />
-      <circle cx="500" cy="50" r="18" fill="#facc15" opacity="0.9">
-        <animate attributeName="r" values="18;20;18" dur="3s" repeatCount="indefinite" />
-      </circle>
-
-      {/* Left mountain — sierra silhouette */}
-      <polygon points="0,280 0,160 20,140 50,110 65,115 80,85 95,92 120,100 140,118 160,125 180,148 200,170 200,280" fill="url(#mountainGrad)" />
-      <polygon points="0,280 0,180 15,165 35,145 55,130 70,135 85,110 100,118 115,126 135,135 155,148 175,162 200,185 200,280" fill="#334155" opacity="0.4" />
-      <text x="65" y="105" className="text-[9px] fill-slate-400 font-medium" textAnchor="middle">Sierra W</text>
-      <text x="65" y="76" className="text-[7px] fill-slate-600" textAnchor="middle">▲ 600m</text>
-
-      {/* Right mountain — sierra silhouette */}
-      <polygon points="400,280 400,170 420,148 440,125 455,118 470,108 490,95 510,100 530,108 550,115 570,130 590,142 600,155 600,280" fill="url(#mountainGrad)" />
-      <polygon points="400,280 400,185 425,162 445,148 460,135 475,130 495,118 515,126 535,135 555,145 575,155 600,175 600,280" fill="#334155" opacity="0.4" />
-      <text x="510" y="113" className="text-[9px] fill-slate-400 font-medium" textAnchor="middle">Sierra E</text>
-      <text x="510" y="86" className="text-[7px] fill-slate-600" textAnchor="middle">▲ 500m</text>
-
-      {/* Valley floor */}
-      <rect x="200" y="220" width="200" height="60" fill="#1e293b" />
-
-      {/* Water (reservoir) */}
-      <ellipse cx="300" cy="235" rx="80" ry="15" fill="url(#waterGrad)">
-        <animate attributeName="rx" values="80;82;80" dur="4s" repeatCount="indefinite" />
-      </ellipse>
-      <text x="300" y="238" className="text-[8px] fill-blue-400/60" textAnchor="middle">Embalse 110m</text>
-
-      {/* Rising warm air (red arrows from valley to mountains) */}
-      <g opacity="0.7">
-        {/* Left rising */}
-        <path d="M 200,200 Q 150,150 100,110" fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="6,4" markerEnd="url(#arrowRed)">
-          <animate attributeName="stroke-dashoffset" values="0;-30" dur="2s" repeatCount="indefinite" />
-        </path>
-        {/* Right rising */}
-        <path d="M 380,200 Q 430,150 480,120" fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="6,4" markerEnd="url(#arrowRed)">
-          <animate attributeName="stroke-dashoffset" values="0;-30" dur="2s" repeatCount="indefinite" />
-        </path>
-        {/* Center rising */}
-        <path d="M 300,210 Q 300,160 300,80" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4,6" markerEnd="url(#arrowRed)">
-          <animate attributeName="stroke-dashoffset" values="0;-30" dur="2.5s" repeatCount="indefinite" />
-        </path>
-      </g>
-
-      {/* Cool air flowing in from sides (blue arrows at valley level) */}
-      <g opacity="0.6">
-        {/* W wind into valley */}
-        <path d="M 30,210 Q 100,200 190,210" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeDasharray="8,4" markerEnd="url(#arrowBlue)">
-          <animate attributeName="stroke-dashoffset" values="0;-36" dur="1.8s" repeatCount="indefinite" />
-        </path>
-        {/* E wind into valley */}
-        <path d="M 560,210 Q 480,200 410,210" fill="none" stroke="#60a5fa" strokeWidth="2" strokeDasharray="8,4" markerEnd="url(#arrowBlue)">
-          <animate attributeName="stroke-dashoffset" values="0;-36" dur="1.8s" repeatCount="indefinite" />
-        </path>
-      </g>
-
-      {/* Heat waves on valley floor */}
-      <g opacity="0.4">
-        <path d="M 220,218 Q 240,212 260,218 Q 280,224 300,218" fill="none" stroke="#f59e0b" strokeWidth="1">
-          <animate attributeName="d" values="M 220,218 Q 240,212 260,218 Q 280,224 300,218;M 220,216 Q 240,222 260,216 Q 280,210 300,216;M 220,218 Q 240,212 260,218 Q 280,224 300,218" dur="3s" repeatCount="indefinite" />
-        </path>
-        <path d="M 300,218 Q 320,212 340,218 Q 360,224 380,218" fill="none" stroke="#f59e0b" strokeWidth="1">
-          <animate attributeName="d" values="M 300,218 Q 320,212 340,218 Q 360,224 380,218;M 300,216 Q 320,222 340,216 Q 360,210 380,216;M 300,218 Q 320,212 340,218 Q 360,224 380,218" dur="3s" begin="1s" repeatCount="indefinite" />
-        </path>
-      </g>
-
-      {/* Labels */}
-      <text x="110" y="198" className="text-[9px] fill-red-400 font-semibold" textAnchor="middle">Aire caliente ↑</text>
-      <text x="90" y="230" className="text-[9px] fill-blue-400 font-semibold">W → Térmico</text>
-
-      {/* Temperature annotations */}
-      <g className="text-[8px]">
-        <text x="300" y="265" fill="#f59e0b" textAnchor="middle" opacity="0.6">31°C valle</text>
-        <text x="40" y="68" fill="#94a3b8" textAnchor="middle" opacity="0.6">22°C cumbre</text>
-      </g>
-    </svg>
-  );
-}
-
 /* ─── Rías Baixas Intro Section ──────────────────────────────── */
 function RiasIntroSection() {
   return (
@@ -409,9 +299,9 @@ function RiasIntroSection() {
         <p className="text-xs text-slate-400 italic">
           <strong className="text-slate-300">Modo Rías Baixas:</strong> Este sector se centra en la
           monitorización del viento costero, oleaje y condiciones marinas. Incluye boyas marinas
-          (PORTUS + Observatorio Costeiro) en el mapa y mareas de 5 puertos. Las funcionalidades
-          de análisis térmico, zonas de embalse y navegación a vela están disponibles en el sector
-          Embalse de Castrelo.
+          (PORTUS + Observatorio Costeiro) en el mapa y mareas de 5 puertos. El scoring de spots
+          y las alertas de navegación funcionan en ambos sectores. Las zonas térmicas y el análisis
+          térmico de valle son exclusivos del sector Embalse de Castrelo.
         </p>
       </div>
     </div>

@@ -71,9 +71,9 @@ export function SpotScoringSection() {
           </p>
           <div className="space-y-1.5 pt-1">
             <VerdictRow color="#94a3b8" label="Calma"     wind="< 6kt"   desc="Sin viento. No se navega." />
-            <VerdictRow color="#4ade80" label="Flojo"     wind="6-8kt"   desc="Poco viento. No merece preparar el barco." />
-            <VerdictRow color="#bef264" label="Navegable" wind="8-12kt"  desc="Regatistas motivados. Ocio escaso." />
-            <VerdictRow color="#facc15" label="Buen d&iacute;a"  wind="12-18kt" desc="Regata y ocio. Merece la pena ir." />
+            <VerdictRow color="#4ade80" label="Flojo"     wind="6-7kt"   desc="Poco viento. No merece preparar el barco." />
+            <VerdictRow color="#bef264" label="Navegable" wind="8-11kt"  desc="Regatistas motivados. Ocio escaso." />
+            <VerdictRow color="#facc15" label="Buen d&iacute;a"  wind="12-17kt" desc="Regata y ocio. Merece la pena ir." />
             <VerdictRow color="#fb923c" label="Fuerte"    wind="18+ kt"  desc="Solo con experiencia. Viento potente." />
           </div>
           <p className="text-[9px] text-slate-500 italic pt-2">
@@ -215,7 +215,9 @@ export function SpotScoringSection() {
           </p>
           <p className="text-[9px] text-slate-500 italic">
             Las boyas REDMAR (Vigo, Mar&iacute;n, Vilagarc&iacute;a) son mare&oacute;grafos y <strong>no tienen anem&oacute;metro</strong>.
-            La boya Rande (1251) tampoco mide viento &mdash; solo temperatura del agua y del aire.
+            La boya Rande (1251) tampoco mide viento &mdash; mide temperatura del agua y del aire,
+            humedad y punto de roc&iacute;o (v&iacute;a Observatorio Costeiro). Es clave para detectar el patr&oacute;n de
+            bruma/t&eacute;rmica costera (precursor de humedad &gt;65%).
           </p>
         </div>
       </div>

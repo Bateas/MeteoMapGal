@@ -135,7 +135,7 @@ export function ThermalCastreloSection() {
             />
             <DetectionRow
               icon="thermal-wind"
-              title="Thermal boost"
+              title="Amplificación térmica"
               desc="Cuando el térmico es probable, la app aplica un factor de amplificación (+20-50%) sobre el consenso de viento."
               color="#ef4444"
             />
@@ -155,11 +155,11 @@ export function ThermalCastreloSection() {
         </h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
           <div className="space-y-1.5">
-            <WindRow range="0-3 kt" label="CALMA" desc="Sin viento. No se navega." color="#64748b" />
-            <WindRow range="4-6 kt" label="FLOJO" desc="Posible con tabla grande. Principiantes con paciencia." color="#93c5fd" />
-            <WindRow range="7-10 kt" label="NAVEGABLE" desc="Buen viento para aprender. Rumbos básicos cómodos." color="#22c55e" />
-            <WindRow range="11-16 kt" label="BUENO" desc="Condiciones ideales. Planeo con tabla media. Disfrute total." color="#a3e635" />
-            <WindRow range="17+ kt" label="FUERTE" desc="Solo expertos. Rachas potentes. Equipo reducido." color="#f59e0b" />
+            <WindRow range="< 6 kt" label="CALMA" desc="Sin viento. No se navega." color="#64748b" />
+            <WindRow range="6-7 kt" label="FLOJO" desc="Posible con tabla grande. Principiantes con paciencia." color="#93c5fd" />
+            <WindRow range="8-11 kt" label="NAVEGABLE" desc="Buen viento para aprender. Rumbos básicos cómodos." color="#22c55e" />
+            <WindRow range="12-17 kt" label="BUENO" desc="Condiciones ideales. Planeo con tabla media. Disfrute total." color="#a3e635" />
+            <WindRow range="18+ kt" label="FUERTE" desc="Solo expertos. Rachas potentes. Equipo reducido." color="#f59e0b" />
           </div>
         </div>
       </div>
