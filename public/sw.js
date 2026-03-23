@@ -1,5 +1,8 @@
-// MeteoMap Service Worker — cache-first for static assets, network-first for HTML, network-only for API
-const CACHE_NAME = 'meteomap-v4';
+// MeteoMap Service Worker — cache-first for static assets, network-first for HTML,
+// cache-then-network for map tiles, network-only for API
+const CACHE_NAME = 'meteomap-v5';
+const TILE_CACHE = 'meteomap-tiles-v1';
+const MAX_TILE_CACHE = 500; // LRU eviction above this
 
 const STATIC_EXTENSIONS = /\.(js|css|woff2?|ttf|svg|png|jpg|webp|ico|json)$/;
 
@@ -13,6 +16,21 @@ const API_PATHS = [
   '/noaa-api', '/api/webhook', '/api/v1',
 ];
 
+// Tile CDN domains — cache-then-network for fast map loads
+const TILE_DOMAINS = [
+  'tile.openstreetmap.org',
+  'basemaps.cartocdn.com',
+  'a.basemaps.cartocdn.com',
+  'b.basemaps.cartocdn.com',
+  'c.basemaps.cartocdn.com',
+  'd.basemaps.cartocdn.com',
+  'tms-ign-base.idee.es',
+  'www.ign.es',
+  's3.amazonaws.com', // terrain DEM tiles
+  'tiles.openseamap.org',
+  'nrt-services.marine.copernicus.eu',
+];
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
@@ -20,10 +38,21 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== TILE_CACHE).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
+
+// LRU tile eviction — delete oldest entries when cache exceeds max
+async function evictOldTiles() {
+  const cache = await caches.open(TILE_CACHE);
+  const keys = await cache.keys();
+  if (keys.length > MAX_TILE_CACHE) {
+    // Delete oldest 20% to avoid frequent eviction
+    const toDelete = Math.floor(keys.length * 0.2);
+    await Promise.all(keys.slice(0, toDelete).map((k) => cache.delete(k)));
+  }
+}
 
 self.addEventListener('fetch', (event) => {
   // Skip non-HTTP(S) requests (chrome-extension://, moz-extension://, etc.)
@@ -34,6 +63,38 @@ self.addEventListener('fetch', (event) => {
   // Network-only for API routes
   if (API_PATHS.some((p) => url.pathname.startsWith(p))) {
     return; // Let the browser handle it normally
+  }
+
+  // ── Tile caching: cache-first for map tiles (zoom 8-14) ──
+  if (TILE_DOMAINS.some((d) => url.hostname.includes(d))) {
+    // Extract zoom level from typical tile URL pattern: /z/x/y.png
+    const zoomMatch = url.pathname.match(/\/(\d{1,2})\//);
+    const zoom = zoomMatch ? parseInt(zoomMatch[1], 10) : 10;
+
+    // Only cache useful zoom levels (8-14) to save storage
+    if (zoom >= 8 && zoom <= 14) {
+      event.respondWith(
+        caches.open(TILE_CACHE).then((cache) =>
+          cache.match(event.request).then((cached) => {
+            if (cached) return cached;
+            return fetch(event.request).then((response) => {
+              if (response.ok) {
+                cache.put(event.request, response.clone());
+                // Async eviction — don't block response
+                evictOldTiles();
+              }
+              return response;
+            }).catch(() => {
+              // Offline fallback — return cached if available (stale better than nothing)
+              return cached || new Response('', { status: 408 });
+            });
+          })
+        )
+      );
+      return;
+    }
+    // Tiles outside zoom 8-14: just pass through
+    return;
   }
 
   // Cache-first for static assets (hashed filenames from Vite + public assets)

@@ -28,9 +28,10 @@ interface WeatherState {
   currentReadings: Map<string, NormalizedReading>;
   readingHistory: Map<string, NormalizedReading[]>;
 
-  // Epoch counter — increments only when readings actually change.
-  // Components can use this for cheap change detection.
+  // Epoch counters — increment only when data actually changes.
+  // Components can use these for cheap change detection instead of Map references.
   readingsEpoch: number;
+  historyEpoch: number;
 
   // Status
   lastFetchTime: Date | null;
@@ -112,6 +113,7 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
   currentReadings: new Map(),
   readingHistory: new Map(),
   readingsEpoch: 0,
+  historyEpoch: 0,
   lastFetchTime: null,
   isLoading: false,
   error: null,
@@ -126,6 +128,7 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
         currentReadings: new Map(),
         readingHistory: new Map(),
         readingsEpoch: 0,
+        historyEpoch: 0,
         sourceFreshness: new Map(),
       }, undefined, 'setStations/reset');
       // Reset selection state in the dedicated selection store
@@ -184,9 +187,10 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
       }
     }
 
+    const { historyEpoch } = get();
     set({
       currentReadings: newCurrent,
-      ...(historyChanged ? { readingHistory: newHistory } : {}),
+      ...(historyChanged ? { readingHistory: newHistory, historyEpoch: historyEpoch + 1 } : {}),
       readingsEpoch: readingsEpoch + 1,
       lastFetchTime: new Date(),
       isUsingCachedData: false,

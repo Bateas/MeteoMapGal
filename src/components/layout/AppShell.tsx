@@ -182,6 +182,7 @@ export function AppShell() {
   const [fieldDrawerOpen, setFieldDrawerOpen] = useState(false);
   const forecastHourly = useForecastStore((s) => s.hourly);
   const readingHistory = useWeatherStore((s) => s.readingHistory);
+  const historyEpoch = useWeatherStore((s) => s.historyEpoch);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
 
   // GDD season accumulation — deferred 20s to avoid Open-Meteo queue congestion at startup
@@ -203,7 +204,8 @@ export function AppShell() {
     () => (forecastHourly.length > 0 || readingHistory.size > 0
       ? checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD)
       : null),
-    [forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory changes
+    [forecastHourly, historyEpoch, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD],
   );
   const toggleFieldDrawer = useCallback(() => {
     setFieldDrawerOpen((o) => {
@@ -260,7 +262,8 @@ export function AppShell() {
     setUnifiedAlerts(alerts, risk);
     // Trigger notifications for new/escalated alerts
     processAlertNotifications(alerts, risk, notifConfig);
-  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, readingHistory, buoys, sstHistory, stations, activeSector.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory
+  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, historyEpoch, buoys, sstHistory, stations, activeSector.id]);
 
   // ── Keyboard shortcuts (desktop only) ───────────────────
   useEffect(() => {
