@@ -232,8 +232,8 @@ export function analyzeFog(
 
   // Continental dry wind: N/NE/NW (315°-80°) + speed/gust check + HR < 78%
   const isContinentalWind = avgWindDir !== null && (avgWindDir >= 315 || avgWindDir <= 80);
-  const medianWind = windReadings.length >= 3
-    ? [...windReadings].sort((a, b) => a - b)[Math.floor(windReadings.length / 2)]
+  const medianWind = windSpeeds.length >= 3
+    ? [...windSpeeds].sort((a, b) => a - b)[Math.floor(windSpeeds.length / 2)]
     : avgWind;
   const effectiveWind = Math.max(medianWind ?? 0, maxGust * 0.7);
   const isDryWind = effectiveWind >= 2.5 && avgHumidity !== null && avgHumidity < 78;
