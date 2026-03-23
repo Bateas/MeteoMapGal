@@ -16,7 +16,10 @@ import { WeatherIcon } from '../icons/WeatherIcons';
  */
 
 // ── AEMET Config ──────────────────────────────────────
-const BBOX = { west: -10.0, south: 35.0, east: 5.5, north: 44.5 };
+// AEMET national composite covers Iberian Peninsula.
+// The PNG includes a header bar (~5% of image height) with AEMET logo/copyright.
+// North is pushed up slightly to compensate for the header offset.
+const BBOX = { west: -9.8, south: 35.2, east: 4.8, north: 44.8 };
 const IMAGE_COORDINATES: [[number, number], [number, number], [number, number], [number, number]] = [
   [BBOX.west, BBOX.north], [BBOX.east, BBOX.north],
   [BBOX.east, BBOX.south], [BBOX.west, BBOX.south],
@@ -165,7 +168,7 @@ export const RadarOverlay = memo(function RadarOverlay() {
 
       {/* ── Animation controls (bottom-center over map) ── */}
       {mode === 'animated' && frames.length > 0 && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
           <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/50 rounded-xl px-3 py-2 flex items-center gap-2 shadow-lg">
             {/* Play/Pause */}
             <button
@@ -210,7 +213,7 @@ export const RadarOverlay = memo(function RadarOverlay() {
 
       {/* ── Mode toggle (static mode — small button to switch to animated) ── */}
       {mode === 'static' && frames.length > 0 && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
           <button
             onClick={() => setMode('animated')}
             className="bg-slate-900/85 backdrop-blur-md border border-slate-700/50 rounded-full px-3 py-1.5 flex items-center gap-1.5 text-slate-400 hover:text-sky-400 transition-colors shadow-lg text-[10px]"
