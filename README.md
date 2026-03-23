@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.35.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-1.38.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-185%20passed-brightgreen)](src/test/)
 [![Stations](https://img.shields.io/badge/stations-100%2B-orange)](src/api/)
@@ -82,7 +82,7 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **Forecast verification** | "¿Acertó?" — compares past Open-Meteo forecasts vs actual observations (MAE, bias, accuracy) |
 | **Forecast delta** | Real-time Δ badges showing forecast vs observation deviation |
 | **Stale indicator** | Visual opacity fade on stations with outdated readings |
-| **Telegram alerts** | n8n webhook → Telegram bot for alerts + daily sailing summary (8:00 AM) |
+| **Telegram alerts** | n8n webhook → Telegram bot for alerts + daily sailing summary (9:00 AM) |
 | **Dark/light theme** | CSS variable override with map-dark-scope — sun/moon toggle in header |
 
 ### Sailing & Spot Intelligence
@@ -132,7 +132,7 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **PWA** | Installable on mobile and desktop, works offline with data cache |
 | **24h charts** | Time series with CSV export for any station |
 | **Keyboard shortcuts** | Full keyboard navigation (W, A, T, E, B keys + more) |
-| **MeteoGuide** | 9-section in-app guide with animated diagrams (press G) |
+| **MeteoGuide** | 10-section in-app guide with animated diagrams (press G) |
 | **Visibility polling** | All API fetches pause in background tabs to save bandwidth |
 | **Mobile-first** | Bottom sheets, swipe-to-dismiss, touch-optimized controls, responsive sidebar |
 | **Onboarding tour** | 5-step first-visit walkthrough with element highlighting |
@@ -238,7 +238,7 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [x] Daily Telegram summary service (8:00 AM morning briefing, ready for n8n)
 - [x] Proactive spot alerts (N3-Bot) — Telegram push when spot transitions from calm to sailing
 - [x] Browser push notifications — per-spot wind alerts with permission management
-- [x] Feedback form — in-app bug/suggestion form via n8n webhook (rate-limited)
+- [x] ~~Feedback form~~ — disabled (RGPD/bot concerns). Code preserved for future use
 - [x] Spot comparator — side-by-side comparison table for all spots (verdict, wind, waves, temp)
 - [x] GeoJSON export — download stations + buoys as GeoJSON FeatureCollection for QGIS
 - [x] Source status banner — amber warning when critical sources (AEMET/MG) are down
@@ -256,8 +256,10 @@ All data comes from **open and public sources** — no paid APIs required (only 
 - [x] Unified forecast — single Open-Meteo fetch for both sectors (no duplicate calls)
 - [x] Thermal precursors connected to real forecast data for Rías
 - [x] Bidirectional buoy merge — all PORTUS + ObsCosteiro fields preserved
-- [x] Daily Telegram summary — automated 8:00 AM sailing briefing via n8n
+- [x] Daily Telegram summary — automated 9:00 AM sailing briefing via n8n
 - [x] Lourido thermalDetection — same ría dynamics as Cesantes
+- [x] Fog suppression — max gust + median + NE 330-80° check in both dewPoint + maritime fog services
+- [x] Performance: main chunk 658→379KB (-42%), lazy FieldDrawer, SW tile caching, historyEpoch, deferred startup
 
 ### Planned
 
