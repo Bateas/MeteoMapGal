@@ -224,10 +224,7 @@ export function analyzeFog(
       spreadTrend: null,
       fogEta: null,
       humidity: currentHumidity,
-      temperature: currentTemp,
       windSpeed: avgWind,
-      windDir: avgWindDir,
-      solarRadiation: avgSolar,
       confidence: 0,
       hypothesis: `Niebla suprimida: rachas ${(maxGust * 1.94).toFixed(0)}kt — viento impide formación`,
     };
