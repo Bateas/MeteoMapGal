@@ -26,34 +26,34 @@ const STEPS: Step[] = [
   {
     icon: 'sailboat',
     title: 'Bienvenido a MeteoMapGal',
-    desc: 'Monitoriza las condiciones meteorol\u00f3gicas de Galicia en tiempo real. Datos de 6 fuentes, m\u00e1s de 100 estaciones y 13 boyas marinas.',
-    tip: 'Puedes cambiar de zona (Embalse / R\u00edas) en los botones superiores.',
+    desc: 'Condiciones en tiempo real para Galicia. 6 fuentes de datos, 100+ estaciones y 13 boyas marinas actualizadas cada 5 minutos.',
+    tip: 'Cambia de zona (Embalse / Rías) con los botones superiores.',
     highlight: '[data-tour="sectors"]',
   },
   {
     icon: 'map-pin',
-    title: 'Spots de navegaci\u00f3n',
-    desc: 'Los marcadores grandes en el mapa son spots con scoring autom\u00e1tico (0-100). Toca uno para ver condiciones, pron\u00f3stico 12h y ventanas de viento.',
-    tip: 'Marca tu spot favorito con \u2605 para acceso r\u00e1pido.',
+    title: 'Spots de navegación',
+    desc: 'Los marcadores grandes son spots con scoring automático (0-100). Toca uno para ver viento, oleaje, mareas, pronóstico 12h y ventanas de navegación.',
+    tip: 'Marca tu spot favorito con la estrella para acceso rápido.',
   },
   {
     icon: 'wind',
-    title: 'Men\u00fa principal',
-    desc: 'Abre el panel lateral para ver estaciones, gr\u00e1ficas, historial, boyas y rankings. Todo organizado por pesta\u00f1as.',
-    tip: 'En desktop el panel est\u00e1 siempre visible a la izquierda.',
+    title: 'Panel lateral',
+    desc: 'Estaciones, gráficas, previsión multi-modelo, boyas marinas, rankings y verificación de pronósticos. Todo organizado por pestañas.',
+    tip: 'En desktop el panel está siempre visible a la izquierda.',
     highlight: '[data-tour="sidebar"]',
   },
   {
     icon: 'alert-triangle',
-    title: 'Panel de alertas',
-    desc: 'Alertas inteligentes de viento, niebla, tormentas, mar cruzado y m\u00e1s. Las cr\u00edticas se env\u00edan por Telegram.',
+    title: 'Alertas inteligentes',
+    desc: 'Detección automática de tormentas, niebla, mar cruzado, lluvia, cambios bruscos de viento y más. Las alertas críticas llegan por Telegram.',
     tip: 'Verde = todo bien. Naranja/rojo = revisar alertas.',
     highlight: '[data-tour="panel"]',
   },
   {
     icon: 'book-open',
-    title: 'Gu\u00eda y ayuda',
-    desc: 'La gu\u00eda tiene informaci\u00f3n detallada de cada funci\u00f3n: spots, t\u00e9rmicos, alertas, fuentes de datos y m\u00e1s.',
+    title: 'Guía completa',
+    desc: 'Documentación de cada función: spots, térmicos, alertas, fuentes de datos, patrones de viento y glosario meteorológico.',
     tip: 'Pulsa ? en cualquier momento para ver atajos de teclado.',
     highlight: '[data-tour="guide"]',
   },
@@ -223,7 +223,7 @@ export const OnboardingTour = memo(function OnboardingTour() {
                 onClick={handleBack}
                 className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
               >
-                Atr\u00e1s
+                {"Atr\u00e1s"}
               </button>
             )}
             {!isLast && (
