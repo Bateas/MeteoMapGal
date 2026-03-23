@@ -133,6 +133,9 @@ export async function postAlertWebhook(payload: WebhookAlertPayload): Promise<vo
     // Skip webhook in development — no n8n server running
     if (import.meta.env.DEV) return;
 
+    // Info alerts are informational — never send to Telegram
+    if (payload.severity === 'info') return;
+
     // Night silence: only critical alerts pass through
     if (isNightSilence() && payload.severity !== 'critical') return;
 
