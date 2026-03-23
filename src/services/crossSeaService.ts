@@ -252,7 +252,7 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
 
   return [{
     id: 'cross-sea',
-    category: 'storm',  // Safety — uses storm category for high priority
+    category: 'marine',
     severity: severity as 'info' | 'moderate' | 'high' | 'critical',
     score,
     icon: 'waves',
