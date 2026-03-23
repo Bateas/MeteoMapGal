@@ -67,6 +67,8 @@ export interface WebhookSummaryPayload {
   spots?: string[];
   /** Environmental data from buoys */
   environment?: { humidity?: number; waterTemp?: number; airTemp?: number };
+  /** Day forecast summary from Open-Meteo */
+  forecast?: { tempMax: number; tempMin: number; maxWindKt: number; rainMm: number; rainProb: number };
 }
 
 // ── Night silence check ─────────────────────────────────
