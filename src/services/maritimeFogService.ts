@@ -539,7 +539,7 @@ export function buildMaritimeFogAlerts(
     none: 0, riesgo: 35, alto: 60, critico: 85,
   };
   const score = levelToScore[risk.level];
-  const severity = score >= 80 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'moderate' : 'info';
+  const severity = score >= 80 ? 'critical' : score >= 50 ? 'info' : score >= 25 ? 'info' : 'info';
 
   const deltaStr = risk.airWaterDelta !== null ? `ΔT ${risk.airWaterDelta.toFixed(1)}°C` : '';
   const buoyStr = risk.sourceBuoy ? ` (${risk.sourceBuoy})` : '';
