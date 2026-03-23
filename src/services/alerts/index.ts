@@ -8,3 +8,4 @@ export * from './stormAlerts';
 export * from './thermalAlerts';
 export * from './fieldAlerts';
 export * from './aggregator';
+export * from './rainAlerts';
