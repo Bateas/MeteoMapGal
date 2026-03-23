@@ -257,7 +257,7 @@ export function buildInversionForecastAlert(
   return [{
     id: 'inversion-forecast',
     category: 'inversion',
-    severity: isHighConf ? 'moderate' : 'info',
+    severity: 'info',
     score,
     icon: 'thermometer',
     title: isHighConf ? 'Inversión prevista esta noche' : 'Posible inversión nocturna',

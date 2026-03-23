@@ -278,7 +278,7 @@ export function buildUpwellingAlerts(
     none: 0, riesgo: 30, alto: 55, critico: 80,
   };
   const score = levelToScore[risk.level];
-  const severity = score >= 80 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'moderate' : 'info';
+  const severity = 'info' as const;
 
   const buoyStr = risk.sourceBuoy ? ` (${risk.sourceBuoy})` : '';
   const deltaStr = risk.sstDelta !== null ? `SST ${risk.sstDelta > 0 ? '+' : ''}${risk.sstDelta.toFixed(1)}°C` : '';
