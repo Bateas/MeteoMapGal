@@ -17,9 +17,11 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 
 // ── AEMET Config ──────────────────────────────────────
 // AEMET national composite covers Iberian Peninsula + Balearics.
-// The PNG includes header/legend that offset the actual radar data.
+// The PNG includes header bar with AEMET logo that shifts radar data down.
 // Calibrated empirically against Galician coastline (Mar 2026).
-const BBOX = { west: -10.5, south: 34.8, east: 5.5, north: 44.2 };
+// Original AEMET nominal bounds: -10.0/35.0/5.5/44.5
+// Adjusted: north+0.8 to compensate header, west-0.2 for slight left shift
+const BBOX = { west: -10.2, south: 35.0, east: 5.5, north: 45.3 };
 const IMAGE_COORDINATES: [[number, number], [number, number], [number, number], [number, number]] = [
   [BBOX.west, BBOX.north], [BBOX.east, BBOX.north],
   [BBOX.east, BBOX.south], [BBOX.west, BBOX.south],
