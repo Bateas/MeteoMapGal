@@ -135,7 +135,7 @@ export function aggregateAllAlerts(sources: {
 
   const allAlerts: UnifiedAlert[] = [
     ...(sources.stormAlert ? buildStormAlerts(sources.stormAlert) : []),
-    ...buildStormShadowAlerts(sources.stormShadow ?? null),
+    ...buildStormShadowAlerts(sources.stormShadow ?? null, sources.currentReadings),
     ...buildInversionAlerts(sources.thermalProfile, nao, ao),
     ...(sources.forecast ? buildInversionForecastAlert(sources.forecast) : []),
     ...buildThermalAlerts(sources.zoneAlerts),
