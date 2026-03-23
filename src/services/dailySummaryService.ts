@@ -12,6 +12,7 @@ import { useSectorStore } from '../store/sectorStore';
 import { useSpotStore } from '../store/spotStore';
 import { useAlertStore } from '../store/alertStore';
 import { useBuoyStore } from '../store/buoyStore';
+import { useForecastStore } from '../hooks/useForecastTimeline';
 import { postSailingSummary } from '../api/webhookClient';
 import { msToKnots } from './windUtils';
 import type { WebhookSummaryPayload } from '../api/webhookClient';
@@ -117,6 +118,28 @@ export async function sendDailySummary(): Promise<void> {
       }
     }
 
+    // Extract today's forecast summary from forecastStore
+    let forecastSummary: WebhookSummaryPayload['forecast'];
+    try {
+      const hourly = useForecastStore.getState().hourly;
+      const today = new Date();
+      const todayStr = today.toDateString();
+      const todayHours = hourly.filter(h => h.time.toDateString() === todayStr);
+      if (todayHours.length > 0) {
+        const temps = todayHours.map(h => h.temperature);
+        const winds = todayHours.map(h => h.windSpeed ?? 0);
+        const rains = todayHours.map(h => h.precipitation ?? 0);
+        const probs = todayHours.map(h => h.precipProbability ?? 0);
+        forecastSummary = {
+          tempMax: Math.round(Math.max(...temps)),
+          tempMin: Math.round(Math.min(...temps)),
+          maxWindKt: Math.round(msToKnots(Math.max(...winds))),
+          rainMm: Math.round(rains.reduce((a, b) => a + b, 0) * 10) / 10,
+          rainProb: Math.round(Math.max(...probs)),
+        };
+      }
+    } catch { /* non-critical */ }
+
     const payload: WebhookSummaryPayload = {
       sector: sector.name,
       timestamp: new Date().toISOString(),
@@ -135,6 +158,7 @@ export async function sendDailySummary(): Promise<void> {
       sailing: bestWindow,
       spots: spotSummaries.length > 0 ? spotSummaries : undefined,
       environment,
+      forecast: forecastSummary,
     };
 
     await postSailingSummary(payload);

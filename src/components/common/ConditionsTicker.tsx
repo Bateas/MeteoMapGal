@@ -8,6 +8,7 @@
 import { memo, useMemo } from 'react';
 import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
 import { useSectorStore } from '../../store/sectorStore';
+import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
@@ -19,6 +20,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   const stations = useWeather.use.stations();
   const buoyReadings = useBuoy.use.buoys();
   const sectorId = useSectorStore((s) => s.activeSector.id);
+  const forecastHourly = useForecastStore((s) => s.hourly);
 
   const items = useMemo(() => {
     const result: { key: string; text: string; color: string }[] = [];
@@ -90,6 +92,35 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
+    // ── Day forecast summary (from Open-Meteo) ──
+    if (forecastHourly.length > 0) {
+      const now = new Date();
+      const todayStr = now.toDateString();
+      const futureToday = forecastHourly.filter(h =>
+        h.time.toDateString() === todayStr && h.time > now,
+      );
+      if (futureToday.length >= 3) {
+        const maxWind = Math.max(...futureToday.map(h => h.windSpeed ?? 0));
+        const maxRainProb = Math.max(...futureToday.map(h => h.precipProbability ?? 0));
+        const maxWindKt = Math.round(msToKnots(maxWind));
+
+        if (maxWindKt > 5) {
+          result.push({
+            key: 'fcst-wind',
+            text: `Prev: viento max ${maxWindKt}kt hoy`,
+            color: maxWindKt > 15 ? 'text-orange-400' : 'text-sky-400',
+          });
+        }
+        if (maxRainProb >= 40) {
+          result.push({
+            key: 'fcst-rain',
+            text: `Prev: lluvia ${maxRainProb}% hoy`,
+            color: maxRainProb >= 70 ? 'text-amber-400' : 'text-slate-400',
+          });
+        }
+      }
+    }
+
     // ── Fallback: station count + sector when no wind/score data yet ──
     if (result.length === 0 && stations.length > 0) {
       result.push({
@@ -100,7 +131,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     }
 
     return result;
-  }, [scores, readings, stations, buoyReadings, sectorId]);
+  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly]);
 
   if (items.length === 0) return null;
 
