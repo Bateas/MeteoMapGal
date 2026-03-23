@@ -116,12 +116,15 @@ export function AppShell() {
   // Webcam Vision: Beaufort estimation via LLM (dev only, VITE_VISION_ENABLED=true)
   useWebcamVision();
 
-  // NAO/AO teleconnection indices — fetched once, cached 6h in naoClient
+  // NAO/AO teleconnection indices — deferred 15s to avoid startup congestion (also fetched in useSpotScoring with 6h cache)
   const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
   useEffect(() => {
-    fetchTeleconnections()
-      .then((data) => { teleconnectionsRef.current = data; })
-      .catch(() => { /* graceful degradation — alerts work without */ });
+    const t = setTimeout(() => {
+      fetchTeleconnections()
+        .then((data) => { teleconnectionsRef.current = data; })
+        .catch(() => { /* graceful degradation — alerts work without */ });
+    }, 15_000);
+    return () => clearTimeout(t);
   }, []);
 
   // ── Map reveal crossfade — smooth transition as loading screen fades out ──
@@ -181,16 +184,19 @@ export function AppShell() {
   const readingHistory = useWeatherStore((s) => s.readingHistory);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
 
-  // GDD season accumulation (fetched once per session, cached 1h)
+  // GDD season accumulation — deferred 20s to avoid Open-Meteo queue congestion at startup
   const [seasonGDD, setSeasonGDD] = useState<{ accumulated: number; days: number } | null>(null);
   const gddFetchedRef = useRef(false);
   useEffect(() => {
     if (gddFetchedRef.current) return;
-    gddFetchedRef.current = true;
     const [lon, lat] = activeSector.center;
-    fetchSeasonGDD(lat, lon).then((result) => {
-      if (result) setSeasonGDD(result);
-    });
+    const t = setTimeout(() => {
+      gddFetchedRef.current = true;
+      fetchSeasonGDD(lat, lon).then((result) => {
+        if (result) setSeasonGDD(result);
+      });
+    }, 20_000);
+    return () => clearTimeout(t);
   }, [activeSector.center]);
 
   const fieldAlerts = useMemo(
