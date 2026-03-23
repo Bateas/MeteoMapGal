@@ -292,13 +292,25 @@ export const AlertPanel = memo(function AlertPanel() {
             )}
           </div>
 
-          {/* Alert rows */}
+          {/* Alert rows — real dangers */}
           {topAlerts.map((a) => (
             <AlertRow key={a.id} alert={a} />
           ))}
-          {otherAlerts.map((a) => (
-            <AlertRow key={a.id} alert={a} />
-          ))}
+
+          {/* Info section — informational notices, separated */}
+          {otherAlerts.length > 0 && (
+            <>
+              <div className="flex items-center gap-2 mt-1 pt-1 border-t border-slate-700/40">
+                <span className="text-[9px] font-bold text-slate-600 tracking-wider uppercase">
+                  Avisos
+                </span>
+                <span className="text-[9px] text-slate-700">{otherAlerts.length}</span>
+              </div>
+              {otherAlerts.map((a) => (
+                <AlertRow key={a.id} alert={a} />
+              ))}
+            </>
+          )}
 
           {alerts.length === 0 && (
             <div className="text-[10px] text-slate-600 text-center py-2">
