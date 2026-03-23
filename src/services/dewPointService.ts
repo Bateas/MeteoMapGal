@@ -14,6 +14,7 @@
 import type { NormalizedReading } from '../types/station';
 import type { HourlyForecast } from '../types/forecast';
 import type { FogAlert, AlertLevel } from '../types/campo';
+import { detectNorthWindConsensus } from './maritimeFogService';
 
 // ── Magnus formula constants (Buck, 1981) ────────────────
 
@@ -130,6 +131,7 @@ export function analyzeFog(
   allReadings: Map<string, NormalizedReading[]>,
   now: Date = new Date(),
   forecast?: HourlyForecast[],
+  currentReadings?: Map<string, NormalizedReading>,
 ): FogAlert {
   const noFog: FogAlert = {
     level: 'none',
@@ -142,6 +144,16 @@ export function analyzeFog(
     confidence: 0,
     hypothesis: 'Sin datos suficientes',
   };
+
+  // ── Global north wind suppression ──────────────────────────
+  // A sector-wide N/NE consensus means dry continental air — fog impossible.
+  // This catches cases where individual station checks miss (e.g. moderate HR 78-85%).
+  if (currentReadings && detectNorthWindConsensus(currentReadings)) {
+    return {
+      ...noFog,
+      hypothesis: 'Niebla suprimida: norte claro en estaciones del sector — aire continental seco',
+    };
+  }
 
   // Aggregate readings from all stations in the last 6 hours
   const cutoff = new Date(now.getTime() - 6 * 3_600_000);

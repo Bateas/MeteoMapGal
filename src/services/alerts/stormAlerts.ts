@@ -3,10 +3,12 @@
  * detections into UnifiedAlert[].
  */
 
+import type { NormalizedReading } from '../../types/station';
 import type { StormAlert, StormAlertLevel } from '../../types/lightning';
 import type { StormShadow } from '../stormShadowDetector';
 import type { AlertSeverity, UnifiedAlert } from './types';
 import { severityFromScore } from './riskEngine';
+import { detectNorthWindConsensus } from '../maritimeFogService';
 
 // ── Storm alerts -> UnifiedAlert ──────────────────────────────
 
@@ -52,13 +54,24 @@ export function buildStormAlerts(storm: StormAlert): UnifiedAlert[] {
 
 // ── Storm shadow alerts -> UnifiedAlert ───────────────────────
 
-export function buildStormShadowAlerts(shadow: StormShadow | null): UnifiedAlert[] {
+export function buildStormShadowAlerts(
+  shadow: StormShadow | null,
+  currentReadings?: Map<string, NormalizedReading>,
+): UnifiedAlert[] {
   if (!shadow || shadow.confidence < 40) return [];
 
   const now = new Date();
   const score = Math.min(95, shadow.confidence);
   const hasLightning = shadow.lightningNearby > 0;
   const hasWindConfirmation = shadow.windContext !== null && shadow.windContext.outflowCount > 0;
+
+  // ── North wind suppression for non-lightning cloud alerts ──
+  // Strong N/NE across all stations = clear dry air. Solar radiation drops
+  // could be from high-altitude clouds, NOT convective storms.
+  // Only suppress when there's no lightning confirmation.
+  if (!hasLightning && !hasWindConfirmation && currentReadings && detectNorthWindConsensus(currentReadings)) {
+    return [];
+  }
 
   // ── Contextual title based on lightning presence ──
   let title: string;
