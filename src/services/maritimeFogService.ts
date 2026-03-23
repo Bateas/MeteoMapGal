@@ -451,7 +451,7 @@ function assessBuoyFogRisk(
  * - ≥60% of those stations report N/NE direction
  * - Average speed of northerly stations ≥ 3 m/s (~6kt)
  */
-function detectNorthWindConsensus(
+export function detectNorthWindConsensus(
   stationReadings: Map<string, NormalizedReading>,
 ): boolean {
   const MIN_STATIONS = 4;
