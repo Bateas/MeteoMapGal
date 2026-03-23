@@ -100,7 +100,6 @@ export const StationMarker = memo(function StationMarker({
         style={{
           opacity: freshnessOpacity,
           transform: scale < 1 ? `scale(${scale})` : undefined,
-          transition: 'transform 0.3s ease-out, opacity 0.3s ease-out',
         }}
       >
         <svg width="90" height="90" viewBox="-45 -45 90 90" role="img" aria-label={`Estación ${station.name}`} style={{ pointerEvents: 'none' }}>

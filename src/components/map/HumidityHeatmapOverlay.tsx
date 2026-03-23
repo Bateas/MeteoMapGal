@@ -135,10 +135,8 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
     const map = mapRef.current?.getMap();
     if (!map) return;
 
-    // Redraw during movement (debounced) for visual continuity
-    map.on('move', scheduleRedraw);
-    map.on('zoom', scheduleRedraw);
-    // Also redraw immediately at end of movement for final accuracy
+    // Only redraw at end of movement — skip during pan to avoid
+    // 14,400 IDW interpolations per frame (160x90 grid at 12px cells)
     map.on('moveend', drawHeatmap);
     map.on('zoomend', drawHeatmap);
 
@@ -147,14 +145,12 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
     if (canvas) resizeObs.observe(canvas);
 
     return () => {
-      map.off('move', scheduleRedraw);
-      map.off('zoom', scheduleRedraw);
       map.off('moveend', drawHeatmap);
       map.off('zoomend', drawHeatmap);
       resizeObs.disconnect();
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [isActive, mapRef, scheduleRedraw, drawHeatmap]);
+  }, [isActive, mapRef, drawHeatmap]);
 
   if (!isActive) return null;
 
