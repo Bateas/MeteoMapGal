@@ -108,6 +108,7 @@ export const StationMarker = memo(function StationMarker({
             <WindArrow
               direction={reading?.windDirection ?? null}
               speed={reading?.windSpeed ?? null}
+              gust={reading?.windGust ?? null}
             />
           )}
 
