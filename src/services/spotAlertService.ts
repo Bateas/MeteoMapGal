@@ -94,7 +94,7 @@ export function checkSpotAlerts(scores: Map<string, SpotScore>, sectorName: stri
       severity: current === 'strong' ? 'high' : 'moderate',
       title,
       detail,
-      icon: current === 'strong' ? '💨' : '⛵',
+      icon: current === 'strong' ? 'wind' : 'sailboat',
       score: score.score,
       sector: sectorName,
       timestamp: new Date().toISOString(),
