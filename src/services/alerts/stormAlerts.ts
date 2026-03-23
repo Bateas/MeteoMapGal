@@ -126,7 +126,7 @@ export function buildStormShadowAlerts(
     severity = 'moderate';
   } else if (!hasLightning) {
     // No lightning, no wind outflow -> just dense clouds, lower severity
-    severity = shadow.confidence >= 70 ? 'moderate' : 'info';
+    severity = 'info';
   } else {
     severity = shadow.confidence >= 60 ? 'moderate' : 'info';
   }

@@ -164,7 +164,7 @@ export function buildPressureTrendAlerts(
   alerts.push({
     id: 'pressure-trend',
     category: 'pressure',
-    severity: score >= 75 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'moderate' : 'info',
+    severity: score >= 75 ? 'critical' : score >= 50 ? 'high' : 'info',
     score,
     icon: 'gauge',
     title,
