@@ -149,7 +149,7 @@ export function SpotScoringSection() {
               y previsi&oacute;n favorable (10%). Muestra probabilidad 0-100%, confianza y ETA.</li>
             <li><strong className="text-orange-400">Amplificaci&oacute;n t&eacute;rmica</strong> — cuando se detecta t&eacute;rmica activa
               (probabilidad &ge;40% + WSW + viento &ge;3kt), el scoring aplica un factor de amplificaci&oacute;n
-              (hasta +50%) porque las estaciones en tierra subestiman el viento real en el agua.
+              (hasta +50%) sobre el consenso de viento.
               Muestra aviso de &ldquo;baja confianza&rdquo; con el n&uacute;mero de fuentes.</li>
           </ul>
           <p className="text-[9px] text-slate-500 italic">

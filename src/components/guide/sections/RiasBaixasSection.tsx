@@ -37,7 +37,7 @@ export function RiasBaixasSection() {
             season="Primavera–Otoño (tardes)"
             speed="10–18 kt"
             color="#22c55e"
-            description="Brisa de mar que entra por las tardes cuando el sol calienta la tierra. Similar al térmico de valle pero más suave. Funciona mejor en días claros con diferencia tierra-mar. Las estaciones en tierra subestiman el viento real en el agua (hasta 50%)."
+            description="Brisa de mar que entra por las tardes cuando el sol calienta la tierra. Similar al térmico de valle pero más suave. Funciona mejor en días claros con diferencia tierra-mar."
           />
           <PatternCard
             name="Suroeste atlántico (SW)"
