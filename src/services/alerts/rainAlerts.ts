@@ -104,13 +104,13 @@ export function buildRainAlerts(forecast?: HourlyForecast[]): UnifiedAlert[] {
   if (!event) return [];
 
   // ── Determine severity ──
-  let severity: 'moderate' | 'high' | 'critical';
+  let severity: 'info' | 'moderate' | 'high' | 'critical';
   if (event.maxPrecipMm > 5) {
     severity = 'critical';
   } else if (event.maxPrecipMm > 2 || event.maxProb > 80) {
     severity = 'high';
   } else {
-    severity = 'moderate';
+    severity = 'info';
   }
 
   // ── Score: 30-90 range ──

@@ -40,7 +40,7 @@ export function buildInversionAlerts(
   return [{
     id: 'inversion-main',
     category: 'inversion',
-    severity: isStrong ? 'high' : 'moderate',
+    severity: 'info',
     score,
     icon: 'thermometer',
     title,
@@ -66,7 +66,7 @@ export function buildThermalAlerts(
     results.push({
       id: `thermal-${zoneId}`,
       category: 'thermal',
-      severity: za.alertLevel === 'high' ? 'high' : za.alertLevel === 'medium' ? 'moderate' : 'info',
+      severity: 'info',
       score,
       icon: 'thermal-wind',
       title: `Térmico ${levelLabel} — ${zoneId}`,

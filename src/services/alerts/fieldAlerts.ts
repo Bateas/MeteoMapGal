@@ -83,10 +83,11 @@ export function buildFieldAlerts(
       title = 'Lluvia prevista';
     }
 
+    const rainSeverity = field.rain.level === 'riesgo' ? 'info' as const : severityFromScore(score);
     results.push({
       id: 'rain-forecast',
       category: 'rain',
-      severity: severityFromScore(score),
+      severity: rainSeverity,
       score: Math.min(100, field.rain.hailRisk ? score + 20 : score),
       icon: field.rain.hailRisk ? 'hail' : 'cloud-rain',
       title,
@@ -100,10 +101,11 @@ export function buildFieldAlerts(
   if (field.fog.level !== 'none') {
     const score = campoLevelToScore(field.fog.level);
     const spreadStr = field.fog.spread != null ? `ΔT=${field.fog.spread.toFixed(1)}°C` : '';
+    const fogSeverity = field.fog.level === 'critico' ? severityFromScore(score) : 'info' as const;
     results.push({
       id: 'fog-alert',
       category: 'fog',
-      severity: severityFromScore(score),
+      severity: fogSeverity,
       score,
       icon: 'fog',
       title: field.fog.level === 'critico' ? 'NIEBLA INMINENTE' : 'Riesgo de niebla',
