@@ -8,8 +8,6 @@
 import type { NormalizedReading } from '../../types/station';
 import type { UnifiedAlert } from './types';
 import { analyzeWindTrend } from '../windTrendService';
-import { msToKnots } from '../windUtils';
-
 /** Build alerts for sudden wind changes across all stations */
 export function buildWindTrendAlerts(
   currentReadings: Map<string, NormalizedReading>,
@@ -31,13 +29,14 @@ export function buildWindTrendAlerts(
 
     alerts.push({
       id: `wind-trend-${stationId}`,
-      category: 'maritime',
+      category: 'wind-front',
       severity: trend.currentKt >= 15 ? 'high' : 'moderate',
       score: Math.min(90, Math.round(trend.deltaKt * 8)),
       title: `Cambio brusco: +${trend.deltaKt.toFixed(0)}kt en ${stationName}`,
       detail: `Viento subió de ${trend.startKt.toFixed(0)}kt a ${trend.currentKt.toFixed(0)}kt en 30min. ${trend.dirTrend !== 'stable' ? (trend.dirTrend === 'veering' ? 'Rolada a derechas.' : 'Rolada a izquierdas.') : ''}`,
       icon: 'wind',
-      timestamp: new Date(),
+      updatedAt: new Date(),
+      urgent: trend.currentKt >= 20,
     });
   }
 
