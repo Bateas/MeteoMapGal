@@ -26,6 +26,7 @@ const STATION_COLORS = [
 ];
 
 const TIME_RANGES = [
+  { label: '3h', hours: 3 },
   { label: '6h', hours: 6 },
   { label: '12h', hours: 12 },
   { label: '24h', hours: 24 },
@@ -90,13 +91,24 @@ export function TimeSeriesChart() {
   const stationName = (id: string) =>
     stations.find((s) => s.id === id)?.name || id;
 
-  // CSV export
+  // CSV export — all metrics for selected stations
   const handleExportCsv = useCallback(() => {
     if (chartStations.length === 0) return;
 
     const cutoff = Date.now() - timeRange * 60 * 60 * 1000;
-    const headers = ['Fecha', 'Hora', ...chartStations.map(stationName)];
-    const rows: string[][] = [];
+
+    // Build per-station headers: Station_Viento, Station_Racha, Station_Temp, Station_Humedad
+    const csvMetrics = [
+      { key: 'windSpeed' as MetricKey, label: 'Viento(kt)', convert: (v: number) => msToKnots(v) },
+      { key: 'windGust' as MetricKey, label: 'Racha(kt)', convert: (v: number) => msToKnots(v) },
+      { key: 'temperature' as MetricKey, label: 'Temp(C)', convert: null },
+      { key: 'humidity' as MetricKey, label: 'Humedad(%)', convert: null },
+    ];
+    const headers = ['Fecha', 'Hora'];
+    for (const stId of chartStations) {
+      const name = stationName(stId);
+      for (const m of csvMetrics) headers.push(`${name}_${m.label}`);
+    }
 
     // Collect all timestamps
     const timeSet = new Set<number>();
@@ -108,52 +120,56 @@ export function TimeSeriesChart() {
         if (ts >= cutoff) timeSet.add(Math.round(ts / 300000) * 300000);
       }
     }
-
     const sortedTimes = Array.from(timeSet).sort((a, b) => a - b);
 
-    // Build value lookup
-    const lookup = new Map<string, Map<number, number | null>>();
+    // Build lookup: stationId → timestamp → reading
+    const lookup = new Map<string, Map<number, NormalizedReading>>();
     for (const stationId of chartStations) {
-      const stMap = new Map<number, number | null>();
+      const stMap = new Map<number, NormalizedReading>();
       const history = readingHistory.get(stationId) || [];
       for (const r of history) {
         if (!r.timestamp || isNaN(r.timestamp.getTime())) continue;
         const ts = r.timestamp.getTime();
         if (ts < cutoff) continue;
-        const rounded = Math.round(ts / 300000) * 300000;
-        const raw = r[activeMetric];
-        stMap.set(rounded, activeMetric === 'windSpeed' && raw !== null && Number.isFinite(raw) ? msToKnots(raw) : raw);
+        stMap.set(Math.round(ts / 300000) * 300000, r);
       }
       lookup.set(stationId, stMap);
     }
 
+    const rows: string[][] = [];
     for (const ts of sortedTimes) {
       const d = new Date(ts);
       const row = [
         format(d, 'dd/MM/yyyy', { locale: es }),
         format(d, 'HH:mm', { locale: es }),
-        ...chartStations.map((id) => {
-          const val = lookup.get(id)?.get(ts);
-          return val !== null && val !== undefined ? val.toFixed(1) : '';
-        }),
       ];
+      for (const stId of chartStations) {
+        const reading = lookup.get(stId)?.get(ts);
+        for (const m of csvMetrics) {
+          const raw = reading?.[m.key] ?? null;
+          if (raw !== null && raw !== undefined && Number.isFinite(raw)) {
+            row.push((m.convert ? m.convert(raw) : raw).toFixed(1));
+          } else {
+            row.push('');
+          }
+        }
+      }
       rows.push(row);
     }
 
-    const unit = metric.unit;
     // Escape all fields for CSV injection prevention (OWASP CSV Injection)
     const safeHeaders = headers.map((h) => escapeCSV(h, ';'));
     const safeRows = rows.map((r) => r.map((cell) => escapeCSV(cell, ';')));
     const csv = [
-      `# MeteoMapGal — ${metric.label} (${unit}) — Últimas ${timeRange}h`,
+      `# MeteoMapGal — Datos completos — Ultimas ${timeRange}h`,
       safeHeaders.join(';'),
       ...safeRows.map((r) => r.join(';')),
     ].join('\n');
 
     const date = format(new Date(), 'yyyyMMdd_HHmm');
-    downloadCsv(`meteomap_${activeMetric}_${date}.csv`, csv);
-    useToastStore.getState().addToast(`CSV exportado (${rows.length} registros)`, 'success');
-  }, [chartStations, readingHistory, activeMetric, timeRange, metric, stationName]);
+    downloadCsv(`meteomap_completo_${date}.csv`, csv);
+    useToastStore.getState().addToast(`CSV exportado (${rows.length} registros, ${csvMetrics.length} métricas)`, 'success');
+  }, [chartStations, readingHistory, timeRange, stationName]);
 
   if (chartStations.length === 0) {
     return (
