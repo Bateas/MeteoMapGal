@@ -130,9 +130,17 @@ export function WeatherMap() {
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
-  // Track zoom level for label visibility (hide station names at low zoom to reduce clutter)
+  // Track zoom level for label visibility — quantized to visual breakpoints
+  // to avoid re-rendering ~84 markers on every 0.1 zoom change
   const [zoomLevel, setZoomLevel] = useState(activeSector.initialView.zoom);
   const showStationLabels = zoomLevel >= 11;
+  const quantizeZoom = useCallback((z: number) => {
+    // Only 4 breakpoints matter: <9.5, 9.5-11, 11-12, >=12
+    if (z < 9.5) return 9;
+    if (z < 11) return 10;
+    if (z < 12) return 11;
+    return 12;
+  }, []);
 
   // Distance measurement tool
   const [distanceActive, setDistanceActive] = useState(false);
@@ -234,7 +242,7 @@ export function WeatherMap() {
         onClick={handleMapClick}
         onLoad={handleMapLoad}
         onMoveStart={handleMoveStart}
-        onMoveEnd={(e) => { handleMoveEnd(); setZoomLevel(Math.round(e.viewState.zoom * 10) / 10); }}
+        onMoveEnd={(e) => { handleMoveEnd(); const q = quantizeZoom(e.viewState.zoom); if (q !== zoomLevel) setZoomLevel(q); }}
       >
         <NavigationControl position="top-right" visualizePitch />
 
