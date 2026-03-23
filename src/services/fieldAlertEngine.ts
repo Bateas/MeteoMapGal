@@ -475,7 +475,7 @@ export function checkAllFieldAlerts(
   const frost = checkFrost(forecast, center);
   const rain = checkRainHail(forecast);
   const drone = checkDroneConditions(forecast, airspace);
-  const fog = analyzeFog(readingHistory ?? new Map(), new Date(), forecast);
+  const fog = analyzeFog(readingHistory ?? new Map(), new Date(), forecast, currentReadings);
   const et0 = computeET0(forecast);
   const disease = checkDiseaseRisk(forecast);
   const gdd = computeGDDInfo(forecast, seasonGDD?.accumulated, seasonGDD?.days);
