@@ -31,6 +31,30 @@ Currently monitoring two zones:
 
 > **Roadmap:** New monitoring zones across Galicia are planned for future releases (A Coruña, Lugo, Costa da Morte...).
 
+## How to Use / Como usar
+
+1. **Open** [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) on your phone or computer
+2. **Choose your zone** — Rías Baixas (coast) or Embalse (inland) using the buttons at the top
+3. **Tap a spot** (sailing icon) to see current conditions: wind, waves, verdict (CALMA → NAVEGABLE → FUERTE)
+4. **Check the color**: green = good conditions, amber = marginal, red = dangerous
+5. **Explore tabs** in the sidebar: Stations, Forecast, Rankings, History
+6. **Get alerts on Telegram** — the bot sends a daily summary at 9:00 AM and instant alerts for strong wind changes
+
+> **Free, no account needed.** Works on any device. Installs as an app (PWA) from the browser menu.
+
+---
+
+1. **Abre** [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) no teu movil ou ordenador
+2. **Elixe a zona** — Rías Baixas (costa) ou Encoro (interior) cos botones de arriba
+3. **Toca un spot** (icono de veleiro) para ver as condicions: vento, ondas, veredicto (CALMA → NAVEGABLE → FORTE)
+4. **Mira a cor**: verde = boas condicions, ambar = marxinal, vermello = perigoso
+5. **Explora as pestanas**: Estaciones, Previsión, Rankings, Historial
+6. **Recibe alertas en Telegram** — resumo diario as 9:00 e alertas instantaneas de cambios fortes
+
+> **Gratis, sen conta.** Funciona en calquera dispositivo. Instala como app dende o navegador.
+
+---
+
 ## Que é MeteoMapGal?
 
 MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización meteorolóxica creada especificamente para **Galicia**. Agrega datos de **6 redes de estacións** e **10+ fontes complementarias** nun panel en tempo real cun mapa 3D interactivo.
@@ -189,7 +213,7 @@ All data comes from **open and public sources** — no paid APIs required (only 
 
 ## Roadmap
 
-### Done (v1.0 → v1.31)
+### Done (v1.0 → v1.38)
 
 - [x] Multi-sector support (Embalse + Rías Baixas)
 - [x] 100+ weather stations from 6 networks (incl. SkyX personal PWS with GPS auto-discovery)
