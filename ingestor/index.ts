@@ -15,6 +15,7 @@ import { discoverAllStations } from './discover.js';
 import { fetchAllObservations } from './fetchers.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
+import { checkAndSendDailySummary } from './dailySummary.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -67,6 +68,10 @@ async function runCycle(): Promise<void> {
       const { inserted: bInserted, skipped: bSkipped } = await batchUpsertBuoys(buoyReadings);
       log.info(`Buoys: ${buoyReadings.length} readings → ${bInserted} new, ${bSkipped} dedup`);
     }
+
+    // 4. Check if daily summary should be sent (9:00 AM, once per day)
+    await checkAndSendDailySummary().catch(err =>
+      log.warn('Daily summary check failed:', (err as Error).message));
 
     const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
     log.ok(`Cycle ${cycleCount} complete (${elapsed}s)`);
