@@ -25,6 +25,7 @@ import { buildMaritimeFogAlerts } from '../maritimeFogService';
 import { buildCrossSeaAlerts } from '../crossSeaService';
 import { buildUpwellingAlerts } from '../upwellingService';
 import { buildWindTrendAlerts } from './windTrendAlerts';
+import { buildRainAlerts } from './rainAlerts';
 
 // ── NAO/AO context helpers ──────────────────────────────────
 
@@ -148,6 +149,7 @@ export function aggregateAllAlerts(sources: {
     ...(sources.buoys && sources.sstHistory ? buildUpwellingAlerts(sources.buoys, sources.sstHistory) : []),
     ...(sources.currentReadings && sources.readingHistory
       ? buildWindTrendAlerts(sources.currentReadings, sources.readingHistory) : []),
+    ...buildRainAlerts(sources.forecast),
   ];
 
   // ── Category dedup: merge alerts from same category into one ──
