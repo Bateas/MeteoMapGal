@@ -499,6 +499,15 @@ body {
   transition-duration: 0.1s;
 }
 
+/* ── Gust pulse animation for wind arrows ─────────────── */
+.gust-pulse {
+  animation: gustPulse 1.5s ease-in-out infinite;
+}
+@keyframes gustPulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.1; }
+}
+
 /* ── BETA badge ────────────────────────────────────────── */
 .badge-beta {
   display: inline-flex;
