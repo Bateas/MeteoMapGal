@@ -136,7 +136,7 @@ export function ThermalCastreloSection() {
             <DetectionRow
               icon="thermal-wind"
               title="Thermal boost"
-              desc="Cuando el térmico es probable, la app ajusta el viento al alza (+20-50%) porque las estaciones en tierra subestiman el viento real sobre el agua."
+              desc="Cuando el térmico es probable, la app aplica un factor de amplificación (+20-50%) sobre el consenso de viento."
               color="#ef4444"
             />
           </div>
