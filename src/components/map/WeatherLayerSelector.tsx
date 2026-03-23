@@ -39,7 +39,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   const isActive = activeLayer !== 'none';
 
   return (
-    <div className="shrink-0">
+    <div className="shrink-0" data-tour="layers">
       <div
         className={`bg-slate-900/85 backdrop-blur-md border border-slate-700/50 rounded-xl
           transition-all duration-200 ${isActive ? 'shadow-lg shadow-black/30' : ''}`}
