@@ -23,7 +23,8 @@ const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default
 // const FeedbackModal = lazy(() => import('../common/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
 import { ToastContainer } from '../common/ToastContainer';
 const OnboardingTour = lazy(() => import('../common/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
-import { shouldSendDailySummary, sendDailySummary } from '../../services/dailySummaryService';
+// Daily summary DISABLED in frontend — moved to ingestor (24/7, no duplicate sends)
+// import { shouldSendDailySummary, sendDailySummary } from '../../services/dailySummaryService';
 import { tryAutoSector } from '../../services/geolocationService';
 import { ConditionsTicker } from '../common/ConditionsTicker';
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
@@ -172,8 +173,7 @@ export function AppShell() {
     const id = setInterval(() => {
       pruneHistory();
       pruneAlertHistory();
-      // Check if daily Telegram summary should be sent (8:00-9:00 AM)
-      if (shouldSendDailySummary()) sendDailySummary();
+      // Daily summary moved to ingestor (24/7, single source, no visitor duplicates)
     }, 30 * 60 * 1000);
     return () => clearInterval(id);
   }, [pruneHistory, pruneAlertHistory]);
