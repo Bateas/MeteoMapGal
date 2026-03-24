@@ -188,43 +188,43 @@ export const RIAS_SPOTS: SailingSpot[] = [
   },
   {
     id: 'centro-ria',
-    name: 'Centro Ría (Canido–Limens)',
+    name: 'Centro Ría de Vigo (Canido–Limens)',
     shortName: 'C. Ría',
     icon: 'sailboat',
     center: [-8.80, 42.215],
     radiusKm: 10,
-    description: 'Zona media Ría de Vigo, Canido–Limens. Virazón SW tardes, oleaje moderado.',
+    description: 'Zona media de la Ría de Vigo. Virazón SW primavera-septiembre (brisa marina por calentamiento diferencial tierra-mar). Terral E mañanas invierno-primavera.',
     windPatterns: [
+      {
+        name: 'Virazón SW',
+        direction: 225,
+        season: 'Primavera–Septiembre, tardes',
+        description: 'Brisa marina SW 210-250° que entra cuando la tierra calienta. Típica de mediodía-tarde en días despejados. Viento moderado 8-15kt, ideal para navegar.',
+      },
       {
         name: 'Terral E/ENE',
         direction: 75,
         season: 'Otoño–Primavera, mañanas',
-        description: 'Terral E/ENE 50-100° desde Rande, pierde intensidad al ensancharse la ría.',
-      },
-      {
-        name: 'Virazón SW',
-        direction: 225,
-        season: 'Tardes de verano',
-        description: 'Brisa marina SW 225°, se desarrolla tras mañanas de calma.',
+        description: 'Terral E/ENE 50-100° por drenaje nocturno (tierra fría). Pierde intensidad al ensancharse la ría.',
       },
       {
         name: 'Norte NW',
         direction: 330,
         season: 'Frentes fríos',
-        description: 'NW 330° asociado a frentes. Patrón pluridía con mar cruzada.',
+        description: 'NW 330° asociado a frentes atlánticos. Patrón pluridía con mar cruzada.',
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036940A', // Cangas do Morrazo (~8km N) — fixed: was 36440A/404
-      'mc_ESGAL3600000036041A', // Vigo Bouzas (~5km S)
+      'mc_ESGAL3600000036940A', // Cangas do Morrazo (~8km N) — costera
+      'mc_ESGAL3600000036041A', // Vigo Bouzas (~5km S) — costera
     ],
     preferredBuoys: [
-      1251, // Rande CETMAR (~8km NE)
-      3221, // Vigo REDMAR (sea level, ~3km S)
+      1251, // Rande CETMAR (~8km NE) — humidity/temp for theta-v
+      3221, // Vigo REDMAR (sea level, ~3km S) — wind on water
       4273, // Cabo Udra REMPOR (~10km S, wind)
     ],
     waveRelevance: 'moderate',
-    thermalDetection: false,
+    thermalDetection: true, // Virazon detection via theta-v gradient (Rande buoy + land stations)
     hardGates: { maxWindKt: 30, maxWaveHeight: 2.0 },
     tideStationId: '29', // Vigo
     webcams: [
