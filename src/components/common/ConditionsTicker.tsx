@@ -93,7 +93,8 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
-    // ── Day forecast summary (from Open-Meteo) ──
+    // ── Day forecast summary (from Open-Meteo, sector-specific) ──
+    const sectorLabel = sectorId === 'rias' ? 'Rias' : 'Embalse';
     if (forecastHourly.length > 0) {
       const now = new Date();
       const todayStr = now.toDateString();
@@ -108,28 +109,26 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         if (maxWindKt > 5) {
           result.push({
             key: 'fcst-wind',
-            text: `Prev: viento max ${maxWindKt}kt hoy`,
+            text: `Prev ${sectorLabel}: viento max ${maxWindKt}kt hoy`,
             color: maxWindKt > 15 ? 'text-orange-400' : 'text-sky-400',
           });
         }
         if (maxRainProb >= 40) {
           result.push({
             key: 'fcst-rain',
-            text: `Prev: lluvia ${maxRainProb}% hoy`,
+            text: `Prev ${sectorLabel}: lluvia ${maxRainProb}% hoy`,
             color: maxRainProb >= 70 ? 'text-amber-400' : 'text-slate-400',
           });
         }
       }
-    }
 
-    // ── Thermal forecast early warning (BETA) ──
-    if (forecastHourly.length > 0) {
+      // Thermal forecast early warning — only for sectors with thermal spots
       const thermalSignals = detectThermalForecast(forecastHourly);
       for (const s of thermalSignals) {
         const color = s.confidence === 'alta' ? 'text-green-400' : s.confidence === 'media' ? 'text-blue-400' : 'text-slate-400';
         result.push({
           key: `thermal-fcst-${s.day}`,
-          text: s.label,
+          text: `${sectorLabel}: ${s.label}`,
           color,
         });
       }
