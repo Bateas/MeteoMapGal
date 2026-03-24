@@ -10,9 +10,12 @@
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
-import { getAllForecasts, type HourlyForecast } from './forecastFetcher.js';
-import { detectThermalForecast, type ThermalForecastSignal } from '../src/services/thermalForecastDetector.js';
+import { getAllForecasts } from './forecastFetcher.js';
+import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { dispatchSpotAlert, dispatchForecastAlert } from './alertDispatcher.js';
+import { haversineDistance } from '../src/services/geoUtils.js';
+import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
+import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 
 // ── Spot definitions ────────────────────────────────
 
@@ -31,8 +34,8 @@ const SPOTS: SpotDef[] = [
   { id: 'cesantes', name: 'Cesantes', lat: 42.307, lon: -8.619, sector: 'rias', radiusKm: 12, thermalDetection: true },
   { id: 'lourido', name: 'Lourido', lat: 42.365, lon: -8.675, sector: 'rias', radiusKm: 12, thermalDetection: true },
   { id: 'bocana', name: 'Bocana', lat: 42.268, lon: -8.714, sector: 'rias', radiusKm: 12, thermalDetection: false },
-  { id: 'ria-vigo', name: 'Ría de Vigo', lat: 42.228, lon: -8.803, sector: 'rias', radiusKm: 12, thermalDetection: false },
-  { id: 'cies-ria', name: 'Cíes-Ría', lat: 42.22, lon: -8.87, sector: 'rias', radiusKm: 12, thermalDetection: false },
+  { id: 'centro-ria', name: 'Ria de Vigo (centro)', lat: 42.228, lon: -8.803, sector: 'rias', radiusKm: 12, thermalDetection: true },
+  { id: 'cies-ria', name: 'Cies-Ria', lat: 42.22, lon: -8.87, sector: 'rias', radiusKm: 12, thermalDetection: false },
 ];
 
 // ── Verdict thresholds (matching frontend) ──────────
@@ -47,11 +50,22 @@ const VERDICT_LABEL: Record<Verdict, string> = {
 const ALERT_VERDICTS: Set<Verdict> = new Set(['sailing', 'good', 'strong']);
 const LOW_VERDICTS: Set<Verdict> = new Set(['calm', 'light', 'unknown']);
 
-function windVerdict(avgKt: number): Verdict {
-  if (avgKt < 4) return 'calm';
-  if (avgKt < 7) return 'light';
-  if (avgKt < 12) return 'sailing';
-  if (avgKt < 20) return 'good';
+/** Match frontend spotScoringEngine thresholds exactly */
+function windVerdict(avgKt: number, spotId: string): Verdict {
+  const kt = Math.round(avgKt);
+  // Cies-Ria: ocean conditions — higher thresholds
+  if (spotId === 'cies-ria') {
+    if (kt < 5) return 'calm';
+    if (kt < 10) return 'light';
+    if (kt < 14) return 'sailing';
+    if (kt < 18) return 'good';
+    return 'strong';
+  }
+  // All other spots: ria/embalse thresholds
+  if (kt < 6) return 'calm';
+  if (kt < 8) return 'light';
+  if (kt < 12) return 'sailing';
+  if (kt < 18) return 'good';
   return 'strong';
 }
 
@@ -61,24 +75,10 @@ const previousVerdicts = new Map<string, Verdict>();
 let lastForecastRun = 0;
 const FORECAST_INTERVAL_MS = 30 * 60_000; // 30 minutes
 
-// ── Geo helpers ─────────────────────────────────────
-
-function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function degreesToCardinal(deg: number): string {
-  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-    'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-  return dirs[Math.round(deg / 22.5) % 16];
-}
-
-const MS_TO_KT = 1.94384;
+// ── Shared helpers (imported from src/) ─────────────
+// distanceKm → haversineDistance (geoUtils)
+// degreesToCardinal, msToKnots → windUtils
+// BUOY_COORDS → RIAS_BUOY_STATIONS (buoyClient)
 
 // ── DB queries ──────────────────────────────────────
 
@@ -120,21 +120,10 @@ async function getLatestReadings(): Promise<StationReading[]> {
   }
 }
 
-/** Buoy coordinates (from buoyClient.ts) */
-const BUOY_COORDS: Record<number, { lat: number; lon: number }> = {
-  2248: { lat: 42.12, lon: -9.43 },  // Cabo Silleiro
-  1253: { lat: 41.90, lon: -8.90 },  // A Guarda
-  1252: { lat: 42.17, lon: -8.91 },  // Islas Cíes
-  1251: { lat: 42.29, lon: -8.66 },  // Rande
-  3221: { lat: 42.24, lon: -8.73 },  // Vigo
-  4271: { lat: 42.41, lon: -8.66 },  // Lourizán
-  4272: { lat: 42.38, lon: -8.94 },  // Ons
-  4273: { lat: 42.34, lon: -8.83 },  // Cabo Udra
-  3223: { lat: 42.41, lon: -8.69 },  // Marín
-  1250: { lat: 42.63, lon: -8.78 },  // Cortegada
-  1255: { lat: 42.55, lon: -8.95 },  // Ribeira
-  3220: { lat: 42.60, lon: -8.77 },  // Vilagarcía
-};
+/** Buoy coords from shared frontend config */
+const BUOY_COORDS: Record<number, { lat: number; lon: number }> = Object.fromEntries(
+  RIAS_BUOY_STATIONS.map(b => [b.id, { lat: b.lat, lon: b.lon }])
+);
 
 interface BuoyWind {
   station_id: number;
@@ -188,7 +177,7 @@ function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWin
   // Filter to stations within spot radius
   const nearby = readings.filter(r =>
     r.latitude !== 0 && r.longitude !== 0 &&
-    distanceKm(spot.lat, spot.lon, r.latitude, r.longitude) <= spot.radiusKm
+    haversineDistance(spot.lat, spot.lon, r.latitude, r.longitude) <= spot.radiusKm
   );
 
   let windSum = 0, gustMax = 0, dirCount = 0, count = 0;
@@ -197,11 +186,11 @@ function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWin
 
   for (const r of nearby) {
     if (r.wind_speed != null) {
-      const kt = r.wind_speed * MS_TO_KT;
+      const kt = msToKnots(r.wind_speed);
       windSum += kt;
       count++;
       if (r.wind_gust != null) {
-        const gKt = r.wind_gust * MS_TO_KT;
+        const gKt = msToKnots(r.wind_gust);
         if (gKt > gustMax) gustMax = gKt;
       }
       if (r.wind_dir != null) {
@@ -216,10 +205,10 @@ function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWin
   // Include buoy winds — filtered by distance
   const nearbyBuoys = buoyWinds.filter(b =>
     b.lat !== 0 && b.lon !== 0 &&
-    distanceKm(spot.lat, spot.lon, b.lat, b.lon) <= spot.radiusKm
+    haversineDistance(spot.lat, spot.lon, b.lat, b.lon) <= spot.radiusKm
   );
   for (const b of nearbyBuoys) {
-    const kt = b.wind_speed * MS_TO_KT;
+    const kt = msToKnots(b.wind_speed);
     windSum += kt;
     count++;
     if (b.wind_dir != null) {
@@ -238,7 +227,7 @@ function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWin
   const avgDir = dirCount > 0
     ? (Math.round(Math.atan2(sinSum / dirCount, cosSum / dirCount) * 180 / Math.PI) + 360) % 360
     : null;
-  const verdict = windVerdict(avgWindKt);
+  const verdict = windVerdict(avgWindKt, spot.id);
 
   return { spot, avgWindKt, maxGustKt: Math.round(gustMax), avgDir, verdict, stationCount: count };
 }
