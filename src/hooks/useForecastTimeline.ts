@@ -75,7 +75,51 @@ export const useForecastStore = create<ForecastStore>((set) => ({
 // Fetch function
 // ---------------------------------------------------------------------------
 
-async function fetchForecastTimeline(model: ForecastModel = 'best_match', lat = 42.29, lon = -8.1): Promise<HourlyForecast[]> {
+/** Try our own API first (ingestor cache), fallback to Open-Meteo direct */
+async function fetchFromOwnAPI(sectorId: string): Promise<HourlyForecast[] | null> {
+  try {
+    const sector = sectorId === 'embalse' ? 'embalse' : 'rias';
+    const res = await fetch(`/api/v1/forecast?sector=${sector}`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json() as {
+      hourly: Array<{
+        time: string; temperature: number | null; humidity: number | null;
+        windSpeed: number | null; windDirection: number | null; windGusts: number | null;
+        cloudCover: number | null; precipitation: number | null; precipProbability: number | null;
+        pressure: number | null; solarRadiation: number | null; cape: number | null;
+        boundaryLayerHeight: number | null; visibility: number | null; isDay: boolean;
+      }>;
+    };
+
+    if (!data.hourly || data.hourly.length === 0) return null;
+
+    return data.hourly.map(h => ({
+      time: new Date(h.time),
+      temperature: h.temperature,
+      humidity: h.humidity,
+      windSpeed: h.windSpeed,
+      windDirection: h.windDirection,
+      windGusts: h.windGusts,
+      precipitation: h.precipitation,
+      precipProbability: h.precipProbability,
+      cloudCover: h.cloudCover,
+      pressure: h.pressure ?? null,
+      solarRadiation: h.solarRadiation ?? null,
+      cape: h.cape ?? null,
+      boundaryLayerHeight: h.boundaryLayerHeight ?? null,
+      visibility: h.visibility ?? null,
+      isDay: h.isDay ?? false,
+    }));
+  } catch {
+    return null; // API not available (dev mode, network issue)
+  }
+}
+
+/** Fetch directly from Open-Meteo (used for specific models or as fallback) */
+async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number): Promise<HourlyForecast[]> {
   const params = [
     'temperature_2m', 'relative_humidity_2m',
     'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
@@ -125,6 +169,18 @@ async function fetchForecastTimeline(model: ForecastModel = 'best_match', lat = 
   return result;
 }
 
+async function fetchForecastTimeline(model: ForecastModel = 'best_match', lat = 42.29, lon = -8.1, sectorId = 'embalse'): Promise<HourlyForecast[]> {
+  // For Auto (best_match): try our API first (avoids Open-Meteo rate limits)
+  if (model === 'best_match') {
+    const ownData = await fetchFromOwnAPI(sectorId);
+    if (ownData && ownData.length > 0) return ownData;
+    // Fallback to Open-Meteo if our API fails
+  }
+
+  // For specific models or fallback: use Open-Meteo directly
+  return fetchFromOpenMeteo(model, lat, lon);
+}
+
 // ---------------------------------------------------------------------------
 // Hook: auto-polls forecast data
 // ---------------------------------------------------------------------------
@@ -147,7 +203,7 @@ export function useForecastTimeline() {
   const poll = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchForecastTimeline(activeModel, coords[0], coords[1]);
+      const data = await fetchForecastTimeline(activeModel, coords[0], coords[1], sectorId);
       setHourly(data);
       setError(null);
       setFetchedAt(new Date());
