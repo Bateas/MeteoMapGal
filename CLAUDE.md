@@ -108,6 +108,13 @@ ingestor/
 - **Feedback form**: DISABLED (RGPD/bot concerns). Code preserved.
 - **AEMET Radar**: Code 'ga' NEVER existed. Use `/api/red/radar/nacional` (national composite).
 - **SailingWindows 429 cooldown**: Skips polls 5min after Open-Meteo 429.
+- **Ingestor code sharing**: `ingestor/*.ts` CAN import from `../src/services/` and `../src/types/` (tsx resolves). NEVER duplicate utility functions — import `haversineDistance`, `msToKnots`, `degreesToCardinal` from `src/`. `windVerdict` thresholds are per-spot and MUST match frontend exactly.
+- **Ingestor spot IDs**: MUST match frontend `spots.ts` IDs exactly (e.g. `centro-ria` not `ria-vigo`). Mismatch causes silent alert failures.
+- **DB stations table**: `readings` has no lat/lon. Distance queries need `JOIN stations` (populated by discovery cycle).
+- **LXC no journald**: Use `StandardOutput=append:/var/log/meteo-ingestor.log` in service file.
+- **Production .env split**: Frontend at `/opt/MeteoMapGal/.env` (VITE_ vars). Ingestor at `/opt/MeteoMapGal/ingestor/.env` (DB, N8N webhooks, OBSCOSTEIRO key). Both needed.
+- **Open-Meteo dual caller**: Frontend + ingestor both hit Open-Meteo → 429s. Auto mode uses `/api/v1/forecast` (own API). Specific models still direct.
+- **n8n Telegram Base URL**: MUST be `https://api.telegram.org`. NEVER `https://t.me/...` (returns HTML page).
 - **Humidity precursor (bruma pattern)**: `spotScoringEngine.ts` → `humidityPrecursorBoost()`. Uses buoy humidity (Rande for Cesantes) to detect ria thermal/bruma pattern. 96% correlation in 3-year Open-Meteo analysis. When humidity >65% + WSW direction + daytime → boost +3kt and +12pts. Rande has NO wind data — only humidity/temp/dewpoint from Observatorio Costeiro.
 - **Theta-v gradient (virtual potential temperature)**: `calcThetaV()` + `computeThetaVGradient()` in spotScoringEngine. Compares marine (buoy airTemp+humidity) vs land (nearest station temp+humidity+pressure) air density. Positive gradient = virazon potential, negative = bocana/terral. Source: nicobm115/monitor approach + PhD Montero (1999).
 - **Bocana detector**: theta-v < -1.5K + morning 6-11h → "Viento probable hasta ~Xh (E/NE)". Strength scales with gradient magnitude. Bocana channels through center of ria (not edges — shore stations miss it).
@@ -145,4 +152,6 @@ npx vitest run        # Single run (CI)
 2. Copy `dist/` to `/var/www/meteomapgal` on the LXC
 3. `nginx.conf` (root of repo) provides all CORS proxy routes + SPA fallback + gzip + PWA cache headers + security blocking (dotfiles, CMS/admin paths, dangerous extensions → 444)
 4. n8n webhook route (commented template in `nginx.conf`) proxies `/api/webhook/` to n8n instance for Telegram alert forwarding
-5. **nginx.conf deploy is separate**: `update-meteomap` only copies `dist/`. To update nginx: `curl -o /etc/nginx/sites-available/meteomapgal https://raw.githubusercontent.com/Bateas/MeteoMapGal/master/nginx.conf && nginx -t && systemctl reload nginx`
+5. **nginx.conf deploy is separate**: `update-meteomap` only copies `dist/`. To update nginx: `sudo cp nginx.conf /etc/nginx/sites-available/meteomapgal && nginx -t && systemctl reload nginx`
+6. **Ingestor deploy**: `cd /opt/MeteoMapGal && git pull origin master && sudo systemctl restart meteo-ingestor && sudo systemctl restart meteo-api`. Logs: `tail -f /var/log/meteo-ingestor.log`
+7. **Full deploy** (frontend + nginx + ingestor): `cd /opt/MeteoMapGal && git pull origin master && npm run build && cp -r dist/* /var/www/meteomapgal/ && sudo cp nginx.conf /etc/nginx/sites-available/meteomapgal && sudo nginx -t && sudo systemctl reload nginx && sudo systemctl restart meteo-ingestor && sudo systemctl restart meteo-api`
