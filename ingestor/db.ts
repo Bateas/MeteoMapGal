@@ -244,7 +244,7 @@ export async function batchUpsertStations(
     }
 
     const sql = `
-      INSERT INTO stations (station_id, source, name, latitude, longitude, altitude, updated_at)
+      INSERT INTO stations (station_id, source, name, latitude, longitude, altitude)
       VALUES ${placeholders.join(', ')}
       ON CONFLICT (station_id) DO UPDATE SET
         name = EXCLUDED.name,
