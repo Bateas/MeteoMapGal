@@ -907,15 +907,15 @@ export function scoreAllSpots(
       if (windTrend.label) summary += ` · ${windTrend.label}`;
     }
 
-    // Max gust from nearby stations
+    // Max gust from CLOSEST stations only (within 8km) — avoids distant mountain gusts
+    // inflating the spot's gust reading. Buoys always included (on-water = truth).
     let gustKt: number | null = null;
-    for (const { reading } of stationData) {
-      if (reading.windGust != null) {
+    for (const { reading, distKm } of stationData) {
+      if (reading.windGust != null && distKm <= 8) {
         const gKt = msToKnots(reading.windGust);
         if (gustKt === null || gKt > gustKt) gustKt = gKt;
       }
     }
-    // Also check buoy gusts
     for (const { buoy } of buoyData) {
       if (buoy.windGust != null) {
         const gKt = msToKnots(buoy.windGust);
