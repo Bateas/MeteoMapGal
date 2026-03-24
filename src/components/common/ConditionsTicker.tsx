@@ -12,6 +12,7 @@ import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
+import { detectThermalForecast } from '../../services/thermalForecastDetector';
 
 export const ConditionsTicker = memo(function ConditionsTicker() {
   // Typed selectors — compile error if property name is wrong (R6, prevents v1.21.0 crash)
@@ -118,6 +119,19 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
             color: maxRainProb >= 70 ? 'text-amber-400' : 'text-slate-400',
           });
         }
+      }
+    }
+
+    // ── Thermal forecast early warning (BETA) ──
+    if (forecastHourly.length > 0) {
+      const thermalSignals = detectThermalForecast(forecastHourly);
+      for (const s of thermalSignals) {
+        const color = s.confidence === 'alta' ? 'text-green-400' : s.confidence === 'media' ? 'text-blue-400' : 'text-slate-400';
+        result.push({
+          key: `thermal-fcst-${s.day}`,
+          text: s.label,
+          color,
+        });
       }
     }
 
