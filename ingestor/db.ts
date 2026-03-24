@@ -205,6 +205,66 @@ export async function batchUpsertBuoys(
   };
 }
 
+// ── Station metadata ──────────────────────────────────
+
+/**
+ * Persist station coordinates on discovery.
+ * Uses ON CONFLICT to upsert (update coords + timestamp if station already exists).
+ */
+export async function batchUpsertStations(
+  stations: Map<string, import('../src/types/station.js').NormalizedStation>
+): Promise<number> {
+  const db = getPool();
+  const entries = Array.from(stations.values());
+  if (entries.length === 0) return 0;
+
+  const BATCH_SIZE = 100;
+  const COLS = 6;
+  let total = 0;
+
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const batch = entries.slice(i, i + BATCH_SIZE);
+    const values: unknown[] = [];
+    const placeholders: string[] = [];
+
+    for (let j = 0; j < batch.length; j++) {
+      const s = batch[j];
+      const o = j * COLS;
+      placeholders.push(
+        `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5},$${o+6})`
+      );
+      values.push(
+        s.id,
+        sourceLabel(s.id),
+        s.name || null,
+        s.lat,
+        s.lon,
+        s.altitude ?? null,
+      );
+    }
+
+    const sql = `
+      INSERT INTO stations (station_id, source, name, latitude, longitude, altitude, updated_at)
+      VALUES ${placeholders.join(', ')}
+      ON CONFLICT (station_id) DO UPDATE SET
+        name = EXCLUDED.name,
+        latitude = EXCLUDED.latitude,
+        longitude = EXCLUDED.longitude,
+        altitude = EXCLUDED.altitude,
+        updated_at = NOW()
+    `;
+
+    try {
+      const result = await db.query(sql, values);
+      total += result.rowCount ?? 0;
+    } catch (err) {
+      log.error(`Station upsert failed: ${(err as Error).message}`);
+    }
+  }
+
+  return total;
+}
+
 /** Quick connectivity check */
 export async function pingDb(): Promise<boolean> {
   try {

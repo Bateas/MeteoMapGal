@@ -10,7 +10,7 @@
  */
 
 import 'dotenv/config';
-import { initPool, pingDb, batchUpsert, batchUpsertBuoys, closePool } from './db.js';
+import { initPool, pingDb, batchUpsert, batchUpsertBuoys, batchUpsertStations, closePool } from './db.js';
 import { discoverAllStations } from './discover.js';
 import { fetchAllObservations } from './fetchers.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
@@ -93,6 +93,10 @@ async function rediscover(): Promise<void> {
     const prevCount = stations.size;
     stations = newStations;
 
+    // Persist station coordinates to DB for analyzer distance queries
+    const upserted = await batchUpsertStations(stations);
+    log.info(`Stations persisted: ${upserted} upserted to DB`);
+
     if (stations.size !== prevCount) {
       log.info(`Station count changed: ${prevCount} → ${stations.size}`);
     }
@@ -119,10 +123,13 @@ async function start(): Promise<void> {
   }
   log.ok('Connected to TimescaleDB');
 
-  // 2. Initial station discovery
+  // 2. Initial station discovery + persist coords
   stations = await discoverAllStations();
   if (stations.size === 0) {
     log.warn('No stations found — will retry on next discovery cycle');
+  } else {
+    await batchUpsertStations(stations);
+    log.ok(`${stations.size} station coords persisted to DB`);
   }
 
   // 3. First fetch cycle immediately
