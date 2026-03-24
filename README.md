@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.38.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-1.43.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-185%20passed-brightgreen)](src/test/)
 [![Stations](https://img.shields.io/badge/stations-100%2B-orange)](src/api/)
@@ -78,7 +78,7 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **Humidity heatmap** | IDW-interpolated humidity layer across all stations |
 | **Temperature overlay** | Per-station temperature circles with color gradient |
 | **IR satellite** | EUMETSAT Meteosat infrared imagery, updated every 15 minutes |
-| **Precipitation radar** | AEMET national composite + RainViewer animated 2h playback (play/pause/slider) |
+| **Precipitation radar** | RainViewer animated 2h playback with play/pause/slider |
 | **Surface currents** | RADAR ON RAIA HF radar WMS overlay (Rías only) |
 | **Bathymetry** | EMODnet depth contour overlay for marine context |
 | **SST overlay** | Copernicus Marine (CMEMS) sea surface temperature WMTS tiles (Rías only) |
@@ -94,6 +94,11 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | **Wind consensus** | Proximity-weighted multi-station analysis (distance × freshness × buoy boost) |
 | **Wind trend detection** | 30min ramp analysis — building, rapid, dropping signals with alerts |
 | **Humidity precursor** | Buoy humidity-based bruma/thermal early warning (96% correlation in 3yr analysis) |
+| **Theta-v gradient** | Virtual potential temperature comparing marine (buoy) vs land air density for thermal/bocana detection |
+| **Thermal forecast (BETA)** | 12-24h early warning crossing Open-Meteo forecast with documented thermal thresholds |
+| **Epic day detector** | T>30C + HR<45% + calm = strong thermal onset imminent (validated with 2011 event data) |
+| **Bocana detector** | Morning land drainage wind (theta-v < -1.5K) with confidence scoring |
+| **Rain alerts** | Forecast-based precipitation detection (3 levels: ligera/moderada/fuerte) |
 | **Wind arrows on buoys** | Direct wind arrow + speed badge on buoy markers with anemometers |
 | **Lightning detection** | Real-time strikes with proximity alerts |
 | **Unified alert system** | Prioritized alerts with coherent severity: PELIGRO (critical), ALERTA, AVISO, OK |
@@ -113,7 +118,7 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 
 | Feature | Description |
 |---------|-------------|
-| **6 sailing spots** | Cesantes, Bocana, Centro Ría, Cíes-Ría, Lourido (Rías) + Castrelo (Embalse) |
+| **6 sailing spots** | Cesantes, Bocana, Ria de Vigo, Cies-Ria, Lourido (Rias) + Castrelo (Embalse) |
 | **5-level scoring** | CALMA → FLOJO → NAVEGABLE → BUENO → FUERTE with GO/Marginal/No-Go verdict |
 | **Thermal boost** | Amplifies scoring when thermal probability ≥40% + WSW direction |
 | **Upwind propagation** | Detects approaching frontal wind from coastal stations before it reaches interior spots |
@@ -154,12 +159,12 @@ MeteoMapGal é unha aplicación gratuíta e de código aberto de monitorización
 | Feature | Description |
 |---------|-------------|
 | **PWA** | Installable on mobile and desktop, works offline with data cache |
-| **24h charts** | Time series with CSV export for any station |
+| **48h charts** | Time series with CSV export for any station (all metrics) |
 | **Keyboard shortcuts** | Full keyboard navigation (W, A, T, E, B keys + more) |
 | **MeteoGuide** | 10-section in-app guide with animated diagrams (press G) |
 | **Visibility polling** | All API fetches pause in background tabs to save bandwidth |
 | **Mobile-first** | Bottom sheets, swipe-to-dismiss, touch-optimized controls, responsive sidebar |
-| **Onboarding tour** | 5-step first-visit walkthrough with element highlighting |
+| **Onboarding tour** | 6-step first-visit walkthrough with element highlighting |
 | **Share conditions** | Web Share API — share spot conditions via WhatsApp/Telegram |
 | **Geolocation** | Auto-detects nearest sector on first visit |
 | **Embeddable widget** | Compact iframe for clubs/schools — dark/light theme, compact mode |
