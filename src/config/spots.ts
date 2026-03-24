@@ -188,10 +188,10 @@ export const RIAS_SPOTS: SailingSpot[] = [
   },
   {
     id: 'centro-ria',
-    name: 'Centro Ría de Vigo (Canido–Limens)',
-    shortName: 'C. Ría',
+    name: 'Ría de Vigo (centro)',
+    shortName: 'Ría Vigo',
     icon: 'sailboat',
-    center: [-8.80, 42.215],
+    center: [-8.802807, 42.227813],
     radiusKm: 10,
     description: 'Zona media de la Ría de Vigo. Virazón SW primavera-septiembre (brisa marina por calentamiento diferencial tierra-mar). Terral E mañanas invierno-primavera.',
     windPatterns: [
