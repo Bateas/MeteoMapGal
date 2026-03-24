@@ -37,6 +37,7 @@ import {
   queryBuoyLatest,
   queryBuoyHourly,
 } from './queries.js';
+import { getForecast } from './forecastFetcher.js';
 
 // ── Configuration ──────────────────────────────────────
 
@@ -262,6 +263,37 @@ async function handleBuoyLatest(
   json(res, { count: rows.length, readings: rows }, 200, origin);
 }
 
+// ── Forecast endpoint ─────────────────────────────────
+
+async function handleForecast(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const sector = params.sector as 'embalse' | 'rias' | undefined;
+  if (!sector || (sector !== 'embalse' && sector !== 'rias')) {
+    error(res, 'Missing or invalid parameter: sector (embalse or rias)', 400, origin);
+    return;
+  }
+
+  const data = await getForecast(sector);
+  json(res, {
+    sector,
+    count: data.length,
+    hourly: data.map(h => ({
+      time: h.time.toISOString(),
+      temperature: h.temperature,
+      humidity: h.humidity,
+      windSpeed: h.windSpeed,
+      windDirection: h.windDirection,
+      windGusts: h.windGusts,
+      cloudCover: h.cloudCover,
+      precipitation: h.precipitation,
+      precipProbability: h.precipProbability,
+    })),
+  }, 200, origin);
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -281,6 +313,8 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/buoys': handleBuoyStations,
   '/api/v1/buoys/readings': handleBuoyReadings,
   '/api/v1/buoys/latest': handleBuoyLatest,
+  // Forecast (served from ingestor cache, avoids frontend Open-Meteo 429s)
+  '/api/v1/forecast': handleForecast,
 };
 
 // ── Server ─────────────────────────────────────────────
