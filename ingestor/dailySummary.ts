@@ -27,9 +27,7 @@ let lastSummaryDate = '';
 
 // ── Helpers ─────────────────────────────────────────
 
-function msToKnots(ms: number): number {
-  return ms * 1.94384;
-}
+import { msToKnots } from '../src/services/windUtils.js';
 
 interface SectorSummary {
   name: string;

@@ -7,26 +7,9 @@
  */
 
 import { log } from './logger.js';
+import type { HourlyForecast } from '../src/types/forecast.js';
 
-// ── Types (mirror frontend HourlyForecast) ──────────
-
-export interface HourlyForecast {
-  time: Date;
-  temperature: number | null;
-  humidity: number | null;
-  windSpeed: number | null;    // m/s
-  windDirection: number | null;
-  windGusts: number | null;    // m/s
-  cloudCover: number | null;   // %
-  precipitation: number | null; // mm
-  precipProbability: number | null; // %
-  pressure: number | null;     // hPa
-  solarRadiation: number | null; // W/m²
-  cape: number | null;         // J/kg
-  boundaryLayerHeight: number | null; // m
-  visibility: number | null;   // m
-  isDay: boolean;
-}
+export type { HourlyForecast };
 
 // ── Config ──────────────────────────────────────────
 
