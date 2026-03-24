@@ -198,6 +198,9 @@ function SpotCard({
           {score.wind && (
             <span>{score.wind.dominantDir} ~{score.wind.avgSpeedKt.toFixed(0)}kt</span>
           )}
+          {score.gustKt != null && score.gustKt > (score.wind?.avgSpeedKt ?? 0) + 3 && (
+            <span className="text-orange-400">Racha {score.gustKt.toFixed(0)}kt</span>
+          )}
           {score.wind?.matchedPattern && (
             <span className={`${v.text} font-semibold`}>{score.wind.matchedPattern}</span>
           )}
@@ -205,11 +208,32 @@ function SpotCard({
             <span>Olas {score.waves.waveHeight.toFixed(1)}m</span>
           )}
           {score.waterTemp != null && (
-            <span style={{ color: waterTempColor(score.waterTemp) }}>Agua {score.waterTemp.toFixed(0)}°</span>
+            <span style={{ color: waterTempColor(score.waterTemp) }}>Agua {score.waterTemp.toFixed(0)}{'\u00b0'}</span>
+          )}
+          {score.airTemp != null && (
+            <span>Aire {score.airTemp.toFixed(0)}{'\u00b0'}</span>
+          )}
+          {score.humidity != null && (
+            <span>HR {score.humidity.toFixed(0)}%</span>
           )}
           {score.hardGateTriggered && (
             <span className="text-red-400">{score.hardGateTriggered}</span>
           )}
+        </div>
+      )}
+
+      {/* Humidity/theta-v signal (bruma, bocana, virazon detection) */}
+      {score?.humiditySignal && (
+        <div className="text-[9px] text-amber-400/80 mt-1 leading-tight">
+          {score.humiditySignal}
+        </div>
+      )}
+
+      {/* Wind trend indicator */}
+      {score?.windTrend && score.windTrend.signal !== 'stable' && (
+        <div className={`text-[9px] mt-0.5 ${score.windTrend.signal === 'building' || score.windTrend.signal === 'rapid' ? 'text-green-400' : 'text-orange-400'}`}>
+          {score.windTrend.signal === 'building' ? 'Viento subiendo' : score.windTrend.signal === 'rapid' ? 'Subida rapida' : 'Viento bajando'}
+          {score.windTrend.deltaKt != null ? ` (${score.windTrend.deltaKt > 0 ? '+' : ''}${score.windTrend.deltaKt.toFixed(0)}kt)` : ''}
         </div>
       )}
 
@@ -248,7 +272,7 @@ function ThermalDetails({ thermal }: { thermal: SpotThermalContext }) {
       <DetailRow
         icon="thermometer"
         iconColor="text-orange-400"
-        label="\u0394T diurno"
+        label="DeltaT diurno"
         value={thermal.deltaT !== null ? `${thermal.deltaT.toFixed(1)}\u00b0C` : '\u2014'}
         color={
           thermal.deltaT !== null
@@ -264,7 +288,7 @@ function ThermalDetails({ thermal }: { thermal: SpotThermalContext }) {
       <DetailRow
         icon="sun"
         iconColor="text-yellow-400"
-        label="Prob. t\u00e9rmicas"
+        label="Prob."
         value={`${thermal.thermalProbability}%`}
         color={
           thermal.thermalProbability >= 60 ? 'text-green-400'
