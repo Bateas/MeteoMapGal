@@ -103,6 +103,8 @@ export interface SpotScore {
   dewPoint: number | null;
   /** Buoy humidity precursor signal (bruma pattern) */
   humiditySignal: string | null;
+  /** Virtual potential temperature gradient: +K=land warmer (virazon), -K=land cooler (bocana) */
+  thetaVGradient: number | null;
   computedAt: Date;
 }
 
@@ -345,16 +347,80 @@ function windVerdict(spd: number, spotId: SpotId): SpotVerdict {
  * The SCORE (0-100) adds nuance from patterns, consensus, waves, and context.
  * Score is used for sorting/comparison but verdict drives the color on the map.
  */
-/** Check humidity precursor from buoy data for ría thermal/bruma detection.
+// ── Virtual Potential Temperature (θv) ────────────────────────
+// Based on nicobm115/monitor approach — normalizes air density accounting for
+// humidity and pressure. More physically accurate than raw ΔT.
+// θv_mar vs θv_tierra gradient determines thermal/bocana potential.
+
+/** Calculate Virtual Potential Temperature (K) from temp, humidity, pressure.
+ * Magnus-Tetens formula for saturation vapor pressure. */
+function calcThetaV(tempC: number, humidityPct: number, pressureHpa: number): number {
+  const Tk = tempC + 273.15;
+  const es = 6.112 * Math.exp((17.67 * tempC) / (tempC + 243.5));
+  const e = (humidityPct / 100.0) * es;
+  const r = 0.622 * e / (pressureHpa - e);
+  const Tv = Tk * (1 + 0.61 * r);
+  return Tv * Math.pow(1000.0 / pressureHpa, 0.286);
+}
+
+/** Compute θv gradient between marine (buoy) and land (nearest stations).
+ * Returns: positive = land warmer (virazón potential), negative = land cooler (bocana/terral).
+ * Uses nearest station with temp+humidity+pressure for land reference.
+ * Buoy provides marine temp+humidity; pressure borrowed from nearest station. */
+function computeThetaVGradient(
+  buoyData: { buoy: BuoyReading; distKm: number }[],
+  stationData: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
+): { gradient: number | null; thetaMar: number | null; thetaTierra: number | null } {
+  // Marine θv: need buoy temp + humidity (Rande has both from ObsCosteiro)
+  let marTemp: number | null = null;
+  let marHumidity: number | null = null;
+  for (const { buoy } of buoyData) {
+    if (marTemp === null && buoy.airTemp !== null) marTemp = buoy.airTemp;
+    if (marHumidity === null && buoy.humidity !== null) marHumidity = buoy.humidity;
+    if (marTemp !== null && marHumidity !== null) break;
+  }
+  if (marTemp === null || marHumidity === null) return { gradient: null, thetaMar: null, thetaTierra: null };
+
+  // Land θv: need closest station with temp + humidity + pressure
+  let landTemp: number | null = null;
+  let landHumidity: number | null = null;
+  let landPressure: number | null = null;
+  // Sort by distance for closest-first
+  const sorted = [...stationData].sort((a, b) => a.distKm - b.distKm);
+  for (const { reading } of sorted) {
+    if (reading.temperature !== null && reading.humidity !== null) {
+      landTemp = reading.temperature;
+      landHumidity = reading.humidity;
+      landPressure = reading.pressure ?? 1013.25; // Default if missing
+      break;
+    }
+  }
+  if (landTemp === null || landHumidity === null) return { gradient: null, thetaMar: null, thetaTierra: null };
+
+  // Use same pressure for both (pressure varies <1hPa across 10km at sea level)
+  const pressure = landPressure ?? 1013.25;
+  const thetaMar = calcThetaV(marTemp, marHumidity, pressure);
+  const thetaTierra = calcThetaV(landTemp, landHumidity, pressure);
+
+  return { gradient: thetaTierra - thetaMar, thetaMar, thetaTierra };
+}
+
+/** Check humidity precursor from buoy data for ria thermal/bruma detection.
  * Historical analysis (2023-2025): 96% of WSW wind events at Cesantes
  * had humidity >65% three hours before. Rande buoy has humidity but NO wind.
- * Returns boost factor (0-1) based on humidity + time of day + direction. */
+ * Enhanced with theta-v gradient (virtual potential temperature) from
+ * nicobm115/monitor approach — more physically accurate than raw humidity alone.
+ * Returns boost factor (0-1) based on humidity + theta-v + time of day + direction. */
 function humidityPrecursorBoost(
   spot: SailingSpot,
   buoyData: { buoy: BuoyReading; distKm: number }[],
   wind: SpotWindConsensus | null,
-): { boost: number; humidity: number | null; signal: string | null } {
-  if (!spot.thermalDetection) return { boost: 0, humidity: null, signal: null };
+  stationData?: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
+): { boost: number; humidity: number | null; signal: string | null; thetaVGradient: number | null } {
+  if (!spot.thermalDetection) return { boost: 0, humidity: null, signal: null, thetaVGradient: null };
+
+  // Compute theta-v gradient if station data available
+  const thetaV = stationData ? computeThetaVGradient(buoyData, stationData) : { gradient: null, thetaMar: null, thetaTierra: null };
 
   // Find nearest buoy with humidity data (Rande for Cesantes)
   let nearestHumidity: number | null = null;
@@ -364,31 +430,53 @@ function humidityPrecursorBoost(
       break;
     }
   }
-  if (nearestHumidity === null) return { boost: 0, humidity: null, signal: null };
+  if (nearestHumidity === null) return { boost: 0, humidity: null, signal: null, thetaVGradient: thetaV.gradient };
 
   const hour = new Date().getHours();
-  // Pattern active 9-18h (thermal window)
-  if (hour < 9 || hour > 18) return { boost: 0, humidity: nearestHumidity, signal: null };
+
+  // ── Bocana/terral detection (early morning 6-11h) ──────────
+  // Theta-v gradient < -2K = land denser/cooler than sea = drainage flow
+  if (thetaV.gradient !== null && thetaV.gradient < -1.5 && hour >= 6 && hour <= 11) {
+    const strength = Math.min(1.0, Math.abs(thetaV.gradient) / 5.0); // Normalize -1.5K→-5K to 0.3→1.0
+    const signal = `Bocana: gradiente ${thetaV.gradient.toFixed(1)}K (tierra fria)`;
+    return { boost: strength * 0.8, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
+  }
+
+  // ── Virazon/bruma detection (daytime 9-18h) ──────────
+  if (hour < 9 || hour > 18) return { boost: 0, humidity: nearestHumidity, signal: null, thetaVGradient: thetaV.gradient };
 
   // Humidity >65% = precursor signal (96% correlation in 3-year analysis)
-  if (nearestHumidity < 65) return { boost: 0, humidity: nearestHumidity, signal: null };
+  if (nearestHumidity < 65) return { boost: 0, humidity: nearestHumidity, signal: null, thetaVGradient: thetaV.gradient };
 
   // Direction check: if wind exists, should be WSW-ish (200-280°)
   const dirOk = !wind || (wind.dirDeg >= 200 && wind.dirDeg <= 280) || wind.avgSpeedKt < 3;
+  if (!dirOk) return { boost: 0, humidity: nearestHumidity, signal: null, thetaVGradient: thetaV.gradient };
 
-  if (!dirOk) return { boost: 0, humidity: nearestHumidity, signal: null };
-
-  // Boost scales with humidity level and time of day
-  // Peak at 12-16h (thermal prime), lower at edges
+  // Boost scales with humidity level, time of day, AND theta-v gradient
   const timeFactor = (hour >= 12 && hour <= 16) ? 1.0 : (hour >= 10 && hour <= 17) ? 0.7 : 0.4;
   const humFactor = nearestHumidity >= 80 ? 1.0 : nearestHumidity >= 70 ? 0.7 : 0.4;
-  const boost = timeFactor * humFactor;
 
-  const signal = nearestHumidity >= 80
-    ? `Bruma alta (${nearestHumidity}%) — viento probable`
-    : `Humedad ${nearestHumidity}% — condiciones favorables`;
+  // Theta-v bonus: positive gradient (land warmer) = stronger thermal drive
+  let thetaBonus = 0;
+  if (thetaV.gradient !== null && thetaV.gradient > 2.0) {
+    thetaBonus = Math.min(0.3, (thetaV.gradient - 2.0) / 10.0); // +0.0 to +0.3
+  }
 
-  return { boost, humidity: nearestHumidity, signal };
+  const boost = Math.min(1.0, timeFactor * humFactor + thetaBonus);
+
+  let signal: string;
+  if (thetaV.gradient !== null) {
+    const thetaLabel = thetaV.gradient > 2 ? 'virazon' : thetaV.gradient < -1.5 ? 'bocana' : 'neutro';
+    signal = nearestHumidity >= 80
+      ? `Bruma alta (${nearestHumidity}%) + gradiente ${thetaV.gradient.toFixed(1)}K (${thetaLabel})`
+      : `Humedad ${nearestHumidity}% + gradiente ${thetaV.gradient.toFixed(1)}K`;
+  } else {
+    signal = nearestHumidity >= 80
+      ? `Bruma alta (${nearestHumidity}%) — viento probable`
+      : `Humedad ${nearestHumidity}% — condiciones favorables`;
+  }
+
+  return { boost, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
 }
 
 function scoreSpot(
@@ -398,7 +486,8 @@ function scoreSpot(
   waterTemp: number | null,
   thermalData?: SpotThermalContext,
   buoyData?: { buoy: BuoyReading; distKm: number }[],
-): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; humiditySignal: string | null } {
+  stationData?: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
+): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; humiditySignal: string | null; thetaVGradient: number | null } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
     return {
@@ -406,7 +495,7 @@ function scoreSpot(
       verdict: 'strong',
       hardGate: `Viento ${wind.avgSpeedKt.toFixed(0)}kt > ${spot.hardGates.maxWindKt}kt`,
       summary: `Viento excesivo (${wind.avgSpeedKt.toFixed(0)}kt). Peligroso.`,
-      thermalBoosted: false, humiditySignal: null,
+      thermalBoosted: false, humiditySignal: null, thetaVGradient: null,
     };
   }
 
@@ -417,7 +506,7 @@ function scoreSpot(
       verdict: 'strong',
       hardGate: `Oleaje ${waves.waveHeight.toFixed(1)}m > ${spot.hardGates.maxWaveHeight}m`,
       summary: `Oleaje excesivo (${waves.waveHeight.toFixed(1)}m). Peligroso.`,
-      thermalBoosted: false, humiditySignal: null,
+      thermalBoosted: false, humiditySignal: null, thetaVGradient: null,
     };
   }
 
@@ -456,7 +545,7 @@ function scoreSpot(
   // ── Humidity precursor boost (ría bruma pattern) ──────────
   // Historical analysis: 96% of Cesantes wind events preceded by humidity >65%
   // When buoy humidity is high + time is right + direction is WSW → boost score
-  const precursor = buoyData ? humidityPrecursorBoost(spot, buoyData, wind) : { boost: 0, humidity: null, signal: null };
+  const precursor = buoyData ? humidityPrecursorBoost(spot, buoyData, wind, stationData) : { boost: 0, humidity: null, signal: null, thetaVGradient: null };
   if (precursor.boost > 0 && effectiveSpd >= 2) {
     // Additive boost: up to +3kt at max precursor signal
     effectiveSpd += precursor.boost * 3;
@@ -576,7 +665,7 @@ function scoreSpot(
   let summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData);
   if (bocanaSignal) summary += ' · ' + bocanaSignal;
 
-  return { score, verdict, hardGate: null, summary, thermalBoosted, humiditySignal: precursor.signal ?? bocanaSignal };
+  return { score, verdict, hardGate: null, summary, thermalBoosted, humiditySignal: precursor.signal ?? bocanaSignal, thetaVGradient: precursor.thetaVGradient };
 }
 
 // ── Summary Builder ──────────────────────────────────────────
@@ -696,7 +785,7 @@ export function scoreAllSpots(
 
     // Pass thermal data to scoring when spot has thermalDetection
     const spotThermal = spot.thermalDetection ? thermalData : undefined;
-    let { score, verdict, hardGate, summary, thermalBoosted, humiditySignal } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData);
+    let { score, verdict, hardGate, summary, thermalBoosted, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData);
 
     // Scoring confidence based on source count and type
     const sourceCount = wind?.stationCount ?? 0;
@@ -840,6 +929,7 @@ export function scoreAllSpots(
       windTrend,
       dewPoint,
       humiditySignal,
+      thetaVGradient,
       computedAt,
     });
   }
