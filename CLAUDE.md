@@ -24,10 +24,11 @@ Requires `.env` with `VITE_AEMET_API_KEY` and `VITE_OBSCOSTEIRO_API_KEY`. Other 
 - **Map base styles**: 6 switchable base maps via `mapStyleStore` — OSM, Positron (light), Dark Matter, Voyager, IGN Topográfico, IGN Base Gris. All free, no API keys. Dynamic `buildMapStyle()` rebuilds full MapLibre StyleSpecification on switch
 - **Multi-sector**: `sectorStore.ts` + `src/config/sectors.ts` define Embalse / Rías Baixas with independent center, radius, regions
 - **PWA**: Service worker (`public/sw.js`) + web manifest for installable app
-- **n8n webhook**: `src/api/webhookClient.ts` posts alerts, daily summaries, and user feedback to n8n for Telegram (non-critical, fails silently). Endpoints: `meteomap-alert`, `meteomap-summary`, `meteomap-feedback`
+- **n8n webhook**: Alerts via `webhookClient.ts` (frontend spot transitions) + `alertDispatcher.ts` (ingestor 24/7). Daily summary via ingestor `dailySummary.ts` at 9AM (both sectors). Frontend summary DISABLED (moved to ingestor to avoid duplicate sends). Endpoints: `meteomap-alert`, `meteomap-summary`
 - **Vite proxy** for CORS (17 routes): `/aemet-api`, `/aemet-data`, `/meteogalicia-api`, `/meteoclimatic-api`, `/netatmo-api`, `/netatmo-auth`, `/meteo2api`, `/ideg-api`, `/enaire-api`, `/ihm-api`, `/eumetsat-api`, `/portus-api`, `/obscosteiro-api`, `/hfradar-api`, `/skyx-api`, `/noaa-api`, `/api/v1` (history)
 - **Production deployment**: nginx reverse proxy (`nginx.conf`) to Proxmox LXC, mirrors all Vite proxy routes
-- **TimescaleDB ingestor**: `ingestor/` — standalone Node.js service polling 5 sources every 5min → TimescaleDB. Runs as `meteo-ingestor.service` (systemd) on LXC 305. Reuses `normalizer.ts` + `geoUtils.ts` from `src/`
+- **TimescaleDB ingestor**: `ingestor/` — standalone Node.js service polling 6 sources every 5min → TimescaleDB. Runs as `meteo-ingestor.service` (systemd) on LXC 305. Includes: station coords persistence (`stations` table), spot analyzer (distance-filtered scoring + verdict transitions → Telegram), forecast cache (Open-Meteo 48h both sectors), daily summary (9AM both sectors). Logs to `/var/log/meteo-ingestor.log`
+- **Forecast API (Phase 3)**: `/api/v1/forecast?sector=rias` served by ingestor API (`api.ts` port 3001). Frontend Auto mode reads from own API first → fallback Open-Meteo. Specific models (ICON/GFS/ECMWF) still use Open-Meteo direct. Eliminates frontend 429 rate limits
 
 ## Key Conventions
 
@@ -62,14 +63,21 @@ src/
 
 ```
 ingestor/
-├── index.ts         # Main loop: 5min poll, 1h rediscovery, graceful shutdown
-├── db.ts            # pg Pool + batchUpsert (ON CONFLICT DO NOTHING)
-├── discover.ts      # Station discovery from 5 sources (both sectors)
-├── fetchers.ts      # Observation fetchers → NormalizedReading[]
-├── xml.ts           # Server-side Meteoclimatic XML parser (regex)
-├── logger.ts        # Colored console logger with timestamps
-├── schema.sql       # Idempotent DB schema (IF NOT EXISTS)
-└── meteo-ingestor.service  # systemd unit (Restart=always)
+├── index.ts              # Main loop: 5min poll, 1h rediscovery, graceful shutdown
+├── db.ts                 # pg Pool + batchUpsert + batchUpsertStations
+├── discover.ts           # Station discovery from 6 sources (both sectors)
+├── fetchers.ts           # Observation fetchers → NormalizedReading[]
+├── buoyFetcher.ts        # PORTUS + ObsCosteiro buoy fetcher + merge
+├── analyzer.ts           # Spot scoring (distance-filtered) + verdict transitions → alerts
+├── alertDispatcher.ts    # Webhook dispatch to n8n (cooldown + night silence)
+├── forecastFetcher.ts    # Open-Meteo 48h forecast cache (both sectors, all fields)
+├── dailySummary.ts       # 9AM summary (both sectors) → n8n → Telegram
+├── api.ts                # HTTP API server (port 3001) — history + forecast endpoints
+├── queries.ts            # SQL queries (readings, buoys, stations, hourly aggregates)
+├── xml.ts                # Server-side Meteoclimatic XML parser (regex)
+├── logger.ts             # Colored console logger with timestamps
+├── schema.sql            # Idempotent DB schema (stations, readings, buoys, alerts, alert_log)
+└── meteo-ingestor.service  # systemd unit (logs → /var/log/meteo-ingestor.log)
 ```
 
 ## Critical Gotchas
@@ -81,43 +89,25 @@ ingestor/
 - **Wind particle SPEED_SCALE**: At Galician scale (~50km viewport), use 0.0006. Values >0.001 produce unnaturally fast particles; real scale (~0.00000014) is impractical.
 - **Sector switch cleanup**: `setStations([])` triggers full state reset (readings, history, sourceFreshness) + `weatherSelectionStore.resetSelection()`. Fetch flags in `useWeatherData` also reset.
 - **Embalse-only features**: Thermal zones, thermal panel, sailing banner, and propagation arrows are conditionally rendered only when `activeSector.id === 'embalse'`.
-- **Both-sector forecast**: `useForecastTimeline` fetches Open-Meteo forecast for both Embalse (42.29, -8.1) and Rías (42.307, -8.619). Forecast tab visible in both sectors. Coordinates switch automatically on sector change.
+- **Both-sector forecast**: `useForecastTimeline` — Auto mode reads from own API (`/api/v1/forecast`), fallback Open-Meteo. Specific models (ICON/GFS/ECMWF) use Open-Meteo direct. Coords: Embalse (42.29, -8.1), Rías (42.307, -8.619). Switches on sector change.
 - **Rías-only features**: BuoyPanel (marine buoys from Puertos del Estado + Observatorio Costeiro) in Stations tab, tide predictions (IHM), surface currents overlay (RADAR ON RAIA), bathymetry overlay (EMODnet), SST overlay (CMEMS WMTS), OpenSeaMap seamarks, IHM nautical chart overlay. Rendered when `activeSector.id === 'rias'`.
 - **Map style selector**: `MapStyleSelector` component with `mapStyleStore` (persisted). Nautical overlay toggles (OpenSeaMap, IHM ENC) only visible in Rías sector. IGN overlays (Ortofotos PNOA, Sombreado MDT, Curvas de nivel) available in both sectors. All raster overlays have `minzoom` optimized to avoid wasted tile requests.
 - **Spot scoring**: `spotScoringEngine.ts` computes per-spot verdicts (5-level: calm/light/sailing/good/strong) from nearby station wind consensus + buoy waves. **Composite weighting**: `distance × sourceQuality × freshness`. Source quality: AEMET/MG=1.0, Meteoclimatic=0.85, WU=0.7, Netatmo/SkyX=0.6. Freshness decay: ≤5min=1.0, 10min=0.95, 20min=0.85, 30min=0.7. Buoys use freshness decay (quality=1.0, professional). `SpotScore` includes airTemp, humidity, windChill (Environment Canada formula, T<10°C), windDirDeg (for arrow display). Storm alerts ONLY from lightning-confirmed storms (not storm-shadow). `windVerdict()` uses `Math.round(spd)` to match displayed integer. Calm verdict capped at score 10. **`windCalibrationKt`**: optional per-spot offset added to consensus avg (e.g. Lourido +1kt — uses closest ría stations Pontevedra/Sanxenxo ~3km).
-- **Spot webcams**: `SpotWebcam` config in `spots.ts`. Phase 1: Cíes-Ría (MeteoGalicia JPG, auto-refresh) + Cesantes (tmkites stream link). Collapsible section in `SpotPopup.tsx`.
-- **Marker z-ordering**: Spot markers z-index 25 (CSS `:has(.spot-marker)`), station markers z-index 20. Station SVG `pointerEvents: none` with r=22 hit circle to avoid blocking spots.
-- **Both-sector features**: CriticalAlertBanner (top-of-screen PELIGRO banner), AlertPanel, spot-based sailing scoring, DistanceTool (nautical miles measurement).
-- **Onboarding tour**: `OnboardingTour.tsx` — 5-step first-visit walkthrough with element highlighting (pulsing ring via `data-tour` attributes). Persisted via Zustand → localStorage (`meteomap-ui`). Auto-launches 3s after first load.
-- **Geolocation auto-sector**: `geolocationService.ts` — detects user location on first visit, switches to nearest sector within 80km. Runs once per device (localStorage flag).
-- **Daily Telegram summary**: `dailySummaryService.ts` — sends morning sailing briefing at 8:00 AM via n8n webhook. Collects spots, alerts, best sailing window.
-- **Proactive spot alerts**: `spotAlertService.ts` — detects verdict transitions (calm/light → sailing/good/strong), posts to n8n webhook for Telegram. 2h cooldown per spot, night silence, sector-switch reset.
-- **GeoJSON export**: `exportService.ts` — downloads current station + buoy data as GeoJSON FeatureCollection. Button in sidebar footer.
-- **Embeddable widget**: `widget.html` + `src/widget/` — separate Vite entry point for iframe embed. Params: `spot`, `sector`, `theme` (dark/light), `compact`. Self-contained data fetch (no AppShell dependency), 5min auto-refresh. Multi-page build via `rollupOptions.input`.
-- **Sector switch guard**: `useWeatherData` captures sector ID before fetch — discards results if sector changed mid-flight (prevents stale data injection).
-- **Wind sparkline in popups**: `StationPopup` shows 40×14px SVG trend line (last 12 readings) + ↑↓→ arrow indicator.
-- **Favorite spots**: Star ★ button in `SpotPopup` + `SpotSelector` header. Persisted in `spotStore` → localStorage.
-- **Share conditions**: Web Share API in `SpotPopup` — shares spot name, wind, verdict, temp. Falls back to clipboard.
-- **Feedback form**: `FeedbackModal.tsx` — DISABLED (RGPD/bot concerns). Code preserved, import commented out in AppShell. Sidebar button removed. To re-enable: uncomment lazy import + render in AppShell, re-add button in Sidebar footer.
-- **Ko-fi donations**: SVG cup icon (no emoji). Prominent card in MeteoGuide sidebar + link in main sidebar footer.
-- **Zoom-scale markers**: Stations/buoys scale 0.45→1.0 (zoom 9.5→12). Spots always 100%. Wind arrows hidden below zoom 11.
-- **Header visual hierarchy**: 3-tier design — nav buttons (hamburger/guide) transparent, sector buttons blue glow when active + dashed when inactive, Panel button color-coded by alert level.
-- **Map pan optimization**: `will-change: transform` + `contain: layout style` on marker containers. Markers `visibility: hidden` during pan (freed from GPU compositor). Wind particles pause during `movestart→moveend`. All marker transitions killed during pan.
-- **Mobile z-index stack**: Bottom toolbar = z-40. Mobile bottom sheets (Spot/Station/Buoy popups) = z-50. MapLibre popups = z-30. Markers = z-20/25.
-- **Distance tool**: `DistanceTool.tsx` — click-to-measure in nautical miles + km + bearing. Dashed amber line + midpoint label. Toggle in bottom toolbar. Escape to cancel.
-- **Typed selectors**: `typedSelectors.ts` — `useMaxAlertLevel()`, `useActiveAlerts()`, `useStationCount()`, `useWeatherSelection()` computed selectors to avoid inline re-derivation.
-- **weatherSelectionStore**: Split from weatherStore (R1). UI selection state (selectedStationId, highlightedStationId, chartSelectedStations) lives here. weatherStore is data-only.
-- **Alert service modular**: `src/services/alerts/` — split from 626-line monolith into 7 files: types, riskEngine, stormAlerts, thermalAlerts, fieldAlerts, aggregator, index. Original `alertService.ts` is now a 20-line re-export barrel.
-- **Typed Portus**: `PortusStationResponse`, `PortusDatoEntry`, `PortusLastDataResponse` interfaces replace `any[]` in buoyClient.
-- **Persisted preferences**: `weatherLayerStore` persists activeLayer + opacity. `uiStore` persists bathymetry/SST toggles. `mapStyleStore` persists base map + overlays. `spotStore` persists favorites. `themeStore` persists dark/light mode. All via Zustand `persist` middleware → localStorage.
-- **AEMET Radar**: Code 'ga' NEVER existed. Galicia radar = Cerceda (A Coruña), NOT Cuntis. Use `/api/red/radar/nacional` (national composite). Regional endpoint returns 404.
-- **Source status banner**: `SourceStatusBanner.tsx` — amber warning bar below header when critical sources (AEMET/MG) are down >10min. Auto-dismisses on recovery. Dismissible by user. `role="alert"` + `aria-live="polite"`.
-- **Skip-to-content**: `<a href="#main-map">` in AppShell — `sr-only` until keyboard-focused, then visible at z-60.
-- **Keyboard accessibility**: All interactive `<div>`s have `onKeyDown` (Enter/Space), `tabIndex`, `role="button"`. Backdrop overlays have Escape handlers.
-- **FlyTo NaN guard**: `WeatherMap.tsx` validates `flyToTarget` coords with `Number.isFinite()` before `map.flyTo()`. Popup render also guarded against invalid `activeSpot.center`.
-- **SailingWindows rate limit cooldown**: `useSailingWindows.ts` skips polls for 5min after Open-Meteo 429. Prevents error log spam in console.
-- **Radar animation**: `RadarOverlay.tsx` RainViewer-only tiles (AEMET PNG removed — caused lag + misalignment). Past 2h animated, 12 frames. `rainviewerClient.ts` fetches frame list from public API (no key). Animation controls: play/pause, frame slider, timestamp. Toggle button over map (z-50 above alerts).
-- **Dark/Light theme**: `themeStore.ts` (persisted). Overrides Tailwind v4 `--color-slate-*` CSS variables via `[data-theme="light"]` on `<html>`. Also overrides `--color-white` for text inversion. Map container has `.map-dark-scope` class that restores dark palette for all map overlays. Toggle button (sun/moon) in Header.
+- **Marker z-ordering**: Spot z-25, station z-20. Station SVG `pointerEvents: none` with r=22 hit circle.
+- **Sector switch guard**: `useWeatherData` captures sector ID before fetch — discards results if sector changed mid-flight.
+- **Map pan optimization**: Markers `visibility: hidden` during pan. Wind particles pause `movestart→moveend`. `will-change: transform` + `contain: layout style`.
+- **Mobile z-index stack**: Bottom toolbar z-40, mobile popups z-50, MapLibre popups z-30, markers z-20/25.
+- **Zoom-scale markers**: Stations/buoys scale 0.45→1.0 (zoom 9.5→12). Wind arrows hidden below zoom 11.
+- **FlyTo NaN guard**: `WeatherMap.tsx` validates coords with `Number.isFinite()` before `map.flyTo()`.
+- **Radar**: RainViewer-only tiles (AEMET PNG removed — lag + misalignment). 2h animated, 12 frames.
+- **Dark/Light theme**: `themeStore.ts` (persisted). CSS var override via `[data-theme="light"]`. Map has `.map-dark-scope` class.
+- **Persisted preferences**: weatherLayerStore, uiStore, mapStyleStore, spotStore, themeStore → all via Zustand `persist` → localStorage.
+- **Daily Telegram summary**: INGESTOR only (`ingestor/dailySummary.ts`). 9AM both sectors. Frontend DISABLED.
+- **Spot alerts**: Frontend `spotAlertService.ts` + ingestor `alertDispatcher.ts` both detect transitions → n8n. 2h cooldown, night silence.
+- **Alert classification**: Inversions, fog, cloud = `info` (blue/gris). Storms, strong wind, big waves, rain = `moderate/high/critical` (yellow/red).
+- **Feedback form**: DISABLED (RGPD/bot concerns). Code preserved.
+- **AEMET Radar**: Code 'ga' NEVER existed. Use `/api/red/radar/nacional` (national composite).
+- **SailingWindows 429 cooldown**: Skips polls 5min after Open-Meteo 429.
 - **Humidity precursor (bruma pattern)**: `spotScoringEngine.ts` → `humidityPrecursorBoost()`. Uses buoy humidity (Rande for Cesantes) to detect ria thermal/bruma pattern. 96% correlation in 3-year Open-Meteo analysis. When humidity >65% + WSW direction + daytime → boost +3kt and +12pts. Rande has NO wind data — only humidity/temp/dewpoint from Observatorio Costeiro.
 - **Theta-v gradient (virtual potential temperature)**: `calcThetaV()` + `computeThetaVGradient()` in spotScoringEngine. Compares marine (buoy airTemp+humidity) vs land (nearest station temp+humidity+pressure) air density. Positive gradient = virazon potential, negative = bocana/terral. Source: nicobm115/monitor approach + PhD Montero (1999).
 - **Bocana detector**: theta-v < -1.5K + morning 6-11h → "Viento probable hasta ~Xh (E/NE)". Strength scales with gradient magnitude. Bocana channels through center of ria (not edges — shore stations miss it).
@@ -137,7 +127,7 @@ ingestor/
 - **Pure computation services = low impact**: Alert services that compute from existing data (no new fetches, no new intervals) are safe to add. Examples: pressureTrendService, maritimeFogService, crossSeaService.
 - **Avoid adding stores to AppShell.tsx**: Already has 14 store subscriptions. Consider extracting to a dedicated hook if more are needed.
 - **Canvas animation = O(1) per entity**: Wind particles use pre-computed 24×24 grid. Never do per-pixel/per-particle IDW in animation loops.
-- **Bundle**: Main chunk ~658KB gzip 210KB. Heavy data (aemetDailyHistory 501KB) already lazy via `import()`. Recharts (412KB) lazy via React.lazy tabs.
+- **Bundle**: Main chunk ~379KB gzip ~122KB (optimized from 658KB: esbuild.drop console, lazy FieldDrawer+OnboardingTour, deferred GDD/teleconnections). Heavy data (aemetDailyHistory 501KB) already lazy via `import()`. Recharts (412KB) lazy via React.lazy tabs.
 
 ## Testing
 
