@@ -31,6 +31,25 @@ CREATE INDEX IF NOT EXISTS readings_source_idx
 CREATE INDEX IF NOT EXISTS readings_station_idx
   ON readings (station_id, time DESC);
 
+-- ── Station metadata (coordinates, source, altitude) ─
+-- Updated on each discovery cycle (upsert).
+CREATE TABLE IF NOT EXISTS stations (
+  station_id  TEXT            PRIMARY KEY,
+  source      TEXT            NOT NULL,
+  name        TEXT,
+  latitude    DOUBLE PRECISION NOT NULL,
+  longitude   DOUBLE PRECISION NOT NULL,
+  altitude    DOUBLE PRECISION,
+  updated_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS stations_source_idx
+  ON stations (source);
+
+-- Spatial-ish index for distance queries (lat/lon range)
+CREATE INDEX IF NOT EXISTS stations_coords_idx
+  ON stations (latitude, longitude);
+
 -- ── Alerts hypertable ────────────────────────────────
 CREATE TABLE IF NOT EXISTS alerts (
   time      TIMESTAMPTZ NOT NULL,
