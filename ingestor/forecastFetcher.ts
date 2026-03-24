@@ -20,6 +20,12 @@ export interface HourlyForecast {
   cloudCover: number | null;   // %
   precipitation: number | null; // mm
   precipProbability: number | null; // %
+  pressure: number | null;     // hPa
+  solarRadiation: number | null; // W/m²
+  cape: number | null;         // J/kg
+  boundaryLayerHeight: number | null; // m
+  visibility: number | null;   // m
+  isDay: boolean;
 }
 
 // ── Config ──────────────────────────────────────────
@@ -47,8 +53,16 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
   const params = new URLSearchParams({
     latitude: lat.toString(),
     longitude: lon.toString(),
-    hourly: 'temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,precipitation,precipitation_probability',
-    forecast_days: '2',
+    hourly: [
+      'temperature_2m', 'relative_humidity_2m',
+      'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
+      'precipitation', 'precipitation_probability',
+      'cloud_cover', 'surface_pressure',
+      'shortwave_radiation', 'cape', 'boundary_layer_height', 'is_day', 'visibility',
+    ].join(','),
+    past_hours: '6',
+    forecast_hours: '48',
+    wind_speed_unit: 'ms',
     timezone: 'Europe/Madrid',
   });
 
@@ -71,6 +85,12 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
       cloud_cover: (number | null)[];
       precipitation: (number | null)[];
       precipitation_probability: (number | null)[];
+      surface_pressure: (number | null)[];
+      shortwave_radiation: (number | null)[];
+      cape: (number | null)[];
+      boundary_layer_height: (number | null)[];
+      is_day: (number | null)[];
+      visibility: (number | null)[];
     };
   };
 
@@ -81,12 +101,18 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
     time: new Date(t),
     temperature: h.temperature_2m?.[i] ?? null,
     humidity: h.relative_humidity_2m?.[i] ?? null,
-    windSpeed: h.wind_speed_10m?.[i] != null ? h.wind_speed_10m[i]! / 3.6 : null, // km/h → m/s
+    windSpeed: h.wind_speed_10m?.[i] ?? null, // already m/s with wind_speed_unit=ms
     windDirection: h.wind_direction_10m?.[i] ?? null,
-    windGusts: h.wind_gusts_10m?.[i] != null ? h.wind_gusts_10m[i]! / 3.6 : null,
+    windGusts: h.wind_gusts_10m?.[i] ?? null, // already m/s
     cloudCover: h.cloud_cover?.[i] ?? null,
     precipitation: h.precipitation?.[i] ?? null,
     precipProbability: h.precipitation_probability?.[i] ?? null,
+    pressure: h.surface_pressure?.[i] ?? null,
+    solarRadiation: h.shortwave_radiation?.[i] ?? null,
+    cape: h.cape?.[i] ?? null,
+    boundaryLayerHeight: h.boundary_layer_height?.[i] ?? null,
+    visibility: h.visibility?.[i] ?? null,
+    isDay: h.is_day?.[i] === 1,
   }));
 }
 
