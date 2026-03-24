@@ -149,7 +149,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── Wave conditions (coastal spots) ── */}
-      {score?.waves && score.waves.waveHeight != null && (
+      {score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2 pt-1 border-t border-slate-700/40">
           <Cell label="Oleaje" value={`${score.waves.waveHeight.toFixed(1)} m`} color={waveColor(score.waves.waveHeight)} />
           {score.waves.wavePeriod != null && (
