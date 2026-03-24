@@ -168,16 +168,16 @@ function analyzeWindow(
   let label: string;
   if (signals >= 5 && peakTemp >= TEMP_EPIC) {
     label = day === 'hoy'
-      ? `Dia epico: ${peakTemp.toFixed(0)} C + HR ${minHumidity.toFixed(0)}% - viento SW fuerte ${startHour}-${endHour}h`
-      : `Manana dia epico: prevision ${peakTemp.toFixed(0)} C, HR ${minHumidity.toFixed(0)}% - viento SW fuerte`;
+      ? `Dia epico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte ${startHour}-${endHour}h`
+      : `Manana dia epico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte previsto`;
   } else if (signals >= 3) {
     label = day === 'hoy'
-      ? `Viento SW probable ${startHour}-${endHour}h (${peakTemp.toFixed(0)} C, HR ${minHumidity.toFixed(0)}%)`
-      : `Manana: viento SW probable (prevision ${peakTemp.toFixed(0)} C, HR ${minHumidity.toFixed(0)}%)`;
+      ? `Viento probable ${startHour}-${endHour}h (${peakTemp.toFixed(0)}C, HR ${minHumidity.toFixed(0)}%)`
+      : `Manana: viento probable (${peakTemp.toFixed(0)}C, HR ${minHumidity.toFixed(0)}%)`;
   } else {
     label = day === 'hoy'
-      ? `Condiciones favorables ${startHour}-${endHour}h (${peakTemp.toFixed(0)} C)`
-      : `Manana: condiciones favorables (prevision ${peakTemp.toFixed(0)} C)`;
+      ? `Condiciones favorables ${startHour}-${endHour}h (${peakTemp.toFixed(0)}C)`
+      : `Manana: condiciones favorables (${peakTemp.toFixed(0)}C)`;
   }
 
   return {
