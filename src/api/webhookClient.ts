@@ -69,6 +69,8 @@ export interface WebhookSummaryPayload {
   environment?: { humidity?: number; waterTemp?: number; airTemp?: number };
   /** Day forecast summary from Open-Meteo */
   forecast?: { tempMax: number; tempMin: number; maxWindKt: number; rainMm: number; rainProb: number };
+  /** Thermal forecast early warning (BETA) */
+  thermalForecast?: string;
 }
 
 // ── Night silence check ─────────────────────────────────

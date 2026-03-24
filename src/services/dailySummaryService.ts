@@ -15,6 +15,7 @@ import { useBuoyStore } from '../store/buoyStore';
 import { useForecastStore } from '../hooks/useForecastTimeline';
 import { postSailingSummary } from '../api/webhookClient';
 import { msToKnots } from './windUtils';
+import { detectThermalForecast } from './thermalForecastDetector';
 import type { WebhookSummaryPayload } from '../api/webhookClient';
 
 /** localStorage key to track last summary date */
@@ -140,6 +141,18 @@ export async function sendDailySummary(): Promise<void> {
       }
     } catch { /* non-critical */ }
 
+    // Thermal forecast early warning (BETA)
+    let thermalForecastLabel: string | undefined;
+    try {
+      const hourly = useForecastStore.getState().hourly;
+      if (hourly.length > 0) {
+        const signals = detectThermalForecast(hourly);
+        if (signals.length > 0) {
+          thermalForecastLabel = signals.map(s => s.label).join(' | ');
+        }
+      }
+    } catch { /* non-critical */ }
+
     const payload: WebhookSummaryPayload = {
       sector: sector.name,
       timestamp: new Date().toISOString(),
@@ -159,6 +172,7 @@ export async function sendDailySummary(): Promise<void> {
       spots: spotSummaries.length > 0 ? spotSummaries : undefined,
       environment,
       forecast: forecastSummary,
+      thermalForecast: thermalForecastLabel,
     };
 
     await postSailingSummary(payload);

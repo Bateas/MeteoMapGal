@@ -15,8 +15,10 @@ import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
 import type { SpotScore, SpotVerdict, SpotThermalContext } from '../../services/spotScoringEngine';
 import type { SpotWindowResult } from '../../services/sailingWindowService';
+import type { HourlyForecast } from '../../types/forecast';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import { waterTempColor } from '../../services/buoyUtils';
+import { detectThermalForecast } from '../../services/thermalForecastDetector';
 
 // Moved to config/verdictStyles.ts to fix bundle splitting — import + re-export
 import { VERDICT_STYLE } from '../../config/verdictStyles';
@@ -35,6 +37,7 @@ export const SpotSelector = memo(function SpotSelector() {
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const isMobile = useUIStore((s) => s.isMobile);
+  const sectorForecast = useSpotStore((s) => s.sectorForecast);
   const [expanded, setExpanded] = useState(false);
 
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
@@ -109,6 +112,8 @@ export const SpotSelector = memo(function SpotSelector() {
                 score={score ?? null}
                 isActive={spot.id === activeSpot.id}
                 isFavorite={spot.id === favoriteSpotId}
+                thermalDetection={spot.thermalDetection}
+                forecast={sectorForecast}
                 onSelect={() => {
                   selectSpot(spot.id);
                   setFlyToTarget({ lon: spot.center[0], lat: spot.center[1], zoom: 12 });
@@ -144,6 +149,8 @@ function SpotCard({
   score,
   isActive,
   isFavorite,
+  thermalDetection,
+  forecast,
   onSelect,
   onToggleFavorite,
 }: {
@@ -154,6 +161,8 @@ function SpotCard({
   score: SpotScore | null;
   isActive: boolean;
   isFavorite: boolean;
+  thermalDetection: boolean;
+  forecast: HourlyForecast[] | null;
   onSelect: () => void;
   onToggleFavorite: () => void;
 }) {
@@ -236,6 +245,21 @@ function SpotCard({
           {score.windTrend.deltaKt != null ? ` (${score.windTrend.deltaKt > 0 ? '+' : ''}${score.windTrend.deltaKt.toFixed(0)}kt)` : ''}
         </div>
       )}
+
+      {/* Thermal forecast BETA (early warning from forecast data) */}
+      {thermalDetection && forecast && forecast.length > 0 && (() => {
+        const signals = detectThermalForecast(forecast);
+        if (signals.length === 0) return null;
+        return signals.map((s, i) => {
+          const color = s.confidence === 'alta' ? 'text-green-400' : s.confidence === 'media' ? 'text-blue-400' : 'text-slate-400';
+          return (
+            <div key={i} className={`text-[9px] ${color} mt-0.5 leading-tight`}>
+              <WeatherIcon id="sun" size={10} className="inline -mt-px mr-0.5" />
+              {s.label} <span className="opacity-50">BETA</span>
+            </div>
+          );
+        });
+      })()}
 
       {/* Thermal detail rows (only for spots with thermalDetection) */}
       {isActive && score?.thermal && (
