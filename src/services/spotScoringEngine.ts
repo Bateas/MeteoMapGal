@@ -435,18 +435,36 @@ function humidityPrecursorBoost(
   const hour = new Date().getHours();
 
   // ── Bocana/terral detection (early morning 6-11h) ──────────
-  // Theta-v gradient < -2K = land denser/cooler than sea = drainage flow
+  // Theta-v gradient < -1.5K = land denser/cooler than sea = drainage flow
   if (thetaV.gradient !== null && thetaV.gradient < -1.5 && hour >= 6 && hour <= 11) {
-    const strength = Math.min(1.0, Math.abs(thetaV.gradient) / 5.0); // Normalize -1.5K→-5K to 0.3→1.0
-    const signal = `Bocana: gradiente ${thetaV.gradient.toFixed(1)}K (tierra fria)`;
+    const strength = Math.min(1.0, Math.abs(thetaV.gradient) / 5.0);
+    // Confidence: strong gradient + early morning = high
+    const conf = Math.abs(thetaV.gradient) >= 3.0 ? 'alta' : Math.abs(thetaV.gradient) >= 2.0 ? 'media' : 'baja';
+    const endHour = Math.min(11, 8 + Math.round(Math.abs(thetaV.gradient))); // Stronger gradient = lasts longer
+    const signal = `Bocana probable hasta ~${endHour}h (E/NE) - Confianza: ${conf}`;
     return { boost: strength * 0.8, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
   }
 
-  // ── Virazon/bruma detection (daytime 9-18h) ──────────
+  // ── Pre-virazon morning signal (9-12h) ──────────
+  // Theta-v positive + humidity rising = virazon building
+  if (thetaV.gradient !== null && thetaV.gradient > 1.5 && hour >= 9 && hour < 12 && nearestHumidity >= 55) {
+    const conf = thetaV.gradient >= 3.0 && nearestHumidity >= 70 ? 'alta' : 'media';
+    const signal = `Virazon probable 12-17h (SW) - Confianza: ${conf}`;
+    return { boost: 0.5, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
+  }
+
+  // ── Virazon/bruma active detection (12-18h) ──────────
   if (hour < 9 || hour > 18) return { boost: 0, humidity: nearestHumidity, signal: null, thetaVGradient: thetaV.gradient };
 
   // Humidity >65% = precursor signal (96% correlation in 3-year analysis)
-  if (nearestHumidity < 65) return { boost: 0, humidity: nearestHumidity, signal: null, thetaVGradient: thetaV.gradient };
+  if (nearestHumidity < 65) {
+    // Even without high humidity, strong theta-v gradient is informative
+    if (thetaV.gradient !== null && thetaV.gradient > 2.0 && hour >= 12) {
+      const signal = `Gradiente termico activo - condiciones de virazon`;
+      return { boost: 0.3, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
+    }
+    return { boost: 0, humidity: nearestHumidity, signal: null, thetaVGradient: thetaV.gradient };
+  }
 
   // Direction check: if wind exists, should be WSW-ish (200-280°)
   const dirOk = !wind || (wind.dirDeg >= 200 && wind.dirDeg <= 280) || wind.avgSpeedKt < 3;
@@ -459,21 +477,29 @@ function humidityPrecursorBoost(
   // Theta-v bonus: positive gradient (land warmer) = stronger thermal drive
   let thetaBonus = 0;
   if (thetaV.gradient !== null && thetaV.gradient > 2.0) {
-    thetaBonus = Math.min(0.3, (thetaV.gradient - 2.0) / 10.0); // +0.0 to +0.3
+    thetaBonus = Math.min(0.3, (thetaV.gradient - 2.0) / 10.0);
   }
 
   const boost = Math.min(1.0, timeFactor * humFactor + thetaBonus);
 
+  // Count confidence signals
+  let signals = 0;
+  if (nearestHumidity >= 65) signals++;
+  if (nearestHumidity >= 80) signals++;
+  if (thetaV.gradient !== null && thetaV.gradient > 2.0) signals++;
+  if (wind && wind.dirDeg >= 200 && wind.dirDeg <= 280) signals++;
+  if (hour >= 12 && hour <= 16) signals++;
+  const conf = signals >= 4 ? 'alta' : signals >= 2 ? 'media' : 'baja';
+
+  // User-facing conclusion
+  const remaining = 17 - hour;
   let signal: string;
-  if (thetaV.gradient !== null) {
-    const thetaLabel = thetaV.gradient > 2 ? 'virazon' : thetaV.gradient < -1.5 ? 'bocana' : 'neutro';
-    signal = nearestHumidity >= 80
-      ? `Bruma alta (${nearestHumidity}%) + gradiente ${thetaV.gradient.toFixed(1)}K (${thetaLabel})`
-      : `Humedad ${nearestHumidity}% + gradiente ${thetaV.gradient.toFixed(1)}K`;
+  if (boost >= 0.7) {
+    signal = `Virazon activa SW - ventana ~${remaining}h - Confianza: ${conf}`;
+  } else if (boost >= 0.4) {
+    signal = `Virazon probable SW ~${remaining}h restantes - Confianza: ${conf}`;
   } else {
-    signal = nearestHumidity >= 80
-      ? `Bruma alta (${nearestHumidity}%) — viento probable`
-      : `Humedad ${nearestHumidity}% — condiciones favorables`;
+    signal = `Condiciones favorables virazon - Confianza: ${conf}`;
   }
 
   return { boost, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
