@@ -449,12 +449,12 @@ function humidityPrecursorBoost(
       const minHR = Math.min(...hotStations.map(s => s.reading.humidity!));
 
       if (maxTemp >= 30 && minHR <= 45) {
-        // Extreme: expect violent onset
-        const signal = `Alerta: viento fuerte inminente (${maxTemp.toFixed(0)} C, HR ${minHR.toFixed(0)}%) - brisa puede entrar con fuerza`;
+        // Epic day: strong thermal onset expected
+        const signal = `Dia epico: ${maxTemp.toFixed(0)} C + HR ${minHR.toFixed(0)}% - viento SW fuerte inminente`;
         return { boost: 1.0, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
       } else {
-        // Moderate: conditions building
-        const signal = `Calor ${maxTemp.toFixed(0)} C + HR baja ${minHR.toFixed(0)}% - viento SW probable con fuerza`;
+        // Good conditions building
+        const signal = `${maxTemp.toFixed(0)} C + HR baja ${minHR.toFixed(0)}% - viento SW probable con fuerza`;
         return { boost: 0.7, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
       }
     }
