@@ -290,6 +290,12 @@ async function handleForecast(
       cloudCover: h.cloudCover,
       precipitation: h.precipitation,
       precipProbability: h.precipProbability,
+      pressure: h.pressure,
+      solarRadiation: h.solarRadiation,
+      cape: h.cape,
+      boundaryLayerHeight: h.boundaryLayerHeight,
+      visibility: h.visibility,
+      isDay: h.isDay,
     })),
   }, 200, origin);
 }
