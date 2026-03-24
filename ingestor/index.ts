@@ -16,6 +16,7 @@ import { fetchAllObservations } from './fetchers.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
 import { checkAndSendDailySummary } from './dailySummary.js';
+import { runAnalysis } from './analyzer.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -69,7 +70,11 @@ async function runCycle(): Promise<void> {
       log.info(`Buoys: ${buoyReadings.length} readings → ${bInserted} new, ${bSkipped} dedup`);
     }
 
-    // 4. Check if daily summary should be sent (9:00 AM, once per day)
+    // 4. Run spot analyzer — scoring + transitions + thermal forecast
+    await runAnalysis().catch(err =>
+      log.warn('Analyzer failed:', (err as Error).message));
+
+    // 5. Check if daily summary should be sent (9:00 AM, once per day)
     await checkAndSendDailySummary().catch(err =>
       log.warn('Daily summary check failed:', (err as Error).message));
 
