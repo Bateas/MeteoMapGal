@@ -18,6 +18,7 @@ import type { SailingWindow, SpotWindowResult } from '../../services/sailingWind
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
 import type { WebcamVisionResult } from '../../services/webcamVisionService';
 import type { HourlyForecast } from '../../types/forecast';
+import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor } from '../../services/windUtils';
 import { fetchTidePredictions } from '../../api/tideClient';
@@ -187,6 +188,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         <div className="text-[10px] text-amber-400 bg-amber-500/10 rounded px-2 py-1 mb-2">
           {score.humiditySignal}
         </div>
+      )}
+
+      {/* ── Thermal forecast early warning (BETA) ── */}
+      {spot.thermalDetection && sectorForecast && sectorForecast.length > 0 && (
+        <ThermalForecastBadge forecast={sectorForecast} />
       )}
 
       {/* ── Tide summary (Rías spots only) ── */}
@@ -818,6 +824,32 @@ function SpotWindTrend({ spotId }: { spotId: string }) {
     <span className="text-xs font-bold leading-none" style={{ color: trend.color }} title="Tendencia viento">
       {trend.symbol}
     </span>
+  );
+}
+
+// ── Thermal forecast early warning (BETA) ─────────────────────
+
+function ThermalForecastBadge({ forecast }: { forecast: HourlyForecast[] }) {
+  const signals = useMemo(() => detectThermalForecast(forecast), [forecast]);
+  if (signals.length === 0) return null;
+
+  return (
+    <div className="mb-2 space-y-1">
+      {signals.map((s, i) => {
+        const color = s.confidence === 'alta'
+          ? 'text-green-400 bg-green-500/10'
+          : s.confidence === 'media'
+            ? 'text-blue-400 bg-blue-500/10'
+            : 'text-slate-400 bg-slate-500/10';
+        return (
+          <div key={i} className={`text-[10px] ${color} rounded px-2 py-1`}>
+            <WeatherIcon id="sun" size={11} className="inline -mt-px mr-1" />
+            {s.label}
+            <span className="text-[9px] opacity-60 ml-1">BETA</span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
