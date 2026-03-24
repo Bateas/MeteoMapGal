@@ -27,6 +27,7 @@ import { fastDistanceKm } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
+import { detectBocana } from './bocanaDetector';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -462,6 +463,21 @@ function scoreSpot(
     thermalBoosted = true;
   }
 
+  // ── Bocana detection (morning terral E/NE) ─────────────
+  // Validated: 14 days buoy data, 8/13 days Marín NE→SW rotation.
+  // Land stations show 0-3kt while buoys show 5-17kt.
+  let bocanaSignal: string | null = null;
+  if (spot.bocanaDetection && buoyData && !thermalBoosted) {
+    const buoyReadings = buoyData.map(bd => bd.buoy);
+    // Get solar radiation from nearest station if available
+    const bocana = detectBocana(buoyReadings);
+    if (bocana.active) {
+      effectiveSpd = Math.max(effectiveSpd, effectiveSpd + bocana.boostKt);
+      thermalBoosted = true;
+      bocanaSignal = bocana.signal;
+    }
+  }
+
   // ── Upwind propagation check (frontal only, not thermal) ─────
   // If upwind stations have wind in a pattern direction but spot is calm,
   // this signals approaching wind. Only for frontal patterns.
@@ -546,15 +562,21 @@ function scoreSpot(
     score += Math.round(precursor.boost * 12); // up to +12 pts
   }
 
+  // ── Bocana bonus ────────────────────────────────────────
+  if (bocanaSignal) {
+    score += 15; // Morning terral confirmed by buoy
+  }
+
   // Cap score — calm verdict should never score high (confusing to see "CALMA 30/100")
   // Exception: when thermal boost is active, don't cap — the score reflects thermal potential
   if (verdict === 'calm' && !thermalBoosted) score = Math.min(score, 10);
   score = Math.max(0, Math.min(100, score));
 
   // ── Summary ────────────────────────────────────────────
-  const summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData);
+  let summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData);
+  if (bocanaSignal) summary += ' · ' + bocanaSignal;
 
-  return { score, verdict, hardGate: null, summary, thermalBoosted, humiditySignal: precursor.signal };
+  return { score, verdict, hardGate: null, summary, thermalBoosted, humiditySignal: precursor.signal ?? bocanaSignal };
 }
 
 // ── Summary Builder ──────────────────────────────────────────
