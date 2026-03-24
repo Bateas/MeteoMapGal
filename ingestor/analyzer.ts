@@ -120,10 +120,34 @@ async function getLatestReadings(): Promise<StationReading[]> {
   }
 }
 
+/** Buoy coordinates (from buoyClient.ts) */
+const BUOY_COORDS: Record<number, { lat: number; lon: number }> = {
+  2248: { lat: 42.12, lon: -9.43 },  // Cabo Silleiro
+  1253: { lat: 41.90, lon: -8.90 },  // A Guarda
+  1252: { lat: 42.17, lon: -8.91 },  // Islas Cíes
+  1251: { lat: 42.29, lon: -8.66 },  // Rande
+  3221: { lat: 42.24, lon: -8.73 },  // Vigo
+  4271: { lat: 42.41, lon: -8.66 },  // Lourizán
+  4272: { lat: 42.38, lon: -8.94 },  // Ons
+  4273: { lat: 42.34, lon: -8.83 },  // Cabo Udra
+  3223: { lat: 42.41, lon: -8.69 },  // Marín
+  1250: { lat: 42.63, lon: -8.78 },  // Cortegada
+  1255: { lat: 42.55, lon: -8.95 },  // Ribeira
+  3220: { lat: 42.60, lon: -8.77 },  // Vilagarcía
+};
+
+interface BuoyWind {
+  station_id: number;
+  wind_speed: number;
+  wind_dir: number | null;
+  lat: number;
+  lon: number;
+}
+
 /**
- * Get latest buoy readings (last 2h).
+ * Get latest buoy readings (last 2h) with coordinates.
  */
-async function getLatestBuoyWinds(): Promise<{ station_id: number; wind_speed: number; wind_dir: number | null }[]> {
+async function getLatestBuoyWinds(): Promise<BuoyWind[]> {
   const db = getPool();
   try {
     const result = await db.query<{ station_id: number; wind_speed: number; wind_dir: number | null }>(`
@@ -134,7 +158,11 @@ async function getLatestBuoyWinds(): Promise<{ station_id: number; wind_speed: n
         AND wind_speed IS NOT NULL AND wind_speed > 0
       ORDER BY station_id, time DESC
     `);
-    return result.rows;
+    return result.rows.map(r => ({
+      ...r,
+      lat: BUOY_COORDS[r.station_id]?.lat ?? 0,
+      lon: BUOY_COORDS[r.station_id]?.lon ?? 0,
+    }));
   } catch (err) {
     return [];
   }
@@ -156,7 +184,7 @@ interface SpotResult {
  * Filters stations by distance to spot (radiusKm).
  * Matches frontend spotScoringEngine logic.
  */
-function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: { station_id: number; wind_speed: number; wind_dir: number | null }[]): SpotResult {
+function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWind[]): SpotResult {
   // Filter to stations within spot radius
   const nearby = readings.filter(r =>
     r.latitude !== 0 && r.longitude !== 0 &&
@@ -185,8 +213,12 @@ function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: { stati
     }
   }
 
-  // Include buoy winds (buoys don't have coords in readings, always include)
-  for (const b of buoyWinds) {
+  // Include buoy winds — filtered by distance
+  const nearbyBuoys = buoyWinds.filter(b =>
+    b.lat !== 0 && b.lon !== 0 &&
+    distanceKm(spot.lat, spot.lon, b.lat, b.lon) <= spot.radiusKm
+  );
+  for (const b of nearbyBuoys) {
     const kt = b.wind_speed * MS_TO_KT;
     windSum += kt;
     count++;
