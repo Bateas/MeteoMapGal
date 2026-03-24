@@ -53,17 +53,26 @@ async function querySectorSummary(sectorId: string): Promise<SectorSummary | nul
   if (!sector) return null;
 
   try {
-    // Latest readings from stations (last 30 min)
+    // Latest readings from stations within sector bbox (last 30 min)
+    // Approximate bbox filter (1° lat ≈ 111km, 1° lon ≈ 85km at 42°N)
+    const latRange = sector.radiusKm / 111;
+    const lonRange = sector.radiusKm / 85;
     const stationRes = await db.query<{
       station_id: string; wind_speed: number | null; wind_gust: number | null;
       temperature: number | null; humidity: number | null;
     }>(`
-      SELECT DISTINCT ON (station_id)
-        station_id, wind_speed, wind_gust, temperature, humidity
-      FROM readings
-      WHERE time > NOW() - INTERVAL '30 minutes'
-      ORDER BY station_id, time DESC
-    `);
+      SELECT DISTINCT ON (r.station_id)
+        r.station_id, r.wind_speed, r.wind_gust, r.temperature, r.humidity
+      FROM readings r
+      JOIN stations s ON s.station_id = r.station_id
+      WHERE r.time > NOW() - INTERVAL '30 minutes'
+        AND s.latitude BETWEEN $1 AND $2
+        AND s.longitude BETWEEN $3 AND $4
+      ORDER BY r.station_id, r.time DESC
+    `, [
+      sector.center[1] - latRange, sector.center[1] + latRange,
+      sector.center[0] - lonRange, sector.center[0] + lonRange,
+    ]);
 
     const readings = stationRes.rows;
     if (readings.length === 0) return null;
