@@ -434,6 +434,32 @@ function humidityPrecursorBoost(
 
   const hour = new Date().getHours();
 
+  // ── Extreme thermal detector (T>30°C + HR<45% + calm) ──────
+  // Source: Foro La Taberna del Puerto, 20 Aug 2011 event.
+  // Cangas: 32.6°C, HR 40% → 30kt in minutes. Forecasts showed 0kt.
+  // Precursor: extreme heat + dry air + no wind = explosive thermal potential.
+  if (stationData && stationData.length > 0 && hour >= 11 && hour <= 17) {
+    const hotStations = stationData.filter(s =>
+      s.reading.temperature !== null && s.reading.temperature >= 28 &&
+      s.reading.humidity !== null && s.reading.humidity <= 50);
+    const calmConditions = !wind || wind.avgSpeedKt < 4;
+
+    if (hotStations.length >= 2 && calmConditions) {
+      const maxTemp = Math.max(...hotStations.map(s => s.reading.temperature!));
+      const minHR = Math.min(...hotStations.map(s => s.reading.humidity!));
+
+      if (maxTemp >= 30 && minHR <= 45) {
+        // Extreme: expect violent onset
+        const signal = `Alerta: viento fuerte inminente (${maxTemp.toFixed(0)} C, HR ${minHR.toFixed(0)}%) - brisa puede entrar con fuerza`;
+        return { boost: 1.0, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
+      } else {
+        // Moderate: conditions building
+        const signal = `Calor ${maxTemp.toFixed(0)} C + HR baja ${minHR.toFixed(0)}% - viento SW probable con fuerza`;
+        return { boost: 0.7, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
+      }
+    }
+  }
+
   // ── Bocana/terral detection (early morning 6-11h) ──────────
   // Theta-v gradient < -1.5K = land denser/cooler than sea = drainage flow
   if (thetaV.gradient !== null && thetaV.gradient < -1.5 && hour >= 6 && hour <= 11) {
@@ -446,11 +472,24 @@ function humidityPrecursorBoost(
   }
 
   // ── Pre-virazon morning signal (9-12h) ──────────
-  // Theta-v positive + humidity rising = virazon building
-  if (thetaV.gradient !== null && thetaV.gradient > 1.5 && hour >= 9 && hour < 12 && nearestHumidity >= 55) {
-    const conf = thetaV.gradient >= 3.0 && nearestHumidity >= 70 ? 'alta' : 'media';
-    const signal = `Viento probable 12-17h (SW) - Confianza: ${conf}`;
-    return { boost: 0.5, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
+  // Theta-v positive + humidity or temperature rising = virazon building
+  // PhD Montero: upwelling cold water + solar heating = max ΔT in spring
+  if (hour >= 9 && hour < 12) {
+    // Check land temperature trend — if already >20°C by morning, strong thermal potential
+    const landTemp = stationData?.find(s => s.reading.temperature !== null)?.reading.temperature ?? null;
+    const warmMorning = landTemp !== null && landTemp >= 18;
+
+    if (thetaV.gradient !== null && thetaV.gradient > 1.5 && (nearestHumidity >= 55 || warmMorning)) {
+      let signals = 0;
+      if (thetaV.gradient >= 3.0) signals++;
+      if (nearestHumidity >= 70) signals++;
+      if (warmMorning) signals++;
+      if (landTemp !== null && landTemp >= 22) signals++; // Hot morning = strong potential
+      const conf = signals >= 3 ? 'alta' : signals >= 1 ? 'media' : 'baja';
+      const tempNote = landTemp !== null ? ` (${landTemp.toFixed(0)} C)` : '';
+      const signal = `Viento probable 12-17h (SW)${tempNote} - Confianza: ${conf}`;
+      return { boost: 0.5 + (signals * 0.1), humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
+    }
   }
 
   // ── Virazon/bruma active detection (12-18h) ──────────
