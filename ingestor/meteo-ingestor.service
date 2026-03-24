@@ -6,21 +6,21 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/meteo-ingestor
+WorkingDirectory=/opt/MeteoMapGal/ingestor
 ExecStart=/usr/bin/node --import tsx index.ts
 Restart=always
 RestartSec=30
-StandardOutput=journal
-StandardError=journal
+StandardOutput=append:/var/log/meteo-ingestor.log
+StandardError=append:/var/log/meteo-ingestor.log
 SyslogIdentifier=meteo-ingestor
 Environment=NODE_ENV=production
-EnvironmentFile=/opt/meteo-ingestor/.env
+EnvironmentFile=/opt/MeteoMapGal/ingestor/.env
 
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/meteo-ingestor
+ReadWritePaths=/opt/MeteoMapGal/ingestor /var/log
 PrivateTmp=true
 
 [Install]

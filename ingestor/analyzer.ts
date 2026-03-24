@@ -95,19 +95,20 @@ interface StationReading {
 
 /**
  * Get latest reading per station (last 30 min) with coordinates.
- * Joins readings with station discovery data.
+ * Joins readings with stations table for lat/lon.
  */
 async function getLatestReadings(): Promise<StationReading[]> {
   const db = getPool();
   try {
-    // Get latest reading per station
     const result = await db.query<StationReading>(`
       SELECT DISTINCT ON (r.station_id)
         r.station_id,
         r.wind_speed, r.wind_gust, r.wind_dir,
         r.temperature, r.humidity,
-        0.0 as latitude, 0.0 as longitude
+        COALESCE(s.latitude, 0.0) as latitude,
+        COALESCE(s.longitude, 0.0) as longitude
       FROM readings r
+      LEFT JOIN stations s ON s.station_id = r.station_id
       WHERE r.time > NOW() - INTERVAL '30 minutes'
         AND r.wind_speed IS NOT NULL
       ORDER BY r.station_id, r.time DESC
@@ -152,17 +153,21 @@ interface SpotResult {
 
 /**
  * Score a spot based on nearby station wind consensus.
- * Simplified version of frontend spotScoringEngine.
+ * Filters stations by distance to spot (radiusKm).
+ * Matches frontend spotScoringEngine logic.
  */
 function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: { station_id: number; wind_speed: number; wind_dir: number | null }[]): SpotResult {
-  // For now, use ALL readings with wind data (we don't have lat/lon in readings table)
-  // TODO: filter by distance when we add station coordinates to DB
+  // Filter to stations within spot radius
+  const nearby = readings.filter(r =>
+    r.latitude !== 0 && r.longitude !== 0 &&
+    distanceKm(spot.lat, spot.lon, r.latitude, r.longitude) <= spot.radiusKm
+  );
 
-  // Use station readings (can't filter by distance without coords in DB)
-  // So we use the overall wind average as a proxy
-  let windSum = 0, gustMax = 0, dirSum = 0, dirCount = 0, count = 0;
+  let windSum = 0, gustMax = 0, dirCount = 0, count = 0;
+  // Circular mean for wind direction (avoids 350+10 = 180 bug)
+  let sinSum = 0, cosSum = 0;
 
-  for (const r of readings) {
+  for (const r of nearby) {
     if (r.wind_speed != null) {
       const kt = r.wind_speed * MS_TO_KT;
       windSum += kt;
@@ -172,19 +177,23 @@ function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: { stati
         if (gKt > gustMax) gustMax = gKt;
       }
       if (r.wind_dir != null) {
-        dirSum += r.wind_dir;
+        const rad = r.wind_dir * Math.PI / 180;
+        sinSum += Math.sin(rad);
+        cosSum += Math.cos(rad);
         dirCount++;
       }
     }
   }
 
-  // Include buoy winds
+  // Include buoy winds (buoys don't have coords in readings, always include)
   for (const b of buoyWinds) {
     const kt = b.wind_speed * MS_TO_KT;
     windSum += kt;
     count++;
     if (b.wind_dir != null) {
-      dirSum += b.wind_dir;
+      const rad = b.wind_dir * Math.PI / 180;
+      sinSum += Math.sin(rad);
+      cosSum += Math.cos(rad);
       dirCount++;
     }
   }
@@ -194,7 +203,9 @@ function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: { stati
   }
 
   const avgWindKt = Math.round(windSum / count);
-  const avgDir = dirCount > 0 ? Math.round(dirSum / dirCount) : null;
+  const avgDir = dirCount > 0
+    ? (Math.round(Math.atan2(sinSum / dirCount, cosSum / dirCount) * 180 / Math.PI) + 360) % 360
+    : null;
   const verdict = windVerdict(avgWindKt);
 
   return { spot, avgWindKt, maxGustKt: Math.round(gustMax), avgDir, verdict, stationCount: count };
