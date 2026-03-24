@@ -64,6 +64,8 @@ export interface SailingSpot {
   waveRelevance: 'none' | 'moderate' | 'critical';
   /** Whether thermal wind detection applies */
   thermalDetection: boolean;
+  /** Whether morning bocana/terral detection applies (E/NE land breeze) */
+  bocanaDetection?: boolean;
   /** Safety hard gates */
   hardGates: {
     /** Max wind (kt) before NOGO */
@@ -171,6 +173,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     ],
     waveRelevance: 'none', // Protected from ocean swell by the ría
     thermalDetection: false,
+    bocanaDetection: true, // Morning terral E/NE 6-11AM, validated 14d buoy data
     hardGates: { maxWindKt: 30 },
     tideStationId: '29', // Vigo
     webcams: [
