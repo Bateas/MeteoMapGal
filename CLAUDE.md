@@ -125,6 +125,14 @@ ingestor/
 - **Upwind propagation**: `upwindStations` config in spots.ts. When upwind stations show wind in a pattern direction but spot is calm → score +8 + "Viento detectado en costa" in summary. Only for frontal wind (NOT thermal/bruma which generates locally). Cesantes: Bouzas as upwind indicator.
 - **Unified forecast**: `useSailingWindows` reuses `forecastStore` data (no duplicate Rías fetch). `thermalPrecursorService` `forecastFavorable` signal now receives real forecast data for Rías (was always 0%).
 - **Buoy merge bidirectional**: `mergeBuoyReadings()` preserves ALL fields from both PORTUS + ObsCosteiro regardless of which is newer. Fixes: Rande waterTemp, humidity, dewPoint all shown. SpotScore includes `dewPoint` + `humiditySignal`.
+- **Wind blacklist (35 stations)**: `WIND_BLACKLIST` in spotScoringEngine — stations with avg <1.5kt daytime excluded from wind consensus (still contribute temp/humidity). DB-validated Mar 10-25 2026. Key: wu_IVILAB5 (4km Cesantes), wu_IMARN6 (4km Lourido), 10 WU Vigo. Re-evaluate quarterly.
+- **Preferred station 3x weight**: preferredStations in spots.ts get 3x boost <=2km, 2x <=5km, 1.5x beyond. Prevents distant sheltered stations diluting on-water readings. SkyX dominates Castrelo, Porto de Vigo dominates Bocana/Ría Vigo.
+- **Consensus bonus +1kt**: When 3+ sources report >7kt, add +1kt to compensate land underreporting vs water.
+- **Gust sanity cap**: Reject gusts >60kt or >4x average (sensor glitches like SkyX 88kt).
+- **Zoom filter (markers+arrows)**: At zoom <10: hide stations <4kt. At zoom <11: hide <2kt. WindFieldOverlay synced with same thresholds. Reduces map clutter at overview zoom.
+- **Wind particle zoom scaling**: `SPEED_SCALE * 2^(refZoom - currentZoom)` keeps visual velocity consistent across zoom levels. Prevents particles racing at high zoom.
+- **Frontend alerts DISABLED**: `spotAlertService.ts` webhook disabled — ingestor handles 24/7 Telegram alerts. Prevents duplicate/incompatible format sends.
+- **Corrientes WMS (INTECMAR)**: Server frequently offline. Not a MeteoMapGal bug — provider issue. Graceful fallback (layer simply doesn't load).
 
 ## Performance Rules
 
