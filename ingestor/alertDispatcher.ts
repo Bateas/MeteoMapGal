@@ -3,6 +3,7 @@
  *
  * Manages cooldowns, night silence, and webhook delivery.
  * Posts to n8n webhook for Telegram forwarding.
+ * Messages are concise, actionable, with local context per spot.
  */
 
 import { log } from './logger.js';
@@ -14,6 +15,81 @@ const SPOT_COOLDOWN_MS = 2 * 60 * 60_000; // 2 hours per spot
 const FORECAST_COOLDOWN_MS = 6 * 60 * 60_000; // 6 hours for forecast signals
 const NIGHT_START = 23;
 const NIGHT_END = 7;
+
+// ── Spot context (local knowledge) ──────────────────
+
+interface SpotContext {
+  /** Short name for messages */
+  short: string;
+  /** Wind direction notes — what matters locally */
+  dirNotes: Record<string, string>;
+  /** Default note when no special direction context */
+  defaultNote: string;
+}
+
+const SPOT_CONTEXT: Record<string, SpotContext> = {
+  castrelo: {
+    short: 'Castrelo',
+    dirNotes: {
+      SW: 'Termico del valle',
+      WSW: 'Termico del valle',
+      W: 'Termico del valle',
+      N: 'Componente norte',
+      NE: 'Componente norte',
+      NW: 'Componente norte',
+    },
+    defaultNote: '',
+  },
+  cesantes: {
+    short: 'Cesantes',
+    dirNotes: {
+      SW: 'Virazon en la ensenada',
+      WSW: 'Virazon en la ensenada',
+      W: 'Virazon en la ensenada',
+      NE: 'Bocana — viento del interior',
+      E: 'Bocana — viento del interior',
+      N: 'Norte — lleva hacia San Simon',
+    },
+    defaultNote: '',
+  },
+  lourido: {
+    short: 'Lourido',
+    dirNotes: {
+      SW: 'Condiciones ideales kite/windsurf',
+      WSW: 'Condiciones ideales kite/windsurf',
+      NE: 'Viento de tierra — menos fiable',
+      N: 'Componente norte — mar de fondo',
+    },
+    defaultNote: '',
+  },
+  bocana: {
+    short: 'Bocana',
+    dirNotes: {
+      NE: 'Bocana matutina — centro de la ria',
+      E: 'Bocana matutina — centro de la ria',
+      SW: 'Entrada atlantica',
+    },
+    defaultNote: '',
+  },
+  'centro-ria': {
+    short: 'Ria Vigo',
+    dirNotes: {
+      SW: 'Virazon entrando por la ria',
+      NE: 'Viento de tierra',
+      N: 'Nortada — mar revuelta fuera',
+    },
+    defaultNote: '',
+  },
+  'cies-ria': {
+    short: 'Cies',
+    dirNotes: {
+      N: 'Nortada — oleaje fuerte',
+      NW: 'Mar de fondo atlantico',
+      SW: 'Protegida de SW por las islas',
+    },
+    defaultNote: '',
+  },
+};
 
 // ── State ───────────────────────────────────────────
 
@@ -31,6 +107,21 @@ function isInCooldown(map: Map<string, number>, key: string, cooldownMs: number)
   const last = map.get(key);
   if (!last) return false;
   return (Date.now() - last) < cooldownMs;
+}
+
+function getDirectionNote(spotId: string, cardinal: string): string {
+  const ctx = SPOT_CONTEXT[spotId];
+  if (!ctx) return '';
+  return ctx.dirNotes[cardinal] || ctx.defaultNote;
+}
+
+function verdictEmoji(verdict: string): string {
+  switch (verdict) {
+    case 'NAVEGABLE': return '🟢';
+    case 'BUENO': return '🟡';
+    case 'FUERTE': return '🔴';
+    default: return '⚪';
+  }
 }
 
 async function postWebhook(payload: Record<string, unknown>): Promise<boolean> {
@@ -52,7 +143,7 @@ async function postWebhook(payload: Record<string, unknown>): Promise<boolean> {
 
 /**
  * Dispatch a spot verdict transition alert.
- * Respects cooldown + night silence.
+ * Concise, actionable messages with local context.
  */
 export async function dispatchSpotAlert(
   spotId: string,
@@ -61,34 +152,48 @@ export async function dispatchSpotAlert(
   verdict: string,
   windKt: number,
   direction: string,
+  extras?: { waterTemp?: number; thermalProb?: number; gustKt?: number },
 ): Promise<void> {
   if (isNightTime()) return;
   if (isInCooldown(lastSpotAlert, spotId, SPOT_COOLDOWN_MS)) return;
 
-  const text = `${spotName}: ${verdict} ${windKt}kt ${direction} (${sector})`;
+  const ctx = SPOT_CONTEXT[spotId];
+  const short = ctx?.short || spotName;
+  const dirNote = getDirectionNote(spotId, direction);
+  const emoji = verdictEmoji(verdict);
+
+  // Build concise message (3 lines max)
+  let msg = `${emoji} *${short}* ${verdict}\n`;
+  msg += `${direction} ${windKt}kt`;
+  if (extras?.gustKt && extras.gustKt > windKt) msg += ` (rachas ${extras.gustKt}kt)`;
+  if (extras?.waterTemp) msg += ` · Agua ${extras.waterTemp.toFixed(0)}°C`;
+  msg += '\n';
+  if (dirNote) msg += dirNote;
+  if (extras?.thermalProb && extras.thermalProb >= 40) {
+    msg += (dirNote ? ' · ' : '') + `Termico ${extras.thermalProb}%`;
+  }
 
   const ok = await postWebhook({
     type: 'spot-alert',
-    spot: spotName,
+    spot: short,
     sector,
     verdict,
     windKt,
     direction,
-    text,
+    text: msg.trim(),
     severity: verdict === 'FUERTE' ? 'high' : 'moderate',
-    title: `${spotName}: ${verdict}`,
-    message: `${windKt}kt ${direction}`,
+    title: `${short}: ${verdict}`,
+    message: msg.trim(),
   });
 
   if (ok) {
     lastSpotAlert.set(spotId, Date.now());
-    log.ok(`Alert sent: ${text}`);
+    log.ok(`Alert: ${short} ${verdict} ${windKt}kt ${direction}`);
   }
 }
 
 /**
  * Dispatch a thermal forecast early warning.
- * Respects 6h cooldown + night silence.
  */
 export async function dispatchForecastAlert(
   sector: string,
@@ -109,12 +214,12 @@ export async function dispatchForecastAlert(
 
   if (ok) {
     lastForecastAlert.set(sector, Date.now());
-    log.ok(`Forecast alert sent: ${label} (${sector})`);
+    log.ok(`Forecast: ${label} (${sector})`);
   }
 }
 
 /**
- * Reset cooldowns (e.g., on sector change or restart).
+ * Reset cooldowns (e.g., on restart).
  */
 export function resetCooldowns(): void {
   lastSpotAlert.clear();
