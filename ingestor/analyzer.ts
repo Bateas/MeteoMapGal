@@ -166,6 +166,8 @@ interface SpotResult {
   avgDir: number | null;
   verdict: Verdict;
   stationCount: number;
+  /** Inferred direction for spots without vane (e.g. Castrelo SkyX) */
+  inferredDir?: string | null;
 }
 
 /**
@@ -229,7 +231,52 @@ function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWin
     : null;
   const verdict = windVerdict(avgWindKt, spot.id);
 
-  return { spot, avgWindKt, maxGustKt: Math.round(gustMax), avgDir, verdict, stationCount: count };
+  // For spots without direction data (e.g. Castrelo SkyX has no vane),
+  // infer direction from temporal context + nearby station consensus
+  let inferredDir: string | null = null;
+  if (avgDir === null && avgWindKt >= 3 && spot.id === 'castrelo') {
+    inferredDir = inferCastreloDirection(readings);
+  }
+
+  return { spot, avgWindKt, maxGustKt: Math.round(gustMax), avgDir, verdict, stationCount: count, inferredDir };
+}
+
+/**
+ * Infer wind direction for Castrelo when SkyX has no vane.
+ * Uses nearby stations with direction (AEMET Ribadavia, MG stations)
+ * + time-of-day heuristic (14-18h sunny = likely SW thermal).
+ */
+function inferCastreloDirection(readings: StationReading[]): string | null {
+  // Find stations within 15km of Castrelo that have wind direction
+  const castreloLat = 42.2991, castreloLon = -8.1087;
+  const nearby = readings.filter(r =>
+    r.wind_dir != null && r.wind_speed != null && r.wind_speed > 1.0 &&
+    r.latitude !== 0 && r.longitude !== 0 &&
+    distanceKm(castreloLat, castreloLon, r.latitude, r.longitude) <= 15
+  );
+
+  if (nearby.length === 0) return null;
+
+  // Circular mean of nearby directions
+  let sinSum = 0, cosSum = 0;
+  for (const r of nearby) {
+    const rad = r.wind_dir! * Math.PI / 180;
+    sinSum += Math.sin(rad);
+    cosSum += Math.cos(rad);
+  }
+  const avgDeg = (Math.round(Math.atan2(sinSum / nearby.length, cosSum / nearby.length) * 180 / Math.PI) + 360) % 360;
+  const cardinal = degreesToCardinal(avgDeg);
+
+  // Time-of-day heuristic: afternoon + SW-ish = thermal
+  const hour = new Date().getHours();
+  const isSWish = avgDeg >= 200 && avgDeg <= 280;
+  const isAfternoon = hour >= 13 && hour <= 19;
+
+  if (isSWish && isAfternoon) {
+    return `${cardinal} (termico probable)`;
+  }
+
+  return cardinal;
 }
 
 // ── Main analyzer ───────────────────────────────────
@@ -243,10 +290,10 @@ async function persistSpotScores(results: SpotResult[]): Promise<void> {
   for (const r of results) {
     if (r.verdict === 'unknown') continue;
     await db.query(
-      `INSERT INTO spot_scores (time, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, score, station_count)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO spot_scores (time, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, score, station_count, inferred_dir)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (time, spot_id) DO NOTHING`,
-      [now, r.spot.id, r.spot.sector, r.verdict, r.avgWindKt, r.maxGustKt, r.avgDir, 0, r.stationCount]
+      [now, r.spot.id, r.spot.sector, r.verdict, r.avgWindKt, r.maxGustKt, r.avgDir, 0, r.stationCount, r.inferredDir || null]
     );
   }
 }
