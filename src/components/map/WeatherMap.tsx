@@ -278,11 +278,13 @@ export function WeatherMap() {
         {/* Wind station markers — at low zoom, hide stations with no/low wind to reduce clutter */}
         {stations.map((station) => {
           if (station.tempOnly) return null;
-          // At zoom <11: hide stations with wind <2kt (sheltered/calm) to declutter map
+          // At zoom <11: hide low-wind stations to declutter map
+          // At zoom <10: also hide stations <4kt (only show significant wind)
           if (zoomLevel < 11 && station.id !== selectedStationId) {
             const reading = currentReadings.get(station.id);
             const windMs = reading?.windSpeed ?? 0;
-            if (windMs < 1.03) return null; // ~2kt threshold
+            const threshold = zoomLevel < 10 ? 2.06 : 1.03; // ~4kt at very low zoom, ~2kt at medium
+            if (windMs < threshold) return null;
           }
           return (
             <StationMarker
