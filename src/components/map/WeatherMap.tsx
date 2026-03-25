@@ -270,7 +270,7 @@ export function WeatherMap() {
         <TemperatureOverlay />
 
         {/* Wind field arrows around stations + buoys */}
-        <WindFieldOverlay stations={stations} readings={currentReadings} buoys={activeSector.id === 'rias' ? buoys : undefined} compact={stations.length > 35} />
+        <WindFieldOverlay stations={stations} readings={currentReadings} buoys={activeSector.id === 'rias' ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
 
         {/* Temp-only station dots — GPU-accelerated (single source + 3 layers) */}
         <TempOnlyOverlay stations={stations} readings={currentReadings} />
