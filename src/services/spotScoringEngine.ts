@@ -212,9 +212,10 @@ function computeSpotWindConsensus(
     const speedKt = msToKnots(reading.windSpeed);
     if (speedKt < 1) continue;
     // Composite weight: distance × source quality × freshness
-    // Preferred stations within 2km get quality boost (they're at the spot — trust them)
+    // Preferred stations get strong boost — they're AT the spot, trust them over distant readings.
+    // Within 2km: 3x (on-water/at-spot). Within 5km: 2x (very close). Beyond: 1x.
     const isPreferred = preferredSet.has(station.id);
-    const proximityBoost = (isPreferred && distKm <= 2) ? 1.5 : 1.0;
+    const proximityBoost = isPreferred ? (distKm <= 2 ? 3.0 : distKm <= 5 ? 2.0 : 1.5) : 1.0;
     const distWeight = proximityBoost / (distKm + 1);
     const qualityMul = getSourceQuality(station.id);
     const ageMin = (Date.now() - reading.timestamp.getTime()) / 60_000;
@@ -256,7 +257,12 @@ function computeSpotWindConsensus(
   }
   // Apply per-spot calibration offset (compensates for amateur station bias / exposed locations)
   const calibration = spot.windCalibrationKt ?? 0;
-  const avgSpeed = Math.max(0, weightedSpeed / totalWeight + calibration);
+  let avgSpeed = Math.max(0, weightedSpeed / totalWeight + calibration);
+
+  // Consensus bonus: when 3+ sources agree on decent wind (>7kt), add +1kt.
+  // This compensates for land stations underreporting on-water conditions.
+  const sourcesAbove7kt = speedPoints.filter(sp => sp.speedKt >= 7).length;
+  if (sourcesAbove7kt >= 3) avgSpeed += 1;
 
   // Weighted average direction (only from sources WITH direction)
   let avgDir = 0;
@@ -922,6 +928,9 @@ export function scoreAllSpots(
         if (gustKt === null || gKt > gustKt) gustKt = gKt;
       }
     }
+    // Sanity cap: reject gusts >60kt (sensor glitch) and >4x average (physically implausible)
+    const avgKt = wind?.avgSpeedKt ?? 0;
+    if (gustKt !== null && (gustKt > 60 || (avgKt > 0 && gustKt > avgKt * 4))) gustKt = null;
     if (gustKt !== null) gustKt = Math.round(gustKt * 10) / 10;
 
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
