@@ -12,6 +12,8 @@ interface WindFieldOverlayProps {
   buoys?: BuoyReading[];
   /** When true, uses smaller arrows and skips outer ring (for dense sectors). */
   compact?: boolean;
+  /** Current map zoom level — used to filter low-wind arrows at low zoom */
+  zoomLevel?: number;
 }
 
 /** Offset distance in degrees (~2km at lat 42°) */
@@ -227,16 +229,19 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
   readings,
   buoys,
   compact = false,
+  zoomLevel = 12,
 }: WindFieldOverlayProps) {
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
     const offsetScale = compact ? 0.6 : 1;
+    // Match WeatherMap zoom filter: hide low-wind arrows at low zoom
+    const minWindMs = zoomLevel < 10 ? 2.06 : zoomLevel < 11 ? 1.03 : 0.1;
 
     // ── Station arrows ─────────────────────────────────
     for (const station of stations) {
       if (station.tempOnly) continue;
       const reading = readings.get(station.id);
-      if (!reading || reading.windDirection === null || reading.windSpeed === null || reading.windSpeed < 0.1) continue;
+      if (!reading || reading.windDirection === null || reading.windSpeed === null || reading.windSpeed < minWindMs) continue;
       pushHexArrows(features, station.lon, station.lat, reading.windSpeed, reading.windDirection, offsetScale, compact);
     }
 
