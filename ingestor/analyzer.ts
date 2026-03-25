@@ -259,6 +259,7 @@ export async function runAnalysis(): Promise<void> {
       await dispatchSpotAlert(
         spot.id, spot.name, spot.sector === 'embalse' ? 'Embalse' : 'Rías Baixas',
         VERDICT_LABEL[result.verdict], result.avgWindKt, dir,
+        { gustKt: result.maxGustKt > 0 ? result.maxGustKt : undefined },
       );
     }
 
