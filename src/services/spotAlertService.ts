@@ -87,18 +87,9 @@ export function checkSpotAlerts(scores: Map<string, SpotScore>, sectorName: stri
     const title = `${score.spotName} ${VERDICT_LABEL[current]} ${windKt}kt ${dir}`;
     const detail = score.summary;
 
-    // Webhook to n8n → Telegram
-    sendSpotAlert({
-      alertId: `spot-${spotId}-${current}`,
-      category: 'spot' as never,
-      severity: current === 'strong' ? 'high' : 'moderate',
-      title,
-      detail,
-      icon: current === 'strong' ? 'wind' : 'sailboat',
-      score: score.score,
-      sector: sectorName,
-      timestamp: new Date().toISOString(),
-    });
+    // Webhook DISABLED — ingestor handles 24/7 Telegram alerts (S94).
+    // Frontend was sending duplicate alerts with incompatible format.
+    // sendSpotAlert({ ... });
 
     // Browser push notification
     sendBrowserNotification(title, detail, spotId);
