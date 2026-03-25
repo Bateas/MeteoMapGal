@@ -163,8 +163,8 @@ export const RIAS_SPOTS: SailingSpot[] = [
     ],
     // Stations closest to the Rande–Vigo channel
     preferredStations: [
+      'mg_14001',               // Porto de Vigo (7m, ON water, avg 10.8kt!) — dominant for in-ría wind
       'mc_ESGAL3600000036260A', // Redondela (~3km)
-      'mc_ESGAL3600000036057A', // Vigo Centro (~3km)
       'mc_ESGAL3600000036041A', // Vigo Bouzas (~4km)
     ],
     preferredBuoys: [
@@ -215,6 +215,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
+      'mg_14001',               // Porto de Vigo (7m, ON water, avg 10.8kt!) — best in-ría wind
       'mc_ESGAL3600000036940A', // Cangas do Morrazo (~8km N) — costera
       'mc_ESGAL3600000036041A', // Vigo Bouzas (~5km S) — costera
     ],
