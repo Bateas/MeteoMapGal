@@ -14,7 +14,10 @@ const PARTICLE_COUNT_DESKTOP = 400;
 const PARTICLE_COUNT_MOBILE = 150;
 const FADE_ALPHA = 0.94;
 const PARTICLE_MAX_AGE = 100;
-const SPEED_SCALE = 0.0006;
+// Base speed calibrated for zoom ~10 (Galician scale ~50km viewport).
+// Scaled down at higher zooms to prevent particles from racing across screen.
+const SPEED_SCALE_BASE = 0.0006;
+const SPEED_SCALE_REF_ZOOM = 10;
 const LINE_WIDTH_BASE = 1.8;
 const LINE_WIDTH_MAX = 3.5;
 const HEAD_RADIUS = 2.5;
@@ -198,11 +201,13 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
         // ── PERF: O(1) bilinear grid lookup instead of O(stations) IDW ──
         const wind = lookupWindGrid(grid, p.lat, p.lon);
 
-        // Move particle
+        // Move particle — speed scales inversely with zoom to keep visual velocity consistent
         const prevLon = p.lon;
         const prevLat = p.lat;
-        p.lon += wind.vx * SPEED_SCALE;
-        p.lat += wind.vy * SPEED_SCALE;
+        const zoomFactor = Math.pow(2, SPEED_SCALE_REF_ZOOM - map.getZoom());
+        const speedScale = SPEED_SCALE_BASE * zoomFactor;
+        p.lon += wind.vx * speedScale;
+        p.lat += wind.vy * speedScale;
         p.age++;
 
         // Respawn check BEFORE projecting (saves 2 project() calls for dead particles)
