@@ -275,9 +275,16 @@ export function WeatherMap() {
         {/* Temp-only station dots — GPU-accelerated (single source + 3 layers) */}
         <TempOnlyOverlay stations={stations} readings={currentReadings} />
 
-        {/* Wind station markers (full DOM markers with SVG) */}
-        {stations.map((station) =>
-          station.tempOnly ? null : (
+        {/* Wind station markers — at low zoom, hide stations with no/low wind to reduce clutter */}
+        {stations.map((station) => {
+          if (station.tempOnly) return null;
+          // At zoom <11: hide stations with wind <2kt (sheltered/calm) to declutter map
+          if (zoomLevel < 11 && station.id !== selectedStationId) {
+            const reading = currentReadings.get(station.id);
+            const windMs = reading?.windSpeed ?? 0;
+            if (windMs < 1.03) return null; // ~2kt threshold
+          }
+          return (
             <StationMarker
               key={station.id}
               station={station}
@@ -286,8 +293,8 @@ export function WeatherMap() {
               showLabel={showStationLabels}
               zoomLevel={zoomLevel}
             />
-          )
-        )}
+          );
+        })}
 
         {/* Marine buoy markers — only for Rías Baixas sector */}
         {activeSector.id === 'rias' && buoys.map((b) => (
