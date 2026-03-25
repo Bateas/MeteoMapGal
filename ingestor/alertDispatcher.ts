@@ -57,8 +57,9 @@ const SPOT_CONTEXT: Record<string, SpotContext> = {
     dirNotes: {
       SW: 'Condiciones ideales kite/windsurf',
       WSW: 'Condiciones ideales kite/windsurf',
-      NE: 'Viento de tierra — menos fiable',
-      N: 'Componente norte — mar de fondo',
+      NE: 'Componente norte',
+      N: 'Componente norte',
+      E: 'Viento de tierra',
     },
     defaultNote: '',
   },
