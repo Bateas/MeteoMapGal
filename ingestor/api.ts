@@ -37,6 +37,7 @@ import {
   queryBuoyLatest,
   queryBuoyHourly,
 } from './queries.js';
+import { getPool } from './db.js';
 import { getForecast } from './forecastFetcher.js';
 
 // ── Configuration ──────────────────────────────────────
@@ -300,6 +301,33 @@ async function handleForecast(
   }, 200, origin);
 }
 
+// ── Spot scores endpoint ──────────────────────────────
+
+async function handleSpotScores(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const spotId = params.spot_id;
+  const days = parseInt(params.days || '7', 10);
+  const db = getPool();
+
+  try {
+    const result = await db.query(
+      `SELECT time::text, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, station_count
+       FROM spot_scores
+       WHERE ($1::text IS NULL OR spot_id = $1)
+         AND time > NOW() - make_interval(days => $2)
+       ORDER BY time DESC
+       LIMIT 2000`,
+      [spotId || null, days]
+    );
+    json(res, { count: result.rows.length, scores: result.rows }, 200, origin);
+  } catch (err) {
+    error(res, (err as Error).message, 500, origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -321,6 +349,8 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/buoys/latest': handleBuoyLatest,
   // Forecast (served from ingestor cache, avoids frontend Open-Meteo 429s)
   '/api/v1/forecast': handleForecast,
+  // Spot score history (for verification dashboard)
+  '/api/v1/spots/scores': handleSpotScores,
 };
 
 // ── Server ─────────────────────────────────────────────
