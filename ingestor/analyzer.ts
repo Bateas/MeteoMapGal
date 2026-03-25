@@ -235,6 +235,23 @@ function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWin
 // ── Main analyzer ───────────────────────────────────
 
 /**
+ * Persist spot scores to DB for verification and accuracy tracking.
+ */
+async function persistSpotScores(results: SpotResult[]): Promise<void> {
+  const db = getPool();
+  const now = new Date();
+  for (const r of results) {
+    if (r.verdict === 'unknown') continue;
+    await db.query(
+      `INSERT INTO spot_scores (time, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, score, station_count)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (time, spot_id) DO NOTHING`,
+      [now, r.spot.id, r.spot.sector, r.verdict, r.avgWindKt, r.maxGustKt, r.avgDir, 0, r.stationCount]
+    );
+  }
+}
+
+/**
  * Run analysis cycle. Called from main poll loop every 5 minutes.
  */
 export async function runAnalysis(): Promise<void> {
@@ -248,9 +265,11 @@ export async function runAnalysis(): Promise<void> {
     return; // No data, skip
   }
 
-  // 2. Score each spot and detect transitions
+  // 2. Score each spot, detect transitions, and persist to DB
+  const scoreRows: SpotResult[] = [];
   for (const spot of SPOTS) {
     const result = scoreSpot(spot, readings, buoyWinds);
+    scoreRows.push(result);
     const prev = previousVerdicts.get(spot.id) ?? 'unknown';
 
     // Detect transition: low → good
@@ -265,6 +284,10 @@ export async function runAnalysis(): Promise<void> {
 
     previousVerdicts.set(spot.id, result.verdict);
   }
+
+  // 3. Persist spot scores to DB (for verification dashboard)
+  await persistSpotScores(scoreRows).catch(err =>
+    log.warn(`Score persist failed: ${(err as Error).message}`));
 
   // 3. Thermal forecast (every 30 min)
   if ((now - lastForecastRun) >= FORECAST_INTERVAL_MS) {
