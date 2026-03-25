@@ -189,9 +189,55 @@ const SOURCE_QUALITY: Record<string, number> = {
   skyx: 0.6,            // single consumer device
 };
 
+/**
+ * Stations statistically confirmed as sheltered for WIND (avg <1.5kt daytime).
+ * Based on 2 weeks of DB analysis (Mar 10-25, 2026).
+ * These stations still contribute temperature/humidity but are excluded from wind consensus.
+ * Re-evaluate quarterly as stations may improve placement.
+ */
+const WIND_BLACKLIST = new Set([
+  // Vigo city — balcony/patio stations
+  'wu_IVIGO51', 'wu_IVIGO54', 'wu_IVIGO48', 'wu_IVIGO73', 'wu_IVIGO61',
+  'wu_IVIGO83', 'wu_IVIGO79', 'wu_IVIGO80', 'wu_IVIGO63',
+  'wu_IPONTEVE11',  // Vigo-Coia
+  'wu_IGAVIGO3',    // Vigo (avg 1.9kt but p90=1.9 — flat readings = likely broken)
+  // Near Cesantes — critical proximity, always calm
+  'wu_IVILAB5',     // Vilaboa 4km from Cesantes, avg 1.0kt = sheltered
+  // Near Lourido — sheltered
+  'wu_IMARN6',      // Marín 4km from Lourido, avg 1.4kt = sheltered
+  // Pontevedra area
+  'wu_IPONTE198',   // avg 0.4kt
+  // Netatmo sheltered
+  'nt_a9b428',      // Pontevedra 14m, avg 0.6kt
+  'nt_6b3de8',      // Pontevedra 68m, avg 0.8kt
+  'nt_7feb46',      // avg 0.5kt
+  'nt_af6fe8',      // Vigo 88m, avg 0.5kt
+  'nt_3a1174',      // Vigo 122m, avg 1.0kt
+  // Other sheltered
+  'wu_IBAION2',     // Baiona, avg 0.6kt
+  'wu_ICAMBA7',     // Cambados, avg 1.0kt
+  'wu_ITOMIO12', 'wu_ITOMIO8', // Tomiño
+  'wu_IOUREN24', 'wu_IOUREN7', // Ourense
+  'wu_IESGOS1',     // Esgos
+  'wu_IAVIN3',      // Avión
+  'wu_IAMERC22',    // A Merca
+  'wu_IMOS560', 'wu_IMOS556', // Mos
+  'wu_IRAMIR1',     // Ramirás
+  'wu_IBARBA92',    // Barbadás
+  'wu_IMASID1',     // Maside
+  'wu_ISALVA29',    // Salvaterra
+  'mc_ESGAL3200000032003A', // MC Ourense area, avg 0.8kt
+  'mc_ESGAL3600000036110B', // MC 380m, avg 0.9kt
+]);
+
 function getSourceQuality(stationId: string): number {
   const source = stationId.split('_')[0];
   return SOURCE_QUALITY[source] ?? 0.7;
+}
+
+/** Check if station is blacklisted for wind (still valid for temp/humidity) */
+function isWindBlacklisted(stationId: string): boolean {
+  return WIND_BLACKLIST.has(stationId);
 }
 
 // ── Wind Consensus ───────────────────────────────────────────
@@ -209,6 +255,8 @@ function computeSpotWindConsensus(
 
   for (const { station, reading, distKm } of stationData) {
     if (reading.windSpeed === null) continue;
+    // Skip stations confirmed as sheltered for wind (still used for temp/humidity elsewhere)
+    if (isWindBlacklisted(station.id)) continue;
     const speedKt = msToKnots(reading.windSpeed);
     if (speedKt < 1) continue;
     // Composite weight: distance × source quality × freshness
