@@ -280,7 +280,7 @@ export function TimeSeriesChart() {
                     strokeWidth={2}
                     dot={showDots ? { r: 3, fill: color, strokeWidth: 0 } : false}
                     activeDot={{ r: 5, fill: color }}
-                    connectNulls
+                    connectNulls={false}
                     type="monotone"
                     isAnimationActive={false}
                   />
