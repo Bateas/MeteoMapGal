@@ -11,10 +11,13 @@ interface WeatherSelectionState {
   selectedStationId: string | null;
   highlightedStationId: string | null;
   chartSelectedStations: string[];
+  /** Station ID to load in History tab (set by popup "Ver historial" or map click in history tab) */
+  historyStationId: string | null;
 
   selectStation: (id: string | null) => void;
   highlightStation: (id: string | null) => void;
   toggleChartStation: (id: string) => void;
+  openHistory: (stationId: string) => void;
   /** Reset all selection state (called on sector switch) */
   resetSelection: () => void;
 }
@@ -23,9 +26,11 @@ export const useWeatherSelectionStore = create<WeatherSelectionState>()(devtools
   selectedStationId: null,
   highlightedStationId: null,
   chartSelectedStations: [],
+  historyStationId: null,
 
   selectStation: (id) => set({ selectedStationId: id }, undefined, 'selectStation'),
   highlightStation: (id) => set({ highlightedStationId: id }, undefined, 'highlightStation'),
+  openHistory: (stationId) => set({ historyStationId: stationId }, undefined, 'openHistory'),
 
   toggleChartStation: (id) => {
     const { chartSelectedStations } = get();
@@ -41,5 +46,6 @@ export const useWeatherSelectionStore = create<WeatherSelectionState>()(devtools
     selectedStationId: null,
     highlightedStationId: null,
     chartSelectedStations: [],
+    historyStationId: null,
   }, undefined, 'resetSelection'),
 }), { name: 'WeatherSelectionStore' }));

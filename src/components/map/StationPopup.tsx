@@ -101,6 +101,8 @@ function usePopupWindTrend(stationId: string, currentSpeed: number | null) {
 export const StationPopup = memo(function StationPopup({ station, reading }: StationPopupProps) {
   const selectStation = useWeatherSelectionStore((s) => s.selectStation);
   const toggleChartStation = useWeatherSelectionStore((s) => s.toggleChartStation);
+  const openHistory = useWeatherSelectionStore((s) => s.openHistory);
+  const setRequestedTab = useUIStore((s) => s.setRequestedTab);
   const chartStations = useWeatherSelectionStore((s) => s.chartSelectedStations);
   const isInChart = chartStations.includes(station.id);
   const isMobile = useUIStore((s) => s.isMobile);
@@ -264,6 +266,14 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
           }`}
       >
         {isInChart ? 'Quitar de gráfica' : 'Añadir a gráfica'}
+      </button>
+
+      {/* View history button — all sources have DB history */}
+      <button
+        onClick={() => { openHistory(station.id); setRequestedTab('history'); }}
+        className="mt-1 w-full py-1 px-2 text-[11px] font-semibold border rounded cursor-pointer transition-colors bg-white text-amber-600 border-amber-200 hover:bg-amber-50"
+      >
+        Ver historial
       </button>
     </div>
   );

@@ -5,6 +5,7 @@ import { SkeletonLoader } from '../common/SkeletonLoader';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { downloadGeoJSON } from '../../services/exportService';
 
@@ -55,6 +56,25 @@ export function Sidebar() {
       setActiveTab('stations');
     }
   }, [isEmbalse, activeTab]);
+
+  // React to external tab switch requests (from popup "Ver historial" button)
+  const requestedTab = useUIStore((s) => s.requestedTab);
+  const setRequestedTab = useUIStore((s) => s.setRequestedTab);
+  useEffect(() => {
+    if (requestedTab && requestedTab !== activeTab) {
+      setActiveTab(requestedTab as Tab);
+      setRequestedTab(null);
+    }
+  }, [requestedTab, activeTab, setRequestedTab]);
+
+  // When on History tab, clicking a station on map auto-loads its history
+  const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
+  const openHistory = useWeatherSelectionStore((s) => s.openHistory);
+  useEffect(() => {
+    if (activeTab === 'history' && selectedStationId) {
+      openHistory(selectedStationId);
+    }
+  }, [activeTab, selectedStationId, openHistory]);
 
   // Compact tabs — wrap to multiple rows so all tabs are always visible
   const tabBase = isMobile
