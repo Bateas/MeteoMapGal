@@ -20,7 +20,7 @@ import { useAlertStore } from '../../store/alertStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
 const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default: m.MeteoGuide })));
-// const FeedbackModal = lazy(() => import('../common/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
+const FeedbackModal = lazy(() => import('../common/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
 import { ToastContainer } from '../common/ToastContainer';
 const OnboardingTour = lazy(() => import('../common/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
 // Daily summary DISABLED in frontend — moved to ingestor (24/7, no duplicate sends)
@@ -404,7 +404,7 @@ export function AppShell() {
         )}
       </div>
       <Suspense fallback={null}><MeteoGuide /></Suspense>
-      {/* FeedbackModal disabled — RGPD/bot concerns (S90). Code kept for future use. */}
+      <Suspense fallback={null}><FeedbackModal /></Suspense>
       {!isMobile && <KeyboardShortcutHelp />}
       <Suspense fallback={null}><OnboardingTour /></Suspense>
       <ToastContainer />

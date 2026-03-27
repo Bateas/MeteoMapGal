@@ -250,6 +250,18 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </div>
         )}
 
+        {/* Feedback button */}
+        <button
+          onClick={() => useUIStore.getState().setFeedbackOpen(true)}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800/60 transition-all min-w-[32px] min-h-[32px] flex items-center justify-center"
+          aria-label="Enviar feedback"
+          title="Tu opinion"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </button>
+
         {/* Theme toggle — sun/moon */}
         <button
           onClick={toggleTheme}
