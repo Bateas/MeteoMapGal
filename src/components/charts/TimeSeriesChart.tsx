@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
@@ -12,9 +12,10 @@ import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { escapeCSV } from '../../services/csvUtils';
 import { useToastStore } from '../../store/toastStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import { fetchReadings, type HistoryReading } from '../../api/historyClient';
 import type { NormalizedReading } from '../../types/station';
 
-type MetricKey = 'windSpeed' | 'windGust' | 'temperature' | 'humidity' | 'pressure' | 'dewPoint';
+type MetricKey = 'windSpeed' | 'windGust' | 'temperature' | 'humidity' | 'pressure' | 'dewPoint' | 'solarRadiation';
 
 const METRICS: { key: MetricKey; label: string; unit: string; color: string }[] = [
   { key: 'windSpeed', label: 'Viento', unit: 'kt', color: '#3b82f6' },
@@ -23,6 +24,7 @@ const METRICS: { key: MetricKey; label: string; unit: string; color: string }[] 
   { key: 'humidity', label: 'HR', unit: '%', color: '#06b6d4' },
   { key: 'pressure', label: 'Presion', unit: 'hPa', color: '#a78bfa' },
   { key: 'dewPoint', label: 'P. rocio', unit: '°C', color: '#2dd4bf' },
+  { key: 'solarRadiation', label: 'Radiacion', unit: 'W/m\u00b2', color: '#fbbf24' },
 ];
 
 const STATION_COLORS = [
@@ -58,40 +60,135 @@ export function TimeSeriesChart() {
 
   const [activeMetric, setActiveMetric] = useState<MetricKey>('windSpeed');
   const [timeRange, setTimeRange] = useState(24);
+  const [dbData, setDbData] = useState<Map<string, HistoryReading[]>>(new Map());
+  const [dbLoading, setDbLoading] = useState(false);
+  const dbFetchRef = useRef<string>(''); // track last fetch key to avoid duplicate requests
 
   const metric = METRICS.find((m) => m.key === activeMetric)!;
 
-  // Build chart data: merge all station histories into time-aligned points
+  // ── Fetch from DB for ranges > 3h ─────────────────
+  useEffect(() => {
+    if (chartStations.length === 0 || timeRange <= 3) {
+      setDbData(new Map());
+      return;
+    }
+
+    const fetchKey = `${chartStations.join(',')}_${timeRange}`;
+    if (dbFetchRef.current === fetchKey) return;
+    dbFetchRef.current = fetchKey;
+
+    let cancelled = false;
+    setDbLoading(true);
+
+    const from = new Date(Date.now() - timeRange * 60 * 60 * 1000).toISOString();
+    const to = new Date().toISOString();
+    // Use hourly aggregates for >24h, raw for 6-24h
+    const interval = timeRange > 24 ? 'hourly' as const : 'raw' as const;
+
+    Promise.allSettled(
+      chartStations.map(async (stationId) => {
+        const readings = await fetchReadings(stationId, from, to, interval);
+        return { stationId, readings: readings as HistoryReading[] };
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      const newData = new Map<string, HistoryReading[]>();
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          newData.set(r.value.stationId, r.value.readings);
+        }
+      }
+      setDbData(newData);
+      setDbLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [chartStations, timeRange]);
+
+  // ── Map DB field to metric key ─────────────────────
+  const DB_METRIC_MAP: Record<MetricKey, keyof HistoryReading> = {
+    windSpeed: 'wind_speed',
+    windGust: 'wind_gust',
+    temperature: 'temperature',
+    humidity: 'humidity',
+    pressure: 'pressure',
+    dewPoint: 'dew_point',
+    solarRadiation: 'solar_rad',
+  };
+
+  // Build chart data: memory for <=3h, DB for >3h
   const chartData = useMemo(() => {
     if (chartStations.length === 0) return [];
 
     const cutoff = Date.now() - timeRange * 60 * 60 * 1000;
     const timeMap = new Map<number, Record<string, number | null>>();
+    const needsKnots = (activeMetric === 'windSpeed' || activeMetric === 'windGust');
 
-    for (const stationId of chartStations) {
-      const history = readingHistory.get(stationId) || [];
-      for (const reading of history) {
-        if (!reading.timestamp || isNaN(reading.timestamp.getTime())) continue;
-        const ts = reading.timestamp.getTime();
-        if (ts < cutoff) continue;
+    if (timeRange <= 3) {
+      // Short range: use in-memory readingHistory (5min granularity)
+      for (const stationId of chartStations) {
+        const history = readingHistory.get(stationId) || [];
+        for (const reading of history) {
+          if (!reading.timestamp || isNaN(reading.timestamp.getTime())) continue;
+          const ts = reading.timestamp.getTime();
+          if (ts < cutoff) continue;
+          const rounded = Math.round(ts / 300000) * 300000;
+          const existing = timeMap.get(rounded) || { time: rounded };
+          const rawValue = reading[activeMetric];
+          existing[stationId] = needsKnots && rawValue !== null && Number.isFinite(rawValue)
+            ? msToKnots(rawValue) : rawValue;
+          timeMap.set(rounded, existing);
+        }
+      }
+    } else {
+      // Long range: use DB data
+      const dbField = DB_METRIC_MAP[activeMetric];
+      // For hourly aggregates, field names differ
+      const hourlyField = timeRange > 24 ? {
+        windSpeed: 'avg_wind', windGust: 'max_gust', temperature: 'avg_temp',
+        humidity: 'avg_humidity', pressure: 'avg_pressure', dewPoint: null,
+        solarRadiation: null,
+      }[activeMetric] : null;
 
-        // Round to nearest 5 minutes for alignment
-        const rounded = Math.round(ts / 300000) * 300000;
-        const existing = timeMap.get(rounded) || { time: rounded };
-        const rawValue = reading[activeMetric];
-        // Convert wind speed/gust from m/s to knots for display (guard NaN/Infinity)
-        const needsKnots = (activeMetric === 'windSpeed' || activeMetric === 'windGust');
-        existing[stationId] = needsKnots && rawValue !== null && Number.isFinite(rawValue)
-          ? msToKnots(rawValue)
-          : rawValue;
-        timeMap.set(rounded, existing);
+      for (const stationId of chartStations) {
+        const readings = dbData.get(stationId) || [];
+        for (const r of readings) {
+          const ts = new Date(r.time || (r as any).bucket).getTime();
+          if (isNaN(ts) || ts < cutoff) continue;
+          // For hourly, round to hour; for raw, round to 5min
+          const rounded = timeRange > 24
+            ? Math.round(ts / 3600000) * 3600000
+            : Math.round(ts / 300000) * 300000;
+          const existing = timeMap.get(rounded) || { time: rounded };
+          const rawValue = (hourlyField ? (r as any)[hourlyField] : (r as any)[dbField]) as number | null;
+          existing[stationId] = needsKnots && rawValue !== null && Number.isFinite(rawValue)
+            ? msToKnots(rawValue) : rawValue;
+          timeMap.set(rounded, existing);
+        }
+      }
+
+      // Also merge recent in-memory data for the last few minutes (fresher than DB)
+      for (const stationId of chartStations) {
+        const history = readingHistory.get(stationId) || [];
+        for (const reading of history) {
+          if (!reading.timestamp || isNaN(reading.timestamp.getTime())) continue;
+          const ts = reading.timestamp.getTime();
+          // Only merge very recent data (last 30 min) to fill the gap between DB and now
+          if (ts < Date.now() - 30 * 60_000) continue;
+          const rounded = Math.round(ts / 300000) * 300000;
+          const existing = timeMap.get(rounded) || { time: rounded };
+          const rawValue = reading[activeMetric];
+          existing[stationId] = needsKnots && rawValue !== null && Number.isFinite(rawValue)
+            ? msToKnots(rawValue) : rawValue;
+          timeMap.set(rounded, existing);
+        }
       }
     }
 
     return Array.from(timeMap.values()).sort(
       (a, b) => (a.time as number) - (b.time as number)
     );
-  }, [chartStations, readingHistory, activeMetric, timeRange]);
+  }, [chartStations, readingHistory, dbData, activeMetric, timeRange]);
 
   // Station name lookup
   const stationName = (id: string) =>
