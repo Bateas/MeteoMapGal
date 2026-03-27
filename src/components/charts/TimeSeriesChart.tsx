@@ -1,7 +1,8 @@
-import { useMemo, useState, useCallback, lazy, Suspense } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
@@ -11,10 +12,7 @@ import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { escapeCSV } from '../../services/csvUtils';
 import { useToastStore } from '../../store/toastStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import type { WindRosePoint } from '../../types/campo';
 import type { NormalizedReading } from '../../types/station';
-
-const WindRose = lazy(() => import('./WindRose').then(m => ({ default: m.WindRose })));
 
 type MetricKey = 'windSpeed' | 'windGust' | 'temperature' | 'humidity' | 'pressure' | 'dewPoint';
 
@@ -309,7 +307,7 @@ export function TimeSeriesChart() {
       {/* Wind Rose — computed from selected stations' reading history */}
       {(activeMetric === 'windSpeed' || activeMetric === 'windGust') && chartStations.length > 0 && (
         <WindRoseFromHistory
-          stationIds={[chartStations[0]]}
+          stationIds={chartStations}
           readingHistory={readingHistory}
           stationName={stationName}
           timeRange={timeRange}
@@ -347,44 +345,90 @@ function WindRoseFromHistory({ stationIds, readingHistory, stationName, timeRang
   stationName: (id: string) => string;
   timeRange: number;
 }) {
-  const roseData = useMemo(() => {
+  // Compute per-station rose data
+  const perStationData = useMemo(() => {
     const cutoff = Date.now() - timeRange * 60 * 60 * 1000;
-    const dirCounts = new Array(16).fill(0);
-    const dirSpeeds = new Array(16).fill(0);
-    let total = 0;
+    const result: { id: string; name: string; color: string; data: number[] }[] = [];
 
-    for (const stId of stationIds) {
+    for (let si = 0; si < stationIds.length; si++) {
+      const stId = stationIds[si];
+      const dirCounts = new Array(16).fill(0);
+      let total = 0;
+
       const history = readingHistory.get(stId) || [];
       for (const r of history) {
         if (!r.timestamp || r.timestamp.getTime() < cutoff) continue;
         if (r.windDirection == null || r.windSpeed == null || r.windSpeed < 0.3) continue;
         const idx = Math.round(r.windDirection / 22.5) % 16;
         dirCounts[idx]++;
-        dirSpeeds[idx] += msToKnots(r.windSpeed);
         total++;
       }
+
+      if (total > 0) {
+        result.push({
+          id: stId,
+          name: stationName(stId),
+          color: STATION_COLORS[si % STATION_COLORS.length],
+          data: dirCounts.map(c => Math.round((c / total) * 100)),
+        });
+      }
     }
+    return result;
+  }, [stationIds, readingHistory, timeRange, stationName]);
 
-    if (total === 0) return [];
+  if (perStationData.length === 0) return null;
 
-    return DIRECTIONS_16.map((dir, i) => ({
-      direction: dir,
-      count: dirCounts[i],
-      percentage: Math.round((dirCounts[i] / total) * 100),
-      avgSpeed: dirCounts[i] > 0 ? dirSpeeds[i] / dirCounts[i] : 0,
-    } as WindRosePoint));
-  }, [stationIds, readingHistory, timeRange]);
+  // Build chart data: each direction has a percentage per station
+  const chartData = DIRECTIONS_16.map((dir, i) => {
+    const point: Record<string, string | number> = { direction: dir };
+    for (const st of perStationData) {
+      point[st.id] = st.data[i];
+    }
+    return point;
+  });
 
-  if (roseData.length === 0) return null;
+  const maxPct = Math.max(...perStationData.flatMap(s => s.data), 1);
 
   return (
     <div className="bg-slate-800/50 rounded-lg p-2">
       <div className="text-[10px] text-slate-400 text-center mb-1 font-semibold">
-        Rosa de vientos ({stationIds.map(stationName).join(', ')})
+        Rosa de vientos
       </div>
-      <Suspense fallback={<div className="text-[10px] text-slate-500 text-center py-4">Cargando...</div>}>
-        <WindRose data={roseData} size={180} showLabels showSpeedWeight />
-      </Suspense>
+      <ResponsiveContainer width="100%" height={200}>
+        <RadarChart data={chartData}>
+          <PolarGrid stroke="#334155" />
+          <PolarAngleAxis dataKey="direction" tick={{ fill: '#94a3b8', fontSize: 9 }} />
+          <PolarRadiusAxis tick={{ fill: '#64748b', fontSize: 8 }} tickCount={4} domain={[0, Math.ceil(maxPct / 10) * 10]} />
+          {perStationData.map((st) => (
+            <Radar
+              key={st.id}
+              name={st.name}
+              dataKey={st.id}
+              stroke={st.color}
+              fill={st.color}
+              fillOpacity={0.15}
+              strokeWidth={2}
+              isAnimationActive={false}
+            />
+          ))}
+          <Tooltip
+            contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 6, fontSize: 10 }}
+            formatter={(value: number, name: string) => {
+              const st = perStationData.find(s => s.id === name);
+              return [`${value}%`, st?.name ?? name];
+            }}
+          />
+        </RadarChart>
+      </ResponsiveContainer>
+      {/* Legend */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+        {perStationData.map((st) => (
+          <span key={st.id} className="flex items-center gap-1 text-[9px] text-slate-400">
+            <span className="w-2 h-2 rounded-full" style={{ background: st.color }} />
+            {st.name}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
