@@ -32,7 +32,7 @@ import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 
 // ── Constants ──────────────────────────────────────────
 
-type Metric = 'temperature' | 'wind_speed' | 'humidity' | 'pressure';
+type Metric = 'temperature' | 'wind_speed' | 'wind_gust' | 'humidity' | 'pressure' | 'dew_point' | 'solar_rad';
 type TimeRange = '24h' | '7d' | '30d' | 'custom';
 type Interval = 'raw' | 'hourly';
 type ViewMode = 'chart' | 'windrose';
@@ -40,8 +40,11 @@ type ViewMode = 'chart' | 'windrose';
 const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
   { key: 'temperature', label: 'Temp', unit: '°C', color: '#ef4444' },
   { key: 'wind_speed', label: 'Viento', unit: 'kt', color: '#3b82f6' },
+  { key: 'wind_gust', label: 'Racha', unit: 'kt', color: '#f97316' },
   { key: 'humidity', label: 'HR', unit: '%', color: '#22c55e' },
-  { key: 'pressure', label: 'Presión', unit: 'hPa', color: '#a855f7' },
+  { key: 'pressure', label: 'Presion', unit: 'hPa', color: '#a855f7' },
+  { key: 'dew_point', label: 'P. rocio', unit: '°C', color: '#2dd4bf' },
+  { key: 'solar_rad', label: 'Radiacion', unit: 'W/m\u00b2', color: '#fbbf24' },
 ];
 
 const TIME_RANGES: { key: TimeRange; label: string; hours: number }[] = [
@@ -73,21 +76,27 @@ function getMetricValue(
     switch (metric) {
       case 'temperature': val = r.avg_temp; break;
       case 'wind_speed': val = r.avg_wind; break;
+      case 'wind_gust': val = (r as any).max_gust; break;
       case 'humidity': val = r.avg_humidity; break;
       case 'pressure': val = r.avg_pressure; break;
+      case 'dew_point': val = null; break; // no hourly aggregate for dew_point
+      case 'solar_rad': val = null; break; // no hourly aggregate for solar_rad
     }
   } else {
     const r = reading as HistoryReading;
     switch (metric) {
       case 'temperature': val = r.temperature; break;
       case 'wind_speed': val = r.wind_speed; break;
+      case 'wind_gust': val = r.wind_gust; break;
       case 'humidity': val = r.humidity; break;
       case 'pressure': val = r.pressure; break;
+      case 'dew_point': val = r.dew_point; break;
+      case 'solar_rad': val = r.solar_rad; break;
     }
   }
 
   if (val == null) return null;
-  if (metric === 'wind_speed') return Math.round(msToKnots(val) * 10) / 10;
+  if (metric === 'wind_speed' || metric === 'wind_gust') return Math.round(msToKnots(val) * 10) / 10;
   return Math.round(val * 10) / 10;
 }
 
@@ -206,9 +215,14 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
   useEffect(() => {
     if (historyStationId && stations.length > 0) {
       // Find matching station in history list (exact match or prefix match)
-      const match = stations.find(s => s.station_id === historyStationId);
+      const match = stations.find(s => s.station_id === historyStationId)
+        || stations.find(s => s.station_id.toLowerCase() === historyStationId.toLowerCase())
+        || stations.find(s => historyStationId.includes(s.station_id) || s.station_id.includes(historyStationId));
       if (match) {
         setSelectedStation(match.station_id);
+      } else {
+        // Station not in DB list — try loading anyway (it might have recent data)
+        setSelectedStation(historyStationId);
       }
       // Clear the signal after consuming it
       useWeatherSelectionStore.getState().openHistory('');
