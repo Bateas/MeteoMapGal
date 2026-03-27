@@ -168,6 +168,64 @@ export async function fetchCompare(
   return data.readings;
 }
 
+// ── Buoy History ──────────────────────────────────────
+
+export interface BuoyStation {
+  station_id: number;
+  station_name: string;
+  source: string;
+  last_reading: string;
+  reading_count: number;
+}
+
+export interface BuoyHistoryReading {
+  time: string;
+  station_id: number;
+  station_name: string;
+  source: string;
+  wave_height: number | null;
+  wave_height_max: number | null;
+  wave_period: number | null;
+  wave_dir: number | null;
+  wind_speed: number | null;
+  wind_dir: number | null;
+  wind_gust: number | null;
+  water_temp: number | null;
+  air_temp: number | null;
+  air_pressure: number | null;
+  current_speed: number | null;
+  current_dir: number | null;
+  salinity: number | null;
+  sea_level: number | null;
+  humidity: number | null;
+  dew_point: number | null;
+}
+
+/** List all buoy stations with reading counts */
+export async function fetchBuoyStations(): Promise<BuoyStation[]> {
+  const data = await fetchJson<{ count: number; stations: BuoyStation[] }>(
+    `${BASE}/buoys`
+  );
+  return data.stations;
+}
+
+/** Get buoy readings for a station within a time range */
+export async function fetchBuoyReadings(
+  stationId: number,
+  from?: string,
+  to?: string,
+): Promise<BuoyHistoryReading[]> {
+  const data = await fetchJson<{ readings: BuoyHistoryReading[] }>(
+    `${BASE}/buoys/readings`,
+    {
+      station_id: String(stationId),
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+    }
+  );
+  return data.readings;
+}
+
 /** Get aggregate statistics for a station over a period */
 export async function fetchStationStats(
   stationId: string,

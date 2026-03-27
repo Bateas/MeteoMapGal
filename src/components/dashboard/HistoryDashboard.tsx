@@ -17,6 +17,9 @@ import {
   fetchHistoryStations,
   fetchReadings,
   fetchCompare,
+  fetchBuoyStations,
+  fetchBuoyReadings,
+  type BuoyHistoryReading,
   fetchStationStats,
   fetchHealth,
   type HistoryStation,
@@ -105,6 +108,7 @@ function getMetricValue(
 const SOURCE_LABELS: Record<string, string> = {
   aemet: 'AEMET', meteogalicia: 'MG', meteoclimatic: 'MC',
   wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX',
+  portus: 'PORTUS', obscosteiro: 'OBS',
 };
 
 // ── Component ──────────────────────────────────────────
@@ -186,13 +190,31 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
 
     async function load() {
       try {
-        const [stationList, healthData] = await Promise.all([
+        const [stationList, healthData, buoyList] = await Promise.all([
           fetchHistoryStations(),
           fetchHealth(),
+          fetchBuoyStations().catch(() => []),
         ]);
         if (cancelled) return;
 
-        setStations(stationList);
+        // Merge buoy stations into the station list with buoy_ prefix
+        const buoyAsStations: HistoryStation[] = buoyList.map(b => ({
+          station_id: `buoy_${b.station_id}`,
+          source: b.source || 'portus',
+          last_reading: b.last_reading,
+          reading_count: b.reading_count,
+        }));
+
+        // Store buoy names for display
+        for (const b of buoyList) {
+          stationInfo.set(`buoy_${b.station_id}`, {
+            name: b.station_name || `Boya ${b.station_id}`,
+            source: b.source || 'portus',
+          });
+        }
+
+        const allStations = [...stationList, ...buoyAsStations];
+        setStations(allStations);
         setHealth(healthData);
 
         if (!selectedStation && stationList.length > 0) {
@@ -242,11 +264,42 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
         to = new Date().toISOString();
       }
 
-      // Parallel fetches
-      const promises: Promise<any>[] = [
-        fetchReadings(selectedStation, from, to, interval),
-        fetchStationStats(selectedStation, from, to),
-      ];
+      // Detect buoy vs station
+      const isBuoy = selectedStation.startsWith('buoy_');
+      const buoyId = isBuoy ? parseInt(selectedStation.replace('buoy_', ''), 10) : 0;
+
+      // Parallel fetches — use buoy API for buoys, station API for stations
+      const promises: Promise<any>[] = isBuoy
+        ? [
+            fetchBuoyReadings(buoyId, from, to).then(readings =>
+              // Convert buoy readings to HistoryReading-like shape for chart compatibility
+              readings.map(r => ({
+                time: r.time,
+                station_id: selectedStation,
+                source: r.source,
+                temperature: r.air_temp,
+                humidity: r.humidity,
+                wind_speed: r.wind_speed,
+                wind_gust: r.wind_gust,
+                wind_dir: r.wind_dir,
+                pressure: r.air_pressure,
+                dew_point: r.dew_point,
+                precip: null,
+                solar_rad: null,
+                // Buoy-specific fields stored as extra
+                wave_height: r.wave_height,
+                water_temp: r.water_temp,
+                sea_level: r.sea_level,
+                salinity: r.salinity,
+                current_speed: r.current_speed,
+              }))
+            ),
+            Promise.resolve(null), // no stats for buoys
+          ]
+        : [
+            fetchReadings(selectedStation, from, to, interval),
+            fetchStationStats(selectedStation, from, to),
+          ];
 
       // If comparison mode, also fetch compare station
       if (compareMode && compareStation && compareStation !== selectedStation) {
