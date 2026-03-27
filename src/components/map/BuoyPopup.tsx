@@ -72,7 +72,7 @@ function DataCell({ label, value, color, large }: {
 export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
   const selectBuoy = useBuoyStore((s) => s.selectBuoy);
   const isMobile = useUIStore((s) => s.isMobile);
-  const chartStations = useWeatherSelectionStore((s) => s.chartStations);
+  const chartStations = useWeatherSelectionStore((s) => s.chartSelectedStations);
   const info = getBuoyInfo(reading.stationId);
   const dismiss = () => selectBuoy(null);
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
