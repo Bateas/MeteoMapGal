@@ -67,14 +67,20 @@ export function Sidebar() {
     }
   }, [requestedTab, activeTab, setRequestedTab]);
 
-  // When on History tab, clicking a station on map auto-loads its history
+  // When on History tab, clicking a station/buoy on map auto-loads its history
   const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
   const openHistory = useWeatherSelectionStore((s) => s.openHistory);
+  const selectedBuoyId = useBuoyStore((s) => s.selectedBuoyId);
   useEffect(() => {
     if (activeTab === 'history' && selectedStationId) {
       openHistory(selectedStationId);
     }
   }, [activeTab, selectedStationId, openHistory]);
+  useEffect(() => {
+    if (activeTab === 'history' && selectedBuoyId != null) {
+      openHistory(`buoy_${selectedBuoyId}`);
+    }
+  }, [activeTab, selectedBuoyId, openHistory]);
 
   // Compact tabs — wrap to multiple rows so all tabs are always visible
   const tabBase = isMobile
