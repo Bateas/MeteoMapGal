@@ -632,8 +632,16 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
             )}
 
             {!loading && !error && chartData.length === 0 && (
-              <div className="flex items-center justify-center h-[180px] text-slate-500 text-[10px]">
-                Sin datos para este rango
+              <div className="flex flex-col items-center justify-center h-[180px] text-slate-500 text-[10px] gap-1">
+                <span>Sin datos para este rango</span>
+                {stats?.last_reading && (
+                  <span className="text-slate-600">
+                    Ultima lectura: {new Date(stats.last_reading).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+                {!stats?.last_reading && selectedStation && (
+                  <span className="text-slate-600">Prueba a ampliar el rango (7d, 30d)</span>
+                )}
               </div>
             )}
 
