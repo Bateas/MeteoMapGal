@@ -214,16 +214,11 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
   // ── React to external station selection (popup/map click) ────
   useEffect(() => {
     if (historyStationId && stations.length > 0) {
-      // Find matching station in history list (exact match or prefix match)
+      // Exact match first, then case-insensitive. No partial matching (causes false positives)
       const match = stations.find(s => s.station_id === historyStationId)
-        || stations.find(s => s.station_id.toLowerCase() === historyStationId.toLowerCase())
-        || stations.find(s => historyStationId.includes(s.station_id) || s.station_id.includes(historyStationId));
-      if (match) {
-        setSelectedStation(match.station_id);
-      } else {
-        // Station not in DB list — try loading anyway (it might have recent data)
-        setSelectedStation(historyStationId);
-      }
+        || stations.find(s => s.station_id.toLowerCase() === historyStationId.toLowerCase());
+      // Always set the station — even if not in DB list, fetchData will try to load it
+      setSelectedStation(match ? match.station_id : historyStationId);
       // Clear the signal after consuming it
       useWeatherSelectionStore.getState().openHistory('');
     }
