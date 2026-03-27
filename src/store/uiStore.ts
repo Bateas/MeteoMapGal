@@ -18,7 +18,10 @@ interface UIState {
   feedbackOpen: boolean;
   onboardingStep: number | null;
   onboardingCompleted: boolean;
+  /** Requested sidebar tab — set by external components to switch tabs */
+  requestedTab: string | null;
   setFeedbackOpen: (open: boolean) => void;
+  setRequestedTab: (tab: string | null) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   toggleGuide: () => void;
@@ -46,7 +49,9 @@ export const useUIStore = create<UIState>()(
       feedbackOpen: false,
       onboardingStep: null,
       onboardingCompleted: false,
+      requestedTab: null,
       setFeedbackOpen: (open) => set({ feedbackOpen: open }),
+      setRequestedTab: (tab) => set({ requestedTab: tab }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleGuide: () => set((s) => ({ guideOpen: !s.guideOpen })),
