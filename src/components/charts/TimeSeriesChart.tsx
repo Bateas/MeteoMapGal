@@ -16,12 +16,15 @@ import type { NormalizedReading } from '../../types/station';
 
 const WindRose = lazy(() => import('./WindRose').then(m => ({ default: m.WindRose })));
 
-type MetricKey = 'windSpeed' | 'temperature' | 'humidity';
+type MetricKey = 'windSpeed' | 'windGust' | 'temperature' | 'humidity' | 'pressure' | 'dewPoint';
 
 const METRICS: { key: MetricKey; label: string; unit: string; color: string }[] = [
   { key: 'windSpeed', label: 'Viento', unit: 'kt', color: '#3b82f6' },
-  { key: 'temperature', label: 'Temperatura', unit: '°C', color: '#ef4444' },
-  { key: 'humidity', label: 'Humedad', unit: '%', color: '#06b6d4' },
+  { key: 'windGust', label: 'Racha', unit: 'kt', color: '#f97316' },
+  { key: 'temperature', label: 'Temp', unit: '°C', color: '#ef4444' },
+  { key: 'humidity', label: 'HR', unit: '%', color: '#06b6d4' },
+  { key: 'pressure', label: 'Presion', unit: 'hPa', color: '#a78bfa' },
+  { key: 'dewPoint', label: 'P. rocio', unit: '°C', color: '#2dd4bf' },
 ];
 
 const STATION_COLORS = [
@@ -78,8 +81,9 @@ export function TimeSeriesChart() {
         const rounded = Math.round(ts / 300000) * 300000;
         const existing = timeMap.get(rounded) || { time: rounded };
         const rawValue = reading[activeMetric];
-        // Convert wind speed from m/s to knots for display (guard NaN/Infinity)
-        existing[stationId] = activeMetric === 'windSpeed' && rawValue !== null && Number.isFinite(rawValue)
+        // Convert wind speed/gust from m/s to knots for display (guard NaN/Infinity)
+        const needsKnots = (activeMetric === 'windSpeed' || activeMetric === 'windGust');
+        existing[stationId] = needsKnots && rawValue !== null && Number.isFinite(rawValue)
           ? msToKnots(rawValue)
           : rawValue;
         timeMap.set(rounded, existing);
@@ -303,7 +307,7 @@ export function TimeSeriesChart() {
       </div>
 
       {/* Wind Rose — computed from selected stations' reading history */}
-      {activeMetric === 'windSpeed' && chartStations.length > 0 && (
+      {(activeMetric === 'windSpeed' || activeMetric === 'windGust') && chartStations.length > 0 && (
         <WindRoseFromHistory
           stationIds={chartStations}
           readingHistory={readingHistory}
@@ -366,7 +370,7 @@ function WindRoseFromHistory({ stationIds, readingHistory, stationName, timeRang
     return DIRECTIONS_16.map((dir, i) => ({
       direction: dir,
       count: dirCounts[i],
-      pct: Math.round((dirCounts[i] / total) * 100),
+      percentage: Math.round((dirCounts[i] / total) * 100),
       avgSpeed: dirCounts[i] > 0 ? dirSpeeds[i] / dirCounts[i] : 0,
     } as WindRosePoint));
   }, [stationIds, readingHistory, timeRange]);
