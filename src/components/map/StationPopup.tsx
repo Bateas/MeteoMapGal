@@ -261,8 +261,8 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
         onClick={() => toggleChartStation(station.id)}
         className={`mt-2 w-full py-1 px-2 text-[11px] font-semibold border rounded cursor-pointer transition-colors
           ${isInChart
-            ? 'bg-blue-50 text-blue-500 border-blue-200 hover:bg-blue-100'
-            : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+            ? 'border-amber-600 bg-amber-900/30 text-amber-400 hover:bg-amber-900/50'
+            : 'border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-300'
           }`}
       >
         {isInChart ? 'Quitar de gráfica' : 'Añadir a gráfica'}
@@ -271,7 +271,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
       {/* View history button — all sources have DB history */}
       <button
         onClick={() => { openHistory(station.id); setRequestedTab('history'); }}
-        className="mt-1 w-full py-1 px-2 text-[11px] font-semibold border rounded cursor-pointer transition-colors bg-white text-amber-600 border-amber-200 hover:bg-amber-50"
+        className="mt-1 w-full py-1 px-2 text-[11px] font-semibold border rounded cursor-pointer transition-colors border-cyan-700 bg-slate-800 hover:bg-cyan-900/30 text-cyan-400"
       >
         Ver historial
       </button>

@@ -21,11 +21,19 @@ const NETATMO_API = 'https://app.netatmo.net';
 
 const TIMEOUT = 15_000;
 
-/** Check if a point is within ANY sector */
+/** Check if a point is within ANY sector (main radius OR extra coverage points) */
 function inAnySector(lat: number, lon: number): boolean {
-  return SECTORS.some((s) =>
-    isWithinRadius(s.center[1], s.center[0], lat, lon, s.radiusKm)
-  );
+  return SECTORS.some((s) => {
+    // Main sector radius
+    if (isWithinRadius(s.center[1], s.center[0], lat, lon, s.radiusKm)) return true;
+    // Extra coverage points (15km radius around each)
+    if (s.extraCoveragePoints) {
+      return s.extraCoveragePoints.some((p) =>
+        isWithinRadius(p.lat, p.lon, lat, lon, 15)
+      );
+    }
+    return false;
+  });
 }
 
 // ── AEMET ─────────────────────────────────────────────
