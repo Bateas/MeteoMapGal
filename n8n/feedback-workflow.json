@@ -1,0 +1,89 @@
+{
+  "name": "MeteoMapGal Feedback",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meteomap-feedback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-feedback",
+      "name": "Webhook Feedback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Anti-bot: check honeypot\nconst d = $input.first().json.body || $input.first().json;\nif (d.website) {\n  // Bot filled the honeypot field\n  return [{ json: { blocked: true, reason: 'honeypot' } }];\n}\n\nconst text = (d.text || '').trim();\nconst type = (d.type || 'otro').trim();\nconst sector = (d.sector || '').trim();\n\n// Validation\nif (!text || text.length < 10) {\n  return [{ json: { blocked: true, reason: 'too_short' } }];\n}\nif (text.length > 300) {\n  return [{ json: { blocked: true, reason: 'too_long' } }];\n}\n\n// Sanitize: only allow safe chars (letters, numbers, basic punctuation)\n// Strip HTML, formulas, control characters\nlet clean = text\n  .replace(/<[^>]*>/g, '')           // strip HTML tags\n  .replace(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]/g, '') // control chars\n  .replace(/[{}\\[\\]\\\\|`~^]/g, '')    // dangerous chars\n  .trim();\n\n// Escape Google Sheets formula injection\nif (/^[=+\\-@]/.test(clean)) {\n  clean = \"'\" + clean;\n}\n\nif (clean.length < 10) {\n  return [{ json: { blocked: true, reason: 'sanitized_too_short' } }];\n}\n\nconst now = new Date();\nreturn [{ json: {\n  blocked: false,\n  timestamp: now.toISOString(),\n  date: now.toLocaleDateString('es-ES'),\n  time: now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),\n  type: ['sugerencia', 'bug', 'otro'].includes(type) ? type : 'otro',\n  sector: sector.substring(0, 30),\n  text: clean.substring(0, 300),\n} }];"
+      },
+      "id": "sanitize-feedback",
+      "name": "Sanitizar y Validar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "filter-blocked",
+              "leftValue": "={{ $json.blocked }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-valid",
+      "name": "Filtro Validos",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true}",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true}",
+        "options": {}
+      },
+      "id": "respond-blocked",
+      "name": "Responder Blocked",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [910, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Feedback": {
+      "main": [[{ "node": "Sanitizar y Validar", "type": "main", "index": 0 }]]
+    },
+    "Sanitizar y Validar": {
+      "main": [[{ "node": "Filtro Validos", "type": "main", "index": 0 }]]
+    },
+    "Filtro Validos": {
+      "main": [
+        [{ "node": "Responder OK", "type": "main", "index": 0 }],
+        [{ "node": "Responder Blocked", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "MeteoMapGal" }]
+}
