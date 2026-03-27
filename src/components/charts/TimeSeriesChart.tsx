@@ -309,7 +309,7 @@ export function TimeSeriesChart() {
       {/* Wind Rose — computed from selected stations' reading history */}
       {(activeMetric === 'windSpeed' || activeMetric === 'windGust') && chartStations.length > 0 && (
         <WindRoseFromHistory
-          stationIds={chartStations}
+          stationIds={[chartStations[0]]}
           readingHistory={readingHistory}
           stationName={stationName}
           timeRange={timeRange}
