@@ -12,7 +12,7 @@ import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { escapeCSV } from '../../services/csvUtils';
 import { useToastStore } from '../../store/toastStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import { fetchReadings, type HistoryReading } from '../../api/historyClient';
+import { fetchReadings, fetchBuoyReadings, type HistoryReading } from '../../api/historyClient';
 import type { NormalizedReading } from '../../types/station';
 
 type MetricKey = 'windSpeed' | 'windGust' | 'temperature' | 'humidity' | 'pressure' | 'dewPoint' | 'solarRadiation';
@@ -66,9 +66,12 @@ export function TimeSeriesChart() {
 
   const metric = METRICS.find((m) => m.key === activeMetric)!;
 
-  // ── Fetch from DB for ranges > 3h ─────────────────
+  // ── Fetch from DB for ranges > 3h (or always for buoys) ───
+  const hasBuoys = chartStations.some(id => id.startsWith('buoy_'));
   useEffect(() => {
-    if (chartStations.length === 0 || timeRange <= 3) {
+    // Buoys always need DB fetch (no in-memory data). Stations need DB for >3h.
+    const needsDb = hasBuoys || timeRange > 3;
+    if (chartStations.length === 0 || !needsDb) {
       setDbData(new Map());
       return;
     }
@@ -82,11 +85,33 @@ export function TimeSeriesChart() {
 
     const from = new Date(Date.now() - timeRange * 60 * 60 * 1000).toISOString();
     const to = new Date().toISOString();
-    // Use hourly aggregates for >24h, raw for 6-24h
     const interval = timeRange > 24 ? 'hourly' as const : 'raw' as const;
 
     Promise.allSettled(
       chartStations.map(async (stationId) => {
+        if (stationId.startsWith('buoy_')) {
+          // Buoy: fetch from buoy API and convert to HistoryReading shape
+          const buoyId = parseInt(stationId.replace('buoy_', ''), 10);
+          const buoyReadings = await fetchBuoyReadings(buoyId, from, to);
+          return {
+            stationId,
+            readings: buoyReadings.map(r => ({
+              time: r.time,
+              station_id: stationId,
+              source: r.source,
+              temperature: r.air_temp,
+              humidity: r.humidity,
+              wind_speed: r.wind_speed,
+              wind_gust: r.wind_gust,
+              wind_dir: r.wind_dir,
+              pressure: r.air_pressure,
+              dew_point: r.dew_point,
+              precip: null,
+              solar_rad: null,
+            })) as HistoryReading[],
+          };
+        }
+        // Station: regular fetch
         const readings = await fetchReadings(stationId, from, to, interval);
         return { stationId, readings: readings as HistoryReading[] };
       })
@@ -124,8 +149,8 @@ export function TimeSeriesChart() {
     const timeMap = new Map<number, Record<string, number | null>>();
     const needsKnots = (activeMetric === 'windSpeed' || activeMetric === 'windGust');
 
-    if (timeRange <= 3) {
-      // Short range: use in-memory readingHistory (5min granularity)
+    if (timeRange <= 3 && !hasBuoys) {
+      // Short range (no buoys): use in-memory readingHistory (5min granularity)
       for (const stationId of chartStations) {
         const history = readingHistory.get(stationId) || [];
         for (const reading of history) {
