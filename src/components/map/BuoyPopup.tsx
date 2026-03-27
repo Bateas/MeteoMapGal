@@ -11,6 +11,7 @@ import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
+import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { msToKnots, degreesToCardinal, windSpeedColor, temperatureColor } from '../../services/windUtils';
 import { waveHeightColor, waterTempColor, currentSpeedColor, seaStateLabel } from '../../services/buoyUtils';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
@@ -141,6 +142,31 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
       {/* Timestamp */}
       <div className="text-[10px] text-slate-400 mt-2 pt-1.5 border-t border-slate-700">
         {reading.timestamp ? timeAgoEs(reading.timestamp) : 'Hora desconocida'}
+      </div>
+
+      {/* Action buttons — same as station popup */}
+      <div className="mt-2 flex flex-col gap-1">
+        <button
+          onClick={() => {
+            const buoyChartId = `buoy_${reading.stationId}`;
+            useWeatherSelectionStore.getState().toggleChartStation(buoyChartId);
+          }}
+          className="w-full text-xs py-1.5 rounded border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-300"
+        >
+          Anadir a grafica
+        </button>
+        <button
+          onClick={() => {
+            const buoyHistId = `buoy_${reading.stationId}`;
+            useWeatherSelectionStore.getState().openHistory(buoyHistId);
+            // Switch to history tab
+            const sidebar = document.querySelector('[aria-controls="tabpanel-history"]') as HTMLButtonElement | null;
+            sidebar?.click();
+          }}
+          className="w-full text-xs py-1.5 rounded border border-cyan-700 bg-transparent hover:bg-cyan-900/30 text-cyan-400"
+        >
+          Ver historial
+        </button>
       </div>
     </div>
   );
