@@ -72,9 +72,12 @@ function DataCell({ label, value, color, large }: {
 export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
   const selectBuoy = useBuoyStore((s) => s.selectBuoy);
   const isMobile = useUIStore((s) => s.isMobile);
+  const chartStations = useWeatherSelectionStore((s) => s.chartStations);
   const info = getBuoyInfo(reading.stationId);
   const dismiss = () => selectBuoy(null);
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
+  const buoyChartId = `buoy_${reading.stationId}`;
+  const isInChart = chartStations.includes(buoyChartId);
 
   if (!info) return null;
 
@@ -144,26 +147,27 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
         {reading.timestamp ? timeAgoEs(reading.timestamp) : 'Hora desconocida'}
       </div>
 
-      {/* Action buttons — same as station popup */}
+      {/* Action buttons */}
       <div className="mt-2 flex flex-col gap-1">
         <button
           onClick={() => {
-            const buoyChartId = `buoy_${reading.stationId}`;
             useWeatherSelectionStore.getState().toggleChartStation(buoyChartId);
           }}
-          className="w-full text-xs py-1.5 rounded border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-300"
+          className={`w-full text-xs py-1.5 rounded border ${
+            isInChart
+              ? 'border-amber-600 bg-amber-900/30 text-amber-400 hover:bg-amber-900/50'
+              : 'border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-300'
+          }`}
         >
-          Anadir a grafica
+          {isInChart ? 'Quitar de grafica' : 'Añadir a grafica'}
         </button>
         <button
           onClick={() => {
-            const buoyHistId = `buoy_${reading.stationId}`;
-            useWeatherSelectionStore.getState().openHistory(buoyHistId);
-            // Switch to history tab
+            useWeatherSelectionStore.getState().openHistory(buoyChartId);
             const sidebar = document.querySelector('[aria-controls="tabpanel-history"]') as HTMLButtonElement | null;
             sidebar?.click();
           }}
-          className="w-full text-xs py-1.5 rounded border border-cyan-700 bg-transparent hover:bg-cyan-900/30 text-cyan-400"
+          className="w-full text-xs py-1.5 rounded border border-cyan-700 bg-slate-800 hover:bg-cyan-900/30 text-cyan-400"
         >
           Ver historial
         </button>
