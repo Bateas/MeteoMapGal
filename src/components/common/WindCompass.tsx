@@ -15,10 +15,11 @@ export function WindCompass({ direction, speed, size = 48 }: WindCompassProps) {
   const half = size / 2;
   const ringR = half - 4;
   const color = windSpeedColor(speed);
-  const hasWind = direction !== null && speed !== null && speed >= 0.3;
+  const hasDirection = direction !== null && speed !== null && speed >= 0.3;
+  const hasSpeedOnly = !hasDirection && speed !== null && speed >= 0.3;
 
   // Arrow points where wind goes TO
-  const arrowRotation = hasWind ? (direction! + 180) % 360 : 0;
+  const arrowRotation = hasDirection ? (direction! + 180) % 360 : 0;
   const arrowLen = ringR - 4;
 
   return (
@@ -56,7 +57,7 @@ export function WindCompass({ direction, speed, size = 48 }: WindCompassProps) {
         <text x={half} y={size - 1} textAnchor="middle" fontSize={6} fill="#64748b">S</text>
         <text x={3} y={half + 2.5} textAnchor="middle" fontSize={6} fill="#64748b">W</text>
 
-        {hasWind ? (
+        {hasDirection ? (
           /* Wind arrow */
           <g transform={`rotate(${arrowRotation}, ${half}, ${half})`}>
             {/* Shaft */}
@@ -75,6 +76,12 @@ export function WindCompass({ direction, speed, size = 48 }: WindCompassProps) {
             {/* Tail circle */}
             <circle cx={half} cy={half} r={2.5} fill={color} />
           </g>
+        ) : hasSpeedOnly ? (
+          /* Speed but no direction: dot with wind color */
+          <>
+            <circle cx={half} cy={half} r={5} fill={color} opacity={0.6} />
+            <circle cx={half} cy={half} r={3} fill={color} />
+          </>
         ) : (
           /* No wind: calm indicator */
           <circle cx={half} cy={half} r={3} fill="#475569" />
@@ -82,9 +89,13 @@ export function WindCompass({ direction, speed, size = 48 }: WindCompassProps) {
       </svg>
 
       {/* Text label below */}
-      {hasWind ? (
+      {hasDirection ? (
         <div className="text-[10px] font-semibold text-center leading-tight" style={{ color }}>
           {degreesToCardinal(direction!)} {Math.round(direction!)}°
+        </div>
+      ) : hasSpeedOnly ? (
+        <div className="text-[10px] font-semibold text-center leading-tight" style={{ color }}>
+          Sin veleta
         </div>
       ) : (
         <div className="text-[10px] text-slate-500 text-center">Calma</div>
