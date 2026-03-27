@@ -101,6 +101,9 @@ const SOURCE_LABELS: Record<string, string> = {
 // ── Component ──────────────────────────────────────────
 
 export const HistoryDashboard = memo(function HistoryDashboard() {
+  // Listen for external station selection (from popup "Ver historial" or map click)
+  const historyStationId = useWeatherSelectionStore((s) => s.historyStationId);
+
   // Core state
   const [stations, setStations] = useState<HistoryStation[]>([]);
   const [selectedStation, setSelectedStation] = useState('');
@@ -198,6 +201,19 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
     load();
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── React to external station selection (popup/map click) ────
+  useEffect(() => {
+    if (historyStationId && stations.length > 0) {
+      // Find matching station in history list (exact match or prefix match)
+      const match = stations.find(s => s.station_id === historyStationId);
+      if (match) {
+        setSelectedStation(match.station_id);
+      }
+      // Clear the signal after consuming it
+      useWeatherSelectionStore.getState().openHistory('');
+    }
+  }, [historyStationId, stations]);
 
   // ── Fetch readings when station/range changes ────
   const fetchData = useCallback(async () => {
