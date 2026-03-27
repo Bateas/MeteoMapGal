@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, lazy, Suspense } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
@@ -7,10 +7,14 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { msToKnots } from '../../services/windUtils';
+import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { escapeCSV } from '../../services/csvUtils';
 import { useToastStore } from '../../store/toastStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import type { WindRosePoint } from '../../types/campo';
+import type { NormalizedReading } from '../../types/station';
+
+const WindRose = lazy(() => import('./WindRose').then(m => ({ default: m.WindRose })));
 
 type MetricKey = 'windSpeed' | 'temperature' | 'humidity';
 
@@ -298,6 +302,16 @@ export function TimeSeriesChart() {
         )}
       </div>
 
+      {/* Wind Rose — computed from selected stations' reading history */}
+      {activeMetric === 'windSpeed' && chartStations.length > 0 && (
+        <WindRoseFromHistory
+          stationIds={chartStations}
+          readingHistory={readingHistory}
+          stationName={stationName}
+          timeRange={timeRange}
+        />
+      )}
+
       {/* Selected stations chips */}
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Estaciones seleccionadas">
         {chartStations.map((id, i) => (
@@ -316,6 +330,57 @@ export function TimeSeriesChart() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Wind Rose from in-memory reading history ────────────
+const DIRECTIONS_16 = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+
+function WindRoseFromHistory({ stationIds, readingHistory, stationName, timeRange }: {
+  stationIds: string[];
+  readingHistory: Map<string, NormalizedReading[]>;
+  stationName: (id: string) => string;
+  timeRange: number;
+}) {
+  const roseData = useMemo(() => {
+    const cutoff = Date.now() - timeRange * 60 * 60 * 1000;
+    const dirCounts = new Array(16).fill(0);
+    const dirSpeeds = new Array(16).fill(0);
+    let total = 0;
+
+    for (const stId of stationIds) {
+      const history = readingHistory.get(stId) || [];
+      for (const r of history) {
+        if (!r.timestamp || r.timestamp.getTime() < cutoff) continue;
+        if (r.windDirection == null || r.windSpeed == null || r.windSpeed < 0.3) continue;
+        const idx = Math.round(r.windDirection / 22.5) % 16;
+        dirCounts[idx]++;
+        dirSpeeds[idx] += msToKnots(r.windSpeed);
+        total++;
+      }
+    }
+
+    if (total === 0) return [];
+
+    return DIRECTIONS_16.map((dir, i) => ({
+      direction: dir,
+      count: dirCounts[i],
+      pct: Math.round((dirCounts[i] / total) * 100),
+      avgSpeed: dirCounts[i] > 0 ? dirSpeeds[i] / dirCounts[i] : 0,
+    } as WindRosePoint));
+  }, [stationIds, readingHistory, timeRange]);
+
+  if (roseData.length === 0) return null;
+
+  return (
+    <div className="bg-slate-800/50 rounded-lg p-2">
+      <div className="text-[10px] text-slate-400 text-center mb-1 font-semibold">
+        Rosa de vientos ({stationIds.map(stationName).join(', ')})
+      </div>
+      <Suspense fallback={<div className="text-[10px] text-slate-500 text-center py-4">Cargando...</div>}>
+        <WindRose data={roseData} size={180} showLabels showSpeedWeight />
+      </Suspense>
     </div>
   );
 }
