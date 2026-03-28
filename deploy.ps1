@@ -1,10 +1,10 @@
 # ─────────────────────────────────────────────────────────────
-# MeteoMap — Deploy to LXC Container on Proxmox (Windows/PowerShell)
+# MeteoMap — Deploy Script (Windows/PowerShell)
 # ─────────────────────────────────────────────────────────────
-# Builds locally, then scp's dist + nginx config to LXC.
+# Builds locally, then scp's dist + nginx config to server.
 #
 # Prerequisites:
-#   1. LXC container with lxc-setup.sh executed
+#   1. SSH access to target server (key-based recommended)
 #   2. SSH access to LXC (OpenSSH client on Windows 10+)
 #   3. deploy.env configured (see deploy.env.example)
 #   4. .env with VITE_AEMET_API_KEY
@@ -13,7 +13,7 @@
 #   .\deploy.ps1              # Full build + deploy
 #   .\deploy.ps1 -BuildOnly   # Build without deploying
 #   .\deploy.ps1 -PushOnly    # Skip build, push existing dist/
-#   .\deploy.ps1 -Setup       # Run lxc-setup.sh on remote LXC
+#   .\deploy.ps1 -Setup       # Run remote server setup
 # ─────────────────────────────────────────────────────────────
 
 param(
@@ -47,16 +47,16 @@ Load-EnvFile "deploy.env"
 
 # ── Config ───────────────────────────────────────────────────
 
-$LXC_HOST = $env:LXC_HOST
-$LXC_USER = if ($env:LXC_USER) { $env:LXC_USER } else { "root" }
-$LXC_PORT = if ($env:LXC_PORT) { $env:LXC_PORT } else { "22" }
+$DEPLOY_HOST = $env:DEPLOY_HOST
+$DEPLOY_USER = if ($env:DEPLOY_USER) { $env:DEPLOY_USER } else { "root" }
+$DEPLOY_PORT = if ($env:DEPLOY_PORT) { $env:DEPLOY_PORT } else { "22" }
 $SSH_KEY  = $env:SSH_KEY
 
-$REMOTE = "${LXC_USER}@${LXC_HOST}"
+$REMOTE = "${DEPLOY_USER}@${DEPLOY_HOST}"
 $REMOTE_WEB = "/var/www/meteomap"
 $REMOTE_NGINX = "/etc/nginx/sites-available/meteomap.conf"
 
-$SSH_OPTS = @("-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=10", "-p", $LXC_PORT)
+$SSH_OPTS = @("-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=10", "-p", $DEPLOY_PORT)
 if ($SSH_KEY) { $SSH_OPTS += @("-i", $SSH_KEY) }
 
 function Invoke-SSH {
@@ -66,8 +66,8 @@ function Invoke-SSH {
 }
 
 function Test-LXCConnection {
-    if (-not $LXC_HOST) {
-        Write-Host "ERROR: LXC_HOST not set." -ForegroundColor Red
+    if (-not $DEPLOY_HOST) {
+        Write-Host "ERROR: DEPLOY_HOST not set." -ForegroundColor Red
         Write-Host "  Create deploy.env from deploy.env.example:"
         Write-Host "  copy deploy.env.example deploy.env"
         exit 1
@@ -78,12 +78,12 @@ function Test-LXCConnection {
         & ssh @SSH_OPTS $REMOTE "echo ok" 2>$null | Out-Null
         Write-Host "    ✓ SSH connection OK" -ForegroundColor Green
     } catch {
-        Write-Host "ERROR: Cannot SSH to ${REMOTE} on port ${LXC_PORT}" -ForegroundColor Red
+        Write-Host "ERROR: Cannot SSH to ${REMOTE} on port ${DEPLOY_PORT}" -ForegroundColor Red
         Write-Host ""
         Write-Host "  Troubleshooting:"
-        Write-Host "  1. Check LXC_HOST IP in deploy.env"
+        Write-Host "  1. Check DEPLOY_HOST IP in deploy.env"
         Write-Host "  2. Ensure SSH is installed in LXC: apt install openssh-server"
-        Write-Host "  3. Copy your SSH key: ssh-copy-id -p ${LXC_PORT} ${REMOTE}"
+        Write-Host "  3. Copy your SSH key: ssh-copy-id -p ${DEPLOY_PORT} ${REMOTE}"
         exit 1
     }
 }
@@ -174,6 +174,6 @@ Write-Host ""
 Write-Host "══════════════════════════════════════════════════════════" -ForegroundColor Green
 Write-Host "  ✓ MeteoMap deployed to LXC!" -ForegroundColor Green
 Write-Host "" -ForegroundColor Green
-Write-Host "  URL:  http://${LXC_HOST}/" -ForegroundColor Green
+Write-Host "  URL:  http://${DEPLOY_HOST}/" -ForegroundColor Green
 Write-Host "  Logs: ssh ${REMOTE} journalctl -u nginx -f" -ForegroundColor Green
 Write-Host "══════════════════════════════════════════════════════════" -ForegroundColor Green

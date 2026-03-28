@@ -1,20 +1,18 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────
-# MeteoMapGal — Deploy to LXC Container on Proxmox
+# MeteoMapGal — Deploy Script
 # ─────────────────────────────────────────────────────────────
-# Builds locally, then rsync's dist + nginx config to LXC.
+# Builds locally, then rsync's dist + nginx config to server.
 #
 # Prerequisites:
-#   1. LXC container created & lxc-setup.sh executed
-#   2. SSH access to LXC (key-based recommended)
-#   3. deploy.env configured (see deploy.env.example)
-#   4. .env with VITE_AEMET_API_KEY
+#   1. SSH access to target server (key-based recommended)
+#   2. deploy.env configured (see deploy.env.example)
+#   3. .env with VITE_AEMET_API_KEY
 #
 # Usage:
 #   ./deploy.sh              # Full build + deploy
 #   ./deploy.sh --build-only # Build without deploying
 #   ./deploy.sh --push-only  # Skip build, push existing dist/
-#   ./deploy.sh --setup      # Run lxc-setup.sh on remote LXC
 # ─────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -38,17 +36,17 @@ fi
 
 # ── Validate config ──────────────────────────────────────────
 
-LXC_HOST="${LXC_HOST:-}"
-LXC_USER="${LXC_USER:-root}"
-LXC_PORT="${LXC_PORT:-22}"
+DEPLOY_HOST="${DEPLOY_HOST:-}"
+DEPLOY_USER="${DEPLOY_USER:-root}"
+DEPLOY_PORT="${DEPLOY_PORT:-22}"
 SSH_KEY="${SSH_KEY:-}"
 
-SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10 -p ${LXC_PORT}"
+SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10 -p ${DEPLOY_PORT}"
 if [ -n "$SSH_KEY" ]; then
   SSH_OPTS="$SSH_OPTS -i $SSH_KEY"
 fi
 
-REMOTE="${LXC_USER}@${LXC_HOST}"
+REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
 REMOTE_WEB="/var/www/meteomapgal"
 REMOTE_NGINX="/etc/nginx/sites-available/meteomap.conf"
 
@@ -64,8 +62,8 @@ rsync_cmd() {
 }
 
 check_lxc_connection() {
-  if [ -z "$LXC_HOST" ]; then
-    echo "ERROR: LXC_HOST not set."
+  if [ -z "$DEPLOY_HOST" ]; then
+    echo "ERROR: DEPLOY_HOST not set."
     echo "  Create deploy.env from deploy.env.example:"
     echo "  cp deploy.env.example deploy.env"
     exit 1
@@ -73,12 +71,12 @@ check_lxc_connection() {
 
   echo "==> Testing SSH connection to ${REMOTE}..."
   if ! ssh_cmd "echo ok" &>/dev/null; then
-    echo "ERROR: Cannot SSH to ${REMOTE} on port ${LXC_PORT}"
+    echo "ERROR: Cannot SSH to ${REMOTE} on port ${DEPLOY_PORT}"
     echo ""
     echo "  Troubleshooting:"
-    echo "  1. Check LXC_HOST IP in deploy.env"
-    echo "  2. Ensure SSH is running: pct exec <CTID> -- systemctl status sshd"
-    echo "  3. Copy your SSH key: ssh-copy-id -p ${LXC_PORT} ${REMOTE}"
+    echo "  1. Check DEPLOY_HOST IP in deploy.env"
+    echo "  2. Ensure SSH is running: systemctl status sshd"
+    echo "  3. Copy your SSH key: ssh-copy-id -p ${DEPLOY_PORT} ${REMOTE}"
     exit 1
   fi
   echo "    ✓ SSH connection OK"
@@ -88,8 +86,7 @@ check_lxc_connection() {
 
 if [ "${1:-}" = "--setup" ]; then
   check_lxc_connection
-  echo "==> Running lxc-setup.sh on ${REMOTE}..."
-  ssh_cmd "bash -s" < lxc-setup.sh
+  echo "==> Setting up server: ${REMOTE}..."
   exit 0
 fi
 
@@ -102,7 +99,7 @@ if [ "${1:-}" != "--push-only" ]; then
   fi
 
   echo "══════════════════════════════════════════════════════════"
-  echo "  MeteoMapGal — Build + Deploy to LXC"
+  echo "  MeteoMapGal — Build + Deploy"
   echo "══════════════════════════════════════════════════════════"
   echo ""
 
@@ -128,7 +125,7 @@ if [ ! -d "dist" ]; then
   exit 1
 fi
 
-# ── Step 3: Deploy to LXC ────────────────────────────────────
+# ── Step 3: Deploy to server ────────────────────────────────────
 
 check_lxc_connection
 
@@ -173,8 +170,8 @@ fi
 
 echo ""
 echo "══════════════════════════════════════════════════════════"
-echo "  ✓ MeteoMapGal deployed to LXC!"
+echo "  ✓ MeteoMapGal deployed!"
 echo ""
-echo "  URL:  http://${LXC_HOST}/"
+echo "  URL:  http://${DEPLOY_HOST}/"
 echo "  Logs: ssh ${REMOTE} journalctl -u nginx -f"
 echo "══════════════════════════════════════════════════════════"

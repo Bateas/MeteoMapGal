@@ -29,8 +29,10 @@ dist-ssr
 *.sln
 *.sw?
 
-# Claude Code local settings (may contain infrastructure IPs)
-.claude/settings.local.json
+# Claude Code — never commit to public repos
+.claude/
+CLAUDE.md
+src/services/CLAUDE.md
 
 # Playwright MCP debugging artifacts
 .playwright-mcp/
@@ -40,3 +42,14 @@ plan.md
 review-*.png
 loading-*.jpeg
 nul
+
+# Large binary assets (screenshots, hero images)
+hero.png
+screenshot*.jpg
+screenshot*.png
+
+# Large data files — fetch at runtime or generate locally
+src/config/aemetDailyHistory.json
+
+# Deploy config (contains server IPs/credentials)
+deploy.env
