@@ -184,11 +184,12 @@ export async function postAlertWebhook(payload: WebhookAlertPayload): Promise<vo
 const FEEDBACK_ENDPOINT = `${WEBHOOK_BASE}/meteomap-feedback`;
 
 export interface WebhookFeedbackPayload {
-  category: string;
-  message: string;
-  email?: string;
+  type: 'sugerencia' | 'bug' | 'otro';
+  text: string;
   sector: string;
   timestamp: string;
+  /** Honeypot — should be empty for real users */
+  website?: string;
 }
 
 /**
