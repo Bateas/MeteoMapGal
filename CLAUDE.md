@@ -105,7 +105,7 @@ ingestor/
 - **Daily Telegram summary**: INGESTOR only (`ingestor/dailySummary.ts`). 9AM both sectors. Frontend DISABLED.
 - **Spot alerts**: Frontend `spotAlertService.ts` + ingestor `alertDispatcher.ts` both detect transitions → n8n. 2h cooldown, night silence.
 - **Alert classification**: Inversions, fog, cloud = `info` (blue/gris). Storms, strong wind, big waves, rain = `moderate/high/critical` (yellow/red).
-- **Feedback form**: DISABLED (RGPD/bot concerns). Code preserved.
+- **Feedback form**: ACTIVE (v1.51.0). Anonymous, no RGPD. Honeypot + sanitization (HTML/SQL/JS) + rate limit 3/day + anti-replay 5s. 35 security tests. n8n workflow "Sanitizar y Validar" → Telegram.
 - **AEMET Radar**: Code 'ga' NEVER existed. Use `/api/red/radar/nacional` (national composite).
 - **SailingWindows 429 cooldown**: Skips polls 5min after Open-Meteo 429.
 - **Ingestor code sharing**: `ingestor/*.ts` CAN import from `../src/services/` and `../src/types/` (tsx resolves). NEVER duplicate utility functions — import `haversineDistance`, `msToKnots`, `degreesToCardinal` from `src/`. `windVerdict` thresholds are per-spot and MUST match frontend exactly.

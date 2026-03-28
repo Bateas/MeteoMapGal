@@ -3,10 +3,10 @@ import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useToastStore } from '../../store/toastStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
-
-type FeedbackType = 'sugerencia' | 'bug' | 'otro';
-
-const VALID_TYPES: FeedbackType[] = ['sugerencia', 'bug', 'otro'];
+import { postFeedbackWebhook } from '../../api/webhookClient';
+import { sanitize, VALID_TYPES, MAX_CHARS } from '../../services/feedbackSanitize';
+import type { FeedbackType } from '../../services/feedbackSanitize';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 const TYPE_LABELS: Record<FeedbackType, string> = {
   sugerencia: 'Sugerencia',
@@ -14,14 +14,9 @@ const TYPE_LABELS: Record<FeedbackType, string> = {
   otro: 'Otro',
 };
 
-const MAX_CHARS = 300;
 const MAX_SUBMISSIONS_PER_DAY = 3;
-const MIN_SUBMIT_INTERVAL_MS = 5_000; // 5s between submissions (anti-spam)
+const MIN_SUBMIT_INTERVAL_MS = 5_000;
 const STORAGE_KEY = 'meteomap-feedback-count';
-const WEBHOOK_URL = '/api/webhook/meteomap-feedback';
-
-// Only allow safe characters: letters, numbers, basic punctuation
-const SAFE_CHARS = /[^a-zA-Z0-9\u00C0-\u024F\s.,!?¿¡:;()\-'/]/g;
 
 function getDailyCount(): number {
   try {
@@ -41,19 +36,6 @@ function incrementDailyCount(): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, count: current + 1 }));
 }
 
-/** Sanitize user input — strip HTML, control chars, dangerous patterns, SQL keywords */
-function sanitize(text: string): string {
-  return text
-    .replace(/<[^>]*>/g, '')                    // strip HTML tags
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // control chars
-    .replace(/javascript\s*:/gi, '')            // javascript: protocol
-    .replace(/data\s*:/gi, '')                  // data: protocol
-    .replace(/\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EXEC|UNION)\s+(TABLE|FROM|INTO|DATABASE|SELECT)/gi, '') // SQL injection keywords
-    .replace(SAFE_CHARS, '')                     // only safe chars
-    .trim()
-    .substring(0, MAX_CHARS);
-}
-
 export function FeedbackModal() {
   const open = useUIStore((s) => s.feedbackOpen);
   const setOpen = useUIStore((s) => s.setFeedbackOpen);
@@ -62,7 +44,7 @@ export function FeedbackModal() {
 
   const [type, setType] = useState<FeedbackType>('sugerencia');
   const [message, setMessage] = useState('');
-  const [honeypot, setHoneypot] = useState(''); // invisible anti-bot field
+  const [honeypot, setHoneypot] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const lastSubmitRef = useRef(0);
 
@@ -74,7 +56,6 @@ export function FeedbackModal() {
     setHoneypot('');
   }, []);
 
-  // Escape to close
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -85,10 +66,8 @@ export function FeedbackModal() {
   }, [open, setOpen]);
 
   const handleSubmit = useCallback(async () => {
-    // Anti-bot: honeypot filled = bot
     if (honeypot) return;
 
-    // Anti-replay: minimum interval between submissions
     const now = Date.now();
     if (now - lastSubmitRef.current < MIN_SUBMIT_INTERVAL_MS) {
       addToast('Espera unos segundos antes de enviar de nuevo', 'warning');
@@ -101,8 +80,7 @@ export function FeedbackModal() {
       return;
     }
 
-    // Validate type is one of the allowed values
-    const safeType = VALID_TYPES.includes(type) ? type : 'otro';
+    const safeType = VALID_TYPES.includes(type) ? type : 'otro' as FeedbackType;
 
     if (getDailyCount() >= MAX_SUBMISSIONS_PER_DAY) {
       addToast('Limite diario alcanzado (3 envios/dia)', 'warning');
@@ -111,19 +89,13 @@ export function FeedbackModal() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: safeType,
-          text: clean,
-          sector: sectorId,
-          timestamp: new Date().toISOString(),
-          website: honeypot, // honeypot field — bots fill this
-        }),
-        signal: AbortSignal.timeout(10_000),
+      await postFeedbackWebhook({
+        type: safeType,
+        text: clean,
+        sector: sectorId,
+        timestamp: new Date().toISOString(),
+        website: honeypot,
       });
-      if (!res.ok) throw new Error('Webhook error');
       lastSubmitRef.current = Date.now();
       incrementDailyCount();
       addToast('Enviado. Gracias por tu feedback', 'success');
@@ -154,12 +126,9 @@ export function FeedbackModal() {
       />
 
       <div className="relative w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700/60">
           <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
+            <WeatherIcon id="message-square" size={16} className="text-emerald-400" />
             <h2 className="text-sm font-semibold text-white">Tu opinion</h2>
           </div>
           <button
@@ -168,15 +137,11 @@ export function FeedbackModal() {
               text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             aria-label="Cerrar"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <WeatherIcon id="x" size={16} />
           </button>
         </div>
 
-        {/* Body */}
         <div className="px-5 py-4 space-y-3">
-          {/* Type selector */}
           <div className="flex gap-1.5">
             {VALID_TYPES.map((t) => (
               <button
@@ -193,7 +158,6 @@ export function FeedbackModal() {
             ))}
           </div>
 
-          {/* Message */}
           <div>
             <textarea
               value={message}
@@ -211,7 +175,6 @@ export function FeedbackModal() {
             </div>
           </div>
 
-          {/* Honeypot — invisible to users, bots fill it */}
           <input
             type="text"
             value={honeypot}
@@ -227,7 +190,6 @@ export function FeedbackModal() {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-700/60">
           <button
             onClick={() => setOpen(false)}
