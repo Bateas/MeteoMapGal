@@ -103,6 +103,16 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             >
               <WeatherIcon id="book-open" size={16} />
             </button>
+            <button
+              onClick={() => useUIStore.getState().setFeedbackOpen(true)}
+              className="p-2 rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/30 transition-all active:bg-emerald-800/40 min-w-[40px] min-h-[40px] flex items-center justify-center"
+              aria-label="Enviar feedback"
+              title="Tu opinion"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
           </div>
         )}
 
@@ -151,16 +161,28 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         )}
         {/* Source status — hide on mobile */}
         {!isMobile && <SourceStatusIndicator />}
-        {/* Guide button — desktop only (mobile version is next to hamburger) */}
+        {/* Guide + Feedback buttons — desktop only (mobile versions are next to hamburger) */}
         {!isMobile && (
-          <button
-            onClick={() => useUIStore.getState().toggleGuide()}
-            className="btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 flex-shrink-0 text-[10px] px-2 py-1"
-            title="Guía meteorológica (G)"
-            aria-label="Abrir guía meteorológica"
-          >
-            <WeatherIcon id="book-open" size={14} />
-          </button>
+          <>
+            <button
+              onClick={() => useUIStore.getState().toggleGuide()}
+              className="btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 flex-shrink-0 text-[10px] px-2 py-1"
+              title="Guía meteorológica (G)"
+              aria-label="Abrir guía meteorológica"
+            >
+              <WeatherIcon id="book-open" size={14} />
+            </button>
+            <button
+              onClick={() => useUIStore.getState().setFeedbackOpen(true)}
+              className="p-1.5 rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/30 border border-emerald-500/20 transition-all min-w-[32px] min-h-[32px] flex items-center justify-center"
+              aria-label="Enviar feedback"
+              title="Tu opinion"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+          </>
         )}
       </div>
       <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
@@ -249,18 +271,6 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             </span>
           </div>
         )}
-
-        {/* Feedback button */}
-        <button
-          onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800/60 transition-all min-w-[32px] min-h-[32px] flex items-center justify-center"
-          aria-label="Enviar feedback"
-          title="Tu opinion"
-        >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        </button>
 
         {/* Theme toggle — sun/moon */}
         <button

@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useToastStore } from '../../store/toastStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 type FeedbackType = 'sugerencia' | 'bug' | 'otro';
+
+const VALID_TYPES: FeedbackType[] = ['sugerencia', 'bug', 'otro'];
 
 const TYPE_LABELS: Record<FeedbackType, string> = {
   sugerencia: 'Sugerencia',
@@ -14,6 +16,7 @@ const TYPE_LABELS: Record<FeedbackType, string> = {
 
 const MAX_CHARS = 300;
 const MAX_SUBMISSIONS_PER_DAY = 3;
+const MIN_SUBMIT_INTERVAL_MS = 5_000; // 5s between submissions (anti-spam)
 const STORAGE_KEY = 'meteomap-feedback-count';
 const WEBHOOK_URL = '/api/webhook/meteomap-feedback';
 
@@ -38,11 +41,14 @@ function incrementDailyCount(): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, count: current + 1 }));
 }
 
-/** Sanitize user input — strip HTML, control chars, dangerous patterns */
+/** Sanitize user input — strip HTML, control chars, dangerous patterns, SQL keywords */
 function sanitize(text: string): string {
   return text
     .replace(/<[^>]*>/g, '')                    // strip HTML tags
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // control chars
+    .replace(/javascript\s*:/gi, '')            // javascript: protocol
+    .replace(/data\s*:/gi, '')                  // data: protocol
+    .replace(/\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EXEC|UNION)\s+(TABLE|FROM|INTO|DATABASE|SELECT)/gi, '') // SQL injection keywords
     .replace(SAFE_CHARS, '')                     // only safe chars
     .trim()
     .substring(0, MAX_CHARS);
@@ -58,6 +64,7 @@ export function FeedbackModal() {
   const [message, setMessage] = useState('');
   const [honeypot, setHoneypot] = useState(''); // invisible anti-bot field
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const lastSubmitRef = useRef(0);
 
   const focusTrapRef = useFocusTrap<HTMLDivElement>(open);
 
@@ -81,11 +88,21 @@ export function FeedbackModal() {
     // Anti-bot: honeypot filled = bot
     if (honeypot) return;
 
+    // Anti-replay: minimum interval between submissions
+    const now = Date.now();
+    if (now - lastSubmitRef.current < MIN_SUBMIT_INTERVAL_MS) {
+      addToast('Espera unos segundos antes de enviar de nuevo', 'warning');
+      return;
+    }
+
     const clean = sanitize(message);
     if (clean.length < 10) {
       addToast('Escribe al menos 10 caracteres', 'warning');
       return;
     }
+
+    // Validate type is one of the allowed values
+    const safeType = VALID_TYPES.includes(type) ? type : 'otro';
 
     if (getDailyCount() >= MAX_SUBMISSIONS_PER_DAY) {
       addToast('Limite diario alcanzado (3 envios/dia)', 'warning');
@@ -98,14 +115,16 @@ export function FeedbackModal() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type,
+          type: safeType,
           text: clean,
           sector: sectorId,
+          timestamp: new Date().toISOString(),
           website: honeypot, // honeypot field — bots fill this
         }),
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) throw new Error('Webhook error');
+      lastSubmitRef.current = Date.now();
       incrementDailyCount();
       addToast('Enviado. Gracias por tu feedback', 'success');
       resetForm();
@@ -138,7 +157,7 @@ export function FeedbackModal() {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700/60">
           <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
             <h2 className="text-sm font-semibold text-white">Tu opinion</h2>
@@ -159,13 +178,13 @@ export function FeedbackModal() {
         <div className="px-5 py-4 space-y-3">
           {/* Type selector */}
           <div className="flex gap-1.5">
-            {(Object.keys(TYPE_LABELS) as FeedbackType[]).map((t) => (
+            {VALID_TYPES.map((t) => (
               <button
                 key={t}
                 onClick={() => setType(t)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all
                   ${type === t
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-emerald-600 text-white'
                     : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                   }`}
               >
@@ -184,7 +203,7 @@ export function FeedbackModal() {
               maxLength={MAX_CHARS}
               className="w-full px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-800/60
                 text-sm text-white placeholder-slate-500
-                focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
+                focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30
                 resize-none transition-colors"
             />
             <div className={`text-right text-[10px] mt-0.5 ${remaining < 30 ? 'text-amber-400' : 'text-slate-600'}`}>
@@ -221,7 +240,7 @@ export function FeedbackModal() {
             onClick={handleSubmit}
             disabled={message.trim().length < 10 || isSubmitting}
             className="px-5 py-2 rounded-lg text-xs font-semibold transition-all
-              bg-blue-600 text-white hover:bg-blue-500
+              bg-emerald-600 text-white hover:bg-emerald-500
               disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isSubmitting ? 'Enviando...' : 'Enviar'}
