@@ -54,6 +54,7 @@ import {
   BellOff,
   Ruler,
   Activity,
+  MessageSquare,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -68,7 +69,7 @@ export type IconId =
   | 'database' | 'gauge' | 'check' | 'sprout'
   | 'compass' | 'navigation' | 'layers' | 'eye' | 'camera'
   | 'thumbs-up' | 'thumbs-down' | 'bell' | 'bell-off'
-  | 'ruler' | 'activity';
+  | 'ruler' | 'activity' | 'message-square';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -230,6 +231,7 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'bell-off': BellOff,
   'ruler': Ruler,
   'activity': Activity,
+  'message-square': MessageSquare,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────

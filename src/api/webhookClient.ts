@@ -180,11 +180,10 @@ export async function postAlertWebhook(payload: WebhookAlertPayload): Promise<vo
 
 // ── Feedback endpoint ───────────────────────────────────
 
-/** Endpoint for user feedback */
-const FEEDBACK_ENDPOINT = `${WEBHOOK_BASE}/meteomap-feedback`;
+import type { FeedbackType } from '../services/feedbackSanitize';
 
 export interface WebhookFeedbackPayload {
-  type: 'sugerencia' | 'bug' | 'otro';
+  type: FeedbackType;
   text: string;
   sector: string;
   timestamp: string;
@@ -198,8 +197,7 @@ export interface WebhookFeedbackPayload {
  * Throws on network error so caller can show error toast.
  */
 export async function postFeedbackWebhook(payload: WebhookFeedbackPayload): Promise<void> {
-  // Allow in dev for testing the form UX (n8n won't receive it)
-  const res = await fetch(FEEDBACK_ENDPOINT, {
+  const res = await fetch(`${WEBHOOK_BASE}/meteomap-feedback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

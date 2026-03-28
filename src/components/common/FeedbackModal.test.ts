@@ -1,20 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-// Replicate exact sanitize logic from FeedbackModal for unit testing
-const MAX_CHARS = 300;
-const SAFE_CHARS = /[^a-zA-Z0-9\u00C0-\u024F\s.,!?¿¡:;()\-'/]/g;
-
-function sanitize(text: string): string {
-  return text
-    .replace(/<[^>]*>/g, '')
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    .replace(/javascript\s*:/gi, '')
-    .replace(/data\s*:/gi, '')
-    .replace(/\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EXEC|UNION)\s+(TABLE|FROM|INTO|DATABASE|SELECT)/gi, '')
-    .replace(SAFE_CHARS, '')
-    .trim()
-    .substring(0, MAX_CHARS);
-}
+import { sanitize, VALID_TYPES } from '../../services/feedbackSanitize';
 
 describe('FeedbackModal sanitize()', () => {
   // ── HTML injection ────────────────────────────
@@ -85,34 +70,28 @@ describe('FeedbackModal sanitize()', () => {
 
   // ── SQL injection patterns ────────────────────
   it('neutralizes DROP TABLE', () => {
-    const result = sanitize("DROP TABLE users");
-    expect(result).not.toContain('DROP TABLE');
+    expect(sanitize('DROP TABLE users')).not.toContain('DROP TABLE');
   });
 
   it('neutralizes UNION SELECT', () => {
-    const result = sanitize("' UNION SELECT * FROM passwords --");
-    expect(result).not.toContain('UNION SELECT');
+    expect(sanitize("' UNION SELECT * FROM passwords --")).not.toContain('UNION SELECT');
   });
 
   it('neutralizes DELETE FROM', () => {
-    const result = sanitize("DELETE FROM sessions WHERE 1=1");
-    expect(result).not.toContain('DELETE FROM');
+    expect(sanitize('DELETE FROM sessions WHERE 1=1')).not.toContain('DELETE FROM');
   });
 
   it('neutralizes INSERT INTO', () => {
-    const result = sanitize("INSERT INTO admin VALUES('hack')");
-    expect(result).not.toContain('INSERT INTO');
+    expect(sanitize("INSERT INTO admin VALUES('hack')")).not.toContain('INSERT INTO');
   });
 
   it('neutralizes case-insensitive SQL', () => {
-    const result = sanitize("drop table Users");
-    expect(result).not.toContain('drop table');
+    expect(sanitize('drop table Users')).not.toContain('drop table');
   });
 
   // ── Length limits ─────────────────────────────
-  it('truncates to MAX_CHARS', () => {
-    const long = 'A'.repeat(500);
-    expect(sanitize(long).length).toBe(MAX_CHARS);
+  it('truncates to 300 chars', () => {
+    expect(sanitize('A'.repeat(500))).toHaveLength(300);
   });
 
   it('trims whitespace', () => {
@@ -120,7 +99,7 @@ describe('FeedbackModal sanitize()', () => {
   });
 
   // ── Safe content preservation ─────────────────
-  it('preserves Spanish accented characters (á, é, í, ó, ú, ñ)', () => {
+  it('preserves Spanish accented characters', () => {
     expect(sanitize('El viento está fuerte en la ría')).toBe('El viento está fuerte en la ría');
   });
 
@@ -145,22 +124,24 @@ describe('FeedbackModal sanitize()', () => {
   });
 
   // ── Honeypot field ────────────────────────────
-  it('empty honeypot = real user', () => {
-    expect(!('') ).toBe(true);
+  it('empty honeypot passes (real user)', () => {
+    const honeypot = '';
+    expect(honeypot).toBe('');
+    expect(honeypot).toBeFalsy();
   });
 
-  it('filled honeypot = bot detected', () => {
-    expect(!('spam@evil.com')).toBe(false);
+  it('filled honeypot is detected (bot)', () => {
+    const honeypot = 'spam@evil.com';
+    expect(honeypot).toBeTruthy();
   });
 
   // ── Type validation ───────────────────────────
   it('validates allowed feedback types', () => {
-    const VALID_TYPES = ['sugerencia', 'bug', 'otro'];
-    expect(VALID_TYPES.includes('sugerencia')).toBe(true);
-    expect(VALID_TYPES.includes('bug')).toBe(true);
-    expect(VALID_TYPES.includes('otro')).toBe(true);
-    expect(VALID_TYPES.includes('admin')).toBe(false);
-    expect(VALID_TYPES.includes('<script>')).toBe(false);
+    expect(VALID_TYPES).toContain('sugerencia');
+    expect(VALID_TYPES).toContain('bug');
+    expect(VALID_TYPES).toContain('otro');
+    expect(VALID_TYPES).not.toContain('admin');
+    expect(VALID_TYPES).not.toContain('<script>');
   });
 
   // ── Edge cases ────────────────────────────────
@@ -177,15 +158,13 @@ describe('FeedbackModal sanitize()', () => {
   });
 
   it('handles mixed attack vectors', () => {
-    const attack = '<script>alert("XSS")</script>"; DROP TABLE users--${env}';
-    const result = sanitize(attack);
+    const result = sanitize('<script>alert("XSS")</script>"; DROP TABLE users--${env}');
     expect(result).not.toContain('<script>');
     expect(result).not.toContain('DROP TABLE');
     expect(result).not.toContain('${');
   });
 
   it('handles repeated injection attempts', () => {
-    const result = sanitize('javascript:javascript:alert(1)');
-    expect(result).not.toContain('javascript:');
+    expect(sanitize('javascript:javascript:alert(1)')).not.toContain('javascript:');
   });
 });
