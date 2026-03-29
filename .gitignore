@@ -47,3 +47,15 @@ CLAUDE.md
 
 # Deploy config (contains host info)
 deploy.env.example
+
+# Internal infrastructure scripts
+deploy.sh
+deploy.ps1
+lxc-setup.sh
+
+# n8n workflows (operational, not app code)
+n8n-workflow-*.json
+n8n/
+
+# Private documents
+pitch-deck-*.html
