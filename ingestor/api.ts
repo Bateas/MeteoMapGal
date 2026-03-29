@@ -22,6 +22,8 @@
 
 import 'dotenv/config';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import { initPool, pingDb, closePool } from './db.js';
 import { log } from './logger.js';
 import {
@@ -44,6 +46,8 @@ import { getForecast } from './forecastFetcher.js';
 
 const PORT = parseInt(process.env.API_PORT || '3001', 10);
 const HOST = process.env.API_HOST || '127.0.0.1';
+const WEBCAM_DIR = process.env.WEBCAM_DIR || '/var/www/meteomapgal/webcam';
+const WEBCAM_TOKEN = process.env.WEBCAM_TOKEN || '';
 
 // CORS: allow frontend origins
 const ALLOWED_ORIGINS = new Set([
@@ -353,6 +357,54 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/spots/scores': handleSpotScores,
 };
 
+// ── Webcam upload handler ──────────────────────────────
+
+async function handleWebcamUpload(
+  spotId: string,
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (WEBCAM_TOKEN && token !== WEBCAM_TOKEN) {
+    res.writeHead(401, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
+  if (!/^[a-z0-9-]+$/.test(spotId)) {
+    res.writeHead(400, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Invalid spot id' }));
+    return;
+  }
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  const body = Buffer.concat(chunks);
+
+  if (body.length < 100) {
+    res.writeHead(400, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Empty image' }));
+    return;
+  }
+
+  try {
+    fs.mkdirSync(WEBCAM_DIR, { recursive: true });
+    const imgPath  = path.join(WEBCAM_DIR, `${spotId}.jpg`);
+    const metaPath = path.join(WEBCAM_DIR, `${spotId}.json`);
+    fs.writeFileSync(imgPath, body);
+    fs.writeFileSync(metaPath, JSON.stringify({ ts: new Date().toISOString(), bytes: body.length }));
+    log.info(`[Webcam] ${spotId} ${(body.length / 1024).toFixed(0)}KB`);
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+  } catch (err) {
+    log.error('[Webcam] Save error:', (err as Error).message);
+    res.writeHead(500, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Internal server error' }));
+  }
+}
+
 // ── Server ─────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
@@ -365,7 +417,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Only GET allowed
+  // Webcam upload: POST /api/webcam/:spotId
+  if (req.method === 'POST') {
+    const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
+    const m = url.pathname.match(/^\/api\/webcam\/([a-z0-9-]+)$/);
+    if (m) {
+      await handleWebcamUpload(m[1], req, res, origin);
+    } else {
+      error(res, 'Method not allowed', 405, origin);
+    }
+    return;
+  }
+
+  // Only GET allowed for everything else
   if (req.method !== 'GET') {
     error(res, 'Method not allowed', 405, origin);
     return;
