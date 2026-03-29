@@ -47,3 +47,15 @@ CLAUDE.md
 
 # Local config
 deploy.env.example
+
+# Local scripts
+deploy.sh
+deploy.ps1
+server-setup.sh
+
+# n8n workflows (operational, not app code)
+n8n-workflow-*.json
+n8n/
+
+# Local files
+pitch-deck-*.html
