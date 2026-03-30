@@ -205,6 +205,15 @@ body {
   opacity: 1 !important;
 }
 
+/* Hover on station/buoy markers: elevate z-index + scale up for easier click on crowded areas */
+.maplibregl-marker:has(.station-marker):hover,
+.maplibregl-marker:has(.buoy-marker):hover {
+  z-index: 28 !important;
+  transform: scale(1.25);
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+
 .maplibregl-popup {
   z-index: 30 !important;
 }
