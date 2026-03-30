@@ -107,7 +107,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}
               className="p-2 rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/30 transition-all active:bg-emerald-800/40 min-w-[40px] min-h-[40px] flex items-center justify-center"
               aria-label="Enviar feedback"
-              title="Tu opinion"
+              title="Enviar sugerencias o reportar problemas"
             >
               <WeatherIcon id="message-square" size={16} />
             </button>
@@ -120,7 +120,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {!isMobile && <span className="text-[11px] font-normal text-slate-500 ml-0.5" aria-label={`versión ${APP_VERSION}`}>v{APP_VERSION}</span>}
         {/* Sector selector — compact on mobile (icon-only for inactive), label on desktop */}
         {isMobile ? (
-          <div className="flex items-center gap-1" data-tour="sectors">
+          <div className="flex items-center gap-1.5" data-tour="sectors">
             {SECTORS.map((sector) => {
               const isActive = sector.id === activeSector.id;
               return (
@@ -128,22 +128,22 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   key={sector.id}
                   onClick={() => switchSector(sector.id)}
                   aria-label={`Cambiar a sector ${sector.name}`}
-                  className={`flex items-center gap-1 rounded-lg font-bold border transition-all min-h-[36px]
+                  className={`flex items-center gap-1 rounded-lg font-bold border transition-all min-h-[44px] min-w-[44px]
                     ${isActive
-                      ? 'text-[11px] px-2.5 py-1.5 bg-blue-600 text-white border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.35)]'
-                      : 'px-2 py-1.5 bg-transparent text-slate-500 border-slate-600/40 border-dashed hover:text-slate-200 hover:bg-slate-800/60 hover:border-slate-500/60 active:bg-slate-700'
+                      ? 'text-xs px-3 py-2 bg-blue-600 text-white border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.35)]'
+                      : 'px-2.5 py-2 bg-transparent text-slate-500 border-slate-600/40 border-dashed hover:text-slate-200 hover:bg-slate-800/60 hover:border-slate-500/60 active:bg-slate-700'
                   }`}
                 >
-                  <WeatherIcon id={sector.icon} size={14} />
-                  {isActive && <span className="truncate max-w-[3.5rem]">{sector.shortName}</span>}
+                  <WeatherIcon id={sector.icon} size={16} />
+                  {isActive && (
+                    <span className="truncate max-w-[4.5rem]">
+                      {sector.shortName}
+                      {stationCount > 0 && <span className="text-blue-200 ml-1 font-normal">{readingCount}/{stationCount}</span>}
+                    </span>
+                  )}
                 </button>
               );
             })}
-            {stationCount > 0 && (
-              <span className="bg-slate-800 text-slate-400 rounded text-[11px] px-1 py-0.5 flex-shrink-0">
-                {readingCount}/{stationCount}
-              </span>
-            )}
           </div>
         ) : (
           <>
@@ -165,7 +165,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
               className="btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 flex-shrink-0 text-[11px] px-2 py-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
-              title="Guía meteorológica (G)"
+              title="Guía completa de la app — atajos, spots, capas, alertas (G)"
               aria-label="Abrir guía meteorológica"
             >
               <WeatherIcon id="book-open" size={14} />
@@ -174,7 +174,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}
               className="p-1.5 rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/30 border border-emerald-500/20 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="Enviar feedback"
-              title="Tu opinion"
+              title="Enviar sugerencias o reportar problemas"
             >
               <WeatherIcon id="message-square" size={14} />
             </button>
@@ -269,13 +269,15 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </div>
         )}
 
-        {/* Theme toggle — sun/moon */}
+        {/* Theme toggle — sun/moon (smaller on mobile to save space) */}
         <button
           onClick={toggleTheme}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/60 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
+          className={`rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/60 transition-all flex items-center justify-center
+            ${isMobile ? 'p-1 min-w-[32px] min-h-[32px]' : 'p-1.5 min-w-[44px] min-h-[44px]'}`}
           aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
         >
-          <WeatherIcon id={theme === 'dark' ? 'sun' : 'moon'} size={14} />
+          <WeatherIcon id={theme === 'dark' ? 'sun' : 'moon'} size={isMobile ? 12 : 14} />
         </button>
 
         <LastUpdated onRefresh={onRefresh} compact={isMobile} />
