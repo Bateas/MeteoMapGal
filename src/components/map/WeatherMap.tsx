@@ -147,9 +147,14 @@ export function WeatherMap() {
   const deactivateDistance = useCallback(() => setDistanceActive(false), []);
 
   // Hide markers during map drag for smooth panning (95 DOM markers = jank)
-  const [mapMoving, setMapMoving] = useState(false);
-  const handleMoveStart = useCallback(() => setMapMoving(true), []);
-  const handleMoveEnd = useCallback(() => setMapMoving(false), []);
+  // Uses DOM class toggle instead of React state to avoid re-rendering ~100 markers
+  const containerRef = useRef<HTMLDivElement>(null);
+  const handleMoveStart = useCallback(() => {
+    containerRef.current?.classList.add('map-panning');
+  }, []);
+  const handleMoveEnd = useCallback(() => {
+    containerRef.current?.classList.remove('map-panning');
+  }, []);
 
   // Cross-deselection: only one popup at a time (station XOR buoy XOR spot).
   // Track previous values to detect which one changed (= new selection wins).
@@ -231,7 +236,7 @@ export function WeatherMap() {
   }, []);
 
   return (
-    <div className={`relative w-full h-full overflow-hidden ${mapMoving ? 'map-panning' : ''}`}>
+    <div ref={containerRef} className="relative w-full h-full overflow-hidden">
       <Map
         ref={mapRef}
         mapLib={maplibregl}

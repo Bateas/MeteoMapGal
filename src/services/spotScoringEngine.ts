@@ -504,7 +504,7 @@ function humidityPrecursorBoost(
 
       if (maxTemp >= 30 && minHR <= 45) {
         // Epic day: strong thermal onset expected
-        const signal = `Dia epico: ${maxTemp.toFixed(0)} C + HR ${minHR.toFixed(0)}% - viento SW fuerte inminente`;
+        const signal = `Día épico: ${maxTemp.toFixed(0)}°C + HR ${minHR.toFixed(0)}% — viento fuerte inminente`;
         return { boost: 1.0, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
       } else {
         // Good conditions building
