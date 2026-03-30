@@ -247,7 +247,12 @@ export function WeatherMap() {
         onClick={handleMapClick}
         onLoad={handleMapLoad}
         onMoveStart={handleMoveStart}
-        onMoveEnd={(e) => { handleMoveEnd(); const q = quantizeZoom(e.viewState.zoom); if (q !== zoomLevel) setZoomLevel(q); }}
+        onMoveEnd={(e) => {
+          handleMoveEnd();
+          // Defer zoom state update to avoid re-render spike right after pan ends
+          const q = quantizeZoom(e.viewState.zoom);
+          if (q !== zoomLevel) requestAnimationFrame(() => setZoomLevel(q));
+        }}
       >
         <NavigationControl position="top-right" visualizePitch />
 
