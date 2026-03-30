@@ -137,7 +137,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
 
   if (stations.length === 0) {
     return (
-      <div className="text-center text-slate-500 text-xs py-6 px-4">
+      <div className="text-center text-slate-400 text-xs py-6 px-4">
         <div className="mb-2"><WeatherIcon id="wind" size={24} className="mx-auto text-slate-500" /></div>
         <div>Cargando estaciones...</div>
       </div>
@@ -150,7 +150,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
       <div className="flex gap-1">
         <button
           onClick={() => setActiveSection('alerts')}
-          className={`flex-1 text-[10px] font-semibold py-1.5 rounded transition-colors ${
+          className={`flex-1 text-[11px] font-semibold py-1.5 rounded transition-colors ${
             activeSection === 'alerts'
               ? 'bg-amber-600 text-white'
               : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
@@ -160,7 +160,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
         </button>
         <button
           onClick={() => setActiveSection('historical')}
-          className={`flex-1 text-[10px] font-semibold py-1.5 rounded transition-colors ${
+          className={`flex-1 text-[11px] font-semibold py-1.5 rounded transition-colors ${
             activeSection === 'historical'
               ? 'bg-amber-600 text-white'
               : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
@@ -180,10 +180,10 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
           {/* ΔT indicator */}
           {dailyContext?.deltaT !== null && dailyContext?.deltaT !== undefined && (
             <div className="rounded-lg border border-slate-700 bg-slate-800/30 px-2.5 py-1.5 flex items-center justify-between">
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[11px] text-slate-500">
                 Rango diurno (ΔT)
               </span>
-              <span className={`text-[10px] font-mono font-semibold ${
+              <span className={`text-[11px] font-mono font-semibold ${
                 dailyContext.deltaT >= 20 ? 'text-green-400' :
                 dailyContext.deltaT >= 16 ? 'text-emerald-400' :
                 dailyContext.deltaT >= 12 ? 'text-slate-300' :
@@ -206,8 +206,8 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
               <div className="flex items-center justify-between gap-2">
                 {atmosphericContext.cloudCover !== null && (
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-500">Nubes</span>
-                    <span className={`text-[10px] font-mono font-semibold ${
+                    <span className="text-[11px] text-slate-500">Nubes</span>
+                    <span className={`text-[11px] font-mono font-semibold ${
                       atmosphericContext.cloudCover <= 20 ? 'text-green-400' :
                       atmosphericContext.cloudCover <= 50 ? 'text-emerald-400' :
                       atmosphericContext.cloudCover <= 80 ? 'text-amber-400' :
@@ -219,8 +219,8 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
                 )}
                 {atmosphericContext.solarRadiation !== null && (
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-500">Rad.</span>
-                    <span className={`text-[10px] font-mono font-semibold ${
+                    <span className="text-[11px] text-slate-500">Rad.</span>
+                    <span className={`text-[11px] font-mono font-semibold ${
                       atmosphericContext.solarRadiation > 600 ? 'text-green-400' :
                       atmosphericContext.solarRadiation > 300 ? 'text-emerald-400' :
                       atmosphericContext.solarRadiation > 100 ? 'text-amber-400' :
@@ -232,8 +232,8 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
                 )}
                 {atmosphericContext.cape !== null && (
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-500">CAPE</span>
-                    <span className={`text-[10px] font-mono font-semibold ${
+                    <span className="text-[11px] text-slate-500">CAPE</span>
+                    <span className={`text-[11px] font-mono font-semibold ${
                       atmosphericContext.cape >= 1000 ? 'text-green-400' :
                       atmosphericContext.cape >= 500 ? 'text-emerald-400' :
                       atmosphericContext.cape >= 100 ? 'text-amber-400' :
@@ -276,29 +276,29 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] font-semibold uppercase tracking-wider"
+                          <span className="text-[11px] font-semibold uppercase tracking-wider"
                             style={{ color: TENDENCY_COLORS[signal.level] }}>
                             {TENDENCY_LABELS[signal.level]}
                           </span>
-                          <span className="text-[9px] text-slate-500" style={{ color: zone.color }}>
+                          <span className="text-[11px] text-slate-500" style={{ color: zone.color }}>
                             {zone.name}
                           </span>
                         </div>
-                        <div className="text-[9px] text-slate-400 truncate">{signal.summary}</div>
+                        <div className="text-[11px] text-slate-400 truncate">{signal.summary}</div>
                         {/* Precursor breakdown */}
                         <div className="flex gap-2 mt-0.5">
                           {signal.precursors.tempRiseRate !== null && (
-                            <span className="text-[8px] text-slate-500">
+                            <span className="text-[11px] text-slate-500">
                               T: +{signal.precursors.tempRiseRate.toFixed(1)}&deg;C/h
                             </span>
                           )}
                           {signal.precursors.windInSector && (
-                            <span className="text-[8px] text-green-500">
+                            <span className="text-[11px] text-green-500">
                               Viento en sector
                             </span>
                           )}
                           {signal.precursors.humidityDropRate !== null && signal.precursors.humidityDropRate > 0 && (
-                            <span className="text-[8px] text-slate-500">
+                            <span className="text-[11px] text-slate-500">
                               HR: -{signal.precursors.humidityDropRate.toFixed(1)}%/h
                             </span>
                           )}
@@ -310,7 +310,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
                           {signal.score}%
                         </div>
                         {signal.estimatedOnsetMin !== null && (
-                          <div className="text-[8px] text-slate-500">
+                          <div className="text-[11px] text-slate-500">
                             ~{signal.estimatedOnsetMin} min
                           </div>
                         )}
@@ -350,7 +350,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
           {/* Forecast timeline — thermal window summary + chart */}
           {forecastChartData.length > 0 && (
             <div>
-              <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Predicci&oacute;n T&eacute;rmica (pr&oacute;x. horas)
               </div>
               <ThermalWindowSummary data={forecastChartData} />
@@ -413,7 +413,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
           {/* Rules config toggle */}
           <button
             onClick={() => setShowRules(!showRules)}
-            className="w-full text-[10px] text-slate-500 py-1 hover:text-slate-400 transition-colors"
+            className="w-full text-[11px] text-slate-500 py-1 hover:text-slate-400 transition-colors"
           >
             {showRules ? 'Ocultar reglas' : 'Configurar reglas'} ({rules.filter((r) => r.enabled).length}/{rules.length})
           </button>
@@ -424,13 +424,13 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
                 <button
                   key={rule.id}
                   onClick={() => toggleRule(rule.id)}
-                  className={`w-full flex items-center gap-2 text-left text-[10px] px-2 py-1.5 rounded transition-colors ${
+                  className={`w-full flex items-center gap-2 text-left text-[11px] px-2 py-1.5 rounded transition-colors ${
                     rule.enabled
                       ? 'bg-slate-800/80 text-slate-300'
                       : 'bg-slate-900 text-slate-600'
                   }`}
                 >
-                  <span className={`w-3 h-3 rounded border flex items-center justify-center text-[8px] ${
+                  <span className={`w-3 h-3 rounded border flex items-center justify-center text-[11px] ${
                     rule.enabled
                       ? 'border-amber-500 bg-amber-500/20 text-amber-500'
                       : 'border-slate-600'
@@ -439,7 +439,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="truncate">{rule.name}</div>
-                    <div className="text-[8px] text-slate-600 truncate">
+                    <div className="text-[11px] text-slate-600 truncate">
                       {rule.source === 'historical' ? 'Hist.' : 'Manual'} &middot; {rule.description}
                     </div>
                   </div>
@@ -494,7 +494,7 @@ function ThermalWindowSummary({ data }: { data: { time: number; score: number }[
     if (maxScore < 20) return null;
     return (
       <div className="rounded border border-slate-700/50 bg-slate-800/30 px-2.5 py-1.5 mb-1.5">
-        <span className="text-[10px] text-slate-500">
+        <span className="text-[11px] text-slate-500">
           Sin ventana t&eacute;rmica clara. M&aacute;x. probabilidad: <span className="text-slate-400 font-mono">{maxScore}%</span>
         </span>
       </div>
@@ -513,11 +513,11 @@ function ThermalWindowSummary({ data }: { data: { time: number; score: number }[
 
         return (
           <div key={i} className={`rounded border px-2.5 py-1.5 flex items-center justify-between ${color}`}>
-            <div className="text-[10px] font-semibold">
+            <div className="text-[11px] font-semibold">
               T&eacute;rmico {w.peak >= 75 ? 'muy probable' : w.peak >= 55 ? 'probable' : 'posible'}{' '}
               <span className="font-mono">{startH}&ndash;{endH}</span>
             </div>
-            <div className="text-[10px] font-mono">
+            <div className="text-[11px] font-mono">
               pico {w.peak}% ({peakH})
             </div>
           </div>
@@ -543,7 +543,7 @@ function AlertsBanner({
   if (activeAlerts.length === 0) {
     return (
       <div className="rounded-lg border border-slate-700 bg-slate-800/30 p-2.5 text-center">
-        <div className="text-[10px] text-slate-500">
+        <div className="text-[11px] text-slate-500">
           Sin alertas t&eacute;rmicas activas
         </div>
       </div>
@@ -566,10 +566,10 @@ function AlertsBanner({
             style={{ background: ALERT_COLORS[alert!.alertLevel] }}
           />
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-semibold" style={{ color: zone.color }}>
+            <div className="text-[11px] font-semibold" style={{ color: zone.color }}>
               {zone.name}
             </div>
-            <div className="text-[9px] text-slate-500">
+            <div className="text-[11px] text-slate-500">
               {alert!.activeRules.length} regla{alert!.activeRules.length !== 1 ? 's' : ''} activa{alert!.activeRules.length !== 1 ? 's' : ''}
             </div>
           </div>
@@ -580,7 +580,7 @@ function AlertsBanner({
             >
               {alert!.maxScore}%
             </div>
-            <div className="text-[8px] text-slate-500 uppercase">
+            <div className="text-[11px] text-slate-500 uppercase">
               {ALERT_LABELS[alert!.alertLevel]}
             </div>
           </div>
@@ -637,7 +637,7 @@ function ZoneCard({
         <div className="w-1.5 h-8 rounded-full" style={{ background: zoneColor }} />
         <div className="flex-1 text-left min-w-0">
           <div className="text-[11px] font-semibold text-slate-200">{zoneName}</div>
-          <div className="text-[9px] text-slate-500">
+          <div className="text-[11px] text-slate-500">
             {stations.length} est.
           </div>
         </div>
@@ -646,10 +646,10 @@ function ZoneCard({
         <div className="flex items-center gap-2">
           <WindCompass direction={zoneAvg.dir} speed={zoneAvg.wind} size={28} />
           <div className="text-right">
-            <div className="text-[10px] font-bold text-slate-300">
+            <div className="text-[11px] font-bold text-slate-300">
               {zoneAvg.temp != null ? `${zoneAvg.temp.toFixed(1)}\u00b0` : '--'}
             </div>
-            <div className="text-[9px]" style={{ color: windSpeedColor(zoneAvg.wind) }}>
+            <div className="text-[11px]" style={{ color: windSpeedColor(zoneAvg.wind) }}>
               {zoneAvg.wind != null ? `${msToKnots(zoneAvg.wind).toFixed(1)} kt` : '--'}
             </div>
           </div>
@@ -658,7 +658,7 @@ function ZoneCard({
         {/* Score badge */}
         {maxScore > 0 && (
           <div
-            className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded"
+            className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded"
             style={{
               color: ALERT_COLORS[alert?.alertLevel || 'none'],
               background: ALERT_COLORS[alert?.alertLevel || 'none'] + '15',
@@ -668,7 +668,7 @@ function ZoneCard({
           </div>
         )}
 
-        <span className={`text-slate-600 text-[10px] transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+        <span className={`text-slate-600 text-[11px] transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
           &#x25BC;
         </span>
       </button>
@@ -693,8 +693,8 @@ function ZoneCard({
                   return (
                     <div key={score.ruleId}>
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-[9px] text-slate-400 truncate flex-1">{rule.name}</span>
-                        <span className="text-[9px] font-mono ml-1" style={{ color }}>
+                        <span className="text-[11px] text-slate-400 truncate flex-1">{rule.name}</span>
+                        <span className="text-[11px] font-mono ml-1" style={{ color }}>
                           {score.score}%
                         </span>
                       </div>
@@ -714,9 +714,9 @@ function ZoneCard({
           {humidityAssessment && humidityAssessment.rawAvg !== null && (
             <div className="rounded bg-slate-800/60 px-2 py-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] text-slate-500">HR zona</span>
+                <span className="text-[11px] text-slate-500">HR zona</span>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-mono font-semibold ${
+                  <span className={`text-[11px] font-mono font-semibold ${
                     humidityAssessment.confidence >= 0.8 ? 'text-slate-300' :
                     humidityAssessment.confidence >= 0.5 ? 'text-amber-400' :
                     'text-red-400'
@@ -724,11 +724,11 @@ function ZoneCard({
                     {humidityAssessment.adjustedAvg?.toFixed(0) ?? '--'}%
                   </span>
                   {humidityAssessment.rawAvg !== humidityAssessment.adjustedAvg && (
-                    <span className="text-[8px] text-slate-600 line-through">
+                    <span className="text-[11px] text-slate-600 line-through">
                       {humidityAssessment.rawAvg.toFixed(0)}%
                     </span>
                   )}
-                  <span className={`text-[8px] px-1 rounded ${
+                  <span className={`text-[11px] px-1 rounded ${
                     humidityAssessment.confidence >= 0.8 ? 'bg-green-500/15 text-green-400' :
                     humidityAssessment.confidence >= 0.5 ? 'bg-amber-500/15 text-amber-400' :
                     'bg-red-500/15 text-red-400'
@@ -738,7 +738,7 @@ function ZoneCard({
                 </div>
               </div>
               {humidityAssessment.warning && (
-                <div className="text-[8px] text-amber-400/80 mt-0.5">
+                <div className="text-[11px] text-amber-400/80 mt-0.5">
                   {humidityAssessment.warning}
                 </div>
               )}
@@ -758,40 +758,40 @@ function ZoneCard({
                   size={28}
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="text-[10px] font-medium text-slate-300 truncate">
+                  <div className="text-[11px] font-medium text-slate-300 truncate">
                     {station.name}
                   </div>
-                  <div className="text-[9px] text-slate-500">{station.altitude}m</div>
+                  <div className="text-[11px] text-slate-500">{station.altitude}m</div>
                 </div>
                 <div className="text-right">
                   <div
-                    className="text-[10px] font-bold tabular-nums"
+                    className="text-[11px] font-bold tabular-nums"
                     style={{ color: windSpeedColor(reading?.windSpeed ?? null) }}
                   >
                     {reading?.windSpeed != null
                       ? `${msToKnots(reading.windSpeed).toFixed(1)}`
                       : '--'}
-                    <span className="text-[8px] text-slate-500 ml-0.5">kt</span>
+                    <span className="text-[11px] text-slate-500 ml-0.5">kt</span>
                   </div>
                   {reading?.windDirection != null && (
-                    <div className="text-[8px] text-slate-500">
+                    <div className="text-[11px] text-slate-500">
                       {degreesToCardinal(reading.windDirection)} {Math.round(reading.windDirection)}\u00b0
                     </div>
                   )}
                 </div>
                 <div className="text-right w-10">
-                  <div className="text-[10px] font-bold text-slate-300 tabular-nums">
+                  <div className="text-[11px] font-bold text-slate-300 tabular-nums">
                     {reading?.temperature != null ? `${reading.temperature.toFixed(1)}\u00b0` : '--'}
                   </div>
                   {reading?.humidity != null && (
-                    <div className="text-[8px] text-slate-500">{Math.round(reading.humidity)}%</div>
+                    <div className="text-[11px] text-slate-500">{Math.round(reading.humidity)}%</div>
                   )}
                 </div>
               </div>
             ))}
 
             {stations.length === 0 && (
-              <div className="text-[9px] text-slate-600 text-center py-2">
+              <div className="text-[11px] text-slate-600 text-center py-2">
                 Sin estaciones en esta zona
               </div>
             )}
@@ -818,11 +818,11 @@ function WindStatusCard({
       <div className="rounded-lg border border-slate-700 bg-slate-800/30 p-2.5">
         <div className="flex items-center gap-1.5">
           <WeatherIcon id="wind" size={13} className="text-slate-500" />
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
             Viento en estaciones
           </span>
         </div>
-        <div className="text-[10px] text-slate-600 mt-1">Cargando datos...</div>
+        <div className="text-[11px] text-slate-600 mt-1">Cargando datos...</div>
       </div>
     );
   }
@@ -882,7 +882,7 @@ function WindStatusCard({
       {/* Header */}
       <div className="flex items-center gap-1.5">
         <WeatherIcon id="wind" size={13} style={{ color: consensusColor }} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: consensusColor }}>
+        <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: consensusColor }}>
           Viento en estaciones
         </span>
       </div>
@@ -895,7 +895,7 @@ function WindStatusCard({
               <span className="text-xs font-bold text-slate-200">
                 {consensus.dominantDir} {consensus.avgSpeedKt.toFixed(0)}kt
               </span>
-              <span className="text-[9px] text-slate-500">
+              <span className="text-[11px] text-slate-500">
                 · {consensus.stationCount} est.
               </span>
             </div>
@@ -910,24 +910,24 @@ function WindStatusCard({
                   }}
                 />
               </div>
-              <span className="text-[8px] text-slate-500 w-8 text-right tabular-nums">
+              <span className="text-[11px] text-slate-500 w-8 text-right tabular-nums">
                 {consensus.stationCount}/15
               </span>
             </div>
           </div>
         </div>
       ) : (
-        <div className="text-[10px] text-slate-500">Sin viento consistente</div>
+        <div className="text-[11px] text-slate-500">Sin viento consistente</div>
       )}
 
       {/* Section 2: Trend */}
       {trend && (
-        <div className="flex items-center gap-2 text-[10px]">
+        <div className="flex items-center gap-2 text-[11px]">
           <span className="text-slate-500 w-16 shrink-0">Tendencia</span>
           <span className={`font-semibold ${trendColor}`}>
             {trendIcon} {trendLabel}
           </span>
-          <span className="text-[9px] text-slate-600 ml-auto tabular-nums">
+          <span className="text-[11px] text-slate-600 ml-auto tabular-nums">
             {trend.rateKtPerHour >= 0 ? '+' : ''}{trend.rateKtPerHour.toFixed(1)} kt/h
           </span>
         </div>
@@ -935,12 +935,12 @@ function WindStatusCard({
 
       {/* Section 3: Direction spread */}
       {spreadDeg !== null && (
-        <div className="flex items-center gap-2 text-[10px]">
+        <div className="flex items-center gap-2 text-[11px]">
           <span className="text-slate-500 w-16 shrink-0">Dispersión</span>
           <span className={`font-semibold ${spreadColor}`}>
             {spreadLabel}
           </span>
-          <span className="text-[9px] text-slate-600 ml-auto tabular-nums">
+          <span className="text-[11px] text-slate-600 ml-auto tabular-nums">
             {spreadDeg.toFixed(0)}°
           </span>
         </div>
@@ -948,7 +948,7 @@ function WindStatusCard({
 
       {/* Section 4: Zone coherence — dots */}
       {zonesWithWind.length > 0 && consensus && (
-        <div className="flex items-center gap-2 text-[10px]">
+        <div className="flex items-center gap-2 text-[11px]">
           <span className="text-slate-500 w-16 shrink-0">Zonas</span>
           <div className="flex items-center gap-1 flex-wrap">
             {zoneSummaries.map((z) => {
@@ -960,7 +960,7 @@ function WindStatusCard({
               return (
                 <span
                   key={z.zoneId}
-                  className={`text-[9px] px-1 py-0.5 rounded ${
+                  className={`text-[11px] px-1 py-0.5 rounded ${
                     z.stationCount === 0
                       ? 'text-slate-600'
                       : z.agrees
@@ -979,7 +979,7 @@ function WindStatusCard({
 
       {/* Section 5: Stability duration */}
       {consensusDurationMin !== null && consensusDurationMin > 0 && (
-        <div className="flex items-center gap-2 text-[10px]">
+        <div className="flex items-center gap-2 text-[11px]">
           <span className="text-slate-500 w-16 shrink-0">Estabilidad</span>
           <span className={`font-semibold ${
             consensusDurationMin >= 120 ? 'text-green-400'
@@ -993,7 +993,7 @@ function WindStatusCard({
             }
           </span>
           {consensusDurationMin < 20 && (
-            <span className="text-[8px] text-slate-600 ml-auto">monitorizar</span>
+            <span className="text-[11px] text-slate-600 ml-auto">monitorizar</span>
           )}
         </div>
       )}
@@ -1001,14 +1001,14 @@ function WindStatusCard({
       {/* Section 6 (conditional): Propagation events */}
       {propagationEvents.length > 0 && (
         <div className="rounded border border-blue-500/30 bg-blue-500/5 p-2 mt-1">
-          <div className="text-[9px] font-semibold text-blue-400 uppercase tracking-wider mb-1">
+          <div className="text-[11px] font-semibold text-blue-400 uppercase tracking-wider mb-1">
             Propagación detectada
           </div>
           {propagationEvents.map((event, i) => {
             const sourceZone = zones.find((z) => z.id === event.sourceZone);
             const targetZone = zones.find((z) => z.id === event.targetZone);
             return (
-              <div key={i} className="text-[10px] text-slate-400 flex items-center gap-1.5">
+              <div key={i} className="text-[11px] text-slate-400 flex items-center gap-1.5">
                 <span style={{ color: sourceZone?.color }}>{sourceZone?.name}</span>
                 <span className="text-slate-600">&rarr;</span>
                 <span style={{ color: targetZone?.color }}>{targetZone?.name}</span>
@@ -1057,7 +1057,7 @@ function HistoricalSection() {
           <button
             key={tab.key}
             onClick={() => setHistTab(tab.key)}
-            className={`flex-1 text-[9px] font-semibold py-1 rounded transition-colors ${
+            className={`flex-1 text-[11px] font-semibold py-1 rounded transition-colors ${
               histTab === tab.key
                 ? 'bg-slate-600 text-white'
                 : 'bg-slate-800 text-slate-500 hover:bg-slate-750'
@@ -1096,7 +1096,7 @@ function WindRoseSection({ records, historyLoaded }: { records: ParsedDay[]; his
 
   if (!roseData) {
     return (
-      <div className="text-[10px] text-slate-500 text-center py-4">
+      <div className="text-[11px] text-slate-500 text-center py-4">
         Cargando datos históricos AEMET...
       </div>
     );
@@ -1115,7 +1115,7 @@ function WindRoseSection({ records, historyLoaded }: { records: ParsedDay[]; his
           <button
             key={st.id}
             onClick={() => setRoseStation(st.id)}
-            className={`flex-1 text-[8px] font-semibold py-1 rounded transition-colors ${
+            className={`flex-1 text-[11px] font-semibold py-1 rounded transition-colors ${
               roseStation === st.id
                 ? 'bg-amber-600/30 text-amber-400 border border-amber-500/30'
                 : 'bg-slate-800 text-slate-500 hover:text-slate-400'
@@ -1141,9 +1141,9 @@ function WindRoseSection({ records, historyLoaded }: { records: ParsedDay[]; his
           .slice(0, 3)
           .map((p, i) => (
             <div key={p.direction} className="bg-slate-800/50 rounded p-1.5 text-center">
-              <div className="text-[10px] font-bold text-amber-400">{p.direction}</div>
-              <div className="text-[9px] text-slate-400">{p.percentage.toFixed(1)}%</div>
-              <div className="text-[8px] text-slate-600">#{i + 1}</div>
+              <div className="text-[11px] font-bold text-amber-400">{p.direction}</div>
+              <div className="text-[11px] text-slate-400">{p.percentage.toFixed(1)}%</div>
+              <div className="text-[11px] text-slate-600">#{i + 1}</div>
             </div>
           ))}
       </div>

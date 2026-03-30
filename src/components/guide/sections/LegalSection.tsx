@@ -44,7 +44,7 @@ export function LegalSection() {
             Todos los datos provienen de <strong className="text-slate-300">fuentes públicas y abiertas</strong>.
             Se citan conforme a sus respectivas licencias:
           </p>
-          <ul className="space-y-1.5 text-[10px] text-slate-400">
+          <ul className="space-y-1.5 text-[11px] text-slate-400">
             <AttrRow name="AEMET OpenData" license="CC BY 4.0" desc="Agencia Estatal de Meteorología — datos abiertos" />
             <AttrRow name="MeteoGalicia" license="Datos abiertos Xunta" desc="Xunta de Galicia — red de estaciones" />
             <AttrRow name="Meteoclimatic" license="Uso libre" desc="Red ciudadana — estaciones personales" />
@@ -74,7 +74,7 @@ export function LegalSection() {
           <p className="text-xs text-slate-400 leading-relaxed">
             MeteoMapGal <strong className="text-emerald-400">no recopila datos personales</strong>.
           </p>
-          <ul className="space-y-1 text-[10px] text-slate-400">
+          <ul className="space-y-1 text-[11px] text-slate-400">
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
               Sin cookies de seguimiento ni analítica
@@ -112,10 +112,10 @@ export function LegalSection() {
               className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
             >GitHub</a>.
           </p>
-          <p className="text-[10px] text-slate-500">
+          <p className="text-[11px] text-slate-500">
             Todas las dependencias del proyecto utilizan licencias compatibles (MIT, BSD-3, Apache-2.0).
           </p>
-          <p className="text-[10px] text-slate-600 font-mono mt-1">
+          <p className="text-[11px] text-slate-600 font-mono mt-1">
             Versión {APP_VERSION}
           </p>
         </div>
@@ -123,7 +123,7 @@ export function LegalSection() {
 
       {/* Contact */}
       <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/50">
-        <p className="text-[10px] text-slate-500">
+        <p className="text-[11px] text-slate-500">
           <strong className="text-slate-400">Contacto:</strong> Para reportar errores, sugerencias
           o contribuir al proyecto, abre un{' '}
           <a
@@ -145,7 +145,7 @@ function AttrRow({ name, license, desc }: { name: string; license: string; desc:
     <li className="flex items-start gap-2">
       <span className="text-slate-300 font-bold shrink-0 w-28">{name}</span>
       <span className="text-slate-500 flex-1">{desc}</span>
-      <span className="text-slate-600 font-mono text-[9px] shrink-0">{license}</span>
+      <span className="text-slate-600 font-mono text-[11px] shrink-0">{license}</span>
     </li>
   );
 }

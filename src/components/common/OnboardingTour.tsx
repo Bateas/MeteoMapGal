@@ -192,7 +192,7 @@ export const OnboardingTour = memo(function OnboardingTour() {
           <div>
             <h3 className="text-base font-bold text-white leading-tight">{current.title}</h3>
             {isFirst && (
-              <span className="text-[10px] text-slate-500">Zona: {sectorName}</span>
+              <span className="text-[11px] text-slate-500">Zona: {sectorName}</span>
             )}
           </div>
         </div>

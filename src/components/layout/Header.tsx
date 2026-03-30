@@ -116,8 +116,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
 
         <h1 className={`font-bold text-white tracking-tight flex-shrink-0 ${isMobile ? 'hidden' : 'text-base'}`}>
           MeteoMapGal
-          <span className="text-[9px] font-normal text-slate-600 ml-1">v{APP_VERSION}</span>
         </h1>
+        {!isMobile && <span className="text-[11px] font-normal text-slate-500 ml-0.5" aria-label={`versión ${APP_VERSION}`}>v{APP_VERSION}</span>}
         {/* Sector selector — compact on mobile (icon-only for inactive), label on desktop */}
         {isMobile ? (
           <div className="flex items-center gap-1" data-tour="sectors">
@@ -140,18 +140,18 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
               );
             })}
             {stationCount > 0 && (
-              <span className="bg-slate-800 text-slate-400 rounded text-[9px] px-1 py-0.5 flex-shrink-0">
+              <span className="bg-slate-800 text-slate-400 rounded text-[11px] px-1 py-0.5 flex-shrink-0">
                 {readingCount}/{stationCount}
               </span>
             )}
           </div>
         ) : (
           <>
-            <span className="text-[10px] text-slate-500 font-medium truncate inline-flex items-center gap-1">
+            <span className="text-[11px] text-slate-500 font-medium truncate inline-flex items-center gap-1">
               <WeatherIcon id={activeSector.icon} size={12} /> {activeSector.name}
             </span>
             {stationCount > 0 && (
-              <span className="bg-slate-800 text-slate-400 rounded text-[10px] px-1.5 py-0.5 flex-shrink-0">
+              <span className="bg-slate-800 text-slate-400 rounded text-[11px] px-1.5 py-0.5 flex-shrink-0">
                 {readingCount}/{stationCount}
               </span>
             )}
@@ -164,7 +164,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           <>
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
-              className="btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 flex-shrink-0 text-[10px] px-2 py-1"
+              className="btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 flex-shrink-0 text-[11px] px-2 py-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
               title="Guía meteorológica (G)"
               aria-label="Abrir guía meteorológica"
             >
@@ -172,7 +172,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             </button>
             <button
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-              className="p-1.5 rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/30 border border-emerald-500/20 transition-all min-w-[32px] min-h-[32px] flex items-center justify-center"
+              className="p-1.5 rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/30 border border-emerald-500/20 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="Enviar feedback"
               title="Tu opinion"
             >
@@ -184,7 +184,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
       <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
         {/* Sunrise / Sunset — hide on mobile */}
         <div
-          className="hidden md:flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded"
+          className="hidden md:flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded"
           style={{
             background: daylight ? 'rgba(250, 204, 21, 0.08)' : 'rgba(100, 116, 139, 0.1)',
             color: daylight ? '#facc15' : '#64748b',
@@ -204,7 +204,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             onClick={onToggleFieldDrawer}
             data-tour="panel"
             className={`flex items-center gap-1 rounded-lg font-bold transition-all
-              ${isMobile ? 'px-3 py-1.5 text-xs min-h-[36px]' : 'px-2 py-0.5 text-[10px]'}
+              ${isMobile ? 'px-3 py-1.5 text-xs min-h-[36px]' : 'px-2.5 py-1.5 text-[11px] min-h-[36px]'}
               ${fieldDrawerOpen
                 ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
                 : fieldAlertLevel !== 'none'
@@ -222,6 +222,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                 : undefined
             }
             title={isMobile ? 'Panel campo y alertas' : 'Panel campo y alertas (C)'}
+            aria-label="Panel campo y alertas"
           >
             <span className="inline-flex items-center gap-1">{isMobile && <WeatherIcon id="clipboard-list" size={14} />} Panel</span>
           </button>
@@ -231,7 +232,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {windFront?.active && windFront.etaMin != null && (
           <div
             className={`flex items-center gap-1 rounded font-mono ${
-              isMobile ? 'px-2 py-1.5 text-[10px]' : 'px-2 py-0.5 text-[10px]'
+              isMobile ? 'px-2 py-1.5 text-[11px]' : 'px-2 py-0.5 text-[11px]'
             }`}
             style={{
               background: 'rgba(245, 158, 11, 0.10)',
@@ -243,7 +244,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             <WeatherIcon id="radar" size={isMobile ? 14 : 12} />
             <span className="font-bold">~{windFront.etaMin} min</span>
             {!isMobile && (
-              <span className="text-slate-500 text-[9px]">{windFront.directionLabel}</span>
+              <span className="text-slate-500 text-[11px]">{windFront.directionLabel}</span>
             )}
           </div>
         )}
@@ -251,7 +252,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {/* Next sailing window banner (Embalse only — hide on mobile) */}
         {!isMobile && isEmbalse && nextSailingWindow && (
           <div
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono"
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono"
             style={{
               background: `${nextSailingWindow.color}12`,
               border: `1px solid ${nextSailingWindow.color}30`,
@@ -261,7 +262,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           >
             <WeatherIcon id="sailboat" size={14} />
             <span className="font-semibold">{nextSailingWindow.score}%</span>
-            <span className="text-slate-500 text-[9px]">
+            <span className="text-slate-500 text-[11px]">
               {nextSailingWindow.time.toLocaleDateString('es-ES', { weekday: 'short' })}{' '}
               {nextSailingWindow.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
             </span>
@@ -271,7 +272,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         {/* Theme toggle — sun/moon */}
         <button
           onClick={toggleTheme}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/60 transition-all min-w-[32px] min-h-[32px] flex items-center justify-center"
+          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/60 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
           aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
         >
           <WeatherIcon id={theme === 'dark' ? 'sun' : 'moon'} size={14} />

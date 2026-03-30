@@ -55,7 +55,7 @@ export const CriticalAlertBanner = memo(function CriticalAlertBanner() {
             PELIGRO · {topAlert.title}
           </span>
           {!isMobile && (
-            <span className="text-[10px] font-normal opacity-70 truncate">
+            <span className="text-[11px] font-normal opacity-70 truncate">
               {subtitle}
             </span>
           )}

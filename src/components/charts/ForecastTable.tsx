@@ -102,7 +102,7 @@ export function ForecastTable({ data }: ForecastTableProps) {
   }, [data, rules]);
 
   if (data.length === 0) {
-    return <div className="text-xs text-slate-500 text-center py-4">Sin datos de previsi\u00f3n</div>;
+    return <div className="text-xs text-slate-400 text-center py-4">Sin datos de previsi\u00f3n</div>;
   }
 
   const rows: {
@@ -169,7 +169,7 @@ export function ForecastTable({ data }: ForecastTableProps) {
       render: (p) => (
         <span className="text-slate-300 flex items-center justify-center gap-0.5">
           <DirArrow dir={p.windDirection} />
-          <span className="text-[8px]">
+          <span className="text-[11px]">
             {p.windDirection !== null ? degreesToCardinal(p.windDirection) : ''}
           </span>
         </span>
@@ -200,7 +200,7 @@ export function ForecastTable({ data }: ForecastTableProps) {
     {
       label: 'Nubes',
       render: (p) => (
-        <span className="text-[10px]">{cloudIcon(p.cloudCover)}</span>
+        <span className="text-[11px]">{cloudIcon(p.cloudCover)}</span>
       ),
     },
     {
@@ -215,7 +215,7 @@ export function ForecastTable({ data }: ForecastTableProps) {
 
   return (
     <div className="overflow-x-auto scrollbar-thin">
-      <table className="text-[10px] border-collapse min-w-max">
+      <table className="text-[11px] border-collapse min-w-max">
         {/* Day header */}
         <thead>
           <tr>
@@ -224,7 +224,7 @@ export function ForecastTable({ data }: ForecastTableProps) {
               <th
                 key={i}
                 colSpan={g.count}
-                className="px-0 py-1 text-center text-[9px] font-semibold text-slate-400 border-b border-slate-700"
+                className="px-0 py-1 text-center text-[11px] font-semibold text-slate-400 border-b border-slate-700"
               >
                 {g.label}
               </th>

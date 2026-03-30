@@ -80,7 +80,7 @@ export const SpotSelector = memo(function SpotSelector() {
             <span className="text-[13px] font-bold text-slate-200">{activeSpot.shortName}</span>
             {activeSpot.id === favoriteSpotId && <span className="text-amber-400 text-xs" title="Tu spot favorito">{'\u2605'}</span>}
             <span className="badge-beta">Beta</span>
-            <span className={`${v.text} text-[10px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'good' ? 'badge-shimmer' : ''}`}>
+            <span className={`${v.text} text-[11px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'good' ? 'badge-shimmer' : ''}`}>
               {v.label}
               {windKt != null && activeVerdict !== 'calm' ? ` ${windKt.toFixed(0)}kt` : ''}
             </span>
@@ -125,7 +125,7 @@ export const SpotSelector = memo(function SpotSelector() {
           })}
 
           {/* Beta disclaimer */}
-          <div className="flex items-start gap-1.5 px-1.5 pt-1.5 text-[10px] text-amber-500/80 leading-tight">
+          <div className="flex items-start gap-1.5 px-1.5 pt-1.5 text-[11px] text-amber-500/80 leading-tight">
             <span className="flex-shrink-0 mt-px">&#9888;</span>
             <span>
               Sistema en pruebas. Los patrones de viento son orientativos
@@ -194,7 +194,7 @@ function SpotCard({
           {isFavorite ? '\u2605' : '\u2606'}
         </span>
         {/* Verdict badge with kt */}
-        <span className={`flex items-center gap-1 text-[10px] font-bold ${v.text}`}>
+        <span className={`flex items-center gap-1 text-[11px] font-bold ${v.text}`}>
           <span className={`w-2 h-2 rounded-full ${v.dot}`} />
           {v.label}
           {windKt != null && verdict !== 'calm' && verdict !== 'unknown' ? ` ${windKt.toFixed(0)}kt` : ''}
@@ -203,7 +203,7 @@ function SpotCard({
 
       {/* Score detail row */}
       {score && (
-        <div className="flex items-center gap-2 flex-wrap mt-1 text-[10px] text-slate-400">
+        <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-slate-400">
           {score.wind && (
             <span>{score.wind.dominantDir} ~{score.wind.avgSpeedKt.toFixed(0)}kt</span>
           )}
@@ -233,14 +233,14 @@ function SpotCard({
 
       {/* Humidity/theta-v signal (bruma, bocana, virazon detection) */}
       {score?.humiditySignal && (
-        <div className="text-[9px] text-amber-400/80 mt-1 leading-tight">
+        <div className="text-[11px] text-amber-400/80 mt-1 leading-tight">
           {score.humiditySignal}
         </div>
       )}
 
       {/* Wind trend indicator */}
       {score?.windTrend && score.windTrend.signal !== 'stable' && (
-        <div className={`text-[9px] mt-0.5 ${score.windTrend.signal === 'building' || score.windTrend.signal === 'rapid' ? 'text-green-400' : 'text-orange-400'}`}>
+        <div className={`text-[11px] mt-0.5 ${score.windTrend.signal === 'building' || score.windTrend.signal === 'rapid' ? 'text-green-400' : 'text-orange-400'}`}>
           {score.windTrend.signal === 'building' ? 'Viento subiendo' : score.windTrend.signal === 'rapid' ? 'Subida rapida' : 'Viento bajando'}
           {score.windTrend.deltaKt != null ? ` (${score.windTrend.deltaKt > 0 ? '+' : ''}${score.windTrend.deltaKt.toFixed(0)}kt)` : ''}
         </div>
@@ -253,7 +253,7 @@ function SpotCard({
         return signals.map((s, i) => {
           const color = s.confidence === 'alta' ? 'text-green-400' : s.confidence === 'media' ? 'text-blue-400' : 'text-slate-400';
           return (
-            <div key={i} className={`text-[9px] ${color} mt-0.5 leading-tight`}>
+            <div key={i} className={`text-[11px] ${color} mt-0.5 leading-tight`}>
               <WeatherIcon id="sun" size={10} className="inline -mt-px mr-0.5" />
               {s.label} <span className="opacity-50">BETA</span>
             </div>
@@ -281,7 +281,7 @@ function SpotCard({
 
       {/* Description (only for active spot) */}
       {isActive && (
-        <p className="text-[10px] text-slate-500 mt-1">{description}</p>
+        <p className="text-[11px] text-slate-500 mt-1">{description}</p>
       )}
     </button>
   );
@@ -402,7 +402,7 @@ function DetailRow({ icon, iconColor, label, value, color }: {
   return (
     <div className="flex items-center gap-2">
       <WeatherIcon id={icon} size={11} className={`flex-shrink-0 ${iconColor}`} />
-      <span className="text-[10px] text-slate-500 w-[72px] flex-shrink-0">{label}</span>
+      <span className="text-[11px] text-slate-500 w-[72px] flex-shrink-0">{label}</span>
       <span className={`text-[11px] font-semibold ${color} truncate`}>{value}</span>
     </div>
   );
@@ -422,7 +422,7 @@ function NextWindowSummary({ spotId, sailingWindows }: {
 
   const dotColor = best.verdict === 'good' ? 'bg-emerald-400' : 'bg-amber-400';
   return (
-    <p className="text-[10px] text-emerald-400/80 truncate mt-0.5 flex items-center gap-1">
+    <p className="text-[11px] text-emerald-400/80 truncate mt-0.5 flex items-center gap-1">
       <span className={`inline-block w-2 h-2 rounded-full ${dotColor} shrink-0`} />
       {best.summary}
     </p>

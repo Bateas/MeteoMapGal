@@ -52,14 +52,14 @@ export function ThermalCastreloSection() {
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
             <div className="text-sm font-bold text-amber-400">Julio y Agosto</div>
-            <p className="text-[10px] text-slate-500 mt-1">
+            <p className="text-[11px] text-slate-500 mt-1">
               Jul: 29% de días con térmico limpio. Ago: 37%.
               Mayo-junio y septiembre son posibles pero menos frecuentes.
             </p>
           </div>
           <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
             <div className="text-sm font-bold text-emerald-400">14:00 – 18:00</div>
-            <p className="text-[10px] text-slate-500 mt-1">
+            <p className="text-[11px] text-slate-500 mt-1">
               Pico de viento entre las 14 y 18h. En junio-julio
               puede extenderse hasta las 20-21h con la luz extra.
             </p>
@@ -74,7 +74,7 @@ export function ThermalCastreloSection() {
           <WeatherIcon id="check-circle" size={18} className="text-emerald-400" />
           Checklist del día perfecto
         </h3>
-        <p className="text-[10px] text-slate-500">
+        <p className="text-[11px] text-slate-500">
           Basado en 1.412 registros AEMET (2022-2025). 119 días térmicos confirmados.
         </p>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
@@ -90,7 +90,7 @@ export function ThermalCastreloSection() {
               <span className="text-base"><WeatherIcon id={item.iconId} size={16} /></span>
               <div className="flex-1">
                 <span className="text-xs font-semibold text-slate-300">{item.check}</span>
-                <span className="text-[10px] text-slate-500 ml-2">— {item.detail}</span>
+                <span className="text-[11px] text-slate-500 ml-2">— {item.detail}</span>
               </div>
             </div>
           ))}
@@ -140,7 +140,7 @@ export function ThermalCastreloSection() {
               color="#ef4444"
             />
           </div>
-          <p className="text-[10px] text-slate-500 mt-2 border-t border-slate-700/50 pt-2">
+          <p className="text-[11px] text-slate-500 mt-2 border-t border-slate-700/50 pt-2">
             El resultado es un <strong className="text-slate-400">score 0-100</strong> que alimenta
             el veredicto del spot (GO / MARGINAL / NO-GO) y las alertas por Telegram.
           </p>
@@ -166,7 +166,7 @@ export function ThermalCastreloSection() {
 
       {/* ── Nota beta ── */}
       <div className="bg-amber-900/10 rounded-lg p-3 border border-amber-700/20">
-        <p className="text-[10px] text-amber-400/70">
+        <p className="text-[11px] text-amber-400/70">
           <WeatherIcon id="alert-triangle" size={12} className="inline mr-1" />
           <strong>Funcionalidad en Beta</strong> — La detección térmica está calibrada con datos reales AEMET (2022-2025)
           pero puede tener imprecisiones. Úsala como orientación, no como fuente definitiva. Consulta siempre las condiciones reales antes de navegar.
@@ -201,8 +201,8 @@ function ThermalTimeline() {
             }`}
           >
             <WeatherIcon id={p.icon} size={16} className={phase === i ? 'text-white' : 'text-slate-600'} />
-            <div className={`text-[9px] font-bold mt-1 ${phase === i ? 'text-white' : 'text-slate-600'}`}>{p.label}</div>
-            <div className="text-[8px] text-slate-500">{p.hours}</div>
+            <div className={`text-[11px] font-bold mt-1 ${phase === i ? 'text-white' : 'text-slate-600'}`}>{p.label}</div>
+            <div className="text-[11px] text-slate-500">{p.hours}</div>
           </button>
         ))}
       </div>
@@ -221,16 +221,16 @@ function MonthlyChart() {
   const max = 37;
   return (
     <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-      <div className="text-[10px] text-slate-500 mb-2 font-bold">Probabilidad de térmico por mes</div>
+      <div className="text-[11px] text-slate-500 mb-2 font-bold">Probabilidad de térmico por mes</div>
       <div className="flex items-end gap-2 h-20">
         {months.map((m) => (
           <div key={m.m} className="flex-1 flex flex-col items-center gap-1">
-            <span className="text-[9px] text-slate-400 font-bold">{m.pct}%</span>
+            <span className="text-[11px] text-slate-400 font-bold">{m.pct}%</span>
             <div
               className="w-full rounded-t bg-gradient-to-t from-emerald-600/50 to-emerald-400/80"
               style={{ height: `${(m.pct / max) * 100}%`, minHeight: '4px' }}
             />
-            <span className="text-[8px] text-slate-600">{m.m}</span>
+            <span className="text-[11px] text-slate-600">{m.m}</span>
           </div>
         ))}
       </div>
@@ -244,7 +244,7 @@ function DetectionRow({ icon, title, desc, color }: { icon: IconId; title: strin
       <span className="shrink-0 mt-0.5" style={{ color }}><WeatherIcon id={icon} size={14} /></span>
       <div>
         <span className="text-[11px] font-bold" style={{ color }}>{title}</span>
-        <p className="text-[10px] text-slate-500 mt-0.5">{desc}</p>
+        <p className="text-[11px] text-slate-500 mt-0.5">{desc}</p>
       </div>
     </div>
   );
@@ -255,8 +255,8 @@ function WindRow({ range, label, desc, color }: { range: string; label: string; 
     <div className="flex items-center gap-3 py-1.5">
       <div className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
       <span className="text-xs font-mono font-bold text-slate-300 w-16">{range}</span>
-      <span className="text-[10px] font-bold w-20" style={{ color }}>{label}</span>
-      <span className="text-[10px] text-slate-500 flex-1">{desc}</span>
+      <span className="text-[11px] font-bold w-20" style={{ color }}>{label}</span>
+      <span className="text-[11px] text-slate-500 flex-1">{desc}</span>
     </div>
   );
 }

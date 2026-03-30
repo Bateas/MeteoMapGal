@@ -47,12 +47,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <div className="text-sm text-slate-300 font-medium">
             Error en {this.props.section}
           </div>
-          <div className="text-[10px] text-slate-500 text-center max-w-xs leading-relaxed">
+          <div className="text-[11px] text-slate-500 text-center max-w-xs leading-relaxed">
             {this.state.error?.message || 'Error desconocido'}
           </div>
           <button
             onClick={this.handleRetry}
-            className="text-[10px] bg-slate-700 text-slate-300 px-4 py-1.5 rounded hover:bg-slate-600 transition-colors mt-1"
+            className="text-[11px] bg-slate-700 text-slate-300 px-4 py-1.5 rounded hover:bg-slate-600 transition-colors mt-1"
           >
             Reintentar
           </button>

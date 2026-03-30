@@ -82,7 +82,7 @@ export const WindRoseHistorical = memo(function WindRoseHistorical({
 
   if (bins.validCount < 10) {
     return (
-      <div className="flex items-center justify-center h-[200px] text-slate-500 text-[10px]">
+      <div className="flex items-center justify-center h-[200px] text-slate-500 text-[11px]">
         Datos de viento insuficientes para la rosa
       </div>
     );
@@ -228,12 +228,12 @@ export const WindRoseHistorical = memo(function WindRoseHistorical({
         {SPEED_BINS.map((b) => (
           <div key={b.label} className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: b.color, opacity: 0.75 }} />
-            <span className="text-[8px] text-slate-400">{b.label} kt</span>
+            <span className="text-[11px] text-slate-400">{b.label} kt</span>
           </div>
         ))}
       </div>
 
-      <div className="text-center text-[8px] text-slate-600">
+      <div className="text-center text-[11px] text-slate-600">
         {bins.validCount.toLocaleString()} lecturas con viento válido
       </div>
     </div>

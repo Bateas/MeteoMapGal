@@ -144,7 +144,7 @@ export function StationTable() {
               key={src}
               onClick={() => toggleSource(src)}
               className={`flex items-center gap-0.5 rounded font-bold transition-all ${
-                isMobile ? 'px-2.5 py-1.5 text-[11px] min-h-[36px]' : 'px-1.5 py-0.5 text-[9px]'
+                isMobile ? 'px-2.5 py-1.5 text-[11px] min-h-[36px]' : 'px-1.5 py-0.5 text-[11px]'
               }`}
               style={{
                 background: isHidden ? 'transparent' : color,
@@ -155,7 +155,7 @@ export function StationTable() {
               title={`${isHidden ? 'Mostrar' : 'Ocultar'} ${src} (${count})`}
             >
               {label}
-              <span className={`font-normal ${isMobile ? 'text-[10px]' : 'text-[8px]'}`} style={{ opacity: 0.8 }}>
+              <span className={`font-normal ${isMobile ? 'text-[11px]' : 'text-[11px]'}`} style={{ opacity: 0.8 }}>
                 {count}
               </span>
             </button>
@@ -166,7 +166,7 @@ export function StationTable() {
         <button
           onClick={cycleSortMode}
           className={`ml-auto rounded border border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors ${
-            isMobile ? 'px-2.5 py-1.5 text-[11px] min-h-[36px] min-w-[36px] flex items-center justify-center' : 'text-[9px] px-1.5 py-0.5'
+            isMobile ? 'px-2.5 py-1.5 text-[11px] min-h-[36px] min-w-[36px] flex items-center justify-center' : 'text-[11px] px-1.5 py-0.5'
           }`}
           title={`Orden: ${sortMode === 'wind' ? 'viento' : sortMode === 'temp' ? 'temperatura' : 'nombre'}`}
         >
@@ -174,14 +174,14 @@ export function StationTable() {
         </button>
 
         {tempOnlyCount > 0 && (
-          <span className="text-[9px] text-slate-500" title={`${tempOnlyCount} estaciones solo temperatura (puntos en mapa)`}>
+          <span className="text-[11px] text-slate-500" title={`${tempOnlyCount} estaciones solo temperatura (puntos en mapa)`}>
             +{tempOnlyCount}t
           </span>
         )}
       </div>
 
       {/* Count line */}
-      <div className="text-[10px] text-slate-500 px-1">
+      <div className="text-[11px] text-slate-500 px-1">
         {filteredStations.length === fullStations.length
           ? `${fullStations.length} estaciones`
           : `${filteredStations.length} de ${fullStations.length} estaciones`}

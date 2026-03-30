@@ -57,41 +57,41 @@ export function BestDaysSearch({ records }: BestDaysSearchProps) {
 
   return (
     <div className="space-y-2">
-      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+      <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
         Buscar Mejores Días
       </div>
 
       {/* Filters */}
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[9px] text-slate-500">Temp min °C</label>
+          <label className="text-[11px] text-slate-500">Temp min °C</label>
           <input
             type="number"
             value={minTemp ?? ''}
             onChange={(e) => setMinTemp(e.target.value ? Number(e.target.value) : undefined)}
-            className="w-full bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded border border-slate-700"
+            className="w-full bg-slate-800 text-slate-300 text-[11px] px-1.5 py-0.5 rounded border border-slate-700"
           />
         </div>
         <div>
-          <label className="text-[9px] text-slate-500">Temp max °C</label>
+          <label className="text-[11px] text-slate-500">Temp max °C</label>
           <input
             type="number"
             value={maxTemp ?? ''}
             onChange={(e) => setMaxTemp(e.target.value ? Number(e.target.value) : undefined)}
-            className="w-full bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded border border-slate-700"
+            className="w-full bg-slate-800 text-slate-300 text-[11px] px-1.5 py-0.5 rounded border border-slate-700"
           />
         </div>
       </div>
 
       {/* Wind direction */}
       <div>
-        <label className="text-[9px] text-slate-500">Dirección viento</label>
+        <label className="text-[11px] text-slate-500">Dirección viento</label>
         <div className="flex gap-1 flex-wrap mt-0.5">
           {WIND_DIRS.map((d) => (
             <button
               key={d.label}
               onClick={() => setSelectedDir(d.label)}
-              className={`text-[9px] px-1.5 py-0.5 rounded transition-colors ${
+              className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${
                 selectedDir === d.label
                   ? 'bg-amber-600 text-white'
                   : 'bg-slate-800 text-slate-500 hover:bg-slate-750'
@@ -105,24 +105,24 @@ export function BestDaysSearch({ records }: BestDaysSearchProps) {
 
       {/* Max precipitation */}
       <div>
-        <label className="text-[9px] text-slate-500">Precip max (mm)</label>
+        <label className="text-[11px] text-slate-500">Precip max (mm)</label>
         <input
           type="number"
           value={maxPrecip ?? ''}
           onChange={(e) => setMaxPrecip(e.target.value ? Number(e.target.value) : undefined)}
-          className="w-full bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded border border-slate-700"
+          className="w-full bg-slate-800 text-slate-300 text-[11px] px-1.5 py-0.5 rounded border border-slate-700"
         />
       </div>
 
       {/* Months */}
       <div>
-        <label className="text-[9px] text-slate-500">Meses</label>
+        <label className="text-[11px] text-slate-500">Meses</label>
         <div className="flex gap-0.5 flex-wrap mt-0.5">
           {MONTH_NAMES.map((name, i) => (
             <button
               key={i}
               onClick={() => toggleMonth(i + 1)}
-              className={`text-[8px] px-1 py-0.5 rounded transition-colors ${
+              className={`text-[11px] px-1 py-0.5 rounded transition-colors ${
                 months.includes(i + 1)
                   ? 'bg-blue-600 text-white'
                   : 'bg-slate-800 text-slate-600 hover:bg-slate-750'
@@ -137,7 +137,7 @@ export function BestDaysSearch({ records }: BestDaysSearchProps) {
       {/* Search button */}
       <button
         onClick={doSearch}
-        className="w-full bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-semibold py-1.5 rounded transition-colors"
+        className="w-full bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold py-1.5 rounded transition-colors"
       >
         Buscar ({records.length} registros)
       </button>
@@ -145,12 +145,12 @@ export function BestDaysSearch({ records }: BestDaysSearchProps) {
       {/* Results */}
       {searched && (
         <div className="space-y-1">
-          <div className="text-[9px] text-slate-500">
+          <div className="text-[11px] text-slate-500">
             {results.length} resultado{results.length !== 1 ? 's' : ''}
           </div>
           {results.length > 0 && (
             <div className="max-h-48 overflow-y-auto scrollbar-thin">
-              <table className="w-full text-[9px]">
+              <table className="w-full text-[11px]">
                 <thead>
                   <tr className="text-slate-500">
                     <th className="text-left py-0.5 px-1">Fecha</th>

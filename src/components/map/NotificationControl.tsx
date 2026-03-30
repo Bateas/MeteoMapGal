@@ -39,7 +39,7 @@ export const NotificationControl = memo(function NotificationControl() {
     // Compact toggle button
     return (
       <button
-        className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] transition-all"
+        className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition-all"
         style={{
           background: config.enabled
             ? 'rgba(59, 130, 246, 0.12)'
@@ -69,11 +69,11 @@ export const NotificationControl = memo(function NotificationControl() {
     >
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">
+        <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
           Notificaciones
         </span>
         <button
-          className="text-[9px] text-slate-500 hover:text-slate-300 px-1"
+          className="text-[11px] text-slate-500 hover:text-slate-300 px-1"
           onClick={() => setSettingsOpen(false)}
         >
           ✕
@@ -96,7 +96,7 @@ export const NotificationControl = memo(function NotificationControl() {
             onChange={setSoundEnabled}
             extra={
               <button
-                className="text-[8px] text-cyan-500 hover:text-cyan-400 ml-1"
+                className="text-[11px] text-cyan-500 hover:text-cyan-400 ml-1"
                 onClick={handleTestSound}
               >
                 ▶ test
@@ -107,7 +107,7 @@ export const NotificationControl = memo(function NotificationControl() {
           {/* Volume */}
           {config.soundEnabled && (
             <div className="flex items-center gap-2 px-1">
-              <span className="text-[9px] text-slate-500 w-12">Vol</span>
+              <span className="text-[11px] text-slate-500 w-12">Vol</span>
               <input
                 type="range"
                 min="0"
@@ -116,7 +116,7 @@ export const NotificationControl = memo(function NotificationControl() {
                 onChange={(e) => setVolume(Number(e.target.value) / 100)}
                 className="flex-1 h-1 accent-cyan-500"
               />
-              <span className="text-[9px] text-slate-500 font-mono w-6 text-right">
+              <span className="text-[11px] text-slate-500 font-mono w-6 text-right">
                 {Math.round(config.volume * 100)}
               </span>
             </div>
@@ -132,7 +132,7 @@ export const NotificationControl = memo(function NotificationControl() {
           {/* Permission request */}
           {config.pushEnabled && permissionStatus !== 'granted' && (
             <button
-              className="w-full text-[9px] py-1 rounded bg-cyan-900/30 border border-cyan-800/40 text-cyan-400 hover:bg-cyan-900/50 transition-colors"
+              className="w-full text-[11px] py-1 rounded bg-cyan-900/30 border border-cyan-800/40 text-cyan-400 hover:bg-cyan-900/50 transition-colors"
               onClick={handleRequestPermission}
             >
               {permissionStatus === 'denied'
@@ -143,12 +143,12 @@ export const NotificationControl = memo(function NotificationControl() {
 
           {/* Min severity */}
           <div className="flex items-center gap-2 px-1">
-            <span className="text-[9px] text-slate-500 w-12">Nivel</span>
+            <span className="text-[11px] text-slate-500 w-12">Nivel</span>
             <div className="flex gap-1 flex-1">
               {SEVERITY_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
-                  className="text-[8px] px-1.5 py-0.5 rounded transition-all"
+                  className="text-[11px] px-1.5 py-0.5 rounded transition-all"
                   style={{
                     background: config.minSeverity === opt.value
                       ? 'rgba(59, 130, 246, 0.2)'
@@ -185,7 +185,7 @@ function ToggleRow({
 }) {
   return (
     <div className="flex items-center gap-2 px-1">
-      <span className="text-[9px] text-slate-500 w-12">{label}</span>
+      <span className="text-[11px] text-slate-500 w-12">{label}</span>
       <button
         className="w-7 h-3.5 rounded-full transition-all relative"
         style={{

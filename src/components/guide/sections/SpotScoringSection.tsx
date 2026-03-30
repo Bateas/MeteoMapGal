@@ -21,7 +21,7 @@ export function SpotScoringSection() {
           <WeatherIcon id="sailboat" size={14} className="inline-block mr-1.5 text-emerald-400" />
           &iquest;Qu&eacute; es un spot?
         </h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
             Un spot es una micro-zona de navegaci&oacute;n con radio definido (6-15 km). El sistema
             selecciona autom&aacute;ticamente las estaciones meteorol&oacute;gicas y boyas m&aacute;s cercanas
@@ -44,7 +44,7 @@ export function SpotScoringSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-amber-500/20 space-y-1.5">
           <div className="text-[11px] font-bold text-amber-400">Embalse de Castrelo</div>
           <SpotRow name="Castrelo" desc="Valle del Mi&ntilde;o. Agua dulce, t&eacute;rmica WSW tardes." thermal />
-          <p className="text-[9px] text-slate-500 italic pt-1">
+          <p className="text-[11px] text-slate-500 italic pt-1">
             Pr&oacute;ximamente: m&aacute;s spots (vi&ntilde;edos, valles colindantes).
           </p>
         </div>
@@ -63,7 +63,7 @@ export function SpotScoringSection() {
       {/* 5-level scoring scale */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Escala de viento (5 niveles)</h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2 text-[10px]">
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2 text-[11px]">
           <p className="text-slate-400 leading-relaxed">
             El veredicto se basa en el <strong className="text-slate-300">viento real medido</strong> por
             las estaciones cercanas al spot. El color del marcador en el mapa refleja directamente
@@ -76,7 +76,7 @@ export function SpotScoringSection() {
             <VerdictRow color="#facc15" label="Buen d&iacute;a"  wind="12-17kt" desc="Regata y ocio. Merece la pena ir." />
             <VerdictRow color="#fb923c" label="Fuerte"    wind="18+ kt"  desc="Solo con experiencia. Viento potente." />
           </div>
-          <p className="text-[9px] text-slate-500 italic pt-2">
+          <p className="text-[11px] text-slate-500 italic pt-2">
             Las estaciones meteorol&oacute;gicas est&aacute;n en tierra, no en el agua. El viento real en la
             superficie del agua suele ser un 15-25% superior al que marca la estaci&oacute;n m&aacute;s cercana.
           </p>
@@ -86,7 +86,7 @@ export function SpotScoringSection() {
       {/* Score nuance */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Matices del scoring</h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
             Adem&aacute;s del viento, el score (0-100) incorpora factores que matizan:
           </p>
@@ -111,7 +111,7 @@ export function SpotScoringSection() {
           <WeatherIcon id="thermometer" size={14} className="inline-block mr-1.5 text-sky-400" />
           Datos ambientales
         </h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
             El popup del spot muestra datos del entorno extra&iacute;dos de la estaci&oacute;n m&aacute;s cercana:
           </p>
@@ -132,7 +132,7 @@ export function SpotScoringSection() {
           <WeatherIcon id="thermometer" size={14} className="inline-block mr-1.5 text-orange-400" />
           Detalle t&eacute;rmico
         </h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
             Los spots con <strong className="text-slate-300">detecci&oacute;n t&eacute;rmica</strong> (Castrelo,
             Cesantes, Lourido) muestran filas adicionales al expandir la tarjeta:
@@ -152,7 +152,7 @@ export function SpotScoringSection() {
               (hasta +50%) sobre el consenso de viento.
               Muestra aviso de &ldquo;baja confianza&rdquo; con el n&uacute;mero de fuentes.</li>
           </ul>
-          <p className="text-[9px] text-slate-500 italic">
+          <p className="text-[11px] text-slate-500 italic">
             Estos datos proceden de Open-Meteo (previsi&oacute;n), an&aacute;lisis t&eacute;rmico en tiempo real y boyas marinas.
           </p>
         </div>
@@ -164,7 +164,7 @@ export function SpotScoringSection() {
           <WeatherIcon id="camera" size={14} className="inline-block mr-1.5 text-sky-400" />
           Webcams
         </h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
             Algunos spots incluyen webcams accesibles desde el popup. Despliega la secci&oacute;n
             <strong className="text-slate-300"> Webcams</strong> en el popup del spot.
@@ -175,7 +175,7 @@ export function SpotScoringSection() {
             <li><strong className="text-slate-300">Bocana / Centro R&iacute;a</strong> &mdash; Vigo M&oacute;vil (G24): visi&oacute;n desde Porto de Vigo hacia la bocana y medio de la r&iacute;a.</li>
             <li><strong className="text-slate-300">Lourido</strong> &mdash; KiteGalicia: enlace a p&aacute;gina del centro KG Lourido con condiciones en vivo.</li>
           </ul>
-          <p className="text-[9px] text-slate-500 italic">
+          <p className="text-[11px] text-slate-500 italic">
             Las webcams son fuentes externas. La disponibilidad depende del proveedor.
           </p>
         </div>
@@ -187,7 +187,7 @@ export function SpotScoringSection() {
           <WeatherIcon id="anchor" size={14} className="inline-block mr-1.5 text-cyan-400" />
           Mareas en spots
         </h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
             Cada spot R&iacute;as muestra un <strong className="text-slate-300">resumen de mareas</strong> integrado
             en el popup, con las pleamares (&blacktriangle;) y bajamares (&blacktriangledown;) del d&iacute;a.
@@ -207,13 +207,13 @@ export function SpotScoringSection() {
           <WeatherIcon id="wind" size={14} className="inline-block mr-1.5 text-emerald-400" />
           Viento en boyas
         </h3>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[10px] text-slate-400 space-y-2 leading-relaxed">
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
             Las boyas con anem&oacute;metro (REMPOR, CETMAR, REDEXT) muestran una
             <strong className="text-slate-300"> flecha de viento</strong> directamente sobre el marcador,
             m&aacute;s un <strong className="text-slate-300">badge con nudos</strong> (bottom-left).
           </p>
-          <p className="text-[9px] text-slate-500 italic">
+          <p className="text-[11px] text-slate-500 italic">
             Las boyas REDMAR (Vigo, Mar&iacute;n, Vilagarc&iacute;a) son mare&oacute;grafos y <strong>no tienen anem&oacute;metro</strong>.
             La boya Rande (1251) tampoco mide viento &mdash; mide temperatura del agua y del aire,
             humedad y punto de roc&iacute;o (v&iacute;a Observatorio Costeiro). Es clave para detectar el patr&oacute;n de
@@ -225,7 +225,7 @@ export function SpotScoringSection() {
       {/* Mobile */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">En m&oacute;vil</h3>
-        <p className="text-[10px] text-slate-400 leading-relaxed">
+        <p className="text-[11px] text-slate-400 leading-relaxed">
           Al tocar un spot en el mapa aparece un panel inferior deslizante con toda la info:
           veredicto, viento, oleaje y resumen. Solo un popup a la vez (spot, estaci&oacute;n o boya).
         </p>
@@ -238,11 +238,11 @@ export function SpotScoringSection() {
 
 function SpotRow({ name, desc, thermal }: { name: string; desc: string; thermal?: boolean }) {
   return (
-    <div className="flex items-start gap-2 text-[10px]">
+    <div className="flex items-start gap-2 text-[11px]">
       <WeatherIcon id="sailboat" size={11} className="text-slate-500 mt-0.5 flex-shrink-0" />
       <div>
         <span className="font-bold text-slate-300">{name}</span>
-        {thermal && <span className="text-orange-400/70 ml-1 text-[9px]">t&eacute;rmico</span>}
+        {thermal && <span className="text-orange-400/70 ml-1 text-[11px]">t&eacute;rmico</span>}
         <span className="text-slate-500 ml-1">&mdash; {desc}</span>
       </div>
     </div>
@@ -254,7 +254,7 @@ function VerdictRow({ color, label, wind, desc }: { color: string; label: string
     <div className="flex items-center gap-2">
       <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
       <span className="font-bold w-[60px]" style={{ color }}>{label}</span>
-      <span className="text-slate-300 font-mono w-[52px] text-[9px]">{wind}</span>
+      <span className="text-slate-300 font-mono w-[52px] text-[11px]">{wind}</span>
       <span className="text-slate-400 flex-1">{desc}</span>
     </div>
   );

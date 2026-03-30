@@ -122,13 +122,13 @@ export const RadarOverlay = memo(function RadarOverlay() {
             />
 
             {/* Timestamp */}
-            <span className="text-[10px] text-slate-400 font-mono w-12 text-center">
+            <span className="text-[11px] text-slate-400 font-mono w-12 text-center">
               {currentFrame ? formatFrameTime(currentFrame.time) : '--:--'}
             </span>
 
             {/* Nowcast indicator */}
             {currentFrame && frames.indexOf(currentFrame) >= frames.length - 3 && (
-              <span className="text-[8px] text-amber-400 font-semibold">PREV</span>
+              <span className="text-[11px] text-amber-400 font-semibold">PREV</span>
             )}
           </div>
         </div>

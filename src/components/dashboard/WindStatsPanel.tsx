@@ -18,7 +18,7 @@ export const WindStatsPanel = memo(function WindStatsPanel({ stationId }: { stat
 
   if (!stats) {
     return (
-      <div className="text-[10px] text-slate-500 text-center py-2">
+      <div className="text-[11px] text-slate-500 text-center py-2">
         Acumulando datos para estadísticas...
       </div>
     );
@@ -26,7 +26,7 @@ export const WindStatsPanel = memo(function WindStatsPanel({ stationId }: { stat
 
   return (
     <div className="space-y-2 pt-2 border-t border-slate-700/50">
-      <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+      <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1">
         <BarChart3 className="w-3 h-3" />
         Estadísticas ({stats.periodLabel})
       </div>
@@ -52,7 +52,7 @@ export const WindStatsPanel = memo(function WindStatsPanel({ stationId }: { stat
 
       {/* Wind direction distribution — mini bar chart */}
       <div className="space-y-1">
-        <div className="text-[10px] text-slate-500 flex items-center gap-1">
+        <div className="text-[11px] text-slate-500 flex items-center gap-1">
           <Compass className="w-3 h-3" />
           Distribución dirección
         </div>
@@ -62,9 +62,9 @@ export const WindStatsPanel = memo(function WindStatsPanel({ stationId }: { stat
       {/* Dominant direction */}
       <div className="flex items-center gap-2">
         <Wind className="w-3 h-3 text-sky-400" />
-        <span className="text-[10px] text-slate-400">Dominante:</span>
+        <span className="text-[11px] text-slate-400">Dominante:</span>
         <span className="text-[11px] font-bold text-sky-300">{stats.dominantDir}</span>
-        <span className="text-[10px] text-slate-500">({stats.dominantPercent}%)</span>
+        <span className="text-[11px] text-slate-500">({stats.dominantPercent}%)</span>
       </div>
     </div>
   );
@@ -157,7 +157,7 @@ function computeWindStats(readings: NormalizedReading[]): WindStats {
 function StatBox({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="text-center rounded bg-slate-800/60 px-1 py-1">
-      <div className="text-[9px] text-slate-500">{label}</div>
+      <div className="text-[11px] text-slate-500">{label}</div>
       <div className="text-[11px] font-bold" style={{ color }}>{value}</div>
     </div>
   );
@@ -177,7 +177,7 @@ function MiniWindRose({ distribution }: { distribution: Array<{ dir: string; per
               backgroundColor: percent === maxPercent && percent > 0 ? '#38bdf8' : '#475569',
             }}
           />
-          <span className="text-[7px] text-slate-500 leading-none">{dir}</span>
+          <span className="text-[11px] text-slate-500 leading-none">{dir}</span>
         </div>
       ))}
     </div>

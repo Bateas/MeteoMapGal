@@ -156,7 +156,7 @@ export function RiasBaixasSection() {
 
       {/* ── Nota ── */}
       <div className="bg-blue-900/10 rounded-lg p-3 border border-blue-700/20">
-        <p className="text-[10px] text-blue-400/70">
+        <p className="text-[11px] text-blue-400/70">
           <WeatherIcon id="info" size={12} className="inline mr-1" />
           Las rías canalizan y modifican el viento — una estación a 2km de distancia puede marcar
           condiciones muy diferentes. Por eso MeteoMapGal cruza datos de múltiples estaciones cercanas
@@ -177,13 +177,13 @@ function PatternCard({ name, direction, season, speed, color, description }: {
       <div className="flex items-center gap-3 mb-2">
         <div className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
         <span className="text-sm font-bold" style={{ color }}>{name}</span>
-        <span className="text-[9px] text-slate-500 font-mono ml-auto">{direction}</span>
+        <span className="text-[11px] text-slate-500 font-mono ml-auto">{direction}</span>
       </div>
       <div className="flex gap-4 mb-2">
-        <span className="text-[10px] text-slate-500"><strong className="text-slate-400">{season}</strong></span>
-        <span className="text-[10px] text-slate-500"><strong className="text-slate-400">{speed}</strong></span>
+        <span className="text-[11px] text-slate-500"><strong className="text-slate-400">{season}</strong></span>
+        <span className="text-[11px] text-slate-500"><strong className="text-slate-400">{speed}</strong></span>
       </div>
-      <p className="text-[10px] text-slate-500 leading-relaxed">{description}</p>
+      <p className="text-[11px] text-slate-500 leading-relaxed">{description}</p>
     </div>
   );
 }
@@ -197,7 +197,7 @@ function CycleRow({ hours, icon, label, desc, color }: {
       <span style={{ color }}><WeatherIcon id={icon} size={14} /></span>
       <div>
         <span className="text-[11px] font-bold" style={{ color }}>{label}</span>
-        <p className="text-[10px] text-slate-500 mt-0.5">{desc}</p>
+        <p className="text-[11px] text-slate-500 mt-0.5">{desc}</p>
       </div>
     </div>
   );
@@ -210,16 +210,16 @@ function ZoneCard({ title, icon, traits, color, level }: {
     <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/50">
       <div className="flex items-center gap-1.5 mb-2">
         <WeatherIcon id={icon} size={13} />
-        <span className="text-[10px] font-bold text-slate-300">{title}</span>
+        <span className="text-[11px] font-bold text-slate-300">{title}</span>
       </div>
       <ul className="space-y-1 mb-2">
         {traits.map((t) => (
-          <li key={t} className="text-[9px] text-slate-500 flex items-start gap-1">
+          <li key={t} className="text-[11px] text-slate-500 flex items-start gap-1">
             <span style={{ color }}>•</span> {t}
           </li>
         ))}
       </ul>
-      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ color, background: `${color}15` }}>
+      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ color, background: `${color}15` }}>
         {level}
       </span>
     </div>
@@ -234,7 +234,7 @@ function PhenomenonCard({ icon, title, desc, color }: {
       <span className="shrink-0 mt-0.5" style={{ color }}><WeatherIcon id={icon} size={16} /></span>
       <div>
         <span className="text-xs font-bold" style={{ color }}>{title}</span>
-        <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{desc}</p>
+        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{desc}</p>
       </div>
     </div>
   );
@@ -245,9 +245,9 @@ function SeasonRow({ season, pattern, quality, dotColor }: {
 }) {
   return (
     <div className="flex items-center gap-3 py-1">
-      <span className="text-[10px] font-bold text-slate-300 w-36 shrink-0">{season}</span>
-      <span className="text-[10px] text-slate-500 flex-1">{pattern}</span>
-      <span className="text-[10px] font-bold shrink-0 flex items-center gap-1">
+      <span className="text-[11px] font-bold text-slate-300 w-36 shrink-0">{season}</span>
+      <span className="text-[11px] text-slate-500 flex-1">{pattern}</span>
+      <span className="text-[11px] font-bold shrink-0 flex items-center gap-1">
         <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
         {quality}
       </span>

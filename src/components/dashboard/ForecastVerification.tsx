@@ -147,7 +147,7 @@ export const ForecastVerification = memo(function ForecastVerification() {
         </svg>
         <h3 className="text-sm font-bold text-white">¿Acertó la previsión?</h3>
         {result && (
-          <span className="text-[10px] text-slate-500 ml-auto">
+          <span className="text-[11px] text-slate-500 ml-auto">
             {result.points.length}h comparadas · {result.modelRun}
           </span>
         )}
@@ -186,7 +186,7 @@ export const ForecastVerification = memo(function ForecastVerification() {
           <button
             key={m.key}
             onClick={() => setMetric(m.key)}
-            className={`flex-1 text-[10px] font-semibold py-1 rounded transition-colors ${
+            className={`flex-1 text-[11px] font-semibold py-1 rounded transition-colors ${
               metric === m.key
                 ? 'bg-slate-700 text-white'
                 : 'text-slate-500 hover:text-slate-300'
@@ -261,7 +261,7 @@ export const ForecastVerification = memo(function ForecastVerification() {
 
           {/* Delta chart */}
           <div className="bg-slate-800/50 rounded-lg p-2">
-            <div className="text-[10px] text-slate-500 mb-1 px-1">
+            <div className="text-[11px] text-slate-500 mb-1 px-1">
               Error (previsión − observado)
             </div>
             <ResponsiveContainer width="100%" height={100}>
@@ -336,7 +336,7 @@ export const ForecastVerification = memo(function ForecastVerification() {
 
           {/* Interpretation */}
           {stats && stats.n >= 3 && (
-            <div className="bg-slate-800/30 rounded px-3 py-2 text-[10px] text-slate-400 space-y-1">
+            <div className="bg-slate-800/30 rounded px-3 py-2 text-[11px] text-slate-400 space-y-1">
               <Interpretation stats={stats} metric={metric} stationName={result.stationName} />
             </div>
           )}
@@ -386,9 +386,9 @@ function StatCard({ label, value, sublabel, color }: {
 }) {
   return (
     <div className="bg-slate-800/60 rounded-lg px-3 py-2 text-center">
-      <div className="text-[9px] text-slate-500 uppercase tracking-wide">{label}</div>
+      <div className="text-[11px] text-slate-500 uppercase tracking-wide">{label}</div>
       <div className="text-base font-bold font-mono" style={{ color }}>{value}</div>
-      <div className="text-[9px] text-slate-500">{sublabel}</div>
+      <div className="text-[11px] text-slate-500">{sublabel}</div>
     </div>
   );
 }
