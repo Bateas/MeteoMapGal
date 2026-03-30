@@ -203,7 +203,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             onClick={onToggleFieldDrawer}
             data-tour="panel"
             className={`flex items-center gap-1 rounded-lg font-bold transition-all
-              ${isMobile ? 'px-3 py-1.5 text-xs min-h-[36px]' : 'px-2.5 py-1.5 text-[11px] min-h-[36px]'}
+              ${isMobile ? 'px-2 py-1 text-[11px] min-h-[30px]' : 'px-2.5 py-1.5 text-[11px] min-h-[36px]'}
               ${fieldDrawerOpen
                 ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
                 : fieldAlertLevel !== 'none'
