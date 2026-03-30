@@ -136,10 +136,10 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                 >
                   <WeatherIcon id={sector.icon} size={16} />
                   {isActive && (
-                    <span className="truncate max-w-[4.5rem]">
-                      {sector.shortName}
-                      {stationCount > 0 && <span className="text-blue-200 ml-1 font-normal">{readingCount}/{stationCount}</span>}
-                    </span>
+                    <>
+                      <span className="truncate max-w-[3.5rem]">{sector.shortName}</span>
+                      {stationCount > 0 && <span className="text-blue-200/70 text-[11px] font-normal">{readingCount}/{stationCount}</span>}
+                    </>
                   )}
                 </button>
               );
