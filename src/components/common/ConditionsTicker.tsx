@@ -5,7 +5,7 @@
  * active alerts. Auto-scrolls horizontally with CSS animation.
  * Minimal overhead: reads from existing stores (no new fetches).
  */
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState, useEffect } from 'react';
 import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
 import { useSectorStore } from '../../store/sectorStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
@@ -13,6 +13,19 @@ import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
+import type { TidePoint } from '../../api/tideClient';
+
+/** Find the next tide point (high or low) relative to now */
+function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean } | null {
+  const now = new Date();
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  for (let i = 0; i < points.length; i++) {
+    if (points[i].time > hhmm) {
+      return { point: points[i], isRising: points[i].type === 'high' };
+    }
+  }
+  return null;
+}
 
 export const ConditionsTicker = memo(function ConditionsTicker() {
   // Typed selectors — compile error if property name is wrong (R6, prevents v1.21.0 crash)
@@ -22,6 +35,22 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   const buoyReadings = useBuoy.use.buoys();
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const forecastHourly = useForecastStore((s) => s.hourly);
+
+  // Tide data — only fetch for Rías sector, cached 60min
+  const [tidePoints, setTidePoints] = useState<TidePoint[]>([]);
+  useEffect(() => {
+    if (sectorId !== 'rias') { setTidePoints([]); return; }
+    let cancelled = false;
+    import('../../api/tideClient').then(({ fetchTidePredictions }) => {
+      fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
+    });
+    const iv = setInterval(() => {
+      import('../../api/tideClient').then(({ fetchTidePredictions }) => {
+        fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
+      });
+    }, 60 * 60_000); // refresh every 60min
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [sectorId]);
 
   const items = useMemo(() => {
     const result: { key: string; text: string; color: string }[] = [];
@@ -93,6 +122,20 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
+    // ── Tide info (Rías only) ──
+    if (sectorId === 'rias' && tidePoints.length > 0) {
+      const next = getNextTide(tidePoints);
+      if (next) {
+        const label = next.point.type === 'high' ? 'Pleamar' : 'Bajamar';
+        const arrow = next.isRising ? '↑' : '↓';
+        result.push({
+          key: 'tide-next',
+          text: `Marea ${arrow} ${label} ${next.point.time}h (${next.point.height.toFixed(1)}m)`,
+          color: 'text-cyan-400',
+        });
+      }
+    }
+
     // ── Day forecast summary (from Open-Meteo, sector-specific) ──
     const sectorLabel = sectorId === 'rias' ? 'Rias' : 'Embalse';
     if (forecastHourly.length > 0) {
@@ -144,7 +187,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     }
 
     return result;
-  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly]);
+  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, tidePoints]);
 
   if (items.length === 0) return null;
 
