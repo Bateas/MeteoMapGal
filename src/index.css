@@ -195,23 +195,25 @@ body {
 .map-panning .maplibregl-marker {
   transition: none !important;
 }
-/* Smooth transitions when pan ends — markers reappear gracefully.
-   Defined in CSS (not inline) to avoid per-render object allocation. */
-.maplibregl-marker:has(.station-marker),
-.maplibregl-marker:has(.buoy-marker) {
-  transition: opacity 0.25s ease-out, transform 0.3s ease-out;
-}
+/* No CSS transitions on markers — 90+ parallel transitions cause GPU overload.
+   Markers reappear instantly when pan ends (visibility:hidden → visible). */
 .map-panning .maplibregl-marker:has(.spot-marker) {
   opacity: 1 !important;
 }
 
-/* Hover on station/buoy markers: elevate z-index + scale up for easier click on crowded areas */
+/* Hover on station/buoy markers: elevate z-index + scale up for easier click on crowded areas.
+   Use transform + outline only (no filter:brightness — causes GPU recomposite per marker). */
 .maplibregl-marker:has(.station-marker):hover,
 .maplibregl-marker:has(.buoy-marker):hover {
   z-index: 28 !important;
-  transform: scale(1.25);
-  filter: brightness(1.2);
+  transform: scale(1.2);
   cursor: pointer;
+}
+/* Suppress hover effects entirely during pan — prevents GPU layer thrashing */
+.map-panning .maplibregl-marker:has(.station-marker):hover,
+.map-panning .maplibregl-marker:has(.buoy-marker):hover {
+  transform: none;
+  z-index: 20 !important;
 }
 
 .maplibregl-popup {
