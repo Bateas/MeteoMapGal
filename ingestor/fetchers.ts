@@ -73,6 +73,16 @@ async function fetchAemet(
 
 // ── MeteoGalicia observations ────────────────────────
 
+/** Fetch with retry for transient MG server errors */
+async function fetchMGWithRetry(url: string, retries = 2): Promise<Response> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
+    if (res.ok) return res;
+    if (attempt < retries) await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error('MG fetch failed after retries');
+}
+
 async function fetchMeteoGalicia(
   stations: NormalizedStation[]
 ): Promise<NormalizedReading[]> {
@@ -82,9 +92,8 @@ async function fetchMeteoGalicia(
   const results = await Promise.allSettled(
     mgStations.map(async (station) => {
       const numId = station.id.replace('mg_', '');
-      const res = await fetch(
-        `${MG_BASE}/mgrss/observacion/ultimos10minEstacionsMeteo.action?idEst=${numId}`,
-        { signal: AbortSignal.timeout(TIMEOUT) }
+      const res = await fetchMGWithRetry(
+        `${MG_BASE}/mgrss/observacion/ultimos10minEstacionsMeteo.action?idEst=${numId}`
       );
       const data: MeteoGaliciaObsResponse = await res.json();
       const entries = data.listUltimos10min ?? [];
