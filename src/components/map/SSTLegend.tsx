@@ -46,7 +46,7 @@ export function SSTLegend() {
         ${isMobile ? 'right-2 top-[12.5rem]' : 'left-2 top-20'}`}
     >
       {/* Title */}
-      <span className="text-[9px] font-semibold text-white/80 tracking-wide drop-shadow-md">
+      <span className="text-[11px] font-semibold text-white/80 tracking-wide drop-shadow-md">
         SST °C
       </span>
 
@@ -69,7 +69,7 @@ export function SSTLegend() {
           {[...LABELS].reverse().map((l) => (
             <span
               key={l.pct}
-              className="text-[9px] leading-none font-medium text-white/90 drop-shadow-md"
+              className="text-[11px] leading-none font-medium text-white/90 drop-shadow-md"
             >
               {l.text}
             </span>

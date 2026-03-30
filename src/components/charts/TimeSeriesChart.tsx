@@ -301,7 +301,7 @@ export function TimeSeriesChart() {
 
   if (chartStations.length === 0) {
     return (
-      <div className="text-center text-slate-500 text-xs py-6 px-4">
+      <div className="text-center text-slate-400 text-xs py-6 px-4">
         <div className="mb-2"><WeatherIcon id="activity" size={24} className="mx-auto text-slate-500" /></div>
         <div>Haz click en una estación del mapa</div>
         <div>y pulsa "Añadir a gráfica"</div>
@@ -319,7 +319,7 @@ export function TimeSeriesChart() {
             key={m.key}
             onClick={() => setActiveMetric(m.key)}
             aria-pressed={activeMetric === m.key}
-            className={`flex-1 text-[10px] font-semibold py-1.5 rounded transition-colors ${
+            className={`flex-1 text-[11px] font-semibold py-1.5 rounded transition-colors ${
               activeMetric === m.key
                 ? 'bg-slate-700 text-white'
                 : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
@@ -337,7 +337,7 @@ export function TimeSeriesChart() {
             key={r.hours}
             onClick={() => setTimeRange(r.hours)}
             aria-pressed={timeRange === r.hours}
-            className={`flex-1 text-[10px] py-1 rounded transition-colors ${
+            className={`flex-1 text-[11px] py-1 rounded transition-colors ${
               timeRange === r.hours
                 ? 'bg-blue-600 text-white'
                 : 'bg-slate-800 text-slate-500 hover:bg-slate-750'
@@ -349,7 +349,7 @@ export function TimeSeriesChart() {
         <button
           onClick={handleExportCsv}
           disabled={chartData.length === 0}
-          className="inline-flex items-center gap-1 px-2 text-[10px] py-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1 px-2 text-[11px] py-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           title="Exportar datos a CSV"
         >
           <WeatherIcon id="download" size={12} /> CSV
@@ -417,7 +417,7 @@ export function TimeSeriesChart() {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="text-center text-slate-500 text-xs py-8">
+          <div className="text-center text-slate-400 text-xs py-8">
             Esperando datos históricos...
             <div className="text-slate-600 mt-1">
               Los datos se acumulan con cada refresco (cada 10 min)
@@ -443,7 +443,7 @@ export function TimeSeriesChart() {
             key={id}
             onClick={() => toggleChartStation(id)}
             aria-label={`Quitar ${stationName(id)} de la gráfica`}
-            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
           >
             <span
               className="w-2 h-2 rounded-full"
@@ -513,7 +513,7 @@ function WindRoseFromHistory({ stationIds, readingHistory, stationName, timeRang
 
   return (
     <div className="bg-slate-800/50 rounded-lg p-2">
-      <div className="text-[10px] text-slate-400 text-center mb-1 font-semibold">
+      <div className="text-[11px] text-slate-400 text-center mb-1 font-semibold">
         Rosa de vientos
       </div>
       <ResponsiveContainer width="100%" height={200}>
@@ -545,7 +545,7 @@ function WindRoseFromHistory({ stationIds, readingHistory, stationName, timeRang
       {/* Legend */}
       <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
         {perStationData.map((st) => (
-          <span key={st.id} className="flex items-center gap-1 text-[9px] text-slate-400">
+          <span key={st.id} className="flex items-center gap-1 text-[11px] text-slate-400">
             <span className="w-2 h-2 rounded-full" style={{ background: st.color }} />
             {st.name}
           </span>

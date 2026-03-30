@@ -47,7 +47,7 @@ const Arrow = memo(function Arrow({ lon, lat, angle, estimatedMin }: ArrowProps)
         </svg>
         {/* Label */}
         <div
-          className="text-[8px] font-mono px-1.5 py-0.5 rounded mt-0.5"
+          className="text-[11px] font-mono px-1.5 py-0.5 rounded mt-0.5"
           style={{
             background: 'rgba(30, 41, 59, 0.85)',
             color: '#60a5fa',

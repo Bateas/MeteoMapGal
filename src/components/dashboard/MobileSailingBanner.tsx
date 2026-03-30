@@ -52,14 +52,14 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
       <span className={`text-[11px] font-bold ${v.text} whitespace-nowrap`}>
         {activeSpot.shortName}
       </span>
-      <span className="text-slate-600 text-[10px]">&middot;</span>
+      <span className="text-slate-600 text-[11px]">&middot;</span>
       <span className={`text-[11px] font-bold ${v.text} whitespace-nowrap`}>
         {v.label}
       </span>
       {windInfo && (
         <>
-          <span className="text-slate-600 text-[10px]">&middot;</span>
-          <span className={`text-[10px] font-semibold ${v.text} whitespace-nowrap tabular-nums`}>
+          <span className="text-slate-600 text-[11px]">&middot;</span>
+          <span className={`text-[11px] font-semibold ${v.text} whitespace-nowrap tabular-nums`}>
             {windInfo}
           </span>
         </>

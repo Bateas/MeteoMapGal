@@ -173,7 +173,7 @@ export function RankingsPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+      <div className="text-[11px] text-slate-500 uppercase tracking-wider font-semibold">
         Rankings en tiempo real
       </div>
       {categories.map((cat) => (
@@ -201,7 +201,7 @@ function RankingCard({ category }: { category: RankingCategory }) {
             onClick={() => selectStation(entry.station.id)}
             className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700/30 transition-colors text-left"
           >
-            <span className="text-[10px] font-bold text-slate-500 w-4 text-right">
+            <span className="text-[11px] font-bold text-slate-500 w-4 text-right">
               {i + 1}
             </span>
             <span className="flex-1 text-xs text-slate-300 truncate">

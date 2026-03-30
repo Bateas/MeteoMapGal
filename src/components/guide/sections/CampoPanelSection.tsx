@@ -9,7 +9,7 @@ export function CampoPanelSection() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">Panel de Alertas</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        El panel de alertas (tecla <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">C</kbd>)
+        El panel de alertas (tecla <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">C</kbd>)
         es un cajón lateral derecho con 4 pestañas temáticas. Cada pestaña filtra las alertas
         según el contexto de uso: navegación, agricultura, drones o vista completa.
       </p>
@@ -17,9 +17,9 @@ export function CampoPanelSection() {
       {/* Tab overview */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Pestañas</h3>
-        <p className="text-[10px] text-slate-400">
-          Pulsa las teclas <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">1</kbd> –{' '}
-          <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono">4</kbd>{' '}
+        <p className="text-[11px] text-slate-400">
+          Pulsa las teclas <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">1</kbd> –{' '}
+          <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">4</kbd>{' '}
           con el panel abierto para cambiar de pestaña.
         </p>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
@@ -285,7 +285,7 @@ export function CampoPanelSection() {
       {/* 48h timeline */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Timeline 48h</h3>
-        <p className="text-[10px] text-slate-400 leading-relaxed">
+        <p className="text-[11px] text-slate-400 leading-relaxed">
           En la parte inferior de todas las pestañas, un mapa de calor de 3 filas muestra la evolución
           de riesgos en intervalos de 3 horas para las próximas 48h:
         </p>
@@ -294,7 +294,7 @@ export function CampoPanelSection() {
           <TimelineRow iconId="cloud-rain" label="Lluvia" />
           <TimelineRow iconId="zap" label="Tormenta" />
         </div>
-        <p className="text-[9px] text-slate-500 italic">
+        <p className="text-[11px] text-slate-500 italic">
           Colores: gris = sin riesgo, azul = riesgo, naranja = alto, rojo = crítico.
         </p>
       </div>
@@ -319,16 +319,16 @@ function TabRow({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <kbd className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[9px] font-mono font-bold bg-slate-800 border border-slate-700 text-slate-300">
+      <kbd className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[11px] font-mono font-bold bg-slate-800 border border-slate-700 text-slate-300">
         {num}
       </kbd>
       <div className="flex-1">
         <div className="flex items-center gap-1.5">
           <span className="text-xs"><WeatherIcon id={iconId} size={14} /></span>
-          <span className="text-[10px] font-bold text-slate-200">{name}</span>
-          <span className="text-[9px] text-slate-500 ml-auto">{modules}</span>
+          <span className="text-[11px] font-bold text-slate-200">{name}</span>
+          <span className="text-[11px] text-slate-500 ml-auto">{modules}</span>
         </div>
-        <p className="text-[9px] text-slate-500 mt-0.5">{desc}</p>
+        <p className="text-[11px] text-slate-500 mt-0.5">{desc}</p>
       </div>
     </div>
   );
@@ -355,17 +355,17 @@ function AlertModule({
       </div>
       <div className="space-y-1">
         {items.map((item) => (
-          <div key={item.label} className="flex gap-2 text-[10px]">
+          <div key={item.label} className="flex gap-2 text-[11px]">
             <span className="text-slate-300 font-semibold shrink-0 w-28">{item.label}</span>
             <span className="text-slate-500">{item.desc}</span>
           </div>
         ))}
       </div>
       <div className="border-t border-slate-700/30 pt-1.5 mt-1.5">
-        <span className="text-[8px] text-slate-600 uppercase tracking-wider">Niveles de alerta</span>
+        <span className="text-[11px] text-slate-600 uppercase tracking-wider">Niveles de alerta</span>
         <div className="flex gap-3 mt-1">
           {levels.map((l) => (
-            <div key={l.level} className="text-[9px]">
+            <div key={l.level} className="text-[11px]">
               <span className="font-bold" style={{ color }}>{l.level}: </span>
               <span className="text-slate-500">{l.condition}</span>
             </div>
@@ -379,8 +379,8 @@ function AlertModule({
 function TimelineRow({ iconId, label }: { iconId: IconId; label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] w-4"><WeatherIcon id={iconId} size={12} /></span>
-      <span className="text-[9px] text-slate-400 w-14">{label}</span>
+      <span className="text-[11px] w-4"><WeatherIcon id={iconId} size={12} /></span>
+      <span className="text-[11px] text-slate-400 w-14">{label}</span>
       <div className="flex-1 flex gap-px">
         {Array.from({ length: 16 }, (_, i) => (
           <div

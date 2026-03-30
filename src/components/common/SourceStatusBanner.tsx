@@ -93,7 +93,7 @@ export const SourceStatusBanner = memo(function SourceStatusBanner() {
         )}
       </span>
 
-      <span className="text-amber-500/50 text-[9px] shrink-0">Datos parciales</span>
+      <span className="text-amber-500/50 text-[11px] shrink-0">Datos parciales</span>
 
       <button
         onClick={() => setDismissed(true)}

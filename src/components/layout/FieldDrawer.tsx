@@ -150,7 +150,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 flex items-center justify-center gap-1.5 font-semibold transition-colors relative ${
-              isMobile ? 'py-3 text-xs' : 'py-2 text-[10px]'
+              isMobile ? 'py-3 text-xs' : 'py-2 text-[11px]'
             } ${
               activeTab === tab.id
                 ? 'text-blue-400'
@@ -225,26 +225,26 @@ function FrostSection({ alerts }: { alerts: FieldAlerts }) {
   return (
     <AlertSection icon={<WeatherIcon id="snowflake" size={14} />} title="Helada" level={alerts.frost.level}>
       {alerts.frost.level === 'none' ? (
-        <p className="text-[10px] text-slate-500">Sin riesgo de helada en las próximas 48h</p>
+        <p className="text-[11px] text-slate-500">Sin riesgo de helada en las próximas 48h</p>
       ) : (
         <div className="space-y-1">
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">Temp mínima</span>
             <span className="text-blue-300 font-bold">{alerts.frost.minTemp?.toFixed(1)}°C</span>
           </div>
           {alerts.frost.timeWindow && (
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">Ventana riesgo</span>
               <span className="text-slate-300 font-mono">
                 {formatTimeRange(alerts.frost.timeWindow.from, alerts.frost.timeWindow.to)}
               </span>
             </div>
           )}
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">Nubes</span>
             <span className="text-slate-300">{alerts.frost.cloudCover?.toFixed(0) ?? '-'}%</span>
           </div>
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">Viento</span>
             <span className="text-slate-300">{alerts.frost.windSpeed?.toFixed(1) ?? '-'} m/s</span>
           </div>
@@ -262,25 +262,25 @@ function RainSection({ alerts }: { alerts: FieldAlerts }) {
       level={alerts.rain.level}
     >
       {alerts.rain.level === 'none' ? (
-        <p className="text-[10px] text-slate-500">Sin lluvia significativa prevista</p>
+        <p className="text-[11px] text-slate-500">Sin lluvia significativa prevista</p>
       ) : (
         <div className="space-y-1">
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">Precip máx/h</span>
             <span className="text-blue-300 font-bold">{alerts.rain.maxPrecip.toFixed(1)} mm</span>
           </div>
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">Probabilidad</span>
             <span className="text-slate-300">{alerts.rain.maxProbability}%</span>
           </div>
           {alerts.rain.rainAccum6h > 0 && (
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">Acum. 6h</span>
               <span className="text-blue-300 font-bold">{alerts.rain.rainAccum6h.toFixed(1)} mm</span>
             </div>
           )}
           {alerts.rain.hailRisk && (
-            <div className="text-[10px] text-red-400 font-semibold mt-1">
+            <div className="text-[11px] text-red-400 font-semibold mt-1">
               Riesgo de granizo detectado (CAPE alto + precipitación fuerte)
             </div>
           )}
@@ -295,11 +295,11 @@ function FogSection({ alerts }: { alerts: FieldAlerts }) {
     <AlertSection icon={<WeatherIcon id="fog" size={14} />} title="Niebla / Rocío" level={alerts.fog.level} beta>
       {alerts.fog.dewPoint !== null ? (
         <div className="space-y-1">
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">Punto de rocío</span>
             <span className="text-cyan-300 font-bold">{alerts.fog.dewPoint.toFixed(1)}°C</span>
           </div>
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">Spread (T - Td)</span>
             <span
               className="font-bold"
@@ -309,7 +309,7 @@ function FogSection({ alerts }: { alerts: FieldAlerts }) {
             </span>
           </div>
           {alerts.fog.spreadTrend !== null && (
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">Tendencia</span>
               <span
                 className="font-semibold"
@@ -321,7 +321,7 @@ function FogSection({ alerts }: { alerts: FieldAlerts }) {
             </div>
           )}
           {alerts.fog.fogEta && (
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">ETA niebla</span>
               <span className="text-amber-300 font-bold font-mono">
                 ~{alerts.fog.fogEta.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
@@ -329,24 +329,24 @@ function FogSection({ alerts }: { alerts: FieldAlerts }) {
             </div>
           )}
           {alerts.fog.humidity !== null && (
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">HR actual</span>
               <span className="text-slate-300">{alerts.fog.humidity.toFixed(0)}%</span>
             </div>
           )}
           {alerts.fog.windSpeed !== null && (
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">Viento</span>
               <span className="text-slate-300">{alerts.fog.windSpeed.toFixed(1)} m/s</span>
             </div>
           )}
-          <div className="mt-1.5 text-[9px] text-slate-400 italic leading-snug border-t border-slate-700/50 pt-1.5">
+          <div className="mt-1.5 text-[11px] text-slate-400 italic leading-snug border-t border-slate-700/50 pt-1.5">
             {alerts.fog.hypothesis}
           </div>
           <ConfidenceBar value={alerts.fog.confidence} />
         </div>
       ) : (
-        <p className="text-[10px] text-slate-500">
+        <p className="text-[11px] text-slate-500">
           Recogiendo datos reales... (necesita ~30 min de lecturas)
         </p>
       )}
@@ -386,21 +386,21 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
               <span className="text-sm font-bold font-mono" style={{ color: consensusColor }}>
                 {consensus.dominantDir}
               </span>
-              <span className="text-[10px] font-bold text-slate-300">
+              <span className="text-[11px] font-bold text-slate-300">
                 {consensus.avgSpeedKt.toFixed(0)} kt
               </span>
             </div>
-            <span className="text-[9px] text-slate-500">
+            <span className="text-[11px] text-slate-500">
               {consensus.stationCount} estaciones
             </span>
           </div>
         ) : (
-          <p className="text-[10px] text-slate-500">Sin consenso de viento</p>
+          <p className="text-[11px] text-slate-500">Sin consenso de viento</p>
         )}
 
         {/* B. Trend */}
         {trend && (
-          <div className="flex items-center justify-between text-[10px]">
+          <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-500">Tendencia</span>
             <span
               className="font-semibold"
@@ -411,7 +411,7 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
             >
               {trend.direction === 'rising' ? '↑' : trend.direction === 'falling' ? '↓' : '→'}
               {' '}{trend.direction === 'rising' ? 'Subiendo' : trend.direction === 'falling' ? 'Bajando' : 'Estable'}
-              <span className="text-[9px] text-slate-600 ml-1">
+              <span className="text-[11px] text-slate-600 ml-1">
                 ({trend.rateKtPerHour > 0 ? '+' : ''}{trend.rateKtPerHour.toFixed(1)} kt/h)
               </span>
             </span>
@@ -420,18 +420,18 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
 
         {/* C. Direction spread */}
         {spreadDeg !== null && (
-          <div className="flex items-center justify-between text-[10px]">
+          <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-500">Dispersión</span>
             <span className="text-slate-400">
               {spreadDeg < 25 ? 'Muy consistente' : spreadDeg < 45 ? 'Consistente' : 'Variable'}
-              <span className="text-[9px] text-slate-600 ml-1">({Math.round(spreadDeg)}°)</span>
+              <span className="text-[11px] text-slate-600 ml-1">({Math.round(spreadDeg)}°)</span>
             </span>
           </div>
         )}
 
         {/* D. Zone coherence — compact dots */}
         {zoneSummaries.length > 0 && consensus && (
-          <div className="flex items-center gap-1 flex-wrap text-[9px] pt-0.5">
+          <div className="flex items-center gap-1 flex-wrap text-[11px] pt-0.5">
             {zoneSummaries.map((z) => (
               <span
                 key={z.zoneId}
@@ -451,7 +451,7 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
 
         {/* E. Stability duration */}
         {windStatus?.stableHours !== null && windStatus?.stableHours !== undefined && (
-          <div className="flex items-center justify-between text-[10px]">
+          <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-500">Estabilidad</span>
             <span className="text-emerald-400/70 font-semibold">
               ~{windStatus.stableHours}h sostenido
@@ -459,7 +459,7 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
           </div>
         )}
         {windStatus?.consensusDurationMin !== null && windStatus?.consensusDurationMin !== undefined && !windStatus?.stableHours && (
-          <div className="flex items-center justify-between text-[10px]">
+          <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-500">Consenso</span>
             <span className="text-slate-400">~{windStatus.consensusDurationMin} min</span>
           </div>
@@ -470,7 +470,7 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
           <div className="mt-1.5 pt-1.5 border-t border-slate-700/50 space-y-1">
             <div className="flex items-center gap-2">
               <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded"
+                className="text-[11px] font-bold px-2 py-0.5 rounded"
                 style={{
                   background: 'rgba(245,158,11,0.15)',
                   color: '#f59e0b',
@@ -479,11 +479,11 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
               >
                 INTENSIFICÁNDOSE
               </span>
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[11px] text-slate-400">
                 {alerts.wind.directionLabel}
               </span>
             </div>
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">Subida media</span>
               <span className="text-amber-300 font-bold">+{alerts.wind.avgIncreaseKt.toFixed(1)} kt/10min</span>
             </div>
@@ -500,7 +500,7 @@ function DroneSection({ alerts }: { alerts: FieldAlerts }) {
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <span
-            className="text-[10px] font-bold px-2 py-0.5 rounded"
+            className="text-[11px] font-bold px-2 py-0.5 rounded"
             style={{
               background: alerts.drone.flyable ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
               color: alerts.drone.flyable ? '#22c55e' : '#f59e0b',
@@ -509,13 +509,13 @@ function DroneSection({ alerts }: { alerts: FieldAlerts }) {
           >
             {alerts.drone.flyable ? 'APTO' : 'PRECAUCIÓN'}
           </span>
-          <span className="text-[10px] text-slate-400">
+          <span className="text-[11px] text-slate-400">
             Viento: {alerts.drone.windKt.toFixed(0)} kt
             {alerts.drone.gustKt > 0 && ` · Racha: ${alerts.drone.gustKt.toFixed(0)} kt`}
           </span>
         </div>
         {alerts.drone.reasons.length > 0 && (
-          <ul className="text-[9px] text-slate-400 space-y-0.5 mt-1">
+          <ul className="text-[11px] text-slate-400 space-y-0.5 mt-1">
             {alerts.drone.reasons.map((r, i) => (
               <li key={i} className="flex items-start gap-1">
                 <span className="text-amber-400 mt-0.5">•</span>
@@ -557,7 +557,7 @@ function NotamItem({ notam }: { notam: NotamSummary }) {
       onClick={() => setExpanded(!expanded)}
     >
       {/* Collapsed row */}
-      <div className="text-[9px] text-slate-400 flex items-start gap-1 px-1 py-0.5">
+      <div className="text-[11px] text-slate-400 flex items-start gap-1 px-1 py-0.5">
         <span className="mt-0.5 flex-shrink-0" style={{ color: sevColor }}>
           {expanded ? '▾' : '▸'}
         </span>
@@ -573,28 +573,28 @@ function NotamItem({ notam }: { notam: NotamSummary }) {
           {/* Severity badge + location */}
           <div className="flex items-center gap-1.5">
             <span
-              className="text-[8px] font-bold px-1.5 py-px rounded"
+              className="text-[11px] font-bold px-1.5 py-px rounded"
               style={{ background: `${sevColor}20`, color: sevColor, border: `1px solid ${sevColor}40` }}
             >
               {sevLabel}
             </span>
             {notam.location && (
-              <span className="text-[9px] font-mono text-slate-500">{notam.location}</span>
+              <span className="text-[11px] font-mono text-slate-500">{notam.location}</span>
             )}
           </div>
 
           {/* Full description */}
-          <p className="text-[9px] text-slate-300 leading-relaxed">{notam.description}</p>
+          <p className="text-[11px] text-slate-300 leading-relaxed">{notam.description}</p>
 
           {/* Altitude */}
           {(notam.lowerAltFt > 0 || notam.upperAltFt > 0) && (
-            <div className="text-[9px] text-slate-500">
+            <div className="text-[11px] text-slate-500">
               Alt: {notam.lowerAltFt > 0 ? `${notam.lowerAltFt} ft` : 'SFC'} → {notam.upperAltFt > 0 ? `${notam.upperAltFt} ft` : '—'}
             </div>
           )}
 
           {/* Validity period */}
-          <div className="text-[9px] text-slate-600">
+          <div className="text-[11px] text-slate-600">
             {fmtDate(notam.validFrom)} → {fmtDate(notam.validUntil)}
           </div>
         </div>
@@ -626,7 +626,7 @@ function AirspaceSection() {
   if (loading && !airspaceCheck) {
     return (
       <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Espacio Aéreo" level="none">
-        <p className="text-[10px] text-slate-500">Consultando ENAIRE...</p>
+        <p className="text-[11px] text-slate-500">Consultando ENAIRE...</p>
       </AlertSection>
     );
   }
@@ -634,7 +634,7 @@ function AirspaceSection() {
   if (!airspaceCheck) {
     return (
       <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Espacio Aéreo" level="none">
-        <p className="text-[10px] text-slate-500">Sin datos de espacio aéreo</p>
+        <p className="text-[11px] text-slate-500">Sin datos de espacio aéreo</p>
       </AlertSection>
     );
   }
@@ -669,14 +669,14 @@ function AirspaceSection() {
         {/* Status badge */}
         <div className="flex items-center gap-2">
           <span
-            className="text-[10px] font-bold px-2 py-0.5 rounded"
+            className="text-[11px] font-bold px-2 py-0.5 rounded"
             style={{ background: statusBg, color: statusColor, border: `1px solid ${statusBorder}` }}
           >
             {statusLabel}
           </span>
           {airspaceCheck.notams.length > 0 && (
             <span
-              className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+              className="text-[11px] font-bold px-1.5 py-0.5 rounded-full"
               style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}
             >
               {airspaceCheck.notams.length} NOTAM{airspaceCheck.notams.length > 1 ? 's' : ''}
@@ -687,7 +687,7 @@ function AirspaceSection() {
         {/* UAS Zones affecting the sector */}
         {airspaceCheck.zones.length > 0 && (
           <div className="space-y-1 mt-1">
-            <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">Zonas UAS</span>
+            <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Zonas UAS</span>
             {airspaceCheck.zones.map((zone, i) => {
               // Find matching raw zone for geometry centroid
               const raw = rawZones.find((z) => z.name === zone.name && z.type === zone.type);
@@ -699,7 +699,7 @@ function AirspaceSection() {
               return (
                 <div
                   key={i}
-                  className={`text-[9px] text-slate-400 flex items-start gap-1 ${raw ? 'cursor-pointer hover:bg-slate-700/30 rounded px-1 -mx-1 py-0.5 transition-colors' : ''}`}
+                  className={`text-[11px] text-slate-400 flex items-start gap-1 ${raw ? 'cursor-pointer hover:bg-slate-700/30 rounded px-1 -mx-1 py-0.5 transition-colors' : ''}`}
                   onClick={handleClick}
                   title={raw ? 'Clic para centrar en el mapa' : undefined}
                 >
@@ -710,7 +710,7 @@ function AirspaceSection() {
                     {zone.contact && (
                       <span className="text-slate-600 block">{zone.contact}</span>
                     )}
-                    {raw && <span className="text-blue-500/50 text-[8px] ml-1">&#x2197;</span>}
+                    {raw && <span className="text-blue-500/50 text-[11px] ml-1">&#x2197;</span>}
                   </div>
                 </div>
               );
@@ -721,7 +721,7 @@ function AirspaceSection() {
         {/* Active NOTAMs — clickable expand/collapse */}
         {airspaceCheck.notams.length > 0 && (
           <div className="space-y-1 mt-1">
-            <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">NOTAMs activos</span>
+            <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">NOTAMs activos</span>
             {airspaceCheck.notams.map((notam, i) => (
               <NotamItem key={notam.id || i} notam={notam} />
             ))}
@@ -730,7 +730,7 @@ function AirspaceSection() {
 
         {/* No restrictions */}
         {airspaceCheck.zones.length === 0 && airspaceCheck.notams.length === 0 && (
-          <p className="text-[10px] text-slate-500">
+          <p className="text-[11px] text-slate-500">
             No hay restricciones de espacio aéreo en esta zona
           </p>
         )}
@@ -744,7 +744,7 @@ function ET0Section({ alerts }: { alerts: FieldAlerts }) {
     <AlertSection icon={<WeatherIcon id="thermometer" size={14} />} title="ET₀ Evapotranspiración" level={alerts.et0.level} beta>
       {alerts.et0.et0Daily !== null ? (
         <div className="space-y-1">
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">ET₀ diaria</span>
             <span
               className="font-bold"
@@ -753,12 +753,12 @@ function ET0Section({ alerts }: { alerts: FieldAlerts }) {
               {alerts.et0.et0Daily.toFixed(1)} mm/día
             </span>
           </div>
-          <div className="text-[9px] text-slate-400 leading-snug mt-1">
+          <div className="text-[11px] text-slate-400 leading-snug mt-1">
             {alerts.et0.irrigationAdvice}
           </div>
         </div>
       ) : (
-        <p className="text-[10px] text-slate-500">Sin datos de previsión para cálculo ET₀</p>
+        <p className="text-[11px] text-slate-500">Sin datos de previsión para cálculo ET₀</p>
       )}
     </AlertSection>
   );
@@ -777,10 +777,10 @@ function DiseaseSection({ alerts }: { alerts: FieldAlerts }) {
         {/* Mildiu */}
         <div>
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="text-[10px] font-semibold text-slate-300">Mildiu</span>
+            <span className="text-[11px] font-semibold text-slate-300">Mildiu</span>
             {alerts.disease.mildiu.level !== 'none' && (
               <span
-                className="text-[8px] font-bold px-1 py-0.5 rounded"
+                className="text-[11px] font-bold px-1 py-0.5 rounded"
                 style={{
                   color: LEVEL_COLORS[alerts.disease.mildiu.level].text,
                   background: LEVEL_COLORS[alerts.disease.mildiu.level].bg,
@@ -790,15 +790,15 @@ function DiseaseSection({ alerts }: { alerts: FieldAlerts }) {
               </span>
             )}
           </div>
-          <p className="text-[9px] text-slate-400">{alerts.disease.mildiu.detail}</p>
+          <p className="text-[11px] text-slate-400">{alerts.disease.mildiu.detail}</p>
         </div>
         {/* Oídio */}
         <div>
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="text-[10px] font-semibold text-slate-300">Oídio</span>
+            <span className="text-[11px] font-semibold text-slate-300">Oídio</span>
             {alerts.disease.oidio.level !== 'none' && (
               <span
-                className="text-[8px] font-bold px-1 py-0.5 rounded"
+                className="text-[11px] font-bold px-1 py-0.5 rounded"
                 style={{
                   color: LEVEL_COLORS[alerts.disease.oidio.level].text,
                   background: LEVEL_COLORS[alerts.disease.oidio.level].bg,
@@ -808,9 +808,9 @@ function DiseaseSection({ alerts }: { alerts: FieldAlerts }) {
               </span>
             )}
           </div>
-          <p className="text-[9px] text-slate-400">{alerts.disease.oidio.detail}</p>
+          <p className="text-[11px] text-slate-400">{alerts.disease.oidio.detail}</p>
         </div>
-        <p className="text-[8px] text-slate-600 italic border-t border-slate-700/30 pt-1">
+        <p className="text-[11px] text-slate-600 italic border-t border-slate-700/30 pt-1">
           Referencia: viñedo Ribeiro (Ourense). No sustituye asesoramiento técnico.
         </p>
       </div>
@@ -829,14 +829,14 @@ function GDDSection({ alerts }: { alerts: FieldAlerts }) {
       {gdd.accumulated !== null || gdd.todayGDD !== null ? (
         <div className="space-y-1.5">
           {/* Main GDD values */}
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">GDD acumulados</span>
             <span className="font-bold" style={{ color: gddColor }}>
               {gdd.accumulated !== null ? `${gdd.accumulated.toFixed(0)} °C·d` : '—'}
             </span>
           </div>
           {gdd.todayGDD !== null && (
-            <div className="flex justify-between text-[10px]">
+            <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">Hoy</span>
               <span className="text-slate-300">+{gdd.todayGDD.toFixed(1)} °C·d</span>
             </div>
@@ -845,10 +845,10 @@ function GDDSection({ alerts }: { alerts: FieldAlerts }) {
           {/* Growth stage with progress bar */}
           <div className="mt-1">
             <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[10px] font-semibold text-slate-300">
+              <span className="text-[11px] font-semibold text-slate-300">
                 🌱 {gdd.growthStage}
               </span>
-              <span className="text-[8px] text-slate-500">{gdd.stageProgress}%</span>
+              <span className="text-[11px] text-slate-500">{gdd.stageProgress}%</span>
             </div>
             <div className="h-1 bg-slate-700/50 rounded-full overflow-hidden">
               <div
@@ -863,24 +863,24 @@ function GDDSection({ alerts }: { alerts: FieldAlerts }) {
 
           {/* Next milestone */}
           {gdd.nextMilestone && gdd.nextMilestone.gddNeeded > 0 && (
-            <div className="flex justify-between text-[9px] text-slate-500">
+            <div className="flex justify-between text-[11px] text-slate-500">
               <span>→ {gdd.nextMilestone.name}</span>
               <span>faltan ~{gdd.nextMilestone.gddNeeded} °C·d</span>
             </div>
           )}
 
           {/* Advice */}
-          <div className="text-[9px] text-slate-400 leading-snug border-t border-slate-700/30 pt-1 mt-1">
+          <div className="text-[11px] text-slate-400 leading-snug border-t border-slate-700/30 pt-1 mt-1">
             {gdd.advice}
           </div>
 
           {/* Footer */}
-          <p className="text-[8px] text-slate-600 italic">
+          <p className="text-[11px] text-slate-600 italic">
             Base 10°C (Vitis vinifera). Temporada desde 1 marzo. Día {gdd.daysSinceStart}.
           </p>
         </div>
       ) : (
-        <p className="text-[10px] text-slate-500">
+        <p className="text-[11px] text-slate-500">
           {gdd.growthStage === 'Fuera de temporada'
             ? 'La temporada de crecimiento comienza en marzo.'
             : 'Sin datos suficientes para cálculo GDD'}
@@ -910,7 +910,7 @@ function LunarSection() {
         <span className="text-sm">{lunar.emoji}</span>
         <span className="text-[11px] font-bold text-slate-200">Fase Lunar</span>
         <span
-          className="text-[9px] font-bold px-1.5 py-0.5 rounded ml-auto"
+          className="text-[11px] font-bold px-1.5 py-0.5 rounded ml-auto"
           style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.12)' }}
         >
           {lunar.label}
@@ -931,7 +931,7 @@ function LunarSection() {
               <span className="text-2xl">{lunar.emoji}</span>
               <div>
                 <div className="text-[11px] font-semibold text-slate-200">{lunar.label}</div>
-                <div className="text-[9px] text-slate-400">
+                <div className="text-[11px] text-slate-400">
                   Día {lunar.ageDays} · {lunar.illumination}% iluminada
                   {lunar.isWaxing ? ' · ↑ creciendo' : ' · ↓ menguando'}
                 </div>
@@ -940,7 +940,7 @@ function LunarSection() {
           </div>
 
           {/* Next phase */}
-          <div className="flex justify-between text-[10px] border-t border-slate-700/30 pt-1.5">
+          <div className="flex justify-between text-[11px] border-t border-slate-700/30 pt-1.5">
             <span className="text-slate-400">Próxima fase</span>
             <span className="text-violet-400 font-medium">
               {lunar.nextPhase.name} · {lunar.nextPhase.daysUntil}d
@@ -949,17 +949,17 @@ function LunarSection() {
 
           {/* Agriculture advice */}
           <div className="space-y-1 border-t border-slate-700/30 pt-1.5">
-            <p className="text-[10px] text-violet-300 font-medium">{lunar.agriculture.summary}</p>
+            <p className="text-[11px] text-violet-300 font-medium">{lunar.agriculture.summary}</p>
             <div className="grid grid-cols-1 gap-1">
-              <div className="text-[9px]">
+              <div className="text-[11px]">
                 <span className="text-emerald-400 font-medium">Siembra: </span>
                 <span className="text-slate-400">{lunar.agriculture.sowing}</span>
               </div>
-              <div className="text-[9px]">
+              <div className="text-[11px]">
                 <span className="text-amber-400 font-medium">Poda: </span>
                 <span className="text-slate-400">{lunar.agriculture.pruning}</span>
               </div>
-              <div className="text-[9px]">
+              <div className="text-[11px]">
                 <span className="text-blue-400 font-medium">Tratamientos: </span>
                 <span className="text-slate-400">{lunar.agriculture.treatments}</span>
               </div>
@@ -969,7 +969,7 @@ function LunarSection() {
           {/* Collapsible monthly calendar */}
           <LunarCalendarDropdown />
 
-          <p className="text-[8px] text-slate-600 italic border-t border-slate-700/30 pt-1">
+          <p className="text-[11px] text-slate-600 italic border-t border-slate-700/30 pt-1">
             Calendario agrícola tradicional gallego. Orientativo.
           </p>
         </div>
@@ -993,11 +993,11 @@ function LunarCalendarDropdown() {
         onClick={() => setOpen((p) => !p)}
         className="flex items-center gap-1.5 w-full text-left group"
       >
-        <span className="text-[10px]">📅</span>
-        <span className="text-[10px] text-violet-400 font-medium group-hover:text-violet-300">
+        <span className="text-[11px]">📅</span>
+        <span className="text-[11px] text-violet-400 font-medium group-hover:text-violet-300">
           Calendario lunar 30 días
         </span>
-        <span className="text-[9px] text-slate-500 ml-auto">{open ? '▲' : '▼'}</span>
+        <span className="text-[11px] text-slate-500 ml-auto">{open ? '▲' : '▼'}</span>
       </button>
 
       {open && calendar.length > 0 && (
@@ -1005,7 +1005,7 @@ function LunarCalendarDropdown() {
           {/* Day-of-week header */}
           <div className="grid grid-cols-7 gap-px">
             {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((d) => (
-              <div key={d} className="text-[8px] text-slate-500 text-center font-bold">{d}</div>
+              <div key={d} className="text-[11px] text-slate-500 text-center font-bold">{d}</div>
             ))}
           </div>
 
@@ -1027,8 +1027,8 @@ function LunarCalendarDropdown() {
                   }`}
                   title={`${dayNum}/${day.date.getMonth() + 1} — ${day.name} (${day.illumination}%)`}
                 >
-                  <span className="text-[10px] leading-none">{day.emoji}</span>
-                  <span className={`text-[7px] leading-none mt-0.5 ${isToday ? 'text-violet-400 font-bold' : 'text-slate-500'}`}>
+                  <span className="text-[11px] leading-none">{day.emoji}</span>
+                  <span className={`text-[11px] leading-none mt-0.5 ${isToday ? 'text-violet-400 font-bold' : 'text-slate-500'}`}>
                     {dayNum}
                   </span>
                 </div>
@@ -1047,7 +1047,7 @@ function LunarCalendarDropdown() {
               }, [] as typeof calendar)
               .slice(0, 4)
               .map((d, i) => (
-                <div key={i} className="text-[8px] text-slate-400">
+                <div key={i} className="text-[11px] text-slate-400">
                   <span>{d.emoji}</span>{' '}
                   <span className="text-slate-500">
                     {d.date.getDate()}/{d.date.getMonth() + 1}
@@ -1073,7 +1073,7 @@ function AlertHistorySection() {
   if (history.length === 0) {
     return (
       <AlertSection icon={<WeatherIcon id="clock" size={14} />} title="Historial Alertas" level="none">
-        <p className="text-[10px] text-slate-500">Sin alertas recientes registradas</p>
+        <p className="text-[11px] text-slate-500">Sin alertas recientes registradas</p>
       </AlertSection>
     );
   }
@@ -1086,7 +1086,7 @@ function AlertHistorySection() {
           const timeStr = dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
           const dateStr = dt.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
           return (
-            <div key={`${entry.id}-${i}`} className="flex items-start gap-1.5 text-[9px]">
+            <div key={`${entry.id}-${i}`} className="flex items-start gap-1.5 text-[11px]">
               <span
                 className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0"
                 style={{ background: SEVERITY_DOT[entry.severity] ?? '#64748b' }}
@@ -1104,7 +1104,7 @@ function AlertHistorySection() {
 function ConfidenceBar({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-1 mt-1">
-      <span className="text-[8px] text-slate-600">Confianza:</span>
+      <span className="text-[11px] text-slate-600">Confianza:</span>
       <div className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden">
         <div
           className="h-full rounded-full"
@@ -1114,7 +1114,7 @@ function ConfidenceBar({ value }: { value: number }) {
           }}
         />
       </div>
-      <span className="text-[8px] text-slate-500 tabular-nums">{value}%</span>
+      <span className="text-[11px] text-slate-500 tabular-nums">{value}%</span>
     </div>
   );
 }
@@ -1163,7 +1163,7 @@ function AlertSection({
         {beta && <span className="badge-beta">Beta</span>}
         {level !== 'none' && (
           <span
-            className="text-[9px] font-bold px-1.5 py-0.5 rounded ml-auto"
+            className="text-[11px] font-bold px-1.5 py-0.5 rounded ml-auto"
             style={{ color: colors.text, background: `${colors.text}15` }}
           >
             {LEVEL_LABELS[level]}
@@ -1289,7 +1289,7 @@ function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').
             className="flex-1 text-center"
           >
             {i % 4 === 0 && (
-              <span className="text-[7px] text-slate-600 font-mono">{b.label}</span>
+              <span className="text-[11px] text-slate-600 font-mono">{b.label}</span>
             )}
           </div>
         ))}
@@ -1299,19 +1299,19 @@ function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').
       <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-700/30">
         <div className="flex items-center gap-0.5">
           <div className="w-2 h-2 rounded-sm" style={{ background: '#3b82f6' }} />
-          <span className="text-[7px] text-slate-500">Riesgo</span>
+          <span className="text-[11px] text-slate-500">Riesgo</span>
         </div>
         <div className="flex items-center gap-0.5">
           <div className="w-2 h-2 rounded-sm" style={{ background: '#f59e0b' }} />
-          <span className="text-[7px] text-slate-500">Alto</span>
+          <span className="text-[11px] text-slate-500">Alto</span>
         </div>
         <div className="flex items-center gap-0.5">
           <div className="w-2 h-2 rounded-sm" style={{ background: '#ef4444' }} />
-          <span className="text-[7px] text-slate-500">Crítico</span>
+          <span className="text-[11px] text-slate-500">Crítico</span>
         </div>
         <div className="flex items-center gap-0.5">
           <div className="w-2 h-2 rounded-sm" style={{ background: '#a855f7' }} />
-          <span className="text-[7px] text-slate-500">Tormenta</span>
+          <span className="text-[11px] text-slate-500">Tormenta</span>
         </div>
       </div>
     </div>

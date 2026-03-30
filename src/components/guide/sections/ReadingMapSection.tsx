@@ -59,7 +59,7 @@ export function ReadingMapSection() {
                 <circle cx="30" cy="30" r="14" fill="#1e293b" stroke="#22c55e" strokeWidth="2" />
                 <line x1="30" y1="30" x2="30" y2="14" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" />
                 <polygon points="30,10 26,18 34,18" fill="#22c55e" />
-                <text x="30" y="34" textAnchor="middle" className="text-[8px] fill-emerald-400 font-bold">7</text>
+                <text x="30" y="34" textAnchor="middle" className="text-[11px] fill-emerald-400 font-bold">7</text>
               </svg>
             }
             description="Círculo con flecha de dirección. Color = velocidad (escala Beaufort). Número = nudos."
@@ -69,7 +69,7 @@ export function ReadingMapSection() {
             svg={
               <svg viewBox="0 0 60 60" className="w-12 h-12">
                 <circle cx="30" cy="30" r="6" fill="#f59e0b" opacity="0.6" />
-                <text x="30" y="48" textAnchor="middle" className="text-[7px] fill-amber-500">22°C</text>
+                <text x="30" y="48" textAnchor="middle" className="text-[11px] fill-amber-500">22°C</text>
               </svg>
             }
             description="Punto pequeño. Estaciones sin anemómetro. Contribuyen al gradiente térmico."
@@ -116,7 +116,7 @@ export function ReadingMapSection() {
               { x: 143, label: '6' }, { x: 200, label: '9' }, { x: 254, label: '13' },
               { x: 308, label: '17' }, { x: 380, label: '23+' },
             ].map((t) => (
-              <text key={t.label} x={t.x} y={38} textAnchor="middle" className="text-[7px] fill-slate-500 font-mono">{t.label} kt</text>
+              <text key={t.label} x={t.x} y={38} textAnchor="middle" className="text-[11px] fill-slate-500 font-mono">{t.label} kt</text>
             ))}
           </svg>
         </div>
@@ -125,7 +125,7 @@ export function ReadingMapSection() {
       {/* Standalone map buttons */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Botones del mapa</h3>
-        <p className="text-[10px] text-slate-400 leading-relaxed">
+        <p className="text-[11px] text-slate-400 leading-relaxed">
           Además de las capas, el mapa tiene botones independientes que activan
           funciones sin interferir entre sí.
         </p>
@@ -146,7 +146,7 @@ export function ReadingMapSection() {
       {/* Layer overlays */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Capas interactivas (tecla W)</h3>
-        <p className="text-[10px] text-slate-400 leading-relaxed">
+        <p className="text-[11px] text-slate-400 leading-relaxed">
           Cinco capas mutuamente excluyentes. Pulsa W para ciclar entre las 4 primeras.
           Corrientes solo aparece en el sector Rías Baixas.
         </p>
@@ -367,10 +367,10 @@ export function ReadingMapSection() {
               { key: '?', desc: 'Ayuda atajos' },
             ].map((s) => (
               <div key={s.key} className="flex items-center gap-2">
-                <kbd className="inline-flex items-center justify-center w-7 h-7 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-slate-300">
+                <kbd className="inline-flex items-center justify-center w-7 h-7 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono font-bold text-slate-300">
                   {s.key}
                 </kbd>
-                <span className="text-[10px] text-slate-500">{s.desc}</span>
+                <span className="text-[11px] text-slate-500">{s.desc}</span>
               </div>
             ))}
           </div>
@@ -394,7 +394,7 @@ function ExplainerCard({
       <div className="shrink-0">{svg}</div>
       <div>
         <h4 className="text-xs font-bold text-slate-300">{title}</h4>
-        <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{description}</p>
+        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{description}</p>
       </div>
     </div>
   );
@@ -422,9 +422,9 @@ function LayerCard({
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold" style={{ color }}>{name}</span>
-          <kbd className="text-[8px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">{shortcut}</kbd>
+          <kbd className="text-[11px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">{shortcut}</kbd>
         </div>
-        <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{description}</p>
+        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{description}</p>
       </div>
     </div>
   );
@@ -435,9 +435,9 @@ function MiniExplainer({ iconId, title, text }: { iconId: IconId; title: string;
     <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
       <div className="flex items-center gap-2 mb-1">
         <span className="text-sm"><WeatherIcon id={iconId} size={14} /></span>
-        <span className="text-[10px] font-bold text-slate-300">{title}</span>
+        <span className="text-[11px] font-bold text-slate-300">{title}</span>
       </div>
-      <p className="text-[9px] text-slate-500 leading-relaxed">{text}</p>
+      <p className="text-[11px] text-slate-500 leading-relaxed">{text}</p>
     </div>
   );
 }

@@ -435,7 +435,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
             <span className="text-[11px] font-bold text-amber-300">Historial meteorológico</span>
           </div>
           {health && (
-            <span className="text-[9px] text-slate-500">
+            <span className="text-[11px] text-slate-500">
               {(health.total_readings / 1000).toFixed(1)}k lecturas
             </span>
           )}
@@ -449,7 +449,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
               setSelectedStation(e.target.value);
               selectStation(e.target.value);
             }}
-            className="w-full bg-slate-800 text-slate-200 text-[10px] rounded px-2 py-1.5 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
+            className="w-full bg-slate-800 text-slate-200 text-[11px] rounded px-2 py-1.5 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
           >
             {Object.entries(stationsBySource).map(([source, stns]) => (
               <optgroup key={source} label={source.toUpperCase()}>
@@ -477,7 +477,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
                 setCompareReadings([]);
               }
             }}
-            className={`w-full text-[9px] font-semibold py-1 rounded transition-colors ${
+            className={`w-full text-[11px] font-semibold py-1 rounded transition-colors ${
               compareMode
                 ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                 : 'bg-slate-800/40 text-slate-500 border border-slate-700/50 hover:text-slate-300'
@@ -490,7 +490,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
             <select
               value={compareStation}
               onChange={(e) => setCompareStation(e.target.value)}
-              className="w-full mt-1 bg-slate-800 text-amber-300 text-[10px] rounded px-2 py-1.5 border border-amber-500/30 focus:border-amber-500/50 focus:outline-none"
+              className="w-full mt-1 bg-slate-800 text-amber-300 text-[11px] rounded px-2 py-1.5 border border-amber-500/30 focus:border-amber-500/50 focus:outline-none"
             >
               <option value="">Seleccionar 2ª estación...</option>
               {Object.entries(stationsBySource).map(([source, stns]) => (
@@ -518,7 +518,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
             <button
               key={r.key}
               onClick={() => setTimeRange(r.key)}
-              className={`flex-1 text-[10px] font-bold py-1 rounded transition-colors ${
+              className={`flex-1 text-[11px] font-bold py-1 rounded transition-colors ${
                 timeRange === r.key
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                   : 'bg-slate-800/60 text-slate-500 border border-slate-700/50 hover:text-slate-300'
@@ -529,7 +529,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
           ))}
           <button
             onClick={() => setTimeRange('custom')}
-            className={`flex-1 text-[10px] font-bold py-1 rounded transition-colors ${
+            className={`flex-1 text-[11px] font-bold py-1 rounded transition-colors ${
               timeRange === 'custom'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'bg-slate-800/60 text-slate-500 border border-slate-700/50 hover:text-slate-300'
@@ -537,7 +537,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
           >
             Rango
           </button>
-          <span className="text-[8px] text-slate-600 self-center ml-1">
+          <span className="text-[11px] text-slate-600 self-center ml-1">
             {interval === 'hourly' ? 'horario' : '5min'}
           </span>
         </div>
@@ -549,14 +549,14 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
               type="date"
               value={customFrom}
               onChange={(e) => setCustomFrom(e.target.value)}
-              className="flex-1 bg-slate-800 text-slate-200 text-[10px] rounded px-1.5 py-1 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
+              className="flex-1 bg-slate-800 text-slate-200 text-[11px] rounded px-1.5 py-1 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
             />
-            <span className="text-[9px] text-slate-500">→</span>
+            <span className="text-[11px] text-slate-500">→</span>
             <input
               type="date"
               value={customTo}
               onChange={(e) => setCustomTo(e.target.value)}
-              className="flex-1 bg-slate-800 text-slate-200 text-[10px] rounded px-1.5 py-1 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
+              className="flex-1 bg-slate-800 text-slate-200 text-[11px] rounded px-1.5 py-1 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
             />
           </div>
         )}
@@ -570,7 +570,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
                 setMetric(m.key);
                 setViewMode('chart');
               }}
-              className={`flex-1 text-[9px] font-semibold py-1 rounded transition-colors ${
+              className={`flex-1 text-[11px] font-semibold py-1 rounded transition-colors ${
                 metric === m.key && viewMode === 'chart'
                   ? 'text-white border'
                   : 'bg-slate-800/40 text-slate-500 border border-transparent hover:text-slate-300'
@@ -588,7 +588,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
           {/* Wind Rose toggle */}
           <button
             onClick={() => setViewMode(viewMode === 'windrose' ? 'chart' : 'windrose')}
-            className={`flex-1 text-[9px] font-semibold py-1 rounded transition-colors ${
+            className={`flex-1 text-[11px] font-semibold py-1 rounded transition-colors ${
               viewMode === 'windrose'
                 ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
                 : 'bg-slate-800/40 text-slate-500 border border-transparent hover:text-slate-300'
@@ -604,7 +604,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
         {viewMode === 'windrose' ? (
           // ── Wind Rose view ──
           windRoseLoading ? (
-            <div className="flex items-center justify-center h-[260px] text-slate-500 text-[10px]">
+            <div className="flex items-center justify-center h-[260px] text-slate-500 text-[11px]">
               <WeatherIcon id="wind" size={14} className="animate-pulse mr-2" />
               Cargando rosa de vientos...
             </div>
@@ -618,21 +618,21 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
           // ── Line chart view ──
           <>
             {loading && (
-              <div className="flex items-center justify-center h-[180px] text-slate-500 text-[10px]">
+              <div className="flex items-center justify-center h-[180px] text-slate-500 text-[11px]">
                 <WeatherIcon id="clock" size={14} className="animate-pulse mr-2" />
                 Cargando datos...
               </div>
             )}
 
             {error && !loading && (
-              <div className="flex items-center justify-center h-[180px] text-red-400 text-[10px]">
+              <div className="flex items-center justify-center h-[180px] text-red-400 text-[11px]">
                 <WeatherIcon id="alert-triangle" size={14} className="mr-2" />
                 {error}
               </div>
             )}
 
             {!loading && !error && chartData.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-[180px] text-slate-500 text-[10px] gap-1">
+              <div className="flex flex-col items-center justify-center h-[180px] text-slate-500 text-[11px] gap-1">
                 <span>Sin datos para este rango</span>
                 {stats?.last_reading && (
                   <span className="text-slate-600">
@@ -714,7 +714,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
 
       {/* Compare legend (when wind rose + compare are both on) */}
       {viewMode === 'windrose' && compareMode && compareStation && (
-        <div className="text-center text-[9px] text-slate-500">
+        <div className="text-center text-[11px] text-slate-500">
           Rosa de vientos solo muestra la estación principal
         </div>
       )}
@@ -777,7 +777,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
       <button
         onClick={fetchData}
         disabled={loading || !selectedStation}
-        className="w-full text-[10px] font-semibold py-1.5 rounded bg-slate-800 text-slate-400 border border-slate-700/50 hover:text-slate-200 hover:border-amber-500/30 transition-colors disabled:opacity-40"
+        className="w-full text-[11px] font-semibold py-1.5 rounded bg-slate-800 text-slate-400 border border-slate-700/50 hover:text-slate-200 hover:border-amber-500/30 transition-colors disabled:opacity-40"
       >
         {loading ? 'Actualizando...' : 'Actualizar datos'}
       </button>
@@ -790,8 +790,8 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
 function StatCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-slate-900/80 px-2 py-1.5 text-center">
-      <div className="text-[8px] text-slate-500 uppercase tracking-wider">{label}</div>
-      <div className="text-[10px] font-bold text-slate-200 mt-0.5">{value}</div>
+      <div className="text-[11px] text-slate-500 uppercase tracking-wider">{label}</div>
+      <div className="text-[11px] font-bold text-slate-200 mt-0.5">{value}</div>
     </div>
   );
 }

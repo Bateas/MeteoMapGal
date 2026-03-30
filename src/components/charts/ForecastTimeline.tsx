@@ -107,7 +107,7 @@ function ForecastRow({
       {/* Time */}
       <div className="text-slate-400 tabular-nums">
         {showDate && (
-          <span className="text-slate-500 text-[10px] block leading-tight">
+          <span className="text-slate-500 text-[11px] block leading-tight">
             {formatDay(point.time)}
           </span>
         )}
@@ -126,7 +126,7 @@ function ForecastRow({
           style={{ width: `${barWidth}%`, backgroundColor: barColor }}
         />
         {kt !== null && kt >= 1 && (
-          <span className="absolute inset-0 flex items-center px-1.5 text-[10px] font-semibold text-white drop-shadow-sm">
+          <span className="absolute inset-0 flex items-center px-1.5 text-[11px] font-semibold text-white drop-shadow-sm">
             {kt.toFixed(0)} kt
           </span>
         )}
@@ -151,7 +151,7 @@ function ForecastRow({
         {precip > 0.1 ? (
           <span className="text-sky-400">{precip.toFixed(1)}</span>
         ) : precipProb > 30 ? (
-          <span className="text-sky-700 text-[10px]">{precipProb}%</span>
+          <span className="text-sky-700 text-[11px]">{precipProb}%</span>
         ) : (
           <span className="text-slate-700">·</span>
         )}
@@ -169,7 +169,7 @@ function ForecastRow({
       >
         {thermalScore.score >= 20 ? (
           <span
-            className={`text-[10px] font-bold tabular-nums ${
+            className={`text-[11px] font-bold tabular-nums ${
               thermalScore.isNavigable ? 'animate-pulse' : ''
             }`}
             style={{ color: thermalColor(thermalScore.score) }}
@@ -481,7 +481,7 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
 
   return (
     <div className="mb-2 rounded border border-slate-700 bg-slate-800/50 overflow-hidden">
-      <div className="px-2 py-1 bg-slate-700/50 text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+      <div className="px-2 py-1 bg-slate-700/50 text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
         <span>Diagn&oacute;stico del d&iacute;a</span>
         <span className="text-slate-500 font-mono normal-case">
           {formatTime(sun.thermalStart)}–{formatTime(sun.thermalEnd)} ventana t&eacute;rmica
@@ -491,14 +491,14 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
       <div className="grid grid-cols-3 gap-x-3 gap-y-1 p-2 text-[11px]">
         {/* Pressure */}
         <div>
-          <span className="text-slate-500 text-[10px]">Presi&oacute;n</span>
+          <span className="text-slate-500 text-[11px]">Presi&oacute;n</span>
           <div className="flex items-center gap-1">
             <span style={{ color: pressureColor }} className="font-bold">{pressureIcon}</span>
             {diag.currentPressure !== null && (
               <span className="text-slate-300 font-mono">{diag.currentPressure.toFixed(0)} hPa</span>
             )}
             {diag.pressureChange !== 0 && (
-              <span className="text-slate-500 text-[10px]">
+              <span className="text-slate-500 text-[11px]">
                 ({diag.pressureChange > 0 ? '+' : ''}{diag.pressureChange.toFixed(1)})
               </span>
             )}
@@ -507,13 +507,13 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
 
         {/* HR min */}
         <div>
-          <span className="text-slate-500 text-[10px]">HR m&iacute;nima</span>
+          <span className="text-slate-500 text-[11px]">HR m&iacute;nima</span>
           <div>
             {diag.minHumidity !== null ? (
               <span className={diag.minHumidity <= 55 ? 'text-amber-400' : diag.minHumidity <= 70 ? 'text-slate-300' : 'text-sky-400'}>
                 {diag.minHumidity.toFixed(0)}%
                 {diag.minHumidityTime && (
-                  <span className="text-slate-500 ml-1 text-[10px]">{formatHour(diag.minHumidityTime)}</span>
+                  <span className="text-slate-500 ml-1 text-[11px]">{formatHour(diag.minHumidityTime)}</span>
                 )}
               </span>
             ) : (
@@ -524,7 +524,7 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
 
         {/* Solar radiation */}
         <div>
-          <span className="text-slate-500 text-[10px]">Radiaci&oacute;n pico</span>
+          <span className="text-slate-500 text-[11px]">Radiaci&oacute;n pico</span>
           <div>
             {diag.peakRadiation !== null ? (
               <span className={diag.peakRadiation >= 700 ? 'text-yellow-400' : diag.peakRadiation >= 400 ? 'text-slate-300' : 'text-slate-500'}>
@@ -538,12 +538,12 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
 
         {/* CAPE */}
         <div>
-          <span className="text-slate-500 text-[10px]">CAPE</span>
+          <span className="text-slate-500 text-[11px]">CAPE</span>
           <div>
             {diag.maxCape !== null ? (
               <span className={diag.maxCape >= 500 ? 'text-orange-400' : diag.maxCape >= 100 ? 'text-slate-300' : 'text-slate-500'}>
                 {diag.maxCape.toFixed(0)} J/kg
-                <span className="text-slate-500 ml-1 text-[10px]">{capeText}</span>
+                <span className="text-slate-500 ml-1 text-[11px]">{capeText}</span>
               </span>
             ) : (
               <span className="text-slate-600">—</span>
@@ -553,11 +553,11 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
 
         {/* Direction consistency */}
         <div>
-          <span className="text-slate-500 text-[10px]">Estabilidad dir.</span>
+          <span className="text-slate-500 text-[11px]">Estabilidad dir.</span>
           <div>
             <span className={diag.directionConsistency >= 70 ? 'text-green-400' : diag.directionConsistency >= 40 ? 'text-yellow-400' : 'text-red-400'}>
               {diag.directionConsistency}%
-              <span className="text-slate-500 ml-1 text-[10px]">
+              <span className="text-slate-500 ml-1 text-[11px]">
                 {diag.directionConsistency >= 70 ? 'estable' : diag.directionConsistency >= 40 ? 'variable' : 'ca&oacute;tico'}
               </span>
             </span>
@@ -568,7 +568,7 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
       {/* Pattern match bar */}
       <div className="px-2 py-1.5 border-t border-slate-700/50 flex items-center gap-2">
         <div className="flex-1">
-          <div className="flex items-center gap-2 text-[10px]">
+          <div className="flex items-center gap-2 text-[11px]">
             <span className="text-slate-500">Patr&oacute;n hist&oacute;rico:</span>
             <span className="text-slate-400">{diag.patternMatch}</span>
           </div>
@@ -602,7 +602,7 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
         return (
           <div className={`px-2 py-1.5 border-t ${colors.border} ${colors.bg} flex items-center gap-2`}>
             <span style={{ color: colors.icon }} className="text-sm"><WeatherIcon id="cloud-rain" size={14} /></span>
-            <div className="text-[10px]">
+            <div className="text-[11px]">
               <span style={{ color: colors.label }} className="font-bold">Lluvia prevista</span>
               <span style={{ color: colors.time }} className="ml-1.5">
                 {formatHour(diag.rainAlert.start)}–{formatHour(diag.rainAlert.end)}
@@ -618,12 +618,12 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
       {/* Sailing windows */}
       {diag.sailingWindows.length > 0 && (
         <div className="px-2 py-1.5 border-t border-slate-700/50">
-          <div className="text-[10px] text-slate-500 mb-1">Ventanas navegables</div>
+          <div className="text-[11px] text-slate-500 mb-1">Ventanas navegables</div>
           <div className="flex flex-wrap gap-1">
             {diag.sailingWindows.slice(0, 4).map((w, i) => (
               <span
                 key={i}
-                className="px-1.5 py-0.5 rounded text-[10px] font-mono"
+                className="px-1.5 py-0.5 rounded text-[11px] font-mono"
                 style={{
                   background: w.quality === 'bueno' ? 'rgba(34,197,94,0.12)' : w.quality === 'moderado' ? 'rgba(250,204,21,0.1)' : 'rgba(100,116,139,0.1)',
                   color: w.quality === 'bueno' ? '#22c55e' : w.quality === 'moderado' ? '#facc15' : '#94a3b8',
@@ -655,13 +655,13 @@ function DaySeparator({ date }: { date: Date }) {
     <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-700/40 border-t border-b border-slate-600/60">
       <span className="text-[11px] font-bold text-slate-200 capitalize">{dayLabel}</span>
       <span className="flex-1 h-px bg-slate-600/50" />
-      <span className="text-[10px] text-amber-400/80 flex items-center gap-0.5" title="Amanecer">
+      <span className="text-[11px] text-amber-400/80 flex items-center gap-0.5" title="Amanecer">
         <WeatherIcon id="sun" size={10} /> {formatTime(sun.sunrise)}
       </span>
-      <span className="text-[10px] text-orange-400/80 flex items-center gap-0.5" title="Atardecer">
+      <span className="text-[11px] text-orange-400/80 flex items-center gap-0.5" title="Atardecer">
         <WeatherIcon id="moon" size={10} /> {formatTime(sun.sunset)}
       </span>
-      <span className="text-[10px] text-slate-500 font-mono" title="Horas de luz">
+      <span className="text-[11px] text-slate-500 font-mono" title="Horas de luz">
         {Math.floor(sun.dayLengthMin / 60)}h{Math.round(sun.dayLengthMin % 60).toString().padStart(2, '0')}
       </span>
     </div>
@@ -776,7 +776,7 @@ export function ForecastTimeline() {
           <div className="flex gap-0.5 bg-slate-800 rounded p-0.5">
             <button
               onClick={() => setViewMode('chart')}
-              className={`px-1.5 py-0.5 text-[9px] font-semibold rounded transition-colors ${
+              className={`px-1.5 py-0.5 text-[11px] font-semibold rounded transition-colors ${
                 viewMode === 'chart'
                   ? 'bg-slate-600 text-white'
                   : 'text-slate-500 hover:text-slate-300'
@@ -787,7 +787,7 @@ export function ForecastTimeline() {
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`px-1.5 py-0.5 text-[9px] font-semibold rounded transition-colors ${
+              className={`px-1.5 py-0.5 text-[11px] font-semibold rounded transition-colors ${
                 viewMode === 'table'
                   ? 'bg-slate-600 text-white'
                   : 'text-slate-500 hover:text-slate-300'
@@ -804,7 +804,7 @@ export function ForecastTimeline() {
               <button
                 key={r.hours}
                 onClick={() => setRange(r.hours)}
-                className={`px-2 py-0.5 text-[10px] font-semibold rounded transition-colors ${
+                className={`px-2 py-0.5 text-[11px] font-semibold rounded transition-colors ${
                   range === r.hours
                     ? 'bg-blue-600 text-white'
                     : 'bg-slate-800 text-slate-400 hover:text-white'
@@ -823,7 +823,7 @@ export function ForecastTimeline() {
           <button
             key={m.id}
             onClick={() => setActiveModel(m.id)}
-            className={`px-1.5 py-0.5 text-[9px] font-semibold rounded transition-colors ${
+            className={`px-1.5 py-0.5 text-[11px] font-semibold rounded transition-colors ${
               activeModel === m.id
                 ? 'bg-sky-600 text-white'
                 : 'text-slate-500 hover:text-slate-300'
@@ -859,7 +859,7 @@ export function ForecastTimeline() {
                     ({formatDay(w.startTime)})
                   </span>
                 )}
-                <span className="text-slate-500 ml-2 text-[10px]">
+                <span className="text-slate-500 ml-2 text-[11px]">
                   {w.ruleName?.replace('Térmico ', '').replace('Precursor: ', '')}
                 </span>
               </div>
@@ -892,7 +892,7 @@ export function ForecastTimeline() {
 
       {/* ΔT context */}
       {deltaT !== null && (
-        <div className="mb-1 px-2 text-[10px] text-slate-500">
+        <div className="mb-1 px-2 text-[11px] text-slate-500">
           ΔT hoy: <span className={deltaT >= 16 ? 'text-amber-400' : deltaT < 8 ? 'text-blue-400' : 'text-slate-400'}>{deltaT.toFixed(1)}°C</span>
           {deltaT >= 20 && <span className="inline-flex ml-0.5 text-amber-400"><WeatherIcon id="flame" size={12} /></span>}
           {deltaT < 8 && <span className="inline-flex ml-0.5 text-blue-400"><WeatherIcon id="snowflake" size={12} /></span>}
@@ -907,7 +907,7 @@ export function ForecastTimeline() {
       ) : (
         <>
           {/* Column header */}
-          <div className="grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px] gap-1 px-2 py-1 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-700">
+          <div className="grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px] gap-1 px-2 py-1 text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-700">
             <span>Hora</span>
             <span>Dir</span>
             <span>Viento</span>
@@ -921,14 +921,14 @@ export function ForecastTimeline() {
           {/* Timeline rows */}
           <div className="flex-1 overflow-y-auto min-h-0">
             {visibleData.length === 0 && (
-              <div className="text-slate-500 text-xs text-center py-8">
+              <div className="text-slate-400 text-xs text-center py-8">
                 {error ? (
                   <span className="text-amber-400">Error: {error}</span>
                 ) : isLoading ? (
                   <div className="space-y-2">
                     <div className="mx-auto w-fit"><LoadingSpinner size={20} /></div>
                     <div>Cargando previsión Open-Meteo...</div>
-                    <div className="text-[9px] text-slate-600">La cola de peticiones puede tardar unos segundos</div>
+                    <div className="text-[11px] text-slate-600">La cola de peticiones puede tardar unos segundos</div>
                   </div>
                 ) : 'Sin datos de previsión disponibles'}
               </div>
@@ -962,7 +962,7 @@ export function ForecastTimeline() {
 
       {/* Footer */}
       {fetchedAt && (
-        <div className="text-[10px] text-slate-600 text-center py-1 border-t border-slate-800">
+        <div className="text-[11px] text-slate-600 text-center py-1 border-t border-slate-800">
           Open-Meteo + scoring térmico · Actualizado {formatHour(fetchedAt)}
         </div>
       )}

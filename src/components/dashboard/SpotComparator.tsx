@@ -57,7 +57,7 @@ export const SpotComparator = memo(function SpotComparator() {
       </h3>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1fr_60px_50px_50px_50px_45px] gap-1 text-[9px] font-bold text-slate-500 uppercase px-2">
+      <div className="grid grid-cols-[1fr_60px_50px_50px_50px_45px] gap-1 text-[11px] font-bold text-slate-500 uppercase px-2">
         <span>Spot</span>
         <span className="text-center">Estado</span>
         <span className="text-center">Viento</span>
@@ -100,7 +100,7 @@ export const SpotComparator = memo(function SpotComparator() {
 
             {/* Verdict badge */}
             <span
-              className="text-[10px] font-bold text-center rounded px-1.5 py-0.5"
+              className="text-[11px] font-bold text-center rounded px-1.5 py-0.5"
               style={{
                 color: VERDICT_HEX[verdict],
                 background: `${VERDICT_HEX[verdict]}18`,
@@ -134,7 +134,7 @@ export const SpotComparator = memo(function SpotComparator() {
       })}
 
       {/* Summary */}
-      <div className="text-[10px] text-slate-600 text-center pt-2">
+      <div className="text-[11px] text-slate-600 text-center pt-2">
         {spots.length} spots · Toca uno para ver detalles en el mapa
       </div>
     </div>

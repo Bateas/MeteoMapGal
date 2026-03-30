@@ -58,7 +58,7 @@ function DataCell({ label, value, color, large }: {
 }) {
   return (
     <div>
-      <div className="text-slate-400 text-[10px] mb-0.5">{label}</div>
+      <div className="text-slate-400 text-[11px] mb-0.5">{label}</div>
       <div
         className={`${large ? 'font-bold text-sm' : 'font-semibold text-xs'}`}
         style={color ? { color } : undefined}
@@ -91,7 +91,7 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
     <div className="min-w-[220px] font-sans">
       {/* Header */}
       <div className="flex items-center gap-1.5 mb-2.5">
-        <span className="text-[10px] font-bold px-1.5 py-px rounded text-white" style={{ background: typeColor }}>
+        <span className="text-[11px] font-bold px-1.5 py-px rounded text-white" style={{ background: typeColor }}>
           {info.type}
         </span>
         <strong className="text-[13px] text-slate-200">{reading.stationName}</strong>
@@ -143,7 +143,7 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
       </div>
 
       {/* Timestamp */}
-      <div className="text-[10px] text-slate-400 mt-2 pt-1.5 border-t border-slate-700">
+      <div className="text-[11px] text-slate-400 mt-2 pt-1.5 border-t border-slate-700">
         {reading.timestamp ? timeAgoEs(reading.timestamp) : 'Hora desconocida'}
       </div>
 

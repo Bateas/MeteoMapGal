@@ -90,7 +90,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
           <WeatherIcon id="x" size={18} />
           {!isMobile && (
             <>
-              Cerrar <kbd className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">G</kbd>
+              Cerrar <kbd className="ml-1 text-[11px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">G</kbd>
             </>
           )}
         </button>
@@ -111,7 +111,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
                       : 'text-slate-500 active:bg-slate-800'
                   }`}
                 >
-                  <span className="text-[10px] font-mono text-slate-600 mr-1">{i + 1}</span>
+                  <span className="text-[11px] font-mono text-slate-600 mr-1">{i + 1}</span>
                   {s.label}
                 </button>
               ))}
@@ -129,7 +129,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
                     : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900'
                 }`}
               >
-                <span className="text-[10px] font-mono text-slate-600 w-4">{i + 1}</span>
+                <span className="text-[11px] font-mono text-slate-600 w-4">{i + 1}</span>
                 {s.label}
               </button>
             ))}
@@ -141,7 +141,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
                 </div>
                 <span className="text-xs font-bold text-amber-400">Apoya el proyecto</span>
               </div>
-              <p className="text-[10px] text-slate-500 leading-relaxed mb-3">
+              <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
                 MeteoMapGal es gratuito y open source. Si te resulta útil, puedes apoyar su desarrollo.
               </p>
               <a
@@ -276,22 +276,22 @@ function RiasIntroSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="radar" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Estaciones en tiempo real</p>
-          <p className="text-[10px] text-slate-600">AEMET, MeteoGalicia, Meteoclimatic, Netatmo</p>
+          <p className="text-[11px] text-slate-600">AEMET, MeteoGalicia, Meteoclimatic, Netatmo</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="anchor" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Boyas marinas</p>
-          <p className="text-[10px] text-slate-600">Oleaje, viento, T agua, humedad de 13 boyas</p>
+          <p className="text-[11px] text-slate-600">Oleaje, viento, T agua, humedad de 13 boyas</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="map" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Capas interactivas</p>
-          <p className="text-[10px] text-slate-600">Viento, humedad, satélite IR, radar, rayos</p>
+          <p className="text-[11px] text-slate-600">Viento, humedad, satélite IR, radar, rayos</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="alert-triangle" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Alertas automáticas</p>
-          <p className="text-[10px] text-slate-600">Viento, tormentas, visibilidad</p>
+          <p className="text-[11px] text-slate-600">Viento, tormentas, visibilidad</p>
         </div>
       </div>
 
