@@ -70,11 +70,11 @@ export function SpotScoringSection() {
             la intensidad del viento:
           </p>
           <div className="space-y-1.5 pt-1">
-            <VerdictRow color="#94a3b8" label="Calma"     wind="< 6kt"   desc="Sin viento. No se navega." />
-            <VerdictRow color="#4ade80" label="Flojo"     wind="6-7kt"   desc="Poco viento. No merece preparar el barco." />
-            <VerdictRow color="#bef264" label="Navegable" wind="8-11kt"  desc="Regatistas motivados. Ocio escaso." />
-            <VerdictRow color="#facc15" label="Buen d&iacute;a"  wind="12-17kt" desc="Regata y ocio. Merece la pena ir." />
-            <VerdictRow color="#fb923c" label="Fuerte"    wind="18+ kt"  desc="Solo con experiencia. Viento potente." />
+            <VerdictRow color="#94a3b8" label="Calma"     wind="< 6kt"   desc="Sin condiciones para navegar." />
+            <VerdictRow color="#4ade80" label="Flojo"     wind="6-7kt"   desc="Insuficiente para la mayoría de modalidades." />
+            <VerdictRow color="#bef264" label="Navegable" wind="8-11kt"  desc="Viento justo, condiciones limitadas." />
+            <VerdictRow color="#facc15" label="Buen día"  wind="12-17kt" desc="Viento estable, apto para todas las modalidades." />
+            <VerdictRow color="#fb923c" label="Fuerte"    wind="18+ kt"  desc="Requiere experiencia. Viento potente." />
           </div>
           <p className="text-[11px] text-slate-500 italic pt-2">
             Las estaciones meteorol&oacute;gicas est&aacute;n en tierra, no en el agua. El viento real en la

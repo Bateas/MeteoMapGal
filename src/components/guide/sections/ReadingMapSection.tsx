@@ -17,7 +17,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="layers"
             title="Panel lateral (izquierda)"
-            text="Panel fijo con pestañas: Estaciones (lista completa), Gráfica (series temporales), Rankings (top por métrica), Verificar (forecast vs real) e Historial (datos almacenados). Colapsable con el botón ◀."
+            text="Panel fijo con pestañas: Estaciones (lista completa), Gráfica (series temporales), Comparar (spots lado a lado), Previsión (48h), Rankings (top por métrica) e Historial (datos almacenados). Colapsable con el botón ◀."
           />
           <MiniExplainer
             iconId="gauge"
