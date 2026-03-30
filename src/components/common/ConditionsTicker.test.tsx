@@ -48,7 +48,7 @@ describe('ConditionsTicker', () => {
     const { container } = render(<ConditionsTicker />);
     // Should render gust + temperature items even without spot scores
     expect(container.innerHTML).not.toBe('');
-    expect(screen.getAllByText(/Racha max/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Racha máx/).length).toBeGreaterThan(0);
   });
 
   it('renders without crashing with buoy data', () => {

@@ -1,14 +1,16 @@
 /**
  * ConditionsTicker — scrolling marquee strip below header.
  *
- * Shows real-time highlights: top wind spots, gusts, temperature extremes,
- * active alerts. Auto-scrolls horizontally with CSS animation.
+ * Shows real-time highlights: top wind spots, gusts, waves, tide,
+ * temperature, forecast. Auto-scrolls horizontally with CSS animation.
+ * Mobile: limits to most relevant items to avoid overwhelming scroll.
  * Minimal overhead: reads from existing stores (no new fetches).
  */
-import { memo, useMemo, useState, useEffect } from 'react';
+import { memo, useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
 import { useSectorStore } from '../../store/sectorStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
+import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
@@ -28,13 +30,22 @@ function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean
 }
 
 export const ConditionsTicker = memo(function ConditionsTicker() {
-  // Typed selectors — compile error if property name is wrong (R6, prevents v1.21.0 crash)
   const scores = useSpot.use.scores();
   const readings = useWeather.use.currentReadings();
   const stations = useWeather.use.stations();
   const buoyReadings = useBuoy.use.buoys();
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const forecastHourly = useForecastStore((s) => s.hourly);
+  const isMobile = useUIStore((s) => s.isMobile);
+
+  // Touch pause state
+  const [paused, setPaused] = useState(false);
+  const pauseTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const handleTouch = useCallback(() => {
+    setPaused(true);
+    clearTimeout(pauseTimeout.current);
+    pauseTimeout.current = setTimeout(() => setPaused(false), 4000);
+  }, []);
 
   // Tide data — only fetch for Rías sector, cached 60min
   const [tidePoints, setTidePoints] = useState<TidePoint[]>([]);
@@ -48,14 +59,15 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       import('../../api/tideClient').then(({ fetchTidePredictions }) => {
         fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
       });
-    }, 60 * 60_000); // refresh every 60min
+    }, 60 * 60_000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [sectorId]);
 
   const items = useMemo(() => {
-    const result: { key: string; text: string; color: string }[] = [];
+    const result: { key: string; text: string; color: string; priority: number }[] = [];
+    const sectorLabel = sectorId === 'rias' ? 'Rías' : 'Embalse';
 
-    // ── Spot verdicts ──
+    // ── Spot verdicts (priority 10 = highest for non-calm, 1 for calm) ──
     const spots = getSpotsForSector(sectorId);
     for (const spot of spots) {
       const sc = scores.get(spot.id);
@@ -63,14 +75,16 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       const v = VERDICT_STYLE[sc.verdict];
       const kt = sc.wind?.avgSpeedKt;
       const dir = sc.wind?.dominantDir ?? '';
+      const pri = sc.verdict === 'calm' ? 1 : sc.verdict === 'light' ? 3 : sc.verdict === 'sailing' ? 7 : 10;
       result.push({
         key: `spot-${spot.id}`,
         text: `${spot.shortName}: ${v.label}${kt != null && sc.verdict !== 'calm' ? ` ${dir} ${kt.toFixed(0)}kt` : ''}`,
         color: v.text,
+        priority: pri,
       });
     }
 
-    // ── Max gust across stations ──
+    // ── Max gust across stations (priority 8) ──
     let maxGust = 0;
     let maxGustStation = '';
     for (const st of stations) {
@@ -80,15 +94,16 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         maxGustStation = st.name;
       }
     }
-    if (maxGust > 3) { // > ~6kt
+    if (maxGust > 3) {
       result.push({
         key: 'max-gust',
-        text: `Racha max: ${msToKnots(maxGust).toFixed(0)}kt ${maxGustStation}`,
+        text: `Racha máx: ${msToKnots(maxGust).toFixed(0)}kt ${maxGustStation}`,
         color: maxGust > 8 ? 'text-orange-400' : 'text-slate-300',
+        priority: 8,
       });
     }
 
-    // ── Max wave height from buoys ──
+    // ── Max wave height from buoys (priority 6) ──
     let maxWave = 0;
     let maxWaveName = '';
     for (const br of buoyReadings) {
@@ -102,10 +117,11 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         key: 'max-wave',
         text: `Olas: ${maxWave.toFixed(1)}m ${maxWaveName}`,
         color: maxWave > 2 ? 'text-cyan-400' : 'text-slate-300',
+        priority: 6,
       });
     }
 
-    // ── Temperature extremes ──
+    // ── Temperature extremes (priority 2) ──
     let minTemp = 999, maxTemp = -999;
     let minTempSt = '', maxTempSt = '';
     for (const st of stations) {
@@ -119,10 +135,11 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         key: 'temp-range',
         text: `Temp: ${minTemp.toFixed(0)}°–${maxTemp.toFixed(0)}°C (${minTempSt}–${maxTempSt})`,
         color: 'text-slate-300',
+        priority: 2,
       });
     }
 
-    // ── Tide info (Rías only) ──
+    // ── Tide info — Rías only (priority 7) ──
     if (sectorId === 'rias' && tidePoints.length > 0) {
       const next = getNextTide(tidePoints);
       if (next) {
@@ -132,12 +149,12 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           key: 'tide-next',
           text: `Marea ${arrow} ${label} ${next.point.time}h (${next.point.height.toFixed(1)}m)`,
           color: 'text-cyan-400',
+          priority: 7,
         });
       }
     }
 
-    // ── Day forecast summary (from Open-Meteo, sector-specific) ──
-    const sectorLabel = sectorId === 'rias' ? 'Rias' : 'Embalse';
+    // ── Forecast summary (priority 5) ──
     if (forecastHourly.length > 0) {
       const now = new Date();
       const todayStr = now.toDateString();
@@ -152,8 +169,9 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         if (maxWindKt > 5) {
           result.push({
             key: 'fcst-wind',
-            text: `Prev ${sectorLabel}: viento max ${maxWindKt}kt hoy`,
+            text: `Prev ${sectorLabel}: viento máx ${maxWindKt}kt hoy`,
             color: maxWindKt > 15 ? 'text-orange-400' : 'text-sky-400',
+            priority: 5,
           });
         }
         if (maxRainProb >= 40) {
@@ -161,11 +179,12 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
             key: 'fcst-rain',
             text: `Prev ${sectorLabel}: lluvia ${maxRainProb}% hoy`,
             color: maxRainProb >= 70 ? 'text-amber-400' : 'text-slate-400',
+            priority: 4,
           });
         }
       }
 
-      // Thermal forecast early warning — only for sectors with thermal spots
+      // Thermal forecast early warning (priority 9)
       const thermalSignals = detectThermalForecast(forecastHourly);
       for (const s of thermalSignals) {
         const color = s.confidence === 'alta' ? 'text-green-400' : s.confidence === 'media' ? 'text-blue-400' : 'text-slate-400';
@@ -173,30 +192,55 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           key: `thermal-fcst-${s.day}`,
           text: `${sectorLabel}: ${s.label}`,
           color,
+          priority: 9,
         });
       }
     }
 
-    // ── Fallback: station count + sector when no wind/score data yet ──
+    // ── Fallback ──
     if (result.length === 0 && stations.length > 0) {
       result.push({
         key: 'station-count',
         text: `${stations.length} estaciones activas`,
         color: 'text-slate-400',
+        priority: 0,
       });
     }
 
+    // Sort by priority descending, then limit on mobile
+    result.sort((a, b) => b.priority - a.priority);
+
+    // Mobile: top 6 items max to keep ticker readable
+    if (isMobile && result.length > 6) {
+      return result.slice(0, 6);
+    }
+
     return result;
-  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, tidePoints]);
+  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, tidePoints, isMobile]);
 
   if (items.length === 0) return null;
+
+  // Dynamic animation speed: ~8s per item (more items = slower scroll)
+  const duration = Math.max(20, items.length * 8);
 
   // Duplicate items for seamless loop
   const tickerContent = [...items, ...items];
 
   return (
-    <div role="marquee" aria-label="Condiciones meteorológicas en tiempo real" className="h-7 bg-slate-900/80 border-b border-slate-700/50 overflow-hidden relative flex-shrink-0">
-      <div className="ticker-scroll flex items-center h-full gap-6 whitespace-nowrap px-4">
+    <div
+      role="marquee"
+      aria-label="Condiciones meteorológicas en tiempo real"
+      className="h-7 bg-slate-900/80 border-b border-slate-700/50 overflow-hidden relative flex-shrink-0"
+      onClick={handleTouch}
+      onTouchStart={handleTouch}
+    >
+      <div
+        className="ticker-scroll flex items-center h-full gap-6 whitespace-nowrap px-4"
+        style={{
+          animationDuration: `${duration}s`,
+          animationPlayState: paused ? 'paused' : 'running',
+        }}
+      >
         {tickerContent.map((item, i) => (
           <span key={`${item.key}-${i}`} className={`text-[11px] font-medium ${item.color} flex items-center gap-1`}>
             <span className="w-1 h-1 rounded-full bg-current opacity-50" />
