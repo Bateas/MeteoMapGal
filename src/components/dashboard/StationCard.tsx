@@ -194,8 +194,9 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span
-            className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+            className="text-[11px] font-bold px-1.5 py-0.5 rounded"
             style={sourceBadgeStyle}
+            title={SOURCE_CONFIG[station.source].fullName}
           >
             {SOURCE_CONFIG[station.source].label}
           </span>
@@ -206,7 +207,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
         <div className="flex items-center gap-1">
           {staleness && (
             <span
-              className="text-[8px] font-bold px-1 py-0.5 rounded"
+              className="text-[11px] font-bold px-1 py-0.5 rounded"
               style={staleStyle}
             >
               {staleness.label}
@@ -247,7 +248,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
                 )}
                 {windDelta && (
                   <span
-                    className={`text-[10px] font-bold ${windDelta.color}`}
+                    className={`text-[11px] font-bold ${windDelta.color}`}
                     title={windDelta.title}
                   >
                     {windDelta.text}
@@ -256,7 +257,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
                 <WindSparkline stationId={station.id} />
               </div>
               {reading.windGust !== null && reading.windGust > 0 && (
-                <div className="text-[10px] text-slate-500 mt-0.5" title="Racha máxima">
+                <div className="text-[11px] text-slate-500 mt-0.5" title="Racha máxima">
                   Racha {formatWindSpeed(reading.windGust)}
                 </div>
               )}
@@ -272,7 +273,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
                 </span>
                 {tempDelta && (
                   <span
-                    className={`text-[10px] font-bold ${tempDelta.color}`}
+                    className={`text-[11px] font-bold ${tempDelta.color}`}
                     title={tempDelta.title}
                   >
                     {tempDelta.text}
@@ -337,7 +338,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
                     {formatDewPoint(reading.dewPoint)}
                   </span>
                   {reading.temperature != null && reading.dewPoint != null && (
-                    <span className="text-[10px] text-slate-500" title="Spread T − Td">
+                    <span className="text-[11px] text-slate-500" title="Spread T − Td">
                       Δ{(reading.temperature - reading.dewPoint).toFixed(1)}°
                     </span>
                   )}

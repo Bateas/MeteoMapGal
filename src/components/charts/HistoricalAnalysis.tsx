@@ -189,10 +189,10 @@ export function HistoricalAnalysis() {
   if (state === 'idle') {
     return (
       <div className="space-y-3">
-        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
           Análisis Histórico
         </div>
-        <p className="text-[10px] text-slate-500 leading-relaxed">
+        <p className="text-[11px] text-slate-500 leading-relaxed">
           Descarga datos horarios Jun-Sep (2022-2025) de Open-Meteo Archive
           para descubrir patrones de viento térmico reales.
         </p>
@@ -202,7 +202,7 @@ export function HistoricalAnalysis() {
             <button
               key={yr}
               onClick={() => setYearRange(yr)}
-              className={`flex-1 text-[10px] py-1 rounded transition-colors ${
+              className={`flex-1 text-[11px] py-1 rounded transition-colors ${
                 yearRange === yr
                   ? 'bg-amber-600 text-white'
                   : 'bg-slate-800 text-slate-500 hover:bg-slate-750'
@@ -229,10 +229,10 @@ export function HistoricalAnalysis() {
         <div className="text-amber-500 text-lg mb-2 animate-pulse">
           &#9676;
         </div>
-        <div className="text-[10px] text-slate-400">
+        <div className="text-[11px] text-slate-400">
           Descargando datos de Open-Meteo...
         </div>
-        <div className="text-[9px] text-slate-600 mt-1">
+        <div className="text-[11px] text-slate-600 mt-1">
           Puede tardar unos segundos
         </div>
       </div>
@@ -245,7 +245,7 @@ export function HistoricalAnalysis() {
         <div className="text-red-400 text-xs mb-2">Error: {error}</div>
         <button
           onClick={loadData}
-          className="text-[10px] bg-slate-800 text-slate-300 px-3 py-1 rounded hover:bg-slate-700"
+          className="text-[11px] bg-slate-800 text-slate-300 px-3 py-1 rounded hover:bg-slate-700"
         >
           Reintentar
         </button>
@@ -256,36 +256,36 @@ export function HistoricalAnalysis() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
           Análisis Histórico
         </div>
-        <div className="text-[9px] text-slate-600">
+        <div className="text-[11px] text-slate-600">
           {data.length.toLocaleString()} puntos
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex gap-2 items-center">
-        <label className="text-[9px] text-slate-500">T &ge;</label>
+        <label className="text-[11px] text-slate-500">T &ge;</label>
         <input
           type="number"
           value={minTemp}
           onChange={(e) => setMinTemp(Number(e.target.value))}
-          className="w-12 bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded border border-slate-700"
+          className="w-12 bg-slate-800 text-slate-300 text-[11px] px-1.5 py-0.5 rounded border border-slate-700"
         />
-        <label className="text-[9px] text-slate-500">HR &ge;</label>
+        <label className="text-[11px] text-slate-500">HR &ge;</label>
         <input
           type="number"
           value={minHumidity}
           onChange={(e) => setMinHumidity(Number(e.target.value))}
-          className="w-12 bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.5 rounded border border-slate-700"
+          className="w-12 bg-slate-800 text-slate-300 text-[11px] px-1.5 py-0.5 rounded border border-slate-700"
         />
-        <span className="text-[9px] text-slate-600">°C / %</span>
+        <span className="text-[11px] text-slate-600">°C / %</span>
       </div>
 
       {/* Wind Rose */}
       <div>
-        <div className="text-[9px] text-slate-500 mb-1">
+        <div className="text-[11px] text-slate-500 mb-1">
           Rosa de vientos: <span className="text-slate-400">General</span> vs{' '}
           <span className="text-amber-400">T&ge;{minTemp} HR&ge;{minHumidity}</span>
         </div>
@@ -338,7 +338,7 @@ export function HistoricalAnalysis() {
 
       {/* Hour × Direction Heatmap (rendered as colored grid) */}
       <div>
-        <div className="text-[9px] text-slate-500 mb-1">
+        <div className="text-[11px] text-slate-500 mb-1">
           Hora vs Dirección (T&ge;{minTemp} HR&ge;{minHumidity})
         </div>
         <div className="bg-slate-800/50 rounded-lg p-2 overflow-x-auto">
@@ -346,9 +346,9 @@ export function HistoricalAnalysis() {
             gridTemplateColumns: `32px repeat(8, 28px)`,
           }}>
             {/* Header */}
-            <div className="text-[8px] text-slate-600" />
+            <div className="text-[11px] text-slate-600" />
             {['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'].map((d) => (
-              <div key={d} className="text-[8px] text-slate-500 text-center font-medium">
+              <div key={d} className="text-[11px] text-slate-500 text-center font-medium">
                 {d}
               </div>
             ))}
@@ -356,7 +356,7 @@ export function HistoricalAnalysis() {
             {/* Rows */}
             {Array.from({ length: 17 }, (_, i) => i + 6).map((hour) => (
               <>
-                <div key={`h${hour}`} className="text-[8px] text-slate-500 text-right pr-1">
+                <div key={`h${hour}`} className="text-[11px] text-slate-500 text-right pr-1">
                   {hour}:00
                 </div>
                 {['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'].map((dir) => {
@@ -377,7 +377,7 @@ export function HistoricalAnalysis() {
                       title={`${hour}:00 ${dir}: ${freq}%`}
                     >
                       {freq > 5 && (
-                        <span className="text-[7px] font-mono text-white/80">
+                        <span className="text-[11px] font-mono text-white/80">
                           {freq}
                         </span>
                       )}
@@ -392,7 +392,7 @@ export function HistoricalAnalysis() {
 
       {/* Temperature vs Wind Speed scatter */}
       <div>
-        <div className="text-[9px] text-slate-500 mb-1">
+        <div className="text-[11px] text-slate-500 mb-1">
           Temperatura vs Velocidad (14-20h, HR&ge;{minHumidity})
         </div>
         <div className="bg-slate-800/50 rounded-lg p-2">
@@ -441,7 +441,7 @@ export function HistoricalAnalysis() {
       {/* Reload button */}
       <button
         onClick={loadData}
-        className="w-full text-[10px] bg-slate-800 text-slate-400 py-1.5 rounded hover:bg-slate-700 transition-colors"
+        className="w-full text-[11px] bg-slate-800 text-slate-400 py-1.5 rounded hover:bg-slate-700 transition-colors"
       >
         Recargar datos
       </button>

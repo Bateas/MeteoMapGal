@@ -170,7 +170,7 @@ export function FeedbackModal() {
                 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30
                 resize-none transition-colors"
             />
-            <div className={`text-right text-[10px] mt-0.5 ${remaining < 30 ? 'text-amber-400' : 'text-slate-600'}`}>
+            <div className={`text-right text-[11px] mt-0.5 ${remaining < 30 ? 'text-amber-400' : 'text-slate-600'}`}>
               {remaining} caracteres
             </div>
           </div>
@@ -185,7 +185,7 @@ export function FeedbackModal() {
             aria-hidden="true"
           />
 
-          <div className="text-[9px] text-slate-600">
+          <div className="text-[11px] text-slate-600">
             Anonimo. Sin datos personales. Max 3 envios/dia.
           </div>
         </div>

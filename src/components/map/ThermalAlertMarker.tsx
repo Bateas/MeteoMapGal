@@ -44,7 +44,7 @@ const AlertBadge = memo(function AlertBadge({ zoneId, lon, lat, alertLevel, maxS
           style={{ background: color }}
         />
         <span
-          className="text-[10px] font-bold font-mono"
+          className="text-[11px] font-bold font-mono"
           style={{ color }}
         >
           {maxScore}%

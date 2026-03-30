@@ -90,15 +90,15 @@ export function WindCompass({ direction, speed, size = 48 }: WindCompassProps) {
 
       {/* Text label below */}
       {hasDirection ? (
-        <div className="text-[10px] font-semibold text-center leading-tight" style={{ color }}>
+        <div className="text-[11px] font-semibold text-center leading-tight" style={{ color }}>
           {degreesToCardinal(direction!)} {Math.round(direction!)}°
         </div>
       ) : hasSpeedOnly ? (
-        <div className="text-[10px] font-semibold text-center leading-tight" style={{ color }}>
+        <div className="text-[11px] font-semibold text-center leading-tight" style={{ color }}>
           Sin veleta
         </div>
       ) : (
-        <div className="text-[10px] text-slate-500 text-center">Calma</div>
+        <div className="text-[11px] text-slate-500 text-center">Calma</div>
       )}
     </div>
   );

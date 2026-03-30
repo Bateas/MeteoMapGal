@@ -44,7 +44,7 @@ export const BuoyPanel = memo(function BuoyPanel() {
   if (loading || lastFetch === 0) {
     return (
       <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
-        <div className="flex items-center gap-2 text-cyan-400 text-[10px]">
+        <div className="flex items-center gap-2 text-cyan-400 text-[11px]">
           <WeatherIcon id="waves" size={14} className="animate-pulse" />
           Cargando datos de boyas...
         </div>
@@ -55,7 +55,7 @@ export const BuoyPanel = memo(function BuoyPanel() {
   if (error || buoys.length === 0) {
     return (
       <div className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
-        <div className="flex items-center gap-2 text-slate-500 text-[10px]">
+        <div className="flex items-center gap-2 text-slate-500 text-[11px]">
           <WeatherIcon id="waves" size={14} />
           {error ? `Boyas: ${error}` : 'Sin datos de boyas marinas'}
         </div>
@@ -79,7 +79,7 @@ export const BuoyPanel = memo(function BuoyPanel() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[9px] text-slate-500">
+            <span className="text-[11px] text-slate-500">
               {buoys.length} estaciones
             </span>
             <svg className={`w-3 h-3 text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -108,21 +108,21 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
       {/* Station header */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/50">
         <div className="flex items-center gap-1.5">
-          <span className="text-[8px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
+          <span className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
             ⚓
           </span>
           <span className="text-[11px] font-bold text-slate-200">{b.stationName}</span>
           {b.source === 'obscosteiro' && (
-            <span className="text-[7px] font-bold text-teal-400 bg-teal-500/10 px-1 py-0.5 rounded">
+            <span className="text-[11px] font-bold text-teal-400 bg-teal-500/10 px-1 py-0.5 rounded">
               OBS
             </span>
           )}
         </div>
-        <span className="text-[8px] text-slate-500">{timeAgo(b.timestamp)}</span>
+        <span className="text-[11px] text-slate-500">{timeAgo(b.timestamp)}</span>
       </div>
 
       {/* Data grid */}
-      <div className="grid grid-cols-3 gap-px bg-slate-700/20 text-[10px]">
+      <div className="grid grid-cols-3 gap-px bg-slate-700/20 text-[11px]">
         {/* Wave data */}
         {hasWaves && (
           <>
@@ -262,8 +262,8 @@ function DataCell({
 }) {
   return (
     <div className="bg-slate-900/80 px-2 py-1.5 text-center">
-      <div className="text-[8px] text-slate-500 tracking-wide">{label}</div>
-      <div className={`text-[10px] font-bold mt-0.5 ${className} flex items-center justify-center gap-1`}>
+      <div className="text-[11px] text-slate-500 tracking-wide">{label}</div>
+      <div className={`text-[11px] font-bold mt-0.5 ${className} flex items-center justify-center gap-1`}>
         {dirDeg != null && (
           <svg width="10" height="10" viewBox="-5 -5 10 10" className="inline-block shrink-0">
             <g transform={`rotate(${dirDeg})`}>
@@ -273,7 +273,7 @@ function DataCell({
           </svg>
         )}
         {value}
-        {sub && <span className="text-[8px] text-slate-500 ml-0.5">{sub}</span>}
+        {sub && <span className="text-[11px] text-slate-500 ml-0.5">{sub}</span>}
       </div>
     </div>
   );

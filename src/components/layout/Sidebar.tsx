@@ -84,8 +84,8 @@ export function Sidebar() {
 
   // Compact tabs — wrap to multiple rows so all tabs are always visible
   const tabBase = isMobile
-    ? 'px-2.5 text-[10px] font-semibold py-1.5 uppercase whitespace-nowrap transition-colors rounded-t'
-    : 'px-2 text-[10px] font-semibold py-1.5 uppercase whitespace-nowrap transition-colors rounded-t tracking-wide';
+    ? 'px-2.5 text-[11px] font-semibold py-1.5 uppercase whitespace-nowrap transition-colors rounded-t'
+    : 'px-2 text-[11px] font-semibold py-1.5 uppercase whitespace-nowrap transition-colors rounded-t tracking-wide';
   const tabOn = (color: string) => `text-white border-b-2 ${color} bg-slate-800/50`;
   const tabOff = 'text-slate-500 hover:text-slate-300 border-b-2 border-transparent';
 
@@ -235,10 +235,11 @@ export function Sidebar() {
             downloadGeoJSON(stations, currentReadings, buoys, sector.name);
           }}
           className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg
-            border border-slate-700/40 text-slate-500 text-[10px]
+            border border-slate-700/40 text-slate-500 text-[11px]
             hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-slate-800/60
             transition-all"
           title="Exportar datos GeoJSON"
+          aria-label="Exportar datos GeoJSON"
         >
           <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
@@ -247,7 +248,7 @@ export function Sidebar() {
           target="_blank"
           rel="noopener noreferrer"
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
-            border border-slate-700/40 text-slate-500 text-[10px]
+            border border-slate-700/40 text-slate-500 text-[11px]
             hover:text-amber-400 hover:border-amber-500/30 hover:bg-slate-800/60
             transition-all"
         >

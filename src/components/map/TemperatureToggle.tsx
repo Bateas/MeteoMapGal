@@ -52,7 +52,7 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
       {/* Gradient info badge — above button when overlay is on (desktop only to save space) */}
       {gradientInfo && !isMobile && (
         <div
-          className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-semibold tracking-wide
+          className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold tracking-wide
             backdrop-blur-md bg-slate-900/70 border border-slate-700/50
             ${gradientColor} transition-opacity duration-300 whitespace-nowrap`}
         >
@@ -77,7 +77,7 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
         <WeatherIcon id="thermometer" size={isMobile ? 18 : 14} />
         {!isMobile && <span>{showOverlay ? 'T° ON' : 'T°'}</span>}
         {hasInversion && (
-          <span className="text-[9px] px-1 py-0.5 rounded bg-red-500/30 text-red-300 font-bold">
+          <span className="text-[11px] px-1 py-0.5 rounded bg-red-500/30 text-red-300 font-bold">
             INV
           </span>
         )}

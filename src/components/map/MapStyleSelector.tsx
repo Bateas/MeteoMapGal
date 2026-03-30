@@ -100,7 +100,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
           ${isMobile ? 'w-40 max-h-[calc(100dvh-8rem)]' : 'w-48 max-h-[70vh]'}`}
         >
           <div className="px-2 py-1.5 border-b border-slate-700/40">
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Mapa base</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Mapa base</span>
           </div>
           <div className="py-1">
             {MAP_STYLES.map((style) => {
@@ -127,7 +127,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
                     <span className={`text-[11px] font-semibold truncate ${isActive ? 'text-blue-300' : ''}`}>
                       {style.shortName}
                     </span>
-                    <span className="text-[8px] text-slate-500 truncate">{style.name}</span>
+                    <span className="text-[11px] text-slate-500 truncate">{style.name}</span>
                   </div>
                   {isActive && (
                     <svg className="w-3.5 h-3.5 ml-auto text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -143,7 +143,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
           {isRias && (
             <>
               <div className="border-t border-slate-700/40 px-2 py-1.5">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Capas marinas</span>
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Capas marinas</span>
               </div>
               <div className="pb-1.5 px-1">
                 <OverlayToggle
@@ -186,7 +186,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
 
           {/* ── IGN terrain overlay toggles (both sectors) ── */}
           <div className="border-t border-slate-700/40 px-2 py-1.5">
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Capas IGN</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Capas IGN</span>
           </div>
           <div className="pb-1.5 px-1">
             <OverlayToggle
@@ -255,8 +255,8 @@ function OverlayToggle({
         style={active ? { backgroundColor: color, borderColor: color } : undefined}
       />
       <div className="flex flex-col min-w-0">
-        <span className="text-[10px] font-semibold truncate">{label}</span>
-        <span className="text-[8px] text-slate-500 truncate">{sublabel}</span>
+        <span className="text-[11px] font-semibold truncate">{label}</span>
+        <span className="text-[11px] text-slate-500 truncate">{sublabel}</span>
       </div>
     </button>
   );

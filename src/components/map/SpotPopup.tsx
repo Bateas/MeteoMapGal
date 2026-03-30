@@ -80,9 +80,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             >
               {favoriteSpotId === spot.id ? '\u2605' : '\u2606'}
             </button>
-            <span className={`${isMobile ? 'text-[9px]' : 'text-[8px]'} font-bold tracking-wider text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-full border border-amber-500/30 shrink-0 leading-none`}>BETA</span>
+            <span className={`${isMobile ? 'text-[11px]' : 'text-[11px]'} font-bold tracking-wider text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-full border border-amber-500/30 shrink-0 leading-none`}>BETA</span>
           </div>
-          <div className={`${isMobile ? 'text-[11px]' : 'text-[10px]'} text-slate-400`}>{spot.description}</div>
+          <div className={`${isMobile ? 'text-[11px]' : 'text-[11px]'} text-slate-400`}>{spot.description}</div>
         </div>
       </div>
 
@@ -105,7 +105,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {score?.wind && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
           <div className="flex items-baseline gap-1">
-            <span className="text-slate-500 text-[10px]">Viento</span>
+            <span className="text-slate-500 text-[11px]">Viento</span>
             <span className="font-bold" style={{ color: windKtColor(score.wind.avgSpeedKt) }}>
               {score.wind.avgSpeedKt.toFixed(0)} kt
             </span>
@@ -113,21 +113,21 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             <SpotWindSparkline spotId={spot.id} />
           </div>
           <div className="flex items-baseline gap-1">
-            <span className="text-slate-500 text-[10px]">Dirección</span>
+            <span className="text-slate-500 text-[11px]">Dirección</span>
             <span className="font-bold text-slate-200 flex items-center gap-1">
               <span
                 className="inline-block text-sm leading-none"
                 style={{ transform: `rotate(${(score.wind.dirDeg + 180) % 360}deg)`, display: 'inline-block' }}
               >↑</span>
               {score.wind.dominantDir}
-              <span className="text-[10px] text-slate-400 font-normal">{Math.round(score.wind.dirDeg)}°</span>
+              <span className="text-[11px] text-slate-400 font-normal">{Math.round(score.wind.dirDeg)}°</span>
             </span>
           </div>
           {score.gustKt != null && score.gustKt > score.wind.avgSpeedKt && (
             <Cell label="Racha" value={`${score.gustKt.toFixed(0)} kt`} color={windKtColor(score.gustKt)} />
           )}
           {score.wind.matchedPattern && (
-            <div className="col-span-2 text-[10px] text-amber-400/80 italic">
+            <div className="col-span-2 text-[11px] text-amber-400/80 italic">
               <WeatherIcon id="thermal-wind" size={11} className="inline -mt-px" /> {score.wind.matchedPattern}
             </div>
           )}
@@ -137,7 +137,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Wind trend (30min ramp detection) ── */}
       {score?.windTrend && score.windTrend.signal !== 'none' && (
-        <div className={`text-[10px] rounded px-2 py-1 mb-2 ${
+        <div className={`text-[11px] rounded px-2 py-1 mb-2 ${
           score.windTrend.signal === 'rapid' ? 'text-red-400 bg-red-500/10' :
           score.windTrend.signal === 'building' ? 'text-sky-400 bg-sky-500/10' :
           'text-amber-400 bg-amber-500/10'
@@ -185,7 +185,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Humidity precursor signal (bruma pattern) ── */}
       {score?.humiditySignal && (
-        <div className="text-[10px] text-amber-400 bg-amber-500/10 rounded px-2 py-1 mb-2">
+        <div className="text-[11px] text-amber-400 bg-amber-500/10 rounded px-2 py-1 mb-2">
           {score.humiditySignal}
         </div>
       )}
@@ -200,7 +200,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Thermal context (if applicable) ── */}
       {score?.thermal && score.thermal.thermalProbability > 0 && (
-        <div className="text-[10px] text-amber-300/70 mb-1">
+        <div className="text-[11px] text-amber-300/70 mb-1">
           <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Térmica {score.thermal.thermalProbability}% prob
           {score.thermal.windWindow && ` · ${score.thermal.windWindow.startHour}h–${score.thermal.windWindow.endHour}h`}
         </div>
@@ -210,28 +210,28 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Scoring confidence ── */}
       {score && score.scoringConfidence === 'low' && (
-        <div className="text-[10px] text-slate-500 italic mb-1">
+        <div className="text-[11px] text-slate-500 italic mb-1">
           <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" /> Baja confianza: solo {score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)
         </div>
       )}
 
       {/* ── Summary ── */}
       {score?.summary && (
-        <div className="text-[10px] text-slate-400 leading-snug mt-1 pt-1 border-t border-slate-700/40">
+        <div className="text-[11px] text-slate-400 leading-snug mt-1 pt-1 border-t border-slate-700/40">
           {score.summary}
         </div>
       )}
 
       {/* ── Hard gate warning ── */}
       {score?.hardGateTriggered && (
-        <div className="text-[10px] text-red-400 font-bold mt-1">
+        <div className="text-[11px] text-red-400 font-bold mt-1">
           <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" /> {score.hardGateTriggered}
         </div>
       )}
 
       {/* ── Storm alert ── */}
       {score?.hasStormAlert && (
-        <div className="text-[10px] text-red-400 font-bold mt-1">
+        <div className="text-[11px] text-red-400 font-bold mt-1">
           <WeatherIcon id="alert-triangle" size={12} className="inline -mt-px" /> Alerta de tormenta activa
         </div>
       )}
@@ -263,7 +263,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-700/30">
         <ShareButton spot={spot} score={score} verdict={verdict} vs={vs} />
         {score?.computedAt && (
-          <span className="text-[9px] text-slate-500">
+          <span className="text-[11px] text-slate-500">
             {timeAgoEs(score.computedAt)}
           </span>
         )}
@@ -320,7 +320,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 function Cell({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="flex items-baseline gap-1">
-      <span className="text-slate-500 text-[10px]">{label}</span>
+      <span className="text-slate-500 text-[11px]">{label}</span>
       <span className="font-bold text-slate-200" style={color ? { color } : undefined}>
         {value}
       </span>
@@ -337,7 +337,7 @@ function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
   if (windows.length === 0) {
     return (
       <div className="mt-2 pt-1.5 border-t border-slate-700/40">
-        <div className="flex items-center gap-1 text-[10px] text-slate-500">
+        <div className="flex items-center gap-1 text-[11px] text-slate-500">
           <WeatherIcon id="clock" size={11} className="text-slate-500" />
           <span>Sin ventanas de viento en 48h</span>
         </div>
@@ -349,12 +349,12 @@ function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
     <div className="mt-2 pt-1.5 border-t border-slate-700/40">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
         <WeatherIcon id="clock" size={11} className="text-slate-400 shrink-0" />
         <span className="font-semibold">Mejores ventanas</span>
-        <span className="text-slate-500 text-[9px] ml-1">({windows.length})</span>
-        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+        <span className="text-slate-500 text-[11px] ml-1">({windows.length})</span>
+        <span className="text-slate-500 text-[11px] ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="mt-1.5 space-y-1">
@@ -371,13 +371,13 @@ function WindowRow({ window: w, isBest }: { window: SailingWindow; isBest: boole
   const dotColor = w.verdict === 'good' ? '#22c55e' : '#eab308';
   return (
     <div className={`bg-slate-800/40 rounded px-2 py-1 ${isBest ? 'ring-1 ring-emerald-500/30' : ''}`}>
-      <div className="flex items-center gap-1.5 text-[10px]">
+      <div className="flex items-center gap-1.5 text-[11px]">
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
         <span className="font-bold text-slate-200 flex-1">{w.summary}</span>
-        <span className="text-slate-500 font-mono text-[9px]">{w.avgScore}</span>
+        <span className="text-slate-500 font-mono text-[11px]">{w.avgScore}</span>
       </div>
       {isBest && (
-        <div className="text-[9px] text-emerald-400 mt-0.5">★ Mejor ventana</div>
+        <div className="text-[11px] text-emerald-400 mt-0.5">★ Mejor ventana</div>
       )}
     </div>
   );
@@ -448,23 +448,23 @@ function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: SailingSpot
     <div className="mt-2 pt-1.5 border-t border-slate-700/40">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
         <WeatherIcon id="info" size={11} className="text-slate-400 shrink-0" />
         <span className="font-semibold">¿Por qué {VERDICT_STYLE[score.verdict].label.toLowerCase()}?</span>
-        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+        <span className="text-slate-500 text-[11px] ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="mt-1.5 space-y-1">
           {lines.map((line, i) => (
-            <div key={i} className="flex items-baseline gap-1.5 text-[10px]">
+            <div key={i} className="flex items-baseline gap-1.5 text-[11px]">
               <span className="text-slate-500 shrink-0 w-[72px] text-right">{line.label}</span>
               <span className="font-semibold" style={line.color ? { color: line.color } : { color: '#e2e8f0' }}>
                 {line.value}
               </span>
             </div>
           ))}
-          <div className="text-[9px] text-slate-600 mt-1 italic">
+          <div className="text-[11px] text-slate-600 mt-1 italic">
             Score: {score.score}/100 · {score.wind?.stationCount ?? 0} estaciones
           </div>
         </div>
@@ -487,22 +487,22 @@ function WindPatterns({ patterns }: { patterns: WindPattern[] }) {
     <div className="mt-2 pt-1.5 border-t border-slate-700/40">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
         <WeatherIcon id="wind" size={11} className="text-slate-500 shrink-0" />
         <span className="font-semibold">Patrones de viento</span>
-        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+        <span className="text-slate-500 text-[11px] ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="mt-1.5 space-y-1.5">
           {patterns.map((p) => (
             <div key={p.name} className="bg-slate-800/40 rounded px-2 py-1.5">
-              <div className="flex items-center gap-1.5 text-[10px]">
+              <div className="flex items-center gap-1.5 text-[11px]">
                 <span className="text-slate-300 font-mono">{dirArrow(p.direction)}</span>
                 <span className="font-bold text-slate-200">{p.name}</span>
                 <span className="text-slate-500 ml-auto">{p.season}</span>
               </div>
-              <p className="text-[9px] text-slate-400 mt-0.5 leading-snug">{p.description}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{p.description}</p>
             </div>
           ))}
         </div>
@@ -543,12 +543,12 @@ function ThermalPrecursorSection({ precursor }: { precursor: ThermalPrecursorRes
           <WeatherIcon id="thermal-wind" size={12} className="inline -mt-px" />{' '}
           Alerta térmica temprana
         </span>
-        <span className="text-[10px] text-slate-500 group-hover:text-slate-400">{open ? '▴' : '▾'}</span>
+        <span className="text-[11px] text-slate-500 group-hover:text-slate-400">{open ? '▴' : '▾'}</span>
       </button>
 
       {/* Summary always visible */}
       <div
-        className="text-[10px] mt-1 px-1.5 py-1 rounded"
+        className="text-[11px] mt-1 px-1.5 py-1 rounded"
         style={{ background: style.bg, color: style.color, border: `1px solid ${style.color}33` }}
       >
         {precursor.summary}
@@ -558,7 +558,7 @@ function ThermalPrecursorSection({ precursor }: { precursor: ThermalPrecursorRes
       </div>
 
       {/* Confidence badge */}
-      <div className="flex items-center gap-2 mt-1 text-[9px] text-slate-500">
+      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
         <span>Probabilidad: <strong style={{ color: style.color }}>{precursor.probability}%</strong></span>
         <span>· Confianza: {precursor.confidence}</span>
         <span>· {activeSignals.length}/6 señales</span>
@@ -590,7 +590,7 @@ function PrecursorSignalRow({ name, signal }: { name: string; signal: { active: 
   const color = signal.active ? '#22c55e' : '#475569';
 
   return (
-    <div className="flex items-center gap-1.5 text-[9px]">
+    <div className="flex items-center gap-1.5 text-[11px]">
       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
       <span className="text-slate-400 w-[90px] truncate">{name}</span>
       <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -635,11 +635,11 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
   const visInfo = VIS_LABELS[w.visibility] ?? VIS_LABELS.good;
 
   return (
-    <div className="mt-2 pt-2 border-t border-slate-700/40 text-[10px]">
+    <div className="mt-2 pt-2 border-t border-slate-700/40 text-[11px]">
       <div className="flex items-center gap-1.5 mb-1">
         <WeatherIcon id="camera" size={11} className="text-cyan-400" />
         <span className="text-slate-300 font-semibold">Visión IA</span>
-        <span className="text-[9px] text-slate-600 ml-auto">{ago}</span>
+        <span className="text-[11px] text-slate-600 ml-auto">{ago}</span>
       </div>
 
       {/* Weather description */}
@@ -650,7 +650,7 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
       )}
 
       {/* Conditions grid */}
-      <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[9px]">
+      <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[11px]">
         {/* Sky */}
         <div className="text-slate-500">Cielo</div>
         <div className="col-span-2"><span style={{ color: skyInfo.color }}>{skyInfo.label}</span>{w.cloudType ? ` · ${w.cloudType}` : ''}</div>
@@ -701,7 +701,7 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
         )}
       </div>
 
-      <div className="text-[8px] text-slate-600 mt-1 flex items-center gap-1">
+      <div className="text-[11px] text-slate-600 mt-1 flex items-center gap-1">
         <span className="opacity-60">🤖</span> {result.providerUsed} · {result.latencyMs}ms · {result.confidence}
       </div>
     </div>
@@ -716,18 +716,18 @@ function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
     <div className="mt-2 pt-1.5 border-t border-slate-700/40">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
         <WeatherIcon id="camera" size={11} className="text-slate-500 shrink-0" />
         <span className="font-semibold">Webcams</span>
-        <span className="text-slate-500 text-[9px] ml-1">({webcams.length})</span>
-        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+        <span className="text-slate-500 text-[11px] ml-1">({webcams.length})</span>
+        <span className="text-slate-500 text-[11px] ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="mt-1.5 space-y-2">
           {webcams.map((cam) => (
             <div key={cam.url} className="bg-slate-800/40 rounded px-2 py-1.5">
-              <div className="flex items-center gap-1.5 text-[10px] mb-1">
+              <div className="flex items-center gap-1.5 text-[11px] mb-1">
                 <span className="font-bold text-slate-200">{cam.label}</span>
                 <span className="text-slate-500 ml-auto">{azimuthLabel(cam.azimuth)}</span>
               </div>
@@ -742,10 +742,10 @@ function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
                     loading="lazy"
                   />
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[9px] text-slate-500">{cam.source}</span>
+                    <span className="text-[11px] text-slate-500">{cam.source}</span>
                     <button
                       onClick={() => setImgKey(Date.now())}
-                      className="text-[9px] text-sky-400 hover:text-sky-300 transition-colors"
+                      className="text-[11px] text-sky-400 hover:text-sky-300 transition-colors"
                     >
                       ↻ Actualizar
                     </button>
@@ -756,7 +756,7 @@ function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
                   href={cam.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-[10px] text-sky-400 hover:text-sky-300 transition-colors"
+                  className="flex items-center gap-1.5 text-[11px] text-sky-400 hover:text-sky-300 transition-colors"
                 >
                   <span>▶</span>
                   <span>Ver stream en vivo</span>
@@ -842,10 +842,10 @@ function ThermalForecastBadge({ forecast }: { forecast: HourlyForecast[] }) {
             ? 'text-blue-400 bg-blue-500/10'
             : 'text-slate-400 bg-slate-500/10';
         return (
-          <div key={i} className={`text-[10px] ${color} rounded px-2 py-1`}>
+          <div key={i} className={`text-[11px] ${color} rounded px-2 py-1`}>
             <WeatherIcon id="sun" size={11} className="inline -mt-px mr-1" />
             {s.label}
-            <span className="text-[9px] opacity-60 ml-1">BETA</span>
+            <span className="text-[11px] opacity-60 ml-1">BETA</span>
           </div>
         );
       })}
@@ -886,7 +886,7 @@ function SpotTideSummary({ tideStationId }: { tideStationId: string }) {
   if (!tides || tides.length === 0) return null;
 
   return (
-    <div className="text-[10px] mb-1.5 pt-1 border-t border-slate-700/40">
+    <div className="text-[11px] mb-1.5 pt-1 border-t border-slate-700/40">
       <div className="flex items-center gap-1 text-slate-400 mb-0.5">
         <WeatherIcon id="anchor" size={10} className="text-cyan-500/70" />
         <span className="font-semibold">Mareas hoy</span>
@@ -937,11 +937,11 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
     <div className="mt-2 pt-1.5 border-t border-slate-700/40">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
         <WeatherIcon id="clock" size={11} className="text-cyan-500/70 shrink-0" />
         <span className="font-semibold">Prevision 12h</span>
-        <span className="text-slate-500 text-[9px] ml-auto">{open ? '▲' : '▼'}</span>
+        <span className="text-slate-500 text-[11px] ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="mt-1.5 flex gap-0.5 overflow-x-auto">
@@ -951,24 +951,24 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
             return (
               <div
                 key={i}
-                className="flex flex-col items-center min-w-[38px] bg-slate-800/40 rounded px-1 py-1 text-[9px]"
+                className="flex flex-col items-center min-w-[38px] bg-slate-800/40 rounded px-1 py-1 text-[11px]"
               >
                 <span className="text-slate-500 font-mono">{fmt(h.time)}</span>
                 <span
-                  className="font-bold text-[10px] mt-0.5"
+                  className="font-bold text-[11px] mt-0.5"
                   style={{ color: windKtColor(kt) }}
                   title={`${kt} kt ${h.windDirection}°`}
                 >
                   {kt}
                 </span>
                 <span
-                  className="inline-block text-[8px] leading-none"
+                  className="inline-block text-[11px] leading-none"
                   style={{ transform: `rotate(${(h.windDirection + 180) % 360}deg)` }}
                   title={`Dir: ${Math.round(h.windDirection)}°`}
                 >↑</span>
-                <span className="text-slate-400 text-[8px]">{h.temperature.toFixed(0)}°</span>
+                <span className="text-slate-400 text-[11px]">{h.temperature.toFixed(0)}°</span>
                 {precip && (
-                  <span className="text-sky-400 text-[8px]" title={`${h.precipProbability}% lluvia`}>
+                  <span className="text-sky-400 text-[11px]" title={`${h.precipProbability}% lluvia`}>
                     {h.precipProbability}%
                   </span>
                 )}
@@ -1074,7 +1074,7 @@ function ShareButton({ spot, score, verdict, vs }: {
   return (
     <button
       onClick={handleShare}
-      className="flex items-center gap-1 text-[9px] text-slate-500 hover:text-slate-300 transition-colors rounded px-1.5 py-0.5 hover:bg-slate-800/60"
+      className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors rounded px-1.5 py-0.5 hover:bg-slate-800/60"
       title="Compartir condiciones"
     >
       <WeatherIcon id="navigation" size={10} />

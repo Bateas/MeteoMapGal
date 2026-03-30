@@ -83,7 +83,7 @@ function AlertChip({ alert }: { alert: UnifiedAlert }) {
 
   return (
     <div
-      className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] shrink-0
+      className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] shrink-0
         ${alert.urgent ? 'animate-pulse' : ''}`}
       style={{
         background: colors.bg,
@@ -153,11 +153,11 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
             {alert.title}
           </span>
         </div>
-        <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+        <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
           <span className="truncate">{alert.detail}</span>
           {alert.confidence != null && (
             <span
-              className="shrink-0 text-[9px] font-mono px-1 rounded"
+              className="shrink-0 text-[11px] font-mono px-1 rounded"
               style={{
                 background: alert.confidence >= 70 ? 'rgba(34,197,94,0.15)' : alert.confidence >= 40 ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)',
                 color: alert.confidence >= 70 ? '#22c55e' : alert.confidence >= 40 ? '#eab308' : '#ef4444',
@@ -228,13 +228,13 @@ function SemaphoreDot({ risk }: { risk: CompositeRisk }) {
         style={{ backgroundColor: config.text }}
       />
       <span
-        className="text-[10px] font-black tracking-[0.1em]"
+        className="text-[11px] font-black tracking-[0.1em]"
         style={{ color: config.text }}
       >
         {config.label}
       </span>
       {risk.activeCount > 0 && (
-        <span className="text-[9px] text-slate-500 font-mono">
+        <span className="text-[11px] text-slate-500 font-mono">
           {risk.activeCount}
         </span>
       )}
@@ -277,16 +277,16 @@ export const AlertPanel = memo(function AlertPanel() {
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">
+            <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
               Alertas activas <span className="badge-beta ml-1">Beta</span>
               {validationCount > 0 && (
-                <span className="ml-2 text-[9px] font-normal text-slate-600" title="Alertas validadas (30 días)">
+                <span className="ml-2 text-[11px] font-normal text-slate-600" title="Alertas validadas (30 días)">
                   {validationCount} validadas
                 </span>
               )}
             </span>
             {!isMobile && (
-              <span className="text-[9px] text-slate-600 font-mono flex items-center gap-0.5">
+              <span className="text-[11px] text-slate-600 font-mono flex items-center gap-0.5">
                 <MiniIcon id="thumbs-up" size={9} /><MiniIcon id="thumbs-down" size={9} /> para validar · A para cerrar
               </span>
             )}
@@ -301,10 +301,10 @@ export const AlertPanel = memo(function AlertPanel() {
           {otherAlerts.length > 0 && (
             <>
               <div className="flex items-center gap-2 mt-1 pt-1 border-t border-slate-700/40">
-                <span className="text-[9px] font-bold text-slate-600 tracking-wider uppercase">
+                <span className="text-[11px] font-bold text-slate-600 tracking-wider uppercase">
                   Avisos
                 </span>
-                <span className="text-[9px] text-slate-700">{otherAlerts.length}</span>
+                <span className="text-[11px] text-slate-700">{otherAlerts.length}</span>
               </div>
               {otherAlerts.map((a) => (
                 <AlertRow key={a.id} alert={a} />
@@ -313,7 +313,7 @@ export const AlertPanel = memo(function AlertPanel() {
           )}
 
           {alerts.length === 0 && (
-            <div className="text-[10px] text-slate-600 text-center py-2">
+            <div className="text-[11px] text-slate-600 text-center py-2">
               Sin alertas activas
             </div>
           )}
@@ -347,20 +347,20 @@ export const AlertPanel = memo(function AlertPanel() {
 
         {/* Overflow indicator */}
         {!panelExpanded && topAlerts.length > (isMobile ? 2 : 3) && (
-          <span className="text-[9px] text-slate-500 font-mono shrink-0">
+          <span className="text-[11px] text-slate-500 font-mono shrink-0">
             +{topAlerts.length - (isMobile ? 2 : 3)}
           </span>
         )}
 
         {/* No alerts = show friendly message */}
         {!hasAlerts && (
-          <span className="text-[10px] text-slate-500 px-1">
+          <span className="text-[11px] text-slate-500 px-1">
             {isMobile ? 'Sin alertas' : 'Sin alertas · todo en orden'}
           </span>
         )}
 
         {/* Expand/collapse indicator */}
-        <span className="text-[9px] text-slate-600 ml-auto shrink-0">
+        <span className="text-[11px] text-slate-600 ml-auto shrink-0">
           {panelExpanded ? '▼' : '▲'}
         </span>
       </div>

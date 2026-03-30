@@ -98,7 +98,7 @@ export function HistorySection() {
         <h3 className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
           <WeatherIcon id="info" size={14} /> Consejos
         </h3>
-        <ul className="text-[10px] text-slate-400 space-y-1 leading-relaxed list-disc list-inside">
+        <ul className="text-[11px] text-slate-400 space-y-1 leading-relaxed list-disc list-inside">
           <li>Usa <strong className="text-slate-300">24h</strong> para ver el ciclo diario (térmicos, bajada nocturna).</li>
           <li>Usa <strong className="text-slate-300">7d</strong> para comparar días y detectar tendencias.</li>
           <li>Usa <strong className="text-slate-300">30d</strong> para visión mensual: olas de calor, temporales, sequías.</li>
@@ -115,12 +115,12 @@ export function HistorySection() {
 function StepCard({ num, title, desc }: { num: number; title: string; desc: string }) {
   return (
     <div className="flex items-start gap-3 bg-slate-900/50 rounded-lg p-3 border border-slate-800">
-      <div className="shrink-0 w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[10px] font-bold text-amber-400">
+      <div className="shrink-0 w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[11px] font-bold text-amber-400">
         {num}
       </div>
       <div className="min-w-0">
         <span className="text-xs font-bold text-white">{title}</span>
-        <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
+        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
       </div>
     </div>
   );
@@ -142,7 +142,7 @@ function FeatureCard({
       <h4 className={`text-xs font-bold ${color} mb-1 flex items-center gap-1.5`}>
         <WeatherIcon id={iconId as any} size={14} /> {title}
       </h4>
-      <p className="text-[10px] text-slate-500 leading-relaxed">{desc}</p>
+      <p className="text-[11px] text-slate-500 leading-relaxed">{desc}</p>
     </div>
   );
 }

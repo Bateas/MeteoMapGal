@@ -165,7 +165,7 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
         <Marker longitude={pointA.lng} latitude={pointA.lat} anchor="center">
           <div className="relative">
             <div className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-lg" />
-            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-amber-300 bg-slate-900/80 px-1 rounded">A</span>
+            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-bold text-amber-300 bg-slate-900/80 px-1 rounded">A</span>
           </div>
         </Marker>
       )}
@@ -175,7 +175,7 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
         <Marker longitude={pointB.lng} latitude={pointB.lat} anchor="center">
           <div className="relative">
             <div className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-lg" />
-            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-amber-300 bg-slate-900/80 px-1 rounded">B</span>
+            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-bold text-amber-300 bg-slate-900/80 px-1 rounded">B</span>
           </div>
         </Marker>
       )}
@@ -195,7 +195,7 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
             <div className="text-slate-400 text-xs">{distNm.toFixed(1)} mn &middot; {cardinal} ({brg.toFixed(0)}&deg;)</div>
             <button
               onClick={onDeactivate}
-              className="mt-1.5 text-[10px] text-slate-500 hover:text-amber-300 transition-colors"
+              className="mt-1.5 text-[11px] text-slate-500 hover:text-amber-300 transition-colors"
               aria-label="Cerrar medición"
             >
               Cerrar

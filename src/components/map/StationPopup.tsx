@@ -48,7 +48,7 @@ function DataCell({ label, value, color, icon, children }: {
 }) {
   return (
     <div>
-      <div className="text-slate-500 text-[10px] mb-0.5 flex items-center gap-0.5">
+      <div className="text-slate-500 text-[11px] mb-0.5 flex items-center gap-0.5">
         {icon && <WeatherIcon id={icon} size={10} />}
         {label}
       </div>
@@ -147,7 +147,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
       {/* Header */}
       <div className="flex items-center gap-1.5 mb-2">
         <span
-          className="text-[10px] font-bold px-1.5 py-px rounded text-white"
+          className="text-[11px] font-bold px-1.5 py-px rounded text-white"
           style={{ background: sourceColor }}
         >
           {SOURCE_CONFIG[station.source].fullName}
@@ -171,7 +171,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
                     {formatWindSpeed(reading.windSpeed)}
                   </span>
                   {windTrend && (
-                    <span className="text-[10px] font-bold" style={{ color: windTrend.color }} title="Tendencia 1h">
+                    <span className="text-[11px] font-bold" style={{ color: windTrend.color }} title="Tendencia 1h">
                       {windTrend.symbol}
                     </span>
                   )}
@@ -188,7 +188,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
                     </span>
                     {gustFactor != null && gustFactor >= 1.3 && (
                       <span
-                        className="text-[9px]"
+                        className="text-[11px]"
                         style={{ color: gustFactor >= 2 ? '#f87171' : gustFactor >= 1.6 ? '#fb923c' : '#94a3b8' }}
                         title={`Factor racha: ${gustFactor.toFixed(1)}× — ${gustFactor >= 2 ? 'turbulencia severa' : gustFactor >= 1.6 ? 'turbulencia moderada' : 'ligera'}`}
                       >
@@ -225,7 +225,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
                       {formatDewPoint(reading.dewPoint)}
                     </span>
                     {dpSpread != null && (
-                      <span className="text-[9px] text-slate-400" title="Spread T − Td">
+                      <span className="text-[11px] text-slate-400" title="Spread T − Td">
                         Δ{dpSpread.toFixed(1)}°
                       </span>
                     )}
@@ -236,7 +236,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
           </div>
 
           {/* Altitude */}
-          <div className="text-[10px] text-slate-400 mt-1.5">
+          <div className="text-[11px] text-slate-400 mt-1.5">
             Alt: {station.altitude}m
           </div>
 
@@ -246,7 +246,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
           )}
 
           {/* Timestamp */}
-          <div className="text-[10px] text-slate-400 mt-0.5">
+          <div className="text-[11px] text-slate-400 mt-0.5">
             {reading.timestamp && !isNaN(reading.timestamp.getTime())
               ? `Actualizado ${formatDistanceToNow(reading.timestamp, { addSuffix: true, locale: es })}`
               : 'Hora desconocida'}
@@ -351,7 +351,7 @@ function MiniWindRose({ data }: { data: WindRoseData }) {
 
   return (
     <div className="mt-2 border-t border-slate-200 pt-1.5">
-      <div className="text-[9px] text-slate-400 mb-1 font-semibold">
+      <div className="text-[11px] text-slate-400 mb-1 font-semibold">
         Rosa Vientos (Jun-Sep, {data.totalDays} días)
       </div>
       <svg width={ROSE_SIZE} height={ROSE_SIZE} viewBox={`0 0 ${ROSE_SIZE} ${ROSE_SIZE}`} className="block mx-auto">

@@ -104,7 +104,7 @@ export const MapContextMenu = memo(function MapContextMenu({
     >
       {/* Coords header */}
       <div className="px-3 py-2 border-b border-slate-700/50">
-        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Coordenadas</div>
+        <div className="text-[11px] text-slate-500 uppercase tracking-wider mb-0.5">Coordenadas</div>
         <div className="text-xs text-slate-200 font-mono">
           {menu.lat.toFixed(5)}°N, {Math.abs(menu.lng).toFixed(5)}°{menu.lng < 0 ? 'W' : 'E'}
         </div>
@@ -129,7 +129,7 @@ export const MapContextMenu = memo(function MapContextMenu({
             <span className="flex-1 truncate">
               Ir a <span className="font-medium text-sky-400">{nearest.station.name}</span>
             </span>
-            <span className="text-[10px] text-slate-500 font-mono shrink-0">
+            <span className="text-[11px] text-slate-500 font-mono shrink-0">
               {formatDistance(nearest.distanceKm)}
             </span>
           </button>

@@ -325,7 +325,7 @@ export const AirspaceOverlay = memo(function AirspaceOverlay() {
             <div className="space-y-0.5 text-slate-400">
               <p>
                 <span
-                  className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold mr-1"
+                  className="inline-block px-1.5 py-0.5 rounded text-[11px] font-bold mr-1"
                   style={{
                     background: zoneFillRgba(zonePopup.type),
                     color: zoneLineColor(zonePopup.type),
@@ -357,7 +357,7 @@ export const AirspaceOverlay = memo(function AirspaceOverlay() {
               NOTAM {notamPopup.id}
             </h3>
             <div className="space-y-0.5 text-slate-400">
-              <p className="text-[10px] text-blue-400">ICAO: {notamPopup.location}</p>
+              <p className="text-[11px] text-blue-400">ICAO: {notamPopup.location}</p>
               <p className="text-slate-300">{notamPopup.description}</p>
               <p>Altitud: {notamPopup.lowerFt} — {notamPopup.upperFt} ft</p>
               <p>Vigencia: {notamPopup.start} — {notamPopup.end}</p>
@@ -365,7 +365,7 @@ export const AirspaceOverlay = memo(function AirspaceOverlay() {
                 href="https://aip.enaire.es"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 underline text-[10px] mt-1 inline-block"
+                className="text-blue-400 hover:text-blue-300 underline text-[11px] mt-1 inline-block"
               >
                 Consultar en ENAIRE AIP
               </a>

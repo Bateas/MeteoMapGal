@@ -25,7 +25,7 @@ interface WindRoseProps {
 export function WindRose({ data, title, stationName, size = 220, showLabels = true, showSpeedWeight = false }: WindRoseProps) {
   if (data.length === 0) {
     return (
-      <div className="text-[10px] text-slate-500 text-center py-4">
+      <div className="text-[11px] text-slate-500 text-center py-4">
         Sin datos de viento
       </div>
     );
@@ -52,10 +52,10 @@ export function WindRose({ data, title, stationName, size = 220, showLabels = tr
       {(title || stationName) && (
         <div className="flex items-center justify-between mb-1">
           {title && (
-            <div className="text-[9px] text-slate-500">{title}</div>
+            <div className="text-[11px] text-slate-500">{title}</div>
           )}
           {stationName && (
-            <div className="text-[9px] text-amber-400 font-semibold">{stationName}</div>
+            <div className="text-[11px] text-amber-400 font-semibold">{stationName}</div>
           )}
         </div>
       )}
@@ -111,7 +111,7 @@ export function WindRose({ data, title, stationName, size = 220, showLabels = tr
           </RadarChart>
         </ResponsiveContainer>
         {showSpeed && (
-          <div className="flex items-center justify-center gap-3 text-[8px] text-slate-500 mt-1">
+          <div className="flex items-center justify-center gap-3 text-[11px] text-slate-500 mt-1">
             <span className="flex items-center gap-1">
               <span className="w-2 h-0.5 bg-amber-500 inline-block rounded" /> Frecuencia
             </span>

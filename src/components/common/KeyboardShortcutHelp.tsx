@@ -57,7 +57,7 @@ export const KeyboardShortcutHelp = memo(function KeyboardShortcutHelp() {
             </div>
           ))}
         </div>
-        <p className="mt-4 text-[10px] text-slate-600 text-center">
+        <p className="mt-4 text-[11px] text-slate-600 text-center">
           Pulsa <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">?</kbd> o <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">Esc</kbd> para cerrar
         </p>
       </div>

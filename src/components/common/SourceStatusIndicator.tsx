@@ -69,7 +69,7 @@ export const SourceStatusIndicator = memo(function SourceStatusIndicator() {
         return (
           <span
             key={source}
-            className={`inline-flex items-center justify-center px-1 py-0.5 rounded text-[9px] font-bold ${color} ${bgColor} cursor-default`}
+            className={`inline-flex items-center justify-center px-1 py-0.5 rounded text-[11px] font-bold ${color} ${bgColor} cursor-default`}
             title={title}
             aria-label={title}
           >

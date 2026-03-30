@@ -153,7 +153,7 @@ export const AtmosphericProfile = memo(function AtmosphericProfile() {
       <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold text-slate-200">Perfil Atmosférico</span> <span className="badge-beta">Beta</span>
-          <span className="text-[10px] text-slate-500 ml-auto">Cargando...</span>
+          <span className="text-[11px] text-slate-500 ml-auto">Cargando...</span>
         </div>
       </div>
     );
@@ -165,11 +165,11 @@ export const AtmosphericProfile = memo(function AtmosphericProfile() {
       <div className="flex items-center gap-2">
         <div>
           <span className="text-[11px] font-bold text-slate-200">Perfil Atmosférico</span> <span className="badge-beta">Beta</span>
-          <span className="text-[8px] text-slate-600 ml-1">(convección)</span>
+          <span className="text-[11px] text-slate-600 ml-1">(convección)</span>
         </div>
         {assessment && (
           <span
-            className="text-[9px] font-bold px-1.5 py-0.5 rounded ml-auto"
+            className="text-[11px] font-bold px-1.5 py-0.5 rounded ml-auto"
             style={{
               color: assessment.color,
               background: `${assessment.color}15`,
@@ -182,7 +182,7 @@ export const AtmosphericProfile = memo(function AtmosphericProfile() {
       </div>
 
       {assessment && (
-        <p className="text-[9px] text-slate-400 leading-snug">
+        <p className="text-[11px] text-slate-400 leading-snug">
           {assessment.description}
           {assessment.label === 'Marginal' && (
             <span className="text-slate-600"> Este valor mide condiciones de convección, no viento para navegar.</span>
@@ -251,7 +251,7 @@ export const AtmosphericProfile = memo(function AtmosphericProfile() {
 
       {/* Timestamp */}
       {ctx.fetchedAt && (
-        <div className="text-[8px] text-slate-600 text-right pt-0.5">
+        <div className="text-[11px] text-slate-600 text-right pt-0.5">
           Datos: {ctx.fetchedAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
         </div>
       )}
@@ -270,10 +270,10 @@ function ParamRow({ label, value, color, badge, tooltip }: {
 }) {
   return (
     <div className="flex items-center gap-1.5" title={tooltip}>
-      <span className="text-[9px] text-slate-500 w-16 flex-shrink-0">{label}</span>
-      <span className="text-[10px] font-bold font-mono flex-shrink-0" style={{ color }}>{value}</span>
+      <span className="text-[11px] text-slate-500 w-16 flex-shrink-0">{label}</span>
+      <span className="text-[11px] font-bold font-mono flex-shrink-0" style={{ color }}>{value}</span>
       <span
-        className="text-[8px] font-semibold px-1 py-px rounded ml-auto"
+        className="text-[11px] font-semibold px-1 py-px rounded ml-auto"
         style={{ color, background: `${color}15` }}
       >
         {badge}
@@ -321,7 +321,7 @@ function ProfileBar({ ctx }: { ctx: AtmosphericContext }) {
 
       {/* BLH label */}
       <div
-        className="absolute left-1 text-[8px] font-mono transition-all duration-500"
+        className="absolute left-1 text-[11px] font-mono transition-all duration-500"
         style={{
           bottom: `${blhPct}%`,
           transform: 'translateY(50%)',
@@ -333,12 +333,12 @@ function ProfileBar({ ctx }: { ctx: AtmosphericContext }) {
 
       {/* Altitude scale on right */}
       <div className="absolute right-1 top-0 bottom-0 flex flex-col justify-between py-0.5">
-        <span className="text-[7px] text-slate-600 font-mono">3km</span>
-        <span className="text-[7px] text-slate-600 font-mono">0</span>
+        <span className="text-[11px] text-slate-600 font-mono">3km</span>
+        <span className="text-[11px] text-slate-600 font-mono">0</span>
       </div>
 
       {/* Ground label */}
-      <div className="absolute bottom-0.5 left-1 text-[7px] text-slate-600">
+      <div className="absolute bottom-0.5 left-1 text-[11px] text-slate-600">
         SUP
       </div>
     </div>

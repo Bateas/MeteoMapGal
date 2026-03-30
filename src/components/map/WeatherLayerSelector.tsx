@@ -49,7 +49,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
           <div className={`border-b border-slate-700/40 space-y-2 ${isMobile ? 'w-[min(calc(100vw-2rem),18rem)] px-2.5 py-2' : 'w-72 px-3 py-2'}`}>
             {/* Opacity slider */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-500 shrink-0">Opacidad</span>
+              <span className="text-[11px] text-slate-500 shrink-0">Opacidad</span>
               <input
                 type="range"
                 min={0}
@@ -58,8 +58,9 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
                 onChange={(e) => setLayerOpacity(Number(e.target.value) / 100)}
                 className="flex-1 h-1 accent-sky-500 cursor-pointer"
                 aria-label="Opacidad de la capa"
+                aria-valuetext={`${Math.round(layerOpacity * 100)} por ciento`}
               />
-              <span className="text-[10px] text-slate-400 w-8 text-right font-mono">
+              <span className="text-[11px] text-slate-400 w-8 text-right font-mono">
                 {Math.round(layerOpacity * 100)}%
               </span>
             </div>
@@ -114,7 +115,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 function WindLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold">Velocidad viento (kt)</span>
+      <span className="text-[11px] text-slate-500 font-semibold">Velocidad viento (kt)</span>
       <div className="flex items-center gap-0">
         {[
           { color: '#64748b', label: '0' },
@@ -128,7 +129,7 @@ function WindLegend() {
         ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
             <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
-            <span className="text-[8px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
+            <span className="text-[11px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
           </div>
         ))}
       </div>
@@ -140,7 +141,7 @@ function WindLegend() {
 function HumidityLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold">Humedad relativa (%)</span>
+      <span className="text-[11px] text-slate-500 font-semibold">Humedad relativa (%)</span>
       <div className="flex items-center gap-0">
         {[
           { color: '#ef7316', label: '0' },
@@ -152,11 +153,11 @@ function HumidityLegend() {
         ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
             <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
-            <span className="text-[8px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
+            <span className="text-[11px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
           </div>
         ))}
       </div>
-      <div className="flex justify-between text-[8px] text-slate-500">
+      <div className="flex justify-between text-[11px] text-slate-500">
         <span>Seco</span>
         <span className="text-center">Medio</span>
         <span className="text-center">Húmedo</span>
@@ -170,23 +171,23 @@ function HumidityLegend() {
 function SatelliteLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="satellite" size={10} /> EUMETSAT Meteosat (IR 10.8μm)</span>
-      <div className="text-[9px] text-slate-400">
+      <span className="text-[11px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="satellite" size={10} /> EUMETSAT Meteosat (IR 10.8μm)</span>
+      <div className="text-[11px] text-slate-400">
         Imagen infrarroja cada 15 min. Nubes brillantes = altas/frías (cumulonimbus).
         Oscuro = cielo despejado o nubes bajas.
       </div>
       <div className="flex items-center gap-2 mt-1">
         <div className="flex items-center gap-1">
           <div className="w-3 h-2 rounded-sm bg-white border border-slate-600" />
-          <span className="text-[8px] text-slate-500">Cb alto</span>
+          <span className="text-[11px] text-slate-500">Cb alto</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-2 rounded-sm bg-gray-400" />
-          <span className="text-[8px] text-slate-500">Nubes medias</span>
+          <span className="text-[11px] text-slate-500">Nubes medias</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-2 rounded-sm bg-gray-700 border border-slate-600" />
-          <span className="text-[8px] text-slate-500">Despejado</span>
+          <span className="text-[11px] text-slate-500">Despejado</span>
         </div>
       </div>
     </div>
@@ -197,8 +198,8 @@ function SatelliteLegend() {
 function CurrentsLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="waves" size={10} /> RADAR ON RAIA — Corrientes superficiales</span>
-      <div className="text-[9px] text-slate-400">
+      <span className="text-[11px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="waves" size={10} /> RADAR ON RAIA — Corrientes superficiales</span>
+      <div className="text-[11px] text-slate-400">
         Radar HF costero (INTECMAR). Flechas indican dirección y velocidad
         de corrientes superficiales. Actualización horaria (~2h retardo).
       </div>
@@ -213,11 +214,11 @@ function CurrentsLegend() {
         ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
             <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
-            <span className="text-[8px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
+            <span className="text-[11px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
           </div>
         ))}
       </div>
-      <div className="text-[8px] text-slate-500 text-center">m/s</div>
+      <div className="text-[11px] text-slate-500 text-center">m/s</div>
     </div>
   );
 }
@@ -226,8 +227,8 @@ function CurrentsLegend() {
 function RadarLegend() {
   return (
     <div className="space-y-1">
-      <span className="text-[9px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> Radar</span>
-      <div className="text-[9px] text-slate-400">
+      <span className="text-[11px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> Radar</span>
+      <div className="text-[11px] text-slate-400">
         AEMET nacional (estático) + RainViewer (animación 2h).
         Pulsa el botón del mapa para animar.
       </div>
@@ -242,7 +243,7 @@ function RadarLegend() {
         ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
             <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
-            <span className="text-[8px] text-slate-600 mt-0.5">{s.label}</span>
+            <span className="text-[11px] text-slate-600 mt-0.5">{s.label}</span>
           </div>
         ))}
       </div>

@@ -128,7 +128,7 @@ export const TidePanel = memo(function TidePanel() {
         <div className="flex items-center gap-2">
           <Anchor className="w-3.5 h-3.5 text-cyan-500" />
           <span className="text-[11px] font-bold text-slate-200">Mareas</span>
-          <span className="text-[10px] text-slate-500 ml-auto">Cargando...</span>
+          <span className="text-[11px] text-slate-500 ml-auto">Cargando...</span>
         </div>
       </div>
     );
@@ -140,7 +140,7 @@ export const TidePanel = memo(function TidePanel() {
         <div className="flex items-center gap-2">
           <Anchor className="w-3.5 h-3.5 text-cyan-500" />
           <span className="text-[11px] font-bold text-slate-200">Mareas</span>
-          <span className="text-[10px] text-red-400 ml-auto">{error}</span>
+          <span className="text-[11px] text-red-400 ml-auto">{error}</span>
         </div>
       </div>
     );
@@ -157,10 +157,10 @@ export const TidePanel = memo(function TidePanel() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-cyan-300">Mareas</span>
-            <span className="text-[9px] text-slate-500">{data.station.name}</span>
+            <span className="text-[11px] text-slate-500">{data.station.name}</span>
           </div>
           {nextTide && (
-            <p className="text-[10px] text-slate-400 truncate mt-0.5">
+            <p className="text-[11px] text-slate-400 truncate mt-0.5">
               Próx: {nextTide.type === 'high' ? '▲ Pleamar' : '▼ Bajamar'} {nextTide.time} — {nextTide.height.toFixed(1)}m
               {tideState && (
                 <span className="ml-1.5 text-cyan-500">
@@ -183,10 +183,10 @@ export const TidePanel = memo(function TidePanel() {
           {tideState && (
             <div className="pt-2">
               <div className="flex items-center gap-1 mb-1">
-                <span className="text-[9px] text-slate-500">
+                <span className="text-[11px] text-slate-500">
                   {tideState.rising ? 'Subiendo (→ pleamar)' : 'Bajando (→ bajamar)'}
                 </span>
-                <span className="text-[9px] text-cyan-400 ml-auto font-mono">
+                <span className="text-[11px] text-cyan-400 ml-auto font-mono">
                   {Math.round(tideState.progress * 100)}%
                 </span>
               </div>
@@ -217,13 +217,13 @@ export const TidePanel = memo(function TidePanel() {
 
           {/* Station selector */}
           <div className="pt-1.5 border-t border-slate-700/30">
-            <span className="text-[9px] text-slate-500 block mb-1">Puerto de referencia:</span>
+            <span className="text-[11px] text-slate-500 block mb-1">Puerto de referencia:</span>
             <div className="flex flex-wrap gap-1">
               {RIAS_TIDE_STATIONS.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setStation(s)}
-                  className={`text-[9px] px-2 py-0.5 rounded transition-colors ${
+                  className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
                     station.id === s.id
                       ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                       : 'bg-slate-800 text-slate-500 hover:text-slate-300 border border-slate-700/50'
@@ -245,10 +245,10 @@ export const TidePanel = memo(function TidePanel() {
 function TideTable({ points, label }: { points: TidePoint[]; label: string }) {
   return (
     <div>
-      <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider">{label}</span>
+      <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">{label}</span>
       <div className="space-y-0.5 mt-0.5">
         {points.map((p, i) => (
-          <div key={i} className="flex items-center gap-2 text-[10px]">
+          <div key={i} className="flex items-center gap-2 text-[11px]">
             <span className={`w-4 text-center ${p.type === 'high' ? 'text-cyan-400' : 'text-blue-400'}`}>
               {p.type === 'high' ? '▲' : '▼'}
             </span>
@@ -256,7 +256,7 @@ function TideTable({ points, label }: { points: TidePoint[]; label: string }) {
             <span className={`font-bold ${p.type === 'high' ? 'text-cyan-300' : 'text-blue-300'}`}>
               {p.height.toFixed(2)}m
             </span>
-            <span className="text-slate-600 text-[9px]">
+            <span className="text-slate-600 text-[11px]">
               {p.type === 'high' ? 'Pleamar' : 'Bajamar'}
             </span>
           </div>

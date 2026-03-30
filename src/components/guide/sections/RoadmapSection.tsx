@@ -30,8 +30,8 @@ export function RoadmapSection() {
             <WeatherIcon id="check" size={15} />
           </span>
           <div className="min-w-0 space-y-1">
-            <span className="text-[10px] font-bold text-emerald-400">30+ funcionalidades implementadas</span>
-            <p className="text-[10px] text-slate-500 leading-relaxed">
+            <span className="text-[11px] font-bold text-emerald-400">30+ funcionalidades implementadas</span>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
               Scoring de spots (0-100), consenso multi-estaci&oacute;n, alertas inteligentes (Telegram),
               mareas (5 puertos), boyas marinas (13), radar, sat&eacute;lite IR, corrientes superficiales,
               batimetr&iacute;a, carta n&aacute;utica, perfil atmosf&eacute;rico, historial con rosa de vientos,
@@ -122,8 +122,8 @@ export function RoadmapSection() {
             <WeatherIcon id="alert-triangle" size={15} />
           </span>
           <div className="min-w-0">
-            <span className="text-[10px] font-bold text-amber-400">Funcionalidades en <span className="badge-beta" style={{ borderColor: 'rgba(245,158,11,0.3)', color: '#f59e0b', background: 'rgba(245,158,11,0.1)' }}>Beta</span></span>
-            <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+            <span className="text-[11px] font-bold text-amber-400">Funcionalidades en <span className="badge-beta" style={{ borderColor: 'rgba(245,158,11,0.3)', color: '#f59e0b', background: 'rgba(245,158,11,0.1)' }}>Beta</span></span>
+            <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
               Spots, alertas, niebla, viento por consenso, perfil atmosf&eacute;rico, dron, campo.
               Pueden tener imprecisiones — &uacute;salas como orientaci&oacute;n, no como fuente definitiva.
             </p>
@@ -173,7 +173,7 @@ export function RoadmapSection() {
       <div className="border-t border-slate-700/50 pt-6 space-y-4">
         <div className="space-y-1">
           <h2 className="text-xl font-bold text-white">Fuentes de datos</h2>
-          <p className="text-[10px] text-slate-500 leading-relaxed">
+          <p className="text-[11px] text-slate-500 leading-relaxed">
             Todos los datos provienen de <strong className="text-slate-400">fuentes abiertas y públicas</strong>:
             organismos oficiales, redes ciudadanas y proyectos de ciencia abierta.
           </p>
@@ -220,7 +220,7 @@ export function RoadmapSection() {
             <WeatherIcon id="info" size={13} /> Tecnologías
           </h3>
           <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px]">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
               <TechRow name="React + Vite" license="MIT" />
               <TechRow name="TypeScript" license="Apache-2" />
               <TechRow name="MapLibre GL" license="BSD-3" />
@@ -228,7 +228,7 @@ export function RoadmapSection() {
               <TechRow name="Zustand" license="MIT" />
               <TechRow name="Recharts" license="MIT" />
             </div>
-            <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[10px]">
+            <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
               <span className="text-slate-500">17 APIs</span>
               <span className="text-slate-500">185 tests</span>
@@ -239,7 +239,7 @@ export function RoadmapSection() {
 
         {/* Open source note */}
         <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50">
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[11px] text-slate-400">
             <strong className="text-slate-300">Código abierto:</strong> MeteoMapGal es un proyecto open source
             basado íntegramente en datos abiertos. Todas las licencias utilizadas (MIT, BSD, Apache)
             son libres — permiten su uso, modificación y distribución sin restricciones.
@@ -309,7 +309,7 @@ function TimelineMilestone({
       </span>
       <div className="min-w-0">
         <span className={`text-xs font-bold ${s.text}`}>{title}</span>
-        <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
+        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
       </div>
     </div>
   );
@@ -321,14 +321,14 @@ function SourceRow({ letter, name, desc, color }: { letter: string; name: string
   return (
     <div className="flex items-start gap-3">
       <div
-        className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+        className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white"
         style={{ background: color }}
       >
         {letter}
       </div>
       <div>
-        <span className="text-[10px] font-bold text-slate-300">{name}</span>
-        <span className="text-[9px] text-slate-500 ml-1">{desc}</span>
+        <span className="text-[11px] font-bold text-slate-300">{name}</span>
+        <span className="text-[11px] text-slate-500 ml-1">{desc}</span>
       </div>
     </div>
   );
@@ -338,7 +338,7 @@ function TechRow({ name, license }: { name: string; license: string }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-slate-300 font-medium">{name}</span>
-      <span className="text-slate-600 font-mono text-[9px]">{license}</span>
+      <span className="text-slate-600 font-mono text-[11px]">{license}</span>
     </div>
   );
 }

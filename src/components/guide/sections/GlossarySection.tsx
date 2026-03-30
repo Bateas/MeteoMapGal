@@ -386,8 +386,8 @@ function Term({
       style={{ borderColor: `${color}20`, background: `${color}08` }}
     >
       <span className="text-xs font-bold" style={{ color }}>{term}</span>
-      <p className="text-[10px] text-slate-400 leading-relaxed">{definition}</p>
-      <p className="text-[10px] text-slate-500 leading-relaxed italic">
+      <p className="text-[11px] text-slate-400 leading-relaxed">{definition}</p>
+      <p className="text-[11px] text-slate-500 leading-relaxed italic">
         <strong className="text-slate-400 not-italic">Ejemplo:</strong> {example}
       </p>
     </div>
@@ -396,7 +396,7 @@ function Term({
 
 function ThresholdRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between text-[10px]">
+    <div className="flex justify-between text-[11px]">
       <span className="text-slate-400">{label}</span>
       <span className="text-slate-300 font-mono font-semibold">{value}</span>
     </div>

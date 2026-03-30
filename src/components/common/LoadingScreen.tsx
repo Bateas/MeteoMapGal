@@ -193,7 +193,7 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
                 return (
                   <div
                     key={src}
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-mono transition-all duration-500 ${
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono transition-all duration-500 ${
                       isActive
                         ? hasError
                           ? 'bg-red-950/50 text-red-400 border border-red-800/40'

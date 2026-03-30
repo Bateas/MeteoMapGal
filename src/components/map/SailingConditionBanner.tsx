@@ -116,7 +116,7 @@ export function SailingConditionBanner() {
     >
       <div
         className={`flex items-center rounded-lg backdrop-blur-sm font-semibold shadow-lg ${
-          isMobile ? 'gap-1.5 px-2.5 py-1 text-[10px]' : 'gap-2 px-3 py-1.5 text-xs'
+          isMobile ? 'gap-1.5 px-2.5 py-1 text-[11px]' : 'gap-2 px-3 py-1.5 text-xs'
         }`}
         style={{
           background: c.bg,
@@ -127,7 +127,7 @@ export function SailingConditionBanner() {
         <WeatherIcon id={c.icon} size={isMobile ? 13 : 16} />
         <span className={`font-bold ${isMobile ? 'text-xs' : 'text-sm'}`}>{condition.label}</span>
         {!isMobile && (
-          <span className="text-[10px] font-normal opacity-80">{condition.sublabel}</span>
+          <span className="text-[11px] font-normal opacity-80">{condition.sublabel}</span>
         )}
       </div>
     </div>
