@@ -110,7 +110,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
         name: 'Norte (componente)',
         direction: 0,
         season: 'Todo el año',
-        description: 'Entra por Rande canalizado. Racheado e irregular, complica la navegacion. Si hay norte fuerte, el viento SW de tardes no se forma.',
+        description: 'Entra por Rande canalizado. Racheado e irregular, complica la navegación. Si hay norte fuerte, el viento SW de tardes no se forma.',
       },
     ],
     // Closest stations to Cesantes scoring zone
@@ -152,7 +152,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
         name: 'Viento de tierra (mañanas)',
         direction: 75,
         season: 'Octubre–Mayo, 6-11h',
-        description: 'Por la noche la tierra se enfria y el aire baja hacia la ria. Mejor tras noches despejadas y frias. Viento E/NE suave 5-10kt, se para cuando el sol calienta (~11h).',
+        description: 'Por la noche la tierra se enfría y el aire baja hacia la ría. Mejor tras noches despejadas y frías. Viento E/NE suave 5-10kt, se para cuando el sol calienta (~11h).',
       },
       {
         name: 'Norte (componente)',
@@ -205,13 +205,13 @@ export const RIAS_SPOTS: SailingSpot[] = [
         name: 'Viento de tierra (mañanas)',
         direction: 75,
         season: 'Octubre–Mayo, mañanas',
-        description: 'El aire frio de tierra baja hacia la ria por las mañanas. Mas debil que en el estrecho de Rande al ser zona abierta.',
+        description: 'El aire frío de tierra baja hacia la ría por las mañanas. Más débil que en el estrecho de Rande al ser zona abierta.',
       },
       {
         name: 'Noroeste (frentes)',
         direction: 330,
         season: 'Otono–Invierno',
-        description: 'Viento NW con frentes atlanticos. Puede durar varios dias. Mar de fondo y marejadilla dentro de la ria.',
+        description: 'Viento NW con frentes atlánticos. Puede durar varios días. Mar de fondo y marejadilla dentro de la ría.',
       },
     ],
     preferredStations: [
@@ -245,13 +245,13 @@ export const RIAS_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-8.8648, 42.1849],
     radiusKm: 12,
-    description: 'Entrada de la Ría de Vigo, entre Baiona y las Islas Cíes. Condiciones oceanicas, olas y viento atlantico.',
+    description: 'Entrada de la Ría de Vigo, entre Baiona y las Islas Cíes. Condiciones oceánicas, olas y viento atlántico.',
     windPatterns: [
       {
         name: 'Nortada (verano)',
         direction: 330,
         season: 'Junio–Septiembre, tardes',
-        description: 'El viento tipico del verano gallego. NW constante 12-20kt por las tardes. Mar de fondo 1-2m. Ideal para vela, kite y windsurf con experiencia.',
+        description: 'El viento típico del verano gallego. NW constante 12-20kt por las tardes. Mar de fondo 1-2m. Ideal para vela, kite y windsurf con experiencia.',
       },
       {
         name: 'Suroeste (borrascas)',
@@ -296,13 +296,13 @@ export const RIAS_SPOTS: SailingSpot[] = [
         name: 'Brisa SW (tardes)',
         direction: 225,
         season: 'Abril–Octubre, 13-19h',
-        description: 'Brisa marina que entra del SW por la ria. Dias de sol y calor. Viento estable 10-18kt, ideal para kite y windsurf. La boya de Marin confirma el viento real.',
+        description: 'Brisa marina que entra del SW por la ría. Días de sol y calor. Viento estable 10-18kt, ideal para kite y windsurf. La boya de Marín confirma el viento real.',
       },
       {
         name: 'Noroeste (frentes)',
         direction: 330,
         season: 'Otono–Invierno',
-        description: 'Viento NW con frentes atlanticos. Marejadilla dentro de la ria, agua revuelta. Puede ser fuerte pero incomodo por las olas cortas.',
+        description: 'Viento NW con frentes atlánticos. Marejadilla dentro de la ría, agua revuelta. Puede ser fuerte pero incómodo por las olas cortas.',
       },
     ],
     preferredStations: [

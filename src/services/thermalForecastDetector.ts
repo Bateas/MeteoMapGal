@@ -168,16 +168,16 @@ function analyzeWindow(
   let label: string;
   if (signals >= 5 && peakTemp >= TEMP_EPIC) {
     label = day === 'hoy'
-      ? `Dia epico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte ${startHour}-${endHour}h`
-      : `Manana dia epico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte previsto`;
+      ? `Día épico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte ${startHour}-${endHour}h`
+      : `Mañana dia epico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte previsto`;
   } else if (signals >= 3) {
     label = day === 'hoy'
       ? `Viento probable ${startHour}-${endHour}h (${peakTemp.toFixed(0)}C, HR ${minHumidity.toFixed(0)}%)`
-      : `Manana: viento probable (${peakTemp.toFixed(0)}C, HR ${minHumidity.toFixed(0)}%)`;
+      : `Mañana: viento probable (${peakTemp.toFixed(0)}C, HR ${minHumidity.toFixed(0)}%)`;
   } else {
     label = day === 'hoy'
       ? `Condiciones favorables ${startHour}-${endHour}h (${peakTemp.toFixed(0)}C)`
-      : `Manana: condiciones favorables (${peakTemp.toFixed(0)}C)`;
+      : `Mañana: condiciones favorables (${peakTemp.toFixed(0)}C)`;
   }
 
   return {
