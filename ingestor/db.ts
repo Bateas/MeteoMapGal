@@ -60,10 +60,28 @@ const COLS = 12;
  * Uses multi-row INSERT with ON CONFLICT DO NOTHING for dedup.
  * Batches of up to 100 rows per query to stay within PG parameter limits.
  */
+/** Sanitize readings before DB insert — reject physically implausible values */
+function sanitizeReading(r: NormalizedReading): NormalizedReading {
+  let gust = r.windGust;
+  const speed = r.windSpeed;
+  // Reject gusts >60kt (~31 m/s) or >4x average — sensor glitch (SkyX 88kt etc.)
+  if (gust !== null && (gust > 31 || (speed != null && speed > 0 && gust > speed * 4))) {
+    gust = null;
+  }
+  // Reject wind speed >50 m/s (~97kt) — physically implausible for Galicia
+  const ws = speed !== null && speed > 50 ? null : speed;
+  return gust !== r.windGust || ws !== r.windSpeed
+    ? { ...r, windGust: gust, windSpeed: ws }
+    : r;
+}
+
 export async function batchUpsert(
   readings: NormalizedReading[]
 ): Promise<{ inserted: number; skipped: number }> {
   if (readings.length === 0) return { inserted: 0, skipped: 0 };
+
+  // Sanitize before insert — filter anomalous sensor spikes
+  readings = readings.map(sanitizeReading);
 
   const db = getPool();
   const BATCH_SIZE = 100;
