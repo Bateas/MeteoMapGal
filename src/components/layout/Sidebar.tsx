@@ -33,9 +33,7 @@ const SpotSelector = lazy(() =>
 const RankingsPanel = lazy(() =>
   import('../dashboard/RankingsPanel').then((m) => ({ default: m.RankingsPanel })),
 );
-const ForecastVerification = lazy(() =>
-  import('../dashboard/ForecastVerification').then((m) => ({ default: m.ForecastVerification })),
-);
+// ForecastVerification disabled — needs reliable DB data for all stations before re-enabling
 const SpotComparator = lazy(() =>
   import('../dashboard/SpotComparator').then((m) => ({ default: m.SpotComparator })),
 );
@@ -151,15 +149,6 @@ export function Sidebar() {
         </button>
         <button
           role="tab"
-          aria-selected={activeTab === 'verify'}
-          aria-controls="tabpanel-verify"
-          onClick={() => setActiveTab('verify')}
-          className={`${tabBase} ${activeTab === 'verify' ? tabOn('border-yellow-500') : tabOff}`}
-        >
-          Verificar
-        </button>
-        <button
-          role="tab"
           aria-selected={activeTab === 'history'}
           aria-controls="tabpanel-history"
           onClick={() => setActiveTab('history')}
@@ -210,11 +199,6 @@ export function Sidebar() {
           {activeTab === 'rankings' && (
             <ErrorBoundary section="Rankings">
               <RankingsPanel />
-            </ErrorBoundary>
-          )}
-          {activeTab === 'verify' && (
-            <ErrorBoundary section="Verificación">
-              <ForecastVerification />
             </ErrorBoundary>
           )}
           {activeTab === 'history' && (
