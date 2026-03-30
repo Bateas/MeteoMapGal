@@ -39,6 +39,8 @@ export interface HourlyRow {
   max_gust: number | null;
   avg_pressure: number | null;
   total_precip: number | null;
+  avg_dew_point: number | null;
+  avg_solar_rad: number | null;
 }
 
 export interface StationStats {
@@ -116,7 +118,9 @@ export async function queryReadings(
   return result.rows;
 }
 
-/** Get hourly aggregates for a station within a time range */
+/** Get hourly aggregates for a station within a time range.
+ *  Uses on-the-fly aggregation from raw readings to include all fields
+ *  (solar_rad, dew_point) that the continuous aggregate doesn't have. */
 export async function queryHourly(
   stationId: string,
   from: string,
@@ -126,19 +130,22 @@ export async function queryHourly(
   const db = getPool();
   const result = await db.query<HourlyRow>(
     `SELECT
-      bucket::text,
+      time_bucket('1 hour', time)::text AS bucket,
       station_id,
       source,
-      avg_temp,
-      avg_humidity,
-      avg_wind,
-      max_gust,
-      avg_pressure,
-      total_precip
-    FROM readings_hourly
+      AVG(temperature)    AS avg_temp,
+      AVG(humidity)       AS avg_humidity,
+      AVG(wind_speed)     AS avg_wind,
+      MAX(wind_gust)      AS max_gust,
+      AVG(pressure)       AS avg_pressure,
+      SUM(precip)         AS total_precip,
+      AVG(dew_point)      AS avg_dew_point,
+      AVG(solar_rad)      AS avg_solar_rad
+    FROM readings
     WHERE station_id = $1
-      AND bucket >= $2::timestamptz
-      AND bucket <= $3::timestamptz
+      AND time >= $2::timestamptz
+      AND time <= $3::timestamptz
+    GROUP BY bucket, station_id, source
     ORDER BY bucket ASC
     LIMIT $4`,
     [stationId, from, to, limit]
