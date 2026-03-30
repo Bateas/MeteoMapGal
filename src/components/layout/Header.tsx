@@ -82,34 +82,33 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   return (
     <header className="bg-slate-900 border-b border-slate-700 px-3 md:px-4 py-2 md:py-2 flex items-center justify-between gap-1.5 md:gap-2">
       <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
-        {/* Hamburger + Guide — mobile only, subtle (navigation, not primary actions) */}
+        {/* Mobile: hamburger + guide + feedback — compact icons */}
         {isMobile && (
-          <div className="flex gap-0.5 flex-shrink-0">
+          <div className="flex gap-0 flex-shrink-0">
             <button
               onClick={toggleSidebar}
               data-tour="sidebar"
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
+              className="p-1.5 rounded text-slate-400 hover:text-white active:bg-slate-700 min-w-[32px] min-h-[32px] flex items-center justify-center"
               aria-label="Abrir panel lateral"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
               data-tour="guide"
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-all active:bg-slate-700 min-w-[40px] min-h-[40px] flex items-center justify-center"
+              className="p-1.5 rounded text-slate-500 hover:text-white active:bg-slate-700 min-w-[28px] min-h-[28px] flex items-center justify-center"
               aria-label="Abrir guía meteorológica"
             >
-              <WeatherIcon id="book-open" size={16} />
+              <WeatherIcon id="book-open" size={13} />
             </button>
             <button
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-              className="p-2 rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/30 transition-all active:bg-emerald-800/40 min-w-[40px] min-h-[40px] flex items-center justify-center"
+              className="p-1.5 rounded text-emerald-500/70 hover:text-emerald-300 active:bg-emerald-800/40 min-w-[28px] min-h-[28px] flex items-center justify-center"
               aria-label="Enviar feedback"
-              title="Enviar sugerencias o reportar problemas"
             >
-              <WeatherIcon id="message-square" size={16} />
+              <WeatherIcon id="message-square" size={13} />
             </button>
           </div>
         )}
@@ -128,18 +127,18 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   key={sector.id}
                   onClick={() => switchSector(sector.id)}
                   aria-label={`Cambiar a sector ${sector.name}`}
-                  className={`flex items-center gap-1 rounded-lg font-bold border transition-all min-h-[44px] min-w-[44px]
+                  className={`flex flex-col items-center justify-center rounded-lg font-bold border transition-all min-h-[36px]
                     ${isActive
-                      ? 'text-xs px-3 py-2 bg-blue-600 text-white border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.35)]'
-                      : 'px-2.5 py-2 bg-transparent text-slate-500 border-slate-600/40 border-dashed hover:text-slate-200 hover:bg-slate-800/60 hover:border-slate-500/60 active:bg-slate-700'
+                      ? 'text-[11px] px-2.5 py-1 bg-blue-600 text-white border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.35)]'
+                      : 'px-2 py-1 bg-transparent text-slate-500 border-slate-600/40 border-dashed active:bg-slate-700'
                   }`}
                 >
-                  <WeatherIcon id={sector.icon} size={16} />
-                  {isActive && (
-                    <>
-                      <span className="truncate max-w-[3.5rem]">{sector.shortName}</span>
-                      {stationCount > 0 && <span className="text-blue-200/70 text-[11px] font-normal">{readingCount}/{stationCount}</span>}
-                    </>
+                  <span className="flex items-center gap-1">
+                    <WeatherIcon id={sector.icon} size={14} />
+                    {isActive && <span>{sector.shortName}</span>}
+                  </span>
+                  {isActive && stationCount > 0 && (
+                    <span className="text-[9px] text-blue-200/60 font-normal leading-none">{readingCount}/{stationCount}</span>
                   )}
                 </button>
               );

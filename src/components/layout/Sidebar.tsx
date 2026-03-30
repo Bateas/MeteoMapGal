@@ -8,6 +8,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { downloadGeoJSON } from '../../services/exportService';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 const StationTable = lazy(() =>
   import('../dashboard/StationTable').then((m) => ({ default: m.StationTable })),
@@ -209,8 +210,30 @@ export function Sidebar() {
         </Suspense>
       </div>
 
-      {/* Footer: Export + Ko-fi */}
+      {/* Footer: Guide + Feedback + Export + Ko-fi */}
       <div className="flex gap-1.5 mx-3 mb-2 shrink-0">
+        <button
+          onClick={() => useUIStore.getState().toggleGuide()}
+          className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg
+            border border-slate-700/40 text-slate-500 text-[11px]
+            hover:text-sky-400 hover:border-sky-500/30 hover:bg-slate-800/60
+            transition-all"
+          title="Guía completa de la app (G)"
+          aria-label="Abrir guía meteorológica"
+        >
+          <WeatherIcon id="book-open" size={14} />
+        </button>
+        <button
+          onClick={() => useUIStore.getState().setFeedbackOpen(true)}
+          className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg
+            border border-emerald-600/30 text-emerald-500/80 text-[11px]
+            hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-slate-800/60
+            transition-all"
+          title="Enviar sugerencias o reportar problemas"
+          aria-label="Enviar feedback"
+        >
+          <WeatherIcon id="message-square" size={14} />
+        </button>
         <button
           onClick={() => {
             const { stations, currentReadings } = useWeatherStore.getState();

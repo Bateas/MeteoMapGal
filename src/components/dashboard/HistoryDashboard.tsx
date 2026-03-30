@@ -45,9 +45,9 @@ const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
   { key: 'wind_speed', label: 'Viento', unit: 'kt', color: '#3b82f6' },
   { key: 'wind_gust', label: 'Racha', unit: 'kt', color: '#f97316' },
   { key: 'humidity', label: 'HR', unit: '%', color: '#22c55e' },
-  { key: 'pressure', label: 'Presion', unit: 'hPa', color: '#a855f7' },
-  { key: 'dew_point', label: 'P. rocio', unit: '°C', color: '#2dd4bf' },
-  { key: 'solar_rad', label: 'Radiacion', unit: 'W/m\u00b2', color: '#fbbf24' },
+  { key: 'pressure', label: 'Presión', unit: 'hPa', color: '#a855f7' },
+  { key: 'dew_point', label: 'P. rocío', unit: '°C', color: '#2dd4bf' },
+  { key: 'solar_rad', label: 'Radiación', unit: 'W/m²', color: '#fbbf24' },
 ];
 
 const TIME_RANGES: { key: TimeRange; label: string; hours: number }[] = [
@@ -82,8 +82,8 @@ function getMetricValue(
       case 'wind_gust': val = (r as any).max_gust; break;
       case 'humidity': val = r.avg_humidity; break;
       case 'pressure': val = r.avg_pressure; break;
-      case 'dew_point': val = null; break; // no hourly aggregate for dew_point
-      case 'solar_rad': val = null; break; // no hourly aggregate for solar_rad
+      case 'dew_point': val = (r as any).avg_dew_point ?? null; break;
+      case 'solar_rad': val = (r as any).avg_solar_rad ?? null; break;
     }
   } else {
     const r = reading as HistoryReading;
