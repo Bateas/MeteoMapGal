@@ -115,10 +115,10 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
       ref={drawerRef}
       role="dialog"
       aria-label="Panel de alertas y campo"
-      className={`fixed z-30 bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ease-in-out overflow-hidden ${
+      className={`fixed bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ease-in-out overflow-hidden ${
         isMobile
-          ? `inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 max-w-full ${open ? 'translate-y-0' : 'translate-y-full'}`
-          : `right-0 top-0 h-full w-72 border-l border-slate-700 ${open ? 'translate-x-0' : 'translate-x-full'}`
+          ? `inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-700 max-w-full ${open ? 'translate-y-0' : 'translate-y-full'}`
+          : `right-0 top-0 h-full w-72 z-30 border-l border-slate-700 ${open ? 'translate-x-0' : 'translate-x-full'}`
       }`}
       style={isMobile ? { maxHeight: '55dvh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' } : undefined}
     >
