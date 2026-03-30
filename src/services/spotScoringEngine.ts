@@ -808,32 +808,32 @@ function buildSpotSummary(
       if (pattern) {
         parts.push(`${pattern} activa.`);
       }
-      parts.push(`Buen d\u00eda (${dir} ${spd.toFixed(0)}kt).`);
+      parts.push(`Buenas condiciones (${dir} ${spd.toFixed(0)}kt).`);
       if (spd >= 15) {
-        parts.push('Regata y ocio.');
+        parts.push('Viento estable, apto para todas las modalidades.');
       } else {
-        parts.push('Regata bien, ocio justo.');
+        parts.push('Viento suficiente para navegación.');
       }
       break;
     case 'strong':
       parts.push(`Viento fuerte (${dir} ${spd.toFixed(0)}kt).`);
-      parts.push('Solo con experiencia.');
+      parts.push('Requiere experiencia.');
       break;
     case 'sailing':
       if (pattern) {
-        parts.push(`${pattern} d\u00e9bil.`);
+        parts.push(`${pattern} débil.`);
       }
       parts.push(`Navegable (${dir} ${spd.toFixed(0)}kt).`);
-      parts.push('Regata puede, ocio escaso.');
+      parts.push('Viento justo, condiciones limitadas.');
       break;
     case 'light':
-      parts.push(`Flojo (${dir} ${spd.toFixed(0)}kt). No merece.`);
+      parts.push(`Flojo (${dir} ${spd.toFixed(0)}kt). Insuficiente para navegar.`);
       break;
     case 'calm':
       if (spd >= 3) {
-        parts.push(`Calma (${dir} ${spd.toFixed(0)}kt). No se navega.`);
+        parts.push(`Calma (${dir} ${spd.toFixed(0)}kt). Sin condiciones.`);
       } else {
-        parts.push('Sin viento. No se navega.');
+        parts.push('Sin viento. Sin condiciones.');
       }
       break;
     default:
