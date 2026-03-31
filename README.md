@@ -130,6 +130,29 @@ All data from open/public sources. Only AEMET requires a free API key.
 
 ---
 
+## Roadmap
+
+### v2.0 — In Progress
+- GPU-accelerated markers (60fps map panning)
+- Redesigned wind arrows with speed-variable thickness
+- New typography and visual identity
+- Collapsible sidebar layout (map-first design)
+- Tide info in scrolling ticker
+
+### Coming Next
+- More sailing spots (A Lanzada, Sanxenxo, Samil)
+- AIS vessel tracking overlay (real-time ship positions in the Rías)
+- Aviation alerts near Castrelo reservoir (firefighting aircraft proximity warnings)
+- Regatta mode prototype (full-screen map, mark placement, distance tools)
+- Gust glow on wind particles (visual pulse on strong gusts)
+
+### v3.0 — Future
+- Full regatta mode (race zones, committee boat, start line, AIS tracking)
+- New monitoring zones (A Coruña, Costa da Morte, Lugo)
+- Pro panel for clubs (90-day history, custom alerts, API access)
+
+---
+
 ## For Developers
 
 ```bash
