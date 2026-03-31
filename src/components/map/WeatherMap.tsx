@@ -9,7 +9,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useUIStore } from '../../store/uiStore';
 import { useMapStyleStore, getStyleDef } from '../../store/mapStyleStore';
-import { StationMarker } from './StationMarker';
+import { StationSymbolLayer, registerStationIcon } from './StationSymbolLayer';
 import { TempOnlyOverlay } from './TempOnlyMarker';
 import { StationPopup } from './StationPopup';
 import { WindFieldOverlay, registerWindArrowIcons } from './WindFieldOverlay';
@@ -37,7 +37,7 @@ import { SailingConditionBanner } from './SailingConditionBanner';
 import { CriticalAlertBanner } from './CriticalAlertBanner';
 import { SectorSelector } from './SectorSelector';
 import { MapContextMenu } from './MapContextMenu';
-import { BuoyMarker } from './BuoyMarker';
+import { BuoySymbolLayer } from './BuoySymbolLayer';
 import { BuoyPopup } from './BuoyPopup';
 import { SpotMarkers } from './SpotMarker';
 import { SpotPopup } from './SpotPopup';
@@ -228,11 +228,12 @@ export function WeatherMap() {
     selectSpot('');
   }, [selectStation, selectBuoy, selectSpot]);
 
-  /** Register all wind-arrow icons (one per speed level) when the map loads. */
+  /** Register all map icons when the map loads. */
   const handleMapLoad = useCallback(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
     registerWindArrowIcons(map, 48);
+    registerStationIcon(map);
   }, []);
 
   return (
@@ -285,38 +286,23 @@ export function WeatherMap() {
         {/* Temp-only station dots — GPU-accelerated (single source + 3 layers) */}
         <TempOnlyOverlay stations={stations} readings={currentReadings} />
 
-        {/* Wind station markers — at low zoom, hide stations with no/low wind to reduce clutter */}
-        {stations.map((station) => {
-          if (station.tempOnly) return null;
-          // At zoom <11: hide low-wind stations to declutter map
-          // At zoom <10: also hide stations <4kt (only show significant wind)
-          if (zoomLevel < 11 && station.id !== selectedStationId) {
-            const reading = currentReadings.get(station.id);
-            const windMs = reading?.windSpeed ?? 0;
-            const threshold = zoomLevel < 10 ? 2.06 : 1.03; // ~4kt at very low zoom, ~2kt at medium
-            if (windMs < threshold) return null;
-          }
-          return (
-            <StationMarker
-              key={station.id}
-              station={station}
-              reading={currentReadings.get(station.id)}
-              isSelected={station.id === selectedStationId}
-              showLabel={showStationLabels}
-              zoomLevel={zoomLevel}
-            />
-          );
-        })}
+        {/* Station markers — GPU symbol layer (replaces 90+ DOM markers) */}
+        <StationSymbolLayer
+          stations={stations}
+          readings={currentReadings}
+          selectedStationId={selectedStationId}
+          onSelectStation={selectStation}
+          zoomLevel={zoomLevel}
+        />
 
-        {/* Marine buoy markers — only for Rías Baixas sector */}
-        {activeSector.id === 'rias' && buoys.map((b) => (
-          <BuoyMarker
-            key={b.stationId}
-            reading={b}
-            isSelected={b.stationId === selectedBuoyId}
-            zoomLevel={zoomLevel}
+        {/* Marine buoy markers — GPU circle+symbol layer (Rías only) */}
+        {activeSector.id === 'rias' && (
+          <BuoySymbolLayer
+            buoys={buoys}
+            selectedBuoyId={selectedBuoyId}
+            onSelectBuoy={selectBuoy}
           />
-        ))}
+        )}
 
         {/* Sailing spot markers — both sectors */}
         <SpotMarkers />
