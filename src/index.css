@@ -184,36 +184,10 @@ body {
   z-index: 25 !important;
 }
 
-/* During map pan/zoom: HIDE station+buoy markers entirely to free GPU compositor.
-   visibility:hidden removes from paint/composite but keeps layout (no reflow on reappear).
-   Spots stay visible (they're the hero elements users track). */
-.map-panning .maplibregl-marker:has(.station-marker),
-.map-panning .maplibregl-marker:has(.buoy-marker) {
-  visibility: hidden !important;
-}
-/* Kill all marker transitions during pan — avoids GPU compositing overhead */
+/* Station + buoy markers are now GPU symbol layers (no DOM elements).
+   Only spot markers remain as DOM — keep panning optimizations for those. */
 .map-panning .maplibregl-marker {
   transition: none !important;
-}
-/* No CSS transitions on markers — 90+ parallel transitions cause GPU overload.
-   Markers reappear instantly when pan ends (visibility:hidden → visible). */
-.map-panning .maplibregl-marker:has(.spot-marker) {
-  opacity: 1 !important;
-}
-
-/* Hover on station/buoy markers: elevate z-index + scale up for easier click on crowded areas.
-   Use transform + outline only (no filter:brightness — causes GPU recomposite per marker). */
-.maplibregl-marker:has(.station-marker):hover,
-.maplibregl-marker:has(.buoy-marker):hover {
-  z-index: 28 !important;
-  transform: scale(1.2);
-  cursor: pointer;
-}
-/* Suppress hover effects entirely during pan — prevents GPU layer thrashing */
-.map-panning .maplibregl-marker:has(.station-marker):hover,
-.map-panning .maplibregl-marker:has(.buoy-marker):hover {
-  transform: none;
-  z-index: 20 !important;
 }
 
 .maplibregl-popup {
