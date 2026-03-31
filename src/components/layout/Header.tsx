@@ -220,10 +220,13 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   }
                 : undefined
             }
-            title={isMobile ? 'Panel campo y alertas' : 'Panel campo y alertas (C)'}
-            aria-label="Panel campo y alertas"
+            title="Condiciones, alertas y campo (C)"
+            aria-label="Condiciones, alertas y campo"
           >
-            <span className="inline-flex items-center gap-1">{isMobile && <WeatherIcon id="clipboard-list" size={14} />} Panel</span>
+            <span className="inline-flex items-center gap-1">
+              <WeatherIcon id="activity" size={isMobile ? 16 : 14} />
+              {!isMobile && <span>Condiciones</span>}
+            </span>
           </button>
         )}
 

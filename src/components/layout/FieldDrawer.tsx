@@ -27,8 +27,8 @@ const AtmosphericProfile = lazy(() => import('../dashboard/AtmosphericProfile').
 export type AlertTab = 'nav' | 'campo' | 'dron';
 
 const TABS: { id: AlertTab; label: string; icon: IconId | null; shortcut: string }[] = [
-  { id: 'nav', label: 'Naveg.', icon: 'sailboat', shortcut: '1' },
-  { id: 'campo', label: 'Campo', icon: null, shortcut: '2' },
+  { id: 'nav', label: 'Condiciones', icon: 'activity', shortcut: '1' },
+  { id: 'campo', label: 'Campo', icon: 'leaf', shortcut: '2' },
   { id: 'dron', label: 'Dron', icon: 'drone', shortcut: '3' },
 ];
 
@@ -132,7 +132,13 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
       {/* Header */}
       <div className={`flex items-center justify-between border-b border-slate-700 ${isMobile ? 'px-4 pb-2' : 'p-3'}`}>
         <div className="flex items-center gap-2">
-          <span className={`font-bold text-white ${isMobile ? 'text-base' : 'text-sm'}`}>Alertas</span>
+          <span className={`font-bold text-white ${isMobile ? 'text-base' : 'text-sm'}`}>Condiciones</span>
+          {alerts && (() => {
+            const count = [alerts.frost, alerts.rain, alerts.fog, alerts.wind].filter(a => a.level !== 'none').length;
+            return count > 0 ? (
+              <span className="bg-amber-500 text-slate-900 text-[11px] font-bold rounded-full px-1.5 py-0.5 leading-none">{count}</span>
+            ) : null;
+          })()}
         </div>
         <button
           onClick={onClose}
