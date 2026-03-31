@@ -130,24 +130,57 @@ export function RoadmapSection() {
           </div>
         </div>
 
+        {/* v2.0 — En desarrollo */}
+        <TimelineGroup label="v2.0 — En desarrollo" dotColor="bg-amber-500" textColor="text-amber-400" />
+        <TimelineMilestone
+          iconId="zap"
+          title="Mapa m&aacute;s r&aacute;pido"
+          desc="Marcadores renderizados por GPU. Navegaci&oacute;n fluida a 60fps incluso con 100+ estaciones."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="wind"
+          title="Flechas de viento redise&ntilde;adas"
+          desc="Grosor proporcional a la velocidad, brillo pulsante en rachas fuertes."
+          status="wip"
+        />
+        <TimelineMilestone
+          iconId="layout"
+          title="Nuevo layout"
+          desc="Panel lateral colapsable para dar m&aacute;s espacio al mapa. Dise&ntilde;o visual renovado."
+          status="wip"
+        />
+        <TimelineMilestone
+          iconId="ship"
+          title="Tr&aacute;fico mar&iacute;timo (AIS)"
+          desc="Posiciones de barcos en tiempo real en las R&iacute;as. Cargueros, ferries, veleros."
+          status="idea"
+        />
+        <TimelineMilestone
+          iconId="plane"
+          title="Alertas de aviaci&oacute;n (Embalse)"
+          desc="Aviso cuando hidroaviones o helic&oacute;pteros de extinci&oacute;n se acercan al embalse."
+          status="idea"
+        />
+        <TimelineMilestone
+          iconId="sailboat"
+          title="Modo regata"
+          desc="Mapa completo con balizas, l&iacute;nea de salida y condiciones combinadas para regatas."
+          status="idea"
+        />
+
         {/* Futuras funcionalidades */}
         <TimelineGroup label="Pr&oacute;ximamente" dotColor="bg-slate-500" textColor="text-slate-400" />
         <TimelineMilestone
           iconId="map-pin"
-          title="Nuevas zonas de monitorizaci&oacute;n"
-          desc="Costa da Morte, R&iacute;a de Arousa, A Coru&ntilde;a y m&aacute;s zonas de Galicia."
+          title="M&aacute;s spots y zonas"
+          desc="A Lanzada, Sanxenxo, Samil. Nuevas zonas: A Coru&ntilde;a, Costa da Morte."
           status="idea"
         />
         <TimelineMilestone
           iconId="alert-triangle"
           title="Alertas personalizadas"
           desc="Define tus propios umbrales de viento o temperatura con notificaci&oacute;n push."
-          status="idea"
-        />
-        <TimelineMilestone
-          iconId="sun"
-          title="Predicci&oacute;n de t&eacute;rmicos a 2-3 d&iacute;as"
-          desc="An&aacute;lisis con datos hist&oacute;ricos AEMET para planificar con antelaci&oacute;n."
           status="idea"
         />
         <TimelineMilestone
