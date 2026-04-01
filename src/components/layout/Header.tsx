@@ -156,29 +156,8 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             )}
           </>
         )}
-        {/* Source status — hide on mobile */}
+        {/* Source status — compact, desktop only (full version in sidebar footer) */}
         {!isMobile && <SourceStatusIndicator />}
-        {/* Guide + Feedback buttons — desktop only (mobile versions are next to hamburger) */}
-        {!isMobile && (
-          <>
-            <button
-              onClick={() => useUIStore.getState().toggleGuide()}
-              className="btn-guide-glow transition-colors rounded-lg hover:bg-slate-800/60 flex-shrink-0 text-[11px] px-2 py-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
-              title="Guía completa de la app — atajos, spots, capas, alertas (G)"
-              aria-label="Abrir guía meteorológica"
-            >
-              <WeatherIcon id="book-open" size={14} />
-            </button>
-            <button
-              onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-              className="p-1.5 rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/30 border border-emerald-500/20 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
-              aria-label="Enviar feedback"
-              title="Enviar sugerencias o reportar problemas"
-            >
-              <WeatherIcon id="message-square" size={14} />
-            </button>
-          </>
-        )}
       </div>
       <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
         {/* Sunrise / Sunset — hide on mobile */}
