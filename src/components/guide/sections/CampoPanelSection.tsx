@@ -19,37 +19,30 @@ export function CampoPanelSection() {
         <h3 className="text-sm font-bold text-white">Pestañas</h3>
         <p className="text-[11px] text-slate-400">
           Pulsa las teclas <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">1</kbd> –{' '}
-          <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">4</kbd>{' '}
-          con el panel abierto para cambiar de pestaña.
+          <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">3</kbd>{' '}
+          con el panel abierto para cambiar de pesta&ntilde;a.
         </p>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
           <TabRow
             num="1"
-            iconId="sailboat"
-            name="Navegación"
-            modules="Mareas (Rías) · Perfil atm. (Embalse) · Propagación · Niebla"
-            desc="Mareas IHM + perfil atmosférico + viento entrante + visibilidad."
+            iconId="activity"
+            name="Condiciones"
+            modules="Mareas (R&iacute;as) &middot; Perfil atm. (Embalse) &middot; Alertas &middot; Niebla &middot; Timeline 48h"
+            desc="Navegaci&oacute;n, alertas activas, mareas IHM, perfil atmosf&eacute;rico, propagaci&oacute;n de viento."
           />
           <TabRow
             num="2"
-            iconId="sun"
+            iconId="leaf"
             name="Campo"
             modules="Helada + Lluvia + Niebla + ET₀ + Fitosanitario + GDD + Lunar"
-            desc="Para agricultura y viticultura: riesgos de cultivo, riego, enfermedades, fenología (GDD) y calendario lunar."
+            desc="Agricultura y viticultura: riesgos de cultivo, riego, enfermedades, fenolog&iacute;a (GDD) y calendario lunar."
           />
           <TabRow
             num="3"
             iconId="drone"
             name="Dron"
-            modules="Vuelo Dron + Espacio aéreo + Viento + Lluvia + Niebla"
-            desc="Para pilotos de dron: aptitud meteorológica y restricciones ENAIRE."
-          />
-          <TabRow
-            num="4"
-            iconId="radar"
-            name="Meteo"
-            modules="Todos los módulos + Historial"
-            desc="Vista completa de alertas + historial de eventos recientes."
+            modules="Vuelo Dron + Espacio a&eacute;reo + Viento + Lluvia + Niebla"
+            desc="Para pilotos de dron: aptitud meteorol&oacute;gica y restricciones ENAIRE."
           />
         </div>
       </div>
