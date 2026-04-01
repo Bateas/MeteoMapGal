@@ -18,7 +18,7 @@
 import type { IconId } from '../components/icons/WeatherIcons';
 
 /** Type-safe spot identifiers for exhaustive matching */
-export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourido' | 'castrelo';
+export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourido' | 'castineiras' | 'vao' | 'lanzada' | 'illa-arousa' | 'castrelo';
 
 export interface WindPattern {
   name: string;
@@ -328,6 +328,142 @@ export const RIAS_SPOTS: SailingSpot[] = [
         azimuth: 225, // Mirando SW (ría)
       },
     ],
+  },
+  {
+    id: 'castineiras',
+    name: 'Castiñeiras (Ría de Arousa)',
+    shortName: 'Castiñeiras',
+    icon: 'wind',
+    center: [-9.001197, 42.528255],
+    radiusKm: 10,
+    description: 'Playa de Castiñeiras, costa norte de la Ría de Arousa. Exposición W/NW, olas y viento atlántico.',
+    windPatterns: [
+      {
+        name: 'Nortada (verano)',
+        direction: 330,
+        season: 'Junio–Septiembre, tardes',
+        description: 'Viento NW del verano gallego. 10-18kt constante por las tardes. Mar de fondo 1-2m. Bueno para surf, kite y windsurf.',
+      },
+      {
+        name: 'Suroeste (borrascas)',
+        direction: 225,
+        season: 'Otoño–Invierno',
+        description: 'Viento SW fuerte con frentes atlánticos. Olas grandes, zona expuesta.',
+      },
+    ],
+    preferredStations: [
+      'mc_ESGAL3600000036340A', // O Grove - A Toxa (~5km S)
+    ],
+    preferredBuoys: [
+      1250, // Cortegada (Arousa) — interior ría reference
+    ],
+    waveRelevance: 'critical',
+    thermalDetection: false,
+    hardGates: { maxWindKt: 30, maxWaveHeight: 3.0 },
+    tideStationId: '27', // Sanxenxo (closest)
+  },
+  {
+    id: 'vao',
+    name: 'Praia do Vao (Vigo)',
+    shortName: 'Vao',
+    icon: 'wind',
+    center: [-8.792616, 42.198600],
+    radiusKm: 8,
+    description: 'Playa do Vao, sur de Vigo. Urbana y accesible. Exposición SW, protegida parcialmente por las Cíes.',
+    windPatterns: [
+      {
+        name: 'Brisa SW (tardes)',
+        direction: 225,
+        season: 'Abril–Octubre, 13-19h',
+        description: 'Brisa marina SW que entra por la boca de la ría. Parcialmente protegida por las Islas Cíes. Viento 8-14kt.',
+      },
+      {
+        name: 'Noroeste (frentes)',
+        direction: 330,
+        season: 'Otoño–Invierno',
+        description: 'Viento NW con frentes. Olas de 1-2m por la exposición parcial al océano.',
+      },
+    ],
+    preferredStations: [
+      'mc_ESGAL3600000036057A', // Vigo Centro (~5km N)
+      'mc_ESGAL3600000036510A', // Baiona (~10km S)
+    ],
+    preferredBuoys: [
+      3221, // Vigo REDMAR (~5km N)
+      2248, // Cabo Silleiro (~20km SW, oceánica)
+    ],
+    waveRelevance: 'moderate',
+    thermalDetection: false,
+    hardGates: { maxWindKt: 30, maxWaveHeight: 2.5 },
+    tideStationId: '29', // Vigo
+  },
+  {
+    id: 'lanzada',
+    name: 'Praia da Lanzada',
+    shortName: 'A Lanzada',
+    icon: 'wind',
+    center: [-8.879528, 42.449269],
+    radiusKm: 10,
+    description: 'Gran playa oceánica entre O Grove y Sanxenxo. Exposición total al Atlántico. Surf, kite y windsurf con olas.',
+    windPatterns: [
+      {
+        name: 'Nortada (verano)',
+        direction: 340,
+        season: 'Junio–Septiembre, tardes',
+        description: 'Viento N/NW del verano gallego. 12-20kt constante. Mar de fondo 1-3m. La playa referencia para kite y surf en Galicia.',
+      },
+      {
+        name: 'Suroeste (borrascas)',
+        direction: 225,
+        season: 'Otoño–Invierno',
+        description: 'Frentes atlánticos con olas grandes (2-4m) y viento fuerte. Solo para expertos.',
+      },
+    ],
+    preferredStations: [
+      'mc_ESGAL3600000036380A', // Sanxenxo (~5km NE)
+      'mc_ESGAL3600000036340A', // O Grove - A Toxa (~6km N)
+    ],
+    preferredBuoys: [
+      4273, // Cabo Udra REMPOR (~15km S, wind+waves)
+      2248, // Cabo Silleiro (~40km SW, oceánica)
+    ],
+    waveRelevance: 'critical',
+    thermalDetection: false,
+    hardGates: { maxWindKt: 30, maxWaveHeight: 4.0 },
+    tideStationId: '27', // Sanxenxo
+  },
+  {
+    id: 'illa-arousa',
+    name: 'Praia do Bao (Illa de Arousa)',
+    shortName: 'Illa Arousa',
+    icon: 'wind',
+    center: [-8.860286, 42.545818],
+    radiusKm: 8,
+    description: 'Playa do Bao en la Illa de Arousa, interior de la Ría de Arousa. Agua plana, brisa térmica por las tardes.',
+    windPatterns: [
+      {
+        name: 'Brisa SW (tardes)',
+        direction: 225,
+        season: 'Abril–Octubre, 13-19h',
+        description: 'Brisa marina que entra por la ría. Agua plana protegida por la isla. Ideal para principiantes y windsurf.',
+      },
+      {
+        name: 'Norte (componente)',
+        direction: 0,
+        season: 'Todo el año',
+        description: 'Norte canalizado por la ría. Racheado pero con agua plana.',
+      },
+    ],
+    preferredStations: [
+      'mc_ESGAL3600000036340A', // O Grove - A Toxa (~8km SW)
+    ],
+    preferredBuoys: [
+      1250, // Cortegada (Arousa) — interior ría, ~5km N
+    ],
+    waveRelevance: 'none', // Protected by island
+    thermalDetection: true, // Interior ría, similar dynamics
+    hardGates: { maxWindKt: 30 },
+    tideStationId: '27', // Sanxenxo
   },
 ];
 
