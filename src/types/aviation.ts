@@ -24,13 +24,21 @@ export interface AviationAlert {
   updatedAt: number;
 }
 
-/** Embalse de Castrelo bounding box for OpenSky API (~15km around center) */
-export const EMBALSE_BBOX = {
-  lamin: 42.22,
-  lomin: -8.18,
-  lamax: 42.36,
-  lomax: -7.98,
+/** Wide bounding box for OpenSky API — all of Galicia + N Portugal to catch airport traffic */
+export const AVIATION_DISPLAY_BBOX = {
+  lamin: 41.8,
+  lomin: -9.3,
+  lamax: 43.8,
+  lomax: -7.0,
 } as const;
 
-/** Embalse center for distance calculations */
+/** Embalse center for distance/alert calculations */
 export const EMBALSE_CENTER = { lat: 42.29, lon: -8.1 } as const;
+
+/** Alert radius thresholds (km from Embalse center) */
+export const ALERT_RADIUS = {
+  display: 80,   // Show on map if within ~80km
+  info: 15,      // INFO alert: aircraft within 15km
+  moderate: 3,   // MODERATE: <3km + <500m + descending
+  critical: 1,   // CRITICAL: <1km + <200m
+} as const;

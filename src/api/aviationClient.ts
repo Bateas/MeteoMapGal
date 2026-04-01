@@ -4,7 +4,7 @@
  * Anonymous: 400 credits/day. Each request = ~4 credits.
  */
 import type { Aircraft } from '../types/aviation';
-import { EMBALSE_BBOX, EMBALSE_CENTER } from '../types/aviation';
+import { AVIATION_DISPLAY_BBOX, EMBALSE_CENTER } from '../types/aviation';
 import { haversineDistance } from '../services/geoUtils';
 
 const BASE_URL = '/opensky-api/states/all';
@@ -41,10 +41,10 @@ export async function fetchAircraft(): Promise<Aircraft[]> {
   }
 
   const params = new URLSearchParams({
-    lamin: String(EMBALSE_BBOX.lamin),
-    lomin: String(EMBALSE_BBOX.lomin),
-    lamax: String(EMBALSE_BBOX.lamax),
-    lomax: String(EMBALSE_BBOX.lomax),
+    lamin: String(AVIATION_DISPLAY_BBOX.lamin),
+    lomin: String(AVIATION_DISPLAY_BBOX.lomin),
+    lamax: String(AVIATION_DISPLAY_BBOX.lamax),
+    lomax: String(AVIATION_DISPLAY_BBOX.lomax),
   });
 
   const controller = new AbortController();
