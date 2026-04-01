@@ -139,13 +139,13 @@ export const AviationOverlay = memo(function AviationOverlay() {
     return { type: 'FeatureCollection', features };
   }, [showOverlay, trajectories]);
 
-  // Future projection lines (dashed, cyan — 1min ahead)
+  // Future projection lines (dashed, cyan — 30s ahead)
   const projectionGeojson = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || aircraft.length === 0) return EMPTY_FC;
     const features: GeoJSON.Feature[] = [];
     for (const ac of aircraft) {
       if (ac.velocity < 10) continue; // skip near-stationary
-      const future = projectPosition(ac.lat, ac.lon, ac.heading, ac.velocity, 1);
+      const future = projectPosition(ac.lat, ac.lon, ac.heading, ac.velocity, 0.5);
       features.push({
         type: 'Feature',
         geometry: {
