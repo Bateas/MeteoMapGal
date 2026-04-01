@@ -53,16 +53,18 @@ export function ReadingMapSection() {
         <p className="text-xs text-slate-400">C&iacute;rculos con la letra de la fuente (A, MG, MC, WU, NT, SX) y anillo de color. El c&iacute;rculo cambia de color seg&uacute;n temperatura. Las boyas son diamantes con &quot;B&quot;.</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <ExplainerCard
-            title="Estación de viento"
+            title="Estaci&oacute;n de viento"
             svg={
               <svg viewBox="0 0 60 60" className="w-12 h-12">
-                <circle cx="30" cy="30" r="14" fill="#1e293b" stroke="#22c55e" strokeWidth="2" />
-                <line x1="30" y1="30" x2="30" y2="14" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" />
-                <polygon points="30,10 26,18 34,18" fill="#22c55e" />
-                <text x="30" y="34" textAnchor="middle" className="text-[11px] fill-emerald-400 font-bold">7</text>
+                {/* Source ring */}
+                <circle cx="30" cy="30" r="16" fill="none" stroke="#8b5cf6" strokeWidth="1.5" opacity="0.6" />
+                {/* Temperature circle */}
+                <circle cx="30" cy="30" r="13" fill="#22c55e" opacity="0.75" />
+                {/* Source letter */}
+                <text x="30" y="35" textAnchor="middle" className="text-[11px] fill-white font-bold">MG</text>
               </svg>
             }
-            description="C&iacute;rculo con letra de fuente (A, MG, MC...) + anillo de color de la red. Color del c&iacute;rculo = temperatura. Flechas alrededor = viento."
+            description="C&iacute;rculo con letra de fuente (A, MG, MC, WU, NT, SX) + anillo de color de la red. Color = temperatura. Flechas afiladas alrededor = viento."
           />
           <ExplainerCard
             title="Solo temperatura"
@@ -75,20 +77,16 @@ export function ReadingMapSection() {
             description="Punto pequeño. Estaciones sin anemómetro. Contribuyen al gradiente térmico."
           />
           <ExplainerCard
-            title="Boya marina (Rías)"
+            title="Boya marina (R&iacute;as)"
             svg={
               <svg viewBox="0 0 60 60" className="w-12 h-12">
-                <circle cx="30" cy="30" r="14" fill="#0e7490" stroke="#06b6d4" strokeWidth="2" />
-                <g transform="translate(30, 28)" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="0" y1="-5" x2="0" y2="5" />
-                  <circle cx="0" cy="-6" r="1.5" fill="none" />
-                  <path d="M -5,2 Q -5,6 0,6 Q 5,6 5,2" />
-                  <line x1="-2" y1="-2" x2="2" y2="-2" />
-                </g>
-                <circle r="18" cx="30" cy="30" fill="none" stroke="#06b6d4" strokeWidth="1" strokeDasharray="4,3" opacity="0.3" />
+                {/* Diamond shape */}
+                <polygon points="30,14 44,30 30,46 16,30" fill="#0e7490" stroke="#06b6d4" strokeWidth="2" opacity="0.75" />
+                {/* B letter */}
+                <text x="30" y="35" textAnchor="middle" className="text-[11px] fill-white font-bold">B</text>
               </svg>
             }
-            description="Icono de ancla cyan con badges de oleaje, viento (coloreado) y T agua. Clic para popup con todos los datos. Solo Rías Baixas."
+            description="Diamante con &quot;B&quot; central. Color = temperatura del agua. Muestra oleaje encima. Clic para popup con todos los datos. Solo R&iacute;as Baixas."
           />
         </div>
       </div>
@@ -155,7 +153,7 @@ export function ReadingMapSection() {
             iconId="wind"
             name="Partículas de viento"
             shortcut="W ×1"
-            description="Animación de 500 partículas mostrando el flujo del viento interpolado (IDW). Sigue las líneas de flujo para ver la dirección del viento entre estaciones."
+            description="Animaci&oacute;n de 250 part&iacute;culas mostrando el flujo del viento interpolado (IDW). Brillo pulsante en rachas fuertes (&ge;15kt). Sigue las l&iacute;neas de flujo para ver la direcci&oacute;n."
             color="#22c55e"
           />
           <LayerCard
@@ -176,7 +174,7 @@ export function ReadingMapSection() {
             iconId="radar"
             name="Radar de precipitación"
             shortcut="W ×4"
-            description="Radar AEMET nacional (Cerceda/A Coruña incluido). Actualiza cada 10 min. Colores indican intensidad: azul=débil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
+            description="RainViewer: radar animado (2h de historial). Colores indican intensidad: azul=d&eacute;bil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
             color="#06b6d4"
           />
           <LayerCard
