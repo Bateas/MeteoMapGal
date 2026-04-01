@@ -41,7 +41,16 @@ const GUIDE_TITLE = 'Guía MeteoMapGal';
 export const MeteoGuide = memo(function MeteoGuide() {
   const open = useUIStore((s) => s.guideOpen);
   const setOpen = useUIStore((s) => s.setGuideOpen);
-  const [activeSection, setActiveSection] = useState('intro');
+  // Deep-linking: read hash on open (e.g. #guia/glossary)
+  const initialSection = (() => {
+    const hash = window.location.hash;
+    if (hash.startsWith('#guia/')) {
+      const id = hash.slice(6);
+      if (ALL_SECTIONS.some(s => s.id === id)) return id;
+    }
+    return 'intro';
+  })();
+  const [activeSection, setActiveSection] = useState(initialSection);
   const activeSector = useSectorStore((s) => s.activeSector);
   const isMobile = useUIStore((s) => s.isMobile);
 
@@ -57,6 +66,13 @@ export const MeteoGuide = memo(function MeteoGuide() {
       setActiveSection('intro');
     }
   }, [sections, activeSection]);
+
+  // Update URL hash when section changes (deep-linking)
+  useEffect(() => {
+    if (open) {
+      history.replaceState(null, '', `#guia/${activeSection}`);
+    }
+  }, [open, activeSection]);
 
   // Listen for 'G' key (all platforms) + Escape to close
   useEffect(() => {
