@@ -37,7 +37,7 @@ import { SailingConditionBanner } from './SailingConditionBanner';
 import { CriticalAlertBanner } from './CriticalAlertBanner';
 import { SectorSelector } from './SectorSelector';
 import { MapContextMenu } from './MapContextMenu';
-import { BuoySymbolLayer } from './BuoySymbolLayer';
+import { BuoySymbolLayer, registerBuoyIcon } from './BuoySymbolLayer';
 import { BuoyPopup } from './BuoyPopup';
 import { SpotMarkers } from './SpotMarker';
 import { SpotPopup } from './SpotPopup';
@@ -234,6 +234,7 @@ export function WeatherMap() {
     if (!map) return;
     registerWindArrowIcons(map, 48);
     registerStationIcon(map);
+    registerBuoyIcon(map);
     // Localize MapLibre navigation controls to Spanish
     requestAnimationFrame(() => {
       const container = map.getContainer();
