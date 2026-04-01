@@ -234,8 +234,9 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
     const offsetScale = compact ? 0.6 : 1;
-    // Match WeatherMap zoom filter: hide low-wind arrows at low zoom
-    const minWindMs = zoomLevel < 10 ? 2.06 : zoomLevel < 11 ? 1.03 : 0.1;
+    // Match station symbol filter exactly: no arrows at zoom <10 (stations hidden)
+    if (zoomLevel < 10) return EMPTY_FC;
+    const minWindMs = zoomLevel < 11 ? 1.03 : 0.1;
 
     // ── Station arrows ─────────────────────────────────
     for (const station of stations) {
