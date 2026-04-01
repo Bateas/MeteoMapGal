@@ -2,7 +2,7 @@
 
 [![Versión](https://img.shields.io/badge/versión-2.1.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-220%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-231%20passed-brightgreen)](src/test/)
 
 **Meteoroloxía en tempo real para Galicia** — Vento, ondas, mareas e alertas con 100+ estacións, 13 boias e mapa 3D interactivo.
 
@@ -51,10 +51,14 @@
 - Consenso de vento ponderado por distancia, frescura e calidade
 - Detector de tendencias, néboa, frente de racha, afloramento
 
-### Spots de navegación (6 spots)
+### Spots de navegación (10 spots)
+- **Ría de Vigo**: Cesantes, Bocana, Centro Ría, Cíes-Ría, Vao
+- **Ría de Pontevedra**: Lourido
+- **Ría de Arousa**: A Lanzada, Castiñeiras, Illa de Arousa
+- **Embalse**: Castrelo de Miño
 - Puntuación en 5 niveis: CALMA → FLOJO → NAVEGABLE → BUEN DÍA → FUERTE
-- Detección térmica, bocana NE matutina, día épico
-- Previsión térmica BETA (12-48h)
+- Marcadores hexagonais con arco de vento (gauge visual)
+- Detección térmica con penalización por vento sinóptico
 - Ventana de navegación "Cuándo salgo?" (48h por spot)
 - Mareas por spot (5 portos IHM)
 
@@ -86,19 +90,21 @@ Todos os datos de fontes abertas. Só AEMET require chave API gratuíta.
 
 ## Roadmap
 
-### v2.1 — Actual
-- Marcadores GPU con identificación de fonte (letra + cor)
-- Boias en forma de diamante
-- Spots con arco de vento (gauge visual)
-- Rendemento 60fps (terrain toggle, partículas optimizadas)
-- 18 correccións de accesibilidade (audit UX v2)
-- Banner PWA, pausa no ticker, busca no glosario
+### v2.1.1 — Actual
+- **10 spots** (4 novos: Castiñeiras, Vao, A Lanzada, Illa Arousa)
+- Marcadores GPU: estacións con letra + anillo, boias diamante, spots hexágono
+- Frechas de vento afiladas con grosor variable + glow en rachas
+- Tipografía DM Sans + JetBrains Mono
+- Rendemento **60fps** (terrain toggle, partículas optimizadas, glyph CDN)
+- Detección térmica con penalización por vento sinóptico (N/NW mata, SW suma)
+- 19 correccións de accesibilidade + banner PWA + busca no glosario
+- 231 tests
 
 ### Próximamente
-- Máis spots (A Lanzada, Sanxenxo, Samil)
 - Seguimento AIS de barcos (posicións en tempo real nas Rías)
 - Alertas de aviación no embalse (hidroavións contraincendios)
 - Modo regata experimental
+- Layout sidebar colapsable
 
 ### v3.0 — Futuro
 - Modo regata completo (balizas, liña de saída, cronómetro)

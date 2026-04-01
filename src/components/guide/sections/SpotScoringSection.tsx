@@ -57,6 +57,10 @@ export function SpotScoringSection() {
           <SpotRow name="Centro R&iacute;a" desc="Canido&ndash;Limens. Viraz&oacute;n SW tardes, oleaje moderado." />
           <SpotRow name="C&iacute;es-R&iacute;a" desc="Baiona&ndash;C&iacute;es. Condiciones oce&aacute;nicas, nortada verano." />
           <SpotRow name="Lourido" desc="Playa Lourido, R&iacute;a de Pontevedra. Kite/windsurf, viraz&oacute;n SW." thermal />
+          <SpotRow name="Casti&ntilde;eiras" desc="Costa norte R&iacute;a de Arousa. Exposici&oacute;n atl&aacute;ntica, surf y kite." />
+          <SpotRow name="Vao" desc="Sur de Vigo, playa urbana. Protecci&oacute;n parcial de las C&iacute;es." />
+          <SpotRow name="A Lanzada" desc="Playa oce&aacute;nica O Grove&ndash;Sanxenxo. Referencia kite y surf en Galicia." />
+          <SpotRow name="Illa Arousa" desc="Interior R&iacute;a de Arousa. Agua plana, brisa t&eacute;rmica tardes." thermal />
         </div>
       </div>
 
