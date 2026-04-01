@@ -184,9 +184,6 @@ function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: 
 
 function EventModeButton({ isMobile }: { isMobile: boolean }) {
   const active = useRegattaStore((s) => s.active);
-  const zone = useRegattaStore((s) => s.zone);
-
-  if (active && zone) return null; // Panel takes over when zone is set
 
   const handleClick = () => {
     if (active) {
