@@ -57,12 +57,16 @@ export function Sidebar() {
   }, [isEmbalse, activeTab]);
 
   // React to external tab switch requests (from popup "Ver historial" button)
+  // Also auto-expand sidebar if collapsed (desktop)
   const requestedTab = useUIStore((s) => s.requestedTab);
   const setRequestedTab = useUIStore((s) => s.setRequestedTab);
   useEffect(() => {
     if (requestedTab && requestedTab !== activeTab) {
       setActiveTab(requestedTab as Tab);
       setRequestedTab(null);
+      // Auto-expand sidebar if collapsed
+      const { sidebarCollapsed, setSidebarCollapsed } = useUIStore.getState();
+      if (sidebarCollapsed) setSidebarCollapsed(false);
     }
   }, [requestedTab, activeTab, setRequestedTab]);
 

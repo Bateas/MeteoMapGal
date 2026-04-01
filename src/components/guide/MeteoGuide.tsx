@@ -216,7 +216,7 @@ function IntroSection() {
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             6 fuentes meteorol&oacute;gicas combinadas: AEMET, MeteoGalicia, Meteoclimatic,
-            Weather Underground, Netatmo y SkyX. M&aacute;s de 40 estaciones en la zona.
+            Weather Underground, Netatmo y SkyX. M&aacute;s de 90 estaciones en ambas zonas.
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
@@ -230,7 +230,7 @@ function IntroSection() {
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
           <h3 className="text-sm font-bold text-sky-400 mb-2 flex items-center gap-1.5">
-            <WeatherIcon id="alert" size={16} /> Alertas inteligentes
+            <WeatherIcon id="alert-triangle" size={16} /> Alertas inteligentes
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             Avisos autom&aacute;ticos de condiciones adversas: tormentas, niebla,
@@ -242,8 +242,8 @@ function IntroSection() {
             <WeatherIcon id="thermometer" size={16} /> Spots de navegaci&oacute;n
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Scoring autom&aacute;tico del spot Castrelo: calma/flojo/navegable/bueno/fuerte.
-            Pron&oacute;stico 12h, ventanas de navegaci&oacute;n y favoritos.
+            10 spots con scoring autom&aacute;tico: calma/flojo/navegable/bueno/fuerte.
+            Hex&aacute;gonos con arco de viento, pron&oacute;stico 48h y ventanas de navegaci&oacute;n.
           </p>
         </div>
       </div>
