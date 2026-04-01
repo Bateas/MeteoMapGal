@@ -119,7 +119,8 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 /* ─── Tracking layer toggles (AIS ships, Aviation) ─── */
 
 const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector: string; alpha?: boolean }[] = [
-  { id: 'ais', icon: 'anchor', label: 'Barcos', sector: 'rias', alpha: true },
+  // AIS ships disabled — no working data source yet (aisstream 0 data, embeds blocked by CSP)
+  // { id: 'ais', icon: 'anchor', label: 'Barcos', sector: 'rias', alpha: true },
   { id: 'aviation', icon: 'navigation', label: 'Aviones', sector: 'embalse', alpha: true },
 ];
 
