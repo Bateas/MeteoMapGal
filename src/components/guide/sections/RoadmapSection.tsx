@@ -334,6 +334,7 @@ function TimelineMilestone({
 }) {
   const cfg = {
     done:    { dot: 'bg-emerald-500/30 border-emerald-500/50', text: 'text-emerald-400', icon: 'text-emerald-400/70' },
+    wip:     { dot: 'bg-sky-500/30 border-sky-500/50', text: 'text-sky-400', icon: 'text-sky-400/70' },
     planned: { dot: 'bg-amber-500/20 border-amber-500/40', text: 'text-amber-400', icon: 'text-amber-400/70' },
     idea:    { dot: 'bg-slate-500/20 border-slate-500/40', text: 'text-slate-400', icon: 'text-slate-500' },
   };

@@ -62,7 +62,7 @@ export function RiasBaixasSection() {
             <CycleRow hours="07–11h" icon="sun" label="Calma transitoria" desc="El terral se debilita. El sol empieza a calentar la tierra. Transición." color="#f59e0b" />
             <CycleRow hours="11–14h" icon="wind" label="Entrada de brisa" desc="Rotación a W/SW. La brisa de mar empieza a entrar por las bocas de las rías." color="#22c55e" />
             <CycleRow hours="14–18h" icon="sailboat" label="Pico de viento" desc="Brisa establecida. Mejor momento para navegar. 10-18 kt en spots favorables." color="#3b82f6" />
-            <CycleRow hours="18–21h" icon="sunset" label="Caída gradual" desc="El viento baja al perder calentamiento solar. Últimos ratos navegables." color="#8b5cf6" />
+            <CycleRow hours="18–21h" icon="cloud-sun" label="Caída gradual" desc="El viento baja al perder calentamiento solar. Últimos ratos navegables." color="#8b5cf6" />
           </div>
         </div>
       </div>
