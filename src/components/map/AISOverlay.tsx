@@ -60,33 +60,6 @@ export const AISOverlay = memo(function AISOverlay() {
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null);
   const { current: mapRef } = useMap();
 
-  // Sync iframe with map viewport (debounced 3s to avoid constant reloads)
-  const [iframeView, setIframeView] = useState({ lat: 42.24, lon: -8.72, zoom: 12 });
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => {
-    const map = mapRef?.getMap();
-    if (!map) return;
-    const syncView = () => {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        const c = map.getCenter();
-        const z = Math.min(Math.round(map.getZoom()), 18);
-        const lat = +c.lat.toFixed(3);
-        const lon = +c.lng.toFixed(3);
-        // Only update if moved >~1km or zoom changed
-        setIframeView((prev) => {
-          if (Math.abs(prev.lat - lat) < 0.008 && Math.abs(prev.lon - lon) < 0.008 && prev.zoom === z) return prev;
-          return { lat, lon, zoom: z };
-        });
-      }, 1500);
-    };
-    map.on('moveend', syncView);
-    // Initial sync (immediate)
-    const c = map.getCenter();
-    setIframeView({ lat: +c.lat.toFixed(4), lon: +c.lng.toFixed(4), zoom: Math.min(Math.round(map.getZoom()), 18) });
-    return () => { map.off('moveend', syncView); clearTimeout(debounceRef.current); };
-  }, [mapRef]);
-
   // Register icons when map is available
   useEffect(() => {
     const map = mapRef?.getMap();
@@ -195,16 +168,10 @@ export const AISOverlay = memo(function AISOverlay() {
 
   return (
     <>
-      {/* MarineTraffic embed — JS widget (not iframe, may bypass CSP) */}
-      {vessels.size === 0 && (
-        <div className="absolute bottom-12 right-2 z-30 rounded-lg overflow-hidden border border-teal-500/30 shadow-xl">
-          <div className="flex items-center justify-between bg-slate-900/95 px-2 py-1 border-b border-slate-700/50">
-            <span className="text-[10px] text-teal-400 font-bold uppercase tracking-wider">
-              Trafico maritimo
-            </span>
-            <span className="text-[7px] text-amber-400/70 font-bold uppercase">alpha</span>
-          </div>
-          <MarineTrafficEmbed lat={iframeView.lat} lon={iframeView.lon} zoom={iframeView.zoom} />
+      {/* Demo notice when showing simulated vessels */}
+      {vessels.size > 0 && (
+        <div className="absolute bottom-12 right-2 z-30 px-2 py-1 rounded bg-slate-900/85 border border-amber-500/30 text-[9px] text-amber-400/80 font-medium">
+          DEMO — datos simulados
         </div>
       )}
 
@@ -305,40 +272,3 @@ export const AISOverlay = memo(function AISOverlay() {
   );
 });
 
-/** MarineTraffic JS embed — injects their script into a container div */
-function MarineTrafficEmbed({ lat, lon, zoom }: { lat: number; lon: number; zoom: number }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    // Clear previous children safely (no innerHTML)
-    while (el.firstChild) el.removeChild(el.firstChild);
-
-    // MarineTraffic embed uses global variables + script injection
-    const configScript = document.createElement('script');
-    configScript.type = 'text/javascript';
-    configScript.textContent = [
-      `width='360';`,
-      `height='240';`,
-      `border='0';`,
-      `shownames='true';`,
-      `latitude='${Number(lat).toFixed(4)}';`,
-      `longitude='${Number(lon).toFixed(4)}';`,
-      `zoom='${Math.min(Math.round(zoom), 17)}';`,
-      `maptype='4';`,
-      `trackvessel='0';`,
-      `fleet='';`,
-      `remember='false';`,
-    ].join('\n');
-    el.appendChild(configScript);
-
-    const embedScript = document.createElement('script');
-    embedScript.type = 'text/javascript';
-    embedScript.src = 'https://www.marinetraffic.com/js/embed.js';
-    el.appendChild(embedScript);
-  }, [lat, lon, zoom]);
-
-  return <div ref={containerRef} style={{ width: 360, height: 240 }} />;
-}
