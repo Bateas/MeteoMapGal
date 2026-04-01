@@ -43,7 +43,7 @@ const tempLabelLayer: LayerProps = {
   type: 'symbol',
   layout: {
     'text-field': ['get', 'label'],
-    'text-font': ['Open Sans Bold'],
+    'text-font': ['Noto Sans Bold'],
     'text-size': ['interpolate', ['linear'], ['zoom'], 9, 0, 11, 8, 13, 10],
     'text-allow-overlap': true,
     'text-ignore-placement': true,

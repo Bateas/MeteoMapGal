@@ -644,7 +644,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           type="symbol"
           layout={{
             'text-field': ['concat', '⚡ ', ['get', 'label']],
-            'text-font': ['Open Sans Bold'],
+            'text-font': ['Noto Sans Bold'],
             'text-size': 13,
             'text-offset': [0, -2.5],
             'text-allow-overlap': true,
@@ -660,7 +660,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           type="symbol"
           layout={{
             'text-field': ['get', 'distance'],
-            'text-font': ['Open Sans Regular'],
+            'text-font': ['Noto Sans Regular'],
             'text-size': 10,
             'text-offset': [0, -1.2],
             'text-allow-overlap': true,

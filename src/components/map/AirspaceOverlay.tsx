@@ -275,7 +275,7 @@ export const AirspaceOverlay = memo(function AirspaceOverlay() {
           layout={{
             'text-field': ['get', 'name'],
             'text-size': 11,
-            'text-font': ['Open Sans Regular'],
+            'text-font': ['Noto Sans Regular'],
             'text-anchor': 'center',
             'text-allow-overlap': false,
           }}
