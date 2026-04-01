@@ -120,8 +120,27 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
       let tendCount = 0;
       if (tendencySignals) tendencySignals.forEach(s => { if (s.active) tendCount++; });
       const tendScore = Math.min(10, tendCount * 3);
+
+      // Wind synoptic penalty (same as useSpotScoring)
+      let windFactor = 7; // neutral
+      const thermalHours = embalseFC.filter(f => {
+        const h = f.timestamp.getHours();
+        return h >= 15 && h <= 20 && f.windSpeed != null && f.windDirection != null;
+      });
+      if (thermalHours.length > 0) {
+        const avgDir = thermalHours.reduce((s, f) => s + (f.windDirection ?? 0), 0) / thermalHours.length;
+        const avgSpeedKt = msToKnots(thermalHours.reduce((s, f) => s + (f.windSpeed ?? 0), 0) / thermalHours.length);
+        const isNorth = (avgDir >= 300 || avgDir <= 30);
+        const isSW = avgDir >= 200 && avgDir <= 270;
+        if (isNorth && avgSpeedKt > 12) windFactor = 0;
+        else if (isNorth && avgSpeedKt > 6) windFactor = 3;
+        else if (isSW && avgSpeedKt >= 3 && avgSpeedKt <= 12) windFactor = 12;
+        else if (isSW && avgSpeedKt > 12) windFactor = 8;
+        else if (avgSpeedKt > 15) windFactor = 2;
+      }
+
       globalThermalProb = Math.min(100, Math.round(
-        (dtScore / 15) * 40 + (atmosScore / 15) * 35 + (tendScore / 10) * 25,
+        (dtScore / 15) * 35 + (atmosScore / 15) * 30 + (tendScore / 10) * 20 + (windFactor / 15) * 15,
       ));
     }
 
