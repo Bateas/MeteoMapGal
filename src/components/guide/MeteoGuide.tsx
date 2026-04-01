@@ -79,9 +79,9 @@ export const MeteoGuide = memo(function MeteoGuide() {
       <div className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm shrink-0 max-w-full overflow-hidden">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <span className="shrink-0"><WeatherIcon id="thermal-wind" size={isMobile ? 22 : 20} /></span>
-          <h1 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
+          <h2 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
             {GUIDE_TITLE}
-          </h1>
+          </h2>
         </div>
         <button
           onClick={() => setOpen(false)}

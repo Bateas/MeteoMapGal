@@ -230,23 +230,39 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     <div
       role="marquee"
       aria-label="Condiciones meteorológicas en tiempo real"
-      className="h-7 bg-slate-900/80 border-b border-slate-700/50 overflow-hidden relative flex-shrink-0"
-      onClick={handleTouch}
-      onTouchStart={handleTouch}
+      className="h-7 bg-slate-900/80 border-b border-slate-700/50 overflow-hidden relative flex-shrink-0 flex"
     >
-      <div
-        className="ticker-scroll flex items-center h-full gap-6 whitespace-nowrap px-4"
-        style={{
-          animationDuration: `${duration}s`,
-          animationPlayState: paused ? 'paused' : 'running',
-        }}
+      <button
+        onClick={() => setPaused(p => !p)}
+        className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors border-r border-slate-700/50"
+        aria-label={paused ? 'Reanudar ticker de alertas' : 'Pausar ticker de alertas'}
+        title={paused ? 'Reanudar' : 'Pausar'}
       >
-        {tickerContent.map((item, i) => (
-          <span key={`${item.key}-${i}`} className={`text-[11px] font-medium ${item.color} flex items-center gap-1`}>
-            <span className="w-1 h-1 rounded-full bg-current opacity-50" />
-            {item.text}
-          </span>
-        ))}
+        {paused ? (
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+        ) : (
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+        )}
+      </button>
+      <div
+        className="flex-1 overflow-hidden"
+        onClick={handleTouch}
+        onTouchStart={handleTouch}
+      >
+        <div
+          className="ticker-scroll flex items-center h-full gap-6 whitespace-nowrap px-4"
+          style={{
+            animationDuration: `${duration}s`,
+            animationPlayState: paused ? 'paused' : 'running',
+          }}
+        >
+          {tickerContent.map((item, i) => (
+            <span key={`${item.key}-${i}`} className={`text-[11px] font-medium ${item.color} flex items-center gap-1`}>
+              <span className="w-1 h-1 rounded-full bg-current opacity-50" />
+              {item.text}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

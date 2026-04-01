@@ -234,10 +234,17 @@ export function WeatherMap() {
     if (!map) return;
     registerWindArrowIcons(map, 48);
     registerStationIcon(map);
+    // Localize MapLibre navigation controls to Spanish
+    requestAnimationFrame(() => {
+      const container = map.getContainer();
+      container.querySelector('.maplibregl-ctrl-zoom-in')?.setAttribute('aria-label', 'Acercar');
+      container.querySelector('.maplibregl-ctrl-zoom-out')?.setAttribute('aria-label', 'Alejar');
+      container.querySelector('.maplibregl-ctrl-compass')?.setAttribute('aria-label', 'Restablecer orientación norte');
+    });
   }, []);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full overflow-hidden">
+    <div ref={containerRef} className="relative w-full h-full overflow-hidden" role="region" aria-label="Mapa meteorológico interactivo de Galicia">
       <Map
         ref={mapRef}
         mapLib={maplibregl}
@@ -256,6 +263,7 @@ export function WeatherMap() {
         }}
       >
         <NavigationControl position="top-right" visualizePitch />
+        {/* Localize MapLibre controls to Spanish after mount */}
 
         {/* IHM nautical chart — Rías only, below everything except base tiles */}
         {activeSector.id === 'rias' && <NauticalChartOverlay />}
