@@ -65,7 +65,7 @@ const tempLabelLayer: LayerProps = {
   type: 'symbol',
   layout: {
     'text-field': ['get', 'label'],
-    'text-font': ['Open Sans Bold'],
+    'text-font': ['Noto Sans Bold'],
     'text-size': ['interpolate', ['linear'], ['zoom'], 9, 11, 12, 15, 15, 22],
     'text-allow-overlap': true,
     'text-ignore-placement': true,
@@ -88,7 +88,7 @@ const stationSubLabelLayer: LayerProps = {
   type: 'symbol',
   layout: {
     'text-field': ['get', 'sublabel'],
-    'text-font': ['Open Sans Regular'],
+    'text-font': ['Noto Sans Regular'],
     'text-size': ['interpolate', ['linear'], ['zoom'], 10, 0, 11, 8, 13, 10, 15, 13],
     'text-allow-overlap': true,
     'text-ignore-placement': true,

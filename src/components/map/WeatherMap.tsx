@@ -56,7 +56,7 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
   const isDark = styleId === 'dark';
   return {
     version: 8,
-    glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
+    glyphs: 'https://cdn.protomaps.com/fonts/pbf/{fontstack}/{range}.pbf',
     sources: {
       'base-tiles': {
         type: 'raster',
