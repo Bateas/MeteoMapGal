@@ -1,4 +1,4 @@
-import { useMemo, useEffect, memo, useState, useCallback } from 'react';
+import { useMemo, useEffect, useRef, memo, useState, useCallback } from 'react';
 import { Source, Layer, Popup } from 'react-map-gl/maplibre';
 import { useMap } from 'react-map-gl/maplibre';
 import { useAISStore } from '../../store/aisStore';
@@ -59,6 +59,27 @@ export const AISOverlay = memo(function AISOverlay() {
   const showOverlay = useAISStore((s) => s.showOverlay);
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null);
   const { current: mapRef } = useMap();
+
+  // Sync iframe with map viewport (debounced 3s to avoid constant reloads)
+  const [iframeView, setIframeView] = useState({ lat: 42.24, lon: -8.72, zoom: 12 });
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const syncView = () => {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const c = map.getCenter();
+        const z = Math.min(Math.round(map.getZoom()), 18);
+        setIframeView({ lat: +c.lat.toFixed(4), lon: +c.lng.toFixed(4), zoom: z });
+      }, 3000);
+    };
+    map.on('moveend', syncView);
+    // Initial sync (immediate)
+    const c = map.getCenter();
+    setIframeView({ lat: +c.lat.toFixed(4), lon: +c.lng.toFixed(4), zoom: Math.min(Math.round(map.getZoom()), 18) });
+    return () => { map.off('moveend', syncView); clearTimeout(debounceRef.current); };
+  }, [mapRef]);
 
   // Register icons when map is available
   useEffect(() => {
@@ -181,7 +202,7 @@ export const AISOverlay = memo(function AISOverlay() {
             <span className="text-[8px] text-amber-400/70 font-bold uppercase">alpha</span>
           </div>
           <iframe
-            src="https://www.vesselfinder.com/aismap?lat=42.24&lon=-8.72&zoom=12&names=true"
+            src={`https://www.vesselfinder.com/aismap?lat=${iframeView.lat}&lon=${iframeView.lon}&zoom=${iframeView.zoom}&names=true`}
             width="360"
             height="236"
             style={{ border: 0 }}
