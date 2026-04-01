@@ -116,8 +116,9 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
         if (atmosphericContext.pbl != null) atmosScore += atmosphericContext.pbl > 1500 ? 5 : atmosphericContext.pbl > 800 ? 3 : 1;
         if (atmosphericContext.liftedIndex != null) atmosScore += atmosphericContext.liftedIndex < -2 ? 5 : atmosphericContext.liftedIndex < 0 ? 3 : 1;
       }
-      // Tendency: count active signals
-      const tendCount = tendencySignals?.filter(s => s.active).length ?? 0;
+      // Tendency: count active signals (tendencySignals is a Map)
+      let tendCount = 0;
+      if (tendencySignals) tendencySignals.forEach(s => { if (s.active) tendCount++; });
       const tendScore = Math.min(10, tendCount * 3);
       globalThermalProb = Math.min(100, Math.round(
         (dtScore / 15) * 40 + (atmosScore / 15) * 35 + (tendScore / 10) * 25,
