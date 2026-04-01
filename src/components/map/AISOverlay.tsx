@@ -1,15 +1,52 @@
-import { useMemo, memo, useState, useCallback } from 'react';
+import { useMemo, useEffect, memo, useState, useCallback } from 'react';
 import { Source, Layer, Popup } from 'react-map-gl/maplibre';
 import { useMap } from 'react-map-gl/maplibre';
 import { useAISStore } from '../../store/aisStore';
 import { VESSEL_COLORS, VESSEL_LABELS } from '../../types/ais';
-import type { Vessel } from '../../types/ais';
+import type { Vessel, VesselType } from '../../types/ais';
 import type { MapLayerMouseEvent } from 'maplibre-gl';
 
 const EMPTY_FC: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
   features: [],
 };
+
+const ICON_SIZE = 24;
+
+/** Draw a boat/triangle icon for a vessel type color */
+function createShipImage(color: string): ImageData {
+  const canvas = document.createElement('canvas');
+  canvas.width = ICON_SIZE;
+  canvas.height = ICON_SIZE;
+  const ctx = canvas.getContext('2d')!;
+  const cx = ICON_SIZE / 2;
+
+  // Triangle pointing up (bow) — will be rotated by MapLibre icon-rotate
+  ctx.beginPath();
+  ctx.moveTo(cx, 3);          // bow (top point)
+  ctx.lineTo(cx + 7, 20);     // starboard stern
+  ctx.lineTo(cx, 17);         // keel notch
+  ctx.lineTo(cx - 7, 20);     // port stern
+  ctx.closePath();
+
+  ctx.fillStyle = color;
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 1.5;
+  ctx.fill();
+  ctx.stroke();
+
+  return ctx.getImageData(0, 0, ICON_SIZE, ICON_SIZE);
+}
+
+/** Register ship icons for all vessel types */
+export function registerShipIcons(map: maplibregl.Map) {
+  for (const [type, color] of Object.entries(VESSEL_COLORS)) {
+    const id = `ship-${type}`;
+    if (!map.hasImage(id)) {
+      map.addImage(id, createShipImage(color), { sdf: false });
+    }
+  }
+}
 
 /**
  * AIS ship tracking overlay — Rías sector only.
@@ -22,6 +59,12 @@ export const AISOverlay = memo(function AISOverlay() {
   const showOverlay = useAISStore((s) => s.showOverlay);
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null);
   const { current: mapRef } = useMap();
+
+  // Register icons when map is available
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (map) registerShipIcons(map);
+  }, [mapRef]);
 
   // Ship point features
   const shipGeojson = useMemo<GeoJSON.FeatureCollection>(() => {
@@ -39,6 +82,7 @@ export const AISOverlay = memo(function AISOverlay() {
           sog: v.sog,
           cog: v.cog,
           destination: v.destination,
+          icon: `ship-${v.type}`,
           color: VESSEL_COLORS[v.type],
         },
       })),
@@ -74,7 +118,6 @@ export const AISOverlay = memo(function AISOverlay() {
     for (const v of vessels.values()) {
       if (v.sog < 0.5) continue;
       const cogRad = (v.cog * Math.PI) / 180;
-      // ~150m per knot at this latitude
       const lenDeg = v.sog * 0.002;
       const endLon = v.lon + lenDeg * Math.sin(cogRad);
       const endLat = v.lat + lenDeg * Math.cos(cogRad);
@@ -84,9 +127,7 @@ export const AISOverlay = memo(function AISOverlay() {
           type: 'LineString',
           coordinates: [[v.lon, v.lat], [endLon, endLat]],
         },
-        properties: {
-          color: VESSEL_COLORS[v.type],
-        },
+        properties: { color: VESSEL_COLORS[v.type] },
       });
     }
     return { type: 'FeatureCollection', features };
@@ -104,8 +145,7 @@ export const AISOverlay = memo(function AISOverlay() {
     [vessels],
   );
 
-  // Register click listener
-  useMemo(() => {
+  useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
     map.on('click', 'ais-ships', handleClick);
@@ -117,6 +157,8 @@ export const AISOverlay = memo(function AISOverlay() {
     });
     return () => {
       map.off('click', 'ais-ships', handleClick);
+      map.off('mouseenter', 'ais-ships', () => {});
+      map.off('mouseleave', 'ais-ships', () => {});
     };
   }, [mapRef, handleClick]);
 
@@ -151,17 +193,21 @@ export const AISOverlay = memo(function AISOverlay() {
         />
       </Source>
 
-      {/* Ship symbols */}
+      {/* Ship icons — triangles rotated by heading */}
       <Source id="ais-ships-source" type="geojson" data={shipGeojson}>
         <Layer
           id="ais-ships"
-          type="circle"
+          type="symbol"
+          layout={{
+            'icon-image': ['get', 'icon'],
+            'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.6, 13, 1.2],
+            'icon-rotate': ['get', 'heading'],
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+          }}
           paint={{
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 4, 13, 8],
-            'circle-color': ['get', 'color'],
-            'circle-opacity': 0.85,
-            'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 1,
+            'icon-opacity': 0.9,
           }}
         />
         <Layer
@@ -170,7 +216,7 @@ export const AISOverlay = memo(function AISOverlay() {
           layout={{
             'text-field': ['get', 'name'],
             'text-size': ['interpolate', ['linear'], ['zoom'], 10, 0, 12, 10, 14, 12],
-            'text-offset': [0, 1.4],
+            'text-offset': [0, 1.6],
             'text-anchor': 'top',
             'text-optional': true,
             'text-allow-overlap': false,
