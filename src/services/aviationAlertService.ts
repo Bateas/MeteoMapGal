@@ -2,20 +2,25 @@
  * Aviation proximity alert evaluation.
  * Pure function — computes alert level from aircraft positions.
  *
- * Alert levels:
+ * Wide bbox fetches aircraft across all Galicia for MAP DISPLAY.
+ * Alerts only trigger based on distance to Embalse center:
  * - CRITICAL: < 1km + < 200m altitude
  * - MODERATE: < 3km + < 500m altitude + descending
- * - INFO: any aircraft in bbox (~15km)
- * - NONE: no aircraft detected
+ * - INFO: any aircraft within 15km
+ * - NONE: no aircraft within alert radius
  */
 import type { Aircraft, AviationAlert, AviationAlertLevel } from '../types/aviation';
+import { ALERT_RADIUS } from '../types/aviation';
 
 export function evaluateAviationAlert(aircraft: Aircraft[]): AviationAlert {
-  if (aircraft.length === 0) {
+  // Only consider aircraft within alert radius (15km) for alerts
+  const nearby = aircraft.filter((a) => a.distanceKm < ALERT_RADIUS.info);
+
+  if (nearby.length === 0) {
     return {
       level: 'none',
       nearestAircraft: null,
-      aircraftInBbox: 0,
+      aircraftInBbox: aircraft.length,
       aircraftClose: 0,
       updatedAt: Date.now(),
     };
@@ -26,21 +31,18 @@ export function evaluateAviationAlert(aircraft: Aircraft[]): AviationAlert {
   let minDist = Infinity;
   let closeCount = 0;
 
-  for (const ac of aircraft) {
+  for (const ac of nearby) {
     if (ac.distanceKm < minDist) {
       minDist = ac.distanceKm;
       nearest = ac;
     }
 
-    if (ac.distanceKm < 3) {
+    if (ac.distanceKm < ALERT_RADIUS.moderate) {
       closeCount++;
 
-      // CRITICAL: very close + very low
-      if (ac.distanceKm < 1 && ac.altitude < 200) {
+      if (ac.distanceKm < ALERT_RADIUS.critical && ac.altitude < 200) {
         level = 'critical';
-      }
-      // MODERATE: close + low + descending
-      else if (ac.altitude < 500 && ac.verticalRate < 0 && level !== 'critical') {
+      } else if (ac.altitude < 500 && ac.verticalRate < 0 && level !== 'critical') {
         level = 'moderate';
       }
     }
@@ -55,10 +57,11 @@ export function evaluateAviationAlert(aircraft: Aircraft[]): AviationAlert {
   };
 }
 
-/** Compute adaptive polling interval based on proximity */
+/** Compute adaptive polling interval based on proximity to Embalse */
 export function computePollingInterval(aircraft: Aircraft[]): number {
-  if (aircraft.length === 0) return 60_000; // 60s — no aircraft
-  const minDist = Math.min(...aircraft.map((a) => a.distanceKm));
-  if (minDist < 3) return 10_000;  // 10s — close aircraft
-  return 15_000;                    // 15s — aircraft in bbox
+  const nearby = aircraft.filter((a) => a.distanceKm < ALERT_RADIUS.info);
+  if (nearby.length === 0) return 60_000;
+  const minDist = Math.min(...nearby.map((a) => a.distanceKm));
+  if (minDist < ALERT_RADIUS.moderate) return 10_000;
+  return 15_000;
 }
