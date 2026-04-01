@@ -10,8 +10,8 @@ import { windSpeedColor } from '../../services/windUtils';
 
 // ── Configuration ──────────────────────────────────────────
 
-const PARTICLE_COUNT_DESKTOP = 400;
-const PARTICLE_COUNT_MOBILE = 150;
+const PARTICLE_COUNT_DESKTOP = 250; // was 400 — fewer particles, less project() calls
+const PARTICLE_COUNT_MOBILE = 100; // was 150
 const FADE_ALPHA = 0.94;
 const PARTICLE_MAX_AGE = 100;
 // Base speed calibrated for zoom ~10 (Galician scale ~50km viewport).
@@ -186,86 +186,87 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       }
       const grid = windGridRef.current;
 
-      // Update and draw particles on trail canvas
-      const particles = particlesRef.current;
+      // ── PERF: Cache projection math ONCE per frame ──
+      // map.project() with 3D terrain is O(expensive) per call (ray-mesh intersection).
+      // Instead: project 4 corners once → linear interpolation per particle = O(1).
+      const zoomFactor = Math.pow(2, SPEED_SCALE_REF_ZOOM - map.getZoom());
+      const speedScale = SPEED_SCALE_BASE * zoomFactor;
+      const vpW = w / dpr;
+      const vpH = h / dpr;
 
-      // ── PERF: Batch path operations ──
+      // Project viewport corners once (4 calls vs 500+ per frame)
+      const nw = map.project([cachedBounds.w, cachedBounds.n]);
+      const se = map.project([cachedBounds.e, cachedBounds.s]);
+      const lonRange = cachedBounds.e - cachedBounds.w;
+      const latRange = cachedBounds.n - cachedBounds.s;
+
+      // Fast linear projection: geo → screen pixel (approximation, accurate enough for particles)
+      const projX = (lon: number) => ((lon - cachedBounds.w) / lonRange) * (se.x - nw.x) + nw.x;
+      const projY = (lat: number) => ((cachedBounds.n - lat) / latRange) * (se.y - nw.y) + nw.y;
+
+      // Update particles and draw directly (no intermediate array)
+      const particles = particlesRef.current;
       trailCtx.lineCap = 'round';
 
-      // Detect 3D pitch — particles projected behind camera need respawn
-      const hasPitch = map.getPitch() > 5;
+      // Group by color for fewer ctx state changes
+      const colorBuckets = new Map<string, { px: number; py: number; cx: number; cy: number; alpha: number; lw: number }[]>();
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
-
-        // ── PERF: O(1) bilinear grid lookup instead of O(stations) IDW ──
         const wind = lookupWindGrid(grid, p.lat, p.lon);
 
-        // Move particle — speed scales inversely with zoom to keep visual velocity consistent
         const prevLon = p.lon;
         const prevLat = p.lat;
-        const zoomFactor = Math.pow(2, SPEED_SCALE_REF_ZOOM - map.getZoom());
-        const speedScale = SPEED_SCALE_BASE * zoomFactor;
         p.lon += wind.vx * speedScale;
         p.lat += wind.vy * speedScale;
         p.age++;
 
-        // Respawn check BEFORE projecting (saves 2 project() calls for dead particles)
         if (
           p.age > p.maxAge ||
           p.lon < bw || p.lon > be ||
           p.lat < bs || p.lat > bn
         ) {
           particles[i] = spawnParticle(cachedBounds);
-          continue; // skip drawing this frame
+          continue;
         }
 
-        // Project to screen
-        const prev = map.project([prevLon, prevLat]);
-        const curr = map.project([p.lon, p.lat]);
+        // ── PERF: Linear projection instead of map.project() ──
+        const px = projX(prevLon) * dpr;
+        const py = projY(prevLat) * dpr;
+        const cx = projX(p.lon) * dpr;
+        const cy = projY(p.lat) * dpr;
 
-        // ── 3D pitch safety: respawn if projected behind camera or off-viewport ──
-        if (hasPitch) {
-          const margin = 50; // px tolerance
-          if (
-            curr.x < -margin || curr.x > w / dpr + margin ||
-            curr.y < -margin || curr.y > h / dpr + margin ||
-            prev.x < -margin || prev.x > w / dpr + margin ||
-            prev.y < -margin || prev.y > h / dpr + margin
-          ) {
-            particles[i] = spawnParticle(cachedBounds);
-            continue;
-          }
+        // Skip off-viewport
+        if (cx < -50 || cx > w + 50 || cy < -50 || cy > h + 50) {
+          particles[i] = spawnParticle(cachedBounds);
+          continue;
         }
 
-        // Draw trail line — width scales with wind speed for visual distinction
-        const color = windSpeedColor(wind.speed);
         const ageFade = 1 - p.age / p.maxAge;
-        const px = prev.x * dpr;
-        const py = prev.y * dpr;
-        const cx = curr.x * dpr;
-        const cy = curr.y * dpr;
+        const speedFactor = Math.min(wind.speed / 8, 1);
+        const color = windSpeedColor(wind.speed);
+        const seg = {
+          px, py, cx, cy,
+          alpha: Math.max(ageFade * 0.95, 0.25),
+          lw: (LINE_WIDTH_BASE + speedFactor * (LINE_WIDTH_MAX - LINE_WIDTH_BASE)) * dpr,
+        };
 
-        // Speed-proportional line width: calm=thin, strong=thick
-        const speedFactor = Math.min(wind.speed / 8, 1); // 0-1 over 0-8 m/s (~16kt)
-        const lineWidth = (LINE_WIDTH_BASE + speedFactor * (LINE_WIDTH_MAX - LINE_WIDTH_BASE)) * dpr;
+        let bucket = colorBuckets.get(color);
+        if (!bucket) { bucket = []; colorBuckets.set(color, bucket); }
+        bucket.push(seg);
+      }
 
-        trailCtx.beginPath();
-        trailCtx.moveTo(px, py);
-        trailCtx.lineTo(cx, cy);
-        trailCtx.lineWidth = lineWidth;
+      // ── PERF: Draw batched by color (1 beginPath/stroke per color, not per particle) ──
+      for (const [color, segs] of colorBuckets) {
         trailCtx.strokeStyle = color;
-        trailCtx.globalAlpha = Math.max(ageFade * 0.95, 0.25);
-        trailCtx.stroke();
-
-        // Bright head dot for visibility (skip on mobile to reduce draw calls)
-        if (!isMobile && ageFade > 0.25) {
-          trailCtx.beginPath();
-          trailCtx.arc(cx, cy, HEAD_RADIUS * dpr, 0, Math.PI * 2);
-          trailCtx.fillStyle = color;
-          trailCtx.globalAlpha = Math.min(ageFade + 0.1, 1);
-          trailCtx.fill();
+        trailCtx.beginPath();
+        for (const seg of segs) {
+          trailCtx.lineWidth = seg.lw;
+          trailCtx.globalAlpha = seg.alpha;
+          trailCtx.moveTo(seg.px, seg.py);
+          trailCtx.lineTo(seg.cx, seg.cy);
         }
+        trailCtx.stroke();
       }
 
       // Composite trail canvas onto main canvas
