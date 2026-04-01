@@ -149,23 +149,21 @@ export function WeatherMap() {
   const terrainRestoreTimer = useRef<ReturnType<typeof setTimeout>>();
   const handleMoveStart = useCallback(() => {
     containerRef.current?.classList.add('map-panning');
-    // Disable terrain during pan for smooth 60fps — restore after idle
+    // Flatten terrain during pan for smooth 60fps — keep pipeline active to avoid black tiles
     const map = mapRef.current?.getMap();
     if (map?.getTerrain()) {
       clearTimeout(terrainRestoreTimer.current);
-      map.setTerrain(null);
+      map.setTerrain({ source: 'terrainDEM', exaggeration: 0 });
     }
   }, []);
   const handleMoveEnd = useCallback(() => {
     containerRef.current?.classList.remove('map-panning');
-    // Restore terrain after a short delay to avoid flicker during rapid pan-zoom
+    // Restore terrain exaggeration after a short delay
     clearTimeout(terrainRestoreTimer.current);
     terrainRestoreTimer.current = setTimeout(() => {
       const map = mapRef.current?.getMap();
-      if (map && !map.getTerrain()) {
+      if (map) {
         map.setTerrain({ source: 'terrainDEM', exaggeration: 1.2 });
-        // Force tile repaint after terrain restore to prevent black tiles
-        requestAnimationFrame(() => map.triggerRepaint());
       }
     }, 500);
   }, []);

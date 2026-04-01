@@ -159,6 +159,17 @@ export function AppShell() {
     if (isMobile && sidebarOpen) setFieldDrawerOpen(false);
   }, [sidebarOpen, isMobile]);
 
+  // React to external tab switch requests (e.g. popup "Ver historial" button).
+  // MUST live here (not in Sidebar) because Sidebar is not mounted when collapsed/closed.
+  const requestedTab = useUIStore((s) => s.requestedTab);
+  useEffect(() => {
+    if (!requestedTab) return;
+    const ui = useUIStore.getState();
+    // Expand sidebar so <Sidebar/> mounts and picks up the requestedTab
+    if (!isMobile && ui.sidebarCollapsed) ui.setSidebarCollapsed(false);
+    if (isMobile && !ui.sidebarOpen) ui.setSidebarOpen(true);
+  }, [requestedTab, isMobile]);
+
   // Thermal wind analysis: scores rules, detects propagation, fetches forecast
   useThermalAnalysis();
 
