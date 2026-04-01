@@ -168,6 +168,29 @@ export const AISOverlay = memo(function AISOverlay() {
 
   return (
     <>
+      {/* VesselFinder iframe — MVP while native AIS data source is not available */}
+      {vessels.size === 0 && (
+        <div
+          className="absolute bottom-12 right-2 z-30 rounded-lg overflow-hidden border border-teal-500/30 shadow-xl"
+          style={{ width: 360, height: 260 }}
+        >
+          <div className="flex items-center justify-between bg-slate-900/95 px-2 py-1 border-b border-slate-700/50">
+            <span className="text-[10px] text-teal-400 font-bold uppercase tracking-wider">
+              Trafico maritimo — VesselFinder
+            </span>
+            <span className="text-[8px] text-amber-400/70 font-bold uppercase">alpha</span>
+          </div>
+          <iframe
+            src="https://www.vesselfinder.com/aismap?lat=42.24&lon=-8.72&zoom=12&names=true"
+            width="360"
+            height="236"
+            style={{ border: 0 }}
+            title="VesselFinder — Tráfico marítimo Rías Baixas"
+            loading="lazy"
+          />
+        </div>
+      )}
+
       {/* Trajectory tracks */}
       <Source id="ais-tracks" type="geojson" data={trackGeojson}>
         <Layer
