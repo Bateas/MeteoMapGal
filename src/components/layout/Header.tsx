@@ -138,7 +138,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                     {isActive && <span>{sector.shortName}</span>}
                   </span>
                   {isActive && stationCount > 0 && (
-                    <span className="text-[9px] text-blue-200/60 font-normal leading-none">{readingCount}/{stationCount}</span>
+                    <span className="text-[11px] text-blue-200/60 font-normal leading-none">{readingCount}/{stationCount}</span>
                   )}
                 </button>
               );

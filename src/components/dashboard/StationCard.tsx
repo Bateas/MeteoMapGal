@@ -207,6 +207,8 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
         <div className="flex items-center gap-1">
           {staleness && (
             <span
+              role="status"
+              aria-label={`Estación ${staleness.label === 'offline' ? 'sin datos recientes' : `datos de hace ${staleness.label}`}`}
               className="text-[11px] font-bold px-1 py-0.5 rounded"
               style={staleStyle}
             >
