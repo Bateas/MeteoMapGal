@@ -111,16 +111,18 @@ export const AISOverlay = memo(function AISOverlay() {
     return { type: 'FeatureCollection', features };
   }, [showOverlay, trajectories, vessels]);
 
-  // Velocity vector features (SOG > 0.5kt)
-  const velocityGeojson = useMemo<GeoJSON.FeatureCollection>(() => {
+  // Future projection lines (5 min ahead, dashed cyan)
+  const projectionGeojson = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || vessels.size === 0) return EMPTY_FC;
     const features: GeoJSON.Feature[] = [];
     for (const v of vessels.values()) {
       if (v.sog < 0.5) continue;
       const cogRad = (v.cog * Math.PI) / 180;
-      const lenDeg = v.sog * 0.002;
-      const endLon = v.lon + lenDeg * Math.sin(cogRad);
-      const endLat = v.lat + lenDeg * Math.cos(cogRad);
+      // SOG is in knots → nm/h. 5 min = 5/60 h. 1nm ≈ 0.01667° lat
+      const distNm = v.sog * (5 / 60);
+      const distDeg = distNm * 0.01667;
+      const endLat = v.lat + distDeg * Math.cos(cogRad);
+      const endLon = v.lon + (distDeg / Math.cos(v.lat * Math.PI / 180)) * Math.sin(cogRad);
       features.push({
         type: 'Feature',
         geometry: {
@@ -180,15 +182,16 @@ export const AISOverlay = memo(function AISOverlay() {
         />
       </Source>
 
-      {/* Velocity vectors */}
-      <Source id="ais-velocity" type="geojson" data={velocityGeojson}>
+      {/* Future projection — dashed cyan, 5min ahead */}
+      <Source id="ais-projection" type="geojson" data={projectionGeojson}>
         <Layer
-          id="ais-velocity-lines"
+          id="ais-projection-lines"
           type="line"
           paint={{
-            'line-color': ['get', 'color'],
-            'line-width': 2,
-            'line-opacity': 0.6,
+            'line-color': '#22d3ee',
+            'line-width': 1.5,
+            'line-opacity': 0.5,
+            'line-dasharray': [4, 4],
           }}
         />
       </Source>

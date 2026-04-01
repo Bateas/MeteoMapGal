@@ -24,6 +24,7 @@ export function useAviationData() {
     try {
       const aircraft = await fetchAircraft();
       store.setAircraft(aircraft);
+      store.updateTrajectories(aircraft);
       store.setLastFetch(Date.now());
       store.setCreditsUsed(getCreditsUsed());
 
