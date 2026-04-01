@@ -71,8 +71,14 @@ export const AISOverlay = memo(function AISOverlay() {
       debounceRef.current = setTimeout(() => {
         const c = map.getCenter();
         const z = Math.min(Math.round(map.getZoom()), 18);
-        setIframeView({ lat: +c.lat.toFixed(4), lon: +c.lng.toFixed(4), zoom: z });
-      }, 3000);
+        const lat = +c.lat.toFixed(3);
+        const lon = +c.lng.toFixed(3);
+        // Only update if moved >~1km or zoom changed
+        setIframeView((prev) => {
+          if (Math.abs(prev.lat - lat) < 0.008 && Math.abs(prev.lon - lon) < 0.008 && prev.zoom === z) return prev;
+          return { lat, lon, zoom: z };
+        });
+      }, 1500);
     };
     map.on('moveend', syncView);
     // Initial sync (immediate)
