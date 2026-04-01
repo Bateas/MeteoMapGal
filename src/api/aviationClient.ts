@@ -8,7 +8,7 @@ import { AVIATION_DISPLAY_BBOX, EMBALSE_CENTER } from '../types/aviation';
 import { haversineDistance } from '../services/geoUtils';
 
 const BASE_URL = '/opensky-api/states/all';
-const CACHE_TTL_MS = 15_000; // 15s cache
+const CACHE_TTL_MS = 30_000; // 30s cache — prevent rapid network hits
 
 let cache: { data: Aircraft[]; fetchedAt: number } | null = null;
 let creditsUsedToday = 0;
