@@ -1,13 +1,14 @@
 /**
  * BuoySymbolLayer — GPU-accelerated buoy markers via MapLibre symbol layer.
  *
- * Replaces 13 DOM `<Marker>` components with a single GeoJSON source + circle/symbol layer.
+ * Diamond (rotated square) shape to visually distinguish from station circles.
  * Cyan marine theme. Shows wave height as text label.
  */
 import { useMemo, useEffect, useCallback } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import type { BuoyReading } from '../../types/buoy';
 import { BUOY_COORDS_MAP } from '../../api/buoyClient';
+import { temperatureColor } from '../../services/windUtils';
 
 interface BuoySymbolLayerProps {
   buoys: BuoyReading[];
@@ -15,12 +16,50 @@ interface BuoySymbolLayerProps {
   onSelectBuoy: (id: number | null) => void;
 }
 
-/** Freshness color for buoy ring */
+/** Freshness opacity for buoy */
 function buoyFreshness(timestamp?: Date | string | null): number {
   if (!timestamp) return 0.3;
   const t = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
   const age = (Date.now() - t.getTime()) / 60_000;
   return age < 60 ? 1.0 : age < 180 ? 0.7 : 0.4;
+}
+
+/** Register the buoy diamond icon (SDF mode for dynamic coloring) */
+export async function registerBuoyIcon(map: maplibregl.Map): Promise<void> {
+  const id = 'buoy-diamond';
+  if (map.hasImage(id)) return;
+
+  const size = 36;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size / 2 - 3;
+
+  // Diamond shape (rotated square)
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);      // top
+  ctx.lineTo(cx + r, cy);      // right
+  ctx.lineTo(cx, cy + r);      // bottom
+  ctx.lineTo(cx - r, cy);      // left
+  ctx.closePath();
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  const img = await new Promise<HTMLImageElement>((resolve) => {
+    const image = new Image(size, size);
+    image.onload = () => resolve(image);
+    image.src = canvas.toDataURL('image/png');
+  });
+
+  if (!map.hasImage(id)) {
+    map.addImage(id, img, { sdf: true });
+  }
 }
 
 export function BuoySymbolLayer({
@@ -39,6 +78,7 @@ export function BuoySymbolLayer({
 
       const waveLabel = buoy.waveHeight != null ? `${buoy.waveHeight.toFixed(1)}m` : '';
       const isSelected = buoy.stationId === selectedBuoyId;
+      const tempColor = temperatureColor(buoy.waterTemp ?? null);
 
       features.push({
         type: 'Feature',
@@ -48,6 +88,7 @@ export function BuoySymbolLayer({
           name: buoy.stationName,
           waveLabel,
           waterTemp: buoy.waterTemp,
+          tempColor,
           freshness: buoyFreshness(buoy.timestamp),
           isSelected: isSelected ? 1 : 0,
         },
@@ -71,7 +112,7 @@ export function BuoySymbolLayer({
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
-    const layerId = 'buoys-circles';
+    const layerId = 'buoys-icons';
 
     map.on('click', layerId, handleClick);
     map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
@@ -84,30 +125,56 @@ export function BuoySymbolLayer({
     };
   }, [mapRef, handleClick]);
 
-  const circleRadius: maplibregl.ExpressionSpecification = [
+  const iconSize: maplibregl.ExpressionSpecification = [
     'interpolate', ['linear'], ['zoom'],
-    9, 5,
-    10, 7,
-    11, 9,
-    12, 12,
+    9, 0.4,
+    10, 0.55,
+    11, 0.75,
+    12, 0.95,
   ];
 
   return (
     <Source id="buoys-geo" type="geojson" data={geojson}>
-      {/* Main buoy circle — cyan marine */}
+      {/* Cyan outer ring — distinguishes buoys from stations */}
       <Layer
-        id="buoys-circles"
+        id="buoys-ring"
         type="circle"
         paint={{
-          'circle-radius': circleRadius,
-          'circle-color': '#0e7490', // cyan-700
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 8, 10, 10, 11, 13, 12, 16],
+          'circle-color': 'transparent',
           'circle-stroke-color': '#06b6d4', // cyan-500
-          'circle-stroke-width': 2,
-          'circle-opacity': ['get', 'freshness'],
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 12, 1.5],
+          'circle-opacity': ['*', ['get', 'freshness'], 0.6],
         }}
       />
 
-      {/* Wave height label */}
+      {/* Diamond icon — colored by water temperature */}
+      <Layer
+        id="buoys-icons"
+        type="symbol"
+        layout={{
+          'icon-image': 'buoy-diamond',
+          'icon-size': iconSize,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          // "B" label centered on diamond
+          'text-field': 'B',
+          'text-size': ['interpolate', ['linear'], ['zoom'], 9, 7, 11, 9, 12, 11],
+          'text-offset': [0, 0],
+          'text-anchor': 'center',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        }}
+        paint={{
+          'icon-color': ['get', 'tempColor'],
+          'icon-opacity': ['get', 'freshness'],
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(0,0,0,0.5)',
+          'text-halo-width': 0.8,
+        }}
+      />
+
+      {/* Wave height label above */}
       <Layer
         id="buoys-labels"
         type="symbol"
@@ -150,7 +217,7 @@ export function BuoySymbolLayer({
         type="circle"
         filter={['==', ['get', 'isSelected'], 1]}
         paint={{
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 10, 12, 18],
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 12, 12, 20],
           'circle-color': 'transparent',
           'circle-stroke-color': '#22d3ee',
           'circle-stroke-width': 2.5,

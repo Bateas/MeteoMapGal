@@ -12,6 +12,7 @@ import { useMemo, useEffect, useCallback } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { temperatureColor, windSpeedColor } from '../../services/windUtils';
+import { SOURCE_CONFIG } from '../../config/sourceConfig';
 
 interface StationSymbolLayerProps {
   stations: NormalizedStation[];
@@ -38,7 +39,7 @@ export async function registerStationIcon(map: maplibregl.Map): Promise<void> {
   const id = 'station-circle';
   if (map.hasImage(id)) return;
 
-  const size = 32;
+  const size = 36;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -53,8 +54,8 @@ export async function registerStationIcon(map: maplibregl.Map): Promise<void> {
   ctx.fillStyle = '#ffffff';
   ctx.fill();
 
-  // Thin border for definition
-  ctx.strokeStyle = '#ffffff';
+  // Subtle inner shadow for depth
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
@@ -89,6 +90,7 @@ export function StationSymbolLayer({
       const age = ageMins(reading?.timestamp);
       const isSelected = station.id === selectedStationId;
 
+      const srcMeta = SOURCE_CONFIG[station.source];
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [station.lon, station.lat] },
@@ -96,6 +98,8 @@ export function StationSymbolLayer({
           id: station.id,
           name: station.name,
           source: station.source,
+          sourceLabel: srcMeta?.label ?? '?',
+          sourceColor: srcMeta?.color ?? '#64748b',
           windSpeed: windMs,
           temperature: reading?.temperature ?? null,
           tempColor: tempBinColor(reading?.temperature ?? null),
@@ -120,21 +124,27 @@ export function StationSymbolLayer({
     [onSelectStation, selectedStationId],
   );
 
-  // Register click + cursor handlers
+  // Register click + cursor handlers on both clickable layers
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
 
-    const layerId = 'stations-symbols';
+    const layers = ['stations-icons', 'stations-source-ring'];
+    const enter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const leave = () => { map.getCanvas().style.cursor = ''; };
 
-    map.on('click', layerId, handleClick);
-    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+    for (const layerId of layers) {
+      map.on('click', layerId, handleClick);
+      map.on('mouseenter', layerId, enter);
+      map.on('mouseleave', layerId, leave);
+    }
 
     return () => {
-      map.off('click', layerId, handleClick);
-      map.off('mouseenter', layerId, () => {});
-      map.off('mouseleave', layerId, () => {});
+      for (const layerId of layers) {
+        map.off('click', layerId, handleClick);
+        map.off('mouseenter', layerId, enter);
+        map.off('mouseleave', layerId, leave);
+      }
     };
   }, [mapRef, handleClick]);
 
@@ -158,9 +168,23 @@ export function StationSymbolLayer({
 
   return (
     <Source id="stations-geo" type="geojson" data={geojson}>
-      {/* Circle icon colored by temperature */}
+      {/* Source-colored ring — identifies data provider at a glance */}
       <Layer
-        id="stations-symbols"
+        id="stations-source-ring"
+        type="circle"
+        filter={filter}
+        paint={{
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 7, 10, 9, 11, 12, 12, 15],
+          'circle-color': 'transparent',
+          'circle-stroke-color': ['get', 'sourceColor'],
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 12, 1.5],
+          'circle-opacity': ['*', ['get', 'freshness'], 0.7],
+        }}
+      />
+
+      {/* Circle icon colored by temperature + source label centered */}
+      <Layer
+        id="stations-icons"
         type="symbol"
         filter={filter}
         layout={{
@@ -168,6 +192,29 @@ export function StationSymbolLayer({
           'icon-size': iconSize,
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
+          // Source label always visible (A, MG, MC, WU, NT, SX)
+          'text-field': ['get', 'sourceLabel'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 9, 7, 11, 9, 12, 11],
+          'text-offset': [0, 0],
+          'text-anchor': 'center',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        }}
+        paint={{
+          'icon-color': ['get', 'tempColor'],
+          'icon-opacity': ['get', 'freshness'],
+          'text-color': '#ffffff',
+          'text-halo-color': 'rgba(0,0,0,0.5)',
+          'text-halo-width': 0.8,
+        }}
+      />
+
+      {/* Station name below — only at zoom >= 11 */}
+      <Layer
+        id="stations-names"
+        type="symbol"
+        filter={filter}
+        layout={{
           'text-field': ['step', ['zoom'], '', 11, ['get', 'name']],
           'text-size': 11,
           'text-offset': [0, 1.8],
@@ -176,8 +223,6 @@ export function StationSymbolLayer({
           'text-allow-overlap': false,
         }}
         paint={{
-          'icon-color': ['get', 'tempColor'],
-          'icon-opacity': ['get', 'freshness'],
           'text-color': '#cbd5e1', // slate-300
           'text-halo-color': '#0f172a', // slate-900
           'text-halo-width': 1.5,
@@ -190,7 +235,7 @@ export function StationSymbolLayer({
         type="circle"
         filter={['==', ['get', 'isSelected'], 1]}
         paint={{
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 8, 12, 16],
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 10, 12, 18],
           'circle-color': 'transparent',
           'circle-stroke-color': '#60a5fa', // blue-400
           'circle-stroke-width': 2.5,
