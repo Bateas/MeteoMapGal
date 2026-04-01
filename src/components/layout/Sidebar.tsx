@@ -64,9 +64,10 @@ export function Sidebar() {
     if (requestedTab && requestedTab !== activeTab) {
       setActiveTab(requestedTab as Tab);
       setRequestedTab(null);
-      // Auto-expand sidebar if collapsed
-      const { sidebarCollapsed, setSidebarCollapsed } = useUIStore.getState();
-      if (sidebarCollapsed) setSidebarCollapsed(false);
+      // Auto-open sidebar: collapsed (desktop) or closed (mobile)
+      const state = useUIStore.getState();
+      if (state.sidebarCollapsed) state.setSidebarCollapsed(false);
+      if (state.isMobile && !state.sidebarOpen) state.setSidebarOpen(true);
     }
   }, [requestedTab, activeTab, setRequestedTab]);
 
