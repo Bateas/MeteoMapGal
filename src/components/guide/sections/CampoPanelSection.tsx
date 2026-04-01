@@ -7,11 +7,11 @@ import type { IconId } from '../../icons/WeatherIcons';
 export function CampoPanelSection() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Panel de Alertas</h2>
+      <h2 className="text-2xl font-bold text-white">Panel de Condiciones</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
-        El panel de alertas (tecla <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">C</kbd>)
-        es un cajón lateral derecho con 4 pestañas temáticas. Cada pestaña filtra las alertas
-        según el contexto de uso: navegación, agricultura, drones o vista completa.
+        El panel de condiciones (tecla <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">C</kbd>)
+        es un caj&oacute;n lateral derecho con pesta&ntilde;as tem&aacute;ticas: condiciones de navegaci&oacute;n,
+        alertas de campo (agricultura), drones y datos meteo. Incluye alertas clasificadas por severidad.
       </p>
 
       {/* Tab overview */}
