@@ -23,10 +23,17 @@ export type SemaphoreLevel = 'green' | 'yellow' | 'red';
 export interface ZoneConditions {
   avgWindKt: number;
   maxGustKt: number;
-  windDir: number | null; // consensus direction
+  windDir: number | null;
   stationsInZone: number;
   semaphore: SemaphoreLevel;
-  alerts: string[]; // short alert messages
+  alerts: string[];
+  // Extended (optional)
+  avgHumidity?: number;
+  maxTemp?: number;
+  minTemp?: number;
+  waveHeight?: number;
+  waterTemp?: number;
+  interpolated?: boolean; // true if using nearby stations, not in-zone
 }
 
 interface RegattaState {
