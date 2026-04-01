@@ -151,19 +151,19 @@ export function RoadmapSection() {
           status="done"
         />
         <TimelineMilestone
-          iconId="layout"
+          iconId="layers"
           title="Nuevo layout"
           desc="Panel lateral colapsable para dar m&aacute;s espacio al mapa."
           status="wip"
         />
         <TimelineMilestone
-          iconId="ship"
+          iconId="sailboat"
           title="Tr&aacute;fico mar&iacute;timo (AIS)"
           desc="Posiciones de barcos en tiempo real en las R&iacute;as. Cargueros, ferries, veleros."
           status="idea"
         />
         <TimelineMilestone
-          iconId="plane"
+          iconId="radar"
           title="Alertas de aviaci&oacute;n (Embalse)"
           desc="Aviso cuando hidroaviones o helic&oacute;pteros de extinci&oacute;n se acercan al embalse."
           status="idea"
@@ -330,7 +330,7 @@ function TimelineMilestone({
   iconId: IconId;
   title: string;
   desc: string;
-  status: 'done' | 'planned' | 'idea';
+  status: 'done' | 'planned' | 'idea' | 'wip';
 }) {
   const cfg = {
     done:    { dot: 'bg-emerald-500/30 border-emerald-500/50', text: 'text-emerald-400', icon: 'text-emerald-400/70' },
