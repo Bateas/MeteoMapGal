@@ -118,9 +118,9 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 
 /* ─── Tracking layer toggles (AIS ships, Aviation) ─── */
 
-const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector: string }[] = [
-  { id: 'ais', icon: 'anchor', label: 'Barcos', sector: 'rias' },
-  { id: 'aviation', icon: 'navigation', label: 'Aviones', sector: 'embalse' },
+const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector: string; alpha?: boolean }[] = [
+  { id: 'ais', icon: 'anchor', label: 'Barcos', sector: 'rias', alpha: true },
+  { id: 'aviation', icon: 'navigation', label: 'Aviones', sector: 'embalse', alpha: true },
 ];
 
 function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: string }) {
@@ -160,6 +160,9 @@ function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: 
           >
             <WeatherIcon id={btn.icon} size={isMobile ? 18 : 14} />
             {!isMobile && <span>{btn.label}</span>}
+            {btn.alpha && (
+              <span className="text-[7px] font-bold text-amber-400/80 uppercase tracking-wider">alpha</span>
+            )}
             {badge && (
               <span className="absolute -top-1 -right-1 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-teal-500 text-[8px] text-white font-bold">
                 {badge}
