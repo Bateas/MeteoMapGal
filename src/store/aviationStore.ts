@@ -41,7 +41,7 @@ export const useAviationStore = create<AviationState>()(
         aircraft: [],
         alert: INITIAL_ALERT,
         showOverlay: false,
-        pollIntervalMs: 60_000,
+        pollIntervalMs: 90_000,
         isLoading: false,
         error: null,
         lastFetch: null,

@@ -60,8 +60,8 @@ export function evaluateAviationAlert(aircraft: Aircraft[]): AviationAlert {
 /** Compute adaptive polling interval based on proximity to Embalse */
 export function computePollingInterval(aircraft: Aircraft[]): number {
   const nearby = aircraft.filter((a) => a.distanceKm < ALERT_RADIUS.info);
-  if (nearby.length === 0) return 60_000;
+  if (nearby.length === 0) return 90_000;  // 90s — no aircraft near embalse
   const minDist = Math.min(...nearby.map((a) => a.distanceKm));
-  if (minDist < ALERT_RADIUS.moderate) return 10_000;
-  return 15_000;
+  if (minDist < ALERT_RADIUS.moderate) return 15_000; // 15s — close to embalse
+  return 45_000;                                        // 45s — within 15km
 }
