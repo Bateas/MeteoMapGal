@@ -30,6 +30,8 @@ export function PwaInstallBanner() {
     // Already installed or dismissed
     if (isStandalone()) return;
     if (localStorage.getItem(STORAGE_KEY)) return;
+    // Only show on mobile — desktop users don't need PWA install prompt
+    if (window.innerWidth > 768) return;
 
     // Count visits
     const count = parseInt(localStorage.getItem(VISIT_COUNT_KEY) || '0', 10) + 1;
