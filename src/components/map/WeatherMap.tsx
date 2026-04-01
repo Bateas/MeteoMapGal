@@ -49,6 +49,8 @@ import { IGNOrthoOverlay } from './IGNOrthoOverlay';
 import { DistanceTool } from './DistanceTool';
 import { AISOverlay } from './AISOverlay';
 import { AviationOverlay } from './AviationOverlay';
+import { RegattaOverlay } from './RegattaOverlay';
+import { RegattaPanel } from './RegattaPanel';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useAISData } from '../../hooks/useAISData';
@@ -353,6 +355,9 @@ export function WeatherMap() {
         {/* Aviation aircraft monitoring — Embalse only */}
         {activeSector.id === 'embalse' && <AviationOverlay />}
 
+        {/* Regatta/Event mode — zone + buoy markers */}
+        <RegattaOverlay />
+
         {/* Selected station popup */}
         {selectedStation && (
           <StationPopup
@@ -388,6 +393,9 @@ export function WeatherMap() {
       <SSTLegend />
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
+
+      {/* Regatta/Event mode panel */}
+      <RegattaPanel />
 
       {/* ── Bottom controls: toolbar + alerts ── */}
       {isMobile ? (

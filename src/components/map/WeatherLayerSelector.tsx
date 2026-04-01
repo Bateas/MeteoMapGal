@@ -5,6 +5,7 @@ import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useAISStore } from '../../store/aisStore';
 import { useAviationStore } from '../../store/aviationStore';
+import { useRegattaStore } from '../../store/regattaStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 // ── Layer button configs ───────────────────────────────────
@@ -111,6 +112,9 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 
         {/* Tracking toggles — independent of weather layers */}
         <TrackingToggles isMobile={isMobile} sectorId={activeSector.id} />
+
+        {/* Event/Regatta mode button */}
+        <EventModeButton isMobile={isMobile} />
       </div>
     </div>
   );
@@ -172,6 +176,43 @@ function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: 
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/* ─── Event/Regatta mode button ─── */
+
+function EventModeButton({ isMobile }: { isMobile: boolean }) {
+  const active = useRegattaStore((s) => s.active);
+  const zone = useRegattaStore((s) => s.zone);
+
+  if (active && zone) return null; // Panel takes over when zone is set
+
+  const handleClick = () => {
+    if (active) {
+      useRegattaStore.getState().deactivate();
+    } else {
+      useRegattaStore.getState().startDrawing();
+    }
+  };
+
+  return (
+    <div className={`flex items-center gap-0.5 border-t border-slate-700/30 ${isMobile ? 'p-0.5' : 'px-1.5 pb-1.5 pt-1'}`}>
+      <button
+        onClick={handleClick}
+        className={`flex items-center justify-center gap-1 rounded-lg font-bold
+          transition-all duration-200 cursor-pointer w-full
+          ${isMobile ? 'min-h-[44px] px-2.5 py-2 text-base' : 'px-2.5 py-1 text-[11px]'}
+          ${active
+            ? 'bg-amber-500/25 border border-amber-400/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
+            : 'border border-slate-600/30 text-slate-500 hover:bg-slate-700/60 hover:text-slate-200 hover:border-amber-500/20'
+          }`}
+        title="Modo Evento / Regata"
+      >
+        <WeatherIcon id="compass" size={isMobile ? 18 : 14} />
+        {!isMobile && <span>{active ? 'Cancelar' : 'Evento'}</span>}
+        <span className="text-[7px] font-bold text-amber-400/80 uppercase">alpha</span>
+      </button>
     </div>
   );
 }
