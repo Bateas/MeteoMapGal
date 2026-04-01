@@ -232,12 +232,10 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </button>
         )}
 
-        {/* Wind front ETA badge — when propagation detected */}
-        {windFront?.active && windFront.etaMin != null && (
+        {/* Wind front ETA badge — desktop only, propagation is BETA */}
+        {!isMobile && windFront?.active && windFront.etaMin != null && (
           <div
-            className={`flex items-center gap-1 rounded font-mono ${
-              isMobile ? 'px-2 py-1.5 text-[11px]' : 'px-2 py-0.5 text-[11px]'
-            }`}
+            className="flex items-center gap-1 rounded font-mono px-2 py-0.5 text-[11px]"
             style={{
               background: 'rgba(245, 158, 11, 0.10)',
               border: '1px solid rgba(245, 158, 11, 0.30)',
@@ -245,7 +243,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             }}
             title={`Frente de viento ${windFront.directionLabel} a ${windFront.frontSpeedKt.toFixed(0)} kt — llegada estimada ~${windFront.etaMin} min`}
           >
-            <WeatherIcon id="radar" size={isMobile ? 14 : 12} />
+            <WeatherIcon id="radar" size={12} />
             <span className="font-bold">~{windFront.etaMin} min</span>
             {!isMobile && (
               <span className="text-slate-500 text-[11px]">{windFront.directionLabel}</span>
