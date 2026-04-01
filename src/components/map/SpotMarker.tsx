@@ -51,12 +51,12 @@ export const SpotMarkers = memo(function SpotMarkers() {
     if (!map) return;
     const onZoom = () => {
       const z = map.getZoom();
-      // Scale: 0.65 at zoom 9, 0.8 at zoom 10, 1.0 at zoom 11+
       setZoomScale(z >= 11 ? 1 : z >= 10 ? 0.8 : z >= 9 ? 0.65 : 0.5);
     };
     onZoom();
-    map.on('zoomend', onZoom);
-    return () => { map.off('zoomend', onZoom); };
+    // Use 'zoom' event (fires during animation) not just 'zoomend'
+    map.on('zoom', onZoom);
+    return () => { map.off('zoom', onZoom); };
   }, [mapRef]);
 
   // Show spinner until scoring has run + 3s grace period.
@@ -230,17 +230,20 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
           </foreignObject>
         </svg>
 
-        {/* Verdict badge — top-right */}
+        {/* Verdict badge — centered above the marker */}
         <div
-          className="absolute -top-1 -right-1 rounded-full pointer-events-none whitespace-nowrap flex items-center gap-0.5"
+          className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center"
           style={{
+            top: -2,
+            transform: `translateX(-50%) translateY(-100%)`,
             fontSize: 11,
             fontWeight: 800,
-            fontFamily: 'ui-monospace, monospace',
+            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
             lineHeight: '14px',
-            padding: isLoading ? '2px 5px' : '2px 7px',
-            background: `${colors.ring}20`,
-            border: `1.5px solid ${colors.ring}60`,
+            padding: isLoading ? '2px 6px' : '3px 8px',
+            background: 'rgba(15, 23, 42, 0.9)',
+            border: `1.5px solid ${colors.ring}70`,
+            borderRadius: 6,
             color: isLoading ? '#93c5fd' : colors.text,
             backdropFilter: 'blur(4px)',
             WebkitBackdropFilter: 'blur(4px)',
@@ -251,10 +254,12 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
 
         {/* Name label — below marker */}
         <div
-          className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 translate-y-full whitespace-nowrap text-[11px] font-bold pointer-events-none px-2 py-0.5 rounded"
+          className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap text-[11px] font-bold px-2 py-0.5"
           style={{
+            bottom: -2,
+            transform: `translateX(-50%) translateY(100%)`,
             color: colors.text,
-            textShadow: '0 1px 3px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.6)',
+            textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.7)',
             letterSpacing: '0.03em',
           } as React.CSSProperties}
         >
