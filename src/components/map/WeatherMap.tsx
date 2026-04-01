@@ -72,7 +72,7 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
         ],
         encoding: 'terrarium',
         tileSize: 256,
-        maxzoom: 12,
+        maxzoom: 11, // Limit DEM resolution — fewer tiles to fetch/render
       },
     },
     layers: [
@@ -93,11 +93,7 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
         },
       },
     ],
-    // 3D terrain DISABLED — hillshade-only mode for smooth panning.
-    // Hillshade gives visual relief without per-frame vertex reprojection.
-    // To restore 3D: uncomment terrain + sky below.
-    // terrain: { source: 'terrainDEM', exaggeration: 1.3 },
-    // sky: {},
+    terrain: { source: 'terrainDEM', exaggeration: 1.2 },
   };
 }
 
@@ -149,11 +145,26 @@ export function WeatherMap() {
   // Hide markers during map drag for smooth panning (95 DOM markers = jank)
   // Uses DOM class toggle instead of React state to avoid re-rendering ~100 markers
   const containerRef = useRef<HTMLDivElement>(null);
+  const terrainRestoreTimer = useRef<ReturnType<typeof setTimeout>>();
   const handleMoveStart = useCallback(() => {
     containerRef.current?.classList.add('map-panning');
+    // Disable terrain during pan for smooth 60fps — restore after idle
+    const map = mapRef.current?.getMap();
+    if (map?.getTerrain()) {
+      clearTimeout(terrainRestoreTimer.current);
+      map.setTerrain(null);
+    }
   }, []);
   const handleMoveEnd = useCallback(() => {
     containerRef.current?.classList.remove('map-panning');
+    // Restore terrain after a short delay to avoid flicker during rapid pan-zoom
+    clearTimeout(terrainRestoreTimer.current);
+    terrainRestoreTimer.current = setTimeout(() => {
+      const map = mapRef.current?.getMap();
+      if (map && !map.getTerrain()) {
+        map.setTerrain({ source: 'terrainDEM', exaggeration: 1.2 });
+      }
+    }, 500);
   }, []);
 
   // Cross-deselection: only one popup at a time (station XOR buoy XOR spot).
