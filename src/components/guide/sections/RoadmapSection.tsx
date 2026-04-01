@@ -130,24 +130,30 @@ export function RoadmapSection() {
           </div>
         </div>
 
-        {/* v2.0 — En desarrollo */}
-        <TimelineGroup label="v2.0 — En desarrollo" dotColor="bg-amber-500" textColor="text-amber-400" />
+        {/* v2.1 — Actual */}
+        <TimelineGroup label="v2.1 — Actual" dotColor="bg-amber-500" textColor="text-amber-400" />
         <TimelineMilestone
           iconId="zap"
-          title="Mapa m&aacute;s r&aacute;pido"
-          desc="Marcadores renderizados por GPU. Navegaci&oacute;n fluida a 60fps incluso con 100+ estaciones."
+          title="Rendimiento 60fps"
+          desc="Marcadores GPU, terrain toggle durante paneo, part&iacute;culas optimizadas con proyecci&oacute;n lineal."
           status="done"
         />
         <TimelineMilestone
-          iconId="wind"
-          title="Flechas de viento redise&ntilde;adas"
-          desc="Grosor proporcional a la velocidad, brillo pulsante en rachas fuertes."
-          status="wip"
+          iconId="map-pin"
+          title="Marcadores redise&ntilde;ados"
+          desc="Estaciones con letra de fuente (A, MG, MC...) y anillo de color. Boyas en forma de diamante. Spots con arco de viento."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="check"
+          title="Accesibilidad mejorada"
+          desc="18 correcciones: touch 40px, pausa en ticker, tooltips, banner PWA, b&uacute;squeda en glosario."
+          status="done"
         />
         <TimelineMilestone
           iconId="layout"
           title="Nuevo layout"
-          desc="Panel lateral colapsable para dar m&aacute;s espacio al mapa. Dise&ntilde;o visual renovado."
+          desc="Panel lateral colapsable para dar m&aacute;s espacio al mapa."
           status="wip"
         />
         <TimelineMilestone

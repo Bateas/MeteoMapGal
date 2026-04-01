@@ -1,181 +1,133 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-1.54.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Versión](https://img.shields.io/badge/versión-2.1.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-220%20passed-brightgreen)](src/test/)
-[![Stations](https://img.shields.io/badge/stations-100%2B-orange)](src/api/)
-[![Buoys](https://img.shields.io/badge/buoys-13-cyan)](src/api/buoyClient.ts)
 
-**Real-time weather monitoring for Galicia** — 100+ stations from 6 networks, 13 marine buoys, 3D interactive map, spot-based sailing intelligence with thermal wind detection, tide predictions, Telegram alerts, and agricultural monitoring.
+**Meteoroloxía en tempo real para Galicia** — Vento, ondas, mareas e alertas con 100+ estacións, 13 boias e mapa 3D interactivo.
 
-> **Monitorización meteorolóxica en tempo real para Galicia** — 100+ estacións, 13 boias, mapa 3D, intelixencia de navegación con detección térmica, mareas, alertas Telegram e monitorización agrícola.
+**Meteorología en tiempo real para Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas y mapa 3D interactivo.
+
+**En vivo**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) — Gratuito, sin registro. Funciona en cualquier dispositivo. Instalable como app (PWA).
 
 <p align="center">
-  <img src="hero.png" width="100%" alt="MeteoMapGal — 3D map with real-time weather stations, wind arrows, and sailing spots" />
+  <img src="hero.png" width="100%" alt="MeteoMapGal — mapa 3D con estaciones meteorológicas, flechas de viento y spots de navegación" />
 </p>
 
-**Live**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) &mdash; Free, no account needed. Works on any device. Installable as PWA.
+---
+
+## Zonas
+
+| Zona | Ubicación | Enfoque |
+|------|-----------|---------|
+| **Rías Baixas** | Pontevedra (costa) | Viento costero, olas, mareas, 100+ estaciones + 13 boyas |
+| **Embalse de Castrelo** | Ourense (interior) | Viento térmico para vela y viticultura, radio 35km |
 
 ---
 
-## Zones
+## Cómo usar
 
-| Zone | Location | Focus | Coverage |
-|------|----------|-------|----------|
-| **Embalse de Castrelo de Miño** | Ourense (inland) | Thermal wind for sailing & viticulture | 35 km radius |
-| **Rías Baixas** | Pontevedra (coast) | Coastal wind, waves, tides, marine monitoring | 40 km radius, 100+ stations + 13 buoys |
+1. Abre [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com)
+2. Elige zona — Rías Baixas o Embalse
+3. Toca un **spot** (icono de navegación) para ver condiciones: viento, olas, veredicto
+4. Colores: verde = bueno, amarillo = justo, rojo = peligroso
+5. Explora las pestañas: Estaciones, Gráfica, Previsión, Rankings, Historial
+6. **Alertas Telegram** — resumen diario 9:00 + alertas instantáneas de cambio de viento
 
----
-
-## How to Use
-
-1. Open [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) on phone or desktop
-2. Choose zone — Rías Baixas (coast) or Embalse (inland)
-3. Tap a **spot** (sailing icon) for conditions: wind, waves, verdict (CALMA → NAVEGABLE → FUERTE)
-4. Check the **color**: green = good, amber = marginal, red = dangerous
-5. Explore **tabs**: Estaciones, Gráfica, Previsión, Rankings, Historial
-6. **Telegram alerts** — daily summary at 9:00 AM + instant alerts for wind changes
+> O vento mídese en **nudos (kt)**: 1 nudo = 1,852 km/h. Consulta o glosario na guía para máis info.
 
 ---
 
-## Features
+## Funcionalidades
 
-### Map & Overlays
+### Mapa e capas
+- Mapa 3D (MapLibre GL) con 6 estilos base + terreo + sombreado
+- Partículas de vento animadas, humidade, temperatura, satélite IR, radar
+- Cartas náuticas, correntes superficiais, batimetría (só Rías)
 
-- 3D terrain map (MapLibre GL) with 6 switchable base styles + IGN overlays
-- Animated wind particles, humidity heatmap, temperature circles
-- EUMETSAT satellite IR, RainViewer radar (2h animated), lightning
-- Surface currents (RADAR ON RAIA), SST (CMEMS), bathymetry (EMODnet)
-- Nautical charts: OpenSeaMap seamarks + IHM ENC (Rías only)
+### Intelixencia meteorolóxica
+- **100+ estacións** de 6 redes (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, SkyX)
+- **13 boias mariñas** — ondas, vento, temperatura da auga, correntes
+- Consenso de vento ponderado por distancia, frescura e calidade
+- Detector de tendencias, néboa, frente de racha, afloramento
 
-### Weather Intelligence
+### Spots de navegación (6 spots)
+- Puntuación en 5 niveis: CALMA → FLOJO → NAVEGABLE → BUEN DÍA → FUERTE
+- Detección térmica, bocana NE matutina, día épico
+- Previsión térmica BETA (12-48h)
+- Ventana de navegación "Cuándo salgo?" (48h por spot)
+- Mareas por spot (5 portos IHM)
 
-- **100+ stations** from 6 networks (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, SkyX)
-- **13 marine buoys** — waves, wind, water temp, currents, humidity
-- Wind consensus: proximity-weighted multi-station analysis (distance x freshness x source quality)
-- Wind trend detection: 30min ramp analysis (building/rapid/dropping)
-- Barometric pressure trend, fog predictor, cross-sea alerts, upwelling detection
-- Historical data in TimescaleDB with interactive charts and CSV export
+### Marítimo (Rías Baixas)
+- Mareas para 5 portos, ondas, néboa marítima
+- Información de mareas no ticker
 
-### Sailing Spots (6 spots)
-
-- 5-level scoring: CALMA → FLOJO → NAVEGABLE → BUEN DÍA → FUERTE
-- Thermal boost, humidity precursor (bruma pattern, 96% correlation)
-- Theta-v gradient for thermal/bocana detection
-- Bocana detector (morning land drainage NE wind)
-- Epic day detector (T>30C + HR<45% = strong thermal onset)
-- Thermal forecast BETA (12-48h early warning)
-- Upwind propagation (coastal wind approaching before it arrives)
-- Tide summary per spot (IHM data, 5 ports)
-- Best sailing window "Cuándo salgo?" (48h per-spot forecast)
-- Webcams in spot popups
-
-### Maritime (Rías Baixas)
-
-- Tide predictions for 5 ports (Vigo, Marín, Vilagarcía, Baiona, Sanxenxo)
-- Tide info in scrolling ticker
-- Wave conditions with animated glyph visualization
-- Maritime fog, cross-sea, upwelling alerts
-
-### Agriculture
-
-- Field alerts (frost, rain, fog, ET0, phytosanitary risk)
-- GDD for viticulture (9 phenological stages, Galician calibration)
-- Lunar phases with agricultural recommendations
-- Drone airspace (UAS zones + ENAIRE NOTAMs)
-
-### General
-
-- PWA installable, keyboard shortcuts, dark/light theme
-- Conditions ticker with priority-sorted live data + tide (Rías)
-- Telegram alerts (n8n webhook) — daily summary + instant wind changes
-- Embeddable widget for clubs/websites
-- 220 tests (Vitest), 15 Zustand stores, lazy-loaded components
+### Agricultura
+- Alertas de campo (xeada, choiva, néboa, ET0, risco fitosanitario)
+- GDD para viticultura (9 fases fenolóxicas)
+- Fases lunares, espazos aéreos para drons
 
 ---
 
-## Widget
+## Fontes de datos
 
-```html
-<!-- All spots -->
-<iframe src="https://meteomapgal.navia3d.com/widget.html?sector=rias"
-  width="700" height="400" frameborder="0"></iframe>
+| Fonte | Datos |
+|-------|-------|
+| AEMET, MeteoGalicia, Meteoclimatic | Estacións oficiais e cidadás |
+| Weather Underground, Netatmo, SkyX | Estacións persoais |
+| Puertos del Estado, Obs. Costeiro | Boias mariñas |
+| Open-Meteo | Previsión ECMWF/GFS/ICON |
+| EUMETSAT, RainViewer, IHM, ENAIRE | Satélite, radar, mareas, espazo aéreo |
+| CMEMS, EMODnet, INTECMAR, IGN | SST, batimetría, correntes, cartografía |
 
-<!-- Single spot -->
-<iframe src="https://meteomapgal.navia3d.com/widget.html?spot=cesantes&theme=light"
-  width="380" height="180" frameborder="0"></iframe>
-```
-
----
-
-## Data Sources
-
-| Source | Data |
-|--------|------|
-| **AEMET** OpenData | ~9 stations, national radar |
-| **MeteoGalicia** | ~13 stations, lightning |
-| **Meteoclimatic** | ~10 citizen stations |
-| **Weather Underground** | ~10 personal stations |
-| **Netatmo** | 60+ consumer stations |
-| **SkyX** | 1 personal PWS |
-| **Puertos del Estado** | 12 marine buoys |
-| **Observatorio Costeiro** | 6 buoy platforms (10-min resolution) |
-| **Open-Meteo** | ECMWF/GFS/ICON forecast, GDD archive |
-| **EUMETSAT** | Meteosat IR satellite |
-| **IHM** | Tides (5 ports) |
-| **ENAIRE** | Airspace (UAS + NOTAMs) |
-| **CMEMS, EMODnet, IGN, INTECMAR** | SST, bathymetry, cartography, currents |
-
-All data from open/public sources. Only AEMET requires a free API key.
+Todos os datos de fontes abertas. Só AEMET require chave API gratuíta.
 
 ---
 
 ## Roadmap
 
-### v2.0 — In Progress
-- GPU-accelerated markers (60fps map panning)
-- Redesigned wind arrows with speed-variable thickness
-- New typography and visual identity
-- Collapsible sidebar layout (map-first design)
-- Tide info in scrolling ticker
+### v2.1 — Actual
+- Marcadores GPU con identificación de fonte (letra + cor)
+- Boias en forma de diamante
+- Spots con arco de vento (gauge visual)
+- Rendemento 60fps (terrain toggle, partículas optimizadas)
+- 18 correccións de accesibilidade (audit UX v2)
+- Banner PWA, pausa no ticker, busca no glosario
 
-### Coming Next
-- More sailing spots (A Lanzada, Sanxenxo, Samil)
-- AIS vessel tracking overlay (real-time ship positions in the Rías)
-- Aviation alerts near Castrelo reservoir (firefighting aircraft proximity warnings)
-- Regatta mode prototype (full-screen map, mark placement, distance tools)
-- Gust glow on wind particles (visual pulse on strong gusts)
+### Próximamente
+- Máis spots (A Lanzada, Sanxenxo, Samil)
+- Seguimento AIS de barcos (posicións en tempo real nas Rías)
+- Alertas de aviación no embalse (hidroavións contraincendios)
+- Modo regata experimental
 
-### v3.0 — Future
-- Full regatta mode (race zones, committee boat, start line, AIS tracking)
-- New monitoring zones (A Coruña, Costa da Morte, Lugo)
-- Pro panel for clubs (90-day history, custom alerts, API access)
+### v3.0 — Futuro
+- Modo regata completo (balizas, liña de saída, cronómetro)
+- Novas zonas (A Coruña, Costa da Morte)
+- Panel Pro para clubs
 
 ---
 
-## For Developers
+## Para desenvolvedores
 
 ```bash
 git clone https://github.com/Bateas/MeteoMapGal.git
 cd MeteoMapGal
 npm install
-cp .env.example .env    # Add AEMET + ObsCosteiro API keys
+cp .env.example .env    # Engadir chaves API de AEMET + ObsCosteiro
 npm run dev             # http://localhost:5173
-npm run build           # Production → dist/
+npm run build           # Produción → dist/
 npm test                # 220 tests (Vitest)
 ```
 
-**Stack**: React 19.2 + TypeScript 5.9 + Vite 7.3 + MapLibre GL 5.19 + Zustand 5 + Tailwind 4.2 + Recharts + TimescaleDB
-
-**Ingestor**: Standalone Node.js service polling 6 sources every 5min → TimescaleDB. Runs as systemd service.
+**Stack**: React 19 · TypeScript 5.9 · Vite 7 · MapLibre GL 5 · Zustand 5 · Tailwind 4 · Recharts · TimescaleDB
 
 ---
 
-## Support
+## Apoiar
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20MeteoMapGal-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/meteomapgal)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Apoiar%20MeteoMapGal-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/meteomapgal)
 
-## License
+## Licenza
 
 [MIT](LICENSE)
 
