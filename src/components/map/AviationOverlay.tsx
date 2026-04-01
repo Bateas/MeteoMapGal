@@ -1,4 +1,4 @@
-import { useMemo, memo, useState, useCallback } from 'react';
+import { useMemo, useEffect, memo, useState, useCallback } from 'react';
 import { Source, Layer, Popup } from 'react-map-gl/maplibre';
 import { useMap } from 'react-map-gl/maplibre';
 import { useAviationStore } from '../../store/aviationStore';
@@ -10,17 +10,84 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
   features: [],
 };
 
+const ICON_SIZE = 32;
+const ICON_ID = 'aircraft-icon';
+
+/** Draw airplane silhouette on canvas — white with dark outline */
+function createAircraftImage(): ImageData {
+  const canvas = document.createElement('canvas');
+  canvas.width = ICON_SIZE;
+  canvas.height = ICON_SIZE;
+  const ctx = canvas.getContext('2d')!;
+  const cx = ICON_SIZE / 2;
+  const cy = ICON_SIZE / 2;
+
+  ctx.translate(cx, cy);
+
+  // Fuselage
+  ctx.beginPath();
+  ctx.moveTo(0, -12);
+  ctx.lineTo(2, -6);
+  ctx.lineTo(2, 8);
+  ctx.lineTo(0, 12);
+  ctx.lineTo(-2, 8);
+  ctx.lineTo(-2, -6);
+  ctx.closePath();
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.5;
+  ctx.fill();
+  ctx.stroke();
+
+  // Main wings
+  ctx.beginPath();
+  ctx.moveTo(-12, 0);
+  ctx.lineTo(-2, -3);
+  ctx.lineTo(2, -3);
+  ctx.lineTo(12, 0);
+  ctx.lineTo(2, 1);
+  ctx.lineTo(-2, 1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Tail wings
+  ctx.beginPath();
+  ctx.moveTo(-5, 8);
+  ctx.lineTo(-2, 6);
+  ctx.lineTo(2, 6);
+  ctx.lineTo(5, 8);
+  ctx.lineTo(2, 9);
+  ctx.lineTo(-2, 9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  return ctx.getImageData(0, 0, ICON_SIZE, ICON_SIZE);
+}
+
+/** Register aircraft icon on map load */
+export function registerAircraftIcon(map: maplibregl.Map) {
+  if (map.hasImage(ICON_ID)) return;
+  map.addImage(ICON_ID, createAircraftImage(), { sdf: false });
+}
+
 /**
  * Aviation overlay — Embalse sector only.
- * Shows aircraft as icons with altitude labels.
- * Color-coded by alert proximity.
+ * Shows aircraft as airplane icons rotated by heading.
+ * Color-coded altitude labels by proximity.
  */
 export const AviationOverlay = memo(function AviationOverlay() {
   const aircraft = useAviationStore((s) => s.aircraft);
-  const alert = useAviationStore((s) => s.alert);
   const showOverlay = useAviationStore((s) => s.showOverlay);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const { current: mapRef } = useMap();
+
+  // Register icon when map is available
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (map) registerAircraftIcon(map);
+  }, [mapRef]);
 
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || aircraft.length === 0) return EMPTY_FC;
@@ -37,7 +104,6 @@ export const AviationOverlay = memo(function AviationOverlay() {
           velocity: ac.velocity,
           verticalRate: ac.verticalRate,
           distanceKm: ac.distanceKm,
-          // Color by proximity
           color: ac.distanceKm < 1 ? '#ef4444' : ac.distanceKm < 3 ? '#f59e0b' : '#60a5fa',
           altLabel: `${Math.round(ac.altitude)}m`,
         },
@@ -45,7 +111,6 @@ export const AviationOverlay = memo(function AviationOverlay() {
     };
   }, [showOverlay, aircraft]);
 
-  // Click handler
   const handleClick = useCallback(
     (e: MapLayerMouseEvent) => {
       const feature = e.features?.[0];
@@ -57,7 +122,7 @@ export const AviationOverlay = memo(function AviationOverlay() {
     [aircraft],
   );
 
-  useMemo(() => {
+  useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
     map.on('click', 'aviation-aircraft', handleClick);
@@ -69,6 +134,8 @@ export const AviationOverlay = memo(function AviationOverlay() {
     });
     return () => {
       map.off('click', 'aviation-aircraft', handleClick);
+      map.off('mouseenter', 'aviation-aircraft', () => {});
+      map.off('mouseleave', 'aviation-aircraft', () => {});
     };
   }, [mapRef, handleClick]);
 
@@ -77,16 +144,20 @@ export const AviationOverlay = memo(function AviationOverlay() {
   return (
     <>
       <Source id="aviation-source" type="geojson" data={geojson}>
-        {/* Aircraft circles */}
+        {/* Aircraft icons — rotated by heading */}
         <Layer
           id="aviation-aircraft"
-          type="circle"
+          type="symbol"
+          layout={{
+            'icon-image': ICON_ID,
+            'icon-size': ['interpolate', ['linear'], ['zoom'], 8, 0.6, 13, 1.2],
+            'icon-rotate': ['get', 'heading'],
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+          }}
           paint={{
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5, 13, 10],
-            'circle-color': ['get', 'color'],
-            'circle-opacity': 0.9,
-            'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': 1.5,
+            'icon-opacity': 0.95,
           }}
         />
         {/* Altitude labels */}
@@ -96,12 +167,12 @@ export const AviationOverlay = memo(function AviationOverlay() {
           layout={{
             'text-field': ['get', 'altLabel'],
             'text-size': 10,
-            'text-offset': [0, -1.5],
+            'text-offset': [0, -1.8],
             'text-anchor': 'bottom',
             'text-allow-overlap': true,
           }}
           paint={{
-            'text-color': '#fbbf24',
+            'text-color': ['get', 'color'],
             'text-halo-color': '#000000',
             'text-halo-width': 1,
           }}
@@ -113,7 +184,7 @@ export const AviationOverlay = memo(function AviationOverlay() {
           layout={{
             'text-field': ['get', 'callsign'],
             'text-size': ['interpolate', ['linear'], ['zoom'], 10, 0, 12, 9, 14, 11],
-            'text-offset': [0, 1.4],
+            'text-offset': [0, 1.6],
             'text-anchor': 'top',
             'text-optional': true,
           }}
@@ -125,7 +196,6 @@ export const AviationOverlay = memo(function AviationOverlay() {
         />
       </Source>
 
-      {/* Aircraft popup */}
       {selectedAircraft && (
         <Popup
           longitude={selectedAircraft.lon}
@@ -138,15 +208,8 @@ export const AviationOverlay = memo(function AviationOverlay() {
           <div className="p-2 text-sm text-slate-200 min-w-[180px]">
             <div className="font-semibold text-white mb-1">{selectedAircraft.callsign}</div>
             <div className="space-y-0.5 text-xs text-slate-400">
-              <div>
-                Altitud: <span className="text-slate-200">{Math.round(selectedAircraft.altitude)}m</span>
-              </div>
-              <div>
-                Velocidad:{' '}
-                <span className="text-slate-200">
-                  {Math.round(selectedAircraft.velocity * 3.6)} km/h
-                </span>
-              </div>
+              <div>Altitud: <span className="text-slate-200">{Math.round(selectedAircraft.altitude)}m</span></div>
+              <div>Velocidad: <span className="text-slate-200">{Math.round(selectedAircraft.velocity * 3.6)} km/h</span></div>
               <div>
                 Vertical:{' '}
                 <span className={selectedAircraft.verticalRate < 0 ? 'text-red-400' : 'text-green-400'}>
@@ -155,9 +218,7 @@ export const AviationOverlay = memo(function AviationOverlay() {
                   {selectedAircraft.verticalRate < -1 ? ' ↓' : selectedAircraft.verticalRate > 1 ? ' ↑' : ''}
                 </span>
               </div>
-              <div>
-                Distancia: <span className="text-slate-200">{selectedAircraft.distanceKm.toFixed(1)} km</span>
-              </div>
+              <div>Distancia: <span className="text-slate-200">{selectedAircraft.distanceKm.toFixed(1)} km</span></div>
               <div className="text-slate-500 mt-1">ICAO: {selectedAircraft.icao24}</div>
             </div>
           </div>
