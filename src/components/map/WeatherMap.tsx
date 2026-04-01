@@ -164,6 +164,8 @@ export function WeatherMap() {
       const map = mapRef.current?.getMap();
       if (map && !map.getTerrain()) {
         map.setTerrain({ source: 'terrainDEM', exaggeration: 1.2 });
+        // Force tile repaint after terrain restore to prevent black tiles
+        requestAnimationFrame(() => map.triggerRepaint());
       }
     }, 500);
   }, []);
