@@ -151,7 +151,10 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
       <div className="mt-2 flex flex-col gap-1">
         <button
           onClick={() => {
-            useWeatherSelectionStore.getState().toggleChartStation(buoyChartId);
+            const store = useWeatherSelectionStore.getState();
+            const wasInChart = store.chartSelectedStations.includes(buoyChartId);
+            store.toggleChartStation(buoyChartId);
+            if (!wasInChart) useUIStore.getState().setRequestedTab('chart');
           }}
           className={`w-full text-xs py-1.5 rounded border ${
             isInChart
@@ -159,13 +162,12 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
               : 'border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-300'
           }`}
         >
-          {isInChart ? 'Quitar de grafica' : 'Añadir a grafica'}
+          {isInChart ? 'Quitar de gráfica' : 'Añadir a gráfica'}
         </button>
         <button
           onClick={() => {
             useWeatherSelectionStore.getState().openHistory(buoyChartId);
-            const sidebar = document.querySelector('[aria-controls="tabpanel-history"]') as HTMLButtonElement | null;
-            sidebar?.click();
+            useUIStore.getState().setRequestedTab('history');
           }}
           className="w-full text-xs py-1.5 rounded border border-cyan-700 bg-slate-800 hover:bg-cyan-900/30 text-cyan-400"
         >

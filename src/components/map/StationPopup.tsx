@@ -258,7 +258,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
 
       {/* Add to chart button */}
       <button
-        onClick={() => toggleChartStation(station.id)}
+        onClick={() => { toggleChartStation(station.id); if (!isInChart) setRequestedTab('chart'); }}
         className={`mt-2 w-full py-1 px-2 text-[11px] font-semibold border rounded cursor-pointer transition-colors
           ${isInChart
             ? 'border-amber-600 bg-amber-900/30 text-amber-400 hover:bg-amber-900/50'
