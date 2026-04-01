@@ -221,7 +221,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                 : undefined
             }
             title="Condiciones, alertas y campo (C)"
-            aria-label="Condiciones, alertas y campo"
+            aria-label="Condiciones, alertas y campo (tecla C)"
           >
             <span className="inline-flex items-center gap-1">
               <WeatherIcon id="activity" size={isMobile ? 16 : 14} />

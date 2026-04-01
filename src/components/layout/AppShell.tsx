@@ -28,6 +28,7 @@ const OnboardingTour = lazy(() => import('../common/OnboardingTour').then(m => (
 import { tryAutoSector } from '../../services/geolocationService';
 import { ConditionsTicker } from '../common/ConditionsTicker';
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
+import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { useThemeStore } from '../../store/themeStore';
 import { processAlertNotifications } from '../../services/notificationService';
@@ -408,6 +409,7 @@ export function AppShell() {
       {!isMobile && <KeyboardShortcutHelp />}
       <Suspense fallback={null}><OnboardingTour /></Suspense>
       <ToastContainer />
+      <PwaInstallBanner />
 
       {/* Ko-fi link moved to MeteoGuide (below Aviso Legal) + Sidebar */}
     </div>
