@@ -133,17 +133,18 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
       const alertScore = hourAlerts.reduce((max, a) => Math.max(max, a.score), 0);
 
       // Per-hour modulation: scale global prob by time-of-day + conditions
+      // Castrelo thermal peaks 17-20h (esp. 18:30), NOT at generic 13-17h.
+      // Morning precursors (humidity drop, temp rise) visible from 12h.
       const h = point.timestamp.getHours();
-      const isDay = h >= 9 && h <= 19;
       const hum = point.humidity ?? 50;
       let hourFactor = 0;
-      if (isDay) {
-        // Peak hours 13-17 get full probability, shoulders get less
-        hourFactor = (h >= 13 && h <= 17) ? 1.0 : (h >= 11 && h <= 19) ? 0.7 : 0.3;
-        // Humidity penalty
-        if (hum > 80) hourFactor *= 0.4;
-        else if (hum > 70) hourFactor *= 0.7;
-      }
+      if (h >= 17 && h <= 20) hourFactor = 1.0;       // peak thermal window
+      else if (h >= 15 && h < 17) hourFactor = 0.6;    // building phase
+      else if (h >= 12 && h < 15) hourFactor = 0.25;   // precursors only
+      else if (h >= 10 && h < 12) hourFactor = 0.1;    // early signs
+      // Humidity penalty (>80% kills thermal, >70% weakens)
+      if (hum > 80) hourFactor *= 0.3;
+      else if (hum > 70) hourFactor *= 0.6;
       const hourScore = Math.round(globalThermalProb * hourFactor);
 
       return {
