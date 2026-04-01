@@ -36,7 +36,7 @@ export function PwaInstallBanner() {
     localStorage.setItem(VISIT_COUNT_KEY, String(count));
     if (count < MIN_VISITS) return;
 
-    // iOS: show manual instructions after MIN_VISITS
+    // iOS: show manual instructions
     if (isIos()) {
       setShow(true);
       return;
@@ -49,7 +49,18 @@ export function PwaInstallBanner() {
       setShow(true);
     };
     window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+
+    // Fallback: if beforeinstallprompt doesn't fire after 10s (e.g. already
+    // installable but browser didn't prompt, or Firefox/Safari), show anyway
+    // with a generic "add to home screen" message
+    const fallbackTimer = setTimeout(() => {
+      if (!promptRef.current) setShow(true);
+    }, 10_000);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
   const handleInstall = useCallback(async () => {
