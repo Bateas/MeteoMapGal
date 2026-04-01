@@ -976,9 +976,9 @@ export function scoreAllSpots(
         if (gustKt === null || gKt > gustKt) gustKt = gKt;
       }
     }
-    // Sanity cap: reject gusts >60kt (sensor glitch) and >4x average (physically implausible)
+    // Sanity cap: reject gusts >45kt (Galician coast max realistic) or >3x average (sensor glitch)
     const avgKt = wind?.avgSpeedKt ?? 0;
-    if (gustKt !== null && (gustKt > 60 || (avgKt > 0 && gustKt > avgKt * 4))) gustKt = null;
+    if (gustKt !== null && (gustKt > 45 || (avgKt > 0 && gustKt > avgKt * 3))) gustKt = null;
     if (gustKt !== null) gustKt = Math.round(gustKt * 10) / 10;
 
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
