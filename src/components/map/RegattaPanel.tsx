@@ -4,6 +4,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useAlertStore } from '../../store/alertStore';
 import { useLightningStore } from '../../hooks/useLightningData';
+import { useAviationStore } from '../../store/aviationStore';
 import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import type { NormalizedStation, NormalizedReading } from '../../types/weather';
@@ -154,7 +155,19 @@ export const RegattaPanel = memo(function RegattaPanel() {
       alertMsgs.push(`Posible niebla: HR ${avgHumidity}% + calma`);
     }
 
-    // 6. General alerts from alertStore
+    // 6. AVIATION — aircraft near event zone
+    const avAlert = useAviationStore.getState().alert;
+    if (avAlert.level === 'critical') {
+      semaphore = 'red';
+      alertMsgs.push(`AERONAVE MUY CERCA: ${avAlert.nearestAircraft?.callsign || 'desconocida'} a ${avAlert.nearestAircraft?.distanceKm.toFixed(1)}km, ${Math.round(avAlert.nearestAircraft?.altitude || 0)}m`);
+    } else if (avAlert.level === 'moderate') {
+      if (semaphore !== 'red') semaphore = 'yellow';
+      alertMsgs.push(`Aeronave descendiendo: ${avAlert.nearestAircraft?.callsign || ''} a ${avAlert.nearestAircraft?.distanceKm.toFixed(1)}km`);
+    } else if (avAlert.level === 'info' && avAlert.aircraftInBbox > 0) {
+      alertMsgs.push(`${avAlert.aircraftInBbox} aeronave(s) en zona (~${avAlert.nearestAircraft?.distanceKm.toFixed(0)}km)`);
+    }
+
+    // 7. General alerts from alertStore
     for (const a of alerts) {
       if ((a.category === 'storm' || a.category === 'rain') && !alertMsgs.some(m => m.includes('ormenta') || m.includes('ayo'))) {
         alertMsgs.push(a.title);
