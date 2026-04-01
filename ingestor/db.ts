@@ -64,8 +64,8 @@ const COLS = 12;
 function sanitizeReading(r: NormalizedReading): NormalizedReading {
   let gust = r.windGust;
   const speed = r.windSpeed;
-  // Reject gusts >60kt (~31 m/s) or >4x average — sensor glitch (SkyX 88kt etc.)
-  if (gust !== null && (gust > 31 || (speed != null && speed > 0 && gust > speed * 4))) {
+  // Reject gusts >45kt (~23 m/s) or >3x average — sensor glitch (SkyX anomalous gusts)
+  if (gust !== null && (gust > 23 || (speed != null && speed > 0 && gust > speed * 3))) {
     gust = null;
   }
   // Reject wind speed >50 m/s (~97kt) — physically implausible for Galicia
