@@ -8,7 +8,7 @@
  * Sector-aware: renders spots for the active sector.
  */
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Marker } from 'react-map-gl/maplibre';
+import { Marker, useMap } from 'react-map-gl/maplibre';
 import { getSpotsForSector } from '../../config/spots';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
@@ -43,6 +43,22 @@ export const SpotMarkers = memo(function SpotMarkers() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
 
+  // Zoom-based scaling for spots — smaller at low zoom to reduce overlap
+  const { current: mapRef } = useMap();
+  const [zoomScale, setZoomScale] = useState(1);
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onZoom = () => {
+      const z = map.getZoom();
+      // Scale: 0.65 at zoom 9, 0.8 at zoom 10, 1.0 at zoom 11+
+      setZoomScale(z >= 11 ? 1 : z >= 10 ? 0.8 : z >= 9 ? 0.65 : 0.5);
+    };
+    onZoom();
+    map.on('zoomend', onZoom);
+    return () => { map.off('zoomend', onZoom); };
+  }, [mapRef]);
+
   // Show spinner until scoring has run + 3s grace period.
   // Spots mount under the loading screen (~10s), so we delay dismissal
   // after first scoring to give a visible spinner during map reveal.
@@ -74,6 +90,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
             isActive={isActive}
             isLoading={spotLoading}
             onSelect={selectSpot}
+            zoomScale={zoomScale}
           />
         );
       })}
@@ -94,6 +111,7 @@ interface SpotMarkerItemProps {
   isActive: boolean;
   isLoading: boolean;
   onSelect: (id: string) => void;
+  zoomScale: number;
 }
 
 /** SVG arc path for wind gauge (0-20kt mapped to 0-270°) */
@@ -121,9 +139,12 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   isActive,
   isLoading,
   onSelect,
+  zoomScale,
 }: SpotMarkerItemProps) {
   const colors = VERDICT_COLORS[verdict];
-  const size = isActive ? 44 : 36;
+  // Scale down at low zoom to avoid overlapping other markers
+  const baseSize = isActive ? 44 : 36;
+  const size = baseSize;
   const iconSize = isActive ? 20 : 16;
   const gaugeR = size / 2 + 4;
 
@@ -146,7 +167,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
 
   return (
     <Marker longitude={lon} latitude={lat} anchor="center" onClick={handleClick}>
-      <div className="spot-marker relative cursor-pointer" title={shortName}>
+      <div className="spot-marker relative cursor-pointer" title={shortName} style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center' }}>
         <svg
           width={svgSize}
           height={svgSize}
