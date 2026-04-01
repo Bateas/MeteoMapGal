@@ -53,6 +53,9 @@ deploy.sh
 deploy.ps1
 lxc-setup.sh
 
+# One-off analysis scripts (not app code)
+scripts/
+
 # n8n workflows (operational, not app code)
 n8n-workflow-*.json
 n8n/
