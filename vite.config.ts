@@ -136,7 +136,7 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
       },
       '/lmstudio-api': {
-        target: 'http://[internal-ip]:1234',
+        target: `http://${process.env.LMSTUDIO_HOST || 'localhost'}:1234`,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/lmstudio-api/, ''),
       },
