@@ -96,6 +96,20 @@ interface SpotMarkerItemProps {
   onSelect: (id: string) => void;
 }
 
+/** SVG arc path for wind gauge (0-20kt mapped to 0-270°) */
+function gaugeArc(r: number, windKt: number | null): string {
+  if (windKt == null || windKt < 1) return '';
+  const angle = Math.min(270, (windKt / 20) * 270); // 20kt = full arc
+  const rad = ((angle - 90) * Math.PI) / 180; // start at top (-90°)
+  const startRad = (-90 * Math.PI) / 180;
+  const x1 = r * Math.cos(startRad);
+  const y1 = r * Math.sin(startRad);
+  const x2 = r * Math.cos(rad);
+  const y2 = r * Math.sin(rad);
+  const large = angle > 180 ? 1 : 0;
+  return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+}
+
 const SpotMarkerItem = memo(function SpotMarkerItem({
   spotId,
   icon,
@@ -109,9 +123,9 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   onSelect,
 }: SpotMarkerItemProps) {
   const colors = VERDICT_COLORS[verdict];
-  const size = isActive ? 48 : 40;
-  const ringWidth = isActive ? 3 : 2;
-  const iconSize = isActive ? 22 : 18;
+  const size = isActive ? 44 : 36;
+  const iconSize = isActive ? 20 : 16;
+  const gaugeR = size / 2 + 4;
 
   const handleClick = useCallback(
     (e: { originalEvent: MouseEvent }) => {
@@ -127,82 +141,61 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
     ? `${label} ${windKt.toFixed(0)}kt`
     : label;
 
+  const svgSize = size + 24;
+  const half = svgSize / 2;
+
   return (
     <Marker longitude={lon} latitude={lat} anchor="center" onClick={handleClick}>
       <div className="spot-marker relative cursor-pointer" title={shortName}>
         <svg
-          width={size + 30}
-          height={size + 30}
-          viewBox={`${-(size / 2 + 15)} ${-(size / 2 + 15)} ${size + 30} ${size + 30}`}
+          width={svgSize}
+          height={svgSize}
+          viewBox={`${-half} ${-half} ${svgSize} ${svgSize}`}
           role="img"
-          aria-label={`Spot ${shortName}`}
+          aria-label={`Spot ${shortName}: ${badgeText}`}
         >
-          <defs>
-            {/* Radial gradient for ambient glow */}
-            <radialGradient id={`spot-glow-${spotId}`}>
-              <stop offset="0%" stopColor={colors.glow} stopOpacity="0.25" />
-              <stop offset="70%" stopColor={colors.glow} stopOpacity="0.06" />
-              <stop offset="100%" stopColor={colors.glow} stopOpacity="0" />
-            </radialGradient>
-          </defs>
+          {/* Hit area */}
+          <circle r={half} fill="transparent" />
 
-          {/* Invisible larger hit area for easier clicking */}
-          <circle r={size / 2 + 14} fill="transparent" />
-
-          {/* Ambient glow circle (always visible, subtle) */}
-          <circle r={size / 2 + 10} fill={`url(#spot-glow-${spotId})`} />
-
-          {/* Pulse ring for active spot */}
+          {/* Pulse ring — active only */}
           {isActive && (
-            <circle r={size / 2 + 8} fill="none" stroke={colors.glow} strokeWidth="1.5" opacity="0.4">
-              <animate
-                attributeName="r"
-                values={`${size / 2 + 6};${size / 2 + 14};${size / 2 + 6}`}
-                dur="3s"
-                repeatCount="indefinite"
-              />
-              <animate
-                attributeName="opacity"
-                values="0.5;0.15;0.5"
-                dur="3s"
-                repeatCount="indefinite"
-              />
+            <circle r={size / 2 + 8} fill="none" stroke={colors.ring} strokeWidth="1" opacity="0.3">
+              <animate attributeName="r" values={`${size / 2 + 6};${size / 2 + 12};${size / 2 + 6}`} dur="2.5s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2.5s" repeatCount="indefinite" />
             </circle>
           )}
 
-          {/* Outer dashed ring — zone indicator */}
+          {/* Background track ring (dark) */}
           <circle
-            r={size / 2 + 4}
+            r={gaugeR}
             fill="none"
             stroke={colors.ring}
-            strokeWidth="1"
-            strokeDasharray="5,3"
-            opacity={isActive ? 0.6 : 0.35}
+            strokeWidth={isActive ? 3 : 2}
+            opacity={0.15}
           />
 
-          {/* Secondary solid ring (new — makes spot pop vs station dots) */}
-          <circle
-            r={size / 2 + 1}
-            fill="none"
-            stroke={colors.ring}
-            strokeWidth="0.8"
-            opacity={isActive ? 0.5 : 0.2}
-          />
+          {/* Wind gauge arc — proportional to wind speed */}
+          {windKt != null && windKt >= 1 && (
+            <path
+              d={gaugeArc(gaugeR, windKt)}
+              fill="none"
+              stroke={colors.ring}
+              strokeWidth={isActive ? 3.5 : 2.5}
+              strokeLinecap="round"
+              opacity={isActive ? 0.9 : 0.7}
+            />
+          )}
 
-          {/* Main circle */}
+          {/* Main filled circle */}
           <circle
             r={size / 2}
-            fill={colors.bg}
+            fill={`${colors.ring}18`}
             stroke={colors.ring}
-            strokeWidth={ringWidth}
-            style={{
-              filter: isActive
-                ? `drop-shadow(0 0 8px ${colors.glow}88)`
-                : `drop-shadow(0 0 4px ${colors.glow}44)`,
-            }}
+            strokeWidth={isActive ? 2 : 1.5}
+            opacity={isActive ? 1 : 0.85}
           />
 
-          {/* Icon via foreignObject — renders WeatherIcon (lucide SVG) inside the circle */}
+          {/* Icon */}
           <foreignObject
             x={-iconSize / 2}
             y={-iconSize / 2}
@@ -211,45 +204,37 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
             style={{ pointerEvents: 'none' }}
           >
             <div style={{ width: iconSize, height: iconSize, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <WeatherIcon id={icon} size={iconSize} className="text-slate-200" />
+              <WeatherIcon id={icon} size={iconSize} style={{ color: colors.ring }} />
             </div>
           </foreignObject>
         </svg>
 
-        {/* Verdict badge — top-right — shows kt for sailor glance value */}
+        {/* Verdict badge — top-right */}
         <div
-          className="absolute -top-0.5 -right-0.5 rounded-full pointer-events-none whitespace-nowrap border flex items-center gap-0.5"
+          className="absolute -top-1 -right-1 rounded-full pointer-events-none whitespace-nowrap flex items-center gap-0.5"
           style={{
             fontSize: 11,
             fontWeight: 800,
             fontFamily: 'ui-monospace, monospace',
             lineHeight: '14px',
-            padding: isLoading ? '2px 5px' : '1px 6px',
-            background: 'rgba(15, 23, 42, 0.92)',
-            borderColor: isLoading ? '#60a5fa80' : `${colors.ring}80`,
+            padding: isLoading ? '2px 5px' : '2px 7px',
+            background: `${colors.ring}20`,
+            border: `1.5px solid ${colors.ring}60`,
             color: isLoading ? '#93c5fd' : colors.text,
-            textShadow: isLoading ? 'none' : `0 0 5px ${colors.glow}66`,
-            backfaceVisibility: 'hidden',
-            WebkitFontSmoothing: 'antialiased',
-            MozOsxFontSmoothing: 'grayscale',
-            willChange: 'transform',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
           } as React.CSSProperties}
         >
           {isLoading ? <LoadingSpinner /> : badgeText}
         </div>
 
-        {/* Name label — below marker (dark pill for legibility on any terrain) */}
+        {/* Name label — below marker */}
         <div
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full whitespace-nowrap text-xs font-extrabold pointer-events-none rounded-full px-2 py-0.5"
+          className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 translate-y-full whitespace-nowrap text-[11px] font-bold pointer-events-none px-2 py-0.5 rounded"
           style={{
-            background: 'rgba(15, 23, 42, 0.85)',
-            color: '#e2e8f0',
-            border: `1px solid ${colors.ring}60`,
-            letterSpacing: '0.02em',
-            backfaceVisibility: 'hidden',
-            WebkitFontSmoothing: 'antialiased',
-            MozOsxFontSmoothing: 'grayscale',
-            willChange: 'transform',
+            color: colors.text,
+            textShadow: '0 1px 3px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.6)',
+            letterSpacing: '0.03em',
           } as React.CSSProperties}
         >
           {shortName}
