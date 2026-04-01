@@ -57,19 +57,15 @@ export function Sidebar() {
   }, [isEmbalse, activeTab]);
 
   // React to external tab switch requests (from popup "Ver historial" button)
-  // Also auto-expand sidebar if collapsed (desktop)
+  // AppShell handles expanding the sidebar; here we just switch the tab.
   const requestedTab = useUIStore((s) => s.requestedTab);
   const setRequestedTab = useUIStore((s) => s.setRequestedTab);
   useEffect(() => {
-    if (requestedTab && requestedTab !== activeTab) {
+    if (requestedTab) {
       setActiveTab(requestedTab as Tab);
       setRequestedTab(null);
-      // Auto-open sidebar: collapsed (desktop) or closed (mobile)
-      const state = useUIStore.getState();
-      if (state.sidebarCollapsed) state.setSidebarCollapsed(false);
-      if (state.isMobile && !state.sidebarOpen) state.setSidebarOpen(true);
     }
-  }, [requestedTab, activeTab, setRequestedTab]);
+  }, [requestedTab, setRequestedTab]);
 
   // When on History tab, clicking a station/buoy on map auto-loads its history
   const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
