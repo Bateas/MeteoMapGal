@@ -37,20 +37,20 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="sailboat"
             title="Marcadores de spot"
-            text="Marcadores grandes con icono de actividad. Clic abre popup detallado con veredicto, viento, oleaje, mareas, webcam y scoring. Estrella para marcar favorito."
+            text="Hex&aacute;gonos semi-transparentes con arco de viento (gauge) e icono de actividad. Cada spot tiene un badge con el veredicto (CALMA, FLOJO, NAVEG., BUENO, FUERTE) y nudos. Clic abre popup con detalles."
           />
           <MiniExplainer
             iconId="wind"
             title="Ticker de condiciones"
-            text="Banner horizontal animado en la cabecera. Muestra en tiempo real: veredictos de cada spot, racha máxima, oleaje, rango de temperaturas. Se desplaza automáticamente."
+            text="Banner horizontal animado con bot&oacute;n de pausa. Colores por categor&iacute;a: verde (spots con viento), &aacute;mbar (alertas/t&eacute;rmicos), cyan (mareas/olas), azul (previsi&oacute;n)."
           />
         </div>
       </div>
 
       {/* Station markers */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Marcadores de estación</h3>
-        <p className="text-xs text-slate-400">Los nombres de estación se muestran al hacer zoom. Aleja para ver solo los marcadores sin solapamiento de texto.</p>
+        <h3 className="text-sm font-bold text-white">Marcadores de estaci&oacute;n</h3>
+        <p className="text-xs text-slate-400">C&iacute;rculos con la letra de la fuente (A, MG, MC, WU, NT, SX) y anillo de color. El c&iacute;rculo cambia de color seg&uacute;n temperatura. Las boyas son diamantes con &quot;B&quot;.</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <ExplainerCard
             title="Estación de viento"
@@ -62,7 +62,7 @@ export function ReadingMapSection() {
                 <text x="30" y="34" textAnchor="middle" className="text-[11px] fill-emerald-400 font-bold">7</text>
               </svg>
             }
-            description="Círculo con flecha de dirección. Color = velocidad (escala Beaufort). Número = nudos."
+            description="C&iacute;rculo con letra de fuente (A, MG, MC...) + anillo de color de la red. Color del c&iacute;rculo = temperatura. Flechas alrededor = viento."
           />
           <ExplainerCard
             title="Solo temperatura"
@@ -236,7 +236,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="anchor"
             title="Boyas marinas (Rías)"
-            text="Marcadores cyan con icono de ancla y badges visuales (oleaje, viento coloreado, T agua). Clic abre popup con oleaje (Hm0, Hmax, periodo, dirección), viento (kt + racha), T agua/aire, presión, corrientes y salinidad. Solo Rías Baixas."
+            text="Marcadores en forma de diamante con &quot;B&quot; central. Color = temperatura del agua. Muestran altura de ola encima. Clic abre popup con oleaje, viento, T agua/aire, presi&oacute;n, corrientes y salinidad. Solo R&iacute;as Baixas."
           />
           <MiniExplainer
             iconId="anchor"
@@ -251,7 +251,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="sailboat"
             title="Spots de navegación"
-            text="Clic en el marcador del spot para ver popup con veredicto, viento (kt), oleaje, T agua, patrón detectado y resumen. Score 0-100 por zona. GO≥50, MARGINAL≥25. En móvil: panel inferior deslizable (arrastra hacia abajo para cerrar)."
+            text="Clic en el hex&aacute;gono del spot para ver popup con veredicto, viento (kt), oleaje, T agua, patr&oacute;n detectado y resumen. Score 0-100 por zona. El arco exterior indica la intensidad del viento. En m&oacute;vil: panel inferior deslizable."
           />
           <MiniExplainer
             iconId="wind"
