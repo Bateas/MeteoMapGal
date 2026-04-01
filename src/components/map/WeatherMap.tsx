@@ -94,6 +94,7 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
       },
     ],
     terrain: { source: 'terrainDEM', exaggeration: 1.2 },
+    sky: {},
   };
 }
 
