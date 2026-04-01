@@ -194,15 +194,27 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       const vpW = w / dpr;
       const vpH = h / dpr;
 
-      // Project viewport corners once (4 calls vs 500+ per frame)
-      const nw = map.project([cachedBounds.w, cachedBounds.n]);
-      const se = map.project([cachedBounds.e, cachedBounds.s]);
-      const lonRange = cachedBounds.e - cachedBounds.w;
-      const latRange = cachedBounds.n - cachedBounds.s;
+      // Pitch-aware projection strategy:
+      // - Low pitch (<15°): fast linear interpolation from 4 corner projections (O(1) per particle)
+      // - High pitch: fall back to map.project() (expensive but correct perspective)
+      const pitch = map.getPitch();
+      const useFastProj = pitch < 15;
 
-      // Fast linear projection: geo → screen pixel (approximation, accurate enough for particles)
-      const projX = (lon: number) => ((lon - cachedBounds.w) / lonRange) * (se.x - nw.x) + nw.x;
-      const projY = (lat: number) => ((cachedBounds.n - lat) / latRange) * (se.y - nw.y) + nw.y;
+      let projX: (lon: number) => number;
+      let projY: (lat: number) => number;
+
+      if (useFastProj) {
+        const nw = map.project([cachedBounds.w, cachedBounds.n]);
+        const se = map.project([cachedBounds.e, cachedBounds.s]);
+        const lonRange = cachedBounds.e - cachedBounds.w;
+        const latRange = cachedBounds.n - cachedBounds.s;
+        projX = (lon: number) => ((lon - cachedBounds.w) / lonRange) * (se.x - nw.x) + nw.x;
+        projY = (lat: number) => ((cachedBounds.n - lat) / latRange) * (se.y - nw.y) + nw.y;
+      } else {
+        // High pitch: use map.project() but with reduced particle count for perf
+        projX = () => 0; // placeholder — we use projectPt below
+        projY = () => 0;
+      }
 
       // Update particles and draw directly (no intermediate array)
       const particles = particlesRef.current;
@@ -230,11 +242,19 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
           continue;
         }
 
-        // ── PERF: Linear projection instead of map.project() ──
-        const px = projX(prevLon) * dpr;
-        const py = projY(prevLat) * dpr;
-        const cx = projX(p.lon) * dpr;
-        const cy = projY(p.lat) * dpr;
+        // ── PERF: Projection (fast linear or map.project for pitched view) ──
+        let px: number, py: number, cx: number, cy: number;
+        if (useFastProj) {
+          px = projX(prevLon) * dpr;
+          py = projY(prevLat) * dpr;
+          cx = projX(p.lon) * dpr;
+          cy = projY(p.lat) * dpr;
+        } else {
+          const prev = map.project([prevLon, prevLat]);
+          const curr = map.project([p.lon, p.lat]);
+          px = prev.x * dpr; py = prev.y * dpr;
+          cx = curr.x * dpr; cy = curr.y * dpr;
+        }
 
         // Skip off-viewport
         if (cx < -50 || cx > w + 50 || cy < -50 || cy > h + 50) {
