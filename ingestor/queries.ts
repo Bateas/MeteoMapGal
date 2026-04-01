@@ -119,8 +119,7 @@ export async function queryReadings(
 }
 
 /** Get hourly aggregates for a station within a time range.
- *  Uses on-the-fly aggregation from raw readings to include all fields
- *  (solar_rad, dew_point) that the continuous aggregate doesn't have. */
+ *  Uses readings_hourly continuous aggregate (includes solar_rad, dew_point since v2.1.4). */
 export async function queryHourly(
   stationId: string,
   from: string,
@@ -130,22 +129,13 @@ export async function queryHourly(
   const db = getPool();
   const result = await db.query<HourlyRow>(
     `SELECT
-      time_bucket('1 hour', time)::text AS bucket,
-      station_id,
-      source,
-      AVG(temperature)    AS avg_temp,
-      AVG(humidity)       AS avg_humidity,
-      AVG(wind_speed)     AS avg_wind,
-      MAX(wind_gust)      AS max_gust,
-      AVG(pressure)       AS avg_pressure,
-      SUM(precip)         AS total_precip,
-      AVG(dew_point)      AS avg_dew_point,
-      AVG(solar_rad)      AS avg_solar_rad
-    FROM readings
+      bucket::text, station_id, source,
+      avg_temp, avg_humidity, avg_wind, max_gust,
+      avg_pressure, total_precip, avg_dew_point, avg_solar_rad
+    FROM readings_hourly
     WHERE station_id = $1
-      AND time >= $2::timestamptz
-      AND time <= $3::timestamptz
-    GROUP BY bucket, station_id, source
+      AND bucket >= $2::timestamptz
+      AND bucket <= $3::timestamptz
     ORDER BY bucket ASC
     LIMIT $4`,
     [stationId, from, to, limit]
@@ -428,7 +418,8 @@ export async function queryMultiStation(
     const result = await db.query<HourlyRow>(
       `SELECT
         bucket::text, station_id, source,
-        avg_temp, avg_humidity, avg_wind, max_gust, avg_pressure, total_precip
+        avg_temp, avg_humidity, avg_wind, max_gust, avg_pressure, total_precip,
+        avg_dew_point, avg_solar_rad
       FROM readings_hourly
       WHERE station_id IN (${placeholders})
         AND bucket >= $${fromIdx}::timestamptz
