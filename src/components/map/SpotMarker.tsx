@@ -114,6 +114,16 @@ interface SpotMarkerItemProps {
   zoomScale: number;
 }
 
+/** Hexagon path for spot shape — distinctive from circular stations */
+function hexPath(r: number): string {
+  const pts: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 2; // start at top
+    pts.push(`${r * Math.cos(angle)},${r * Math.sin(angle)}`);
+  }
+  return `M ${pts.join(' L ')} Z`;
+}
+
 /** SVG arc path for wind gauge (0-20kt mapped to 0-270°) */
 function gaugeArc(r: number, windKt: number | null): string {
   if (windKt == null || windKt < 1) return '';
@@ -142,11 +152,9 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   zoomScale,
 }: SpotMarkerItemProps) {
   const colors = VERDICT_COLORS[verdict];
-  // Scale down at low zoom to avoid overlapping other markers
-  const baseSize = isActive ? 44 : 36;
-  const size = baseSize;
-  const iconSize = isActive ? 20 : 16;
-  const gaugeR = size / 2 + 4;
+  const size = isActive ? 48 : 42;
+  const iconSize = isActive ? 22 : 18;
+  const gaugeR = size / 2 + 5;
 
   const handleClick = useCallback(
     (e: { originalEvent: MouseEvent }) => {
@@ -186,13 +194,22 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
             </circle>
           )}
 
-          {/* Background track ring (dark) */}
+          {/* Ambient glow — always visible, makes spot "pop" vs stations */}
+          <circle
+            r={size / 2 + 8}
+            fill="none"
+            stroke={colors.glow}
+            strokeWidth="1"
+            opacity={isActive ? 0.25 : 0.12}
+          />
+
+          {/* Gauge track ring */}
           <circle
             r={gaugeR}
             fill="none"
             stroke={colors.ring}
-            strokeWidth={isActive ? 3 : 2}
-            opacity={0.15}
+            strokeWidth={isActive ? 3.5 : 2.5}
+            opacity={0.2}
           />
 
           {/* Wind gauge arc — proportional to wind speed */}
@@ -201,19 +218,20 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
               d={gaugeArc(gaugeR, windKt)}
               fill="none"
               stroke={colors.ring}
-              strokeWidth={isActive ? 3.5 : 2.5}
+              strokeWidth={isActive ? 4 : 3}
               strokeLinecap="round"
-              opacity={isActive ? 0.9 : 0.7}
+              opacity={isActive ? 1 : 0.8}
             />
           )}
 
-          {/* Main filled circle */}
-          <circle
-            r={size / 2}
-            fill={`${colors.ring}18`}
+          {/* Main hexagon — distinctive shape vs circular stations */}
+          <path
+            d={hexPath(size / 2)}
+            fill={`${colors.ring}15`}
             stroke={colors.ring}
-            strokeWidth={isActive ? 2 : 1.5}
-            opacity={isActive ? 1 : 0.85}
+            strokeWidth={isActive ? 2.5 : 2}
+            strokeLinejoin="round"
+            style={{ filter: `drop-shadow(0 0 ${isActive ? 8 : 4}px ${colors.glow}55)` }}
           />
 
           {/* Icon */}
