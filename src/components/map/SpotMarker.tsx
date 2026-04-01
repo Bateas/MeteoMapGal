@@ -15,14 +15,14 @@ import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
-// ── Verdict colors — matches windSpeedColor() scale for coherence ──
-const VERDICT_COLORS: Record<SpotVerdict, { ring: string; bg: string; text: string; glow: string }> = {
-  calm:    { ring: '#94a3b8', bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', glow: '#64748b' },  // slate (calm)
-  light:   { ring: '#22c55e', bg: 'rgba(34, 197, 94, 0.12)',   text: '#4ade80', glow: '#22c55e' },   // green (6-8kt)
-  sailing: { ring: '#a3e635', bg: 'rgba(163, 230, 53, 0.12)',  text: '#bef264', glow: '#84cc16' },   // lime (8-12kt)
-  good:    { ring: '#eab308', bg: 'rgba(234, 179, 8, 0.12)',   text: '#facc15', glow: '#ca8a04' },   // yellow (12-18kt)
-  strong:  { ring: '#f97316', bg: 'rgba(249, 115, 22, 0.12)',  text: '#fb923c', glow: '#ea580c' },   // orange (18kt+)
-  unknown: { ring: '#94a3b8', bg: 'rgba(100, 116, 139, 0.15)', text: '#94a3b8', glow: '#64748b' },  // slate
+// ── Verdict colors — unified with VERDICT_HEX from verdictStyles.ts ──
+const VERDICT_COLORS: Record<SpotVerdict, { ring: string; text: string; glow: string }> = {
+  calm:    { ring: '#94a3b8', text: '#94a3b8', glow: '#64748b' },  // slate
+  light:   { ring: '#38bdf8', text: '#7dd3fc', glow: '#0284c7' },  // sky (matches VERDICT_HEX)
+  sailing: { ring: '#fbbf24', text: '#fde68a', glow: '#d97706' },  // amber (matches VERDICT_HEX)
+  good:    { ring: '#34d399', text: '#6ee7b7', glow: '#059669' },  // emerald (matches VERDICT_HEX)
+  strong:  { ring: '#22d3ee', text: '#67e8f9', glow: '#0891b2' },  // cyan (matches VERDICT_HEX)
+  unknown: { ring: '#94a3b8', text: '#94a3b8', glow: '#64748b' },  // slate
 };
 
 /** Short map labels — must fit in a tiny badge */
