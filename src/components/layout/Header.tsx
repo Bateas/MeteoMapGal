@@ -156,8 +156,29 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             )}
           </>
         )}
-        {/* Source status — compact, desktop only (full version in sidebar footer) */}
+        {/* Source status — compact, desktop only */}
         {!isMobile && <SourceStatusIndicator />}
+        {/* Guide + Feedback — always visible, key for user engagement */}
+        {!isMobile && (
+          <>
+            <button
+              onClick={() => useUIStore.getState().toggleGuide()}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800/60 transition-all min-w-[36px] min-h-[36px] flex items-center justify-center"
+              title="Guía completa de la app (G)"
+              aria-label="Abrir guía meteorológica (tecla G)"
+            >
+              <WeatherIcon id="book-open" size={14} />
+            </button>
+            <button
+              onClick={() => useUIStore.getState().setFeedbackOpen(true)}
+              className="p-1.5 rounded-lg text-emerald-500/70 hover:text-emerald-300 hover:bg-emerald-900/30 transition-all min-w-[36px] min-h-[36px] flex items-center justify-center"
+              aria-label="Enviar feedback"
+              title="Enviar sugerencias o reportar problemas"
+            >
+              <WeatherIcon id="message-square" size={14} />
+            </button>
+          </>
+        )}
       </div>
       <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
         {/* Sunrise / Sunset — hide on mobile */}
