@@ -154,26 +154,11 @@ export function WeatherMap() {
   // Hide markers during map drag for smooth panning (95 DOM markers = jank)
   // Uses DOM class toggle instead of React state to avoid re-rendering ~100 markers
   const containerRef = useRef<HTMLDivElement>(null);
-  const terrainRestoreTimer = useRef<ReturnType<typeof setTimeout>>();
   const handleMoveStart = useCallback(() => {
     containerRef.current?.classList.add('map-panning');
-    // Flatten terrain during pan for smooth 60fps — keep pipeline active to avoid black tiles
-    const map = mapRef.current?.getMap();
-    if (map?.getTerrain()) {
-      clearTimeout(terrainRestoreTimer.current);
-      map.setTerrain({ source: 'terrainDEM', exaggeration: 0 });
-    }
   }, []);
   const handleMoveEnd = useCallback(() => {
     containerRef.current?.classList.remove('map-panning');
-    // Restore terrain exaggeration after a short delay
-    clearTimeout(terrainRestoreTimer.current);
-    terrainRestoreTimer.current = setTimeout(() => {
-      const map = mapRef.current?.getMap();
-      if (map) {
-        map.setTerrain({ source: 'terrainDEM', exaggeration: 1.2 });
-      }
-    }, 500);
   }, []);
 
   // Cross-deselection: only one popup at a time (station XOR buoy XOR spot).
