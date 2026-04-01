@@ -139,15 +139,42 @@ function buildThermalContext(
 ): SpotThermalContext {
   const deltaT = dailyContext?.deltaT ?? null;
 
-  // Thermal probability — simplified from dailyBriefingService
-  // Uses ΔT (40%) + atmosphere (35%) + tendency (25%) as proxy
+  // Thermal probability — ΔT (35%) + atmosphere (30%) + tendency (20%) + wind penalty (15%)
+  // Wind from N/NW kills thermal (cold air suppresses convection).
+  // Wind from SW/W aligns with thermal and boosts it.
   let thermalProbability = 0;
   if (deltaT !== null) {
     const deltaTScore = deltaT >= 20 ? 15 : deltaT >= 16 ? 12 : deltaT >= 12 ? 8 : deltaT >= 8 ? 4 : 0;
     const atmosphereScore = computeAtmosphereScore(atmosphericContext);
     const tendencyScore = computeTendencyScore(tendencySignals);
+
+    // Wind synoptic factor from forecast (thermal window 15-20h)
+    let windFactor = 7; // neutral (7/15 = ~47%)
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const thermalHours = forecast.filter(f =>
+      f.time.toDateString() === todayStr &&
+      f.time.getHours() >= 15 && f.time.getHours() <= 20 &&
+      f.windSpeed != null && f.windDirection != null,
+    );
+    if (thermalHours.length > 0) {
+      const avgDir = thermalHours.reduce((s, f) => s + f.windDirection!, 0) / thermalHours.length;
+      const avgSpeedKt = msToKnots(thermalHours.reduce((s, f) => s + f.windSpeed!, 0) / thermalHours.length);
+
+      // N/NW (300-360, 0-30): cold air, kills thermal
+      const isNorth = (avgDir >= 300 || avgDir <= 30);
+      // SW/W (200-270): aligns with thermal in Castrelo
+      const isSW = avgDir >= 200 && avgDir <= 270;
+
+      if (isNorth && avgSpeedKt > 12) windFactor = 0;        // strong N/NW = no thermal
+      else if (isNorth && avgSpeedKt > 6) windFactor = 3;     // moderate N/NW = weakens
+      else if (isSW && avgSpeedKt >= 3 && avgSpeedKt <= 12) windFactor = 12; // SW aligns = boost
+      else if (isSW && avgSpeedKt > 12) windFactor = 8;       // strong SW = overpowers thermal
+      else if (avgSpeedKt > 15) windFactor = 2;               // any strong wind = kills thermal
+    }
+
     thermalProbability = Math.min(100, Math.round(
-      (deltaTScore / 15) * 40 + (atmosphereScore / 15) * 35 + (tendencyScore / 10) * 25,
+      (deltaTScore / 15) * 35 + (atmosphereScore / 15) * 30 + (tendencyScore / 10) * 20 + (windFactor / 15) * 15,
     ));
   }
 
