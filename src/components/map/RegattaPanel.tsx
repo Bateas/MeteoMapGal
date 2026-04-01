@@ -3,6 +3,7 @@ import { useRegattaStore, type SemaphoreLevel, type ZoneConditions } from '../..
 import { useWeatherStore } from '../../store/weatherStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useAlertStore } from '../../store/alertStore';
+import { useLightningStore } from '../../hooks/useLightningData';
 import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import type { NormalizedStation, NormalizedReading } from '../../types/weather';
@@ -39,6 +40,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const readings = useWeatherStore((s) => s.currentReadings);
   const buoys = useBuoyStore((s) => s.buoys);
   const alerts = useAlertStore((s) => s.alerts);
+  const stormAlert = useLightningStore((s) => s.stormAlert);
   const [displayMs, setDisplayMs] = useState(0);
   const [expanded, setExpanded] = useState(false);
 
@@ -105,22 +107,24 @@ export const RegattaPanel = memo(function RegattaPanel() {
       }
     }
 
-    // Storm/alert proximity
-    const stormAlerts: string[] = [];
-    for (const a of alerts) {
-      if (a.category === 'storm' || a.category === 'wind' || a.category === 'rain') {
-        stormAlerts.push(a.title);
-      }
-    }
-
-    // Semaphore based on REAL data
+    // Semaphore + safety alerts based on ALL data
     let semaphore: SemaphoreLevel = 'green';
     const alertMsgs: string[] = [];
 
-    if (stormAlerts.length > 0) {
+    // 1. STORMS — highest priority
+    const storm = useLightningStore.getState().stormAlert;
+    if (storm.level === 'danger') {
       semaphore = 'red';
-      alertMsgs.push(...stormAlerts.slice(0, 2));
+      alertMsgs.push(`TORMENTA A ${storm.nearestKm.toFixed(0)}km${storm.etaMinutes ? ` — ETA ${storm.etaMinutes}min` : ''}`);
+    } else if (storm.level === 'warning') {
+      semaphore = 'red';
+      alertMsgs.push(`Tormenta detectada a ${storm.nearestKm.toFixed(0)}km${storm.trend === 'approaching' ? ' — acercandose' : ''}`);
+    } else if (storm.level === 'watch') {
+      if (semaphore !== 'red') semaphore = 'yellow';
+      alertMsgs.push(`Rayos detectados a ${storm.nearestKm.toFixed(0)}km`);
     }
+
+    // 2. WIND
     if (avgWind > 25 || maxGust > 35) {
       semaphore = 'red';
       alertMsgs.push(`Viento fuerte: ${avgWind.toFixed(0)}kt, racha ${maxGust.toFixed(0)}kt`);
@@ -128,9 +132,33 @@ export const RegattaPanel = memo(function RegattaPanel() {
       if (semaphore !== 'red') semaphore = 'yellow';
       alertMsgs.push(`Viento moderado: ${avgWind.toFixed(0)}kt`);
     }
-    if (waveHeight != null && waveHeight > 2) {
+
+    // 3. WAVES
+    if (waveHeight != null && waveHeight > 2.5) {
+      semaphore = 'red';
+      alertMsgs.push(`Oleaje peligroso: ${waveHeight.toFixed(1)}m`);
+    } else if (waveHeight != null && waveHeight > 1.5) {
       if (semaphore !== 'red') semaphore = 'yellow';
       alertMsgs.push(`Oleaje: ${waveHeight.toFixed(1)}m`);
+    }
+
+    // 4. COLD WATER
+    if (waterTemp != null && waterTemp < 14) {
+      if (semaphore !== 'red') semaphore = 'yellow';
+      alertMsgs.push(`Agua fria: ${waterTemp.toFixed(1)}°C — riesgo hipotermia`);
+    }
+
+    // 5. FOG (high humidity + low wind)
+    if (avgHumidity != null && avgHumidity > 90 && avgWind < 5) {
+      if (semaphore !== 'red') semaphore = 'yellow';
+      alertMsgs.push(`Posible niebla: HR ${avgHumidity}% + calma`);
+    }
+
+    // 6. General alerts from alertStore
+    for (const a of alerts) {
+      if ((a.category === 'storm' || a.category === 'rain') && !alertMsgs.some(m => m.includes('ormenta') || m.includes('ayo'))) {
+        alertMsgs.push(a.title);
+      }
     }
 
     store.setConditions({
@@ -206,7 +234,9 @@ export const RegattaPanel = memo(function RegattaPanel() {
 
           <div className="flex justify-between text-xs">
             <span className="text-slate-500">Viento medio</span>
-            <span className="text-white font-bold">{conditions.avgWindKt.toFixed(1)} kt</span>
+            <span className={`font-bold ${conditions.avgWindKt > 20 ? 'text-red-400' : conditions.avgWindKt > 12 ? 'text-amber-400' : conditions.avgWindKt > 6 ? 'text-green-400' : 'text-slate-400'}`}>
+              {conditions.avgWindKt.toFixed(1)} kt
+            </span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-slate-500">Racha max</span>
@@ -231,7 +261,9 @@ export const RegattaPanel = memo(function RegattaPanel() {
           {cond.waterTemp != null && (
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">Temp. agua</span>
-              <span className="text-cyan-400 font-bold">{cond.waterTemp.toFixed(1)} °C</span>
+              <span className={`font-bold ${cond.waterTemp < 14 ? 'text-blue-400' : cond.waterTemp < 17 ? 'text-cyan-400' : 'text-green-400'}`}>
+                {cond.waterTemp.toFixed(1)} °C {cond.waterTemp < 14 ? '(fria)' : ''}
+              </span>
             </div>
           )}
 
@@ -258,11 +290,21 @@ export const RegattaPanel = memo(function RegattaPanel() {
             {expanded ? 'Menos detalle' : 'Mas detalle'}
           </button>
 
-          {/* Alerts */}
+          {/* Safety alerts — prominent */}
           {conditions.alerts.length > 0 && (
-            <div className="mt-1 space-y-0.5">
+            <div className={`mt-2 p-2 rounded-lg space-y-1 ${
+              conditions.semaphore === 'red' ? 'bg-red-500/15 border border-red-500/30' :
+              'bg-amber-500/10 border border-amber-500/20'
+            }`}>
+              <div className={`text-[9px] font-black uppercase tracking-wider ${
+                conditions.semaphore === 'red' ? 'text-red-400' : 'text-amber-400'
+              }`}>Avisos seguridad</div>
               {conditions.alerts.map((a, i) => (
-                <div key={i} className="text-[10px] text-amber-400/90 font-medium">{a}</div>
+                <div key={i} className={`text-[11px] font-semibold ${
+                  a.includes('TORMENTA') || a.includes('peligroso') ? 'text-red-400' :
+                  a.includes('hipotermia') || a.includes('niebla') ? 'text-amber-400' :
+                  'text-amber-300'
+                }`}>{a}</div>
               ))}
             </div>
           )}
