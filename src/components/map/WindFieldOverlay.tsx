@@ -269,9 +269,9 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
         type="symbol"
         filter={[
           'any',
-          ['>=', ['zoom'], 12],
-          ['all', ['>=', ['zoom'], 11], ['>=', ['get', 'speed'], 1.03]],
-          ['all', ['>=', ['zoom'], 10], ['>=', ['get', 'speed'], 2.06]],
+          ['>=', ['zoom'], 10],
+          ['all', ['>=', ['zoom'], 9], ['>=', ['get', 'speed'], 1.03]],
+          ['all', ['>=', ['zoom'], 8], ['>=', ['get', 'speed'], 2.06]],
         ]}
         layout={{
           'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],

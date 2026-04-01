@@ -148,22 +148,24 @@ export function StationSymbolLayer({
     };
   }, [mapRef, handleClick]);
 
-  // Zoom-based size scaling (matches old marker behavior)
+  // Zoom-based size scaling — visible from zoom 8+
   const iconSize: maplibregl.ExpressionSpecification = [
     'interpolate', ['linear'], ['zoom'],
+    8, 0.25,
     9, 0.35,
     10, 0.5,
     11, 0.7,
     12, 0.9,
   ];
 
-  // Zoom-based wind threshold filter (same as old WeatherMap filter)
+  // Relaxed filter — dashboard mode: show as much as possible
+  // Only hide zero-wind at very low zoom; show everything at zoom >= 10
   const filter: maplibregl.ExpressionSpecification = [
     'any',
-    ['>=', ['zoom'], 12], // show all at zoom >= 12
-    ['all', ['>=', ['zoom'], 11], ['>=', ['get', 'windSpeed'], 1.03]], // >= 2kt at zoom 11
-    ['all', ['>=', ['zoom'], 10], ['>=', ['get', 'windSpeed'], 2.06]], // >= 4kt at zoom 10
-    ['==', ['get', 'isSelected'], 1], // always show selected
+    ['>=', ['zoom'], 10],                                              // show ALL at zoom >= 10
+    ['all', ['>=', ['zoom'], 9], ['>=', ['get', 'windSpeed'], 1.03]],  // >= 2kt at zoom 9
+    ['all', ['>=', ['zoom'], 8], ['>=', ['get', 'windSpeed'], 2.06]],  // >= 4kt at zoom 8
+    ['==', ['get', 'isSelected'], 1],                                  // always show selected
   ];
 
   return (
