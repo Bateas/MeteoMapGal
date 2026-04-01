@@ -36,6 +36,10 @@ const SPOTS: SpotDef[] = [
   { id: 'bocana', name: 'Bocana', lat: 42.268, lon: -8.714, sector: 'rias', radiusKm: 12, thermalDetection: false },
   { id: 'centro-ria', name: 'Ria de Vigo (centro)', lat: 42.228, lon: -8.803, sector: 'rias', radiusKm: 12, thermalDetection: true },
   { id: 'cies-ria', name: 'Cies-Ria', lat: 42.22, lon: -8.87, sector: 'rias', radiusKm: 12, thermalDetection: false },
+  { id: 'castineiras', name: 'Castiñeiras', lat: 42.528, lon: -9.001, sector: 'rias', radiusKm: 10, thermalDetection: false },
+  { id: 'vao', name: 'Vao', lat: 42.199, lon: -8.793, sector: 'rias', radiusKm: 8, thermalDetection: false },
+  { id: 'lanzada', name: 'A Lanzada', lat: 42.449, lon: -8.880, sector: 'rias', radiusKm: 10, thermalDetection: false },
+  { id: 'illa-arousa', name: 'Illa Arousa', lat: 42.546, lon: -8.860, sector: 'rias', radiusKm: 8, thermalDetection: true },
 ];
 
 // ── Verdict thresholds (matching frontend) ──────────
