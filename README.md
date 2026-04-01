@@ -11,7 +11,7 @@
 **En vivo**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) — Gratuito, sin registro. Funciona en cualquier dispositivo. Instalable como app (PWA).
 
 <p align="center">
-  <img src="hero.png" width="100%" alt="MeteoMapGal — mapa 3D con estaciones meteorológicas, flechas de viento y spots de navegación" />
+  <img src="hero.jpg" width="100%" alt="MeteoMapGal — mapa 3D con estaciones meteorológicas, flechas de viento y spots de navegación" />
 </p>
 
 ---
