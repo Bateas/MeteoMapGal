@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { FieldAlerts, AlertLevel } from '../../types/campo';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { checkFrost, checkRainHail } from '../../services/fieldAlertEngine';
@@ -58,7 +59,7 @@ function formatTimeRange(from: Date, to: Date): string {
 }
 
 export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
-  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useFocusTrap<HTMLDivElement>(open);
   const [activeTab, setActiveTab] = useState<AlertTab>('nav');
   const isMobile = useUIStore((s) => s.isMobile);
   const setDroneTabActive = useUIStore((s) => s.setDroneTabActive);
@@ -93,14 +94,6 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
       document.removeEventListener('mousedown', handleClick);
     };
   }, [open, onClose]);
-
-  // Move focus into the drawer when opened (a11y: WCAG 2.1.2)
-  useEffect(() => {
-    if (open && drawerRef.current) {
-      const firstFocusable = drawerRef.current.querySelector<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])');
-      if (firstFocusable) requestAnimationFrame(() => firstFocusable.focus());
-    }
-  }, [open]);
 
   // Tab switching via number keys when drawer is open (desktop only)
   const handleTabKey = useCallback((e: KeyboardEvent) => {
