@@ -163,19 +163,21 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           <>
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800/60 transition-all min-w-[36px] min-h-[36px] flex items-center justify-center"
-              title="Guía completa de la app (G)"
-              aria-label="Abrir guía meteorológica (tecla G)"
+              className="px-2.5 py-1.5 rounded-lg text-sky-400 border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 hover:border-sky-400/50 hover:shadow-[0_0_10px_rgba(56,189,248,0.2)] transition-all min-h-[36px] flex items-center gap-1.5 text-[11px] font-semibold"
+              title="Gu&iacute;a completa de la app (G)"
+              aria-label="Abrir gu&iacute;a meteorol&oacute;gica (tecla G)"
             >
               <WeatherIcon id="book-open" size={14} />
+              Gu&iacute;a
             </button>
             <button
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-              className="p-1.5 rounded-lg text-emerald-500/70 hover:text-emerald-300 hover:bg-emerald-900/30 transition-all min-w-[36px] min-h-[36px] flex items-center justify-center"
+              className="px-2.5 py-1.5 rounded-lg text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-400/50 hover:shadow-[0_0_10px_rgba(52,211,153,0.2)] transition-all min-h-[36px] flex items-center gap-1.5 text-[11px] font-semibold"
               aria-label="Enviar feedback"
               title="Enviar sugerencias o reportar problemas"
             >
               <WeatherIcon id="message-square" size={14} />
+              Feedback
             </button>
           </>
         )}
