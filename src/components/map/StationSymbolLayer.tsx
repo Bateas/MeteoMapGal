@@ -204,7 +204,7 @@ export function StationSymbolLayer({
         }}
         paint={{
           'icon-color': ['get', 'tempColor'],
-          'icon-opacity': ['get', 'freshness'],
+          'icon-opacity': ['*', ['get', 'freshness'], 0.75], // slightly transparent — less visual weight vs spots
           'text-color': '#ffffff',
           'text-halo-color': 'rgba(0,0,0,0.5)',
           'text-halo-width': 0.8,
