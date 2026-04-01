@@ -277,8 +277,20 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       }
 
       // ── PERF: Draw batched by color (1 beginPath/stroke per color, not per particle) ──
+      // Strong wind colors get a pulsing glow (shadowBlur)
+      const gustGlowColors = new Set(['#f97316', '#ef4444']); // orange-500, red-500 (>=15kt)
+      const glowPulse = Math.sin(Date.now() / 400) * 3 + 5; // oscillates 2-8px
+
       for (const [color, segs] of colorBuckets) {
+        const isGust = gustGlowColors.has(color);
         trailCtx.strokeStyle = color;
+        if (isGust) {
+          trailCtx.shadowColor = color;
+          trailCtx.shadowBlur = glowPulse * dpr;
+        } else {
+          trailCtx.shadowColor = 'transparent';
+          trailCtx.shadowBlur = 0;
+        }
         trailCtx.beginPath();
         for (const seg of segs) {
           trailCtx.lineWidth = seg.lw;
@@ -288,6 +300,8 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
         }
         trailCtx.stroke();
       }
+      // Reset shadow
+      trailCtx.shadowBlur = 0;
 
       // Composite trail canvas onto main canvas
       ctx.clearRect(0, 0, w, h);
