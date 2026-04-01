@@ -77,8 +77,18 @@ export function registerAircraftIcon(map: maplibregl.Map) {
  * Shows aircraft as airplane icons rotated by heading.
  * Color-coded altitude labels by proximity.
  */
+/** Project position forward N minutes using heading + velocity */
+function projectPosition(lat: number, lon: number, heading: number, velocityMs: number, minutes: number) {
+  const distKm = (velocityMs / 1000) * minutes * 60;
+  const headRad = (heading * Math.PI) / 180;
+  const dLat = (distKm / 111.32) * Math.cos(headRad);
+  const dLon = (distKm / (111.32 * Math.cos(lat * Math.PI / 180))) * Math.sin(headRad);
+  return [lon + dLon, lat + dLat] as [number, number];
+}
+
 export const AviationOverlay = memo(function AviationOverlay() {
   const aircraft = useAviationStore((s) => s.aircraft);
+  const trajectories = useAviationStore((s) => s.trajectories);
   const showOverlay = useAviationStore((s) => s.showOverlay);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const { current: mapRef } = useMap();
@@ -109,6 +119,43 @@ export const AviationOverlay = memo(function AviationOverlay() {
         },
       })),
     };
+  }, [showOverlay, aircraft]);
+
+  // Past trajectory lines (solid, orange)
+  const trackGeojson = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay || trajectories.size === 0) return EMPTY_FC;
+    const features: GeoJSON.Feature[] = [];
+    for (const [icao24, points] of trajectories) {
+      if (points.length < 2) continue;
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: points.map((p) => [p.lon, p.lat]),
+        },
+        properties: { icao24 },
+      });
+    }
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, trajectories]);
+
+  // Future projection lines (dashed, cyan — 3min ahead)
+  const projectionGeojson = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay || aircraft.length === 0) return EMPTY_FC;
+    const features: GeoJSON.Feature[] = [];
+    for (const ac of aircraft) {
+      if (ac.velocity < 10) continue; // skip near-stationary
+      const future = projectPosition(ac.lat, ac.lon, ac.heading, ac.velocity, 3);
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: [[ac.lon, ac.lat], future],
+        },
+        properties: { icao24: ac.icao24 },
+      });
+    }
+    return { type: 'FeatureCollection', features };
   }, [showOverlay, aircraft]);
 
   const handleClick = useCallback(
@@ -143,6 +190,33 @@ export const AviationOverlay = memo(function AviationOverlay() {
 
   return (
     <>
+      {/* Past trajectory — solid orange */}
+      <Source id="aviation-tracks" type="geojson" data={trackGeojson}>
+        <Layer
+          id="aviation-track-lines"
+          type="line"
+          paint={{
+            'line-color': '#f59e0b',
+            'line-width': 2,
+            'line-opacity': 0.5,
+          }}
+        />
+      </Source>
+
+      {/* Future projection — dashed cyan, 3min ahead */}
+      <Source id="aviation-projection" type="geojson" data={projectionGeojson}>
+        <Layer
+          id="aviation-projection-lines"
+          type="line"
+          paint={{
+            'line-color': '#22d3ee',
+            'line-width': 1.5,
+            'line-opacity': 0.6,
+            'line-dasharray': [4, 4],
+          }}
+        />
+      </Source>
+
       <Source id="aviation-source" type="geojson" data={geojson}>
         {/* Aircraft icons — rotated by heading */}
         <Layer
