@@ -152,7 +152,8 @@ export function StationTable() {
                 border: `1px solid ${color}`,
                 opacity: isHidden ? 0.45 : 1,
               }}
-              title={`${isHidden ? 'Mostrar' : 'Ocultar'} ${src} (${count})`}
+              title={`${isHidden ? 'Mostrar' : 'Ocultar'} ${SOURCE_CONFIG[src].fullName} — ${count} estaciones`}
+              aria-label={`${isHidden ? 'Mostrar' : 'Ocultar'} ${SOURCE_CONFIG[src].fullName} (${count} estaciones)`}
             >
               {label}
               <span className={`font-normal ${isMobile ? 'text-[11px]' : 'text-[11px]'}`} style={{ opacity: 0.8 }}>

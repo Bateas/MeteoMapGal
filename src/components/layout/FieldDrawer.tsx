@@ -94,6 +94,14 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
     };
   }, [open, onClose]);
 
+  // Move focus into the drawer when opened (a11y: WCAG 2.1.2)
+  useEffect(() => {
+    if (open && drawerRef.current) {
+      const firstFocusable = drawerRef.current.querySelector<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])');
+      if (firstFocusable) requestAnimationFrame(() => firstFocusable.focus());
+    }
+  }, [open]);
+
   // Tab switching via number keys when drawer is open (desktop only)
   const handleTabKey = useCallback((e: KeyboardEvent) => {
     if (!open || isMobile) return;
@@ -114,7 +122,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
     <div
       ref={drawerRef}
       role="dialog"
-      aria-label="Panel de alertas y campo"
+      aria-label="Condiciones, alertas y campo"
       className={`fixed bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ease-in-out overflow-hidden ${
         isMobile
           ? `inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-700 max-w-full ${open ? 'translate-y-0' : 'translate-y-full'}`
