@@ -146,48 +146,44 @@ function createArrowIcon(
     canvas.height = size;
     const ctx = canvas.getContext('2d')!;
     const cx = size / 2;
-    const cy = size / 2;
-    const outlineW = Math.max(2, size / 14);
-    const shaftW = Math.max(4, size / 9);
 
-    // --- Draw dark outline (thicker, behind the colored fill) ---
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Outline: shaft
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.lineWidth = shaftW + outlineW * 2;
+    // Modern tapered arrow: wide head narrowing to thin tail
+    // Dark outline first
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     ctx.beginPath();
-    ctx.moveTo(cx, cy + size * 0.22);
-    ctx.lineTo(cx, cy - size * 0.12);
-    ctx.stroke();
-
-    // Outline: arrowhead
-    ctx.lineWidth = outlineW * 2;
-    ctx.beginPath();
-    ctx.moveTo(cx - size * 0.22, cy - size * 0.08);
-    ctx.lineTo(cx, cy - size * 0.42);
-    ctx.lineTo(cx + size * 0.22, cy - size * 0.08);
-    ctx.closePath();
-    ctx.stroke();
-
-    // --- Draw colored arrow on top ---
-    // Shaft
-    ctx.strokeStyle = arrowColor;
-    ctx.lineWidth = shaftW;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy + size * 0.22);
-    ctx.lineTo(cx, cy - size * 0.12);
-    ctx.stroke();
-
-    // Arrowhead
-    ctx.fillStyle = arrowColor;
-    ctx.beginPath();
-    ctx.moveTo(cx - size * 0.22, cy - size * 0.08);
-    ctx.lineTo(cx, cy - size * 0.42);
-    ctx.lineTo(cx + size * 0.22, cy - size * 0.08);
+    ctx.moveTo(cx, size * 0.08);            // sharp tip
+    ctx.lineTo(cx + size * 0.26, size * 0.45); // right wing
+    ctx.lineTo(cx + size * 0.06, size * 0.38); // right notch
+    ctx.lineTo(cx + size * 0.04, size * 0.85); // right tail
+    ctx.lineTo(cx - size * 0.04, size * 0.85); // left tail
+    ctx.lineTo(cx - size * 0.06, size * 0.38); // left notch
+    ctx.lineTo(cx - size * 0.26, size * 0.45); // left wing
     ctx.closePath();
     ctx.fill();
+
+    // Colored arrow on top (slightly smaller)
+    ctx.fillStyle = arrowColor;
+    ctx.beginPath();
+    ctx.moveTo(cx, size * 0.12);             // sharp tip
+    ctx.lineTo(cx + size * 0.22, size * 0.44); // right wing
+    ctx.lineTo(cx + size * 0.05, size * 0.38); // right notch
+    ctx.lineTo(cx + size * 0.03, size * 0.82); // right tail
+    ctx.lineTo(cx - size * 0.03, size * 0.82); // left tail
+    ctx.lineTo(cx - size * 0.05, size * 0.38); // left notch
+    ctx.lineTo(cx - size * 0.22, size * 0.44); // left wing
+    ctx.closePath();
+    ctx.fill();
+
+    // Bright center line for depth
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, size * 0.18);
+    ctx.lineTo(cx, size * 0.72);
+    ctx.stroke();
 
     const img = new Image(size, size);
     img.onload = () => resolve(img);
@@ -276,13 +272,21 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
         layout={{
           'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],
           'icon-rotate': ['get', 'rotation'],
-          'icon-size': compact ? 0.55 : 0.9,
+          // Grosor variable: calm=small, strong=large. Visual weight matches wind intensity.
+          'icon-size': compact
+            ? ['interpolate', ['linear'], ['get', 'speed'], 0, 0.35, 3, 0.45, 6, 0.55, 10, 0.65]
+            : ['interpolate', ['linear'], ['get', 'speed'], 0, 0.55, 3, 0.7, 6, 0.9, 10, 1.1],
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-rotation-alignment': 'map',
         }}
         paint={{
-          'icon-opacity': ['get', 'opacity'],
+          'icon-opacity': ['interpolate', ['linear'], ['get', 'speed'],
+            0, 0.3,   // calm: very subtle
+            2, 0.5,   // light: visible
+            5, 0.75,  // moderate: clear
+            10, 0.9,  // strong: prominent
+          ],
         }}
       />
     </Source>
