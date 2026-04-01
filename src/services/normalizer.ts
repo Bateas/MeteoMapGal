@@ -71,22 +71,22 @@ export function normalizeMeteoGaliciaObservation(
     : entry.instanteLecturaUTC + 'Z';
   const timestamp = new Date(tsStr);
 
-  // Solar radiation: filter out sentinel -9999 values (sensor absent or error)
-  const rawSolar = findMedida(entry.listaMedidas, MG_PARAMS.SOLAR_RADIATION);
-  const solarRadiation = rawSolar !== null && rawSolar >= 0 ? rawSolar : null;
+  // MeteoGalicia uses -9999 as sentinel for missing/error data — filter all fields
+  const sanitize = (v: number | null) => (v !== null && v >= -900 ? v : null);
+  const sanitizePositive = (v: number | null) => (v !== null && v >= 0 ? v : null);
 
   return {
     stationId: `mg_${stationId}`,
     timestamp,
-    windSpeed: findMedida(entry.listaMedidas, MG_PARAMS.WIND_SPEED),
-    windGust: findMedida(entry.listaMedidas, MG_PARAMS.WIND_GUST),
-    windDirection: findMedida(entry.listaMedidas, MG_PARAMS.WIND_DIRECTION),
-    temperature: findMedida(entry.listaMedidas, MG_PARAMS.TEMPERATURE),
-    humidity: findMedida(entry.listaMedidas, MG_PARAMS.HUMIDITY),
-    precipitation: findMedida(entry.listaMedidas, MG_PARAMS.PRECIPITATION),
-    solarRadiation,
+    windSpeed: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.WIND_SPEED)),
+    windGust: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.WIND_GUST)),
+    windDirection: sanitize(findMedida(entry.listaMedidas, MG_PARAMS.WIND_DIRECTION)),
+    temperature: sanitize(findMedida(entry.listaMedidas, MG_PARAMS.TEMPERATURE)),
+    humidity: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.HUMIDITY)),
+    precipitation: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.PRECIPITATION)),
+    solarRadiation: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.SOLAR_RADIATION)),
     pressure: null, // MG doesn't report pressure in 10-min obs
-    dewPoint: findMedida(entry.listaMedidas, MG_PARAMS.DEW_POINT),
+    dewPoint: sanitize(findMedida(entry.listaMedidas, MG_PARAMS.DEW_POINT)),
   };
 }
 
