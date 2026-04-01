@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
+import { WeatherIcon } from '../icons/WeatherIcons';
 const FieldDrawer = lazy(() => import('./FieldDrawer').then(m => ({ default: m.FieldDrawer })));
 import { WeatherMap } from '../map/WeatherMap';
 import { useWeatherData } from '../../hooks/useWeatherData';
@@ -49,6 +50,71 @@ import { useWebcamVision } from '../../hooks/useWebcamVision';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 
+/** Collapsed sidebar: vertical icon strip with tab shortcuts */
+function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
+  const TABS = [
+    { icon: 'map-pin' as const, label: 'Estaciones', shortcut: '1' },
+    { icon: 'activity' as const, label: 'Gráfica', shortcut: '2' },
+    { icon: 'compass' as const, label: 'Previsión', shortcut: '3' },
+    { icon: 'layers' as const, label: 'Rankings', shortcut: '4' },
+    { icon: 'clock' as const, label: 'Historial', shortcut: '5' },
+  ];
+  return (
+    <div className="flex flex-col items-center py-2 gap-1 h-full">
+      {/* Expand button */}
+      <button
+        onClick={onExpand}
+        className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors mb-2"
+        aria-label="Expandir panel"
+        title="Expandir panel"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M9 5l7 7-7 7" /></svg>
+      </button>
+      {/* Tab icons */}
+      {TABS.map((tab) => (
+        <button
+          key={tab.label}
+          onClick={onExpand}
+          className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
+          title={`${tab.label} (${tab.shortcut})`}
+          aria-label={tab.label}
+        >
+          <WeatherIcon id={tab.icon} size={16} />
+        </button>
+      ))}
+      {/* Spacer */}
+      <div className="flex-1" />
+      {/* Guide + Feedback at bottom */}
+      <button
+        onClick={() => useUIStore.getState().toggleGuide()}
+        className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
+        title="Guía (G)"
+        aria-label="Guía"
+      >
+        <WeatherIcon id="book-open" size={14} />
+      </button>
+      <button
+        onClick={() => useUIStore.getState().setFeedbackOpen(true)}
+        className="w-9 h-9 flex items-center justify-center rounded-lg text-emerald-500/60 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
+        title="Feedback"
+        aria-label="Feedback"
+      >
+        <WeatherIcon id="message-square" size={14} />
+      </button>
+      <a
+        href="https://ko-fi.com/meteomapgal"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="w-9 h-9 flex items-center justify-center rounded-lg text-amber-500/50 hover:text-amber-400 hover:bg-amber-900/20 transition-colors"
+        title="Apoyar el proyecto"
+        aria-label="Apoyar en Ko-fi"
+      >
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+      </a>
+    </div>
+  );
+}
+
 export function AppShell() {
   const { forceRefresh, retryDiscovery } = useWeatherData();
   const isLoading = useWeatherStore((s) => s.isLoading);
@@ -58,6 +124,8 @@ export function AppShell() {
 
   // ── Responsive state ──────────────────────────────────
   const isMobile = useUIStore((s) => s.isMobile);
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const toggleSidebarCollapsed = useUIStore((s) => s.toggleSidebarCollapsed);
   const theme = useThemeStore((s) => s.theme);
 
   // Apply theme to <html> element
@@ -340,11 +408,29 @@ export function AppShell() {
       <SourceStatusBanner />
 
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Desktop sidebar: always visible */}
+        {/* Desktop sidebar: collapsible (icon strip ↔ full panel) */}
         {!isMobile && (
           <ErrorBoundary section="Sidebar">
-            <aside className="w-80 bg-slate-900 border-r border-slate-700 flex flex-col overflow-hidden">
-              <Sidebar />
+            <aside
+              className={`bg-slate-900 border-r border-slate-700 flex flex-col overflow-hidden transition-all duration-300 ${
+                sidebarCollapsed ? 'w-12' : 'w-80'
+              }`}
+            >
+              {sidebarCollapsed ? (
+                <CollapsedSidebar onExpand={toggleSidebarCollapsed} />
+              ) : (
+                <>
+                  <button
+                    onClick={toggleSidebarCollapsed}
+                    className="shrink-0 flex items-center justify-center h-8 text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors border-b border-slate-700/50"
+                    aria-label="Colapsar panel"
+                    title="Colapsar panel"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <Sidebar />
+                </>
+              )}
             </aside>
           </ErrorBoundary>
         )}

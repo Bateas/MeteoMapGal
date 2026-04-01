@@ -20,6 +20,10 @@ interface UIState {
   onboardingCompleted: boolean;
   /** Requested sidebar tab — set by external components to switch tabs */
   requestedTab: string | null;
+  /** Desktop sidebar collapsed to icon strip (persisted) */
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebarCollapsed: () => void;
   setFeedbackOpen: (open: boolean) => void;
   setRequestedTab: (tab: string | null) => void;
   toggleSidebar: () => void;
@@ -50,6 +54,9 @@ export const useUIStore = create<UIState>()(
       onboardingStep: null,
       onboardingCompleted: false,
       requestedTab: null,
+      sidebarCollapsed: true, // collapsed by default — map-first
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+      toggleSidebarCollapsed: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setFeedbackOpen: (open) => set({ feedbackOpen: open }),
       setRequestedTab: (tab) => set({ requestedTab: tab }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
