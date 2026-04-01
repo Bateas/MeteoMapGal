@@ -98,9 +98,31 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
   }, [stations, currentReadings, zones, stationToZone]);
 
   // ── Forecast timeline data ───────────────────────────
+  // Uses same thermal probability factors as popup (ΔT + atmosphere + tendency)
+  // to ensure coherent numbers across the app.
   const forecastChartData = useMemo(() => {
     const embalseFC = zoneForecast.get('embalse') || [];
     if (embalseFC.length === 0) return [];
+
+    // Global thermal factors (same as useSpotScoring thermalProbability)
+    const deltaT = dailyContext?.deltaT ?? null;
+    let globalThermalProb = 0;
+    if (deltaT !== null) {
+      const dtScore = deltaT >= 20 ? 15 : deltaT >= 16 ? 12 : deltaT >= 12 ? 8 : deltaT >= 8 ? 4 : 0;
+      // Atmosphere: CAPE + PBL + LI
+      let atmosScore = 0;
+      if (atmosphericContext) {
+        if (atmosphericContext.cape != null) atmosScore += atmosphericContext.cape > 200 ? 5 : atmosphericContext.cape > 50 ? 3 : 1;
+        if (atmosphericContext.pbl != null) atmosScore += atmosphericContext.pbl > 1500 ? 5 : atmosphericContext.pbl > 800 ? 3 : 1;
+        if (atmosphericContext.liftedIndex != null) atmosScore += atmosphericContext.liftedIndex < -2 ? 5 : atmosphericContext.liftedIndex < 0 ? 3 : 1;
+      }
+      // Tendency: count active signals
+      const tendCount = tendencySignals?.filter(s => s.active).length ?? 0;
+      const tendScore = Math.min(10, tendCount * 3);
+      globalThermalProb = Math.min(100, Math.round(
+        (dtScore / 15) * 40 + (atmosScore / 15) * 35 + (tendScore / 10) * 25,
+      ));
+    }
 
     return embalseFC.map((point) => {
       const hourAlerts = forecastAlerts.filter(
@@ -109,24 +131,23 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
       );
       const alertScore = hourAlerts.reduce((max, a) => Math.max(max, a.score), 0);
 
-      // Base thermal score from temperature/humidity even without rule alerts
-      const temp = point.temperature ?? 0;
+      // Per-hour modulation: scale global prob by time-of-day + conditions
+      const h = point.timestamp.getHours();
+      const isDay = h >= 9 && h <= 19;
       const hum = point.humidity ?? 50;
-      const isDay = point.timestamp.getHours() >= 9 && point.timestamp.getHours() <= 19;
-      let baseScore = 0;
-      if (isDay && temp > 15) {
-        baseScore = Math.min(40, Math.max(0, (temp - 15) * 3));
-        // Humidity sweet spot 45-65%
-        if (hum >= 45 && hum <= 65) baseScore += 10;
-        else if (hum > 75) baseScore = Math.max(0, baseScore - 15);
-        // Peak hours 13-17
-        const h = point.timestamp.getHours();
-        if (h >= 13 && h <= 17) baseScore += 10;
+      let hourFactor = 0;
+      if (isDay) {
+        // Peak hours 13-17 get full probability, shoulders get less
+        hourFactor = (h >= 13 && h <= 17) ? 1.0 : (h >= 11 && h <= 19) ? 0.7 : 0.3;
+        // Humidity penalty
+        if (hum > 80) hourFactor *= 0.4;
+        else if (hum > 70) hourFactor *= 0.7;
       }
+      const hourScore = Math.round(globalThermalProb * hourFactor);
 
       return {
         time: point.timestamp.getTime(),
-        score: Math.round(Math.max(alertScore, baseScore)),
+        score: Math.round(Math.max(alertScore, hourScore)),
         temp: point.temperature,
         wind: point.windSpeed != null ? msToKnots(point.windSpeed) : null,
         cloud: point.cloudCover,
