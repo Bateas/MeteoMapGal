@@ -66,6 +66,10 @@ export function useStations() {
       lastSectorId.current = activeSector.id;
       // Clear old stations so discovery runs fresh
       setStations([]);
+      // Clear all selections to prevent cross-sector ghost popups
+      import('../store/spotStore').then(m => m.useSpotStore.getState().selectSpot(''));
+      import('../store/weatherSelectionStore').then(m => m.useWeatherSelectionStore.getState().selectStation(null));
+      import('../store/buoyStore').then(m => m.useBuoyStore.getState().selectBuoy(null));
     }
   }, [activeSector.id, setStations]);
 
