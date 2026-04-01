@@ -234,9 +234,7 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
     const offsetScale = compact ? 0.6 : 1;
-    // Match station symbol filter exactly: no arrows at zoom <10 (stations hidden)
-    if (zoomLevel < 10) return EMPTY_FC;
-    const minWindMs = zoomLevel < 11 ? 1.03 : 0.1;
+    const minWindMs = 0.1; // Filter is now handled by MapLibre expression on the layer
 
     // ── Station arrows ─────────────────────────────────
     for (const station of stations) {
@@ -269,6 +267,12 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
       <Layer
         id="wind-field-arrows"
         type="symbol"
+        filter={[
+          'any',
+          ['>=', ['zoom'], 12],
+          ['all', ['>=', ['zoom'], 11], ['>=', ['get', 'speed'], 1.03]],
+          ['all', ['>=', ['zoom'], 10], ['>=', ['get', 'speed'], 2.06]],
+        ]}
         layout={{
           'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],
           'icon-rotate': ['get', 'rotation'],
