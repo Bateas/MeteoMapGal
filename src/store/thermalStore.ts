@@ -80,7 +80,7 @@ export const useThermalStore = create<ThermalState>()(devtools((set, get) => ({
   atmosphericContext: null,
   humidityAssessments: new Map(),
   windStatus: null,
-  showZoneOverlays: true,
+  showZoneOverlays: false,
   selectedZoneId: null,
 
   setRuleScores: (ruleScores) => set({ ruleScores }),
