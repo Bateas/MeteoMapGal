@@ -60,3 +60,18 @@ export function isWithinRadius(
 ): boolean {
   return haversineDistance(centerLat, centerLon, pointLat, pointLon) <= radiusKm;
 }
+
+/** Check if a point (lat,lon) is within a bounding box defined by NE and SW corners */
+export function isPointInBounds(
+  lat: number, lon: number,
+  ne: [number, number], // [lon, lat]
+  sw: [number, number], // [lon, lat]
+): boolean {
+  const [neLon, neLat] = ne;
+  const [swLon, swLat] = sw;
+  const minLat = Math.min(neLat, swLat);
+  const maxLat = Math.max(neLat, swLat);
+  const minLon = Math.min(neLon, swLon);
+  const maxLon = Math.max(neLon, swLon);
+  return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+}
