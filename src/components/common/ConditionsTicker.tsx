@@ -64,7 +64,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   }, [sectorId]);
 
   const items = useMemo(() => {
-    const result: { key: string; text: string; color: string; priority: number }[] = [];
+    const result: { key: string; text: string; color: string; bg: string; priority: number }[] = [];
     const sectorLabel = sectorId === 'rias' ? 'Rías' : 'Embalse';
 
     // ── Spot verdicts (priority 10 = highest for non-calm, 1 for calm) ──
@@ -80,6 +80,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         key: `spot-${spot.id}`,
         text: `${spot.shortName}: ${v.label}${kt != null && sc.verdict !== 'calm' ? ` ${dir} ${kt.toFixed(0)}kt` : ''}`,
         color: v.text,
+        bg: sc.verdict === 'calm' ? '' : 'bg-emerald-900/25',
         priority: pri,
       });
     }
@@ -99,6 +100,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         key: 'max-gust',
         text: `Racha máx: ${msToKnots(maxGust).toFixed(0)}kt ${maxGustStation}`,
         color: maxGust > 8 ? 'text-orange-400' : 'text-slate-300',
+        bg: maxGust > 8 ? 'bg-amber-900/25' : '',
         priority: 8,
       });
     }
@@ -117,6 +119,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         key: 'max-wave',
         text: `Olas: ${maxWave.toFixed(1)}m ${maxWaveName}`,
         color: maxWave > 2 ? 'text-cyan-400' : 'text-slate-300',
+        bg: 'bg-cyan-900/20',
         priority: 6,
       });
     }
@@ -135,6 +138,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         key: 'temp-range',
         text: `Temp: ${minTemp.toFixed(0)}°–${maxTemp.toFixed(0)}°C (${minTempSt}–${maxTempSt})`,
         color: 'text-slate-300',
+        bg: '',
         priority: 2,
       });
     }
@@ -149,6 +153,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           key: 'tide-next',
           text: `Marea ${arrow} ${label} ${next.point.time}h (${next.point.height.toFixed(1)}m)`,
           color: 'text-cyan-400',
+          bg: 'bg-cyan-900/20',
           priority: 7,
         });
       }
@@ -171,6 +176,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
             key: 'fcst-wind',
             text: `Prev ${sectorLabel}: viento máx ${maxWindKt}kt hoy`,
             color: maxWindKt > 15 ? 'text-orange-400' : 'text-sky-400',
+            bg: 'bg-sky-900/20',
             priority: 5,
           });
         }
@@ -179,6 +185,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
             key: 'fcst-rain',
             text: `Prev ${sectorLabel}: lluvia ${maxRainProb}% hoy`,
             color: maxRainProb >= 70 ? 'text-amber-400' : 'text-slate-400',
+            bg: maxRainProb >= 70 ? 'bg-amber-900/25' : '',
             priority: 4,
           });
         }
@@ -192,6 +199,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           key: `thermal-fcst-${s.day}`,
           text: `${sectorLabel}: ${s.label}`,
           color,
+          bg: 'bg-amber-900/25',
           priority: 9,
         });
       }
@@ -203,6 +211,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         key: 'station-count',
         text: `${stations.length} estaciones activas`,
         color: 'text-slate-400',
+        bg: '',
         priority: 0,
       });
     }
@@ -257,7 +266,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           }}
         >
           {tickerContent.map((item, i) => (
-            <span key={`${item.key}-${i}`} className={`text-[11px] font-medium ${item.color} flex items-center gap-1`}>
+            <span key={`${item.key}-${i}`} className={`text-[11px] font-medium ${item.color} flex items-center gap-1 ${item.bg ? `${item.bg} px-2 py-0.5 rounded` : ''}`}>
               <span className="w-1 h-1 rounded-full bg-current opacity-50" />
               {item.text}
             </span>
