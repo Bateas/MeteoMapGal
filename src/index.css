@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Override Tailwind font-mono with JetBrains Mono */
+@theme {
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
 @theme {
   /* ── Alert levels ─────────────────────────────── */
   --color-alert-none: #64748b;
@@ -86,7 +91,7 @@
 }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
