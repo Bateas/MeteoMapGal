@@ -47,8 +47,12 @@ import { IGNHillshadeOverlay } from './IGNHillshadeOverlay';
 import { IGNContoursOverlay } from './IGNContoursOverlay';
 import { IGNOrthoOverlay } from './IGNOrthoOverlay';
 import { DistanceTool } from './DistanceTool';
+import { AISOverlay } from './AISOverlay';
+import { AviationOverlay } from './AviationOverlay';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
+import { useAISData } from '../../hooks/useAISData';
+import { useAviationData } from '../../hooks/useAviationData';
 
 /** Build a MapLibre StyleSpecification for the given base map style + 3D terrain */
 function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
@@ -126,6 +130,10 @@ export function WeatherMap() {
 
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
+
+  // AIS + Aviation tracking hooks
+  useAISData();
+  useAviationData();
 
   // Track zoom level for label visibility — quantized to visual breakpoints
   // to avoid re-rendering ~84 markers on every 0.1 zoom change
@@ -353,6 +361,12 @@ export function WeatherMap() {
 
         {/* ENAIRE airspace zones + NOTAMs — only visible when Dron tab is active */}
         <AirspaceOverlay />
+
+        {/* AIS ship tracking — Rías Baixas only */}
+        {activeSector.id === 'rias' && <AISOverlay />}
+
+        {/* Aviation aircraft monitoring — Embalse only */}
+        {activeSector.id === 'embalse' && <AviationOverlay />}
 
         {/* Selected station popup */}
         {selectedStation && (
