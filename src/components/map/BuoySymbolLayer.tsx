@@ -16,12 +16,12 @@ interface BuoySymbolLayerProps {
   onSelectBuoy: (id: number | null) => void;
 }
 
-/** Freshness opacity for buoy */
+/** Freshness opacity for buoy — more aggressive fade for stale data */
 function buoyFreshness(timestamp?: Date | string | null): number {
-  if (!timestamp) return 0.3;
+  if (!timestamp) return 0.2;
   const t = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
   const age = (Date.now() - t.getTime()) / 60_000;
-  return age < 60 ? 1.0 : age < 180 ? 0.7 : 0.4;
+  return age < 45 ? 1.0 : age < 90 ? 0.6 : age < 180 ? 0.35 : 0.2;
 }
 
 /** Register the buoy diamond icon (SDF mode for dynamic coloring) */
@@ -38,7 +38,7 @@ export async function registerBuoyIcon(map: maplibregl.Map): Promise<void> {
   const cy = size / 2;
   const r = size / 2 - 3;
 
-  // Diamond shape (rotated square)
+  // Diamond shape (rotated square) — thick visible border
   ctx.beginPath();
   ctx.moveTo(cx, cy - r);      // top
   ctx.lineTo(cx + r, cy);      // right
@@ -47,8 +47,9 @@ export async function registerBuoyIcon(map: maplibregl.Map): Promise<void> {
   ctx.closePath();
   ctx.fillStyle = '#ffffff';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-  ctx.lineWidth = 1.5;
+  // Strong white border so SDF recolor creates visible edge
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.5;
   ctx.stroke();
 
   const img = await new Promise<HTMLImageElement>((resolve) => {
@@ -135,20 +136,7 @@ export function BuoySymbolLayer({
 
   return (
     <Source id="buoys-geo" type="geojson" data={geojson}>
-      {/* Cyan outer ring — distinguishes buoys from stations */}
-      <Layer
-        id="buoys-ring"
-        type="circle"
-        paint={{
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 8, 10, 10, 11, 13, 12, 16],
-          'circle-color': 'transparent',
-          'circle-stroke-color': '#06b6d4', // cyan-500
-          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 12, 1.5],
-          'circle-opacity': ['*', ['get', 'freshness'], 0.6],
-        }}
-      />
-
-      {/* Diamond icon — colored by water temperature */}
+      {/* Diamond icon — colored by water temperature, no outer ring */}
       <Layer
         id="buoys-icons"
         type="symbol"
