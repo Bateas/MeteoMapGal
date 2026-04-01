@@ -3,6 +3,7 @@ import {
   normalizeAemetStation,
   normalizeAemetObservation,
   normalizeMeteoclimaticObservation,
+  normalizeMeteoGaliciaObservation,
 } from './normalizer';
 import type { AemetRawStation, AemetRawObservation } from '../types/aemet';
 import type { MeteoclimaticRawStation } from '../types/meteoclimatic';
@@ -110,5 +111,43 @@ describe('normalizeMeteoclimaticObservation', () => {
     } as MeteoclimaticRawStation);
     expect(reading.windSpeed).toBeNull();
     expect(reading.windDirection).toBeNull();
+  });
+});
+
+describe('normalizeMeteoGaliciaObservation', () => {
+  const makeMG = (measures: Array<{ codigoParametro: string; valor: number }>) => ({
+    estacion: 'Test',
+    idEstacion: 10165,
+    instanteLecturaUTC: '2026-04-01T07:00:00Z',
+    listaMedidas: measures.map((m) => ({ ...m, unidade: '', codigoUnidade: '' })),
+  });
+
+  it('filters -9999 sentinel values from all fields', () => {
+    const reading = normalizeMeteoGaliciaObservation(10165, makeMG([
+      { codigoParametro: 'VV_AVG_10m', valor: -9999 },
+      { codigoParametro: 'VV_RACHA_10m', valor: -9999 },
+      { codigoParametro: 'DV_AVG_10m', valor: -9999 },
+      { codigoParametro: 'TA_AVG_1.5m', valor: -9999 },
+      { codigoParametro: 'HR_AVG_1.5m', valor: -9999 },
+      { codigoParametro: 'RS_AVG_1.5m', valor: -9999 },
+    ]));
+    expect(reading).not.toBeNull();
+    expect(reading!.windSpeed).toBeNull();
+    expect(reading!.windGust).toBeNull();
+    expect(reading!.windDirection).toBeNull();
+    expect(reading!.temperature).toBeNull();
+    expect(reading!.humidity).toBeNull();
+    expect(reading!.solarRadiation).toBeNull();
+  });
+
+  it('passes valid values through', () => {
+    const reading = normalizeMeteoGaliciaObservation(10165, makeMG([
+      { codigoParametro: 'VV_AVG_10m', valor: 5.2 },
+      { codigoParametro: 'TA_AVG_1.5m', valor: 18.5 },
+      { codigoParametro: 'HR_AVG_1.5m', valor: 72 },
+    ]));
+    expect(reading!.windSpeed).toBe(5.2);
+    expect(reading!.temperature).toBe(18.5);
+    expect(reading!.humidity).toBe(72);
   });
 });
