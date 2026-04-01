@@ -35,7 +35,7 @@ interface AviationState {
   setCreditsUsed: (n: number) => void;
 }
 
-const MAX_TRACK_POINTS = 4; // ~4 polls at 90s = ~6min trail. More = huge lines at 800km/h
+const MAX_TRACK_POINTS = 2; // Only last segment. At 800km/h + 90s poll = ~20km per segment
 const STALE_MS = 5 * 60 * 1000;
 
 const INITIAL_ALERT: AviationAlert = {
