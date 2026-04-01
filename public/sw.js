@@ -13,7 +13,7 @@ const API_PATHS = [
   '/netatmo-api', '/netatmo-auth',
   '/meteo2api', '/ideg-api',
   '/enaire-api', '/ihm-api', '/eumetsat-api', '/portus-api', '/obscosteiro-api', '/hfradar-api', '/skyx-api',
-  '/noaa-api', '/api/webhook', '/api/v1',
+  '/noaa-api', '/opensky-api', '/api/webhook', '/api/v1',
 ];
 
 // Tile CDN domains — cache-then-network for fast map loads

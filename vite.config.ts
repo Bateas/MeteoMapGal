@@ -140,6 +140,12 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/lmstudio-api/, ''),
       },
+      '/opensky-api': {
+        target: 'https://opensky-network.org/api',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/opensky-api/, ''),
+        secure: true,
+      },
     },
   },
 }))

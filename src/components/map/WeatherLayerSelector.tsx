@@ -3,6 +3,8 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import type { WeatherLayerType } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { useAISStore } from '../../store/aisStore';
+import { useAviationStore } from '../../store/aviationStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 // ── Layer button configs ───────────────────────────────────
@@ -106,10 +108,69 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
             );
           })}
         </div>
+
+        {/* Tracking toggles — independent of weather layers */}
+        <TrackingToggles isMobile={isMobile} sectorId={activeSector.id} />
       </div>
     </div>
   );
 });
+
+/* ─── Tracking layer toggles (AIS ships, Aviation) ─── */
+
+const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector: string }[] = [
+  { id: 'ais', icon: 'anchor', label: 'Barcos', sector: 'rias' },
+  { id: 'aviation', icon: 'navigation', label: 'Aviones', sector: 'embalse' },
+];
+
+function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: string }) {
+  const aisShow = useAISStore((s) => s.showOverlay);
+  const aisConnected = useAISStore((s) => s.isConnected);
+  const aisToggle = useAISStore((s) => s.toggleOverlay);
+  const avShow = useAviationStore((s) => s.showOverlay);
+  const avAlert = useAviationStore((s) => s.alert);
+  const avToggle = useAviationStore((s) => s.toggleOverlay);
+
+  const visible = TRACKING_BUTTONS.filter((b) => b.sector === sectorId);
+  if (visible.length === 0) return null;
+
+  const getState = (id: string) => {
+    if (id === 'ais') return { isOn: aisShow, toggle: aisToggle, badge: aisConnected ? undefined : 'off' };
+    if (id === 'aviation') return { isOn: avShow, toggle: avToggle, badge: avAlert.level !== 'none' ? avAlert.aircraftInBbox.toString() : undefined };
+    return { isOn: false, toggle: () => {}, badge: undefined };
+  };
+
+  return (
+    <div className={`flex items-center gap-0.5 border-t border-slate-700/30 ${isMobile ? 'p-0.5' : 'px-1.5 pb-1.5 pt-1'}`} role="group" aria-label="Capas de seguimiento">
+      {visible.map((btn) => {
+        const { isOn, toggle, badge } = getState(btn.id);
+        return (
+          <button
+            key={btn.id}
+            onClick={toggle}
+            aria-pressed={isOn}
+            className={`relative flex items-center justify-center gap-1 rounded-lg font-bold
+              transition-all duration-200 cursor-pointer
+              ${isMobile ? 'min-w-[44px] min-h-[44px] px-2.5 py-2 text-base' : 'px-2.5 py-1 text-[11px]'}
+              ${isOn
+                ? 'bg-teal-500/25 border border-teal-400/50 text-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.25)]'
+                : 'border border-slate-600/30 text-slate-500 hover:bg-slate-700/60 hover:text-slate-200 hover:border-teal-500/20'
+              }`}
+            title={btn.label}
+          >
+            <WeatherIcon id={btn.icon} size={isMobile ? 18 : 14} />
+            {!isMobile && <span>{btn.label}</span>}
+            {badge && (
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-teal-500 text-[8px] text-white font-bold">
+                {badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /* ─── Wind speed color legend (matches windSpeedColor in windUtils.ts) ─── */
 function WindLegend() {
