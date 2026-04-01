@@ -72,7 +72,7 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
         ],
         encoding: 'terrarium',
         tileSize: 256,
-        maxzoom: 12, // was 15 — reduce DEM tile fetching for better pan performance
+        maxzoom: 12,
       },
     },
     layers: [
@@ -89,15 +89,15 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
           'hillshade-shadow-color': isDark ? '#000000' : '#473B24',
           'hillshade-highlight-color': isDark ? '#333333' : '#FFFFFF',
           'hillshade-illumination-direction': 315,
-          'hillshade-exaggeration': isDark ? 0.3 : 0.5,
+          'hillshade-exaggeration': isDark ? 0.35 : 0.55,
         },
       },
     ],
-    terrain: {
-      source: 'terrainDEM',
-      exaggeration: 1.3, // was 1.5 — slightly less GPU work, still visible 3D
-    },
-    sky: {},
+    // 3D terrain DISABLED — hillshade-only mode for smooth panning.
+    // Hillshade gives visual relief without per-frame vertex reprojection.
+    // To restore 3D: uncomment terrain + sky below.
+    // terrain: { source: 'terrainDEM', exaggeration: 1.3 },
+    // sky: {},
   };
 }
 
