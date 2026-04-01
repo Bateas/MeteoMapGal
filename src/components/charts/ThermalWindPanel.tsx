@@ -126,7 +126,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
 
       return {
         time: point.timestamp.getTime(),
-        score: Math.max(alertScore, baseScore),
+        score: Math.round(Math.max(alertScore, baseScore)),
         temp: point.temperature,
         wind: point.windSpeed != null ? msToKnots(point.windSpeed) : null,
         cloud: point.cloudCover,
@@ -385,7 +385,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
                       }
                       formatter={(value: number | string, name: string) => {
                         const v = Number(value) || 0;
-                        if (name === 'score') return [`${v}%`, 'Prob. térmico'];
+                        if (name === 'score') return [`${Math.round(v)}%`, 'Prob. térmico'];
                         if (name === 'temp') return [value != null ? `${v.toFixed(1)}°C` : '--', 'Temp'];
                         if (name === 'wind') return [value != null ? `${v.toFixed(1)} kt` : '--', 'Viento'];
                         if (name === 'cloud') return [value != null ? `${Math.round(v)}%` : '--', 'Nubes'];
@@ -495,7 +495,7 @@ function ThermalWindowSummary({ data }: { data: { time: number; score: number }[
     return (
       <div className="rounded border border-slate-700/50 bg-slate-800/30 px-2.5 py-1.5 mb-1.5">
         <span className="text-[11px] text-slate-500">
-          Sin ventana t&eacute;rmica clara. M&aacute;x. probabilidad: <span className="text-slate-400 font-mono">{maxScore}%</span>
+          Sin ventana t&eacute;rmica clara. M&aacute;x. probabilidad: <span className="text-slate-400 font-mono">{Math.round(maxScore)}%</span>
         </span>
       </div>
     );
@@ -518,7 +518,7 @@ function ThermalWindowSummary({ data }: { data: { time: number; score: number }[
               <span className="font-mono">{startH}&ndash;{endH}</span>
             </div>
             <div className="text-[11px] font-mono">
-              pico {w.peak}% ({peakH})
+              pico {Math.round(w.peak)}% ({peakH})
             </div>
           </div>
         );
