@@ -195,26 +195,27 @@ export const AISOverlay = memo(function AISOverlay() {
 
   return (
     <>
-      {/* VesselFinder iframe — MVP while native AIS data source is not available */}
+      {/* VesselFinder link — opens in new tab centered on current map view */}
       {vessels.size === 0 && (
-        <div
-          className="absolute bottom-12 right-2 z-30 rounded-lg overflow-hidden border border-teal-500/30 shadow-xl"
-          style={{ width: 360, height: 260 }}
-        >
-          <div className="flex items-center justify-between bg-slate-900/95 px-2 py-1 border-b border-slate-700/50">
-            <span className="text-[10px] text-teal-400 font-bold uppercase tracking-wider">
-              Trafico maritimo — VesselFinder
-            </span>
-            <span className="text-[8px] text-amber-400/70 font-bold uppercase">alpha</span>
-          </div>
-          <iframe
-            src={`https://www.vesselfinder.com/aismap?lat=${iframeView.lat}&lon=${iframeView.lon}&zoom=${iframeView.zoom}&names=true`}
-            width="360"
-            height="236"
-            style={{ border: 0 }}
-            title="VesselFinder — Tráfico marítimo Rías Baixas"
-            loading="lazy"
-          />
+        <div className="absolute bottom-12 right-2 z-30">
+          <a
+            href={`https://www.vesselfinder.com/?lat=${iframeView.lat}&lon=${iframeView.lon}&zoom=${iframeView.zoom}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg
+              bg-slate-900/90 border border-teal-500/40 backdrop-blur-sm
+              text-teal-300 text-xs font-medium
+              hover:bg-teal-500/20 hover:border-teal-400/60 transition-all
+              shadow-lg"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+            Ver barcos en VesselFinder
+            <span className="text-[7px] text-amber-400/80 font-bold uppercase">alpha</span>
+          </a>
         </div>
       )}
 
