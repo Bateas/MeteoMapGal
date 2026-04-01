@@ -88,7 +88,7 @@ function projectPosition(lat: number, lon: number, heading: number, velocityMs: 
 
 export const AviationOverlay = memo(function AviationOverlay() {
   const aircraft = useAviationStore((s) => s.aircraft);
-  const trajectories = useAviationStore((s) => s.trajectories);
+
   const showOverlay = useAviationStore((s) => s.showOverlay);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const { current: mapRef } = useMap();
@@ -120,24 +120,6 @@ export const AviationOverlay = memo(function AviationOverlay() {
       })),
     };
   }, [showOverlay, aircraft]);
-
-  // Past trajectory lines (solid, orange)
-  const trackGeojson = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || trajectories.size === 0) return EMPTY_FC;
-    const features: GeoJSON.Feature[] = [];
-    for (const [icao24, points] of trajectories) {
-      if (points.length < 2) continue;
-      features.push({
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: points.map((p) => [p.lon, p.lat]),
-        },
-        properties: { icao24 },
-      });
-    }
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, trajectories]);
 
   // Future projection lines (dashed, cyan — 30s ahead)
   const projectionGeojson = useMemo<GeoJSON.FeatureCollection>(() => {
@@ -190,20 +172,7 @@ export const AviationOverlay = memo(function AviationOverlay() {
 
   return (
     <>
-      {/* Past trajectory — solid orange */}
-      <Source id="aviation-tracks" type="geojson" data={trackGeojson}>
-        <Layer
-          id="aviation-track-lines"
-          type="line"
-          paint={{
-            'line-color': '#f59e0b',
-            'line-width': 2,
-            'line-opacity': 0.5,
-          }}
-        />
-      </Source>
-
-      {/* Future projection — dashed cyan, 3min ahead */}
+      {/* Future projection — dashed cyan, 30s ahead */}
       <Source id="aviation-projection" type="geojson" data={projectionGeojson}>
         <Layer
           id="aviation-projection-lines"
