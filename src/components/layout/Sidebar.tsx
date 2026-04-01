@@ -83,14 +83,15 @@ export function Sidebar() {
 
   // Compact tabs — wrap to multiple rows so all tabs are always visible
   const tabBase = isMobile
-    ? 'px-2.5 text-[11px] font-semibold py-1.5 uppercase whitespace-nowrap transition-colors rounded-t'
-    : 'px-2 text-[11px] font-semibold py-1.5 uppercase whitespace-nowrap transition-colors rounded-t tracking-wide';
+    ? 'px-2.5 text-[11px] font-semibold py-2.5 uppercase whitespace-nowrap transition-colors rounded-t min-h-[40px] flex items-center'
+    : 'px-2 text-[11px] font-semibold py-2 uppercase whitespace-nowrap transition-colors rounded-t tracking-wide min-h-[36px] flex items-center';
   const tabOn = (color: string) => `text-white border-b-2 ${color} bg-slate-800/50`;
   const tabOff = 'text-slate-500 hover:text-slate-300 border-b-2 border-transparent';
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Tab header — wraps to multiple rows so all tabs are visible */}
+      <nav aria-label="Secciones de análisis">
       <div className="flex flex-wrap gap-0.5 border-b border-slate-700 px-1 py-0.5" role="tablist" aria-label="Paneles de datos">
         <button
           role="tab"
@@ -158,6 +159,7 @@ export function Sidebar() {
           Historial
         </button>
       </div>
+      </nav>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         <ErrorBanner />
@@ -214,25 +216,25 @@ export function Sidebar() {
       <div className="flex gap-1.5 mx-3 mb-2 shrink-0">
         <button
           onClick={() => useUIStore.getState().toggleGuide()}
-          className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg
+          className="flex items-center justify-center gap-1 px-2.5 py-2.5 rounded-lg
             border border-slate-700/40 text-slate-500 text-[11px]
             hover:text-sky-400 hover:border-sky-500/30 hover:bg-slate-800/60
-            transition-all"
+            transition-all min-h-[40px] min-w-[40px]"
           title="Guía completa de la app (G)"
-          aria-label="Abrir guía meteorológica"
+          aria-label="Abrir guía meteorológica (tecla G)"
         >
-          <WeatherIcon id="book-open" size={14} />
+          <WeatherIcon id="book-open" size={16} />
         </button>
         <button
           onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-          className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg
+          className="flex items-center justify-center gap-1 px-2.5 py-2.5 rounded-lg
             border border-emerald-600/30 text-emerald-500/80 text-[11px]
             hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-slate-800/60
-            transition-all"
+            transition-all min-h-[40px] min-w-[40px]"
           title="Enviar sugerencias o reportar problemas"
           aria-label="Enviar feedback"
         >
-          <WeatherIcon id="message-square" size={14} />
+          <WeatherIcon id="message-square" size={16} />
         </button>
         <button
           onClick={() => {
@@ -241,23 +243,23 @@ export function Sidebar() {
             const sector = useSectorStore.getState().activeSector;
             downloadGeoJSON(stations, currentReadings, buoys, sector.name);
           }}
-          className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg
+          className="flex items-center justify-center gap-1 px-2.5 py-2.5 rounded-lg
             border border-slate-700/40 text-slate-500 text-[11px]
             hover:text-emerald-400 hover:border-emerald-500/30 hover:bg-slate-800/60
-            transition-all"
+            transition-all min-h-[40px] min-w-[40px]"
           title="Exportar datos GeoJSON"
           aria-label="Exportar datos GeoJSON"
         >
-          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
         <a
           href="https://ko-fi.com/meteomapgal"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg
             border border-slate-700/40 text-slate-500 text-[11px]
             hover:text-amber-400 hover:border-amber-500/30 hover:bg-slate-800/60
-            transition-all"
+            transition-all min-h-[40px]"
         >
           <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
           Apoyar

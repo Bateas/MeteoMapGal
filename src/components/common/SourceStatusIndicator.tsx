@@ -25,7 +25,7 @@ export const SourceStatusIndicator = memo(function SourceStatusIndicator() {
   const sourceFreshness = useWeatherStore((s) => s.sourceFreshness);
 
   return (
-    <div className="flex items-center gap-0.5" role="status" aria-label="Estado de fuentes de datos">
+    <div className="flex items-center gap-0.5" role="group" aria-label="Filtro por fuente de datos">
       {SOURCE_ORDER.map((source) => {
         const status = sourceFreshness.get(source);
         const hasData = status && status.readingCount > 0;

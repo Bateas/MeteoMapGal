@@ -169,6 +169,7 @@ export function StationTable() {
             isMobile ? 'px-2.5 py-1.5 text-[11px] min-h-[36px] min-w-[36px] flex items-center justify-center' : 'text-[11px] px-1.5 py-0.5'
           }`}
           title={`Orden: ${sortMode === 'wind' ? 'viento' : sortMode === 'temp' ? 'temperatura' : 'nombre'}`}
+          aria-label={`Ordenar por ${sortMode === 'wind' ? 'viento' : sortMode === 'temp' ? 'temperatura' : 'nombre'}`}
         >
           {sortLabels[sortMode]}
         </button>
