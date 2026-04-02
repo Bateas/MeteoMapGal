@@ -184,17 +184,17 @@ export const RegattaPanel = memo(function RegattaPanel() {
       alertMsgs.push(`Posible niebla: HR ${avgHumidity}% + calma`);
     }
 
-    // 6. AVIATION — aircraft near event zone
+    // 6. AVIATION — only low-altitude aircraft matter (not cruisers at 10000m)
     const avAlert = useAviationStore.getState().alert;
-    if (avAlert.level === 'critical') {
+    const nearAlt = avAlert.nearestAircraft?.altitude ?? 99999;
+    if (avAlert.level === 'critical' && nearAlt < 500) {
       semaphore = 'red';
-      alertMsgs.push(`AERONAVE MUY CERCA: ${avAlert.nearestAircraft?.callsign || 'desconocida'} a ${avAlert.nearestAircraft?.distanceKm.toFixed(1)}km, ${Math.round(avAlert.nearestAircraft?.altitude || 0)}m`);
-    } else if (avAlert.level === 'moderate') {
+      alertMsgs.push(`AERONAVE MUY BAJA: ${avAlert.nearestAircraft?.callsign || '?'} a ${avAlert.nearestAircraft?.distanceKm.toFixed(1)}km, ${Math.round(nearAlt)}m`);
+    } else if (avAlert.level === 'moderate' && nearAlt < 1000) {
       if (semaphore !== 'red') semaphore = 'yellow';
-      alertMsgs.push(`Aeronave descendiendo: ${avAlert.nearestAircraft?.callsign || ''} a ${avAlert.nearestAircraft?.distanceKm.toFixed(1)}km`);
-    } else if (avAlert.level === 'info' && avAlert.aircraftInBbox > 0) {
-      alertMsgs.push(`${avAlert.aircraftInBbox} aeronave(s) en zona (~${avAlert.nearestAircraft?.distanceKm.toFixed(0)}km)`);
+      alertMsgs.push(`Aeronave baja altitud: ${avAlert.nearestAircraft?.callsign || '?'} a ${Math.round(nearAlt)}m`);
     }
+    // Skip info level — cruisers at 10000m don't matter for events
 
     // 7. General alerts from alertStore
     for (const a of alerts) {
