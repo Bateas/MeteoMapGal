@@ -88,23 +88,21 @@ export const RegattaPanel = memo(function RegattaPanel() {
     const sources = inZone.length > 0 ? inZone : findNearestStations(stations, readings, centerLat, centerLon, 5, 20);
 
     // Unified weighting: IDW × sourceQuality × freshness (matches spotScoringEngine)
-    // + wind blacklist filtering (35 sheltered stations excluded from wind)
-    let weightedSpeed = 0, totalWeight = 0, maxGust = 0;
+    // + wind blacklist + directional coherence filter
     let maxTemp: number | null = null, minTemp: number | null = null;
-    const dirs: { deg: number; weight: number }[] = [];
     const humids: number[] = [];
-    let count = 0;
-    let sourcesAbove7kt = 0;
+
+    // Pass 1: collect all valid wind readings + temp/humidity
+    type WindEntry = { st: typeof sources[0]['station']; speedKt: number; gustKt: number; dir: number | null; weight: number };
+    const windEntries: WindEntry[] = [];
+    let maxGust = 0;
 
     for (const { station: st, reading: r, distKm } of sources) {
-      // Always collect temp/humidity (even from blacklisted)
       if (r.humidity != null) humids.push(r.humidity);
       if (r.temperature != null) {
         if (maxTemp == null || r.temperature > maxTemp) maxTemp = r.temperature;
         if (minTemp == null || r.temperature < minTemp) minTemp = r.temperature;
       }
-
-      // Skip blacklisted stations for WIND (still valid for temp/humidity above)
       if (isWindBlacklisted(st.id)) continue;
 
       const idwWeight = 1 / Math.max(0.5, distKm) ** 2;
@@ -112,19 +110,47 @@ export const RegattaPanel = memo(function RegattaPanel() {
       const ageMin = (Date.now() - r.timestamp.getTime()) / 60_000;
       const freshnessMul = ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;
       const weight = idwWeight * qualityMul * freshnessMul;
-
       const speedKt = msToKnots(r.windSpeed!);
       const gustKt = r.windGust != null ? msToKnots(r.windGust) : 0;
-      weightedSpeed += speedKt * weight;
-      totalWeight += weight;
+      const dir = (r.windDirection != null && r.windDirection > 0) ? r.windDirection : null;
       if (gustKt > maxGust) maxGust = gustKt;
-      if (r.windDirection != null && r.windDirection > 0) dirs.push({ deg: r.windDirection, weight });
-      if (speedKt >= 7) sourcesAbove7kt++;
+      windEntries.push({ st, speedKt, gustKt, dir, weight });
+    }
+
+    // Pass 2: compute consensus direction, then filter outliers >90° off
+    let consensusDir: number | null = null;
+    if (windEntries.length >= 2) {
+      let sinSum = 0, cosSum = 0;
+      for (const e of windEntries) {
+        if (e.dir != null) { const r = (e.dir * Math.PI) / 180; sinSum += Math.sin(r) * e.weight; cosSum += Math.cos(r) * e.weight; }
+      }
+      let avg = (Math.atan2(sinSum, cosSum) * 180) / Math.PI;
+      if (avg < 0) avg += 360;
+      consensusDir = avg;
+    }
+
+    // Filter: discard stations >90° from consensus (incoherent — likely error or anomaly)
+    const coherent = windEntries.filter((e) => {
+      if (consensusDir == null || e.dir == null || e.speedKt < 2) return true; // calm/unknown = keep
+      let diff = Math.abs(e.dir - consensusDir);
+      if (diff > 180) diff = 360 - diff;
+      return diff <= 90; // within 90° of consensus = coherent
+    });
+
+    // Pass 3: weighted average from coherent stations only
+    let weightedSpeed = 0, totalWeight = 0, count = 0, sourcesAbove7kt = 0;
+    const dirs: { deg: number; weight: number }[] = [];
+
+    for (const e of coherent) {
+      weightedSpeed += e.speedKt * e.weight;
+      totalWeight += e.weight;
+      if (e.dir != null) dirs.push({ deg: e.dir, weight: e.weight });
+      if (e.speedKt >= 7) sourcesAbove7kt++;
       count++;
     }
 
-    // Consensus bonus: +1kt if 3+ sources agree on ≥7kt (compensates land underestimation)
     let avgWind = totalWeight > 0 ? weightedSpeed / totalWeight : 0;
+    if (sourcesAbove7kt >= 3) avgWind += 1;
     if (sourcesAbove7kt >= 3) avgWind += 1;
     // Weighted circular mean for wind direction (IDW + handles 350°+10° correctly)
     let windDir: number | null = null;
