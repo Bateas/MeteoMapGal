@@ -230,13 +230,14 @@ const WIND_BLACKLIST = new Set([
   'mc_ESGAL3600000036110B', // MC 380m, avg 0.9kt
 ]);
 
-function getSourceQuality(stationId: string): number {
+/** Source quality multiplier by network */
+export function getSourceQuality(stationId: string): number {
   const source = stationId.split('_')[0];
   return SOURCE_QUALITY[source] ?? 0.7;
 }
 
 /** Check if station is blacklisted for wind (still valid for temp/humidity) */
-function isWindBlacklisted(stationId: string): boolean {
+export function isWindBlacklisted(stationId: string): boolean {
   return WIND_BLACKLIST.has(stationId);
 }
 
