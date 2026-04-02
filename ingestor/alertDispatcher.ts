@@ -219,10 +219,43 @@ export async function dispatchForecastAlert(
   }
 }
 
+// ── Visibility / Fog alerts ──────────────────────────
+
+const VISIBILITY_COOLDOWN_MS = 4 * 60 * 60_000; // 4 hours
+const lastVisibilityAlert = new Map<string, number>();
+
+/**
+ * Dispatch a fog/visibility alert from webcam vision analysis.
+ */
+export async function dispatchVisibilityAlert(
+  webcamId: string,
+  spotId: string,
+  description: string,
+): Promise<void> {
+  if (isNightTime()) return;
+  if (isInCooldown(lastVisibilityAlert, webcamId, VISIBILITY_COOLDOWN_MS)) return;
+
+  const ok = await postWebhook({
+    type: 'visibility-alert',
+    spot: spotId,
+    sector: 'Rias Baixas',
+    text: `Niebla detectada — ${description}`,
+    severity: 'moderate',
+    title: `Visibilidad reducida`,
+    message: `Webcam ${webcamId}: niebla/bruma — visibilidad baja. ${description}`,
+  });
+
+  if (ok) {
+    lastVisibilityAlert.set(webcamId, Date.now());
+    log.ok(`Visibility alert: ${webcamId} → fog detected`);
+  }
+}
+
 /**
  * Reset cooldowns (e.g., on restart).
  */
 export function resetCooldowns(): void {
   lastSpotAlert.clear();
   lastForecastAlert.clear();
+  lastVisibilityAlert.clear();
 }

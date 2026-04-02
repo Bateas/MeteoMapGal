@@ -283,6 +283,36 @@ export async function batchUpsertStations(
   return total;
 }
 
+/** Persist webcam vision analysis results to webcam_readings table */
+export async function batchUpsertWebcamReadings(
+  readings: {
+    time: Date; webcamId: string; spotId: string | null;
+    beaufort: number; confidence: string; fog: boolean;
+    visibility: string; sky: string; description: string;
+    provider: string; latencyMs: number;
+  }[],
+): Promise<number> {
+  if (readings.length === 0) return 0;
+  const db = getPool();
+  let total = 0;
+
+  for (const r of readings) {
+    try {
+      const result = await db.query(
+        `INSERT INTO webcam_readings (time, webcam_id, spot_id, beaufort, confidence, fog, visibility, sky, description, provider, latency_ms)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (time, webcam_id) DO NOTHING`,
+        [r.time, r.webcamId, r.spotId, r.beaufort, r.confidence, r.fog, r.visibility, r.sky, r.description, r.provider, r.latencyMs],
+      );
+      total += result.rowCount ?? 0;
+    } catch (err) {
+      log.error(`Webcam upsert failed (${r.webcamId}): ${(err as Error).message}`);
+    }
+  }
+
+  return total;
+}
+
 /** Quick connectivity check */
 export async function pingDb(): Promise<boolean> {
   try {

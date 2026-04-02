@@ -17,6 +17,7 @@ import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
 import { checkAndSendDailySummary } from './dailySummary.js';
 import { runAnalysis } from './analyzer.js';
+import { runWebcamAnalysis } from './webcamAnalyzer.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -74,7 +75,11 @@ async function runCycle(): Promise<void> {
     await runAnalysis().catch(err =>
       log.warn('Analyzer failed:', (err as Error).message));
 
-    // 5. Check if daily summary should be sent (9:00 AM, once per day)
+    // 5. Webcam vision analysis (every 3 cycles = ~15min, if enabled)
+    await runWebcamAnalysis(cycleCount).catch(err =>
+      log.warn('Webcam analysis failed:', (err as Error).message));
+
+    // 6. Check if daily summary should be sent (9:00 AM, once per day)
     await checkAndSendDailySummary().catch(err =>
       log.warn('Daily summary check failed:', (err as Error).message));
 
