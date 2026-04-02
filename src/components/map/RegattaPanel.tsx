@@ -8,6 +8,7 @@ import { useAviationStore } from '../../store/aviationStore';
 import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { getSourceQuality, isWindBlacklisted } from '../../services/spotScoringEngine';
+import { STALE_THRESHOLD_MIN } from '../../config/constants';
 import { fetchMarineData } from '../../api/marineClient';
 import { fetchOpenMeteoForecast } from '../../api/openMeteoClient';
 import { APP_VERSION } from '../../config/version';
@@ -32,9 +33,13 @@ function findNearestStations(
   maxDistKm: number,
 ): { station: NormalizedStation; reading: NormalizedReading; distKm: number }[] {
   const results: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[] = [];
+  const maxAgeMs = STALE_THRESHOLD_MIN * 60_000; // Same 30min hard cutoff as spot scoring
+  const now = Date.now();
   for (const st of stations) {
     const r = readings.get(st.id);
     if (!r || r.windSpeed == null) continue;
+    // Hard exclude stale readings — matches spotScoringEngine behavior
+    if (now - r.timestamp.getTime() > maxAgeMs) continue;
     const d = haversineDistance(centerLat, centerLon, st.lat, st.lon);
     if (d <= maxDistKm) results.push({ station: st, reading: r, distKm: d });
   }
@@ -75,12 +80,15 @@ export const RegattaPanel = memo(function RegattaPanel() {
     const centerLon = (ne[0] + sw[0]) / 2;
     const store = useRegattaStore.getState();
 
-    // First try stations IN zone
+    // First try stations IN zone (exclude stale readings >30min)
+    const staleMs = STALE_THRESHOLD_MIN * 60_000;
+    const now = Date.now();
     let inZone: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[] = [];
     for (const st of stations) {
       if (!isPointInBounds(st.lat, st.lon, ne, sw)) continue;
       const r = readings.get(st.id);
       if (!r || r.windSpeed == null) continue;
+      if (now - r.timestamp.getTime() > staleMs) continue;
       inZone.push({ station: st, reading: r, distKm: haversineDistance(centerLat, centerLon, st.lat, st.lon) });
     }
 
@@ -118,13 +126,17 @@ export const RegattaPanel = memo(function RegattaPanel() {
     }
 
     // Include buoys with wind data — buoys measure wind ON WATER, most reliable
+    // Buoys update hourly, so allow 60min max age (vs 30min for land stations)
+    const buoyMaxAgeMs = 60 * 60_000;
     for (const b of buoys) {
       if (b.windSpeed == null || b.latitude == null || b.longitude == null) continue;
+      const buoyAgeMs = b.timestamp ? (now - new Date(b.timestamp).getTime()) : 0;
+      if (buoyAgeMs > buoyMaxAgeMs) continue; // Hard exclude stale buoys
       const d = haversineDistance(centerLat, centerLon, b.latitude, b.longitude);
       if (d > 30) continue; // within 30km
       const speedKt = msToKnots(b.windSpeed);
       if (speedKt < 1) continue;
-      const buoyAgeMin = b.timestamp ? (Date.now() - new Date(b.timestamp).getTime()) / 60_000 : 0;
+      const buoyAgeMin = buoyAgeMs / 60_000;
       const freshnessMul = buoyAgeMin <= 10 ? 1.0 : buoyAgeMin <= 30 ? 0.95 : buoyAgeMin <= 60 ? 0.85 : 0.7;
       const weight = (1 / Math.max(0.5, d) ** 2) * 1.0 * freshnessMul;
       const bGustKt = b.windGust != null ? msToKnots(b.windGust) : 0;
@@ -547,7 +559,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
   }
 
   return (
-    <div className="fixed z-40 w-72 rounded-xl bg-slate-900/95 border border-amber-500/40 backdrop-blur-md shadow-2xl overflow-hidden" style={{ left: panelPos.x, top: panelPos.y }}>
+    <div role="region" aria-label="Panel de seguridad del evento" className="fixed z-40 w-72 rounded-xl bg-slate-900/95 border border-amber-500/40 backdrop-blur-md shadow-2xl overflow-hidden" style={{ left: panelPos.x, top: panelPos.y }}>
       {/* Header — draggable */}
       <div
         onMouseDown={onDragStart}
