@@ -1,110 +1,51 @@
 /**
  * Water zone definitions for MeteoMapGal.
- *
- * Each zone represents a body of water (ría, embalse, costa, ensenada)
- * that may span multiple concellos. These are NOT municipal boundaries —
- * they are functional water zones for monitoring, events, and alerts.
- *
+ * Polygons from OpenStreetMap (where available) or manually traced.
  * Coordinates: [lon, lat] pairs forming a closed polygon.
- * Zones grouped by sector (rias / embalse) for filtering.
  */
 
 export interface WaterZone {
   id: string;
   name: string;
   shortName: string;
-  type: 'ria' | 'embalse' | 'costa' | 'ensenada' | 'puerto';
+  type: 'ria' | 'embalse' | 'costa' | 'ensenada';
   sector: 'rias' | 'embalse';
-  /** Concellos that border this water zone */
   concellos: string[];
-  /** Center point for data queries [lon, lat] */
   center: [number, number];
-  /** Polygon coordinates [lon, lat][] — closed (first = last) */
   polygon: [number, number][];
-  /** Approximate area in km² */
   areaKm2: number;
-  /** Typical depth range in meters */
   depthRange?: [number, number];
-  /** Key characteristics */
   features?: string[];
 }
 
 // ═══════════════════════════════════════════════════
-// RIAS BAIXAS SECTOR
+// RIAS BAIXAS — OSM real polygons
 // ═══════════════════════════════════════════════════
 
-const RIA_VIGO_INTERIOR: WaterZone = {
-  id: 'ria-vigo-interior',
-  name: 'Ría de Vigo (interior)',
-  shortName: 'Vigo Int.',
+const RIA_VIGO: WaterZone = {
+  id: 'ria-vigo',
+  name: 'Ría de Vigo',
+  shortName: 'Vigo',
   type: 'ria',
   sector: 'rias',
-  concellos: ['Vigo', 'Cangas', 'Moaña', 'Redondela', 'Soutomaior'],
-  center: [-8.68, 42.28],
+  concellos: ['Vigo', 'Cangas', 'Moaña', 'Redondela', 'Soutomaior', 'Nigrán', 'Baiona'],
+  center: [-8.75, 42.24],
+  // OSM relation 9983650 — simplified 37 pts
   polygon: [
-    [-8.62, 42.33], // Rande (norte)
-    [-8.60, 42.30], // Redondela
-    [-8.62, 42.27], // Chapela
-    [-8.68, 42.23], // Puerto de Vigo
-    [-8.72, 42.22], // Bouzas
-    [-8.77, 42.24], // Cangas
-    [-8.78, 42.27], // Donón
-    [-8.75, 42.30], // Moaña
-    [-8.72, 42.32], // Meira
-    [-8.67, 42.33], // Cesantes
-    [-8.62, 42.33], // close
+    [-8.9142,42.2513],[-8.8327,42.2528],[-8.8071,42.2545],[-8.7873,42.2544],
+    [-8.771,42.2618],[-8.7497,42.2684],[-8.7355,42.2785],[-8.7145,42.2841],
+    [-8.6955,42.2796],[-8.6643,42.2911],[-8.6608,42.3098],[-8.6414,42.3361],
+    [-8.627,42.3463],[-8.6125,42.3433],[-8.6195,42.3155],[-8.6155,42.2859],
+    [-8.6267,42.2884],[-8.6716,42.2734],[-8.6828,42.2634],[-8.702,42.2601],
+    [-8.7231,42.2427],[-8.7384,42.2285],[-8.7485,42.2296],[-8.7661,42.2231],
+    [-8.797,42.1978],[-8.8138,42.1783],[-8.8492,42.1498],[-8.8308,42.113],
+    [-8.8468,42.1249],[-8.8723,42.1153],[-8.9092,42.1786],[-8.8933,42.1912],
+    [-8.8962,42.199],[-8.9142,42.2116],[-8.8958,42.2278],[-8.9083,42.247],
+    [-8.9142,42.2513],
   ],
-  areaKm2: 45,
-  depthRange: [5, 30],
-  features: ['Puerto comercial', 'Bocana terral matutina', 'Spots Cesantes/Vao'],
-};
-
-const RIA_VIGO_EXTERIOR: WaterZone = {
-  id: 'ria-vigo-exterior',
-  name: 'Ría de Vigo (exterior) — Cíes',
-  shortName: 'Cíes-Vigo',
-  type: 'ria',
-  sector: 'rias',
-  concellos: ['Vigo', 'Cangas', 'Baiona', 'Nigrán'],
-  center: [-8.85, 42.20],
-  polygon: [
-    [-8.77, 42.24], // Cangas
-    [-8.78, 42.27], // Donón
-    [-8.84, 42.23], // Cabo Home
-    [-8.91, 42.23], // Cíes Norte
-    [-8.91, 42.18], // Cíes Sur
-    [-8.87, 42.15], // Estelas
-    [-8.84, 42.12], // Monteferro
-    [-8.80, 42.12], // Baiona
-    [-8.75, 42.14], // Nigrán
-    [-8.72, 42.18], // Samil
-    [-8.72, 42.22], // Bouzas
-    [-8.77, 42.24], // close
-  ],
-  areaKm2: 65,
-  depthRange: [10, 50],
-  features: ['Islas Cíes', 'Oleaje atlántico', 'Spots Lourido/A Lanzada Sur'],
-};
-
-const ENSENADA_BAIONA: WaterZone = {
-  id: 'ensenada-baiona',
-  name: 'Ensenada de Baiona',
-  shortName: 'Baiona',
-  type: 'ensenada',
-  sector: 'rias',
-  concellos: ['Baiona', 'Nigrán'],
-  center: [-8.84, 42.12],
-  polygon: [
-    [-8.87, 42.15], // Estelas
-    [-8.84, 42.12], // Monteferro
-    [-8.80, 42.10], // Baiona puerto
-    [-8.82, 42.08], // A Ramallosa
-    [-8.86, 42.10], // Cabo Silleiro
-    [-8.87, 42.15], // close
-  ],
-  areaKm2: 12,
-  depthRange: [3, 20],
-  features: ['Monte Real Club de Yates', 'Regatas tradicionales'],
+  areaKm2: 176,
+  depthRange: [5, 45],
+  features: ['Puerto comercial Vigo', 'Islas Cíes', 'Spots Cesantes/Vao/Lourido', 'Bocana terral'],
 };
 
 const RIA_PONTEVEDRA: WaterZone = {
@@ -113,24 +54,47 @@ const RIA_PONTEVEDRA: WaterZone = {
   shortName: 'Pontevedra',
   type: 'ria',
   sector: 'rias',
-  concellos: ['Pontevedra', 'Marín', 'Bueu', 'Sanxenxo', 'Poio', 'Combarro'],
-  center: [-8.72, 42.38],
+  concellos: ['Pontevedra', 'Marín', 'Bueu', 'Sanxenxo', 'Poio', 'Cangas'],
+  center: [-8.78, 42.37],
+  // OSM relation 9982966 — simplified 37 pts
   polygon: [
-    [-8.63, 42.43], // Pontevedra
-    [-8.62, 42.40], // Combarro
-    [-8.66, 42.38], // Poio
-    [-8.72, 42.36], // Marín
-    [-8.78, 42.35], // Bueu
-    [-8.83, 42.36], // Cabo Udra
-    [-8.87, 42.38], // Ons
-    [-8.82, 42.40], // Sanxenxo
-    [-8.77, 42.42], // Portonovo
-    [-8.72, 42.43], // Raxó
-    [-8.63, 42.43], // close
+    [-8.839,42.3389],[-8.9333,42.3448],[-8.9326,42.3459],[-8.9323,42.3471],
+    [-8.9329,42.3483],[-8.934,42.3489],[-8.9362,42.3494],[-8.9381,42.3561],
+    [-8.9364,42.3622],[-8.9333,42.3705],[-8.9314,42.3772],[-8.9286,42.3845],
+    [-8.9216,42.3933],[-8.9205,42.4007],[-8.8554,42.3984],[-8.8312,42.3894],
+    [-8.8224,42.3961],[-8.8043,42.3981],[-8.7921,42.3963],[-8.7773,42.3899],
+    [-8.7582,42.3999],[-8.7352,42.4138],[-8.7065,42.4282],[-8.6934,42.4374],
+    [-8.6783,42.4212],[-8.6556,42.4288],[-8.6785,42.4101],[-8.6935,42.3977],
+    [-8.7035,42.3957],[-8.7131,42.3926],[-8.7371,42.3742],[-8.752,42.3452],
+    [-8.7786,42.33],[-8.7984,42.3337],[-8.8176,42.3378],[-8.835,42.3414],
+    [-8.839,42.3389],
   ],
-  areaKm2: 80,
+  areaKm2: 145,
   depthRange: [5, 35],
-  features: ['Puerto de Marín', 'Spot Castiñeiras', 'Isla de Ons'],
+  features: ['Puerto de Marín', 'Isla de Ons', 'Spots Castiñeiras/A Lanzada'],
+};
+
+const BAHIA_BAIONA: WaterZone = {
+  id: 'bahia-baiona',
+  name: 'Bahía de Baiona',
+  shortName: 'Baiona',
+  type: 'ensenada',
+  sector: 'rias',
+  concellos: ['Baiona', 'Nigrán'],
+  center: [-8.85, 42.13],
+  // OSM relation 9983644 — 27 pts
+  polygon: [
+    [-8.8558,42.1486],[-8.841,42.1472],[-8.825,42.1447],[-8.8182,42.1331],
+    [-8.8234,42.1199],[-8.8359,42.1144],[-8.8421,42.1155],[-8.8461,42.1192],
+    [-8.8479,42.1222],[-8.8445,42.1247],[-8.8527,42.1273],[-8.8521,42.1233],
+    [-8.8638,42.1191],[-8.8723,42.1153],[-8.8756,42.1133],[-8.8843,42.1133],
+    [-8.8968,42.1124],[-8.8769,42.1467],[-8.8681,42.146],[-8.8658,42.1457],
+    [-8.8653,42.1453],[-8.8639,42.1453],[-8.8579,42.1458],[-8.8552,42.1445],
+    [-8.8532,42.1456],[-8.8544,42.1474],[-8.8558,42.1486],
+  ],
+  areaKm2: 12,
+  depthRange: [3, 20],
+  features: ['Monte Real Club de Yates', 'Regatas tradicionales'],
 };
 
 const RIA_AROUSA: WaterZone = {
@@ -139,52 +103,23 @@ const RIA_AROUSA: WaterZone = {
   shortName: 'Arousa',
   type: 'ria',
   sector: 'rias',
-  concellos: ['Vilagarcía', 'Cambados', 'O Grove', 'Ribeira', 'A Illa de Arousa', 'Vilanova'],
-  center: [-8.80, 42.55],
+  concellos: ['Vilagarcía', 'Cambados', 'O Grove', 'Ribeira', 'A Illa de Arousa', 'Vilanova', 'Sanxenxo'],
+  center: [-8.82, 42.52],
+  // Manual trace — Arousa too large for single Overpass query
   polygon: [
-    [-8.68, 42.60], // Vilagarcía
-    [-8.65, 42.57], // Carril
-    [-8.68, 42.53], // Vilanova
-    [-8.72, 42.50], // Cambados
-    [-8.78, 42.48], // O Grove
-    [-8.88, 42.50], // A Lanzada
-    [-8.93, 42.52], // Sálvora
-    [-8.95, 42.55], // Corrubedo
-    [-8.90, 42.57], // Ribeira
-    [-8.82, 42.58], // Illa Arousa
-    [-8.75, 42.60], // Vilaxoán
-    [-8.68, 42.60], // close
+    [-8.68, 42.60], [-8.65, 42.57], [-8.67, 42.53], [-8.70, 42.50],
+    [-8.75, 42.48], [-8.80, 42.46], [-8.85, 42.44], [-8.88, 42.43],
+    [-8.92, 42.44], [-8.95, 42.46], [-8.98, 42.49], [-9.00, 42.52],
+    [-8.98, 42.55], [-8.94, 42.57], [-8.88, 42.58], [-8.83, 42.59],
+    [-8.78, 42.60], [-8.73, 42.61], [-8.68, 42.60],
   ],
-  areaKm2: 180,
+  areaKm2: 230,
   depthRange: [3, 40],
-  features: ['Mayor ría gallega', 'Bateas mejillón', 'Spot Illa Arousa/A Lanzada'],
-};
-
-const COSTA_MORTE_SUR: WaterZone = {
-  id: 'costa-morte-sur',
-  name: 'Costa da Morte Sur (Corrubedo — Muros)',
-  shortName: 'C. Morte Sur',
-  type: 'costa',
-  sector: 'rias',
-  concellos: ['Ribeira', 'Porto do Son', 'Noia', 'Muros'],
-  center: [-8.98, 42.65],
-  polygon: [
-    [-8.93, 42.56], // Corrubedo
-    [-9.02, 42.60], // Porto do Son
-    [-9.05, 42.65], // Noia
-    [-9.08, 42.70], // Muros
-    [-9.10, 42.72], // Louro
-    [-9.05, 42.72], // offshore
-    [-8.95, 42.58], // offshore
-    [-8.93, 42.56], // close
-  ],
-  areaKm2: 120,
-  depthRange: [10, 100],
-  features: ['Oleaje fuerte', 'Viento atlántico', 'Corrubedo dunas'],
+  features: ['Mayor ría gallega', 'Bateas mejillón', 'Spots Illa Arousa/A Lanzada'],
 };
 
 // ═══════════════════════════════════════════════════
-// EMBALSE SECTOR
+// EMBALSE SECTOR — OSM real polygons
 // ═══════════════════════════════════════════════════
 
 const EMBALSE_CASTRELO: WaterZone = {
@@ -195,7 +130,7 @@ const EMBALSE_CASTRELO: WaterZone = {
   sector: 'embalse',
   concellos: ['Castrelo de Miño', 'Ribadavia', 'Cenlle', 'Cortegada'],
   center: [-8.07, 42.31],
-  // Real outline from OpenStreetMap (relation 17067996) — 42 points
+  // OSM relation 17067996 — 42 pts
   polygon: [
     [-8.09998,42.29448],[-8.11284,42.29112],[-8.11826,42.29342],[-8.11875,42.30013],
     [-8.11201,42.30466],[-8.09844,42.30362],[-8.09037,42.30608],[-8.08322,42.30543],
@@ -214,64 +149,32 @@ const EMBALSE_CASTRELO: WaterZone = {
   features: ['Club Náutico', 'Térmicas de valle', 'SkyX anemómetro', 'Hidroaviones CL-215'],
 };
 
-const EMBALSE_FRIEIRA: WaterZone = {
-  id: 'embalse-frieira',
-  name: 'Embalse de Frieira',
-  shortName: 'Frieira',
-  type: 'embalse',
-  sector: 'embalse',
-  concellos: ['Crecente', 'Arbo', 'As Neves', 'Salvaterra de Miño'],
-  center: [-8.17, 42.22],
-  // Real outline from OpenStreetMap (relation 18103720) — 27 points
-  polygon: [
-    [-8.1537,42.25235],[-8.17165,42.23033],[-8.16805,42.21906],[-8.1915,42.211],
-    [-8.17707,42.19828],[-8.17164,42.18258],[-8.15825,42.18195],[-8.17425,42.16925],
-    [-8.19185,42.15467],[-8.17575,42.16575],[-8.162,42.179],[-8.17196,42.1813],
-    [-8.17991,42.19125],[-8.18825,42.20675],[-8.18742,42.21785],[-8.18327,42.21979],
-    [-8.17084,42.22139],[-8.16514,42.2432],[-8.16175,42.26425],[-8.14425,42.2805],
-    [-8.133,42.28125],[-8.14877,42.27658],[-8.15888,42.25832],[-8.15669,42.25749],
-    [-8.15329,42.25561],[-8.15224,42.25372],[-8.1537,42.25235],
-  ],
-  areaKm2: 12,
-  depthRange: [3, 30],
-  features: ['Aguas tranquilas', 'Piragüismo', 'Río Miño'],
-};
-
 // ═══════════════════════════════════════════════════
 // EXPORTS
 // ═══════════════════════════════════════════════════
 
 export const WATER_ZONES: WaterZone[] = [
-  // Rías Baixas
-  RIA_VIGO_INTERIOR,
-  RIA_VIGO_EXTERIOR,
-  ENSENADA_BAIONA,
+  RIA_VIGO,
   RIA_PONTEVEDRA,
+  BAHIA_BAIONA,
   RIA_AROUSA,
-  COSTA_MORTE_SUR,
-  // Embalses
   EMBALSE_CASTRELO,
-  EMBALSE_FRIEIRA,
 ];
 
-/** Get zones by sector */
 export function getZonesBySector(sectorId: string): WaterZone[] {
   return WATER_ZONES.filter((z) => z.sector === sectorId);
 }
 
-/** Get zone by ID */
 export function getZoneById(id: string): WaterZone | undefined {
   return WATER_ZONES.find((z) => z.id === id);
 }
 
-/** Get zones that contain a concello */
 export function getZonesByConcello(concello: string): WaterZone[] {
   return WATER_ZONES.filter((z) =>
     z.concellos.some((c) => c.toLowerCase() === concello.toLowerCase())
   );
 }
 
-/** Convert polygon to bounds (for compatibility with regattaStore ZoneBounds) */
 export function zoneToBounds(zone: WaterZone): { ne: [number, number]; sw: [number, number] } {
   let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
   for (const [lon, lat] of zone.polygon) {
