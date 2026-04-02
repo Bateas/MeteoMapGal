@@ -189,6 +189,7 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
               className="px-1.5 py-1 rounded opacity-70 hover:opacity-100 hover:bg-green-500/20 transition-all cursor-pointer"
               style={{ color: '#22c55e' }}
               title="Alerta correcta — validar"
+              aria-label="Validar alerta como correcta"
             >
               <MiniIcon id="thumbs-up" size={14} />
             </button>
@@ -197,6 +198,7 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
               className="px-1.5 py-1 rounded opacity-70 hover:opacity-100 hover:bg-red-500/20 transition-all cursor-pointer"
               style={{ color: '#ef4444' }}
               title="Falso positivo — rechazar"
+              aria-label="Rechazar alerta como falso positivo"
             >
               <MiniIcon id="thumbs-down" size={14} />
             </button>
