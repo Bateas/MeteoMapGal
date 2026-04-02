@@ -40,6 +40,11 @@ export function colorFromSeverity(severity: AlertSeverity): 'green' | 'yellow' |
  * ones (drone x0.5). The final score is normalized by dividing by the
  * HIGHEST weight among active alerts, so the weight hierarchy is preserved.
  */
+/** Severity rank for comparison (higher = more severe) */
+const SEVERITY_RANK: Record<AlertSeverity, number> = {
+  info: 0, moderate: 1, high: 2, critical: 3,
+};
+
 export function computeCompositeRisk(alerts: UnifiedAlert[]): CompositeRisk {
   if (alerts.length === 0) {
     return { score: 0, severity: 'info', color: 'green', activeCount: 0 };
@@ -49,6 +54,7 @@ export function computeCompositeRisk(alerts: UnifiedAlert[]): CompositeRisk {
   let maxWeightedScore = 0;
   let maxWeight = 1;
   let activeCount = 0;
+  let winningSeverity: AlertSeverity = 'info';
 
   for (const a of alerts) {
     if (a.severity === 'info') continue; // Info alerts don't affect composite risk
@@ -58,14 +64,20 @@ export function computeCompositeRisk(alerts: UnifiedAlert[]): CompositeRisk {
     if (weighted > maxWeightedScore) {
       maxWeightedScore = weighted;
       maxWeight = weight;
+      winningSeverity = a.severity; // Track the winning alert's own severity
     }
   }
 
-  // Normalize by the winning alert's own weight -> preserves its raw score,
-  // while alerts from lighter categories get scaled down proportionally
-  // when they compete via maxWeightedScore.
+  // Normalize by the winning alert's own weight
   const finalScore = Math.min(100, Math.round(maxWeightedScore / maxWeight));
-  const severity = severityFromScore(finalScore);
+  const derivedSeverity = severityFromScore(finalScore);
+
+  // Respect individual alert severity caps: if the winning alert has a capped severity
+  // (e.g. inversion capped at 'moderate'), don't let the composite exceed it.
+  // Only cap DOWN, never cap UP (an alert can't raise its own severity beyond what it declared).
+  const severity = SEVERITY_RANK[derivedSeverity] > SEVERITY_RANK[winningSeverity]
+    ? winningSeverity
+    : derivedSeverity;
 
   return {
     score: finalScore,
