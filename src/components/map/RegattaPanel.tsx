@@ -160,9 +160,10 @@ export const RegattaPanel = memo(function RegattaPanel() {
     }
 
     // 4. COLD WATER
-    if (waterTemp != null && waterTemp < 14) {
+    // Only warn at <10°C (Galicia normal = 13-15°C, not dangerous)
+    if (waterTemp != null && waterTemp < 10) {
       if (semaphore !== 'red') semaphore = 'yellow';
-      alertMsgs.push(`Agua fria: ${waterTemp.toFixed(1)}°C — riesgo hipotermia`);
+      alertMsgs.push(`Agua muy fria: ${waterTemp.toFixed(1)}°C — riesgo hipotermia`);
     }
 
     // 5. FOG (high humidity + low wind)
@@ -292,8 +293,8 @@ export const RegattaPanel = memo(function RegattaPanel() {
           {cond.waterTemp != null && (
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">Temp. agua</span>
-              <span className={`font-bold ${cond.waterTemp < 14 ? 'text-blue-400' : cond.waterTemp < 17 ? 'text-cyan-400' : 'text-green-400'}`}>
-                {cond.waterTemp.toFixed(1)} °C {cond.waterTemp < 14 ? '(fria)' : ''}
+              <span className={`font-bold ${cond.waterTemp < 10 ? 'text-blue-400' : cond.waterTemp < 15 ? 'text-cyan-400' : 'text-green-400'}`}>
+                {cond.waterTemp.toFixed(1)} °C
               </span>
             </div>
           )}
