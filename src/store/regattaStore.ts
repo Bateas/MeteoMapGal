@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { getZoneById, zoneToBounds } from '../config/waterZones';
 
 export interface ZoneBounds {
   ne: [number, number]; // [lon, lat] northeast corner
@@ -102,7 +103,6 @@ export const useRegattaStore = create<RegattaState>()(
       }),
 
       selectPredefinedZone: (zoneId) => {
-        const { getZoneById, zoneToBounds } = require('../config/waterZones');
         const wz = getZoneById(zoneId);
         if (!wz) return;
         const bounds = zoneToBounds(wz);
