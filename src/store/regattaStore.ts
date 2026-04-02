@@ -59,6 +59,7 @@ interface RegattaState {
   elapsedMs: number;
   buoyMarkers: BuoyMarker[];
   conditions: ZoneConditions | null;
+  conditionsHistory: { timestamp: number; avgWindKt: number }[]; // last 30min for trend
   safetyLog: SafetyLogEntry[];
 
   startEvent: () => void; // show zone selector
@@ -95,6 +96,7 @@ export const useRegattaStore = create<RegattaState>()(
       elapsedMs: 0,
       buoyMarkers: [],
       conditions: null,
+      conditionsHistory: [],
       safetyLog: [],
 
       startEvent: () => set({
@@ -193,24 +195,26 @@ export const useRegattaStore = create<RegattaState>()(
       resetTimer: () => set({ timerRunning: false, timerStartMs: 0, elapsedMs: 0 }),
 
       setConditions: (conditions) => {
-        // Auto-log semaphore changes
         const prev = get().conditions;
+        const now = Date.now();
+        const newLog = [...get().safetyLog];
+
+        // Record wind history (keep last 30min = 180 entries at 10s interval)
+        const history = [...get().conditionsHistory, { timestamp: now, avgWindKt: conditions.avgWindKt }]
+          .filter((h) => now - h.timestamp < 30 * 60_000);
+
+        // Auto-log level changes (avoid word "semaforo")
         if (prev && prev.semaphore !== conditions.semaphore) {
-          const msg = `Semaforo: ${prev.semaphore.toUpperCase()} → ${conditions.semaphore.toUpperCase()}`;
-          const log = [...get().safetyLog, { timestamp: Date.now(), type: 'semaphore' as const, message: msg }];
-          set({ conditions, safetyLog: log });
-          return;
+          const labels: Record<string, string> = { green: 'SEGURO', yellow: 'PRECAUCION', red: 'PELIGRO' };
+          newLog.push({ timestamp: now, type: 'semaphore', message: `Nivel: ${labels[prev.semaphore]} → ${labels[conditions.semaphore]}` });
         }
         // Auto-log new alerts
         if (conditions.alerts.length > 0 && prev) {
           const newAlerts = conditions.alerts.filter((a) => !prev.alerts.includes(a));
-          if (newAlerts.length > 0) {
-            const entries: SafetyLogEntry[] = newAlerts.map((a) => ({ timestamp: Date.now(), type: 'alert' as const, message: a }));
-            set({ conditions, safetyLog: [...get().safetyLog, ...entries] });
-            return;
-          }
+          for (const a of newAlerts) newLog.push({ timestamp: now, type: 'alert', message: a });
         }
-        set({ conditions });
+
+        set({ conditions, conditionsHistory: history, safetyLog: newLog });
       },
 
       addLogEntry: (type, message) => set({
@@ -233,6 +237,7 @@ export const useRegattaStore = create<RegattaState>()(
         elapsedMs: 0,
         buoyMarkers: [],
         conditions: null,
+        conditionsHistory: [],
         safetyLog: [],
       }),
     }),
