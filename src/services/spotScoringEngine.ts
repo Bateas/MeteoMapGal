@@ -33,6 +33,17 @@ import { detectBocana } from './bocanaDetector';
 
 export type SpotVerdict = 'calm' | 'light' | 'sailing' | 'good' | 'strong' | 'unknown';
 
+/** Individual station/buoy contribution to wind consensus */
+export interface WindContribution {
+  name: string;
+  source: 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx' | 'buoy';
+  speedKt: number;
+  dir: string | null;
+  distKm: number;
+  /** Percentage of total weight this source contributed (0-100) */
+  weightPct: number;
+}
+
 export interface SpotWindConsensus {
   stationCount: number;
   avgSpeedKt: number;
@@ -41,6 +52,8 @@ export interface SpotWindConsensus {
   dirDeg: number;
   /** Matched wind pattern name, if any */
   matchedPattern: string | null;
+  /** Individual station/buoy contributions, sorted by weight descending */
+  contributions: WindContribution[];
 }
 
 export interface SpotWaveConditions {
@@ -248,21 +261,17 @@ function computeSpotWindConsensus(
   stationData: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
   buoyData: { buoy: BuoyReading; distKm: number }[],
 ): SpotWindConsensus | null {
-  // Collect speed and direction separately — direction is optional
-  const speedPoints: { speedKt: number; weight: number }[] = [];
-  const dirPoints: { dir: number; weight: number }[] = [];
+  // Collect speed, direction, and metadata for each contributing source
+  type SourceEntry = { speedKt: number; weight: number; dir: number | null; name: string; source: WindContribution['source']; distKm: number };
+  const entries: SourceEntry[] = [];
 
   const preferredSet = new Set(spot.preferredStations);
 
   for (const { station, reading, distKm } of stationData) {
     if (reading.windSpeed === null) continue;
-    // Skip stations confirmed as sheltered for wind (still used for temp/humidity elsewhere)
     if (isWindBlacklisted(station.id)) continue;
     const speedKt = msToKnots(reading.windSpeed);
     if (speedKt < 1) continue;
-    // Composite weight: distance × source quality × freshness
-    // Preferred stations get strong boost — they're AT the spot, trust them over distant readings.
-    // Within 2km: 3x (on-water/at-spot). Within 5km: 2x (very close). Beyond: 1x.
     const isPreferred = preferredSet.has(station.id);
     const proximityBoost = isPreferred ? (distKm <= 2 ? 3.0 : distKm <= 5 ? 2.0 : 1.5) : 1.0;
     const distWeight = proximityBoost / (distKm + 1);
@@ -270,54 +279,44 @@ function computeSpotWindConsensus(
     const ageMin = (Date.now() - reading.timestamp.getTime()) / 60_000;
     const freshnessMul = ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;
     const weight = distWeight * qualityMul * freshnessMul;
-    speedPoints.push({ speedKt, weight });
-    // Direction only if available (SkyX, some Netatmo lack wind vanes)
-    if (reading.windDirection !== null) {
-      dirPoints.push({ dir: reading.windDirection, weight });
-    }
+    const src = station.id.split('_')[0] as WindContribution['source'];
+    entries.push({ speedKt, weight, dir: reading.windDirection, name: station.name, source: src, distKm });
   }
 
   for (const { buoy, distKm } of buoyData) {
     if (buoy.windSpeed === null) continue;
     const speedKt = msToKnots(buoy.windSpeed);
     if (speedKt < 1) continue;
-    // Buoys measure wind ON WATER — exactly what sailors need.
-    // Preferred buoys within 5km get 2x weight boost (they represent the spot directly).
     const isPreferred = spot.preferredBuoys.includes(buoy.stationId);
     const proximityBoost = (isPreferred && distKm <= 5) ? 2.0 : 1.0;
     const distWeight = proximityBoost / (distKm + 1);
     const buoyAgeMin = buoy.timestamp ? (Date.now() - new Date(buoy.timestamp).getTime()) / 60_000 : 0;
     const buoyFreshness = buoyAgeMin <= 10 ? 1.0 : buoyAgeMin <= 30 ? 0.95 : buoyAgeMin <= 60 ? 0.85 : 0.7;
     const weight = distWeight * buoyFreshness;
-    speedPoints.push({ speedKt, weight });
-    if (buoy.windDir !== null) {
-      dirPoints.push({ dir: buoy.windDir, weight });
-    }
+    entries.push({ speedKt, weight, dir: buoy.windDir, name: buoy.stationName, source: 'buoy', distKm });
   }
 
-  if (speedPoints.length < 1) return null;
+  if (entries.length < 1) return null;
 
-  // Weighted average speed (from ALL sources with speed)
+  // Weighted average speed
   let totalWeight = 0;
   let weightedSpeed = 0;
-  for (const sp of speedPoints) {
-    weightedSpeed += sp.speedKt * sp.weight;
-    totalWeight += sp.weight;
+  for (const e of entries) {
+    weightedSpeed += e.speedKt * e.weight;
+    totalWeight += e.weight;
   }
-  // Apply per-spot calibration offset (compensates for amateur station bias / exposed locations)
   const calibration = spot.windCalibrationKt ?? 0;
   let avgSpeed = Math.max(0, weightedSpeed / totalWeight + calibration);
 
-  // Consensus bonus: when 3+ sources agree on decent wind (>7kt), add +1kt.
-  // This compensates for land stations underreporting on-water conditions.
-  const sourcesAbove7kt = speedPoints.filter(sp => sp.speedKt >= 7).length;
+  // Consensus bonus: when 3+ sources agree on decent wind (>7kt), add +1kt
+  const sourcesAbove7kt = entries.filter(e => e.speedKt >= 7).length;
   if (sourcesAbove7kt >= 3) avgSpeed += 1;
 
-  // Weighted average direction (only from sources WITH direction)
+  // Weighted circular mean for direction
   let avgDir = 0;
+  const dirPoints = entries.filter(e => e.dir !== null) as (SourceEntry & { dir: number })[];
   if (dirPoints.length > 0) {
-    let sinSum = 0;
-    let cosSum = 0;
+    let sinSum = 0, cosSum = 0;
     for (const dp of dirPoints) {
       const rad = (dp.dir * Math.PI) / 180;
       sinSum += Math.sin(rad) * dp.weight;
@@ -326,7 +325,7 @@ function computeSpotWindConsensus(
     avgDir = ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
   }
 
-  // Check wind pattern match — lower threshold for thermal spots (land stations underestimate)
+  // Wind pattern match
   const patternThreshold = spot.thermalDetection ? 5 : 8;
   let matchedPattern: string | null = null;
   if (avgSpeed >= patternThreshold) {
@@ -338,12 +337,25 @@ function computeSpotWindConsensus(
     }
   }
 
+  // Build contributions list sorted by weight descending
+  const contributions: WindContribution[] = entries
+    .map(e => ({
+      name: e.name,
+      source: e.source,
+      speedKt: Math.round(e.speedKt * 10) / 10,
+      dir: e.dir != null ? degToCardinal8(e.dir) : null,
+      distKm: Math.round(e.distKm * 10) / 10,
+      weightPct: totalWeight > 0 ? Math.round((e.weight / totalWeight) * 100) : 0,
+    }))
+    .sort((a, b) => b.weightPct - a.weightPct);
+
   return {
-    stationCount: speedPoints.length,
+    stationCount: entries.length,
     avgSpeedKt: Math.round(avgSpeed * 10) / 10,
     dominantDir: degToCardinal8(avgDir),
     dirDeg: Math.round(avgDir),
     matchedPattern,
+    contributions,
   };
 }
 

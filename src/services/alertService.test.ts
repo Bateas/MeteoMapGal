@@ -111,7 +111,8 @@ describe('buildInversionAlerts', () => {
     };
     const alerts = buildInversionAlerts(profile);
     expect(alerts).toHaveLength(1);
-    expect(alerts[0].severity).toBe('info');
+    // Strong inversion (score ~78) → capped at moderate (yellow), not info (blue)
+    expect(alerts[0].severity).toBe('moderate');
     expect(alerts[0].category).toBe('inversion');
     expect(alerts[0].title).toContain('FUERTE');
   });
@@ -134,7 +135,7 @@ describe('buildThermalAlerts', () => {
     expect(buildThermalAlerts(zones)).toEqual([]);
   });
 
-  it('returns info alert for zone with high alert level', () => {
+  it('returns moderate alert for zone with high alert level (score 75)', () => {
     const zones = new Map<MicroZoneId, ZoneAlert>();
     zones.set('ribadavia' as MicroZoneId, {
       alertLevel: 'high',
@@ -143,7 +144,8 @@ describe('buildThermalAlerts', () => {
     } as unknown as ZoneAlert);
     const alerts = buildThermalAlerts(zones);
     expect(alerts).toHaveLength(1);
-    expect(alerts[0].severity).toBe('info');
+    // Score 75 → capped at moderate (yellow), not info (blue)
+    expect(alerts[0].severity).toBe('moderate');
     expect(alerts[0].score).toBe(75);
     expect(alerts[0].title).toContain('ALTO');
   });

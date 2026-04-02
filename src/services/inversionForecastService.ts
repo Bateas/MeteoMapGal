@@ -254,10 +254,13 @@ export function buildInversionForecastAlert(
     detail = `Desde ~${startStr} · ${detail}`;
   }
 
+  // Score-based severity, capped at moderate (yellow) — inversions are notable, not dangerous
+  const severity = score >= 45 ? 'moderate' as const : 'info' as const;
+
   return [{
     id: 'inversion-forecast',
     category: 'inversion',
-    severity: 'info',
+    severity,
     score,
     icon: 'thermometer',
     title: isHighConf ? 'Inversión prevista esta noche' : 'Posible inversión nocturna',

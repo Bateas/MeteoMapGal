@@ -8,6 +8,7 @@
  */
 import { memo, useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
+import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useUIStore } from '../../store/uiStore';
@@ -201,6 +202,24 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           color,
           bg: 'bg-amber-900/25',
           priority: 9,
+        });
+      }
+    }
+
+    // ── Real-time thermal precursors (priority 9) — Embalse + thermal spots ──
+    if (sectorId === 'embalse') {
+      const precursors = useSpotStore.getState().thermalPrecursors;
+      for (const [spotId, p] of precursors) {
+        if (p.probability < 30 || p.level === 'none') continue;
+        const color = p.level === 'imminent' || p.level === 'active' ? 'text-green-400'
+          : p.level === 'probable' ? 'text-amber-400' : 'text-blue-400';
+        const etaStr = p.eta ? ` — ${p.eta}` : '';
+        result.push({
+          key: `precursor-${spotId}`,
+          text: `Precursor: ${p.probability}% ${p.level === 'active' ? 'ACTIVO' : p.level === 'imminent' ? 'INMINENTE' : ''}${etaStr}`,
+          color,
+          bg: 'bg-amber-900/25',
+          priority: p.level === 'active' || p.level === 'imminent' ? 10 : 9,
         });
       }
     }
