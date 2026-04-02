@@ -40,8 +40,9 @@ export interface ZoneConditions {
 
 interface RegattaState {
   active: boolean;
+  minimized: boolean;
   drawingPhase: DrawingPhase;
-  firstCorner: [number, number] | null; // [lon, lat]
+  firstCorner: [number, number] | null;
   zone: ZoneBounds | null;
   timerRunning: boolean;
   timerStartMs: number;
@@ -58,6 +59,7 @@ interface RegattaState {
   toggleTimer: () => void;
   resetTimer: () => void;
   setConditions: (c: ZoneConditions) => void;
+  toggleMinimize: () => void;
   deactivate: () => void;
 }
 
@@ -67,6 +69,7 @@ export const useRegattaStore = create<RegattaState>()(
   devtools(
     (set, get) => ({
       active: false,
+      minimized: false,
       drawingPhase: 'idle',
       firstCorner: null,
       zone: null,
@@ -78,6 +81,7 @@ export const useRegattaStore = create<RegattaState>()(
 
       startDrawing: () => set({
         active: true,
+        minimized: false,
         drawingPhase: 'first',
         firstCorner: null,
         zone: null,
@@ -93,13 +97,25 @@ export const useRegattaStore = create<RegattaState>()(
 
       addBuoy: (lon, lat) => {
         const markers = get().buoyMarkers;
+        const z = get().zone;
+        // Clamp to zone bounds
+        if (z) {
+          lon = Math.max(Math.min(z.ne[0], z.sw[0]), Math.min(lon, Math.max(z.ne[0], z.sw[0])));
+          lat = Math.max(Math.min(z.ne[1], z.sw[1]), Math.min(lat, Math.max(z.ne[1], z.sw[1])));
+        }
         const label = BUOY_LABELS[markers.length % 26];
         set({ buoyMarkers: [...markers, { id: `buoy-${Date.now()}`, lon, lat, label }] });
       },
 
-      moveBuoy: (id, lon, lat) => set({
-        buoyMarkers: get().buoyMarkers.map((b) => b.id === id ? { ...b, lon, lat } : b),
-      }),
+      moveBuoy: (id, lon, lat) => {
+        const z = get().zone;
+        // Clamp drag to zone bounds
+        if (z) {
+          lon = Math.max(Math.min(z.ne[0], z.sw[0]), Math.min(lon, Math.max(z.ne[0], z.sw[0])));
+          lat = Math.max(Math.min(z.ne[1], z.sw[1]), Math.min(lat, Math.max(z.ne[1], z.sw[1])));
+        }
+        set({ buoyMarkers: get().buoyMarkers.map((b) => b.id === id ? { ...b, lon, lat } : b) });
+      },
 
       removeBuoy: (id) => set({
         buoyMarkers: get().buoyMarkers.filter((b) => b.id !== id),
@@ -118,8 +134,11 @@ export const useRegattaStore = create<RegattaState>()(
 
       setConditions: (conditions) => set({ conditions }),
 
+      toggleMinimize: () => set((s) => ({ minimized: !s.minimized })),
+
       deactivate: () => set({
         active: false,
+        minimized: false,
         drawingPhase: 'idle',
         firstCorner: null,
         zone: null,
