@@ -55,6 +55,10 @@ import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useAviationData } from '../../hooks/useAviationData';
+import { WebcamSymbolLayer, registerWebcamIcon } from './WebcamSymbolLayer';
+import { WebcamPopup } from './WebcamPopup';
+import { useWebcamStore } from '../../store/webcamStore';
+import { getWebcamsForSector } from '../../config/webcams';
 
 /** Build a MapLibre StyleSpecification for the given base map style + 3D terrain */
 function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
@@ -130,6 +134,13 @@ export function WeatherMap() {
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const showSpotPopup = activeSpotId !== '';
 
+  // Webcam state
+  const showWebcams = useWebcamStore((s) => s.showOverlay);
+  const selectedWebcamId = useWebcamStore((s) => s.selectedWebcamId);
+  const selectWebcam = useWebcamStore((s) => s.selectWebcam);
+  const sectorWebcams = useMemo(() => getWebcamsForSector(activeSector.id), [activeSector.id]);
+  const selectedWebcam = sectorWebcams.find((c) => c.id === selectedWebcamId) ?? null;
+
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
@@ -182,36 +193,40 @@ export function WeatherMap() {
     containerRef.current?.classList.remove('map-panning');
   }, []);
 
-  // Cross-deselection: only one popup at a time (station XOR buoy XOR spot).
-  // Track previous values to detect which one changed (= new selection wins).
+  // Cross-deselection: only one popup at a time (station XOR buoy XOR spot XOR webcam).
   const prevBuoyRef = useRef<number | null>(null);
   const prevStationRef = useRef<string | null>(null);
   const prevSpotRef = useRef<string>('');
+  const prevWebcamRef = useRef<string | null>(null);
   useEffect(() => {
     const spotChanged = activeSpotId !== prevSpotRef.current;
     const buoyChanged = selectedBuoyId !== prevBuoyRef.current;
     const stationChanged = selectedStationId !== prevStationRef.current;
+    const webcamChanged = selectedWebcamId !== prevWebcamRef.current;
 
-    // Spot selected → clear station + buoy
-    if (spotChanged && activeSpotId) {
+    if (webcamChanged && selectedWebcamId) {
       if (selectedStationId) selectStation(null);
       if (selectedBuoyId != null) selectBuoy(null);
-    }
-    // Station selected → clear buoy + spot
-    else if (stationChanged && selectedStationId) {
+      if (activeSpotId) selectSpot('');
+    } else if (spotChanged && activeSpotId) {
+      if (selectedStationId) selectStation(null);
+      if (selectedBuoyId != null) selectBuoy(null);
+      if (selectedWebcamId) selectWebcam(null);
+    } else if (stationChanged && selectedStationId) {
       if (selectedBuoyId != null) selectBuoy(null);
       if (activeSpotId) selectSpot('');
-    }
-    // Buoy selected → clear station + spot
-    else if (buoyChanged && selectedBuoyId != null) {
+      if (selectedWebcamId) selectWebcam(null);
+    } else if (buoyChanged && selectedBuoyId != null) {
       if (selectedStationId) selectStation(null);
       if (activeSpotId) selectSpot('');
+      if (selectedWebcamId) selectWebcam(null);
     }
 
     prevBuoyRef.current = selectedBuoyId;
     prevStationRef.current = selectedStationId;
     prevSpotRef.current = activeSpotId;
-  }, [selectedBuoyId, selectedStationId, activeSpotId, selectStation, selectBuoy, selectSpot]);
+    prevWebcamRef.current = selectedWebcamId;
+  }, [selectedBuoyId, selectedStationId, activeSpotId, selectedWebcamId, selectStation, selectBuoy, selectSpot, selectWebcam]);
 
   /** Fly to sector view when it changes. */
   useEffect(() => {
@@ -261,6 +276,7 @@ export function WeatherMap() {
     registerWindArrowIcons(map, 48);
     registerStationIcon(map);
     registerBuoyIcon(map);
+    registerWebcamIcon(map);
     // Localize MapLibre navigation controls to Spanish
     requestAnimationFrame(() => {
       const container = map.getContainer();
@@ -339,6 +355,15 @@ export function WeatherMap() {
           />
         )}
 
+        {/* Webcam markers — triangles rotated by azimuth */}
+        {showWebcams && sectorWebcams.length > 0 && (
+          <WebcamSymbolLayer
+            webcams={sectorWebcams}
+            selectedWebcamId={selectedWebcamId}
+            onSelectWebcam={selectWebcam}
+          />
+        )}
+
         {/* Sailing spot markers — both sectors */}
         <SpotMarkers />
 
@@ -385,6 +410,11 @@ export function WeatherMap() {
         {/* Selected buoy popup — Rías Baixas only */}
         {activeSector.id === 'rias' && selectedBuoy && (
           <BuoyPopup reading={selectedBuoy} />
+        )}
+
+        {/* Selected webcam popup */}
+        {selectedWebcam && (
+          <WebcamPopup webcam={selectedWebcam} onClose={() => selectWebcam(null)} />
         )}
 
         {/* Selected spot popup */}
