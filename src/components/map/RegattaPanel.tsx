@@ -9,6 +9,7 @@ import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineData } from '../../api/marineClient';
 import { fetchOpenMeteoForecast } from '../../api/openMeteoClient';
+import { fetchTides48h, type TidePoint } from '../../api/tideClient';
 import type { NormalizedStation, NormalizedReading } from '../../types/weather';
 import type { ForecastPoint } from '../../api/openMeteoClient';
 
@@ -39,7 +40,7 @@ function findNearestStations(
 }
 
 export const RegattaPanel = memo(function RegattaPanel() {
-  const { active, minimized, zone, timerRunning, timerStartMs, elapsedMs, conditions, buoyMarkers } = useRegattaStore();
+  const { active, minimized, eventName, zone, timerRunning, timerStartMs, elapsedMs, conditions, buoyMarkers } = useRegattaStore();
   const stations = useWeatherStore((s) => s.stations);
   const readings = useWeatherStore((s) => s.currentReadings);
   const buoys = useBuoyStore((s) => s.buoys);
@@ -51,6 +52,9 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const [expanded, setExpanded] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
+  const [tides, setTides] = useState<TidePoint[]>([]);
+  const [panelPos, setPanelPos] = useState({ x: 56, y: 80 }); // left:56px (left-14), top:80px
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   // Timer tick
   useEffect(() => {
@@ -261,21 +265,35 @@ export const RegattaPanel = memo(function RegattaPanel() {
       const fc = await fetchOpenMeteoForecast(cLat, cLon, 10);
       if (cancelled || fc.length === 0) return;
 
-      // Compute bias: real station wind vs model's current hour
-      const cond = useRegattaStore.getState().conditions;
-      const realWindMs = cond ? cond.avgWindKt / 1.94384 : null; // kt → m/s
+      // Compute bias using NEAREST station (not diluted average of 5)
+      // The nearest station is most representative of local conditions
       const now = new Date();
+      const currentStations = useWeatherStore.getState().stations;
+      const currentReadings = useWeatherStore.getState().currentReadings;
+
+      // Find nearest station with wind data
+      let bestStationWindMs: number | null = null;
+      let bestDist = Infinity;
+      for (const st of currentStations) {
+        const r = currentReadings.get(st.id);
+        if (!r || r.windSpeed == null) continue;
+        const d = haversineDistance(cLat, cLon, st.lat, st.lon);
+        if (d < bestDist && d < 20) { // within 20km
+          bestDist = d;
+          bestStationWindMs = r.windSpeed; // already in m/s
+        }
+      }
 
       // Find model's estimate for current hour
       const currentModelPt = fc.find((p) => Math.abs(p.timestamp.getTime() - now.getTime()) < 90 * 60_000);
       const modelWindMs = currentModelPt?.windSpeed ?? null;
 
-      // Bias = real - model (positive means model underestimates)
+      // Bias = nearest real station - model (positive = model underestimates)
       let biasMs = 0;
-      if (realWindMs != null && modelWindMs != null && modelWindMs > 0) {
-        biasMs = realWindMs - modelWindMs;
-        // Clamp bias: max ±50% of model value (avoid extreme corrections)
-        biasMs = Math.max(-modelWindMs * 0.5, Math.min(biasMs, modelWindMs * 0.5));
+      if (bestStationWindMs != null && modelWindMs != null && modelWindMs > 0) {
+        biasMs = bestStationWindMs - modelWindMs;
+        // Allow up to 100% correction (was 50% — too conservative)
+        biasMs = Math.max(-modelWindMs * 0.8, Math.min(biasMs, modelWindMs * 1.0));
       }
 
       // Apply bias to future hours, decaying over time (bias fades in 6h)
@@ -293,6 +311,21 @@ export const RegattaPanel = memo(function RegattaPanel() {
     return () => { cancelled = true; clearInterval(iv); };
   }, [active, zone]);
 
+  // Fetch tides (Rías sector only)
+  useEffect(() => {
+    if (!active || !zone) return;
+    let cancelled = false;
+    fetchTides48h().then((data) => {
+      if (cancelled) return;
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      // Get today's upcoming tides + first of tomorrow
+      const upcoming = [...data.today.filter((t) => t.time >= hhmm), ...data.tomorrow.slice(0, 2)];
+      setTides(upcoming.slice(0, 4));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [active, zone]);
+
   // Export safety log as text
   const exportLog = useCallback(() => {
     const store = useRegattaStore.getState();
@@ -305,6 +338,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
       `  MeteoMapGal — INFORME DE SEGURIDAD DE EVENTO`,
       `══════════════════════════════════════════════════`,
       ``,
+      `Evento:      ${store.eventName || 'Sin nombre'}`,
       `Fecha:       ${new Date().toLocaleString('es-ES')}`,
       `Zona:        ${store.selectedZoneId || 'Zona personalizada'}`,
       `Duracion:    ${elapsed} minutos`,
@@ -326,6 +360,10 @@ export const RegattaPanel = memo(function RegattaPanel() {
       c?.swellHeight != null ? `Mar de fondo:  ${c.swellHeight.toFixed(1)} m` : '',
       c?.wavePeriod != null ? `Periodo ola:   ${c.wavePeriod.toFixed(1)} s` : '',
       `Temp. agua:    ${c?.waterTemp != null ? c.waterTemp.toFixed(1) + ' °C' : 'Sin datos'}`,
+      ``,
+      `--- MAREAS ---`,
+      ...tides.map((t) => `${t.type === 'high' ? 'Pleamar' : 'Bajamar'}: ${t.time} (${t.height.toFixed(1)}m)`),
+      tides.length === 0 ? 'Sin datos de mareas' : '',
       ``,
       `--- DATOS ATMOSFERICOS ---`,
       c?.avgHumidity != null ? `Humedad:       ${c.avgHumidity}%` : '',
@@ -350,6 +388,21 @@ export const RegattaPanel = memo(function RegattaPanel() {
     a.click();
     URL.revokeObjectURL(url);
   }, []);
+
+  // Drag handlers for movable panel
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: panelPos.x, origY: panelPos.y };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      setPanelPos({
+        x: Math.max(0, dragRef.current.origX + ev.clientX - dragRef.current.startX),
+        y: Math.max(0, dragRef.current.origY + ev.clientY - dragRef.current.startY),
+      });
+    };
+    const onUp = () => { dragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [panelPos]);
 
   if (!active || !zone) return null;
 
@@ -392,15 +445,29 @@ export const RegattaPanel = memo(function RegattaPanel() {
   }
 
   return (
-    <div className="absolute top-20 left-14 z-40 w-72 rounded-xl bg-slate-900/95 border border-amber-500/40 backdrop-blur-md shadow-2xl overflow-hidden">
-      {/* Header */}
-      <div className="px-3 py-2 bg-amber-500/15 border-b border-amber-500/30 flex items-center justify-between">
+    <div className="fixed z-40 w-72 rounded-xl bg-slate-900/95 border border-amber-500/40 backdrop-blur-md shadow-2xl overflow-hidden" style={{ left: panelPos.x, top: panelPos.y }}>
+      {/* Header — draggable */}
+      <div
+        onMouseDown={onDragStart}
+        className="px-3 py-2 bg-amber-500/15 border-b border-amber-500/30 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+      >
         <div className="flex items-center gap-2">
           <span className="text-amber-400 text-sm font-bold uppercase tracking-wider">Modo Evento</span>
           <span className="text-[8px] text-amber-400/60 font-bold uppercase bg-amber-500/20 px-1.5 py-0.5 rounded">alpha</span>
         </div>
         <button onClick={() => useRegattaStore.getState().toggleMinimize()}
           className="text-slate-500 hover:text-slate-300 text-sm leading-none cursor-pointer" title="Minimizar">_</button>
+      </div>
+
+      {/* Event name */}
+      <div className="px-3 py-1 border-b border-slate-700/30">
+        <input
+          type="text"
+          value={eventName}
+          onChange={(e) => useRegattaStore.getState().setEventName(e.target.value)}
+          placeholder="Nombre del evento..."
+          className="w-full bg-transparent text-[11px] text-white placeholder-slate-600 outline-none border-none"
+        />
       </div>
 
       {/* Timer */}
@@ -528,6 +595,24 @@ export const RegattaPanel = memo(function RegattaPanel() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tides */}
+      {tides.length > 0 && (
+        <div className="px-3 py-1 border-t border-slate-700/40">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[8px] text-slate-500 font-bold uppercase">Mareas</span>
+            {tides.map((t, i) => (
+              <span key={i} className="text-[10px]">
+                <span className={t.type === 'high' ? 'text-cyan-400' : 'text-blue-400'}>
+                  {t.type === 'high' ? '▲' : '▼'}
+                </span>
+                <span className="text-white font-bold"> {t.time}</span>
+                <span className="text-slate-500"> ({t.height.toFixed(1)}m)</span>
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
