@@ -199,6 +199,15 @@ body {
   z-index: 30 !important;
 }
 
+/* Event mode: fade non-essential map elements to focus on zone + alerts */
+.regatta-active .maplibregl-marker:not([class*="regatta"]) {
+  opacity: 0.4 !important;
+  transition: opacity 0.3s;
+}
+.regatta-active .maplibregl-ctrl-group {
+  opacity: 0.5;
+}
+
 /* MapLibre popup overrides */
 .maplibregl-popup-content {
   background: var(--color-surface-card, #1e293b) !important;
