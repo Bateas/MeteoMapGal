@@ -51,6 +51,7 @@ import { AISOverlay } from './AISOverlay';
 import { AviationOverlay } from './AviationOverlay';
 import { RegattaOverlay } from './RegattaOverlay';
 import { RegattaPanel } from './RegattaPanel';
+import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useAISData } from '../../hooks/useAISData';
@@ -136,6 +137,12 @@ export function WeatherMap() {
   // AIS + Aviation tracking hooks
   useAISData();
   useAviationData();
+
+  // Regatta mode: fade non-essential elements
+  const regattaActive = useRegattaStore((s) => s.active && s.zone !== null);
+  useEffect(() => {
+    containerRef.current?.classList.toggle('regatta-active', regattaActive);
+  }, [regattaActive]);
 
   // Track zoom level for label visibility — quantized to visual breakpoints
   // to avoid re-rendering ~84 markers on every 0.1 zoom change
