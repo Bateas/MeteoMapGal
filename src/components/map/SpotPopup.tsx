@@ -1022,12 +1022,16 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
 }
 
 // ── Color helpers ────────────────────────────────────────────
+/** Wind speed color aligned with verdict thresholds and VERDICT_HEX colors.
+ * calm (<6kt) slate, light (6-8) sky, sailing (8-12) amber,
+ * good (12-18) emerald, strong (18+) cyan, danger (25+) red. */
 function windKtColor(kt: number): string {
-  if (kt < 5) return '#94a3b8';
-  if (kt < 10) return '#fbbf24';
-  if (kt < 18) return '#34d399';
-  if (kt < 25) return '#22d3ee';
-  return '#f87171';
+  if (kt < 6) return '#94a3b8';   // calm — slate (matches VERDICT_HEX.calm)
+  if (kt < 8) return '#38bdf8';   // light — sky (matches VERDICT_HEX.light)
+  if (kt < 12) return '#fbbf24';  // sailing — amber (matches VERDICT_HEX.sailing)
+  if (kt < 18) return '#34d399';  // good — emerald (matches VERDICT_HEX.good)
+  if (kt < 25) return '#22d3ee';  // strong — cyan (matches VERDICT_HEX.strong)
+  return '#f87171';               // danger — red
 }
 
 function waveColor(m: number): string {
