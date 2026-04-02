@@ -11,6 +11,7 @@ import { fetchMarineData } from '../../api/marineClient';
 import { fetchOpenMeteoForecast } from '../../api/openMeteoClient';
 import { APP_VERSION } from '../../config/version';
 import { fetchTides48h, type TidePoint } from '../../api/tideClient';
+import { fetchAemetAvisos, filterAvisosByProvince, AVISO_COLORS, type AemetAviso } from '../../api/aemetAvisosClient';
 import type { NormalizedStation, NormalizedReading } from '../../types/weather';
 import type { ForecastPoint } from '../../api/openMeteoClient';
 
@@ -54,6 +55,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const [showLog, setShowLog] = useState(false);
   const [forecast, setForecast] = useState<ForecastPoint[]>([]);
   const [tides, setTides] = useState<TidePoint[]>([]);
+  const [aemetAvisos, setAemetAvisos] = useState<AemetAviso[]>([]);
   const [panelPos, setPanelPos] = useState({ x: 56, y: 80 }); // left:56px (left-14), top:80px
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
@@ -333,6 +335,23 @@ export const RegattaPanel = memo(function RegattaPanel() {
     return () => { cancelled = true; };
   }, [active, zone]);
 
+  // Fetch AEMET official warnings
+  useEffect(() => {
+    if (!active || !zone) return;
+    let cancelled = false;
+    const load = async () => {
+      const all = await fetchAemetAvisos();
+      if (cancelled) return;
+      // Filter by sector province (Pontevedra=36 for Rias, Ourense=32 for Embalse)
+      const centerLon = (zone.ne[0] + zone.sw[0]) / 2;
+      const province = centerLon < -8.4 ? '36' : '32'; // rough heuristic
+      setAemetAvisos(filterAvisosByProvince(all, province as '36' | '32'));
+    };
+    load();
+    const iv = setInterval(load, 15 * 60_000); // refresh every 15min
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [active, zone]);
+
   // Export safety log as text
   const exportLog = useCallback(() => {
     const store = useRegattaStore.getState();
@@ -376,7 +395,11 @@ export const RegattaPanel = memo(function RegattaPanel() {
       c?.avgHumidity != null ? `Humedad:       ${c.avgHumidity}%` : '',
       c?.maxTemp != null ? `Temp. aire:    ${c.minTemp?.toFixed(1)}–${c.maxTemp?.toFixed(1)} °C` : '',
       ``,
-      `--- AVISOS ---`,
+      `--- AVISOS AEMET OFICIALES ---`,
+      ...aemetAvisos.map((a) => `[${a.level.toUpperCase()}] ${a.areaDesc}: ${a.event}`),
+      aemetAvisos.length === 0 ? 'Sin avisos AEMET activos' : '',
+      ``,
+      `--- AVISOS SISTEMA ---`,
       ...(c?.alerts?.length > 0 ? c.alerts : ['Sin avisos activos']),
       ``,
       `══════════════════════════════════════════════════`,
@@ -584,6 +607,22 @@ export const RegattaPanel = memo(function RegattaPanel() {
             className="text-[9px] text-slate-500 hover:text-slate-300 cursor-pointer mt-1">
             {expanded ? 'Menos detalle' : 'Mas detalle'}
           </button>
+
+          {/* AEMET official warnings */}
+          {aemetAvisos.length > 0 && (
+            <div className="mt-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/30 space-y-1">
+              <div className="text-[8px] font-black uppercase tracking-wider text-orange-400">AEMET Avisos Oficiales</div>
+              {aemetAvisos.map((a, i) => {
+                const c = AVISO_COLORS[a.level];
+                return (
+                  <div key={i} className={`flex items-center gap-1.5 text-[10px] ${c.text}`}>
+                    <span className={`px-1 py-0.5 rounded text-[7px] font-black uppercase ${c.bg}`}>{c.label}</span>
+                    <span className="font-semibold truncate">{a.areaDesc}: {a.event.replace(/Aviso de /, '').replace(/ de nivel \w+/, '')}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Safety alerts — prominent */}
           {conditions.alerts.length > 0 && (
