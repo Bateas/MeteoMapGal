@@ -4,6 +4,7 @@ import type { WeatherLayerType } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useAviationStore } from '../../store/aviationStore';
+import { useWebcamStore } from '../../store/webcamStore';
 import { useRegattaStore } from '../../store/regattaStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
@@ -122,6 +123,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 /* ─── Tracking layer toggles (Aviation) ─── */
 
 const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector: string; alpha?: boolean }[] = [
+  { id: 'webcams', icon: 'camera', label: 'Webcams', sector: 'rias' },
   { id: 'aviation', icon: 'navigation', label: 'Aviones', sector: 'embalse', alpha: true },
 ];
 
@@ -129,11 +131,14 @@ function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: 
   const avShow = useAviationStore((s) => s.showOverlay);
   const avAlert = useAviationStore((s) => s.alert);
   const avToggle = useAviationStore((s) => s.toggleOverlay);
+  const wcShow = useWebcamStore((s) => s.showOverlay);
+  const wcToggle = useWebcamStore((s) => s.toggleOverlay);
 
   const visible = TRACKING_BUTTONS.filter((b) => b.sector === sectorId);
   if (visible.length === 0) return null;
 
   const getState = (id: string) => {
+    if (id === 'webcams') return { isOn: wcShow, toggle: wcToggle, badge: undefined };
     if (id === 'aviation') return { isOn: avShow, toggle: avToggle, badge: avAlert.level !== 'none' ? avAlert.aircraftInBbox.toString() : undefined };
     return { isOn: false, toggle: () => {}, badge: undefined };
   };
