@@ -404,19 +404,11 @@ export const RegattaPanel = memo(function RegattaPanel() {
     document.addEventListener('mouseup', onUp);
   }, [panelPos]);
 
-  if (!active || !zone) return null;
-
-  const sem = conditions ? SEM[conditions.semaphore] : SEM.green;
-  const mins = Math.floor(displayMs / 60_000);
-  const secs = Math.floor((displayMs % 60_000) / 1000);
-  const timer = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  const cond = conditions as any;
-
-  // Wind trend from last 10min of history
+  // Wind trend from last 10min of history (MUST be before any conditional return)
   const windTrend = useMemo(() => {
     if (conditionsHistory.length < 3) return { label: 'Estable', arrow: '', color: 'text-slate-400' };
-    const recent = conditionsHistory.slice(-6); // last ~1min
-    const older = conditionsHistory.slice(0, Math.max(3, conditionsHistory.length - 6)); // 5-10min ago
+    const recent = conditionsHistory.slice(-6);
+    const older = conditionsHistory.slice(0, Math.max(3, conditionsHistory.length - 6));
     const avgRecent = recent.reduce((s, h) => s + h.avgWindKt, 0) / recent.length;
     const avgOlder = older.reduce((s, h) => s + h.avgWindKt, 0) / older.length;
     const diff = avgRecent - avgOlder;
@@ -424,6 +416,14 @@ export const RegattaPanel = memo(function RegattaPanel() {
     if (diff < -2) return { label: 'Bajando', arrow: ' ↓', color: 'text-cyan-400' };
     return { label: 'Estable', arrow: ' →', color: 'text-green-400' };
   }, [conditionsHistory]);
+
+  if (!active || !zone) return null;
+
+  const sem = conditions ? SEM[conditions.semaphore] : SEM.green;
+  const mins = Math.floor(displayMs / 60_000);
+  const secs = Math.floor((displayMs % 60_000) / 1000);
+  const timer = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const cond = conditions as any;
 
   // Minimized: compact bar with semaphore + timer + expand button
   if (minimized) {
