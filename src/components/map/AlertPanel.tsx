@@ -186,19 +186,19 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
           <>
             <button
               onClick={(e) => handleValidate(true, e)}
-              className="px-1 py-0.5 rounded opacity-50 hover:opacity-100 transition-opacity"
+              className="px-1.5 py-1 rounded opacity-70 hover:opacity-100 hover:bg-green-500/20 transition-all cursor-pointer"
               style={{ color: '#22c55e' }}
-              title="Alerta correcta"
+              title="Alerta correcta — validar"
             >
-              <MiniIcon id="thumbs-up" size={13} />
+              <MiniIcon id="thumbs-up" size={14} />
             </button>
             <button
               onClick={(e) => handleValidate(false, e)}
-              className="px-1 py-0.5 rounded opacity-50 hover:opacity-100 transition-opacity"
+              className="px-1.5 py-1 rounded opacity-70 hover:opacity-100 hover:bg-red-500/20 transition-all cursor-pointer"
               style={{ color: '#ef4444' }}
-              title="Falso positivo"
+              title="Falso positivo — rechazar"
             >
-              <MiniIcon id="thumbs-down" size={13} />
+              <MiniIcon id="thumbs-down" size={14} />
             </button>
           </>
         )}
