@@ -32,8 +32,10 @@ export interface ZoneConditions {
   maxTemp?: number;
   minTemp?: number;
   waveHeight?: number;
+  swellHeight?: number;
+  wavePeriod?: number;
   waterTemp?: number;
-  interpolated?: boolean; // true if using nearby stations, not in-zone
+  interpolated?: boolean;
 }
 
 interface RegattaState {

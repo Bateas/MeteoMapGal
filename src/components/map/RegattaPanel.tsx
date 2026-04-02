@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useCallback } from 'react';
+import { memo, useEffect, useState, useCallback, useRef } from 'react';
 import { useRegattaStore, type SemaphoreLevel, type ZoneConditions } from '../../store/regattaStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useBuoyStore } from '../../store/buoyStore';
@@ -7,6 +7,7 @@ import { useLightningStore } from '../../hooks/useLightningData';
 import { useAviationStore } from '../../store/aviationStore';
 import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
+import { fetchMarineData } from '../../api/marineClient';
 import type { NormalizedStation, NormalizedReading } from '../../types/weather';
 
 const SEM: Record<SemaphoreLevel, { bg: string; border: string; text: string; label: string }> = {
@@ -53,7 +54,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
   }, [timerRunning, timerStartMs, elapsedMs]);
 
   // Compute zone conditions — uses in-zone + nearest stations
-  const computeConditions = useCallback(() => {
+  const computeConditions = useCallback(async () => {
     if (!zone) return;
     const { ne, sw } = zone;
     const centerLat = (ne[1] + sw[1]) / 2;
@@ -94,10 +95,14 @@ export const RegattaPanel = memo(function RegattaPanel() {
     const windDir = dirs.length > 0 ? Math.round(dirs.reduce((a, b) => a + b, 0) / dirs.length) : null;
     const avgHumidity = humids.length > 0 ? Math.round(humids.reduce((a, b) => a + b, 0) / humids.length) : null;
 
-    // Buoy data (nearest buoy to zone center)
+    // Marine data: buoy first, Open-Meteo Marine as fallback
     let waveHeight: number | null = null;
     let waterTemp: number | null = null;
+    let swellHeight: number | null = null;
+    let wavePeriod: number | null = null;
     let nearestBuoyDist = Infinity;
+
+    // Try buoys first (real-time)
     for (const b of buoys) {
       if (b.latitude == null || b.longitude == null) continue;
       const d = haversineDistance(centerLat, centerLon, b.latitude, b.longitude);
@@ -105,6 +110,17 @@ export const RegattaPanel = memo(function RegattaPanel() {
         nearestBuoyDist = d;
         if (b.waveHeight != null) waveHeight = b.waveHeight;
         if (b.waterTemperature != null) waterTemp = b.waterTemperature;
+      }
+    }
+
+    // Fallback: Open-Meteo Marine (any coordinate, always available)
+    if (waveHeight == null || waterTemp == null) {
+      const marine = await fetchMarineData(centerLat, centerLon);
+      if (marine) {
+        if (waveHeight == null) waveHeight = marine.waveHeight;
+        if (waterTemp == null) waterTemp = marine.seaSurfaceTemp;
+        swellHeight = marine.swellHeight;
+        wavePeriod = marine.wavePeriod;
       }
     }
 
@@ -185,6 +201,8 @@ export const RegattaPanel = memo(function RegattaPanel() {
       ...(avgHumidity != null && { avgHumidity }),
       ...(maxTemp != null && { maxTemp, minTemp }),
       ...(waveHeight != null && { waveHeight }),
+      ...(swellHeight != null && { swellHeight }),
+      ...(wavePeriod != null && { wavePeriod }),
       ...(waterTemp != null && { waterTemp }),
       ...(inZone.length === 0 && count > 0 && { interpolated: true }),
     } as ZoneConditions);
@@ -283,6 +301,18 @@ export const RegattaPanel = memo(function RegattaPanel() {
           {/* Expandable details */}
           {expanded && (
             <>
+              {cond.swellHeight != null && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Mar de fondo</span>
+                  <span className="text-cyan-400 font-bold">{cond.swellHeight.toFixed(1)} m</span>
+                </div>
+              )}
+              {cond.wavePeriod != null && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Periodo ola</span>
+                  <span className="text-white font-bold">{cond.wavePeriod.toFixed(1)} s</span>
+                </div>
+              )}
               {cond.avgHumidity != null && (
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Humedad</span>
