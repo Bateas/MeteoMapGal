@@ -210,6 +210,24 @@ CREATE INDEX IF NOT EXISTS alert_log_unvalidated_idx
 -- );
 -- SELECT add_compression_policy('readings', INTERVAL '7 days', if_not_exists => TRUE);
 
+-- ── Webcam vision readings ──────────────────────────
+CREATE TABLE IF NOT EXISTS webcam_readings (
+  time        TIMESTAMPTZ     NOT NULL,
+  webcam_id   TEXT            NOT NULL,
+  spot_id     TEXT,
+  beaufort    INTEGER,
+  confidence  TEXT,
+  fog         BOOLEAN         DEFAULT FALSE,
+  visibility  TEXT,
+  sky         TEXT,
+  description TEXT,
+  provider    TEXT,
+  latency_ms  INTEGER,
+  PRIMARY KEY (time, webcam_id)
+);
+SELECT create_hypertable('webcam_readings', 'time', if_not_exists => TRUE);
+
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
 -- SELECT add_retention_policy('alerts', INTERVAL '1 year', if_not_exists => TRUE);
+-- SELECT add_retention_policy('webcam_readings', INTERVAL '6 months', if_not_exists => TRUE);

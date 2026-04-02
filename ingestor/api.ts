@@ -332,6 +332,32 @@ async function handleSpotScores(
   }
 }
 
+// ── Webcam vision endpoint ────────────────────────────
+
+async function handleWebcamVision(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const db = getPool();
+  const hours = parseInt(params.hours || '3', 10);
+
+  try {
+    const result = await db.query(
+      `SELECT DISTINCT ON (webcam_id)
+         time::text, webcam_id, spot_id, beaufort, confidence,
+         fog, visibility, sky, description, provider, latency_ms
+       FROM webcam_readings
+       WHERE time > NOW() - make_interval(hours => $1)
+       ORDER BY webcam_id, time DESC`,
+      [hours]
+    );
+    json(res, { count: result.rows.length, readings: result.rows }, 200, origin);
+  } catch (err) {
+    error(res, (err as Error).message, 500, origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -355,6 +381,8 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/forecast': handleForecast,
   // Spot score history (for verification dashboard)
   '/api/v1/spots/scores': handleSpotScores,
+  // Webcam vision latest results
+  '/api/v1/webcam-vision': handleWebcamVision,
 };
 
 // ── Webcam upload handler ──────────────────────────────
