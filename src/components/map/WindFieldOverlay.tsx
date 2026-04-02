@@ -4,6 +4,7 @@ import type maplibregl from 'maplibre-gl';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import type { BuoyReading } from '../../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../../api/buoyClient';
+import { STALE_THRESHOLD_MIN } from '../../config/constants';
 
 interface WindFieldOverlayProps {
   stations: NormalizedStation[];
@@ -233,10 +234,14 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
     const minWindMs = 0.1; // Filter is now handled by MapLibre expression on the layer
 
     // ── Station arrows ─────────────────────────────────
+    const staleMs = STALE_THRESHOLD_MIN * 60_000;
+    const now = Date.now();
     for (const station of stations) {
       if (station.tempOnly) continue;
       const reading = readings.get(station.id);
       if (!reading || reading.windDirection === null || reading.windSpeed === null || reading.windSpeed < minWindMs) continue;
+      // Skip stale stations — no wind arrows for offline data
+      if (now - reading.timestamp.getTime() > staleMs) continue;
       pushHexArrows(features, station.lon, station.lat, reading.windSpeed, reading.windDirection, offsetScale, compact);
     }
 
