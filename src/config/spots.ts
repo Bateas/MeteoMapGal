@@ -230,11 +230,19 @@ export const RIAS_SPOTS: SailingSpot[] = [
     tideStationId: '29', // Vigo
     webcams: [
       {
-        label: 'Vigo Móvil (Ría)',
+        label: 'Cangas (MeteoGalicia)',
+        url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/Cangas/ultima.jpg',
+        type: 'image',
+        source: 'MeteoGalicia',
+        azimuth: 120,
+        refreshInterval: 300,
+      },
+      {
+        label: 'Vigo Movil (Ria)',
         url: 'https://www.g24.gal/-/vigo-mobil-',
         type: 'page',
         source: 'G24',
-        azimuth: 315, // Mirando NW (centro ría)
+        azimuth: 315,
       },
     ],
   },
@@ -275,11 +283,27 @@ export const RIAS_SPOTS: SailingSpot[] = [
     webcams: [
       {
         label: 'Cíes – Rodas (MeteoGalicia)',
-        url: 'https://www.meteogalicia.gal/datosred/infoweb/clima/webcams/Ciesrodas/ultima.jpg',
+        url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/Ciesrodas/ultima.jpg',
         type: 'image',
         source: 'MeteoGalicia',
-        azimuth: 180, // Mirando al sur (playa de Rodas)
-        refreshInterval: 300, // 5 min
+        azimuth: 180,
+        refreshInterval: 300,
+      },
+      {
+        label: 'Cíes – Faro Sur',
+        url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/CiesFaroSur/ultima.jpg',
+        type: 'image',
+        source: 'MeteoGalicia',
+        azimuth: 180,
+        refreshInterval: 300,
+      },
+      {
+        label: 'Cíes – Faro Norte (Ría)',
+        url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/CiesFaroNorte/ultima.jpg',
+        type: 'image',
+        source: 'MeteoGalicia',
+        azimuth: 0,
+        refreshInterval: 300,
       },
     ],
   },
@@ -321,11 +345,19 @@ export const RIAS_SPOTS: SailingSpot[] = [
     tideStationId: '28', // Marín
     webcams: [
       {
+        label: 'Aguete - Marin (MeteoGalicia)',
+        url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/Aguete2/ultima.jpg',
+        type: 'image',
+        source: 'MeteoGalicia',
+        azimuth: 225,
+        refreshInterval: 300,
+      },
+      {
         label: 'Lourido (KiteGalicia)',
         url: 'https://kitegalicia.com/playas/centro-kg-lourido/',
         type: 'page',
         source: 'KiteGalicia',
-        azimuth: 225, // Mirando SW (ría)
+        azimuth: 225,
       },
     ],
   },
@@ -361,6 +393,24 @@ export const RIAS_SPOTS: SailingSpot[] = [
     thermalDetection: false,
     hardGates: { maxWindKt: 30, maxWaveHeight: 3.0 },
     tideStationId: '27', // Sanxenxo (closest)
+    webcams: [
+      {
+        label: 'Salvora (MeteoGalicia)',
+        url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/Salvora/ultima.jpg',
+        type: 'image',
+        source: 'MeteoGalicia',
+        azimuth: 180,
+        refreshInterval: 300,
+      },
+      {
+        label: 'Coron - Vilanova (MeteoGalicia)',
+        url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/Coron/ultima.jpg',
+        type: 'image',
+        source: 'MeteoGalicia',
+        azimuth: 270,
+        refreshInterval: 300,
+      },
+    ],
   },
   {
     id: 'vao',
