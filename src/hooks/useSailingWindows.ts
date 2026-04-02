@@ -63,5 +63,5 @@ export function useSailingWindows() {
     return poll();
   }, [poll]);
 
-  useVisibilityPolling(deferredPoll, POLL_INTERVAL_MS);
+  useVisibilityPolling(deferredPoll, POLL_INTERVAL_MS, true, 7_000); // Stagger: 7s
 }

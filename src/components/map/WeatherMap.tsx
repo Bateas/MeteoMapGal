@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import Map, { NavigationControl } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
@@ -49,8 +49,7 @@ import { IGNOrthoOverlay } from './IGNOrthoOverlay';
 import { DistanceTool } from './DistanceTool';
 import { AviationOverlay } from './AviationOverlay';
 import { RegattaOverlay } from './RegattaOverlay';
-import { RegattaPanel } from './RegattaPanel';
-// RegattaTimeline now integrated inside RegattaPanel
+const RegattaPanel = lazy(() => import('./RegattaPanel').then(m => ({ default: m.RegattaPanel })));
 import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
@@ -440,8 +439,10 @@ export function WeatherMap() {
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
 
-      {/* Regatta/Event mode panel (timeline integrated inside) */}
-      <RegattaPanel />
+      {/* Regatta/Event mode panel — lazy loaded (only used in event mode) */}
+      <Suspense fallback={null}>
+        <RegattaPanel />
+      </Suspense>
 
       {/* ── Bottom controls: toolbar + alerts ── */}
       {isMobile ? (
