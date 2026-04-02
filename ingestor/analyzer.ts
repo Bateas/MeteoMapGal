@@ -323,8 +323,10 @@ export async function runAnalysis(): Promise<void> {
     scoreRows.push(result);
     const prev = previousVerdicts.get(spot.id) ?? 'unknown';
 
-    // Detect transition: low → good
-    if (LOW_VERDICTS.has(prev) && ALERT_VERDICTS.has(result.verdict)) {
+    // Detect transition: low → good (skip marginal sailing <10kt — too noisy)
+    const worthAlerting = result.verdict === 'good' || result.verdict === 'strong'
+      || (result.verdict === 'sailing' && result.avgWindKt >= 10);
+    if (LOW_VERDICTS.has(prev) && ALERT_VERDICTS.has(result.verdict) && worthAlerting) {
       const dir = result.avgDir != null ? degreesToCardinal(result.avgDir) : '';
       await dispatchSpotAlert(
         spot.id, spot.name, spot.sector === 'embalse' ? 'Embalse' : 'Rías Baixas',
