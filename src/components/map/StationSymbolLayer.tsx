@@ -181,13 +181,19 @@ export function StationSymbolLayer({
           // Always use source color for ring — no red/amber override
           'circle-stroke-color': ['get', 'sourceColor'],
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 12, 1.5],
-          // Stale stations become very transparent (nearly invisible)
-          // fresh (>=0.85): 0.7 opacity, aging (0.6-0.85): 0.4, stale (<0.6): 0.12
+          'circle-color': 'transparent',
+          // Stale stations: ring AND fill become nearly invisible
           'circle-opacity': [
             'step', ['get', 'freshness'],
-            0.12,          // <0.6 (>30min): nearly invisible
-            0.6, 0.4,     // 0.6-0.85 (10-30min): faded
+            0.1,           // <0.6 (>30min): nearly invisible
+            0.6, 0.35,    // 0.6-0.85 (10-30min): faded
             0.85, 0.7,    // >=0.85 (<10min): normal
+          ],
+          'circle-stroke-opacity': [
+            'step', ['get', 'freshness'],
+            0.1,           // <0.6 (>30min): ring nearly invisible
+            0.6, 0.35,    // 0.6-0.85 (10-30min): faded ring
+            0.85, 0.7,    // >=0.85 (<10min): normal ring
           ],
         }}
       />
@@ -222,6 +228,13 @@ export function StationSymbolLayer({
           'text-color': '#ffffff',
           'text-halo-color': 'rgba(0,0,0,0.5)',
           'text-halo-width': 0.8,
+          // Source label fades with marker
+          'text-opacity': [
+            'step', ['get', 'freshness'],
+            0.1,           // <0.6: nearly invisible
+            0.6, 0.4,
+            0.85, 1.0,
+          ],
         }}
       />
 
@@ -242,6 +255,13 @@ export function StationSymbolLayer({
           'text-color': '#cbd5e1', // slate-300
           'text-halo-color': '#0f172a', // slate-900
           'text-halo-width': 1.5,
+          // Stale station names fade with the marker
+          'text-opacity': [
+            'step', ['get', 'freshness'],
+            0.1,           // <0.6: nearly invisible
+            0.6, 0.4,
+            0.85, 1.0,
+          ],
         }}
       />
 
