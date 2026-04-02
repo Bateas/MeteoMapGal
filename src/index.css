@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/* ── Accessibility: keyboard focus indicator ──────── */
+:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.7);
+  outline-offset: 2px;
+}
+
+/* ── Accessibility: respect reduced motion preference ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Override Tailwind font-mono with JetBrains Mono */
 @theme {
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
