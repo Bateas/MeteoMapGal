@@ -3,8 +3,6 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import type { WeatherLayerType } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
-// AIS disabled — no data source for Galicia
-// import { useAISStore } from '../../store/aisStore';
 import { useAviationStore } from '../../store/aviationStore';
 import { useRegattaStore } from '../../store/regattaStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
@@ -121,11 +119,9 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   );
 });
 
-/* ─── Tracking layer toggles (AIS ships, Aviation) ─── */
+/* ─── Tracking layer toggles (Aviation) ─── */
 
 const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector: string; alpha?: boolean }[] = [
-  // AIS ships disabled — no working data source yet (aisstream 0 data, embeds blocked by CSP)
-  // { id: 'ais', icon: 'anchor', label: 'Barcos', sector: 'rias', alpha: true },
   { id: 'aviation', icon: 'navigation', label: 'Aviones', sector: 'embalse', alpha: true },
 ];
 

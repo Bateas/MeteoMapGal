@@ -34,7 +34,6 @@ const SpotSelector = lazy(() =>
 const RankingsPanel = lazy(() =>
   import('../dashboard/RankingsPanel').then((m) => ({ default: m.RankingsPanel })),
 );
-// ForecastVerification disabled — needs reliable DB data for all stations before re-enabling
 const SpotComparator = lazy(() =>
   import('../dashboard/SpotComparator').then((m) => ({ default: m.SpotComparator })),
 );
