@@ -3,7 +3,8 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import type { WeatherLayerType } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
-import { useAISStore } from '../../store/aisStore';
+// AIS disabled — no data source for Galicia
+// import { useAISStore } from '../../store/aisStore';
 import { useAviationStore } from '../../store/aviationStore';
 import { useRegattaStore } from '../../store/regattaStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
@@ -129,9 +130,6 @@ const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector: strin
 ];
 
 function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: string }) {
-  const aisShow = useAISStore((s) => s.showOverlay);
-  const aisConnected = useAISStore((s) => s.isConnected);
-  const aisToggle = useAISStore((s) => s.toggleOverlay);
   const avShow = useAviationStore((s) => s.showOverlay);
   const avAlert = useAviationStore((s) => s.alert);
   const avToggle = useAviationStore((s) => s.toggleOverlay);
@@ -140,7 +138,6 @@ function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: 
   if (visible.length === 0) return null;
 
   const getState = (id: string) => {
-    if (id === 'ais') return { isOn: aisShow, toggle: aisToggle, badge: aisConnected ? undefined : 'off' };
     if (id === 'aviation') return { isOn: avShow, toggle: avToggle, badge: avAlert.level !== 'none' ? avAlert.aircraftInBbox.toString() : undefined };
     return { isOn: false, toggle: () => {}, badge: undefined };
   };

@@ -187,6 +187,8 @@ export interface WebhookFeedbackPayload {
   text: string;
   sector: string;
   timestamp: string;
+  /** App version for bug tracking (auto-injected by FeedbackModal) */
+  version: string;
   /** Honeypot — should be empty for real users */
   website?: string;
 }

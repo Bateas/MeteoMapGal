@@ -5,6 +5,7 @@ import { useToastStore } from '../../store/toastStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { postFeedbackWebhook } from '../../api/webhookClient';
 import { sanitize, VALID_TYPES, MAX_CHARS } from '../../services/feedbackSanitize';
+import { APP_VERSION } from '../../config/version';
 import type { FeedbackType } from '../../services/feedbackSanitize';
 import { WeatherIcon } from '../icons/WeatherIcons';
 
@@ -94,6 +95,7 @@ export function FeedbackModal() {
         text: clean,
         sector: sectorId,
         timestamp: new Date().toISOString(),
+        version: APP_VERSION,
         website: honeypot,
       });
       lastSubmitRef.current = Date.now();
@@ -101,8 +103,9 @@ export function FeedbackModal() {
       addToast('Enviado. Gracias por tu feedback', 'success');
       resetForm();
       setOpen(false);
-    } catch {
-      addToast('Error al enviar. Intentalo mas tarde', 'error');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'desconocido';
+      addToast(`Error al enviar feedback (${msg}). Intentalo mas tarde`, 'error');
     } finally {
       setIsSubmitting(false);
     }

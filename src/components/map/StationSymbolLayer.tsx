@@ -178,20 +178,17 @@ export function StationSymbolLayer({
         paint={{
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 7, 10, 9, 11, 12, 12, 15],
           'circle-color': 'transparent',
-          // Stroke color indicates data freshness: normal → amber (>10min) → red (>30min)
-          'circle-stroke-color': [
+          // Always use source color for ring — no red/amber override
+          'circle-stroke-color': ['get', 'sourceColor'],
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 12, 1.5],
+          // Stale stations become very transparent (nearly invisible)
+          // fresh (>=0.85): 0.7 opacity, aging (0.6-0.85): 0.4, stale (<0.6): 0.12
+          'circle-opacity': [
             'step', ['get', 'freshness'],
-            '#ef4444',     // <0.6: red (>30min stale)
-            0.6, '#f59e0b', // 0.6-0.85: amber (>10min)
-            0.85, ['get', 'sourceColor'],  // >=0.85: fresh, source color
+            0.12,          // <0.6 (>30min): nearly invisible
+            0.6, 0.4,     // 0.6-0.85 (10-30min): faded
+            0.85, 0.7,    // >=0.85 (<10min): normal
           ],
-          // Stale data gets thicker ring for visibility
-          'circle-stroke-width': [
-            'step', ['get', 'freshness'],
-            2.5,           // <0.85: stale → thicker ring
-            0.85, 1.5,    // fresh → normal
-          ],
-          'circle-opacity': ['*', ['get', 'freshness'], 0.7],
         }}
       />
 
@@ -215,7 +212,13 @@ export function StationSymbolLayer({
         }}
         paint={{
           'icon-color': ['get', 'tempColor'],
-          'icon-opacity': ['*', ['get', 'freshness'], 0.75], // slightly transparent — less visual weight vs spots
+          // Stale stations fade out significantly — nearly invisible at >30min
+          'icon-opacity': [
+            'step', ['get', 'freshness'],
+            0.1,           // <0.6 (>30min): nearly invisible
+            0.6, 0.4,     // 0.6-0.85: faded
+            0.85, 0.75,   // fresh: normal
+          ],
           'text-color': '#ffffff',
           'text-halo-color': 'rgba(0,0,0,0.5)',
           'text-halo-width': 0.8,
