@@ -248,15 +248,44 @@ export const RegattaPanel = memo(function RegattaPanel() {
     return () => clearInterval(iv);
   }, [active, zone, computeConditions]);
 
-  // Load forecast for timeline
+  // Load forecast for timeline — with BIAS CORRECTION from real station data
+  // Problem: Open-Meteo models underestimate local wind (e.g. model=12kt, real=17kt)
+  // Solution: compute bias from current real vs model, apply to future hours
   useEffect(() => {
     if (!active || !zone) return;
     let cancelled = false;
     const load = async () => {
       const cLat = (zone.ne[1] + zone.sw[1]) / 2;
       const cLon = (zone.ne[0] + zone.sw[0]) / 2;
-      const fc = await fetchOpenMeteoForecast(cLat, cLon, 8);
-      if (!cancelled) setForecast(fc.filter((p) => p.timestamp > new Date()).slice(0, 6));
+      const fc = await fetchOpenMeteoForecast(cLat, cLon, 10);
+      if (cancelled || fc.length === 0) return;
+
+      // Compute bias: real station wind vs model's current hour
+      const cond = useRegattaStore.getState().conditions;
+      const realWindMs = cond ? cond.avgWindKt / 1.94384 : null; // kt → m/s
+      const now = new Date();
+
+      // Find model's estimate for current hour
+      const currentModelPt = fc.find((p) => Math.abs(p.timestamp.getTime() - now.getTime()) < 90 * 60_000);
+      const modelWindMs = currentModelPt?.windSpeed ?? null;
+
+      // Bias = real - model (positive means model underestimates)
+      let biasMs = 0;
+      if (realWindMs != null && modelWindMs != null && modelWindMs > 0) {
+        biasMs = realWindMs - modelWindMs;
+        // Clamp bias: max ±50% of model value (avoid extreme corrections)
+        biasMs = Math.max(-modelWindMs * 0.5, Math.min(biasMs, modelWindMs * 0.5));
+      }
+
+      // Apply bias to future hours, decaying over time (bias fades in 6h)
+      const upcoming = fc.filter((p) => p.timestamp > now).slice(0, 6);
+      const corrected = upcoming.map((p, i) => {
+        const decayFactor = Math.max(0, 1 - i * 0.15); // 100% → 10% over 6 hours
+        const correctedWind = Math.max(0, (p.windSpeed ?? 0) + biasMs * decayFactor);
+        return { ...p, windSpeed: correctedWind };
+      });
+
+      if (!cancelled) setForecast(corrected);
     };
     load();
     const iv = setInterval(load, 10 * 60_000);
@@ -450,13 +479,18 @@ export const RegattaPanel = memo(function RegattaPanel() {
         </div>
       )}
 
-      {/* Activity timeline — next 6h */}
+      {/* Activity timeline — next 6h with bias correction */}
       {forecast.length > 0 && (
         <div className="px-2 py-1.5 border-t border-slate-700/40">
-          <div className="text-[8px] text-slate-500 font-bold uppercase mb-1">Proximas {forecast.length}h</div>
+          <div className="flex items-center gap-1 mb-1">
+            <span className="text-[8px] text-slate-500 font-bold uppercase">Prevision {forecast.length}h</span>
+            <span className="text-[7px] text-teal-400/60 font-medium">(corregida con datos reales)</span>
+          </div>
           <div className="flex">
             {forecast.map((p, i) => {
               const wKt = Math.round(msToKnots(p.windSpeed ?? 0));
+              const prevKt = i > 0 ? Math.round(msToKnots(forecast[i - 1].windSpeed ?? 0)) : (conditions?.avgWindKt ?? wKt);
+              const trend = wKt > prevKt + 2 ? '+' : wKt < prevKt - 2 ? '-' : '';
               const isRed = wKt > 25;
               const isYellow = wKt > 15;
               const bg = isRed ? 'bg-red-500/30' : isYellow ? 'bg-amber-500/25' : 'bg-green-500/20';
@@ -464,7 +498,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
               return (
                 <div key={i} className={`flex-1 flex flex-col items-center py-1 ${bg} ${i > 0 ? 'border-l border-slate-700/20' : ''}`}>
                   <span className="text-[9px] text-white font-bold">{p.timestamp.getHours()}h</span>
-                  <span className={`text-[10px] font-black ${tc}`}>{wKt}kt</span>
+                  <span className={`text-[10px] font-black ${tc}`}>{wKt}{trend}kt</span>
                   <span className="text-[7px] text-slate-500">{Math.round(p.temperature ?? 0)}°</span>
                 </div>
               );
