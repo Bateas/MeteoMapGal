@@ -139,10 +139,25 @@ export function WeatherMap() {
   useAISData();
   useAviationData();
 
-  // Regatta mode: fade non-essential elements
+  // Regatta mode: fade non-essential elements (DOM + MapLibre native layers)
   const regattaActive = useRegattaStore((s) => s.active && s.zone !== null);
   useEffect(() => {
     containerRef.current?.classList.toggle('regatta-active', regattaActive);
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const fadeOpacity = regattaActive ? 0.3 : 1;
+    // Fade station symbols, wind arrows, buoy markers
+    for (const layerId of ['stations-icons', 'stations-labels', 'wind-arrows', 'buoy-icons', 'buoy-labels']) {
+      try {
+        if (map.getLayer(layerId)) {
+          const prop = map.getLayer(layerId)?.type === 'symbol' ? 'icon-opacity' : 'circle-opacity';
+          map.setPaintProperty(layerId, prop, fadeOpacity);
+          if (map.getLayer(layerId)?.type === 'symbol') {
+            map.setPaintProperty(layerId, 'text-opacity', fadeOpacity);
+          }
+        }
+      } catch { /* layer may not exist yet */ }
+    }
   }, [regattaActive]);
 
   // Track zoom level for label visibility — quantized to visual breakpoints

@@ -48,6 +48,7 @@ export interface SafetyLogEntry {
 interface RegattaState {
   active: boolean;
   minimized: boolean;
+  eventName: string;
   showZoneSelector: boolean;
   selectedZoneId: string | null;
   drawingPhase: DrawingPhase;
@@ -74,6 +75,7 @@ interface RegattaState {
   resetTimer: () => void;
   setConditions: (c: ZoneConditions) => void;
   addLogEntry: (type: SafetyLogEntry['type'], message: string) => void;
+  setEventName: (name: string) => void;
   toggleMinimize: () => void;
   deactivate: () => void;
 }
@@ -85,6 +87,7 @@ export const useRegattaStore = create<RegattaState>()(
     (set, get) => ({
       active: false,
       minimized: false,
+      eventName: '',
       showZoneSelector: false,
       selectedZoneId: null,
       drawingPhase: 'idle',
@@ -217,6 +220,8 @@ export const useRegattaStore = create<RegattaState>()(
         set({ conditions, conditionsHistory: history, safetyLog: newLog });
       },
 
+      setEventName: (eventName) => set({ eventName }),
+
       addLogEntry: (type, message) => set({
         safetyLog: [...get().safetyLog, { timestamp: Date.now(), type, message }],
       }),
@@ -226,6 +231,7 @@ export const useRegattaStore = create<RegattaState>()(
       deactivate: () => set({
         active: false,
         minimized: false,
+        eventName: '',
         showZoneSelector: false,
         selectedZoneId: null,
         drawingPhase: 'idle',
