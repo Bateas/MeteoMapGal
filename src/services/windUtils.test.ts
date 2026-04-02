@@ -152,7 +152,16 @@ describe('windSpeedColor', () => {
   it('returns orange for strong wind (~17-23 kt)', () => {
     expect(windSpeedColor(10)).toBe('#f97316');
   });
-  it('returns red for gale+ (>23 kt)', () => {
-    expect(windSpeedColor(15)).toBe('#ef4444');
+  it('returns red for gale (~23-30 kt)', () => {
+    expect(windSpeedColor(13)).toBe('#ef4444');
+  });
+  it('returns violet for extreme (>30 kt)', () => {
+    expect(windSpeedColor(17)).toBe('#a855f7');
+  });
+  it('returns dark violet for storm (>40 kt)', () => {
+    expect(windSpeedColor(22)).toBe('#7c3aed');
+  });
+  it('returns near-black for hurricane (>50 kt)', () => {
+    expect(windSpeedColor(27)).toBe('#1e1b4b');
   });
 });

@@ -1023,15 +1023,17 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
 
 // ── Color helpers ────────────────────────────────────────────
 /** Wind speed color aligned with verdict thresholds and VERDICT_HEX colors.
- * calm (<6kt) slate, light (6-8) sky, sailing (8-12) amber,
- * good (12-18) emerald, strong (18+) cyan, danger (25+) red. */
+ * Extends into violet→dark for extreme winds (30-45+ kt). */
 function windKtColor(kt: number): string {
-  if (kt < 6) return '#94a3b8';   // calm — slate (matches VERDICT_HEX.calm)
-  if (kt < 8) return '#38bdf8';   // light — sky (matches VERDICT_HEX.light)
-  if (kt < 12) return '#fbbf24';  // sailing — amber (matches VERDICT_HEX.sailing)
-  if (kt < 18) return '#34d399';  // good — emerald (matches VERDICT_HEX.good)
-  if (kt < 25) return '#22d3ee';  // strong — cyan (matches VERDICT_HEX.strong)
-  return '#f87171';               // danger — red
+  if (kt < 6) return '#94a3b8';   // calm — slate
+  if (kt < 8) return '#38bdf8';   // light — sky
+  if (kt < 12) return '#fbbf24';  // sailing — amber
+  if (kt < 18) return '#34d399';  // good — emerald
+  if (kt < 25) return '#22d3ee';  // strong — cyan
+  if (kt < 30) return '#f87171';  // danger — red
+  if (kt < 40) return '#a855f7';  // extreme — violet
+  if (kt < 50) return '#7c3aed';  // gale — dark violet
+  return '#1e1b4b';               // storm — near-black indigo
 }
 
 function waveColor(m: number): string {
