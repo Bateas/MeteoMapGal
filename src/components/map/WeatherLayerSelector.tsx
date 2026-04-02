@@ -189,7 +189,7 @@ function EventModeButton({ isMobile }: { isMobile: boolean }) {
     if (active) {
       useRegattaStore.getState().deactivate();
     } else {
-      useRegattaStore.getState().startDrawing();
+      useRegattaStore.getState().startEvent();
     }
   };
 
