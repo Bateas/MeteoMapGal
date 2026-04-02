@@ -83,5 +83,5 @@ export function useBuoyData() {
   // Single polling loop — enabled only on Rías sector.
   // useVisibilityPolling fires callback immediately on start → no double fetch.
   // When isRias becomes false, the hook cleans up the interval.
-  useVisibilityPolling(fetchBuoys, REFRESH_INTERVAL, isRias);
+  useVisibilityPolling(fetchBuoys, REFRESH_INTERVAL, isRias, 3_000); // Stagger: 3s after page load
 }

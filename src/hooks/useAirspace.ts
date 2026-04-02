@@ -92,7 +92,7 @@ export function useAirspace(): AirspaceCheck {
   }, [fetchAndEvaluate]);
 
   // Visibility-aware NOTAM polling — pauses when tab is hidden
-  useVisibilityPolling(fetchAndEvaluate, NOTAM_POLL_INTERVAL);
+  useVisibilityPolling(fetchAndEvaluate, NOTAM_POLL_INTERVAL, true, 10_000); // Stagger: 10s
 
   return check ?? EMPTY_CHECK;
 }

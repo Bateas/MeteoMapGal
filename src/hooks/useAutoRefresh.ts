@@ -8,7 +8,9 @@ interface AutoRefreshState {
 
 export function useAutoRefresh(
   callback: () => Promise<void>,
-  intervalMs: number
+  intervalMs: number,
+  /** Delay first execution to stagger startup API calls (ms). Default 0 = immediate. */
+  initialDelayMs = 0,
 ): AutoRefreshState {
   const timerRef = useRef<number>(undefined);
   const callbackRef = useRef(callback);
@@ -55,13 +57,16 @@ export function useAutoRefresh(
     };
 
     document.addEventListener('visibilitychange', onVisibilityChange);
-    start();
 
-    return () => {
-      stop();
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, [intervalMs, executeRefresh]);
+    // Stagger startup: delay first execution to avoid thundering herd
+    if (initialDelayMs > 0) {
+      const delayTimer = window.setTimeout(start, initialDelayMs);
+      return () => { stop(); clearTimeout(delayTimer); document.removeEventListener('visibilitychange', onVisibilityChange); };
+    }
+
+    start();
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibilityChange); };
+  }, [intervalMs, initialDelayMs, executeRefresh]);
 
   return { lastRefresh, isPolling, forceRefresh };
 }
