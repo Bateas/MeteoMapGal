@@ -7,6 +7,7 @@ import { useLightningStore } from '../../hooks/useLightningData';
 import { useAviationStore } from '../../store/aviationStore';
 import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
+import { getSourceQuality, isWindBlacklisted } from '../../services/spotScoringEngine';
 import { fetchMarineData } from '../../api/marineClient';
 import { fetchOpenMeteoForecast } from '../../api/openMeteoClient';
 import { APP_VERSION } from '../../config/version';
@@ -86,31 +87,45 @@ export const RegattaPanel = memo(function RegattaPanel() {
     // If none in zone, find 5 nearest within 30km
     const sources = inZone.length > 0 ? inZone : findNearestStations(stations, readings, centerLat, centerLon, 5, 20);
 
-    // IDW (Inverse Distance Weighting) — closer stations have MORE influence
-    // weight = 1 / distance^2 (squared for stronger proximity bias)
+    // Unified weighting: IDW × sourceQuality × freshness (matches spotScoringEngine)
+    // + wind blacklist filtering (35 sheltered stations excluded from wind)
     let weightedSpeed = 0, totalWeight = 0, maxGust = 0;
     let maxTemp: number | null = null, minTemp: number | null = null;
     const dirs: { deg: number; weight: number }[] = [];
     const humids: number[] = [];
     let count = 0;
+    let sourcesAbove7kt = 0;
 
-    for (const { reading: r, distKm } of sources) {
-      const weight = 1 / Math.max(0.5, distKm) ** 2; // min 0.5km to avoid infinity
+    for (const { station: st, reading: r, distKm } of sources) {
+      // Always collect temp/humidity (even from blacklisted)
+      if (r.humidity != null) humids.push(r.humidity);
+      if (r.temperature != null) {
+        if (maxTemp == null || r.temperature > maxTemp) maxTemp = r.temperature;
+        if (minTemp == null || r.temperature < minTemp) minTemp = r.temperature;
+      }
+
+      // Skip blacklisted stations for WIND (still valid for temp/humidity above)
+      if (isWindBlacklisted(st.id)) continue;
+
+      const idwWeight = 1 / Math.max(0.5, distKm) ** 2;
+      const qualityMul = getSourceQuality(st.id);
+      const ageMin = (Date.now() - r.timestamp.getTime()) / 60_000;
+      const freshnessMul = ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;
+      const weight = idwWeight * qualityMul * freshnessMul;
+
       const speedKt = msToKnots(r.windSpeed!);
       const gustKt = r.windGust != null ? msToKnots(r.windGust) : 0;
       weightedSpeed += speedKt * weight;
       totalWeight += weight;
       if (gustKt > maxGust) maxGust = gustKt;
       if (r.windDirection != null && r.windDirection > 0) dirs.push({ deg: r.windDirection, weight });
-      if (r.humidity != null) humids.push(r.humidity);
-      if (r.temperature != null) {
-        if (maxTemp == null || r.temperature > maxTemp) maxTemp = r.temperature;
-        if (minTemp == null || r.temperature < minTemp) minTemp = r.temperature;
-      }
+      if (speedKt >= 7) sourcesAbove7kt++;
       count++;
     }
 
-    const avgWind = totalWeight > 0 ? weightedSpeed / totalWeight : 0;
+    // Consensus bonus: +1kt if 3+ sources agree on ≥7kt (compensates land underestimation)
+    let avgWind = totalWeight > 0 ? weightedSpeed / totalWeight : 0;
+    if (sourcesAbove7kt >= 3) avgWind += 1;
     // Weighted circular mean for wind direction (IDW + handles 350°+10° correctly)
     let windDir: number | null = null;
     if (dirs.length > 0) {
