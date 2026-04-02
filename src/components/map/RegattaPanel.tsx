@@ -9,6 +9,7 @@ import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineData } from '../../api/marineClient';
 import { fetchOpenMeteoForecast } from '../../api/openMeteoClient';
+import { APP_VERSION } from '../../config/version';
 import { fetchTides48h, type TidePoint } from '../../api/tideClient';
 import type { NormalizedStation, NormalizedReading } from '../../types/weather';
 import type { ForecastPoint } from '../../api/openMeteoClient';
@@ -81,18 +82,24 @@ export const RegattaPanel = memo(function RegattaPanel() {
     }
 
     // If none in zone, find 5 nearest within 30km
-    const sources = inZone.length > 0 ? inZone : findNearestStations(stations, readings, centerLat, centerLon, 5, 30);
+    const sources = inZone.length > 0 ? inZone : findNearestStations(stations, readings, centerLat, centerLon, 5, 20);
 
-    let totalSpeed = 0, maxGust = 0, count = 0, maxTemp: number | null = null, minTemp: number | null = null;
-    const dirs: number[] = [];
+    // IDW (Inverse Distance Weighting) — closer stations have MORE influence
+    // weight = 1 / distance^2 (squared for stronger proximity bias)
+    let weightedSpeed = 0, totalWeight = 0, maxGust = 0;
+    let maxTemp: number | null = null, minTemp: number | null = null;
+    const dirs: { deg: number; weight: number }[] = [];
     const humids: number[] = [];
+    let count = 0;
 
-    for (const { reading: r } of sources) {
+    for (const { reading: r, distKm } of sources) {
+      const weight = 1 / Math.max(0.5, distKm) ** 2; // min 0.5km to avoid infinity
       const speedKt = msToKnots(r.windSpeed!);
       const gustKt = r.windGust != null ? msToKnots(r.windGust) : 0;
-      totalSpeed += speedKt;
+      weightedSpeed += speedKt * weight;
+      totalWeight += weight;
       if (gustKt > maxGust) maxGust = gustKt;
-      if (r.windDirection != null && r.windDirection > 0) dirs.push(r.windDirection);
+      if (r.windDirection != null && r.windDirection > 0) dirs.push({ deg: r.windDirection, weight });
       if (r.humidity != null) humids.push(r.humidity);
       if (r.temperature != null) {
         if (maxTemp == null || r.temperature > maxTemp) maxTemp = r.temperature;
@@ -101,15 +108,15 @@ export const RegattaPanel = memo(function RegattaPanel() {
       count++;
     }
 
-    const avgWind = count > 0 ? totalSpeed / count : 0;
-    // Circular mean for wind direction (handles 350° + 10° correctly → 0°, not 180°)
+    const avgWind = totalWeight > 0 ? weightedSpeed / totalWeight : 0;
+    // Weighted circular mean for wind direction (IDW + handles 350°+10° correctly)
     let windDir: number | null = null;
     if (dirs.length > 0) {
       let sinSum = 0, cosSum = 0;
-      for (const d of dirs) {
-        const rad = (d * Math.PI) / 180;
-        sinSum += Math.sin(rad);
-        cosSum += Math.cos(rad);
+      for (const { deg, weight } of dirs) {
+        const rad = (deg * Math.PI) / 180;
+        sinSum += Math.sin(rad) * weight;
+        cosSum += Math.cos(rad) * weight;
       }
       let avg = (Math.atan2(sinSum, cosSum) * 180) / Math.PI;
       if (avg < 0) avg += 360;
@@ -378,13 +385,14 @@ export const RegattaPanel = memo(function RegattaPanel() {
       ...store.safetyLog.map((e) => `${new Date(e.timestamp).toLocaleTimeString('es-ES')} [${e.type.toUpperCase()}] ${e.message}`),
       store.safetyLog.length === 0 ? 'Sin incidencias registradas' : '',
       ``,
-      `--- Generado por MeteoMapGal v2.6 | meteomapgal.navia3d.com ---`,
+      `--- Generado por MeteoMapGal v${APP_VERSION} | meteomapgal.navia3d.com ---`,
     ].filter(Boolean);
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `informe-evento-${new Date().toISOString().slice(0, 10)}.txt`;
+    const nameSlug = (store.eventName || 'evento').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase().slice(0, 20);
+    a.download = `informe-${nameSlug}-${new Date().toISOString().slice(0, 10)}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }, []);
