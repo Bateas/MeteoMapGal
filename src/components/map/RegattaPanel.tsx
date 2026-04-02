@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useCallback, useRef } from 'react';
+import { memo, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRegattaStore, type SemaphoreLevel, type ZoneConditions } from '../../store/regattaStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useBuoyStore } from '../../store/buoyStore';
@@ -8,7 +8,9 @@ import { useAviationStore } from '../../store/aviationStore';
 import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineData } from '../../api/marineClient';
+import { fetchOpenMeteoForecast } from '../../api/openMeteoClient';
 import type { NormalizedStation, NormalizedReading } from '../../types/weather';
+import type { ForecastPoint } from '../../api/openMeteoClient';
 
 const SEM: Record<SemaphoreLevel, { bg: string; border: string; text: string; label: string }> = {
   green: { bg: 'bg-green-500/20', border: 'border-green-500/50', text: 'text-green-400', label: 'SEGURO' },
@@ -43,8 +45,11 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const buoys = useBuoyStore((s) => s.buoys);
   const alerts = useAlertStore((s) => s.alerts);
   const stormAlert = useLightningStore((s) => s.stormAlert);
+  const safetyLog = useRegattaStore((s) => s.safetyLog);
   const [displayMs, setDisplayMs] = useState(0);
   const [expanded, setExpanded] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+  const [forecast, setForecast] = useState<ForecastPoint[]>([]);
 
   // Timer tick
   useEffect(() => {
@@ -243,6 +248,45 @@ export const RegattaPanel = memo(function RegattaPanel() {
     return () => clearInterval(iv);
   }, [active, zone, computeConditions]);
 
+  // Load forecast for timeline
+  useEffect(() => {
+    if (!active || !zone) return;
+    let cancelled = false;
+    const load = async () => {
+      const cLat = (zone.ne[1] + zone.sw[1]) / 2;
+      const cLon = (zone.ne[0] + zone.sw[0]) / 2;
+      const fc = await fetchOpenMeteoForecast(cLat, cLon, 8);
+      if (!cancelled) setForecast(fc.filter((p) => p.timestamp > new Date()).slice(0, 6));
+    };
+    load();
+    const iv = setInterval(load, 10 * 60_000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [active, zone]);
+
+  // Export safety log as text
+  const exportLog = useCallback(() => {
+    const store = useRegattaStore.getState();
+    const lines = [
+      `MeteoMapGal — Informe Seguridad Evento`,
+      `Fecha: ${new Date().toLocaleString('es-ES')}`,
+      `Zona: ${store.selectedZoneId || 'Custom'}`,
+      `Duracion: ${Math.floor((store.elapsedMs + (store.timerRunning ? Date.now() - store.timerStartMs : 0)) / 60000)} min`,
+      `Semaforo: ${store.conditions?.semaphore?.toUpperCase() || '?'}`,
+      `Viento medio: ${store.conditions?.avgWindKt?.toFixed(1) || '?'} kt`,
+      `Racha max: ${store.conditions?.maxGustKt?.toFixed(1) || '?'} kt`,
+      '',
+      '--- REGISTRO DE SEGURIDAD ---',
+      ...store.safetyLog.map((e) => `${new Date(e.timestamp).toLocaleTimeString('es-ES')} [${e.type}] ${e.message}`),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `informe-evento-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   if (!active || !zone) return null;
 
   const sem = conditions ? SEM[conditions.semaphore] : SEM.green;
@@ -406,6 +450,43 @@ export const RegattaPanel = memo(function RegattaPanel() {
         </div>
       )}
 
+      {/* Activity timeline — next 6h */}
+      {forecast.length > 0 && (
+        <div className="px-2 py-1.5 border-t border-slate-700/40">
+          <div className="text-[8px] text-slate-500 font-bold uppercase mb-1">Proximas {forecast.length}h</div>
+          <div className="flex">
+            {forecast.map((p, i) => {
+              const wKt = Math.round(msToKnots(p.windSpeed ?? 0));
+              const isRed = wKt > 25;
+              const isYellow = wKt > 15;
+              const bg = isRed ? 'bg-red-500/30' : isYellow ? 'bg-amber-500/25' : 'bg-green-500/20';
+              const tc = isRed ? 'text-red-400' : isYellow ? 'text-amber-400' : 'text-green-400';
+              return (
+                <div key={i} className={`flex-1 flex flex-col items-center py-1 ${bg} ${i > 0 ? 'border-l border-slate-700/20' : ''}`}>
+                  <span className="text-[9px] text-white font-bold">{p.timestamp.getHours()}h</span>
+                  <span className={`text-[10px] font-black ${tc}`}>{wKt}kt</span>
+                  <span className="text-[7px] text-slate-500">{Math.round(p.temperature ?? 0)}°</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Safety log */}
+      {showLog && safetyLog.length > 0 && (
+        <div className="px-2 py-1.5 border-t border-slate-700/40 max-h-32 overflow-y-auto">
+          <div className="text-[8px] text-slate-500 font-bold uppercase mb-1">Registro seguridad ({safetyLog.length})</div>
+          {safetyLog.map((e, i) => (
+            <div key={i} className="text-[9px] text-slate-400 py-0.5 border-b border-slate-800/50">
+              <span className="text-slate-600">{new Date(e.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+              {' '}
+              <span className={e.type === 'alert' ? 'text-amber-400' : e.type === 'semaphore' ? 'text-teal-400' : 'text-slate-400'}>{e.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="px-3 py-2 border-t border-slate-700/40 space-y-1.5">
         <div className="flex gap-2">
@@ -421,6 +502,16 @@ export const RegattaPanel = memo(function RegattaPanel() {
           <button onClick={() => useRegattaStore.getState().toggleMinimize()}
             className="flex-1 px-2 py-1.5 rounded text-[10px] font-bold bg-slate-700/50 border border-slate-600/40 text-slate-300 cursor-pointer hover:bg-slate-600/50 transition-all">
             Minimizar
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setShowLog(!showLog)}
+            className="flex-1 px-2 py-1 rounded text-[9px] font-bold bg-slate-700/30 border border-slate-600/30 text-slate-400 cursor-pointer hover:text-white transition-all">
+            {showLog ? 'Ocultar log' : `Log (${safetyLog.length})`}
+          </button>
+          <button onClick={exportLog}
+            className="flex-1 px-2 py-1 rounded text-[9px] font-bold bg-slate-700/30 border border-slate-600/30 text-slate-400 cursor-pointer hover:text-white transition-all">
+            Exportar informe
           </button>
         </div>
         <button onClick={() => useRegattaStore.getState().deactivate()}
