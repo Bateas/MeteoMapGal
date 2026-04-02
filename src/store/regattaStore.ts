@@ -41,16 +41,21 @@ export interface ZoneConditions {
 interface RegattaState {
   active: boolean;
   minimized: boolean;
+  showZoneSelector: boolean;
+  selectedZoneId: string | null; // predefined water zone ID
   drawingPhase: DrawingPhase;
   firstCorner: [number, number] | null;
   zone: ZoneBounds | null;
+  zonePolygon: [number, number][] | null; // actual polygon (predefined or rectangle)
   timerRunning: boolean;
   timerStartMs: number;
   elapsedMs: number;
   buoyMarkers: BuoyMarker[];
   conditions: ZoneConditions | null;
 
-  startDrawing: () => void;
+  startEvent: () => void; // show zone selector
+  selectPredefinedZone: (zoneId: string) => void;
+  startDrawing: () => void; // custom zone drawing
   setFirstCorner: (lonLat: [number, number]) => void;
   setZone: (bounds: ZoneBounds) => void;
   addBuoy: (lon: number, lat: number) => void;
@@ -70,30 +75,66 @@ export const useRegattaStore = create<RegattaState>()(
     (set, get) => ({
       active: false,
       minimized: false,
+      showZoneSelector: false,
+      selectedZoneId: null,
       drawingPhase: 'idle',
       firstCorner: null,
       zone: null,
+      zonePolygon: null,
       timerRunning: false,
       timerStartMs: 0,
       elapsedMs: 0,
       buoyMarkers: [],
       conditions: null,
 
-      startDrawing: () => set({
+      startEvent: () => set({
         active: true,
         minimized: false,
-        drawingPhase: 'first',
-        firstCorner: null,
+        showZoneSelector: true,
+        selectedZoneId: null,
+        drawingPhase: 'idle',
         zone: null,
+        zonePolygon: null,
         buoyMarkers: [],
         conditions: null,
         timerRunning: false,
         elapsedMs: 0,
       }),
 
+      selectPredefinedZone: (zoneId) => {
+        const { getZoneById, zoneToBounds } = require('../config/waterZones');
+        const wz = getZoneById(zoneId);
+        if (!wz) return;
+        const bounds = zoneToBounds(wz);
+        set({
+          selectedZoneId: zoneId,
+          showZoneSelector: false,
+          zone: bounds,
+          zonePolygon: wz.polygon,
+          drawingPhase: 'idle',
+        });
+      },
+
+      startDrawing: () => set({
+        showZoneSelector: false,
+        selectedZoneId: null,
+        drawingPhase: 'first',
+        firstCorner: null,
+        zone: null,
+        zonePolygon: null,
+      }),
+
       setFirstCorner: (lonLat) => set({ firstCorner: lonLat, drawingPhase: 'second' }),
 
-      setZone: (bounds) => set({ zone: bounds, drawingPhase: 'idle' }),
+      setZone: (bounds) => {
+        // Custom rectangle → generate polygon from bounds
+        const { ne, sw } = bounds;
+        set({
+          zone: bounds,
+          zonePolygon: [sw, [ne[0], sw[1]], ne, [sw[0], ne[1]], sw],
+          drawingPhase: 'idle',
+        });
+      },
 
       addBuoy: (lon, lat) => {
         const markers = get().buoyMarkers;
@@ -139,9 +180,12 @@ export const useRegattaStore = create<RegattaState>()(
       deactivate: () => set({
         active: false,
         minimized: false,
+        showZoneSelector: false,
+        selectedZoneId: null,
         drawingPhase: 'idle',
         firstCorner: null,
         zone: null,
+        zonePolygon: null,
         timerRunning: false,
         timerStartMs: 0,
         elapsedMs: 0,
