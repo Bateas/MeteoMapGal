@@ -47,8 +47,6 @@ import { IGNHillshadeOverlay } from './IGNHillshadeOverlay';
 import { IGNContoursOverlay } from './IGNContoursOverlay';
 import { IGNOrthoOverlay } from './IGNOrthoOverlay';
 import { DistanceTool } from './DistanceTool';
-// AIS disabled — no working data source for Galicia (aisstream.io has 0 coverage)
-// import { AISOverlay } from './AISOverlay';
 import { AviationOverlay } from './AviationOverlay';
 import { RegattaOverlay } from './RegattaOverlay';
 import { RegattaPanel } from './RegattaPanel';
@@ -56,7 +54,6 @@ import { RegattaPanel } from './RegattaPanel';
 import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
-// import { useAISData } from '../../hooks/useAISData'; // AIS disabled
 import { useAviationData } from '../../hooks/useAviationData';
 
 /** Build a MapLibre StyleSpecification for the given base map style + 3D terrain */
@@ -136,7 +133,6 @@ export function WeatherMap() {
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
-  // Aviation tracking hook (AIS disabled — no data source)
   useAviationData();
 
   // Regatta mode: fade non-essential elements (DOM + MapLibre native layers)
@@ -371,8 +367,6 @@ export function WeatherMap() {
 
         {/* ENAIRE airspace zones + NOTAMs — only visible when Dron tab is active */}
         <AirspaceOverlay />
-
-        {/* AIS disabled — no working data source for Galicia */}
 
         {/* Aviation aircraft monitoring — Embalse always, Rías during events */}
         {(activeSector.id === 'embalse' || regattaActive) && <AviationOverlay />}
