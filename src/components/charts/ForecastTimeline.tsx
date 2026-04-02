@@ -13,6 +13,8 @@ import type { IconId } from '../icons/WeatherIcons';
 import { FORECAST_MODELS } from '../../types/forecast';
 import type { HourlyForecast, ForecastModel } from '../../types/forecast';
 import type { ThermalWindRule } from '../../types/thermal';
+import { useWeatherStore } from '../../store/weatherStore';
+import { findNearestForecastHour, computeDelta, formatWindDelta } from '../../services/forecastDeltaService';
 
 // ── Time range selector ──────────────────────────────────
 const RANGES = [
@@ -725,6 +727,29 @@ export function ForecastTimeline() {
     return closest;
   }, [visibleData]);
 
+  // Model bias: compare current real wind vs forecast for "now" hour
+  const modelBias = useMemo(() => {
+    if (visibleData.length === 0) return null;
+    const nowPoint = visibleData[nowIndex];
+    if (!nowPoint) return null;
+    const readings = useWeatherStore.getState().currentReadings;
+    // Average wind delta across all stations with wind data
+    let sumDelta = 0, count = 0;
+    for (const [, reading] of readings) {
+      if (reading.windSpeed == null) continue;
+      const fcst = findNearestForecastHour(hourly, reading.timestamp);
+      if (!fcst) continue;
+      const d = computeDelta(reading, fcst);
+      if (d.windDeltaKt != null && d.alignmentMinutes < 90) {
+        sumDelta += d.windDeltaKt;
+        count++;
+      }
+    }
+    if (count < 3) return null; // need at least 3 stations for meaningful average
+    const avgDelta = sumDelta / count;
+    return formatWindDelta(avgDelta);
+  }, [visibleData, nowIndex, hourly]);
+
   // Sailing conditions summary
   const sailingSummary = useMemo(() => {
     if (visibleData.length === 0) return null;
@@ -944,7 +969,18 @@ export function ForecastTimeline() {
                   className={i === nowIndex ? 'relative' : ''}
                 >
                   {i === nowIndex && (
-                    <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500 z-10" />
+                    <>
+                      <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500 z-10" />
+                      {modelBias && (
+                        <div
+                          className="absolute right-1 top-0.5 text-[9px] font-mono px-1 rounded z-10"
+                          style={{ color: modelBias.color, backgroundColor: 'rgba(15,23,42,0.8)' }}
+                          title={modelBias.title}
+                        >
+                          Real {modelBias.text}
+                        </div>
+                      )}
+                    </>
                   )}
                   {/* Day separator with sunrise/sunset */}
                   {isNewDay && <DaySeparator date={point.time} />}

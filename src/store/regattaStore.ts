@@ -21,6 +21,16 @@ export interface BuoyMarker {
 export type DrawingPhase = 'idle' | 'first' | 'second';
 export type SemaphoreLevel = 'green' | 'yellow' | 'red';
 
+/** Individual source contributing to zone wind calculation */
+export interface ZoneWindSource {
+  name: string;
+  type: 'station' | 'buoy';
+  speedKt: number;
+  dir: string | null;
+  distKm: number;
+  weightPct: number;
+}
+
 export interface ZoneConditions {
   avgWindKt: number;
   maxGustKt: number;
@@ -37,6 +47,8 @@ export interface ZoneConditions {
   wavePeriod?: number;
   waterTemp?: number;
   interpolated?: boolean;
+  /** Individual sources contributing to wind average */
+  windSources?: ZoneWindSource[];
 }
 
 export interface SafetyLogEntry {

@@ -6,7 +6,17 @@
 import type { ThermalProfile } from '../lapseRateService';
 import type { ZoneAlert, MicroZoneId } from '../../types/thermal';
 import type { TeleconnectionIndex } from '../../api/naoClient';
-import type { UnifiedAlert } from './types';
+import type { UnifiedAlert, AlertSeverity } from './types';
+
+/**
+ * Cap severity for informational categories (inversion, thermal).
+ * These are notable but not dangerous — max yellow (moderate), never orange/red.
+ * Strong events with high scores deserve yellow, weak ones stay blue (info).
+ */
+function cappedSeverity(score: number): AlertSeverity {
+  if (score >= 45) return 'moderate'; // Strong → yellow
+  return 'info';                      // Weak → blue
+}
 
 // ── Inversion alerts -> UnifiedAlert ──────────────────────────
 
@@ -40,7 +50,7 @@ export function buildInversionAlerts(
   return [{
     id: 'inversion-main',
     category: 'inversion',
-    severity: 'info',
+    severity: cappedSeverity(score),
     score,
     icon: 'thermometer',
     title,
@@ -66,7 +76,7 @@ export function buildThermalAlerts(
     results.push({
       id: `thermal-${zoneId}`,
       category: 'thermal',
-      severity: 'info',
+      severity: cappedSeverity(score),
       score,
       icon: 'thermal-wind',
       title: `Térmico ${levelLabel} — ${zoneId}`,
