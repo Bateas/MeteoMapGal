@@ -39,20 +39,27 @@ export interface ZoneConditions {
   interpolated?: boolean;
 }
 
+export interface SafetyLogEntry {
+  timestamp: number;
+  type: 'semaphore' | 'alert' | 'wind' | 'timer' | 'zone';
+  message: string;
+}
+
 interface RegattaState {
   active: boolean;
   minimized: boolean;
   showZoneSelector: boolean;
-  selectedZoneId: string | null; // predefined water zone ID
+  selectedZoneId: string | null;
   drawingPhase: DrawingPhase;
   firstCorner: [number, number] | null;
   zone: ZoneBounds | null;
-  zonePolygon: [number, number][] | null; // actual polygon (predefined or rectangle)
+  zonePolygon: [number, number][] | null;
   timerRunning: boolean;
   timerStartMs: number;
   elapsedMs: number;
   buoyMarkers: BuoyMarker[];
   conditions: ZoneConditions | null;
+  safetyLog: SafetyLogEntry[];
 
   startEvent: () => void; // show zone selector
   selectPredefinedZone: (zoneId: string) => void;
@@ -65,6 +72,7 @@ interface RegattaState {
   toggleTimer: () => void;
   resetTimer: () => void;
   setConditions: (c: ZoneConditions) => void;
+  addLogEntry: (type: SafetyLogEntry['type'], message: string) => void;
   toggleMinimize: () => void;
   deactivate: () => void;
 }
@@ -87,6 +95,7 @@ export const useRegattaStore = create<RegattaState>()(
       elapsedMs: 0,
       buoyMarkers: [],
       conditions: null,
+      safetyLog: [],
 
       startEvent: () => set({
         active: true,
@@ -165,15 +174,48 @@ export const useRegattaStore = create<RegattaState>()(
       toggleTimer: () => {
         const s = get();
         if (s.timerRunning) {
-          set({ timerRunning: false, elapsedMs: s.elapsedMs + (Date.now() - s.timerStartMs) });
+          const elapsed = s.elapsedMs + (Date.now() - s.timerStartMs);
+          const mins = Math.floor(elapsed / 60000);
+          set({
+            timerRunning: false,
+            elapsedMs: elapsed,
+            safetyLog: [...s.safetyLog, { timestamp: Date.now(), type: 'timer', message: `Cronometro pausado (${mins}min)` }],
+          });
         } else {
-          set({ timerRunning: true, timerStartMs: Date.now() });
+          set({
+            timerRunning: true,
+            timerStartMs: Date.now(),
+            safetyLog: [...s.safetyLog, { timestamp: Date.now(), type: 'timer', message: 'Cronometro iniciado' }],
+          });
         }
       },
 
       resetTimer: () => set({ timerRunning: false, timerStartMs: 0, elapsedMs: 0 }),
 
-      setConditions: (conditions) => set({ conditions }),
+      setConditions: (conditions) => {
+        // Auto-log semaphore changes
+        const prev = get().conditions;
+        if (prev && prev.semaphore !== conditions.semaphore) {
+          const msg = `Semaforo: ${prev.semaphore.toUpperCase()} → ${conditions.semaphore.toUpperCase()}`;
+          const log = [...get().safetyLog, { timestamp: Date.now(), type: 'semaphore' as const, message: msg }];
+          set({ conditions, safetyLog: log });
+          return;
+        }
+        // Auto-log new alerts
+        if (conditions.alerts.length > 0 && prev) {
+          const newAlerts = conditions.alerts.filter((a) => !prev.alerts.includes(a));
+          if (newAlerts.length > 0) {
+            const entries: SafetyLogEntry[] = newAlerts.map((a) => ({ timestamp: Date.now(), type: 'alert' as const, message: a }));
+            set({ conditions, safetyLog: [...get().safetyLog, ...entries] });
+            return;
+          }
+        }
+        set({ conditions });
+      },
+
+      addLogEntry: (type, message) => set({
+        safetyLog: [...get().safetyLog, { timestamp: Date.now(), type, message }],
+      }),
 
       toggleMinimize: () => set((s) => ({ minimized: !s.minimized })),
 
@@ -191,6 +233,7 @@ export const useRegattaStore = create<RegattaState>()(
         elapsedMs: 0,
         buoyMarkers: [],
         conditions: null,
+        safetyLog: [],
       }),
     }),
     { name: 'RegattaStore' },
