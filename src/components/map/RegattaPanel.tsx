@@ -46,6 +46,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const alerts = useAlertStore((s) => s.alerts);
   const stormAlert = useLightningStore((s) => s.stormAlert);
   const safetyLog = useRegattaStore((s) => s.safetyLog);
+  const conditionsHistory = useRegattaStore((s) => s.conditionsHistory);
   const [displayMs, setDisplayMs] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [showLog, setShowLog] = useState(false);
@@ -295,18 +296,52 @@ export const RegattaPanel = memo(function RegattaPanel() {
   // Export safety log as text
   const exportLog = useCallback(() => {
     const store = useRegattaStore.getState();
+    const z = store.zone;
+    const c = store.conditions as any;
+    const labels: Record<string, string> = { green: 'SEGURO', yellow: 'PRECAUCION', red: 'PELIGRO' };
+    const elapsed = Math.floor((store.elapsedMs + (store.timerRunning ? Date.now() - store.timerStartMs : 0)) / 60000);
     const lines = [
-      `MeteoMapGal — Informe Seguridad Evento`,
-      `Fecha: ${new Date().toLocaleString('es-ES')}`,
-      `Zona: ${store.selectedZoneId || 'Custom'}`,
-      `Duracion: ${Math.floor((store.elapsedMs + (store.timerRunning ? Date.now() - store.timerStartMs : 0)) / 60000)} min`,
-      `Semaforo: ${store.conditions?.semaphore?.toUpperCase() || '?'}`,
-      `Viento medio: ${store.conditions?.avgWindKt?.toFixed(1) || '?'} kt`,
-      `Racha max: ${store.conditions?.maxGustKt?.toFixed(1) || '?'} kt`,
-      '',
-      '--- REGISTRO DE SEGURIDAD ---',
-      ...store.safetyLog.map((e) => `${new Date(e.timestamp).toLocaleTimeString('es-ES')} [${e.type}] ${e.message}`),
-    ];
+      `══════════════════════════════════════════════════`,
+      `  MeteoMapGal — INFORME DE SEGURIDAD DE EVENTO`,
+      `══════════════════════════════════════════════════`,
+      ``,
+      `Fecha:       ${new Date().toLocaleString('es-ES')}`,
+      `Zona:        ${store.selectedZoneId || 'Zona personalizada'}`,
+      `Duracion:    ${elapsed} minutos`,
+      `Nivel:       ${labels[c?.semaphore] || '?'}`,
+      ``,
+      `--- COORDENADAS ZONA ---`,
+      z ? `NE: ${z.ne[1].toFixed(5)}°N, ${z.ne[0].toFixed(5)}°W` : '',
+      z ? `SW: ${z.sw[1].toFixed(5)}°N, ${z.sw[0].toFixed(5)}°W` : '',
+      z ? `Centro: ${((z.ne[1]+z.sw[1])/2).toFixed(5)}°N, ${((z.ne[0]+z.sw[0])/2).toFixed(5)}°W` : '',
+      ``,
+      `--- CONDICIONES METEOROLOGICAS ---`,
+      `Viento medio:  ${c?.avgWindKt?.toFixed(1) || '?'} kt`,
+      `Racha maxima:  ${c?.maxGustKt?.toFixed(1) || '?'} kt`,
+      `Direccion:     ${c?.windDir ? `${degreesToCardinal(c.windDir)} (${c.windDir}°)` : 'Variable'}`,
+      `Estaciones:    ${c?.stationsInZone || 0}${c?.interpolated ? ' (interpoladas)' : ''}`,
+      ``,
+      `--- DATOS MARINOS ---`,
+      `Oleaje:        ${c?.waveHeight != null ? c.waveHeight.toFixed(1) + ' m' : 'Aguas protegidas'}`,
+      c?.swellHeight != null ? `Mar de fondo:  ${c.swellHeight.toFixed(1)} m` : '',
+      c?.wavePeriod != null ? `Periodo ola:   ${c.wavePeriod.toFixed(1)} s` : '',
+      `Temp. agua:    ${c?.waterTemp != null ? c.waterTemp.toFixed(1) + ' °C' : 'Sin datos'}`,
+      ``,
+      `--- DATOS ATMOSFERICOS ---`,
+      c?.avgHumidity != null ? `Humedad:       ${c.avgHumidity}%` : '',
+      c?.maxTemp != null ? `Temp. aire:    ${c.minTemp?.toFixed(1)}–${c.maxTemp?.toFixed(1)} °C` : '',
+      ``,
+      `--- AVISOS ---`,
+      ...(c?.alerts?.length > 0 ? c.alerts : ['Sin avisos activos']),
+      ``,
+      `══════════════════════════════════════════════════`,
+      `  REGISTRO DE SEGURIDAD (${store.safetyLog.length} eventos)`,
+      `══════════════════════════════════════════════════`,
+      ...store.safetyLog.map((e) => `${new Date(e.timestamp).toLocaleTimeString('es-ES')} [${e.type.toUpperCase()}] ${e.message}`),
+      store.safetyLog.length === 0 ? 'Sin incidencias registradas' : '',
+      ``,
+      `--- Generado por MeteoMapGal v2.6 | meteomapgal.navia3d.com ---`,
+    ].filter(Boolean);
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -323,6 +358,19 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const secs = Math.floor((displayMs % 60_000) / 1000);
   const timer = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   const cond = conditions as any;
+
+  // Wind trend from last 10min of history
+  const windTrend = useMemo(() => {
+    if (conditionsHistory.length < 3) return { label: 'Estable', arrow: '', color: 'text-slate-400' };
+    const recent = conditionsHistory.slice(-6); // last ~1min
+    const older = conditionsHistory.slice(0, Math.max(3, conditionsHistory.length - 6)); // 5-10min ago
+    const avgRecent = recent.reduce((s, h) => s + h.avgWindKt, 0) / recent.length;
+    const avgOlder = older.reduce((s, h) => s + h.avgWindKt, 0) / older.length;
+    const diff = avgRecent - avgOlder;
+    if (diff > 2) return { label: 'Subiendo', arrow: ' ↑', color: 'text-amber-400' };
+    if (diff < -2) return { label: 'Bajando', arrow: ' ↓', color: 'text-cyan-400' };
+    return { label: 'Estable', arrow: ' →', color: 'text-green-400' };
+  }, [conditionsHistory]);
 
   // Minimized: compact bar with semaphore + timer + expand button
   if (minimized) {
@@ -400,6 +448,10 @@ export const RegattaPanel = memo(function RegattaPanel() {
             <span className="text-white font-bold">
               {conditions.windDir ? `${degreesToCardinal(conditions.windDir)} (${conditions.windDir}°)` : 'Variable'}
             </span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-slate-500">Tendencia</span>
+            <span className={`font-bold ${windTrend.color}`}>{windTrend.label}{windTrend.arrow}</span>
           </div>
 
           {/* Marine data */}
