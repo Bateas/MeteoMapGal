@@ -92,7 +92,19 @@ export const RegattaPanel = memo(function RegattaPanel() {
     }
 
     const avgWind = count > 0 ? totalSpeed / count : 0;
-    const windDir = dirs.length > 0 ? Math.round(dirs.reduce((a, b) => a + b, 0) / dirs.length) : null;
+    // Circular mean for wind direction (handles 350° + 10° correctly → 0°, not 180°)
+    let windDir: number | null = null;
+    if (dirs.length > 0) {
+      let sinSum = 0, cosSum = 0;
+      for (const d of dirs) {
+        const rad = (d * Math.PI) / 180;
+        sinSum += Math.sin(rad);
+        cosSum += Math.cos(rad);
+      }
+      let avg = (Math.atan2(sinSum, cosSum) * 180) / Math.PI;
+      if (avg < 0) avg += 360;
+      windDir = Math.round(avg);
+    }
     const avgHumidity = humids.length > 0 ? Math.round(humids.reduce((a, b) => a + b, 0) / humids.length) : null;
 
     // Marine data: buoy first, Open-Meteo Marine as fallback
@@ -227,7 +239,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
   // Minimized: compact bar with semaphore + timer + expand button
   if (minimized) {
     return (
-      <div className="absolute top-20 right-2 z-40 rounded-xl bg-slate-900/95 border border-amber-500/40 backdrop-blur-md shadow-2xl overflow-hidden">
+      <div className="absolute top-20 left-14 z-40 rounded-xl bg-slate-900/95 border border-amber-500/40 backdrop-blur-md shadow-2xl overflow-hidden">
         <button
           onClick={() => useRegattaStore.getState().toggleMinimize()}
           className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer ${sem.bg} ${sem.border} border rounded-xl`}
@@ -244,7 +256,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
   }
 
   return (
-    <div className="absolute top-20 right-2 z-40 w-72 rounded-xl bg-slate-900/95 border border-amber-500/40 backdrop-blur-md shadow-2xl overflow-hidden">
+    <div className="absolute top-20 left-14 z-40 w-72 rounded-xl bg-slate-900/95 border border-amber-500/40 backdrop-blur-md shadow-2xl overflow-hidden">
       {/* Header */}
       <div className="px-3 py-2 bg-amber-500/15 border-b border-amber-500/30 flex items-center justify-between">
         <div className="flex items-center gap-2">
