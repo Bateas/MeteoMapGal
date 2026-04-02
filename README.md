@@ -1,8 +1,8 @@
 # MeteoMapGal
 
-[![Versión](https://img.shields.io/badge/versión-2.1.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Versión](https://img.shields.io/badge/versión-2.9.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-231%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-233%20passed-brightgreen)](src/test/)
 
 **Meteoroloxía en tempo real para Galicia** — Vento, ondas, mareas e alertas con 100+ estacións, 13 boias e mapa 3D interactivo.
 
@@ -33,6 +33,7 @@
 4. Colores: verde = bueno, amarillo = justo, rojo = peligroso
 5. Explora las pestañas: Estaciones, Gráfica, Previsión, Rankings, Historial
 6. **Alertas Telegram** — resumen diario 9:00 + alertas instantáneas de cambio de viento
+7. **Modo Evento** — selecciona una zona de agua para monitorización de seguridad en tiempo real
 
 > O vento mídese en **nudos (kt)**: 1 nudo = 1,852 km/h. Consulta o glosario na guía para máis info.
 
@@ -44,32 +45,62 @@
 - Mapa 3D (MapLibre GL) con 6 estilos base + terreo + sombreado
 - Partículas de vento animadas, humidade, temperatura, satélite IR, radar
 - Cartas náuticas, correntes superficiais, batimetría (só Rías)
+- Indicador de frescura nos marcadores (anillo amber >10min, vermello >30min)
 
 ### Intelixencia meteorolóxica
 - **100+ estacións** de 6 redes (AEMET, MeteoGalicia, Meteoclimatic, WU, Netatmo, SkyX)
 - **13 boias mariñas** — ondas, vento, temperatura da auga, correntes
-- Consenso de vento ponderado por distancia, frescura e calidade
-- Detector de tendencias, néboa, frente de racha, afloramento
+- Consenso de vento ponderado por distancia, frescura, calidade e coherencia direccional
+- Detector de tendencias, néboa, frente de racha, afloramento, inversión térmica
+- Blacklist de 35 estacións protexidas (validadas con 2 semanas de datos DB)
+- Badge de sesgo do modelo na previsión ("Real +3kt" vs Open-Meteo)
 
 ### Spots de navegación (10 spots)
 - **Ría de Vigo**: Cesantes, Bocana, Centro Ría, Cíes-Ría, Vao
 - **Ría de Pontevedra**: Lourido
 - **Ría de Arousa**: A Lanzada, Castiñeiras, Illa de Arousa
 - **Embalse**: Castrelo de Miño
-- Puntuación en 5 niveis: CALMA → FLOJO → NAVEGABLE → BUEN DÍA → FUERTE
+- Puntuación en 5 niveis: CALMA / FLOJO / NAVEGABLE / BUEN DIA / FUERTE
 - Marcadores hexagonais con arco de vento (gauge visual)
+- **Transparencia de scoring**: cada spot mostra as fontes que contribúen (nome, velocidade, peso %)
 - Detección térmica con penalización por vento sinóptico
 - Ventana de navegación "Cuándo salgo?" (48h por spot)
 - Mareas por spot (5 portos IHM)
 
+### Modo Evento / Regata (novo v2.8)
+- Selección de zona: 5 zonas OSM reais (Rías + Embalse) ou debuxo libre
+- Panel de seguridade: vento IDW interpolado, racha, dirección, tendencia
+- Semáforo: SEGURO / PRECAUCION / PELIGRO
+- Cronómetro de regata (MM:SS)
+- Balizas virtuais arrastrables (A, B, C...)
+- Datos marinos: ondas, temperatura auga, mareas IHM
+- Avisos AEMET oficiais (CAP XML)
+- Timeline 6h con corrección de sesgo do modelo
+- Log de seguridade + exportación .txt completa
+- Aviación: alertas de aeronaves a baixa altitude
+
+### Alertas intelixentes
+- Tormentas (raios <10km = perigo), frentes de vento, cambios bruscos
+- Inversión térmica, néboa marítima, mar cruzado, afloramento
+- Severidade baseada en puntuación: info (azul) / aviso (amarelo) / alerta (laranxa) / perigo (vermello)
+- Inversións e térmicos: cap en amarelo (notables pero non perigosos)
+- Validación por usuario (feedback con botóns)
+- Telegram 24/7 vía ingestor (resumen diario + alertas instantáneas)
+
 ### Marítimo (Rías Baixas)
 - Mareas para 5 portos, ondas, néboa marítima
 - Información de mareas no ticker
+- Detección de augas protexidas (interior ría: suprime datos de ondas Open-Meteo)
 
 ### Agricultura
 - Alertas de campo (xeada, choiva, néboa, ET0, risco fitosanitario)
 - GDD para viticultura (9 fases fenolóxicas)
 - Fases lunares, espazos aéreos para drons
+
+### Precursores térmicos (Embalse)
+- 6 sinais en tempo real: terral, deltaT, rampla solar, gradiente humidade, diverxencia vento, previsión
+- Probabilidade 0-100% con ETA no ticker
+- Verificación de prediccións (hit rate 30 días)
 
 ---
 
@@ -83,6 +114,7 @@
 | Open-Meteo | Previsión ECMWF/GFS/ICON |
 | EUMETSAT, RainViewer, IHM, ENAIRE | Satélite, radar, mareas, espazo aéreo |
 | CMEMS, EMODnet, INTECMAR, IGN | SST, batimetría, correntes, cartografía |
+| OpenSky Network | Tráfico aéreo (experimental) |
 
 Todos os datos de fontes abertas. Só AEMET require chave API gratuíta.
 
@@ -90,26 +122,27 @@ Todos os datos de fontes abertas. Só AEMET require chave API gratuíta.
 
 ## Roadmap
 
-### v2.1.1 — Actual
-- **10 spots** (4 novos: Castiñeiras, Vao, A Lanzada, Illa Arousa)
-- Marcadores GPU: estacións con letra + anillo, boias diamante, spots hexágono
-- Frechas de vento afiladas con grosor variable + glow en rachas
-- Tipografía DM Sans + JetBrains Mono
-- Rendemento **60fps** (terrain toggle, partículas optimizadas, glyph CDN)
-- Detección térmica con penalización por vento sinóptico (N/NW mata, SW suma)
-- 19 correccións de accesibilidade + banner PWA + busca no glosario
-- 231 tests
+### v2.9 — Actual
+- **Modo Evento/Regata**: zonas OSM, panel seguridade, cronómetro, balizas, exportación
+- **Aviación**: tráfico aéreo OpenSky, alertas baixa altitude
+- **Transparencia de scoring**: fontes por spot, contribucións con peso %
+- **Sesgo do modelo**: badge "Real +Xkt" na previsión
+- **Frescura visual**: anillo amber/vermello en estacións con datos vellos
+- **Precursor térmico no ticker**: probabilidade + ETA para Embalse
+- **Coherencia alertas**: severidade baseada en puntuación, non hardcodeada
+- **Auditoría algoritmos vento**: blacklist, IDW unificado, coherencia direccional
+- 233 tests, GPU markers 60fps, 18 stores Zustand
 
 ### Próximamente
-- Seguimento AIS de barcos (posicións en tempo real nas Rías)
-- Alertas de aviación no embalse (hidroavións contraincendios)
-- Modo regata experimental
-- Layout sidebar colapsable
+- Novas zonas (A Coruña, Costa da Morte)
+- Seguimento AIS de barcos (pendente fonte de datos fiable)
+- Scoring de praias para turismo
+- Endpoint /health no ingestor
 
 ### v3.0 — Futuro
-- Modo regata completo (balizas, liña de saída, cronómetro)
-- Novas zonas (A Coruña, Costa da Morte)
-- Panel Pro para clubs
+- Panel Pro para clubs e escolas
+- Hardware propio (ESP32 + anemómetro)
+- Modelo ML de predición con datos históricos
 
 ---
 
@@ -122,7 +155,7 @@ npm install
 cp .env.example .env    # Engadir chaves API de AEMET + ObsCosteiro
 npm run dev             # http://localhost:5173
 npm run build           # Produción → dist/
-npm test                # 220 tests (Vitest)
+npm test                # 233 tests (Vitest)
 ```
 
 **Stack**: React 19 · TypeScript 5.9 · Vite 7 · MapLibre GL 5 · Zustand 5 · Tailwind 4 · Recharts · TimescaleDB

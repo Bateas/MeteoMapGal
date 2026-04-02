@@ -130,57 +130,63 @@ export function RoadmapSection() {
           </div>
         </div>
 
-        {/* v2.1 — Actual */}
-        <TimelineGroup label="v2.1 — Actual" dotColor="bg-amber-500" textColor="text-amber-400" />
-        <TimelineMilestone
-          iconId="zap"
-          title="Rendimiento 60fps"
-          desc="Marcadores GPU, terrain toggle durante paneo, part&iacute;culas optimizadas con proyecci&oacute;n lineal."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="map-pin"
-          title="Marcadores redise&ntilde;ados"
-          desc="Estaciones con letra de fuente (A, MG, MC...) y anillo de color. Boyas en forma de diamante. Spots con arco de viento."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="check"
-          title="Accesibilidad mejorada"
-          desc="18 correcciones: touch 40px, pausa en ticker, tooltips, banner PWA, b&uacute;squeda en glosario."
-          status="done"
-        />
-        <TimelineMilestone
-          iconId="layers"
-          title="Nuevo layout"
-          desc="Panel lateral colapsable para dar m&aacute;s espacio al mapa."
-          status="wip"
-        />
+        {/* v2.9 — Actual */}
+        <TimelineGroup label="v2.9 — Actual" dotColor="bg-amber-500" textColor="text-amber-400" />
         <TimelineMilestone
           iconId="sailboat"
-          title="Tr&aacute;fico mar&iacute;timo (AIS)"
-          desc="Posiciones de barcos en tiempo real en las R&iacute;as. Cargueros, ferries, veleros."
-          status="idea"
+          title="Modo Evento / Regata"
+          desc="Selecciona zona de agua (5 zonas OSM o dibujo libre), panel de seguridad con sem&aacute;foro, cron&oacute;metro, balizas virtuales, mareas, avisos AEMET, timeline 6h con correcci&oacute;n de sesgo. Exportaci&oacute;n .txt completa."
+          status="done"
         />
         <TimelineMilestone
           iconId="radar"
-          title="Alertas de aviaci&oacute;n (Embalse)"
-          desc="Aviso cuando hidroaviones o helic&oacute;pteros de extinci&oacute;n se acercan al embalse."
-          status="idea"
+          title="Aviaci&oacute;n (OpenSky)"
+          desc="Tr&aacute;fico a&eacute;reo en tiempo real. Alertas de aeronaves a baja altitud (<1000m). Activo en modo evento."
+          status="done"
         />
         <TimelineMilestone
-          iconId="sailboat"
-          title="Modo regata"
-          desc="Mapa completo con balizas, l&iacute;nea de salida y condiciones combinadas para regatas."
-          status="idea"
+          iconId="info"
+          title="Transparencia de scoring"
+          desc="Cada spot muestra qu&eacute; estaciones y boyas contribuyen al c&aacute;lculo: nombre, velocidad, distancia y peso %. Badge de sesgo del modelo en previsi&oacute;n."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="clock"
+          title="Indicador de frescura"
+          desc="Los marcadores muestran anillo &aacute;mbar (>10min) o rojo (>30min) cuando los datos no son recientes."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="alert-triangle"
+          title="Coherencia de alertas"
+          desc="Severidad basada en puntuaci&oacute;n: inversiones y t&eacute;rmicos fuertes ahora aparecen en amarillo (AVISO), no en azul. Badge y tarjeta coinciden."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="thermometer"
+          title="Precursor t&eacute;rmico en ticker"
+          desc="Probabilidad de viento t&eacute;rmico (0-100%) con ETA directamente en el ticker para el Embalse."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="zap"
+          title="Auditor&iacute;a algoritmos viento"
+          desc="Blacklist 35 estaciones validada con DB. IDW unificado spots/evento. Filtro coherencia direccional. Boyas integradas en evento."
+          status="done"
         />
 
         {/* Futuras funcionalidades */}
         <TimelineGroup label="Pr&oacute;ximamente" dotColor="bg-slate-500" textColor="text-slate-400" />
         <TimelineMilestone
           iconId="map-pin"
-          title="M&aacute;s spots y zonas"
-          desc="A Lanzada, Sanxenxo, Samil. Nuevas zonas: A Coru&ntilde;a, Costa da Morte."
+          title="M&aacute;s zonas"
+          desc="A Coru&ntilde;a, Costa da Morte. Scoring de playas para turismo."
+          status="idea"
+        />
+        <TimelineMilestone
+          iconId="sailboat"
+          title="Tr&aacute;fico mar&iacute;timo (AIS)"
+          desc="Posiciones de barcos en tiempo real. Pendiente fuente de datos fiable para Galicia."
           status="idea"
         />
         <TimelineMilestone
@@ -269,8 +275,8 @@ export function RoadmapSection() {
             </div>
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
-              <span className="text-slate-500">17 APIs</span>
-              <span className="text-slate-500">185 tests</span>
+              <span className="text-slate-500">18 APIs</span>
+              <span className="text-slate-500">233 tests</span>
               <span className="text-slate-500">TimescaleDB</span>
             </div>
           </div>
