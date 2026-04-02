@@ -12,7 +12,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
+import type { SpotScore, SpotVerdict, WindContribution } from '../../services/spotScoringEngine';
 import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
@@ -465,8 +465,48 @@ function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: SailingSpot
             </div>
           ))}
           <div className="text-[11px] text-slate-600 mt-1 italic">
-            Score: {score.score}/100 · {score.wind?.stationCount ?? 0} estaciones
+            Score: {score.score}/100 · {score.wind?.stationCount ?? 0} fuentes
           </div>
+          {score.wind?.contributions && <WindSources contributions={score.wind.contributions} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Wind sources (collapsible) ──────────────────────────────
+
+const SOURCE_LABELS: Record<string, string> = {
+  aemet: 'AEMET', meteogalicia: 'MG', meteoclimatic: 'MC',
+  wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX', buoy: 'Boya',
+};
+
+function WindSources({ contributions }: { contributions: WindContribution[] }) {
+  const [open, setOpen] = useState(false);
+  if (!contributions || contributions.length === 0) return null;
+  return (
+    <div className="mt-1 pt-1 border-t border-slate-700/30">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="text-[10px] text-blue-400/70 hover:text-blue-300 cursor-pointer flex items-center gap-1"
+      >
+        <span className="text-[8px]">{open ? '▼' : '▶'}</span>
+        Fuentes ({contributions.length})
+      </button>
+      {open && (
+        <div className="mt-1 space-y-0.5">
+          {contributions.slice(0, 8).map((c, i) => (
+            <div key={i} className="flex items-center gap-1 text-[9px] text-slate-400">
+              <span className={`w-[24px] shrink-0 font-mono ${c.source === 'buoy' ? 'text-cyan-400' : 'text-slate-500'}`}>
+                {SOURCE_LABELS[c.source] ?? c.source}
+              </span>
+              <span className="truncate flex-1" title={c.name}>{c.name}</span>
+              <span className="font-semibold text-slate-300 w-[32px] text-right">{c.speedKt}kt</span>
+              <span className="w-[16px] text-center">{c.dir ?? '-'}</span>
+              <span className="text-slate-600 w-[28px] text-right">{c.distKm}km</span>
+              <span className="text-slate-600 w-[22px] text-right">{c.weightPct}%</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

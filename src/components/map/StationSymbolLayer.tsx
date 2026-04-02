@@ -178,8 +178,19 @@ export function StationSymbolLayer({
         paint={{
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 7, 10, 9, 11, 12, 12, 15],
           'circle-color': 'transparent',
-          'circle-stroke-color': ['get', 'sourceColor'],
-          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 12, 1.5],
+          // Stroke color indicates data freshness: normal → amber (>10min) → red (>30min)
+          'circle-stroke-color': [
+            'step', ['get', 'freshness'],
+            '#ef4444',     // <0.6: red (>30min stale)
+            0.6, '#f59e0b', // 0.6-0.85: amber (>10min)
+            0.85, ['get', 'sourceColor'],  // >=0.85: fresh, source color
+          ],
+          // Stale data gets thicker ring for visibility
+          'circle-stroke-width': [
+            'step', ['get', 'freshness'],
+            2.5,           // <0.85: stale → thicker ring
+            0.85, 1.5,    // fresh → normal
+          ],
           'circle-opacity': ['*', ['get', 'freshness'], 0.7],
         }}
       />

@@ -84,8 +84,8 @@ export const RegattaPanel = memo(function RegattaPanel() {
       inZone.push({ station: st, reading: r, distKm: haversineDistance(centerLat, centerLon, st.lat, st.lon) });
     }
 
-    // If none in zone, find 5 nearest within 30km
-    const sources = inZone.length > 0 ? inZone : findNearestStations(stations, readings, centerLat, centerLon, 5, 20);
+    // If none in zone, find 8 nearest within 25km (generous to match spot scoring coverage)
+    const sources = inZone.length > 0 ? inZone : findNearestStations(stations, readings, centerLat, centerLon, 8, 25);
 
     // Unified weighting: IDW × sourceQuality × freshness (matches spotScoringEngine)
     // + wind blacklist + directional coherence filter
@@ -93,7 +93,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
     const humids: number[] = [];
 
     // Pass 1: collect all valid wind readings + temp/humidity
-    type WindEntry = { st: typeof sources[0]['station']; speedKt: number; gustKt: number; dir: number | null; weight: number };
+    type WindEntry = { id: string; name: string; isBuoy: boolean; speedKt: number; gustKt: number; dir: number | null; weight: number; distKm: number };
     const windEntries: WindEntry[] = [];
     let maxGust = 0;
 
@@ -114,7 +114,23 @@ export const RegattaPanel = memo(function RegattaPanel() {
       const gustKt = r.windGust != null ? msToKnots(r.windGust) : 0;
       const dir = (r.windDirection != null && r.windDirection > 0) ? r.windDirection : null;
       if (gustKt > maxGust) maxGust = gustKt;
-      windEntries.push({ st, speedKt, gustKt, dir, weight });
+      windEntries.push({ id: st.id, name: st.name, isBuoy: false, speedKt, gustKt, dir, weight, distKm });
+    }
+
+    // Include buoys with wind data — buoys measure wind ON WATER, most reliable
+    for (const b of buoys) {
+      if (b.windSpeed == null || b.latitude == null || b.longitude == null) continue;
+      const d = haversineDistance(centerLat, centerLon, b.latitude, b.longitude);
+      if (d > 30) continue; // within 30km
+      const speedKt = msToKnots(b.windSpeed);
+      if (speedKt < 1) continue;
+      const buoyAgeMin = b.timestamp ? (Date.now() - new Date(b.timestamp).getTime()) / 60_000 : 0;
+      const freshnessMul = buoyAgeMin <= 10 ? 1.0 : buoyAgeMin <= 30 ? 0.95 : buoyAgeMin <= 60 ? 0.85 : 0.7;
+      const weight = (1 / Math.max(0.5, d) ** 2) * 1.0 * freshnessMul;
+      const bGustKt = b.windGust != null ? msToKnots(b.windGust) : 0;
+      if (bGustKt > maxGust) maxGust = bGustKt;
+      const dir = b.windDir != null ? b.windDir : null;
+      windEntries.push({ id: `buoy_${b.stationId}`, name: b.stationName, isBuoy: true, speedKt, gustKt: bGustKt, dir, weight, distKm: d });
     }
 
     // Pass 2: compute consensus direction, then filter outliers >90° off
@@ -150,7 +166,8 @@ export const RegattaPanel = memo(function RegattaPanel() {
     }
 
     let avgWind = totalWeight > 0 ? weightedSpeed / totalWeight : 0;
-    if (sourcesAbove7kt >= 3) avgWind += 1;
+    // Consensus bonus: when 3+ sources agree on decent wind (>7kt), +1kt
+    // Compensates for land stations underreporting on-water conditions
     if (sourcesAbove7kt >= 3) avgWind += 1;
     // Weighted circular mean for wind direction (IDW + handles 350°+10° correctly)
     let windDir: number | null = null;
@@ -278,6 +295,18 @@ export const RegattaPanel = memo(function RegattaPanel() {
       }
     }
 
+    // Build wind sources for transparency display
+    const windSources = coherent
+      .map(e => ({
+        name: e.name,
+        type: (e.isBuoy ? 'buoy' : 'station') as 'station' | 'buoy',
+        speedKt: Math.round(e.speedKt * 10) / 10,
+        dir: e.dir != null ? degreesToCardinal(e.dir) : null,
+        distKm: Math.round(e.distKm * 10) / 10,
+        weightPct: totalWeight > 0 ? Math.round((e.weight / totalWeight) * 100) : 0,
+      }))
+      .sort((a, b) => b.weightPct - a.weightPct);
+
     store.setConditions({
       avgWindKt: Math.round(avgWind * 10) / 10,
       maxGustKt: Math.round(maxGust * 10) / 10,
@@ -285,6 +314,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
       stationsInZone: count,
       semaphore,
       alerts: alertMsgs,
+      windSources,
       // Extended data stored as extra fields
       ...(avgHumidity != null && { avgHumidity }),
       ...(maxTemp != null && { maxTemp, minTemp }),
@@ -564,10 +594,10 @@ export const RegattaPanel = memo(function RegattaPanel() {
       {conditions && (
         <div className="px-3 py-2 space-y-1">
           {cond.interpolated && (
-            <div className="text-[9px] text-teal-400/70 mb-1">Datos interpolados de {conditions.stationsInZone} estaciones cercanas</div>
+            <div className="text-[9px] text-teal-400/70 mb-1">Datos interpolados de {conditions.stationsInZone} fuentes cercanas</div>
           )}
           {!cond.interpolated && conditions.stationsInZone > 0 && (
-            <div className="text-[9px] text-green-400/70 mb-1">{conditions.stationsInZone} estaciones en zona</div>
+            <div className="text-[9px] text-green-400/70 mb-1">{conditions.stationsInZone} fuentes en zona</div>
           )}
 
           <div className="flex justify-between text-xs">
@@ -592,6 +622,29 @@ export const RegattaPanel = memo(function RegattaPanel() {
             <span className="text-slate-500">Tendencia</span>
             <span className={`font-bold ${windTrend.color}`}>{windTrend.label}{windTrend.arrow}</span>
           </div>
+
+          {/* Wind sources (collapsible transparency) */}
+          {cond.windSources && cond.windSources.length > 0 && (
+            <details className="mt-1">
+              <summary className="text-[9px] text-blue-400/70 cursor-pointer hover:text-blue-300">
+                Fuentes ({cond.windSources.length})
+              </summary>
+              <div className="mt-0.5 space-y-0.5">
+                {cond.windSources.slice(0, 8).map((s, i) => (
+                  <div key={i} className="flex items-center gap-0.5 text-[8px] text-slate-400">
+                    <span className={`w-[10px] shrink-0 ${s.type === 'buoy' ? 'text-cyan-400' : 'text-slate-600'}`}>
+                      {s.type === 'buoy' ? 'B' : 'E'}
+                    </span>
+                    <span className="truncate flex-1" title={s.name}>{s.name}</span>
+                    <span className="font-semibold text-slate-300 w-[28px] text-right">{s.speedKt}kt</span>
+                    <span className="w-[14px] text-center">{s.dir ?? '-'}</span>
+                    <span className="text-slate-600 w-[20px] text-right">{s.distKm}km</span>
+                    <span className="text-slate-600 w-[18px] text-right">{s.weightPct}%</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
 
           {/* Marine data */}
           {cond.waveHeight != null ? (
