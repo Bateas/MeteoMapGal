@@ -359,8 +359,8 @@ export function WeatherMap() {
         {/* AIS ship tracking — Rías Baixas only */}
         {activeSector.id === 'rias' && <AISOverlay />}
 
-        {/* Aviation aircraft monitoring — Embalse only */}
-        {activeSector.id === 'embalse' && <AviationOverlay />}
+        {/* Aviation aircraft monitoring — Embalse always, Rías during events */}
+        {(activeSector.id === 'embalse' || regattaActive) && <AviationOverlay />}
 
         {/* Regatta/Event mode — zone + buoy markers */}
         <RegattaOverlay />

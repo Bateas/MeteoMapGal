@@ -1,11 +1,11 @@
 /**
  * Aviation data polling hook.
  * Fetches OpenSky aircraft data with adaptive interval.
- * Only active when overlay enabled + Embalse sector.
+ * Active when: overlay toggled on, OR event mode active (any sector).
  */
 import { useCallback } from 'react';
 import { useAviationStore } from '../store/aviationStore';
-import { useSectorStore } from '../store/sectorStore';
+import { useRegattaStore } from '../store/regattaStore';
 import { fetchAircraft, getCreditsUsed } from '../api/aviationClient';
 import { evaluateAviationAlert, computePollingInterval } from '../services/aviationAlertService';
 import { useVisibilityPolling } from './useVisibilityPolling';
@@ -13,8 +13,9 @@ import { useVisibilityPolling } from './useVisibilityPolling';
 export function useAviationData() {
   const showOverlay = useAviationStore((s) => s.showOverlay);
   const pollIntervalMs = useAviationStore((s) => s.pollIntervalMs);
-  const activeSector = useSectorStore((s) => s.activeSector);
-  const enabled = showOverlay && activeSector.id === 'embalse';
+  const regattaActive = useRegattaStore((s) => s.active && s.zone !== null);
+  // Active when overlay is on OR event mode is active (aviation = safety for events)
+  const enabled = showOverlay || regattaActive;
 
   const fetchAndUpdate = useCallback(async () => {
     const store = useAviationStore.getState();
