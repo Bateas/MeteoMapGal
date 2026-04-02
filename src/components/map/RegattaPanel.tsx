@@ -107,33 +107,48 @@ export const RegattaPanel = memo(function RegattaPanel() {
     }
     const avgHumidity = humids.length > 0 ? Math.round(humids.reduce((a, b) => a + b, 0) / humids.length) : null;
 
-    // Marine data: buoy first, Open-Meteo Marine as fallback
+    // Marine data: buoy first, Open-Meteo Marine ONLY for exposed coast
+    // IMPORTANT: Open-Meteo Marine gives open-sea data — WRONG for sheltered
+    // ría interiors (e.g. Cesantes shows 0.5m waves when real = 0-0.1m).
+    // Only use Open-Meteo for SST, not wave height in sheltered waters.
     let waveHeight: number | null = null;
     let waterTemp: number | null = null;
     let swellHeight: number | null = null;
     let wavePeriod: number | null = null;
     let nearestBuoyDist = Infinity;
 
-    // Try buoys first (real-time)
+    // Check if zone center is in sheltered waters (inside ría, embalse)
+    // Heuristic: if lon > -8.8 in Rías sector = interior ría (sheltered from Atlantic)
+    const isSheltered = centerLon > -8.78 || store.selectedZoneId?.includes('embalse');
+
+    // Try buoys first (real-time, always valid)
     for (const b of buoys) {
       if (b.latitude == null || b.longitude == null) continue;
       const d = haversineDistance(centerLat, centerLon, b.latitude, b.longitude);
-      if (d < nearestBuoyDist && d < 40) {
+      if (d < nearestBuoyDist && d < 30) {
         nearestBuoyDist = d;
         if (b.waveHeight != null) waveHeight = b.waveHeight;
         if (b.waterTemperature != null) waterTemp = b.waterTemperature;
       }
     }
 
-    // Fallback: Open-Meteo Marine (any coordinate, always available)
-    if (waveHeight == null || waterTemp == null) {
+    // Open-Meteo Marine fallback — SST always OK, waves ONLY for exposed coast
+    if (waterTemp == null || (!isSheltered && waveHeight == null)) {
       const marine = await fetchMarineData(centerLat, centerLon);
       if (marine) {
-        if (waveHeight == null) waveHeight = marine.waveHeight;
         if (waterTemp == null) waterTemp = marine.seaSurfaceTemp;
-        swellHeight = marine.swellHeight;
-        wavePeriod = marine.wavePeriod;
+        // Only use wave data for exposed coastal zones
+        if (!isSheltered) {
+          if (waveHeight == null) waveHeight = marine.waveHeight;
+          swellHeight = marine.swellHeight;
+          wavePeriod = marine.wavePeriod;
+        }
       }
+    }
+
+    // Sheltered zones: show "Aguas protegidas" instead of wrong wave data
+    if (isSheltered && waveHeight == null) {
+      // Don't show wave data — it would be misleading
     }
 
     // Semaphore + safety alerts based on ALL data
@@ -315,10 +330,15 @@ export const RegattaPanel = memo(function RegattaPanel() {
           </div>
 
           {/* Marine data */}
-          {cond.waveHeight != null && (
+          {cond.waveHeight != null ? (
             <div className="flex justify-between text-xs">
               <span className="text-slate-500">Oleaje</span>
               <span className={`font-bold ${cond.waveHeight > 2 ? 'text-amber-400' : 'text-cyan-400'}`}>{cond.waveHeight.toFixed(1)} m</span>
+            </div>
+          ) : (
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-500">Oleaje</span>
+              <span className="text-green-400/70 font-medium text-[10px]">Aguas protegidas</span>
             </div>
           )}
           {cond.waterTemp != null && (
