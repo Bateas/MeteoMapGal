@@ -602,13 +602,13 @@ export const RegattaPanel = memo(function RegattaPanel() {
 
           <div className="flex justify-between text-xs">
             <span className="text-slate-500">Viento medio</span>
-            <span className={`font-bold ${conditions.avgWindKt >= 25 ? 'text-red-400' : conditions.avgWindKt >= 18 ? 'text-cyan-400' : conditions.avgWindKt >= 12 ? 'text-emerald-400' : conditions.avgWindKt >= 8 ? 'text-amber-300' : conditions.avgWindKt >= 6 ? 'text-sky-400' : 'text-slate-400'}`}>
+            <span className={`font-bold ${conditions.avgWindKt >= 40 ? 'text-violet-600' : conditions.avgWindKt >= 30 ? 'text-purple-400' : conditions.avgWindKt >= 25 ? 'text-red-400' : conditions.avgWindKt >= 18 ? 'text-cyan-400' : conditions.avgWindKt >= 12 ? 'text-emerald-400' : conditions.avgWindKt >= 8 ? 'text-amber-300' : conditions.avgWindKt >= 6 ? 'text-sky-400' : 'text-slate-400'}`}>
               {conditions.avgWindKt.toFixed(1)} kt
             </span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-slate-500">Racha max</span>
-            <span className={`font-bold ${conditions.maxGustKt >= 25 ? 'text-red-400' : conditions.maxGustKt >= 18 ? 'text-cyan-400' : conditions.maxGustKt >= 12 ? 'text-emerald-400' : conditions.maxGustKt >= 8 ? 'text-amber-300' : 'text-white'}`}>
+            <span className={`font-bold ${conditions.maxGustKt >= 40 ? 'text-violet-600' : conditions.maxGustKt >= 30 ? 'text-purple-400' : conditions.maxGustKt >= 25 ? 'text-red-400' : conditions.maxGustKt >= 18 ? 'text-cyan-400' : conditions.maxGustKt >= 12 ? 'text-emerald-400' : conditions.maxGustKt >= 8 ? 'text-amber-300' : 'text-white'}`}>
               {conditions.maxGustKt.toFixed(1)} kt
             </span>
           </div>
