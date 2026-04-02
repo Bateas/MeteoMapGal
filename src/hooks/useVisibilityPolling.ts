@@ -17,14 +17,17 @@ export function useVisibilityPolling(
   intervalMs: number,
   /** When false, polling is completely paused. Defaults to true. */
   enabled: boolean = true,
+  /** Delay first execution to stagger startup API calls (ms). Default 0 = immediate. */
+  initialDelayMs = 0,
 ) {
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
 
   useEffect(() => {
-    if (!enabled) return;        // ← do nothing when disabled
+    if (!enabled) return;
 
     let timer: ReturnType<typeof setInterval> | null = null;
+    let delayTimer: ReturnType<typeof setTimeout> | null = null;
 
     function start() {
       callbackRef.current();
@@ -33,10 +36,8 @@ export function useVisibilityPolling(
     }
 
     function stop() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
+      if (timer) { clearInterval(timer); timer = null; }
+      if (delayTimer) { clearTimeout(delayTimer); delayTimer = null; }
     }
 
     function onVisibilityChange() {
@@ -49,14 +50,18 @@ export function useVisibilityPolling(
 
     document.addEventListener('visibilitychange', onVisibilityChange);
 
-    // Start immediately if tab is visible
+    // Start immediately or after delay (staggers startup API calls)
     if (document.visibilityState === 'visible') {
-      start();
+      if (initialDelayMs > 0) {
+        delayTimer = setTimeout(start, initialDelayMs);
+      } else {
+        start();
+      }
     }
 
     return () => {
       stop();
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [intervalMs, enabled]);
+  }, [intervalMs, enabled, initialDelayMs]);
 }

@@ -217,5 +217,5 @@ export function useForecastTimeline() {
   }, [sectorId, activeModel, coords, setHourly, setLoading, setError, setFetchedAt]);
 
   // Visibility-aware polling — pauses when tab is hidden
-  useVisibilityPolling(poll, POLL_INTERVAL_MS);
+  useVisibilityPolling(poll, POLL_INTERVAL_MS, true, 5_000); // Stagger: 5s after page load
 }

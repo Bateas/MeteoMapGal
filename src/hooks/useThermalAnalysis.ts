@@ -114,7 +114,7 @@ export function useThermalAnalysis() {
   }, [isEmbalse, setAtmosphericContext]);
 
   // Visibility-aware polling — pauses atmospheric fetches when tab is hidden
-  useVisibilityPolling(fetchAtmospheric, ATMOSPHERIC_INTERVAL_MS);
+  useVisibilityPolling(fetchAtmospheric, ATMOSPHERIC_INTERVAL_MS, true, 8_000); // Stagger: 8s
 
   // ── Fetch Open-Meteo 24h history for tendency backfill — Embalse only ──
   // Station-based history may be sparse (only 10min readings since app opened).
