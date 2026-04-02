@@ -51,6 +51,7 @@ import { AISOverlay } from './AISOverlay';
 import { AviationOverlay } from './AviationOverlay';
 import { RegattaOverlay } from './RegattaOverlay';
 import { RegattaPanel } from './RegattaPanel';
+import { RegattaTimeline } from './RegattaTimeline';
 import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
@@ -401,8 +402,9 @@ export function WeatherMap() {
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
 
-      {/* Regatta/Event mode panel */}
+      {/* Regatta/Event mode panel + timeline */}
       <RegattaPanel />
+      <RegattaTimeline />
 
       {/* ── Bottom controls: toolbar + alerts ── */}
       {isMobile ? (
