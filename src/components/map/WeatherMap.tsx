@@ -148,24 +148,60 @@ export function WeatherMap() {
   useAviationData();
   useWebcamVisionData();
 
-  // Regatta mode: fade non-essential elements (DOM + MapLibre native layers)
+  // Regatta mode: fade non-essential elements.
+  // CSS class handles DOM markers (.maplibregl-marker).
+  // setPaintProperty handles native GPU layers — but on deactivate we MUST restore
+  // the original data-driven freshness expressions, NOT a flat 1 (which destroys them
+  // and makes stale stations appear fully opaque).
   const regattaActive = useRegattaStore((s) => s.active && s.zone !== null);
   useEffect(() => {
     containerRef.current?.classList.toggle('regatta-active', regattaActive);
     const map = mapRef.current?.getMap();
     if (!map) return;
-    const fadeOpacity = regattaActive ? 0.3 : 1;
-    // Fade station symbols, wind arrows, buoy markers
-    for (const layerId of ['stations-icons', 'stations-labels', 'wind-arrows', 'buoy-icons', 'buoy-labels']) {
+
+    if (regattaActive) {
+      // Dim all station/buoy layers uniformly
+      for (const id of ['stations-icons', 'stations-names', 'stations-source-ring', 'buoys-icons']) {
+        try {
+          if (!map.getLayer(id)) continue;
+          const isSymbol = map.getLayer(id)?.type === 'symbol';
+          map.setPaintProperty(id, isSymbol ? 'icon-opacity' : 'circle-opacity', 0.3);
+          map.setPaintProperty(id, isSymbol ? 'text-opacity' : 'circle-stroke-opacity', 0.3);
+        } catch { /* layer may not exist yet */ }
+      }
+    } else {
+      // Restore original freshness-based expressions (must match StationSymbolLayer / BuoySymbolLayer)
       try {
-        if (map.getLayer(layerId)) {
-          const prop = map.getLayer(layerId)?.type === 'symbol' ? 'icon-opacity' : 'circle-opacity';
-          map.setPaintProperty(layerId, prop, fadeOpacity);
-          if (map.getLayer(layerId)?.type === 'symbol') {
-            map.setPaintProperty(layerId, 'text-opacity', fadeOpacity);
-          }
+        if (map.getLayer('stations-icons')) {
+          map.setPaintProperty('stations-icons', 'icon-opacity', [
+            'step', ['get', 'freshness'],
+            0.0, 0.15, 0.08, 0.3, 0.25, 0.6, 0.45, 0.85, 0.8,
+          ]);
+          map.setPaintProperty('stations-icons', 'text-opacity', [
+            'step', ['get', 'freshness'],
+            0.0, 0.15, 0.1, 0.3, 0.25, 0.6, 0.5, 0.85, 1.0,
+          ]);
         }
-      } catch { /* layer may not exist yet */ }
+        if (map.getLayer('stations-names')) {
+          map.setPaintProperty('stations-names', 'text-opacity', [
+            'step', ['get', 'freshness'],
+            0.0, 0.15, 0.1, 0.3, 0.25, 0.6, 0.5, 0.85, 1.0,
+          ]);
+        }
+        if (map.getLayer('stations-source-ring')) {
+          map.setPaintProperty('stations-source-ring', 'circle-opacity', [
+            'step', ['get', 'freshness'],
+            0.0, 0.15, 0.08, 0.3, 0.2, 0.6, 0.35, 0.85, 0.7,
+          ]);
+          map.setPaintProperty('stations-source-ring', 'circle-stroke-opacity', [
+            'step', ['get', 'freshness'],
+            0.0, 0.15, 0.08, 0.3, 0.2, 0.6, 0.35, 0.85, 0.7,
+          ]);
+        }
+        if (map.getLayer('buoys-icons')) {
+          map.setPaintProperty('buoys-icons', 'icon-opacity', ['*', ['get', 'freshness'], 0.75]);
+        }
+      } catch { /* layers may not exist */ }
     }
   }, [regattaActive]);
 
