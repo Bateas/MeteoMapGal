@@ -484,16 +484,16 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
   return (
     <div className="mb-2 rounded border border-slate-700 bg-slate-800/50 overflow-hidden">
       <div className="px-2 py-1 bg-slate-700/50 text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-        <span>Diagn&oacute;stico del d&iacute;a</span>
+        <span>Diagnóstico del día</span>
         <span className="text-slate-500 font-mono normal-case">
-          {formatTime(sun.thermalStart)}–{formatTime(sun.thermalEnd)} ventana t&eacute;rmica
+          {formatTime(sun.thermalStart)}–{formatTime(sun.thermalEnd)} ventana térmica
         </span>
       </div>
 
       <div className="grid grid-cols-3 gap-x-3 gap-y-1 p-2 text-[11px]">
         {/* Pressure */}
         <div>
-          <span className="text-slate-500 text-[11px]">Presi&oacute;n</span>
+          <span className="text-slate-500 text-[11px]">Presión</span>
           <div className="flex items-center gap-1">
             <span style={{ color: pressureColor }} className="font-bold">{pressureIcon}</span>
             {diag.currentPressure !== null && (
@@ -509,7 +509,7 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
 
         {/* HR min */}
         <div>
-          <span className="text-slate-500 text-[11px]">HR m&iacute;nima</span>
+          <span className="text-slate-500 text-[11px]">HR mínima</span>
           <div>
             {diag.minHumidity !== null ? (
               <span className={diag.minHumidity <= 55 ? 'text-amber-400' : diag.minHumidity <= 70 ? 'text-slate-300' : 'text-sky-400'}>
@@ -526,7 +526,7 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
 
         {/* Solar radiation */}
         <div>
-          <span className="text-slate-500 text-[11px]">Radiaci&oacute;n pico</span>
+          <span className="text-slate-500 text-[11px]">Radiación pico</span>
           <div>
             {diag.peakRadiation !== null ? (
               <span className={diag.peakRadiation >= 700 ? 'text-yellow-400' : diag.peakRadiation >= 400 ? 'text-slate-300' : 'text-slate-500'}>
@@ -560,7 +560,7 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
             <span className={diag.directionConsistency >= 70 ? 'text-green-400' : diag.directionConsistency >= 40 ? 'text-yellow-400' : 'text-red-400'}>
               {diag.directionConsistency}%
               <span className="text-slate-500 ml-1 text-[11px]">
-                {diag.directionConsistency >= 70 ? 'estable' : diag.directionConsistency >= 40 ? 'variable' : 'ca&oacute;tico'}
+                {diag.directionConsistency >= 70 ? 'estable' : diag.directionConsistency >= 40 ? 'variable' : 'caótico'}
               </span>
             </span>
           </div>
@@ -571,7 +571,7 @@ function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number |
       <div className="px-2 py-1.5 border-t border-slate-700/50 flex items-center gap-2">
         <div className="flex-1">
           <div className="flex items-center gap-2 text-[11px]">
-            <span className="text-slate-500">Patr&oacute;n hist&oacute;rico:</span>
+            <span className="text-slate-500">Patrón histórico:</span>
             <span className="text-slate-400">{diag.patternMatch}</span>
           </div>
           <div className="mt-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
