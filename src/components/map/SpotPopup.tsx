@@ -10,6 +10,7 @@ import { memo, useState, useMemo, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
+import { useWebcamStore } from '../../store/webcamStore';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict, WindContribution } from '../../services/spotScoringEngine';
@@ -468,8 +469,47 @@ function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: SailingSpot
             Score: {score.score}/100 · {score.wind?.stationCount ?? 0} fuentes
           </div>
           {score.wind?.contributions && <WindSources contributions={score.wind.contributions} />}
+          <SpotVisionBadge spot={spot} />
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Vision IA badge for spots with nearby webcam ────────────
+
+function SpotVisionBadge({ spot }: { spot: SailingSpot }) {
+  const visionResults = useWebcamStore((s) => s.visionResults);
+  if (!spot.webcams || spot.webcams.length === 0) return null;
+
+  // Find vision data for any webcam linked to this spot (via config/webcams.ts nearestSpotId)
+  // Also check by matching webcam URL patterns
+  let bestResult: { bf: number; label: string; kt: number; confidence: string; sky: string; fog: boolean; ago: number; webcamName: string } | null = null;
+
+  for (const [webcamId, result] of visionResults) {
+    if (result.beaufort < 0) continue;
+    // Check if this webcam's spotId matches
+    if (result.spotId === spot.id) {
+      const ago = Math.round((Date.now() - result.analyzedAt.getTime()) / 60_000);
+      if (!bestResult || result.confidence === 'high' || ago < (bestResult.ago ?? 999)) {
+        bestResult = { bf: result.beaufort, label: result.beaufortLabel, kt: result.windEstimateKt, confidence: result.confidence, sky: result.weather.sky, fog: result.weather.fogVisible, ago, webcamName: webcamId };
+      }
+    }
+  }
+
+  if (!bestResult) return null;
+
+  const color = bestResult.bf <= 1 ? '#94a3b8' : bestResult.bf <= 3 ? '#38bdf8' : bestResult.bf <= 5 ? '#fbbf24' : '#f87171';
+
+  return (
+    <div className="mt-1 pt-1 border-t border-slate-700/30">
+      <div className="flex items-center gap-1.5 text-[10px]">
+        <span className="text-slate-600">Vision IA:</span>
+        <span className="font-bold" style={{ color }}>B{bestResult.bf}</span>
+        <span className="text-slate-500">{bestResult.label} ~{bestResult.kt}kt</span>
+        {bestResult.fog && <span className="text-amber-400">Niebla</span>}
+        <span className="ml-auto text-slate-600">{bestResult.ago < 60 ? `${bestResult.ago}m` : `${Math.round(bestResult.ago / 60)}h`}</span>
+      </div>
     </div>
   );
 }
