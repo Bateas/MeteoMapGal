@@ -61,6 +61,7 @@ n8n-workflow-*.json
 n8n/
 
 # Private documents
+docs/
 pitch-deck-*.html
 
 # Reference materials (outside repo)

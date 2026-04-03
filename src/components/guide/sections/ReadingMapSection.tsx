@@ -37,7 +37,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="sailboat"
             title="Marcadores de spot"
-            text="Hex&aacute;gonos semi-transparentes con arco de viento (gauge) e icono de actividad. Cada spot tiene un badge con el veredicto (CALMA, FLOJO, NAVEG., BUENO, FUERTE) y nudos. Clic abre popup con detalles."
+            text="Hexágonos (vela) y pentágonos (surf) semi-transparentes con arco de gauge e icono de actividad. Cada spot tiene un badge con el veredicto y nudos/olas. Clic abre popup con detalles."
           />
           <MiniExplainer
             iconId="wind"

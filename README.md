@@ -1,12 +1,10 @@
 # MeteoMapGal
 
-[![Versión](https://img.shields.io/badge/versión-2.10.5-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Versión](https://img.shields.io/badge/versión-2.17.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-236%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-235%20passed-brightgreen)](src/test/)
 
-**Meteoroloxía en tempo real para Galicia** — Vento, ondas, mareas e alertas con 100+ estacións, 13 boias e mapa 3D interactivo.
-
-**Meteorología en tiempo real para Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas y mapa 3D interactivo.
+**Meteorología en tiempo real para Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots, 19 webcams con IA y mapa 3D interactivo.
 
 **En vivo**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) — Gratuito, sin registro. Funciona en cualquier dispositivo. Instalable como app (PWA).
 
@@ -55,17 +53,24 @@
 - Blacklist de 35 estacións protexidas (validadas con 2 semanas de datos DB)
 - Badge de sesgo do modelo na previsión ("Real +3kt" vs Open-Meteo)
 
-### Spots de navegación (10 spots)
+### Spots monitorizados (13 spots)
+
+**Vela / Kite (10 spots — hexágono):**
 - **Ría de Vigo**: Cesantes, Bocana, Centro Ría, Cíes-Ría, Vao
 - **Ría de Pontevedra**: Lourido
 - **Ría de Arousa**: A Lanzada, Castiñeiras, Illa de Arousa
 - **Embalse**: Castrelo de Miño
-- Puntuación en 5 niveis: CALMA / FLOJO / NAVEGABLE / BUEN DIA / FUERTE
-- Marcadores hexagonais con arco de vento (gauge visual)
-- **Transparencia de scoring**: cada spot mostra as fontes que contribúen (nome, velocidade, peso %)
-- Detección térmica con penalización por vento sinóptico
-- Ventana de navegación "Cuándo salgo?" (48h por spot)
-- Mareas por spot (5 portos IHM)
+
+**Surf (3 spots BETA — pentágono):**
+- Patos, A Lanzada Surf, Corrubedo
+
+**Scoring:**
+- Vela: 9 niveles de viento (CALMA → HURACÁN) con marcadores hexágono
+- Surf: 5 niveles de oleaje (FLAT / PEQUE / SURF OK / CLÁSICO / GRANDE)
+- Transparencia: cada spot muestra las fuentes que contribuyen (nombre, velocidad, peso %)
+- Detección térmica con penalización por viento sinóptico
+- Ventana de navegación "¿Cuándo salgo?" (48h por spot)
+- Mareas por spot (5 puertos IHM)
 
 ### Modo Evento / Regata (novo v2.8)
 - Selección de zona: 5 zonas OSM reais (Rías + Embalse) ou debuxo libre
@@ -162,16 +167,16 @@ npm install
 cp .env.example .env    # Engadir chaves API de AEMET + ObsCosteiro
 npm run dev             # http://localhost:5173
 npm run build           # Produción → dist/
-npm test                # 236 tests (Vitest)
+npm test                # 235 tests (Vitest)
 ```
 
-**Stack**: React 19 · TypeScript 5.9 · Vite 7 · MapLibre GL 5 · Zustand 5 · Tailwind 4 · Recharts · TimescaleDB
+**Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.19 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB
 
 ---
 
 ## Apoiar
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Apoiar%20MeteoMapGal-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/meteomapgal)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Apoiar%20MeteoMapGal-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/bateas)
 
 ## Licenza
 
