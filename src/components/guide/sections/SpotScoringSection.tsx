@@ -96,7 +96,7 @@ export function SpotScoringSection() {
 
       {/* 5-level scoring scale */}
       <div className="space-y-2">
-        <h3 className="text-sm font-bold text-white">Escala de viento (5 niveles)</h3>
+        <h3 className="text-sm font-bold text-white">Escala de viento (9 niveles)</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2 text-[11px]">
           <p className="text-slate-400 leading-relaxed">
             El veredicto se basa en el <strong className="text-slate-300">viento real medido</strong> por
@@ -104,19 +104,20 @@ export function SpotScoringSection() {
             la intensidad del viento:
           </p>
           <div className="space-y-1.5 pt-1">
-            <VerdictRow color="#94a3b8" label="Calma"     wind="< 6kt"   desc="Sin condiciones para navegar." />
-            <VerdictRow color="#38bdf8" label="Flojo"     wind="6-8kt"   desc="Viento ligero. SUP, paseo, esperar a que suba." />
-            <VerdictRow color="#22c55e" label="Navegable" wind="8-13kt"  desc="Viento justo, condiciones limitadas." />
-            <VerdictRow color="#eab308" label="Buen d&iacute;a"  wind="13-18kt" desc="Viento estable, apto para todas las modalidades." />
+            <VerdictRow color="#64748b" label="Calma"     wind="< 1kt"   desc="Sin viento detectable." />
+            <VerdictRow color="#38bdf8" label="Flojo"     wind="1-6kt"   desc="Viento ligero. SUP, paseo, esperar a que suba." />
+            <VerdictRow color="#22c55e" label="Navegable" wind="6-9kt"   desc="Viento justo, condiciones limitadas." />
+            <VerdictRow color="#a3e635" label="Bueno"     wind="9-13kt"  desc="Buen viento para navegar." />
+            <VerdictRow color="#eab308" label="Buen día"  wind="13-18kt" desc="Viento estable, apto para todas las modalidades." />
             <VerdictRow color="#f97316" label="Fuerte"    wind="18-23kt" desc="Requiere experiencia. Viento potente." />
             <VerdictRow color="#ef4444" label="Temporal"  wind="23-30kt" desc="Peligroso. Solo navegantes muy experimentados." />
             <VerdictRow color="#a855f7" label="Tormenta"  wind="30-40kt" desc="Condiciones extremas. No salir al agua." />
-            <VerdictRow color="#7c3aed" label="Severo"    wind="40-50kt" desc="Da&ntilde;os materiales probables." />
-            <VerdictRow color="#1e1b4b" label="Hurac&aacute;n"  wind="50+ kt"  desc="Situaci&oacute;n de emergencia." />
+            <VerdictRow color="#7c3aed" label="Severo"    wind="40-50kt" desc="Daños materiales probables." />
+            <VerdictRow color="#1e1b4b" label="Huracán"   wind="50+ kt"  desc="Situación de emergencia." />
           </div>
           <p className="text-[11px] text-slate-500 italic pt-2">
-            Las estaciones meteorol&oacute;gicas est&aacute;n en tierra, no en el agua. El viento real en la
-            superficie del agua suele ser un 15-25% superior al que marca la estaci&oacute;n m&aacute;s cercana.
+            Las estaciones meteorológicas están en tierra, no en el agua. El viento real en la
+            superficie del agua suele ser un 15-25% superior al que marca la estación más cercana.
           </p>
         </div>
       </div>

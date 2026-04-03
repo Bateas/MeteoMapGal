@@ -87,7 +87,7 @@ export function LegalSection() {
           <ul className="space-y-1 text-[11px] text-slate-400">
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
-              Sin cookies de seguimiento ni analítica
+              Sin cookies de seguimiento. Analítica anónima y agregada (Cloudflare Web Analytics)
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
