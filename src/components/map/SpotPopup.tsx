@@ -278,7 +278,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Humidity precursor signal (bruma pattern) ── */}
       {score?.humiditySignal && (
-        <div className="text-[11px] text-amber-400 bg-amber-500/10 rounded px-2 py-1 mb-2">
+        <div className="text-[11px] text-sky-400 bg-sky-500/10 rounded px-2 py-1 mb-2">
           {score.humiditySignal}
         </div>
       )}
@@ -293,7 +293,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Thermal context (if applicable) ── */}
       {score?.thermal && score.thermal.thermalProbability > 0 && (
-        <div className="text-[11px] text-amber-300/70 mb-1">
+        <div className="text-[11px] text-blue-300/70 mb-1">
           <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Térmica {score.thermal.thermalProbability}% prob
           {score.thermal.windWindow && ` · ${score.thermal.windWindow.startHour}h–${score.thermal.windWindow.endHour}h`}
         </div>
