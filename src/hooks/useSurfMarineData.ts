@@ -23,9 +23,14 @@ function basicSurfVerdict(wh: number, tp: number): { label: string; color: strin
   else if (wh < 2.5) level = 3;
   else level = 4;
 
-  // Period modifier (same logic as computeSurfVerdict)
-  if (tp >= 10 && level >= 1) level = Math.min(4, level + 1);
-  else if (tp > 0 && tp < 5 && level >= 1) level = Math.max(0, level - 1);
+  const baseLevel = level;
+  // Period modifier — capped at +1 from base (quality, not size)
+  let bonus = 0;
+  if (tp >= 10 && level >= 1) bonus = 1;
+  else if (tp > 0 && tp < 5 && level >= 1) bonus = -1;
+  level = Math.max(0, Math.min(4, baseLevel + Math.max(-1, Math.min(1, bonus))));
+  // GRANDE only with real big waves (>= 2.0m)
+  if (level === 4 && wh < 2.0) level = 3;
 
   const LEVELS: { label: string; color: string }[] = [
     { label: 'FLAT',    color: '#94a3b8' },
