@@ -1,6 +1,6 @@
 // MeteoMap Service Worker — cache-first for static assets, network-first for HTML,
 // cache-then-network for map tiles, network-only for API
-const CACHE_NAME = 'meteomap-v5';
+const CACHE_NAME = 'meteomap-v6';
 const TILE_CACHE = 'meteomap-tiles-v1';
 const MAX_TILE_CACHE = 500; // LRU eviction above this
 
