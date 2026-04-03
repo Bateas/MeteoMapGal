@@ -75,11 +75,12 @@ function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
         <button
           key={tab.label}
           onClick={onExpand}
-          className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
+          className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
           title={`${tab.label} (${tab.shortcut})`}
           aria-label={tab.label}
         >
-          <WeatherIcon id={tab.icon} size={16} />
+          <WeatherIcon id={tab.icon} size={14} />
+          <span className="text-[8px] font-medium leading-none truncate w-full text-center">{tab.label}</span>
         </button>
       ))}
       {/* Spacer */}
@@ -87,29 +88,32 @@ function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
       {/* Guide + Feedback at bottom */}
       <button
         onClick={() => useUIStore.getState().toggleGuide()}
-        className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
+        className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
         title="Guía (G)"
         aria-label="Guía"
       >
         <WeatherIcon id="book-open" size={14} />
+        <span className="text-[8px] font-medium leading-none">Guía</span>
       </button>
       <button
         onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-        className="w-9 h-9 flex items-center justify-center rounded-lg text-emerald-500/60 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
+        className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-emerald-500/60 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
         title="Feedback"
         aria-label="Feedback"
       >
         <WeatherIcon id="message-square" size={14} />
+        <span className="text-[8px] font-medium leading-none">Feedback</span>
       </button>
       <a
         href="https://ko-fi.com/meteomapgal"
         target="_blank"
         rel="noopener noreferrer"
-        className="w-9 h-9 flex items-center justify-center rounded-lg text-amber-500/50 hover:text-amber-400 hover:bg-amber-900/20 transition-colors"
+        className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-amber-500/50 hover:text-amber-400 hover:bg-amber-900/20 transition-colors"
         title="Apoyar el proyecto"
         aria-label="Apoyar en Ko-fi"
       >
         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+        <span className="text-[8px] font-medium leading-none">Apoyar</span>
       </a>
     </div>
   );
@@ -424,7 +428,7 @@ export function AppShell() {
           <ErrorBoundary section="Sidebar">
             <aside
               className={`bg-slate-900 border-r border-slate-700 flex flex-col overflow-hidden transition-all duration-300 ${
-                sidebarCollapsed ? 'w-12' : 'w-80'
+                sidebarCollapsed ? 'w-14' : 'w-80'
               }`}
             >
               {sidebarCollapsed ? (
