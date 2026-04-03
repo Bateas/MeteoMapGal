@@ -40,7 +40,7 @@ import {
   queryBuoyHourly,
 } from './queries.js';
 import { getPool } from './db.js';
-import { getForecast } from './forecastFetcher.js';
+import { getForecast, getMarineForecast } from './forecastFetcher.js';
 
 // ── Configuration ──────────────────────────────────────
 
@@ -305,6 +305,34 @@ async function handleForecast(
   }, 200, origin);
 }
 
+// ── Marine forecast endpoint (surf spots) ──────────────
+
+async function handleMarineForecast(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const spotId = params.spot;
+  if (!spotId) {
+    error(res, 'Missing parameter: spot (surf-patos, surf-lanzada, surf-corrubedo)', 400, origin);
+    return;
+  }
+
+  const data = await getMarineForecast(spotId);
+  json(res, {
+    spot: spotId,
+    count: data.length,
+    hourly: data.map(h => ({
+      time: h.time.toISOString(),
+      waveHeight: h.waveHeight,
+      wavePeriod: h.wavePeriod,
+      waveDirection: h.waveDirection,
+      swellHeight: h.swellHeight,
+      swellPeriod: h.swellPeriod,
+    })),
+  }, 200, origin);
+}
+
 // ── Spot scores endpoint ──────────────────────────────
 
 async function handleSpotScores(
@@ -379,6 +407,8 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/buoys/latest': handleBuoyLatest,
   // Forecast (served from ingestor cache, avoids frontend Open-Meteo 429s)
   '/api/v1/forecast': handleForecast,
+  // Marine wave forecast for surf spots (cached 30min from Open-Meteo Marine)
+  '/api/v1/marine': handleMarineForecast,
   // Spot score history (for verification dashboard)
   '/api/v1/spots/scores': handleSpotScores,
   // Webcam vision latest results

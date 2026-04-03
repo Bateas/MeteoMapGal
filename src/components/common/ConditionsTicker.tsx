@@ -16,7 +16,7 @@ import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
-import type { TidePoint } from '../../api/tideClient';
+import { fetchTidePredictions, type TidePoint } from '../../api/tideClient';
 
 /** Find the next tide point (high or low) relative to now */
 function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean } | null {
@@ -53,13 +53,9 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   useEffect(() => {
     if (sectorId !== 'rias') { setTidePoints([]); return; }
     let cancelled = false;
-    import('../../api/tideClient').then(({ fetchTidePredictions }) => {
-      fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
-    });
+    fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
     const iv = setInterval(() => {
-      import('../../api/tideClient').then(({ fetchTidePredictions }) => {
-        fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
-      });
+      fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
     }, 60 * 60_000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [sectorId]);
