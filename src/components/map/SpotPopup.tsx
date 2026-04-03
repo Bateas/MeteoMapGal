@@ -21,7 +21,7 @@ import type { WebcamVisionResult } from '../../services/webcamVisionService';
 import type { HourlyForecast } from '../../types/forecast';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { beaufortToColor } from '../../services/webcamVisionService';
-import { temperatureColor } from '../../services/windUtils';
+import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchTidePredictions } from '../../api/tideClient';
 import type { TidePoint } from '../../api/tideClient';
 
@@ -81,11 +81,40 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             >
               {favoriteSpotId === spot.id ? '\u2605' : '\u2606'}
             </button>
-            <span className={`${isMobile ? 'text-[11px]' : 'text-[11px]'} font-bold tracking-wider text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-full border border-amber-500/30 shrink-0 leading-none`}>BETA</span>
+            <span className={`text-[11px] font-bold tracking-wider ${
+              spot.category === 'surf'
+                ? 'text-cyan-300 bg-cyan-500/20 border-cyan-500/30'
+                : 'text-amber-300 bg-amber-500/20 border-amber-500/30'
+            } px-1.5 py-0.5 rounded-full border shrink-0 leading-none`}>
+              {spot.category === 'surf' ? 'SURF BETA' : 'BETA'}
+            </span>
           </div>
           <div className={`${isMobile ? 'text-[11px]' : 'text-[11px]'} text-slate-400`}>{spot.description}</div>
         </div>
       </div>
+
+      {/* ── Surf conditions reference (surf spots only) ── */}
+      {spot.category === 'surf' && (
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] mb-2 p-1.5 rounded bg-cyan-950/30 border border-cyan-800/30">
+          {spot.beachOrientation != null && (
+            <div><span className="text-slate-500">Playa</span> <span className="text-cyan-300 font-bold">{degreesToCardinal(spot.beachOrientation)}</span></div>
+          )}
+          {spot.tidePreference && (
+            <div><span className="text-slate-500">Marea</span> <span className="text-cyan-300 font-bold">{
+              spot.tidePreference === 'all' ? 'Todas' :
+              spot.tidePreference === 'mid-high' ? 'Media-alta' :
+              spot.tidePreference === 'mid' ? 'Media' :
+              spot.tidePreference === 'low' ? 'Baja' : 'Alta'
+            }</span></div>
+          )}
+          {spot.offshoreWindDir && (
+            <div><span className="text-slate-500">Offshore</span> <span className="text-cyan-300 font-bold">{spot.offshoreWindDir.map(d => degreesToCardinal(d)).join('/')}</span></div>
+          )}
+          {spot.swellDirections && (
+            <div><span className="text-slate-500">Swell</span> <span className="text-cyan-300 font-bold">{spot.swellDirections.map(d => degreesToCardinal(d)).join('/')}</span></div>
+          )}
+        </div>
+      )}
 
       {/* ── Verdict badge ── */}
       <div className="flex items-center gap-2 mb-2">
