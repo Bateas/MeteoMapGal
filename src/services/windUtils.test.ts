@@ -156,7 +156,10 @@ describe('windSpeedColor — simplified scale (0-6kt = one blue)', () => {
   it('returns violet for extreme 30-40kt', () => {
     expect(windSpeedColor(17)).toBe('#a855f7');
   });
-  it('returns dark violet for storm 40+kt', () => {
+  it('returns dark violet for severe storm 40-50kt', () => {
     expect(windSpeedColor(22)).toBe('#7c3aed');
+  });
+  it('returns near-black for hurricane 50+kt', () => {
+    expect(windSpeedColor(27)).toBe('#1e1b4b');
   });
 });
