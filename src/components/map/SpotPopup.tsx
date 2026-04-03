@@ -1094,11 +1094,11 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
  * Extends into violet→dark for extreme winds (30-45+ kt). */
 function windKtColor(kt: number): string {
   if (kt < 6) return '#94a3b8';   // calm — slate
-  if (kt < 8) return '#38bdf8';   // light — sky
-  if (kt < 12) return '#fbbf24';  // sailing — amber
-  if (kt < 18) return '#34d399';  // good — emerald
-  if (kt < 25) return '#22d3ee';  // strong — cyan
-  if (kt < 30) return '#f87171';  // danger — red
+  if (kt < 8) return '#22c55e';   // light — green
+  if (kt < 12) return '#a3e635';  // sailing — lime
+  if (kt < 18) return '#eab308';  // good — yellow
+  if (kt < 25) return '#f97316';  // strong — orange
+  if (kt < 30) return '#ef4444';  // danger — red
   if (kt < 40) return '#a855f7';  // extreme — violet
   if (kt < 50) return '#7c3aed';  // gale — dark violet
   return '#1e1b4b';               // storm — near-black indigo

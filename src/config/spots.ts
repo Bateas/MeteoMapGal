@@ -583,6 +583,9 @@ export const RIAS_SPOTS: SailingSpot[] = [
     thermalDetection: false,
     hardGates: { maxWindKt: 25, maxWaveHeight: 4.0 },
     tideStationId: '1', // Vigo
+    webcams: [
+      { label: 'Waira Surf Patos', url: 'https://waira.com/webcam/', type: 'page', source: 'Waira Surf School', azimuth: 300 },
+    ],
   },
   {
     id: 'surf-lanzada',
@@ -624,6 +627,9 @@ export const RIAS_SPOTS: SailingSpot[] = [
     thermalDetection: false,
     hardGates: { maxWindKt: 30, maxWaveHeight: 5.0 },
     tideStationId: '27', // Sanxenxo
+    webcams: [
+      { label: 'Salvora (MG)', url: 'https://www.meteogalicia.gal/datosred/infoweb/meteo/img/estacions/Salvora/ultima.jpg', type: 'image', source: 'MeteoGalicia', azimuth: 180, refreshInterval: 300 },
+    ],
   },
   {
     id: 'surf-corrubedo',
@@ -661,6 +667,9 @@ export const RIAS_SPOTS: SailingSpot[] = [
     thermalDetection: false,
     hardGates: { maxWindKt: 25, maxWaveHeight: 5.0 },
     tideStationId: '7', // Vilagarcía
+    webcams: [
+      { label: 'Corrubedo (MG)', url: 'https://www.meteogalicia.gal/datosred/infoweb/meteo/img/estacions/Corrubedo/ultima.jpg', type: 'image', source: 'MeteoGalicia', azimuth: 270, refreshInterval: 300 },
+    ],
   },
 ];
 
