@@ -113,6 +113,7 @@ export const SpotSelector = memo(function SpotSelector() {
                 isActive={spot.id === activeSpot.id}
                 isFavorite={spot.id === favoriteSpotId}
                 thermalDetection={spot.thermalDetection}
+                category={spot.category}
                 forecast={sectorForecast}
                 onSelect={() => {
                   selectSpot(spot.id);
@@ -150,6 +151,7 @@ function SpotCard({
   isActive,
   isFavorite,
   thermalDetection,
+  category,
   forecast,
   onSelect,
   onToggleFavorite,
@@ -162,6 +164,7 @@ function SpotCard({
   isActive: boolean;
   isFavorite: boolean;
   thermalDetection: boolean;
+  category?: 'sailing' | 'surf';
   forecast: HourlyForecast[] | null;
   onSelect: () => void;
   onToggleFavorite: () => void;
@@ -180,7 +183,10 @@ function SpotCard({
     >
       <div className="flex items-center gap-2">
         <WeatherIcon id={icon} size={14} className="text-slate-300 flex-shrink-0" />
-        <span className="text-[12px] font-bold text-slate-200 flex-1">{name}</span>
+        <span className="text-[12px] font-bold text-slate-200 flex-1">
+          {name}
+          {category === 'surf' && <span className="ml-1 text-[8px] font-bold tracking-wider text-cyan-300 bg-cyan-500/20 px-1 py-px rounded border border-cyan-500/30 align-middle">SURF</span>}
+        </span>
         {/* Favorite star */}
         <span
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}

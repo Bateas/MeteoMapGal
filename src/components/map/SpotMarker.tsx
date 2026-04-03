@@ -91,6 +91,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
             isLoading={spotLoading}
             onSelect={selectSpot}
             zoomScale={zoomScale}
+            isSurf={spot.category === 'surf'}
           />
         );
       })}
@@ -112,6 +113,7 @@ interface SpotMarkerItemProps {
   isLoading: boolean;
   onSelect: (id: string) => void;
   zoomScale: number;
+  isSurf?: boolean;
 }
 
 /** Hexagon path for spot shape — distinctive from circular stations */
@@ -150,6 +152,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   isLoading,
   onSelect,
   zoomScale,
+  isSurf,
 }: SpotMarkerItemProps) {
   const colors = VERDICT_COLORS[verdict];
   const size = isActive ? 48 : 42;
@@ -282,6 +285,9 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
           } as React.CSSProperties}
         >
           {shortName}
+          {isSurf && (
+            <span className="ml-1 text-[8px] font-bold tracking-wider text-cyan-300 bg-cyan-500/20 px-1 py-px rounded border border-cyan-500/30 align-middle">SURF</span>
+          )}
         </div>
       </div>
     </Marker>
