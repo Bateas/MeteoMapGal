@@ -59,6 +59,36 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const verdict: SpotVerdict = score?.verdict ?? 'unknown';
   const vs = VERDICT_STYLE[verdict];
 
+  // ── Surf verdict: wave-based, overrides wind verdict for surf spots ──
+  const [marineForecast, setMarineForecast] = useState<MarineForecastHour[]>([]);
+  useEffect(() => {
+    if (spot.category !== 'surf') return;
+    let cancelled = false;
+    fetchMarineForecast(spot.center[1], spot.center[0]).then((data) => {
+      if (!cancelled) setMarineForecast(data);
+    });
+    return () => { cancelled = true; };
+  }, [spot.id, spot.category, spot.center]);
+
+  const surfInfo = useMemo(() => {
+    if (spot.category !== 'surf' || marineForecast.length === 0) return null;
+    const now = marineForecast[0];
+    if (!now) return null;
+    const wh = now.swellHeight ?? now.waveHeight ?? 0;
+    const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
+    const windDir = score?.wind?.dirDeg ?? null;
+    const isOffshore = windDir != null && spot.offshoreWindDir
+      ? spot.offshoreWindDir.some((d) => Math.abs(((windDir - d + 540) % 360) - 180) < 45)
+      : false;
+    const isOnshore = windDir != null && spot.beachOrientation != null
+      ? Math.abs(((windDir - spot.beachOrientation + 540) % 360) - 180) < 50
+      : false;
+    return computeSurfVerdict(wh, tp, isOffshore, isOnshore);
+  }, [marineForecast, score?.wind?.dirDeg, spot]);
+
+  // Use surf verdict for display if available, otherwise fall back to wind verdict
+  const displayVerdict = surfInfo ?? { label: vs.label, color: vs.color, bg: vs.bg, summary: '' };
+
   const popupContent = (
     <div className={`overflow-hidden ${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[240px] max-w-[310px]'}`}>
       {/* ── Header ── */}
@@ -117,20 +147,26 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Verdict badge ── */}
+      {/* ── Verdict badge — surf uses wave-based verdict, sailing uses wind ── */}
       <div className="flex items-center gap-2 mb-2">
         <span
           className="px-2 py-0.5 rounded-full text-xs font-extrabold tracking-wide"
-          style={{ background: vs.bg, color: vs.color, border: `1px solid ${vs.color}40` }}
+          style={{ background: displayVerdict.bg, color: displayVerdict.color, border: `1px solid ${displayVerdict.color}40` }}
         >
-          {vs.label}
+          {displayVerdict.label}
         </span>
-        {score && (
+        {spot.category !== 'surf' && score && (
           <span className="text-xs text-slate-400 font-mono">
             {score.score}/100
           </span>
         )}
       </div>
+      {/* Surf verdict summary — plain language */}
+      {displayVerdict.summary && (
+        <div className="text-[11px] text-slate-300 mb-2 leading-tight" style={{ color: displayVerdict.color }}>
+          {displayVerdict.summary}
+        </div>
+      )}
 
       {/* ── Wind consensus ── */}
       {score?.wind && (
@@ -1191,6 +1227,80 @@ function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
       </div>
     </div>
   );
+}
+
+// ── Surf Verdict Engine ──────────────────────────────────────
+
+interface SurfVerdictResult {
+  label: string;
+  color: string;
+  bg: string;
+  summary: string;
+}
+
+/**
+ * Compute surf verdict from wave + wind + period data.
+ * Prioritizes waves over wind — a surfer wants olas, wind is modifier.
+ *
+ * Base level from wave height:
+ *   Flat (<0.3m) → Pequeño (0.3-0.8m) → Surfeable (0.8-1.5m) → Clasico (1.5-2.5m) → Grande (>2.5m)
+ *
+ * Modifiers:
+ *   - Offshore wind: +1 quality step ("olas limpias")
+ *   - Onshore wind: -1 quality step ("mar revuelto")
+ *   - Swell period >=10s: +1 ("swell de calidad")
+ *   - Short period <5s: -1 ("mar de viento, desordenado")
+ */
+function computeSurfVerdict(waveHeight: number, period: number, isOffshore: boolean, isOnshore: boolean): SurfVerdictResult {
+  // Base wave level (0-4)
+  let level: number;
+  if (waveHeight < 0.3) level = 0;
+  else if (waveHeight < 0.8) level = 1;
+  else if (waveHeight < 1.5) level = 2;
+  else if (waveHeight < 2.5) level = 3;
+  else level = 4;
+
+  // Wind modifier
+  const warnings: string[] = [];
+  if (isOffshore && level > 0) {
+    level = Math.min(4, level + 1);
+    warnings.push('viento offshore (olas limpias)');
+  }
+  if (isOnshore && level > 0) {
+    level = Math.max(0, level - 1);
+    warnings.push('viento onshore (mar revuelto)');
+  }
+
+  // Period modifier
+  if (period >= 10 && level >= 1) {
+    level = Math.min(4, level + 1);
+    warnings.push(`periodo ${period.toFixed(0)}s (swell de calidad)`);
+  } else if (period > 0 && period < 5 && level >= 1) {
+    level = Math.max(0, level - 1);
+    warnings.push(`periodo ${period.toFixed(0)}s (mar de viento)`);
+  }
+
+  // Clamp
+  level = Math.max(0, Math.min(4, level));
+
+  const LEVELS: SurfVerdictResult[] = [
+    { label: 'FLAT',      color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', summary: 'Sin olas — mar plano' },
+    { label: 'PEQUE',     color: '#22d3ee', bg: 'rgba(34,211,238,0.12)',  summary: 'Olas pequenas — longboard, SUP, principiantes' },
+    { label: 'SURF OK',   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  summary: 'Surfeable — buen dia para meterse' },
+    { label: 'CLASICO',   color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   summary: 'Dia clasico de surf — olas buenas' },
+    { label: 'GRANDE',    color: '#f97316', bg: 'rgba(249,115,22,0.12)',  summary: 'Olas grandes — solo expertos' },
+  ];
+
+  const result = { ...LEVELS[level] };
+
+  // Build summary with wave data + modifiers
+  const parts: string[] = [];
+  parts.push(`Olas ${waveHeight.toFixed(1)}m`);
+  if (period > 0) parts.push(`periodo ${period.toFixed(0)}s`);
+  if (warnings.length > 0) parts.push(warnings.join(', '));
+  result.summary = parts.join(' · ');
+
+  return result;
 }
 
 /** Wave height → bar color (ocean blues → red for big waves) */
