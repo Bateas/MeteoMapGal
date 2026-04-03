@@ -59,7 +59,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const vs = VERDICT_STYLE[verdict];
 
   const popupContent = (
-    <div className={isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[240px] max-w-[310px]'}>
+    <div className={`overflow-hidden ${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[240px] max-w-[310px]'}`}>
       {/* ── Header ── */}
       <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700/60">
         <div
@@ -922,10 +922,9 @@ function ThermalForecastBadge({ forecast }: { forecast: HourlyForecast[] }) {
             ? 'text-blue-400 bg-blue-500/10'
             : 'text-slate-400 bg-slate-500/10';
         return (
-          <div key={i} className={`text-[11px] ${color} rounded px-2 py-1`}>
+          <div key={i} className={`text-[11px] ${color} rounded px-2 py-1 break-words`}>
             <WeatherIcon id="sun" size={11} className="inline -mt-px mr-1" />
-            {s.label}
-            <span className="text-[11px] opacity-60 ml-1">BETA</span>
+            {s.label}<span className="text-[10px] opacity-60 ml-0.5">BETA</span>
           </div>
         );
       })}
