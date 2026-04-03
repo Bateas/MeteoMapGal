@@ -206,9 +206,11 @@ export const RegattaPanel = memo(function RegattaPanel() {
     let wavePeriod: number | null = null;
     let nearestBuoyDist = Infinity;
 
-    // Check if zone center is in sheltered waters (inside ría, embalse)
-    // Heuristic: if lon > -8.8 in Rías sector = interior ría (sheltered from Atlantic)
-    const isSheltered = centerLon > -8.78 || store.selectedZoneId?.includes('embalse');
+    // Sheltered waters: only deep interior rías (San Simón/Rande, lon > -8.65) and embalses.
+    // Full rías (Vigo, Pontevedra, Arousa) have real Atlantic swell — NOT sheltered.
+    const isEmbalse = store.selectedZoneId?.includes('embalse') ?? false;
+    const isDeepInterior = centerLon > -8.65; // Only Cesantes/Rande area
+    const isSheltered = isEmbalse || isDeepInterior;
 
     // Try buoys first (real-time, always valid)
     for (const b of buoys) {

@@ -54,6 +54,7 @@ import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useAviationData } from '../../hooks/useAviationData';
+import { useWebcamVisionData } from '../../hooks/useWebcamVisionData';
 import { WebcamSymbolLayer, registerWebcamIcon } from './WebcamSymbolLayer';
 import { WebcamPopup } from './WebcamPopup';
 import { useWebcamStore } from '../../store/webcamStore';
@@ -144,6 +145,7 @@ export function WeatherMap() {
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
   useAviationData();
+  useWebcamVisionData();
 
   // Regatta mode: fade non-essential elements (DOM + MapLibre native layers)
   const regattaActive = useRegattaStore((s) => s.active && s.zone !== null);

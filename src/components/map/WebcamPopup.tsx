@@ -5,6 +5,7 @@
 import { memo, useState, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useUIStore } from '../../store/uiStore';
+import { useWebcamStore } from '../../store/webcamStore';
 import type { WebcamStation } from '../../config/webcams';
 
 interface WebcamPopupProps {
@@ -98,6 +99,9 @@ function WebcamContent({
         </div>
       </div>
 
+      {/* Vision IA analysis — from ingestor/Ollama */}
+      <VisionBadge webcamId={webcam.id} />
+
       {/* Info row */}
       <div className="flex items-center justify-between text-[10px] text-slate-500">
         <span>{webcam.concello}, {webcam.province}</span>
@@ -108,6 +112,50 @@ function WebcamContent({
       {webcam.nearestSpotId && (
         <div className="text-[10px] text-green-400/70">
           Spot cercano: {webcam.nearestSpotId}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Vision IA badge — shows Beaufort + weather from Ollama analysis */
+function VisionBadge({ webcamId }: { webcamId: string }) {
+  const visionResults = useWebcamStore((s) => s.visionResults);
+  const result = visionResults.get(webcamId);
+  if (!result || result.beaufort < 0) return null;
+
+  const bf = result.beaufort;
+  const color = bf <= 1 ? '#94a3b8' : bf <= 3 ? '#38bdf8' : bf <= 5 ? '#fbbf24' : '#f87171';
+  const skyLabels: Record<string, string> = {
+    clear: 'Despejado', partly_cloudy: 'Parcialmente nublado', overcast: 'Cubierto',
+    fog: 'Niebla', rain: 'Lluvia', storm: 'Tormenta', night: 'Noche', unknown: '',
+  };
+  const ago = Math.round((Date.now() - result.analyzedAt.getTime()) / 60_000);
+  const agoLabel = ago < 60 ? `${ago}min` : `${Math.round(ago / 60)}h`;
+
+  return (
+    <div className="bg-slate-800/80 rounded-md px-2 py-1.5 border border-slate-700/50">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-slate-500 uppercase tracking-wide">Vision IA</span>
+          <span className="font-bold text-xs" style={{ color }}>
+            Beaufort {bf}
+          </span>
+          <span className="text-[10px] text-slate-400">{result.beaufortLabel}</span>
+          <span className="text-[10px] font-mono" style={{ color }}>~{result.windEstimateKt}kt</span>
+        </div>
+        <span className={`text-[8px] px-1 rounded ${result.confidence === 'high' ? 'bg-green-500/20 text-green-400' : result.confidence === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-500/20 text-slate-500'}`}>
+          {result.confidence}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 mt-0.5 text-[9px] text-slate-500">
+        {skyLabels[result.weather.sky] && <span>{skyLabels[result.weather.sky]}</span>}
+        {result.weather.fogVisible && <span className="text-amber-400">Niebla</span>}
+        <span className="ml-auto">hace {agoLabel}</span>
+      </div>
+      {result.description && (
+        <div className="text-[8px] text-slate-600 mt-0.5 leading-tight line-clamp-2">
+          {result.description}
         </div>
       )}
     </div>
