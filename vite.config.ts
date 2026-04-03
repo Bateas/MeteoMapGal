@@ -95,12 +95,7 @@ export default defineConfig(({ mode }) => ({
         rewrite: (path) => path.replace(/^\/ihm-api/, ''),
         secure: true,
       },
-      '/eumetsat-api': {
-        target: 'https://view.eumetsat.int',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/eumetsat-api/, ''),
-        secure: true,
-      },
+      // EUMETSAT proxy removed — non-commercial license incompatible
       '/portus-api': {
         target: 'https://portus.puertos.es/portussvr/api',
         changeOrigin: true,

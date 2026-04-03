@@ -70,7 +70,6 @@ export function RoadmapSection() {
           <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
             <SourceRow letter="O" name="Open-Meteo" desc="Modelo numérico (ECMWF/GFS) — previsión horaria" color="#06b6d4" />
             <SourceRow letter="R" name="AEMET Radar" desc="Radar nacional (Cerceda/A Coruña)" color="#ec4899" />
-            <SourceRow letter="S" name="EUMETSAT" desc="Satélite Meteosat — imagen infrarroja" color="#8b5cf6" />
             <SourceRow letter="L" name="MeteoGalicia" desc="Red de detección de rayos" color="#f43f5e" />
             <SourceRow letter="E" name="ENAIRE" desc="Espacio aéreo y NOTAMs para drones" color="#6366f1" />
             <SourceRow letter="T" name="IHM / Puertos del Estado" desc="Predicciones de mareas (5 puertos)" color="#14b8a6" />

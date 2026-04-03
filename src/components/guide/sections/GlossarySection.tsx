@@ -360,13 +360,6 @@ export function GlossarySection() {
           search={q}
         />
         <Term
-          term="Infrarrojo (IR 10.8μm)"
-          definition="Canal de satélite que mide la temperatura de los topes nubosos. Funciona 24h (no necesita luz solar)."
-          example="En la capa satélite: blanco/brillante = nubes altas y frías (tormenta), gris oscuro = cielo despejado o nubes bajas."
-          color="#a855f7"
-          search={q}
-        />
-        <Term
           term="Escala Beaufort"
           definition="Escala de 0 a 12 que clasifica la fuerza del viento por sus efectos. MeteoMapGal usa su escala de colores para los marcadores."
           example="Fuerza 3 (7-10 kt) = hojas y banderas se mueven → ideal para velero pequeño."

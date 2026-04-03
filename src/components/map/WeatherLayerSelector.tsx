@@ -13,7 +13,6 @@ import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 const LAYER_BUTTONS: { id: WeatherLayerType; icon: IconId; label: string; sector?: string }[] = [
   { id: 'wind-particles', icon: 'wind', label: 'Viento' },
   { id: 'humidity', icon: 'droplets', label: 'Humedad' },
-  { id: 'satellite', icon: 'satellite', label: 'Satélite' },
   { id: 'radar', icon: 'radar', label: 'Radar' },
   { id: 'currents', icon: 'waves', label: 'Corrientes', sector: 'rias' },
 ];
@@ -74,8 +73,6 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
             {/* ── Color legend for humidity ── */}
             {activeLayer === 'humidity' && <HumidityLegend />}
 
-            {/* ── Satellite info ── */}
-            {activeLayer === 'satellite' && <SatelliteLegend />}
 
             {/* ── Radar info ── */}
             {activeLayer === 'radar' && <RadarLegend />}
@@ -273,32 +270,7 @@ function HumidityLegend() {
   );
 }
 
-/* ─── Satellite info panel ─── */
-function SatelliteLegend() {
-  return (
-    <div className="space-y-1">
-      <span className="text-[11px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="satellite" size={10} /> EUMETSAT Meteosat (IR 10.8μm)</span>
-      <div className="text-[11px] text-slate-400">
-        Imagen infrarroja cada 15 min. Nubes brillantes = altas/frías (cumulonimbus).
-        Oscuro = cielo despejado o nubes bajas.
-      </div>
-      <div className="flex items-center gap-2 mt-1">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-2 rounded-sm bg-white border border-slate-600" />
-          <span className="text-[11px] text-slate-500">Cb alto</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-2 rounded-sm bg-gray-400" />
-          <span className="text-[11px] text-slate-500">Nubes medias</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-2 rounded-sm bg-gray-700 border border-slate-600" />
-          <span className="text-[11px] text-slate-500">Despejado</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+/* ─── (SatelliteLegend removed — EUMETSAT non-commercial license incompatible) ─── */
 
 /* ─── Surface currents info panel ─── */
 function CurrentsLegend() {
