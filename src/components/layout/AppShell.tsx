@@ -50,14 +50,17 @@ import { useWebcamVision } from '../../hooks/useWebcamVision';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 
-/** Collapsed sidebar: vertical icon strip with tab shortcuts */
+/** Collapsed sidebar: vertical icon strip with tab shortcuts — sector-aware */
 function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
+  const sectorId = useSectorStore((s) => s.activeSector.id);
   const TABS = [
     { icon: 'map-pin' as const, label: 'Estaciones', shortcut: '1', tab: 'stations' },
     { icon: 'activity' as const, label: 'Gráfica', shortcut: '2', tab: 'chart' },
     { icon: 'compass' as const, label: 'Previsión', shortcut: '3', tab: 'forecast' },
-    { icon: 'layers' as const, label: 'Rankings', shortcut: '4', tab: 'rankings' },
-    { icon: 'clock' as const, label: 'Historial', shortcut: '5', tab: 'history' },
+    // Térmico only in Embalse — dynamic, not hardcoded
+    ...(sectorId === 'embalse' ? [{ icon: 'flame' as const, label: 'Térmico', shortcut: '4', tab: 'thermal' }] : []),
+    { icon: 'layers' as const, label: 'Rankings', shortcut: sectorId === 'embalse' ? '5' : '4', tab: 'rankings' },
+    { icon: 'clock' as const, label: 'Historial', shortcut: sectorId === 'embalse' ? '6' : '5', tab: 'history' },
   ];
   return (
     <div className="flex flex-col items-center py-2 gap-1 h-full">

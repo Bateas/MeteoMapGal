@@ -65,7 +65,19 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     if (spot.category !== 'surf') return;
     let cancelled = false;
     fetchMarineForecast(spot.center[1], spot.center[0]).then((data) => {
-      if (!cancelled) setMarineForecast(data);
+      if (!cancelled) {
+        setMarineForecast(data);
+        // Write current wave data to store so SpotMarker can read it
+        const now = data[0];
+        if (now) {
+          const wh = now.swellHeight ?? now.waveHeight ?? 0;
+          useSpotStore.getState().setSurfWave(spot.id, {
+            waveHeight: wh,
+            swellHeight: now.swellHeight,
+            period: now.swellPeriod ?? now.wavePeriod ?? 0,
+          });
+        }
+      }
     });
     return () => { cancelled = true; };
   }, [spot.id, spot.category, spot.center]);
@@ -95,7 +107,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700/60">
         <div
           className={`${isMobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-full flex items-center justify-center shrink-0`}
-          style={{ background: vs.bg, border: `2px solid ${vs.color}` }}
+          style={{ background: displayVerdict.bg, border: `2px solid ${displayVerdict.color}` }}
         >
           <WeatherIcon id={spot.icon} size={isMobile ? 20 : 16} className="text-slate-200" />
         </div>
@@ -120,7 +132,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
               {spot.category === 'surf' ? 'SURF BETA' : 'BETA'}
             </span>
           </div>
-          <div className={`${isMobile ? 'text-[11px]' : 'text-[11px]'} text-slate-400`}>{spot.description}</div>
+          <div className={`${isMobile ? 'text-[11px]' : 'text-[11px]'} text-slate-400 break-words`}>{spot.description}</div>
         </div>
       </div>
 
@@ -216,8 +228,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Wave conditions (coastal spots) ── */}
-      {score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
+      {/* ── Wave conditions (coastal spots — NOT surf, which uses marine forecast) ── */}
+      {spot.category !== 'surf' && score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2 pt-1 border-t border-slate-700/40">
           <Cell label="Oleaje" value={`${score.waves.waveHeight.toFixed(1)} m`} color={waveColor(score.waves.waveHeight)} />
           {score.waves.wavePeriod != null && (
