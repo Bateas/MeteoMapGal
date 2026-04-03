@@ -8,7 +8,9 @@
 
 import { useCallback } from 'react';
 import { useWebcamStore } from '../store/webcamStore';
+import { useSpotStore } from '../store/spotStore';
 import { useVisibilityPolling } from './useVisibilityPolling';
+import { RIAS_WEBCAMS } from '../config/webcams';
 import type { WebcamVisionResult } from '../services/webcamVisionService';
 
 const POLL_INTERVAL_MS = 5 * 60_000; // 5 min
@@ -57,6 +59,7 @@ function beaufortToKt(bf: number): number {
 
 export function useWebcamVisionData() {
   const setVisionResults = useWebcamStore((s) => s.setVisionResults);
+  const setWebcamVision = useSpotStore((s) => s.setWebcamVision);
 
   const fetchVision = useCallback(async () => {
     try {
@@ -66,17 +69,35 @@ export function useWebcamVisionData() {
       if (!data.readings || data.readings.length === 0) return;
 
       const results = new Map<string, WebcamVisionResult>();
+      const spotVision = new Map<string, WebcamVisionResult>();
+
       for (const row of data.readings) {
         if (row.beaufort < 0) continue; // Skip night/unknown
-        results.set(row.webcam_id, rowToResult(row));
+        const result = rowToResult(row);
+        results.set(row.webcam_id, result);
+
+        // Also map to nearest spot for SpotPopup WebcamVisionBadge
+        const webcam = RIAS_WEBCAMS.find(w => w.id === row.webcam_id);
+        const spotId = webcam?.nearestSpotId ?? row.spot_id;
+        if (spotId) {
+          const existing = spotVision.get(spotId);
+          // Keep highest confidence / most recent per spot
+          if (!existing || result.confidence === 'high' || result.analyzedAt > existing.analyzedAt) {
+            spotVision.set(spotId, result);
+          }
+        }
       }
+
       if (results.size > 0) {
         setVisionResults(results);
+      }
+      if (spotVision.size > 0) {
+        setWebcamVision(spotVision);
       }
     } catch {
       // Ingestor API unavailable — silent fail, frontend works without vision
     }
-  }, [setVisionResults]);
+  }, [setVisionResults, setWebcamVision]);
 
   useVisibilityPolling(fetchVision, POLL_INTERVAL_MS, true, 12_000); // Stagger: 12s after page load
 }
