@@ -254,8 +254,9 @@ export function buildInversionForecastAlert(
     detail = `Desde ~${startStr} · ${detail}`;
   }
 
-  // Score-based severity, capped at moderate (yellow) — inversions are notable, not dangerous
-  const severity = score >= 45 ? 'moderate' as const : 'info' as const;
+  // Always info (blue) — inversions are informational, not safety-relevant.
+  // Yellow/amber draws undue attention for a normal nocturnal phenomenon.
+  const severity = 'info' as const;
 
   return [{
     id: 'inversion-forecast',
