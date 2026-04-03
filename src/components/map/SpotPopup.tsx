@@ -1345,8 +1345,9 @@ function windKtColor(kt: number): string {
   if (kt < 18) return '#eab308';  // bueno — yellow
   if (kt < 23) return '#f97316';  // fuerte — orange
   if (kt < 30) return '#ef4444';  // gale — red
-  if (kt < 40) return '#a855f7';  // extreme — violet
-  return '#7c3aed';               // storm — dark violet
+  if (kt < 40) return '#a855f7';  // storm — violet
+  if (kt < 50) return '#7c3aed';  // severe storm — dark violet
+  return '#1e1b4b';               // hurricane — near-black
 }
 
 function waveColor(m: number): string {

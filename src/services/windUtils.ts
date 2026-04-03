@@ -42,8 +42,9 @@ export function windSpeedColor(speed: number | null): string {
   if (speed < 9.0) return '#eab308';   // yellow-500 (13-18 kt: fresh / bueno)
   if (speed < 12)  return '#f97316';   // orange-500 (18-23 kt: strong / fuerte)
   if (speed < 15)  return '#ef4444';   // red-500    (23-30 kt: gale)
-  if (speed < 20)  return '#a855f7';   // violet     (30-40 kt: extreme)
-  return '#7c3aed';                    // dark violet (40+ kt: storm)
+  if (speed < 20)  return '#a855f7';   // violet     (30-40 kt: storm)
+  if (speed < 25)  return '#7c3aed';   // dark violet (40-50 kt: severe storm)
+  return '#1e1b4b';                    // near-black  (50+ kt: hurricane)
 }
 
 /**
@@ -59,7 +60,8 @@ export function windSpeedClass(speed: number | null): string {
   if (speed < 12)  return 'text-orange-500';  // 18-23kt
   if (speed < 15)  return 'text-red-500';     // 23-30kt
   if (speed < 20)  return 'text-purple-400';  // 30-40kt
-  return 'text-violet-600';                   // 40+kt
+  if (speed < 25)  return 'text-violet-600';  // 40-50kt
+  return 'text-indigo-950';                   // 50+kt
 }
 
 /** Color for temperature visualization */

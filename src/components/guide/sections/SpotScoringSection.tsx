@@ -108,7 +108,11 @@ export function SpotScoringSection() {
             <VerdictRow color="#38bdf8" label="Flojo"     wind="6-8kt"   desc="Viento ligero. SUP, paseo, esperar a que suba." />
             <VerdictRow color="#22c55e" label="Navegable" wind="8-13kt"  desc="Viento justo, condiciones limitadas." />
             <VerdictRow color="#eab308" label="Buen d&iacute;a"  wind="13-18kt" desc="Viento estable, apto para todas las modalidades." />
-            <VerdictRow color="#f97316" label="Fuerte"    wind="18+ kt"  desc="Requiere experiencia. Viento potente." />
+            <VerdictRow color="#f97316" label="Fuerte"    wind="18-23kt" desc="Requiere experiencia. Viento potente." />
+            <VerdictRow color="#ef4444" label="Temporal"  wind="23-30kt" desc="Peligroso. Solo navegantes muy experimentados." />
+            <VerdictRow color="#a855f7" label="Tormenta"  wind="30-40kt" desc="Condiciones extremas. No salir al agua." />
+            <VerdictRow color="#7c3aed" label="Severo"    wind="40-50kt" desc="Da&ntilde;os materiales probables." />
+            <VerdictRow color="#1e1b4b" label="Hurac&aacute;n"  wind="50+ kt"  desc="Situaci&oacute;n de emergencia." />
           </div>
           <p className="text-[11px] text-slate-500 italic pt-2">
             Las estaciones meteorol&oacute;gicas est&aacute;n en tierra, no en el agua. El viento real en la
