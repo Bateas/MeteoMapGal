@@ -15,13 +15,13 @@ import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
-// ── Verdict colors — unified with VERDICT_HEX from verdictStyles.ts ──
+// ── Verdict colors — aligned with windSpeedColor() scale (cold→hot) ──
 const VERDICT_COLORS: Record<SpotVerdict, { ring: string; text: string; glow: string }> = {
-  calm:    { ring: '#94a3b8', text: '#94a3b8', glow: '#64748b' },  // slate
-  light:   { ring: '#38bdf8', text: '#7dd3fc', glow: '#0284c7' },  // sky (matches VERDICT_HEX)
-  sailing: { ring: '#fbbf24', text: '#fde68a', glow: '#d97706' },  // amber (matches VERDICT_HEX)
-  good:    { ring: '#34d399', text: '#6ee7b7', glow: '#059669' },  // emerald (matches VERDICT_HEX)
-  strong:  { ring: '#22d3ee', text: '#67e8f9', glow: '#0891b2' },  // cyan (matches VERDICT_HEX)
+  calm:    { ring: '#94a3b8', text: '#94a3b8', glow: '#64748b' },  // slate — no wind
+  light:   { ring: '#22c55e', text: '#4ade80', glow: '#16a34a' },  // green-500 — gentle breeze
+  sailing: { ring: '#a3e635', text: '#d9f99d', glow: '#65a30d' },  // lime-400 — moderate
+  good:    { ring: '#eab308', text: '#fde047', glow: '#ca8a04' },  // yellow-500 — fresh wind
+  strong:  { ring: '#f97316', text: '#fdba74', glow: '#ea580c' },  // orange-500 — strong
   unknown: { ring: '#94a3b8', text: '#94a3b8', glow: '#64748b' },  // slate
 };
 

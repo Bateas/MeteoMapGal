@@ -9,10 +9,10 @@ import { useSpotStore } from '../../store/spotStore';
 
 const ITEMS: { label: string; color: string }[] = [
   { label: 'Calma',     color: '#94a3b8' },
-  { label: 'Flojo',     color: '#38bdf8' },
-  { label: 'Navegable', color: '#fbbf24' },
-  { label: 'Bueno',     color: '#34d399' },
-  { label: 'Fuerte',    color: '#22d3ee' },
+  { label: 'Flojo',     color: '#22c55e' },
+  { label: 'Navegable', color: '#a3e635' },
+  { label: 'Bueno',     color: '#eab308' },
+  { label: 'Fuerte',    color: '#f97316' },
 ];
 
 export function SpotScoreLegend() {
