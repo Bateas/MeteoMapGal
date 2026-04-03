@@ -1306,21 +1306,21 @@ function computeSurfVerdict(waveHeight: number, period: number, isOffshore: bool
   if (level === 4 && waveHeight < 2.0) level = 3;
 
   const LEVELS: SurfVerdictResult[] = [
-    { label: 'FLAT',      color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', summary: 'Sin olas — mar plano' },
-    { label: 'PEQUE',     color: '#22d3ee', bg: 'rgba(34,211,238,0.12)',  summary: 'Olas pequenas — longboard, SUP, principiantes' },
-    { label: 'SURF OK',   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  summary: 'Surfeable — buen dia para meterse' },
-    { label: 'CLASICO',   color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   summary: 'Dia clasico de surf — olas buenas' },
-    { label: 'GRANDE',    color: '#f97316', bg: 'rgba(249,115,22,0.12)',  summary: 'Olas grandes — solo expertos' },
+    { label: 'FLAT',      color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', summary: 'Mar plano — sin olas para surf' },
+    { label: 'PEQUE',     color: '#22d3ee', bg: 'rgba(34,211,238,0.12)',  summary: 'Olas pequeñas — ideal para longboard o iniciarse' },
+    { label: 'SURF OK',   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  summary: 'Buen día para meterse — olas surfeables' },
+    { label: 'CLASICO',   color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   summary: 'Día clásico — olas limpias y consistentes' },
+    { label: 'GRANDE',    color: '#f97316', bg: 'rgba(249,115,22,0.12)',  summary: 'Mar grande — solo con experiencia' },
   ];
 
   const result = { ...LEVELS[level] };
 
-  // Build summary with wave data + modifiers
-  const parts: string[] = [];
-  parts.push(`Olas ${waveHeight.toFixed(1)}m`);
-  if (period > 0) parts.push(`periodo ${period.toFixed(0)}s`);
-  if (warnings.length > 0) parts.push(warnings.join(', '));
-  result.summary = parts.join(' · ');
+  // Technical detail line (secondary, below the plain-language summary)
+  const detail: string[] = [];
+  detail.push(`${waveHeight.toFixed(1)}m`);
+  if (period > 0) detail.push(`${period.toFixed(0)}s`);
+  if (warnings.length > 0) detail.push(warnings.join(', '));
+  result.summary += ` (${detail.join(' · ')})`;
 
   return result;
 }

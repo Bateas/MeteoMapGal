@@ -129,6 +129,8 @@ export function aggregateAllAlerts(sources: {
   sstHistory?: Map<number, SSTSnapshot[]>;
   stationsGeo?: { id: string; lat: number; lon: number }[];
   teleconnections?: TeleconnectionIndex[];
+  /** True if any webcam Vision IA detects fog in the last 30min */
+  webcamFogDetected?: boolean;
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
   // Extract NAO/AO for context enrichment
   const nao = sources.teleconnections?.find((t) => t.name === 'NAO');
@@ -144,7 +146,7 @@ export function aggregateAllAlerts(sources: {
     ...(sources.currentReadings && sources.readingHistory
       ? enrichPressureAlerts(buildPressureTrendAlerts(sources.currentReadings, sources.readingHistory), nao) : []),
     ...(sources.buoys && sources.currentReadings && sources.stationsGeo
-      ? buildMaritimeFogAlerts(sources.buoys, sources.currentReadings, sources.stationsGeo) : []),
+      ? buildMaritimeFogAlerts(sources.buoys, sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected) : []),
     ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),
     ...(sources.buoys && sources.sstHistory ? buildUpwellingAlerts(sources.buoys, sources.sstHistory) : []),
     ...(sources.currentReadings && sources.readingHistory

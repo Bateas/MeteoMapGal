@@ -32,6 +32,7 @@ import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { useThemeStore } from '../../store/themeStore';
+import { useWebcamStore } from '../../store/webcamStore';
 import { processAlertNotifications } from '../../services/notificationService';
 import { useNotificationStore } from '../../store/notificationStore';
 import {
@@ -333,6 +334,20 @@ export function AppShell() {
   useEffect(() => {
     // Station geo for maritime fog (nearby station lookup)
     const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
+    // Check webcam vision for fog confirmation (any webcam with fogVisible in last 30min)
+    const visionResults = useWebcamStore.getState().visionResults;
+    let webcamFogDetected: boolean | undefined;
+    if (visionResults.size > 0) {
+      const now = Date.now();
+      webcamFogDetected = false; // we have data, assume no fog
+      for (const [, result] of visionResults) {
+        if (result.beaufort >= 0 && result.weather.fogVisible && (now - result.analyzedAt.getTime()) < 30 * 60_000) {
+          webcamFogDetected = true;
+          break;
+        }
+      }
+    }
+
     const { alerts, risk } = aggregateAllAlerts({
       stormAlert,
       thermalProfile,
@@ -347,6 +362,7 @@ export function AppShell() {
       sstHistory: activeSector.id === 'rias' && sstHistory.size > 0 ? sstHistory : undefined,
       stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
       teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
+      webcamFogDetected,
     });
     setUnifiedAlerts(alerts, risk);
     // Trigger notifications for new/escalated alerts
