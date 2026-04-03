@@ -195,18 +195,18 @@ function EventModeButton({ isMobile }: { isMobile: boolean }) {
     <div className={`flex items-center gap-0.5 border-t border-slate-700/30 ${isMobile ? 'p-0.5' : 'px-1.5 pb-1.5 pt-1'}`}>
       <button
         onClick={handleClick}
-        className={`flex items-center justify-center gap-1 rounded-lg font-bold
+        className={`flex items-center justify-center gap-1.5 rounded-lg font-bold
           transition-all duration-200 cursor-pointer w-full
-          ${isMobile ? 'min-h-[44px] px-2.5 py-2 text-base' : 'px-2.5 py-1 text-[11px]'}
+          ${isMobile ? 'min-h-[44px] px-2.5 py-2 text-[13px]' : 'px-2.5 py-1 text-[11px]'}
           ${active
             ? 'bg-amber-500/25 border border-amber-400/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
-            : 'border border-slate-600/30 text-slate-500 hover:bg-slate-700/60 hover:text-slate-200 hover:border-amber-500/20'
+            : 'border border-amber-500/20 text-amber-400/70 bg-amber-500/5 hover:bg-amber-500/15 hover:text-amber-300'
           }`}
         title="Modo Evento / Regata"
       >
-        <WeatherIcon id="compass" size={isMobile ? 18 : 14} />
-        {!isMobile && <span>{active ? 'Cancelar' : 'Evento'}</span>}
-        <span className="text-[7px] font-bold text-amber-400/80 uppercase">alpha</span>
+        <WeatherIcon id="sailboat" size={isMobile ? 18 : 14} />
+        <span>{active ? 'Cancelar Evento' : 'Modo Evento'}</span>
+        <span className="text-[7px] font-bold text-amber-400/60 uppercase">alpha</span>
       </button>
     </div>
   );

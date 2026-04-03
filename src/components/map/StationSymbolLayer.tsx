@@ -104,7 +104,7 @@ export function StationSymbolLayer({
           temperature: reading?.temperature ?? null,
           tempColor: tempBinColor(reading?.temperature ?? null),
           windColor: windSpeedColor(reading?.windSpeed ?? null),
-          freshness: age < 10 ? 1.0 : age < 30 ? 0.85 : age < 60 ? 0.6 : 0.35,
+          freshness: age < 10 ? 1.0 : age < 30 ? 0.85 : age < 60 ? 0.6 : age < 120 ? 0.3 : 0.15,
           isSelected: isSelected ? 1 : 0,
         },
       });
@@ -185,15 +185,19 @@ export function StationSymbolLayer({
           // Stale stations: ring AND fill become nearly invisible
           'circle-opacity': [
             'step', ['get', 'freshness'],
-            0.1,           // <0.6 (>30min): nearly invisible
-            0.6, 0.35,    // 0.6-0.85 (10-30min): faded
-            0.85, 0.7,    // >=0.85 (<10min): normal
+            0.0,           // <0.15 (>2h): hidden
+            0.15, 0.08,    // 0.15-0.3 (1-2h): barely visible
+            0.3, 0.2,      // 0.3-0.6 (30-60min): faded
+            0.6, 0.35,     // 0.6-0.85 (10-30min): slightly faded
+            0.85, 0.7,     // >=0.85 (<10min): normal
           ],
           'circle-stroke-opacity': [
             'step', ['get', 'freshness'],
-            0.1,           // <0.6 (>30min): ring nearly invisible
-            0.6, 0.35,    // 0.6-0.85 (10-30min): faded ring
-            0.85, 0.7,    // >=0.85 (<10min): normal ring
+            0.0,
+            0.15, 0.08,
+            0.3, 0.2,
+            0.6, 0.35,
+            0.85, 0.7,
           ],
         }}
       />
@@ -218,12 +222,14 @@ export function StationSymbolLayer({
         }}
         paint={{
           'icon-color': ['get', 'tempColor'],
-          // Stale stations fade out significantly — nearly invisible at >30min
+          // Stale stations fade out — hidden at >2h, nearly invisible at >1h
           'icon-opacity': [
             'step', ['get', 'freshness'],
-            0.1,           // <0.6 (>30min): nearly invisible
-            0.6, 0.4,     // 0.6-0.85: faded
-            0.85, 0.75,   // fresh: normal
+            0.0,           // <0.15 (>2h): hidden
+            0.15, 0.08,    // 0.15-0.3 (1-2h): barely visible
+            0.3, 0.25,     // 0.3-0.6 (30-60min): faded
+            0.6, 0.45,     // 0.6-0.85 (10-30min): slightly faded
+            0.85, 0.8,     // fresh: normal
           ],
           'text-color': '#ffffff',
           'text-halo-color': 'rgba(0,0,0,0.5)',
@@ -231,8 +237,10 @@ export function StationSymbolLayer({
           // Source label fades with marker
           'text-opacity': [
             'step', ['get', 'freshness'],
-            0.1,           // <0.6: nearly invisible
-            0.6, 0.4,
+            0.0,           // <0.15 (>2h): hidden
+            0.15, 0.1,
+            0.3, 0.25,
+            0.6, 0.5,
             0.85, 1.0,
           ],
         }}
@@ -258,8 +266,10 @@ export function StationSymbolLayer({
           // Stale station names fade with the marker
           'text-opacity': [
             'step', ['get', 'freshness'],
-            0.1,           // <0.6: nearly invisible
-            0.6, 0.4,
+            0.0,           // <0.15 (>2h): hidden
+            0.15, 0.1,
+            0.3, 0.25,
+            0.6, 0.5,
             0.85, 1.0,
           ],
         }}
