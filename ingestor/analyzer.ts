@@ -256,7 +256,7 @@ function inferCastreloDirection(readings: StationReading[]): string | null {
   const nearby = readings.filter(r =>
     r.wind_dir != null && r.wind_speed != null && r.wind_speed > 1.0 &&
     r.latitude !== 0 && r.longitude !== 0 &&
-    distanceKm(castreloLat, castreloLon, r.latitude, r.longitude) <= 15
+    haversineDistance(castreloLat, castreloLon, r.latitude, r.longitude) <= 15
   );
 
   if (nearby.length === 0) return null;
