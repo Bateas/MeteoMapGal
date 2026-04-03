@@ -175,7 +175,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       </div>
       {/* Surf verdict summary — plain language */}
       {displayVerdict.summary && (
-        <div className="text-[11px] text-slate-300 mb-2 leading-tight" style={{ color: displayVerdict.color }}>
+        <div className="text-[11px] text-slate-300 mb-2 leading-tight break-words" style={{ color: displayVerdict.color }}>
           {displayVerdict.summary}
         </div>
       )}
