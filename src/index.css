@@ -233,7 +233,6 @@ body {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
   border: 1px solid var(--color-slate-700, #334155) !important;
   max-width: 340px !important;
-  overflow: visible !important;
   word-break: break-word !important;
 }
 
