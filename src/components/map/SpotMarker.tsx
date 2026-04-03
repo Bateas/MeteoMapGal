@@ -40,6 +40,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const scores = useSpotStore((s) => s.scores);
   const lastScored = useSpotStore((s) => s.lastScored);
+  const surfWaveCache = useSpotStore((s) => s.surfWaveCache);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
 
@@ -87,8 +88,8 @@ export const SpotMarkers = memo(function SpotMarkers() {
             lat={spot.center[1]}
             verdict={verdict}
             windKt={score?.wind?.avgSpeedKt ?? null}
-            waveHeight={score?.waves?.waveHeight ?? null}
-            wavePeriod={score?.waves?.wavePeriod ?? null}
+            waveHeight={spot.category === 'surf' ? (surfWaveCache.get(spot.id)?.waveHeight ?? null) : (score?.waves?.waveHeight ?? null)}
+            wavePeriod={spot.category === 'surf' ? (surfWaveCache.get(spot.id)?.period ?? null) : (score?.waves?.wavePeriod ?? null)}
             isActive={isActive}
             isLoading={spotLoading}
             onSelect={selectSpot}
@@ -120,11 +121,21 @@ interface SpotMarkerItemProps {
   isSurf?: boolean;
 }
 
-/** Hexagon path for spot shape — distinctive from circular stations */
+/** Hexagon path for sailing spots — 6 sides */
 function hexPath(r: number): string {
   const pts: string[] = [];
   for (let i = 0; i < 6; i++) {
     const angle = (Math.PI / 3) * i - Math.PI / 2; // start at top
+    pts.push(`${r * Math.cos(angle)},${r * Math.sin(angle)}`);
+  }
+  return `M ${pts.join(' L ')} Z`;
+}
+
+/** Pentagon path for surf spots — 5 sides, visually distinct from hex */
+function pentaPath(r: number): string {
+  const pts: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const angle = (2 * Math.PI / 5) * i - Math.PI / 2; // start at top
     pts.push(`${r * Math.cos(angle)},${r * Math.sin(angle)}`);
   }
   return `M ${pts.join(' L ')} Z`;
@@ -247,7 +258,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
 
           {/* Main hexagon — distinctive shape vs circular stations */}
           <path
-            d={hexPath(size / 2)}
+            d={(isSurf ? pentaPath : hexPath)(size / 2)}
             fill={`${colors.ring}15`}
             stroke={colors.ring}
             strokeWidth={isActive ? 2.5 : 2}

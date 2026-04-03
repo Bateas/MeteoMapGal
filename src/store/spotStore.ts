@@ -46,6 +46,8 @@ interface SpotState {
   webcamVision: Map<string, WebcamVisionResult>;
   /** Last webcam vision analysis timestamp */
   visionAnalyzedAt: number;
+  /** Per-surf-spot wave data from Open-Meteo Marine (keyed by spot.id) */
+  surfWaveCache: Map<string, { waveHeight: number; swellHeight: number | null; period: number }>;
 }
 
 interface SpotActions {
@@ -56,6 +58,7 @@ interface SpotActions {
   setSectorForecast: (forecast: HourlyForecast[]) => void;
   setThermalPrecursors: (precursors: Map<string, ThermalPrecursorResult>) => void;
   setWebcamVision: (results: Map<string, WebcamVisionResult>) => void;
+  setSurfWave: (spotId: string, data: { waveHeight: number; swellHeight: number | null; period: number }) => void;
 }
 
 export const useSpotStore = create<SpotState & SpotActions>()(
@@ -75,6 +78,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
         precursorsFetchedAt: 0,
         webcamVision: new Map(),
         visionAnalyzedAt: 0,
+        surfWaveCache: new Map(),
 
         toggleFavorite: (spotId: string) => {
           const current = useSpotStore.getState().favoriteSpotId;
@@ -121,6 +125,12 @@ export const useSpotStore = create<SpotState & SpotActions>()(
 
         setWebcamVision: (webcamVision) =>
           set({ webcamVision, visionAnalyzedAt: Date.now() }, undefined, 'setWebcamVision'),
+
+        setSurfWave: (spotId, data) => {
+          const next = new Map(useSpotStore.getState().surfWaveCache);
+          next.set(spotId, data);
+          set({ surfWaveCache: next }, undefined, 'setSurfWave');
+        },
       }),
       {
         name: 'spot-store',
