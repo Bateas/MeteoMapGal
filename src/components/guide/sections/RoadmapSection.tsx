@@ -21,22 +21,22 @@ export function RoadmapSection() {
         <div className="absolute left-[11px] top-0 bottom-0 w-px bg-slate-700" />
 
         {/* ── Ultimas novedades ── */}
-        <TimelineGroup label="&Uacute;ltimas novedades" dotColor="bg-emerald-500" textColor="text-emerald-400" />
-        <TimelineMilestone iconId="sailboat" title="13 spots con veredicto autom&aacute;tico" desc="10 de vela + 3 de surf. Scoring basado en 100+ estaciones y 13 boyas marinas." status="done" />
-        <TimelineMilestone iconId="waves" title="Previsi&oacute;n de olas 24h" desc="Altura, per&iacute;odo, tendencia y veredicto de surf (FLAT/PEQUE/SURF OK/CL&Aacute;SICO/GRANDE)." status="done" />
-        <TimelineMilestone iconId="camera" title="20 webcams con visi&oacute;n IA" desc="19 c&aacute;maras MeteoGalicia + webcam propia ESP32-CAM en Castrelo. An&aacute;lisis autom&aacute;tico: Beaufort, niebla, visibilidad." status="done" />
+        <TimelineGroup label="Últimas novedades" dotColor="bg-emerald-500" textColor="text-emerald-400" />
+        <TimelineMilestone iconId="sailboat" title="13 spots con veredicto automático" desc="10 de vela + 3 de surf. Scoring basado en 100+ estaciones y 13 boyas marinas." status="done" />
+        <TimelineMilestone iconId="waves" title="Previsión de olas 24h" desc="Altura, período, tendencia y veredicto de surf (FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE)." status="done" />
+        <TimelineMilestone iconId="camera" title="20 webcams con visión IA" desc="19 cámaras MeteoGalicia + webcam propia ESP32-CAM en Castrelo. Análisis automático: Beaufort, niebla, visibilidad." status="done" />
         <TimelineMilestone iconId="bell" title="Alertas inteligentes por Telegram" desc="Avisos de cambio de condiciones: viento, niebla, tormentas, olas. Silencio nocturno." status="done" />
-        <TimelineMilestone iconId="sailboat" title="Modo Evento para regatas" desc="Zona de agua, panel de seguridad, balizas, mareas, aviaci&oacute;n, previsi&oacute;n 6h." status="done" />
-        <TimelineMilestone iconId="compass" title="Previsi&oacute;n horaria por spot" desc="Ventana de navegaci&oacute;n 48h + mini-timeline 12h directamente en el popup." status="done" />
+        <TimelineMilestone iconId="sailboat" title="Modo Evento para regatas" desc="Zona de agua, panel de seguridad, balizas, mareas, aviación, previsión 6h." status="done" />
+        <TimelineMilestone iconId="compass" title="Previsión horaria por spot" desc="Ventana de navegación 48h + mini-timeline 12h directamente en el popup." status="done" />
         <TimelineMilestone iconId="map-pin" title="Compartir, favoritos y comparador" desc="Comparte condiciones por WhatsApp/Telegram. Compara todos los spots en una tabla." status="done" />
-        <TimelineMilestone iconId="layers" title="Radar, corrientes y cartas n&aacute;uticas" desc="Capas de datos: radar precipitaci&oacute;n, batimetr&iacute;a, corrientes HF, se&ntilde;alizaci&oacute;n mar&iacute;tima, carta IHM." status="done" />
+        <TimelineMilestone iconId="layers" title="Radar, corrientes y cartas náuticas" desc="Capas de datos: radar precipitación, batimetría, corrientes HF, señalización marítima, carta IHM." status="done" />
 
         {/* ── Proximamente ── */}
-        <TimelineGroup label="Pr&oacute;ximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
-        <TimelineMilestone iconId="anchor" title="Seguimiento de embarcaciones" desc="Posici&oacute;n de barcos en tiempo real y alertas mar&iacute;timas inteligentes." status="idea" />
-        <TimelineMilestone iconId="bell" title="Alertas a medida" desc="Define tus umbrales de viento, olas o temperatura y recibe avisos autom&aacute;ticos." status="idea" />
-        <TimelineMilestone iconId="map-pin" title="M&aacute;s zonas y actividades" desc="A Coru&ntilde;a, Costa da Morte, nuevos spots. Scoring por actividad: surf, vela, kite, SUP." status="idea" />
-        <TimelineMilestone iconId="eye" title="Correlaciones hist&oacute;ricas" desc="Patrones basados en datos reales acumulados: &ldquo;Cuando Silleiro marca X, Patos tiene Y.&rdquo;" status="idea" />
+        <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
+        <TimelineMilestone iconId="anchor" title="Seguimiento de embarcaciones" desc="Posición de barcos en tiempo real y alertas marítimas inteligentes." status="idea" />
+        <TimelineMilestone iconId="bell" title="Alertas a medida" desc="Define tus umbrales de viento, olas o temperatura y recibe avisos automáticos." status="idea" />
+        <TimelineMilestone iconId="map-pin" title="Más zonas y actividades" desc="A Coruña, Costa da Morte, nuevos spots. Scoring por actividad: surf, vela, kite, SUP." status="idea" />
+        <TimelineMilestone iconId="eye" title="Correlaciones históricas" desc={'Patrones basados en datos reales acumulados: "Cuando Silleiro marca X, Patos tiene Y."'} status="idea" />
       </div>
 
       {/* ── Fuentes de datos ─────────────────────────────── */}
@@ -101,9 +101,9 @@ export function RoadmapSection() {
             </div>
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
-              <span className="text-slate-500">18 APIs</span>
-              <span className="text-slate-500">236 tests</span>
-              <span className="text-slate-500">TimescaleDB</span>
+              <span className="text-slate-500">19 webcams + IA</span>
+              <span className="text-slate-500">235 tests</span>
+              <span className="text-slate-500">TimescaleDB 24/7</span>
             </div>
           </div>
         </div>

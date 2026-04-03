@@ -266,14 +266,14 @@ export function HistoricalAnalysis() {
 
       {/* Filters */}
       <div className="flex gap-2 items-center">
-        <label className="text-[11px] text-slate-500">T &ge;</label>
+        <label className="text-[11px] text-slate-500">T ≥</label>
         <input
           type="number"
           value={minTemp}
           onChange={(e) => setMinTemp(Number(e.target.value))}
           className="w-12 bg-slate-800 text-slate-300 text-[11px] px-1.5 py-0.5 rounded border border-slate-700"
         />
-        <label className="text-[11px] text-slate-500">HR &ge;</label>
+        <label className="text-[11px] text-slate-500">HR ≥</label>
         <input
           type="number"
           value={minHumidity}
@@ -287,7 +287,7 @@ export function HistoricalAnalysis() {
       <div>
         <div className="text-[11px] text-slate-500 mb-1">
           Rosa de vientos: <span className="text-slate-400">General</span> vs{' '}
-          <span className="text-amber-400">T&ge;{minTemp} HR&ge;{minHumidity}</span>
+          <span className="text-amber-400">T≥{minTemp} HR≥{minHumidity}</span>
         </div>
         <div className="bg-slate-800/50 rounded-lg p-1">
           <ResponsiveContainer width="100%" height={220}>
@@ -339,7 +339,7 @@ export function HistoricalAnalysis() {
       {/* Hour × Direction Heatmap (rendered as colored grid) */}
       <div>
         <div className="text-[11px] text-slate-500 mb-1">
-          Hora vs Dirección (T&ge;{minTemp} HR&ge;{minHumidity})
+          Hora vs Dirección (T≥{minTemp} HR≥{minHumidity})
         </div>
         <div className="bg-slate-800/50 rounded-lg p-2 overflow-x-auto">
           <div className="inline-grid gap-[1px]" style={{
@@ -393,7 +393,7 @@ export function HistoricalAnalysis() {
       {/* Temperature vs Wind Speed scatter */}
       <div>
         <div className="text-[11px] text-slate-500 mb-1">
-          Temperatura vs Velocidad (14-20h, HR&ge;{minHumidity})
+          Temperatura vs Velocidad (14-20h, HR≥{minHumidity})
         </div>
         <div className="bg-slate-800/50 rounded-lg p-2">
           <ResponsiveContainer width="100%" height={150}>

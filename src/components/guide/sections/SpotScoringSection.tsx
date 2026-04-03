@@ -7,10 +7,10 @@ import { WeatherIcon } from '../../icons/WeatherIcons';
 export function SpotScoringSection() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Spots de navegaci&oacute;n</h2>
+      <h2 className="text-2xl font-bold text-white">Spots de navegación</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
         Cada sector tiene <strong className="text-slate-300">spots</strong>: zonas concretas
-        de navegaci&oacute;n con su propio veredicto basado en estaciones
+        de navegación con su propio veredicto basado en estaciones
         cercanas, boyas y patrones de viento conocidos. El color del spot en el mapa
         te dice de un vistazo si merece la pena ir.
       </p>
@@ -19,24 +19,24 @@ export function SpotScoringSection() {
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">
           <WeatherIcon id="sailboat" size={14} className="inline-block mr-1.5 text-emerald-400" />
-          &iquest;Qu&eacute; es un spot?
+          ¿Qué es un spot?
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
-            Un spot es una micro-zona de navegaci&oacute;n con radio definido (6-15 km). El sistema
-            selecciona autom&aacute;ticamente las estaciones meteorol&oacute;gicas y boyas m&aacute;s cercanas
-            para calcular un scoring espec&iacute;fico.
+            Un spot es una micro-zona de navegación con radio definido (6-15 km). El sistema
+            selecciona automáticamente las estaciones meteorológicas y boyas más cercanas
+            para calcular un scoring específico.
           </p>
           <p>
             <strong className="text-slate-300">Clica en el marcador</strong> para ver el popup con veredicto,
-            viento, oleaje, temperatura, humedad y resumen. En m&oacute;vil aparece como panel inferior deslizante.
+            viento, oleaje, temperatura, humedad y resumen. En móvil aparece como panel inferior deslizante.
           </p>
           <p>
             <strong className="text-slate-300">Dos tipos de spot en el mapa:</strong>
           </p>
           <ul className="space-y-1 pl-3">
-            <li><strong className="text-emerald-400">Hex&aacute;gono</strong> = spot de <strong>vela/kite</strong>. Veredicto basado en viento (CALMA/FLOJO/NAVEG./BUENO/FUERTE).</li>
-            <li><strong className="text-cyan-400">Pent&aacute;gono</strong> = spot de <strong>surf</strong>. Veredicto basado en olas (FLAT/PEQUE/SURF OK/CL&Aacute;SICO/GRANDE).</li>
+            <li><strong className="text-emerald-400">Hexágono</strong> = spot de <strong>vela/kite</strong>. Veredicto basado en viento (CALMA/FLOJO/NAVEG./BUENO/FUERTE).</li>
+            <li><strong className="text-cyan-400">Pentágono</strong> = spot de <strong>surf</strong>. Veredicto basado en olas (FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE).</li>
           </ul>
         </div>
       </div>
@@ -48,24 +48,24 @@ export function SpotScoringSection() {
         {/* Embalse */}
         <div className="bg-slate-900/50 rounded-lg p-3 border border-amber-500/20 space-y-1.5">
           <div className="text-[11px] font-bold text-amber-400">Embalse de Castrelo</div>
-          <SpotRow name="Castrelo" desc="Valle del Mi&ntilde;o. Agua dulce, t&eacute;rmica WSW tardes." thermal />
+          <SpotRow name="Castrelo" desc="Valle del Miño. Agua dulce, térmica WSW tardes." thermal />
           <p className="text-[11px] text-slate-500 italic pt-1">
-            Pr&oacute;ximamente: m&aacute;s spots (vi&ntilde;edos, valles colindantes).
+            Próximamente: más spots (viñedos, valles colindantes).
           </p>
         </div>
 
         {/* Rías */}
         <div className="bg-slate-900/50 rounded-lg p-3 border border-blue-500/20 space-y-1.5">
-          <div className="text-[11px] font-bold text-blue-400">R&iacute;as Baixas</div>
-          <SpotRow name="Cesantes" desc="Interior R&iacute;a, ensenada de San Sim&oacute;n. Agua plana, t&eacute;rmica WSW tardes." thermal />
-          <SpotRow name="Bocana" desc="Estrecho de Rande, Vigo&ndash;San Sim&oacute;n. Terral matutino E/ENE." />
-          <SpotRow name="Centro R&iacute;a" desc="Canido&ndash;Limens. Viraz&oacute;n SW tardes, oleaje moderado." />
-          <SpotRow name="C&iacute;es-R&iacute;a" desc="Baiona&ndash;C&iacute;es. Condiciones oce&aacute;nicas, nortada verano." />
-          <SpotRow name="Lourido" desc="Playa Lourido, R&iacute;a de Pontevedra. Kite/windsurf, viraz&oacute;n SW." thermal />
-          <SpotRow name="Casti&ntilde;eiras" desc="Costa norte R&iacute;a de Arousa. Exposici&oacute;n atl&aacute;ntica, surf y kite." />
-          <SpotRow name="Vao" desc="Sur de Vigo, playa urbana. Protecci&oacute;n parcial de las C&iacute;es." />
-          <SpotRow name="A Lanzada" desc="Playa oce&aacute;nica O Grove&ndash;Sanxenxo. Referencia kite y surf en Galicia." />
-          <SpotRow name="Illa Arousa" desc="Interior R&iacute;a de Arousa. Agua plana, brisa t&eacute;rmica tardes." thermal />
+          <div className="text-[11px] font-bold text-blue-400">Rías Baixas</div>
+          <SpotRow name="Cesantes" desc="Interior Ría, ensenada de San Simón. Agua plana, térmica WSW tardes." thermal />
+          <SpotRow name="Bocana" desc="Estrecho de Rande, Vigo–San Simón. Terral matutino E/ENE." />
+          <SpotRow name="Centro Ría" desc="Canido–Limens. Virazón SW tardes, oleaje moderado." />
+          <SpotRow name="Cíes-Ría" desc="Baiona–Cíes. Condiciones oceánicas, nortada verano." />
+          <SpotRow name="Lourido" desc="Playa Lourido, Ría de Pontevedra. Kite/windsurf, virazón SW." thermal />
+          <SpotRow name="Castiñeiras" desc="Costa norte Ría de Arousa. Exposición atlántica, surf y kite." />
+          <SpotRow name="Vao" desc="Sur de Vigo, playa urbana. Protección parcial de las Cíes." />
+          <SpotRow name="A Lanzada" desc="Playa oceánica O Grove–Sanxenxo. Referencia kite y surf en Galicia." />
+          <SpotRow name="Illa Arousa" desc="Interior Ría de Arousa. Agua plana, brisa térmica tardes." thermal />
         </div>
 
         {/* Surf spots */}
@@ -76,15 +76,15 @@ export function SpotScoringSection() {
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
             Spots orientados a surf. El scoring actual usa datos de viento de estaciones cercanas.
-            El scoring espec&iacute;fico de surf (swell + per&iacute;odo + direcci&oacute;n + marea) est&aacute; en desarrollo.
+            El scoring específico de surf (swell + período + dirección + marea) está en desarrollo.
           </p>
-          <SurfSpotRow name="Patos" desc="Playa NW en Nigr&aacute;n. Beach break + reef. Marea media-alta, offshore S/SSW." />
+          <SurfSpotRow name="Patos" desc="Playa NW en Nigrán. Beach break + reef. Marea media-alta, offshore S/SSW." />
           <SurfSpotRow name="A Lanzada (Surf)" desc="2.4km playa W abierta. Muy consistente. Offshore NE/E. Todas las mareas." />
           <SurfSpotRow name="Corrubedo" desc="Playa NW en parque natural. Olas potentes, intermedio-avanzado. Offshore SE." />
           <div className="pt-1.5 space-y-1.5 text-[11px] text-slate-500 leading-relaxed">
             <p>
               <strong className="text-cyan-300">Swell</strong> = oleaje de fondo generado por tormentas lejanas.
-              Per&iacute;odo &gt;8s = buena calidad. Las boyas PORTUS miden altura (Hm0), per&iacute;odo (Tp) y direcci&oacute;n.
+              Período &gt;8s = buena calidad. Las boyas PORTUS miden altura (Hm0), período (Tp) y dirección.
             </p>
             <p>
               <strong className="text-cyan-300">Offshore</strong> = viento de tierra hacia el mar. Limpia y ordena las olas.
@@ -127,19 +127,19 @@ export function SpotScoringSection() {
         <h3 className="text-sm font-bold text-white">Matices del scoring</h3>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
-            Adem&aacute;s del viento, el score (0-100) incorpora factores que matizan:
+            Además del viento, el score (0-100) incorpora factores que matizan:
           </p>
           <ul className="space-y-1 pl-3">
-            <li><strong className="text-slate-300">Patr&oacute;n reconocido</strong> — t&eacute;rmica, nortada, terral, viraz&oacute;n. Umbral: &ge;5kt en spots t&eacute;rmicos, &ge;8kt en el resto.</li>
-            <li><strong className="text-slate-300">Consenso</strong> — cu&aacute;ntas estaciones confirman viento (m&aacute;s = mayor fiabilidad).</li>
-            <li><strong className="text-slate-300">Oleaje</strong> — cr&iacute;tico en C&iacute;es-R&iacute;a, moderado en Centro R&iacute;a, ignorado en Cesantes.</li>
-            <li><strong className="text-slate-300">Norte en Cesantes</strong> — penaliza: el norte mata la t&eacute;rmica.</li>
-            <li><strong className="text-slate-300">Canalizaci&oacute;n t&eacute;rmica</strong> — bonus si en Cesantes hay t&eacute;rmica WSW activa (amplifica viento).</li>
-            <li><strong className="text-slate-300">Calibraci&oacute;n por spot</strong> — offset en nudos que compensa estaciones montadas a baja altura.</li>
-            <li><strong className="text-amber-400">Precursor humedad (bruma)</strong> — si la boya cercana detecta humedad &gt;65% + direcci&oacute;n WSW + horario diurno, el sistema anticipa viento probable. Correlaci&oacute;n 96% en an&aacute;lisis hist&oacute;rico 3 a&ntilde;os.</li>
-            <li><strong className="text-sky-400">Tendencia de viento</strong> — analiza los &uacute;ltimos 30 minutos. Si sube &gt;3kt marca &ldquo;viento subiendo&rdquo;, si sube &gt;6kt marca &ldquo;subida r&aacute;pida&rdquo; con alerta.</li>
+            <li><strong className="text-slate-300">Patrón reconocido</strong> — térmica, nortada, terral, virazón. Umbral: ≥5kt en spots térmicos, ≥8kt en el resto.</li>
+            <li><strong className="text-slate-300">Consenso</strong> — cuántas estaciones confirman viento (más = mayor fiabilidad).</li>
+            <li><strong className="text-slate-300">Oleaje</strong> — crítico en Cíes-Ría, moderado en Centro Ría, ignorado en Cesantes.</li>
+            <li><strong className="text-slate-300">Norte en Cesantes</strong> — penaliza: el norte mata la térmica.</li>
+            <li><strong className="text-slate-300">Canalización térmica</strong> — bonus si en Cesantes hay térmica WSW activa (amplifica viento).</li>
+            <li><strong className="text-slate-300">Calibración por spot</strong> — offset en nudos que compensa estaciones montadas a baja altura.</li>
+            <li><strong className="text-amber-400">Precursor humedad (bruma)</strong> — si la boya cercana detecta humedad &gt;65% + dirección WSW + horario diurno, el sistema anticipa viento probable. Correlación 96% en análisis histórico 3 años.</li>
+            <li><strong className="text-sky-400">Tendencia de viento</strong> — analiza los últimos 30 minutos. Si sube &gt;3kt marca "viento subiendo", si sube &gt;6kt marca "subida rápida" con alerta.</li>
             <li><strong className="text-blue-400">Boost boya 2x</strong> — las boyas preferidas dentro de 5km pesan el doble. Miden viento en el agua = lo que siente el navegante.</li>
-            <li><strong className="text-emerald-400">Viento en costa</strong> — si una estaci&oacute;n costera (aguas arriba) marca viento y el spot est&aacute; en calma, indica viento frontal aproxim&aacute;ndose.</li>
+            <li><strong className="text-emerald-400">Viento en costa</strong> — si una estación costera (aguas arriba) marca viento y el spot está en calma, indica viento frontal aproximándose.</li>
           </ul>
         </div>
       </div>
@@ -152,14 +152,14 @@ export function SpotScoringSection() {
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
-            El popup del spot muestra datos del entorno extra&iacute;dos de la estaci&oacute;n m&aacute;s cercana:
+            El popup del spot muestra datos del entorno extraídos de la estación más cercana:
           </p>
           <ul className="space-y-1 pl-3">
-            <li><strong className="text-slate-300">Temperatura aire</strong> — de la estaci&oacute;n m&aacute;s pr&oacute;xima con dato v&aacute;lido.</li>
-            <li><strong className="text-sky-400">Humedad</strong> — porcentaje relativo. Color: verde &lt;60%, azul &lt;80%, morado &ge;80%.</li>
-            <li><strong className="text-blue-400">Sensaci&oacute;n t&eacute;rmica</strong> — wind chill (f&oacute;rmula Environment Canada). Solo aparece cuando T&lt;10&deg;C y viento&gt;4.8 km/h. &Uacute;til en invierno con norte.</li>
-            <li><strong className="text-amber-400">&Iacute;ndice de calor</strong> — sensaci&oacute;n t&eacute;rmica real cuando T&gt;27&deg;C y HR&gt;40% (f&oacute;rmula NWS). Amarillo &gt;27&deg;C, naranja &gt;32&deg;C, rojo &gt;35&deg;C.</li>
-            <li><strong className="text-slate-300">Flecha de direcci&oacute;n</strong> — flecha rotada seg&uacute;n bearing real + cardinal (N, SW, etc.). Indica de d&oacute;nde viene el viento.</li>
+            <li><strong className="text-slate-300">Temperatura aire</strong> — de la estación más próxima con dato válido.</li>
+            <li><strong className="text-sky-400">Humedad</strong> — porcentaje relativo. Color: verde &lt;60%, azul &lt;80%, morado ≥80%.</li>
+            <li><strong className="text-blue-400">Sensación térmica</strong> — wind chill (fórmula Environment Canada). Solo aparece cuando T&lt;10°C y viento&gt;4.8 km/h. Útil en invierno con norte.</li>
+            <li><strong className="text-amber-400">Índice de calor</strong> — sensación térmica real cuando T&gt;27°C y HR&gt;40% (fórmula NWS). Amarillo &gt;27°C, naranja &gt;32°C, rojo &gt;35°C.</li>
+            <li><strong className="text-slate-300">Flecha de dirección</strong> — flecha rotada según bearing real + cardinal (N, SW, etc.). Indica de dónde viene el viento.</li>
             <li><strong className="text-yellow-400">Spot favorito ★</strong> — pulsa ★ en el popup para marcar tu spot. Aparece primero en el ticker y selectores. Se guarda en localStorage.</li>
           </ul>
         </div>
@@ -169,30 +169,30 @@ export function SpotScoringSection() {
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">
           <WeatherIcon id="thermometer" size={14} className="inline-block mr-1.5 text-orange-400" />
-          Detalle t&eacute;rmico
+          Detalle térmico
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
-            Los spots con <strong className="text-slate-300">detecci&oacute;n t&eacute;rmica</strong> (Castrelo,
+            Los spots con <strong className="text-slate-300">detección térmica</strong> (Castrelo,
             Cesantes, Lourido) muestran filas adicionales al expandir la tarjeta:
           </p>
           <ul className="space-y-1 pl-3">
-            <li><strong className="text-orange-400">&Delta;T diurno</strong> — diferencia entre Tmax y Tmin previstas. &ge;16&deg;C favorece t&eacute;rmicas.</li>
-            <li><strong className="text-yellow-400">Prob. t&eacute;rmicas</strong> — estimaci&oacute;n combinando &Delta;T + atm&oacute;sfera + tendencia.</li>
-            <li><strong className="text-sky-400">Ventana viento</strong> — horas previstas con viento &ge;3kt (10h-20h).</li>
-            <li><strong className="text-slate-300">Nubes / CAPE</strong> — cobertura nubosa + energ&iacute;a convectiva.</li>
-            <li><strong className="text-amber-400">Tendencia</strong> — se&ntilde;ales precursoras (activas, probables, en formaci&oacute;n).</li>
-            <li><strong className="text-red-400">Alerta t&eacute;rmica temprana</strong> — panel colapsable con 6 se&ntilde;ales precursoras:
-              terral matutino (25%), &Delta;T agua-aire desde boya (20%), rampa solar (20%),
+            <li><strong className="text-orange-400">ΔT diurno</strong> — diferencia entre Tmax y Tmin previstas. ≥16°C favorece térmicas.</li>
+            <li><strong className="text-yellow-400">Prob. térmicas</strong> — estimación combinando ΔT + atmósfera + tendencia.</li>
+            <li><strong className="text-sky-400">Ventana viento</strong> — horas previstas con viento ≥3kt (10h-20h).</li>
+            <li><strong className="text-slate-300">Nubes / CAPE</strong> — cobertura nubosa + energía convectiva.</li>
+            <li><strong className="text-amber-400">Tendencia</strong> — señales precursoras (activas, probables, en formación).</li>
+            <li><strong className="text-red-400">Alerta térmica temprana</strong> — panel colapsable con 6 señales precursoras:
+              terral matutino (25%), ΔT agua-aire desde boya (20%), rampa solar (20%),
               gradiente de humedad costa-interior (15%), divergencia de viento entre estaciones (10%)
-              y previsi&oacute;n favorable (10%). Muestra probabilidad 0-100%, confianza y ETA.</li>
-            <li><strong className="text-orange-400">Amplificaci&oacute;n t&eacute;rmica</strong> — cuando se detecta t&eacute;rmica activa
-              (probabilidad &ge;40% + WSW + viento &ge;3kt), el scoring aplica un factor de amplificaci&oacute;n
+              y previsión favorable (10%). Muestra probabilidad 0-100%, confianza y ETA.</li>
+            <li><strong className="text-orange-400">Amplificación térmica</strong> — cuando se detecta térmica activa
+              (probabilidad ≥40% + WSW + viento ≥3kt), el scoring aplica un factor de amplificación
               (hasta +50%) sobre el consenso de viento.
-              Muestra aviso de &ldquo;baja confianza&rdquo; con el n&uacute;mero de fuentes.</li>
+              Muestra aviso de "baja confianza" con el número de fuentes.</li>
           </ul>
           <p className="text-[11px] text-slate-500 italic">
-            Estos datos proceden de Open-Meteo (previsi&oacute;n), an&aacute;lisis t&eacute;rmico en tiempo real y boyas marinas.
+            Estos datos proceden de Open-Meteo (previsión), análisis térmico en tiempo real y boyas marinas.
           </p>
         </div>
       </div>
@@ -205,14 +205,14 @@ export function SpotScoringSection() {
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
-            Algunos spots incluyen webcams accesibles desde el popup. Despliega la secci&oacute;n
+            Algunos spots incluyen webcams accesibles desde el popup. Despliega la sección
             <strong className="text-slate-300"> Webcams</strong> en el popup del spot.
           </p>
           <ul className="space-y-1 pl-3">
-            <li><strong className="text-slate-300">C&iacute;es-R&iacute;a</strong> &mdash; Imagen est&aacute;tica de playa de Rodas (MeteoGalicia, cada 5 min). Se puede refrescar manualmente.</li>
-            <li><strong className="text-slate-300">Cesantes</strong> &mdash; Enlace a stream en vivo de tmkites.com (se abre en nueva pesta&ntilde;a).</li>
-            <li><strong className="text-slate-300">Bocana / Centro R&iacute;a</strong> &mdash; Vigo M&oacute;vil (G24): visi&oacute;n desde Porto de Vigo hacia la bocana y medio de la r&iacute;a.</li>
-            <li><strong className="text-slate-300">Lourido</strong> &mdash; KiteGalicia: enlace a p&aacute;gina del centro KG Lourido con condiciones en vivo.</li>
+            <li><strong className="text-slate-300">Cíes-Ría</strong> — Imagen estática de playa de Rodas (MeteoGalicia, cada 5 min). Se puede refrescar manualmente.</li>
+            <li><strong className="text-slate-300">Cesantes</strong> — Enlace a stream en vivo de tmkites.com (se abre en nueva pestaña).</li>
+            <li><strong className="text-slate-300">Bocana / Centro Ría</strong> — Vigo Móvil (G24): visión desde Porto de Vigo hacia la bocana y medio de la ría.</li>
+            <li><strong className="text-slate-300">Lourido</strong> — KiteGalicia: enlace a página del centro KG Lourido con condiciones en vivo.</li>
           </ul>
           <p className="text-[11px] text-slate-500 italic">
             Las webcams son fuentes externas. La disponibilidad depende del proveedor.
@@ -228,14 +228,14 @@ export function SpotScoringSection() {
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
-            Cada spot R&iacute;as muestra un <strong className="text-slate-300">resumen de mareas</strong> integrado
-            en el popup, con las pleamares (&blacktriangle;) y bajamares (&blacktriangledown;) del d&iacute;a.
-            La pr&oacute;xima marea se resalta en color para referencia r&aacute;pida.
+            Cada spot Rías muestra un <strong className="text-slate-300">resumen de mareas</strong> integrado
+            en el popup, con las pleamares (&blacktriangle;) y bajamares (&blacktriangledown;) del día.
+            La próxima marea se resalta en color para referencia rápida.
           </p>
           <ul className="space-y-1 pl-3">
-            <li><strong className="text-slate-300">Cesantes, Bocana, C. R&iacute;a</strong> &mdash; Mareas de Vigo (IHM).</li>
-            <li><strong className="text-slate-300">C&iacute;es-R&iacute;a</strong> &mdash; Mareas de Baiona (IHM).</li>
-            <li><strong className="text-slate-300">Lourido</strong> &mdash; Mareas de Mar&iacute;n (IHM).</li>
+            <li><strong className="text-slate-300">Cesantes, Bocana, C. Ría</strong> — Mareas de Vigo (IHM).</li>
+            <li><strong className="text-slate-300">Cíes-Ría</strong> — Mareas de Baiona (IHM).</li>
+            <li><strong className="text-slate-300">Lourido</strong> — Mareas de Marín (IHM).</li>
           </ul>
         </div>
       </div>
@@ -248,25 +248,25 @@ export function SpotScoringSection() {
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
-            Las boyas con anem&oacute;metro (REMPOR, CETMAR, REDEXT) muestran una
+            Las boyas con anemómetro (REMPOR, CETMAR, REDEXT) muestran una
             <strong className="text-slate-300"> flecha de viento</strong> directamente sobre el marcador,
-            m&aacute;s un <strong className="text-slate-300">badge con nudos</strong> (bottom-left).
+            más un <strong className="text-slate-300">badge con nudos</strong> (bottom-left).
           </p>
           <p className="text-[11px] text-slate-500 italic">
-            Las boyas REDMAR (Vigo, Mar&iacute;n, Vilagarc&iacute;a) son mare&oacute;grafos y <strong>no tienen anem&oacute;metro</strong>.
-            La boya Rande (1251) tampoco mide viento &mdash; mide temperatura del agua y del aire,
-            humedad y punto de roc&iacute;o (v&iacute;a Observatorio Costeiro). Es clave para detectar el patr&oacute;n de
-            bruma/t&eacute;rmica costera (precursor de humedad &gt;65%).
+            Las boyas REDMAR (Vigo, Marín, Vilagarcía) son mareógrafos y <strong>no tienen anemómetro</strong>.
+            La boya Rande (1251) tampoco mide viento — mide temperatura del agua y del aire,
+            humedad y punto de rocío (vía Observatorio Costeiro). Es clave para detectar el patrón de
+            bruma/térmica costera (precursor de humedad &gt;65%).
           </p>
         </div>
       </div>
 
       {/* Mobile */}
       <div className="space-y-2">
-        <h3 className="text-sm font-bold text-white">En m&oacute;vil</h3>
+        <h3 className="text-sm font-bold text-white">En móvil</h3>
         <p className="text-[11px] text-slate-400 leading-relaxed">
           Al tocar un spot en el mapa aparece un panel inferior deslizante con toda la info:
-          veredicto, viento, oleaje y resumen. Solo un popup a la vez (spot, estaci&oacute;n o boya).
+          veredicto, viento, oleaje y resumen. Solo un popup a la vez (spot, estación o boya).
         </p>
       </div>
     </div>
@@ -281,8 +281,8 @@ function SpotRow({ name, desc, thermal }: { name: string; desc: string; thermal?
       <WeatherIcon id="sailboat" size={11} className="text-slate-500 mt-0.5 flex-shrink-0" />
       <div>
         <span className="font-bold text-slate-300">{name}</span>
-        {thermal && <span className="text-orange-400/70 ml-1 text-[11px]">t&eacute;rmico</span>}
-        <span className="text-slate-500 ml-1">&mdash; {desc}</span>
+        {thermal && <span className="text-orange-400/70 ml-1 text-[11px]">térmico</span>}
+        <span className="text-slate-500 ml-1">— {desc}</span>
       </div>
     </div>
   );
@@ -294,7 +294,7 @@ function SurfSpotRow({ name, desc }: { name: string; desc: string }) {
       <WeatherIcon id="waves" size={11} className="text-cyan-500 mt-0.5 flex-shrink-0" />
       <div>
         <span className="font-bold text-cyan-300">{name}</span>
-        <span className="text-slate-500 ml-1">&mdash; {desc}</span>
+        <span className="text-slate-500 ml-1">— {desc}</span>
       </div>
     </div>
   );

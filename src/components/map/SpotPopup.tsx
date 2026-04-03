@@ -141,7 +141,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
               {spot.category === 'surf' ? 'SURF BETA' : 'BETA'}
             </span>
           </div>
-          <div className={`${isMobile ? 'text-[11px]' : 'text-[11px]'} text-slate-400 break-words`}>{spot.description}</div>
+          <div className="text-[12px] text-slate-300 break-words">{spot.description}</div>
         </div>
       </div>
 

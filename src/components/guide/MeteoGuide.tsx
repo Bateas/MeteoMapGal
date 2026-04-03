@@ -215,17 +215,17 @@ function IntroSection() {
             <WeatherIcon id="wind" size={16} /> Datos en tiempo real
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            6 fuentes meteorol&oacute;gicas combinadas: AEMET, MeteoGalicia, Meteoclimatic,
-            Weather Underground, Netatmo y SkyX. M&aacute;s de 90 estaciones en ambas zonas.
+            6 fuentes meteorológicas combinadas: AEMET, MeteoGalicia, Meteoclimatic,
+            Weather Underground, Netatmo y SkyX. Más de 90 estaciones en ambas zonas.
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
           <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-1.5">
-            <WeatherIcon id="sun" size={16} /> Viento t&eacute;rmico
+            <WeatherIcon id="sun" size={16} /> Viento térmico
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Detecci&oacute;n autom&aacute;tica de vientos t&eacute;rmicos del W/SW, con scoring
-            basado en datos hist&oacute;ricos AEMET. Ver secci&oacute;n &quot;El t&eacute;rmico de Castrelo&quot;.
+            Detección automática de vientos térmicos del W/SW, con scoring
+            basado en datos históricos AEMET. Ver sección "El térmico de Castrelo".
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
@@ -233,26 +233,26 @@ function IntroSection() {
             <WeatherIcon id="alert-triangle" size={16} /> Alertas inteligentes
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Avisos autom&aacute;ticos de condiciones adversas: tormentas, niebla,
-            inversiones t&eacute;rmicas, rachas fuertes y m&aacute;s. Notificaciones por Telegram.
+            Avisos automáticos de condiciones adversas: tormentas, niebla,
+            inversiones térmicas, rachas fuertes y más. Notificaciones por Telegram.
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
           <h3 className="text-sm font-bold text-violet-400 mb-2 flex items-center gap-1.5">
-            <WeatherIcon id="thermometer" size={16} /> Spots de navegaci&oacute;n
+            <WeatherIcon id="thermometer" size={16} /> Spots de navegación
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            10 spots con scoring autom&aacute;tico: calma/flojo/navegable/bueno/fuerte.
-            Hex&aacute;gonos con arco de viento, pron&oacute;stico 48h y ventanas de navegaci&oacute;n.
+            10 spots con scoring automático: calma/flojo/navegable/bueno/fuerte.
+            Hexágonos con arco de viento, pronóstico 48h y ventanas de navegación.
           </p>
         </div>
       </div>
 
       <div className="bg-gradient-to-r from-blue-900/20 to-emerald-900/20 rounded-lg p-4 border border-slate-700">
         <p className="text-xs text-slate-400">
-          <strong className="text-slate-300">Tip:</strong> Esta gu&iacute;a tiene secciones espec&iacute;ficas
-          para cada tema. Consulta &quot;El t&eacute;rmico de Castrelo&quot; para entender los vientos
-          t&eacute;rmicos del embalse en detalle.
+          <strong className="text-slate-300">Tip:</strong> Esta guía tiene secciones específicas
+          para cada tema. Consulta "El térmico de Castrelo" para entender los vientos
+          térmicos del embalse en detalle.
         </p>
       </div>
     </div>
