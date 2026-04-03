@@ -17,10 +17,10 @@ const ITEMS: { label: string; color: string }[] = [
 
 export function SpotScoreLegend() {
   const isMobile = useUIStore((s) => s.isMobile);
-  const scores = useSpotStore((s) => s.spotScores);
+  const scores = useSpotStore((s) => s.scores);
 
   // Only show when at least one spot has a verdict
-  if (scores.size === 0) return null;
+  if (!scores || scores.size === 0) return null;
 
   return (
     <div
