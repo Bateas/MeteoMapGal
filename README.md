@@ -1,8 +1,8 @@
 # MeteoMapGal
 
-[![Versión](https://img.shields.io/badge/versión-2.9.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Versión](https://img.shields.io/badge/versión-2.10.5-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-233%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-236%20passed-brightgreen)](src/test/)
 
 **Meteoroloxía en tempo real para Galicia** — Vento, ondas, mareas e alertas con 100+ estacións, 13 boias e mapa 3D interactivo.
 
@@ -115,6 +115,8 @@
 | EUMETSAT, RainViewer, IHM, ENAIRE | Satélite, radar, mareas, espazo aéreo |
 | CMEMS, EMODnet, INTECMAR, IGN | SST, batimetría, correntes, cartografía |
 | OpenSky Network | Tráfico aéreo (experimental) |
+| MeteoGalicia Webcams | 19 cámaras en tempo real (imaxe + Vision IA) |
+| Ollama (moondream/llava) | Análise visual de webcams (Beaufort, néboa, ceo) |
 
 Todos os datos de fontes abertas. Só AEMET require chave API gratuíta.
 
@@ -122,27 +124,32 @@ Todos os datos de fontes abertas. Só AEMET require chave API gratuíta.
 
 ## Roadmap
 
-### v2.9 — Actual
+### v2.10 — Actual
+- **19 webcams MeteoGalicia**: triángulos no mapa con azimuth, popup con imaxe en vivo
+- **Vision IA (Ollama)**: análise automática de webcams cada 15min con moondream/llava
+  - Estimación Beaufort 0-7 desde a superficie da auga
+  - Detección de néboa, visibilidade, estado do ceo
+  - Badge "Vision IA" nos popups de spots e webcams
+  - Alertas Telegram automáticas por néboa detectada
 - **Modo Evento/Regata**: zonas OSM, panel seguridade, cronómetro, balizas, exportación
 - **Aviación**: tráfico aéreo OpenSky, alertas baixa altitude
 - **Transparencia de scoring**: fontes por spot, contribucións con peso %
 - **Sesgo do modelo**: badge "Real +Xkt" na previsión
-- **Frescura visual**: anillo amber/vermello en estacións con datos vellos
-- **Precursor térmico no ticker**: probabilidade + ETA para Embalse
-- **Coherencia alertas**: severidade baseada en puntuación, non hardcodeada
-- **Auditoría algoritmos vento**: blacklist, IDW unificado, coherencia direccional
-- 233 tests, GPU markers 60fps, 18 stores Zustand
+- **Frescura visual**: estacións sen datos (>30min) case invisibles, sen frechas
+- **Coherencia alertas**: severidade baseada en puntuación, cores unificados
+- **Rendimiento**: stagger startup (10s), lazy-load RegattaPanel (-27KB)
+- 236 tests, GPU markers 60fps, 19 stores Zustand
 
 ### Próximamente
 - Novas zonas (A Coruña, Costa da Morte)
-- Seguimento AIS de barcos (pendente fonte de datos fiable)
 - Scoring de praias para turismo
-- Endpoint /health no ingestor
+- Modelos vision máis grandes (llava 7B) para mellor detección
 
 ### v3.0 — Futuro
 - Panel Pro para clubs e escolas
 - Hardware propio (ESP32 + anemómetro)
 - Modelo ML de predición con datos históricos
+- Procesamento vision avanzado: conteo embarcacións, detección temporal
 
 ---
 
@@ -155,7 +162,7 @@ npm install
 cp .env.example .env    # Engadir chaves API de AEMET + ObsCosteiro
 npm run dev             # http://localhost:5173
 npm run build           # Produción → dist/
-npm test                # 233 tests (Vitest)
+npm test                # 236 tests (Vitest)
 ```
 
 **Stack**: React 19 · TypeScript 5.9 · Vite 7 · MapLibre GL 5 · Zustand 5 · Tailwind 4 · Recharts · TimescaleDB
