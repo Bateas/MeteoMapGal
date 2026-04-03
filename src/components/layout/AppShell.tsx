@@ -231,23 +231,20 @@ export function AppShell() {
     loadingStartRef.current = Date.now();
   }, [activeSector.id]);
 
-  // Reveal map after readings arrive — with a slight delay for crossfade
+  // Reveal map immediately — tiles load fast, data overlays appear as they arrive.
+  // This improves FCP: user sees the map base within ~2s instead of waiting ~12s.
   useEffect(() => {
-    if (readingsCount === 0) {
-      setMapRevealed(false);
-      return;
-    }
-    // Delay map reveal so the loading screen starts fading first
-    const t = setTimeout(() => setMapRevealed(true), 500);
+    // Show map after 1.5s regardless of data — tiles are already loading
+    const t = setTimeout(() => setMapRevealed(true), 1500);
     return () => clearTimeout(t);
-  }, [readingsCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSector.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Hide LoadingScreen after min display + data ready
+  // Hide LoadingScreen after min display time OR data ready (whichever is later)
   useEffect(() => {
-    if (readingsCount === 0) return;
     const elapsed = Date.now() - loadingStartRef.current;
-    const remaining = Math.max(0, 3200 - elapsed); // match LoadingScreen min (2500) + fade (700)
-    const t = setTimeout(() => setShowLoading(false), remaining);
+    // If data arrived, dismiss quickly. If not, dismiss after 5s max (map visible underneath)
+    const maxWait = readingsCount > 0 ? Math.max(0, 2500 - elapsed) : 5000;
+    const t = setTimeout(() => setShowLoading(false), maxWait);
     return () => clearTimeout(t);
   }, [readingsCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 

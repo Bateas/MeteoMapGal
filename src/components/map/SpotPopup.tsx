@@ -1205,26 +1205,36 @@ function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
         <span className="text-[10px] text-slate-500 ml-auto">Periodo {periodQuality}</span>
       </div>
 
-      {/* Bar chart */}
-      <div className="flex items-end gap-px h-8 mb-1" title="Altura de ola por hora">
+      {/* Bar chart — total wave height bars + swell line overlay */}
+      <div className="flex items-end gap-px h-8 mb-1 relative" title="Altura de ola por hora">
         {hours.map((h, i) => {
           const wh = h.waveHeight ?? 0;
+          const sw = h.swellHeight ?? 0;
           const pct = Math.max(4, (wh / maxWave) * 100);
+          const swPct = maxWave > 0 ? Math.max(0, (sw / maxWave) * 100) : 0;
           const isBest = i === bestIdx;
           const hourLabel = h.time.getHours();
           const isPast = h.time < now;
           return (
             <div
               key={i}
-              className="flex-1 rounded-t-sm relative group"
+              className="flex-1 rounded-t-sm relative"
               style={{
                 height: `${pct}%`,
                 backgroundColor: isPast ? 'rgba(100,116,139,0.3)' : waveBarColor(wh),
                 opacity: isPast ? 0.5 : 1,
                 border: isBest ? '1px solid #22d3ee' : 'none',
               }}
-              title={`${hourLabel}h: ${wh.toFixed(1)}m${h.swellPeriod ? ` Tp ${h.swellPeriod.toFixed(0)}s` : ''}`}
-            />
+              title={`${hourLabel}h: ${wh.toFixed(1)}m total${sw > 0 ? ` (swell ${sw.toFixed(1)}m)` : ''}${h.swellPeriod ? ` Tp ${h.swellPeriod.toFixed(0)}s` : ''}`}
+            >
+              {/* Swell portion indicator — darker bottom section */}
+              {sw > 0 && sw < wh && !isPast && (
+                <div
+                  className="absolute bottom-0 left-0 right-0 rounded-t-sm"
+                  style={{ height: `${swPct / pct * 100}%`, backgroundColor: 'rgba(14,165,233,0.4)' }}
+                />
+              )}
+            </div>
           );
         })}
       </div>
