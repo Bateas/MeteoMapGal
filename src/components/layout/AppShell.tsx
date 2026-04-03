@@ -53,11 +53,11 @@ import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoCli
 /** Collapsed sidebar: vertical icon strip with tab shortcuts */
 function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
   const TABS = [
-    { icon: 'map-pin' as const, label: 'Estaciones', shortcut: '1' },
-    { icon: 'activity' as const, label: 'Gráfica', shortcut: '2' },
-    { icon: 'compass' as const, label: 'Previsión', shortcut: '3' },
-    { icon: 'layers' as const, label: 'Rankings', shortcut: '4' },
-    { icon: 'clock' as const, label: 'Historial', shortcut: '5' },
+    { icon: 'map-pin' as const, label: 'Estaciones', shortcut: '1', tab: 'stations' },
+    { icon: 'activity' as const, label: 'Gráfica', shortcut: '2', tab: 'chart' },
+    { icon: 'compass' as const, label: 'Previsión', shortcut: '3', tab: 'forecast' },
+    { icon: 'layers' as const, label: 'Rankings', shortcut: '4', tab: 'rankings' },
+    { icon: 'clock' as const, label: 'Historial', shortcut: '5', tab: 'history' },
   ];
   return (
     <div className="flex flex-col items-center py-2 gap-1 h-full">
@@ -70,11 +70,11 @@ function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M9 5l7 7-7 7" /></svg>
       </button>
-      {/* Tab icons */}
+      {/* Tab icons — click navigates directly to that tab */}
       {TABS.map((tab) => (
         <button
           key={tab.label}
-          onClick={onExpand}
+          onClick={() => { useUIStore.getState().setRequestedTab(tab.tab); onExpand(); }}
           className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
           title={`${tab.label} (${tab.shortcut})`}
           aria-label={tab.label}
