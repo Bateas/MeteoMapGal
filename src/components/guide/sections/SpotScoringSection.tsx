@@ -62,6 +62,31 @@ export function SpotScoringSection() {
           <SpotRow name="A Lanzada" desc="Playa oce&aacute;nica O Grove&ndash;Sanxenxo. Referencia kite y surf en Galicia." />
           <SpotRow name="Illa Arousa" desc="Interior R&iacute;a de Arousa. Agua plana, brisa t&eacute;rmica tardes." thermal />
         </div>
+
+        {/* Surf spots */}
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-cyan-500/20 space-y-1.5">
+          <div className="text-[11px] font-bold text-cyan-400">
+            <WeatherIcon id="waves" size={11} className="inline-block mr-1 text-cyan-400" />
+            Spots de Surf <span className="badge-beta ml-1" style={{ borderColor: 'rgba(34,211,238,0.3)', color: '#22d3ee', background: 'rgba(34,211,238,0.1)' }}>Beta</span>
+          </div>
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            Spots orientados a surf. El scoring actual usa datos de viento de estaciones cercanas.
+            El scoring espec&iacute;fico de surf (swell + per&iacute;odo + direcci&oacute;n + marea) est&aacute; en desarrollo.
+          </p>
+          <SurfSpotRow name="Patos" desc="Playa NW en Nigr&aacute;n. Beach break + reef. Marea media-alta, offshore S/SSW." />
+          <SurfSpotRow name="A Lanzada (Surf)" desc="2.4km playa W abierta. Muy consistente. Offshore NE/E. Todas las mareas." />
+          <SurfSpotRow name="Corrubedo" desc="Playa NW en parque natural. Olas potentes, intermedio-avanzado. Offshore SE." />
+          <div className="pt-1.5 space-y-1.5 text-[11px] text-slate-500 leading-relaxed">
+            <p>
+              <strong className="text-cyan-300">Swell</strong> = oleaje de fondo generado por tormentas lejanas.
+              Per&iacute;odo &gt;8s = buena calidad. Las boyas PORTUS miden altura (Hm0), per&iacute;odo (Tp) y direcci&oacute;n.
+            </p>
+            <p>
+              <strong className="text-cyan-300">Offshore</strong> = viento de tierra hacia el mar. Limpia y ordena las olas.
+              <strong className="text-cyan-300"> Onshore</strong> = lo contrario, destroza la superficie.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* 5-level scoring scale */}
@@ -247,6 +272,18 @@ function SpotRow({ name, desc, thermal }: { name: string; desc: string; thermal?
       <div>
         <span className="font-bold text-slate-300">{name}</span>
         {thermal && <span className="text-orange-400/70 ml-1 text-[11px]">t&eacute;rmico</span>}
+        <span className="text-slate-500 ml-1">&mdash; {desc}</span>
+      </div>
+    </div>
+  );
+}
+
+function SurfSpotRow({ name, desc }: { name: string; desc: string }) {
+  return (
+    <div className="flex items-start gap-2 text-[11px]">
+      <WeatherIcon id="waves" size={11} className="text-cyan-500 mt-0.5 flex-shrink-0" />
+      <div>
+        <span className="font-bold text-cyan-300">{name}</span>
         <span className="text-slate-500 ml-1">&mdash; {desc}</span>
       </div>
     </div>

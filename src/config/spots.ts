@@ -18,7 +18,8 @@
 import type { IconId } from '../components/icons/WeatherIcons';
 
 /** Type-safe spot identifiers for exhaustive matching */
-export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourido' | 'castineiras' | 'vao' | 'lanzada' | 'illa-arousa' | 'castrelo';
+export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourido' | 'castineiras' | 'vao' | 'lanzada' | 'illa-arousa' | 'castrelo'
+  | 'surf-patos' | 'surf-lanzada' | 'surf-corrubedo';
 
 export interface WindPattern {
   name: string;
@@ -86,6 +87,20 @@ export interface SailingSpot {
   webcams?: SpotWebcam[];
   /** Nearest IHM tide station ID (from tideClient.ts) for tide summary in popup */
   tideStationId?: string;
+
+  // ── Beta / Surf fields ──────────────────────────────────────
+  /** Beta flag — spot is experimental, shown with BETA badge */
+  beta?: boolean;
+  /** Spot category — sailing (default) or surf */
+  category?: 'sailing' | 'surf';
+  /** Beach compass orientation in degrees (e.g., 315 = NW-facing) — surf spots */
+  beachOrientation?: number;
+  /** Offshore wind direction(s) in degrees — wind from these dirs cleans waves */
+  offshoreWindDir?: number[];
+  /** Best swell directions in degrees (e.g., [315, 270] = NW, W) */
+  swellDirections?: number[];
+  /** Tide preference for surf quality */
+  tidePreference?: 'low' | 'mid' | 'high' | 'mid-high' | 'all';
 }
 
 // ── Spot Definitions ──────────────────────────────────────────
@@ -523,6 +538,129 @@ export const RIAS_SPOTS: SailingSpot[] = [
     thermalDetection: true, // Interior ría, similar dynamics
     hardGates: { maxWindKt: 30 },
     tideStationId: '27', // Sanxenxo
+  },
+
+  // ── Surf Spots (BETA) ─────────────────────────────────────────
+  // Swell-oriented spots. Scoring uses wind data for now;
+  // surf-specific scoring (swell + tide + direction) is planned.
+
+  {
+    id: 'surf-patos',
+    name: 'Patos (Surf)',
+    shortName: 'Patos',
+    icon: 'waves',
+    center: [-8.8243, 42.1548],
+    radiusKm: 8,
+    description: 'Playa NW en Nigrán. Beach break + reef derecha. Mejor con swell NW >1m, marea media-alta, viento S/SSW (offshore).',
+    beta: true,
+    category: 'surf',
+    beachOrientation: 315, // NW-facing
+    offshoreWindDir: [180, 200], // S, SSW
+    swellDirections: [315, 270], // NW, W
+    tidePreference: 'mid-high',
+    windPatterns: [
+      {
+        name: 'Offshore S/SSW (mañanas)',
+        direction: 195,
+        season: 'Todo el año, 7-12h',
+        description: 'Viento terral de S/SSW limpia las olas. Mañanas suelen ser glass. La mejor condición para surf en Patos.',
+      },
+      {
+        name: 'Onshore NW (tardes)',
+        direction: 315,
+        season: 'Verano, tardes',
+        description: 'Brisa de NW entra por la tarde y destroza las olas. Evitar para surf.',
+      },
+    ],
+    preferredStations: [
+      'mc_ESGAL3600000036057A', // Vigo Centro (~10km)
+    ],
+    preferredBuoys: [
+      1252, // Cíes (~15km W) — swell reference
+      1253, // A Guarda (~20km S) — swell confirmation
+    ],
+    waveRelevance: 'critical',
+    thermalDetection: false,
+    hardGates: { maxWindKt: 25, maxWaveHeight: 4.0 },
+    tideStationId: '1', // Vigo
+  },
+  {
+    id: 'surf-lanzada',
+    name: 'A Lanzada (Surf)',
+    shortName: 'Lanzada Surf',
+    icon: 'waves',
+    center: [-8.876, 42.448],
+    radiusKm: 10,
+    description: '2.4km de playa W abierta al Atlántico. Muy consistente. Beach break todos los niveles. Mejor con swell SW/W, viento NE/E (offshore).',
+    beta: true,
+    category: 'surf',
+    beachOrientation: 270, // W-facing
+    offshoreWindDir: [45, 90], // NE, E
+    swellDirections: [225, 270, 290], // SW, W, WNW
+    tidePreference: 'all',
+    windPatterns: [
+      {
+        name: 'Offshore NE/E (mañanas)',
+        direction: 55,
+        season: 'Todo el año, 7-12h',
+        description: 'Viento de tierra limpia las olas. Mañanas son la mejor ventana. La playa más consistente de Galicia.',
+      },
+      {
+        name: 'Brisa onshore W (tardes)',
+        direction: 270,
+        season: 'Verano, 14-19h',
+        description: 'Brisa térmica de W/SW entra por la tarde. Olas se desordenan. La sesión es por la mañana.',
+      },
+    ],
+    preferredStations: [
+      'mc_ESGAL3600000036380A', // Sanxenxo (~5km NE)
+      'mc_ESGAL3600000036340A', // O Grove - A Toxa (~6km N)
+    ],
+    preferredBuoys: [
+      4273, // Cabo Udra REMPOR (~15km S) — swell directo enfrente
+      2248, // Cabo Silleiro (~40km SW) — referencia oceánica
+    ],
+    waveRelevance: 'critical',
+    thermalDetection: false,
+    hardGates: { maxWindKt: 30, maxWaveHeight: 5.0 },
+    tideStationId: '27', // Sanxenxo
+  },
+  {
+    id: 'surf-corrubedo',
+    name: 'Corrubedo (Surf)',
+    shortName: 'Corrubedo',
+    icon: 'waves',
+    center: [-9.033, 42.556],
+    radiusKm: 10,
+    description: 'Playa NW en parque natural de dunas. Olas potentes, corrientes fuertes. Solo intermedio-avanzado. Mejor con swell NW, viento SE (offshore).',
+    beta: true,
+    category: 'surf',
+    beachOrientation: 315, // NW-facing
+    offshoreWindDir: [135, 180], // SE, S
+    swellDirections: [315, 290], // NW, WNW
+    tidePreference: 'all',
+    windPatterns: [
+      {
+        name: 'Offshore SE (mañanas)',
+        direction: 135,
+        season: 'Todo el año, mañanas',
+        description: 'Viento de SE limpia la ola. Corrubedo es potente — no apto para principiantes.',
+      },
+      {
+        name: 'NW dominante',
+        direction: 315,
+        season: 'Otoño–Invierno',
+        description: 'Viento fuerte de NW con mar de fondo grande (2-4m). Onshore pero olas de calidad si el período es largo.',
+      },
+    ],
+    preferredStations: [],
+    preferredBuoys: [
+      2248, // Cabo Silleiro (~60km SW) — deep-water swell reference
+    ],
+    waveRelevance: 'critical',
+    thermalDetection: false,
+    hardGates: { maxWindKt: 25, maxWaveHeight: 5.0 },
+    tideStationId: '7', // Vilagarcía
   },
 ];
 
