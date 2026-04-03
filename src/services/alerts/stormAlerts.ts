@@ -74,15 +74,17 @@ export function buildStormShadowAlerts(
   }
 
   // ── Contextual title based on lightning presence ──
+  // Clouds without lightning are NOT alarming — just informational.
+  // Only escalate language when lightning or wind outflow confirms a real storm.
   let title: string;
   if (shadow.etaMinutes !== null) {
     title = hasLightning
       ? `Tormenta acercándose — ETA ~${shadow.etaMinutes} min`
-      : `Nubosidad densa acercándose — ETA ~${shadow.etaMinutes} min`;
+      : `Nubes en la zona — ETA ~${shadow.etaMinutes} min`;
   } else if (hasLightning) {
     title = 'Tormenta cercana detectada';
   } else {
-    title = 'Nubosidad densa detectada';
+    title = 'Nubes en la zona';
   }
 
   // ── Detail ──
@@ -131,11 +133,11 @@ export function buildStormShadowAlerts(
     severity = shadow.confidence >= 60 ? 'moderate' : 'info';
   }
 
-  // Cap score for non-confirmed events: dense clouds without lightning or wind
-  // outflow are NOT dangerous — just notable. Prevents "PELIGRO" for plain clouds.
+  // Cap score for non-confirmed events: clouds without lightning or wind outflow
+  // are NOT dangerous — purely informational. Low score keeps them subtle in the UI.
   let finalScore = score;
   if (!hasLightning && !hasWindConfirmation) {
-    finalScore = Math.min(45, score); // max "moderate" — just clouds
+    finalScore = Math.min(25, score); // very low — just clouds, not a warning
   } else if (hasWindConfirmation) {
     finalScore = Math.min(100, score + 10);
   }
@@ -148,7 +150,10 @@ export function buildStormShadowAlerts(
     icon: hasLightning ? 'zap' : 'cloud',
     title,
     detail,
-    urgent: (shadow.etaMinutes !== null && shadow.etaMinutes < 20) || hasWindConfirmation,
+    // Only urgent if confirmed storm (lightning or wind outflow). Clouds alone never urgent.
+    urgent: hasLightning || hasWindConfirmation
+      ? (shadow.etaMinutes !== null && shadow.etaMinutes < 20) || hasWindConfirmation
+      : false,
     updatedAt: now,
   }];
 }
