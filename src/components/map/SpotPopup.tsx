@@ -1231,7 +1231,7 @@ function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
               {sw > 0 && sw < wh && !isPast && (
                 <div
                   className="absolute bottom-0 left-0 right-0 rounded-t-sm"
-                  style={{ height: `${swPct / pct * 100}%`, backgroundColor: 'rgba(14,165,233,0.4)' }}
+                  style={{ height: `${Math.min(100, swPct / pct * 100)}%`, backgroundColor: 'rgba(14,165,233,0.4)' }}
                 />
               )}
             </div>
