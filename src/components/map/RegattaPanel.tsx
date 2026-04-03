@@ -5,6 +5,7 @@ import { useBuoyStore } from '../../store/buoyStore';
 import { useAlertStore } from '../../store/alertStore';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { useAviationStore } from '../../store/aviationStore';
+import { useSectorStore } from '../../store/sectorStore';
 import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { getSourceQuality, isWindBlacklisted } from '../../services/spotScoringEngine';
@@ -54,6 +55,8 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const buoys = useBuoyStore((s) => s.buoys);
   const alerts = useAlertStore((s) => s.alerts);
   const stormAlert = useLightningStore((s) => s.stormAlert);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const isRias = sectorId === 'rias';
   const safetyLog = useRegattaStore((s) => s.safetyLog);
   const conditionsHistory = useRegattaStore((s) => s.conditionsHistory);
   const [displayMs, setDisplayMs] = useState(0);
@@ -206,40 +209,42 @@ export const RegattaPanel = memo(function RegattaPanel() {
     let wavePeriod: number | null = null;
     let nearestBuoyDist = Infinity;
 
-    // Sheltered waters: only deep interior rías (San Simón/Rande, lon > -8.65) and embalses.
-    // Full rías (Vigo, Pontevedra, Arousa) have real Atlantic swell — NOT sheltered.
-    const isEmbalse = store.selectedZoneId?.includes('embalse') ?? false;
-    const isDeepInterior = centerLon > -8.65; // Only Cesantes/Rande area
-    const isSheltered = isEmbalse || isDeepInterior;
+    // Marine data only relevant for Rías (coastal). Embalse = inland reservoir, no ocean data.
+    const sId = useSectorStore.getState().activeSector.id;
+    const isCoastal = sId === 'rias';
+    const isDeepInterior = isCoastal && centerLon > -8.65; // Only Cesantes/Rande area
+    const isSheltered = !isCoastal || isDeepInterior;
 
-    // Try buoys first (real-time, always valid)
-    for (const b of buoys) {
-      if (b.latitude == null || b.longitude == null) continue;
-      const d = haversineDistance(centerLat, centerLon, b.latitude, b.longitude);
-      if (d < nearestBuoyDist && d < 30) {
-        nearestBuoyDist = d;
-        if (b.waveHeight != null) waveHeight = b.waveHeight;
-        if (b.waterTemperature != null) waterTemp = b.waterTemperature;
-      }
-    }
-
-    // Open-Meteo Marine fallback — SST always OK, waves ONLY for exposed coast
-    if (waterTemp == null || (!isSheltered && waveHeight == null)) {
-      const marine = await fetchMarineData(centerLat, centerLon);
-      if (marine) {
-        if (waterTemp == null) waterTemp = marine.seaSurfaceTemp;
-        // Only use wave data for exposed coastal zones
-        if (!isSheltered) {
-          if (waveHeight == null) waveHeight = marine.waveHeight;
-          swellHeight = marine.swellHeight;
-          wavePeriod = marine.wavePeriod;
+    if (isCoastal) {
+      // Try buoys first (real-time, always valid)
+      for (const b of buoys) {
+        if (b.latitude == null || b.longitude == null) continue;
+        const d = haversineDistance(centerLat, centerLon, b.latitude, b.longitude);
+        if (d < nearestBuoyDist && d < 30) {
+          nearestBuoyDist = d;
+          if (b.waveHeight != null) waveHeight = b.waveHeight;
+          if (b.waterTemperature != null) waterTemp = b.waterTemperature;
         }
       }
-    }
 
-    // Sheltered zones: show "Aguas protegidas" instead of wrong wave data
-    if (isSheltered && waveHeight == null) {
-      // Don't show wave data — it would be misleading
+      // Open-Meteo Marine fallback — SST always OK, waves ONLY for exposed coast
+      if (waterTemp == null || (!isSheltered && waveHeight == null)) {
+        const marine = await fetchMarineData(centerLat, centerLon);
+        if (marine) {
+          if (waterTemp == null) waterTemp = marine.seaSurfaceTemp;
+          // Only use wave data for exposed coastal zones
+          if (!isSheltered) {
+            if (waveHeight == null) waveHeight = marine.waveHeight;
+            swellHeight = marine.swellHeight;
+            wavePeriod = marine.wavePeriod;
+          }
+        }
+      }
+
+      // Sheltered zones: show "Aguas protegidas" instead of wrong wave data
+      if (isSheltered && waveHeight == null) {
+        // Don't show wave data — it would be misleading
+      }
     }
 
     // Semaphore + safety alerts based on ALL data
@@ -405,9 +410,9 @@ export const RegattaPanel = memo(function RegattaPanel() {
     return () => { cancelled = true; clearInterval(iv); };
   }, [active, zone]);
 
-  // Fetch tides (Rías sector only)
+  // Fetch tides (Rías sector only — inland reservoirs have no tides)
   useEffect(() => {
-    if (!active || !zone) return;
+    if (!active || !zone || !isRias) return;
     let cancelled = false;
     fetchTides48h().then((data) => {
       if (cancelled) return;
@@ -418,7 +423,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
       setTides(upcoming.slice(0, 4));
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [active, zone]);
+  }, [active, zone, isRias]);
 
   // Fetch AEMET official warnings
   useEffect(() => {
@@ -466,15 +471,20 @@ export const RegattaPanel = memo(function RegattaPanel() {
       `Direccion:     ${c?.windDir ? `${degreesToCardinal(c.windDir)} (${c.windDir}°)` : 'Variable'}`,
       `Estaciones:    ${c?.stationsInZone || 0}${c?.interpolated ? ' (interpoladas)' : ''}`,
       ``,
-      `--- DATOS MARINOS ---`,
-      `Oleaje:        ${c?.waveHeight != null ? c.waveHeight.toFixed(1) + ' m' : 'Aguas protegidas'}`,
-      c?.swellHeight != null ? `Mar de fondo:  ${c.swellHeight.toFixed(1)} m` : '',
-      c?.wavePeriod != null ? `Periodo ola:   ${c.wavePeriod.toFixed(1)} s` : '',
-      `Temp. agua:    ${c?.waterTemp != null ? c.waterTemp.toFixed(1) + ' °C' : 'Sin datos'}`,
-      ``,
-      `--- MAREAS ---`,
-      ...tides.map((t) => `${t.type === 'high' ? 'Pleamar' : 'Bajamar'}: ${t.time} (${t.height.toFixed(1)}m)`),
-      tides.length === 0 ? 'Sin datos de mareas' : '',
+      ...(isRias ? [
+        `--- DATOS MARINOS ---`,
+        `Oleaje:        ${c?.waveHeight != null ? c.waveHeight.toFixed(1) + ' m' : 'Aguas protegidas'}`,
+        c?.swellHeight != null ? `Mar de fondo:  ${c.swellHeight.toFixed(1)} m` : '',
+        c?.wavePeriod != null ? `Periodo ola:   ${c.wavePeriod.toFixed(1)} s` : '',
+        `Temp. agua:    ${c?.waterTemp != null ? c.waterTemp.toFixed(1) + ' °C' : 'Sin datos'}`,
+        ``,
+        `--- MAREAS ---`,
+        ...tides.map((t) => `${t.type === 'high' ? 'Pleamar' : 'Bajamar'}: ${t.time} (${t.height.toFixed(1)}m)`),
+        tides.length === 0 ? 'Sin datos de mareas' : '',
+      ] : [
+        `--- TIPO DE AGUA ---`,
+        `Embalse (agua interior)`,
+      ]),
       ``,
       `--- DATOS ATMOSFERICOS ---`,
       c?.avgHumidity != null ? `Humedad:       ${c.avgHumidity}%` : '',
@@ -660,25 +670,29 @@ export const RegattaPanel = memo(function RegattaPanel() {
             </details>
           )}
 
-          {/* Marine data */}
-          {cond.waveHeight != null ? (
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-500">Oleaje</span>
-              <span className={`font-bold ${cond.waveHeight > 2 ? 'text-amber-400' : 'text-cyan-400'}`}>{cond.waveHeight.toFixed(1)} m</span>
-            </div>
-          ) : (
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-500">Oleaje</span>
-              <span className="text-green-400/70 font-medium text-[10px]">Aguas protegidas</span>
-            </div>
-          )}
-          {cond.waterTemp != null && (
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-500">Temp. agua</span>
-              <span className={`font-bold ${cond.waterTemp < 10 ? 'text-blue-400' : cond.waterTemp < 15 ? 'text-cyan-400' : 'text-green-400'}`}>
-                {cond.waterTemp.toFixed(1)} °C
-              </span>
-            </div>
+          {/* Marine data — only for coastal sector */}
+          {isRias && (
+            <>
+              {cond.waveHeight != null ? (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Oleaje</span>
+                  <span className={`font-bold ${cond.waveHeight > 2 ? 'text-amber-400' : 'text-cyan-400'}`}>{cond.waveHeight.toFixed(1)} m</span>
+                </div>
+              ) : (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Oleaje</span>
+                  <span className="text-green-400/70 font-medium text-[10px]">Aguas protegidas</span>
+                </div>
+              )}
+              {cond.waterTemp != null && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Temp. agua</span>
+                  <span className={`font-bold ${cond.waterTemp < 10 ? 'text-blue-400' : cond.waterTemp < 15 ? 'text-cyan-400' : 'text-green-400'}`}>
+                    {cond.waterTemp.toFixed(1)} °C
+                  </span>
+                </div>
+              )}
+            </>
           )}
 
           {/* Expandable details */}
