@@ -87,6 +87,8 @@ export const SpotMarkers = memo(function SpotMarkers() {
             lat={spot.center[1]}
             verdict={verdict}
             windKt={score?.wind?.avgSpeedKt ?? null}
+            waveHeight={score?.waves?.waveHeight ?? null}
+            wavePeriod={score?.waves?.wavePeriod ?? null}
             isActive={isActive}
             isLoading={spotLoading}
             onSelect={selectSpot}
@@ -109,6 +111,8 @@ interface SpotMarkerItemProps {
   lat: number;
   verdict: SpotVerdict;
   windKt: number | null;
+  waveHeight: number | null;
+  wavePeriod: number | null;
   isActive: boolean;
   isLoading: boolean;
   onSelect: (id: string) => void;
@@ -140,6 +144,15 @@ function gaugeArc(r: number, windKt: number | null): string {
   return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
 }
 
+/** Simple surf verdict for map markers — matches computeSurfVerdict() logic in SpotPopup */
+function surfMarkerVerdict(wh: number | null): { label: string; colors: typeof VERDICT_COLORS['calm'] } {
+  if (wh === null || wh < 0.3) return { label: 'FLAT', colors: VERDICT_COLORS.calm };
+  if (wh < 0.8) return { label: 'PEQUE', colors: { ring: '#22d3ee', text: '#67e8f9', glow: '#0891b2' } };   // cyan
+  if (wh < 1.5) return { label: 'SURF OK', colors: { ring: '#3b82f6', text: '#93c5fd', glow: '#2563eb' } };  // blue
+  if (wh < 2.5) return { label: 'CLASICO', colors: { ring: '#22c55e', text: '#4ade80', glow: '#16a34a' } };  // green
+  return { label: 'GRANDE', colors: { ring: '#f97316', text: '#fdba74', glow: '#ea580c' } };                  // orange
+}
+
 const SpotMarkerItem = memo(function SpotMarkerItem({
   spotId,
   icon,
@@ -148,13 +161,17 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   lat,
   verdict,
   windKt,
+  waveHeight,
+  wavePeriod,
   isActive,
   isLoading,
   onSelect,
   zoomScale,
   isSurf,
 }: SpotMarkerItemProps) {
-  const colors = VERDICT_COLORS[verdict];
+  // Surf spots: wave-based colors and label. Sailing spots: wind-based.
+  const surfV = isSurf ? surfMarkerVerdict(waveHeight) : null;
+  const colors = surfV?.colors ?? VERDICT_COLORS[verdict];
   const size = isActive ? 48 : 42;
   const iconSize = isActive ? 22 : 18;
   const gaugeR = size / 2 + 5;
@@ -167,11 +184,12 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
     [onSelect, spotId],
   );
 
-  // Badge text: "BUENO 15kt" or "CALMA" (no kt when calm/unknown)
-  const label = VERDICT_MAP_LABEL[verdict];
-  const badgeText = windKt !== null && verdict !== 'calm' && verdict !== 'unknown'
-    ? `${label} ${windKt.toFixed(0)}kt`
-    : label;
+  // Badge text: surf uses wave label + height, sailing uses wind label + kt
+  const badgeText = isSurf && surfV
+    ? (waveHeight !== null && waveHeight >= 0.3 ? `${surfV.label} ${waveHeight.toFixed(1)}m` : surfV.label)
+    : (windKt !== null && verdict !== 'calm' && verdict !== 'unknown'
+      ? `${VERDICT_MAP_LABEL[verdict]} ${windKt.toFixed(0)}kt`
+      : VERDICT_MAP_LABEL[verdict]);
 
   const svgSize = size + 24;
   const half = svgSize / 2;
@@ -215,10 +233,10 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
             opacity={0.2}
           />
 
-          {/* Wind gauge arc — proportional to wind speed */}
-          {windKt != null && windKt >= 1 && (
+          {/* Gauge arc — wind speed for sailing, wave height for surf */}
+          {(isSurf ? (waveHeight != null && waveHeight >= 0.3) : (windKt != null && windKt >= 1)) && (
             <path
-              d={gaugeArc(gaugeR, windKt)}
+              d={isSurf ? gaugeArc(gaugeR, (waveHeight ?? 0) * 8) : gaugeArc(gaugeR, windKt)}
               fill="none"
               stroke={colors.ring}
               strokeWidth={isActive ? 4 : 3}
