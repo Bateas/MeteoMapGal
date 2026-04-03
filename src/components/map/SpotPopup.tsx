@@ -59,7 +59,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const vs = VERDICT_STYLE[verdict];
 
   const popupContent = (
-    <div className={isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[220px] max-w-[280px]'}>
+    <div className={isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[240px] max-w-[310px]'}>
       {/* ── Header ── */}
       <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700/60">
         <div
@@ -69,8 +69,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           <WeatherIcon id={spot.icon} size={isMobile ? 20 : 16} className="text-slate-200" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className={`${isMobile ? 'text-base' : 'text-sm'} font-bold text-slate-100 truncate`}>{spot.name}</span>
+          <div className="flex items-start gap-1.5 flex-wrap">
+            <span className={`${isMobile ? 'text-base' : 'text-sm'} font-bold text-slate-100 leading-tight`}>{spot.name}</span>
             <button
               onClick={(e) => { e.stopPropagation(); toggleFavorite(spot.id); }}
               className={`shrink-0 transition-colors ${isMobile ? 'text-base' : 'text-sm'} ${
@@ -211,7 +211,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Scoring confidence ── */}
       {score && score.scoringConfidence === 'low' && (
-        <div className="text-[11px] text-slate-500 italic mb-1">
+        <div className="text-[11px] text-amber-400/90 italic mb-1">
           <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" /> Baja confianza: solo {score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)
         </div>
       )}
