@@ -188,6 +188,11 @@ function EventModeButton({ isMobile }: { isMobile: boolean }) {
       useRegattaStore.getState().deactivate();
     } else {
       useRegattaStore.getState().startEvent();
+      // In Embalse, aircraft are visible from the water — auto-enable aviation overlay
+      const sector = useSectorStore.getState().activeSector;
+      if (sector.id === 'embalse' && !useAviationStore.getState().showOverlay) {
+        useAviationStore.getState().toggleOverlay();
+      }
     }
   };
 

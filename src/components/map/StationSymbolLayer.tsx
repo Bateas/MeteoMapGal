@@ -181,7 +181,6 @@ export function StationSymbolLayer({
           // Always use source color for ring — no red/amber override
           'circle-stroke-color': ['get', 'sourceColor'],
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 12, 1.5],
-          'circle-color': 'transparent',
           // Stale stations: ring AND fill become nearly invisible
           'circle-opacity': [
             'step', ['get', 'freshness'],
