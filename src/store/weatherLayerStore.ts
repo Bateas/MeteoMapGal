@@ -3,7 +3,7 @@ import { devtools, persist } from 'zustand/middleware';
 
 // ── Types ──────────────────────────────────────────────────
 
-export type WeatherLayerType = 'none' | 'wind-particles' | 'humidity' | 'satellite' | 'radar' | 'currents';
+export type WeatherLayerType = 'none' | 'wind-particles' | 'humidity' | 'radar' | 'currents';
 
 // ── State ──────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ interface WeatherLayerState {
   setLayerOpacity: (opacity: number) => void;
 }
 
-const LAYER_CYCLE: WeatherLayerType[] = ['none', 'wind-particles', 'humidity', 'satellite', 'radar'];
+const LAYER_CYCLE: WeatherLayerType[] = ['none', 'wind-particles', 'humidity', 'radar'];
 
 export const useWeatherLayerStore = create<WeatherLayerState>()(
   devtools(

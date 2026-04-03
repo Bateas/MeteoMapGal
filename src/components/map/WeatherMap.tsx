@@ -24,7 +24,7 @@ import { TemperatureToggle } from './TemperatureToggle';
 import { AlertPanel } from './AlertPanel';
 import { WindParticleOverlay } from './WindParticleOverlay';
 import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
-import { SatelliteOverlay } from './SatelliteOverlay';
+// SatelliteOverlay removed — EUMETSAT non-commercial license incompatible
 import { RadarOverlay } from './RadarOverlay';
 import { CurrentsOverlay } from './CurrentsOverlay';
 import { AirspaceOverlay } from './AirspaceOverlay';
@@ -421,8 +421,7 @@ export function WeatherMap() {
         {/* Lightning strikes overlay */}
         <LightningOverlay />
 
-        {/* EUMETSAT satellite cloud imagery (inside Map for native raster rendering) */}
-        <SatelliteOverlay />
+        {/* EUMETSAT satellite removed — non-commercial license incompatible */}
 
         {/* AEMET Radar nacional — includes Cerceda/A Coruña */}
         <RadarOverlay />
