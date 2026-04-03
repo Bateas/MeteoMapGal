@@ -55,6 +55,7 @@ import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useAviationData } from '../../hooks/useAviationData';
+import { useSurfMarineData } from '../../hooks/useSurfMarineData';
 import { useWebcamVisionData } from '../../hooks/useWebcamVisionData';
 import { WebcamSymbolLayer, registerWebcamIcon } from './WebcamSymbolLayer';
 import { WebcamPopup } from './WebcamPopup';
@@ -147,6 +148,7 @@ export function WeatherMap() {
 
   useAviationData();
   useWebcamVisionData();
+  useSurfMarineData();
 
   // Regatta mode: fade non-essential elements.
   // CSS class handles DOM markers (.maplibregl-marker).
