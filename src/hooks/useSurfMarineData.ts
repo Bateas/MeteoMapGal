@@ -1,20 +1,44 @@
 /**
- * Auto-fetch Open-Meteo Marine current wave data for all surf spots.
- * Populates spotStore.surfWaveCache with wave data + basic verdict
- * so SpotMarker shows correct wave verdict immediately.
+ * Auto-fetch marine wave data for all surf spots.
+ * Populates spotStore.surfWaveCache so SpotMarker shows correct wave verdict.
  *
- * Runs once on mount + every 15 min. Only for Rías sector (surf spots are Rías-only).
- * The popup's computeSurfVerdict() refines this with wind modifiers.
+ * Fallback chain: ingestor API (/api/v1/marine) → Open-Meteo Marine direct.
+ * Runs on mount + every 15 min. Only for Rías sector (surf spots are Rías-only).
  */
 import { useEffect, useRef } from 'react';
 import { useSectorStore } from '../store/sectorStore';
 import { useSpotStore } from '../store/spotStore';
 import { getSpotsForSector } from '../config/spots';
-import { fetchMarineForecast } from '../api/marineClient';
+import { fetchMarineForecast, type MarineForecastHour } from '../api/marineClient';
 
-const INTERVAL = 15 * 60_000; // 15 min — marine forecast changes slowly
+const INTERVAL = 15 * 60_000; // 15 min
 
-/** Basic surf verdict from wave height + period (no wind modifier — that needs wind data from scoring engine) */
+/** Try ingestor API first, fallback to Open-Meteo Marine direct */
+async function fetchMarineForSpot(spotId: string, lat: number, lon: number): Promise<MarineForecastHour[]> {
+  // Try own API first (cached by ingestor, no rate limits)
+  try {
+    const res = await fetch(`/api/v1/marine?spot=${spotId}`, { signal: AbortSignal.timeout(5000) });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.hourly?.length > 0) {
+        return json.hourly.map((h: { time: string; waveHeight: number | null; wavePeriod: number | null; waveDirection: number | null; swellHeight: number | null; swellPeriod: number | null }) => ({
+          time: new Date(h.time),
+          waveHeight: h.waveHeight,
+          wavePeriod: h.wavePeriod,
+          waveDirection: h.waveDirection,
+          swellHeight: h.swellHeight,
+          swellPeriod: h.swellPeriod,
+          swellDirection: null,
+        }));
+      }
+    }
+  } catch { /* API unavailable — fall through */ }
+
+  // Fallback: Open-Meteo Marine direct
+  return fetchMarineForecast(lat, lon);
+}
+
+/** Basic surf verdict from wave height + period (no wind modifier) */
 function basicSurfVerdict(wh: number, tp: number): { label: string; color: string } {
   let level: number;
   if (wh < 0.3) level = 0;
@@ -24,12 +48,10 @@ function basicSurfVerdict(wh: number, tp: number): { label: string; color: strin
   else level = 4;
 
   const baseLevel = level;
-  // Period modifier — capped at +1 from base (quality, not size)
   let bonus = 0;
   if (tp >= 10 && level >= 1) bonus = 1;
   else if (tp > 0 && tp < 5 && level >= 1) bonus = -1;
   level = Math.max(0, Math.min(4, baseLevel + Math.max(-1, Math.min(1, bonus))));
-  // GRANDE only with real big waves (>= 2.0m)
   if (level === 4 && wh < 2.0) level = 3;
 
   const LEVELS: { label: string; color: string }[] = [
@@ -54,7 +76,7 @@ export function useSurfMarineData() {
     async function fetchAll() {
       for (const spot of spots) {
         try {
-          const hours = await fetchMarineForecast(spot.center[1], spot.center[0]);
+          const hours = await fetchMarineForSpot(spot.id, spot.center[1], spot.center[0]);
           const now = hours[0];
           if (now) {
             const wh = now.swellHeight ?? now.waveHeight ?? 0;
