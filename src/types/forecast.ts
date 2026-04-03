@@ -33,6 +33,17 @@ export interface HourlyForecast {
   visibility: number | null;
   /** Is it currently daytime? */
   isDay: boolean;
+  // ── Marine wave data (from Open-Meteo Marine API, Rías surf spots only) ──
+  /** Significant wave height (m) */
+  waveHeight?: number | null;
+  /** Peak wave period (s) */
+  wavePeriod?: number | null;
+  /** Wave direction (degrees) */
+  waveDirection?: number | null;
+  /** Swell wave height (m) — ocean swell component */
+  swellHeight?: number | null;
+  /** Swell wave period (s) */
+  swellPeriod?: number | null;
 }
 
 /** Supported forecast model identifiers */
