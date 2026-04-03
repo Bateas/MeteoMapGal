@@ -61,6 +61,10 @@ export function LegalSection() {
             <AttrRow name="IGN" license="CC BY 4.0" desc="Cartografía: ortofotos, sombreado, curvas de nivel" />
             <AttrRow name="NOAA" license="Dominio público" desc="Índices climáticos NAO/AO" />
             <AttrRow name="SkyX" license="API privada" desc="Estación personal portátil con GPS" />
+            <AttrRow name="OpenSky Network" license="CC BY-SA 4.0" desc="Posiciones de aeronaves en tiempo real" />
+            <AttrRow name="Open-Meteo Marine" license="CC BY 4.0" desc="Previsión de oleaje y swell horario" />
+            <AttrRow name="MeteoGalicia Webcams" license="Datos abiertos Xunta" desc="Imágenes de cámaras costeras (análisis visual)" />
+            <AttrRow name="Waira Surf School" license="Uso con permiso" desc="Webcam en directo playa de Patos" />
           </ul>
         </div>
       </div>

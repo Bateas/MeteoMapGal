@@ -194,24 +194,33 @@ export function RoadmapSection() {
           status="done"
         />
 
+        {/* v2.11-12 — Surf + UX */}
+        <TimelineGroup label="v2.11-12 — Surf" dotColor="bg-cyan-500" textColor="text-cyan-400" />
+        <TimelineMilestone
+          iconId="waves"
+          title="Spots de surf (Beta)"
+          desc="3 spots: Patos, A Lanzada, Corrubedo. Previsi&oacute;n de olas 24h, veredicto autom&aacute;tico (FLAT/PEQUE/SURF OK/CL&Aacute;SICO/GRANDE), webcams integradas."
+          status="done"
+        />
+
         {/* Futuras funcionalidades */}
         <TimelineGroup label="Pr&oacute;ximamente" dotColor="bg-slate-500" textColor="text-slate-400" />
         <TimelineMilestone
+          iconId="anchor"
+          title="Seguimiento de embarcaciones"
+          desc="Posici&oacute;n de barcos en tiempo real y alertas mar&iacute;timas inteligentes en la zona."
+          status="idea"
+        />
+        <TimelineMilestone
+          iconId="bell"
+          title="Alertas a medida"
+          desc="Define tus umbrales de viento, olas o temperatura y recibe avisos cuando se cumplan."
+          status="idea"
+        />
+        <TimelineMilestone
           iconId="map-pin"
-          title="M&aacute;s zonas"
-          desc="A Coru&ntilde;a, Costa da Morte. Scoring de playas para turismo."
-          status="idea"
-        />
-        <TimelineMilestone
-          iconId="eye"
-          title="Vision IA avanzada (llava 7B)"
-          desc="Modelos m&aacute;s grandes para detecci&oacute;n de embarcaciones, estimaci&oacute;n de oleaje, y an&aacute;lisis temporal."
-          status="idea"
-        />
-        <TimelineMilestone
-          iconId="alert-triangle"
-          title="Alertas personalizadas"
-          desc="Define tus propios umbrales de viento o temperatura con notificaci&oacute;n push."
+          title="M&aacute;s zonas y actividades"
+          desc="A Coru&ntilde;a, Costa da Morte, nuevos spots. Scoring por actividad: surf, vela, kite, SUP."
           status="idea"
         />
         <TimelineMilestone
@@ -222,13 +231,13 @@ export function RoadmapSection() {
         />
         <div className="ml-8 -mt-1 mb-3">
           <a
-            href="https://ko-fi.com/meteomapgal"
+            href="https://ko-fi.com/bateas"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
           >
             <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
-            ko-fi.com/meteomapgal
+            ko-fi.com/bateas
           </a>
         </div>
       </div>
