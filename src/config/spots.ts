@@ -705,6 +705,9 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     waveRelevance: 'none',
     thermalDetection: true,
     hardGates: { maxWindKt: 30 },
+    webcams: [
+      { label: 'Castrelo (ESP32-CAM)', url: 'https://meteomapgal.navia3d.com/webcam/castrelo.jpg', type: 'image', source: 'Propia', azimuth: 225, refreshInterval: 60 },
+    ],
   },
 ];
 
