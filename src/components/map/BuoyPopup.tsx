@@ -197,7 +197,7 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
 
   // ── Desktop: MapLibre popup ───────────────────────────
   return (
-    <Popup longitude={info.lon} latitude={info.lat} anchor="bottom" offset={[0, -30]} closeOnClick={false} onClose={dismiss} className="buoy-popup">
+    <Popup longitude={info.lon} latitude={info.lat} anchor="bottom" offset={[0, -30]} closeOnClick={false} onClose={dismiss} className="buoy-popup" maxWidth="380px">
       {popupContent}
     </Popup>
   );

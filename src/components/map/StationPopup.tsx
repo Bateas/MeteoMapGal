@@ -314,6 +314,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
       closeOnClick={false}
       onClose={() => selectStation(null)}
       className="station-popup"
+      maxWidth="380px"
     >
       {popupContent}
     </Popup>

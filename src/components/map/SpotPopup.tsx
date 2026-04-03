@@ -403,6 +403,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       closeOnClick={false}
       onClose={() => selectSpot('')}
       className="spot-popup"
+      maxWidth="380px"
     >
       {popupContent}
     </Popup>
@@ -1273,36 +1274,43 @@ interface SurfVerdictResult {
  *   - Short period <5s: -1 ("mar de viento, desordenado")
  */
 function computeSurfVerdict(waveHeight: number, period: number, isOffshore: boolean, isOnshore: boolean): SurfVerdictResult {
-  // Base wave level (0-4)
+  // Base wave level (0-4) — determined by ACTUAL wave height
   let level: number;
-  if (waveHeight < 0.3) level = 0;
-  else if (waveHeight < 0.8) level = 1;
-  else if (waveHeight < 1.5) level = 2;
-  else if (waveHeight < 2.5) level = 3;
-  else level = 4;
+  if (waveHeight < 0.3) level = 0;       // FLAT
+  else if (waveHeight < 0.8) level = 1;   // PEQUE
+  else if (waveHeight < 1.5) level = 2;   // SURF OK
+  else if (waveHeight < 2.5) level = 3;   // CLASICO
+  else level = 4;                          // GRANDE
 
-  // Wind modifier
+  const baseLevel = level; // Remember base — modifiers can't inflate more than +1 total
   const warnings: string[] = [];
+  let bonus = 0;
+
+  // Wind quality (affects wave cleanliness, not size)
   if (isOffshore && level > 0) {
-    level = Math.min(4, level + 1);
+    bonus += 1;
     warnings.push('viento offshore (olas limpias)');
   }
   if (isOnshore && level > 0) {
-    level = Math.max(0, level - 1);
+    bonus -= 1;
     warnings.push('viento onshore (mar revuelto)');
   }
 
-  // Period modifier
+  // Period quality (long period = better-formed waves, not bigger)
   if (period >= 10 && level >= 1) {
-    level = Math.min(4, level + 1);
+    bonus += 1;
     warnings.push(`periodo ${period.toFixed(0)}s (swell de calidad)`);
   } else if (period > 0 && period < 5 && level >= 1) {
-    level = Math.max(0, level - 1);
+    bonus -= 1;
     warnings.push(`periodo ${period.toFixed(0)}s (mar de viento)`);
   }
 
-  // Clamp
-  level = Math.max(0, Math.min(4, level));
+  // Apply bonus but CAP at +1 from base — modifiers improve quality, don't invent size.
+  // GRANDE (level 4) requires base >= 3 (actual waves >= 1.5m minimum)
+  level = Math.max(0, Math.min(4, baseLevel + Math.max(-2, Math.min(1, bonus))));
+
+  // Hard floor: GRANDE only with real big waves (>= 2.0m base)
+  if (level === 4 && waveHeight < 2.0) level = 3;
 
   const LEVELS: SurfVerdictResult[] = [
     { label: 'FLAT',      color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', summary: 'Sin olas — mar plano' },
