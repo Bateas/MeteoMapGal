@@ -111,7 +111,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const displayVerdict = surfInfo ?? { label: vs.label, color: vs.color, bg: vs.bg, summary: '' };
 
   const popupContent = (
-    <div className={`${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[240px] max-w-[310px] max-h-[70vh] overflow-y-auto overflow-x-hidden'}`}>
+    <div className={`break-words ${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[240px] max-w-[300px] max-h-[70vh] overflow-y-auto overflow-x-hidden'}`}>
       {/* ── Header ── */}
       <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700/60">
         <div

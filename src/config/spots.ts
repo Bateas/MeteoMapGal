@@ -628,7 +628,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     hardGates: { maxWindKt: 30, maxWaveHeight: 5.0 },
     tideStationId: '27', // Sanxenxo
     webcams: [
-      { label: 'Salvora (MG)', url: 'https://www.meteogalicia.gal/datosred/infoweb/meteo/img/estacions/Salvora/ultima.jpg', type: 'image', source: 'MeteoGalicia', azimuth: 180, refreshInterval: 300 },
+      { label: 'Salvora (MG)', url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/Salvora/ultima.jpg', type: 'image', source: 'MeteoGalicia', azimuth: 180, refreshInterval: 300 },
     ],
   },
   {
@@ -668,7 +668,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     hardGates: { maxWindKt: 25, maxWaveHeight: 5.0 },
     tideStationId: '7', // Vilagarcía
     webcams: [
-      { label: 'Corrubedo (MG)', url: 'https://www.meteogalicia.gal/datosred/infoweb/meteo/img/estacions/Corrubedo/ultima.jpg', type: 'image', source: 'MeteoGalicia', azimuth: 270, refreshInterval: 300 },
+      { label: 'Corrubedo (MG)', url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/Corrubedo/ultima.jpg', type: 'image', source: 'MeteoGalicia', azimuth: 270, refreshInterval: 300 },
     ],
   },
 ];
