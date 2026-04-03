@@ -29,10 +29,10 @@ import type { TidePoint } from '../../api/tideClient';
 // ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
   calm:    { color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', label: 'CALMA' },
-  light:   { color: '#4ade80', bg: 'rgba(34,197,94,0.12)',   label: 'FLOJO' },
-  sailing: { color: '#bef264', bg: 'rgba(163,230,53,0.12)',  label: 'NAVEGABLE' },
-  good:    { color: '#facc15', bg: 'rgba(234,179,8,0.12)',   label: 'BUENO' },
-  strong:  { color: '#fb923c', bg: 'rgba(249,115,22,0.12)',  label: 'FUERTE' },
+  light:   { color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  label: 'FLOJO' },
+  sailing: { color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   label: 'NAVEGABLE' },
+  good:    { color: '#eab308', bg: 'rgba(234,179,8,0.12)',   label: 'BUENO' },
+  strong:  { color: '#f97316', bg: 'rgba(249,115,22,0.12)',  label: 'FUERTE' },
   unknown: { color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', label: 'SIN DATOS' },
 };
 
@@ -1340,14 +1340,13 @@ function waveBarColor(m: number): string {
  * Extends into violet→dark for extreme winds (30-45+ kt). */
 function windKtColor(kt: number): string {
   if (kt < 6) return '#94a3b8';   // calm — slate
-  if (kt < 8) return '#22c55e';   // light — green
-  if (kt < 12) return '#a3e635';  // sailing — lime
-  if (kt < 18) return '#eab308';  // good — yellow
-  if (kt < 25) return '#f97316';  // strong — orange
-  if (kt < 30) return '#ef4444';  // danger — red
+  if (kt < 8) return '#38bdf8';   // flojo — sky blue
+  if (kt < 13) return '#22c55e';  // navegable — green
+  if (kt < 18) return '#eab308';  // bueno — yellow
+  if (kt < 23) return '#f97316';  // fuerte — orange
+  if (kt < 30) return '#ef4444';  // gale — red
   if (kt < 40) return '#a855f7';  // extreme — violet
-  if (kt < 50) return '#7c3aed';  // gale — dark violet
-  return '#1e1b4b';               // storm — near-black indigo
+  return '#7c3aed';               // storm — dark violet
 }
 
 function waveColor(m: number): string {

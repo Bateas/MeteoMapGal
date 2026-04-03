@@ -129,39 +129,34 @@ describe('isDirectionInRange', () => {
   });
 });
 
-describe('windSpeedColor', () => {
-  it('returns slate-500 for calm/null (<0.5 m/s)', () => {
+describe('windSpeedColor — simplified scale (0-6kt = one blue)', () => {
+  it('returns slate for calm/null (<0.5 m/s)', () => {
     expect(windSpeedColor(null)).toBe('#64748b');
     expect(windSpeedColor(0.3)).toBe('#64748b');
   });
-  it('returns blue-300 for light wind (~1-3 kt)', () => {
-    expect(windSpeedColor(1)).toBe('#93c5fd');
+  it('returns sky-400 for all light wind 1-6kt (one blue)', () => {
+    expect(windSpeedColor(1)).toBe('#38bdf8');
+    expect(windSpeedColor(2)).toBe('#38bdf8');
   });
-  it('returns cyan for light breeze (~3-6 kt)', () => {
-    expect(windSpeedColor(2)).toBe('#22d3ee');
-  });
-  it('returns green for gentle wind (~6-9 kt)', () => {
+  it('returns green for gentle wind 6-9kt', () => {
     expect(windSpeedColor(4)).toBe('#22c55e');
   });
-  it('returns lime for moderate wind (~9-13 kt)', () => {
+  it('returns lime for moderate wind 9-13kt', () => {
     expect(windSpeedColor(5)).toBe('#a3e635');
   });
-  it('returns yellow for fresh wind (~13-17 kt)', () => {
+  it('returns yellow for fresh wind 13-18kt', () => {
     expect(windSpeedColor(7)).toBe('#eab308');
   });
-  it('returns orange for strong wind (~17-23 kt)', () => {
+  it('returns orange for strong wind 18-23kt', () => {
     expect(windSpeedColor(10)).toBe('#f97316');
   });
-  it('returns red for gale (~23-30 kt)', () => {
+  it('returns red for gale 23-30kt', () => {
     expect(windSpeedColor(13)).toBe('#ef4444');
   });
-  it('returns violet for extreme (>30 kt)', () => {
+  it('returns violet for extreme 30-40kt', () => {
     expect(windSpeedColor(17)).toBe('#a855f7');
   });
-  it('returns dark violet for storm (>40 kt)', () => {
+  it('returns dark violet for storm 40+kt', () => {
     expect(windSpeedColor(22)).toBe('#7c3aed');
-  });
-  it('returns near-black for hurricane (>50 kt)', () => {
-    expect(windSpeedColor(27)).toBe('#1e1b4b');
   });
 });

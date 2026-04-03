@@ -108,15 +108,17 @@ function pushHexArrows(
  * Speed-based color palette for wind arrows — matches windSpeedColor() in windUtils.ts.
  * Each level gets a unique icon registered on the map.
  */
+/** Simplified wind arrow colors — aligned with windSpeedColor() scale.
+ * 0-6kt = one blue (less visual noise in calm conditions). */
 const SPEED_LEVELS = [
-  { id: 'wind-arrow-0', color: '#64748b', maxSpeed: 0.5 },  // slate-500  — calm (<1 kt)
-  { id: 'wind-arrow-1', color: '#93c5fd', maxSpeed: 1.5 },  // blue-300   — breath (~1-3 kt)
-  { id: 'wind-arrow-2', color: '#22d3ee', maxSpeed: 3.0 },  // cyan-400   — light (~3-6 kt)
-  { id: 'wind-arrow-3', color: '#22c55e', maxSpeed: 4.5 },  // green-500  — gentle (~6-9 kt)
-  { id: 'wind-arrow-4', color: '#a3e635', maxSpeed: 6.5 },  // lime-400   — moderate (~9-13 kt)
-  { id: 'wind-arrow-5', color: '#eab308', maxSpeed: 8.5 },  // yellow-500 — fresh (~13-17 kt)
-  { id: 'wind-arrow-6', color: '#f97316', maxSpeed: 12 },   // orange-500 — strong (~17-23 kt)
-  { id: 'wind-arrow-7', color: '#ef4444', maxSpeed: Infinity }, // red-500 — gale (>23 kt)
+  { id: 'wind-arrow-0', color: '#64748b', maxSpeed: 0.5 },  // slate — calm (<1 kt)
+  { id: 'wind-arrow-1', color: '#38bdf8', maxSpeed: 3.0 },  // sky-400 — flojo (1-6 kt, one blue)
+  { id: 'wind-arrow-2', color: '#22c55e', maxSpeed: 4.5 },  // green-500 — gentle (6-9 kt)
+  { id: 'wind-arrow-3', color: '#a3e635', maxSpeed: 6.5 },  // lime-400 — moderate (9-13 kt)
+  { id: 'wind-arrow-4', color: '#eab308', maxSpeed: 9.0 },  // yellow-500 — fresh (13-18 kt)
+  { id: 'wind-arrow-5', color: '#f97316', maxSpeed: 12 },   // orange-500 — strong (18-23 kt)
+  { id: 'wind-arrow-6', color: '#ef4444', maxSpeed: 15 },   // red-500 — gale (23-30 kt)
+  { id: 'wind-arrow-7', color: '#a855f7', maxSpeed: Infinity }, // violet — extreme (30+ kt)
 ] as const;
 
 /** Map wind speed (m/s) to a speed-level index 0-5 */
