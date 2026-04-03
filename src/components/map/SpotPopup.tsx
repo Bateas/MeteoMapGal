@@ -98,11 +98,20 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     return computeSurfVerdict(wh, tp, isOffshore, isOnshore);
   }, [marineForecast, score?.wind?.dirDeg, spot]);
 
+  // Write surf verdict to store so SpotMarker reads the FINAL verdict (with all modifiers)
+  useEffect(() => {
+    if (!surfInfo || spot.category !== 'surf') return;
+    const cache = useSpotStore.getState().surfWaveCache.get(spot.id);
+    if (cache && (cache.verdictLabel !== surfInfo.label || cache.verdictColor !== surfInfo.color)) {
+      useSpotStore.getState().setSurfWave(spot.id, { ...cache, verdictLabel: surfInfo.label, verdictColor: surfInfo.color });
+    }
+  }, [surfInfo, spot.id, spot.category]);
+
   // Use surf verdict for display if available, otherwise fall back to wind verdict
   const displayVerdict = surfInfo ?? { label: vs.label, color: vs.color, bg: vs.bg, summary: '' };
 
   const popupContent = (
-    <div className={`overflow-hidden ${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[240px] max-w-[310px]'}`}>
+    <div className={`${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[240px] max-w-[310px] max-h-[70vh] overflow-y-auto overflow-x-hidden'}`}>
       {/* ── Header ── */}
       <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700/60">
         <div
@@ -299,8 +308,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Summary ── */}
-      {score?.summary && (
+      {/* ── Summary (wind-based — hide for surf spots which have their own wave summary) ── */}
+      {spot.category !== 'surf' && score?.summary && (
         <div className="text-[11px] text-slate-400 leading-snug mt-1 pt-1 border-t border-slate-700/40">
           {score.summary}
         </div>
@@ -320,8 +329,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Scoring breakdown (collapsible) ── */}
-      {score && score.verdict !== 'unknown' && <ScoringBreakdown score={score} spot={spot} />}
+      {/* ── Scoring breakdown (collapsible) — wind-based, hide for surf ── */}
+      {spot.category !== 'surf' && score && score.verdict !== 'unknown' && <ScoringBreakdown score={score} spot={spot} />}
 
       {/* ── Sailing windows (collapsible) ── */}
       {windowResult && <SailingWindowsSection result={windowResult} />}

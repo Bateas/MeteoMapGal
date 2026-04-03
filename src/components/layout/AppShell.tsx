@@ -108,7 +108,7 @@ function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
         <span className="text-[8px] font-medium leading-none">Feedback</span>
       </button>
       <a
-        href="https://ko-fi.com/meteomapgal"
+        href="https://ko-fi.com/bateas"
         target="_blank"
         rel="noopener noreferrer"
         className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-amber-500/50 hover:text-amber-400 hover:bg-amber-900/20 transition-colors"

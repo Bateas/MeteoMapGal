@@ -95,6 +95,8 @@ export const SpotMarkers = memo(function SpotMarkers() {
             onSelect={selectSpot}
             zoomScale={zoomScale}
             isSurf={spot.category === 'surf'}
+            surfVerdictLabel={surfWaveCache.get(spot.id)?.verdictLabel}
+            surfVerdictColor={surfWaveCache.get(spot.id)?.verdictColor}
           />
         );
       })}
@@ -119,6 +121,8 @@ interface SpotMarkerItemProps {
   onSelect: (id: string) => void;
   zoomScale: number;
   isSurf?: boolean;
+  surfVerdictLabel?: string;
+  surfVerdictColor?: string;
 }
 
 /** Hexagon path for sailing spots — 6 sides */
@@ -155,7 +159,12 @@ function gaugeArc(r: number, windKt: number | null): string {
   return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
 }
 
-/** Simple surf verdict for map markers — matches computeSurfVerdict() logic in SpotPopup */
+/** Convert a hex color to ring/text/glow variants for marker rendering */
+function surfColorFromHex(hex: string): typeof VERDICT_COLORS['calm'] {
+  return { ring: hex, text: hex, glow: hex };
+}
+
+/** Simple surf verdict for map markers — fallback when cached verdict not available */
 function surfMarkerVerdict(wh: number | null): { label: string; colors: typeof VERDICT_COLORS['calm'] } {
   if (wh === null || wh < 0.3) return { label: 'FLAT', colors: VERDICT_COLORS.calm };
   if (wh < 0.8) return { label: 'PEQUE', colors: { ring: '#22d3ee', text: '#67e8f9', glow: '#0891b2' } };   // cyan
@@ -179,9 +188,16 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   onSelect,
   zoomScale,
   isSurf,
+  surfVerdictLabel,
+  surfVerdictColor,
 }: SpotMarkerItemProps) {
-  // Surf spots: wave-based colors and label. Sailing spots: wind-based.
-  const surfV = isSurf ? surfMarkerVerdict(waveHeight) : null;
+  // Surf spots: use cached verdict from popup (includes period+wind modifiers).
+  // Falls back to wave-height-only verdict if popup hasn't been opened yet.
+  const surfV = isSurf
+    ? (surfVerdictLabel && surfVerdictColor
+        ? { label: surfVerdictLabel, colors: surfColorFromHex(surfVerdictColor) }
+        : surfMarkerVerdict(waveHeight))
+    : null;
   const colors = surfV?.colors ?? VERDICT_COLORS[verdict];
   const size = isActive ? 48 : 42;
   const iconSize = isActive ? 22 : 18;
