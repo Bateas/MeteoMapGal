@@ -908,7 +908,7 @@ function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
                 <>
                   <img
                     key={imgKey}
-                    src={`${cam.url}?_t=${imgKey || Date.now()}`}
+                    src={`${cam.url.replace('https://www.meteogalicia.gal/', '/meteogalicia-api/')}?_t=${imgKey || Date.now()}`}
                     alt={cam.label}
                     className="w-full rounded border border-slate-700/60"
                     loading="lazy"
