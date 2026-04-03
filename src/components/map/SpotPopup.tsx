@@ -23,6 +23,7 @@ import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchTidePredictions } from '../../api/tideClient';
+import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
 import type { TidePoint } from '../../api/tideClient';
 
 // ── Verdict palette — matches windSpeedColor() for coherence ──
@@ -187,6 +188,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             <Cell label="Período" value={`${score.waves.wavePeriod.toFixed(0)} s`} />
           )}
         </div>
+      )}
+
+      {/* ── 24h Wave forecast (surf spots only) ── */}
+      {spot.category === 'surf' && (
+        <WaveForecastMini lat={spot.center[1]} lon={spot.center[0]} />
       )}
 
       {/* ── Temperatures & conditions ── */}
@@ -1087,6 +1093,114 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
       )}
     </div>
   );
+}
+
+// ── 24h Wave Forecast Mini ───────────────────────────────────
+
+/** Compact 24h wave forecast bar chart for surf spots.
+ * Fetches Open-Meteo Marine hourly and shows wave height + swell + period. */
+function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
+  const [hours, setHours] = useState<MarineForecastHour[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchMarineForecast(lat, lon).then((data) => {
+      if (!cancelled) {
+        setHours(data);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [lat, lon]);
+
+  if (loading) {
+    return (
+      <div className="text-[10px] text-slate-500 py-1 mb-2 border-t border-slate-700/40 pt-1.5">
+        Cargando prevision olas...
+      </div>
+    );
+  }
+
+  if (hours.length < 6) return null;
+
+  const maxWave = Math.max(...hours.map((h) => h.waveHeight ?? 0), 0.5);
+  const now = new Date();
+
+  // Find best window: highest swell with good period
+  let bestIdx = 0;
+  let bestScore = 0;
+  for (let i = 0; i < hours.length; i++) {
+    const h = hours[i];
+    const s = (h.swellHeight ?? h.waveHeight ?? 0) * (h.swellPeriod ?? h.wavePeriod ?? 5) / 5;
+    if (s > bestScore) { bestScore = s; bestIdx = i; }
+  }
+
+  // Summary text
+  const currentWave = hours[0]?.waveHeight ?? 0;
+  const maxForecast = Math.max(...hours.map((h) => h.waveHeight ?? 0));
+  const trend = maxForecast > currentWave + 0.3 ? 'subiendo' : maxForecast < currentWave - 0.3 ? 'bajando' : 'estable';
+  const bestHour = hours[bestIdx];
+  const bestTime = bestHour?.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const avgPeriod = hours.reduce((sum, h) => sum + (h.swellPeriod ?? h.wavePeriod ?? 0), 0) / hours.length;
+  const periodQuality = avgPeriod >= 10 ? 'largo (buena calidad)' : avgPeriod >= 7 ? 'medio' : 'corto (mar de viento)';
+
+  return (
+    <div className="mb-2 pt-1.5 border-t border-slate-700/40">
+      <div className="flex items-center gap-1 mb-1">
+        <WeatherIcon id="waves" size={11} className="text-cyan-400" />
+        <span className="text-[11px] font-bold text-cyan-300">Olas 24h</span>
+        <span className="text-[10px] text-slate-500 ml-auto">Periodo {periodQuality}</span>
+      </div>
+
+      {/* Bar chart */}
+      <div className="flex items-end gap-px h-8 mb-1" title="Altura de ola por hora">
+        {hours.map((h, i) => {
+          const wh = h.waveHeight ?? 0;
+          const pct = Math.max(4, (wh / maxWave) * 100);
+          const isBest = i === bestIdx;
+          const hourLabel = h.time.getHours();
+          const isPast = h.time < now;
+          return (
+            <div
+              key={i}
+              className="flex-1 rounded-t-sm relative group"
+              style={{
+                height: `${pct}%`,
+                backgroundColor: isPast ? 'rgba(100,116,139,0.3)' : waveBarColor(wh),
+                opacity: isPast ? 0.5 : 1,
+                border: isBest ? '1px solid #22d3ee' : 'none',
+              }}
+              title={`${hourLabel}h: ${wh.toFixed(1)}m${h.swellPeriod ? ` Tp ${h.swellPeriod.toFixed(0)}s` : ''}`}
+            />
+          );
+        })}
+      </div>
+
+      {/* Time labels (every 6h) */}
+      <div className="flex justify-between text-[9px] text-slate-600 mb-1">
+        {hours.filter((_, i) => i % 6 === 0).map((h, i) => (
+          <span key={i}>{h.time.getHours()}h</span>
+        ))}
+      </div>
+
+      {/* Summary line */}
+      <div className="text-[10px] text-slate-400 leading-tight">
+        Olas {trend}: {currentWave.toFixed(1)}m ahora → max {maxForecast.toFixed(1)}m a las {bestTime}
+      </div>
+    </div>
+  );
+}
+
+/** Wave height → bar color (ocean blues → red for big waves) */
+function waveBarColor(m: number): string {
+  if (m < 0.5) return 'rgba(100,116,139,0.4)'; // flat — grey
+  if (m < 1.0) return 'rgba(34,211,238,0.5)';  // small — cyan
+  if (m < 1.5) return 'rgba(56,189,248,0.6)';  // medium — sky
+  if (m < 2.5) return 'rgba(59,130,246,0.7)';  // good — blue
+  if (m < 4.0) return 'rgba(234,179,8,0.7)';   // big — yellow
+  return 'rgba(239,68,68,0.8)';                  // huge — red
 }
 
 // ── Color helpers ────────────────────────────────────────────
