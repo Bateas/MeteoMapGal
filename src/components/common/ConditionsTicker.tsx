@@ -262,7 +262,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     >
       <button
         onClick={() => setPaused(p => !p)}
-        className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors border-r border-slate-700/50"
+        className="flex-shrink-0 w-8 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors border-r border-slate-700/50"
         aria-label={paused ? 'Reanudar ticker de alertas' : 'Pausar ticker de alertas'}
         title={paused ? 'Reanudar' : 'Pausar'}
       >
