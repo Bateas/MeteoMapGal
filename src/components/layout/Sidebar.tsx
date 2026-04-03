@@ -253,7 +253,7 @@ export function Sidebar() {
           <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
         <a
-          href="https://ko-fi.com/meteomapgal"
+          href="https://ko-fi.com/bateas"
           target="_blank"
           rel="noopener noreferrer"
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg

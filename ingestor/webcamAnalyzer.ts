@@ -257,6 +257,13 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
 
   if (process.env.WEBCAM_VISION_ENABLED !== 'true') return [];
 
+  // Skip analysis at night — cameras show nothing useful, saves Ollama resources
+  const hour = new Date().getHours();
+  if (hour >= 22 || hour < 7) {
+    log.info('[Webcam] Skipping vision analysis — nighttime (22h-07h)');
+    return [];
+  }
+
   log.info(`[Webcam] Starting vision analysis (${RIAS_WEBCAMS.length} cameras)...`);
   const results: WebcamAnalysisResult[] = [];
 

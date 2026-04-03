@@ -248,7 +248,7 @@ export async function dispatchVisibilityAlert(
     text: `Niebla en ${camLabel}${bfStr}`,
     severity: 'moderate',
     title: `Niebla detectada — ${camLabel}`,
-    message: `Webcam ${camLabel}: niebla real detectada por Vision IA — visibilidad pobre${bfStr}. ${description}`,
+    message: `Webcam ${camLabel}: niebla real detectada por Vision IA — visibilidad pobre${bfStr}.`,
   });
 
   if (ok) {
