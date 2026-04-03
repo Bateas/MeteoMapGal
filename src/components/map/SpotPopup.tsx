@@ -815,14 +815,7 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
         <span className="text-[11px] text-slate-600 ml-auto">{ago}</span>
       </div>
 
-      {/* Weather description */}
-      {w.weatherDescription && (
-        <div className="text-slate-300 mb-1.5 leading-snug">
-          {w.weatherDescription}
-        </div>
-      )}
-
-      {/* Conditions grid */}
+      {/* Conditions grid — description from LLM omitted (English, not useful for user) */}
       <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[11px]">
         {/* Sky */}
         <div className="text-slate-500">Cielo</div>
@@ -874,8 +867,8 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
         )}
       </div>
 
-      <div className="text-[11px] text-slate-600 mt-1 flex items-center gap-1">
-        <span className="opacity-60">🤖</span> {result.providerUsed} · {result.latencyMs}ms · {result.confidence}
+      <div className="text-[10px] text-slate-600 mt-1">
+        Confianza: {result.confidence === 'high' ? 'alta' : result.confidence === 'medium' ? 'media' : 'baja'}
       </div>
     </div>
   );

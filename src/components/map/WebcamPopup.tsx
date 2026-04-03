@@ -145,7 +145,7 @@ function VisionBadge({ webcamId }: { webcamId: string }) {
           <span className="text-[10px] font-mono" style={{ color }}>~{result.windEstimateKt}kt</span>
         </div>
         <span className={`text-[8px] px-1 rounded ${result.confidence === 'high' ? 'bg-green-500/20 text-green-400' : result.confidence === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-500/20 text-slate-500'}`}>
-          {result.confidence}
+          {result.confidence === 'high' ? 'alta' : result.confidence === 'medium' ? 'media' : 'baja'}
         </span>
       </div>
       <div className="flex items-center gap-2 mt-0.5 text-[9px] text-slate-500">
@@ -153,11 +153,7 @@ function VisionBadge({ webcamId }: { webcamId: string }) {
         {result.weather.fogVisible && <span className="text-amber-400">Niebla</span>}
         <span className="ml-auto">hace {agoLabel}</span>
       </div>
-      {result.description && (
-        <div className="text-[8px] text-slate-600 mt-0.5 leading-tight line-clamp-2">
-          {result.description}
-        </div>
-      )}
+      {/* Description from LLM omitted — English, not actionable for user */}
     </div>
   );
 }
