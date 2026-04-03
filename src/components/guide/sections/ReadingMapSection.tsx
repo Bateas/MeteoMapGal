@@ -27,7 +27,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="wind"
             title="Barra inferior — capas de datos"
-            text="Botones en la parte inferior del mapa para activar/desactivar capas: Viento (partículas), Humedad, Satélite IR, Radar precipitación, Corrientes. Solo una activa a la vez. Tecla W para ciclar."
+            text="Botones en la parte inferior del mapa para activar/desactivar capas: Viento (partículas), Humedad, Radar precipitación, Corrientes. Solo una activa a la vez. Tecla W para ciclar."
           />
           <MiniExplainer
             iconId="map"
@@ -162,13 +162,6 @@ export function ReadingMapSection() {
             shortcut="W ×2"
             description="Mapa de calor de humedad interpolada. Verde=seco, azul=medio, púrpura=húmedo, rojo=saturado. Identifica zonas favorables para térmicos."
             color="#3b82f6"
-          />
-          <LayerCard
-            iconId="satellite"
-            name="Satélite infrarrojo"
-            shortcut="W ×3"
-            description="Imagen EUMETSAT Meteosat (IR 10.8μm) actualizada cada 15 min. Funciona 24h. Brillante = nubes altas/frías (cumulonimbus), oscuro = cielo despejado."
-            color="#8b5cf6"
           />
           <LayerCard
             iconId="radar"

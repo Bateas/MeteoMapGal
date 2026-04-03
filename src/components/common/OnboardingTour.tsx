@@ -53,7 +53,7 @@ const STEPS: Step[] = [
   {
     icon: 'layers',
     title: 'Capas del mapa',
-    desc: 'Activa capas en la barra inferior: viento animado, humedad, radar de lluvia, satélite y corrientes marinas. Cada capa muestra datos en tiempo real.',
+    desc: 'Activa capas en la barra inferior: viento animado, humedad, radar de lluvia y corrientes marinas. Cada capa muestra datos en tiempo real.',
     tip: 'Ajusta la opacidad con el slider que aparece al activar una capa.',
     highlight: '[data-tour="layers"]',
   },

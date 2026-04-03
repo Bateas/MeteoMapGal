@@ -6,7 +6,7 @@ const SHORTCUTS = [
   { key: 'R', desc: 'Refrescar datos' },
   { key: 'T', desc: 'Gradiente temperatura' },
   { key: 'A', desc: 'Panel alertas unificado' },
-  { key: 'W', desc: 'Ciclar capas (viento → humedad → satélite → radar)' },
+  { key: 'W', desc: 'Ciclar capas (viento → humedad → radar)' },
   { key: 'G', desc: 'Guía meteorológica — térmicos y navegación' },
   { key: '?', desc: 'Mostrar/ocultar esta ayuda' },
 ];
