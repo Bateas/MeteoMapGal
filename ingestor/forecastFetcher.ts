@@ -142,3 +142,96 @@ export async function getAllForecasts(): Promise<Map<string, HourlyForecast[]>> 
 
   return result;
 }
+
+// ── Marine Forecast (surf spots) ──────────────────────
+
+const MARINE_URL = 'https://marine-api.open-meteo.com/v1/marine';
+
+/** Surf spot coordinates for marine forecast */
+const SURF_COORDS = [
+  { id: 'surf-patos',     lat: 42.1548, lon: -8.8243 },
+  { id: 'surf-lanzada',   lat: 42.448,  lon: -8.876 },
+  { id: 'surf-corrubedo', lat: 42.556,  lon: -9.033 },
+] as const;
+
+export interface MarineForecastHour {
+  time: Date;
+  waveHeight: number | null;
+  wavePeriod: number | null;
+  waveDirection: number | null;
+  swellHeight: number | null;
+  swellPeriod: number | null;
+}
+
+const marineCache = new Map<string, { data: MarineForecastHour[]; fetchedAt: number }>();
+
+async function fetchMarine(lat: number, lon: number): Promise<MarineForecastHour[]> {
+  const params = new URLSearchParams({
+    latitude: lat.toString(),
+    longitude: lon.toString(),
+    hourly: 'wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period',
+    forecast_hours: '48',
+    timezone: 'Europe/Madrid',
+  });
+
+  const res = await fetch(`${MARINE_URL}?${params}`, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) throw new Error(`Marine API ${res.status}`);
+
+  const json = await res.json() as {
+    hourly: {
+      time: string[];
+      wave_height: (number | null)[];
+      wave_period: (number | null)[];
+      wave_direction: (number | null)[];
+      swell_wave_height: (number | null)[];
+      swell_wave_period: (number | null)[];
+    };
+  };
+
+  const h = json.hourly;
+  if (!h?.time) return [];
+
+  return h.time.map((t, i) => ({
+    time: new Date(t),
+    waveHeight: h.wave_height?.[i] ?? null,
+    wavePeriod: h.wave_period?.[i] ?? null,
+    waveDirection: h.wave_direction?.[i] ?? null,
+    swellHeight: h.swell_wave_height?.[i] ?? null,
+    swellPeriod: h.swell_wave_period?.[i] ?? null,
+  }));
+}
+
+/**
+ * Get marine forecast for a surf spot. Uses 30min cache.
+ */
+export async function getMarineForecast(spotId: string): Promise<MarineForecastHour[]> {
+  const now = Date.now();
+  const cached = marineCache.get(spotId);
+  if (cached && (now - cached.fetchedAt) < CACHE_TTL_MS) return cached.data;
+
+  const coords = SURF_COORDS.find(c => c.id === spotId);
+  if (!coords) return [];
+
+  try {
+    const data = await fetchMarine(coords.lat, coords.lon);
+    marineCache.set(spotId, { data, fetchedAt: now });
+    log.info(`Marine forecast ${spotId}: ${data.length} hours`);
+    return data;
+  } catch (err) {
+    log.warn(`Marine ${spotId} failed: ${(err as Error).message}`);
+    return cached?.data ?? [];
+  }
+}
+
+/**
+ * Fetch marine forecasts for all surf spots. Sequential with 1s delay.
+ */
+export async function getAllMarineForecasts(): Promise<Map<string, MarineForecastHour[]>> {
+  const result = new Map<string, MarineForecastHour[]>();
+  for (const { id } of SURF_COORDS) {
+    const data = await getMarineForecast(id);
+    result.set(id, data);
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  return result;
+}
