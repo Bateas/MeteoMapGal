@@ -164,11 +164,11 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
               className="px-2.5 py-1.5 rounded-lg text-sky-400 border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 hover:border-sky-400/50 hover:shadow-[0_0_10px_rgba(56,189,248,0.2)] transition-all min-h-[44px] flex items-center gap-1.5 text-[13px] font-semibold"
-              title="Gu&iacute;a completa de la app (G)"
-              aria-label="Abrir gu&iacute;a meteorol&oacute;gica (tecla G)"
+              title="Guía completa de la app (G)"
+              aria-label="Abrir guía meteorológica (tecla G)"
             >
               <WeatherIcon id="book-open" size={14} />
-              Gu&iacute;a
+              Guía
             </button>
             <button
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}

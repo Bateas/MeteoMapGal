@@ -96,6 +96,21 @@ export function useSurfMarineData() {
 
     fetchAll();
     timerRef.current = setInterval(fetchAll, INTERVAL);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+
+    // Pause polling when tab is hidden (save bandwidth)
+    const onVisibility = () => {
+      if (document.hidden) {
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      } else {
+        fetchAll();
+        timerRef.current = setInterval(fetchAll, INTERVAL);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [sectorId, setSurfWave]);
 }
