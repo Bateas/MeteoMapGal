@@ -16,6 +16,7 @@ import { useThermalStore } from '../store/thermalStore';
 import { useLightningStore } from './useLightningData';
 import { useForecastStore } from './useForecastTimeline';
 import { scoreAllSpots, type SpotThermalContext } from '../services/spotScoringEngine';
+import { useWebcamStore } from '../store/webcamStore';
 import { computeThermalPrecursors } from '../services/thermalPrecursorService';
 import { logPrediction } from '../services/thermalVerificationService';
 import { checkSpotAlerts, resetSpotAlerts } from '../services/spotAlertService';
@@ -94,6 +95,29 @@ export function useSpotScoring() {
       const { currentReadings, readingHistory } = useWeatherStore.getState();
       const tc = teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined;
       const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc, readingHistory);
+
+      // ── Post-processing: enrich with webcam Vision IA data ──
+      const visionResults = useWebcamStore.getState().visionResults;
+      if (visionResults.size > 0) {
+        for (const [spotId, sc] of scores) {
+          // Find webcam vision result for this spot
+          for (const [, vr] of visionResults) {
+            if (vr.spotId === spotId && vr.beaufort >= 0 && (Date.now() - vr.analyzedAt.getTime()) < 30 * 60_000) {
+              sc.webcamBeaufort = vr.beaufort;
+              // Flag discrepancy if Beaufort differs significantly from consensus
+              const consensusKt = sc.wind?.avgSpeedKt ?? 0;
+              const webcamKt = vr.windEstimateKt;
+              if (webcamKt > consensusKt + 5) {
+                sc.webcamNote = `Webcam sugiere más viento (~${webcamKt}kt) del que marcan las estaciones`;
+              } else if (consensusKt > webcamKt + 5) {
+                sc.webcamNote = `Webcam sugiere menos viento (~${webcamKt}kt) del que marcan las estaciones`;
+              }
+              break;
+            }
+          }
+        }
+      }
+
       setScores(scores);
       lastScoredRef.current = Date.now();
 

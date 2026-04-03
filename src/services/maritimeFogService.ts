@@ -534,9 +534,22 @@ export function buildMaritimeFogAlerts(
   buoys: BuoyReading[],
   stationReadings: Map<string, NormalizedReading>,
   stations: { id: string; lat: number; lon: number }[],
+  webcamFogDetected?: boolean,
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
   if (risk.level === 'none') return [];
+
+  // Webcam fog confirmation modifies severity:
+  // - webcam confirms fog → upgrade to critico (was capped at alto)
+  // - webcam sees NO fog → downgrade to riesgo (parameters say fog but webcam disagrees)
+  // - no webcam data → keep current level (alto max)
+  if (webcamFogDetected === true && risk.level === 'alto') {
+    risk.level = 'critico' as AlertLevel;
+    risk.hypothesis += ' · Niebla confirmada por webcam';
+  } else if (webcamFogDetected === false && risk.level === 'alto') {
+    risk.level = 'riesgo' as AlertLevel;
+    risk.hypothesis += ' · Webcam no detecta niebla — rebajado';
+  }
 
   const levelToScore: Record<AlertLevel, number> = {
     none: 0, riesgo: 35, alto: 60, critico: 85,
