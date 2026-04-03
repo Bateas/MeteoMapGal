@@ -88,7 +88,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             <button
               onClick={toggleSidebar}
               data-tour="sidebar"
-              className="p-1.5 rounded text-slate-400 hover:text-white active:bg-slate-700 min-w-[32px] min-h-[32px] flex items-center justify-center"
+              className="p-1.5 rounded text-slate-400 hover:text-white active:bg-slate-700 min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="Abrir panel lateral"
             >
               <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -98,14 +98,14 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
               data-tour="guide"
-              className="p-1.5 rounded text-slate-500 hover:text-white active:bg-slate-700 min-w-[28px] min-h-[28px] flex items-center justify-center"
+              className="p-1.5 rounded text-slate-500 hover:text-white active:bg-slate-700 min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="Abrir guía meteorológica"
             >
               <WeatherIcon id="book-open" size={13} />
             </button>
             <button
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-              className="p-1.5 rounded text-emerald-500/70 hover:text-emerald-300 active:bg-emerald-800/40 min-w-[28px] min-h-[28px] flex items-center justify-center"
+              className="p-1.5 rounded text-emerald-500/70 hover:text-emerald-300 active:bg-emerald-800/40 min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="Enviar feedback"
             >
               <WeatherIcon id="message-square" size={13} />
@@ -163,7 +163,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           <>
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
-              className="px-2.5 py-1.5 rounded-lg text-sky-400 border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 hover:border-sky-400/50 hover:shadow-[0_0_10px_rgba(56,189,248,0.2)] transition-all min-h-[36px] flex items-center gap-1.5 text-[11px] font-semibold"
+              className="px-2.5 py-1.5 rounded-lg text-sky-400 border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 hover:border-sky-400/50 hover:shadow-[0_0_10px_rgba(56,189,248,0.2)] transition-all min-h-[44px] flex items-center gap-1.5 text-[13px] font-semibold"
               title="Gu&iacute;a completa de la app (G)"
               aria-label="Abrir gu&iacute;a meteorol&oacute;gica (tecla G)"
             >
@@ -172,7 +172,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             </button>
             <button
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-              className="px-2.5 py-1.5 rounded-lg text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-400/50 hover:shadow-[0_0_10px_rgba(52,211,153,0.2)] transition-all min-h-[36px] flex items-center gap-1.5 text-[11px] font-semibold"
+              className="px-2.5 py-1.5 rounded-lg text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-400/50 hover:shadow-[0_0_10px_rgba(52,211,153,0.2)] transition-all min-h-[44px] flex items-center gap-1.5 text-[13px] font-semibold"
               aria-label="Enviar feedback"
               title="Enviar sugerencias o reportar problemas"
             >
@@ -205,7 +205,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             onClick={onToggleFieldDrawer}
             data-tour="panel"
             className={`flex items-center gap-1 rounded-lg font-bold transition-all
-              ${isMobile ? 'px-2 py-1 text-[11px] min-h-[30px]' : 'px-2.5 py-1.5 text-[11px] min-h-[36px]'}
+              ${isMobile ? 'px-2 py-1 text-[12px] min-h-[44px]' : 'px-2.5 py-1.5 text-[13px] min-h-[44px]'}
               ${fieldDrawerOpen
                 ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
                 : fieldAlertLevel !== 'none'
@@ -275,7 +275,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         <button
           onClick={toggleTheme}
           className={`rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/60 transition-all flex items-center justify-center
-            ${isMobile ? 'p-1 min-w-[32px] min-h-[32px]' : 'p-1.5 min-w-[44px] min-h-[44px]'}`}
+            ${isMobile ? 'p-1.5 min-w-[44px] min-h-[44px]' : 'p-1.5 min-w-[44px] min-h-[44px]'}`}
           aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
         >
