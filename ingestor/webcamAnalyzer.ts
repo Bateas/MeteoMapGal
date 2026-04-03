@@ -22,33 +22,15 @@ const API_TIMEOUT_MS = 60_000; // 60s timeout for Ollama (CPU inference is slow)
 
 // ── Beaufort prompt (adapted from webcamVisionService.ts) ────
 
-const BEAUFORT_PROMPT = `Analyze this webcam image of a coastal/water area in Galicia, Spain.
+// Simple prompt for small vision models (moondream 1.8B).
+// Complex JSON prompts confuse small models — use plain text Q&A instead.
+const BEAUFORT_PROMPT = `Look at this webcam image. Answer these 5 questions with ONE word or number each:
 
-Respond ONLY with a JSON object (no markdown, no explanation):
-
-{
-  "beaufort": <number 0-7 or -1 if night/unclear>,
-  "confidence": "<high|medium|low>",
-  "description": "<brief water surface description in Spanish>",
-  "sky": "<clear|partly_cloudy|overcast|fog|rain|storm|night|unknown>",
-  "visibility": "<good|moderate|poor>",
-  "fog": <true|false>,
-  "precipitation": <true|false>,
-  "sea_state": "<description in Spanish>"
-}
-
-Beaufort scale for water surface:
-0: Mirror-like, no ripples
-1: Small ripples, no foam
-2: Small wavelets, glassy crests
-3: Large wavelets, scattered whitecaps
-4: Small waves, frequent whitecaps
-5: Moderate waves, many whitecaps, some spray
-6: Large waves, extensive whitecaps, spray
-7: Sea heaps up, foam streaks
-
-Be CONSERVATIVE: if uncertain, estimate LOWER Beaufort.
-If image is night/dark/unclear, return beaufort: -1, confidence: "low".`;
+1. Is it daytime or nighttime? (day/night)
+2. Can you see water or sea? (yes/no)
+3. How is the water surface? (calm/ripples/wavelets/whitecaps/rough/very_rough)
+4. Is there fog or mist? (yes/no)
+5. Is the sky clear, cloudy or overcast? (clear/cloudy/overcast/fog/rain)`;
 
 // ── Types ────────────────────────────────────────────
 
@@ -148,55 +130,75 @@ async function callOllamaVision(imageBase64: string): Promise<string | null> {
   }
 }
 
-// ── Response parser (adapted from webcamVisionService.ts) ────
+// ── Response parser — extracts answers from plain text ────
+
+/** Map water surface description to Beaufort number */
+function waterToBeaufort(water: string): number {
+  const w = water.toLowerCase();
+  if (w.includes('very_rough') || w.includes('very rough') || w.includes('heap')) return 6;
+  if (w.includes('rough') || w.includes('spray')) return 5;
+  if (w.includes('whitecap') || w.includes('white cap') || w.includes('foam')) return 4;
+  if (w.includes('wavelet') || w.includes('small wave')) return 3;
+  if (w.includes('ripple') || w.includes('slight')) return 2;
+  if (w.includes('calm') || w.includes('mirror') || w.includes('flat') || w.includes('smooth') || w.includes('still')) return 0;
+  // Generic wave mentions
+  if (w.includes('wave') || w.includes('chop')) return 3;
+  return -1; // Unknown
+}
 
 function parseVisionResponse(raw: string): Partial<WebcamAnalysisResult> {
-  // Strip markdown code blocks if present
-  let clean = raw.trim();
-  const codeBlockMatch = clean.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlockMatch) clean = codeBlockMatch[1].trim();
+  const text = raw.toLowerCase();
 
-  // Try to find JSON object in response
-  const jsonMatch = clean.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    // Fallback: try to find beaufort number
-    const bfMatch = raw.match(/beaufort["\s:]+(\d)/i);
-    return {
-      beaufort: bfMatch ? parseInt(bfMatch[1]) : -1,
-      confidence: 'low',
-      description: 'Parsing fallback',
-      sky: 'unknown',
-      visibility: 'moderate',
-      fog: false,
-      precipitation: false,
-      seaState: '',
-    };
+  // 1. Day or night?
+  const isNight = text.includes('night') || text.includes('dark') || text.includes('nighttime');
+  if (isNight) {
+    return { beaufort: -1, confidence: 'low', description: 'Night/dark', sky: 'night', visibility: 'moderate', fog: false, precipitation: false, seaState: '' };
   }
 
-  try {
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      beaufort: typeof parsed.beaufort === 'number' ? parsed.beaufort : -1,
-      confidence: ['high', 'medium', 'low'].includes(parsed.confidence) ? parsed.confidence : 'low',
-      description: parsed.description || '',
-      sky: parsed.sky || 'unknown',
-      visibility: parsed.visibility || 'moderate',
-      fog: !!parsed.fog,
-      precipitation: !!parsed.precipitation,
-      seaState: parsed.sea_state || parsed.seaState || '',
-    };
-  } catch {
-    return {
-      beaufort: -1,
-      confidence: 'low',
-      description: 'JSON parse error',
-      sky: 'unknown',
-      visibility: 'moderate',
-      fog: false,
-      precipitation: false,
-      seaState: '',
-    };
+  // 2. Water visible?
+  const hasWater = text.includes('water') || text.includes('sea') || text.includes('ocean') || text.includes('river') || text.includes('bay') || text.includes('waves') || text.includes('coast');
+
+  // 3. Water surface → Beaufort
+  let beaufort = -1;
+  // Try to extract from numbered answers
+  const surfaceMatch = text.match(/(?:3|water surface|surface)[.:\s]*([\w_]+)/i) ||
+    text.match(/(calm|ripples?|wavelets?|whitecaps?|rough|very.?rough|smooth|flat|choppy|waves?|foam)/i);
+  if (surfaceMatch) {
+    beaufort = waterToBeaufort(surfaceMatch[1] || surfaceMatch[0]);
+  } else if (hasWater) {
+    beaufort = 1; // Water visible but surface unclear → assume light
   }
+
+  // 4. Fog?
+  const fog = text.includes('fog') || text.includes('mist') || text.includes('haz');
+
+  // 5. Sky condition
+  let sky = 'unknown';
+  if (text.includes('rain')) sky = 'rain';
+  else if (fog) sky = 'fog';
+  else if (text.includes('overcast') || text.includes('grey') || text.includes('gray')) sky = 'overcast';
+  else if (text.includes('cloud') || text.includes('partly')) sky = 'partly_cloudy';
+  else if (text.includes('clear') || text.includes('sun') || text.includes('blue sky')) sky = 'clear';
+
+  // Visibility from fog
+  const visibility = fog ? 'poor' : (sky === 'overcast' ? 'moderate' : 'good');
+
+  // Confidence based on how much info we extracted
+  const confidence = beaufort >= 0 && hasWater ? 'medium' : 'low';
+
+  // Build description from raw text (first 100 chars)
+  const description = raw.trim().slice(0, 150);
+
+  return {
+    beaufort,
+    confidence: confidence as 'high' | 'medium' | 'low',
+    description,
+    sky,
+    visibility,
+    fog,
+    precipitation: text.includes('rain') || text.includes('drizzle'),
+    seaState: surfaceMatch ? surfaceMatch[0] : '',
+  };
 }
 
 // ── Single webcam analysis ───────────────────────────
