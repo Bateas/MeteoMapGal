@@ -401,11 +401,14 @@ function assessBuoyFogRisk(
   confidence = Math.min(100, Math.max(0, confidence));
 
   // ── Level determination ──────────────────────────────────
-  if (delta >= 0 && delta <= DELTA_T_CRITICAL && humidity !== null && humidity >= MIN_HUMIDITY_HIGH && onshore) {
-    level = 'critico';
-  } else if (delta >= 0 && delta <= DELTA_T_HIGH && confidence >= 50) {
-    level = 'alto';
-  } else if (delta <= DELTA_T_RISK && confidence >= 35) {
+  // IMPORTANT: Without webcam/visibility confirmation, cap at 'alto' max.
+  // 'critico' (PELIGRO) requires external confirmation that we don't have yet.
+  // High humidity + small ΔT at night is COMMON in coastal Galicia without fog.
+  if (delta >= 0 && delta <= DELTA_T_CRITICAL && humidity !== null && humidity >= MIN_HUMIDITY_HIGH && onshore && confidence >= 70) {
+    level = 'alto'; // was 'critico' — downgraded until we have webcam/visibility confirmation
+  } else if (delta >= 0 && delta <= DELTA_T_HIGH && confidence >= 55) {
+    level = 'riesgo'; // was 'alto' at 50 — tightened threshold
+  } else if (delta <= DELTA_T_RISK && confidence >= 40) {
     level = 'riesgo';
   }
 
