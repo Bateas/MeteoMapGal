@@ -251,7 +251,9 @@ export function AppShell() {
   }, [readingsCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Geolocation auto-sector (runs once per device, first visit only)
-  useEffect(() => { tryAutoSector(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Geolocation auto-sector DISABLED — the browser permission popup on first
+  // visit scares users away. Sector switch is manual via header buttons.
+  // useEffect(() => { tryAutoSector(); }, []);
 
   // Prune stale reading history every 30 min (entries > 24h old) + daily summary check
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
