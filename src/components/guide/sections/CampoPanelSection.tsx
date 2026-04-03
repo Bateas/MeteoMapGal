@@ -10,7 +10,7 @@ export function CampoPanelSection() {
       <h2 className="text-2xl font-bold text-white">Panel de Condiciones</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
         El panel de condiciones (tecla <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">C</kbd>)
-        es un caj&oacute;n lateral derecho con pesta&ntilde;as tem&aacute;ticas: condiciones de navegaci&oacute;n,
+        es un cajón lateral derecho con pestañas temáticas: condiciones de navegación,
         alertas de campo (agricultura), drones y datos meteo. Incluye alertas clasificadas por severidad.
       </p>
 
@@ -20,29 +20,29 @@ export function CampoPanelSection() {
         <p className="text-[11px] text-slate-400">
           Pulsa las teclas <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">1</kbd> –{' '}
           <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">3</kbd>{' '}
-          con el panel abierto para cambiar de pesta&ntilde;a.
+          con el panel abierto para cambiar de pestaña.
         </p>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
           <TabRow
             num="1"
             iconId="activity"
             name="Condiciones"
-            modules="Mareas (R&iacute;as) &middot; Perfil atm. (Embalse) &middot; Alertas &middot; Niebla &middot; Timeline 48h"
-            desc="Navegaci&oacute;n, alertas activas, mareas IHM, perfil atmosf&eacute;rico, propagaci&oacute;n de viento."
+            modules="Mareas (Rías) &middot; Perfil atm. (Embalse) &middot; Alertas &middot; Niebla &middot; Timeline 48h"
+            desc="Navegación, alertas activas, mareas IHM, perfil atmosférico, propagación de viento."
           />
           <TabRow
             num="2"
             iconId="leaf"
             name="Campo"
             modules="Helada + Lluvia + Niebla + ET₀ + Fitosanitario + GDD + Lunar"
-            desc="Agricultura y viticultura: riesgos de cultivo, riego, enfermedades, fenolog&iacute;a (GDD) y calendario lunar."
+            desc="Agricultura y viticultura: riesgos de cultivo, riego, enfermedades, fenología (GDD) y calendario lunar."
           />
           <TabRow
             num="3"
             iconId="drone"
             name="Dron"
-            modules="Vuelo Dron + Espacio a&eacute;reo + Viento + Lluvia + Niebla"
-            desc="Para pilotos de dron: aptitud meteorol&oacute;gica y restricciones ENAIRE."
+            modules="Vuelo Dron + Espacio aéreo + Viento + Lluvia + Niebla"
+            desc="Para pilotos de dron: aptitud meteorológica y restricciones ENAIRE."
           />
         </div>
       </div>

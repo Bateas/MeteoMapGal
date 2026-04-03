@@ -42,18 +42,18 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="wind"
             title="Ticker de condiciones"
-            text="Banner horizontal animado con bot&oacute;n de pausa. Colores por categor&iacute;a: verde (spots con viento), &aacute;mbar (alertas/t&eacute;rmicos), cyan (mareas/olas), azul (previsi&oacute;n)."
+            text="Banner horizontal animado con botón de pausa. Colores por categoría: verde (spots con viento), ámbar (alertas/térmicos), cyan (mareas/olas), azul (previsión)."
           />
         </div>
       </div>
 
       {/* Station markers */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Marcadores de estaci&oacute;n</h3>
-        <p className="text-xs text-slate-400">C&iacute;rculos con la letra de la fuente (A, MG, MC, WU, NT, SX) y anillo de color. El c&iacute;rculo cambia de color seg&uacute;n temperatura. Las boyas son diamantes con &quot;B&quot;.</p>
+        <h3 className="text-sm font-bold text-white">Marcadores de estación</h3>
+        <p className="text-xs text-slate-400">Círculos con la letra de la fuente (A, MG, MC, WU, NT, SX) y anillo de color. El círculo cambia de color según temperatura. Las boyas son diamantes con "B".</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <ExplainerCard
-            title="Estaci&oacute;n de viento"
+            title="Estación de viento"
             svg={
               <svg viewBox="0 0 60 60" className="w-12 h-12">
                 {/* Source ring */}
@@ -64,7 +64,7 @@ export function ReadingMapSection() {
                 <text x="30" y="35" textAnchor="middle" className="text-[11px] fill-white font-bold">MG</text>
               </svg>
             }
-            description="C&iacute;rculo con letra de fuente (A, MG, MC, WU, NT, SX) + anillo de color de la red. Color = temperatura. Flechas afiladas alrededor = viento."
+            description="Círculo con letra de fuente (A, MG, MC, WU, NT, SX) + anillo de color de la red. Color = temperatura. Flechas afiladas alrededor = viento."
           />
           <ExplainerCard
             title="Solo temperatura"
@@ -77,7 +77,7 @@ export function ReadingMapSection() {
             description="Punto pequeño. Estaciones sin anemómetro. Contribuyen al gradiente térmico."
           />
           <ExplainerCard
-            title="Boya marina (R&iacute;as)"
+            title="Boya marina (Rías)"
             svg={
               <svg viewBox="0 0 60 60" className="w-12 h-12">
                 {/* Diamond shape */}
@@ -86,7 +86,7 @@ export function ReadingMapSection() {
                 <text x="30" y="35" textAnchor="middle" className="text-[11px] fill-white font-bold">B</text>
               </svg>
             }
-            description="Diamante con &quot;B&quot; central. Color = temperatura del agua. Muestra oleaje encima. Clic para popup con todos los datos. Solo R&iacute;as Baixas."
+            description={'Diamante con "B" central. Color = temperatura del agua. Muestra oleaje encima. Clic para popup con todos los datos. Solo Rías Baixas.'}
           />
         </div>
       </div>
@@ -153,7 +153,7 @@ export function ReadingMapSection() {
             iconId="wind"
             name="Partículas de viento"
             shortcut="W ×1"
-            description="Animaci&oacute;n de 250 part&iacute;culas mostrando el flujo del viento interpolado (IDW). Brillo pulsante en rachas fuertes (&ge;15kt). Sigue las l&iacute;neas de flujo para ver la direcci&oacute;n."
+            description="Animación de 250 partículas mostrando el flujo del viento interpolado (IDW). Brillo pulsante en rachas fuertes (≥15kt). Sigue las líneas de flujo para ver la dirección."
             color="#22c55e"
           />
           <LayerCard
@@ -167,7 +167,7 @@ export function ReadingMapSection() {
             iconId="radar"
             name="Radar de precipitación"
             shortcut="W ×4"
-            description="RainViewer: radar animado (2h de historial). Colores indican intensidad: azul=d&eacute;bil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
+            description="RainViewer: radar animado (2h de historial). Colores indican intensidad: azul=débil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
             color="#06b6d4"
           />
           <LayerCard
@@ -227,7 +227,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="anchor"
             title="Boyas marinas (Rías)"
-            text="Marcadores en forma de diamante con &quot;B&quot; central. Color = temperatura del agua. Muestran altura de ola encima. Clic abre popup con oleaje, viento, T agua/aire, presi&oacute;n, corrientes y salinidad. Solo R&iacute;as Baixas."
+            text={'Marcadores en forma de diamante con "B" central. Color = temperatura del agua. Muestran altura de ola encima. Clic abre popup con oleaje, viento, T agua/aire, presión, corrientes y salinidad. Solo Rías Baixas.'}
           />
           <MiniExplainer
             iconId="anchor"
@@ -242,7 +242,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="sailboat"
             title="Spots de navegación"
-            text="Clic en el hex&aacute;gono del spot para ver popup con veredicto, viento (kt), oleaje, T agua, patr&oacute;n detectado y resumen. Score 0-100 por zona. El arco exterior indica la intensidad del viento. En m&oacute;vil: panel inferior deslizable."
+            text="Clic en el hexágono del spot para ver popup con veredicto, viento (kt), oleaje, T agua, patrón detectado y resumen. Score 0-100 por zona. El arco exterior indica la intensidad del viento. En móvil: panel inferior deslizable."
           />
           <MiniExplainer
             iconId="wind"

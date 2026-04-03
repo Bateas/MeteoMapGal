@@ -162,14 +162,14 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
           <>
             {/* Phase message */}
             <div className="text-center">
-              <p className="text-sm text-slate-300 transition-all duration-500">
+              <p className="text-base text-slate-200 font-medium transition-all duration-500">
                 {PHASE_LABELS[phase]}
               </p>
             </div>
 
             {/* Progress bar */}
             <div className="w-full">
-              <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-500 ease-out"
                   style={{
@@ -221,7 +221,7 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
 
             {/* Station count (once discovered) */}
             {stations.length > 0 && (
-              <p className="text-xs text-slate-500 animate-fade-in">
+              <p className="text-sm text-slate-300 animate-fade-in">
                 {stations.length} estaciones encontradas
               </p>
             )}

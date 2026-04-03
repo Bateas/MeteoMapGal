@@ -131,7 +131,7 @@ export const SpotSelector = memo(function SpotSelector() {
             <span>
               Sistema en pruebas. Los patrones de viento son orientativos
               y pueden no reflejar condiciones reales (ej. detectar
-              &ldquo;t&eacute;rmica&rdquo; por coincidencia de direcci&oacute;n).
+              "térmica" por coincidencia de dirección).
             </span>
           </div>
         </div>

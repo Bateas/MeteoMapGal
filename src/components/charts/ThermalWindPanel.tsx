@@ -208,7 +208,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
               : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
           }`}
         >
-          Hist&oacute;rico
+          Histórico
         </button>
       </div>
 
@@ -393,7 +393,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
           {forecastChartData.length > 0 && (
             <div>
               <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                Predicci&oacute;n T&eacute;rmica (pr&oacute;x. horas)
+                Predicción Térmica (próx. horas)
               </div>
               <ThermalWindowSummary data={forecastChartData} />
               <div className="bg-slate-800/50 rounded-lg p-2">
@@ -537,7 +537,7 @@ function ThermalWindowSummary({ data }: { data: { time: number; score: number }[
     return (
       <div className="rounded border border-slate-700/50 bg-slate-800/30 px-2.5 py-1.5 mb-1.5">
         <span className="text-[11px] text-slate-500">
-          Sin ventana t&eacute;rmica clara. M&aacute;x. probabilidad: <span className="text-slate-400 font-mono">{Math.round(maxScore)}%</span>
+          Sin ventana térmica clara. Máx. probabilidad: <span className="text-slate-400 font-mono">{Math.round(maxScore)}%</span>
         </span>
       </div>
     );
@@ -556,8 +556,8 @@ function ThermalWindowSummary({ data }: { data: { time: number; score: number }[
         return (
           <div key={i} className={`rounded border px-2.5 py-1.5 flex items-center justify-between ${color}`}>
             <div className="text-[11px] font-semibold">
-              T&eacute;rmico {w.peak >= 75 ? 'muy probable' : w.peak >= 55 ? 'probable' : 'posible'}{' '}
-              <span className="font-mono">{startH}&ndash;{endH}</span>
+              Térmico {w.peak >= 75 ? 'muy probable' : w.peak >= 55 ? 'probable' : 'posible'}{' '}
+              <span className="font-mono">{startH}–{endH}</span>
             </div>
             <div className="text-[11px] font-mono">
               pico {Math.round(w.peak)}% ({peakH})
@@ -586,7 +586,7 @@ function AlertsBanner({
     return (
       <div className="rounded-lg border border-slate-700 bg-slate-800/30 p-2.5 text-center">
         <div className="text-[11px] text-slate-500">
-          Sin alertas t&eacute;rmicas activas
+          Sin alertas térmicas activas
         </div>
       </div>
     );

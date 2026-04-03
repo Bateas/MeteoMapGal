@@ -116,7 +116,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
         <h1 className={`font-bold text-white tracking-tight flex-shrink-0 ${isMobile ? 'hidden' : 'text-base'}`}>
           MeteoMapGal
         </h1>
-        {!isMobile && <span className="text-[11px] font-normal text-slate-500 ml-0.5" aria-label={`versión ${APP_VERSION}`}>v{APP_VERSION}</span>}
+        {!isMobile && <span className="text-[12px] font-medium text-slate-400 ml-1 px-1.5 py-0.5 rounded bg-slate-800/60" aria-label={`versión ${APP_VERSION}`}>v{APP_VERSION}</span>}
         {/* Sector selector — compact on mobile (icon-only for inactive), label on desktop */}
         {isMobile ? (
           <div className="flex items-center gap-1.5" data-tour="sectors">
