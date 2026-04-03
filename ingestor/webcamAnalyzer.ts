@@ -160,7 +160,7 @@ function textToBeaufort(text: string): number {
 
 function parseVisionResponse(raw: string): Partial<WebcamAnalysisResult> {
   const text = raw.toLowerCase();
-  const fullDesc = raw.trim().slice(0, 200);
+  const fullDesc = raw.trim().slice(0, 350);
 
   // Night detection
   const isNight = /\bnight\b|nighttime|dark.?sky|no.?light|illuminat.*light|lamp.*reflect/.test(text);
@@ -174,19 +174,21 @@ function parseVisionResponse(raw: string): Partial<WebcamAnalysisResult> {
   // Beaufort from water surface + wind indicators
   const beaufort = textToBeaufort(text);
 
-  // Fog / mist
-  const fog = /\bfog\b|\bmist\b|\bhaz[ey]\b|low.?visibility|obscur/.test(text);
+  // Fog / mist — strict: only real fog/mist, NOT mere haze (moondream says "hazy" for most coastal images)
+  const fog = /\bfog\b|\bmist\b|\bfoggy\b|\bmisty\b|low.?visibility|obscur|can'?t see|barely visible|zero.?vis/.test(text);
+  const hazy = /\bhaz[ey]\b|ethereal/.test(text) && !fog;
 
   // Sky condition — take strongest indicator
   let sky = 'unknown';
   if (/rain|drizzle|shower|precip/.test(text)) sky = 'rain';
   else if (fog) sky = 'fog';
   else if (/overcast|grey|gray|heavy cloud|thick cloud|dark cloud/.test(text)) sky = 'overcast';
+  else if (hazy) sky = 'hazy';
   else if (/cloud|partly|scatter/.test(text)) sky = 'partly_cloudy';
   else if (/clear|sun|blue sky|bright/.test(text)) sky = 'clear';
 
-  // Visibility
-  const visibility = fog ? 'poor' : /haz|limit|moderate.?vis/.test(text) ? 'moderate' : 'good';
+  // Visibility — hazy = moderate, actual fog = poor
+  const visibility = fog ? 'poor' : hazy ? 'moderate' : /limit|reduced.?vis/.test(text) ? 'moderate' : 'good';
 
   // Precipitation
   const precipitation = /rain|drizzle|shower|precip/.test(text);
@@ -289,10 +291,12 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
     log.info(`[Webcam] Persisted ${persisted} readings to DB`);
   }
 
-  // Check fog alerts — dispatch if fog detected with poor visibility
+  // Check fog alerts — only real fog (not haze), and only poor visibility
   for (const r of results) {
     if (r.fog && r.visibility === 'poor' && r.spotId) {
-      await dispatchVisibilityAlert(r.webcamId, r.spotId, r.description).catch(err =>
+      const cam = RIAS_WEBCAMS.find(w => w.id === r.webcamId);
+      const camName = cam?.name ?? r.webcamId;
+      await dispatchVisibilityAlert(r.webcamId, r.spotId, r.description, camName, r.beaufort).catch(err =>
         log.warn(`[Webcam] Fog alert failed: ${(err as Error).message}`));
     }
   }

@@ -226,28 +226,34 @@ const lastVisibilityAlert = new Map<string, number>();
 
 /**
  * Dispatch a fog/visibility alert from webcam vision analysis.
+ * Only fires for actual fog (not haze) — see webcamAnalyzer.ts fog regex.
  */
 export async function dispatchVisibilityAlert(
   webcamId: string,
   spotId: string,
   description: string,
+  webcamName?: string,
+  beaufort?: number,
 ): Promise<void> {
   if (isNightTime()) return;
   if (isInCooldown(lastVisibilityAlert, webcamId, VISIBILITY_COOLDOWN_MS)) return;
+
+  const camLabel = webcamName ?? webcamId;
+  const bfStr = beaufort != null && beaufort >= 0 ? ` · Beaufort ${beaufort}` : '';
 
   const ok = await postWebhook({
     type: 'visibility-alert',
     spot: spotId,
     sector: 'Rias Baixas',
-    text: `Niebla detectada — ${description}`,
+    text: `Niebla en ${camLabel}${bfStr}`,
     severity: 'moderate',
-    title: `Visibilidad reducida`,
-    message: `Webcam ${webcamId}: niebla/bruma — visibilidad baja. ${description}`,
+    title: `Niebla detectada — ${camLabel}`,
+    message: `Webcam ${camLabel}: niebla real detectada por Vision IA — visibilidad pobre${bfStr}. ${description}`,
   });
 
   if (ok) {
     lastVisibilityAlert.set(webcamId, Date.now());
-    log.ok(`Visibility alert: ${webcamId} → fog detected`);
+    log.ok(`Visibility alert: ${webcamId} (${camLabel}) → fog detected`);
   }
 }
 

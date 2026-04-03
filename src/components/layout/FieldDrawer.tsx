@@ -20,6 +20,7 @@ import type { IconId } from '../icons/WeatherIcons';
 import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { getLunarPhase, getLunarCalendar } from '../../services/lunarService';
+import { msToKnots } from '../../services/windUtils';
 
 // Lazy-load heavy dashboard components (~400 lines each)
 const TidePanel = lazy(() => import('../dashboard/TidePanel').then(m => ({ default: m.TidePanel })));
@@ -253,7 +254,7 @@ function FrostSection({ alerts }: { alerts: FieldAlerts }) {
           </div>
           <div className="flex justify-between text-[11px]">
             <span className="text-slate-400">Viento</span>
-            <span className="text-slate-300">{alerts.frost.windSpeed?.toFixed(1) ?? '-'} m/s</span>
+            <span className="text-slate-300">{alerts.frost.windSpeed != null ? msToKnots(alerts.frost.windSpeed).toFixed(0) : '-'} kt</span>
           </div>
         </div>
       )}
@@ -344,7 +345,7 @@ function FogSection({ alerts }: { alerts: FieldAlerts }) {
           {alerts.fog.windSpeed !== null && (
             <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">Viento</span>
-              <span className="text-slate-300">{alerts.fog.windSpeed.toFixed(1)} m/s</span>
+              <span className="text-slate-300">{msToKnots(alerts.fog.windSpeed).toFixed(0)} kt</span>
             </div>
           )}
           <div className="mt-1.5 text-[11px] text-slate-400 italic leading-snug border-t border-slate-700/50 pt-1.5">

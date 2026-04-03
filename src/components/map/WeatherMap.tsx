@@ -31,6 +31,7 @@ import { AirspaceOverlay } from './AirspaceOverlay';
 import { BathymetryOverlay } from './BathymetryOverlay';
 import { SSTOverlay } from './SSTOverlay';
 import { SSTLegend } from './SSTLegend';
+import { SpotScoreLegend } from './SpotScoreLegend';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { MapStyleSelector } from './MapStyleSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
@@ -438,6 +439,7 @@ export function WeatherMap() {
       <SectorSelector />
       <MapStyleSelector />
       <SSTLegend />
+      <SpotScoreLegend />
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
 
