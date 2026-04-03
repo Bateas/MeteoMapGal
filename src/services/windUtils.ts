@@ -29,18 +29,21 @@ export function windArrowLength(speed: number): number {
  * More color resolution in the 3–17 kt range where most sailing action happens.
  * Input: speed in m/s. Thresholds shown in approximate knots.
  */
+/**
+ * Wind speed → color. Simplified scale aligned with verdict thresholds.
+ * 0-6kt = one blue (flojo), 6-9 = green, 9-13 = lime, 13-18 = yellow, 18-23 = orange, 23+ = red.
+ * Units: m/s input (1 kt ≈ 0.514 m/s).
+ */
 export function windSpeedColor(speed: number | null): string {
   if (speed === null || speed < 0.5) return '#64748b'; // slate-500  (calm, <1 kt)
-  if (speed < 1.5) return '#93c5fd';   // blue-300   (~1-3 kt: breath)
-  if (speed < 3.0) return '#22d3ee';   // cyan-400   (~3-6 kt: light)
-  if (speed < 4.5) return '#22c55e';   // green-500  (~6-9 kt: gentle)
-  if (speed < 6.5) return '#a3e635';   // lime-400   (~9-13 kt: moderate)
-  if (speed < 8.5) return '#eab308';   // yellow-500 (~13-17 kt: fresh)
-  if (speed < 12)  return '#f97316';   // orange-500 (~17-23 kt: strong)
-  if (speed < 15)  return '#ef4444';   // red-500    (~23-30 kt: gale)
-  if (speed < 20)  return '#a855f7';   // violet     (~30-40 kt: extreme)
-  if (speed < 25)  return '#7c3aed';   // dark violet (~40-50 kt: storm)
-  return '#1e1b4b';                    // near-black  (>50 kt: hurricane)
+  if (speed < 3.0) return '#38bdf8';   // sky-400    (1-6 kt: flojo — one blue for all light wind)
+  if (speed < 4.5) return '#22c55e';   // green-500  (6-9 kt: gentle / navegable entry)
+  if (speed < 6.5) return '#a3e635';   // lime-400   (9-13 kt: moderate / navegable)
+  if (speed < 9.0) return '#eab308';   // yellow-500 (13-18 kt: fresh / bueno)
+  if (speed < 12)  return '#f97316';   // orange-500 (18-23 kt: strong / fuerte)
+  if (speed < 15)  return '#ef4444';   // red-500    (23-30 kt: gale)
+  if (speed < 20)  return '#a855f7';   // violet     (30-40 kt: extreme)
+  return '#7c3aed';                    // dark violet (40+ kt: storm)
 }
 
 /**
@@ -49,16 +52,14 @@ export function windSpeedColor(speed: number | null): string {
  */
 export function windSpeedClass(speed: number | null): string {
   if (speed === null || speed < 0.5) return 'text-slate-500';
-  if (speed < 1.5) return 'text-blue-300';
-  if (speed < 3.0) return 'text-cyan-400';
-  if (speed < 4.5) return 'text-green-500';
-  if (speed < 6.5) return 'text-lime-400';
-  if (speed < 8.5) return 'text-yellow-500';
-  if (speed < 12)  return 'text-orange-500';
-  if (speed < 15)  return 'text-red-500';
-  if (speed < 20)  return 'text-purple-400';
-  if (speed < 25)  return 'text-violet-600';
-  return 'text-indigo-950';
+  if (speed < 3.0) return 'text-sky-400';     // 1-6kt flojo
+  if (speed < 4.5) return 'text-green-500';   // 6-9kt
+  if (speed < 6.5) return 'text-lime-400';    // 9-13kt
+  if (speed < 9.0) return 'text-yellow-500';  // 13-18kt
+  if (speed < 12)  return 'text-orange-500';  // 18-23kt
+  if (speed < 15)  return 'text-red-500';     // 23-30kt
+  if (speed < 20)  return 'text-purple-400';  // 30-40kt
+  return 'text-violet-600';                   // 40+kt
 }
 
 /** Color for temperature visualization */

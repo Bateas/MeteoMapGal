@@ -9,8 +9,8 @@ import { useSpotStore } from '../../store/spotStore';
 
 const ITEMS: { label: string; color: string }[] = [
   { label: 'Calma',     color: '#94a3b8' },
-  { label: 'Flojo',     color: '#22c55e' },
-  { label: 'Navegable', color: '#a3e635' },
+  { label: 'Flojo',     color: '#38bdf8' },
+  { label: 'Navegable', color: '#22c55e' },
   { label: 'Bueno',     color: '#eab308' },
   { label: 'Fuerte',    color: '#f97316' },
 ];

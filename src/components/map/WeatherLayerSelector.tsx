@@ -222,12 +222,11 @@ function WindLegend() {
       <div className="flex items-center gap-0">
         {[
           { color: '#64748b', label: '0' },
-          { color: '#93c5fd', label: '1' },
-          { color: '#22d3ee', label: '3' },
-          { color: '#22c55e', label: '6' },
-          { color: '#a3e635', label: '9' },
-          { color: '#eab308', label: '13' },
-          { color: '#f97316', label: '17' },
+          { color: '#38bdf8', label: '6' },
+          { color: '#22c55e', label: '9' },
+          { color: '#a3e635', label: '13' },
+          { color: '#eab308', label: '17' },
+          { color: '#f97316', label: '23' },
           { color: '#ef4444', label: '23+' },
         ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">

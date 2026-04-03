@@ -105,9 +105,9 @@ export function SpotScoringSection() {
           </p>
           <div className="space-y-1.5 pt-1">
             <VerdictRow color="#94a3b8" label="Calma"     wind="< 6kt"   desc="Sin condiciones para navegar." />
-            <VerdictRow color="#22c55e" label="Flojo"     wind="6-7kt"   desc="Insuficiente para la mayor&iacute;a de modalidades." />
-            <VerdictRow color="#a3e635" label="Navegable" wind="8-11kt"  desc="Viento justo, condiciones limitadas." />
-            <VerdictRow color="#eab308" label="Buen d&iacute;a"  wind="12-17kt" desc="Viento estable, apto para todas las modalidades." />
+            <VerdictRow color="#38bdf8" label="Flojo"     wind="6-8kt"   desc="Viento ligero. SUP, paseo, esperar a que suba." />
+            <VerdictRow color="#22c55e" label="Navegable" wind="8-13kt"  desc="Viento justo, condiciones limitadas." />
+            <VerdictRow color="#eab308" label="Buen d&iacute;a"  wind="13-18kt" desc="Viento estable, apto para todas las modalidades." />
             <VerdictRow color="#f97316" label="Fuerte"    wind="18+ kt"  desc="Requiere experiencia. Viento potente." />
           </div>
           <p className="text-[11px] text-slate-500 italic pt-2">
