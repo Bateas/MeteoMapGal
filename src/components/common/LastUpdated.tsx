@@ -108,7 +108,7 @@ export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
       <button
         onClick={onRefresh}
         disabled={isLoading}
-        className="px-2 py-0.5 rounded text-xs border border-slate-600/50 bg-slate-700 text-slate-300 hover:bg-slate-600 hover:shadow-[0_0_10px_rgba(148,163,184,0.12)] hover:border-slate-500/40 disabled:opacity-50 transition-all min-h-[36px] min-w-[36px] flex items-center justify-center gap-1.5"
+        className="px-2 py-0.5 rounded text-[13px] border border-slate-600/50 bg-slate-700 text-slate-300 hover:bg-slate-600 hover:shadow-[0_0_10px_rgba(148,163,184,0.12)] hover:border-slate-500/40 disabled:opacity-50 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center gap-1.5"
         aria-busy={isLoading}
       >
         {isLoading ? (
