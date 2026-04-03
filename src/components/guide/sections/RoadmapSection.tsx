@@ -130,8 +130,8 @@ export function RoadmapSection() {
           </div>
         </div>
 
-        {/* v2.9 — Actual */}
-        <TimelineGroup label="v2.9 — Actual" dotColor="bg-amber-500" textColor="text-amber-400" />
+        {/* v2.10 — Actual */}
+        <TimelineGroup label="v2.10 — Actual" dotColor="bg-amber-500" textColor="text-amber-400" />
         <TimelineMilestone
           iconId="sailboat"
           title="Modo Evento / Regata"
@@ -175,6 +175,25 @@ export function RoadmapSection() {
           status="done"
         />
 
+        <TimelineMilestone
+          iconId="camera"
+          title="19 Webcams MeteoGalicia"
+          desc="C&aacute;maras en tiempo real en el mapa (tri&aacute;ngulos con direcci&oacute;n). Click para ver imagen en vivo. C&iacute;es (3), Cangas, Ons (2), Salvora, Cor&oacute;n, Corrubedo, Baiona y m&aacute;s."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="eye"
+          title="Vision IA (Ollama)"
+          desc="An&aacute;lisis autom&aacute;tico de webcams cada 15min con IA local. Estimaci&oacute;n Beaufort, detecci&oacute;n de niebla, visibilidad. Badge 'Vision IA' en popups de spots y c&aacute;maras."
+          status="done"
+        />
+        <TimelineMilestone
+          iconId="zap"
+          title="Rendimiento optimizado"
+          desc="Stagger startup (10s spread de API calls). Lazy-load RegattaPanel (-27KB). Estaciones offline casi invisibles sin flechas."
+          status="done"
+        />
+
         {/* Futuras funcionalidades */}
         <TimelineGroup label="Pr&oacute;ximamente" dotColor="bg-slate-500" textColor="text-slate-400" />
         <TimelineMilestone
@@ -184,9 +203,9 @@ export function RoadmapSection() {
           status="idea"
         />
         <TimelineMilestone
-          iconId="sailboat"
-          title="Tr&aacute;fico mar&iacute;timo (AIS)"
-          desc="Posiciones de barcos en tiempo real. Pendiente fuente de datos fiable para Galicia."
+          iconId="eye"
+          title="Vision IA avanzada (llava 7B)"
+          desc="Modelos m&aacute;s grandes para detecci&oacute;n de embarcaciones, estimaci&oacute;n de oleaje, y an&aacute;lisis temporal."
           status="idea"
         />
         <TimelineMilestone
