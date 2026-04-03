@@ -24,12 +24,12 @@ export function RoadmapSection() {
         <TimelineGroup label="&Uacute;ltimas novedades" dotColor="bg-emerald-500" textColor="text-emerald-400" />
         <TimelineMilestone iconId="sailboat" title="13 spots con veredicto autom&aacute;tico" desc="10 de vela + 3 de surf. Scoring basado en 100+ estaciones y 13 boyas marinas." status="done" />
         <TimelineMilestone iconId="waves" title="Previsi&oacute;n de olas 24h" desc="Altura, per&iacute;odo, tendencia y veredicto de surf (FLAT/PEQUE/SURF OK/CL&Aacute;SICO/GRANDE)." status="done" />
-        <TimelineMilestone iconId="camera" title="19 webcams costeras con visi&oacute;n IA" desc="Im&aacute;genes de MeteoGalicia. An&aacute;lisis autom&aacute;tico de condiciones, niebla y visibilidad." status="done" />
+        <TimelineMilestone iconId="camera" title="20 webcams con visi&oacute;n IA" desc="19 c&aacute;maras MeteoGalicia + webcam propia ESP32-CAM en Castrelo. An&aacute;lisis autom&aacute;tico: Beaufort, niebla, visibilidad." status="done" />
         <TimelineMilestone iconId="bell" title="Alertas inteligentes por Telegram" desc="Avisos de cambio de condiciones: viento, niebla, tormentas, olas. Silencio nocturno." status="done" />
         <TimelineMilestone iconId="sailboat" title="Modo Evento para regatas" desc="Zona de agua, panel de seguridad, balizas, mareas, aviaci&oacute;n, previsi&oacute;n 6h." status="done" />
         <TimelineMilestone iconId="compass" title="Previsi&oacute;n horaria por spot" desc="Ventana de navegaci&oacute;n 48h + mini-timeline 12h directamente en el popup." status="done" />
         <TimelineMilestone iconId="map-pin" title="Compartir, favoritos y comparador" desc="Comparte condiciones por WhatsApp/Telegram. Compara todos los spots en una tabla." status="done" />
-        <TimelineMilestone iconId="layers" title="Radar, sat&eacute;lite, corrientes y cartas n&aacute;uticas" desc="Capas de datos en el mapa: precipitaci&oacute;n, infrarrojo, batimetr&iacute;a, corrientes HF, se&ntilde;alizaci&oacute;n mar&iacute;tima." status="done" />
+        <TimelineMilestone iconId="layers" title="Radar, corrientes y cartas n&aacute;uticas" desc="Capas de datos: radar precipitaci&oacute;n, batimetr&iacute;a, corrientes HF, se&ntilde;alizaci&oacute;n mar&iacute;tima, carta IHM." status="done" />
 
         {/* ── Proximamente ── */}
         <TimelineGroup label="Pr&oacute;ximamente" dotColor="bg-sky-500" textColor="text-sky-400" />

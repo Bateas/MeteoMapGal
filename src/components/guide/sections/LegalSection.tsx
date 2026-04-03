@@ -69,6 +69,7 @@ export function LegalSection() {
             <AttrRow name="Open-Meteo Marine" license="CC BY 4.0" desc="Previsión de oleaje y swell horario" />
             <AttrRow name="MeteoGalicia Webcams" license="Datos abiertos Xunta" desc="Imágenes de cámaras costeras (análisis visual)" />
             <AttrRow name="Waira Surf School" license="Enlace público" desc="Webcam en directo playa de Patos (enlace a waira.com)" />
+            <AttrRow name="ESP32-CAM Castrelo" license="Propia" desc="Webcam propia en el embalse de Castrelo de Miño" />
             <AttrRow name="RainViewer" license="Free tier" desc="Animación de precipitación radar (2h pasadas)" />
           </ul>
         </div>
