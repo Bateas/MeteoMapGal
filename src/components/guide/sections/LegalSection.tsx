@@ -29,7 +29,12 @@ export function LegalSection() {
           <p className="text-xs text-slate-400 leading-relaxed">
             No se garantiza la precisión, disponibilidad ni continuidad de los datos. Las estaciones
             meteorológicas pueden presentar fallos, retrasos o lecturas erróneas. Los modelos numéricos
-            (Open-Meteo) son estimaciones, no observaciones.
+            son estimaciones, no observaciones.
+          </p>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Las <strong className="text-slate-300">webcams</strong> e imágenes proceden de fuentes de acceso
+            público (MeteoGalicia, Waira Surf School). MeteoMapGal enlaza a las imágenes públicas
+            sin almacenarlas ni redistribuirlas. La disponibilidad depende del proveedor original.
           </p>
         </div>
       </div>
@@ -64,7 +69,8 @@ export function LegalSection() {
             <AttrRow name="OpenSky Network" license="CC BY-SA 4.0" desc="Posiciones de aeronaves en tiempo real" />
             <AttrRow name="Open-Meteo Marine" license="CC BY 4.0" desc="Previsión de oleaje y swell horario" />
             <AttrRow name="MeteoGalicia Webcams" license="Datos abiertos Xunta" desc="Imágenes de cámaras costeras (análisis visual)" />
-            <AttrRow name="Waira Surf School" license="Uso con permiso" desc="Webcam en directo playa de Patos" />
+            <AttrRow name="Waira Surf School" license="Enlace público" desc="Webcam en directo playa de Patos (enlace a waira.com)" />
+            <AttrRow name="RainViewer" license="Free tier" desc="Animación de precipitación radar (2h pasadas)" />
           </ul>
         </div>
       </div>

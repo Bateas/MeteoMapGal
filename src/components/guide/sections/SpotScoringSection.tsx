@@ -28,11 +28,16 @@ export function SpotScoringSection() {
             para calcular un scoring espec&iacute;fico.
           </p>
           <p>
-            <strong className="text-slate-300">Clica en el marcador del spot en el mapa</strong> para ver
-            el popup con: veredicto, viento (kt + flecha de direcci&oacute;n), oleaje, temperatura
-            aire/agua, humedad, sensaci&oacute;n t&eacute;rmica (wind chill), patr&oacute;n detectado y resumen.
-            En m&oacute;vil aparece como panel inferior deslizante.
+            <strong className="text-slate-300">Clica en el marcador</strong> para ver el popup con veredicto,
+            viento, oleaje, temperatura, humedad y resumen. En m&oacute;vil aparece como panel inferior deslizante.
           </p>
+          <p>
+            <strong className="text-slate-300">Dos tipos de spot en el mapa:</strong>
+          </p>
+          <ul className="space-y-1 pl-3">
+            <li><strong className="text-emerald-400">Hex&aacute;gono</strong> = spot de <strong>vela/kite</strong>. Veredicto basado en viento (CALMA/FLOJO/NAVEG./BUENO/FUERTE).</li>
+            <li><strong className="text-cyan-400">Pent&aacute;gono</strong> = spot de <strong>surf</strong>. Veredicto basado en olas (FLAT/PEQUE/SURF OK/CL&Aacute;SICO/GRANDE).</li>
+          </ul>
         </div>
       </div>
 
