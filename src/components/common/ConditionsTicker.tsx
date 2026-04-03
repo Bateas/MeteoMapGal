@@ -72,7 +72,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     const spots = getSpotsForSector(sectorId);
     for (const spot of spots) {
       const sc = scores.get(spot.id);
-      if (!sc) continue;
+      if (!sc || sc.verdict === 'unknown') continue;
       const v = VERDICT_STYLE[sc.verdict];
       const kt = sc.wind?.avgSpeedKt;
       const dir = sc.wind?.dominantDir ?? '';
