@@ -219,6 +219,9 @@ body {
 .map-panning .maplibregl-marker {
   transition: none !important;
 }
+.map-panning .ticker-scroll {
+  animation-play-state: paused;
+}
 
 .maplibregl-popup {
   z-index: 30 !important;

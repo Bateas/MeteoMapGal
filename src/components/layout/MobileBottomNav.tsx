@@ -143,7 +143,7 @@ function MobileBottomNavInner() {
 
       {/* Bottom nav bar */}
       <nav
-        className="fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-700/50"
+        className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-700/50"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
         <div className="flex items-stretch justify-around">
