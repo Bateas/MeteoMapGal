@@ -55,6 +55,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     let cancelled = false;
     fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
     const iv = setInterval(() => {
+      if (document.hidden) return; // Skip fetch when tab is backgrounded
       fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
     }, 60 * 60_000);
     return () => { cancelled = true; clearInterval(iv); };
