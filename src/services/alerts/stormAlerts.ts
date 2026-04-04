@@ -73,6 +73,13 @@ export function buildStormShadowAlerts(
     return [];
   }
 
+  // ── Clouds without confirmation = no alert at all ──
+  // Solar radiation drops alone are normal weather phenomena in Galicia.
+  // Only alert when there's actual danger: lightning OR wind outflow (gust front).
+  if (!hasLightning && !hasWindConfirmation) {
+    return [];
+  }
+
   // ── Contextual title based on lightning presence ──
   // Clouds without lightning are NOT alarming — just informational.
   // Only escalate language when lightning or wind outflow confirms a real storm.

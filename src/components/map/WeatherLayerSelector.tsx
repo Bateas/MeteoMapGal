@@ -82,7 +82,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
           </div>
         )}
 
-        {/* Layer toggle buttons — always visible, bottom row */}
+        {/* Layer toggle buttons + tracking toggles — single row */}
         <div className={`flex items-center gap-0.5 ${isMobile ? 'p-0.5' : 'p-1.5'}`} role="group" aria-label="Capas meteorológicas">
           {buttons.map((btn) => {
             const isOn = activeLayer === btn.id;
@@ -105,10 +105,9 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
               </button>
             );
           })}
+          {/* Tracking toggles inline — no border separator, same row */}
+          <TrackingTogglesInline isMobile={isMobile} sectorId={activeSector.id} />
         </div>
-
-        {/* Tracking toggles — independent of weather layers */}
-        <TrackingToggles isMobile={isMobile} sectorId={activeSector.id} />
 
         {/* Event/Regatta mode button */}
         <EventModeButton isMobile={isMobile} />
@@ -117,14 +116,14 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   );
 });
 
-/* ─── Tracking layer toggles (Aviation) ─── */
+/* ─── Tracking layer toggles (Webcams, Aviation) — inline in same row ─── */
 
 const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector: string; alpha?: boolean }[] = [
   { id: 'webcams', icon: 'camera', label: 'Webcams', sector: 'rias' },
   { id: 'aviation', icon: 'navigation', label: 'Aviones', sector: 'embalse', alpha: true },
 ];
 
-function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: string }) {
+function TrackingTogglesInline({ isMobile, sectorId }: { isMobile: boolean; sectorId: string }) {
   const avShow = useAviationStore((s) => s.showOverlay);
   const avAlert = useAviationStore((s) => s.alert);
   const avToggle = useAviationStore((s) => s.toggleOverlay);
@@ -141,7 +140,7 @@ function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: 
   };
 
   return (
-    <div className={`flex items-center gap-0.5 border-t border-slate-700/30 ${isMobile ? 'p-0.5' : 'px-1.5 pb-1.5 pt-1'}`} role="group" aria-label="Capas de seguimiento">
+    <>
       {visible.map((btn) => {
         const { isOn, toggle, badge } = getState(btn.id);
         return (
@@ -171,7 +170,7 @@ function TrackingToggles({ isMobile, sectorId }: { isMobile: boolean; sectorId: 
           </button>
         );
       })}
-    </div>
+    </>
   );
 }
 
