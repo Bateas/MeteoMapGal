@@ -476,7 +476,7 @@ export function WeatherMap() {
       <SectorSelector />
       <MapStyleSelector />
       <SSTLegend />
-      <SpotScoreLegend />
+      {!isMobile && <SpotScoreLegend />}
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
 
