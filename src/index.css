@@ -385,6 +385,8 @@ body {
 
 .ticker-scroll {
   animation: ticker-scroll 30s linear infinite;
+  will-change: transform;
+  transform: translateZ(0); /* GPU compositing layer */
 }
 
 .ticker-scroll:hover {
