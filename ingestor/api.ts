@@ -151,8 +151,14 @@ async function handleReadings(
   const limit = Math.min(parseInt(limitStr || '2000', 10), 10000);
 
   if (interval === 'hourly') {
-    const rows = await queryHourly(station_id, from, to, limit);
-    json(res, { count: rows.length, interval: 'hourly', from, to, readings: rows }, 200, origin);
+    try {
+      const rows = await queryHourly(station_id, from, to, limit);
+      json(res, { count: rows.length, interval: 'hourly', from, to, readings: rows }, 200, origin);
+    } catch {
+      // Fallback to raw if continuous aggregate fails (not refreshed, compressed chunks, etc.)
+      const rows = await queryReadings(station_id, from, to, Math.min(limit, 2000));
+      json(res, { count: rows.length, interval: 'raw', from, to, readings: rows }, 200, origin);
+    }
   } else {
     const rows = await queryReadings(station_id, from, to, limit);
     json(res, { count: rows.length, interval: 'raw', from, to, readings: rows }, 200, origin);
