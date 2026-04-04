@@ -33,7 +33,7 @@ describe('Header', () => {
 
   it('renders without crashing with empty stores', () => {
     render(<Header {...defaultProps} />);
-    expect(screen.getByText(/MeteoMapGal/i)).toBeDefined();
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
   });
 
   it('renders in embalse sector', () => {
@@ -68,7 +68,7 @@ describe('Header', () => {
     });
 
     render(<Header {...defaultProps} />);
-    expect(screen.getByText(/MeteoMapGal/i)).toBeDefined();
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
   });
 
   it('renders with wind front info', () => {
@@ -78,6 +78,6 @@ describe('Header', () => {
         windFront={{ active: true, etaMin: 15, directionLabel: 'NW', frontSpeedKt: 12 }}
       />
     );
-    expect(screen.getByText(/MeteoMapGal/i)).toBeDefined();
+    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
   });
 });
