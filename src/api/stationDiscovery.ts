@@ -19,14 +19,14 @@ export interface DiscoveryParams {
   sectorId?: string;
 }
 
-/** Check if a station falls within any extra coverage point (8km mini-radius) */
+/** Check if a station falls within any extra coverage point (15km radius — matches ingestor) */
 function isInExtraCoverage(
   lat: number,
   lon: number,
   extraPoints?: { name: string; lon: number; lat: number }[]
 ): boolean {
   if (!extraPoints?.length) return false;
-  return extraPoints.some((p) => isWithinRadius(p.lat, p.lon, lat, lon, 8));
+  return extraPoints.some((p) => isWithinRadius(p.lat, p.lon, lat, lon, 15));
 }
 
 /** Retry a fetch function after a delay */
