@@ -260,10 +260,10 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
 
   const allStations: NormalizedStation[] = [];
 
-  for (const sector of SECTORS) {
-    const [lon, lat] = sector.center;
-    const latDelta = (sector.radiusKm / 111) * 1.1;
-    const lonDelta = (sector.radiusKm / 82) * 1.1;
+  /** Fetch Netatmo stations in a bbox around a point */
+  async function fetchNetatmoBbox(lat: number, lon: number, radiusKm: number, label: string): Promise<void> {
+    const latDelta = (radiusKm / 111) * 1.1;
+    const lonDelta = (radiusKm / 82) * 1.1;
 
     try {
       const res = await fetch(`${NETATMO_API}/api/getpublicdata`, {
@@ -293,7 +293,6 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
         const id = `nt_${shortMac}`;
         if (allStations.some((s) => s.id === id)) continue;
 
-        // Check if station has wind module (NAModule2)
         const hasWind = raw.module_types
           ? Object.values(raw.module_types).includes('NAModule2')
           : false;
@@ -309,7 +308,21 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
         });
       }
     } catch (err) {
-      log.error(`Netatmo discovery (${sector.id}) failed:`, (err as Error).message);
+      log.error(`Netatmo discovery (${label}) failed:`, (err as Error).message);
+    }
+  }
+
+  for (const sector of SECTORS) {
+    const [lon, lat] = sector.center;
+    // Main sector bbox
+    await fetchNetatmoBbox(lat, lon, sector.radiusKm, sector.id);
+
+    // Extra coverage points — query Netatmo around each to cover distant areas
+    // (Corrubedo, A Guarda, Muros, Cangas are outside main 30km bbox)
+    if (sector.extraCoveragePoints?.length) {
+      for (const p of sector.extraCoveragePoints) {
+        await fetchNetatmoBbox(p.lat, p.lon, 15, `${sector.id}/${p.name}`);
+      }
     }
   }
 
