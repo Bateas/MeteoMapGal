@@ -3,6 +3,7 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { WeatherIcon } from '../icons/WeatherIcons';
 const FieldDrawer = lazy(() => import('./FieldDrawer').then(m => ({ default: m.FieldDrawer })));
+import { MobileBottomNav } from './MobileBottomNav';
 import { WeatherMap } from '../map/WeatherMap';
 import { useWeatherData } from '../../hooks/useWeatherData';
 import { LoadingScreen } from '../common/LoadingScreen';
@@ -144,6 +145,9 @@ export function AppShell() {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   const setIsMobile = useUIStore((s) => s.setIsMobile);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
+  const fieldDrawerOpen = useUIStore((s) => s.fieldDrawerOpen);
+  const setFieldDrawerOpen = useUIStore((s) => s.setFieldDrawerOpen);
+  const toggleFieldDrawer = useUIStore((s) => s.toggleFieldDrawer);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
@@ -165,7 +169,14 @@ export function AppShell() {
   // Mutual exclusion: close FieldDrawer when sidebar opens on mobile
   useEffect(() => {
     if (isMobile && sidebarOpen) setFieldDrawerOpen(false);
-  }, [sidebarOpen, isMobile]);
+  }, [sidebarOpen, isMobile, setFieldDrawerOpen]);
+
+  // Sync bottom nav tab when panels close externally (station select, close button, etc.)
+  useEffect(() => {
+    if (isMobile && !sidebarOpen && !fieldDrawerOpen) {
+      useUIStore.getState().setActiveBottomTab('map');
+    }
+  }, [isMobile, sidebarOpen, fieldDrawerOpen]);
 
   // React to external tab switch requests (e.g. popup "Ver historial" button).
   // MUST live here (not in Sidebar) because Sidebar is not mounted when collapsed/closed.
@@ -265,8 +276,7 @@ export function AppShell() {
     return () => clearInterval(id);
   }, [pruneHistory, pruneAlertHistory]);
 
-  // Campo (agricultural alerts) drawer
-  const [fieldDrawerOpen, setFieldDrawerOpen] = useState(false);
+  // Campo (agricultural alerts) drawer — state in uiStore
   const forecastHourly = useForecastStore((s) => s.hourly);
   const readingHistory = useWeatherStore((s) => s.readingHistory);
   const historyEpoch = useWeatherStore((s) => s.historyEpoch);
@@ -294,16 +304,6 @@ export function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory changes
     [forecastHourly, historyEpoch, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD],
   );
-  const toggleFieldDrawer = useCallback(() => {
-    setFieldDrawerOpen((o) => {
-      // On mobile: close sidebar when opening field drawer (mutual exclusion)
-      if (!o && useUIStore.getState().isMobile) {
-        useUIStore.getState().setSidebarOpen(false);
-      }
-      return !o;
-    });
-  }, []);
-
   // ── Temperature gradient: compute lapse rate on every reading update ──
   const setThermalProfile = useTemperatureOverlayStore((s) => s.setThermalProfile);
   useEffect(() => {
@@ -529,8 +529,7 @@ export function AppShell() {
       <Suspense fallback={null}><OnboardingTour /></Suspense>
       <ToastContainer />
       <PwaInstallBanner />
-
-      {/* Ko-fi link moved to MeteoGuide (below Aviso Legal) + Sidebar */}
+      {isMobile && <MobileBottomNav />}
     </div>
   );
 }
