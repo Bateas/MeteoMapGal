@@ -12,6 +12,8 @@ export interface StationInfo {
   source: string;
   last_reading: string;
   reading_count: number;
+  lat: number;
+  lon: number;
 }
 
 export interface ReadingRow {
@@ -69,18 +71,21 @@ export interface HealthInfo {
 
 // ── Queries ────────────────────────────────────────────
 
-/** List all stations with their last reading time and total count */
+/** List all stations with their last reading time, count, and coordinates */
 export async function queryStations(): Promise<StationInfo[]> {
   const db = getPool();
   const result = await db.query<StationInfo>(`
     SELECT
-      station_id,
-      source,
-      MAX(time)::text AS last_reading,
-      COUNT(*)::int AS reading_count
-    FROM readings
-    GROUP BY station_id, source
-    ORDER BY source, station_id
+      r.station_id,
+      r.source,
+      MAX(r.time)::text AS last_reading,
+      COUNT(*)::int AS reading_count,
+      COALESCE(s.latitude, 0) AS lat,
+      COALESCE(s.longitude, 0) AS lon
+    FROM readings r
+    LEFT JOIN stations s ON r.station_id = s.station_id
+    GROUP BY r.station_id, r.source, s.latitude, s.longitude
+    ORDER BY r.source, r.station_id
   `);
   return result.rows;
 }
