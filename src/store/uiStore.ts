@@ -20,6 +20,13 @@ interface UIState {
   onboardingCompleted: boolean;
   /** Requested sidebar tab — set by external components to switch tabs */
   requestedTab: string | null;
+  /** FieldDrawer open state (mobile bottom sheet for conditions/alerts) */
+  fieldDrawerOpen: boolean;
+  setFieldDrawerOpen: (open: boolean) => void;
+  toggleFieldDrawer: () => void;
+  /** Active bottom nav tab (mobile only) */
+  activeBottomTab: 'map' | 'spots' | 'datos' | 'prevision' | 'mas' | null;
+  setActiveBottomTab: (tab: 'map' | 'spots' | 'datos' | 'prevision' | 'mas' | null) => void;
   /** Desktop sidebar collapsed to icon strip (persisted) */
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -54,6 +61,17 @@ export const useUIStore = create<UIState>()(
       onboardingStep: null,
       onboardingCompleted: false,
       requestedTab: null,
+      fieldDrawerOpen: false,
+      setFieldDrawerOpen: (open) => set((s) => {
+        if (open && s.isMobile) return { fieldDrawerOpen: true, sidebarOpen: false };
+        return { fieldDrawerOpen: open };
+      }),
+      toggleFieldDrawer: () => set((s) => {
+        if (!s.fieldDrawerOpen && s.isMobile) return { fieldDrawerOpen: true, sidebarOpen: false };
+        return { fieldDrawerOpen: !s.fieldDrawerOpen };
+      }),
+      activeBottomTab: null,
+      setActiveBottomTab: (tab) => set({ activeBottomTab: tab }),
       sidebarCollapsed: true, // collapsed by default — map-first
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       toggleSidebarCollapsed: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
