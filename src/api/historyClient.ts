@@ -88,7 +88,13 @@ async function fetchJson<T>(path: string, params?: Record<string, string>): Prom
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(body.error || `API error ${res.status}`);
+    const msg = body.error || `API error ${res.status}`;
+    // 404 = station not yet in DB (new station, no accumulated data)
+    // 500 = DB query failed (station exists but query error)
+    // Both are non-critical for user — show friendly message
+    if (res.status === 404) throw new Error('Sin datos históricos para esta estación');
+    if (res.status === 500) throw new Error('Error temporal del servidor de datos');
+    throw new Error(msg);
   }
 
   return res.json();
