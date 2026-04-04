@@ -13,7 +13,7 @@ import { StationSymbolLayer, registerStationIcon } from './StationSymbolLayer';
 import { TempOnlyOverlay } from './TempOnlyMarker';
 import { StationPopup } from './StationPopup';
 import { WindFieldOverlay, registerWindArrowIcons } from './WindFieldOverlay';
-import { ThermalZoneOverlay } from './ThermalZoneOverlay';
+const ThermalZoneOverlay = lazy(() => import('./ThermalZoneOverlay').then(m => ({ default: m.ThermalZoneOverlay })));
 import { ThermalAlertMarkers } from './ThermalAlertMarker';
 import { PropagationArrows } from './PropagationArrow';
 import { LightningOverlay } from './LightningOverlay';
@@ -26,10 +26,10 @@ import { WindParticleOverlay } from './WindParticleOverlay';
 import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
 // SatelliteOverlay removed — EUMETSAT non-commercial license incompatible
 import { RadarOverlay } from './RadarOverlay';
-import { CurrentsOverlay } from './CurrentsOverlay';
+const CurrentsOverlay = lazy(() => import('./CurrentsOverlay').then(m => ({ default: m.CurrentsOverlay })));
 import { AirspaceOverlay } from './AirspaceOverlay';
-import { BathymetryOverlay } from './BathymetryOverlay';
-import { SSTOverlay } from './SSTOverlay';
+const BathymetryOverlay = lazy(() => import('./BathymetryOverlay').then(m => ({ default: m.BathymetryOverlay })));
+const SSTOverlay = lazy(() => import('./SSTOverlay').then(m => ({ default: m.SSTOverlay })));
 import { SSTLegend } from './SSTLegend';
 import { SpotScoreLegend } from './SpotScoreLegend';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
@@ -42,8 +42,8 @@ import { BuoySymbolLayer, registerBuoyIcon } from './BuoySymbolLayer';
 import { BuoyPopup } from './BuoyPopup';
 import { SpotMarkers } from './SpotMarker';
 import { SpotPopup } from './SpotPopup';
-import { SeamarksOverlay } from './SeamarksOverlay';
-import { NauticalChartOverlay } from './NauticalChartOverlay';
+const SeamarksOverlay = lazy(() => import('./SeamarksOverlay').then(m => ({ default: m.SeamarksOverlay })));
+const NauticalChartOverlay = lazy(() => import('./NauticalChartOverlay').then(m => ({ default: m.NauticalChartOverlay })));
 import { IGNHillshadeOverlay } from './IGNHillshadeOverlay';
 import { IGNContoursOverlay } from './IGNContoursOverlay';
 import { IGNOrthoOverlay } from './IGNOrthoOverlay';
@@ -349,10 +349,10 @@ export function WeatherMap() {
         {/* Localize MapLibre controls to Spanish after mount */}
 
         {/* IHM nautical chart — Rías only, below everything except base tiles */}
-        {activeSector.id === 'rias' && <NauticalChartOverlay />}
+        {activeSector.id === 'rias' && <Suspense fallback={null}><NauticalChartOverlay /></Suspense>}
 
         {/* OpenSeaMap seamarks — Rías only, above nautical chart, below weather overlays */}
-        {activeSector.id === 'rias' && <SeamarksOverlay />}
+        {activeSector.id === 'rias' && <Suspense fallback={null}><SeamarksOverlay /></Suspense>}
 
         {/* IGN terrain overlays — available in both sectors */}
         <IGNOrthoOverlay />
@@ -360,13 +360,13 @@ export function WeatherMap() {
         <IGNContoursOverlay />
 
         {/* EMODnet bathymetry — seabed depth tiles (Rías only, below all other layers) */}
-        <BathymetryOverlay />
+        <Suspense fallback={null}><BathymetryOverlay /></Suspense>
 
         {/* CMEMS SST — sea surface temperature tiles (Rías only) */}
-        <SSTOverlay />
+        <Suspense fallback={null}><SSTOverlay /></Suspense>
 
         {/* Thermal zone polygons — only for Embalse sector */}
-        {activeSector.id === 'embalse' && <ThermalZoneOverlay />}
+        {activeSector.id === 'embalse' && <Suspense fallback={null}><ThermalZoneOverlay /></Suspense>}
 
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
@@ -427,7 +427,7 @@ export function WeatherMap() {
         <RadarOverlay />
 
         {/* RADAR ON RAIA — HF radar surface currents (Rías Baixas only) */}
-        <CurrentsOverlay />
+        <Suspense fallback={null}><CurrentsOverlay /></Suspense>
 
         {/* ENAIRE airspace zones + NOTAMs — only visible when Dron tab is active */}
         <AirspaceOverlay />
