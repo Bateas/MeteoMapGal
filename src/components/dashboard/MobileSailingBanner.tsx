@@ -44,7 +44,7 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
         fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-20
         flex items-center gap-1.5 px-3 py-1.5 rounded-full
         border ${v.border} ${v.bg}
-        backdrop-blur-sm shadow-lg shadow-black/30
+        shadow-lg shadow-black/30
         transition-all active:scale-95
       `}
     >
