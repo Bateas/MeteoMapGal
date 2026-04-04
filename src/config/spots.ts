@@ -130,8 +130,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     ],
     // Closest stations to Cesantes scoring zone
     preferredStations: [
-      'mc_ESGAL3600000036260A', // Redondela (~2km)
-      'mc_ESGAL3600000036057A', // Vigo Centro (~9km)
+      'mc_ESGAL3600000036209A', // Vigo-Coia (~5km, replaces offline Redondela+Vigo Centro)
     ],
     preferredBuoys: [
       1251, // Rande CETMAR (~3km) — key buoy for interior ría
@@ -142,7 +141,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     hardGates: { maxWindKt: 30 },
     // Upwind for frontal WSW: Bouzas (mouth of ría) shows wind before interior
     // NOT used for thermal/bruma (local generation, Bouzas stays calm)
-    upwindStations: ['mc_ESGAL3600000036041A'], // Vigo Bouzas (12m, boca ría)
+    upwindStations: ['mc_ESGAL3600000036209A'], // Vigo Bouzas (12m, boca ría)
     tideStationId: '29', // Vigo
     webcams: [
       {
@@ -179,8 +178,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     // Stations closest to the Rande–Vigo channel
     preferredStations: [
       'mg_14001',               // Porto de Vigo (7m, ON water, avg 10.8kt!) — dominant for in-ría wind
-      'mc_ESGAL3600000036260A', // Redondela (~3km)
-      'mc_ESGAL3600000036041A', // Vigo Bouzas (~4km)
+      'mc_ESGAL3600000036209A', // Vigo-Coia (~4km, replaces offline Redondela+Bouzas)
     ],
     preferredBuoys: [
       1251, // Rande CETMAR — directly at Rande narrows
@@ -232,7 +230,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     preferredStations: [
       'mg_14001',               // Porto de Vigo (7m, ON water, avg 10.8kt!) — best in-ría wind
       'mc_ESGAL3600000036940A', // Cangas do Morrazo (~8km N) — costera
-      'mc_ESGAL3600000036041A', // Vigo Bouzas (~5km S) — costera
+      'mc_ESGAL3600000036209A', // Vigo Bouzas (~5km S) — costera
     ],
     preferredBuoys: [
       1251, // Rande CETMAR (~8km NE) — humidity/temp for theta-v
@@ -284,7 +282,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036510A', // Baiona (~8km)
+      'mc_ESGAL3600000036350C', // Baiona (~8km)
     ],
     preferredBuoys: [
       2248, // Cabo Silleiro REDEXT (referencia oceánica, 55km W)
@@ -345,8 +343,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036300A', // Pontevedra (~3km E, closest MC station!)
-      'mc_ESGAL3600000036380A', // Sanxenxo (~3km SW, coastal, same ría)
+      // MC Pontevedra (36300A) and Sanxenxo (36380A) confirmed offline Apr 2026
     ],
     preferredBuoys: [
       4271, // Lourizán REMPOR (~3km SE, has wind!)
@@ -399,7 +396,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036340A', // O Grove - A Toxa (~5km S)
+      // MC O Grove (36340A) confirmed offline Apr 2026
     ],
     preferredBuoys: [
       1250, // Cortegada (Arousa) — interior ría reference
@@ -450,8 +447,8 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036057A', // Vigo Centro (~5km N)
-      'mc_ESGAL3600000036510A', // Baiona (~10km S)
+      'mc_ESGAL3600000036209A', // Vigo Centro (~5km N)
+      'mc_ESGAL3600000036350C', // Baiona (~10km S)
     ],
     preferredBuoys: [
       3221, // Vigo REDMAR (~5km N)
@@ -494,8 +491,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036380A', // Sanxenxo (~5km NE)
-      'mc_ESGAL3600000036340A', // O Grove - A Toxa (~6km N)
+      // MC Sanxenxo (36380A) and O Grove (36340A) confirmed offline Apr 2026
     ],
     preferredBuoys: [
       4273, // Cabo Udra REMPOR (~15km S, wind+waves)
@@ -529,7 +525,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036340A', // O Grove - A Toxa (~8km SW)
+      // MC O Grove (36340A) confirmed offline Apr 2026
     ],
     preferredBuoys: [
       1250, // Cortegada (Arousa) — interior ría, ~5km N
@@ -573,7 +569,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036057A', // Vigo Centro (~10km)
+      'mc_ESGAL3600000036209A', // Vigo Centro (~10km)
     ],
     preferredBuoys: [
       1252, // Cíes (~15km W) — swell reference
@@ -616,8 +612,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036380A', // Sanxenxo (~5km NE)
-      'mc_ESGAL3600000036340A', // O Grove - A Toxa (~6km N)
+      // MC Sanxenxo (36380A) and O Grove (36340A) confirmed offline Apr 2026
     ],
     preferredBuoys: [
       4273, // Cabo Udra REMPOR (~15km S) — swell directo enfrente
