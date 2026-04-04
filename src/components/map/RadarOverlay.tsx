@@ -75,6 +75,7 @@ export const RadarOverlay = memo(function RadarOverlay() {
     clearInterval(animTimerRef.current);
     if (playing && frames.length > 0) {
       animTimerRef.current = setInterval(() => {
+        if (document.hidden) return; // Skip frame advance when tab is backgrounded
         setFrameIndex((prev) => (prev + 1) % frames.length);
       }, ANIMATION_SPEED);
     }

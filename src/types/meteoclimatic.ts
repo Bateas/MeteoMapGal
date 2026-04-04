@@ -53,7 +53,12 @@ export const METEOCLIMATIC_STATIONS: MeteoclimaticStationMeta[] = [
   { id: 'ESGAL3600000036340A', lat: 42.442, lon: -8.808, altitude: 8 },     // O Grove - A Toxa
   { id: 'ESGAL3600000036260A', lat: 42.325, lon: -8.601, altitude: 50 },    // Redondela
   { id: 'ESGAL3600000036510A', lat: 42.196, lon: -8.748, altitude: 5 },     // Baiona
+  { id: 'ESGAL3600000036209A', lat: 42.210, lon: -8.730, altitude: 15 },    // Vigo - Coia (coastal, useful for Cesantes/Bocana)
+  { id: 'ESGAL3600000036350C', lat: 42.140, lon: -8.810, altitude: 39 },    // Nigrán - Panasco (near surf Patos)
+  // --- A Coruña (ESGAL15) — Barbanza coast, Corrubedo area ---
+  { id: 'ESGAL1500000015290A', lat: 42.802, lon: -9.026, altitude: 50 },    // Abelleira - Muros (coastal, near Corrubedo)
+  { id: 'ESGAL1500000015211A', lat: 42.790, lon: -8.840, altitude: 100 },   // Roo - Noia (Ría Muros-Noia)
 ];
 
 /** Meteoclimatic feed regions to fetch */
-export const METEOCLIMATIC_REGIONS = ['ESGAL32', 'ESGAL36'] as const;
+export const METEOCLIMATIC_REGIONS = ['ESGAL32', 'ESGAL36', 'ESGAL15'] as const;

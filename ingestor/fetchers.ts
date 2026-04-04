@@ -121,7 +121,7 @@ async function fetchMeteoclimatic(
 ): Promise<NormalizedReading[]> {
   if (stationIds.size === 0) return [];
 
-  const regions = ['ESGAL32', 'ESGAL36'];
+  const regions = ['ESGAL32', 'ESGAL36', 'ESGAL15'];
   const allRaw: MeteoclimaticRawStation[] = [];
 
   const results = await Promise.allSettled(
