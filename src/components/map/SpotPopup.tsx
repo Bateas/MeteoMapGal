@@ -332,8 +332,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Webcams (collapsible) ── */}
       {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} />}
 
-      {/* ── Spot history — opens sidebar with preferred station ── */}
-      <SpotHistoryButton spot={spot} />
+      {/* ── Spot wind history 24h (wind spots only — surf uses wave forecast) ── */}
+      {spot.category !== 'surf' && <SpotHistoryChart spotId={spot.id} />}
 
       {/* ── Wind patterns (collapsible) ── */}
       {spot.windPatterns.length > 0 && <WindPatterns patterns={spot.windPatterns} />}
@@ -1420,35 +1420,112 @@ function TemperatureSection({ score }: { score: SpotScore }) {
   );
 }
 
-// ── Spot History — opens sidebar HistoryDashboard with spot's preferred station ──
+// ── Spot History 24h — inline chart from ingestor spot_scores (wind spots only) ──
 
-function SpotHistoryButton({ spot }: { spot: SailingSpot }) {
-  const handleClick = useCallback(() => {
-    // Find the first preferred station to pre-select in history
-    const stationId = spot.preferredStations?.[0];
-    if (stationId) {
-      // Set the history station selection so HistoryDashboard opens with this station
-      import('../../store/uiStore').then((m) => {
-        m.useUIStore.getState().setRequestedTab('history');
-        m.useUIStore.getState().setSidebarOpen(true);
-      });
-      import('../../store/weatherSelectionStore').then((m) => {
-        m.useWeatherSelectionStore.getState().openHistory(stationId);
-      });
-    }
-  }, [spot.preferredStations]);
+const HIST_W = 300;
+const HIST_H = 70;
+
+function SpotHistoryChart({ spotId }: { spotId: string }) {
+  const [data, setData] = useState<{ time: string; wind_kt: number }[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!open || loaded) return;
+    fetch(`/api/v1/spots/scores?spot_id=${encodeURIComponent(spotId)}&days=1`)
+      .then((r) => r.json())
+      .then((d) => {
+        const scores = (d.scores ?? []).reverse(); // oldest first
+        setData(scores);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [open, loaded, spotId]);
 
   return (
     <div className="mt-1.5 pt-1.5 border-t border-slate-700/40">
       <button
-        onClick={handleClick}
-        className="flex items-center gap-1.5 text-[11px] text-sky-400 hover:text-sky-300 transition-colors w-full text-left"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
         <WeatherIcon id="activity" size={12} className="shrink-0" />
-        <span className="font-semibold">Ver historial del spot</span>
-        <span className="text-slate-500 ml-auto">→</span>
+        <span className="font-semibold">Historial spot 24h</span>
+        <span className="text-slate-500 ml-auto">{open ? '▲' : '▼'}</span>
       </button>
+      {open && (
+        <div className="mt-2">
+          {!loaded ? (
+            <p className="text-[10px] text-slate-500">Cargando...</p>
+          ) : data.length < 6 ? (
+            <p className="text-[10px] text-slate-500">Sin datos suficientes (el ingestor necesita acumular lecturas)</p>
+          ) : (
+            <SpotWindChart data={data} />
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+function SpotWindChart({ data }: { data: { time: string; wind_kt: number }[] }) {
+  const maxKt = Math.max(...data.map((d) => d.wind_kt), 8);
+  const gridStep = maxKt > 20 ? 10 : 5;
+  const padL = 28; // left padding for y-axis labels
+  const padR = 4;
+  const padT = 4;
+  const padB = 16; // bottom padding for x-axis labels
+  const chartW = HIST_W - padL - padR;
+  const chartH = HIST_H - padT - padB;
+  const step = chartW / (data.length - 1);
+
+  // Smoothed path using quadratic Bezier curves
+  const points = data.map((d, i) => ({
+    x: padL + i * step,
+    y: padT + chartH - (d.wind_kt / maxKt) * chartH,
+  }));
+
+  let path = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const cpx = (prev.x + curr.x) / 2;
+    path += ` Q${cpx.toFixed(1)},${prev.y.toFixed(1)} ${curr.x.toFixed(1)},${curr.y.toFixed(1)}`;
+  }
+
+  // Fill area under curve
+  const areaPath = path + ` L${points[points.length - 1].x.toFixed(1)},${padT + chartH} L${padL},${padT + chartH} Z`;
+
+  // Time labels
+  const fmt = (t: string) => {
+    const d = new Date(t);
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <svg width={HIST_W} height={HIST_H} className="w-full" style={{ maxWidth: HIST_W }}>
+      {/* Y-axis grid + labels */}
+      {Array.from({ length: Math.floor(maxKt / gridStep) + 1 }, (_, i) => {
+        const kt = i * gridStep;
+        if (kt === 0) return null;
+        const y = padT + chartH - (kt / maxKt) * chartH;
+        return (
+          <g key={kt}>
+            <line x1={padL} y1={y} x2={HIST_W - padR} y2={y} stroke="#334155" strokeWidth="0.5" strokeDasharray="3,3" />
+            <text x={padL - 3} y={y + 3} fill="#64748b" fontSize="9" textAnchor="end">{kt}</text>
+          </g>
+        );
+      })}
+      {/* Y-axis unit */}
+      <text x={2} y={padT + 8} fill="#64748b" fontSize="8">kt</text>
+      {/* Fill area */}
+      <path d={areaPath} fill="rgba(56,189,248,0.08)" />
+      {/* Smoothed line */}
+      <path d={path} fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      {/* X-axis time labels */}
+      <text x={padL} y={HIST_H - 2} fill="#64748b" fontSize="8" textAnchor="start">{fmt(data[0].time)}</text>
+      <text x={padL + chartW / 2} y={HIST_H - 2} fill="#64748b" fontSize="8" textAnchor="middle">{fmt(data[Math.floor(data.length / 2)].time)}</text>
+      <text x={HIST_W - padR} y={HIST_H - 2} fill="#64748b" fontSize="8" textAnchor="end">{fmt(data[data.length - 1].time)}</text>
+    </svg>
   );
 }
 
