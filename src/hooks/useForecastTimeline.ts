@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import type { HourlyForecast, ForecastState, ForecastModel } from '../types/forecast';
@@ -218,4 +218,14 @@ export function useForecastTimeline() {
 
   // Visibility-aware polling — pauses when tab is hidden
   useVisibilityPolling(poll, POLL_INTERVAL_MS, true, 5_000); // Stagger: 5s after page load
+
+  // Force immediate re-fetch when model changes (ref update alone waits for next interval tick)
+  const prevModelRef = useRef(activeModel);
+  useEffect(() => {
+    if (prevModelRef.current !== activeModel) {
+      prevModelRef.current = activeModel;
+      setHourly([]); // Clear stale data to show loading state
+      poll();
+    }
+  }, [activeModel, poll, setHourly]);
 }
