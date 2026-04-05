@@ -173,7 +173,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Verdict badge — surf uses wave-based verdict, sailing uses wind ── */}
       <div className="flex items-center gap-2 mb-2">
         <span
-          className="px-2 py-0.5 rounded-full text-xs font-extrabold tracking-wide"
+          className="px-2.5 py-1 rounded-full text-[13px] font-extrabold tracking-wide"
           style={{ background: displayVerdict.bg, color: displayVerdict.color, border: `1px solid ${displayVerdict.color}40` }}
         >
           {displayVerdict.label}
@@ -254,28 +254,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         <WaveForecastMini lat={spot.center[1]} lon={spot.center[0]} />
       )}
 
-      {/* ── Temperatures & conditions ── */}
+      {/* ── Temperatures & conditions — primary always visible, secondary collapsible ── */}
       {(score?.airTemp != null || score?.waterTemp != null || score?.humidity != null) && (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2 pt-1 border-t border-slate-700/40">
-          {score?.airTemp != null && (
-            <Cell label="Aire" value={`${score.airTemp.toFixed(1)}°C`} color={temperatureColor(score.airTemp)} />
-          )}
-          {score?.waterTemp != null && (
-            <Cell label="Agua" value={`${score.waterTemp.toFixed(1)}°C`} color={waterTColor(score.waterTemp)} />
-          )}
-          {score?.humidity != null && (
-            <Cell label="Humedad" value={`${score.humidity.toFixed(0)}%`} color={humidityColor(score.humidity)} />
-          )}
-          {score?.dewPoint != null && (
-            <Cell label="P. rocío" value={`${score.dewPoint.toFixed(1)}°C`} />
-          )}
-          {score?.windChill != null && (
-            <Cell label="Sensación" value={`${score.windChill.toFixed(1)}°C`} color={temperatureColor(score.windChill)} />
-          )}
-          {score?.heatIndex != null && (
-            <Cell label="Calor" value={`${score.heatIndex.toFixed(1)}°C`} color={score.heatIndex > 35 ? '#ef4444' : score.heatIndex > 32 ? '#fb923c' : '#facc15'} />
-          )}
-        </div>
+        <TemperatureSection score={score} />
       )}
 
       {/* ── Humidity precursor signal (bruma pattern) ── */}
@@ -351,8 +332,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Webcams (collapsible) ── */}
       {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} />}
 
-      {/* ── Spot wind history 24h (from ingestor DB) ── */}
-      <SpotHistory24h spotId={spot.id} />
+      {/* ── Spot history — opens sidebar with preferred station ── */}
+      <SpotHistoryButton spot={spot} />
 
       {/* ── Wind patterns (collapsible) ── */}
       {spot.windPatterns.length > 0 && <WindPatterns patterns={spot.windPatterns} />}
@@ -1399,90 +1380,74 @@ function timeAgoEs(ts: Date): string {
   return `hace ${hrs}h`;
 }
 
-// ── Spot History 24h — mini wind chart from ingestor spot_scores ──
+// ── Temperature section — primary visible, secondary collapsible ──
 
-const HIST_W = 280;
-const HIST_H = 50;
-
-function SpotHistory24h({ spotId }: { spotId: string }) {
-  const [data, setData] = useState<{ time: string; wind_kt: number; verdict: string }[]>([]);
-  const [open, setOpen] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!open || loaded) return;
-    fetch(`/api/v1/spots/scores?spot_id=${encodeURIComponent(spotId)}&days=1`)
-      .then((r) => r.json())
-      .then((d) => {
-        const scores = (d.scores ?? []).reverse(); // oldest first
-        setData(scores);
-        setLoaded(true);
-      })
-      .catch(() => setLoaded(true));
-  }, [open, loaded, spotId]);
+function TemperatureSection({ score }: { score: SpotScore }) {
+  const [showMore, setShowMore] = useState(false);
+  const hasSecondary = score.dewPoint != null || score.windChill != null || score.heatIndex != null;
 
   return (
-    <div className="mt-1.5 pt-1.5 border-t border-slate-700/40">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
-      >
-        <WeatherIcon id="activity" size={11} className="shrink-0" />
-        <span className="font-semibold">Historial spot 24h</span>
-        <span className="text-slate-500 ml-auto">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="mt-1.5">
-          {data.length < 3 ? (
-            <p className="text-[10px] text-slate-500">{loaded ? 'Sin datos suficientes (ingestor necesita acumular)' : 'Cargando...'}</p>
-          ) : (
-            <SpotHistoryChart data={data} />
+    <div className="mb-2 pt-1 border-t border-slate-700/40">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+        {score.airTemp != null && (
+          <Cell label="Aire" value={`${score.airTemp.toFixed(1)}°C`} color={temperatureColor(score.airTemp)} />
+        )}
+        {score.waterTemp != null && (
+          <Cell label="Agua" value={`${score.waterTemp.toFixed(1)}°C`} color={waterTColor(score.waterTemp)} />
+        )}
+        {score.humidity != null && (
+          <Cell label="Humedad" value={`${score.humidity.toFixed(0)}%`} color={humidityColor(score.humidity)} />
+        )}
+      </div>
+      {hasSecondary && (
+        <>
+          <button
+            onClick={() => setShowMore((o) => !o)}
+            className="text-[10px] text-slate-500 hover:text-slate-400 mt-1 transition-colors"
+          >
+            {showMore ? 'Menos datos ▲' : 'Más datos ▼'}
+          </button>
+          {showMore && (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mt-1">
+              {score.dewPoint != null && <Cell label="Punto rocío" value={`${score.dewPoint.toFixed(1)}°C`} />}
+              {score.windChill != null && <Cell label="Sensación térmica" value={`${score.windChill.toFixed(1)}°C`} color={temperatureColor(score.windChill)} />}
+              {score.heatIndex != null && <Cell label="Índice calor" value={`${score.heatIndex.toFixed(1)}°C`} color={score.heatIndex > 35 ? '#ef4444' : score.heatIndex > 32 ? '#fb923c' : '#facc15'} />}
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );
 }
 
-function SpotHistoryChart({ data }: { data: { time: string; wind_kt: number; verdict: string }[] }) {
-  const maxKt = Math.max(...data.map((d) => d.wind_kt), 5);
-  const step = HIST_W / (data.length - 1);
+// ── Spot History — opens sidebar HistoryDashboard with spot's preferred station ──
 
-  const path = data
-    .map((d, i) => {
-      const x = (i * step).toFixed(1);
-      const y = (HIST_H - (d.wind_kt / maxKt) * (HIST_H - 6) - 3).toFixed(1);
-      return `${i === 0 ? 'M' : 'L'}${x},${y}`;
-    })
-    .join(' ');
-
-  // Time labels (first, mid, last)
-  const fmt = (t: string) => {
-    const d = new Date(t);
-    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-  };
+function SpotHistoryButton({ spot }: { spot: SailingSpot }) {
+  const handleClick = useCallback(() => {
+    // Find the first preferred station to pre-select in history
+    const stationId = spot.preferredStations?.[0];
+    if (stationId) {
+      // Set the history station selection so HistoryDashboard opens with this station
+      import('../../store/uiStore').then((m) => {
+        m.useUIStore.getState().setRequestedTab('history');
+        m.useUIStore.getState().setSidebarOpen(true);
+      });
+      import('../../store/weatherSelectionStore').then((m) => {
+        m.useWeatherSelectionStore.getState().openHistory(stationId);
+      });
+    }
+  }, [spot.preferredStations]);
 
   return (
-    <div>
-      <svg width={HIST_W} height={HIST_H} className="w-full">
-        {/* Grid lines at 5kt intervals */}
-        {Array.from({ length: Math.ceil(maxKt / 5) }, (_, i) => {
-          const kt = (i + 1) * 5;
-          const y = HIST_H - (kt / maxKt) * (HIST_H - 6) - 3;
-          return y > 2 ? (
-            <g key={kt}>
-              <line x1="0" y1={y} x2={HIST_W} y2={y} stroke="#334155" strokeWidth="0.5" strokeDasharray="3,3" />
-              <text x={HIST_W - 2} y={y - 2} fill="#64748b" fontSize="8" textAnchor="end">{kt}kt</text>
-            </g>
-          ) : null;
-        })}
-        <path fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
-      </svg>
-      <div className="flex justify-between text-[9px] text-slate-500 mt-0.5 px-0.5">
-        <span>{fmt(data[0].time)}</span>
-        <span>{fmt(data[Math.floor(data.length / 2)].time)}</span>
-        <span>{fmt(data[data.length - 1].time)}</span>
-      </div>
+    <div className="mt-1.5 pt-1.5 border-t border-slate-700/40">
+      <button
+        onClick={handleClick}
+        className="flex items-center gap-1.5 text-[11px] text-sky-400 hover:text-sky-300 transition-colors w-full text-left"
+      >
+        <WeatherIcon id="activity" size={12} className="shrink-0" />
+        <span className="font-semibold">Ver historial del spot</span>
+        <span className="text-slate-500 ml-auto">→</span>
+      </button>
     </div>
   );
 }
