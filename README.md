@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-[![Versión](https://img.shields.io/badge/versión-2.17.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Versión](https://img.shields.io/badge/versión-2.20.5-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-235%20passed-brightgreen)](src/test/)
 
