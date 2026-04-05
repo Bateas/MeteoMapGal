@@ -75,8 +75,8 @@ export function SpotScoringSection() {
             Spots de Surf <span className="badge-beta ml-1" style={{ borderColor: 'rgba(34,211,238,0.3)', color: '#22d3ee', background: 'rgba(34,211,238,0.1)' }}>Beta</span>
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
-            Spots orientados a surf. El scoring actual usa datos de viento de estaciones cercanas.
-            El scoring específico de surf (swell + período + dirección + marea) está en desarrollo.
+            Marcadores pentagonales. Scoring basado en oleaje (Open-Meteo Marine) con corrección costera.
+            Factores: altura ola, período swell, viento offshore/onshore. Previsión de olas 24h en cada popup.
           </p>
           <SurfSpotRow name="Patos" desc="Playa NW en Nigrán. Beach break + reef. Marea media-alta, offshore S/SSW." />
           <SurfSpotRow name="A Lanzada (Surf)" desc="2.4km playa W abierta. Muy consistente. Offshore NE/E. Todas las mareas." />
@@ -89,6 +89,17 @@ export function SpotScoringSection() {
             <p>
               <strong className="text-cyan-300">Offshore</strong> = viento de tierra hacia el mar. Limpia y ordena las olas.
               <strong className="text-cyan-300"> Onshore</strong> = lo contrario, destroza la superficie.
+            </p>
+          </div>
+          <div className="pt-2 space-y-1">
+            <div className="text-[11px] font-bold text-cyan-300">Escala de oleaje (5 niveles)</div>
+            <VerdictRow color="#94a3b8" label="Flat"     wind="&lt; 0.3m" desc="Mar plano. Sin olas para surf." />
+            <VerdictRow color="#22d3ee" label="Peque"    wind="0.3-0.8m" desc="Olas pequeñas. Longboard o iniciarse." />
+            <VerdictRow color="#3b82f6" label="Surf OK"  wind="0.8-1.5m" desc="Olas surfeables. Buen día para meterse." />
+            <VerdictRow color="#22c55e" label="Clásico"  wind="1.5-2.5m" desc="Olas limpias y consistentes." />
+            <VerdictRow color="#f97316" label="Grande"   wind="&gt; 2.5m" desc="Mar grande. Solo con experiencia." />
+            <p className="text-[10px] text-slate-600 italic pt-1">
+              Corrección costera: los modelos sobreestiman ~15% en costas semi-protegidas. La app ajusta automáticamente.
             </p>
           </div>
         </div>
