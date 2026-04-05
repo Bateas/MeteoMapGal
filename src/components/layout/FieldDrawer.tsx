@@ -119,10 +119,10 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
       aria-label="Condiciones, alertas y campo"
       className={`fixed bg-slate-900/95 backdrop-blur-sm transition-all duration-300 ease-in-out overflow-hidden ${
         isMobile
-          ? `inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-slate-700 max-w-full ${open ? 'translate-y-0' : 'translate-y-full'}`
+          ? `inset-x-0 z-50 rounded-t-2xl border-t border-slate-700 max-w-full ${open ? 'translate-y-0' : 'translate-y-full'}`
           : `right-0 top-0 h-full w-72 z-30 border-l border-slate-700 ${open ? 'translate-x-0' : 'translate-x-full'}`
       }`}
-      style={isMobile ? { maxHeight: 'calc(65dvh - 48px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' } : undefined}
+      style={isMobile ? { bottom: 'calc(48px + env(safe-area-inset-bottom, 0px))', maxHeight: '60dvh' } : undefined}
     >
       {/* Mobile drag handle */}
       {isMobile && (
@@ -179,7 +179,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           Cargando datos de previsión...
         </div>
       ) : (
-        <div className={`space-y-3 overflow-y-auto ${isMobile ? 'p-4 max-h-[calc(65dvh-168px)]' : 'p-3 h-[calc(100%-92px)]'}`}>
+        <div className={`space-y-3 overflow-y-auto ${isMobile ? 'p-4 max-h-[calc(60dvh-100px)]' : 'p-3 h-[calc(100%-92px)]'}`}>
           {/* ── Navegación tab: wind propagation + fog + tides (Rías) + atmospheric (Embalse) ── */}
           {activeTab === 'nav' && (
             <>
