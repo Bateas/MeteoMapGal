@@ -6,7 +6,7 @@
  * matched pattern, score, and summary text.
  * Themed per verdict color to match SpotMarker.
  */
-import { memo, useState, useMemo, useEffect } from 'react';
+import { memo, useState, useMemo, useEffect, useCallback } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
