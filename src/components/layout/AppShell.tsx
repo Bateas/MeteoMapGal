@@ -251,13 +251,14 @@ export function AppShell() {
   }, [activeSector.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hide LoadingScreen after min display time OR data ready (whichever is later)
+  // activeSector.id in deps ensures timer resets on sector switch (prevents stale dismiss)
   useEffect(() => {
     const elapsed = Date.now() - loadingStartRef.current;
     // If data arrived, dismiss quickly. If not, dismiss after 5s max (map visible underneath)
     const maxWait = readingsCount > 0 ? Math.max(0, 2500 - elapsed) : 5000;
     const t = setTimeout(() => setShowLoading(false), maxWait);
     return () => clearTimeout(t);
-  }, [readingsCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [readingsCount > 0, activeSector.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Geolocation auto-sector (runs once per device, first visit only)
   // Geolocation auto-sector DISABLED — the browser permission popup on first

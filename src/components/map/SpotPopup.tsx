@@ -86,7 +86,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     if (spot.category !== 'surf' || marineForecast.length === 0) return null;
     const now = marineForecast[0];
     if (!now) return null;
-    const wh = now.swellHeight ?? now.waveHeight ?? 0;
+    // Open-Meteo Marine overpredicts for semi-protected coasts — 15% coastal reduction
+    const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
+    const wh = rawWh * 0.85;
     const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
     const windDir = score?.wind?.dirDeg ?? null;
     const isOffshore = windDir != null && spot.offshoreWindDir
@@ -939,8 +941,8 @@ function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
 
 // ── Wind trend + sparkline for spots ─────────────────────────
 
-const SPARK_W = 40;
-const SPARK_H = 16;
+const SPARK_W = 80;
+const SPARK_H = 24;
 
 function SpotWindSparkline({ spotId }: { spotId: string }) {
   const history = useSpotStore((s) => s.windHistory.get(spotId));
@@ -962,9 +964,12 @@ function SpotWindSparkline({ spotId }: { spotId: string }) {
   if (!path) return null;
 
   return (
-    <svg width={SPARK_W} height={SPARK_H} className="ml-0.5 flex-shrink-0 opacity-60" aria-label="Tendencia viento spot">
-      <path fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
-    </svg>
+    <div className="flex items-center gap-1.5 ml-0.5">
+      <svg width={SPARK_W} height={SPARK_H} className="flex-shrink-0 opacity-70" aria-label="Viento últimas 2h">
+        <path fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
+      </svg>
+      <span className="text-[9px] text-slate-500">2h</span>
+    </div>
   );
 }
 
