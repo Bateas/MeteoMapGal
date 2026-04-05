@@ -185,9 +185,17 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             <>
               <Suspense fallback={<SkeletonLoader lines={3} compact />}>
                 {isRias && <TidePanel />}
-                {isEmbalse && <AtmosphericProfile />}
+                {isEmbalse && (
+                  <AlertSection icon={<WeatherIcon id="cloud" size={14} />} title="Perfil Atmosférico" level="none" beta>
+                    <AtmosphericProfile />
+                  </AlertSection>
+                )}
               </Suspense>
-              {isEmbalse && <WindStatusSection alerts={alerts} />}
+              {isEmbalse && (
+                <AlertSection icon={<WeatherIcon id="wind" size={14} />} title="Viento en estaciones" level="none" beta>
+                  <WindStatusSection alerts={alerts} />
+                </AlertSection>
+              )}
               <FogSection alerts={alerts} />
               <AlertHistorySection />
             </>
