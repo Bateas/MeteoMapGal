@@ -351,6 +351,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Webcams (collapsible) ── */}
       {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} />}
 
+      {/* ── Spot wind history 24h (from ingestor DB) ── */}
+      <SpotHistory24h spotId={spot.id} />
+
       {/* ── Wind patterns (collapsible) ── */}
       {spot.windPatterns.length > 0 && <WindPatterns patterns={spot.windPatterns} />}
 
@@ -1394,6 +1397,94 @@ function timeAgoEs(ts: Date): string {
   if (mins < 60) return `hace ${mins} min`;
   const hrs = Math.round(mins / 60);
   return `hace ${hrs}h`;
+}
+
+// ── Spot History 24h — mini wind chart from ingestor spot_scores ──
+
+const HIST_W = 280;
+const HIST_H = 50;
+
+function SpotHistory24h({ spotId }: { spotId: string }) {
+  const [data, setData] = useState<{ time: string; wind_kt: number; verdict: string }[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!open || loaded) return;
+    fetch(`/api/v1/spots/scores?spot_id=${encodeURIComponent(spotId)}&days=1`)
+      .then((r) => r.json())
+      .then((d) => {
+        const scores = (d.scores ?? []).reverse(); // oldest first
+        setData(scores);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [open, loaded, spotId]);
+
+  return (
+    <div className="mt-1.5 pt-1.5 border-t border-slate-700/40">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
+      >
+        <WeatherIcon id="activity" size={11} className="shrink-0" />
+        <span className="font-semibold">Historial spot 24h</span>
+        <span className="text-slate-500 ml-auto">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5">
+          {data.length < 3 ? (
+            <p className="text-[10px] text-slate-500">{loaded ? 'Sin datos suficientes (ingestor necesita acumular)' : 'Cargando...'}</p>
+          ) : (
+            <SpotHistoryChart data={data} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SpotHistoryChart({ data }: { data: { time: string; wind_kt: number; verdict: string }[] }) {
+  const maxKt = Math.max(...data.map((d) => d.wind_kt), 5);
+  const step = HIST_W / (data.length - 1);
+
+  const path = data
+    .map((d, i) => {
+      const x = (i * step).toFixed(1);
+      const y = (HIST_H - (d.wind_kt / maxKt) * (HIST_H - 6) - 3).toFixed(1);
+      return `${i === 0 ? 'M' : 'L'}${x},${y}`;
+    })
+    .join(' ');
+
+  // Time labels (first, mid, last)
+  const fmt = (t: string) => {
+    const d = new Date(t);
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div>
+      <svg width={HIST_W} height={HIST_H} className="w-full">
+        {/* Grid lines at 5kt intervals */}
+        {Array.from({ length: Math.ceil(maxKt / 5) }, (_, i) => {
+          const kt = (i + 1) * 5;
+          const y = HIST_H - (kt / maxKt) * (HIST_H - 6) - 3;
+          return y > 2 ? (
+            <g key={kt}>
+              <line x1="0" y1={y} x2={HIST_W} y2={y} stroke="#334155" strokeWidth="0.5" strokeDasharray="3,3" />
+              <text x={HIST_W - 2} y={y - 2} fill="#64748b" fontSize="8" textAnchor="end">{kt}kt</text>
+            </g>
+          ) : null;
+        })}
+        <path fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
+      </svg>
+      <div className="flex justify-between text-[9px] text-slate-500 mt-0.5 px-0.5">
+        <span>{fmt(data[0].time)}</span>
+        <span>{fmt(data[Math.floor(data.length / 2)].time)}</span>
+        <span>{fmt(data[data.length - 1].time)}</span>
+      </div>
+    </div>
+  );
 }
 
 // ── Share button — Web Share API with clipboard fallback ──────────
