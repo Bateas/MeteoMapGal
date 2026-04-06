@@ -10,6 +10,7 @@ import { useSectorStore } from '../store/sectorStore';
 import { useSpotStore } from '../store/spotStore';
 import { getSpotsForSector } from '../config/spots';
 import { fetchMarineForecast, type MarineForecastHour } from '../api/marineClient';
+import { swellAlignmentMultiplier } from '../components/spot/surfVerdictEngine';
 
 const INTERVAL = 15 * 60_000; // 15 min
 
@@ -79,9 +80,13 @@ export function useSurfMarineData() {
           const hours = await fetchMarineForSpot(spot.id, spot.center[1], spot.center[0]);
           const now = hours[0];
           if (now) {
-            // Per-spot coastal correction (sheltered spots get lower factor)
+            // Per-spot coastal correction × swell direction alignment
           const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
-          const wh = rawWh * (spot.coastalFactor ?? 0.85);
+          const swDir = now.swellDirection ?? now.waveDirection ?? null;
+          const align = swDir != null && spot.beachOrientation != null
+            ? swellAlignmentMultiplier(swDir, spot.beachOrientation)
+            : 1.0;
+          const wh = rawWh * (spot.coastalFactor ?? 0.85) * align;
             const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
             const v = basicSurfVerdict(wh, tp);
             setSurfWave(spot.id, {
