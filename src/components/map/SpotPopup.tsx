@@ -10,10 +10,10 @@ import { memo, useState, useMemo, useEffect, useCallback } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
-import { useWebcamStore } from '../../store/webcamStore';
+// webcamStore moved to ScoringBreakdown.tsx
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import type { SpotScore, SpotVerdict, WindContribution } from '../../services/spotScoringEngine';
+import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
@@ -29,6 +29,7 @@ import { computeSurfVerdict, type SurfVerdictResult } from '../spot/surfVerdictE
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs, dirArrow, azimuthLabel } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
+import { ScoringBreakdown, Cell } from '../spot/ScoringBreakdown';
 
 // ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -412,16 +413,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 });
 
 // ── Helper: data cell ────────────────────────────────────────
-function Cell({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div className="flex items-baseline gap-1">
-      <span className="text-slate-500 text-[11px]">{label}</span>
-      <span className="font-bold text-slate-200" style={color ? { color } : undefined}>
-        {value}
-      </span>
-    </div>
-  );
-}
+// Cell extracted to ../spot/ScoringBreakdown.tsx
 
 // ── Sailing windows (collapsible) ─────────────────────────────
 
@@ -478,174 +470,7 @@ function WindowRow({ window: w, isBest }: { window: SailingWindow; isBest: boole
   );
 }
 
-// ── Scoring breakdown "¿Por qué?" (collapsible) ─────────────
-
-function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: SailingSpot }) {
-  const [open, setOpen] = useState(false);
-
-  const lines: { label: string; value: string; color?: string }[] = [];
-
-  // Wind consensus
-  if (score.wind) {
-    const w = score.wind;
-    lines.push({
-      label: 'Consenso viento',
-      value: `${w.stationCount} estaciones, ${w.avgSpeedKt.toFixed(0)} kt ${w.dominantDir}`,
-      color: windKtColor(w.avgSpeedKt),
-    });
-    if (w.matchedPattern) {
-      lines.push({ label: 'Patrón', value: w.matchedPattern, color: '#fbbf24' });
-    }
-  }
-
-  // Wave conditions
-  if (score.waves?.waveHeight != null) {
-    const wh = score.waves.waveHeight;
-    const relevance = spot.waveRelevance === 'critical' ? 'oceánico' : spot.waveRelevance === 'moderate' ? 'moderado' : 'interior';
-    lines.push({
-      label: `Oleaje (${relevance})`,
-      value: `${wh.toFixed(1)} m${score.waves.wavePeriod != null ? ` · Tp ${score.waves.wavePeriod.toFixed(0)}s` : ''}`,
-      color: waveColor(wh),
-    });
-  } else if (spot.waveRelevance === 'none') {
-    lines.push({ label: 'Aguas', value: 'Aguas planas (bonus)', color: '#22c55e' });
-  }
-
-  // Thermal context
-  if (score.thermal && score.thermal.thermalProbability > 0) {
-    lines.push({
-      label: 'Térmica',
-      value: `${score.thermal.thermalProbability}% prob${score.thermal.deltaT != null ? ` · ΔT ${score.thermal.deltaT.toFixed(0)}°C` : ''}`,
-      color: '#fbbf24',
-    });
-    if (score.thermal.windWindow) {
-      const tw = score.thermal.windWindow;
-      lines.push({
-        label: 'Ventana térmica',
-        value: `${tw.startHour}h–${tw.endHour}h · ~${tw.avgSpeedKt.toFixed(0)} kt ${tw.dominantDir}`,
-      });
-    }
-  }
-
-  // Hard gate
-  if (score.hardGateTriggered) {
-    lines.push({ label: 'Límite', value: score.hardGateTriggered, color: '#ef4444' });
-  }
-
-  // Wind direction penalty
-  if (score.wind && spot.id === 'cesantes' && score.wind.dominantDir === 'N') {
-    lines.push({ label: 'Penalización', value: 'Norte en Cesantes (−15)', color: '#f97316' });
-  }
-
-  if (lines.length === 0) return null;
-
-  return (
-    <div className="mt-2 pt-1.5 border-t border-slate-700/40">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
-      >
-        <WeatherIcon id="info" size={11} className="text-slate-400 shrink-0" />
-        <span className="font-semibold">¿Por qué {VERDICT_STYLE[score.verdict].label.toLowerCase()}?</span>
-        <span className="text-slate-500 text-[11px] ml-auto">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="mt-1.5 space-y-1">
-          {lines.map((line, i) => (
-            <div key={i} className="flex items-baseline gap-1.5 text-[11px]">
-              <span className="text-slate-500 shrink-0 w-[72px] text-right">{line.label}</span>
-              <span className="font-semibold" style={line.color ? { color: line.color } : { color: '#e2e8f0' }}>
-                {line.value}
-              </span>
-            </div>
-          ))}
-          <div className="text-[11px] text-slate-600 mt-1 italic">
-            Score: {score.score}/100 · {score.wind?.stationCount ?? 0} fuentes
-          </div>
-          {score.wind?.contributions && <WindSources contributions={score.wind.contributions} />}
-          <SpotVisionBadge spot={spot} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Vision IA badge for spots with nearby webcam ────────────
-
-function SpotVisionBadge({ spot }: { spot: SailingSpot }) {
-  const visionResults = useWebcamStore((s) => s.visionResults);
-  if (!spot.webcams || spot.webcams.length === 0) return null;
-
-  // Find vision data for any webcam linked to this spot (via config/webcams.ts nearestSpotId)
-  // Also check by matching webcam URL patterns
-  let bestResult: { bf: number; label: string; kt: number; confidence: string; sky: string; fog: boolean; ago: number; webcamName: string } | null = null;
-
-  for (const [webcamId, result] of visionResults) {
-    if (result.beaufort < 0) continue;
-    // Check if this webcam's spotId matches
-    if (result.spotId === spot.id) {
-      const ago = Math.round((Date.now() - result.analyzedAt.getTime()) / 60_000);
-      if (!bestResult || result.confidence === 'high' || ago < (bestResult.ago ?? 999)) {
-        bestResult = { bf: result.beaufort, label: result.beaufortLabel, kt: result.windEstimateKt, confidence: result.confidence, sky: result.weather.sky, fog: result.weather.fogVisible, ago, webcamName: webcamId };
-      }
-    }
-  }
-
-  if (!bestResult) return null;
-
-  const color = bestResult.bf <= 1 ? '#94a3b8' : bestResult.bf <= 3 ? '#38bdf8' : bestResult.bf <= 5 ? '#fbbf24' : '#f87171';
-
-  return (
-    <div className="mt-1 pt-1 border-t border-slate-700/30">
-      <div className="flex items-center gap-1.5 text-[10px]">
-        <span className="text-slate-600">Vision IA:</span>
-        <span className="font-bold" style={{ color }}>B{bestResult.bf}</span>
-        <span className="text-slate-500">{bestResult.label} ~{bestResult.kt}kt</span>
-        {bestResult.fog && <span className="text-amber-400">Niebla</span>}
-        <span className="ml-auto text-slate-600">{bestResult.ago < 60 ? `${bestResult.ago}m` : `${Math.round(bestResult.ago / 60)}h`}</span>
-      </div>
-    </div>
-  );
-}
-
-// ── Wind sources (collapsible) ──────────────────────────────
-
-const SOURCE_LABELS: Record<string, string> = {
-  aemet: 'AEMET', meteogalicia: 'MG', meteoclimatic: 'MC',
-  wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX', buoy: 'Boya',
-};
-
-function WindSources({ contributions }: { contributions: WindContribution[] }) {
-  const [open, setOpen] = useState(false);
-  if (!contributions || contributions.length === 0) return null;
-  return (
-    <div className="mt-1 pt-1 border-t border-slate-700/30">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="text-[10px] text-blue-400/70 hover:text-blue-300 cursor-pointer flex items-center gap-1"
-      >
-        <span className="text-[8px]">{open ? '▼' : '▶'}</span>
-        Fuentes ({contributions.length})
-      </button>
-      {open && (
-        <div className="mt-1 space-y-0.5">
-          {contributions.slice(0, 8).map((c, i) => (
-            <div key={i} className="flex items-center gap-1 text-[9px] text-slate-400">
-              <span className={`w-[24px] shrink-0 font-mono ${c.source === 'buoy' ? 'text-cyan-400' : 'text-slate-500'}`}>
-                {SOURCE_LABELS[c.source] ?? c.source}
-              </span>
-              <span className="truncate flex-1" title={c.name}>{c.name}</span>
-              <span className="font-semibold text-slate-300 w-[32px] text-right">{c.speedKt}kt</span>
-              <span className="w-[16px] text-center">{c.dir ?? '-'}</span>
-              <span className="text-slate-600 w-[28px] text-right">{c.distKm}km</span>
-              <span className="text-slate-600 w-[22px] text-right">{c.weightPct}%</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+// ScoringBreakdown + WindSources + SpotVisionBadge extracted to ../spot/ScoringBreakdown.tsx
 
 // ── Wind patterns (collapsible) ──────────────────────────────
 
