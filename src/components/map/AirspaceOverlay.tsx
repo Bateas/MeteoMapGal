@@ -47,27 +47,38 @@ interface NotamPopupData {
 
 // ── Color helpers ─────────────────────────────────────────
 
-/** Color by severity first, then by ENAIRE layer category */
-function zoneLineColor(type: string, layer: number): string {
-  const t = type.toUpperCase();
-  // Severity always wins
-  if (t.includes('PROHIB')) return '#ef4444'; // red: prohibited
-  // Then by layer category: 0=Aero, 1=Infra, 2=Medioambiente, 3=Urbano
-  switch (layer) {
-    case 0: return '#f59e0b'; // orange: airport/aerodrome
-    case 1: return '#8b5cf6'; // purple: infrastructure (railway, roads)
-    case 2: return '#22c55e'; // green: environment (ZEPA, nature)
-    case 3: return '#64748b'; // gray: urban
-    default: return '#3b82f6'; // blue: default
-  }
+/** Color by content: name + reasons + type determine the visual category */
+function zoneLineColor(z: { type: string; name: string; reasons?: string; layerCategory: number }): string {
+  const t = z.type.toUpperCase();
+  const n = z.name.toUpperCase();
+  const r = (z.reasons ?? '').toUpperCase();
+  const all = n + ' ' + r;
+  // Severity first
+  if (t.includes('PROHIB')) return '#ef4444'; // red
+  // Content-based classification
+  if (all.includes('TMA') || all.includes('CTR') || all.includes('AERODROM') || all.includes('AEROPUERT')) return '#f59e0b'; // orange: real aviation
+  if (all.includes('ADIF') || all.includes('FERROV') || all.includes('TREN') || all.includes('FFCC')) return '#8b5cf6'; // purple: railway
+  if (all.includes('ZEPA') || all.includes('NATURA') || all.includes('PARQUE') || all.includes('LIC') || all.includes('ZEC') || all.includes('RESERVA') || all.includes('PROTEG')) return '#22c55e'; // green: nature
+  if (all.includes('URBAN') || all.includes('CIUDAD') || all.includes('POBLAC')) return '#64748b'; // gray: urban
+  // Layer-based fallback
+  if (z.layerCategory === 2) return '#22c55e'; // green: environment layer
+  if (z.layerCategory === 3) return '#64748b'; // gray: urban layer
+  return '#f59e0b80'; // faded orange: generic UAS zones (most common, de-emphasize)
 }
 
-function zoneFillRgba(type: string, layer: number): string {
-  const hex = zoneLineColor(type, layer);
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},0.08)`;
+function zoneFillRgba(z: { type: string; name: string; reasons?: string; layerCategory: number }): string {
+  const hex = zoneLineColor(z);
+  const clean = hex.length > 7 ? hex.slice(0, 7) : hex; // strip alpha if present
+  const r = parseInt(clean.slice(1, 3), 16);
+  const g = parseInt(clean.slice(3, 5), 16);
+  const b = parseInt(clean.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},0.06)`;
+}
+
+/** Should this zone show a text label on the map? Hide generic fallback names */
+function shouldShowLabel(name: string): boolean {
+  const generic = ['Zona aeroportuaria', 'Zona urbana', 'Zona infraestructura', 'Zona restringida', 'Zona protegida'];
+  return !generic.includes(name);
 }
 
 // ── GeoJSON builders ──────────────────────────────────────
@@ -82,14 +93,15 @@ function buildZonesGeoJSON(zones: UasZone[]): GeoJSON.FeatureCollection {
         id: i,
         properties: {
           name: z.name,
+          showLabel: shouldShowLabel(z.name) ? 1 : 0,
           type: z.type,
           lowerAlt: z.lowerAltitude,
           upperAlt: z.upperAltitude,
           altRef: z.altitudeReference || 'AGL',
           reason: z.reasons || '',
           contact: [z.phone, z.email].filter(Boolean).join(' / '),
-          fillColor: zoneFillRgba(z.type, z.layerCategory),
-          lineColor: zoneLineColor(z.type, z.layerCategory),
+          fillColor: zoneFillRgba(z),
+          lineColor: zoneLineColor(z),
         },
         geometry: z.geometry,
       })),
@@ -281,6 +293,7 @@ export const AirspaceOverlay = memo(function AirspaceOverlay() {
         <Layer
           id="airspace-zones-label"
           type="symbol"
+          filter={['==', ['get', 'showLabel'], 1]}
           layout={{
             'text-field': ['get', 'name'],
             'text-size': 11,
