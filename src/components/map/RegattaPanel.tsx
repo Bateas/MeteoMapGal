@@ -406,7 +406,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
       if (!cancelled) setForecast(corrected);
     };
     load();
-    const iv = setInterval(load, 10 * 60_000);
+    const iv = setInterval(() => { if (!document.hidden) load(); }, 10 * 60_000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [active, zone]);
 
@@ -438,7 +438,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
       setAemetAvisos(filterAvisosByProvince(all, province as '36' | '32'));
     };
     load();
-    const iv = setInterval(load, 15 * 60_000); // refresh every 15min
+    const iv = setInterval(() => { if (!document.hidden) load(); }, 15 * 60_000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [active, zone]);
 
