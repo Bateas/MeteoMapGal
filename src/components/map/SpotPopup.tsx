@@ -25,6 +25,8 @@ import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchTidePredictions } from '../../api/tideClient';
 import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
 import type { TidePoint } from '../../api/tideClient';
+import { computeSurfVerdict, type SurfVerdictResult } from '../spot/surfVerdictEngine';
+import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs, dirArrow, azimuthLabel } from '../spot/spotColors';
 
 // ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -645,12 +647,6 @@ function WindSources({ contributions }: { contributions: WindContribution[] }) {
 
 // ── Wind patterns (collapsible) ──────────────────────────────
 
-/** Cardinal arrow for wind direction (degrees) */
-function dirArrow(deg: number): string {
-  const arrows = ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'];
-  return arrows[Math.round(deg / 45) % 8];
-}
-
 function WindPatterns({ patterns }: { patterns: WindPattern[] }) {
   const [open, setOpen] = useState(false);
   return (
@@ -684,10 +680,6 @@ function WindPatterns({ patterns }: { patterns: WindPattern[] }) {
 // ── Webcam section (collapsible) ─────────────────────────────
 
 /** Compass label from azimuth degrees */
-function azimuthLabel(deg: number): string {
-  const labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  return labels[Math.round(deg / 45) % 8];
-}
 
 // ── Thermal precursor early warning ────────────────────────
 const PRECURSOR_LEVEL_STYLE: Record<string, { color: string; bg: string }> = {
@@ -1288,145 +1280,6 @@ function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
       </div>
     </div>
   );
-}
-
-// ── Surf Verdict Engine ──────────────────────────────────────
-
-interface SurfVerdictResult {
-  label: string;
-  color: string;
-  bg: string;
-  summary: string;
-}
-
-/**
- * Compute surf verdict from wave + wind + period data.
- * Prioritizes waves over wind — a surfer wants olas, wind is modifier.
- *
- * Base level from wave height:
- *   Flat (<0.3m) → Pequeño (0.3-0.8m) → Surfeable (0.8-1.5m) → Clasico (1.5-2.5m) → Grande (>2.5m)
- *
- * Modifiers:
- *   - Offshore wind: +1 quality step ("olas limpias")
- *   - Onshore wind: -1 quality step ("mar revuelto")
- *   - Swell period >=10s: +1 ("swell de calidad")
- *   - Short period <5s: -1 ("mar de viento, desordenado")
- */
-function computeSurfVerdict(waveHeight: number, period: number, isOffshore: boolean, isOnshore: boolean, swellAligned = true): SurfVerdictResult {
-  // Base wave level (0-4) — determined by ACTUAL wave height
-  let level: number;
-  if (waveHeight < 0.3) level = 0;       // FLAT
-  else if (waveHeight < 0.8) level = 1;   // PEQUE
-  else if (waveHeight < 1.5) level = 2;   // SURF OK
-  else if (waveHeight < 2.5) level = 3;   // CLASICO
-  else level = 4;                          // GRANDE
-
-  const baseLevel = level; // Remember base — modifiers can't inflate more than +1 total
-  const warnings: string[] = [];
-  let bonus = 0;
-
-  // Wind quality (affects wave cleanliness, not size)
-  if (isOffshore && level > 0) {
-    bonus += 1;
-    warnings.push('viento offshore (olas limpias)');
-  }
-  if (isOnshore && level > 0) {
-    bonus -= 1;
-    warnings.push('viento onshore (mar revuelto)');
-  }
-
-  // Period quality — only bonus if swell direction aligns with beach
-  if (period >= 10 && level >= 1 && swellAligned) {
-    bonus += 1;
-    warnings.push(`periodo ${period.toFixed(0)}s (swell de calidad)`);
-  } else if (period >= 10 && level >= 1 && !swellAligned) {
-    warnings.push(`periodo ${period.toFixed(0)}s (swell cruzado)`);
-  } else if (period > 0 && period < 5 && level >= 1) {
-    bonus -= 1;
-    warnings.push(`periodo ${period.toFixed(0)}s (mar de viento)`);
-  }
-
-  // Apply bonus but CAP at +1 from base — modifiers improve quality, don't invent size.
-  level = Math.max(0, Math.min(4, baseLevel + Math.max(-2, Math.min(1, bonus))));
-
-  // Hard floors: modifiers can't create size that isn't there
-  if (level >= 3 && waveHeight < 1.0) level = 2; // CLASICO needs >= 1.0m real waves
-  if (level === 4 && waveHeight < 1.8) level = 3; // GRANDE needs >= 1.8m
-
-  const LEVELS: SurfVerdictResult[] = [
-    { label: 'FLAT',      color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', summary: 'Mar plano — sin olas para surf' },
-    { label: 'PEQUE',     color: '#22d3ee', bg: 'rgba(34,211,238,0.12)',  summary: 'Olas pequeñas — ideal para longboard o iniciarse' },
-    { label: 'SURF OK',   color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  summary: 'Buen día para meterse — olas surfeables' },
-    { label: 'CLASICO',   color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   summary: 'Día clásico — olas limpias y consistentes' },
-    { label: 'GRANDE',    color: '#f97316', bg: 'rgba(249,115,22,0.12)',  summary: 'Mar grande — solo con experiencia' },
-  ];
-
-  const result = { ...LEVELS[level] };
-
-  // Technical detail line (secondary, below the plain-language summary)
-  const detail: string[] = [];
-  detail.push(`${waveHeight.toFixed(1)}m`);
-  if (period > 0) detail.push(`${period.toFixed(0)}s`);
-  if (warnings.length > 0) detail.push(warnings.join(', '));
-  result.summary += ` (${detail.join(' · ')})`;
-
-  return result;
-}
-
-/** Wave height → bar color (ocean blues → red for big waves) */
-function waveBarColor(m: number): string {
-  if (m < 0.5) return 'rgba(100,116,139,0.4)'; // flat — grey
-  if (m < 1.0) return 'rgba(34,211,238,0.5)';  // small — cyan
-  if (m < 1.5) return 'rgba(56,189,248,0.6)';  // medium — sky
-  if (m < 2.5) return 'rgba(59,130,246,0.7)';  // good — blue
-  if (m < 4.0) return 'rgba(234,179,8,0.7)';   // big — yellow
-  return 'rgba(239,68,68,0.8)';                  // huge — red
-}
-
-// ── Color helpers ────────────────────────────────────────────
-/** Wind speed color aligned with verdict thresholds and VERDICT_HEX colors.
- * Extends into violet→dark for extreme winds (30-45+ kt). */
-function windKtColor(kt: number): string {
-  if (kt < 6) return '#94a3b8';   // calm — slate
-  if (kt < 8) return '#38bdf8';   // flojo — sky blue
-  if (kt < 13) return '#22c55e';  // navegable — green
-  if (kt < 18) return '#eab308';  // bueno — yellow
-  if (kt < 23) return '#f97316';  // fuerte — orange
-  if (kt < 30) return '#ef4444';  // gale — red
-  if (kt < 40) return '#a855f7';  // storm — violet
-  if (kt < 50) return '#7c3aed';  // severe storm — dark violet
-  return '#1e1b4b';               // hurricane — near-black
-}
-
-function waveColor(m: number): string {
-  if (m < 0.5) return '#94a3b8';
-  if (m < 1.0) return '#34d399';
-  if (m < 2.0) return '#fbbf24';
-  return '#f87171';
-}
-
-function humidityColor(h: number): string {
-  if (h < 40) return '#fbbf24';
-  if (h < 60) return '#34d399';
-  if (h < 80) return '#60a5fa';
-  return '#a78bfa';
-}
-
-function waterTColor(t: number): string {
-  if (t < 13) return '#60a5fa';
-  if (t < 16) return '#22d3ee';
-  if (t < 20) return '#34d399';
-  return '#fbbf24';
-}
-
-/** Lightweight relative-time in Spanish */
-function timeAgoEs(ts: Date): string {
-  const diff = Date.now() - ts.getTime();
-  const mins = Math.round(diff / 60_000);
-  if (mins < 1) return 'ahora';
-  if (mins < 60) return `hace ${mins} min`;
-  const hrs = Math.round(mins / 60);
-  return `hace ${hrs}h`;
 }
 
 // ── Temperature section — primary visible, secondary collapsible ──
