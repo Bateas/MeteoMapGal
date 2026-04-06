@@ -99,8 +99,8 @@ function buildQueryUrl(base: string, layer: number, bbox: [number, number, numbe
 
 // ── Layer label fallbacks ──────────────────────────────────
 // When ENAIRE zones lack a NOMBRE field, derive a label from the layer category
-// Layer 0=Aero, 1=Infra, 2=Medioambiente, 3=Urbano
-const LAYER_FALLBACK_LABELS = ['Zona aeroportuaria', 'Zona infraestructura', 'Zona protegida', 'Zona urbana'];
+// SRV_UAS_ZG_V1 layers: 0=Infraestructuras, 1=Medioambiente, 2=Aero, 3=Urbano
+const LAYER_FALLBACK_LABELS = ['Zona infraestructura', 'Zona protegida (medioambiente)', 'Zona aeroportuaria', 'Zona urbana'];
 
 function deriveZoneName(a: Record<string, unknown>, layerIndex: number): string {
   const raw = a['NOMBRE'] ?? a['NAME'] ?? a['name'];

@@ -60,10 +60,12 @@ function zoneLineColor(z: { type: string; name: string; reasons?: string; layerC
   if (all.includes('ADIF') || all.includes('FERROV') || all.includes('TREN') || all.includes('FFCC')) return '#8b5cf6'; // purple: railway
   if (all.includes('ZEPA') || all.includes('NATURA') || all.includes('PARQUE') || all.includes('LIC') || all.includes('ZEC') || all.includes('RESERVA') || all.includes('PROTEG')) return '#22c55e'; // green: nature
   if (all.includes('URBAN') || all.includes('CIUDAD') || all.includes('POBLAC')) return '#64748b'; // gray: urban
-  // Layer-based fallback
-  if (z.layerCategory === 2) return '#22c55e'; // green: environment layer
-  if (z.layerCategory === 3) return '#64748b'; // gray: urban layer
-  return '#f59e0b80'; // faded orange: generic UAS zones (most common, de-emphasize)
+  // Layer-based fallback (V1: 0=Infra, 1=Medioambiente, 2=Aero, 3=Urbano)
+  if (z.layerCategory === 0) return '#8b5cf6'; // purple: infrastructure
+  if (z.layerCategory === 1) return '#22c55e'; // green: environment (ZEPA, Natura)
+  if (z.layerCategory === 2) return '#f59e0b'; // orange: aeronautical
+  if (z.layerCategory === 3) return '#64748b'; // gray: urban
+  return '#f59e0b80'; // faded orange: unknown
 }
 
 function zoneFillRgba(z: { type: string; name: string; reasons?: string; layerCategory: number }): string {
@@ -77,9 +79,8 @@ function zoneFillRgba(z: { type: string; name: string; reasons?: string; layerCa
 
 /** Should this zone show a text label on the map? Hide generic/noisy labels */
 function shouldShowLabel(name: string): boolean {
-  const generic = ['Zona aeroportuaria', 'Zona urbana', 'Zona infraestructura', 'Zona restringida', 'Zona protegida', 'Zona ferroviaria (ADIF)', 'Zona vial'];
+  const generic = ['Zona aeroportuaria', 'Zona urbana', 'Zona infraestructura', 'Zona restringida', 'Zona protegida', 'Zona protegida (medioambiente)', 'Zona ferroviaria (ADIF)', 'Zona vial'];
   if (generic.includes(name)) return false;
-  // Hide labels with ENAIRE metadata noise
   if (name.includes('Datos NO AIP') || name.includes('Fuente de la') || name.includes('AESA')) return false;
   return true;
 }
