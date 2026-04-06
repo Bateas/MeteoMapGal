@@ -101,6 +101,10 @@ export interface SailingSpot {
   swellDirections?: number[];
   /** Tide preference for surf quality */
   tidePreference?: 'low' | 'mid' | 'high' | 'mid-high' | 'all';
+  /** Coastal correction factor for wave height (0.0-1.0). Default 0.85.
+   *  Lower = more sheltered (e.g. 0.80 for Patos behind Cíes).
+   *  Higher = more exposed (e.g. 0.92 for A Lanzada full Atlantic). */
+  coastalFactor?: number;
 }
 
 // ── Spot Definitions ──────────────────────────────────────────
@@ -554,6 +558,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     offshoreWindDir: [180, 200], // S, SSW
     swellDirections: [315, 270], // NW, W
     tidePreference: 'mid-high',
+    coastalFactor: 0.45, // Heavily sheltered by Cíes Islands — NW swell barely enters
     windPatterns: [
       {
         name: 'Offshore S/SSW (mañanas)',
@@ -597,6 +602,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     offshoreWindDir: [45, 90], // NE, E
     swellDirections: [225, 270, 290], // SW, W, WNW
     tidePreference: 'all',
+    coastalFactor: 0.92, // Fully exposed to Atlantic, minimal shelter
     windPatterns: [
       {
         name: 'Offshore NE/E (mañanas)',
@@ -640,6 +646,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     offshoreWindDir: [135, 180], // SE, S
     swellDirections: [315, 290], // NW, WNW
     tidePreference: 'all',
+    coastalFactor: 0.88, // Exposed but dune park with some refraction
     windPatterns: [
       {
         name: 'Offshore SE (mañanas)',

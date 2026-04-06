@@ -86,10 +86,12 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     if (spot.category !== 'surf' || marineForecast.length === 0) return null;
     const now = marineForecast[0];
     if (!now) return null;
-    // Open-Meteo Marine overpredicts for semi-protected coasts — 15% coastal reduction
+    // Per-spot coastal correction (default 0.85 for semi-protected coasts)
+    const factor = spot.coastalFactor ?? 0.85;
     const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
-    const wh = rawWh * 0.85;
+    const wh = rawWh * factor;
     const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
+    const swellDir = now.swellDirection ?? now.waveDirection ?? null;
     const windDir = score?.wind?.dirDeg ?? null;
     const isOffshore = windDir != null && spot.offshoreWindDir
       ? spot.offshoreWindDir.some((d) => Math.abs(((windDir - d + 540) % 360) - 180) < 45)
@@ -97,7 +99,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     const isOnshore = windDir != null && spot.beachOrientation != null
       ? Math.abs(((windDir - spot.beachOrientation + 540) % 360) - 180) < 50
       : false;
-    return computeSurfVerdict(wh, tp, isOffshore, isOnshore);
+    // Swell direction alignment check for period bonus
+    const swellAligned = swellDir != null && spot.swellDirections
+      ? spot.swellDirections.some((d) => Math.abs(((swellDir - d + 540) % 360) - 180) < 45)
+      : true; // no swell data → assume aligned (conservative)
+    return computeSurfVerdict(wh, tp, isOffshore, isOnshore, swellAligned);
   }, [marineForecast, score?.wind?.dirDeg, spot]);
 
   // Write surf verdict to store so SpotMarker reads the FINAL verdict (with all modifiers)
@@ -272,7 +278,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── Tide summary (Rías spots only) ── */}
-      {spot.tideStationId && <SpotTideSummary tideStationId={spot.tideStationId} />}
+      {spot.tideStationId && <SpotTideSummary tideStationId={spot.tideStationId} tidePreference={spot.category === 'surf' ? spot.tidePreference : undefined} />}
 
       {/* ── Thermal context (if applicable) ── */}
       {score?.thermal && score.thermal.thermalProbability > 0 && (
@@ -1009,7 +1015,7 @@ function ThermalForecastBadge({ forecast }: { forecast: HourlyForecast[] }) {
 
 // ── Spot tide summary ─────────────────────────────────────────
 
-function SpotTideSummary({ tideStationId }: { tideStationId: string }) {
+function SpotTideSummary({ tideStationId, tidePreference }: { tideStationId: string; tidePreference?: string }) {
   const [tides, setTides] = useState<TidePoint[] | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1022,19 +1028,49 @@ function SpotTideSummary({ tideStationId }: { tideStationId: string }) {
     return () => { cancelled = true; };
   }, [tideStationId]);
 
-  // Find next tide from now
-  const nextTide = useMemo(() => {
-    if (!tides || tides.length === 0) return null;
+  // Find next tide from now + estimate current tide phase
+  const { nextTide, tidePhase } = useMemo(() => {
+    if (!tides || tides.length === 0) return { nextTide: null, tidePhase: null as string | null };
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
+    let next: TidePoint | null = null;
+    let prevTide: TidePoint | null = null;
     for (const t of tides) {
       const parts = t.time.split(':').map(Number);
       if (parts.length < 2) continue;
       const tideMins = parts[0] * 60 + parts[1];
-      if (tideMins > nowMins) return t;
+      if (tideMins > nowMins) { next = t; break; }
+      prevTide = t;
     }
-    return tides[0]; // wrap to first tomorrow
+    if (!next) next = tides[0];
+    // Estimate current phase: if next is high → currently rising (mid→high)
+    // If next is low → currently dropping (high→low)
+    let phase: string | null = null;
+    if (next && prevTide) {
+      const nextMins = next.time.split(':').map(Number);
+      const prevMins = prevTide.time.split(':').map(Number);
+      const nextT = nextMins[0] * 60 + nextMins[1];
+      const prevT = prevMins[0] * 60 + prevMins[1];
+      const progress = (nowMins - prevT) / (nextT - prevT); // 0=just past prev, 1=at next
+      if (next.type === 'high') {
+        phase = progress < 0.3 ? 'low' : progress < 0.7 ? 'mid' : 'high';
+      } else {
+        phase = progress < 0.3 ? 'high' : progress < 0.7 ? 'mid' : 'low';
+      }
+    }
+    return { nextTide: next, tidePhase: phase };
   }, [tides]);
+
+  // Tide-preference mismatch warning for surf spots
+  const tideMismatch = useMemo(() => {
+    if (!tidePreference || tidePreference === 'all' || !tidePhase) return null;
+    const pref = tidePreference; // 'low' | 'mid' | 'high' | 'mid-high'
+    if (pref === 'mid-high' && tidePhase === 'low') return 'Marea baja — mejor esperar a media-alta';
+    if (pref === 'low' && tidePhase === 'high') return 'Marea alta — mejor esperar a que baje';
+    if (pref === 'mid' && tidePhase !== 'mid') return `Marea ${tidePhase === 'high' ? 'alta' : 'baja'} — mejor en media`;
+    if (pref === 'high' && tidePhase !== 'high') return 'Mejor con marea alta';
+    return null;
+  }, [tidePreference, tidePhase]);
 
   if (loading) return null;
   if (!tides || tides.length === 0) return null;
@@ -1062,6 +1098,12 @@ function SpotTideSummary({ tideStationId }: { tideStationId: string }) {
           );
         })}
       </div>
+      {tideMismatch && (
+        <div className="mt-1 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] flex items-center gap-1">
+          <WeatherIcon id="alert-triangle" size={10} className="shrink-0" />
+          {tideMismatch}
+        </div>
+      )}
     </div>
   );
 }
@@ -1265,7 +1307,7 @@ interface SurfVerdictResult {
  *   - Swell period >=10s: +1 ("swell de calidad")
  *   - Short period <5s: -1 ("mar de viento, desordenado")
  */
-function computeSurfVerdict(waveHeight: number, period: number, isOffshore: boolean, isOnshore: boolean): SurfVerdictResult {
+function computeSurfVerdict(waveHeight: number, period: number, isOffshore: boolean, isOnshore: boolean, swellAligned = true): SurfVerdictResult {
   // Base wave level (0-4) — determined by ACTUAL wave height
   let level: number;
   if (waveHeight < 0.3) level = 0;       // FLAT
@@ -1288,21 +1330,22 @@ function computeSurfVerdict(waveHeight: number, period: number, isOffshore: bool
     warnings.push('viento onshore (mar revuelto)');
   }
 
-  // Period quality (long period = better-formed waves, not bigger)
-  if (period >= 10 && level >= 1) {
+  // Period quality — only bonus if swell direction aligns with beach
+  if (period >= 10 && level >= 1 && swellAligned) {
     bonus += 1;
     warnings.push(`periodo ${period.toFixed(0)}s (swell de calidad)`);
+  } else if (period >= 10 && level >= 1 && !swellAligned) {
+    warnings.push(`periodo ${period.toFixed(0)}s (swell cruzado)`);
   } else if (period > 0 && period < 5 && level >= 1) {
     bonus -= 1;
     warnings.push(`periodo ${period.toFixed(0)}s (mar de viento)`);
   }
 
   // Apply bonus but CAP at +1 from base — modifiers improve quality, don't invent size.
-  // GRANDE (level 4) requires base >= 3 (actual waves >= 1.5m minimum)
   level = Math.max(0, Math.min(4, baseLevel + Math.max(-2, Math.min(1, bonus))));
 
-  // Hard floor: GRANDE only with real big waves (>= 2.0m base)
-  if (level === 4 && waveHeight < 2.0) level = 3;
+  // Hard floor: GRANDE only with real big waves (>= 1.8m after coastal correction)
+  if (level === 4 && waveHeight < 1.8) level = 3;
 
   const LEVELS: SurfVerdictResult[] = [
     { label: 'FLAT',      color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', summary: 'Mar plano — sin olas para surf' },
