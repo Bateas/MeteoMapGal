@@ -1153,10 +1153,11 @@ function AlertSection({
 
   return (
     <div
-      className={`rounded-lg p-2.5 relative overflow-hidden ${level !== 'none' ? 'pl-4' : ''}`}
+      className="rounded-lg p-2.5 relative overflow-hidden"
       style={{
         background: colors.bg,
         border: `1px solid ${colors.border}`,
+        paddingLeft: level !== 'none' ? '20px' : undefined,
       }}
     >
       {/* Severity bar on the left edge */}
