@@ -145,18 +145,26 @@ export function useWeatherData() {
       );
     }
 
-    // Netatmo — pass active sector center/radius so the bbox covers the right area
+    // Netatmo — ingestor API first, fallback to direct Netatmo API
     const netatmoStationIds = new Set(
       stations.filter((s) => s.source === 'netatmo').map((s) => s.id)
     );
     if (netatmoStationIds.size > 0) {
       tasks.push(
-        fetchNetatmoObservations({ center: activeSector.center, radiusKm: activeSector.radiusKm }).then(({ readings }) => {
-          const filtered = readings.filter((r) => netatmoStationIds.has(r.stationId));
-          updateSourceStatus('netatmo', true, filtered.length);
-          return filtered;
+        fetchLatestReadings(undefined, 'netatmo').then((rows) => {
+          const readings = historyToNormalized(rows).filter((r) => netatmoStationIds.has(r.stationId));
+          if (readings.length === 0) throw new Error('No Netatmo data from ingestor');
+          updateSourceStatus('netatmo', true, readings.length);
+          return readings;
+        }).catch((ingestorErr) => {
+          console.warn('[WeatherData] Netatmo ingestor failed, trying direct:', (ingestorErr as Error).message);
+          return fetchNetatmoObservations({ center: activeSector.center, radiusKm: activeSector.radiusKm }).then(({ readings }) => {
+            const filtered = readings.filter((r) => netatmoStationIds.has(r.stationId));
+            updateSourceStatus('netatmo', true, filtered.length);
+            return filtered;
+          });
         }).catch((err) => {
-          console.error('[WeatherData] Netatmo fetch error:', err);
+          console.error('[WeatherData] Netatmo both sources failed:', err);
           updateSourceStatus('netatmo', false, 0, String(err));
           return [];
         })
