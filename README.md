@@ -135,6 +135,18 @@ npm test                # 260 tests (Vitest)
 
 ---
 
+## Sobre o proxecto
+
+> MeteoMapGal nace nas Rias Baixas e no Embalse de Castrelo, de quen navega e coñece o mar galego.
+> As ferramentas globais non serven para os microclimas das nosas rias: termicas de val, virazons, bocanas matutinas.
+> Este proxecto cruza datos de 100+ estacions, boias e webcams para que o deportista saiba dunha ollada se paga a pena ir a auga.
+>
+> A capa base de datos e seguridade e sempre de balde. A seguridade dos deportistas non pode estar detras dun muro de pago.
+>
+> Feito en Galicia. Codigo aberto. Datos abertos.
+
+---
+
 <p align="center">
-  <sub>Hecho en Galicia · Datos abiertos · Codigo abierto</sub>
+  <sub>Feito en Galicia · Datos abertos · Codigo aberto</sub>
 </p>
