@@ -326,11 +326,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Scoring breakdown (collapsible) — wind-based, hide for surf ── */}
       {spot.category !== 'surf' && score && score.verdict !== 'unknown' && <ScoringBreakdown score={score} spot={spot} />}
 
-      {/* ── Sailing windows (collapsible) ── */}
-      {windowResult && <SailingWindowsSection result={windowResult} />}
+      {/* ── Sailing windows (collapsible) — hide for surf spots ── */}
+      {spot.category !== 'surf' && windowResult && <SailingWindowsSection result={windowResult} />}
 
-      {/* ── Forecast mini-timeline (12h) ── */}
-      {sectorForecast.length > 0 && <ForecastMiniTimeline forecast={sectorForecast} />}
+      {/* ── Forecast mini-timeline (12h) — hide for surf (uses wave chart instead) ── */}
+      {spot.category !== 'surf' && sectorForecast.length > 0 && <ForecastMiniTimeline forecast={sectorForecast} />}
 
       {/* ── Thermal precursor early warning (collapsible) ── */}
       {precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
