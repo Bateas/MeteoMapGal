@@ -54,10 +54,10 @@ export function RoadmapSection() {
             <WeatherIcon id="database" size={13} /> Estaciones en tiempo real
           </h3>
           <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
-            <SourceRow letter="A" name="AEMET" desc="Agencia Estatal de Meteorología — 9 estaciones" color="#ef4444" />
-            <SourceRow letter="M" name="MeteoGalicia" desc="Xunta de Galicia — 13 estaciones" color="#3b82f6" />
-            <SourceRow letter="C" name="Meteoclimatic" desc="Red ciudadana — 6 estaciones" color="#22c55e" />
-            <SourceRow letter="W" name="Weather Underground" desc="Estaciones personales — 1 estación" color="#f59e0b" />
+            <SourceRow letter="A" name="AEMET" desc="Agencia Estatal de Meteorologia — 20 estaciones" color="#ef4444" />
+            <SourceRow letter="M" name="MeteoGalicia" desc="Xunta de Galicia — 48 estaciones" color="#3b82f6" />
+            <SourceRow letter="C" name="Meteoclimatic" desc="Red ciudadana — 23 estaciones" color="#22c55e" />
+            <SourceRow letter="W" name="Weather Underground" desc="Estaciones personales — ~80 estaciones" color="#f59e0b" />
             <SourceRow letter="N" name="Netatmo" desc="Red doméstica IoT — 31+ estaciones" color="#a855f7" />
             <SourceRow letter="S" name="SkyX" desc="Estación personal portátil — auto-descubrimiento por GPS" color="#64748b" />
           </div>
@@ -102,7 +102,7 @@ export function RoadmapSection() {
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
               <span className="text-slate-500">19 webcams + IA</span>
-              <span className="text-slate-500">235 tests</span>
+              <span className="text-slate-500">260 tests</span>
               <span className="text-slate-500">TimescaleDB 24/7</span>
             </div>
           </div>
