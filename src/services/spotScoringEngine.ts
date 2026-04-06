@@ -302,6 +302,21 @@ function computeSpotWindConsensus(
 
   if (entries.length < 1) return null;
 
+  // ── Outlier detection (SOURCE_QUALITY v2) ─────────────────
+  // If 3+ sources, compute median speed. Stations >3x median get weight halved.
+  // This prevents a single broken/sheltered station from skewing consensus.
+  if (entries.length >= 3) {
+    const speeds = entries.map(e => e.speedKt).sort((a, b) => a - b);
+    const median = speeds[Math.floor(speeds.length / 2)];
+    if (median > 2) { // Only penalize if there's real wind (avoid div-by-zero on calm days)
+      for (const e of entries) {
+        if (e.speedKt > median * 3) {
+          e.weight *= 0.5; // Outlier high — likely broken anemometer or gust spike
+        }
+      }
+    }
+  }
+
   // Weighted average speed
   let totalWeight = 0;
   let weightedSpeed = 0;
