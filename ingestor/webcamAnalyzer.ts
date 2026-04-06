@@ -20,6 +20,12 @@ const WEBCAM_ANALYSIS_INTERVAL = 3; // Run every N ingestor cycles (3 × 5min = 
 const IMAGE_MAX_SIZE = 512; // Resize images to max 512px for LLM
 const API_TIMEOUT_MS = 60_000; // 60s timeout for Ollama (CPU inference is slow)
 
+// ── Stale image detection — skip analysis if webcam image hasn't changed ──
+// Stores last image size per webcam URL. If identical = frozen/cached image.
+const lastImageSize = new Map<string, number>();
+const lastImageChangeTime = new Map<string, number>();
+const STALE_IMAGE_MAX_AGE_MS = 60 * 60_000; // 1h — if image unchanged for 1h, it's frozen
+
 // ── Beaufort prompt (adapted from webcamVisionService.ts) ────
 
 // Prompt optimized for small vision models (moondream 1.8B).
@@ -73,6 +79,22 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
     if (buffer.length < 5000) {
       log.warn(`[Webcam] Image too small (${buffer.length}B): ${url}`);
       return null;
+    }
+
+    // Stale image detection — if exact same byte size as last fetch, image is frozen
+    const prevSize = lastImageSize.get(url);
+    const now = Date.now();
+    if (prevSize === buffer.length) {
+      // Same size — check how long it's been frozen
+      const changeTime = lastImageChangeTime.get(url) ?? now;
+      if (now - changeTime > STALE_IMAGE_MAX_AGE_MS) {
+        log.warn(`[Webcam] Image frozen >1h (${buffer.length}B unchanged): ${url}`);
+        return null;
+      }
+    } else {
+      // Image changed — update tracking
+      lastImageSize.set(url, buffer.length);
+      lastImageChangeTime.set(url, now);
     }
 
     // Resize with sharp if available, otherwise use raw
