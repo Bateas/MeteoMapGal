@@ -130,8 +130,8 @@ function clusterStrikes(
 
     clusters.push({
       id: `storm-${++clusterId}`,
-      lat: centroidLat,
-      lon: centroidLon,
+      centroidLat,
+      centroidLon,
       strikeCount: clusterStrikes.length,
       radiusKm: Math.round(maxDist * 10) / 10,
       maxPeakCurrent: Math.max(...clusterStrikes.map((s) => Math.abs(s.peakCurrent))),
@@ -202,7 +202,7 @@ function computeVelocities(
       let bestDist = 50; // max matching distance km
 
       for (const prev of prevSnapshot.centroids) {
-        const d = distanceKm(cluster.lat, cluster.lon, prev.lat, prev.lon);
+        const d = distanceKm(cluster.centroidLat, cluster.centroidLon, prev.lat, prev.lon);
         if (d < bestDist) {
           bestDist = d;
           bestMatch = prev;
@@ -211,11 +211,11 @@ function computeVelocities(
 
       if (bestMatch) {
         const dt = (now - prevSnapshot.timestamp) / 3_600_000; // hours
-        const distMoved = distanceKm(bestMatch.lat, bestMatch.lon, cluster.lat, cluster.lon);
+        const distMoved = distanceKm(bestMatch.lat, bestMatch.lon, cluster.centroidLat, cluster.centroidLon);
         const speedKmh = Math.round((distMoved / dt) * 10) / 10;
         const bearingDeg = Math.round(computeBearing(
           bestMatch.lat, bestMatch.lon,
-          cluster.lat, cluster.lon,
+          cluster.centroidLat, cluster.centroidLon,
         ));
 
         if (speedKmh > 2) { // Filter noise (< 2 km/h = stationary)
@@ -264,8 +264,8 @@ export function trackStorms(
     timestamp: now,
     centroids: rawClusters.map((c) => ({
       id: c.id,
-      lat: c.lat,
-      lon: c.lon,
+      lat: c.centroidLat,
+      lon: c.centroidLon,
       strikeCount: c.strikeCount,
     })),
   };
