@@ -29,6 +29,8 @@ export interface UasZone {
   phone: string;
   email: string;
   geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon;
+  /** ENAIRE layer category: 0=Aero, 1=Infra, 2=Medioambiente, 3=Urbano */
+  layerCategory: number;
 }
 
 export interface ActiveNotam {
@@ -102,7 +104,7 @@ const LAYER_FALLBACK_LABELS = ['Zona aeroportuaria', 'Zona infraestructura', 'Zo
 
 function deriveZoneName(a: Record<string, unknown>, layerIndex: number): string {
   const raw = a['NOMBRE'] ?? a['NAME'] ?? a['name'];
-  const name = raw != null ? String(raw) : '';
+  const name = raw != null ? String(raw).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() : '';
   if (name && name !== 'Sin nombre' && name !== 'undefined' && name !== 'null') return name;
 
   // Try to extract a meaningful label from MOTIVO/VARIANTE fields
@@ -163,6 +165,7 @@ function parseUasFeature(f: ArcGISFeature, layerIndex: number): UasZone | null {
       type: 'Polygon',
       coordinates,
     },
+    layerCategory: layerIndex,
   };
 }
 

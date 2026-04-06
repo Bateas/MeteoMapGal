@@ -47,26 +47,27 @@ interface NotamPopupData {
 
 // ── Color helpers ─────────────────────────────────────────
 
-function zoneLineColor(type: string, name = ''): string {
+/** Color by severity first, then by ENAIRE layer category */
+function zoneLineColor(type: string, layer: number): string {
   const t = type.toUpperCase();
-  const n = name.toUpperCase();
-  // Severity-based (prohibido/autorizacion)
-  if (t.includes('PROHIB')) return '#ef4444';
-  if (t.includes('AUTHOR') || t.includes('REQ')) return '#f59e0b';
-  // Type-based for info zones — distinguish visually
-  if (n.includes('ADIF') || n.includes('FERROV') || n.includes('TREN')) return '#8b5cf6'; // purple: railway
-  if (n.includes('TMA') || n.includes('AEROP') || n.includes('CTR') || n.includes('AERODROM')) return '#f59e0b'; // orange: airport/TMA
-  if (n.includes('ZEPA') || n.includes('PROTEG') || n.includes('NATURA') || n.includes('PARQUE') || n.includes('LIC') || n.includes('ZEC')) return '#22c55e'; // green: nature
-  if (n.includes('URBAN')) return '#64748b'; // gray: urban
-  return '#3b82f6'; // blue: default
+  // Severity always wins
+  if (t.includes('PROHIB')) return '#ef4444'; // red: prohibited
+  // Then by layer category: 0=Aero, 1=Infra, 2=Medioambiente, 3=Urbano
+  switch (layer) {
+    case 0: return '#f59e0b'; // orange: airport/aerodrome
+    case 1: return '#8b5cf6'; // purple: infrastructure (railway, roads)
+    case 2: return '#22c55e'; // green: environment (ZEPA, nature)
+    case 3: return '#64748b'; // gray: urban
+    default: return '#3b82f6'; // blue: default
+  }
 }
 
-function zoneFillRgba(type: string, name = ''): string {
-  const hex = zoneLineColor(type, name);
+function zoneFillRgba(type: string, layer: number): string {
+  const hex = zoneLineColor(type, layer);
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},0.10)`;
+  return `rgba(${r},${g},${b},0.08)`;
 }
 
 // ── GeoJSON builders ──────────────────────────────────────
@@ -87,8 +88,8 @@ function buildZonesGeoJSON(zones: UasZone[]): GeoJSON.FeatureCollection {
           altRef: z.altitudeReference || 'AGL',
           reason: z.reasons || '',
           contact: [z.phone, z.email].filter(Boolean).join(' / '),
-          fillColor: zoneFillRgba(z.type, z.name),
-          lineColor: zoneLineColor(z.type, z.name),
+          fillColor: zoneFillRgba(z.type, z.layerCategory),
+          lineColor: zoneLineColor(z.type, z.layerCategory),
         },
         geometry: z.geometry,
       })),
