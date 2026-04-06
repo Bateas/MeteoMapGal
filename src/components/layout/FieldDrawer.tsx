@@ -794,35 +794,31 @@ function DiseaseSection({ alerts }: { alerts: FieldAlerts }) {
         <div>
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="text-[11px] font-semibold text-slate-300">Mildiu</span>
-            {alerts.disease.mildiu.level !== 'none' && (
-              <span
-                className="text-[11px] font-bold px-1 py-0.5 rounded"
-                style={{
-                  color: LEVEL_COLORS[alerts.disease.mildiu.level].text,
-                  background: LEVEL_COLORS[alerts.disease.mildiu.level].bg,
-                }}
-              >
-                {alerts.disease.mildiu.hours}h favorables
-              </span>
-            )}
+            <span
+              className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+              style={alerts.disease.mildiu.level !== 'none' ? {
+                color: LEVEL_COLORS[alerts.disease.mildiu.level].text,
+                background: LEVEL_COLORS[alerts.disease.mildiu.level].bg,
+              } : { color: '#22c55e', background: 'rgba(34,197,94,0.1)' }}
+            >
+              {alerts.disease.mildiu.level !== 'none' ? `${alerts.disease.mildiu.hours}h favorables` : 'Sin riesgo'}
+            </span>
           </div>
           <p className="text-[11px] text-slate-400">{alerts.disease.mildiu.detail}</p>
         </div>
-        {/* Oídio */}
+        {/* Oidio */}
         <div>
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="text-[11px] font-semibold text-slate-300">Oídio</span>
-            {alerts.disease.oidio.level !== 'none' && (
-              <span
-                className="text-[11px] font-bold px-1 py-0.5 rounded"
-                style={{
-                  color: LEVEL_COLORS[alerts.disease.oidio.level].text,
-                  background: LEVEL_COLORS[alerts.disease.oidio.level].bg,
-                }}
-              >
-                {alerts.disease.oidio.hours}h favorables
-              </span>
-            )}
+            <span className="text-[11px] font-semibold text-slate-300">Oidio</span>
+            <span
+              className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+              style={alerts.disease.oidio.level !== 'none' ? {
+                color: LEVEL_COLORS[alerts.disease.oidio.level].text,
+                background: LEVEL_COLORS[alerts.disease.oidio.level].bg,
+              } : { color: '#22c55e', background: 'rgba(34,197,94,0.1)' }}
+            >
+              {alerts.disease.oidio.level !== 'none' ? `${alerts.disease.oidio.hours}h favorables` : 'Sin riesgo'}
+            </span>
           </div>
           <p className="text-[11px] text-slate-400">{alerts.disease.oidio.detail}</p>
         </div>
@@ -1157,7 +1153,7 @@ function AlertSection({
 
   return (
     <div
-      className="rounded-lg p-2.5 relative overflow-hidden"
+      className={`rounded-lg p-2.5 relative overflow-hidden ${level !== 'none' ? 'pl-4' : ''}`}
       style={{
         background: colors.bg,
         border: `1px solid ${colors.border}`,
