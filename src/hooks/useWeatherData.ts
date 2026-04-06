@@ -7,6 +7,7 @@ import { fetchAllObservations, isAemetRateLimited, aemetCooldownRemaining } from
 import { fetchLatestForStations } from '../api/meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
 import { fetchLatestReadings, historyToNormalized } from '../api/historyClient';
+import { fetchWUObservations } from '../api/wundergroundClient';
 import { fetchNetatmoObservations } from '../api/netatmoClient';
 import { fetchSkyXReading } from '../api/skyxClient';
 import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
@@ -119,18 +120,24 @@ export function useWeatherData() {
       );
     }
 
-    // Weather Underground — via ingestor API (consolidated, avoids duplicate WU calls)
-    const wuStationIds = new Set(
-      stations.filter((s) => s.source === 'wunderground').map((s) => s.id)
-    );
-    if (wuStationIds.size > 0) {
+    // Weather Underground — ingestor API first, fallback to direct WU API
+    const wuStationIds = stations.filter((s) => s.source === 'wunderground').map((s) => s.id);
+    if (wuStationIds.length > 0) {
+      const wuSet = new Set(wuStationIds);
       tasks.push(
         fetchLatestReadings(undefined, 'wunderground').then((rows) => {
-          const readings = historyToNormalized(rows).filter((r) => wuStationIds.has(r.stationId));
+          const readings = historyToNormalized(rows).filter((r) => wuSet.has(r.stationId));
+          if (readings.length === 0) throw new Error('No WU data from ingestor');
           updateSourceStatus('wunderground', true, readings.length);
           return readings;
-        }).catch((err) => {
-          console.error('[WeatherData] WU (ingestor) fetch error:', err);
+        }).catch(() =>
+          // Fallback: direct WU API (dev or ingestor unavailable)
+          fetchWUObservations(wuStationIds).then((readings) => {
+            updateSourceStatus('wunderground', true, readings.length);
+            return readings;
+          })
+        ).catch((err) => {
+          console.error('[WeatherData] WU fetch error:', err);
           updateSourceStatus('wunderground', false, 0, String(err));
           return [];
         })
