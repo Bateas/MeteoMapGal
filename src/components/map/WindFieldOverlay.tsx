@@ -1,5 +1,5 @@
-import { useMemo, memo } from 'react';
-import { Source, Layer } from 'react-map-gl/maplibre';
+import { useMemo, memo, useState, useEffect } from 'react';
+import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import type maplibregl from 'maplibre-gl';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import type { BuoyReading } from '../../api/buoyClient';
@@ -230,6 +230,20 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
   compact = false,
   zoomLevel = 12,
 }: WindFieldOverlayProps) {
+  // Wait until wind-arrow icons are registered on the map to avoid flash of default markers
+  const { current: mapRef } = useMap();
+  const [iconsReady, setIconsReady] = useState(false);
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const check = () => setIconsReady(map.hasImage('wind-arrow-0'));
+    check();
+    if (!iconsReady) {
+      map.on('styledata', check);
+      return () => { map.off('styledata', check); };
+    }
+  }, [mapRef, iconsReady]);
+
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
     const offsetScale = compact ? 0.6 : 1;
@@ -264,6 +278,9 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
       features,
     };
   }, [stations, readings, buoys, compact]);
+
+  // Don't render until arrow icons are registered — prevents flash of fallback markers
+  if (!iconsReady) return null;
 
   return (
     <Source id="wind-field" type="geojson" data={geojson}>
