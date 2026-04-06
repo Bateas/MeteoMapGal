@@ -176,6 +176,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Tide warning for surf spots — before verdict since it affects session quality ── */}
+      {spot.category === 'surf' && spot.tideStationId && (
+        <SpotTideSummary tideStationId={spot.tideStationId} tidePreference={spot.tidePreference} />
+      )}
+
       {/* ── Verdict badge — surf uses wave-based verdict, sailing uses wind ── */}
       <div className="flex items-center gap-2 mb-2">
         <span
@@ -277,8 +282,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         <ThermalForecastBadge forecast={sectorForecast} />
       )}
 
-      {/* ── Tide summary (Rías spots only) ── */}
-      {spot.tideStationId && <SpotTideSummary tideStationId={spot.tideStationId} tidePreference={spot.category === 'surf' ? spot.tidePreference : undefined} />}
+      {/* ── Tide summary (Rías sailing spots — surf spots show tide above verdict) ── */}
+      {spot.tideStationId && spot.category !== 'surf' && <SpotTideSummary tideStationId={spot.tideStationId} />}
 
       {/* ── Thermal context (if applicable) ── */}
       {score?.thermal && score.thermal.thermalProbability > 0 && (
@@ -1344,8 +1349,9 @@ function computeSurfVerdict(waveHeight: number, period: number, isOffshore: bool
   // Apply bonus but CAP at +1 from base — modifiers improve quality, don't invent size.
   level = Math.max(0, Math.min(4, baseLevel + Math.max(-2, Math.min(1, bonus))));
 
-  // Hard floor: GRANDE only with real big waves (>= 1.8m after coastal correction)
-  if (level === 4 && waveHeight < 1.8) level = 3;
+  // Hard floors: modifiers can't create size that isn't there
+  if (level >= 3 && waveHeight < 1.0) level = 2; // CLASICO needs >= 1.0m real waves
+  if (level === 4 && waveHeight < 1.8) level = 3; // GRANDE needs >= 1.8m
 
   const LEVELS: SurfVerdictResult[] = [
     { label: 'FLAT',      color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', summary: 'Mar plano — sin olas para surf' },
