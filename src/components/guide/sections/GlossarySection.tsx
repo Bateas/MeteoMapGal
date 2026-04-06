@@ -318,6 +318,52 @@ export function GlossarySection() {
         />
       </TermGroup>
 
+      {/* ── Surf & Waves ── */}
+      <TermGroup title="Surf y oleaje">
+        <Term
+          term="Swell (oleaje de fondo)"
+          definition="Olas generadas por tormentas lejanas que viajan cientos de km. Periodo largo (>8s), bien formadas y predecibles."
+          example="Swell NW de 1.5m con 12s de periodo = olas limpias en Corrubedo. Un periodo corto (<6s) indica mar de viento local, desordenado."
+          color="#06b6d4"
+          search={q}
+        />
+        <Term
+          term="Offshore / Onshore"
+          definition="Offshore = viento de tierra al mar (limpia las olas). Onshore = viento del mar a tierra (destroza la superficie)."
+          example="Patos con viento S/SSW (offshore) = olas limpias y huecas. Con NW (onshore) = mar revuelto, no surfeable."
+          color="#06b6d4"
+          search={q}
+        />
+        <Term
+          term="Periodo de ola (Tp)"
+          definition="Tiempo en segundos entre dos crestas consecutivas. A mayor periodo, olas mas potentes y mejor formadas."
+          example="Tp 12s = swell de calidad, olas con fuerza. Tp 5s = mar de viento, olas cortas y desordenadas."
+          color="#06b6d4"
+          search={q}
+        />
+        <Term
+          term="Beach break / Reef break"
+          definition="Beach break = olas que rompen sobre fondo de arena (Lanzada). Reef break = rompen sobre roca o arrecife (Patos tiene ambos)."
+          example="El beach break cambia con las mareas y los bancos de arena. El reef es mas consistente pero mas peligroso."
+          color="#06b6d4"
+          search={q}
+        />
+        <Term
+          term="Factor costero"
+          definition="Multiplicador que ajusta la prevision de olas del modelo global a las condiciones reales de cada playa. Depende de la proteccion y orientacion."
+          example="Patos (protegida por las Cies) tiene factor 0.45. Lanzada (expuesta) tiene 0.75. Corrubedo 0.88."
+          color="#06b6d4"
+          search={q}
+        />
+        <Term
+          term="Mareas y surf"
+          definition="La marea cambia la profundidad y como rompen las olas. Cada playa tiene su fase preferida (baja, media, alta)."
+          example="Patos funciona mejor en media-alta. A Lanzada acepta todas las mareas. MeteoMapGal avisa si la marea actual no es optima."
+          color="#06b6d4"
+          search={q}
+        />
+      </TermGroup>
+
       {/* ── Aviation & Drones ── */}
       <TermGroup title="Aviación y drones">
         <Term
