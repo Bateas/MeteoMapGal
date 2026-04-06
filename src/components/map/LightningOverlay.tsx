@@ -147,21 +147,24 @@ export const LightningOverlay = memo(function LightningOverlay() {
       />
     </Source>
     {/* Storm cluster velocity arrows */}
-    {clusters.filter((c) => c.velocity && c.velocity.speedKmh > 5).map((c) => (
-      <Marker key={`storm-arrow-${c.centroidLat}-${c.centroidLon}`} latitude={c.centroidLat} longitude={c.centroidLon} anchor="center">
-        <svg
-          width="32" height="32" viewBox="-16 -16 32 32"
-          style={{ transform: `rotate(${c.velocity!.bearingDeg}deg)`, opacity: 0.7, pointerEvents: 'none' }}
-        >
-          <line x1="0" y1="8" x2="0" y2="-10" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
-          <path d="M-5,-4 L0,-12 L5,-4" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 10, color: '#fca5a5', fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-          {c.velocity!.speedKmh.toFixed(0)} km/h
-          {c.etaMinutes != null && c.approaching ? ` \u00b7 ${c.etaMinutes.toFixed(0)}min` : ''}
-        </div>
-      </Marker>
-    ))}
+    {clusters.filter((c) => c.velocity != null && c.velocity.speedKmh > 5).map((c, i) => {
+      const v = c.velocity!; // safe — filter guarantees non-null
+      return (
+        <Marker key={`storm-${i}`} latitude={c.centroidLat} longitude={c.centroidLon} anchor="center">
+          <svg
+            width="32" height="32" viewBox="-16 -16 32 32"
+            style={{ transform: `rotate(${v.bearingDeg}deg)`, opacity: 0.7, pointerEvents: 'none' }}
+          >
+            <line x1="0" y1="8" x2="0" y2="-10" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M-5,-4 L0,-12 L5,-4" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 10, color: '#fca5a5', fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+            {v.speedKmh.toFixed(0)} km/h
+            {c.etaMinutes != null && c.approaching ? ` \u00b7 ${c.etaMinutes.toFixed(0)}min` : ''}
+          </div>
+        </Marker>
+      );
+    })}
     </>
   );
 });
