@@ -75,10 +75,22 @@ function zoneFillRgba(z: { type: string; name: string; reasons?: string; layerCa
   return `rgba(${r},${g},${b},0.06)`;
 }
 
-/** Should this zone show a text label on the map? Hide generic fallback names */
+/** Should this zone show a text label on the map? Hide generic/noisy labels */
 function shouldShowLabel(name: string): boolean {
-  const generic = ['Zona aeroportuaria', 'Zona urbana', 'Zona infraestructura', 'Zona restringida', 'Zona protegida'];
-  return !generic.includes(name);
+  const generic = ['Zona aeroportuaria', 'Zona urbana', 'Zona infraestructura', 'Zona restringida', 'Zona protegida', 'Zona ferroviaria (ADIF)', 'Zona vial'];
+  if (generic.includes(name)) return false;
+  // Hide labels with ENAIRE metadata noise
+  if (name.includes('Datos NO AIP') || name.includes('Fuente de la') || name.includes('AESA')) return false;
+  return true;
+}
+
+/** Clean zone name for display — strip ENAIRE metadata noise */
+function cleanZoneName(name: string): string {
+  return name
+    .replace(/Datos\s*NO\s*AIP.*$/i, '')
+    .replace(/Fuente\s*de\s*la\s*informaci[oó]n[:\s]*AESA\.?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // ── GeoJSON builders ──────────────────────────────────────
@@ -92,7 +104,7 @@ function buildZonesGeoJSON(zones: UasZone[]): GeoJSON.FeatureCollection {
         type: 'Feature' as const,
         id: i,
         properties: {
-          name: z.name,
+          name: cleanZoneName(z.name),
           showLabel: shouldShowLabel(z.name) ? 1 : 0,
           type: z.type,
           lowerAlt: z.lowerAltitude,
@@ -276,7 +288,7 @@ export const AirspaceOverlay = memo(function AirspaceOverlay() {
           type="fill"
           paint={{
             'fill-color': ['get', 'fillColor'],
-            'fill-opacity': 0.25,
+            'fill-opacity': ['case', ['==', ['get', 'showLabel'], 1], 0.3, 0.12],
           }}
         />
         {/* Dashed border */}
@@ -285,7 +297,8 @@ export const AirspaceOverlay = memo(function AirspaceOverlay() {
           type="line"
           paint={{
             'line-color': ['get', 'lineColor'],
-            'line-width': 2,
+            'line-width': ['case', ['==', ['get', 'showLabel'], 1], 2, 1],
+            'line-opacity': ['case', ['==', ['get', 'showLabel'], 1], 0.8, 0.35],
             'line-dasharray': [4, 2],
           }}
         />
