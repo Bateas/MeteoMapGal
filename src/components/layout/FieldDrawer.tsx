@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { FieldAlerts, AlertLevel } from '../../types/campo';
+import type { HourlyForecast } from '../../types/forecast';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { checkFrost, checkRainHail } from '../../services/fieldAlertEngine';
 import { useUIStore } from '../../store/uiStore';
@@ -217,7 +218,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           {/* ── Dron tab: drone conditions + airspace + wind + rain + fog ── */}
           {activeTab === 'dron' && (
             <>
-              <DroneSection alerts={alerts} />
+              <DroneSection alerts={alerts} forecast={forecastHourly} />
               <AirspaceSection />
               {isEmbalse && <WindStatusSection alerts={alerts} />}
               <RainSection alerts={alerts} />
@@ -510,31 +511,79 @@ function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
   );
 }
 
-function DroneSection({ alerts }: { alerts: FieldAlerts }) {
+function DroneSection({ alerts, forecast }: { alerts: FieldAlerts; forecast?: HourlyForecast[] }) {
+  const d = alerts.drone;
+
+  // Pre-flight checklist items
+  const windOk = d.windKt <= 15;
+  const gustOk = d.gustKt <= 18;
+  const rainOk = !d.rain;
+  const stormOk = !d.storms;
+
+  // Visibility from forecast (if available)
+  const now = Date.now();
+  const current = forecast?.reduce((c, p) =>
+    Math.abs(p.time.getTime() - now) < Math.abs(c.time.getTime() - now) ? p : c
+  , forecast[0]);
+  const temp = current?.temperature ?? null;
+  const humidity = current?.humidity ?? null;
+  const tempOk = temp === null || (temp > 0 && temp < 40);
+  const humidityOk = humidity === null || humidity < 90;
+
+  // Golden hour calculation
+  const nowH = new Date().getHours();
+  const isGoldenMorning = nowH >= 6 && nowH <= 8;
+  const isGoldenEvening = nowH >= 19 && nowH <= 21;
+  const isGolden = isGoldenMorning || isGoldenEvening;
+
   return (
-    <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Vuelo Dron" level={alerts.drone.flyable ? 'none' : 'alto'} beta>
-      <div className="space-y-1">
+    <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Vuelo Dron" level={d.flyable ? 'none' : 'alto'} beta>
+      <div className="space-y-2">
+        {/* Main verdict */}
         <div className="flex items-center gap-2">
           <span
             className="text-[11px] font-bold px-2 py-0.5 rounded"
             style={{
-              background: alerts.drone.flyable ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
-              color: alerts.drone.flyable ? '#22c55e' : '#f59e0b',
-              border: `1px solid ${alerts.drone.flyable ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`,
+              background: d.flyable ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
+              color: d.flyable ? '#22c55e' : '#f59e0b',
+              border: `1px solid ${d.flyable ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`,
             }}
           >
-            {alerts.drone.flyable ? 'APTO' : 'PRECAUCIÓN'}
-          </span>
-          <span className="text-[11px] text-slate-400">
-            Viento: {alerts.drone.windKt.toFixed(0)} kt
-            {alerts.drone.gustKt > 0 && ` · Racha: ${alerts.drone.gustKt.toFixed(0)} kt`}
+            {d.flyable ? 'APTO PARA VOLAR' : 'NO RECOMENDADO'}
           </span>
         </div>
-        {alerts.drone.reasons.length > 0 && (
-          <ul className="text-[11px] text-slate-400 space-y-0.5 mt-1">
-            {alerts.drone.reasons.map((r, i) => (
+
+        {/* Pre-flight checklist */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+          <CheckItem label={`Viento ${d.windKt.toFixed(0)} kt`} ok={windOk} limit="max 15kt" />
+          <CheckItem label={`Rachas ${d.gustKt.toFixed(0)} kt`} ok={gustOk} limit="max 18kt" />
+          <CheckItem label={rainOk ? 'Sin lluvia' : 'Lluvia prevista'} ok={rainOk} />
+          <CheckItem label={stormOk ? 'Sin tormentas' : 'Riesgo tormenta'} ok={stormOk} />
+          {temp !== null && <CheckItem label={`${temp.toFixed(0)}\u00b0C`} ok={tempOk} limit={temp <= 0 ? 'bateria -50%' : undefined} />}
+          {humidity !== null && <CheckItem label={`HR ${humidity.toFixed(0)}%`} ok={humidityOk} limit={humidity >= 90 ? 'condensacion' : undefined} />}
+        </div>
+
+        {/* Battery temperature warning */}
+        {temp !== null && temp < 5 && (
+          <div className="text-[10px] text-amber-400 bg-amber-500/10 rounded px-2 py-1 border border-amber-500/20">
+            Temperatura baja ({temp.toFixed(0)}\u00b0C) — la bateria pierde hasta un 30% de autonomia. Precalienta antes de volar.
+          </div>
+        )}
+
+        {/* Golden hour badge */}
+        {isGolden && (
+          <div className="text-[10px] text-amber-300 bg-amber-500/10 rounded px-2 py-1 border border-amber-500/20 flex items-center gap-1">
+            <WeatherIcon id="sun" size={10} />
+            Hora dorada — luz ideal para fotografia y video aereo
+          </div>
+        )}
+
+        {/* Reasons for no-fly */}
+        {d.reasons.length > 0 && (
+          <ul className="text-[11px] text-slate-400 space-y-0.5">
+            {d.reasons.map((r, i) => (
               <li key={i} className="flex items-start gap-1">
-                <span className="text-amber-400 mt-0.5">•</span>
+                <span className="text-amber-400 mt-0.5">\u2022</span>
                 <span>{r}</span>
               </li>
             ))}
@@ -542,6 +591,16 @@ function DroneSection({ alerts }: { alerts: FieldAlerts }) {
         )}
       </div>
     </AlertSection>
+  );
+}
+
+function CheckItem({ label, ok, limit }: { label: string; ok: boolean; limit?: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span style={{ color: ok ? '#22c55e' : '#ef4444', fontSize: 12 }}>{ok ? '\u2713' : '\u2717'}</span>
+      <span className={ok ? 'text-slate-300' : 'text-amber-400 font-semibold'}>{label}</span>
+      {!ok && limit && <span className="text-slate-600 text-[10px]">({limit})</span>}
+    </div>
   );
 }
 
