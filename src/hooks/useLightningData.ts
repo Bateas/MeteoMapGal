@@ -18,7 +18,7 @@ import { useVisibilityPolling } from './useVisibilityPolling';
  */
 const DANGER_KM = 5;
 const WARNING_KM = 25;
-const WATCH_KM = 50;
+const WATCH_KM = 80; // Extended from 50 — shows "Rayos detectados" info for distant strikes
 
 /** Only consider strikes from the last 30 minutes for alert scoring */
 const RECENT_WINDOW_MS = 30 * 60 * 1000;

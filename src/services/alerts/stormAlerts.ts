@@ -16,7 +16,9 @@ export function stormAlertScore(level: StormAlertLevel, nearestKm: number): numb
   switch (level) {
     case 'danger':  return 95;
     case 'warning': return 60 + Math.max(0, (25 - nearestKm) * 1.4); // 60-95
-    case 'watch':   return 25 + Math.max(0, (50 - nearestKm) * 0.7); // 25-60
+    case 'watch':   return nearestKm <= 50
+                      ? 25 + Math.max(0, (50 - nearestKm) * 0.7) // 25-60 (within 50km)
+                      : 10 + Math.max(0, (80 - nearestKm) * 0.3); // 10-19 (50-80km, info only)
     default:        return 0;
   }
 }
@@ -28,7 +30,7 @@ export function buildStormAlerts(storm: StormAlert): UnifiedAlert[] {
   const labels: Record<StormAlertLevel, string> = {
     danger: 'PELIGRO — Tormenta encima',
     warning: 'AVISO — Tormenta acercándose',
-    watch: 'VIGILANCIA — Actividad eléctrica',
+    watch: 'Actividad el\u00e9ctrica detectada',
     none: '',
   };
 
