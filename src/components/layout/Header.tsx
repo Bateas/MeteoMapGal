@@ -175,19 +175,19 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             data-tour="panel"
             className={`flex items-center gap-1 rounded-lg font-bold transition-all
               ${isMobile ? 'px-2 py-1 text-[12px] min-h-[44px]' : 'px-2.5 py-1.5 text-[13px] min-h-[44px]'}
-              ${fieldDrawerOpen
+              ${fieldDrawerOpen && fieldAlertLevel === 'none'
                 ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
                 : fieldAlertLevel !== 'none'
-                ? 'border animate-pulse hover:brightness-125 hover:scale-105'
+                ? `border ${fieldDrawerOpen ? '' : 'animate-pulse'} hover:brightness-125 hover:scale-105`
                 : 'text-slate-400 border border-slate-600/40 hover:text-white hover:bg-slate-800'
               }`}
             style={
-              !fieldDrawerOpen && fieldAlertLevel !== 'none'
+              fieldAlertLevel !== 'none'
                 ? {
                     color: fieldAlertLevel === 'critico' ? '#ef4444' : fieldAlertLevel === 'alto' ? '#f59e0b' : '#3b82f6',
                     borderColor: fieldAlertLevel === 'critico' ? 'rgba(239,68,68,0.4)' : fieldAlertLevel === 'alto' ? 'rgba(245,158,11,0.4)' : 'rgba(59,130,246,0.3)',
                     background: fieldAlertLevel === 'critico' ? 'rgba(239,68,68,0.12)' : fieldAlertLevel === 'alto' ? 'rgba(245,158,11,0.10)' : 'rgba(59,130,246,0.08)',
-                    boxShadow: fieldAlertLevel === 'critico' ? '0 0 14px rgba(239,68,68,0.3)' : fieldAlertLevel === 'alto' ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
+                    boxShadow: !fieldDrawerOpen && fieldAlertLevel === 'critico' ? '0 0 14px rgba(239,68,68,0.3)' : !fieldDrawerOpen && fieldAlertLevel === 'alto' ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
                   }
                 : undefined
             }
