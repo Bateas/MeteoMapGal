@@ -67,8 +67,28 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
 
     // ── Spot verdicts (priority 10 = highest for non-calm, 1 for calm) ──
     const spots = getSpotsForSector(sectorId);
+    const surfCache = useSpotStore.getState().surfWaveCache;
     for (const spot of spots) {
       const sc = scores.get(spot.id);
+      const isSurf = spot.category === 'surf';
+
+      // Surf spots: use wave cache for label
+      if (isSurf) {
+        const sw = surfCache.get(spot.id);
+        if (sw) {
+          const pri = sw.verdictLabel === 'FLAT' ? 1 : sw.verdictLabel === 'PEQUE' ? 3 : 7;
+          result.push({
+            key: `spot-${spot.id}`,
+            text: `${spot.shortName}: ${sw.verdictLabel} ${sw.waveHeight.toFixed(1)}m`,
+            color: sw.verdictLabel === 'FLAT' ? 'text-slate-400' : sw.verdictLabel === 'PEQUE' ? 'text-cyan-400' : 'text-blue-400',
+            bg: sw.verdictLabel === 'FLAT' ? '' : 'bg-blue-900/25',
+            priority: pri,
+          });
+        }
+        continue;
+      }
+
+      // Sailing spots: use wind score
       if (!sc || sc.verdict === 'unknown') continue;
       const v = VERDICT_STYLE[sc.verdict];
       const kt = sc.wind?.avgSpeedKt;
