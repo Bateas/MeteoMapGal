@@ -6,7 +6,7 @@ import { useAutoRefresh } from './useAutoRefresh';
 import { fetchAllObservations, isAemetRateLimited, aemetCooldownRemaining } from '../api/aemetClient';
 import { fetchLatestForStations } from '../api/meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
-import { fetchWUObservations } from '../api/wundergroundClient';
+import { fetchLatestReadings, historyToNormalized } from '../api/historyClient';
 import { fetchNetatmoObservations } from '../api/netatmoClient';
 import { fetchSkyXReading } from '../api/skyxClient';
 import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
@@ -119,15 +119,18 @@ export function useWeatherData() {
       );
     }
 
-    // Weather Underground
-    const wuStationIds = stations.filter((s) => s.source === 'wunderground').map((s) => s.id);
-    if (wuStationIds.length > 0) {
+    // Weather Underground — via ingestor API (consolidated, avoids duplicate WU calls)
+    const wuStationIds = new Set(
+      stations.filter((s) => s.source === 'wunderground').map((s) => s.id)
+    );
+    if (wuStationIds.size > 0) {
       tasks.push(
-        fetchWUObservations(wuStationIds).then((readings) => {
+        fetchLatestReadings(undefined, 'wunderground').then((rows) => {
+          const readings = historyToNormalized(rows).filter((r) => wuStationIds.has(r.stationId));
           updateSourceStatus('wunderground', true, readings.length);
           return readings;
         }).catch((err) => {
-          console.error('[WeatherData] WU fetch error:', err);
+          console.error('[WeatherData] WU (ingestor) fetch error:', err);
           updateSourceStatus('wunderground', false, 0, String(err));
           return [];
         })
