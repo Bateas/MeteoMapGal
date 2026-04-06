@@ -1185,9 +1185,17 @@ function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
         ))}
       </div>
 
+      {/* Period indicator at key hours */}
+      <div className="flex justify-between text-[8px] text-slate-600 mb-1">
+        {hours.filter((_, i) => i % 6 === 0).map((h, i) => {
+          const tp = h.swellPeriod ?? h.wavePeriod ?? 0;
+          return tp > 0 ? <span key={i} style={{ color: tp >= 10 ? '#22d3ee' : tp >= 7 ? '#94a3b8' : '#f97316' }}>{tp.toFixed(0)}s</span> : <span key={i} />;
+        })}
+      </div>
+
       {/* Summary line */}
       <div className="text-[10px] text-slate-400 leading-tight">
-        Olas {trend}: {currentWave.toFixed(1)}m ahora → max {maxForecast.toFixed(1)}m a las {bestTime}
+        Olas {trend}: {currentWave.toFixed(1)}m ahora {'\u2192'} max {maxForecast.toFixed(1)}m a las {bestTime}
       </div>
     </div>
   );
