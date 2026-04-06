@@ -47,18 +47,26 @@ interface NotamPopupData {
 
 // ── Color helpers ─────────────────────────────────────────
 
-function zoneLineColor(type: string): string {
+function zoneLineColor(type: string, name = ''): string {
   const t = type.toUpperCase();
+  const n = name.toUpperCase();
+  // Severity-based (prohibido/autorizacion)
   if (t.includes('PROHIB')) return '#ef4444';
   if (t.includes('AUTHOR') || t.includes('REQ')) return '#f59e0b';
-  return '#3b82f6';
+  // Type-based for info zones — distinguish visually
+  if (n.includes('ADIF') || n.includes('FERROV') || n.includes('TREN')) return '#8b5cf6'; // purple: railway
+  if (n.includes('TMA') || n.includes('AEROP') || n.includes('CTR') || n.includes('AERODROM')) return '#f59e0b'; // orange: airport/TMA
+  if (n.includes('ZEPA') || n.includes('PROTEG') || n.includes('NATURA') || n.includes('PARQUE') || n.includes('LIC') || n.includes('ZEC')) return '#22c55e'; // green: nature
+  if (n.includes('URBAN')) return '#64748b'; // gray: urban
+  return '#3b82f6'; // blue: default
 }
 
-function zoneFillRgba(type: string): string {
-  const t = type.toUpperCase();
-  if (t.includes('PROHIB')) return 'rgba(239,68,68,0.12)';
-  if (t.includes('AUTHOR') || t.includes('REQ')) return 'rgba(245,158,11,0.12)';
-  return 'rgba(59,130,246,0.12)';
+function zoneFillRgba(type: string, name = ''): string {
+  const hex = zoneLineColor(type, name);
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},0.10)`;
 }
 
 // ── GeoJSON builders ──────────────────────────────────────
@@ -79,8 +87,8 @@ function buildZonesGeoJSON(zones: UasZone[]): GeoJSON.FeatureCollection {
           altRef: z.altitudeReference || 'AGL',
           reason: z.reasons || '',
           contact: [z.phone, z.email].filter(Boolean).join(' / '),
-          fillColor: zoneFillRgba(z.type),
-          lineColor: zoneLineColor(z.type),
+          fillColor: zoneFillRgba(z.type, z.name),
+          lineColor: zoneLineColor(z.type, z.name),
         },
         geometry: z.geometry,
       })),
