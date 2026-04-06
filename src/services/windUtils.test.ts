@@ -142,7 +142,7 @@ describe('windSpeedColor — simplified scale (0-6kt = one blue)', () => {
     expect(windSpeedColor(4)).toBe('#22c55e');
   });
   it('returns lime for moderate wind 9-13kt', () => {
-    expect(windSpeedColor(5)).toBe('#a3e635');
+    expect(windSpeedColor(5)).toBe('#84cc16');
   });
   it('returns yellow for fresh wind 13-18kt', () => {
     expect(windSpeedColor(7)).toBe('#eab308');

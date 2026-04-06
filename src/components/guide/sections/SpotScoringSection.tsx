@@ -118,7 +118,7 @@ export function SpotScoringSection() {
             <VerdictRow color="#64748b" label="Calma"     wind="< 1kt"   desc="Sin viento detectable." />
             <VerdictRow color="#38bdf8" label="Flojo"     wind="1-6kt"   desc="Viento ligero. SUP, paseo, esperar a que suba." />
             <VerdictRow color="#22c55e" label="Navegable" wind="6-9kt"   desc="Viento justo, condiciones limitadas." />
-            <VerdictRow color="#a3e635" label="Bueno"     wind="9-13kt"  desc="Buen viento para navegar." />
+            <VerdictRow color="#84cc16" label="Bueno"     wind="9-13kt"  desc="Buen viento para navegar." />
             <VerdictRow color="#eab308" label="Buen día"  wind="13-18kt" desc="Viento estable, apto para todas las modalidades." />
             <VerdictRow color="#f97316" label="Fuerte"    wind="18-23kt" desc="Requiere experiencia. Viento potente." />
             <VerdictRow color="#ef4444" label="Temporal"  wind="23-30kt" desc="Peligroso. Solo navegantes muy experimentados." />
