@@ -158,7 +158,7 @@ export function ThermalCastreloSection() {
             <WindRow range="< 6 kt" label="CALMA" desc="Sin viento. No se navega." color="#64748b" />
             <WindRow range="6-7 kt" label="FLOJO" desc="Posible con tabla grande. Principiantes con paciencia." color="#93c5fd" />
             <WindRow range="8-11 kt" label="NAVEGABLE" desc="Buen viento para aprender. Rumbos básicos cómodos." color="#22c55e" />
-            <WindRow range="12-17 kt" label="BUENO" desc="Condiciones ideales. Planeo con tabla media. Disfrute total." color="#a3e635" />
+            <WindRow range="12-17 kt" label="BUENO" desc="Condiciones ideales. Planeo con tabla media. Disfrute total." color="#84cc16" />
             <WindRow range="18+ kt" label="FUERTE" desc="Solo expertos. Rachas potentes. Equipo reducido." color="#f59e0b" />
           </div>
         </div>

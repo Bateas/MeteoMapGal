@@ -101,7 +101,7 @@ export function ReadingMapSection() {
                 <stop offset="0%" stopColor="#64748b" />
                 <stop offset="25%" stopColor="#38bdf8" />
                 <stop offset="40%" stopColor="#22c55e" />
-                <stop offset="55%" stopColor="#a3e635" />
+                <stop offset="55%" stopColor="#84cc16" />
                 <stop offset="70%" stopColor="#eab308" />
                 <stop offset="85%" stopColor="#f97316" />
                 <stop offset="100%" stopColor="#ef4444" />

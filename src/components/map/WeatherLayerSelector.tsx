@@ -223,7 +223,7 @@ function WindLegend() {
           { color: '#64748b', label: '0' },
           { color: '#38bdf8', label: '6' },
           { color: '#22c55e', label: '9' },
-          { color: '#a3e635', label: '13' },
+          { color: '#84cc16', label: '13' },
           { color: '#eab308', label: '17' },
           { color: '#f97316', label: '23' },
           { color: '#ef4444', label: '23+' },
