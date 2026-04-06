@@ -123,7 +123,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
         name: 'Viento SW (tardes)',
         direction: 250,
         season: 'Marzo–Octubre, 12-18h',
-        description: 'El sol calienta la tierra y entra brisa del SW por la ría. Mejor en dias despejados sin norte. Viento estable 8-15kt, agua plana. La mejor sesion del spot.',
+        description: 'El sol calienta la tierra y entra brisa del SW por la ría. Mejor en días despejados sin norte. Viento estable 8-15kt, agua plana. La mejor sesión del spot.',
       },
       {
         name: 'Norte (componente)',
@@ -216,7 +216,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
         name: 'Brisa SW (tardes)',
         direction: 225,
         season: 'Abril–Septiembre, 12-18h',
-        description: 'Brisa marina que entra del SW cuando el sol calienta. Dias despejados de primavera y verano. Viento estable 8-15kt. Se potencia hacia el interior (Cesantes).',
+        description: 'Brisa marina que entra del SW cuando el sol calienta. Días despejados de primavera y verano. Viento estable 8-15kt. Se potencia hacia el interior (Cesantes).',
       },
       {
         name: 'Viento de tierra (mañanas)',
@@ -282,7 +282,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
         name: 'Suroeste (borrascas)',
         direction: 225,
         season: 'Octubre–Marzo',
-        description: 'Viento SW fuerte con borrascas atlanticas. Mar de 2-4m, rachas fuertes. Zona expuesta, solo para expertos con mar grande.',
+        description: 'Viento SW fuerte con borrascas atlánticas. Mar de 2-4m, rachas fuertes. Zona expuesta, solo para expertos con mar grande.',
       },
     ],
     preferredStations: [
@@ -689,7 +689,7 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
         name: 'Viento SW (tardes)',
         direction: 250,
         season: 'Marzo–Octubre, 14-19h',
-        description: 'El sol calienta el valle y entra viento del SW. Mejor con temperaturas altas, cielo despejado y sin norte. Viento constante 8-15kt, agua plana. Los mejores dias del embalse.',
+        description: 'El sol calienta el valle y entra viento del SW. Mejor con temperaturas altas, cielo despejado y sin norte. Viento constante 8-15kt, agua plana. Los mejores días del embalse.',
       },
       {
         name: 'Norte (componente)',
