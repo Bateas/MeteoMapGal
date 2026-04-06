@@ -10,7 +10,7 @@ import { memo, useState, useMemo, useEffect, useCallback } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
-// webcamStore moved to ScoringBreakdown.tsx
+
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
@@ -22,9 +22,7 @@ import type { HourlyForecast } from '../../types/forecast';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
-import { fetchTidePredictions } from '../../api/tideClient';
 import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
-import type { TidePoint } from '../../api/tideClient';
 import { computeSurfVerdict, type SurfVerdictResult } from '../spot/surfVerdictEngine';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs, dirArrow, azimuthLabel } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
@@ -413,8 +411,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 });
 
 // ── Helper: data cell ────────────────────────────────────────
-// Cell extracted to ../spot/ScoringBreakdown.tsx
-
 // ── Sailing windows (collapsible) ─────────────────────────────
 
 function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
@@ -469,8 +465,6 @@ function WindowRow({ window: w, isBest }: { window: SailingWindow; isBest: boole
     </div>
   );
 }
-
-// ScoringBreakdown + WindSources + SpotVisionBadge extracted to ../spot/ScoringBreakdown.tsx
 
 // ── Wind patterns (collapsible) ──────────────────────────────
 
@@ -838,8 +832,6 @@ function ThermalForecastBadge({ forecast }: { forecast: HourlyForecast[] }) {
 }
 
 // ── Spot tide summary ─────────────────────────────────────────
-
-// SpotTideSummary extracted to ../spot/SpotTideSummary.tsx
 
 // ── Forecast mini-timeline (next 12h) ────────────────────────
 
