@@ -79,10 +79,9 @@ export function useSurfMarineData() {
           const hours = await fetchMarineForSpot(spot.id, spot.center[1], spot.center[0]);
           const now = hours[0];
           if (now) {
-            // Open-Meteo Marine overpredicts wave height for semi-protected coasts (Rías)
-          // Apply 15% coastal reduction factor (validated against Silleiro buoy comparison)
+            // Per-spot coastal correction (sheltered spots get lower factor)
           const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
-          const wh = rawWh * 0.85;
+          const wh = rawWh * (spot.coastalFactor ?? 0.85);
             const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
             const v = basicSurfVerdict(wh, tp);
             setSurfWave(spot.id, {
