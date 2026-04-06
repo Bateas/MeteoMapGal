@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeSurfVerdict } from './surfVerdictEngine';
+import { computeSurfVerdict, swellAlignmentMultiplier } from './surfVerdictEngine';
 
 describe('computeSurfVerdict', () => {
   // ── Base levels (no modifiers) ──
@@ -82,5 +82,29 @@ describe('computeSurfVerdict', () => {
   it('summary includes offshore warning text', () => {
     const result = computeSurfVerdict(1.0, 8, true, false);
     expect(result.summary).toContain('offshore');
+  });
+});
+
+describe('swellAlignmentMultiplier', () => {
+  it('frontal swell (0° diff) returns 1.0', () => {
+    expect(swellAlignmentMultiplier(270, 270)).toBe(1.0);
+  });
+  it('45° angle returns ~0.75', () => {
+    const result = swellAlignmentMultiplier(315, 270);
+    expect(result).toBeCloseTo(0.75, 1);
+  });
+  it('90° lateral returns 0.5', () => {
+    expect(swellAlignmentMultiplier(0, 270)).toBeCloseTo(0.5, 1);
+  });
+  it('behind the beach (>120°) returns 0.3', () => {
+    expect(swellAlignmentMultiplier(90, 270)).toBe(0.3);
+  });
+  it('Lanzada (W 270°) with NW swell (315°) = ~0.75', () => {
+    const result = swellAlignmentMultiplier(315, 270);
+    expect(result).toBeGreaterThan(0.7);
+    expect(result).toBeLessThan(0.8);
+  });
+  it('Patos (NW 315°) with NW swell (315°) = 1.0 (frontal)', () => {
+    expect(swellAlignmentMultiplier(315, 315)).toBe(1.0);
   });
 });

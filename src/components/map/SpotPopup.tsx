@@ -23,7 +23,7 @@ import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
-import { computeSurfVerdict, type SurfVerdictResult } from '../spot/surfVerdictEngine';
+import { computeSurfVerdict, swellAlignmentMultiplier, type SurfVerdictResult } from '../spot/surfVerdictEngine';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs, dirArrow, azimuthLabel } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
@@ -89,12 +89,16 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     if (spot.category !== 'surf' || marineForecast.length === 0) return null;
     const now = marineForecast[0];
     if (!now) return null;
-    // Per-spot coastal correction (default 0.85 for semi-protected coasts)
-    const factor = spot.coastalFactor ?? 0.85;
+    // Per-spot coastal correction × swell direction alignment
+    const baseFactor = spot.coastalFactor ?? 0.85;
+    const swellDir = now.swellDirection ?? now.waveDirection ?? null;
+    const alignment = swellDir != null && spot.beachOrientation != null
+      ? swellAlignmentMultiplier(swellDir, spot.beachOrientation)
+      : 1.0; // no swell direction data → use base factor only
+    const factor = baseFactor * alignment;
     const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
     const wh = rawWh * factor;
     const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
-    const swellDir = now.swellDirection ?? now.waveDirection ?? null;
     const windDir = score?.wind?.dirDeg ?? null;
     const isOffshore = windDir != null && spot.offshoreWindDir
       ? spot.offshoreWindDir.some((d) => Math.abs(((windDir - d + 540) % 360) - 180) < 45)

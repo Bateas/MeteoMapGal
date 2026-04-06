@@ -30,6 +30,25 @@ const LEVELS: SurfVerdictResult[] = [
   { label: 'GRANDE',    color: '#f97316', bg: 'rgba(249,115,22,0.12)',  summary: 'Mar grande — solo con experiencia' },
 ];
 
+/**
+ * Compute how well a swell direction aligns with a beach orientation.
+ * Returns a multiplier 0.3→1.0:
+ *   - Frontal swell (0° diff) = 1.0
+ *   - 45° angle = ~0.85
+ *   - 90° lateral = 0.5
+ *   - Behind the beach (>120°) = 0.3
+ *
+ * Use to adjust coastalFactor dynamically: effectiveFactor = baseFactor × alignment
+ */
+export function swellAlignmentMultiplier(swellDir: number, beachOrientation: number): number {
+  // Beach faces beachOrientation degrees — swell should come FROM that direction
+  // Angle between swell direction and beach face
+  const diff = Math.abs(((swellDir - beachOrientation + 540) % 360) - 180);
+  // cos-based decay: 0° = 1.0, 90° = 0.5, 180° = 0.3
+  if (diff <= 90) return 1.0 - (diff / 90) * 0.5; // 1.0 → 0.5
+  return 0.3; // behind the beach — minimal exposure
+}
+
 export function computeSurfVerdict(
   waveHeight: number,
   period: number,
