@@ -1,8 +1,8 @@
 # MeteoMapGal
 
-[![Versión](https://img.shields.io/badge/versión-2.20.5-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Versión](https://img.shields.io/badge/versión-2.22.7-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-235%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-254%20passed-brightgreen)](src/test/)
 
 **Meteorología en tiempo real para Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots, 19 webcams con IA y mapa 3D interactivo.
 
