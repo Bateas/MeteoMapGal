@@ -602,7 +602,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     offshoreWindDir: [45, 90], // NE, E
     swellDirections: [225, 270, 290], // SW, W, WNW
     tidePreference: 'all',
-    coastalFactor: 0.92, // Fully exposed to Atlantic, minimal shelter
+    coastalFactor: 0.75, // Exposed but NW swell arrives at angle to W-facing beach
     windPatterns: [
       {
         name: 'Offshore NE/E (mañanas)',
