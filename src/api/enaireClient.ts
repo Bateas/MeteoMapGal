@@ -97,24 +97,38 @@ function buildQueryUrl(base: string, layer: number, bbox: [number, number, numbe
 
 // ── Layer label fallbacks ──────────────────────────────────
 // When ENAIRE zones lack a NOMBRE field, derive a label from the layer category
-const LAYER_FALLBACK_LABELS = ['Zona aeroportuaria', 'ADIF', 'Zona protegida', 'Zona urbana'];
+// Layer 0=Aero, 1=Infra, 2=Medioambiente, 3=Urbano
+const LAYER_FALLBACK_LABELS = ['Zona aeroportuaria', 'Zona infraestructura', 'Zona protegida', 'Zona urbana'];
 
 function deriveZoneName(a: Record<string, unknown>, layerIndex: number): string {
   const raw = a['NOMBRE'] ?? a['NAME'] ?? a['name'];
   const name = raw != null ? String(raw) : '';
   if (name && name !== 'Sin nombre' && name !== 'undefined' && name !== 'null') return name;
 
-  // Try to extract a meaningful label from other fields
+  // Try to extract a meaningful label from MOTIVO/VARIANTE fields
   const reasons = String(a['MOTIVO'] ?? a['REASON'] ?? a['REASONS'] ?? '').toLowerCase();
   const variant = String(a['VARIANTE'] ?? a['VARIANT'] ?? '').toLowerCase();
+  const all = reasons + ' ' + variant;
 
-  // Railway infrastructure
-  if (reasons.includes('ferroviar') || variant.includes('ferroviar') || reasons.includes('adif') || variant.includes('adif')) {
-    return 'ADIF';
+  // Railway infrastructure (ADIF)
+  if (all.includes('ferroviar') || all.includes('adif') || all.includes('tren') || all.includes('ffcc')) {
+    return 'Zona ferroviaria (ADIF)';
   }
   // Road infrastructure
-  if (reasons.includes('carretera') || reasons.includes('autopista') || variant.includes('carretera')) {
-    return 'Vía de tráfico';
+  if (all.includes('carretera') || all.includes('autopista') || all.includes('autov')) {
+    return 'Zona vial';
+  }
+  // Nature protection (ZEPA, Natura 2000, LIC, ZEC, Parque)
+  if (all.includes('zepa') || all.includes('natura') || all.includes('parque') || all.includes('lic') || all.includes('zec') || all.includes('proteg') || all.includes('reserva')) {
+    return 'Zona protegida (fauna/flora)';
+  }
+  // Airport / aerodrome
+  if (all.includes('aeropuert') || all.includes('aerodrom') || all.includes('helipuert')) {
+    return 'Zona aeroportuaria';
+  }
+  // TMA / CTR
+  if (all.includes('tma') || all.includes('ctr')) {
+    return 'TMA/CTR';
   }
 
   // Fallback: use the ENAIRE layer category
