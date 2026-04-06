@@ -154,6 +154,60 @@ export function RiasBaixasSection() {
         </div>
       </div>
 
+      {/* ── 6. Surf en las Rías ── */}
+      <div className="space-y-3">
+        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+          <WeatherIcon id="waves" size={18} className="text-cyan-400" />
+          Surf en las R&#237;as Baixas
+        </h3>
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-cyan-800/20 text-xs text-slate-400 space-y-3 leading-relaxed">
+          <p>
+            Las R&#237;as Baixas tienen playas de surf con personalidades muy diferentes,
+            desde beach breaks protegidos hasta rompientes potentes de parque natural.
+          </p>
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <span className="text-cyan-400 font-bold shrink-0 w-20">Patos</span>
+              <span>Beach break + reef en Nigr&#225;n. Protegida por las C&#237;es (factor 0.45). Mejor con swell NW &gt;1m, marea media-alta, offshore S/SSW.</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-cyan-400 font-bold shrink-0 w-20">Lanzada</span>
+              <span>2.4km de playa W abierta. La m&#225;s consistente de Galicia. Funciona con SW/W/WNW. Offshore NE/E por las ma&#241;anas.</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-cyan-400 font-bold shrink-0 w-20">Corrubedo</span>
+              <span>Parque natural de dunas, playa NW. Olas potentes, corrientes fuertes. Solo intermedio-avanzado. Offshore SE/S.</span>
+            </div>
+          </div>
+          <p>
+            <strong className="text-cyan-300">Correcci&#243;n costera:</strong> los modelos de oleaje global sobreestiman para costas semi-protegidas.
+            MeteoMapGal ajusta autom&#225;ticamente por playa (factor de exposici&#243;n) y por direcci&#243;n del swell respecto a la orientaci&#243;n de la playa.
+          </p>
+        </div>
+      </div>
+
+      {/* ── 7. Patrón bocana/terral ── */}
+      <div className="space-y-3">
+        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+          <WeatherIcon id="compass" size={18} className="text-emerald-400" />
+          Patr&#243;n bocana (terral matutino)
+        </h3>
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-emerald-800/20 text-xs text-slate-400 space-y-3 leading-relaxed">
+          <p>
+            Entre las 6 y las 11 de la ma&#241;ana, el aire fr&#237;o de tierra drena hacia la r&#237;a generando un
+            <strong className="text-emerald-300"> terral E/NE</strong> de 5-17kt. Las boyas lo detectan mientras
+            las estaciones de tierra a&#250;n marcan calma — por eso es invisible para apps convencionales.
+          </p>
+          <p>
+            La boya de Rande detecta este patr&#243;n con un &#916;T &gt;2&#176;C (agua m&#225;s fr&#237;a que el aire nocturno).
+            MeteoMapGal lo identifica autom&#225;ticamente y lo muestra como predictor de buenas condiciones matutinas.
+          </p>
+          <p className="text-slate-500 italic">
+            Mejor en: noches despejadas y fr&#237;as seguidas de ma&#241;ana soleada. Se para cuando el sol calienta (~11h).
+          </p>
+        </div>
+      </div>
+
       {/* ── Nota ── */}
       <div className="bg-blue-900/10 rounded-lg p-3 border border-blue-700/20">
         <p className="text-[11px] text-blue-400/70">
