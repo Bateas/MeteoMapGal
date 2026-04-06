@@ -25,6 +25,8 @@ const API_TIMEOUT_MS = 60_000; // 60s timeout for Ollama (CPU inference is slow)
 const lastImageSize = new Map<string, number>();
 const lastImageChangeTime = new Map<string, number>();
 const STALE_IMAGE_MAX_AGE_MS = 60 * 60_000; // 1h — if image unchanged for 1h, it's frozen
+const MAP_CLEANUP_INTERVAL_MS = 24 * 60 * 60_000; // Cleanup old entries daily
+let lastMapCleanup = Date.now();
 
 // ── Beaufort prompt (adapted from webcamVisionService.ts) ────
 
@@ -280,6 +282,13 @@ async function analyzeWebcam(webcam: WebcamStation): Promise<WebcamAnalysisResul
 export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisResult[]> {
   // Only run every N cycles
   if (cycle % WEBCAM_ANALYSIS_INTERVAL !== 0) return [];
+
+  // Periodic cleanup of stale image tracking maps (prevent unbounded growth)
+  if (Date.now() - lastMapCleanup > MAP_CLEANUP_INTERVAL_MS) {
+    lastImageSize.clear();
+    lastImageChangeTime.clear();
+    lastMapCleanup = Date.now();
+  }
 
   if (process.env.WEBCAM_VISION_ENABLED !== 'true') return [];
 
