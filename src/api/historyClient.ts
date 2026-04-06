@@ -140,15 +140,36 @@ export async function fetchReadings(
   return data.readings;
 }
 
-/** Get latest reading for all stations (or a specific one) */
+/** Get latest reading for all stations (or a specific one), optionally filtered by source */
 export async function fetchLatestReadings(
-  stationId?: string
+  stationId?: string,
+  source?: string
 ): Promise<HistoryReading[]> {
+  const params: Record<string, string> = {};
+  if (stationId) params.station_id = stationId;
+  if (source) params.source = source;
   const data = await fetchJson<{ readings: HistoryReading[] }>(
     `${BASE}/readings/latest`,
-    stationId ? { station_id: stationId } : {}
+    Object.keys(params).length > 0 ? params : {}
   );
   return data.readings;
+}
+
+/** Convert DB HistoryReading → NormalizedReading (for consolidated source fetches) */
+export function historyToNormalized(rows: HistoryReading[]): import('../types/station').NormalizedReading[] {
+  return rows.map((r) => ({
+    stationId: r.station_id,
+    timestamp: new Date(r.time),
+    windSpeed: r.wind_speed,
+    windGust: r.wind_gust,
+    windDirection: r.wind_dir,
+    temperature: r.temperature,
+    humidity: r.humidity,
+    precipitation: r.precip,
+    solarRadiation: r.solar_rad,
+    pressure: r.pressure,
+    dewPoint: r.dew_point,
+  }));
 }
 
 /**

@@ -149,7 +149,7 @@ export async function queryHourly(
 }
 
 /** Get latest reading per station (optionally filtered) */
-export async function queryLatest(stationId?: string): Promise<ReadingRow[]> {
+export async function queryLatest(stationId?: string, source?: string): Promise<ReadingRow[]> {
   const db = getPool();
 
   if (stationId) {
@@ -170,6 +170,7 @@ export async function queryLatest(stationId?: string): Promise<ReadingRow[]> {
   }
 
   // Latest reading per station using DISTINCT ON
+  const sourceFilter = source ? `AND source = '${source.replace(/[^a-z_]/gi, '')}'` : '';
   const result = await db.query<ReadingRow>(`
     SELECT DISTINCT ON (station_id)
       time::text,
@@ -178,7 +179,7 @@ export async function queryLatest(stationId?: string): Promise<ReadingRow[]> {
       temperature, humidity, wind_speed, wind_gust, wind_dir,
       pressure, dew_point, precip, solar_rad
     FROM readings
-    WHERE time > NOW() - INTERVAL '2 hours'
+    WHERE time > NOW() - INTERVAL '2 hours' ${sourceFilter}
     ORDER BY station_id, time DESC
   `);
   return result.rows;
