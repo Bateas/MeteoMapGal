@@ -175,7 +175,11 @@ function parseVisionResponse(raw: string): Partial<WebcamAnalysisResult> {
   const beaufort = textToBeaufort(text);
 
   // Fog / mist — strict: only real fog/mist, NOT mere haze (moondream says "hazy" for most coastal images)
-  const fog = /\bfog\b|\bmist\b|\bfoggy\b|\bmisty\b|low.?visibility|obscur|can'?t see|barely visible|zero.?vis/.test(text);
+  // Dawn guard: 08:00-09:00 low light causes false "hazy/misty" — suppress unless explicitly "thick fog"
+  const isDawn = new Date().getHours() < 9;
+  const fogStrong = /\bthick fog\b|\bdense fog\b|zero.?vis|can'?t see|barely visible/.test(text);
+  const fogWeak = /\bfog\b|\bmist\b|\bfoggy\b|\bmisty\b|low.?visibility|obscur/.test(text);
+  const fog = isDawn ? fogStrong : (fogStrong || fogWeak);
   const hazy = /\bhaz[ey]\b|ethereal/.test(text) && !fog;
 
   // Sky condition — take strongest indicator
@@ -259,8 +263,8 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
 
   // Skip analysis at night — cameras show nothing useful, saves Ollama resources
   const hour = new Date().getHours();
-  if (hour >= 22 || hour < 7) {
-    log.info('[Webcam] Skipping vision analysis — nighttime (22h-07h)');
+  if (hour >= 22 || hour < 8) {
+    log.info('[Webcam] Skipping vision analysis — nighttime/dawn (22h-08h)');
     return [];
   }
 

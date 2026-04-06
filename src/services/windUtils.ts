@@ -38,7 +38,7 @@ export function windSpeedColor(speed: number | null): string {
   if (speed === null || speed < 0.5) return '#64748b'; // slate-500  (calm, <1 kt)
   if (speed < 3.0) return '#38bdf8';   // sky-400    (1-6 kt: flojo — one blue for all light wind)
   if (speed < 4.5) return '#22c55e';   // green-500  (6-9 kt: gentle / navegable entry)
-  if (speed < 6.5) return '#a3e635';   // lime-400   (9-13 kt: moderate / navegable)
+  if (speed < 6.5) return '#84cc16';   // lime-500   (9-13 kt: moderate / navegable — darker than lime-400 for contrast vs green)
   if (speed < 9.0) return '#eab308';   // yellow-500 (13-18 kt: fresh / bueno)
   if (speed < 12)  return '#f97316';   // orange-500 (18-23 kt: strong / fuerte)
   if (speed < 15)  return '#ef4444';   // red-500    (23-30 kt: gale)
@@ -55,7 +55,7 @@ export function windSpeedClass(speed: number | null): string {
   if (speed === null || speed < 0.5) return 'text-slate-500';
   if (speed < 3.0) return 'text-sky-400';     // 1-6kt flojo
   if (speed < 4.5) return 'text-green-500';   // 6-9kt
-  if (speed < 6.5) return 'text-lime-400';    // 9-13kt
+  if (speed < 6.5) return 'text-lime-500';    // 9-13kt
   if (speed < 9.0) return 'text-yellow-500';  // 13-18kt
   if (speed < 12)  return 'text-orange-500';  // 18-23kt
   if (speed < 15)  return 'text-red-500';     // 23-30kt

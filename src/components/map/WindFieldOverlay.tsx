@@ -114,7 +114,7 @@ const SPEED_LEVELS = [
   { id: 'wind-arrow-0', color: '#64748b', maxSpeed: 0.5 },  // slate — calm (<1 kt)
   { id: 'wind-arrow-1', color: '#38bdf8', maxSpeed: 3.0 },  // sky-400 — flojo (1-6 kt, one blue)
   { id: 'wind-arrow-2', color: '#22c55e', maxSpeed: 4.5 },  // green-500 — gentle (6-9 kt)
-  { id: 'wind-arrow-3', color: '#a3e635', maxSpeed: 6.5 },  // lime-400 — moderate (9-13 kt)
+  { id: 'wind-arrow-3', color: '#84cc16', maxSpeed: 6.5 },  // lime-500 — moderate (9-13 kt)
   { id: 'wind-arrow-4', color: '#eab308', maxSpeed: 9.0 },  // yellow-500 — fresh (13-18 kt)
   { id: 'wind-arrow-5', color: '#f97316', maxSpeed: 12 },   // orange-500 — strong (18-23 kt)
   { id: 'wind-arrow-6', color: '#ef4444', maxSpeed: 15 },   // red-500 — gale (23-30 kt)

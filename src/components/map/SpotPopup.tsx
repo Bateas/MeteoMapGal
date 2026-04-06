@@ -1432,11 +1432,16 @@ function SpotHistoryChart({ spotId }: { spotId: string }) {
 
   useEffect(() => {
     if (!open || loaded) return;
-    fetch(`/api/v1/spots/scores?spot_id=${encodeURIComponent(spotId)}&days=1`)
+    fetch(`/api/v1/spots/scores?spot_id=${encodeURIComponent(spotId)}&days=2`)
       .then((r) => r.json())
       .then((d) => {
         const scores = (d.scores ?? []).reverse(); // oldest first
-        setData(scores);
+        // Filter to daytime hours only (06:00-22:00) to avoid chart dominated by night
+        const daytime = scores.filter((s: { time: string }) => {
+          const h = new Date(s.time).getHours();
+          return h >= 6 && h < 22;
+        });
+        setData(daytime.length >= 6 ? daytime : scores);
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
@@ -1449,7 +1454,7 @@ function SpotHistoryChart({ spotId }: { spotId: string }) {
         className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
         <WeatherIcon id="activity" size={12} className="shrink-0" />
-        <span className="font-semibold">Historial spot 24h</span>
+        <span className="font-semibold">Historial spot 48h (diurno)</span>
         <span className="text-slate-500 ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -1495,11 +1500,30 @@ function SpotWindChart({ data }: { data: { time: string; wind_kt: number }[] }) 
   // Fill area under curve
   const areaPath = path + ` L${points[points.length - 1].x.toFixed(1)},${padT + chartH} L${padL},${padT + chartH} Z`;
 
-  // Time labels
-  const fmt = (t: string) => {
+  // Time labels — show day name for multi-day
+  const DAYS_ES = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+  const fmtShort = (t: string) => {
     const d = new Date(t);
-    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    return `${d.getHours().toString().padStart(2, '0')}h`;
   };
+  const fmtDay = (t: string) => {
+    const d = new Date(t);
+    return `${DAYS_ES[d.getDay()]} ${d.getHours().toString().padStart(2, '0')}h`;
+  };
+
+  // Find day boundaries for separators
+  const dayBreaks: number[] = [];
+  for (let i = 1; i < data.length; i++) {
+    const prev = new Date(data[i - 1].time).getDate();
+    const curr = new Date(data[i].time).getDate();
+    if (curr !== prev) dayBreaks.push(i);
+  }
+
+  // Distribute ~4 time labels evenly
+  const labelCount = 4;
+  const labelIndices = Array.from({ length: labelCount }, (_, i) =>
+    Math.round((i * (data.length - 1)) / (labelCount - 1))
+  );
 
   return (
     <svg width={HIST_W} height={HIST_H} className="w-full" style={{ maxWidth: HIST_W }}>
@@ -1515,6 +1539,13 @@ function SpotWindChart({ data }: { data: { time: string; wind_kt: number }[] }) 
           </g>
         );
       })}
+      {/* Day boundary separators */}
+      {dayBreaks.map((idx) => {
+        const x = padL + idx * step;
+        return (
+          <line key={`day-${idx}`} x1={x} y1={padT} x2={x} y2={padT + chartH} stroke="#475569" strokeWidth="0.5" strokeDasharray="2,2" />
+        );
+      })}
       {/* Y-axis unit */}
       <text x={2} y={padT + 8} fill="#64748b" fontSize="8">kt</text>
       {/* Fill area */}
@@ -1522,9 +1553,16 @@ function SpotWindChart({ data }: { data: { time: string; wind_kt: number }[] }) 
       {/* Smoothed line */}
       <path d={path} fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       {/* X-axis time labels */}
-      <text x={padL} y={HIST_H - 2} fill="#64748b" fontSize="8" textAnchor="start">{fmt(data[0].time)}</text>
-      <text x={padL + chartW / 2} y={HIST_H - 2} fill="#64748b" fontSize="8" textAnchor="middle">{fmt(data[Math.floor(data.length / 2)].time)}</text>
-      <text x={HIST_W - padR} y={HIST_H - 2} fill="#64748b" fontSize="8" textAnchor="end">{fmt(data[data.length - 1].time)}</text>
+      {labelIndices.map((idx) => {
+        const x = padL + idx * step;
+        const anchor = idx === 0 ? 'start' : idx === data.length - 1 ? 'end' : 'middle';
+        const isFirst = idx === labelIndices[0];
+        return (
+          <text key={idx} x={x} y={HIST_H - 2} fill="#64748b" fontSize="8" textAnchor={anchor}>
+            {isFirst || dayBreaks.some((b) => Math.abs(b - idx) < data.length / 8) ? fmtDay(data[idx].time) : fmtShort(data[idx].time)}
+          </text>
+        );
+      })}
     </svg>
   );
 }
