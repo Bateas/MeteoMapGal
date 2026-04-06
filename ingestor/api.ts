@@ -170,7 +170,7 @@ async function handleLatest(
   res: http.ServerResponse,
   origin?: string
 ): Promise<void> {
-  const rows = await queryLatest(params.station_id || undefined);
+  const rows = await queryLatest(params.station_id || undefined, params.source || undefined);
   json(res, { count: rows.length, readings: rows }, 200, origin);
 }
 
