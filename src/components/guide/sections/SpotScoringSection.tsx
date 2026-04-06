@@ -99,7 +99,7 @@ export function SpotScoringSection() {
             <VerdictRow color="#22c55e" label="Clásico"  wind="1.5-2.5m" desc="Olas limpias y consistentes." />
             <VerdictRow color="#f97316" label="Grande"   wind="&gt; 2.5m" desc="Mar grande. Solo con experiencia." />
             <p className="text-[10px] text-slate-600 italic pt-1">
-              Corrección costera: los modelos sobreestiman ~15% en costas semi-protegidas. La app ajusta automáticamente.
+              Correccion costera: cada playa tiene su factor segun exposicion al oceano (Patos 0.45 por las Cies, Lanzada 0.75, Corrubedo 0.88). Ademas se ajusta por la direccion del swell respecto a la orientacion de la playa.
             </p>
           </div>
         </div>
