@@ -307,7 +307,8 @@ function computeSpotWindConsensus(
   // This prevents a single broken/sheltered station from skewing consensus.
   if (entries.length >= 3) {
     const speeds = entries.map(e => e.speedKt).sort((a, b) => a - b);
-    const median = speeds[Math.floor(speeds.length / 2)];
+    const mid = Math.floor(speeds.length / 2);
+    const median = speeds.length % 2 === 1 ? speeds[mid] : (speeds[mid - 1] + speeds[mid]) / 2;
     if (median > 2) { // Only penalize if there's real wind (avoid div-by-zero on calm days)
       for (const e of entries) {
         if (e.speedKt > median * 3) {

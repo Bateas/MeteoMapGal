@@ -170,7 +170,8 @@ export async function queryLatest(stationId?: string, source?: string): Promise<
   }
 
   // Latest reading per station using DISTINCT ON
-  const sourceFilter = source ? `AND source = '${source.replace(/[^a-z_]/gi, '')}'` : '';
+  const params: string[] = [];
+  const sourceFilter = source ? (params.push(source), `AND source = $${params.length}`) : '';
   const result = await db.query<ReadingRow>(`
     SELECT DISTINCT ON (station_id)
       time::text,
@@ -181,7 +182,7 @@ export async function queryLatest(stationId?: string, source?: string): Promise<
     FROM readings
     WHERE time > NOW() - INTERVAL '2 hours' ${sourceFilter}
     ORDER BY station_id, time DESC
-  `);
+  `, params.length > 0 ? params : undefined);
   return result.rows;
 }
 

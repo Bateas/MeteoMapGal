@@ -236,13 +236,14 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
-    const check = () => setIconsReady(map.hasImage('wind-arrow-0'));
+    const check = () => {
+      if (map.hasImage('wind-arrow-0')) setIconsReady(true);
+    };
     check();
-    if (!iconsReady) {
-      map.on('styledata', check);
-      return () => { map.off('styledata', check); };
-    }
-  }, [mapRef, iconsReady]);
+    // Always register + cleanup to avoid memory leak
+    map.on('styledata', check);
+    return () => { map.off('styledata', check); };
+  }, [mapRef]);
 
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];

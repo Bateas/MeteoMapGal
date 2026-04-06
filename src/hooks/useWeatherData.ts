@@ -130,14 +130,15 @@ export function useWeatherData() {
           if (readings.length === 0) throw new Error('No WU data from ingestor');
           updateSourceStatus('wunderground', true, readings.length);
           return readings;
-        }).catch(() =>
+        }).catch((ingestorErr) => {
           // Fallback: direct WU API (dev or ingestor unavailable)
-          fetchWUObservations(wuStationIds).then((readings) => {
+          console.warn('[WeatherData] WU ingestor failed, trying direct:', (ingestorErr as Error).message);
+          return fetchWUObservations(wuStationIds).then((readings) => {
             updateSourceStatus('wunderground', true, readings.length);
             return readings;
-          })
-        ).catch((err) => {
-          console.error('[WeatherData] WU fetch error:', err);
+          });
+        }).catch((err) => {
+          console.error('[WeatherData] WU both sources failed:', err);
           updateSourceStatus('wunderground', false, 0, String(err));
           return [];
         })
