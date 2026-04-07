@@ -11,8 +11,10 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 export const StormIndicator = memo(function StormIndicator() {
   const isMobile = useUIStore((s) => s.isMobile);
   const stormLevel = useLightningStore((s) => s.stormAlert.level);
+  const updatedAt = useLightningStore((s) => s.stormAlert.updatedAt);
 
   const hasStorm = stormLevel !== 'none';
+  const ageMin = updatedAt ? Math.round((Date.now() - updatedAt.getTime()) / 60_000) : null;
 
   return (
     <div
@@ -25,7 +27,7 @@ export const StormIndicator = memo(function StormIndicator() {
           : 'bg-slate-800/60 border border-slate-600/40 text-slate-500'
         }`}
       title={hasStorm
-        ? `Actividad el\u00e9ctrica detectada (${{ danger: 'peligro', warning: 'aviso', watch: 'vigilancia' }[stormLevel] ?? stormLevel})`
+        ? `Actividad el\u00e9ctrica (${{ danger: 'peligro', warning: 'aviso', watch: 'vigilancia' }[stormLevel] ?? stormLevel})${ageMin != null ? ` \u00b7 dato hace ${ageMin}min` : ''}`
         : 'Sin actividad el\u00e9ctrica'
       }
     >
