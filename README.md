@@ -11,11 +11,9 @@
 
 ---
 
-<!-- Guarda tus screenshots en assets/screenshots/ con estos nombres -->
-<!-- ![Vista general del mapa](assets/screenshots/hero-map.png) -->
-<!-- ![Seguimiento de tormentas](assets/screenshots/storm-tracking.png) -->
-<!-- ![Spot con veredicto](assets/screenshots/spot-popup.png) -->
-<!-- ![Rias Baixas con radar](assets/screenshots/rias-radar.png) -->
+<p align="center">
+  <img src="assets/screenshots/hero-map.png" alt="Vista general del mapa — Embalse de Castrelo" width="100%">
+</p>
 
 ## Para quien es
 
@@ -90,6 +88,10 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 - **ETA inteligente**: usa la componente de velocidad hacia ti, no la velocidad total
 - **Subdivision automatica**: frentes de 100+ km se dividen en clusters manejables
 
+<p align="center">
+  <img src="assets/screenshots/storm-clusters.jpg" alt="Clusters de tormenta con etiquetas y flechas de avance" width="80%">
+  <br><sub>Nucleos tormentosos: etiquetas on-map (rayos, velocidad, ETA, distancia) + flechas de avance + radar</sub>
+</p>
 
 ### Modo Evento / Regata
 - Zona personalizable (dibujo libre o zonas predefinidas)
@@ -98,11 +100,24 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 - Prevision 6h corregida con datos reales (elimina sesgo del modelo)
 - Log de seguridad exportable para federaciones
 
+<p align="center">
+  <img src="assets/screenshots/modo-evento.jpg" alt="Modo Evento para regatas" width="80%">
+  <br><sub>Modo Evento: zona de agua, semaforo de seguridad, oleaje, mareas, exportar informe</sub>
+</p>
+
 ### Alertas 24/7
 - Bot Telegram autonomo: cambio brusco, tormentas, oleaje + resumen diario
 - Tormentas (rayos <5km = peligro, <25km = aviso, <80km = vigilancia)
 - Niebla maritima, frentes de viento, inversiones termicas
 - Clasificacion por severidad: info / aviso / alerta / peligro
+
+### Scoring inteligente — popup de spot
+
+<p align="center">
+  <img src="assets/screenshots/spot-popup.jpg" alt="Popup de spot con veredicto" width="45%">
+  <img src="assets/screenshots/spot-surf.jpg" alt="Popup de spot de surf" width="45%">
+  <br><sub>Izq: spot de vela (veredicto + viento + fuentes). Der: spot de surf (oleaje + periodo + factor costero)</sub>
+</p>
 
 ### Datos marinos (Rias Baixas)
 - 13 boyas: oleaje, viento, temperatura del agua
@@ -110,12 +125,18 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 - Corrientes superficiales HF radar
 - Cartas nauticas oficiales (IHM ENC)
 
+<p align="center">
+  <img src="assets/screenshots/rias-radar.png" alt="Rias Baixas con estaciones y boyas" width="80%">
+  <br><sub>Sector Rias Baixas: estaciones, boyas marinas, spots de vela y surf</sub>
+</p>
+
 
 ### Vision IA (webcams)
 - 19 camaras MeteoGalicia analizadas cada 15min
 - Estimacion Beaufort 0-7 desde la superficie del agua
 - Deteccion de niebla, visibilidad, estado del cielo
 - Alertas automaticas por visibilidad reducida
+
 
 ---
 
