@@ -218,7 +218,7 @@ function computeVelocities(
           cluster.centroidLat, cluster.centroidLon,
         ));
 
-        if (speedKmh > 2) { // Filter noise (< 2 km/h = stationary)
+        if (speedKmh > 2 && speedKmh < 120) { // Filter noise (<2) and false matches (>120 km/h = different clusters)
           velocity = { speedKmh, bearingDeg };
 
           // Is it approaching the reservoir?
