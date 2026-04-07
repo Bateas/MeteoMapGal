@@ -31,6 +31,10 @@ export interface HourlyForecast {
   boundaryLayerHeight: number | null;
   /** Visibility (m) — from Open-Meteo. <1000m = fog, <5000m = mist */
   visibility: number | null;
+  /** Lifted Index (°C) — negative = unstable. <-3 strong instability, >0 stable */
+  liftedIndex: number | null;
+  /** Convective Inhibition (J/kg) — high CIN suppresses convection even with high CAPE */
+  cin: number | null;
   /** Is it currently daytime? */
   isDay: boolean;
   // ── Marine wave data (from Open-Meteo Marine API, Rías surf spots only) ──

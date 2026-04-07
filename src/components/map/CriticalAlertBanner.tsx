@@ -1,31 +1,67 @@
 import { memo } from 'react';
 import { useAlertStore } from '../../store/alertStore';
 import { useUIStore } from '../../store/uiStore';
+import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 /**
  * Top-of-screen banner for PELIGRO-level (critical) alerts.
- * Shows only when composite risk is 'critical'.
- * Both sectors (Embalse + Rías).
+ * Shows when:
+ * 1. Composite risk is 'critical' (from alert system), OR
+ * 2. Storm predictor says 'imminent' with high probability
+ *
+ * If both, storm takes visual priority but shows counter for other alerts.
  */
 export const CriticalAlertBanner = memo(function CriticalAlertBanner() {
   const risk = useAlertStore((s) => s.risk);
   const alerts = useAlertStore((s) => s.alerts);
   const isMobile = useUIStore((s) => s.isMobile);
   const togglePanel = useAlertStore((s) => s.togglePanel);
+  const prediction = useStormPrediction();
 
-  // Only show for critical severity
-  if (risk.severity !== 'critical') return null;
-
-  // Find the highest-scoring critical alert for display
   const criticalAlerts = alerts.filter(a => a.severity === 'critical');
-  const topAlert = criticalAlerts[0]; // Already sorted by score
+  const hasCriticalAlerts = risk.severity === 'critical' && criticalAlerts.length > 0;
+  const hasImminentStorm = prediction.horizon === 'imminent' && prediction.probability >= 60;
 
-  if (!topAlert) return null;
+  // Nothing to show
+  if (!hasCriticalAlerts && !hasImminentStorm) return null;
 
-  const subtitle = criticalAlerts.length > 1
-    ? `${criticalAlerts.length} alertas críticas activas`
-    : topAlert.detail;
+  // Determine what to display
+  let title: string;
+  let subtitle: string;
+  let icon: IconId;
+  let bgColor: string;
+  let borderColor: string;
+  let textColor: string;
+  let glowClass: string;
+  let otherAlertCount = 0;
+
+  if (hasImminentStorm) {
+    // Storm predictor takes priority when imminent
+    title = `TORMENTA INMINENTE · ${prediction.probability}%`;
+    subtitle = prediction.action;
+    icon = 'zap';
+    bgColor = 'rgba(147, 51, 234, 0.22)';
+    borderColor = 'rgba(147, 51, 234, 0.6)';
+    textColor = '#c084fc';
+    glowClass = 'animate-pulse';
+    // Count concurrent non-storm critical alerts
+    otherAlertCount = criticalAlerts.filter(a => a.category !== 'storm').length;
+  } else {
+    // Standard critical alert
+    const topAlert = criticalAlerts[0];
+    if (!topAlert) return null;
+
+    title = `PELIGRO · ${topAlert.title}`;
+    subtitle = criticalAlerts.length > 1
+      ? `${criticalAlerts.length} alertas criticas activas`
+      : topAlert.detail;
+    icon = topAlert.icon as IconId;
+    bgColor = 'rgba(239, 68, 68, 0.18)';
+    borderColor = 'rgba(239, 68, 68, 0.5)';
+    textColor = '#ef4444';
+    glowClass = 'animate-pulse alert-glow-critical';
+  }
 
   return (
     <div
@@ -34,33 +70,50 @@ export const CriticalAlertBanner = memo(function CriticalAlertBanner() {
       aria-live="assertive"
     >
       <div
-        className={`flex items-center rounded-lg backdrop-blur-md font-semibold shadow-lg cursor-pointer
-          animate-pulse alert-glow-critical
+        className={`flex items-center rounded-lg font-semibold shadow-lg cursor-pointer
+          ${glowClass}
           ${isMobile ? 'gap-1.5 px-3 py-1.5 text-[11px] max-w-[calc(100vw-2rem)]' : 'gap-2.5 px-4 py-2 text-xs'}`}
         style={{
-          background: 'rgba(239, 68, 68, 0.18)',
-          border: '1px solid rgba(239, 68, 68, 0.5)',
-          color: '#ef4444',
-          boxShadow: '0 0 25px rgba(239, 68, 68, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4)',
+          background: bgColor,
+          border: `1px solid ${borderColor}`,
+          color: textColor,
+          boxShadow: `0 0 25px ${borderColor}, 0 4px 20px rgba(0, 0, 0, 0.4)`,
         }}
         onClick={togglePanel}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePanel(); } }}
         tabIndex={0}
         role="button"
-        title="Click para ver todas las alertas"
+        title="Click para ver detalles"
       >
-        <WeatherIcon id={topAlert.icon as IconId} size={isMobile ? 14 : 18} />
+        <WeatherIcon id={icon} size={isMobile ? 14 : 18} />
         <div className="flex flex-col min-w-0">
           <span className={`font-black tracking-wide truncate ${isMobile ? 'text-xs' : 'text-sm'}`}>
-            PELIGRO · {topAlert.title}
+            {title}
           </span>
-          {!isMobile && (
-            <span className="text-[11px] font-normal opacity-70 truncate">
-              {subtitle}
-            </span>
-          )}
+          <span className={`font-normal opacity-80 truncate ${isMobile ? 'text-[10px]' : 'text-[11px]'}`}>
+            {subtitle}
+          </span>
         </div>
+        {hasImminentStorm && prediction.etaMinutes != null && prediction.etaMinutes < 60 && (
+          <span className={`font-black ${isMobile ? 'text-xs' : 'text-sm'} ml-1 shrink-0`}>
+            ~{prediction.etaMinutes}min
+          </span>
+        )}
       </div>
+      {/* Concurrent alert counter below main banner */}
+      {otherAlertCount > 0 && (
+        <div
+          className="mt-1 mx-auto w-fit px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer"
+          style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: '#fca5a5',
+          }}
+          onClick={togglePanel}
+        >
+          + {otherAlertCount} alerta{otherAlertCount > 1 ? 's' : ''} critica{otherAlertCount > 1 ? 's' : ''}
+        </div>
+      )}
     </div>
   );
 });

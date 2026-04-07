@@ -11,6 +11,8 @@ import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
+import { useStormPrediction } from '../../hooks/useStormPrediction';
+import { useWarningsStore } from '../../hooks/useWarnings';
 import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
@@ -37,6 +39,8 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   const buoyReadings = useBuoy.use.buoys();
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const forecastHourly = useForecastStore((s) => s.hourly);
+  const stormPrediction = useStormPrediction();
+  const mgWarnings = useWarningsStore((s) => s.sectorWarnings);
   const isMobile = useUIStore((s) => s.isMobile);
 
   // Touch pause state
@@ -241,6 +245,42 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       }
     }
 
+    // ── Storm prediction (priority 11 = highest urgency) ──
+    if (stormPrediction.probability >= 25) {
+      const isImminent = stormPrediction.horizon === 'imminent';
+      const isLikely = stormPrediction.horizon === 'likely';
+      const etaStr = stormPrediction.etaMinutes != null && stormPrediction.etaMinutes < 120
+        ? ` ETA ~${stormPrediction.etaMinutes}min`
+        : '';
+      const text = isImminent
+        ? `TORMENTA INMINENTE ${stormPrediction.probability}%${etaStr}`
+        : isLikely
+        ? `Tormenta probable ${stormPrediction.probability}%${etaStr}`
+        : `Riesgo tormenta ${stormPrediction.probability}%`;
+      result.push({
+        key: 'storm-prediction',
+        text,
+        color: isImminent ? 'text-purple-400' : isLikely ? 'text-amber-400' : 'text-slate-400',
+        bg: isImminent ? 'bg-purple-900/30' : isLikely ? 'bg-amber-900/25' : '',
+        priority: isImminent ? 11 : isLikely ? 10 : 6,
+      });
+    }
+
+    // ── MG official warnings (priority 10 — high visibility) ──
+    for (const w of mgWarnings) {
+      const levelLabel = w.maxLevel === 3 ? 'ROJO' : w.maxLevel === 2 ? 'NARANJA' : 'AMARILLO';
+      const color = w.maxLevel === 3 ? 'text-red-400' : w.maxLevel === 2 ? 'text-orange-400' : 'text-yellow-400';
+      const bg = w.maxLevel >= 2 ? 'bg-orange-900/25' : 'bg-yellow-900/20';
+      const zoneNames = w.zones.map((z) => z.name).join(', ');
+      result.push({
+        key: `mg-${w.typeId}-${w.maxLevel}`,
+        text: `Aviso ${levelLabel}: ${w.type} · ${zoneNames}`,
+        color,
+        bg,
+        priority: w.maxLevel >= 2 ? 10 : 8,
+      });
+    }
+
     // ── Fallback ──
     if (result.length === 0 && stations.length > 0) {
       result.push({
@@ -261,7 +301,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     }
 
     return result;
-  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, tidePoints, isMobile]);
+  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, tidePoints, isMobile]);
 
   if (items.length === 0) return null;
 
