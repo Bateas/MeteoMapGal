@@ -14,6 +14,9 @@ import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
 import { useLightningData, useLightningStore } from '../../hooks/useLightningData';
 import { useStormShadow, useStormShadowStore } from '../../hooks/useStormShadow';
 import { useForecastTimeline, useForecastStore } from '../../hooks/useForecastTimeline';
+import { useWarnings } from '../../hooks/useWarnings';
+import { logPredictionSnapshot } from '../../services/stormPredictionLogger';
+import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
 import { fetchSeasonGDD } from '../../services/gddService';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
@@ -200,6 +203,9 @@ export function AppShell() {
 
   // Hourly forecast timeline: 48h Open-Meteo for reservoir, polls every 30 min
   useForecastTimeline();
+
+  // MeteoGalicia adverse weather warnings: polls every 15 min
+  useWarnings();
 
   // Airspace restrictions: ENAIRE UAS zones + NOTAMs (polls every 30 min)
   const airspaceCheck = useAirspace();
@@ -415,6 +421,12 @@ export function AppShell() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMobile, toggleFieldDrawer, forceRefresh]);
+
+  // ── Storm prediction logging (for future ML calibration) ──
+  const stormPrediction = useStormPrediction();
+  useEffect(() => {
+    logPredictionSnapshot(stormPrediction, stormAlert.level !== 'none', sectorId);
+  }, [stormPrediction, stormAlert.level, sectorId]);
 
   return (
     <div className="h-screen-safe w-full flex flex-col bg-slate-950 text-white overflow-hidden">

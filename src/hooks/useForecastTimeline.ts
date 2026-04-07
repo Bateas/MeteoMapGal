@@ -39,6 +39,8 @@ interface OMForecastResponse {
     surface_pressure: (number | null)[];
     shortwave_radiation: (number | null)[];
     cape: (number | null)[];
+    lifted_index: (number | null)[];
+    convective_inhibition: (number | null)[];
     boundary_layer_height: (number | null)[];
     is_day: (number | null)[];
     visibility: (number | null)[];
@@ -90,6 +92,7 @@ async function fetchFromOwnAPI(sectorId: string): Promise<HourlyForecast[] | nul
         windSpeed: number | null; windDirection: number | null; windGusts: number | null;
         cloudCover: number | null; precipitation: number | null; precipProbability: number | null;
         pressure: number | null; solarRadiation: number | null; cape: number | null;
+        liftedIndex?: number | null; cin?: number | null;
         boundaryLayerHeight: number | null; visibility: number | null; isDay: boolean;
       }>;
     };
@@ -109,6 +112,8 @@ async function fetchFromOwnAPI(sectorId: string): Promise<HourlyForecast[] | nul
       pressure: h.pressure ?? null,
       solarRadiation: h.solarRadiation ?? null,
       cape: h.cape ?? null,
+      liftedIndex: h.liftedIndex ?? null,
+      cin: h.cin ?? null,
       boundaryLayerHeight: h.boundaryLayerHeight ?? null,
       visibility: h.visibility ?? null,
       isDay: h.isDay ?? false,
@@ -125,7 +130,8 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
     'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
     'precipitation', 'precipitation_probability',
     'cloud_cover', 'surface_pressure',
-    'shortwave_radiation', 'cape', 'boundary_layer_height', 'is_day', 'visibility',
+    'shortwave_radiation', 'cape', 'lifted_index', 'convective_inhibition',
+    'boundary_layer_height', 'is_day', 'visibility',
   ].join(',');
 
   const modelParam = model !== 'best_match' ? `&models=${model}` : '';
@@ -160,6 +166,8 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
       pressure: h.surface_pressure[i],
       solarRadiation: h.shortwave_radiation[i],
       cape: h.cape[i],
+      liftedIndex: h.lifted_index?.[i] ?? null,
+      cin: h.convective_inhibition?.[i] ?? null,
       boundaryLayerHeight: h.boundary_layer_height[i],
       visibility: h.visibility[i],
       isDay: h.is_day[i] === 1,
