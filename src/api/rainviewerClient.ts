@@ -70,3 +70,12 @@ export async function fetchRainViewerFrames(): Promise<RainViewerData | null> {
 export function buildTileUrl(host: string, framePath: string): string {
   return `${host}${framePath}/256/{z}/{x}/{y}/2/1_1.png`;
 }
+
+/**
+ * Build tile URL with a specific color scheme.
+ * Scheme 7 (Dark Sky): dark base, only intense rain visible.
+ * Used by StormRadarAuto for subtle strong-precipitation overlay.
+ */
+export function buildTileUrlScheme(host: string, framePath: string, scheme: number): string {
+  return `${host}${framePath}/256/{z}/{x}/{y}/${scheme}/1_1.png`;
+}
