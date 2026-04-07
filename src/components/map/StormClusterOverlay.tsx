@@ -47,10 +47,10 @@ function velocityArrow(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
   const arrowLenKm = Math.max(3, Math.min(speedKmh / 4, 18));
   const bearingRad = (bearingDeg * Math.PI) / 180;
 
-  const endLat = cluster.lat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
+  const endLat = cluster.centroidLat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
   const endLon =
-    cluster.lon +
-    (arrowLenKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) *
+    cluster.centroidLon +
+    (arrowLenKm / (111.32 * Math.cos((cluster.centroidLat * Math.PI) / 180))) *
       Math.sin(bearingRad);
 
   return {
@@ -58,7 +58,7 @@ function velocityArrow(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
     geometry: {
       type: 'LineString',
       coordinates: [
-        [cluster.lon, cluster.lat],
+        [cluster.centroidLon, cluster.centroidLat],
         [endLon, endLat],
       ],
     },
@@ -81,10 +81,10 @@ function arrowTip(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Polygon> | nul
   const tipSizeKm = 2.5; // bigger arrowhead for visibility
 
   // Tip point
-  const tipLat = cluster.lat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
+  const tipLat = cluster.centroidLat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
   const tipLon =
-    cluster.lon +
-    (arrowLenKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) *
+    cluster.centroidLon +
+    (arrowLenKm / (111.32 * Math.cos((cluster.centroidLat * Math.PI) / 180))) *
       Math.sin(bearingRad);
 
   // Two base points of the triangle (perpendicular to bearing)
@@ -131,12 +131,12 @@ function projectedPath(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
 
   const { bearingDeg, speedKmh } = cluster.velocity;
   const bearingRad = (bearingDeg * Math.PI) / 180;
-  const coords: [number, number][] = [[cluster.lon, cluster.lat]];
+  const coords: [number, number][] = [[cluster.centroidLon, cluster.centroidLat]];
 
   for (let min = 5; min <= 15; min += 5) {
     const distKm = (speedKmh / 60) * min;
-    const lat = cluster.lat + (distKm / 111.32) * Math.cos(bearingRad);
-    const lon = cluster.lon + (distKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) * Math.sin(bearingRad);
+    const lat = cluster.centroidLat + (distKm / 111.32) * Math.cos(bearingRad);
+    const lon = cluster.centroidLon + (distKm / (111.32 * Math.cos((cluster.centroidLat * Math.PI) / 180))) * Math.sin(bearingRad);
     coords.push([lon, lat]);
   }
 
@@ -158,7 +158,7 @@ function etaLabelPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point> | 
 
   return {
     type: 'Feature',
-    geometry: { type: 'Point', coordinates: [cluster.lon, cluster.lat] },
+    geometry: { type: 'Point', coordinates: [cluster.centroidLon, cluster.centroidLat] },
     properties: {
       label: `${cluster.etaMinutes}min`,
       distance: `${cluster.distanceToReservoir.toFixed(0)}km`,
@@ -223,7 +223,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     for (const cluster of clusters) {
       // Outer haze: cluster radius + extra padding for visual drama
       const hazeRadius = Math.max(cluster.radiusKm + 8, 12);
-      const haze = circlePolygon(cluster.lon, cluster.lat, hazeRadius);
+      const haze = circlePolygon(cluster.centroidLon, cluster.centroidLat, hazeRadius);
       haze.properties = {
         type: 'haze',
         approaching: cluster.approaching ? 1 : 0,
@@ -234,7 +234,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
 
       // Inner core: cluster radius
       const coreRadius = Math.max(cluster.radiusKm, 4);
-      const core = circlePolygon(cluster.lon, cluster.lat, coreRadius);
+      const core = circlePolygon(cluster.centroidLon, cluster.centroidLat, coreRadius);
       core.properties = {
         type: 'core',
         approaching: cluster.approaching ? 1 : 0,
