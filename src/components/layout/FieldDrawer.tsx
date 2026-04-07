@@ -22,6 +22,11 @@ import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { getLunarPhase, getLunarCalendar } from '../../services/lunarService';
 import { msToKnots } from '../../services/windUtils';
+import { useStormPrediction } from '../../hooks/useStormPrediction';
+import type { StormPrediction, StormSignal } from '../../services/stormPredictor';
+import { useWarningsStore } from '../../hooks/useWarnings';
+import { warningLevelColor, classifyWarningType } from '../../api/mgWarningsClient';
+import type { MGWarning } from '../../api/mgWarningsClient';
 
 // Lazy-load heavy dashboard components (~400 lines each)
 const TidePanel = lazy(() => import('../dashboard/TidePanel').then(m => ({ default: m.TidePanel })));
@@ -197,6 +202,8 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
                   <WindStatusSection alerts={alerts} />
                 </AlertSection>
               )}
+              <MGWarningsSection />
+              <StormPredictionSection />
               <FogSection alerts={alerts} />
               <AlertHistorySection />
             </>
@@ -303,6 +310,177 @@ function RainSection({ alerts }: { alerts: FieldAlerts }) {
           )}
         </div>
       )}
+    </AlertSection>
+  );
+}
+
+function MGWarningsSection() {
+  const warnings = useWarningsStore((s) => s.sectorWarnings);
+  const lastFetch = useWarningsStore((s) => s.lastFetch);
+
+  if (warnings.length === 0) return null;
+
+  const maxLevel = Math.max(...warnings.map((w) => w.maxLevel));
+  const alertLevel: AlertLevel = maxLevel >= 3 ? 'critico' : maxLevel >= 2 ? 'alto' : maxLevel >= 1 ? 'riesgo' : 'none';
+
+  const iconMap: Record<string, string> = {
+    storm: 'zap',
+    wave: 'waves',
+    wind: 'wind',
+    rain: 'cloud-rain',
+    other: 'alert-triangle',
+  };
+
+  const ageMin = lastFetch ? Math.round((Date.now() - lastFetch.getTime()) / 60_000) : null;
+
+  return (
+    <AlertSection
+      icon={<WeatherIcon id="alert-triangle" size={14} />}
+      title="Avisos MeteoGalicia"
+      level={alertLevel}
+    >
+      <div className="space-y-2">
+        {warnings.map((w, i) => {
+          const wType = classifyWarningType(w.type);
+          const levelColor = warningLevelColor(w.maxLevel);
+          const levelLabel = w.maxLevel === 3 ? 'ROJO' : w.maxLevel === 2 ? 'NARANJA' : 'AMARILLO';
+
+          return (
+            <div key={`mg-${i}`} className="rounded p-2" style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${levelColor}33` }}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <WeatherIcon id={(iconMap[wType] ?? 'alert-triangle') as import('../icons/WeatherIcons').IconId} size={12} />
+                <span className="text-[11px] font-bold" style={{ color: levelColor }}>
+                  {w.type} · {levelLabel}
+                </span>
+              </div>
+              {w.zones.map((z, zi) => {
+                const start = z.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                const end = z.endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div key={`z-${zi}`} className="text-[10px] text-slate-400 ml-3">
+                    <span className="text-slate-300">{z.name}</span>
+                    <span className="mx-1">·</span>
+                    <span className="font-mono">{start}–{end}</span>
+                    {z.comment && <span className="ml-1 italic text-slate-500">{z.comment}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+        {ageMin != null && (
+          <p className="text-[10px] text-slate-600">Actualizado hace {ageMin}min · Fuente: MeteoGalicia</p>
+        )}
+      </div>
+    </AlertSection>
+  );
+}
+
+function StormPredictionSection() {
+  const prediction = useStormPrediction();
+
+  // Don't show section if prediction is negligible
+  if (prediction.probability < 15) return null;
+
+  const levelMap: Record<StormPrediction['horizon'], AlertLevel> = {
+    imminent: 'critico',
+    likely: 'alto',
+    possible: 'riesgo',
+    none: 'none',
+  };
+  const alertLevel = levelMap[prediction.horizon];
+
+  const horizonLabel: Record<StormPrediction['horizon'], string> = {
+    imminent: 'Inminente (<30min)',
+    likely: 'Probable (30-60min)',
+    possible: 'Posible (1-3h)',
+    none: 'Baja',
+  };
+
+  const severityLabel: Record<StormPrediction['severity'], string> = {
+    extreme: 'Extrema (granizo)',
+    severe: 'Severa (eléctrica)',
+    moderate: 'Moderada (lluvia+viento)',
+    none: 'Sin severidad',
+  };
+
+  const severityColor: Record<StormPrediction['severity'], string> = {
+    extreme: 'text-red-400',
+    severe: 'text-purple-400',
+    moderate: 'text-amber-400',
+    none: 'text-slate-500',
+  };
+
+  return (
+    <AlertSection icon={<WeatherIcon id="zap" size={14} />} title="Predicción Tormenta" level={alertLevel}>
+      <div className="space-y-2">
+        {/* Probability bar */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-[11px]">
+            <span className="text-slate-400">Probabilidad</span>
+            <span className={`font-bold ${prediction.probability >= 60 ? 'text-purple-400' : prediction.probability >= 40 ? 'text-amber-400' : 'text-slate-300'}`}>
+              {prediction.probability}%
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-700/60 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${prediction.probability}%`,
+                background: prediction.probability >= 60 ? '#a855f7' : prediction.probability >= 40 ? '#f59e0b' : '#64748b',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Horizon + Severity */}
+        <div className="flex justify-between text-[11px]">
+          <span className="text-slate-400">Horizonte</span>
+          <span className="text-slate-300 font-medium">{horizonLabel[prediction.horizon]}</span>
+        </div>
+        <div className="flex justify-between text-[11px]">
+          <span className="text-slate-400">Severidad</span>
+          <span className={`font-medium ${severityColor[prediction.severity]}`}>{severityLabel[prediction.severity]}</span>
+        </div>
+
+        {/* ETA */}
+        {prediction.etaMinutes != null && prediction.etaMinutes < 120 && (
+          <div className="flex justify-between text-[11px]">
+            <span className="text-slate-400">ETA</span>
+            <span className="text-purple-300 font-bold">~{prediction.etaMinutes} min</span>
+          </div>
+        )}
+
+        {/* Signal breakdown */}
+        <div className="mt-1.5 pt-1.5 border-t border-slate-700/40">
+          <p className="text-[10px] text-slate-500 mb-1">Señales activas:</p>
+          <div className="space-y-0.5">
+            {prediction.signals.filter((s: StormSignal) => s.active).map((s: StormSignal) => (
+              <div key={s.name} className="flex justify-between text-[10px]">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400/60" />
+                  {s.name}
+                </span>
+                <span className="text-slate-300 font-mono">{s.value}</span>
+              </div>
+            ))}
+            {prediction.signals.filter((s: StormSignal) => !s.active).length > 0 && (
+              <p className="text-[10px] text-slate-600 mt-0.5">
+                {prediction.signals.filter((s: StormSignal) => !s.active).length} señales inactivas
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Action */}
+        {prediction.horizon !== 'none' && (
+          <div className="mt-1.5 p-1.5 rounded bg-slate-800/60 border border-slate-600/30">
+            <p className={`text-[11px] font-medium ${prediction.horizon === 'imminent' ? 'text-red-400' : 'text-amber-300'}`}>
+              {prediction.action}
+            </p>
+          </div>
+        )}
+      </div>
     </AlertSection>
   );
 }
