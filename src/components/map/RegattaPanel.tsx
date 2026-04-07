@@ -216,15 +216,27 @@ export const RegattaPanel = memo(function RegattaPanel() {
     const isSheltered = !isCoastal || isDeepInterior;
 
     if (isCoastal) {
-      // Try buoys first (real-time, always valid)
+      // Find NEAREST buoy first, then extract its data
+      let nearestBuoy: typeof buoys[0] | null = null;
       for (const b of buoys) {
         if (b.latitude == null || b.longitude == null) continue;
         const d = haversineDistance(centerLat, centerLon, b.latitude, b.longitude);
         if (d < nearestBuoyDist && d < 30) {
           nearestBuoyDist = d;
-          if (b.waveHeight != null) waveHeight = b.waveHeight;
-          if (b.waterTemperature != null) waterTemp = b.waterTemperature;
+          nearestBuoy = b;
         }
+      }
+
+      // Extract data from nearest buoy ONLY (not from any buoy in range)
+      if (nearestBuoy) {
+        if (nearestBuoy.waveHeight != null) waveHeight = nearestBuoy.waveHeight;
+        if (nearestBuoy.waterTemp != null) waterTemp = nearestBuoy.waterTemp;
+      }
+
+      // Sheltered waters + buoy far away (>15km): don't trust wave data
+      // Inner rías get swell-shadowed; offshore buoy waves are irrelevant
+      if (isSheltered && nearestBuoyDist > 15) {
+        waveHeight = null;
       }
 
       // Open-Meteo Marine fallback — SST always OK, waves ONLY for exposed coast
@@ -232,18 +244,12 @@ export const RegattaPanel = memo(function RegattaPanel() {
         const marine = await fetchMarineData(centerLat, centerLon);
         if (marine) {
           if (waterTemp == null) waterTemp = marine.seaSurfaceTemp;
-          // Only use wave data for exposed coastal zones
           if (!isSheltered) {
             if (waveHeight == null) waveHeight = marine.waveHeight;
             swellHeight = marine.swellHeight;
             wavePeriod = marine.wavePeriod;
           }
         }
-      }
-
-      // Sheltered zones: show "Aguas protegidas" instead of wrong wave data
-      if (isSheltered && waveHeight == null) {
-        // Don't show wave data — it would be misleading
       }
     }
 
