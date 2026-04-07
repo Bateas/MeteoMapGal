@@ -320,18 +320,31 @@ function computeVelocities(
           cluster.lat, cluster.lon,
         ));
 
-        // Filter noise (<3) and false matches (>90 km/h = different clusters in Galicia)
-        if (speedKmh > 3 && speedKmh < 90) {
+        // Filter noise and false matches.
+        // Small clusters (2-3 strikes) have very unstable centroids — require higher min speed.
+        // Most Galician storms move 20-50 km/h. >70 is almost certainly a false centroid match.
+        const minSpeed = cluster.strikeCount <= 3 ? 5 : 3;
+        if (speedKmh > minSpeed && speedKmh < 70) {
           velocity = { speedKmh, bearingDeg };
 
           // Is it approaching the reservoir?
+          // Use BOTH distance decrease AND bearing alignment for robust detection.
+          // Bearing from cluster to reservoir:
+          const bearingToReservoir = computeBearing(cluster.lat, cluster.lon, reservoirLat, reservoirLon);
+          // Angular difference between movement direction and direction to reservoir:
+          let angleDiff = Math.abs(bearingDeg - bearingToReservoir);
+          if (angleDiff > 180) angleDiff = 360 - angleDiff;
+          // Approaching = moving toward reservoir (angle < 60°) AND distance actually decreasing
           const prevDist = distanceKm(bestMatch.lat, bestMatch.lon, reservoirLat, reservoirLon);
-          approaching = cluster.distanceToReservoir < prevDist;
+          const distDecreasing = cluster.distanceToReservoir < prevDist - 0.5; // 0.5km hysteresis
+          approaching = distDecreasing && angleDiff < 60;
 
           if (approaching && speedKmh > 0) {
             // ETA from cluster EDGE (not centroid) to sector center
+            // Use component of velocity toward reservoir (cos of angle)
+            const approachSpeed = speedKmh * Math.cos((angleDiff * Math.PI) / 180);
             const edgeDist = Math.max(0, cluster.distanceToReservoir - cluster.radiusKm);
-            etaMinutes = Math.round((edgeDist / speedKmh) * 60);
+            etaMinutes = approachSpeed > 1 ? Math.round((edgeDist / approachSpeed) * 60) : null;
           }
         }
       }
