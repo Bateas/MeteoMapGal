@@ -25,12 +25,12 @@ export const StormIndicator = memo(function StormIndicator() {
           : 'bg-slate-800/60 border border-slate-600/40 text-slate-500'
         }`}
       title={hasStorm
-        ? `Actividad eléctrica detectada (${stormLevel})`
-        : 'Sin actividad eléctrica'
+        ? `Actividad el\u00e9ctrica detectada (${{ danger: 'peligro', warning: 'aviso', watch: 'vigilancia' }[stormLevel] ?? stormLevel})`
+        : 'Sin actividad el\u00e9ctrica'
       }
     >
       <WeatherIcon id="zap" size={isMobile ? 18 : 14} />
-      {!isMobile && <span>{hasStorm ? stormLevel.toUpperCase() : 'RAYOS'}</span>}
+      {!isMobile && <span>{hasStorm ? { danger: 'PELIGRO', warning: 'AVISO', watch: 'VIGIL.' }[stormLevel] ?? stormLevel.toUpperCase() : 'RAYOS'}</span>}
       {hasStorm && (
         <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
       )}
