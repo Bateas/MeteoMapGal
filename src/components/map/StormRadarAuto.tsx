@@ -14,11 +14,14 @@ import { memo, useEffect, useState, useCallback, useRef } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
-import { fetchRainViewerFrames, buildTileUrl } from '../../api/rainviewerClient';
+import { fetchRainViewerFrames, buildTileUrlScheme } from '../../api/rainviewerClient';
 
 const SOURCE_ID = 'storm-radar-auto';
 const LAYER_ID = 'storm-radar-auto-layer';
-const AUTO_OPACITY = 0.3;
+// Scheme 7 (Dark Sky): dark base colors — light rain nearly invisible on dark map.
+// Only intense precipitation (yellow/orange/red) is visible.
+const RAINVIEWER_SCHEME = 7;
+const AUTO_OPACITY = 0.45;
 const POLL_MS = 5 * 60_000; // refresh every 5 min
 
 export const StormRadarAuto = memo(function StormRadarAuto() {
@@ -38,7 +41,7 @@ export const StormRadarAuto = memo(function StormRadarAuto() {
       const data = await fetchRainViewerFrames();
       if (data && data.past.length > 0) {
         const latest = data.past[data.past.length - 1];
-        setTileUrl(buildTileUrl(data.host, latest.path));
+        setTileUrl(buildTileUrlScheme(data.host, latest.path, RAINVIEWER_SCHEME));
       }
     } catch {
       // Silent — this is a convenience feature, not critical
@@ -88,11 +91,9 @@ export const StormRadarAuto = memo(function StormRadarAuto() {
         paint={{
           'raster-opacity': AUTO_OPACITY,
           'raster-fade-duration': 500,
-          // High contrast + brightness min hides light rain (blue)
-          // Only strong rain (yellow/orange/red) remains visible
-          'raster-contrast': 0.8,
-          'raster-brightness-min': 0.15,
-          'raster-saturation': 0.3,
+          // Scheme 7 has dark base — boost brightness-min to hide the darkest tones
+          'raster-brightness-min': 0.08,
+          'raster-contrast': 0.3,
         }}
       />
     </Source>
