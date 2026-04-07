@@ -3,6 +3,94 @@ import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { useSectorStore } from '../../store/sectorStore';
 import type { StormCluster, ClusterSnapshot } from '../../services/stormTracker';
+import type { LightningStrike } from '../../api/lightningClient';
+
+/**
+ * Convex hull (Graham scan) for a set of 2D points.
+ * Returns points in counter-clockwise order.
+ */
+function convexHull(points: [number, number][]): [number, number][] {
+  if (points.length < 3) return points;
+  const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower: [number, number][] = [];
+  for (const p of sorted) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper: [number, number][] = [];
+  for (const p of sorted.reverse()) {
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  lower.pop();
+  upper.pop();
+  return [...lower, ...upper];
+}
+
+/** Expand a polygon outward by bufferKm (approximate, works for small regions) */
+function bufferPolygon(coords: [number, number][], bufferKm: number, centerLat: number): [number, number][] {
+  // Find centroid
+  const cx = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+  const cy = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+  const bufferDeg = bufferKm / 111.32;
+  const bufferDegLon = bufferKm / (111.32 * Math.cos((centerLat * Math.PI) / 180));
+  return coords.map(([lon, lat]) => {
+    const dx = lon - cx;
+    const dy = lat - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.0001) return [lon + bufferDegLon, lat]; // avoid division by zero
+    const scale = (dist + (dx > 0 ? bufferDegLon : -bufferDegLon > 0 ? bufferDegLon : bufferDeg)) / dist;
+    return [cx + dx * (1 + bufferKm / (dist * 111.32)), cy + dy * (1 + bufferKm / (dist * 111.32))] as [number, number];
+  });
+}
+
+/** Build cluster shape from actual strike positions (convex hull) */
+function clusterShape(
+  cluster: StormCluster,
+  strikes: LightningStrike[],
+  bufferKm: number,
+): GeoJSON.Feature<GeoJSON.Polygon> | null {
+  // Find strikes near this cluster centroid (within cluster radius + buffer)
+  const maxDist = cluster.radiusKm + bufferKm + 5;
+  const nearby = strikes.filter((s) => {
+    if (s.ageMinutes > 60) return false; // only recent
+    const dLat = (s.lat - cluster.centroidLat) * 111.32;
+    const dLon = (s.lon - cluster.centroidLon) * 111.32 * Math.cos((cluster.centroidLat * Math.PI) / 180);
+    return Math.sqrt(dLat * dLat + dLon * dLon) < maxDist;
+  });
+  if (nearby.length < 3) return null; // need 3+ points for hull
+
+  const points: [number, number][] = nearby.map((s) => [s.lon, s.lat]);
+  const hull = convexHull(points);
+  if (hull.length < 3) return null;
+
+  // Expand hull outward for visual buffer
+  const cx = cluster.centroidLat;
+  const expanded = hull.map(([lon, lat]) => {
+    const dx = lon - cluster.centroidLon;
+    const dy = lat - cluster.centroidLat;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 0.00001) return [lon, lat] as [number, number];
+    const bufDeg = bufferKm / 111.32;
+    const factor = 1 + bufDeg / dist;
+    return [cluster.centroidLon + dx * factor, cluster.centroidLat + dy * factor] as [number, number];
+  });
+
+  // Close the ring
+  const ring = [...expanded, expanded[0]];
+
+  return {
+    type: 'Feature',
+    geometry: { type: 'Polygon', coordinates: [ring] },
+    properties: {
+      approaching: cluster.approaching ? 1 : 0,
+      intensity: Math.min(cluster.strikeCount / 10, 1),
+      distance: cluster.distanceToReservoir,
+    },
+  };
+}
 
 const EMPTY_FC: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
@@ -180,6 +268,7 @@ function etaLabelPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point> | 
  */
 export const StormClusterOverlay = memo(function StormClusterOverlay() {
   const clusters = useLightningStore((s) => s.clusters);
+  const strikes = useLightningStore((s) => s.strikes);
   const showOverlay = useLightningStore((s) => s.showOverlay);
   const alertLevel = useLightningStore((s) => s.stormAlert.level);
   const clusterHistory = useLightningStore((s) => s.clusterHistory);
@@ -214,39 +303,49 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     return { type: 'FeatureCollection', features };
   }, [showOverlay, alertLevel, clusters.length, centerLon, centerLat]);
 
-  // ── Cluster mass areas (big gradient circles) ────────────────
+  // ── Cluster mass areas (convex hull from actual strike positions) ──
   const clusterMasses = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
 
     const features: GeoJSON.Feature[] = [];
 
     for (const cluster of clusters) {
-      // Outer haze: cluster radius + padding, capped at 35km to avoid covering entire map
-      const hazeRadius = Math.min(Math.max(cluster.radiusKm + 5, 10), 35);
-      const haze = circlePolygon(cluster.centroidLon, cluster.centroidLat, hazeRadius);
-      haze.properties = {
-        type: 'haze',
-        approaching: cluster.approaching ? 1 : 0,
-        intensity: Math.min(cluster.strikeCount / 10, 1), // 0-1 based on activity
-        distance: cluster.distanceToReservoir,
-      };
-      features.push(haze);
+      // Try convex hull from actual strike positions (organic shape)
+      const hullShape = clusterShape(cluster, strikes, 8); // 8km buffer for haze
+      if (hullShape) {
+        hullShape.properties = {
+          ...hullShape.properties,
+          type: 'haze',
+        };
+        features.push(hullShape);
+      }
 
-      // Inner core: cluster radius, capped at 25km
-      const coreRadius = Math.min(Math.max(cluster.radiusKm, 4), 25);
-      const core = circlePolygon(cluster.centroidLon, cluster.centroidLat, coreRadius);
-      core.properties = {
-        type: 'core',
-        approaching: cluster.approaching ? 1 : 0,
-        intensity: Math.min(cluster.strikeCount / 10, 1),
-        distance: cluster.distanceToReservoir,
-        newestAgeMin: cluster.newestAgeMin,
-      };
-      features.push(core);
+      // Inner core — tighter hull (3km buffer)
+      const coreShape = clusterShape(cluster, strikes, 3);
+      if (coreShape) {
+        coreShape.properties = {
+          ...coreShape.properties,
+          type: 'core',
+          newestAgeMin: cluster.newestAgeMin,
+        };
+        features.push(coreShape);
+      } else {
+        // Fallback to circle if not enough strikes for hull
+        const coreRadius = Math.min(Math.max(cluster.radiusKm, 4), 25);
+        const core = circlePolygon(cluster.centroidLon, cluster.centroidLat, coreRadius);
+        core.properties = {
+          type: 'core',
+          approaching: cluster.approaching ? 1 : 0,
+          intensity: Math.min(cluster.strikeCount / 10, 1),
+          distance: cluster.distanceToReservoir,
+          newestAgeMin: cluster.newestAgeMin,
+        };
+        features.push(core);
+      }
     }
 
     return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters]);
+  }, [showOverlay, clusters, strikes]);
 
   // ── Cluster centroids (pulsing dots) ─────────────────────────
   const clusterCentroids = useMemo<GeoJSON.FeatureCollection>(() => {
