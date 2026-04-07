@@ -18,7 +18,6 @@ import { ThermalAlertMarkers } from './ThermalAlertMarker';
 import { PropagationArrows } from './PropagationArrow';
 import { LightningOverlay } from './LightningOverlay';
 import { StormClusterOverlay } from './StormClusterOverlay';
-import { StormRadarAuto } from './StormRadarAuto';
 import { StormIndicator } from './StormIndicator';
 import { TemperatureOverlay } from './TemperatureOverlay';
 import { TemperatureToggle } from './TemperatureToggle';
@@ -416,8 +415,9 @@ export function WeatherMap() {
           </>
         )}
 
-        {/* Auto radar when storms active (subtle, below clusters) */}
-        <StormRadarAuto />
+        {/* StormRadarAuto disabled — RainViewer tiles can't filter by intensity,
+            low opacity hides everything, high opacity shows light rain that clutters map.
+            Users activate manual Radar layer when needed. */}
 
         {/* Storm cluster masses + radius rings (below strikes) */}
         <StormClusterOverlay />
