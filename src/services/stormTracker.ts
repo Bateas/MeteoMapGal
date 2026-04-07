@@ -2,18 +2,22 @@ import type { LightningStrike } from '../types/lightning';
 import { distanceKm } from '../api/lightningClient';
 
 /**
- * Storm cell tracking engine.
+ * Storm cell tracking engine v2.
  *
- * 1. Clusters nearby strikes using a simple radius-based algorithm.
- * 2. Computes centroid, radius, and intensity of each cluster.
- * 3. Tracks clusters across successive polls to compute velocity vectors.
+ * 1. Clusters nearby strikes using BFS with diameter cap + subdivision.
+ * 2. Weighted centroid (recent strikes pull centroid toward active front).
+ * 3. Tracks clusters across polls to compute velocity vectors.
  * 4. Projects trajectory forward to estimate ETA to reservoir.
+ * 5. Exports strike positions per cluster for overlay hull rendering.
  */
 
 // ── Configuration ────────────────────────────────────────────────
 
-/** Max distance between strikes in the same cluster (km) */
-const CLUSTER_RADIUS_KM = 20;
+/** Max link distance between strikes in the same cluster (km) */
+const CLUSTER_RADIUS_KM = 12; // Reduced from 20 — prevents single-linkage chain merging
+
+/** Max cluster diameter before subdivision (km) */
+const MAX_CLUSTER_DIAMETER_KM = 40;
 
 /** Minimum strikes to form a cluster */
 const MIN_CLUSTER_SIZE = 2;
@@ -53,6 +57,8 @@ export interface StormCluster {
   etaMinutes: number | null;
   /** Is the cluster moving toward the reservoir? */
   approaching: boolean;
+  /** Strike positions [lon, lat] for overlay hull rendering */
+  strikePositions: [number, number][];
 }
 
 export interface StormTrackerState {
@@ -68,31 +74,43 @@ export interface ClusterSnapshot {
 
 // ── Clustering ───────────────────────────────────────────────────
 
+interface RawCluster {
+  id: string;
+  lat: number;
+  lon: number;
+  strikeCount: number;
+  radiusKm: number;
+  maxPeakCurrent: number;
+  avgAgeMin: number;
+  newestAgeMin: number;
+  distanceToReservoir: number;
+  strikePositions: [number, number][];
+}
+
 /**
- * Simple radius-based clustering (no library needed).
- * Groups strikes that are within CLUSTER_RADIUS_KM of each other.
+ * BFS radius-based clustering with diameter cap and subdivision.
+ * Groups strikes within CLUSTER_RADIUS_KM, then subdivides any
+ * cluster exceeding MAX_CLUSTER_DIAMETER_KM.
  */
 function clusterStrikes(
   strikes: LightningStrike[],
   reservoirLat: number,
   reservoirLon: number,
-): Omit<StormCluster, 'velocity' | 'etaMinutes' | 'approaching'>[] {
+): RawCluster[] {
   // Only recent strikes
   const recent = strikes.filter((s) => s.ageMinutes <= CLUSTER_WINDOW_MIN);
   if (recent.length === 0) return [];
 
   const assigned = new Set<number>();
-  const clusters: Omit<StormCluster, 'velocity' | 'etaMinutes' | 'approaching'>[] = [];
-  let clusterId = 0;
+  const rawGroups: number[][] = [];
 
+  // ── BFS single-linkage with reduced radius ──
   for (let i = 0; i < recent.length; i++) {
     if (assigned.has(i)) continue;
 
-    // Start a new cluster with this strike
     const members = [i];
     assigned.add(i);
 
-    // Find all nearby strikes (BFS)
     const queue = [i];
     while (queue.length > 0) {
       const current = queue.shift()!;
@@ -112,36 +130,57 @@ function clusterStrikes(
       }
     }
 
-    if (members.length < MIN_CLUSTER_SIZE) continue;
+    if (members.length >= MIN_CLUSTER_SIZE) {
+      rawGroups.push(members);
+    }
+  }
 
-    // Compute cluster properties
-    const clusterStrikes = members.map((idx) => recent[idx]);
-    const latSum = clusterStrikes.reduce((s, st) => s + st.lat, 0);
-    const lonSum = clusterStrikes.reduce((s, st) => s + st.lon, 0);
-    const centroidLat = latSum / clusterStrikes.length;
-    const centroidLon = lonSum / clusterStrikes.length;
+  // ── Subdivide oversized clusters ──
+  const finalGroups: number[][] = [];
+  for (const group of rawGroups) {
+    subdivideCluster(group, recent, finalGroups);
+  }
+
+  // ── Build cluster objects ──
+  let clusterId = 0;
+  const clusters: RawCluster[] = [];
+
+  for (const members of finalGroups) {
+    const clusterStrikesArr = members.map((idx) => recent[idx]);
+
+    // Weighted centroid: recent strikes pull centroid toward active front
+    let wLat = 0, wLon = 0, wSum = 0;
+    for (const st of clusterStrikesArr) {
+      const weight = 1 / (1 + st.ageMinutes / 15);
+      wLat += st.lat * weight;
+      wLon += st.lon * weight;
+      wSum += weight;
+    }
+    const lat = wSum > 0 ? wLat / wSum : clusterStrikesArr[0].lat;
+    const lon = wSum > 0 ? wLon / wSum : clusterStrikesArr[0].lon;
 
     // Radius: max distance from centroid to any strike
     let maxDist = 0;
-    for (const st of clusterStrikes) {
-      const d = distanceKm(centroidLat, centroidLon, st.lat, st.lon);
+    for (const st of clusterStrikesArr) {
+      const d = distanceKm(lat, lon, st.lat, st.lon);
       if (d > maxDist) maxDist = d;
     }
 
     clusters.push({
       id: `storm-${++clusterId}`,
-      centroidLat,
-      centroidLon,
-      strikeCount: clusterStrikes.length,
+      lat,
+      lon,
+      strikeCount: clusterStrikesArr.length,
       radiusKm: Math.round(maxDist * 10) / 10,
-      maxPeakCurrent: Math.max(...clusterStrikes.map((s) => Math.abs(s.peakCurrent))),
+      maxPeakCurrent: Math.max(...clusterStrikesArr.map((s) => Math.abs(s.peakCurrent))),
       avgAgeMin: Math.round(
-        clusterStrikes.reduce((s, st) => s + st.ageMinutes, 0) / clusterStrikes.length,
+        clusterStrikesArr.reduce((s, st) => s + st.ageMinutes, 0) / clusterStrikesArr.length,
       ),
-      newestAgeMin: Math.min(...clusterStrikes.map((s) => s.ageMinutes)),
+      newestAgeMin: Math.min(...clusterStrikesArr.map((s) => s.ageMinutes)),
       distanceToReservoir: Math.round(
-        distanceKm(centroidLat, centroidLon, reservoirLat, reservoirLon) * 10,
+        distanceKm(lat, lon, reservoirLat, reservoirLon) * 10,
       ) / 10,
+      strikePositions: clusterStrikesArr.map((s) => [s.lon, s.lat] as [number, number]),
     });
   }
 
@@ -149,6 +188,61 @@ function clusterStrikes(
   clusters.sort((a, b) => a.distanceToReservoir - b.distanceToReservoir);
 
   return clusters;
+}
+
+/**
+ * Recursively subdivide a cluster if its diameter exceeds MAX_CLUSTER_DIAMETER_KM.
+ * Uses k-means bisection: split along the axis of the two farthest points.
+ */
+function subdivideCluster(
+  members: number[],
+  strikes: LightningStrike[],
+  output: number[][],
+): void {
+  if (members.length < MIN_CLUSTER_SIZE) return;
+
+  // Find cluster diameter (farthest pair)
+  let maxDist = 0;
+  let farA = 0, farB = 0;
+  for (let i = 0; i < members.length; i++) {
+    for (let j = i + 1; j < members.length; j++) {
+      const d = distanceKm(
+        strikes[members[i]].lat, strikes[members[i]].lon,
+        strikes[members[j]].lat, strikes[members[j]].lon,
+      );
+      if (d > maxDist) {
+        maxDist = d;
+        farA = i;
+        farB = j;
+      }
+    }
+  }
+
+  // If within diameter cap, keep as-is
+  if (maxDist <= MAX_CLUSTER_DIAMETER_KM) {
+    output.push(members);
+    return;
+  }
+
+  // Split: assign each strike to nearest of the two farthest points
+  const anchorA = strikes[members[farA]];
+  const anchorB = strikes[members[farB]];
+  const groupA: number[] = [];
+  const groupB: number[] = [];
+
+  for (const idx of members) {
+    const dA = distanceKm(strikes[idx].lat, strikes[idx].lon, anchorA.lat, anchorA.lon);
+    const dB = distanceKm(strikes[idx].lat, strikes[idx].lon, anchorB.lat, anchorB.lon);
+    if (dA <= dB) {
+      groupA.push(idx);
+    } else {
+      groupB.push(idx);
+    }
+  }
+
+  // Recurse on each half (may need further subdivision)
+  if (groupA.length >= MIN_CLUSTER_SIZE) subdivideCluster(groupA, strikes, output);
+  if (groupB.length >= MIN_CLUSTER_SIZE) subdivideCluster(groupB, strikes, output);
 }
 
 // ── Velocity computation ─────────────────────────────────────────
@@ -171,11 +265,19 @@ function computeBearing(
 }
 
 /**
+ * Convert bearing degrees to cardinal direction.
+ */
+export function bearingToCardinal(deg: number): string {
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+/**
  * Match current clusters to previous snapshot and compute velocity vectors.
  * Uses nearest-centroid matching with a max distance threshold.
  */
 function computeVelocities(
-  currentClusters: Omit<StormCluster, 'velocity' | 'etaMinutes' | 'approaching'>[],
+  currentClusters: RawCluster[],
   history: ClusterSnapshot[],
   now: number,
   reservoirLat: number,
@@ -197,12 +299,12 @@ function computeVelocities(
     let approaching = false;
 
     if (prevSnapshot) {
-      // Find nearest previous centroid (within 50km — storms don't jump further in 15min)
+      // Find nearest previous centroid (within 50km)
       let bestMatch: (typeof prevSnapshot.centroids)[0] | null = null;
-      let bestDist = 50; // max matching distance km
+      let bestDist = 50;
 
       for (const prev of prevSnapshot.centroids) {
-        const d = distanceKm(cluster.centroidLat, cluster.centroidLon, prev.lat, prev.lon);
+        const d = distanceKm(cluster.lat, cluster.lon, prev.lat, prev.lon);
         if (d < bestDist) {
           bestDist = d;
           bestMatch = prev;
@@ -211,14 +313,15 @@ function computeVelocities(
 
       if (bestMatch) {
         const dt = (now - prevSnapshot.timestamp) / 3_600_000; // hours
-        const distMoved = distanceKm(bestMatch.lat, bestMatch.lon, cluster.centroidLat, cluster.centroidLon);
+        const distMoved = distanceKm(bestMatch.lat, bestMatch.lon, cluster.lat, cluster.lon);
         const speedKmh = Math.round((distMoved / dt) * 10) / 10;
         const bearingDeg = Math.round(computeBearing(
           bestMatch.lat, bestMatch.lon,
-          cluster.centroidLat, cluster.centroidLon,
+          cluster.lat, cluster.lon,
         ));
 
-        if (speedKmh > 2 && speedKmh < 120) { // Filter noise (<2) and false matches (>120 km/h = different clusters)
+        // Filter noise (<3) and false matches (>90 km/h = different clusters in Galicia)
+        if (speedKmh > 3 && speedKmh < 90) {
           velocity = { speedKmh, bearingDeg };
 
           // Is it approaching the reservoir?
@@ -234,7 +337,7 @@ function computeVelocities(
       }
     }
 
-    return { ...cluster, velocity, etaMinutes, approaching };
+    return { ...cluster, velocity, etaMinutes, approaching } as StormCluster;
   });
 }
 
@@ -242,7 +345,7 @@ function computeVelocities(
 
 /**
  * Process a new set of lightning strikes:
- * 1. Cluster them
+ * 1. Cluster them (with diameter cap subdivision)
  * 2. Match with history to compute velocities
  * 3. Return updated clusters and snapshot for history
  */
@@ -254,7 +357,7 @@ export function trackStorms(
 ): { clusters: StormCluster[]; history: ClusterSnapshot[] } {
   const now = Date.now();
 
-  // Step 1: Cluster current strikes
+  // Step 1: Cluster current strikes (with subdivision)
   const rawClusters = clusterStrikes(strikes, reservoirLat, reservoirLon);
 
   // Step 2: Compute velocities by matching with history
@@ -265,8 +368,8 @@ export function trackStorms(
     timestamp: now,
     centroids: rawClusters.map((c) => ({
       id: c.id,
-      lat: c.centroidLat,
-      lon: c.centroidLon,
+      lat: c.lat,
+      lon: c.lon,
       strikeCount: c.strikeCount,
     })),
   };
