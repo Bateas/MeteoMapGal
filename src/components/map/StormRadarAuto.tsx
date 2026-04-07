@@ -88,6 +88,11 @@ export const StormRadarAuto = memo(function StormRadarAuto() {
         paint={{
           'raster-opacity': AUTO_OPACITY,
           'raster-fade-duration': 500,
+          // High contrast + brightness min hides light rain (blue)
+          // Only strong rain (yellow/orange/red) remains visible
+          'raster-contrast': 0.8,
+          'raster-brightness-min': 0.15,
+          'raster-saturation': 0.3,
         }}
       />
     </Source>

@@ -30,9 +30,13 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="compass" title="Previsión horaria por spot" desc="Ventana de navegación 48h + mini-timeline 12h directamente en el popup." status="done" />
         <TimelineMilestone iconId="map-pin" title="Compartir, favoritos y comparador" desc="Comparte condiciones por WhatsApp/Telegram. Compara todos los spots en una tabla." status="done" />
         <TimelineMilestone iconId="layers" title="Radar, corrientes y cartas náuticas" desc="Capas de datos: radar precipitación, batimetría, corrientes HF, señalización marítima, carta IHM." status="done" />
+        <TimelineMilestone iconId="zap" title="Predictor de tormentas con 8 senales" desc="Cruza CAPE, CIN, lluvia, nubosidad, rayos, avance, sombra solar, rachas y avisos oficiales MeteoGalicia. Probabilidad 0-100% con ETA y accion recomendada." status="done" />
+        <TimelineMilestone iconId="zap" title="Clusters inteligentes y etiquetas on-map" desc="Nucleos tormentosos con subdivision automatica, etiquetas (rayos, distancia, velocidad, ETA), flechas de avance, proyeccion 30min. Radar auto sutil cuando hay tormentas." status="done" />
+        <TimelineMilestone iconId="bell" title="Avisos oficiales MeteoGalicia" desc="RSS de avisos adversos: tormentas, oleaje, viento, lluvia. Niveles amarillo/naranja/rojo. Integrado en predictor + ticker + panel condiciones." status="done" />
 
         {/* ── Proximamente ── */}
         <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
+        <TimelineMilestone iconId="zap" title="MeteoSIX v4 — datos MG avanzados" desc="API horaria de MeteoGalicia con datos de rayos geolocalizados. Complementa la red europea actual." status="idea" />
         <TimelineMilestone iconId="anchor" title="Seguimiento de embarcaciones" desc="Posición de barcos en tiempo real y alertas marítimas inteligentes." status="idea" />
         <TimelineMilestone iconId="bell" title="Alertas a medida" desc="Define tus umbrales de viento, olas o temperatura y recibe avisos automáticos." status="idea" />
         <TimelineMilestone iconId="map-pin" title="Más zonas y actividades" desc="A Coruña, Costa da Morte, nuevos spots. Scoring por actividad: surf, vela, kite, SUP." status="idea" />
@@ -82,6 +86,8 @@ export function RoadmapSection() {
             <SourceRow letter="I" name="IGN" desc="Cartografía: ortofotos PNOA, sombreado MDT, curvas de nivel" color="#7c3aed" />
             <SourceRow letter="W" name="MeteoGalicia Webcams" desc="19 cámaras costeras públicas (imágenes cada 5 min)" color="#3b82f6" />
             <SourceRow letter="O" name="Open-Meteo Marine" desc="Previsión horaria de oleaje y swell (48h)" color="#06b6d4" />
+            <SourceRow letter="V" name="MeteoGalicia Avisos" desc="Avisos adversos oficiales — tormentas, oleaje, viento, lluvia (RSS)" color="#eab308" />
+            <SourceRow letter="P" name="RainViewer" desc="Radar precipitación animado (2h pasadas, tiles libres)" color="#3b82f6" />
           </div>
         </div>
 

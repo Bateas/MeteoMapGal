@@ -364,6 +364,52 @@ export function GlossarySection() {
         />
       </TermGroup>
 
+      {/* ── Storms & Lightning ── */}
+      <TermGroup title="Tormentas y rayos">
+        <Term
+          term="Cluster / Nucleo tormentoso"
+          definition="Agrupacion de impactos de rayos que indica una celula de tormenta activa. MeteoMapGal los agrupa automaticamente en poligonos con etiquetas."
+          example="Un cluster de 12 rayos a 30 km moviéndose a 45 km/h hacia el embalse con ETA 40 min → preparar para salir."
+          color="#a855f7"
+          search={q}
+        />
+        <Term
+          term="Distancia (km en etiqueta)"
+          definition="Distancia desde el centro del cluster al centro de tu sector (Embalse o Rias). Indica lo lejos que esta la tormenta."
+          example="'149 km' = esa tormenta esta a 149 km del embalse. A 40 km/h tardaria 3.7 horas en llegar si se acercase."
+          color="#a855f7"
+          search={q}
+        />
+        <Term
+          term="ETA (tiempo estimado de llegada)"
+          definition="Minutos estimados para que un cluster tormentoso alcance tu sector, basado en su velocidad y direccion actual."
+          example="ETA ~18 min con flecha naranja apuntando a tu zona → sal del agua y busca refugio."
+          color="#a855f7"
+          search={q}
+        />
+        <Term
+          term="CAPE (Convective Available Potential Energy)"
+          definition="Energia disponible para conveccion en J/kg. A mas CAPE, tormentas mas intensas. >500 = posible, >1000 = probable, >1500 = severa."
+          example="CAPE 1200 J/kg + aviso MG + rayos a 50 km → probabilidad alta de tormenta en las proximas horas."
+          color="#a855f7"
+          search={q}
+        />
+        <Term
+          term="CIN (Convective Inhibition)"
+          definition="Tapon energetico que impide que las tormentas se inicien aunque CAPE sea alto. CIN >100 suprime conveccion. Se rompe con calentamiento diurno."
+          example="CAPE 1500 pero CIN 200 → las tormentas estan 'contenidas'. Si CIN baja a 0 por la tarde → descarga subita."
+          color="#a855f7"
+          search={q}
+        />
+        <Term
+          term="Aviso MeteoGalicia (oficial)"
+          definition="Alerta emitida por MeteoGalicia con revision de meteorologo humano. Niveles: amarillo (precaucion), naranja (riesgo importante), rojo (riesgo extremo)."
+          example="Aviso AMARILLO de Tormenta para Interior Pontevedra 15:00-21:00 → tormentas con actividad electrica y posible granizo."
+          color="#a855f7"
+          search={q}
+        />
+      </TermGroup>
+
       {/* ── Aviation & Drones ── */}
       <TermGroup title="Aviación y drones">
         <Term
