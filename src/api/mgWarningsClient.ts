@@ -86,7 +86,7 @@ let lastFetch = 0;
  * Fetch current MG adverse warnings. Returns cached data if fresh.
  */
 export async function fetchMGWarnings(): Promise<MGWarning[]> {
-  if (Date.now() - lastFetch < CACHE_MS && cachedWarnings.length >= 0) {
+  if (Date.now() - lastFetch < CACHE_MS) {
     return cachedWarnings;
   }
 
