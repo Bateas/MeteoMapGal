@@ -248,7 +248,7 @@ function buildSummary(
   if (horizon === 'imminent') {
     parts.push('Tormenta inminente');
   } else if (horizon === 'likely') {
-    parts.push('Tormenta probable en la proxima hora');
+    parts.push('Tormenta probable en la próxima hora');
   } else {
     parts.push(`Riesgo de tormenta (${prob}%)`);
   }
@@ -262,11 +262,11 @@ function buildSummary(
   } else if (severity === 'severe') {
     parts.push('Con actividad electrica confirmada');
   } else if (severity === 'moderate') {
-    parts.push('Inestabilidad atmosferica');
+    parts.push('Inestabilidad atmosférica');
   }
 
   if (active.length > 0) {
-    parts.push(`Senales: ${active.join(', ')}`);
+    parts.push(`Señales: ${active.join(', ')}`);
   }
 
   return parts.join('. ') + '.';

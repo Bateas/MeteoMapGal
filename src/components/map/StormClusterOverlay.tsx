@@ -2,7 +2,7 @@ import { useMemo, memo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { useSectorStore } from '../../store/sectorStore';
-import { bearingToCardinal, type StormCluster, type ClusterSnapshot } from '../../services/stormTracker';
+import { bearingToCardinal, type StormCluster } from '../../services/stormTracker';
 
 /**
  * Convex hull (Graham scan) for a set of 2D points.
@@ -26,23 +26,6 @@ function convexHull(points: [number, number][]): [number, number][] {
   lower.pop();
   upper.pop();
   return [...lower, ...upper];
-}
-
-/** Expand a polygon outward by bufferKm (approximate, works for small regions) */
-function bufferPolygon(coords: [number, number][], bufferKm: number, centerLat: number): [number, number][] {
-  // Find centroid
-  const cx = coords.reduce((s, c) => s + c[0], 0) / coords.length;
-  const cy = coords.reduce((s, c) => s + c[1], 0) / coords.length;
-  const bufferDeg = bufferKm / 111.32;
-  const bufferDegLon = bufferKm / (111.32 * Math.cos((centerLat * Math.PI) / 180));
-  return coords.map(([lon, lat]) => {
-    const dx = lon - cx;
-    const dy = lat - cy;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 0.0001) return [lon + bufferDegLon, lat]; // avoid division by zero
-    const scale = (dist + (dx > 0 ? bufferDegLon : -bufferDegLon > 0 ? bufferDegLon : bufferDeg)) / dist;
-    return [cx + dx * (1 + bufferKm / (dist * 111.32)), cy + dy * (1 + bufferKm / (dist * 111.32))] as [number, number];
-  });
 }
 
 /** Build cluster shape from actual strike positions (convex hull) */
@@ -296,7 +279,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     // Only show rings when there are active clusters or alerts
     if (alertLevel !== 'none' || clusters.length > 0) {
       // 50km watch ring
-      const watch = circlePolygon(centerLon, centerLat, 50);
+      const watch = circlePolygon(centerLon, centerLat, 80); // matches WATCH_KM in useLightningData
       watch.properties = { ring: 'watch', radius: 50 };
       features.push(watch);
 
