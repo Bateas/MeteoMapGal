@@ -226,8 +226,9 @@ function computeVelocities(
           approaching = cluster.distanceToReservoir < prevDist;
 
           if (approaching && speedKmh > 0) {
-            // ETA = distance / speed (in minutes)
-            etaMinutes = Math.round((cluster.distanceToReservoir / speedKmh) * 60);
+            // ETA from cluster EDGE (not centroid) to sector center
+            const edgeDist = Math.max(0, cluster.distanceToReservoir - cluster.radiusKm);
+            etaMinutes = Math.round((edgeDist / speedKmh) * 60);
           }
         }
       }

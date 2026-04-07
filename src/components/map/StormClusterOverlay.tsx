@@ -127,7 +127,7 @@ function arrowTip(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Polygon> | nul
  * at +5, +10, and +15 minutes along its velocity vector.
  */
 function projectedPath(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineString> | null {
-  if (!cluster.velocity || !cluster.approaching) return null;
+  if (!cluster.velocity) return null;
 
   const { bearingDeg, speedKmh } = cluster.velocity;
   const bearingRad = (bearingDeg * Math.PI) / 180;
@@ -500,12 +500,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           id="storm-velocity-line"
           type="line"
           paint={{
-            'line-color': [
-              'case',
-              ['==', ['get', 'approaching'], 1],
-              '#ef4444',
-              '#a78bfa',
-            ],
+            'line-color': '#f97316', // orange — consistent, visible on both dark and purple backgrounds
             'line-width': 3.5,
             'line-opacity': 0.9,
           }}
@@ -518,12 +513,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           id="storm-velocity-tip"
           type="fill"
           paint={{
-            'fill-color': [
-              'case',
-              ['==', ['get', 'approaching'], 1],
-              'rgba(239, 68, 68, 0.9)',
-              'rgba(167, 139, 250, 0.7)',
-            ],
+            'fill-color': 'rgba(249, 115, 22, 0.85)', // orange — matches shaft
           }}
         />
       </Source>
@@ -621,7 +611,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           id="storm-projected-path-glow"
           type="line"
           paint={{
-            'line-color': 'rgba(239, 68, 68, 0.15)',
+            'line-color': 'rgba(249, 115, 22, 0.15)',
             'line-width': 12,
             'line-blur': 4,
           }}
@@ -630,7 +620,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           id="storm-projected-path-line"
           type="line"
           paint={{
-            'line-color': 'rgba(239, 68, 68, 0.6)',
+            'line-color': 'rgba(249, 115, 22, 0.6)',
             'line-width': 2,
             'line-dasharray': [4, 4],
           }}
