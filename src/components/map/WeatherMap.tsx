@@ -18,6 +18,7 @@ import { ThermalAlertMarkers } from './ThermalAlertMarker';
 import { PropagationArrows } from './PropagationArrow';
 import { LightningOverlay } from './LightningOverlay';
 import { StormClusterOverlay } from './StormClusterOverlay';
+import { StormRadarAuto } from './StormRadarAuto';
 import { StormIndicator } from './StormIndicator';
 import { TemperatureOverlay } from './TemperatureOverlay';
 import { TemperatureToggle } from './TemperatureToggle';
@@ -414,6 +415,9 @@ export function WeatherMap() {
             <PropagationArrows />
           </>
         )}
+
+        {/* Auto radar when storms active (subtle, below clusters) */}
+        <StormRadarAuto />
 
         {/* Storm cluster masses + radius rings (below strikes) */}
         <StormClusterOverlay />
