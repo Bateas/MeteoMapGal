@@ -99,7 +99,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   className={`flex flex-col items-center justify-center rounded-lg font-bold border transition-all min-h-[40px]
                     ${isActive
                       ? 'text-[11px] px-2.5 py-1 bg-blue-600 text-white border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.35)]'
-                      : 'text-[11px] px-2.5 py-1 bg-transparent text-slate-500 border-slate-600/40 border-dashed active:bg-slate-700'
+                      : 'text-[11px] px-2.5 py-1 bg-transparent text-slate-400 border-slate-600/40 border-dashed active:bg-slate-700'
                   }`}
                 >
                   <span className="flex items-center gap-1">
@@ -125,36 +125,36 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             )}
           </>
         )}
-        {/* Source status — compact, desktop only */}
-        {!isMobile && <SourceStatusIndicator />}
-        {/* Guide + Feedback — always visible, key for user engagement */}
+        {/* Source status — hidden on narrow desktop, visible on lg+ */}
+        {!isMobile && <span className="hidden lg:inline-flex"><SourceStatusIndicator /></span>}
+        {/* Guide + Feedback — desktop only, text hidden on narrow screens */}
         {!isMobile && (
           <>
             <button
               onClick={() => useUIStore.getState().toggleGuide()}
-              className="px-2.5 py-1.5 rounded-lg text-sky-400 border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 hover:border-sky-400/50 hover:shadow-[0_0_10px_rgba(56,189,248,0.2)] transition-all min-h-[44px] flex items-center gap-1.5 text-[13px] font-semibold"
+              className="px-2 lg:px-2.5 py-1.5 rounded-lg text-sky-400 border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 hover:border-sky-400/50 transition-all min-h-[44px] flex items-center gap-1.5 text-[13px] font-semibold"
               title="Guía completa de la app (G)"
               aria-label="Abrir guía meteorológica (tecla G)"
             >
               <WeatherIcon id="book-open" size={14} />
-              Guía
+              <span className="hidden lg:inline">Guía</span>
             </button>
             <button
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-              className="px-2.5 py-1.5 rounded-lg text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-400/50 hover:shadow-[0_0_10px_rgba(52,211,153,0.2)] transition-all min-h-[44px] flex items-center gap-1.5 text-[13px] font-semibold"
+              className="px-2 lg:px-2.5 py-1.5 rounded-lg text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-400/50 transition-all min-h-[44px] flex items-center gap-1.5 text-[13px] font-semibold"
               aria-label="Enviar feedback"
               title="Enviar sugerencias o reportar problemas"
             >
               <WeatherIcon id="message-square" size={14} />
-              Feedback
+              <span className="hidden lg:inline">Feedback</span>
             </button>
           </>
         )}
       </div>
-      <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
-        {/* Sunrise / Sunset — hide on mobile */}
+      <div className="flex items-center gap-1 md:gap-2 flex-shrink min-w-0">
+        {/* Sunrise / Sunset — only on wide screens */}
         <div
-          className="hidden md:flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded"
+          className="hidden lg:flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded"
           style={{
             background: daylight ? 'rgba(250, 204, 21, 0.08)' : 'rgba(100, 116, 139, 0.1)',
             color: daylight ? '#facc15' : '#64748b',
@@ -196,7 +196,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           >
             <span className="inline-flex items-center gap-1">
               <WeatherIcon id="activity" size={isMobile ? 16 : 14} />
-              {!isMobile && <span>Condiciones</span>}
+              {!isMobile && <span className="hidden lg:inline">Condiciones</span>}
             </span>
           </button>
         )}

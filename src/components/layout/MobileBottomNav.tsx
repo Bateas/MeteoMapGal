@@ -153,7 +153,7 @@ function MobileBottomNavInner() {
               <button
                 key={id}
                 className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[48px] pt-1.5 pb-1 transition-colors ${
-                  isActive ? 'text-sky-400' : 'text-slate-500'
+                  isActive ? 'text-sky-400' : 'text-slate-400'
                 }`}
                 onClick={() => handleTab(id)}
                 aria-label={label}
