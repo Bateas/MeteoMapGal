@@ -7,7 +7,7 @@ import type { SailingSpot } from '../../config/spots';
 
 const VERDICT_LABEL: Record<string, string> = {
   calm: 'calma', light: 'flojo', sailing: 'navegable',
-  good: 'buen d\u00eda', strong: 'fuerte', unknown: 'sin datos',
+  good: 'buen día', strong: 'fuerte', unknown: 'sin datos',
 };
 
 export function Cell({ label, value, color }: { label: string; value: string; color?: string }) {
@@ -34,13 +34,13 @@ export function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: Sail
       color: windKtColor(w.avgSpeedKt),
     });
     if (w.matchedPattern) {
-      lines.push({ label: 'Patr\u00f3n', value: w.matchedPattern, color: '#fbbf24' });
+      lines.push({ label: 'Patrón', value: w.matchedPattern, color: '#fbbf24' });
     }
   }
 
   if (score.waves?.waveHeight != null) {
     const wh = score.waves.waveHeight;
-    const relevance = spot.waveRelevance === 'critical' ? 'oce\u00e1nico' : spot.waveRelevance === 'moderate' ? 'moderado' : 'interior';
+    const relevance = spot.waveRelevance === 'critical' ? 'oceánico' : spot.waveRelevance === 'moderate' ? 'moderado' : 'interior';
     lines.push({
       label: `Oleaje (${relevance})`,
       value: `${wh.toFixed(1)} m${score.waves.wavePeriod != null ? ` \u00b7 Tp ${score.waves.wavePeriod.toFixed(0)}s` : ''}`,
@@ -52,7 +52,7 @@ export function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: Sail
 
   if (score.thermal && score.thermal.thermalProbability > 0) {
     lines.push({
-      label: 'T\u00e9rmica',
+      label: 'Térmica',
       value: `${score.thermal.thermalProbability}% prob${score.thermal.deltaT != null ? ` \u00b7 \u0394T ${score.thermal.deltaT.toFixed(0)}\u00b0C` : ''}`,
       color: '#fbbf24',
     });
@@ -66,11 +66,11 @@ export function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: Sail
   }
 
   if (score.hardGateTriggered) {
-    lines.push({ label: 'L\u00edmite', value: score.hardGateTriggered, color: '#ef4444' });
+    lines.push({ label: 'Límite', value: score.hardGateTriggered, color: '#ef4444' });
   }
 
   if (score.wind && spot.id === 'cesantes' && score.wind.dominantDir === 'N') {
-    lines.push({ label: 'Penalizaci\u00f3n', value: 'Norte en Cesantes (\u221215)', color: '#f97316' });
+    lines.push({ label: 'Penalización', value: 'Norte en Cesantes (\u221215)', color: '#f97316' });
   }
 
   if (lines.length === 0) return null;
@@ -82,7 +82,7 @@ export function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: Sail
         className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
       >
         <WeatherIcon id="info" size={11} className="text-slate-400 shrink-0" />
-        <span className="font-semibold">\u00bfPor qu\u00e9 {VERDICT_LABEL[score.verdict] ?? score.verdict}?</span>
+        <span className="font-semibold">¿Por qué {VERDICT_LABEL[score.verdict] ?? score.verdict}?</span>
         <span className="text-slate-500 text-[11px] ml-auto">{open ? '\u25B2' : '\u25BC'}</span>
       </button>
       {open && (
