@@ -18,9 +18,10 @@ import { fetchRainViewerFrames, buildTileUrlScheme } from '../../api/rainviewerC
 
 const SOURCE_ID = 'storm-radar-auto';
 const LAYER_ID = 'storm-radar-auto-layer';
-// Scheme 8 (black→red→yellow→white): darkest base, only intense rain visible.
-const RAINVIEWER_SCHEME = 8;
-const AUTO_OPACITY = 0.5;
+// Scheme 2 (Universal Blue) at very low opacity — only intense zones pop visually.
+// Light rain at 0.15 opacity is nearly invisible on dark maps.
+const RAINVIEWER_SCHEME = 2;
+const AUTO_OPACITY = 0.15;
 const POLL_MS = 5 * 60_000; // refresh every 5 min
 
 export const StormRadarAuto = memo(function StormRadarAuto() {
@@ -90,8 +91,6 @@ export const StormRadarAuto = memo(function StormRadarAuto() {
         paint={{
           'raster-opacity': AUTO_OPACITY,
           'raster-fade-duration': 500,
-          // Scheme 8 is black→red→yellow→white.
-          // Black is invisible on dark map. Only intense rain (red/yellow/white) pops.
         }}
       />
     </Source>
