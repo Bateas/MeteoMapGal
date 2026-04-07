@@ -1,14 +1,21 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.27.8-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.28.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-282%20passed-brightgreen)](src/test/)
+[![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
 **Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 19 webcams con IA y mapa 3D interactivo.
 
 **Pruebalo**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) — Gratuito, sin registro. Funciona en movil y escritorio.
 
 ---
+
+<!-- Guarda tus screenshots en assets/screenshots/ con estos nombres -->
+<!-- ![Vista general del mapa](assets/screenshots/hero-map.png) -->
+<!-- ![Seguimiento de tormentas](assets/screenshots/storm-tracking.png) -->
+<!-- ![Spot con veredicto](assets/screenshots/spot-popup.png) -->
+<!-- ![Rias Baixas con radar](assets/screenshots/rias-radar.png) -->
 
 ## Para quien es
 
@@ -53,12 +60,36 @@
 - Flechas de viento coloreadas por intensidad en cada estacion
 - Capas: humedad, temperatura, radar, webcams, corrientes, cartas nauticas
 
+
 ### Scoring inteligente (13 spots)
 - **Vela** (10 spots): 9 niveles de viento (CALMA a HURACAN). Consenso de multiples estaciones ponderado por distancia y calidad
 - **Surf** (3 spots BETA): 5 niveles de oleaje (FLAT / PEQUE / SURF OK / CLASICO / GRANDE) con correccion costera por playa y alineamiento del swell
 - Cada spot muestra las fuentes que contribuyen al veredicto (nombre, velocidad, peso %)
 - Deteccion de patrones locales: termicas, bocanas, virazones de ria
 - Ventanas de navegacion: "Cuando salgo?" con prevision 48h
+
+
+### Seguimiento de tormentas
+
+Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el mapa:
+
+```
+  En el mapa:                        Etiqueta por cluster:
+
+  ● Amarillo  Rayo <15 min           ┌──────────────────────┐
+  ● Naranja   Rayo 15-60 min         │ 12 rayos             │
+  ● Rojo      Rayo 1-6h              │ → 45 km/h SW         │
+  ● Gris      Rayo 6-24h (hist.)     │ ETA ~18 min          │
+  ▲ Violeta   Nucleo tormentoso      │ 32 km                │
+  → Naranja   Flecha de avance       └──────────────────────┘
+  ┄ Punteada  Proyeccion 5-30 min
+```
+
+- **Predictor de 8 senales**: CAPE, CIN, lluvia, nubes, rayos, avance, sombra solar, avisos MeteoGalicia
+- **Avisos oficiales**: RSS de MeteoGalicia (amarillo/naranja/rojo) integrado en ticker y panel
+- **ETA inteligente**: usa la componente de velocidad hacia ti, no la velocidad total
+- **Subdivision automatica**: frentes de 100+ km se dividen en clusters manejables
+
 
 ### Modo Evento / Regata
 - Zona personalizable (dibujo libre o zonas predefinidas)
@@ -73,39 +104,12 @@
 - Niebla maritima, frentes de viento, inversiones termicas
 - Clasificacion por severidad: info / aviso / alerta / peligro
 
-### Seguimiento de tormentas
-
-Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el mapa:
-
-```
-Elementos visuales en el mapa:
- ● Amarillo    Rayo reciente (<15 min)
- ● Naranja     Rayo 15-60 min
- ● Rojo        Rayo antiguo (1-6h)
- ▲ Violeta     Nucleo tormentoso (cluster)
- → Naranja     Flecha de avance + velocidad
- ┄ Punteada    Proyeccion futura (5-30 min)
-
-Etiqueta por cluster:
- ┌──────────────────────┐
- │ 12 rayos             │
- │ → 45 km/h SW         │
- │ ETA ~18 min          │
- │ 32 km                │
- └──────────────────────┘
-```
-
-- **Predictor de 8 senales**: CAPE, CIN, lluvia, nubes, rayos, avance, sombra solar, avisos MeteoGalicia
-- **Avisos oficiales**: RSS de MeteoGalicia (amarillo/naranja/rojo) integrado en ticker y panel
-- **ETA inteligente**: usa la componente de velocidad hacia ti, no la velocidad total
-- **Subdivision automatica**: frentes de 100+ km se dividen en clusters manejables
-- **Logging para calibracion**: cada prediccion se registra para mejorar precision con datos reales
-
 ### Datos marinos (Rias Baixas)
 - 13 boyas: oleaje, viento, temperatura del agua
 - Mareas para 5 puertos (IHM)
 - Corrientes superficiales HF radar
 - Cartas nauticas oficiales (IHM ENC)
+
 
 ### Vision IA (webcams)
 - 19 camaras MeteoGalicia analizadas cada 15min
@@ -129,7 +133,7 @@ Etiqueta por cluster:
 | MeteoGalicia Avisos Adversos | Alertas oficiales (tormentas, oleaje, viento) |
 | meteo2api (red europea) | Rayos geolocalizados en tiempo real |
 
-Todos los datos de fuentes abiertas. Solo AEMET requiere clave API gratuita.
+> Todos los datos de fuentes abiertas. Solo AEMET requiere clave API gratuita.
 
 ---
 
