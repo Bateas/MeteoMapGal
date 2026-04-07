@@ -425,8 +425,8 @@ export function AppShell() {
   // ── Storm prediction logging (for future ML calibration) ──
   const stormPrediction = useStormPrediction();
   useEffect(() => {
-    logPredictionSnapshot(stormPrediction, stormAlert.level !== 'none', sectorId);
-  }, [stormPrediction, stormAlert.level, sectorId]);
+    logPredictionSnapshot(stormPrediction, stormAlert.level !== 'none', activeSector.id);
+  }, [stormPrediction, stormAlert.level, activeSector.id]);
 
   return (
     <div className="h-screen-safe w-full flex flex-col bg-slate-950 text-white overflow-hidden">
