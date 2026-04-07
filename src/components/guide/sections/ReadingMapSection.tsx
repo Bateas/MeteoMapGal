@@ -136,7 +136,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="zap"
             title="Rayos / Tormentas"
-            text="Impactos de rayos en tiempo real (cada 2 min). Amarillo=reciente (<15 min), naranja=1h, rojo=antiguo, gris=>6h. Los clusters (poligonos) agrupan nucleos tormentosos con etiquetas: numero de rayos, distancia al embalse en km, velocidad y direccion si se detecta movimiento, y ETA si se acercan. Flecha naranja = direccion de avance. Linea punteada = proyeccion a 30 min. Radar de precipitacion se activa automaticamente (solo lluvia fuerte) cuando hay tormentas."
+            text="Impactos de rayos en tiempo real (cada 2 min). Amarillo=reciente (<15 min), naranja=1h, rojo=antiguo, gris=>6h. Ver seccion 'Seguimiento de tormentas' mas abajo."
           />
         </div>
       </div>
@@ -186,8 +186,8 @@ export function ReadingMapSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <MiniExplainer
             iconId="cloud"
-            title="Predictor de tormentas"
-            text="Cruza 8 senales: CAPE (inestabilidad), lluvia prevista, nubosidad, rayos detectados, avance, sombra solar, rachas, y avisos oficiales de MeteoGalicia. Muestra probabilidad (%) en el indicador RAYOS de la barra. Si es inminente (>60%), banner de emergencia con accion recomendada."
+            title="Sombra de tormenta"
+            text="Caida brusca de radiacion solar en estaciones cercanas + rayos cercanos + anomalia de viento = tormenta acercandose incluso antes de ver los rayos."
           />
           <MiniExplainer
             iconId="sun"
@@ -339,6 +339,110 @@ export function ReadingMapSection() {
             title="Estación SkyX"
             text="Estación personal portátil con GPS. Se auto-descubre en el sector correspondiente. Mueves la estación → MeteoMapGal la detecta automáticamente."
           />
+        </div>
+      </div>
+
+      {/* ── Storm tracking section ── */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+          <WeatherIcon id="zap" size={16} />
+          Seguimiento de tormentas
+        </h3>
+        <p className="text-[11px] text-slate-400 leading-relaxed">
+          MeteoMapGal detecta, agrupa y rastrea nucleos tormentosos en tiempo real. Toda la informacion
+          aparece directamente en el mapa sin necesidad de abrir menus.
+        </p>
+
+        {/* Visual legend */}
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
+          <p className="text-xs font-bold text-purple-400">Elementos en el mapa</p>
+          <div className="space-y-2">
+            <div className="flex items-start gap-2">
+              <div className="w-3 h-3 mt-0.5 rounded-full shrink-0" style={{ background: '#fef08a', boxShadow: '0 0 6px #fbbf24' }} />
+              <p className="text-[11px] text-slate-300"><strong className="text-yellow-300">Punto amarillo brillante</strong> — Rayo reciente ({'<'}15 min). Cuanto mas grande, mas reciente.</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="w-3 h-3 mt-0.5 rounded-full shrink-0" style={{ background: '#f97316' }} />
+              <p className="text-[11px] text-slate-300"><strong className="text-orange-400">Punto naranja</strong> — Rayo de hace 15-60 min.</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="w-3 h-3 mt-0.5 rounded-full shrink-0" style={{ background: '#dc2626' }} />
+              <p className="text-[11px] text-slate-300"><strong className="text-red-400">Punto rojo</strong> — Rayo antiguo (1-6h). Referencia historica.</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="w-4 h-3 mt-0.5 rounded shrink-0" style={{ background: 'rgba(147,51,234,0.3)', border: '1px dashed rgba(147,51,234,0.6)' }} />
+              <p className="text-[11px] text-slate-300"><strong className="text-purple-400">Poligono violeta</strong> — Nucleo tormentoso (cluster). Agrupa rayos cercanos en una zona activa.</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="w-4 h-0.5 mt-1.5 shrink-0" style={{ background: '#f97316' }} />
+              <p className="text-[11px] text-slate-300"><strong className="text-orange-400">Flecha naranja</strong> — Direccion y velocidad del nucleo. Longitud proporcional a la velocidad.</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="w-4 mt-1.5 shrink-0 border-t border-dashed" style={{ borderColor: '#f97316' }} />
+              <p className="text-[11px] text-slate-300"><strong className="text-orange-400">Linea punteada</strong> — Proyeccion futura (5-30 min). Donde estara el nucleo si mantiene velocidad y direccion.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Labels explanation */}
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
+          <p className="text-xs font-bold text-amber-400">Etiquetas en cada cluster</p>
+          <div className="bg-slate-800/60 rounded-lg p-3 font-mono text-xs leading-relaxed text-center" style={{ color: '#fbbf24' }}>
+            12 rayos<br/>
+            {'→'} 45 km/h SW<br/>
+            ETA ~18 min<br/>
+            32 km
+          </div>
+          <div className="space-y-1.5 text-[11px] text-slate-400">
+            <p><strong className="text-slate-200">Rayos</strong> — Numero de impactos en este nucleo (ultima hora).</p>
+            <p><strong className="text-slate-200">Velocidad + direccion</strong> — A donde se mueve el nucleo (SW = hacia el suroeste). Solo aparece si se detecta movimiento consistente en 2+ ciclos.</p>
+            <p><strong className="text-slate-200">ETA</strong> — Tiempo estimado de llegada al embalse/rias. Solo si el nucleo se acerca directamente (bearing {'<'}60 grados). Usa la componente de velocidad hacia ti, no la velocidad total.</p>
+            <p><strong className="text-slate-200">Distancia (km)</strong> — Distancia desde el centro del cluster hasta el centro de tu sector. Asi sabes de un vistazo lo lejos que esta.</p>
+          </div>
+        </div>
+
+        {/* Predictor explanation */}
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
+          <p className="text-xs font-bold text-purple-400">Predictor de tormentas (8 senales)</p>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            MeteoMapGal cruza <strong className="text-slate-200">8 fuentes de datos</strong> para estimar la probabilidad
+            de tormenta en tu zona. El resultado aparece en el indicador <strong className="text-purple-300">RAYOS</strong> de
+            la barra inferior del mapa.
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { name: 'CAPE', desc: 'Inestabilidad atmosferica', color: '#f59e0b' },
+              { name: 'CIN', desc: 'Tapon convectivo (suprime)', color: '#64748b' },
+              { name: 'Lluvia', desc: 'Precipitacion prevista', color: '#3b82f6' },
+              { name: 'Nubes', desc: 'Cobertura nubosa >80%', color: '#94a3b8' },
+              { name: 'Rayos', desc: 'Deteccion tiempo real', color: '#a855f7' },
+              { name: 'Avance', desc: 'Tormenta acercandose', color: '#f97316' },
+              { name: 'Sombra', desc: 'Caida radiacion solar', color: '#6366f1' },
+              { name: 'Aviso MG', desc: 'Alerta oficial MeteoGalicia', color: '#eab308' },
+            ].map((s) => (
+              <div key={s.name} className="flex items-center gap-1.5 text-[10px]">
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+                <span className="text-slate-300 font-medium">{s.name}</span>
+                <span className="text-slate-500">{s.desc}</span>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-slate-700/40 pt-2 space-y-1 text-[11px]">
+            <p className="text-slate-400"><strong className="text-amber-300">{'>'} 60% inminente</strong> — Banner rojo de emergencia con accion recomendada.</p>
+            <p className="text-slate-400"><strong className="text-amber-300">40-60% probable</strong> — Indicador ambar en la barra.</p>
+            <p className="text-slate-400"><strong className="text-slate-300">{'<'} 25%</strong> — Sin indicacion visual (condiciones tranquilas).</p>
+          </div>
+        </div>
+
+        {/* Safety tips */}
+        <div className="bg-red-950/30 rounded-xl p-4 border border-red-900/40 space-y-2">
+          <p className="text-xs font-bold text-red-400">Seguridad en el agua</p>
+          <div className="space-y-1 text-[11px] text-slate-300">
+            <p>Los rayos son el mayor peligro para deportes acuaticos. Si ves actividad electrica:</p>
+            <p className="text-red-300 font-medium">{'<'} 5 km — Sal del agua INMEDIATAMENTE. Busca refugio solido.</p>
+            <p className="text-amber-300 font-medium">5-25 km — Prepara para salir. No te alejes de la orilla.</p>
+            <p className="text-slate-400">25-80 km — Vigila la evolucion. Ten plan de salida preparado.</p>
+          </div>
         </div>
       </div>
 

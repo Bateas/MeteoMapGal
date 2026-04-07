@@ -1,8 +1,8 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.23.3-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.27.8-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-260%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-282%20passed-brightgreen)](src/test/)
 
 **Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 19 webcams con IA y mapa 3D interactivo.
 
@@ -69,9 +69,37 @@
 
 ### Alertas 24/7
 - Bot Telegram autonomo: cambio brusco, tormentas, oleaje + resumen diario
-- Tormentas (rayos <10km = peligro, <25km = aviso, <80km = vigilancia)
+- Tormentas (rayos <5km = peligro, <25km = aviso, <80km = vigilancia)
 - Niebla maritima, frentes de viento, inversiones termicas
 - Clasificacion por severidad: info / aviso / alerta / peligro
+
+### Seguimiento de tormentas
+
+Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el mapa:
+
+```
+Elementos visuales en el mapa:
+ ● Amarillo    Rayo reciente (<15 min)
+ ● Naranja     Rayo 15-60 min
+ ● Rojo        Rayo antiguo (1-6h)
+ ▲ Violeta     Nucleo tormentoso (cluster)
+ → Naranja     Flecha de avance + velocidad
+ ┄ Punteada    Proyeccion futura (5-30 min)
+
+Etiqueta por cluster:
+ ┌──────────────────────┐
+ │ 12 rayos             │
+ │ → 45 km/h SW         │
+ │ ETA ~18 min          │
+ │ 32 km                │
+ └──────────────────────┘
+```
+
+- **Predictor de 8 senales**: CAPE, CIN, lluvia, nubes, rayos, avance, sombra solar, avisos MeteoGalicia
+- **Avisos oficiales**: RSS de MeteoGalicia (amarillo/naranja/rojo) integrado en ticker y panel
+- **ETA inteligente**: usa la componente de velocidad hacia ti, no la velocidad total
+- **Subdivision automatica**: frentes de 100+ km se dividen en clusters manejables
+- **Logging para calibracion**: cada prediccion se registra para mejorar precision con datos reales
 
 ### Datos marinos (Rias Baixas)
 - 13 boyas: oleaje, viento, temperatura del agua
@@ -95,9 +123,11 @@
 | Weather Underground, Netatmo, SkyX | Estaciones personales |
 | Puertos del Estado, Obs. Costeiro | Boyas marinas |
 | Open-Meteo | Prevision ECMWF / GFS / ICON |
-| RainViewer, IHM, ENAIRE | Radar, mareas, espacio aereo |
+| RainViewer, IHM, ENAIRE | Radar precipitacion, mareas, espacio aereo |
 | CMEMS, INTECMAR, IGN | SST, corrientes, cartografia |
 | MeteoGalicia Webcams + Ollama | 19 camaras + vision IA (Beaufort, niebla) |
+| MeteoGalicia Avisos Adversos | Alertas oficiales (tormentas, oleaje, viento) |
+| meteo2api (red europea) | Rayos geolocalizados en tiempo real |
 
 Todos los datos de fuentes abiertas. Solo AEMET requiere clave API gratuita.
 
@@ -112,13 +142,13 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # 260 tests (Vitest)
+npm test                # 282 tests (Vitest)
 ```
 
 **Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.19 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB
 
 **Arquitectura**:
-- Frontend: React SPA con 18 stores Zustand, 7 sub-componentes SpotPopup extraidos
+- Frontend: React SPA con 19 stores Zustand, predictor de tormentas 8 senales, 7 sub-componentes SpotPopup
 - Backend: Ingestor Node.js 24/7 → TimescaleDB (polling 6 fuentes cada 5min)
 - Produccion: nginx reverse proxy en Proxmox LXC
 - WU + Netatmo consolidados via ingestor API (reduce fetches frontend)
