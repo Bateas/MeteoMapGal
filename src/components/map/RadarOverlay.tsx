@@ -33,6 +33,8 @@ export const RadarOverlay = memo(function RadarOverlay() {
   const [frameIndex, setFrameIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [radarError, setRadarError] = useState<string | null>(null);
+  const failCountRef = useRef(0);
   const animTimerRef = useRef<ReturnType<typeof setInterval>>();
 
   // ── RainViewer fetch ──
@@ -44,13 +46,24 @@ export const RadarOverlay = memo(function RadarOverlay() {
         setRvHost(data.host);
         const allFrames = [...data.past, ...data.nowcast];
         setFrames(allFrames);
-        // Start at last past frame (most recent actual data)
         setFrameIndex(data.past.length - 1);
+        setRadarError(null);
+        failCountRef.current = 0;
+      } else if (frames.length === 0) {
+        failCountRef.current++;
+        if (failCountRef.current >= 3) {
+          setRadarError('Radar no disponible');
+        }
+      }
+    } catch {
+      failCountRef.current++;
+      if (failCountRef.current >= 3) {
+        setRadarError('Error cargando radar');
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [frames.length]);
 
   // Polling
   useVisibilityPolling(loadRainViewer, REFRESH_INTERVAL, isActive);
@@ -138,8 +151,21 @@ export const RadarOverlay = memo(function RadarOverlay() {
       {/* Loading (first load only) */}
       {loading && frames.length === 0 && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <div className="bg-slate-800/80 text-slate-300 text-xs px-3 py-1.5 rounded-full backdrop-blur-sm border border-slate-600/50">
+          <div className="bg-slate-800/80 text-slate-300 text-xs px-3 py-1.5 rounded-full border border-slate-600/50">
             Cargando radar…
+          </div>
+        </div>
+      )}
+      {radarError && frames.length === 0 && !loading && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+          <div className="bg-amber-900/60 text-amber-300 text-xs px-3 py-1.5 rounded-full border border-amber-600/50 flex items-center gap-2">
+            <span>{radarError}</span>
+            <button
+              onClick={() => { setRadarError(null); failCountRef.current = 0; loadRainViewer(); }}
+              className="px-2 py-0.5 bg-amber-700/40 hover:bg-amber-600/40 rounded text-[10px] font-bold"
+            >
+              Reintentar
+            </button>
           </div>
         </div>
       )}
