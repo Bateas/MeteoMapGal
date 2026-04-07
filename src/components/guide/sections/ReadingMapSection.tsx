@@ -367,7 +367,11 @@ export function ReadingMapSection() {
             </div>
             <div className="flex items-start gap-2">
               <div className="w-3 h-3 mt-0.5 rounded-full shrink-0" style={{ background: '#dc2626' }} />
-              <p className="text-[11px] text-slate-300"><strong className="text-red-400">Punto rojo tenue</strong> — Rayo antiguo (1-6h). Referencia historica. Rayos de mas de 6h no se muestran.</p>
+              <p className="text-[11px] text-slate-300"><strong className="text-red-400">Punto rojo</strong> — Rayo antiguo (1-6h). Donde hubo actividad reciente.</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <div className="w-3 h-3 mt-0.5 rounded-full shrink-0" style={{ background: '#9ca3af' }} />
+              <p className="text-[11px] text-slate-300"><strong className="text-slate-400">Punto gris</strong> — Rayo de hace 6-24h. Referencia historica: muestra por donde paso la tormenta. Desaparecen tras 24h.</p>
             </div>
             <div className="flex items-start gap-2">
               <div className="w-4 h-3 mt-0.5 rounded shrink-0" style={{ background: 'rgba(147,51,234,0.3)', border: '1px dashed rgba(147,51,234,0.6)' }} />
