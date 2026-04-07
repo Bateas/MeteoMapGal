@@ -136,7 +136,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="zap"
             title="Rayos / Tormentas"
-            text="Los impactos de rayos (últimas 24h) se muestran automáticamente en el mapa. Rojo=reciente, amarillo=horas, gris=antiguo. Los clusters agrupan zonas de actividad eléctrica."
+            text="Impactos de rayos en tiempo real (cada 2 min). Amarillo=reciente (<15 min), naranja=1h, rojo=antiguo, gris=>6h. Los clusters (poligonos) agrupan nucleos tormentosos con etiquetas: numero de rayos, distancia al embalse en km, velocidad y direccion si se detecta movimiento, y ETA si se acercan. Flecha naranja = direccion de avance. Linea punteada = proyeccion a 30 min. Radar de precipitacion se activa automaticamente (solo lluvia fuerte) cuando hay tormentas."
           />
         </div>
       </div>
@@ -186,8 +186,8 @@ export function ReadingMapSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <MiniExplainer
             iconId="cloud"
-            title="Sombra de tormenta"
-            text="Alerta cruzada: caída de radiación solar + rayos cercanos + anomalía de viento = tormenta acercándose."
+            title="Predictor de tormentas"
+            text="Cruza 8 senales: CAPE (inestabilidad), lluvia prevista, nubosidad, rayos detectados, avance, sombra solar, rachas, y avisos oficiales de MeteoGalicia. Muestra probabilidad (%) en el indicador RAYOS de la barra. Si es inminente (>60%), banner de emergencia con accion recomendada."
           />
           <MiniExplainer
             iconId="sun"
