@@ -1,5 +1,5 @@
 import { useMemo, memo } from 'react';
-import { Source, Layer, Marker } from 'react-map-gl/maplibre';
+import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
 
 const EMPTY_FC: GeoJSON.FeatureCollection = {
@@ -21,7 +21,7 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
 export const LightningOverlay = memo(function LightningOverlay() {
   const strikes = useLightningStore((s) => s.strikes);
   const showOverlay = useLightningStore((s) => s.showOverlay);
-  const clusters = useLightningStore((s) => s.clusters);
+  // clusters rendered by StormClusterOverlay (arrows + info labels)
 
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || strikes.length === 0) return EMPTY_FC;
@@ -146,25 +146,7 @@ export const LightningOverlay = memo(function LightningOverlay() {
         }}
       />
     </Source>
-    {/* Storm cluster velocity arrows */}
-    {clusters.filter((c) => c.velocity != null && c.velocity.speedKmh > 5).map((c, i) => {
-      const v = c.velocity!; // safe — filter guarantees non-null
-      return (
-        <Marker key={`storm-${i}`} latitude={c.centroidLat} longitude={c.centroidLon} anchor="center">
-          <svg
-            width="32" height="32" viewBox="-16 -16 32 32"
-            style={{ transform: `rotate(${v.bearingDeg}deg)`, opacity: 0.7, pointerEvents: 'none' }}
-          >
-            <line x1="0" y1="8" x2="0" y2="-10" stroke="#f97316" strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M-5,-4 L0,-12 L5,-4" fill="none" stroke="#f97316" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', fontSize: 10, color: '#fca5a5', fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-            {v.speedKmh.toFixed(0)} km/h
-            {c.etaMinutes != null && c.approaching ? ` \u00b7 ${c.etaMinutes.toFixed(0)}min` : ''}
-          </div>
-        </Marker>
-      );
-    })}
+    {/* Velocity arrows rendered by StormClusterOverlay (GeoJSON + info labels) */}
     </>
   );
 });

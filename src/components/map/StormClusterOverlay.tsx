@@ -2,8 +2,7 @@ import { useMemo, memo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { useSectorStore } from '../../store/sectorStore';
-import type { StormCluster, ClusterSnapshot } from '../../services/stormTracker';
-import type { LightningStrike } from '../../api/lightningClient';
+import { bearingToCardinal, type StormCluster, type ClusterSnapshot } from '../../services/stormTracker';
 
 /**
  * Convex hull (Graham scan) for a set of 2D points.
@@ -49,33 +48,24 @@ function bufferPolygon(coords: [number, number][], bufferKm: number, centerLat: 
 /** Build cluster shape from actual strike positions (convex hull) */
 function clusterShape(
   cluster: StormCluster,
-  strikes: LightningStrike[],
   bufferKm: number,
 ): GeoJSON.Feature<GeoJSON.Polygon> | null {
-  // Find strikes near this cluster centroid (within cluster radius + buffer)
-  const maxDist = cluster.radiusKm + bufferKm + 5;
-  const nearby = strikes.filter((s) => {
-    if (s.ageMinutes > 60) return false; // only recent
-    const dLat = (s.lat - cluster.centroidLat) * 111.32;
-    const dLon = (s.lon - cluster.centroidLon) * 111.32 * Math.cos((cluster.centroidLat * Math.PI) / 180);
-    return Math.sqrt(dLat * dLat + dLon * dLon) < maxDist;
-  });
-  if (nearby.length < 3) return null; // need 3+ points for hull
+  // Use pre-computed strike positions from cluster (no re-scanning needed)
+  const points = cluster.strikePositions;
+  if (points.length < 3) return null; // need 3+ points for hull
 
-  const points: [number, number][] = nearby.map((s) => [s.lon, s.lat]);
   const hull = convexHull(points);
   if (hull.length < 3) return null;
 
   // Expand hull outward for visual buffer
-  const cx = cluster.centroidLat;
   const expanded = hull.map(([lon, lat]) => {
-    const dx = lon - cluster.centroidLon;
-    const dy = lat - cluster.centroidLat;
+    const dx = lon - cluster.lon;
+    const dy = lat - cluster.lat;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 0.00001) return [lon, lat] as [number, number];
     const bufDeg = bufferKm / 111.32;
     const factor = 1 + bufDeg / dist;
-    return [cluster.centroidLon + dx * factor, cluster.centroidLat + dy * factor] as [number, number];
+    return [cluster.lon + dx * factor, cluster.lat + dy * factor] as [number, number];
   });
 
   // Close the ring
@@ -135,10 +125,10 @@ function velocityArrow(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
   const arrowLenKm = Math.max(3, Math.min(speedKmh / 4, 18));
   const bearingRad = (bearingDeg * Math.PI) / 180;
 
-  const endLat = cluster.centroidLat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
+  const endLat = cluster.lat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
   const endLon =
-    cluster.centroidLon +
-    (arrowLenKm / (111.32 * Math.cos((cluster.centroidLat * Math.PI) / 180))) *
+    cluster.lon +
+    (arrowLenKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) *
       Math.sin(bearingRad);
 
   return {
@@ -146,7 +136,7 @@ function velocityArrow(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
     geometry: {
       type: 'LineString',
       coordinates: [
-        [cluster.centroidLon, cluster.centroidLat],
+        [cluster.lon, cluster.lat],
         [endLon, endLat],
       ],
     },
@@ -169,10 +159,10 @@ function arrowTip(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Polygon> | nul
   const tipSizeKm = 2.5; // bigger arrowhead for visibility
 
   // Tip point
-  const tipLat = cluster.centroidLat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
+  const tipLat = cluster.lat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
   const tipLon =
-    cluster.centroidLon +
-    (arrowLenKm / (111.32 * Math.cos((cluster.centroidLat * Math.PI) / 180))) *
+    cluster.lon +
+    (arrowLenKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) *
       Math.sin(bearingRad);
 
   // Two base points of the triangle (perpendicular to bearing)
@@ -219,12 +209,12 @@ function projectedPath(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
 
   const { bearingDeg, speedKmh } = cluster.velocity;
   const bearingRad = (bearingDeg * Math.PI) / 180;
-  const coords: [number, number][] = [[cluster.centroidLon, cluster.centroidLat]];
+  const coords: [number, number][] = [[cluster.lon, cluster.lat]];
 
-  for (let min = 5; min <= 15; min += 5) {
+  for (const min of [5, 10, 15, 20, 30]) {
     const distKm = (speedKmh / 60) * min;
-    const lat = cluster.centroidLat + (distKm / 111.32) * Math.cos(bearingRad);
-    const lon = cluster.centroidLon + (distKm / (111.32 * Math.cos((cluster.centroidLat * Math.PI) / 180))) * Math.sin(bearingRad);
+    const lat = cluster.lat + (distKm / 111.32) * Math.cos(bearingRad);
+    const lon = cluster.lon + (distKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) * Math.sin(bearingRad);
     coords.push([lon, lat]);
   }
 
@@ -241,15 +231,36 @@ function projectedPath(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
 /**
  * ETA label at the cluster centroid for approaching storms.
  */
-function etaLabelPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point> | null {
-  if (!cluster.approaching || cluster.etaMinutes === null) return null;
+/** Build rich info label for EVERY cluster (on-map, no drawer needed) */
+function clusterInfoPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point> {
+  const lines: string[] = [];
+
+  // Line 1: strike count
+  lines.push(`${cluster.strikeCount} rayos`);
+
+  // Line 2: speed + direction (if velocity known)
+  if (cluster.velocity) {
+    const dir = bearingToCardinal(cluster.velocity.bearingDeg);
+    lines.push(`→ ${cluster.velocity.speedKmh.toFixed(0)} km/h ${dir}`);
+  }
+
+  // Line 3: ETA (if approaching)
+  if (cluster.approaching && cluster.etaMinutes != null) {
+    lines.push(`ETA ~${cluster.etaMinutes} min`);
+  }
+
+  // Line 4: distance
+  lines.push(`${cluster.distanceToReservoir.toFixed(0)} km`);
 
   return {
     type: 'Feature',
-    geometry: { type: 'Point', coordinates: [cluster.centroidLon, cluster.centroidLat] },
+    geometry: { type: 'Point', coordinates: [cluster.lon, cluster.lat] },
     properties: {
-      label: `${cluster.etaMinutes}min`,
-      distance: `${cluster.distanceToReservoir.toFixed(0)}km`,
+      label: lines.join('\n'),
+      approaching: cluster.approaching ? 1 : 0,
+      hasVelocity: cluster.velocity ? 1 : 0,
+      etaMinutes: cluster.etaMinutes ?? -1,
+      distance: cluster.distanceToReservoir,
       speedKmh: cluster.velocity?.speedKmh ?? 0,
     },
   };
@@ -268,7 +279,7 @@ function etaLabelPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point> | 
  */
 export const StormClusterOverlay = memo(function StormClusterOverlay() {
   const clusters = useLightningStore((s) => s.clusters);
-  const strikes = useLightningStore((s) => s.strikes);
+  // strikes now carried as cluster.strikePositions (no separate store read needed)
   const showOverlay = useLightningStore((s) => s.showOverlay);
   const alertLevel = useLightningStore((s) => s.stormAlert.level);
   const clusterHistory = useLightningStore((s) => s.clusterHistory);
@@ -311,7 +322,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
 
     for (const cluster of clusters) {
       // Try convex hull from actual strike positions (organic shape)
-      const hullShape = clusterShape(cluster, strikes, 8); // 8km buffer for haze
+      const hullShape = clusterShape(cluster, 8); // 8km buffer for haze
       if (hullShape) {
         hullShape.properties = {
           ...hullShape.properties,
@@ -321,7 +332,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       }
 
       // Inner core — tighter hull (3km buffer)
-      const coreShape = clusterShape(cluster, strikes, 3);
+      const coreShape = clusterShape(cluster, 3);
       if (coreShape) {
         coreShape.properties = {
           ...coreShape.properties,
@@ -332,7 +343,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       } else {
         // Fallback to circle if not enough strikes for hull
         const coreRadius = Math.min(Math.max(cluster.radiusKm, 4), 25);
-        const core = circlePolygon(cluster.centroidLon, cluster.centroidLat, coreRadius);
+        const core = circlePolygon(cluster.lon, cluster.lat, coreRadius);
         core.properties = {
           type: 'core',
           approaching: cluster.approaching ? 1 : 0,
@@ -345,7 +356,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     }
 
     return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters, strikes]);
+  }, [showOverlay, clusters]);
 
   // ── Cluster centroids (pulsing dots) ─────────────────────────
   const clusterCentroids = useMemo<GeoJSON.FeatureCollection>(() => {
@@ -401,14 +412,10 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     return { type: 'FeatureCollection', features };
   }, [showOverlay, clusters]);
 
-  // ── ETA labels (approaching clusters) ───────────────────
+  // ── Cluster info labels (ALL clusters — on-map, no drawer needed) ──
   const etaLabels = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-    const features: GeoJSON.Feature[] = [];
-    for (const c of clusters) {
-      const label = etaLabelPoint(c);
-      if (label) features.push(label);
-    }
+    const features: GeoJSON.Feature[] = clusters.map((c) => clusterInfoPoint(c));
     return { type: 'FeatureCollection', features };
   }, [showOverlay, clusters]);
 
@@ -726,38 +733,28 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         />
       </Source>
 
-      {/* ── ETA countdown labels ───────────────────────────── */}
+      {/* ── Cluster info labels (on-map, always visible) ──── */}
       <Source id="storm-eta-labels" type="geojson" data={etaLabels}>
         <Layer
-          id="storm-eta-text"
+          id="storm-info-text"
           type="symbol"
           layout={{
-            'text-field': ['concat', '⚡ ', ['get', 'label']],
+            'text-field': ['get', 'label'],
             'text-font': ['Noto Sans Bold'],
-            'text-size': 13,
+            'text-size': 12,
             'text-offset': [0, -2.5],
             'text-allow-overlap': true,
+            'text-anchor': 'bottom',
+            'text-line-height': 1.3,
           }}
           paint={{
-            'text-color': '#fbbf24',
-            'text-halo-color': 'rgba(0, 0, 0, 0.85)',
+            'text-color': [
+              'case',
+              ['==', ['get', 'approaching'], 1], '#fbbf24',
+              '#c084fc',
+            ],
+            'text-halo-color': 'rgba(0, 0, 0, 0.9)',
             'text-halo-width': 2,
-          }}
-        />
-        <Layer
-          id="storm-distance-text"
-          type="symbol"
-          layout={{
-            'text-field': ['get', 'distance'],
-            'text-font': ['Noto Sans Regular'],
-            'text-size': 10,
-            'text-offset': [0, -1.2],
-            'text-allow-overlap': true,
-          }}
-          paint={{
-            'text-color': '#94a3b8',
-            'text-halo-color': 'rgba(0, 0, 0, 0.8)',
-            'text-halo-width': 1.5,
           }}
         />
       </Source>
