@@ -26,9 +26,12 @@ export const LightningOverlay = memo(function LightningOverlay() {
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || strikes.length === 0) return EMPTY_FC;
 
+    // Filter out strikes > 6h old — they just clutter the map
+    const visible = strikes.filter((s) => s.ageMinutes < 360);
+
     return {
       type: 'FeatureCollection',
-      features: strikes.map((strike) => ({
+      features: visible.map((strike) => ({
         type: 'Feature' as const,
         geometry: {
           type: 'Point' as const,
@@ -40,15 +43,13 @@ export const LightningOverlay = memo(function LightningOverlay() {
           peakCurrent: Math.abs(strike.peakCurrent),
           cloudToCloud: strike.cloudToCloud ? 1 : 0,
           multiplicity: strike.multiplicity,
-          // Age bucket for styling: 0=fresh, 1=recent, 2=old, 3=ancient
+          // Age bucket for styling: 0=fresh (<15m), 1=recent (15-60m), 2=old (1-6h)
           ageBucket:
             strike.ageMinutes < 15
               ? 0
               : strike.ageMinutes < 60
                 ? 1
-                : strike.ageMinutes < 360
-                  ? 2
-                  : 3,
+                : 2,
         },
       })),
     };
@@ -115,7 +116,7 @@ export const LightningOverlay = memo(function LightningOverlay() {
           ],
           'circle-opacity': [
             '*',
-            ['match', ['get', 'ageBucket'], 0, 1, 1, 0.85, 2, 0.6, 0.3],
+            ['match', ['get', 'ageBucket'], 0, 1, 1, 0.85, 2, 0.4, 0.2],
             // Reduce opacity for intra-cloud strikes
             ['match', ['get', 'cloudToCloud'], 1, 0.6, 1],
           ],
