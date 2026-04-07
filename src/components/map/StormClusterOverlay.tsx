@@ -221,8 +221,8 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     const features: GeoJSON.Feature[] = [];
 
     for (const cluster of clusters) {
-      // Outer haze: cluster radius + extra padding for visual drama
-      const hazeRadius = Math.max(cluster.radiusKm + 8, 12);
+      // Outer haze: cluster radius + padding, capped at 35km to avoid covering entire map
+      const hazeRadius = Math.min(Math.max(cluster.radiusKm + 5, 10), 35);
       const haze = circlePolygon(cluster.centroidLon, cluster.centroidLat, hazeRadius);
       haze.properties = {
         type: 'haze',
@@ -232,8 +232,8 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       };
       features.push(haze);
 
-      // Inner core: cluster radius
-      const coreRadius = Math.max(cluster.radiusKm, 4);
+      // Inner core: cluster radius, capped at 25km
+      const coreRadius = Math.min(Math.max(cluster.radiusKm, 4), 25);
       const core = circlePolygon(cluster.centroidLon, cluster.centroidLat, coreRadius);
       core.properties = {
         type: 'core',
