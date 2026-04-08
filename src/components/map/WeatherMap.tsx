@@ -16,18 +16,18 @@ import { WindFieldOverlay, registerWindArrowIcons } from './WindFieldOverlay';
 const ThermalZoneOverlay = lazy(() => import('./ThermalZoneOverlay').then(m => ({ default: m.ThermalZoneOverlay })));
 import { ThermalAlertMarkers } from './ThermalAlertMarker';
 import { PropagationArrows } from './PropagationArrow';
-import { LightningOverlay } from './LightningOverlay';
-import { StormClusterOverlay } from './StormClusterOverlay';
-import { StormIndicator } from './StormIndicator';
+// Heavy overlays: lazy-loaded (toggle/condition-gated, not needed at first paint)
+const LightningOverlay = lazy(() => import('./LightningOverlay').then(m => ({ default: m.LightningOverlay })));
+const StormClusterOverlay = lazy(() => import('./StormClusterOverlay').then(m => ({ default: m.StormClusterOverlay })));
+const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
+const AlertPanel = lazy(() => import('./AlertPanel').then(m => ({ default: m.AlertPanel })));
+const WindParticleOverlay = lazy(() => import('./WindParticleOverlay').then(m => ({ default: m.WindParticleOverlay })));
+const HumidityHeatmapOverlay = lazy(() => import('./HumidityHeatmapOverlay').then(m => ({ default: m.HumidityHeatmapOverlay })));
+const RadarOverlay = lazy(() => import('./RadarOverlay').then(m => ({ default: m.RadarOverlay })));
+const CurrentsOverlay = lazy(() => import('./CurrentsOverlay').then(m => ({ default: m.CurrentsOverlay })));
+const AirspaceOverlay = lazy(() => import('./AirspaceOverlay').then(m => ({ default: m.AirspaceOverlay })));
 import { TemperatureOverlay } from './TemperatureOverlay';
 import { TemperatureToggle } from './TemperatureToggle';
-import { AlertPanel } from './AlertPanel';
-import { WindParticleOverlay } from './WindParticleOverlay';
-import { HumidityHeatmapOverlay } from './HumidityHeatmapOverlay';
-// SatelliteOverlay removed — EUMETSAT non-commercial license incompatible
-import { RadarOverlay } from './RadarOverlay';
-const CurrentsOverlay = lazy(() => import('./CurrentsOverlay').then(m => ({ default: m.CurrentsOverlay })));
-import { AirspaceOverlay } from './AirspaceOverlay';
 const BathymetryOverlay = lazy(() => import('./BathymetryOverlay').then(m => ({ default: m.BathymetryOverlay })));
 const SSTOverlay = lazy(() => import('./SSTOverlay').then(m => ({ default: m.SSTOverlay })));
 import { SSTLegend } from './SSTLegend';
@@ -41,14 +41,14 @@ import { MapContextMenu } from './MapContextMenu';
 import { BuoySymbolLayer, registerBuoyIcon } from './BuoySymbolLayer';
 import { BuoyPopup } from './BuoyPopup';
 import { SpotMarkers } from './SpotMarker';
-import { SpotPopup } from './SpotPopup';
+const SpotPopup = lazy(() => import('./SpotPopup').then(m => ({ default: m.SpotPopup })));
 const SeamarksOverlay = lazy(() => import('./SeamarksOverlay').then(m => ({ default: m.SeamarksOverlay })));
 const NauticalChartOverlay = lazy(() => import('./NauticalChartOverlay').then(m => ({ default: m.NauticalChartOverlay })));
 import { IGNHillshadeOverlay } from './IGNHillshadeOverlay';
 import { IGNContoursOverlay } from './IGNContoursOverlay';
 import { IGNOrthoOverlay } from './IGNOrthoOverlay';
 import { DistanceTool } from './DistanceTool';
-import { AviationOverlay } from './AviationOverlay';
+const AviationOverlay = lazy(() => import('./AviationOverlay').then(m => ({ default: m.AviationOverlay })));
 import { RegattaOverlay } from './RegattaOverlay';
 const RegattaPanel = lazy(() => import('./RegattaPanel').then(m => ({ default: m.RegattaPanel })));
 import { useRegattaStore } from '../../store/regattaStore';
@@ -420,24 +420,22 @@ export function WeatherMap() {
             Users activate manual Radar layer when needed. */}
 
         {/* Storm cluster masses + radius rings (below strikes) */}
-        <StormClusterOverlay />
+        <Suspense fallback={null}><StormClusterOverlay /></Suspense>
 
         {/* Lightning strikes overlay */}
-        <LightningOverlay />
-
-        {/* EUMETSAT satellite removed — non-commercial license incompatible */}
+        <Suspense fallback={null}><LightningOverlay /></Suspense>
 
         {/* AEMET Radar nacional — includes Cerceda/A Coruña */}
-        <RadarOverlay />
+        <Suspense fallback={null}><RadarOverlay /></Suspense>
 
         {/* RADAR ON RAIA — HF radar surface currents (Rías Baixas only) */}
         <Suspense fallback={null}><CurrentsOverlay /></Suspense>
 
         {/* ENAIRE airspace zones + NOTAMs — only visible when Dron tab is active */}
-        <AirspaceOverlay />
+        <Suspense fallback={null}><AirspaceOverlay /></Suspense>
 
         {/* Aviation aircraft monitoring — Embalse always, Rías during events */}
-        {(activeSector.id === 'embalse' || regattaActive) && <AviationOverlay />}
+        {(activeSector.id === 'embalse' || regattaActive) && <Suspense fallback={null}><AviationOverlay /></Suspense>}
 
         {/* Regatta/Event mode — zone + buoy markers */}
         <RegattaOverlay />
@@ -462,7 +460,7 @@ export function WeatherMap() {
 
         {/* Selected spot popup */}
         {showSpotPopup && activeSpot && Number.isFinite(activeSpot.center?.[0]) && (
-          <SpotPopup spot={activeSpot} score={spotScores.get(activeSpotId)} />
+          <Suspense fallback={null}><SpotPopup spot={activeSpot} score={spotScores.get(activeSpotId)} /></Suspense>
         )}
 
         {/* Distance measurement tool — line + markers rendered inside Map */}
@@ -470,8 +468,8 @@ export function WeatherMap() {
       </Map>
 
       {/* Canvas overlays on top of map (need project/unproject) */}
-      <WindParticleOverlay mapRef={mapRef} />
-      <HumidityHeatmapOverlay mapRef={mapRef} />
+      <Suspense fallback={null}><WindParticleOverlay mapRef={mapRef} /></Suspense>
+      <Suspense fallback={null}><HumidityHeatmapOverlay mapRef={mapRef} /></Suspense>
 
       {/* Right-click context menu */}
       <MapContextMenu mapRef={mapRef} />
@@ -497,10 +495,10 @@ export function WeatherMap() {
         <div className="fixed z-40 left-0 right-0 px-2 flex flex-col items-center gap-2 pointer-events-none"
           style={{ bottom: isMobile ? 'calc(52px + env(safe-area-inset-bottom, 0px))' : '0.75rem', paddingBottom: isMobile ? undefined : 'env(safe-area-inset-bottom, 0px)' }}>
           <div className="pointer-events-auto w-full flex justify-center">
-            <AlertPanel />
+            <Suspense fallback={null}><AlertPanel /></Suspense>
           </div>
           <div className="flex items-center justify-center gap-1.5 max-w-full overflow-x-auto scrollbar-none pointer-events-auto">
-            <StormIndicator />
+            <Suspense fallback={null}><StormIndicator /></Suspense>
             <TemperatureToggle />
             <WeatherLayerSelector />
             <button
@@ -518,7 +516,7 @@ export function WeatherMap() {
         <div className="absolute z-30 bottom-2 left-2 right-2 flex items-end gap-3">
           {/* Toolbar: shrinks to fit, never overlapped */}
           <div className="flex items-end gap-2 shrink-0">
-            <StormIndicator />
+            <Suspense fallback={null}><StormIndicator /></Suspense>
             <TemperatureToggle />
             <WeatherLayerSelector />
             <button
@@ -534,7 +532,7 @@ export function WeatherMap() {
           {/* Alerts: fills remaining width, centered within its space */}
           <div className="flex-1 min-w-0 flex justify-center">
             <div className="max-w-2xl w-full">
-              <AlertPanel />
+              <Suspense fallback={null}><AlertPanel /></Suspense>
             </div>
           </div>
         </div>

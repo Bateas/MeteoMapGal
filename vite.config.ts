@@ -12,6 +12,13 @@ export default defineConfig(({ mode }) => ({
   build: {
     target: 'esnext',
     sourcemap: false,
+    // Filter modulepreload: only preload chunks needed for first paint.
+    // Vite adds preloads for ALL transitive deps including lazy chunks like
+    // recharts (412KB) and shared service chunks (240KB) — wastes bandwidth.
+    modulePreload: {
+      resolveDependencies: (_filename, deps) =>
+        deps.filter(d => !d.includes('recharts') && !d.includes('windTrend') && !d.includes('date-fns') && !d.includes('aemetDaily')),
+    },
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
