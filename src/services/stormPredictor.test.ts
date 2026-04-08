@@ -24,6 +24,8 @@ function makeForecast(overrides: Partial<HourlyForecast> = {}): HourlyForecast {
     cin: 0,
     boundaryLayerHeight: 1000,
     visibility: 15000,
+    snowLevel: null,
+    skyState: null,
     isDay: true,
     ...overrides,
   };

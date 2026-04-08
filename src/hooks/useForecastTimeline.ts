@@ -6,6 +6,7 @@ import { MAP_CENTER } from '../config/constants';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { useSectorStore } from '../store/sectorStore';
 import { openMeteoFetch } from '../api/openMeteoQueue';
+import { fetchMeteoSixForecast } from '../api/meteoSixClient';
 
 /** Sector-specific forecast coordinates */
 const SECTOR_COORDS: Record<string, [number, number]> = {
@@ -93,7 +94,8 @@ async function fetchFromOwnAPI(sectorId: string): Promise<HourlyForecast[] | nul
         cloudCover: number | null; precipitation: number | null; precipProbability: number | null;
         pressure: number | null; solarRadiation: number | null; cape: number | null;
         liftedIndex?: number | null; cin?: number | null;
-        boundaryLayerHeight: number | null; visibility: number | null; isDay: boolean;
+        boundaryLayerHeight: number | null; visibility: number | null;
+        snowLevel?: number | null; skyState?: string | null; isDay: boolean;
       }>;
     };
 
@@ -116,6 +118,8 @@ async function fetchFromOwnAPI(sectorId: string): Promise<HourlyForecast[] | nul
       cin: h.cin ?? null,
       boundaryLayerHeight: h.boundaryLayerHeight ?? null,
       visibility: h.visibility ?? null,
+      snowLevel: h.snowLevel ?? null,
+      skyState: h.skyState ?? null,
       isDay: h.isDay ?? false,
     }));
   } catch {
@@ -170,6 +174,8 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
       cin: h.convective_inhibition?.[i] ?? null,
       boundaryLayerHeight: h.boundary_layer_height[i],
       visibility: h.visibility[i],
+      snowLevel: null,
+      skyState: null,
       isDay: h.is_day[i] === 1,
     });
   }
@@ -178,6 +184,11 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
 }
 
 async function fetchForecastTimeline(model: ForecastModel = 'best_match', lat = 42.29, lon = -8.1, sectorId = 'embalse'): Promise<HourlyForecast[]> {
+  // MeteoSIX WRF: use MeteoGalicia v5 API directly
+  if (model === 'meteosix_wrf') {
+    return fetchMeteoSixForecast(lat, lon);
+  }
+
   // For Auto (best_match): try our API first (avoids Open-Meteo rate limits)
   if (model === 'best_match') {
     const ownData = await fetchFromOwnAPI(sectorId);

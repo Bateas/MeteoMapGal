@@ -10,13 +10,14 @@ import { useSectorStore } from '../store/sectorStore';
 import { useSpotStore } from '../store/spotStore';
 import { getSpotsForSector } from '../config/spots';
 import { fetchMarineForecast, type MarineForecastHour } from '../api/marineClient';
+import { fetchMeteoSixMarine } from '../api/meteoSixClient';
 import { swellAlignmentMultiplier } from '../components/spot/surfVerdictEngine';
 
 const INTERVAL = 15 * 60_000; // 15 min
 
-/** Try ingestor API first, fallback to Open-Meteo Marine direct */
+/** Fallback chain: ingestor API → MeteoSIX USWAN (1km nearshore) → Open-Meteo Marine */
 async function fetchMarineForSpot(spotId: string, lat: number, lon: number): Promise<MarineForecastHour[]> {
-  // Try own API first (cached by ingestor, no rate limits)
+  // 1. Try own API first (cached by ingestor, no rate limits)
   try {
     const res = await fetch(`/api/v1/marine?spot=${spotId}`, { signal: AbortSignal.timeout(5000) });
     if (res.ok) {
@@ -35,7 +36,13 @@ async function fetchMarineForSpot(spotId: string, lat: number, lon: number): Pro
     }
   } catch { /* API unavailable — fall through */ }
 
-  // Fallback: Open-Meteo Marine direct
+  // 2. Try MeteoSIX USWAN (nearshore, better resolution for Galician coast)
+  try {
+    const uswan = await fetchMeteoSixMarine(lat, lon);
+    if (uswan.length > 0) return uswan;
+  } catch { /* MeteoSIX unavailable or no key — fall through */ }
+
+  // 3. Fallback: Open-Meteo Marine direct
   return fetchMarineForecast(lat, lon);
 }
 
