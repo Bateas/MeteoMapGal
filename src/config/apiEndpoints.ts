@@ -36,18 +36,19 @@ const METEOSIX_KEY = import.meta.env.VITE_METEOSIX_API_KEY;
 
 export const METEOSIX = {
   /** Numeric forecast — models & grids must repeat per variable (API requirement) */
+  /** Uses existing /meteogalicia-api/ proxy + /apiv5/ path (avoids new nginx route) */
   forecast: (lon: number, lat: number, variables: string, grid = '1km', model = 'WRF') => {
     const count = variables.split(',').length;
     const models = Array(count).fill(model).join(',');
     const grids = Array(count).fill(grid).join(',');
-    return `/meteosix-api/getNumericForecastInfo?coords=${lon},${lat}&variables=${variables}&models=${models}&grids=${grids}&lang=es&format=application/json&API_KEY=${METEOSIX_KEY}`;
+    return `/meteogalicia-api/apiv5/getNumericForecastInfo?coords=${lon},${lat}&variables=${variables}&models=${models}&grids=${grids}&lang=es&format=application/json&API_KEY=${METEOSIX_KEY}`;
   },
   /** Tide predictions */
   tides: (lon: number, lat: number) =>
-    `/meteosix-api/getTidesInfo?coords=${lon},${lat}&lang=es&format=application/json&API_KEY=${METEOSIX_KEY}`,
+    `/meteogalicia-api/apiv5/getTidesInfo?coords=${lon},${lat}&lang=es&format=application/json&API_KEY=${METEOSIX_KEY}`,
   /** Sunrise/sunset */
   solar: (lon: number, lat: number) =>
-    `/meteosix-api/getSolarInfo?coords=${lon},${lat}&format=application/json&API_KEY=${METEOSIX_KEY}`,
+    `/meteogalicia-api/apiv5/getSolarInfo?coords=${lon},${lat}&format=application/json&API_KEY=${METEOSIX_KEY}`,
 } as const;
 
 export const METEOGALICIA = {
