@@ -946,7 +946,19 @@ export function ForecastTimeline({ expanded = false }: { expanded?: boolean } = 
           {/* Direction consistency */}
           {diagnosis && diagnosis.directionConsistency > 0 && (
             <span className={diagnosis.directionConsistency >= 70 ? 'text-green-400' : diagnosis.directionConsistency >= 40 ? 'text-yellow-400' : 'text-red-400'}>
-              Dir {diagnosis.directionConsistency}%
+              Dir {diagnosis.directionConsistency >= 70 ? 'estable' : diagnosis.directionConsistency >= 40 ? 'variable' : 'caotico'}
+            </span>
+          )}
+          {/* CAPE — human-readable */}
+          {diagnosis && diagnosis.maxCape !== null && diagnosis.maxCape >= 100 && (
+            <span className={diagnosis.maxCape >= 500 ? 'text-orange-400' : 'text-slate-400'}>
+              {diagnosis.maxCape >= 1000 ? 'Tormentas probables' : diagnosis.maxCape >= 500 ? 'Conveccion activa' : 'Conveccion leve'}
+            </span>
+          )}
+          {/* Pattern match score */}
+          {diagnosis && diagnosis.patternScore >= 35 && (
+            <span className={diagnosis.patternScore >= 60 ? 'text-green-400' : 'text-amber-400'}>
+              Patron {diagnosis.patternScore}%
             </span>
           )}
         </div>
