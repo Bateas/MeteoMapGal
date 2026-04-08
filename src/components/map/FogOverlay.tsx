@@ -84,7 +84,7 @@ function FogOverlayInner() {
   const [fogGeoJSON, setFogGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
 
   // Detect fog from unified alert system (category='fog' or 'niebla')
-  const alerts = useAlertStore((s) => s.unifiedAlerts);
+  const alerts = useAlertStore((s) => s.unifiedAlerts) ?? [];
   const fogAlert = alerts.find(a =>
     a.category === 'fog' || a.title?.toLowerCase().includes('niebla') || a.title?.toLowerCase().includes('rocío')
   );
