@@ -98,6 +98,13 @@
   --color-slate-200: #e2e8f0;
   --color-slate-100: #f1f5f9;
   --color-slate-50: #f8fafc;
+
+  /* Surface vars must also stay dark (popups, overlays on map) */
+  --color-surface-card: #1e293b;
+  --color-surface-elevated: #334155;
+  --color-surface-overlay: rgba(15, 23, 42, 0.8);
+  --color-tooltip-bg: #1e293b;
+  --color-tooltip-border: #334155;
 }
 
 * {
