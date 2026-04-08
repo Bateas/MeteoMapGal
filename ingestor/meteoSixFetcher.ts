@@ -222,3 +222,69 @@ export async function getWrfForecast(sector: 'embalse' | 'rias'): Promise<Hourly
 export function isMeteoSixConfigured(): boolean {
   return METEOSIX_KEY.length > 0;
 }
+
+// ── USWAN nearshore wave forecast ──
+
+const MARINE_VARIABLES = 'significative_wave_height,mean_wave_direction,relative_peak_period';
+
+export interface UswanHour {
+  time: Date;
+  waveHeight: number | null;
+  wavePeriod: number | null;
+  waveDirection: number | null;
+}
+
+function buildMarineUrl(lon: number, lat: number): string {
+  const count = MARINE_VARIABLES.split(',').length;
+  const models = Array(count).fill('USWAN').join(',');
+  const grids = Array(count).fill('Galicia').join(',');
+  return `${BASE_URL}/getNumericForecastInfo?coords=${lon},${lat}&variables=${MARINE_VARIABLES}&models=${models}&grids=${grids}&lang=es&format=application/json&API_KEY=${METEOSIX_KEY}`;
+}
+
+const marineWrfCache = new Map<string, { data: UswanHour[]; fetchedAt: number }>();
+
+/**
+ * Fetch USWAN nearshore wave forecast for a spot.
+ * Better resolution than Open-Meteo Marine for Galician coast.
+ */
+export async function getUswanForecast(spotId: string, lat: number, lon: number): Promise<UswanHour[]> {
+  if (!METEOSIX_KEY) return [];
+
+  const now = Date.now();
+  const cached = marineWrfCache.get(spotId);
+  if (cached && (now - cached.fetchedAt) < CACHE_TTL_MS) return cached.data;
+
+  try {
+    const url = buildMarineUrl(lon, lat);
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) throw new Error(`USWAN ${res.status}`);
+
+    const data: MeteoSIXResponse = await res.json();
+    if (!data.features?.length) return [];
+
+    const timeMap = parseFeatureToTimeMap(data.features[0]);
+    const result: UswanHour[] = [];
+
+    for (const timeStr of [...timeMap.keys()].sort()) {
+      const rec = timeMap.get(timeStr)!;
+      const time = new Date(fixTimeOffset(timeStr));
+      if (isNaN(time.getTime())) continue;
+
+      result.push({
+        time,
+        waveHeight: parseNum(rec['significative_wave_height']),
+        wavePeriod: parseNum(rec['relative_peak_period']),
+        waveDirection: parseNum(rec['mean_wave_direction']),
+      });
+    }
+
+    if (result.length > 0) {
+      marineWrfCache.set(spotId, { data: result, fetchedAt: now });
+      log.info(`USWAN ${spotId}: ${result.length} hours fetched`);
+    }
+    return result;
+  } catch (err) {
+    log.warn(`USWAN ${spotId} failed: ${(err as Error).message}`);
+    return cached?.data ?? [];
+  }
+}
