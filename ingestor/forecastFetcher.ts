@@ -7,7 +7,7 @@
  */
 
 import { log } from './logger.js';
-import { getWrfForecast, isMeteoSixConfigured } from './meteoSixFetcher.js';
+import { getWrfForecast, getUswanForecast, isMeteoSixConfigured } from './meteoSixFetcher.js';
 import type { HourlyForecast } from '../src/types/forecast.js';
 
 export type { HourlyForecast };
@@ -243,7 +243,10 @@ async function fetchMarine(lat: number, lon: number): Promise<MarineForecastHour
 }
 
 /**
- * Get marine forecast for a surf spot. Uses 30min cache.
+ * Get marine forecast for a surf spot.
+ * Tries USWAN (MeteoSIX) first → better nearshore resolution for Galicia.
+ * Falls back to Open-Meteo Marine (global model, less accurate).
+ * Uses 30min cache.
  */
 export async function getMarineForecast(spotId: string): Promise<MarineForecastHour[]> {
   const now = Date.now();
@@ -253,10 +256,34 @@ export async function getMarineForecast(spotId: string): Promise<MarineForecastH
   const coords = SURF_COORDS.find(c => c.id === spotId);
   if (!coords) return [];
 
+  // Try USWAN first (nearshore, MeteoSIX)
+  if (isMeteoSixConfigured()) {
+    try {
+      const uswan = await getUswanForecast(spotId, coords.lat, coords.lon);
+      if (uswan.length > 0) {
+        // Map USWAN to MarineForecastHour (missing swell separation)
+        const data: MarineForecastHour[] = uswan.map(h => ({
+          time: h.time,
+          waveHeight: h.waveHeight,
+          wavePeriod: h.wavePeriod,
+          waveDirection: h.waveDirection,
+          swellHeight: null, // USWAN doesn't separate swell
+          swellPeriod: null,
+        }));
+        marineCache.set(spotId, { data, fetchedAt: now });
+        log.info(`Marine ${spotId}: USWAN primary, ${data.length} hours`);
+        return data;
+      }
+    } catch (err) {
+      log.warn(`USWAN ${spotId} failed, trying Open-Meteo: ${(err as Error).message}`);
+    }
+  }
+
+  // Fallback: Open-Meteo Marine (global model)
   try {
     const data = await fetchMarine(coords.lat, coords.lon);
     marineCache.set(spotId, { data, fetchedAt: now });
-    log.info(`Marine forecast ${spotId}: ${data.length} hours`);
+    log.info(`Marine ${spotId}: Open-Meteo fallback, ${data.length} hours`);
     return data;
   } catch (err) {
     log.warn(`Marine ${spotId} failed: ${(err as Error).message}`);
