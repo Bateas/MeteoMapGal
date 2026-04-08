@@ -284,7 +284,8 @@ export function AppShell() {
   }, [pruneHistory, pruneAlertHistory]);
 
   // Campo (agricultural alerts) drawer — state in uiStore
-  const forecastHourly = useForecastStore((s) => s.hourly);
+  // Use convectionData for alerts (has CAPE/CIN/gusts from Open-Meteo), fallback to hourly
+  const forecastHourly = useForecastStore((s) => s.convectionData.length > 0 ? s.convectionData : s.hourly);
   const readingHistory = useWeatherStore((s) => s.readingHistory);
   const historyEpoch = useWeatherStore((s) => s.historyEpoch);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
