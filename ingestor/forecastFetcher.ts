@@ -7,6 +7,7 @@
  */
 
 import { log } from './logger.js';
+import { getWrfForecast, isMeteoSixConfigured } from './meteoSixFetcher.js';
 import type { HourlyForecast } from '../src/types/forecast.js';
 
 export type { HourlyForecast };
@@ -102,7 +103,9 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
 // ── Public API ──────────────────────────────────────
 
 /**
- * Get forecast for a sector. Uses 30min cache.
+ * Get forecast for a sector. Tries MeteoSIX WRF 1km first (more accurate
+ * for Galicia), falls back to Open-Meteo. Merges CAPE/CIN/visibility/solar
+ * from Open-Meteo into WRF data (WRF doesn't provide these).
  */
 export async function getForecast(sector: 'embalse' | 'rias'): Promise<HourlyForecast[]> {
   const now = Date.now();
@@ -115,16 +118,54 @@ export async function getForecast(sector: 'embalse' | 'rias'): Promise<HourlyFor
   const coords = FORECAST_COORDS.find(c => c.sector === sector);
   if (!coords) return [];
 
-  try {
-    const data = await fetchForecast(coords.lat, coords.lon);
-    cache.set(sector, { data, fetchedAt: now });
-    log.info(`Forecast ${sector}: ${data.length} hours fetched`);
-    return data;
-  } catch (err) {
-    log.warn(`Forecast ${sector} failed: ${(err as Error).message}`);
-    // Return stale cache if available
-    return cached?.data ?? [];
+  let data: HourlyForecast[] = [];
+
+  // Try MeteoSIX WRF 1km first (primary — 1km resolution, best for Galicia)
+  if (isMeteoSixConfigured()) {
+    try {
+      data = await getWrfForecast(sector);
+    } catch (err) {
+      log.warn(`WRF primary failed for ${sector}: ${(err as Error).message}`);
+    }
   }
+
+  // Always fetch Open-Meteo for CAPE/CIN/solar/visibility/gusts (WRF lacks these)
+  try {
+    const omData = await fetchForecast(coords.lat, coords.lon);
+
+    if (data.length > 0 && omData.length > 0) {
+      // Merge convection data from Open-Meteo into WRF forecast
+      const omMap = new Map(omData.map(h => [h.time.getTime(), h]));
+      for (const h of data) {
+        const om = omMap.get(h.time.getTime());
+        if (om) {
+          h.cape = om.cape;
+          h.cin = om.cin;
+          h.liftedIndex = om.liftedIndex;
+          h.solarRadiation = om.solarRadiation;
+          h.visibility = om.visibility;
+          h.windGusts = om.windGusts;
+          h.boundaryLayerHeight = om.boundaryLayerHeight;
+          h.precipProbability = om.precipProbability;
+        }
+      }
+      log.info(`Forecast ${sector}: WRF primary + Open-Meteo convection merged`);
+    } else if (data.length === 0) {
+      // WRF failed or not configured — use Open-Meteo as fallback
+      data = omData;
+      log.info(`Forecast ${sector}: Open-Meteo fallback, ${data.length} hours`);
+    }
+  } catch (err) {
+    log.warn(`Open-Meteo fallback for ${sector} failed: ${(err as Error).message}`);
+    // If both failed, return stale cache
+    if (data.length === 0) return cached?.data ?? [];
+  }
+
+  if (data.length > 0) {
+    cache.set(sector, { data, fetchedAt: now });
+  }
+
+  return data;
 }
 
 /**
