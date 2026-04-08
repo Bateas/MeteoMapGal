@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -10,11 +10,9 @@ import { LoadingScreen } from '../common/LoadingScreen';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
-import { useThermalAnalysis } from '../../hooks/useThermalAnalysis';
-import { useLightningData, useLightningStore } from '../../hooks/useLightningData';
-import { useStormShadow, useStormShadowStore } from '../../hooks/useStormShadow';
+import { useLightningStore } from '../../hooks/useLightningData';
+import { useStormShadowStore } from '../../hooks/useStormShadow';
 import { useForecastTimeline, useForecastStore } from '../../hooks/useForecastTimeline';
-import { useWarnings } from '../../hooks/useWarnings';
 import { logPredictionSnapshot } from '../../services/stormPredictionLogger';
 import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
@@ -47,13 +45,10 @@ import { useSectorStore } from '../../store/sectorStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
 import { useToastStore } from '../../store/toastStore';
-import { useAirspace } from '../../hooks/useAirspace';
-import { useBuoyData } from '../../hooks/useBuoyData';
-import { useSpotScoring } from '../../hooks/useSpotScoring';
-import { useSailingWindows } from '../../hooks/useSailingWindows';
-import { useWebcamVision } from '../../hooks/useWebcamVision';
+import { useAirspaceStore } from '../../store/airspaceStore';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
-import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
+import type { TeleconnectionIndex } from '../../api/naoClient';
+const DeferredHooks = lazy(() => import('./DeferredHooks').then(m => ({ default: m.DeferredHooks })));
 
 /** Collapsed sidebar: vertical icon strip with tab shortcuts — sector-aware */
 function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
@@ -192,46 +187,22 @@ export function AppShell() {
     if (isMobile && !ui.sidebarOpen) ui.setSidebarOpen(true);
   }, [requestedTab, isMobile]);
 
-  // Thermal wind analysis: scores rules, detects propagation, fetches forecast
-  useThermalAnalysis();
-
-  // Lightning detection: polls every 2 min, computes storm proximity alerts
-  useLightningData();
-
-  // Storm shadow detection: cross-references solar radiation drops + lightning
-  useStormShadow();
-
-  // Hourly forecast timeline: 48h Open-Meteo for reservoir, polls every 30 min
+  // ── Critical hooks (needed for first render) ───────────
+  // Hourly forecast timeline: 48h WRF-MG + Open-Meteo background, polls every 30 min
   useForecastTimeline();
 
-  // MeteoGalicia adverse weather warnings: polls every 15 min
-  useWarnings();
-
-  // Airspace restrictions: ENAIRE UAS zones + NOTAMs (polls every 30 min)
-  const airspaceCheck = useAirspace();
-
-  // Marine buoy data: PORTUS + Observatorio Costeiro (10 min refresh, only active for Rías)
-  useBuoyData();
-
-  // Spot-based sailing scores: re-scores when station/buoy data changes (only for Rías)
-  useSpotScoring();
-
-  // Best Sailing Windows: 48h forecast → per-spot window detection (polls every 30 min)
-  useSailingWindows();
-
-  // Webcam Vision: Beaufort estimation via LLM (dev only, VITE_VISION_ENABLED=true)
-  useWebcamVision();
-
-  // NAO/AO teleconnection indices — deferred 15s to avoid startup congestion (also fetched in useSpotScoring with 6h cache)
-  const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
+  // ── Deferred hooks — mount after 3s to unblock first paint ──
+  const [deferredReady, setDeferredReady] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => {
-      fetchTeleconnections()
-        .then((data) => { teleconnectionsRef.current = data; })
-        .catch(() => { /* graceful degradation — alerts work without */ });
-    }, 15_000);
+    const t = setTimeout(() => setDeferredReady(true), 3000);
     return () => clearTimeout(t);
   }, []);
+
+  // Read airspaceCheck from store (populated by useAirspace inside DeferredHooks)
+  const airspaceCheck = useAirspaceStore((s) => s.check);
+
+  // NAO/AO teleconnection indices — ref shared with DeferredHooks
+  const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
 
   // ── Map reveal crossfade — smooth transition as loading screen fades out ──
   const readingsCount = useWeatherStore((s) => s.currentReadings.size);
@@ -305,13 +276,17 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, [activeSector.center]);
 
-  const fieldAlerts = useMemo(
-    () => (forecastHourly.length > 0 || readingHistory.size > 0
-      ? checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD)
-      : null),
+  // Debounced field alerts — 500ms delay avoids recomputing on every data tick
+  const [fieldAlerts, setFieldAlerts] = useState<ReturnType<typeof checkAllFieldAlerts> | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (forecastHourly.length > 0 || readingHistory.size > 0) {
+        setFieldAlerts(checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck ?? undefined, seasonGDD));
+      }
+    }, 500);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory changes
-    [forecastHourly, historyEpoch, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD],
-  );
+  }, [forecastHourly, historyEpoch, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD]);
   // ── Temperature gradient: compute lapse rate on every reading update ──
   const setThermalProfile = useTemperatureOverlayStore((s) => s.setThermalProfile);
   useEffect(() => {
@@ -336,42 +311,46 @@ export function AppShell() {
   const forecastRef = useRef(forecastHourly);
   forecastRef.current = forecastHourly;
 
+  // Debounced alert aggregation — 500ms delay avoids running 11 alert builders on every tick
   useEffect(() => {
-    // Station geo for maritime fog (nearby station lookup)
-    const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
-    // Check webcam vision for fog confirmation (any webcam with fogVisible in last 30min)
-    const visionResults = useWebcamStore.getState().visionResults;
-    let webcamFogDetected: boolean | undefined;
-    if (visionResults.size > 0) {
-      const now = Date.now();
-      webcamFogDetected = false; // we have data, assume no fog
-      for (const [, result] of visionResults) {
-        if (result.beaufort >= 0 && result.weather.fogVisible && (now - result.analyzedAt.getTime()) < 30 * 60_000) {
-          webcamFogDetected = true;
-          break;
+    const t = setTimeout(() => {
+      // Station geo for maritime fog (nearby station lookup)
+      const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
+      // Check webcam vision for fog confirmation (any webcam with fogVisible in last 30min)
+      const visionResults = useWebcamStore.getState().visionResults;
+      let webcamFogDetected: boolean | undefined;
+      if (visionResults.size > 0) {
+        const now = Date.now();
+        webcamFogDetected = false; // we have data, assume no fog
+        for (const [, result] of visionResults) {
+          if (result.beaufort >= 0 && result.weather.fogVisible && (now - result.analyzedAt.getTime()) < 30 * 60_000) {
+            webcamFogDetected = true;
+            break;
+          }
         }
       }
-    }
 
-    const { alerts, risk } = aggregateAllAlerts({
-      stormAlert,
-      thermalProfile,
-      zoneAlerts,
-      fieldAlerts,
-      forecast: forecastRef.current,
-      stormShadow,
-      currentReadings,
-      readingHistory,
-      // Maritime alerts (cross-sea, fog, upwelling) only apply to coastal Rías sector
-      buoys: activeSector.id === 'rias' && buoys.length > 0 ? buoys : undefined,
-      sstHistory: activeSector.id === 'rias' && sstHistory.size > 0 ? sstHistory : undefined,
-      stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
-      teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
-      webcamFogDetected,
-    });
-    setUnifiedAlerts(alerts, risk);
-    // Trigger notifications for new/escalated alerts
-    processAlertNotifications(alerts, risk, notifConfig);
+      const { alerts, risk } = aggregateAllAlerts({
+        stormAlert,
+        thermalProfile,
+        zoneAlerts,
+        fieldAlerts,
+        forecast: forecastRef.current,
+        stormShadow,
+        currentReadings,
+        readingHistory,
+        // Maritime alerts (cross-sea, fog, upwelling) only apply to coastal Rías sector
+        buoys: activeSector.id === 'rias' && buoys.length > 0 ? buoys : undefined,
+        sstHistory: activeSector.id === 'rias' && sstHistory.size > 0 ? sstHistory : undefined,
+        stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
+        teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
+        webcamFogDetected,
+      });
+      setUnifiedAlerts(alerts, risk);
+      // Trigger notifications for new/escalated alerts
+      processAlertNotifications(alerts, risk, notifConfig);
+    }, 500);
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory
   }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, historyEpoch, buoys, sstHistory, stations, activeSector.id]);
 
@@ -450,6 +429,9 @@ export function AppShell() {
           frontSpeedKt: fieldAlerts.wind.frontSpeedKt,
         } : null}
       />
+
+      {/* Deferred hooks — mount after 3s to unblock first paint (LCP) */}
+      {deferredReady && <DeferredHooks teleconnectionsRef={teleconnectionsRef} />}
 
       <ErrorBoundary section="Ticker"><ConditionsTicker /></ErrorBoundary>
       <SourceStatusBanner />
