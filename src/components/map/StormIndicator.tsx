@@ -38,12 +38,15 @@ export const StormIndicator = memo(function StormIndicator() {
     : `${prediction.probability}%`
     : 'RAYOS';
 
-  // Tooltip
+  // Tooltip — enhanced with legend when active
+  const legendSuffix = hasStorm
+    ? '\n\nLeyenda mapa:\n\u25cf Morado = cluster con rayos\n\u2192 Naranja = direccion movimiento\n\u25cb Glow rojo = acercandose\n--- Amarillo = anillo vigilancia 80km'
+    : '';
   const tooltip = hasStorm
-    ? `Actividad eléctrica (${{ danger: 'peligro', warning: 'aviso', watch: 'vigilancia' }[stormLevel] ?? stormLevel})${ageMin != null ? ` · dato hace ${ageMin}min` : ''}${prediction.probability > 0 ? ` · predicción ${prediction.probability}%` : ''}`
+    ? `Actividad electrica (${{ danger: 'peligro', warning: 'aviso', watch: 'vigilancia' }[stormLevel] ?? stormLevel})${ageMin != null ? ` · dato hace ${ageMin}min` : ''}${prediction.probability > 0 ? ` · prediccion ${prediction.probability}%` : ''}${legendSuffix}`
     : hasPrediction
-    ? `Predicción tormenta: ${prediction.probability}% · ${prediction.summary}`
-    : 'Sin actividad eléctrica';
+    ? `Prediccion tormenta: ${prediction.probability}% · ${prediction.summary}`
+    : 'Sin actividad electrica';
 
   return (
     <div
