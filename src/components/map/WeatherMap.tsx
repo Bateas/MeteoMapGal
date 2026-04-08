@@ -20,6 +20,7 @@ import { PropagationArrows } from './PropagationArrow';
 const LightningOverlay = lazy(() => import('./LightningOverlay').then(m => ({ default: m.LightningOverlay })));
 const StormClusterOverlay = lazy(() => import('./StormClusterOverlay').then(m => ({ default: m.StormClusterOverlay })));
 const FogOverlay = lazy(() => import('./FogOverlay').then(m => ({ default: m.FogOverlay })));
+// ThermalRisingOverlay REMOVED — wrong concept (vertical updrafts ≠ horizontal thermal wind for sailing)
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
 const AlertPanel = lazy(() => import('./AlertPanel').then(m => ({ default: m.AlertPanel })));
 const WindParticleOverlay = lazy(() => import('./WindParticleOverlay').then(m => ({ default: m.WindParticleOverlay })));
@@ -422,6 +423,8 @@ export function WeatherMap() {
 
         {/* Fog overlay — terrain-based valley fill when fog detected */}
         <Suspense fallback={null}><FogOverlay /></Suspense>
+
+        {/* Thermal wind visualization: TODO — horizontal SW flow at valley level, not vertical updrafts */}
 
         {/* Storm cluster masses + radius rings (below strikes) */}
         <Suspense fallback={null}><StormClusterOverlay /></Suspense>
