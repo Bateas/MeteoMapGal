@@ -336,9 +336,11 @@ export function analyzeFog(
   const notes: string[] = [];
 
   // Already foggy or about to be
+  // Cap at 'alto' — 'critico' (PELIGRO) requires webcam/visibility confirmation
+  // Night valley humidity is NORMAL (Embalse de Castrelo: river valley + reservoir = 90%+ HR at night)
   if (currentSpread <= 1) {
-    level = 'critico';
-    notes.push(`Spread ${currentSpread.toFixed(1)}°C — niebla muy probable`);
+    level = 'alto'; // was 'critico' — capped to prevent false PELIGRO (same as maritimeFogService)
+    notes.push(`Spread ${currentSpread.toFixed(1)}°C — condiciones de niebla`);
   } else if (currentSpread <= 2.5) {
     level = 'alto';
     notes.push(`Spread ${currentSpread.toFixed(1)}°C — condiciones de niebla`);
@@ -349,6 +351,12 @@ export function analyzeFog(
     level = 'riesgo';
     const etaH = (fogEta.getTime() - now.getTime()) / 3_600_000;
     notes.push(`Niebla posible en ~${etaH.toFixed(0)}h`);
+  }
+
+  // Night suppression: nighttime valley fog is common and not dangerous (nobody sails at night)
+  if (isNight && level === 'alto') {
+    level = 'riesgo';
+    notes.push('nocturna — no afecta navegacion');
   }
 
   // Amplifiers
