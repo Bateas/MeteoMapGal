@@ -14,7 +14,7 @@ import type { SpotId } from './spots';
 export interface WebcamStation {
   id: string;
   name: string;
-  source: 'meteogalicia';
+  source: 'meteogalicia' | 'dgt';
   lat: number;
   lon: number;
   /** Camera viewing direction in degrees from north */
@@ -31,6 +31,8 @@ export interface WebcamStation {
   province: string;
   /** Municipality */
   concello: string;
+  /** Optional: what this camera is useful for (fog detection, wind validation) */
+  purpose?: string;
 }
 
 const MG_IMG_BASE = 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia';
@@ -261,12 +263,44 @@ export const NORTH_WEBCAMS: WebcamStation[] = [
   },
 ];
 
+// ── Embalse / Valle Miño cameras (DGT traffic cams — fog validation) ──
+
+const DGT_IMG_BASE = 'https://infocar.dgt.es/etraffic/data/camaras';
+
+export const EMBALSE_WEBCAMS: WebcamStation[] = [
+  {
+    id: 'dgt-ribadavia',
+    name: 'Ribadavia N-120 (DGT)',
+    source: 'dgt',
+    lat: 42.2887, lon: -8.1430,
+    azimuth: 270, // W — valle del Miño
+    imageUrl: `${DGT_IMG_BASE}/1187.jpg`,
+    refreshInterval: 600, // DGT refreshes ~10min
+    sector: 'embalse',
+    nearestSpotId: 'castrelo',
+    province: 'Ourense', concello: 'Ribadavia',
+    purpose: 'Fog validation valley floor',
+  },
+  {
+    id: 'dgt-fea-arrabaldo',
+    name: 'Fea-Arrabaldo AG-53 (DGT)',
+    source: 'dgt',
+    lat: 42.3230, lon: -7.9860,
+    azimuth: 180, // S — parte alta embalse
+    imageUrl: `${DGT_IMG_BASE}/557.jpg`,
+    refreshInterval: 600,
+    sector: 'embalse',
+    province: 'Ourense', concello: 'Ourense',
+    purpose: 'Fog validation upper reservoir',
+  },
+];
+
 /** All webcams */
-export const ALL_WEBCAMS: WebcamStation[] = [...RIAS_WEBCAMS, ...NORTH_WEBCAMS];
+export const ALL_WEBCAMS: WebcamStation[] = [...RIAS_WEBCAMS, ...NORTH_WEBCAMS, ...EMBALSE_WEBCAMS];
 
 /** Get webcams for a sector */
 export function getWebcamsForSector(sectorId: string): WebcamStation[] {
   if (sectorId === 'rias') return RIAS_WEBCAMS;
-  // Embalse has no MG webcams nearby
+  if (sectorId === 'embalse') return EMBALSE_WEBCAMS;
   return [];
 }
