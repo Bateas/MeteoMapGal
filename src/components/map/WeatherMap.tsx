@@ -327,7 +327,7 @@ export function WeatherMap() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full overflow-hidden" role="region" aria-label="Mapa meteorológico interactivo de Galicia">
+    <div ref={containerRef} className="relative w-full h-full overflow-hidden" role="region" aria-label="Mapa meteorológico interactivo de Galicia" style={{ contain: 'layout style paint' }}>
       <Map
         ref={mapRef}
         mapLib={maplibregl}
