@@ -15,10 +15,15 @@ export const StormIndicator = memo(function StormIndicator() {
   const updatedAt = useLightningStore((s) => s.stormAlert.updatedAt);
   const prediction = useStormPrediction();
 
+  const lastFetch = useLightningStore((s) => s.lastFetch);
+  const lightningError = useLightningStore((s) => s.error);
+
   const hasStorm = stormLevel !== 'none';
   const hasPrediction = prediction.probability >= 25;
   const isActive = hasStorm || hasPrediction;
   const ageMin = updatedAt ? Math.round((Date.now() - updatedAt.getTime()) / 60_000) : null;
+  const fetchAgeMin = lastFetch ? Math.round((Date.now() - lastFetch.getTime()) / 60_000) : null;
+  const isStale = fetchAgeMin !== null && fetchAgeMin >= 5;
 
   // Color: purple for lightning, amber for prediction-only
   const isPurple = hasStorm;
@@ -56,6 +61,11 @@ export const StormIndicator = memo(function StormIndicator() {
     >
       <WeatherIcon id="zap" size={isMobile ? 18 : 14} />
       <span className={isMobile ? 'text-xs' : ''}>{label}</span>
+      {isStale && (
+        <span className="text-[9px] text-amber-500 font-mono" title={lightningError ?? `Dato hace ${fetchAgeMin}min`}>
+          {fetchAgeMin}m
+        </span>
+      )}
       {hasPrediction && !hasStorm && (
         <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
       )}

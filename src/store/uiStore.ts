@@ -27,6 +27,9 @@ interface UIState {
   /** Active bottom nav tab (mobile only) */
   activeBottomTab: 'map' | 'spots' | 'datos' | 'prevision' | 'mas' | null;
   setActiveBottomTab: (tab: 'map' | 'spots' | 'datos' | 'prevision' | 'mas' | null) => void;
+  /** Forecast panel expanded (overlay/fullscreen) */
+  forecastPanelOpen: boolean;
+  setForecastPanelOpen: (open: boolean) => void;
   /** Desktop sidebar collapsed to icon strip (persisted) */
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -72,6 +75,12 @@ export const useUIStore = create<UIState>()(
       }),
       activeBottomTab: null,
       setActiveBottomTab: (tab) => set({ activeBottomTab: tab }),
+      forecastPanelOpen: false,
+      setForecastPanelOpen: (open) => set((s) => {
+        // Close sidebar on mobile when opening forecast panel
+        if (open && s.isMobile) return { forecastPanelOpen: true, sidebarOpen: false, fieldDrawerOpen: false };
+        return { forecastPanelOpen: open };
+      }),
       sidebarCollapsed: true, // collapsed by default — map-first
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       toggleSidebarCollapsed: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
