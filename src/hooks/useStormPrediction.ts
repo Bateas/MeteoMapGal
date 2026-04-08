@@ -28,7 +28,8 @@ const NO_PREDICTION: StormPrediction = {
  * Safe to call from any component — reads from Zustand stores.
  */
 export function useStormPrediction(): StormPrediction {
-  const forecast = useForecastStore((s) => s.hourly);
+  // Use convectionData (Open-Meteo background) for CAPE/CIN/LI — falls back to hourly if same source
+  const forecast = useForecastStore((s) => s.convectionData.length > 0 ? s.convectionData : s.hourly);
   const stormAlert = useLightningStore((s) => s.stormAlert);
   const stormShadow = useStormShadowStore((s) => s.stormShadow);
   const sectorWarnings = useWarningsStore((s) => s.sectorWarnings);

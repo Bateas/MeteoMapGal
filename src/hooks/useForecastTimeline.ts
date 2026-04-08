@@ -53,7 +53,10 @@ interface OMForecastResponse {
 // ---------------------------------------------------------------------------
 
 interface ForecastStore extends ForecastState {
+  /** Background Open-Meteo data for CAPE/CIN/LI/gusts/visibility — always fetched regardless of active model */
+  convectionData: HourlyForecast[];
   setHourly: (data: HourlyForecast[]) => void;
+  setConvectionData: (data: HourlyForecast[]) => void;
   setLoading: (v: boolean) => void;
   setError: (e: string | null) => void;
   setFetchedAt: (d: Date) => void;
@@ -62,12 +65,14 @@ interface ForecastStore extends ForecastState {
 
 export const useForecastStore = create<ForecastStore>((set) => ({
   hourly: [],
+  convectionData: [],
   fetchedAt: null,
   isLoading: false,
   error: null,
-  activeModel: 'best_match',
+  activeModel: 'meteosix_wrf',
 
   setHourly: (hourly) => set({ hourly }),
+  setConvectionData: (convectionData) => set({ convectionData }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
   setFetchedAt: (fetchedAt) => set({ fetchedAt }),
@@ -205,9 +210,10 @@ async function fetchForecastTimeline(model: ForecastModel = 'best_match', lat = 
 // ---------------------------------------------------------------------------
 
 export function useForecastTimeline() {
-  const { setHourly, setLoading, setError, setFetchedAt, activeModel } = useForecastStore(
+  const { setHourly, setConvectionData, setLoading, setError, setFetchedAt, activeModel } = useForecastStore(
     useShallow((s) => ({
       setHourly: s.setHourly,
+      setConvectionData: s.setConvectionData,
       setLoading: s.setLoading,
       setError: s.setError,
       setFetchedAt: s.setFetchedAt,
@@ -226,6 +232,21 @@ export function useForecastTimeline() {
       setHourly(data);
       setError(null);
       setFetchedAt(new Date());
+
+      // Background: always fetch Open-Meteo for CAPE/CIN/LI/gusts/visibility (storm predictor + alerts)
+      if (activeModel !== 'best_match') {
+        fetchFromOwnAPI(sectorId)
+          .then(bg => { if (bg && bg.length > 0) setConvectionData(bg); })
+          .catch(() => {
+            // Fallback to Open-Meteo direct if ingestor unavailable
+            fetchFromOpenMeteo('best_match', coords[0], coords[1])
+              .then(bg => setConvectionData(bg))
+              .catch(() => { /* silent — convection data is supplementary */ });
+          });
+      } else {
+        // When using Auto/Open-Meteo, the main data already has CAPE/CIN/LI
+        setConvectionData(data);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error cargando previsión';
       setError(msg);
@@ -233,7 +254,7 @@ export function useForecastTimeline() {
     } finally {
       setLoading(false);
     }
-  }, [sectorId, activeModel, coords, setHourly, setLoading, setError, setFetchedAt]);
+  }, [sectorId, activeModel, coords, setHourly, setConvectionData, setLoading, setError, setFetchedAt]);
 
   // Visibility-aware polling — pauses when tab is hidden
   useVisibilityPolling(poll, POLL_INTERVAL_MS, true, 5_000); // Stagger: 5s after page load
