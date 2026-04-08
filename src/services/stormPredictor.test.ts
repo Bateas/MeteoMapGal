@@ -198,9 +198,9 @@ describe('stormPredictor', () => {
       expect(result.signals.find(s => s.name === 'Rachas previstas')?.active).toBe(true);
     });
 
-    it('all 8 signals are always present in output', () => {
+    it('all 9 signals are always present in output', () => {
       const result = predictStorm([makeForecast()], NO_ALERT, null);
-      expect(result.signals).toHaveLength(8);
+      expect(result.signals).toHaveLength(9);
       const names = result.signals.map(s => s.name);
       expect(names).toContain('CAPE');
       expect(names).toContain('Lluvia prevista');
