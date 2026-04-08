@@ -194,6 +194,8 @@ export function useLightningData() {
   const prevAlertRef = useRef(stormAlert);
   const historyRef = useRef<ClusterSnapshot[]>([]);
 
+  const retryCountRef = useRef(0);
+
   const fetchAndUpdate = useCallback(async () => {
     const centerLat = sectorCenter[1];
     const centerLon = sectorCenter[0];
@@ -203,6 +205,7 @@ export function useLightningData() {
       const strikes = await fetchLightningStrikes();
       setStrikes(strikes);
       setError(null);
+      retryCountRef.current = 0; // reset on success
 
       // Track storm clusters with velocity vectors
       const { clusters, history } = trackStorms(
@@ -224,6 +227,16 @@ export function useLightningData() {
       const msg = err instanceof Error ? err.message : 'Error obteniendo rayos';
       setError(msg);
       console.error('[Lightning] Poll error:', err);
+
+      // Exponential backoff retry (5s, 15s, 45s) — max 3 retries per poll cycle
+      if (retryCountRef.current < 3) {
+        const delay = 5000 * Math.pow(3, retryCountRef.current);
+        retryCountRef.current++;
+        console.log(`[Lightning] Retry ${retryCountRef.current}/3 in ${delay / 1000}s`);
+        setTimeout(() => {
+          fetchAndUpdate();
+        }, delay);
+      }
     } finally {
       setLoading(false);
     }

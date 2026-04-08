@@ -36,6 +36,7 @@ function MobileBottomNavInner() {
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const setFieldDrawerOpen = useUIStore((s) => s.setFieldDrawerOpen);
   const setRequestedTab = useUIStore((s) => s.setRequestedTab);
+  const setForecastPanelOpen = useUIStore((s) => s.setForecastPanelOpen);
   const toggleGuide = useUIStore((s) => s.toggleGuide);
   const setFeedbackOpen = useUIStore((s) => s.setFeedbackOpen);
   const sectorId = useSectorStore((s) => s.activeSector.id);
@@ -73,7 +74,9 @@ function MobileBottomNavInner() {
     }
 
     if (id === 'prevision') {
-      openSidebarTab('forecast', 'prevision');
+      // Open fullscreen forecast panel instead of sidebar
+      setForecastPanelOpen(true);
+      setActiveTab('prevision');
       return;
     }
 
@@ -82,7 +85,7 @@ function MobileBottomNavInner() {
       setActiveTab('mas');
       return;
     }
-  }, [setSidebarOpen, setFieldDrawerOpen, setActiveTab, openSidebarTab]);
+  }, [setSidebarOpen, setFieldDrawerOpen, setActiveTab, openSidebarTab, setForecastPanelOpen]);
 
   const menuItems: MenuItem[] = [
     { icon: 'book-open', label: 'Guía MeteoMapGal', action: () => { toggleGuide(); setMoreOpen(false); }, highlight: 'text-sky-400' },

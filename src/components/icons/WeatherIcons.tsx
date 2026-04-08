@@ -55,6 +55,7 @@ import {
   Ruler,
   Activity,
   MessageSquare,
+  Maximize2,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -69,7 +70,7 @@ export type IconId =
   | 'database' | 'gauge' | 'check' | 'sprout'
   | 'compass' | 'navigation' | 'layers' | 'eye' | 'camera'
   | 'thumbs-up' | 'thumbs-down' | 'bell' | 'bell-off'
-  | 'ruler' | 'activity' | 'message-square';
+  | 'ruler' | 'activity' | 'message-square' | 'maximize';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -232,6 +233,7 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'ruler': Ruler,
   'activity': Activity,
   'message-square': MessageSquare,
+  'maximize': Maximize2,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────
@@ -326,6 +328,9 @@ const ICON_LABELS: Record<IconId, string> = {
   'bell': 'Notificaciones',
   'bell-off': 'Sin notificaciones',
   'ruler': 'Medir distancia',
+  'activity': 'Actividad',
+  'message-square': 'Mensaje',
+  'maximize': 'Ampliar',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */

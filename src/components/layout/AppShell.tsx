@@ -30,6 +30,7 @@ const OnboardingTour = lazy(() => import('../common/OnboardingTour').then(m => (
 // import { shouldSendDailySummary, sendDailySummary } from '../../services/dailySummaryService';
 import { tryAutoSector } from '../../services/geolocationService';
 const ConditionsTicker = lazy(() => import('../common/ConditionsTicker').then(m => ({ default: m.ConditionsTicker })));
+const ForecastPanel = lazy(() => import('../charts/ForecastPanel').then(m => ({ default: m.ForecastPanel })));
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { aggregateAllAlerts } from '../../services/alertService';
@@ -396,6 +397,12 @@ export function AppShell() {
           toast(`Capa: ${LAYER_LABELS[layer] ?? layer}`, 'info');
           break;
         }
+        case 'p': {
+          const ui = useUIStore.getState();
+          ui.setForecastPanelOpen(!ui.forecastPanelOpen);
+          toast(ui.forecastPanelOpen ? 'Previsión cerrada' : 'Previsión ampliada', 'info');
+          break;
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown);
@@ -519,6 +526,7 @@ export function AppShell() {
           />
         )}
       </div>
+      <Suspense fallback={null}><ForecastPanel /></Suspense>
       <Suspense fallback={null}><MeteoGuide /></Suspense>
       <Suspense fallback={null}><FeedbackModal /></Suspense>
       {!isMobile && <KeyboardShortcutHelp />}
