@@ -65,8 +65,36 @@ function ForecastLegend({ onClose }: { onClose: () => void }) {
           <span>HR baja (bueno para termicos)</span>
         </div>
       </div>
-      <div className="text-slate-500 text-[10px]">
-        Modelo WRF-MG = MeteoGalicia 1km (mas preciso para Galicia)
+      <div className="border-t border-slate-700 pt-1.5 space-y-1">
+        <div className="text-slate-400 font-semibold text-[10px] uppercase">Metricas de la franja</div>
+        <div className="flex items-center gap-2">
+          <span className="text-green-400 font-bold text-[10px]">Dir estable</span>
+          <span>Viento mantiene rumbo constante (&gt;60%)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-red-400 font-bold text-[10px]">Dir caotico</span>
+          <span>Viento cambia de rumbo frecuentemente</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-green-400 font-bold text-[10px]">Patron 60%+</span>
+          <span>Condiciones similares a mejores dias historicos</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-amber-400 font-bold text-[10px]">Patron 35-60%</span>
+          <span>Coincidencia parcial con patrones favorables</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-amber-400 font-bold text-[10px]">ΔT</span>
+          <span>Diferencia temp max-min: &gt;16°C = termica probable</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-orange-400 font-bold text-[10px]">CAPE</span>
+          <span>Energia convectiva: &gt;500 = tormentas posibles</span>
+        </div>
+      </div>
+      <div className="text-slate-500 text-[10px] border-t border-slate-700 pt-1.5">
+        <div>WRF-MG = MeteoGalicia 1km (mas preciso para Galicia)</div>
+        <div>Auto = Open-Meteo ICON/GFS (sobreestima viento interior)</div>
       </div>
     </div>
   );
