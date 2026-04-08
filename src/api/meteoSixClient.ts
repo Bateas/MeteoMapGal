@@ -19,10 +19,10 @@ interface MeteoSIXVariable {
   units: string;
   values: Array<{
     timeInstant: string;  // "2026-04-08T14:00:00+02"
-    value: string | null; // numeric as string, or null
+    value: string | number | null; // numeric or categorical (sky_state)
     iconURL?: string;     // wind/sky icons
-    moduleValue?: string; // wind speed (km/h default, convert to m/s)
-    directionValue?: string; // wind direction (degrees)
+    moduleValue?: number | string; // wind speed (km/h default)
+    directionValue?: number | string; // wind direction (degrees)
   }>;
 }
 
@@ -89,16 +89,23 @@ function kmhToMs(kmh: number | null): number | null {
   return kmh != null ? kmh / 3.6 : null;
 }
 
-function parseNum(v: string | null | undefined): number | null {
+/** Fix MeteoSIX time format: "+02" → "+02:00" (JS Date requires colon in offset) */
+function fixTimeOffset(timeStr: string): string {
+  // "2026-04-08T15:00:00+02" → "2026-04-08T15:00:00+02:00"
+  return timeStr.replace(/([+-]\d{2})$/, '$1:00');
+}
+
+/** Parse value that may be string, number, or null */
+function parseNum(v: string | number | null | undefined): number | null {
   if (v == null || v === '') return null;
-  const n = Number(v);
+  const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
 // ── Parse response into time→variable map ──
 
-function parseFeatureToTimeMap(feature: MeteoSIXFeature): Map<string, Record<string, string | null>> {
-  const timeMap = new Map<string, Record<string, string | null>>();
+function parseFeatureToTimeMap(feature: MeteoSIXFeature): Map<string, Record<string, string | number | null>> {
+  const timeMap = new Map<string, Record<string, string | number | null>>();
 
   for (const day of feature.properties.days) {
     for (const variable of day.variables) {
@@ -108,11 +115,11 @@ function parseFeatureToTimeMap(feature: MeteoSIXFeature): Map<string, Record<str
         const record = timeMap.get(key)!;
 
         if (variable.name === 'wind') {
-          // Wind: moduleValue (m/s with ms_deg units) + directionValue (degrees)
+          // Wind: moduleValue (km/h) + directionValue (degrees) — both can be number
           record['wind_speed'] = val.moduleValue ?? null;
           record['wind_direction'] = val.directionValue ?? null;
         } else {
-          record[variable.name] = val.value;
+          record[variable.name] = val.value ?? null;
         }
       }
     }
@@ -157,7 +164,7 @@ export async function fetchMeteoSixForecast(
 
   for (const timeStr of sortedTimes) {
     const rec = timeMap.get(timeStr)!;
-    const time = new Date(timeStr);
+    const time = new Date(fixTimeOffset(timeStr));
     if (isNaN(time.getTime())) continue;
 
     const skyState = rec['sky_state'] ?? null;
@@ -216,7 +223,7 @@ export async function fetchMeteoSixMarine(
 
   for (const timeStr of sortedTimes) {
     const rec = timeMap.get(timeStr)!;
-    const time = new Date(timeStr);
+    const time = new Date(fixTimeOffset(timeStr));
     if (isNaN(time.getTime())) continue;
 
     result.push({
@@ -256,7 +263,7 @@ export async function fetchMeteoSixSeaTemp(
 
   for (const timeStr of sortedTimes) {
     const rec = timeMap.get(timeStr)!;
-    const time = new Date(timeStr);
+    const time = new Date(fixTimeOffset(timeStr));
     if (isNaN(time.getTime())) continue;
     result.push({ time, seaTemp: parseNum(rec['sea_water_temperature']) });
   }
