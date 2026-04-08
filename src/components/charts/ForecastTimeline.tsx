@@ -729,7 +729,7 @@ function SailingConclusion({
     });
   } else if (hasGoodWind && !stableDir) {
     lines.push({
-      text: `Viento suficiente (${bestKt.toFixed(0)}kt) pero direccion inestable — cambios frecuentes, adaptarse a las viradas.`,
+      text: `Viento suficiente (${bestKt.toFixed(0)}kt) pero direccion inestable — cambios frecuentes.`,
       color: '#facc15',
       icon: 'wind',
     });
