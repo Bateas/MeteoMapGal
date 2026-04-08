@@ -36,7 +36,30 @@ function formatDay(d: Date): string {
   return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
 }
 
-function cloudIcon(cover: number | null): IconId | '' {
+/** Map MeteoSIX sky_state to our weather icons (when available) */
+function skyStateIcon(skyState: string | null): IconId | null {
+  if (!skyState) return null;
+  switch (skyState) {
+    case 'SUNNY': case 'CLEAR': return 'sun';
+    case 'CLEAR_NIGHT': return 'moon';
+    case 'HIGH_CLOUDS': case 'MID_CLOUDS': case 'PARTLY_CLOUDY': return 'cloud-sun';
+    case 'OVERCAST': case 'CLOUDY': case 'NIGHT_CLOUDS': case 'NIGHT_CLOUDY': return 'cloud';
+    case 'DRIZZLE': case 'WEAK_RAIN': case 'RAIN': case 'SHOWERS':
+    case 'WEAK_SHOWERS': case 'OVERCAST_AND_SHOWERS':
+    case 'NIGHT_RAIN': case 'NIGHT_SHOWERS': return 'cloud-rain';
+    case 'SNOW': case 'INTERMITENT_SNOW': case 'MELTED_SNOW': return 'snowflake';
+    case 'STORMS': case 'STORM_THEN_CLOUDY': case 'NIGHT_STORMS': case 'RAIN_HAIL': return 'zap';
+    case 'FOG': case 'FOG_BANK': case 'MIST': return 'fog';
+    default: return null;
+  }
+}
+
+/** Fallback: derive icon from cloud cover when skyState not available (Open-Meteo) */
+function cloudIcon(cover: number | null, skyState?: string | null): IconId | '' {
+  // Prefer MeteoSIX sky_state when available (more accurate)
+  const fromSky = skyStateIcon(skyState ?? null);
+  if (fromSky) return fromSky;
+  // Fallback to cloud cover percentage
   if (cover === null) return '';
   if (cover < 15) return 'sun';
   if (cover < 40) return 'cloud-sun';
@@ -159,9 +182,9 @@ function ForecastRow({
         )}
       </div>
 
-      {/* Cloud icon */}
-      <div className="text-center text-[11px]" title={`Nubes: ${point.cloudCover ?? '—'}%`}>
-        {cloudIcon(point.cloudCover) && <WeatherIcon id={cloudIcon(point.cloudCover) as IconId} size={14} />}
+      {/* Cloud/sky icon — MeteoSIX sky_state when available, fallback to cloudCover */}
+      <div className="text-center text-[11px]" title={point.skyState ? `${point.skyState} (${point.cloudCover ?? '—'}%)` : `Nubes: ${point.cloudCover ?? '—'}%`}>
+        {cloudIcon(point.cloudCover, point.skyState) && <WeatherIcon id={cloudIcon(point.cloudCover, point.skyState) as IconId} size={14} />}
       </div>
 
       {/* Thermal score indicator — hover shows full breakdown */}

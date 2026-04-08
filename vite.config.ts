@@ -53,6 +53,12 @@ export default defineConfig(({ mode }) => ({
         rewrite: (path) => path.replace(/^\/meteogalicia-api/, ''),
         secure: true,
       },
+      '/meteosix-api': {
+        target: 'https://servizos.meteogalicia.gal',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/meteosix-api/, '/apiv5'),
+        secure: true,
+      },
       '/meteoclimatic-api': {
         target: 'https://www.meteoclimatic.net',
         changeOrigin: true,

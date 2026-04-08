@@ -32,6 +32,20 @@ export const METEOCLIMATIC = {
     `/meteoclimatic-api/feed/xml/${region}`,
 } as const;
 
+const METEOSIX_KEY = import.meta.env.VITE_METEOSIX_API_KEY;
+
+export const METEOSIX = {
+  /** Numeric forecast (WRF atmospheric + USWAN marine) */
+  forecast: (lon: number, lat: number, variables: string, grid = '1km', model = 'WRF') =>
+    `/meteosix-api/getNumericForecastInfo?coords=${lon},${lat}&variables=${variables}&models=${model}&grids=${grid}&lang=es&format=application/json&API_KEY=${METEOSIX_KEY}`,
+  /** Tide predictions */
+  tides: (lon: number, lat: number) =>
+    `/meteosix-api/getTidesInfo?coords=${lon},${lat}&lang=es&format=application/json&API_KEY=${METEOSIX_KEY}`,
+  /** Sunrise/sunset */
+  solar: (lon: number, lat: number) =>
+    `/meteosix-api/getSolarInfo?coords=${lon},${lat}&format=application/json&API_KEY=${METEOSIX_KEY}`,
+} as const;
+
 export const METEOGALICIA = {
   /** List all meteorological stations */
   stationList: () =>
