@@ -35,9 +35,13 @@ export interface HourlyForecast {
   liftedIndex: number | null;
   /** Convective Inhibition (J/kg) — high CIN suppresses convection even with high CAPE */
   cin: number | null;
+  /** Snow level (m) — altitude above which precipitation falls as snow */
+  snowLevel: number | null;
+  /** Sky state from MeteoSIX WRF (SUNNY, CLOUDY, FOG, STORMS, etc.) — null for Open-Meteo */
+  skyState: string | null;
   /** Is it currently daytime? */
   isDay: boolean;
-  // ── Marine wave data (from Open-Meteo Marine API, Rías surf spots only) ──
+  // ── Marine wave data (from Open-Meteo Marine API or MeteoSIX USWAN, Rías surf spots only) ──
   /** Significant wave height (m) */
   waveHeight?: number | null;
   /** Peak wave period (s) */
@@ -51,11 +55,12 @@ export interface HourlyForecast {
 }
 
 /** Supported forecast model identifiers */
-export type ForecastModel = 'best_match' | 'icon_eu' | 'gfs_seamless' | 'ecmwf_ifs025';
+export type ForecastModel = 'best_match' | 'icon_eu' | 'gfs_seamless' | 'ecmwf_ifs025' | 'meteosix_wrf';
 
 /** Model display metadata */
 export const FORECAST_MODELS: { id: ForecastModel; label: string; short: string; desc: string }[] = [
   { id: 'best_match', label: 'Auto (Best Match)', short: 'Auto', desc: 'Open-Meteo selecciona el mejor modelo' },
+  { id: 'meteosix_wrf', label: 'WRF MeteoGalicia', short: 'WRF-MG', desc: 'Modelo regional 1km Galicia, MeteoGalicia' },
   { id: 'icon_eu', label: 'ICON-EU (DWD)', short: 'ICON', desc: 'Alta resolución Europa 7km, actualización horaria' },
   { id: 'gfs_seamless', label: 'GFS (NOAA)', short: 'GFS', desc: 'Global 13km, actualización cada 6h' },
   { id: 'ecmwf_ifs025', label: 'ECMWF IFS', short: 'ECMWF', desc: 'Europeo 25km, alta precisión' },
