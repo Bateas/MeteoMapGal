@@ -795,6 +795,9 @@ export function ForecastTimeline() {
     return { bestKt, bestTime, rainHours, totalHours: future.length };
   }, [visibleData]);
 
+  const activeModel = useForecastStore((s) => s.activeModel);
+  const setActiveModel = useForecastStore((s) => s.setActiveModel);
+
   if (error && hourly.length === 0) {
     return (
       <div className="text-red-400 text-xs p-2 bg-red-950/30 rounded">
@@ -802,9 +805,6 @@ export function ForecastTimeline() {
       </div>
     );
   }
-
-  const activeModel = useForecastStore((s) => s.activeModel);
-  const setActiveModel = useForecastStore((s) => s.setActiveModel);
 
   return (
     <div className="flex flex-col h-full">
