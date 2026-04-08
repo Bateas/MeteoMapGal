@@ -14,6 +14,7 @@ import { FORECAST_MODELS } from '../../types/forecast';
 import type { HourlyForecast, ForecastModel } from '../../types/forecast';
 import type { ThermalWindRule } from '../../types/thermal';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useUIStore } from '../../store/uiStore';
 import { findNearestForecastHour, computeDelta, formatWindDelta } from '../../services/forecastDeltaService';
 
 // ── Time range selector ──────────────────────────────────
@@ -695,18 +696,21 @@ function DaySeparator({ date }: { date: Date }) {
 
 // ── Main component ────────────────────────────────────────
 
-export function ForecastTimeline() {
+export function ForecastTimeline({ expanded = false }: { expanded?: boolean } = {}) {
   const hourly = useForecastStore((s) => s.hourly);
   const fetchedAt = useForecastStore((s) => s.fetchedAt);
   const isLoading = useForecastStore((s) => s.isLoading);
   const error = useForecastStore((s) => s.error);
-  const [range, setRange] = useState(24);
-  const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
+  const [range, setRange] = useState(expanded ? 48 : 24);
+  const [viewMode, setViewMode] = useState<'chart' | 'table'>(expanded ? 'table' : 'chart');
 
   const rules = useThermalStore((s) => s.rules);
   const dailyContext = useThermalStore((s) => s.dailyContext);
   const deltaT = dailyContext?.deltaT ?? null;
+  const sectorId = useSectorStore((s) => s.activeSector.id);
   const sectorName = useSectorStore((s) => s.activeSector.shortName);
+  // Reference point for the forecast (so users know WHERE the data is for)
+  const forecastRef = sectorId === 'embalse' ? 'Embalse de Castrelo' : 'Cesantes (interior ria)';
 
   // Filter data by selected time range
   const visibleData = useMemo(() => {
@@ -809,17 +813,22 @@ export function ForecastTimeline() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-slate-200">
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className={`font-semibold text-slate-200 truncate ${expanded ? 'text-base' : 'text-sm'}`}>
             Previsión {sectorName}
           </h3>
+          {expanded && (
+            <span className="text-[11px] text-slate-500 truncate hidden sm:inline" title={forecastRef}>
+              {forecastRef}
+            </span>
+          )}
           {isLoading && (
             <LoadingSpinner size={12} />
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* View mode toggle */}
           <div className="flex gap-0.5 bg-slate-800 rounded p-0.5">
             <button
@@ -862,6 +871,19 @@ export function ForecastTimeline() {
               </button>
             ))}
           </div>
+
+          {/* Expand button (sidebar only — prominent) */}
+          {!expanded && (
+            <button
+              onClick={() => useUIStore.getState().setForecastPanelOpen(true)}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-sky-600/20 border border-sky-500/30 text-sky-400 hover:bg-sky-600/30 hover:text-sky-300 transition-colors text-[11px] font-semibold"
+              title="Ampliar previsión a pantalla completa (P)"
+              aria-label="Ampliar previsión"
+            >
+              <WeatherIcon id="maximize" size={12} />
+              <span className="hidden sm:inline">Ampliar</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -950,10 +972,10 @@ export function ForecastTimeline() {
       {/* Table view */}
       {viewMode === 'table' ? (
         <div className="flex-1 overflow-hidden min-h-0">
-          <ForecastTable data={visibleData} />
+          <ForecastTable data={visibleData} expanded={expanded} />
         </div>
       ) : (
-        <>
+        <div className={expanded ? 'max-w-2xl' : ''}>
           {/* Column header */}
           <div className="grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px] gap-1 px-2 py-1 text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-700">
             <span>Hora</span>
@@ -1016,7 +1038,7 @@ export function ForecastTimeline() {
           );
         })}
           </div>
-        </>
+        </div>
       )}
 
       {/* Footer */}
