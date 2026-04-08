@@ -1,13 +1,14 @@
 /**
  * Windguru-style horizontal forecast table.
  * Hours as columns, weather variables as rows, color-coded cells.
- * Enhanced: thermal scoring row, sailing badge, gust row, rain prob gradient.
+ * Enhanced: thermal scoring row, sailing badge, gust row, rain prob gradient, sky_state icons.
  */
 
 import { useMemo } from 'react';
 import { useThermalStore } from '../../store/thermalStore';
 import { scoreForecastThermal, thermalColor, thermalBg } from '../../services/forecastScoringUtils';
 import type { HourlyForecast } from '../../types/forecast';
+import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import {
   msToKnots,
   degreesToCardinal,
@@ -45,13 +46,29 @@ function DirArrow({ dir }: { dir: number | null }) {
   );
 }
 
-function cloudIcon(cover: number | null): string {
-  if (cover === null) return '';
-  if (cover < 15) return '\u2600\uFE0F';
-  if (cover < 40) return '\uD83C\uDF24\uFE0F';
-  if (cover < 70) return '\u26C5';
-  if (cover < 90) return '\uD83C\uDF25\uFE0F';
-  return '\u2601\uFE0F';
+/** Map sky_state to icon, fallback to cloudCover */
+function skyIcon(skyState: string | null | undefined, cloudCover: number | null): IconId | null {
+  if (skyState) {
+    switch (skyState) {
+      case 'SUNNY': case 'CLEAR': return 'sun';
+      case 'CLEAR_NIGHT': return 'moon';
+      case 'HIGH_CLOUDS': case 'MID_CLOUDS': case 'PARTLY_CLOUDY': return 'cloud-sun';
+      case 'OVERCAST': case 'CLOUDY': case 'NIGHT_CLOUDS': case 'NIGHT_CLOUDY': return 'cloud';
+      case 'DRIZZLE': case 'WEAK_RAIN': case 'RAIN': case 'SHOWERS':
+      case 'WEAK_SHOWERS': case 'OVERCAST_AND_SHOWERS':
+      case 'NIGHT_RAIN': case 'NIGHT_SHOWERS': return 'cloud-rain';
+      case 'SNOW': case 'INTERMITENT_SNOW': case 'MELTED_SNOW': return 'snowflake';
+      case 'STORMS': case 'STORM_THEN_CLOUDY': case 'NIGHT_STORMS': case 'RAIN_HAIL': return 'zap';
+      case 'FOG': case 'FOG_BANK': case 'MIST': return 'fog';
+    }
+  }
+  // Fallback to cloudCover
+  if (cloudCover === null) return null;
+  if (cloudCover < 15) return 'sun';
+  if (cloudCover < 40) return 'cloud-sun';
+  if (cloudCover < 70) return 'cloud-sun';
+  if (cloudCover < 90) return 'cloud';
+  return 'cloud';
 }
 
 /** Rain probability gradient color */
@@ -61,14 +78,6 @@ function rainProbColor(prob: number): string {
   if (prob >= 40) return '#93c5fd';
   if (prob >= 20) return '#7dd3fc';
   return '#475569';
-}
-
-/** Sailing quality badge based on thermal score */
-function sailingBadge(score: number): string {
-  if (score >= 70) return '\u26F5';
-  if (score >= 50) return '\u2713';
-  if (score >= 35) return '\u25CB';
-  return '';
 }
 
 export function ForecastTable({ data }: ForecastTableProps) {
@@ -93,20 +102,18 @@ export function ForecastTable({ data }: ForecastTableProps) {
   // Compute thermal scores for each point
   const thermalScores = useMemo(() => {
     if (rules.length === 0) return data.map(() => ({ score: 0, mainRule: null, isNavigable: false, isPrecursor: false }));
-
-    // Rough deltaT from forecast data (max temp - min temp for the day)
     const temps = data.map((p) => p.temperature).filter((t): t is number => t !== null);
     const deltaT = temps.length >= 2 ? Math.max(...temps) - Math.min(...temps) : null;
-
     return data.map((p) => scoreForecastThermal(p, rules, deltaT));
   }, [data, rules]);
 
   if (data.length === 0) {
-    return <div className="text-xs text-slate-400 text-center py-4">Sin datos de previsi\u00f3n</div>;
+    return <div className="text-xs text-slate-400 text-center py-4">Sin datos de prevision</div>;
   }
 
   const rows: {
     label: string;
+    icon?: IconId;
     render: (p: HourlyForecast, i: number) => React.ReactNode;
   }[] = [
     {
@@ -116,31 +123,34 @@ export function ForecastTable({ data }: ForecastTableProps) {
       ),
     },
     {
-      label: '\u26F5',
+      label: 'Score',
+      icon: 'sailboat',
       render: (_, i) => {
         const ts = thermalScores[i];
-        const badge = sailingBadge(ts.score);
+        if (ts.score < 35) return <span className="text-slate-700">&middot;</span>;
         return (
           <span
-            className="font-bold"
+            className="font-bold text-[10px]"
             style={{ color: thermalColor(ts.score) }}
             title={ts.mainRule ? `${ts.mainRule}: ${ts.score}%` : `Score: ${ts.score}%`}
           >
-            {badge || <span className="text-slate-700">\u00B7</span>}
+            {ts.score}
           </span>
         );
       },
     },
     {
       label: 'Temp',
+      icon: 'thermometer',
       render: (p) => (
         <span style={{ color: temperatureColor(p.temperature) }} className="font-bold">
-          {p.temperature !== null ? `${p.temperature.toFixed(0)}\u00B0` : '-'}
+          {p.temperature !== null ? `${p.temperature.toFixed(0)}` : '-'}
         </span>
       ),
     },
     {
       label: 'Viento',
+      icon: 'wind',
       render: (p) => {
         const kt = p.windSpeed !== null ? msToKnots(p.windSpeed) : null;
         return (
@@ -169,7 +179,7 @@ export function ForecastTable({ data }: ForecastTableProps) {
       render: (p) => (
         <span className="text-slate-300 flex items-center justify-center gap-0.5">
           <DirArrow dir={p.windDirection} />
-          <span className="text-[11px]">
+          <span className="text-[10px]">
             {p.windDirection !== null ? degreesToCardinal(p.windDirection) : ''}
           </span>
         </span>
@@ -177,6 +187,7 @@ export function ForecastTable({ data }: ForecastTableProps) {
     },
     {
       label: 'Precip',
+      icon: 'droplets',
       render: (p) => {
         const val = p.precipitation ?? 0;
         return (
@@ -198,10 +209,16 @@ export function ForecastTable({ data }: ForecastTableProps) {
       },
     },
     {
-      label: 'Nubes',
-      render: (p) => (
-        <span className="text-[11px]">{cloudIcon(p.cloudCover)}</span>
-      ),
+      label: 'Cielo',
+      icon: 'cloud-sun',
+      render: (p) => {
+        const icon = skyIcon(p.skyState, p.cloudCover);
+        return icon ? (
+          <span title={p.skyState || `${p.cloudCover ?? '?'}%`}>
+            <WeatherIcon id={icon} size={12} />
+          </span>
+        ) : <span className="text-slate-700">-</span>;
+      },
     },
     {
       label: 'hPa',
@@ -235,11 +252,14 @@ export function ForecastTable({ data }: ForecastTableProps) {
           {rows.map((row) => (
             <tr key={row.label} className="hover:bg-slate-800/50">
               <td className="sticky left-0 z-10 bg-slate-900 px-2 py-1 text-slate-500 font-semibold whitespace-nowrap border-r border-slate-800">
-                {row.label}
+                <span className="flex items-center gap-1">
+                  {row.icon && <WeatherIcon id={row.icon} size={10} />}
+                  {row.label}
+                </span>
               </td>
               {data.map((p, i) => {
                 const ts = thermalScores[i];
-                const isThermalRow = row.label === '\u26F5';
+                const isThermalRow = row.label === 'Score';
                 return (
                   <td
                     key={i}
