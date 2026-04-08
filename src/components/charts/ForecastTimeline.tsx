@@ -7,6 +7,7 @@ import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { scoreForecastThermal, thermalColor, thermalBg } from '../../services/forecastScoringUtils';
 import type { ThermalScore, ForecastBreakdown } from '../../services/forecastScoringUtils';
 import { ForecastTable } from './ForecastTable';
+import { ForecastMeteogram } from './ForecastMeteogram';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
@@ -1025,6 +1026,11 @@ export function ForecastTimeline({ expanded = false }: { expanded?: boolean } = 
             </div>
           )}
         </>
+      )}
+
+      {/* Meteogram sparkline (expanded mode only, above table) */}
+      {expanded && visibleData.length > 0 && (
+        <ForecastMeteogram data={visibleData} />
       )}
 
       {/* Table view */}
