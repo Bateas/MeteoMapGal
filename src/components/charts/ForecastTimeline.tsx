@@ -905,68 +905,114 @@ export function ForecastTimeline({ expanded = false }: { expanded?: boolean } = 
         ))}
       </div>
 
-      {/* Thermal windows forecast */}
-      {thermalWindows.length > 0 && (
-        <div className="mb-2 space-y-1">
-          {thermalWindows.slice(0, 3).map((w, i) => (
-            <div
-              key={i}
-              className="px-2 py-1.5 rounded text-[11px] flex items-center gap-2"
-              style={{
-                background: thermalBg(w.peakScore),
-                border: `1px solid ${thermalColor(w.peakScore)}30`,
-              }}
-            >
-              <span style={{ color: thermalColor(w.peakScore) }} className="font-bold tabular-nums">
-                {w.peakScore}%
-              </span>
-              <div className="text-slate-300 flex-1">
-                <span className="font-medium text-white">
-                  {formatHour(w.startTime)}–{formatHour(w.endTime)}
-                </span>
-                {w.startTime.getDate() !== new Date().getDate() && (
-                  <span className="text-slate-500 ml-1">
-                    ({formatDay(w.startTime)})
+      {/* ── Summary section — compact in expanded, full in sidebar ── */}
+      {expanded ? (
+        /* Expanded: single compact strip with key metrics */
+        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-2 py-1.5 bg-slate-800/40 rounded text-[11px] text-slate-300 border border-slate-700/50">
+          {/* Best wind */}
+          {sailingSummary && sailingSummary.bestKt > 0 && (
+            <span className="flex items-center gap-1">
+              <WeatherIcon id="sailboat" size={12} className="text-sky-400" />
+              Mejor: <span className="text-white font-semibold">{sailingSummary.bestKt.toFixed(0)} kt</span>
+              {sailingSummary.bestTime && <span className="text-slate-500">({formatHour(sailingSummary.bestTime)})</span>}
+            </span>
+          )}
+          {/* Rain hours */}
+          {sailingSummary && sailingSummary.rainHours > 0 && (
+            <span className="flex items-center gap-1 text-sky-400">
+              <WeatherIcon id="cloud-rain" size={12} /> {sailingSummary.rainHours}h lluvia
+            </span>
+          )}
+          {/* Thermal windows (inline) */}
+          {thermalWindows.length > 0 && thermalWindows.slice(0, 2).map((w, i) => (
+            <span key={i} className="flex items-center gap-1" style={{ color: thermalColor(w.peakScore) }}>
+              <WeatherIcon id="flame" size={12} />
+              {formatHour(w.startTime)}-{formatHour(w.endTime)} <span className="font-bold">{w.peakScore}%</span>
+            </span>
+          ))}
+          {/* Pressure */}
+          {diagnosis && diagnosis.currentPressure && (
+            <span className="text-slate-500">
+              {diagnosis.pressureTrend === 'rising' ? '\u2197' : diagnosis.pressureTrend === 'falling' ? '\u2198' : '\u2192'}{' '}
+              {diagnosis.currentPressure.toFixed(0)} hPa
+            </span>
+          )}
+          {/* DeltaT */}
+          {deltaT !== null && (
+            <span className={deltaT >= 16 ? 'text-amber-400' : deltaT < 8 ? 'text-blue-400' : 'text-slate-500'}>
+              ΔT {deltaT.toFixed(1)}°C
+            </span>
+          )}
+          {/* Direction consistency */}
+          {diagnosis && diagnosis.directionConsistency > 0 && (
+            <span className={diagnosis.directionConsistency >= 70 ? 'text-green-400' : diagnosis.directionConsistency >= 40 ? 'text-yellow-400' : 'text-red-400'}>
+              Dir {diagnosis.directionConsistency}%
+            </span>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Sidebar: full thermal windows + diagnosis + sailing summary */}
+          {thermalWindows.length > 0 && (
+            <div className="mb-2 space-y-1">
+              {thermalWindows.slice(0, 3).map((w, i) => (
+                <div
+                  key={i}
+                  className="px-2 py-1.5 rounded text-[11px] flex items-center gap-2"
+                  style={{
+                    background: thermalBg(w.peakScore),
+                    border: `1px solid ${thermalColor(w.peakScore)}30`,
+                  }}
+                >
+                  <span style={{ color: thermalColor(w.peakScore) }} className="font-bold tabular-nums">
+                    {w.peakScore}%
+                  </span>
+                  <div className="text-slate-300 flex-1">
+                    <span className="font-medium text-white">
+                      {formatHour(w.startTime)}–{formatHour(w.endTime)}
+                    </span>
+                    {w.startTime.getDate() !== new Date().getDate() && (
+                      <span className="text-slate-500 ml-1">
+                        ({formatDay(w.startTime)})
+                      </span>
+                    )}
+                    <span className="text-slate-500 ml-2 text-[11px]">
+                      {w.ruleName?.replace('Térmico ', '').replace('Precursor: ', '')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {diagnosis && <DiagnosisPanel diag={diagnosis} deltaT={deltaT} />}
+
+          {sailingSummary && sailingSummary.bestKt > 0 && (
+            <div className="mb-2 px-2 py-1.5 bg-slate-800/60 rounded text-[11px] text-slate-300 flex items-center gap-2">
+              <span><WeatherIcon id="sailboat" size={12} /></span>
+              <div>
+                Mejor viento:{' '}
+                <span className="text-white font-semibold">{sailingSummary.bestKt.toFixed(0)} kt</span>
+                {sailingSummary.bestTime && (
+                  <span> a las {formatHour(sailingSummary.bestTime)}</span>
+                )}
+                {sailingSummary.rainHours > 0 && (
+                  <span className="text-sky-400 ml-2 inline-flex items-center gap-0.5">
+                    <WeatherIcon id="cloud-rain" size={12} /> {sailingSummary.rainHours}h lluvia
                   </span>
                 )}
-                <span className="text-slate-500 ml-2 text-[11px]">
-                  {w.ruleName?.replace('Térmico ', '').replace('Precursor: ', '')}
-                </span>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* Day diagnosis */}
-      {diagnosis && <DiagnosisPanel diag={diagnosis} deltaT={deltaT} />}
-
-      {/* Sailing summary */}
-      {sailingSummary && sailingSummary.bestKt > 0 && (
-        <div className="mb-2 px-2 py-1.5 bg-slate-800/60 rounded text-[11px] text-slate-300 flex items-center gap-2">
-          <span><WeatherIcon id="sailboat" size={12} /></span>
-          <div>
-            Mejor viento:{' '}
-            <span className="text-white font-semibold">{sailingSummary.bestKt.toFixed(0)} kt</span>
-            {sailingSummary.bestTime && (
-              <span> a las {formatHour(sailingSummary.bestTime)}</span>
-            )}
-            {sailingSummary.rainHours > 0 && (
-              <span className="text-sky-400 ml-2 inline-flex items-center gap-0.5">
-                <WeatherIcon id="cloud-rain" size={12} /> {sailingSummary.rainHours}h lluvia
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ΔT context */}
-      {deltaT !== null && (
-        <div className="mb-1 px-2 text-[11px] text-slate-500">
-          ΔT hoy: <span className={deltaT >= 16 ? 'text-amber-400' : deltaT < 8 ? 'text-blue-400' : 'text-slate-400'}>{deltaT.toFixed(1)}°C</span>
-          {deltaT >= 20 && <span className="inline-flex ml-0.5 text-amber-400"><WeatherIcon id="flame" size={12} /></span>}
-          {deltaT < 8 && <span className="inline-flex ml-0.5 text-blue-400"><WeatherIcon id="snowflake" size={12} /></span>}
-        </div>
+          {deltaT !== null && (
+            <div className="mb-1 px-2 text-[11px] text-slate-500">
+              ΔT hoy: <span className={deltaT >= 16 ? 'text-amber-400' : deltaT < 8 ? 'text-blue-400' : 'text-slate-400'}>{deltaT.toFixed(1)}°C</span>
+              {deltaT >= 20 && <span className="inline-flex ml-0.5 text-amber-400"><WeatherIcon id="flame" size={12} /></span>}
+              {deltaT < 8 && <span className="inline-flex ml-0.5 text-blue-400"><WeatherIcon id="snowflake" size={12} /></span>}
+            </div>
+          )}
+        </>
       )}
 
       {/* Table view */}
