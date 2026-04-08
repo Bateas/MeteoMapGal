@@ -975,8 +975,8 @@ export function ForecastTimeline() {
                 ) : isLoading ? (
                   <div className="space-y-2">
                     <div className="mx-auto w-fit"><LoadingSpinner size={20} /></div>
-                    <div>Cargando previsión Open-Meteo...</div>
-                    <div className="text-[11px] text-slate-600">La cola de peticiones puede tardar unos segundos</div>
+                    <div>Cargando previsión {activeModel === 'meteosix_wrf' ? 'WRF MeteoGalicia' : 'Open-Meteo'}...</div>
+                    <div className="text-[11px] text-slate-600">Puede tardar unos segundos</div>
                   </div>
                 ) : 'Sin datos de previsión disponibles'}
               </div>
@@ -1022,7 +1022,7 @@ export function ForecastTimeline() {
       {/* Footer */}
       {fetchedAt && (
         <div className="text-[11px] text-slate-600 text-center py-1 border-t border-slate-800">
-          Open-Meteo + scoring térmico · Actualizado {formatHour(fetchedAt)}
+          {activeModel === 'meteosix_wrf' ? 'WRF MeteoGalicia 1km' : 'Open-Meteo'} + scoring térmico · Actualizado {formatHour(fetchedAt)}
         </div>
       )}
     </div>
