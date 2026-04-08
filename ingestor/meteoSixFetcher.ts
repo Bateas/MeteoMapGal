@@ -15,7 +15,7 @@ import type { HourlyForecast } from '../src/types/forecast.js';
 // ── Config ──────────────────────────────────────────
 
 const METEOSIX_KEY = process.env.METEOSIX_API_KEY || '';
-const BASE_URL = 'https://www.meteogalicia.gal/apiv5';
+const BASE_URL = 'https://servizos.meteogalicia.gal/apiv5';
 const CACHE_TTL_MS = 60 * 60_000; // 60 minutes (WRF updates ~2x/day)
 
 const SECTOR_COORDS = [
