@@ -137,7 +137,8 @@ export async function fetchMeteoSixForecast(
   // Wind default is km/h — we convert to m/s in the transform below
   const url = METEOSIX.forecast(lon, lat, ATMO_VARIABLES, '1km', 'WRF');
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  // MeteoSIX 1km grid with 8 variables can take 20-30s to respond
+  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
