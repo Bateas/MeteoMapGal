@@ -695,6 +695,134 @@ function DaySeparator({ date }: { date: Date }) {
   );
 }
 
+// ── Smart sailing conclusion ─────────────────────────────
+
+function SailingConclusion({
+  diagnosis,
+  sailingSummary,
+  thermalWindows,
+  deltaT,
+  sectorId,
+}: {
+  diagnosis: DayDiagnosis;
+  sailingSummary: { bestKt: number; bestTime: Date | null; rainHours: number; totalHours: number };
+  thermalWindows: ThermalWindow[];
+  deltaT: number | null;
+  sectorId: string;
+}) {
+  const isEmbalse = sectorId === 'embalse';
+  const lines: { text: string; color: string; icon: IconId }[] = [];
+
+  // ── Overall verdict ──
+  const bestKt = sailingSummary.bestKt;
+  const hasGoodWind = bestKt >= 8;
+  const hasWind = bestKt >= 4;
+  const hasRain = sailingSummary.rainHours >= 2;
+  const stableDir = diagnosis.directionConsistency >= 60;
+  const strongPattern = diagnosis.patternScore >= 50;
+
+  if (hasGoodWind && stableDir && !hasRain) {
+    lines.push({
+      text: `Buen dia para navegar — viento hasta ${bestKt.toFixed(0)}kt${sailingSummary.bestTime ? ` sobre las ${formatHour(sailingSummary.bestTime)}` : ''}, direccion estable.`,
+      color: '#22c55e',
+      icon: 'sailboat',
+    });
+  } else if (hasGoodWind && !stableDir) {
+    lines.push({
+      text: `Viento suficiente (${bestKt.toFixed(0)}kt) pero direccion inestable — cambios frecuentes, adaptarse a las viradas.`,
+      color: '#facc15',
+      icon: 'wind',
+    });
+  } else if (hasWind && !hasGoodWind) {
+    lines.push({
+      text: `Viento flojo (max ${bestKt.toFixed(0)}kt) — navegable para veleros ligeros/foils, insuficiente para quillados.`,
+      color: '#94a3b8',
+      icon: 'wind',
+    });
+  } else {
+    lines.push({
+      text: 'Sin viento significativo previsto — dia de calma.',
+      color: '#64748b',
+      icon: 'wind',
+    });
+  }
+
+  // ── Thermal interpretation (Embalse) ──
+  if (isEmbalse) {
+    if (thermalWindows.length > 0) {
+      const best = thermalWindows[0];
+      lines.push({
+        text: `Termica prevista ${formatHour(best.startTime)}-${formatHour(best.endTime)} (${best.peakScore}%) — viento SW de valle al calentarse el aire.`,
+        color: thermalColor(best.peakScore),
+        icon: 'flame',
+      });
+    } else if (deltaT !== null && deltaT >= 12) {
+      lines.push({
+        text: `ΔT ${deltaT.toFixed(0)}°C — hay diferencial termico pero sin ventana clara. Posible brisa debil por la tarde.`,
+        color: '#f59e0b',
+        icon: 'thermometer',
+      });
+    }
+  }
+
+  // ── Pattern score interpretation ──
+  if (strongPattern) {
+    const pct = diagnosis.patternScore;
+    lines.push({
+      text: pct >= 70
+        ? `Patron historico ${pct}% — condiciones similares a los mejores dias termicos de verano.`
+        : `Patron historico ${pct}% — se parece a dias con termica moderada. Monitorizar por la tarde.`,
+      color: pct >= 60 ? '#22c55e' : '#f59e0b',
+      icon: 'database',
+    });
+  }
+
+  // ── CAPE / convection ──
+  if (diagnosis.maxCape !== null && diagnosis.maxCape >= 500) {
+    lines.push({
+      text: diagnosis.maxCape >= 1000
+        ? `CAPE ${diagnosis.maxCape.toFixed(0)} J/kg — energia tormentosa alta. Vigilar desarrollo de cumulonimbos por la tarde.`
+        : `CAPE ${diagnosis.maxCape.toFixed(0)} J/kg — conveccion activa, posibles chubascos aislados.`,
+      color: diagnosis.maxCape >= 1000 ? '#ef4444' : '#f59e0b',
+      icon: 'zap',
+    });
+  }
+
+  // ── Rain ──
+  if (hasRain && diagnosis.rainAlert) {
+    lines.push({
+      text: `Lluvia prevista ${formatHour(diagnosis.rainAlert.start)}-${formatHour(diagnosis.rainAlert.end)} (${diagnosis.rainAlert.totalMm.toFixed(1)}mm)${diagnosis.rainAlert.totalMm >= 10 ? ' — lluvia significativa, mejor no salir.' : ' — lluvia ligera.'}`,
+      color: '#38bdf8',
+      icon: 'cloud-rain',
+    });
+  }
+
+  // ── Pressure trend ──
+  if (diagnosis.pressureTrend === 'falling' && Math.abs(diagnosis.pressureChange) >= 3) {
+    lines.push({
+      text: `Presion bajando (${diagnosis.pressureChange.toFixed(1)} hPa en 6h) — indica paso de frente. Esperar cambios de viento.`,
+      color: '#ef4444',
+      icon: 'alert-triangle',
+    });
+  }
+
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="mb-2 rounded border border-slate-700/50 bg-slate-800/30 p-2.5 space-y-1.5">
+      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+        Resumen para navegantes
+      </div>
+      {lines.map((line, i) => (
+        <div key={i} className="flex items-start gap-2 text-xs leading-relaxed">
+          <WeatherIcon id={line.icon} size={14} className="shrink-0 mt-0.5" style={{ color: line.color }} />
+          <span style={{ color: line.color }}>{line.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────
 
 export function ForecastTimeline({ expanded = false }: { expanded?: boolean } = {}) {
@@ -908,7 +1036,8 @@ export function ForecastTimeline({ expanded = false }: { expanded?: boolean } = 
 
       {/* ── Summary section — compact in expanded, full in sidebar ── */}
       {expanded ? (
-        /* Expanded: single compact strip with key metrics */
+        <>
+        {/* Expanded: single compact strip with key metrics */}
         <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-2 py-1.5 bg-slate-800/40 rounded text-[11px] text-slate-300 border border-slate-700/50">
           {/* Best wind */}
           {sailingSummary && sailingSummary.bestKt > 0 && (
@@ -963,6 +1092,18 @@ export function ForecastTimeline({ expanded = false }: { expanded?: boolean } = 
             </span>
           )}
         </div>
+
+        {/* ── Smart sailing conclusion — interprets all metrics ── */}
+        {diagnosis && sailingSummary && (
+          <SailingConclusion
+            diagnosis={diagnosis}
+            sailingSummary={sailingSummary}
+            thermalWindows={thermalWindows}
+            deltaT={deltaT}
+            sectorId={sectorId}
+          />
+        )}
+        </>
       ) : (
         <>
           {/* Sidebar: full thermal windows + diagnosis + sailing summary */}
