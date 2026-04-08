@@ -29,7 +29,7 @@ const OnboardingTour = lazy(() => import('../common/OnboardingTour').then(m => (
 // Daily summary DISABLED in frontend — moved to ingestor (24/7, no duplicate sends)
 // import { shouldSendDailySummary, sendDailySummary } from '../../services/dailySummaryService';
 import { tryAutoSector } from '../../services/geolocationService';
-import { ConditionsTicker } from '../common/ConditionsTicker';
+const ConditionsTicker = lazy(() => import('../common/ConditionsTicker').then(m => ({ default: m.ConditionsTicker })));
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { aggregateAllAlerts } from '../../services/alertService';
@@ -433,7 +433,7 @@ export function AppShell() {
       {/* Deferred hooks — mount after 3s to unblock first paint (LCP) */}
       {deferredReady && <DeferredHooks teleconnectionsRef={teleconnectionsRef} />}
 
-      <ErrorBoundary section="Ticker"><ConditionsTicker /></ErrorBoundary>
+      <ErrorBoundary section="Ticker"><Suspense fallback={null}><ConditionsTicker /></Suspense></ErrorBoundary>
       <SourceStatusBanner />
 
       <div className="flex-1 flex overflow-hidden relative">
