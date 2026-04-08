@@ -28,18 +28,24 @@ export function useWeatherData() {
   const updateSourceStatus = useWeatherStore((s) => s.updateSourceStatus);
   const addToast = useToastStore((s) => s.addToast);
   const toastedSourceErrors = useRef(new Set<string>());
-  const cacheLoadedRef = useRef(false);
+  const cacheLoadedForSector = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Load cached readings on first mount (instant display while fresh data loads)
+  // Load cached readings per sector (instant display while fresh data loads)
   useEffect(() => {
-    if (!cacheLoadedRef.current) {
-      cacheLoadedRef.current = true;
+    if (cacheLoadedForSector.current !== activeSector.id) {
+      cacheLoadedForSector.current = activeSector.id;
       loadFromCache(activeSector.id);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSector.id, loadFromCache]);
 
   const fetchData = useCallback(async () => {
     if (stations.length === 0) return;
+
+    // Abort any in-flight fetch from a previous sector/refresh
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     // Capture sector at fetch start — if it changes mid-flight, discard results
     const fetchSectorId = activeSector.id;
@@ -191,7 +197,7 @@ export function useWeatherData() {
       const results = await Promise.all(tasks);
 
       // Sector guard: if user switched sector while fetching, discard stale results
-      if (useSectorStore.getState().activeSector.id !== fetchSectorId) {
+      if (controller.signal.aborted || useSectorStore.getState().activeSector.id !== fetchSectorId) {
         console.debug(`[WeatherData] Sector changed during fetch (${fetchSectorId}→${useSectorStore.getState().activeSector.id}), discarding`);
         return;
       }
@@ -249,6 +255,8 @@ export function useWeatherData() {
     if (stations.length === 0) {
       hasFetchedRef.current = false;
       hasLoadedHistoryRef.current = false;
+      // Abort any in-flight fetch from the previous sector
+      abortRef.current?.abort();
     }
   }, [stations.length]);
 
