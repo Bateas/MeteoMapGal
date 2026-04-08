@@ -52,6 +52,8 @@ export interface PrecursorSignals {
   windDivergence: SignalDetail;
   /** Forecast indicates thermal-favorable conditions */
   forecastFavorable: SignalDetail;
+  /** WRF sky_state clear during thermal window (MeteoSIX) */
+  skyStateClear?: SignalDetail;
 }
 
 export interface SignalDetail {
@@ -133,6 +135,24 @@ export function computeThermalPrecursors(
   // ── Signal 6: Forecast favorable ────────────────────────
   const forecastFavorable = detectForecastFavorable(forecast, now);
 
+  // ── Signal 7: WRF sky_state clear during thermal window (MeteoSIX) ──
+  // SUNNY/PARTLY_CLOUDY between 13-18h → favorable for thermal development.
+  // Weight: 5% (complementary — doesn't replace other signals).
+  const thermalWindowHours = forecast.filter(f => {
+    const h = f.time.getHours();
+    const diff = f.time.getTime() - now.getTime();
+    return diff >= 0 && diff < 8 * 3600_000 && h >= 13 && h <= 18;
+  });
+  const clearHours = thermalWindowHours.filter(f =>
+    f.skyState === 'SUNNY' || f.skyState === 'PARTLY_CLOUDY' || f.skyState === 'HIGH_CLOUDS',
+  ).length;
+  const skyStateClear: SignalDetail = {
+    active: clearHours >= 2 && thermalWindowHours.length > 0,
+    score: thermalWindowHours.length > 0 ? Math.min(100, (clearHours / thermalWindowHours.length) * 100) : 0,
+    weight: 0.05,
+    value: clearHours > 0 ? `${clearHours}/${thermalWindowHours.length}h despejadas 13-18h` : 'Sin datos sky_state',
+  };
+
   // ── Weighted probability ────────────────────────────────
   const signals: PrecursorSignals = {
     terral,
@@ -141,6 +161,7 @@ export function computeThermalPrecursors(
     humidityGradient,
     windDivergence,
     forecastFavorable,
+    skyStateClear,
   };
 
   const probability = Math.min(100, Math.round(
@@ -149,11 +170,12 @@ export function computeThermalPrecursors(
     solarRamp.score * solarRamp.weight +
     humidityGradient.score * humidityGradient.weight +
     windDivergence.score * windDivergence.weight +
-    forecastFavorable.score * forecastFavorable.weight,
+    forecastFavorable.score * forecastFavorable.weight +
+    skyStateClear.score * skyStateClear.weight,
   ));
 
   // ── Confidence ──────────────────────────────────────────
-  const activeSignals = [terral, deltaTWaterAir, solarRamp, humidityGradient, windDivergence, forecastFavorable]
+  const activeSignals = [terral, deltaTWaterAir, solarRamp, humidityGradient, windDivergence, forecastFavorable, skyStateClear]
     .filter(s => s.active).length;
   const confidence: 'high' | 'medium' | 'low' =
     activeSignals >= 4 ? 'high' : activeSignals >= 2 ? 'medium' : 'low';
@@ -666,6 +688,7 @@ function getActiveNames(signals: PrecursorSignals): string {
   if (signals.humidityGradient.active) names.push('gradiente HR');
   if (signals.windDivergence.active) names.push('divergencia');
   if (signals.forecastFavorable.active) names.push('previsión');
+  if (signals.skyStateClear?.active) names.push('cielo WRF');
   return names.join(', ') || 'señales débiles';
 }
 

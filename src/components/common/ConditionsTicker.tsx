@@ -227,6 +227,43 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       }
     }
 
+    // ── sky_state FOG/STORMS forecast from MeteoSIX (priority 8) ──
+    if (forecastHourly.length > 0) {
+      const now2 = new Date();
+      const next12h = forecastHourly.filter(h => {
+        const diff = h.time.getTime() - now2.getTime();
+        return diff >= 0 && diff < 12 * 3600_000;
+      });
+
+      // First FOG in forecast
+      const fogHour = next12h.find(h => h.skyState === 'FOG' || h.skyState === 'FOG_BANK' || h.skyState === 'MIST');
+      if (fogHour) {
+        const hh = fogHour.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+        result.push({
+          key: 'fcst-fog',
+          text: `Niebla prevista ${hh}`,
+          color: 'text-slate-300',
+          bg: 'bg-slate-700/30',
+          priority: 8,
+        });
+      }
+
+      // First STORMS in forecast
+      const stormHour = next12h.find(h =>
+        h.skyState === 'STORMS' || h.skyState === 'STORM_THEN_CLOUDY' || h.skyState === 'NIGHT_STORMS' || h.skyState === 'RAIN_HAIL',
+      );
+      if (stormHour) {
+        const hh = stormHour.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+        result.push({
+          key: 'fcst-storm-sky',
+          text: `WRF prevé tormentas ${hh}`,
+          color: 'text-purple-400',
+          bg: 'bg-purple-900/25',
+          priority: 8,
+        });
+      }
+    }
+
     // ── Real-time thermal precursors (priority 9) — Embalse + thermal spots ──
     if (sectorId === 'embalse') {
       const precursors = useSpotStore.getState().thermalPrecursors;

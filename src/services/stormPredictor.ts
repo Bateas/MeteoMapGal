@@ -17,6 +17,7 @@ import type { HourlyForecast } from '../types/forecast';
 import type { StormAlert } from '../types/lightning';
 import type { StormShadow } from './stormShadowDetector';
 import type { MGWarning } from '../api/mgWarningsClient';
+import { isStormSkyState } from '../api/meteoSixClient';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -190,6 +191,18 @@ export function predictStorm(
   };
   signals.push(warningSignal);
   probability += warningSignal.weight * 100;
+
+  // ── 9. WRF sky_state "STORMS" forecast (MeteoSIX) ──
+  // Categorical storm prediction from WRF model — complements CAPE (which is potential, not actual).
+  const stormSkyCount = next3h.filter((f) => isStormSkyState(f.skyState)).length;
+  const skyStateSignal: StormSignal = {
+    name: 'WRF prevé tormentas',
+    active: stormSkyCount > 0,
+    value: stormSkyCount > 0 ? `${stormSkyCount}h de ${next3h.length}h` : 'No',
+    weight: stormSkyCount >= 2 ? 0.1 : stormSkyCount === 1 ? 0.06 : 0,
+  };
+  signals.push(skyStateSignal);
+  probability += skyStateSignal.weight * 100;
 
   // Cap at 100
   probability = Math.min(100, Math.round(probability));
