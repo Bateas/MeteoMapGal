@@ -1,13 +1,15 @@
 import { useEffect, useState, memo } from 'react';
 
 const SHORTCUTS = [
-  { key: 'C', desc: 'Panel alertas (Navegación / Campo / Dron / Meteo)' },
-  { key: '1-4', desc: 'Cambiar pestaña del panel alertas (si está abierto)' },
+  { key: 'P', desc: 'Prevision fullscreen (tabla Windguru + meteograma)' },
+  { key: 'C', desc: 'Panel alertas (Navegacion / Campo / Dron / Meteo)' },
+  { key: '1-4', desc: 'Cambiar pestana del panel alertas (si esta abierto)' },
   { key: 'R', desc: 'Refrescar datos' },
   { key: 'T', desc: 'Gradiente temperatura' },
   { key: 'A', desc: 'Panel alertas unificado' },
   { key: 'W', desc: 'Ciclar capas (viento → humedad → radar)' },
-  { key: 'G', desc: 'Guía meteorológica — térmicos y navegación' },
+  { key: 'B', desc: 'Numeros grandes (viento/temp)' },
+  { key: 'G', desc: 'Guia meteorologica' },
   { key: '?', desc: 'Mostrar/ocultar esta ayuda' },
 ];
 

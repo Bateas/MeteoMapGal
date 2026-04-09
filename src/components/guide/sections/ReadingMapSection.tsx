@@ -473,13 +473,14 @@ export function ReadingMapSection() {
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
+              { key: 'P', desc: 'Prevision fullscreen' },
               { key: 'C', desc: 'Panel Campo' },
               { key: 'R', desc: 'Refrescar datos' },
               { key: 'T', desc: 'Gradiente temp.' },
               { key: 'A', desc: 'Panel alertas' },
               { key: 'W', desc: 'Ciclar capas' },
-              { key: 'B', desc: 'Números grandes' },
-              { key: 'G', desc: 'Esta guía' },
+              { key: 'B', desc: 'Numeros grandes' },
+              { key: 'G', desc: 'Esta guia' },
               { key: '?', desc: 'Ayuda atajos' },
             ].map((s) => (
               <div key={s.key} className="flex items-center gap-2">
