@@ -115,6 +115,8 @@ interface MapStyleState {
   showIGNOrtho: boolean;
   /** Wave coast overlay — coastline colored by exposure + wave height (#56) */
   showWaveCoast: boolean;
+  /** Upwelling overlay — cold water zones when N/NW wind sustained (#59) */
+  showUpwelling: boolean;
 
   setStyle: (id: MapStyleId) => void;
   toggleSeamarks: () => void;
@@ -123,6 +125,7 @@ interface MapStyleState {
   toggleIGNContours: () => void;
   toggleIGNOrtho: () => void;
   toggleWaveCoast: () => void;
+  toggleUpwelling: () => void;
 }
 
 export const useMapStyleStore = create<MapStyleState>()(
@@ -136,6 +139,7 @@ export const useMapStyleStore = create<MapStyleState>()(
         showIGNContours: false,
         showIGNOrtho: false,
         showWaveCoast: false, // DISABLED by default — #56 v1 has wrong exposure (normals ≠ fetch). Needs redesign
+        showUpwelling: false,
 
         setStyle: (activeStyleId) =>
           set({ activeStyleId }, undefined, 'setStyle'),
@@ -157,6 +161,9 @@ export const useMapStyleStore = create<MapStyleState>()(
 
         toggleWaveCoast: () =>
           set({ showWaveCoast: !get().showWaveCoast }, undefined, 'toggleWaveCoast'),
+
+        toggleUpwelling: () =>
+          set({ showUpwelling: !get().showUpwelling }, undefined, 'toggleUpwelling'),
       }),
       {
         name: 'meteomap-map-style',
@@ -168,6 +175,7 @@ export const useMapStyleStore = create<MapStyleState>()(
           showIGNContours: state.showIGNContours,
           showIGNOrtho: state.showIGNOrtho,
           showWaveCoast: state.showWaveCoast,
+          showUpwelling: state.showUpwelling,
         }),
       },
     ),

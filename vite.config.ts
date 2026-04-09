@@ -149,6 +149,12 @@ export default defineConfig(({ mode }) => ({
         rewrite: (path) => path.replace(/^\/opensky-api/, ''),
         secure: true,
       },
+      '/swan-api': {
+        target: 'https://thredds-meteo.cesga.es',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/swan-api/, ''),
+        secure: true,
+      },
     },
   },
 }))
