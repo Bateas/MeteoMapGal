@@ -141,12 +141,19 @@ export function scoreForecastThermal(
       score += bkDir;
     }
 
-    // Wind speed (0-15)
+    // Wind speed (0-15) — harder scale: need >4 m/s (~8kt) for decent score
     if (windSpeed !== null) {
-      if (windSpeed >= rule.expectedWind.minSpeed) {
-        bkSpeed = Math.min(15, 8 + windSpeed * 1.5);
-      } else if (windSpeed > 0.5) {
-        bkSpeed = 4;
+      const kt = windSpeed * 1.94384;
+      if (kt >= 18) {
+        bkSpeed = 15; // 18kt+ = max score
+      } else if (kt >= 13) {
+        bkSpeed = 12; // 13-18kt = great
+      } else if (kt >= 9) {
+        bkSpeed = 8;  // 9-13kt = good
+      } else if (kt >= 6) {
+        bkSpeed = 4;  // 6-9kt = marginal
+      } else {
+        bkSpeed = 1;  // <6kt = barely counts
       }
       score += bkSpeed;
     }
@@ -163,10 +170,24 @@ export function scoreForecastThermal(
       else if (deltaT < 8) { score *= 0.6; multipliers.push({ label: 'ΔT bajo', factor: 0.6 }); }
     }
 
-    // Cloud cover penalty
-    if (point.cloudCover !== null && point.cloudCover > 70) {
-      score *= 0.8;
-      multipliers.push({ label: 'Nubes', factor: 0.8 });
+    // Cloud cover penalty — sun makes the difference between good and great
+    if (point.cloudCover !== null) {
+      if (point.cloudCover > 85) {
+        score *= 0.7; multipliers.push({ label: 'Cubierto', factor: 0.7 });
+      } else if (point.cloudCover > 60) {
+        score *= 0.85; multipliers.push({ label: 'Nubes', factor: 0.85 });
+      }
+      // Bonus for clear sky (sun amplifies thermal + comfort)
+      if (point.cloudCover < 20) {
+        score *= 1.08; multipliers.push({ label: 'Sol', factor: 1.08 });
+      }
+    }
+
+    // Cold penalty — sailing in cold is not a "great day" even with wind
+    if (temp !== null && temp < 12) {
+      const coldFactor = Math.max(0.6, 1 - (12 - temp) * 0.04);
+      score *= coldFactor;
+      multipliers.push({ label: 'Frio', factor: Math.round(coldFactor * 100) / 100 });
     }
 
     // CAPE bonus
