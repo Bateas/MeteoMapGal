@@ -67,7 +67,8 @@ export function interpolateWind(
   lat: number,
   lon: number,
   stations: StationWindData[],
-  power = 2,
+  power = 2.5,
+  maxRadiusKm = 25,
 ): WindVector {
   if (stations.length === 0) return { vx: 0, vy: 0, speed: 0 };
 
@@ -84,12 +85,18 @@ export function interpolateWind(
       return { vx: v.vx, vy: v.vy, speed: s.speed };
     }
 
+    // Skip stations beyond max influence radius — prevents distant calm
+    // inland stations from "pulling down" interpolation over open water
+    if (d > maxRadiusKm) continue;
+
     const w = (1 / Math.pow(d, power)) * (s.freshness ?? 1.0);
     const v = windToVector(s.speed, s.dirDeg);
     vxSum += w * v.vx;
     vySum += w * v.vy;
     weightSum += w;
   }
+
+  if (weightSum === 0) return { vx: 0, vy: 0, speed: 0 };
 
   const vx = vxSum / weightSum;
   const vy = vySum / weightSum;
