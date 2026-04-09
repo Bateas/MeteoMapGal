@@ -855,7 +855,7 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
         </div>
         <button
           onClick={() => {
-            useUIStore.getState().setForecastPanelOpen(true);
+            useUIStore.getState().setForecastPanelOpen(true, spot.id);
           }}
           className="mt-1.5 w-full text-center text-[11px] text-sky-400 hover:text-sky-300 transition-colors py-1 rounded bg-sky-500/10 hover:bg-sky-500/15 font-medium"
         >
