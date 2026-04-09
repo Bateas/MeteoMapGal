@@ -35,8 +35,8 @@ const OBS_STATIONS: ObsStation[] = [
   { obsId: 15009, canonicalId: 15009, name: 'Muros',             lat: 42.7195, lon: -9.0153 }, // NEW — no PORTUS equivalent
 ];
 
-const API_BASE = '/obscosteiro-api';
-const API_KEY = import.meta.env.VITE_OBSCOSTEIRO_API_KEY ?? '';
+// ObsCosteiro API key is injected server-side by the ingestor proxy.
+const API_BASE = '/api/v1/obscosteiro';
 const TIMEOUT = 15_000;
 const NO_DATA = -9999;
 
@@ -63,7 +63,6 @@ type ObsResponse = ObsParametro[] | { parametros?: ObsParametro[] };
 async function obsFetch(boiaId: number, attempt = 0): Promise<ObsResponse | null> {
   try {
     const res = await fetch(`${API_BASE}/ultimo/recente/${boiaId}`, {
-      headers: { 'apikey': API_KEY },
       signal: AbortSignal.timeout(TIMEOUT),
     });
 
