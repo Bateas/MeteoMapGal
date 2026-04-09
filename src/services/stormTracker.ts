@@ -1,5 +1,6 @@
 import type { LightningStrike } from '../types/lightning';
 import { distanceKm } from '../api/lightningClient';
+import { computeBearing } from './idwInterpolation';
 
 /**
  * Storm cell tracking engine v2.
@@ -247,22 +248,7 @@ function subdivideCluster(
 
 // ── Velocity computation ─────────────────────────────────────────
 
-/**
- * Compute bearing between two points in degrees (0 = North, 90 = East).
- */
-function computeBearing(
-  lat1: number, lon1: number,
-  lat2: number, lon2: number,
-): number {
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const y = Math.sin(dLon) * Math.cos((lat2 * Math.PI) / 180);
-  const x =
-    Math.cos((lat1 * Math.PI) / 180) * Math.sin((lat2 * Math.PI) / 180) -
-    Math.sin((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.cos(dLon);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
+// computeBearing imported from idwInterpolation.ts
 
 /**
  * Convert bearing degrees to cardinal direction.
