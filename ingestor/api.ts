@@ -48,6 +48,8 @@ const PORT = parseInt(process.env.API_PORT || '3001', 10);
 const HOST = process.env.API_HOST || '127.0.0.1';
 const WEBCAM_DIR = process.env.WEBCAM_DIR || '/var/www/meteomapgal/webcam';
 const WEBCAM_TOKEN = process.env.WEBCAM_TOKEN || '';
+const AEMET_API_KEY = process.env.AEMET_API_KEY || '';
+const AEMET_BASE = 'https://opendata.aemet.es/opendata';
 
 // CORS: allow frontend origins
 const ALLOWED_ORIGINS = new Set([
@@ -516,6 +518,115 @@ async function handleWebcamUpload(
   }
 }
 
+// ── AEMET proxy (server-side key injection) ────────────
+// Frontend calls /api/v1/aemet/api/observacion/... without the key.
+// This handler injects AEMET_API_KEY and proxies to opendata.aemet.es.
+// Responses cached in-memory for 5 minutes to reduce AEMET load.
+
+const aemetCache = new Map<string, { data: Buffer; contentType: string; ts: number }>();
+const AEMET_CACHE_TTL = 5 * 60_000; // 5 minutes
+
+async function handleAemetProxy(
+  aemetPath: string,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  if (!AEMET_API_KEY) {
+    error(res, 'AEMET_API_KEY not configured on server', 503, origin);
+    return;
+  }
+
+  // Whitelist allowed AEMET paths to prevent SSRF
+  if (!aemetPath.startsWith('/api/') && !aemetPath.startsWith('/opendata/')) {
+    error(res, 'Invalid AEMET path', 400, origin);
+    return;
+  }
+
+  // Check in-memory cache
+  const cached = aemetCache.get(aemetPath);
+  if (cached && Date.now() - cached.ts < AEMET_CACHE_TTL) {
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'HIT' });
+    res.end(cached.data);
+    return;
+  }
+
+  try {
+    // Inject api_key server-side
+    const sep = aemetPath.includes('?') ? '&' : '?';
+    const url = `${AEMET_BASE}${aemetPath}${sep}api_key=${AEMET_API_KEY}`;
+    const upstream = await fetch(url, {
+      headers: { 'Accept': 'application/json' },
+    });
+
+    const contentType = upstream.headers.get('content-type') || 'application/json';
+    const buf = Buffer.from(await upstream.arrayBuffer());
+
+    // Cache successful responses
+    if (upstream.ok) {
+      aemetCache.set(aemetPath, { data: buf, contentType, ts: Date.now() });
+      // Prune old entries
+      if (aemetCache.size > 50) {
+        const now = Date.now();
+        for (const [k, v] of aemetCache) {
+          if (now - v.ts > AEMET_CACHE_TTL) aemetCache.delete(k);
+        }
+      }
+    }
+
+    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
+    res.end(buf);
+  } catch (err) {
+    log.error('[AEMET Proxy]', (err as Error).message);
+    // Serve stale cache on error
+    if (cached) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'STALE' });
+      res.end(cached.data);
+      return;
+    }
+    error(res, 'AEMET upstream error', 502, origin);
+  }
+}
+
+// ── AEMET data proxy (step 2 — signed URLs) ────────────
+// AEMET step 1 returns a datos URL like https://opendata.aemet.es/opendata/sh/XXXXX
+// Step 2 fetches that URL (no api_key needed, it's a signed URL).
+
+async function handleAemetDataProxy(
+  dataPath: string,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  // Check in-memory cache
+  const cached = aemetCache.get(`data:${dataPath}`);
+  if (cached && Date.now() - cached.ts < AEMET_CACHE_TTL) {
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'HIT' });
+    res.end(cached.data);
+    return;
+  }
+
+  try {
+    const url = `https://opendata.aemet.es${dataPath}`;
+    const upstream = await fetch(url);
+    const contentType = upstream.headers.get('content-type') || 'application/json';
+    const buf = Buffer.from(await upstream.arrayBuffer());
+
+    if (upstream.ok) {
+      aemetCache.set(`data:${dataPath}`, { data: buf, contentType, ts: Date.now() });
+    }
+
+    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
+    res.end(buf);
+  } catch (err) {
+    log.error('[AEMET Data Proxy]', (err as Error).message);
+    if (cached) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'STALE' });
+      res.end(cached.data);
+      return;
+    }
+    error(res, 'AEMET data upstream error', 502, origin);
+  }
+}
+
 // ── Server ─────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
@@ -551,10 +662,22 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
     const pathname = url.pathname.replace(/\/+$/, ''); // strip trailing slash
+
+    // ── AEMET proxy routes (key stays server-side) ──
+    if (pathname.startsWith('/api/v1/aemet/')) {
+      const aemetPath = pathname.slice('/api/v1/aemet'.length); // e.g. /api/observacion/...
+      await handleAemetProxy(aemetPath, res, origin);
+      return;
+    }
+    if (pathname.startsWith('/api/v1/aemet-data/')) {
+      const dataPath = pathname.slice('/api/v1/aemet-data'.length); // e.g. /opendata/sh/XXXXX
+      await handleAemetDataProxy(dataPath, res, origin);
+      return;
+    }
+
     const handler = routes[pathname];
 
     if (!handler) {
-      // List available endpoints
       error(
         res,
         `Not found. Available endpoints: ${Object.keys(routes).join(', ')}`,

@@ -100,11 +100,8 @@ export async function fetchAemetAvisos(): Promise<AemetAviso[]> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) return cache.data;
 
   try {
-    // Step 1: get data URL from AEMET API
-    const apiKey = import.meta.env.VITE_AEMET_API_KEY;
-    if (!apiKey) return cache?.data ?? [];
-
-    const step1 = await fetch(`/aemet-api/api/avisos_cap/ultimoelaborado/area/61?api_key=${apiKey}`, {
+    // Step 1: get data URL via ingestor AEMET proxy (key injected server-side)
+    const step1 = await fetch(`/api/v1/aemet/api/avisos_cap/ultimoelaborado/area/61`, {
       signal: AbortSignal.timeout(10_000),
     });
     if (!step1.ok) return cache?.data ?? [];
@@ -112,8 +109,10 @@ export async function fetchAemetAvisos(): Promise<AemetAviso[]> {
     const meta = await step1.json();
     if (!meta.datos) return cache?.data ?? [];
 
-    // Step 2: fetch actual CAP XML from data URL
-    const step2 = await fetch(meta.datos, { signal: AbortSignal.timeout(15_000) });
+    // Step 2: fetch actual CAP XML via ingestor proxy (signed URL, no key needed)
+    const parsed = new URL(meta.datos);
+    const step2Url = `/api/v1/aemet-data${parsed.pathname}${parsed.search}`;
+    const step2 = await fetch(step2Url, { signal: AbortSignal.timeout(15_000) });
     if (!step2.ok) return cache?.data ?? [];
 
     const xml = await step2.text();
