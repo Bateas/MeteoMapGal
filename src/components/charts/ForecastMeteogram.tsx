@@ -119,13 +119,36 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
       });
     }
 
-    return { windPath, windLine, tempLine, precipBars, nowX, dayLines, bestX, bestKt, bestColor, nightRegions, maxWind };
+    // "Ahora" label position as percentage for HTML overlay
+    const nowLabel = nowX >= 0 ? nowX : null;
+
+    return { windPath, windLine, tempLine, precipBars, nowX, dayLines, bestX, bestKt, bestColor, nightRegions, maxWind, nowLabel };
   }, [data, height]);
 
   if (!chartData) return null;
 
   return (
-    <div className="mb-2 rounded border border-slate-700/50 bg-slate-800/30 overflow-hidden">
+    <div className="mb-2 rounded border border-slate-700/50 bg-slate-800/30 overflow-hidden relative">
+      {/* HTML day labels (don't distort with preserveAspectRatio="none") */}
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
+        {chartData.dayLines.map((d, i) => (
+          <span
+            key={`dlabel-${i}`}
+            className="absolute top-1 text-[10px] font-bold text-slate-400"
+            style={{ left: `${d.x}%`, paddingLeft: 4 }}
+          >
+            {d.label}
+          </span>
+        ))}
+        {chartData.nowLabel != null && (
+          <span
+            className="absolute bottom-4 text-[9px] font-bold text-red-400"
+            style={{ left: `${chartData.nowLabel}%`, transform: 'translateX(2px)' }}
+          >
+            Ahora
+          </span>
+        )}
+      </div>
       <svg
         viewBox={`0 0 100 ${height}`}
         preserveAspectRatio="none"
@@ -146,25 +169,15 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
           />
         ))}
 
-        {/* Day boundary lines — solid, visible */}
+        {/* Day boundary lines — solid, visible (labels are HTML overlay above) */}
         {chartData.dayLines.map((d, i) => (
-          <g key={`day-${i}`}>
-            <line
-              x1={`${d.x}%`} y1={0}
-              x2={`${d.x}%`} y2={height}
-              stroke="#475569"
-              strokeWidth="0.5"
-            />
-            <text
-              x={`${d.x + 1}%`}
-              y={MARGIN.top + 6}
-              fontSize="4"
-              fill="#94a3b8"
-              fontWeight="bold"
-            >
-              {d.label}
-            </text>
-          </g>
+          <line
+            key={`day-${i}`}
+            x1={`${d.x}%`} y1={0}
+            x2={`${d.x}%`} y2={height}
+            stroke="#475569"
+            strokeWidth="0.5"
+          />
         ))}
 
         {/* Precip bars */}
@@ -207,26 +220,15 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
           opacity="0.7"
         />
 
-        {/* Now marker — bright red, clearly visible */}
+        {/* Now marker — bright red (label is HTML overlay) */}
         {chartData.nowX >= 0 && (
-          <g>
-            <line
-              x1={`${chartData.nowX}%`} y1={0}
-              x2={`${chartData.nowX}%`} y2={height}
-              stroke="#ef4444"
-              strokeWidth="0.8"
-              vectorEffect="non-scaling-stroke"
-            />
-            <text
-              x={`${chartData.nowX + 0.5}%`}
-              y={height - MARGIN.bottom + 4}
-              fontSize="3.5"
-              fill="#ef4444"
-              fontWeight="bold"
-            >
-              Ahora
-            </text>
-          </g>
+          <line
+            x1={`${chartData.nowX}%`} y1={0}
+            x2={`${chartData.nowX}%`} y2={height}
+            stroke="#ef4444"
+            strokeWidth="0.8"
+            vectorEffect="non-scaling-stroke"
+          />
         )}
 
         {/* Best hour marker */}
