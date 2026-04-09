@@ -318,6 +318,23 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
+    // ── Station count + stale info (priority 1) ──
+    const staleCount = stations.filter(s => {
+      const r = readings.get(s.id);
+      if (!r?.timestamp) return false;
+      return (Date.now() - r.timestamp.getTime()) > 30 * 60_000;
+    }).length;
+    if (stations.length > 0) {
+      const activeCount = stations.length - staleCount;
+      result.push({
+        key: 'station-status',
+        text: `${activeCount}/${stations.length} estaciones activas${staleCount > 5 ? ` (${staleCount} sin datos)` : ''}`,
+        color: staleCount > 10 ? 'text-amber-400' : 'text-slate-500',
+        bg: '',
+        priority: 1,
+      });
+    }
+
     // ── Fallback ──
     if (result.length === 0 && stations.length > 0) {
       result.push({
