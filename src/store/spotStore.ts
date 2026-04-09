@@ -48,6 +48,8 @@ interface SpotState {
   visionAnalyzedAt: number;
   /** Per-surf-spot wave data + computed verdict from Open-Meteo Marine (keyed by spot.id) */
   surfWaveCache: Map<string, { waveHeight: number; swellHeight: number | null; period: number; verdictLabel?: string; verdictColor?: string }>;
+  /** Per-spot WRF 1km forecast cache (keyed by spot.id, fetched on popup open) */
+  spotForecasts: Map<string, { data: HourlyForecast[]; fetchedAt: number }>;
 }
 
 interface SpotActions {
@@ -59,6 +61,7 @@ interface SpotActions {
   setThermalPrecursors: (precursors: Map<string, ThermalPrecursorResult>) => void;
   setWebcamVision: (results: Map<string, WebcamVisionResult>) => void;
   setSurfWave: (spotId: string, data: { waveHeight: number; swellHeight: number | null; period: number; verdictLabel?: string; verdictColor?: string }) => void;
+  setSpotForecast: (spotId: string, data: HourlyForecast[]) => void;
 }
 
 export const useSpotStore = create<SpotState & SpotActions>()(
@@ -79,6 +82,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
         webcamVision: new Map(),
         visionAnalyzedAt: 0,
         surfWaveCache: new Map(),
+        spotForecasts: new Map(),
 
         toggleFavorite: (spotId: string) => {
           const current = useSpotStore.getState().favoriteSpotId;
@@ -130,6 +134,11 @@ export const useSpotStore = create<SpotState & SpotActions>()(
           const next = new Map(useSpotStore.getState().surfWaveCache);
           next.set(spotId, data);
           set({ surfWaveCache: next }, undefined, 'setSurfWave');
+        },
+        setSpotForecast: (spotId, data) => {
+          const next = new Map(useSpotStore.getState().spotForecasts);
+          next.set(spotId, { data, fetchedAt: Date.now() });
+          set({ spotForecasts: next }, undefined, 'setSpotForecast');
         },
       }),
       {
