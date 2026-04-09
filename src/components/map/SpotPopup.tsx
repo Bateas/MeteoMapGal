@@ -854,12 +854,8 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
           })}
         </div>
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            useUIStore.getState().setForecastPanelOpen(true, spot.id);
-          }}
-          className="mt-1.5 w-full text-center text-[11px] text-sky-400 hover:text-sky-300 transition-colors py-1 rounded bg-sky-500/10 hover:bg-sky-500/15 font-medium"
+          onPointerUp={() => useUIStore.getState().setForecastPanelOpen(true, spot.id)}
+          className="mt-1.5 w-full text-center text-[11px] text-sky-400 hover:text-sky-300 transition-colors py-1 rounded bg-sky-500/10 hover:bg-sky-500/15 font-medium cursor-pointer"
         >
           Ver prevision detallada 48h
         </button>
