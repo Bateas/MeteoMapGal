@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.28.0-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.38.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-282%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
@@ -56,7 +56,7 @@
 ### Mapa en tiempo real
 - Mapa 3D (MapLibre GL) con 6 estilos base + terreno
 - Flechas de viento coloreadas por intensidad en cada estacion
-- Capas: humedad, temperatura, radar, webcams, corrientes, cartas nauticas
+- Capas: humedad, temperatura, radar, niebla (DEM terrain), webcams, corrientes, cartas nauticas
 
 
 ### Scoring inteligente (13 spots)
@@ -65,6 +65,8 @@
 - Cada spot muestra las fuentes que contribuyen al veredicto (nombre, velocidad, peso %)
 - Deteccion de patrones locales: termicas, bocanas, virazones de ria
 - Ventanas de navegacion: "Cuando salgo?" con prevision 48h
+- **Prevision WRF 1km por spot**: MeteoSIX de MeteoGalicia, cada spot usa su celda de grid exacta
+- **Temperatura del mar (MOHID)**: modelo oceanografico como fallback cuando no hay boya
 
 
 ### Seguimiento de tormentas
@@ -131,8 +133,20 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 </p>
 
 
+### Prevision avanzada
+- **WRF 1km** (MeteoSIX v5): modelo de MeteoGalicia a 1km de resolucion, por defecto para todos los spots
+- **Panel fullscreen**: tabla estilo Windguru con colores por intensidad, dots de calidad, dimming nocturno
+- **Meteograma SVG**: sparkline viento+temp+precipitacion (0KB extra de bundle)
+- **Conclusion inteligente**: resumen en lenguaje natural de la prevision 48h
+- **Predictor de tormentas**: 8 senales combinadas → probabilidad 0-100%
+
+### Niebla (DEM terrain overlay)
+- Deteccion de niebla radiativa (Embalse) y advectiva (Rias) por analisis dewpoint/temp/HR
+- Overlay en mapa basado en modelo digital del terreno (celdas < umbral altitud)
+- Validacion con webcams DGT (Ribadavia, Fea-Arrabaldo)
+
 ### Vision IA (webcams)
-- 19 camaras MeteoGalicia analizadas cada 15min
+- 19 camaras MeteoGalicia + 2 DGT analizadas cada 15min
 - Estimacion Beaufort 0-7 desde la superficie del agua
 - Deteccion de niebla, visibilidad, estado del cielo
 - Alertas automaticas por visibilidad reducida
@@ -147,7 +161,8 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 | AEMET, MeteoGalicia, Meteoclimatic | Estaciones oficiales y ciudadanas |
 | Weather Underground, Netatmo, SkyX | Estaciones personales |
 | Puertos del Estado, Obs. Costeiro | Boyas marinas |
-| Open-Meteo | Prevision ECMWF / GFS / ICON |
+| MeteoSIX v5 (MeteoGalicia) | WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temp mar) |
+| Open-Meteo | CAPE, CIN, LI, rachas, visibilidad (conveccion background) |
 | RainViewer, IHM, ENAIRE | Radar precipitacion, mareas, espacio aereo |
 | CMEMS, INTECMAR, IGN | SST, corrientes, cartografia |
 | MeteoGalicia Webcams + Ollama | 19 camaras + vision IA (Beaufort, niebla) |
@@ -174,9 +189,10 @@ npm test                # 282 tests (Vitest)
 
 **Arquitectura**:
 - Frontend: React SPA con 19 stores Zustand, predictor de tormentas 8 senales, 7 sub-componentes SpotPopup
-- Backend: Ingestor Node.js 24/7 → TimescaleDB (polling 6 fuentes cada 5min)
-- Produccion: nginx reverse proxy en Proxmox LXC
-- WU + Netatmo consolidados via ingestor API (reduce fetches frontend)
+- Backend: Ingestor Node.js 24/7 → TimescaleDB (polling 6 fuentes cada 5min + MeteoSIX WRF/USWAN)
+- Modelos: WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temperatura del mar), Open-Meteo (conveccion)
+- Produccion: nginx reverse proxy en Proxmox LXC, Cloudflare Tunnel
+- Performance: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle 333KB
 
 ---
 
