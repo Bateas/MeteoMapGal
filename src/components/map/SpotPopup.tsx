@@ -384,6 +384,16 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         <div className="text-[11px] text-slate-500 mt-1">Cargando prevision WRF 1km...</div>
       )}
 
+      {/* ── Open full forecast panel — always visible, not inside ForecastMiniTimeline ── */}
+      {spot.category !== 'surf' && (
+        <button
+          onClick={() => useUIStore.getState().setForecastPanelOpen(true, spot.id)}
+          className="mt-1.5 w-full text-center text-[11px] text-sky-400 hover:text-sky-300 transition-colors py-1.5 rounded bg-sky-500/10 hover:bg-sky-500/15 font-medium"
+        >
+          Ver prevision detallada 48h
+        </button>
+      )}
+
       {/* ── Thermal precursor early warning (collapsible) ── */}
       {precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
 
@@ -853,12 +863,6 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
             );
           })}
         </div>
-        <button
-          onPointerUp={() => useUIStore.getState().setForecastPanelOpen(true, spot.id)}
-          className="mt-1.5 w-full text-center text-[11px] text-sky-400 hover:text-sky-300 transition-colors py-1 rounded bg-sky-500/10 hover:bg-sky-500/15 font-medium cursor-pointer"
-        >
-          Ver prevision detallada 48h
-        </button>
         </>
       )}
     </div>
