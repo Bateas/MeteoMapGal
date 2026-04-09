@@ -227,6 +227,30 @@ CREATE TABLE IF NOT EXISTS webcam_readings (
 );
 SELECT create_hypertable('webcam_readings', 'time', if_not_exists => TRUE);
 
+-- ── Storm predictions hypertable ────────────────────────
+-- Frontend sends prediction snapshots every 5min when prob > 0 or lightning active.
+-- Used for ML calibration of signal weights.
+CREATE TABLE IF NOT EXISTS storm_predictions (
+  time          TIMESTAMPTZ     NOT NULL,
+  sector        TEXT            NOT NULL,
+  probability   SMALLINT        NOT NULL,  -- 0-100
+  horizon       TEXT,                      -- imminent/likely/possible/none
+  severity      TEXT,                      -- extreme/severe/moderate/none
+  has_lightning  BOOLEAN         NOT NULL DEFAULT FALSE,
+  -- Signal weights (compact: 9 values matching stormPredictor signals order)
+  signal_cape   REAL,
+  signal_precip REAL,
+  signal_cloud  REAL,
+  signal_lightning REAL,
+  signal_approach  REAL,
+  signal_shadow    REAL,
+  signal_gusts     REAL,
+  signal_mg_warning REAL,
+  signal_sky_state  REAL,
+  PRIMARY KEY (time, sector)
+);
+SELECT create_hypertable('storm_predictions', 'time', if_not_exists => TRUE);
+
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
 -- SELECT add_retention_policy('alerts', INTERVAL '1 year', if_not_exists => TRUE);
