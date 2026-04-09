@@ -580,5 +580,12 @@ export function buildMaritimeFogAlerts(
     urgent: risk.level === 'critico',
     updatedAt: new Date(),
     confidence: risk.confidence,
+    fogMeta: {
+      type: 'advective',
+      windDir: risk.windDir ?? null,
+      windSpeed: risk.windSpeed ?? null,
+      spread: null,
+      webcamConfirmed: webcamFogDetected === true,
+    },
   }];
 }
