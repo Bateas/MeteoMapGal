@@ -80,28 +80,8 @@ function pushHexArrows(
     });
   }
 
-  // Outer ring — skip in compact mode
-  if (!compact) {
-    for (let i = 0; i < OFFSETS_OUTER.length; i++) {
-      const [dx, dy] = OFFSETS_OUTER[i];
-      features.push({
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [
-            lon + dx * OFFSET_LON * 1.8,
-            lat + dy * OFFSET_LAT * 1.8,
-          ],
-        },
-        properties: {
-          rotation,
-          speed: windSpeed,
-          speedLevel: level,
-          opacity: 0.5,
-        },
-      });
-    }
-  }
+  // Outer ring disabled — 12 arrows per station too visually dense.
+  // 6-arrow inner ring provides clear wind direction without clutter.
 }
 
 /**
