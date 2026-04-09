@@ -5,6 +5,7 @@ import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import type { BuoyReading } from '../../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../../api/buoyClient';
 import { STALE_THRESHOLD_MIN } from '../../config/constants';
+import { isWindBlacklisted } from '../../services/spotScoringEngine';
 
 interface WindFieldOverlayProps {
   stations: NormalizedStation[];
@@ -29,16 +30,6 @@ const OFFSETS = [
   [0, -1],           // S
   [-0.866, -0.5],    // SW
   [-0.866, 0.5],     // NW
-] as const;
-
-/** Second ring (farther, more transparent) */
-const OFFSETS_OUTER = [
-  [0.5, 0.866],      // NNE
-  [1, 0],            // E
-  [0.5, -0.866],     // SSE
-  [-0.5, -0.866],    // SSW
-  [-1, 0],           // W
-  [-0.5, 0.866],     // NNW
 ] as const;
 
 const EMPTY_FC: GeoJSON.FeatureCollection = {
@@ -235,6 +226,8 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
     const now = Date.now();
     for (const station of stations) {
       if (station.tempOnly) continue;
+      // Skip blacklisted stations — sheltered/broken sensors contaminate wind field
+      if (isWindBlacklisted(station.id)) continue;
       const reading = readings.get(station.id);
       if (!reading || reading.windDirection === null || reading.windSpeed === null || reading.windSpeed < minWindMs) continue;
       // Skip stale stations — no wind arrows for offline data

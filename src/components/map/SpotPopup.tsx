@@ -58,7 +58,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const isMobile = useUIStore((s) => s.isMobile);
   const dismiss = () => selectSpot('');
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
-  const sectorForecast = useSpotStore((s) => s.sectorForecast);
   const spotForecasts = useSpotStore((s) => s.spotForecasts);
   const setSpotForecast = useSpotStore((s) => s.setSpotForecast);
   const windowResult = sailingWindows.get(spot.id);
