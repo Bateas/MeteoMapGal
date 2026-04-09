@@ -1,55 +1,71 @@
 /**
- * FogOverlay — visual fog effect on low-lying areas using REAL terrain data.
+ * FogOverlay — scientific fog visualization using REAL terrain data (#55).
  *
- * Samples terrain elevation from MapLibre DEM tiles and generates a polygon
- * covering only areas below a threshold altitude (~180m). The fog "fills"
- * the valley automatically based on actual topography.
+ * Features:
+ * - Per-cell density: lower altitude = denser fog (not uniform)
+ * - Fog type colors: radiative (warm white) vs advective (blue-steel)
+ * - Directional advance: advective fog denser on coast, thins inland
+ * - Breathing opacity animation (subtle pulse)
+ * - Sectors: Embalse (valley <185m) + Rías Baixas (coastal <35m)
  *
- * Semi-transparent white fill with subtle "breathing" opacity animation.
- * Only renders in Embalse sector when fog conditions are detected.
+ * Activated by fog alerts in alertStore. Samples terrain DEM on activation.
  */
 import { useState, useEffect, useCallback, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useSectorStore } from '../../store/sectorStore';
 import { useAlertStore } from '../../store/alertStore';
+import type { UnifiedAlert } from '../../services/alerts/types';
 
 // ── Config ──────────────────────────────────────────
 
-/** Sector-specific fog configuration */
 const FOG_CONFIG = {
   embalse: {
-    maxAltitude: 185, // valley floor
+    maxAltitude: 185,
     bbox: { west: -8.20, east: -7.97, south: 42.24, north: 42.34 },
     cols: 100, rows: 80,
-    color: '#cbd5e1',     // gray-white (radiation fog)
+    radiativeColor: '#e2e8f0',   // warm white-gray (still, valley)
+    advectiveColor: '#94a3b8',   // cooler blue-gray (unlikely in embalse)
     glowColor: '#94a3b8',
   },
   rias: {
-    maxAltitude: 35, // sea level + low coastal areas
+    maxAltitude: 35,
     bbox: { west: -9.05, east: -8.50, south: 42.10, north: 42.55 },
     cols: 120, rows: 100,
-    color: '#94a3b8',     // cooler blue-gray (marine advection fog)
+    radiativeColor: '#cbd5e1',   // lighter gray
+    advectiveColor: '#7c9ab8',   // blue-steel (marine character)
     glowColor: '#64748b',
   },
 } as const;
 
-/** Minimum cluster size to form a fog polygon (avoid noise) */
 const MIN_CLUSTER_POINTS = 8;
 
-// ── Terrain sampling → GeoJSON ──────────────────────
+// ── Terrain sampling → GeoJSON with density ─────────
 
-/**
- * Sample terrain elevation at a grid of points and return a GeoJSON
- * FeatureCollection of small cells where altitude < threshold.
- */
 function sampleFogZones(
   queryElevation: (lngLat: { lng: number; lat: number }) => number | null,
   config: typeof FOG_CONFIG.embalse,
+  fogType: 'radiative' | 'advective',
+  windDir?: number | null,
 ): GeoJSON.FeatureCollection {
   const { bbox, cols, rows, maxAltitude } = config;
   const cellW = (bbox.east - bbox.west) / cols;
   const cellH = (bbox.north - bbox.south) / rows;
   const features: GeoJSON.Feature[] = [];
+  const color = fogType === 'advective' ? config.advectiveColor : config.radiativeColor;
+
+  // Precompute directional advance vector for advective fog
+  let advanceDx = 0, advanceDy = 0;
+  const hasDirection = fogType === 'advective' && windDir != null;
+  if (hasDirection) {
+    // Wind blows FROM windDir, fog advances in that direction
+    const rad = ((windDir! + 180) % 360) * Math.PI / 180;
+    advanceDx = Math.sin(rad);
+    advanceDy = Math.cos(rad);
+  }
+  const bboxCenterLng = (bbox.west + bbox.east) / 2;
+  const bboxCenterLat = (bbox.south + bbox.north) / 2;
+  const halfW = (bbox.east - bbox.west) / 2;
+  const halfH = (bbox.north - bbox.south) / 2;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
@@ -57,9 +73,28 @@ function sampleFogZones(
       const lat = bbox.south + (row + 0.5) * cellH;
 
       const elev = queryElevation({ lng, lat });
-      // null = no terrain data = water (sea level, 0m) → fog accumulates there
       const altitude = elev ?? 0;
       if (altitude > maxAltitude) continue;
+
+      // Per-cell density based on altitude (lower = denser)
+      let altFactor = 1.0 - (altitude / maxAltitude);
+
+      // Directional advance for advective fog
+      let density: number;
+      if (hasDirection) {
+        const cx = (lng - bboxCenterLng) / halfW;
+        const cy = (lat - bboxCenterLat) / halfH;
+        const advancePos = cx * advanceDx + cy * advanceDy;
+        // Leading edge (negative = toward fog source) = denser
+        const dirFactor = Math.max(0, 1.0 - (advancePos + 1) / 2);
+        density = altFactor * 0.6 + dirFactor * 0.4;
+      } else {
+        // Radiative: pure altitude-based (valley floor = dense)
+        density = altFactor;
+      }
+
+      // Clamp to visible range
+      density = Math.max(0.2, Math.min(1.0, density));
 
       const x1 = bbox.west + col * cellW;
       const x2 = x1 + cellW;
@@ -72,7 +107,7 @@ function sampleFogZones(
           type: 'Polygon',
           coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
         },
-        properties: { elevation: altitude },
+        properties: { elevation: altitude, density, color },
       });
     }
   }
@@ -88,45 +123,46 @@ function FogOverlayInner() {
   const [opacity, setOpacity] = useState(0);
   const [fogGeoJSON, setFogGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
 
-  // Detect fog from unified alert system
-  const alerts = useAlertStore((s) => s.unifiedAlerts) ?? [];
-  const fogAlert = alerts.find(a =>
+  // Fix: field is `alerts` not `unifiedAlerts` (bug discovered S116)
+  const alerts = useAlertStore((s) => s.alerts) ?? [];
+  const fogAlert: UnifiedAlert | undefined = alerts.find(a =>
     a.category === 'fog' || a.title?.toLowerCase().includes('niebla') || a.title?.toLowerCase().includes('rocío')
   );
 
+  const fogMeta = fogAlert?.fogMeta ?? null;
+  const fogType = fogMeta?.type ?? (sectorId === 'rias' ? 'advective' : 'radiative');
   const config = sectorId === 'embalse' ? FOG_CONFIG.embalse : FOG_CONFIG.rias;
   const active = (sectorId === 'embalse' || sectorId === 'rias') && fogAlert != null;
 
-  // Sample terrain when overlay activates — re-runs on sector switch
   const buildFogZones = useCallback(() => {
     const map = mapRef?.getMap();
     if (!map) return;
 
-    const data = sampleFogZones((lngLat) => {
-      try {
-        return map.queryTerrainElevation?.(lngLat) ?? null;
-      } catch {
-        return null; // no terrain = water = 0m
-      }
-    }, config);
+    const data = sampleFogZones(
+      (lngLat) => {
+        try { return map.queryTerrainElevation?.(lngLat) ?? null; }
+        catch { return null; }
+      },
+      config,
+      fogType,
+      fogMeta?.windDir,
+    );
     if (data.features.length >= MIN_CLUSTER_POINTS) {
       setFogGeoJSON(data);
     }
-  }, [mapRef, config, sectorId]);
+  }, [mapRef, config, sectorId, fogType, fogMeta?.windDir]);
 
   useEffect(() => {
     if (!active) {
       setFogGeoJSON(null);
       return;
     }
-    setFogGeoJSON(null); // clear previous sector data
+    setFogGeoJSON(null);
 
     const map = mapRef?.getMap();
     if (!map) return;
 
-    // Try after delay (terrain needs time to load tiles)
     const timer = setTimeout(buildFogZones, 3000);
-    // Also retry when terrain loads
     const onTerrain = () => setTimeout(buildFogZones, 500);
     map.once('terrain', onTerrain);
 
@@ -136,7 +172,7 @@ function FogOverlayInner() {
     };
   }, [active, sectorId, buildFogZones, mapRef]);
 
-  // Breathing animation — subtle pulse
+  // Breathing animation — subtle pulse with per-cell density modulation
   useEffect(() => {
     if (!active || !fogGeoJSON) {
       setOpacity(0);
@@ -158,13 +194,13 @@ function FogOverlayInner() {
 
   return (
     <Source id="fog-overlay" type="geojson" data={fogGeoJSON}>
-      {/* Fog fill — cells in low-lying areas */}
+      {/* Fog fill — per-cell density × breathing opacity */}
       <Layer
         id="fog-fill"
         type="fill"
         paint={{
-          'fill-color': config.color,
-          'fill-opacity': opacity,
+          'fill-color': ['get', 'color'],
+          'fill-opacity': ['*', ['get', 'density'], opacity],
           'fill-antialias': false,
         }}
       />

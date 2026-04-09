@@ -127,6 +127,13 @@ export function buildFieldAlerts(
       urgent: field.fog.level === 'critico',
       updatedAt: now,
       confidence: field.fog.confidence,
+      fogMeta: {
+        type: 'radiative',
+        windDir: null,
+        windSpeed: field.fog.windSpeed ?? null,
+        spread: field.fog.spread ?? null,
+        webcamConfirmed: false,
+      },
     });
   }
 
