@@ -102,8 +102,6 @@ function FogOverlayInner() {
     const map = mapRef?.getMap();
     if (!map) return;
 
-    console.log(`[FogOverlay] Sampling ${config.cols}x${config.rows} for ${sectorId}...`);
-
     const data = sampleFogZones((lngLat) => {
       try {
         return map.queryTerrainElevation?.(lngLat) ?? null;
@@ -111,8 +109,6 @@ function FogOverlayInner() {
         return null; // no terrain = water = 0m
       }
     }, config);
-
-    console.log(`[FogOverlay] Found ${data.features.length} fog cells`);
     if (data.features.length >= MIN_CLUSTER_POINTS) {
       setFogGeoJSON(data);
     }
