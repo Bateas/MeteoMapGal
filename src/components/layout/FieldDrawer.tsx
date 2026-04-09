@@ -142,7 +142,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
         <div className="flex items-center gap-2">
           <span className={`font-bold text-white ${isMobile ? 'text-base' : 'text-sm'}`}>Condiciones</span>
           {alerts && (() => {
-            const count = [alerts.frost, alerts.rain, alerts.fog, alerts.wind].filter(a => a.level !== 'none').length;
+            const count = [alerts.frost, alerts.rain, alerts.fog, alerts.wind].filter(a => a?.level !== 'none').length;
             return count > 0 ? (
               <span className="bg-amber-500 text-slate-900 text-[11px] font-bold rounded-full px-1.5 py-0.5 leading-none">{count}</span>
             ) : null;
@@ -486,6 +486,7 @@ function StormPredictionSection() {
 }
 
 function FogSection({ alerts }: { alerts: FieldAlerts }) {
+  if (!alerts.fog) return null;
   return (
     <AlertSection icon={<WeatherIcon id="fog" size={14} />} title="Niebla / Rocío" level={alerts.fog.level} beta>
       {alerts.fog.dewPoint !== null ? (
