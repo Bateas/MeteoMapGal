@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useThermalStore } from '../../store/thermalStore';
 import { useSectorStore } from '../../store/sectorStore';
