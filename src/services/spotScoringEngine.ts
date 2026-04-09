@@ -388,7 +388,7 @@ function extractWaveConditions(
 ): SpotWaveConditions | null {
   // Find nearest buoy with wave data
   for (const { buoy } of buoyData) {
-    if (buoy.waveHeight !== null) {
+    if (buoy.waveHeight != null) {
       return {
         waveHeight: buoy.waveHeight,
         wavePeriod: buoy.wavePeriod,
@@ -653,7 +653,7 @@ function scoreSpot(
     };
   }
 
-  if (waves && spot.hardGates.maxWaveHeight && waves.waveHeight !== null &&
+  if (waves && spot.hardGates.maxWaveHeight && waves.waveHeight != null &&
       waves.waveHeight > spot.hardGates.maxWaveHeight) {
     return {
       score: 0,
@@ -781,12 +781,12 @@ function scoreSpot(
   else if (wind.stationCount >= 1) score += 5;
 
   // ── Wave scoring (per spot relevance) ──────────────────
-  if (spot.waveRelevance === 'critical' && waves?.waveHeight !== null) {
+  if (spot.waveRelevance === 'critical' && waves?.waveHeight != null) {
     const wh = waves.waveHeight!;
     if (wh >= 0.3 && wh <= 1.5) score += 25;
     else if (wh <= 2.5) score += 15;
     else if (wh <= 3.0) score += 5;
-  } else if (spot.waveRelevance === 'moderate' && waves?.waveHeight !== null) {
+  } else if (spot.waveRelevance === 'moderate' && waves?.waveHeight != null) {
     const wh = waves.waveHeight!;
     if (wh <= 0.5) score += 15;
     else if (wh <= 1.0) score += 10;
@@ -879,7 +879,7 @@ function buildSpotSummary(
     parts.push(`(${wind.stationCount} fuentes)`);
   }
 
-  if (waves?.waveHeight !== null && spot.waveRelevance !== 'none') {
+  if (waves?.waveHeight != null && spot.waveRelevance !== 'none') {
     parts.push(`\u00b7 Olas ${waves.waveHeight!.toFixed(1)}m`);
   }
 
