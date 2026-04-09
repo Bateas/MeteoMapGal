@@ -64,12 +64,17 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
     // Now marker (vertical line at current time)
     const now = Date.now();
     let nowX = -1;
+    // Find position between two adjacent data points
     for (let i = 0; i < data.length - 1; i++) {
       if (data[i].time.getTime() <= now && data[i + 1].time.getTime() > now) {
         const frac = (now - data[i].time.getTime()) / (data[i + 1].time.getTime() - data[i].time.getTime());
         nowX = ((i + frac) / (w - 1)) * 100;
         break;
       }
+    }
+    // Fallback: if "now" is before first data point, put marker at start
+    if (nowX < 0 && data.length > 0 && data[0].time.getTime() > now) {
+      nowX = 0;
     }
 
     // Day boundaries with labels
@@ -81,7 +86,7 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
       if (data[i].time.getHours() === 0) {
         const dayStr = data[i].time.toDateString();
         const label = dayStr === todayStr ? 'Hoy'
-          : dayStr === tomorrowStr ? 'Manana'
+          : dayStr === tomorrowStr ? 'Mañana'
           : data[i].time.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
         dayLines.push({ x: (i / (w - 1)) * 100, label });
       }
