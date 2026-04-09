@@ -23,6 +23,7 @@ import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
+import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
 import { computeSurfVerdict, swellAlignmentMultiplier, type SurfVerdictResult } from '../spot/surfVerdictEngine';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs, dirArrow, azimuthLabel } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
@@ -57,7 +58,25 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const dismiss = () => selectSpot('');
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
   const sectorForecast = useSpotStore((s) => s.sectorForecast);
+  const spotForecasts = useSpotStore((s) => s.spotForecasts);
+  const setSpotForecast = useSpotStore((s) => s.setSpotForecast);
   const windowResult = sailingWindows.get(spot.id);
+
+  // Spot-specific WRF 1km forecast — fetch on open, cache 30min
+  const cached = spotForecasts.get(spot.id);
+  const spotForecast = cached?.data ?? [];
+  const [spotFcLoading, setSpotFcLoading] = useState(false);
+
+  useEffect(() => {
+    const stale = !cached || Date.now() - cached.fetchedAt > 30 * 60_000;
+    if (!stale || spotFcLoading) return;
+    setSpotFcLoading(true);
+    const [lon, lat] = spot.center;
+    fetchMeteoSixForecast(lat, lon)
+      .then((data) => setSpotForecast(spot.id, data))
+      .catch((err) => console.warn(`[SpotForecast] ${spot.id}:`, err))
+      .finally(() => setSpotFcLoading(false));
+  }, [spot.id, spot.center, cached, spotFcLoading, setSpotForecast]);
   const precursor = spot.thermalDetection ? thermalPrecursors.get(spot.id) : undefined;
   const visionResult = webcamVision.get(spot.id);
 
@@ -286,9 +305,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Thermal forecast early warning (BETA) ── */}
-      {spot.thermalDetection && sectorForecast && sectorForecast.length > 0 && (
-        <ThermalForecastBadge forecast={sectorForecast} />
+      {/* ── Thermal forecast early warning (BETA) — uses spot-specific WRF 1km ── */}
+      {spot.thermalDetection && spotForecast.length > 0 && (
+        <ThermalForecastBadge forecast={spotForecast} />
       )}
 
       {/* ── Tide summary (Rías sailing spots — surf spots show tide above verdict) ── */}
@@ -338,8 +357,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Sailing windows (collapsible) — hide for surf spots ── */}
       {spot.category !== 'surf' && windowResult && <SailingWindowsSection result={windowResult} />}
 
-      {/* ── Forecast mini-timeline (12h) — hide for surf (uses wave chart instead) ── */}
-      {spot.category !== 'surf' && sectorForecast.length > 0 && <ForecastMiniTimeline forecast={sectorForecast} />}
+      {/* ── Forecast mini-timeline (12h) — per-spot WRF 1km, hide for surf ── */}
+      {spot.category !== 'surf' && spotForecast.length > 0 && <ForecastMiniTimeline forecast={spotForecast} />}
+      {spot.category !== 'surf' && spotFcLoading && spotForecast.length === 0 && (
+        <div className="text-[11px] text-slate-500 mt-1">Cargando prevision WRF 1km...</div>
+      )}
 
       {/* ── Thermal precursor early warning (collapsible) ── */}
       {precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
