@@ -34,9 +34,13 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="zap" title="Clusters inteligentes y etiquetas on-map" desc="Nucleos tormentosos con subdivision automatica, etiquetas (rayos, distancia, velocidad, ETA), flechas de avance, proyeccion 30min. Radar auto sutil cuando hay tormentas." status="done" />
         <TimelineMilestone iconId="bell" title="Avisos oficiales MeteoGalicia" desc="RSS de avisos adversos: tormentas, oleaje, viento, lluvia. Niveles amarillo/naranja/rojo. Integrado en predictor + ticker + panel condiciones." status="done" />
 
+        <TimelineMilestone iconId="thermometer" title="MeteoSIX v5 — WRF 1km por spot" desc="Prevision atmosferica a 1km de resolucion de MeteoGalicia. Cada spot consulta su celda exacta. USWAN para oleaje nearshore, MOHID para temperatura del mar." status="done" />
+        <TimelineMilestone iconId="cloud" title="Niebla con modelo de terreno" desc="Overlay DEM: detecta niebla radiativa (valles Embalse <185m) y advectiva (Rias <35m). Validacion con webcams DGT (Ribadavia, Fea-Arrabaldo)." status="done" />
+        <TimelineMilestone iconId="compass" title="Panel de prevision Windguru-style" desc="Vista fullscreen (tecla P) con tabla de colores por intensidad, dots de calidad, dimming nocturno, conclusion inteligente y meteograma SVG." status="done" />
+        <TimelineMilestone iconId="camera" title="Webcams DGT" desc="Camaras de trafico en Ribadavia y Fea-Arrabaldo para validar niebla en valles interiores." status="done" />
+
         {/* ── Proximamente ── */}
         <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
-        <TimelineMilestone iconId="zap" title="MeteoSIX v4 — datos MG avanzados" desc="API horaria de MeteoGalicia con datos de rayos geolocalizados. Complementa la red europea actual." status="idea" />
         <TimelineMilestone iconId="anchor" title="Seguimiento de embarcaciones" desc="Posición de barcos en tiempo real y alertas marítimas inteligentes." status="idea" />
         <TimelineMilestone iconId="bell" title="Alertas a medida" desc="Define tus umbrales de viento, olas o temperatura y recibe avisos automáticos." status="idea" />
         <TimelineMilestone iconId="map-pin" title="Más zonas y actividades" desc="A Coruña, Costa da Morte, nuevos spots. Scoring por actividad: surf, vela, kite, SUP." status="idea" />
@@ -72,7 +76,8 @@ export function RoadmapSection() {
             <WeatherIcon id="satellite" size={13} /> Fuentes complementarias
           </h3>
           <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
-            <SourceRow letter="O" name="Open-Meteo" desc="Modelo numérico (ECMWF/GFS) — previsión horaria" color="#06b6d4" />
+            <SourceRow letter="M" name="MeteoSIX v5 (MeteoGalicia)" desc="WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temp. mar) — modelo principal" color="#3b82f6" />
+            <SourceRow letter="O" name="Open-Meteo" desc="CAPE, CIN, LI, rachas, visibilidad — datos de conveccion background" color="#06b6d4" />
             <SourceRow letter="R" name="AEMET Radar" desc="Radar nacional (Cerceda/A Coruña)" color="#ec4899" />
             <SourceRow letter="L" name="MeteoGalicia" desc="Red de detección de rayos" color="#f43f5e" />
             <SourceRow letter="E" name="ENAIRE" desc="Espacio aéreo y NOTAMs para drones" color="#6366f1" />
@@ -84,7 +89,8 @@ export function RoadmapSection() {
             <SourceRow letter="D" name="EMODnet" desc="Batimetría — profundidades marinas WMS" color="#475569" />
             <SourceRow letter="N" name="NOAA" desc="Índices NAO/AO — teleconexiones atlánticas" color="#059669" />
             <SourceRow letter="I" name="IGN" desc="Cartografía: ortofotos PNOA, sombreado MDT, curvas de nivel" color="#7c3aed" />
-            <SourceRow letter="W" name="MeteoGalicia Webcams" desc="19 cámaras costeras públicas (imágenes cada 5 min)" color="#3b82f6" />
+            <SourceRow letter="W" name="MeteoGalicia Webcams" desc="19 camaras costeras publicas (imagenes cada 5 min)" color="#3b82f6" />
+            <SourceRow letter="D" name="DGT Webcams" desc="Camaras de trafico (Ribadavia, Fea-Arrabaldo) — validacion de niebla interior" color="#64748b" />
             <SourceRow letter="O" name="Open-Meteo Marine" desc="Previsión horaria de oleaje y swell (48h)" color="#06b6d4" />
             <SourceRow letter="V" name="MeteoGalicia Avisos" desc="Avisos adversos oficiales — tormentas, oleaje, viento, lluvia (RSS)" color="#eab308" />
             <SourceRow letter="P" name="RainViewer" desc="Radar precipitación animado (2h pasadas, tiles libres)" color="#3b82f6" />

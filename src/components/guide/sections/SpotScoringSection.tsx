@@ -105,6 +105,27 @@ export function SpotScoringSection() {
         </div>
       </div>
 
+      {/* Spot forecast & sea temp */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">Datos avanzados por spot</h3>
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2 text-[11px] text-slate-400 leading-relaxed">
+          <p>
+            <strong className="text-cyan-300">Prevision WRF 1km</strong> — Al abrir un spot, se consulta MeteoSIX v5
+            (MeteoGalicia) para la celda de grid de 1km exacta de ese punto. Modelo atmosferico de alta resolucion
+            con viento, temperatura, precipitacion, nubosidad y cota de nieve. Cache 30 minutos.
+          </p>
+          <p>
+            <strong className="text-cyan-300">USWAN oleaje nearshore</strong> — Modelo de olas costero de MeteoGalicia.
+            Mas preciso que Open-Meteo Marine para las playas gallegas. Usado en los spots de surf.
+          </p>
+          <p>
+            <strong className="text-cyan-300">Temperatura del mar (MOHID)</strong> — Modelo oceanografico de MeteoGalicia.
+            Cuando no hay boya cercana, el popup muestra "Agua (MOHID)" como temperatura del mar prevista.
+            Solo en Rias Baixas (cobertura limitada del modelo).
+          </p>
+        </div>
+      </div>
+
       {/* 5-level scoring scale */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Escala de viento (9 niveles)</h3>

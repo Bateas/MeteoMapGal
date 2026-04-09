@@ -180,6 +180,23 @@ export function ReadingMapSection() {
         </div>
       </div>
 
+      {/* Automatic overlays */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-white">Capas automaticas (se activan solas)</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <MiniExplainer
+            iconId="cloud"
+            title="Niebla (DEM terrain)"
+            text="Cuando se detecta niebla (dewpoint cercano a temperatura), se rellena el terreno bajo con una capa semitransparente. Embalse: valles <185m (niebla radiativa). Rias: costa <35m (niebla advectiva marina). Basado en modelo digital del terreno."
+          />
+          <MiniExplainer
+            iconId="thermometer"
+            title="Prevision WRF 1km por spot"
+            text="Al abrir un spot, se consulta MeteoSIX v5 (MeteoGalicia) para la celda WRF de 1km exacta de ese punto. Datos mas precisos que el modelo generico del sector. Cache 30 minutos."
+          />
+        </div>
+      </div>
+
       {/* Other overlays */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-white">Otros indicadores del mapa</h3>
