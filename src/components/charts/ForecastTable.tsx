@@ -386,13 +386,14 @@ export function ForecastTable({ data, expanded = false }: ForecastTableProps) {
         {/* Day header row */}
         <thead>
           <tr>
-            <th className="sticky left-0 z-10 bg-slate-900 px-2 py-1 text-left text-slate-600 font-normal" />
+            <th scope="col" className="sticky left-0 z-10 bg-slate-900 px-2 py-1 text-left text-slate-600 font-normal" />
             {dayGroups.map((g, i) => (
               <th
                 key={i}
+                scope="col"
                 colSpan={g.count}
                 className={`px-0 py-1.5 text-center font-bold border-b-2 ${
-                  g.isToday ? 'text-sky-400 border-sky-500/40' : 'text-slate-400 border-slate-700'
+                  g.isToday ? 'text-sky-400 border-sky-500/40' : 'text-slate-300 border-slate-700'
                 } ${expanded ? 'text-sm' : 'text-[11px]'}`}
               >
                 {g.label}
@@ -401,7 +402,7 @@ export function ForecastTable({ data, expanded = false }: ForecastTableProps) {
           </tr>
           {/* Hour row (compact) */}
           <tr>
-            <th className={`sticky left-0 z-10 bg-slate-900 ${labelPad} text-left text-slate-500 font-semibold whitespace-nowrap border-r border-slate-800`}>
+            <th scope="col" className={`sticky left-0 z-10 bg-slate-900 ${labelPad} text-left text-slate-300 font-semibold whitespace-nowrap border-r border-slate-800`}>
               <span className="flex items-center gap-1">
                 <WeatherIcon id="clock" size={expanded ? 12 : 10} />
                 Hora
@@ -413,6 +414,8 @@ export function ForecastTable({ data, expanded = false }: ForecastTableProps) {
               return (
                 <th
                   key={i}
+                  scope="col"
+                  aria-label={`${formatHour(p.time)}h${isNow ? ' (ahora)' : ''}`}
                   className={`${pad} ${cellMinW} text-center font-mono whitespace-nowrap relative ${
                     isNow ? 'bg-blue-500/20 text-blue-300 font-bold' : isNight ? 'text-slate-600' : 'text-slate-300'
                   } ${i === bestIdx ? 'ring-1 ring-green-500/50 ring-inset rounded' : ''}`}
@@ -436,12 +439,12 @@ export function ForecastTable({ data, expanded = false }: ForecastTableProps) {
         <tbody>
           {rows.map((row) => (
             <tr key={row.label} className="hover:bg-slate-800/30 transition-colors">
-              <td className={`sticky left-0 z-10 bg-slate-900 ${labelPad} text-slate-500 font-semibold whitespace-nowrap border-r border-slate-800`}>
+              <th scope="row" className={`sticky left-0 z-10 bg-slate-900 ${labelPad} text-slate-300 font-semibold whitespace-nowrap border-r border-slate-800 text-left`}>
                 <span className="flex items-center gap-1">
                   {row.icon && <WeatherIcon id={row.icon} size={expanded ? 12 : 10} />}
                   {row.label}
                 </span>
-              </td>
+              </th>
               {data.map((p, i) => {
                 const isNow = i === nowIdx;
                 const isNight = !p.isDay;

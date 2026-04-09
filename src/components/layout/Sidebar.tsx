@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { ErrorBanner } from '../common/ErrorBanner';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { SkeletonLoader } from '../common/SkeletonLoader';
@@ -9,6 +9,7 @@ import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { downloadGeoJSON } from '../../services/exportService';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import { getSpotsForSector } from '../../config/spots';
 
 const StationTable = lazy(() =>
   import('../dashboard/StationTable').then((m) => ({ default: m.StationTable })),
@@ -46,6 +47,18 @@ export function Sidebar() {
   const isEmbalse = activeSectorId === 'embalse';
   const isRias = activeSectorId === 'rias';
   const isMobile = useUIStore((s) => s.isMobile);
+
+  // Forecast spot selector — null = sector default
+  const [forecastSpotId, setForecastSpotId] = useState<string | null>(null);
+  const sectorSpots = useMemo(() => getSpotsForSector(activeSectorId), [activeSectorId]);
+  const forecastSpotCoords = useMemo(() => {
+    if (!forecastSpotId) return undefined;
+    const spot = sectorSpots.find(s => s.id === forecastSpotId);
+    if (!spot) return undefined;
+    return { lat: spot.center[1], lon: spot.center[0] };
+  }, [forecastSpotId, sectorSpots]);
+  // Reset spot selection on sector change
+  useEffect(() => { setForecastSpotId(null); }, [activeSectorId]);
 
   // Reset to 'stations' if viewing an Embalse-only tab and sector changes
   // Forecast is now available for both sectors; thermal remains Embalse-only
@@ -191,7 +204,30 @@ export function Sidebar() {
           )}
           {activeTab === 'forecast' && (
             <ErrorBoundary section="Previsión">
-              <ForecastTimeline />
+              {/* Spot selector + Ampliar bar */}
+              <div className="flex items-center gap-2 mb-2">
+                <select
+                  value={forecastSpotId ?? ''}
+                  onChange={(e) => setForecastSpotId(e.target.value || null)}
+                  className="flex-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-md px-2 py-1.5 focus:ring-1 focus:ring-sky-500 focus:outline-none"
+                  aria-label="Seleccionar spot para prevision"
+                >
+                  <option value="">Sector ({activeSectorId === 'embalse' ? 'Embalse' : 'Cesantes'})</option>
+                  {sectorSpots.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => useUIStore.getState().setForecastPanelOpen(true, forecastSpotId ?? undefined)}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium text-slate-400 hover:text-sky-400 hover:bg-slate-700 transition-colors border border-slate-700"
+                  title="Ampliar a pantalla completa (P)"
+                  aria-label="Ampliar prevision a pantalla completa"
+                >
+                  <WeatherIcon id="maximize" size={12} />
+                  Ampliar
+                </button>
+              </div>
+              <ForecastTimeline spotCoords={forecastSpotCoords} />
             </ErrorBoundary>
           )}
           {activeTab === 'thermal' && (

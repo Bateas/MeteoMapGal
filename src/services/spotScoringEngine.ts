@@ -302,9 +302,41 @@ function computeSpotWindConsensus(
 
   if (entries.length < 1) return null;
 
+  // ── Professional corroboration boost ──────────────────────
+  // When 2+ high-quality sources (MG, AEMET, buoys with quality ≥0.85) agree
+  // on direction (within 60°) and speed (within 2.5x), boost their weights.
+  // Physics: if station A (upwind) and station B (downwind) both show 20kt NW,
+  // the open water between them MUST have that wind. Sheltered amateur stations
+  // nearby should not override this signal.
+  const PRO_QUALITY_THRESHOLD = 0.85;
+  const proEntries = entries.filter(e => {
+    const q = SOURCE_QUALITY[e.source] ?? 0.7;
+    return q >= PRO_QUALITY_THRESHOLD && e.dir !== null && e.speedKt >= 5;
+  });
+  if (proEntries.length >= 2) {
+    // Check if professional sources agree on direction
+    const refDir = proEntries[0].dir!;
+    const agreeing = proEntries.filter(e =>
+      angleDifference(e.dir!, refDir) <= 60 &&
+      e.speedKt >= proEntries[0].speedKt * 0.4 && // within 2.5x range
+      e.speedKt <= proEntries[0].speedKt * 2.5,
+    );
+    if (agreeing.length >= 2) {
+      // Corroboration confirmed — boost all agreeing professional sources
+      const boostFactor = agreeing.length >= 3 ? 3.0 : 2.0;
+      for (const e of entries) {
+        if (agreeing.includes(e)) {
+          e.weight *= boostFactor;
+        }
+      }
+    }
+  }
+
   // ── Outlier detection (SOURCE_QUALITY v2) ─────────────────
   // If 3+ sources, compute median speed. Stations >3x median get weight halved.
   // This prevents a single broken/sheltered station from skewing consensus.
+  // NOTE: Runs AFTER corroboration boost, so professional median is now higher
+  // and sheltered stations are more likely to be flagged as outlier-low.
   if (entries.length >= 3) {
     const speeds = entries.map(e => e.speedKt).sort((a, b) => a - b);
     const mid = Math.floor(speeds.length / 2);
