@@ -132,7 +132,16 @@ function FogOverlayInner() {
   const fogMeta = fogAlert?.fogMeta ?? null;
   const fogType = fogMeta?.type ?? (sectorId === 'rias' ? 'advective' : 'radiative');
   const config = sectorId === 'embalse' ? FOG_CONFIG.embalse : FOG_CONFIG.rias;
-  const active = (sectorId === 'embalse' || sectorId === 'rias') && fogAlert != null;
+  const hasFogAlert = (sectorId === 'embalse' || sectorId === 'rias') && fogAlert != null;
+
+  // Debounce activation: require fog alert for 2s before rendering overlay.
+  // Prevents flash on page load from transient partial-data fog detection.
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    if (!hasFogAlert) { setActive(false); return; }
+    const timer = setTimeout(() => setActive(true), 2000);
+    return () => clearTimeout(timer);
+  }, [hasFogAlert]);
 
   const buildFogZones = useCallback(() => {
     const map = mapRef?.getMap();
