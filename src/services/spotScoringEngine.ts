@@ -313,6 +313,8 @@ function computeSpotWindConsensus(
       for (const e of entries) {
         if (e.speedKt > median * 3) {
           e.weight *= 0.5; // Outlier high — likely broken anemometer or gust spike
+        } else if (e.speedKt < median * 0.2) {
+          e.weight *= 0.4; // Outlier low — likely sheltered, reporting calm when others show wind
         }
       }
     }
