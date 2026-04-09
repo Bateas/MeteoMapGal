@@ -113,6 +113,8 @@ interface MapStyleState {
   showIGNContours: boolean;
   /** IGN PNOA aerial orthophotos — 25cm resolution */
   showIGNOrtho: boolean;
+  /** Wave coast overlay — coastline colored by exposure + wave height (#56) */
+  showWaveCoast: boolean;
 
   setStyle: (id: MapStyleId) => void;
   toggleSeamarks: () => void;
@@ -120,6 +122,7 @@ interface MapStyleState {
   toggleIGNHillshade: () => void;
   toggleIGNContours: () => void;
   toggleIGNOrtho: () => void;
+  toggleWaveCoast: () => void;
 }
 
 export const useMapStyleStore = create<MapStyleState>()(
@@ -132,6 +135,7 @@ export const useMapStyleStore = create<MapStyleState>()(
         showIGNHillshade: false,
         showIGNContours: false,
         showIGNOrtho: false,
+        showWaveCoast: false,
 
         setStyle: (activeStyleId) =>
           set({ activeStyleId }, undefined, 'setStyle'),
@@ -150,6 +154,9 @@ export const useMapStyleStore = create<MapStyleState>()(
 
         toggleIGNOrtho: () =>
           set({ showIGNOrtho: !get().showIGNOrtho }, undefined, 'toggleIGNOrtho'),
+
+        toggleWaveCoast: () =>
+          set({ showWaveCoast: !get().showWaveCoast }, undefined, 'toggleWaveCoast'),
       }),
       {
         name: 'meteomap-map-style',
@@ -160,6 +167,7 @@ export const useMapStyleStore = create<MapStyleState>()(
           showIGNHillshade: state.showIGNHillshade,
           showIGNContours: state.showIGNContours,
           showIGNOrtho: state.showIGNOrtho,
+          showWaveCoast: state.showWaveCoast,
         }),
       },
     ),

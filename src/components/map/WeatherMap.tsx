@@ -20,7 +20,7 @@ import { PropagationArrows } from './PropagationArrow';
 const LightningOverlay = lazy(() => import('./LightningOverlay').then(m => ({ default: m.LightningOverlay })));
 const StormClusterOverlay = lazy(() => import('./StormClusterOverlay').then(m => ({ default: m.StormClusterOverlay })));
 const FogOverlay = lazy(() => import('./FogOverlay').then(m => ({ default: m.FogOverlay })));
-// WaveCoastOverlay removed — DEM grid too crude for coastlines. TODO #56: use vector coastline
+const WaveCoastOverlay = lazy(() => import('./WaveCoastOverlay').then(m => ({ default: m.WaveCoastOverlay })));
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
 const AlertPanel = lazy(() => import('./AlertPanel').then(m => ({ default: m.AlertPanel })));
 const WindParticleOverlay = lazy(() => import('./WindParticleOverlay').then(m => ({ default: m.WindParticleOverlay })));
@@ -424,7 +424,8 @@ export function WeatherMap() {
         {/* Fog overlay — terrain-based valley fill when fog detected */}
         <Suspense fallback={null}><FogOverlay /></Suspense>
 
-        {/* WaveCoastOverlay: needs vector coastline, not DEM grid cells. TODO #56 */}
+        {/* Wave coast exposure + height overlay — vector coastline (Rías only) */}
+        <Suspense fallback={null}><WaveCoastOverlay /></Suspense>
 
         {/* Storm cluster masses + radius rings (below strikes) */}
         <Suspense fallback={null}><StormClusterOverlay /></Suspense>
