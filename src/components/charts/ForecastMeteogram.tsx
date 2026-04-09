@@ -127,14 +127,18 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
     // "Ahora" label position as percentage for HTML overlay
     const nowLabel = nowX >= 0 ? nowX : null;
 
-    return { windPath, windLine, tempLine, precipBars, nowX, dayLines, bestX, bestKt, bestColor, nightRegions, maxWind, nowLabel };
+    // Y-axis reference: a horizontal line at 10kt for scale context
+    const refKt = 10;
+    const refY = MARGIN.top + h - (refKt / maxWind) * h;
+
+    return { windPath, windLine, tempLine, precipBars, nowX, dayLines, bestX, bestKt, bestColor, nightRegions, maxWind, nowLabel, refY, refKt };
   }, [data, height]);
 
   if (!chartData) return null;
 
   return (
     <div className="mb-2 rounded border border-slate-700/50 bg-slate-800/30 overflow-hidden relative">
-      {/* HTML day labels (don't distort with preserveAspectRatio="none") */}
+      {/* HTML labels (don't distort with preserveAspectRatio="none") */}
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
         {chartData.dayLines.map((d, i) => (
           <span
@@ -153,6 +157,19 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
             Ahora
           </span>
         )}
+        {/* Y-axis scale labels */}
+        <span
+          className="absolute right-1 text-[8px] text-blue-400/70 font-mono"
+          style={{ top: `${(chartData.refY / height) * 100}%`, transform: 'translateY(-50%)' }}
+        >
+          {chartData.refKt}kt
+        </span>
+        <span
+          className="absolute right-1 text-[8px] text-blue-400/70 font-mono"
+          style={{ top: `${(MARGIN.top / height) * 100}%` }}
+        >
+          {Math.round(chartData.maxWind)}kt
+        </span>
       </div>
       <svg
         viewBox={`0 0 100 ${height}`}
@@ -184,6 +201,17 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
             strokeWidth="0.5"
           />
         ))}
+
+        {/* 10kt reference line */}
+        <line
+          x1="0" y1={chartData.refY}
+          x2="100" y2={chartData.refY}
+          stroke="#3b82f6"
+          strokeWidth="0.3"
+          strokeDasharray="1.5,1"
+          opacity="0.3"
+          vectorEffect="non-scaling-stroke"
+        />
 
         {/* Precip bars */}
         {chartData.precipBars.map((bar, i) => (

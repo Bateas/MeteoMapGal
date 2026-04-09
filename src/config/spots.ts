@@ -347,12 +347,13 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      // MC Pontevedra (36300A) and Sanxenxo (36380A) confirmed offline Apr 2026
+      'mg_14005', // Porto de Marín (4m, ON water!) — 2.9km, best wind source
+      // mg_10064 Lourizán (52m, 1.8km) — land station, less representative than water buoys
     ],
     preferredBuoys: [
-      4271, // Lourizán REMPOR (~3km SE, has wind!)
-      4273, // Cabo Udra REMPOR (~8km W, has wind)
-      3223, // Marín REDMAR (tide gauge, ~3km S)
+      3223, // Marín REDMAR (~1.5km S, HAS WIND 11.5kt+) — PRIMARY, closest on water
+      4271, // Lourizán REMPOR (~2km SE, has wind)
+      4273, // Cabo Udra REMPOR (~15km W, has wind — corroboration)
     ],
     waveRelevance: 'moderate',
     thermalDetection: true, // Same ría thermal/bruma dynamics as Cesantes
@@ -383,7 +384,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     shortName: 'Castiñeiras',
     icon: 'sailboat',
     center: [-9.001197, 42.528255],
-    radiusKm: 10,
+    radiusKm: 15, // Extended from 10 — few stations in area, needs wider net
     description: 'Playa de Castiñeiras, costa norte de la Ría de Arousa. Exposición W/NW, olas y viento atlántico.',
     windPatterns: [
       {
@@ -400,10 +401,12 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      // MC O Grove (36340A) confirmed offline Apr 2026
+      'mg_10134', // Sálvora-Pazo (21m, Ribeira) — 6.3km, EXPOSED promontory, real wind
+      // mg_10049 Corrubedo (30m, 3.8km) — EXCLUDED: sheltered behind coast, reads 5kt when ría has 20kt
     ],
     preferredBuoys: [
-      1250, // Cortegada (Arousa) — interior ría reference
+      1255, // Ribeira CETMAR (~5km, HAS WIND)
+      1250, // Cortegada (Arousa) — interior ría reference (no wind, HR/temp only)
     ],
     waveRelevance: 'critical',
     thermalDetection: false,
@@ -495,11 +498,13 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      // MC Sanxenxo (36380A) and O Grove (36340A) confirmed offline Apr 2026
+      'mg_19069', // A Lanzada (9m, O Grove) — 1km! Primary wind source
+      'mg_10126', // Ons (121m, Bueu) — 9km, corroboration from west
     ],
     preferredBuoys: [
-      4273, // Cabo Udra REMPOR (~15km S, wind+waves)
-      2248, // Cabo Silleiro (~40km SW, oceánica)
+      4272, // Ons REMPOR (~9km W, HAS WIND — closest buoy with wind)
+      4273, // Cabo Udra REMPOR (~13km S, wind+waves)
+      1255, // Ribeira CETMAR (~13km N, wind — confirms from north)
     ],
     waveRelevance: 'critical',
     thermalDetection: false,
@@ -529,10 +534,12 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      // MC O Grove (36340A) confirmed offline Apr 2026
+      'mg_10085', // Corón (3m, Vilanova de Arousa) — 5.9km, primary MG source
+      'mg_19069', // A Lanzada (9m, O Grove) — 10km, corroboration from south
     ],
     preferredBuoys: [
-      1250, // Cortegada (Arousa) — interior ría, ~5km N
+      1255, // Ribeira CETMAR (~7km W, HAS WIND)
+      1250, // Cortegada (Arousa) — interior ría, ~11km N (no wind, HR/temp only)
     ],
     waveRelevance: 'none', // Protected by island
     thermalDetection: true, // Interior ría, similar dynamics
@@ -618,11 +625,12 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      // MC Sanxenxo (36380A) and O Grove (36340A) confirmed offline Apr 2026
+      'mg_19069', // A Lanzada (9m, O Grove) — 1km! Primary wind source
     ],
     preferredBuoys: [
-      4273, // Cabo Udra REMPOR (~15km S) — swell directo enfrente
-      2248, // Cabo Silleiro (~40km SW) — referencia oceánica
+      4272, // Ons REMPOR (~9km W, HAS WIND — closest buoy)
+      4273, // Cabo Udra REMPOR (~13km S) — swell directo enfrente
+      2248, // Cabo Silleiro (~58km SW) — referencia oceánica
     ],
     waveRelevance: 'critical',
     thermalDetection: false,
@@ -638,7 +646,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     shortName: 'Corrubedo',
     icon: 'waves',
     center: [-9.033, 42.556],
-    radiusKm: 10,
+    radiusKm: 15, // Extended from 10 — remote area, few stations
     description: 'Playa NW en parque natural de dunas. Olas potentes, corrientes fuertes. Solo intermedio-avanzado. Mejor con swell NW, viento SE (offshore).',
     beta: true,
     category: 'surf',
@@ -661,9 +669,14 @@ export const RIAS_SPOTS: SailingSpot[] = [
         description: 'Viento fuerte de NW con mar de fondo grande (2-4m). Onshore pero olas de calidad si el período es largo.',
       },
     ],
-    preferredStations: [],
+    preferredStations: [
+      'mg_10049', // Corrubedo (30m, Ribeira) — 0.4km! Primary wind source
+      'mg_10134', // Sálvora-Pazo (21m, Ribeira) — 9.7km, corroboration
+    ],
     preferredBuoys: [
-      2248, // Cabo Silleiro (~60km SW) — deep-water swell reference
+      1255, // Ribeira CETMAR (~7km E, HAS WIND — closest wind buoy)
+      15009, // Muros ObsCosteiro (~14km N, HAS WIND — supplementary)
+      2248, // Cabo Silleiro (~58km SW) — deep-water swell reference
     ],
     waveRelevance: 'critical',
     thermalDetection: false,
