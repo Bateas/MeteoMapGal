@@ -23,7 +23,8 @@ import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
-import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
+import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
+import { useSectorStore } from '../../store/sectorStore';
 import { computeSurfVerdict, swellAlignmentMultiplier, type SurfVerdictResult } from '../spot/surfVerdictEngine';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs, dirArrow, azimuthLabel } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
@@ -77,6 +78,27 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       .catch((err) => console.warn(`[SpotForecast] ${spot.id}:`, err))
       .finally(() => setSpotFcLoading(false));
   }, [spot.id, spot.center, cached, spotFcLoading, setSpotForecast]);
+  // MOHID sea temp (Rías only — fetch alongside spot forecast)
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const [mohidSeaTemp, setMohidSeaTemp] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (sectorId !== 'rias') return;
+    const [lon, lat] = spot.center;
+    fetchMeteoSixSeaTemp(lat, lon)
+      .then((data) => {
+        // Find current hour's sea temp
+        const now = Date.now();
+        const closest = data.reduce<{ time: Date; seaTemp: number | null } | null>((best, d) => {
+          if (d.seaTemp == null) return best;
+          if (!best) return d;
+          return Math.abs(d.time.getTime() - now) < Math.abs(best.time.getTime() - now) ? d : best;
+        }, null);
+        setMohidSeaTemp(closest?.seaTemp ?? null);
+      })
+      .catch(() => {});
+  }, [spot.id, spot.center, sectorId]);
+
   const precursor = spot.thermalDetection ? thermalPrecursors.get(spot.id) : undefined;
   const visionResult = webcamVision.get(spot.id);
 
@@ -294,8 +316,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── Temperatures & conditions — primary always visible, secondary collapsible ── */}
-      {(score?.airTemp != null || score?.waterTemp != null || score?.humidity != null) && (
-        <TemperatureSection score={score} />
+      {(score?.airTemp != null || score?.waterTemp != null || mohidSeaTemp != null || score?.humidity != null) && (
+        <TemperatureSection score={score} mohidSeaTemp={score?.waterTemp == null ? mohidSeaTemp : null} />
       )}
 
       {/* ── Humidity precursor signal (bruma pattern) ── */}
@@ -964,9 +986,10 @@ function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
 
 // ── Temperature section — primary visible, secondary collapsible ──
 
-function TemperatureSection({ score }: { score: SpotScore }) {
+function TemperatureSection({ score, mohidSeaTemp }: { score: SpotScore; mohidSeaTemp?: number | null }) {
   const [showMore, setShowMore] = useState(false);
   const hasSecondary = score.dewPoint != null || score.windChill != null || score.heatIndex != null;
+  const waterTemp = score.waterTemp ?? mohidSeaTemp;
 
   return (
     <div className="mb-2 pt-1 border-t border-slate-700/40">
@@ -974,8 +997,12 @@ function TemperatureSection({ score }: { score: SpotScore }) {
         {score.airTemp != null && (
           <Cell label="Aire" value={`${score.airTemp.toFixed(1)}°C`} color={temperatureColor(score.airTemp)} />
         )}
-        {score.waterTemp != null && (
-          <Cell label="Agua" value={`${score.waterTemp.toFixed(1)}°C`} color={waterTColor(score.waterTemp)} />
+        {waterTemp != null && (
+          <Cell
+            label={score.waterTemp != null ? 'Agua' : 'Agua (MOHID)'}
+            value={`${waterTemp.toFixed(1)}°C`}
+            color={waterTColor(waterTemp)}
+          />
         )}
         {score.humidity != null && (
           <Cell label="Humedad" value={`${score.humidity.toFixed(0)}%`} color={humidityColor(score.humidity)} />
