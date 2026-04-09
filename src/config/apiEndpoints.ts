@@ -1,28 +1,28 @@
-const AEMET_KEY = import.meta.env.VITE_AEMET_API_KEY;
+// AEMET API key is injected server-side by the ingestor proxy.
+// The frontend NEVER sees or sends the key — it stays on the server.
 
 export const AEMET = {
   /** All conventional observations (two-step: returns URL to data) */
   allObservations: () =>
-    `/aemet-api/api/observacion/convencional/todas?api_key=${AEMET_KEY}`,
+    `/api/v1/aemet/api/observacion/convencional/todas`,
 
   /** Station inventory (two-step: returns URL to data) */
   stationInventory: () =>
-    `/aemet-api/api/valores/climatologicos/inventarioestaciones/todasestaciones?api_key=${AEMET_KEY}`,
+    `/api/v1/aemet/api/valores/climatologicos/inventarioestaciones/todasestaciones`,
 
   /** National radar composite (two-step: returns URL to PNG) — covers all Spain including Galicia */
   radarNacional: () =>
-    `/aemet-api/api/red/radar/nacional?api_key=${AEMET_KEY}`,
+    `/api/v1/aemet/api/red/radar/nacional`,
 
   /** Proxy for AEMET data URLs (step 2) — validates origin to prevent SSRF */
   proxyDataUrl: (url: string) => {
     // AEMET step 2 returns full URLs like https://opendata.aemet.es/opendata/sh/XXXXX
-    // We route through /aemet-data proxy.
-    // Security: whitelist only opendata.aemet.es to prevent SSRF via proxy.
+    // Routed through ingestor /api/v1/aemet-data/ (no key needed, signed URL).
     const parsed = new URL(url);
     if (!parsed.hostname.endsWith('.aemet.es')) {
       throw new Error(`Invalid AEMET data URL domain: ${parsed.hostname}`);
     }
-    return `/aemet-data${parsed.pathname}${parsed.search}`;
+    return `/api/v1/aemet-data${parsed.pathname}${parsed.search}`;
   },
 } as const;
 
