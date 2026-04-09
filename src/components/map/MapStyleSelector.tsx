@@ -21,8 +21,10 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
   const setStyle = useMapStyleStore((s) => s.setStyle);
   const showSeamarks = useMapStyleStore((s) => s.showSeamarks);
   const showNauticalChart = useMapStyleStore((s) => s.showNauticalChart);
+  const showWaveCoast = useMapStyleStore((s) => s.showWaveCoast);
   const toggleSeamarks = useMapStyleStore((s) => s.toggleSeamarks);
   const toggleNauticalChart = useMapStyleStore((s) => s.toggleNauticalChart);
+  const toggleWaveCoast = useMapStyleStore((s) => s.toggleWaveCoast);
   const showIGNHillshade = useMapStyleStore((s) => s.showIGNHillshade);
   const showIGNContours = useMapStyleStore((s) => s.showIGNContours);
   const showIGNOrtho = useMapStyleStore((s) => s.showIGNOrtho);
@@ -178,6 +180,14 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
                   active={showNauticalChart}
                   onClick={toggleNauticalChart}
                   color="#06b6d4"
+                  isMobile={isMobile}
+                />
+                <OverlayToggle
+                  label="Costa y olas"
+                  sublabel="Exposición oleaje + altura"
+                  active={showWaveCoast}
+                  onClick={toggleWaveCoast}
+                  color="#3b82f6"
                   isMobile={isMobile}
                 />
               </div>
