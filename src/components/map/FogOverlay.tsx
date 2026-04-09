@@ -15,20 +15,23 @@ import { useAlertStore } from '../../store/alertStore';
 
 // ── Config ──────────────────────────────────────────
 
-/** Max altitude for fog (meters). Areas above this won't get fog overlay. */
-const FOG_MAX_ALTITUDE = 185;
-
-/** Bounding box to sample terrain (covers Miño valley + Avia tributary) */
-const SAMPLE_BBOX = {
-  west: -8.20,
-  east: -7.97,
-  south: 42.24,
-  north: 42.34,
-};
-
-/** Grid resolution for terrain sampling (higher = smoother edges, sampled once) */
-const GRID_COLS = 100;
-const GRID_ROWS = 80;
+/** Sector-specific fog configuration */
+const FOG_CONFIG = {
+  embalse: {
+    maxAltitude: 185, // valley floor
+    bbox: { west: -8.20, east: -7.97, south: 42.24, north: 42.34 },
+    cols: 100, rows: 80,
+    color: '#cbd5e1',     // gray-white (radiation fog)
+    glowColor: '#94a3b8',
+  },
+  rias: {
+    maxAltitude: 35, // sea level + low coastal areas
+    bbox: { west: -9.05, east: -8.50, south: 42.10, north: 42.55 },
+    cols: 120, rows: 100,
+    color: '#94a3b8',     // cooler blue-gray (marine advection fog)
+    glowColor: '#64748b',
+  },
+} as const;
 
 /** Minimum cluster size to form a fog polygon (avoid noise) */
 const MIN_CLUSTER_POINTS = 8;
@@ -41,24 +44,26 @@ const MIN_CLUSTER_POINTS = 8;
  */
 function sampleFogZones(
   queryElevation: (lngLat: { lng: number; lat: number }) => number | null,
+  config: typeof FOG_CONFIG.embalse,
 ): GeoJSON.FeatureCollection {
-  const cellW = (SAMPLE_BBOX.east - SAMPLE_BBOX.west) / GRID_COLS;
-  const cellH = (SAMPLE_BBOX.north - SAMPLE_BBOX.south) / GRID_ROWS;
+  const { bbox, cols, rows, maxAltitude } = config;
+  const cellW = (bbox.east - bbox.west) / cols;
+  const cellH = (bbox.north - bbox.south) / rows;
   const features: GeoJSON.Feature[] = [];
 
-  // Sample grid and collect low-elevation cells
-  for (let row = 0; row < GRID_ROWS; row++) {
-    for (let col = 0; col < GRID_COLS; col++) {
-      const lng = SAMPLE_BBOX.west + (col + 0.5) * cellW;
-      const lat = SAMPLE_BBOX.south + (row + 0.5) * cellH;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const lng = bbox.west + (col + 0.5) * cellW;
+      const lat = bbox.south + (row + 0.5) * cellH;
 
       const elev = queryElevation({ lng, lat });
-      if (elev === null || elev > FOG_MAX_ALTITUDE) continue;
+      // null = no terrain data = water (sea level, 0m) → fog accumulates there
+      const altitude = elev ?? 0;
+      if (altitude > maxAltitude) continue;
 
-      // Exact cell bounds (no overlap — at 100x80 resolution seams are invisible)
-      const x1 = SAMPLE_BBOX.west + col * cellW;
+      const x1 = bbox.west + col * cellW;
       const x2 = x1 + cellW;
-      const y1 = SAMPLE_BBOX.south + row * cellH;
+      const y1 = bbox.south + row * cellH;
       const y2 = y1 + cellH;
 
       features.push({
@@ -67,7 +72,7 @@ function sampleFogZones(
           type: 'Polygon',
           coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
         },
-        properties: { elevation: elev },
+        properties: { elevation: altitude },
       });
     }
   }
@@ -83,44 +88,57 @@ function FogOverlayInner() {
   const [opacity, setOpacity] = useState(0);
   const [fogGeoJSON, setFogGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
 
-  // Detect fog from unified alert system (category='fog' or 'niebla')
+  // Detect fog from unified alert system
   const alerts = useAlertStore((s) => s.unifiedAlerts) ?? [];
   const fogAlert = alerts.find(a =>
     a.category === 'fog' || a.title?.toLowerCase().includes('niebla') || a.title?.toLowerCase().includes('rocío')
   );
-  const active = sectorId === 'embalse' && fogAlert != null;
 
-  // Sample terrain when overlay activates (only once — terrain doesn't change)
+  const config = sectorId === 'embalse' ? FOG_CONFIG.embalse : FOG_CONFIG.rias;
+  const active = (sectorId === 'embalse' || sectorId === 'rias') && fogAlert != null;
+
+  // Sample terrain when overlay activates — re-runs on sector switch
   const buildFogZones = useCallback(() => {
     const map = mapRef?.getMap();
     if (!map) return;
 
-    // Need terrain to be loaded
-    if (!map.getTerrain()) {
-      // Retry after terrain loads
-      map.once('terrain', () => buildFogZones());
-      return;
-    }
+    console.log(`[FogOverlay] Sampling ${config.cols}x${config.rows} for ${sectorId}...`);
 
     const data = sampleFogZones((lngLat) => {
       try {
-        return map.queryTerrainElevation(lngLat) ?? null;
+        return map.queryTerrainElevation?.(lngLat) ?? null;
       } catch {
-        return null;
+        return null; // no terrain = water = 0m
       }
-    });
+    }, config);
 
+    console.log(`[FogOverlay] Found ${data.features.length} fog cells`);
     if (data.features.length >= MIN_CLUSTER_POINTS) {
       setFogGeoJSON(data);
     }
-  }, [mapRef]);
+  }, [mapRef, config, sectorId]);
 
   useEffect(() => {
-    if (!active || sectorId !== 'embalse') return;
-    // Wait a bit for terrain tiles to load
-    const timer = setTimeout(buildFogZones, 2000);
-    return () => clearTimeout(timer);
-  }, [active, sectorId, buildFogZones]);
+    if (!active) {
+      setFogGeoJSON(null);
+      return;
+    }
+    setFogGeoJSON(null); // clear previous sector data
+
+    const map = mapRef?.getMap();
+    if (!map) return;
+
+    // Try after delay (terrain needs time to load tiles)
+    const timer = setTimeout(buildFogZones, 3000);
+    // Also retry when terrain loads
+    const onTerrain = () => setTimeout(buildFogZones, 500);
+    map.once('terrain', onTerrain);
+
+    return () => {
+      clearTimeout(timer);
+      map.off('terrain', onTerrain);
+    };
+  }, [active, sectorId, buildFogZones, mapRef]);
 
   // Breathing animation — subtle pulse
   useEffect(() => {
@@ -140,26 +158,26 @@ function FogOverlayInner() {
     return () => cancelAnimationFrame(frame);
   }, [active, fogGeoJSON]);
 
-  if (sectorId !== 'embalse' || !active || !fogGeoJSON || opacity === 0) return null;
+  if (!active || !fogGeoJSON || opacity === 0) return null;
 
   return (
     <Source id="fog-overlay" type="geojson" data={fogGeoJSON}>
-      {/* Fog fill — white cells in low-lying areas */}
+      {/* Fog fill — cells in low-lying areas */}
       <Layer
         id="fog-fill"
         type="fill"
         paint={{
-          'fill-color': '#cbd5e1',
+          'fill-color': config.color,
           'fill-opacity': opacity,
-          'fill-antialias': false, // smoother merge between cells
+          'fill-antialias': false,
         }}
       />
-      {/* Soft outer glow — blurred edges for organic look */}
+      {/* Soft outer glow */}
       <Layer
         id="fog-glow"
         type="line"
         paint={{
-          'line-color': '#94a3b8',
+          'line-color': config.glowColor,
           'line-width': 12,
           'line-blur': 18,
           'line-opacity': opacity * 0.3,
