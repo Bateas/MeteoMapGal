@@ -40,6 +40,14 @@ export interface UnifiedAlert {
   zoneId?: MicroZoneId;
   /** Optional confidence 0-100 (shown as badge in AlertPanel) */
   confidence?: number;
+  /** Fog-specific metadata for FogOverlay visualization (#55) */
+  fogMeta?: {
+    type: 'radiative' | 'advective';
+    windDir: number | null;
+    windSpeed: number | null;
+    spread: number | null;
+    webcamConfirmed: boolean;
+  };
 }
 
 export interface CompositeRisk {
