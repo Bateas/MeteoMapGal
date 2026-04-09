@@ -21,10 +21,10 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
   const setStyle = useMapStyleStore((s) => s.setStyle);
   const showSeamarks = useMapStyleStore((s) => s.showSeamarks);
   const showNauticalChart = useMapStyleStore((s) => s.showNauticalChart);
-  const showWaveCoast = useMapStyleStore((s) => s.showWaveCoast);
+  const showCoastal = useMapStyleStore((s) => s.showUpwelling);
+  const toggleCoastal = useMapStyleStore((s) => s.toggleUpwelling);
   const toggleSeamarks = useMapStyleStore((s) => s.toggleSeamarks);
   const toggleNauticalChart = useMapStyleStore((s) => s.toggleNauticalChart);
-  const toggleWaveCoast = useMapStyleStore((s) => s.toggleWaveCoast);
   const showIGNHillshade = useMapStyleStore((s) => s.showIGNHillshade);
   const showIGNContours = useMapStyleStore((s) => s.showIGNContours);
   const showIGNOrtho = useMapStyleStore((s) => s.showIGNOrtho);
@@ -182,9 +182,14 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
                   color="#06b6d4"
                   isMobile={isMobile}
                 />
-                {/* Costa y olas: DISABLED — #56 v1 exposure classification is wrong
-                   (polygon normals ≠ fetch/wave propagation). Needs redesign with
-                   distance-from-mouth or DEM-based zone approach. */}
+                <OverlayToggle
+                  label="Oleaje SWAN"
+                  sublabel="Olas dentro de las rías (MG)"
+                  active={showCoastal}
+                  onClick={toggleCoastal}
+                  color="#0ea5e9"
+                  isMobile={isMobile}
+                />
               </div>
             </>
           )}
