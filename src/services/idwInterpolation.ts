@@ -46,6 +46,19 @@ export function fastDistanceKm(
   return Math.sqrt(dLat * dLat + dLon * dLon) * EARTH_R_KM;
 }
 
+/** Compute bearing between two points in degrees (0 = North, 90 = East) */
+export function computeBearing(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number,
+): number {
+  const dLon = (lon2 - lon1) * DEG_TO_RAD;
+  const y = Math.sin(dLon) * Math.cos(lat2 * DEG_TO_RAD);
+  const x =
+    Math.cos(lat1 * DEG_TO_RAD) * Math.sin(lat2 * DEG_TO_RAD) -
+    Math.sin(lat1 * DEG_TO_RAD) * Math.cos(lat2 * DEG_TO_RAD) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
 // ── Wind decomposition ─────────────────────────────────────
 
 /** Decompose meteorological wind (speed + "from" direction) into vector components */

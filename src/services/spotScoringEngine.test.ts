@@ -140,3 +140,74 @@ describe('scoreAllSpots', () => {
     }
   });
 });
+
+// ── Spatial Wind Coherence (#63) ─────────────────────────────
+
+describe('spatial wind coherence', () => {
+  const cesantes = RIAS_SPOTS.find(s => s.id === 'cesantes')!;
+
+  it('regional coherence: sheltered station does not drag consensus below majority', () => {
+    // 3 exposed stations at 15-20kt NW, 1 sheltered at 5kt — consensus should be ≥13kt
+    const exposed1 = makeStation('mg_exp1', 42.32, -8.63, 'meteogalicia');
+    const exposed2 = makeStation('mg_exp2', 42.30, -8.60, 'aemet');
+    const exposed3 = makeStation('mg_exp3', 42.31, -8.64, 'meteogalicia');
+    const sheltered = makeStation('wu_shelt', 42.307, -8.619, 'wunderground');
+    const readings = new Map([
+      ['mg_exp1', makeReading('mg_exp1', msFromKt(18), 330)],
+      ['mg_exp2', makeReading('mg_exp2', msFromKt(16), 320)],
+      ['mg_exp3', makeReading('mg_exp3', msFromKt(20), 340)],
+      ['wu_shelt', makeReading('wu_shelt', msFromKt(5), 330)],
+    ]);
+    const results = scoreAllSpots([cesantes], [exposed1, exposed2, exposed3, sheltered], readings, []);
+    const score = results.get('cesantes')!;
+    // With spatial coherence, sheltered station should not drag below 13kt
+    expect(score.wind!.avgSpeedKt).toBeGreaterThanOrEqual(13);
+  });
+
+  it('buoy readings get exposure boost over land stations', () => {
+    // Buoy at ~12km with 14kt vs land WU at 4km with 7kt — buoy should have more influence
+    const land = makeStation('wu_land', 42.31, -8.62, 'wunderground');
+    const buoy: BuoyReading = {
+      stationId: 3221, stationName: 'Vigo', timestamp: new Date(),
+      waveHeight: null, wavePeriod: null, waveDirection: null, waveHeightMax: null, wavePeriodMean: null,
+      windSpeed: msFromKt(14), windDir: 225, windGust: null,
+      waterTemp: 14, airTemp: 16, humidity: null, dewPoint: null,
+      airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
+      seaLevelHeight: null,
+    };
+    const readings = new Map([['wu_land', makeReading('wu_land', msFromKt(7), 225)]]);
+    const results = scoreAllSpots([cesantes], [land], readings, [buoy]);
+    // With buoy exposure boost, consensus should favor buoy over pure distance average
+    // Buoy at 12km with 1.5x boost vs WU at 4km with 0.7 quality — buoy pulls up
+    expect(results.get('cesantes')!.wind!.avgSpeedKt).toBeGreaterThan(8);
+  });
+
+  it('calm day: no false boost when all sources are calm', () => {
+    const s1 = makeStation('mg_calm1', 42.31, -8.63, 'meteogalicia');
+    const s2 = makeStation('mg_calm2', 42.30, -8.61, 'aemet');
+    const readings = new Map([
+      ['mg_calm1', makeReading('mg_calm1', msFromKt(3), 180)],
+      ['mg_calm2', makeReading('mg_calm2', msFromKt(2), 200)],
+    ]);
+    const results = scoreAllSpots([cesantes], [s1, s2], readings, []);
+    expect(results.get('cesantes')!.verdict).toBe('calm');
+    expect(results.get('cesantes')!.wind!.avgSpeedKt).toBeLessThan(5);
+  });
+
+  it('tighter outlier catches 0.35x ratio sheltered station', () => {
+    // 3 stations at ~15kt, 1 sheltered at 5.3kt (ratio 0.35) — should be penalized
+    const s1 = makeStation('mg_s1', 42.31, -8.63, 'aemet');
+    const s2 = makeStation('mg_s2', 42.30, -8.61, 'meteogalicia');
+    const s3 = makeStation('mg_s3', 42.32, -8.62, 'meteogalicia');
+    const shelt = makeStation('wu_lo', 42.307, -8.619, 'wunderground');
+    const readings = new Map([
+      ['mg_s1', makeReading('mg_s1', msFromKt(15), 225)],
+      ['mg_s2', makeReading('mg_s2', msFromKt(15), 225)],
+      ['mg_s3', makeReading('mg_s3', msFromKt(15), 225)],
+      ['wu_lo', makeReading('wu_lo', msFromKt(5.3), 225)],
+    ]);
+    const results = scoreAllSpots([cesantes], [s1, s2, s3, shelt], readings, []);
+    // Sheltered penalized by regional coherence + tighter outlier → consensus ≥12kt
+    expect(results.get('cesantes')!.wind!.avgSpeedKt).toBeGreaterThanOrEqual(12);
+  });
+});

@@ -23,7 +23,7 @@ import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
-import { fastDistanceKm } from './idwInterpolation';
+import { fastDistanceKm, computeBearing } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
@@ -206,6 +206,43 @@ const SOURCE_QUALITY: Record<string, number> = {
   skyx: 0.6,            // single consumer device
 };
 
+// ── Spatial wind coherence constants (#63) ────────────────────
+const BUOY_EXPOSURE_BOOST = 1.5;          // Buoys over water — inherently unobstructed
+const PREFERRED_EXPOSURE_BOOST = 1.3;     // Manually vetted preferred stations
+
+const DIR_AGREE_THRESHOLD = 60;           // degrees — direction "agreement"
+const SPEED_RATIO_MIN = 0.35;            // min ratio for speed "agreement"
+const SPEED_RATIO_MAX = 2.8;             // max ratio for speed "agreement"
+const MIN_SPEED_CORROBORATION = 4;        // kt — ignore calm readings for coherence
+
+const REGIONAL_COHERENCE_PCT = 0.6;       // 60% majority for regional coherence
+const REGIONAL_COHERENCE_BOOST = 2.0;     // weight boost for agreeing majority
+const REGIONAL_OUTLIER_PENALTY = 0.3;     // weight penalty for disagreeing minority
+
+const BRACKET_BEARING_THRESHOLD = 120;    // degrees — min bearing separation for bracketing
+const BRACKET_BOOST = 2.5;               // weight boost for bracketed pairs
+
+const CORROBORATION_BOOST_2 = 1.5;        // 2 agreeing sources
+const CORROBORATION_BOOST_3 = 2.0;        // 3+ agreeing sources
+const PRO_CORROBORATION_EXTRA = 0.5;      // extra when high-quality sources agree
+
+const LOW_OUTLIER_THRESHOLD = 0.35;       // ratio below weighted median (was 0.2)
+const SEVERE_LOW_THRESHOLD = 0.15;        // near-zero — certainly broken/sheltered
+const LOW_OUTLIER_PENALTY = 0.3;          // (was 0.4)
+const SEVERE_LOW_PENALTY = 0.1;           // near-zero weight
+
+/** Weighted median — entries with higher weight (corroborated) set the reference */
+function computeWeightedMedian(entries: { speedKt: number; weight: number }[]): number {
+  const sorted = [...entries].sort((a, b) => a.speedKt - b.speedKt);
+  const totalWeight = sorted.reduce((sum, e) => sum + e.weight, 0);
+  let cumWeight = 0;
+  for (const e of sorted) {
+    cumWeight += e.weight;
+    if (cumWeight >= totalWeight / 2) return e.speedKt;
+  }
+  return sorted[sorted.length - 1].speedKt;
+}
+
 /**
  * Stations statistically confirmed as sheltered for WIND (avg <1.5kt daytime).
  * Based on 2 weeks of DB analysis (Mar 10-25, 2026).
@@ -266,9 +303,13 @@ function computeSpotWindConsensus(
   buoyData: { buoy: BuoyReading; distKm: number }[],
 ): SpotWindConsensus | null {
   // Collect speed, direction, and metadata for each contributing source
-  type SourceEntry = { speedKt: number; weight: number; dir: number | null; name: string; source: WindContribution['source']; distKm: number };
+  type SourceEntry = {
+    speedKt: number; weight: number; dir: number | null; name: string;
+    source: WindContribution['source']; distKm: number;
+    bearing: number; isOverWater: boolean; stationId: string;
+  };
   const entries: SourceEntry[] = [];
-
+  const [spotLon, spotLat] = spot.center;
   const preferredSet = new Set(spot.preferredStations);
 
   for (const { station, reading, distKm } of stationData) {
@@ -284,7 +325,8 @@ function computeSpotWindConsensus(
     const freshnessMul = ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;
     const weight = distWeight * qualityMul * freshnessMul;
     const src = station.id.split('_')[0] as WindContribution['source'];
-    entries.push({ speedKt, weight, dir: reading.windDirection, name: station.name, source: src, distKm });
+    const bearing = computeBearing(spotLat, spotLon, station.lat, station.lon);
+    entries.push({ speedKt, weight, dir: reading.windDirection, name: station.name, source: src, distKm, bearing, isOverWater: false, stationId: station.id });
   }
 
   for (const { buoy, distKm } of buoyData) {
@@ -297,56 +339,117 @@ function computeSpotWindConsensus(
     const buoyAgeMin = buoy.timestamp ? (Date.now() - new Date(buoy.timestamp).getTime()) / 60_000 : 0;
     const buoyFreshness = buoyAgeMin <= 10 ? 1.0 : buoyAgeMin <= 30 ? 0.95 : buoyAgeMin <= 60 ? 0.85 : 0.7;
     const weight = distWeight * buoyFreshness;
-    entries.push({ speedKt, weight, dir: buoy.windDir, name: buoy.stationName, source: 'buoy', distKm });
+    const coords = BUOY_COORDS_MAP.get(buoy.stationId);
+    const bearing = coords ? computeBearing(spotLat, spotLon, coords.lat, coords.lon) : 0;
+    entries.push({ speedKt, weight, dir: buoy.windDir, name: buoy.stationName, source: 'buoy', distKm, bearing, isOverWater: true, stationId: `buoy_${buoy.stationId}` });
   }
 
   if (entries.length < 1) return null;
 
-  // ── Professional corroboration boost ──────────────────────
-  // When 2+ high-quality sources (MG, AEMET, buoys with quality ≥0.85) agree
-  // on direction (within 60°) and speed (within 2.5x), boost their weights.
-  // Physics: if station A (upwind) and station B (downwind) both show 20kt NW,
-  // the open water between them MUST have that wind. Sheltered amateur stations
-  // nearby should not override this signal.
-  const PRO_QUALITY_THRESHOLD = 0.85;
-  const proEntries = entries.filter(e => {
-    const q = SOURCE_QUALITY[e.source] ?? 0.7;
-    return q >= PRO_QUALITY_THRESHOLD && e.dir !== null && e.speedKt >= 5;
-  });
-  if (proEntries.length >= 2) {
-    // Check if professional sources agree on direction
-    const refDir = proEntries[0].dir!;
-    const agreeing = proEntries.filter(e =>
-      angleDifference(e.dir!, refDir) <= 60 &&
-      e.speedKt >= proEntries[0].speedKt * 0.4 && // within 2.5x range
-      e.speedKt <= proEntries[0].speedKt * 2.5,
-    );
-    if (agreeing.length >= 2) {
-      // Corroboration confirmed — boost all agreeing professional sources
-      const boostFactor = agreeing.length >= 3 ? 3.0 : 2.0;
-      for (const e of entries) {
-        if (agreeing.includes(e)) {
-          e.weight *= boostFactor;
+  // ── Step 2: Exposure-aware weighting ────────────────────────
+  // Buoys over water are inherently more representative for sailing spots.
+  // Preferred stations were manually vetted as exposed.
+  for (const e of entries) {
+    if (e.isOverWater) e.weight *= BUOY_EXPOSURE_BOOST;
+    else if (preferredSet.has(e.stationId)) e.weight *= PREFERRED_EXPOSURE_BOOST;
+  }
+
+  // ── Step 3: Spatial corroboration (3 tiers) ─────────────────
+  // Each entry gets the MAX multiplier from all applicable tiers.
+  const tierMultipliers = new Map<SourceEntry, number>();
+
+  // Filter entries eligible for corroboration (wind ≥4kt with direction)
+  const eligible = entries.filter(e => e.speedKt >= MIN_SPEED_CORROBORATION && e.dir !== null);
+
+  if (eligible.length >= 2) {
+    // ── Tier 1: Regional coherence ────────────────────────────
+    // When 60%+ of sources agree on direction and speed, the majority is right.
+    // Compute circular mean direction of eligible entries
+    let sinSum = 0, cosSum = 0;
+    for (const e of eligible) {
+      const rad = (e.dir! * Math.PI) / 180;
+      sinSum += Math.sin(rad);
+      cosSum += Math.cos(rad);
+    }
+    const consensusDir = ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
+    const speeds = eligible.map(e => e.speedKt).sort((a, b) => a - b);
+    const medianSpeed = speeds[Math.floor(speeds.length / 2)];
+
+    const agreeing = new Set<SourceEntry>();
+    for (const e of eligible) {
+      if (angleDifference(e.dir!, consensusDir) <= DIR_AGREE_THRESHOLD &&
+          e.speedKt >= medianSpeed * SPEED_RATIO_MIN &&
+          e.speedKt <= medianSpeed * SPEED_RATIO_MAX) {
+        agreeing.add(e);
+      }
+    }
+
+    if (agreeing.size >= eligible.length * REGIONAL_COHERENCE_PCT && agreeing.size >= 2) {
+      // Regional coherence confirmed — boost majority, penalize minority
+      for (const e of eligible) {
+        tierMultipliers.set(e, agreeing.has(e) ? REGIONAL_COHERENCE_BOOST : REGIONAL_OUTLIER_PENALTY);
+      }
+    }
+
+    // ── Tier 2: Spatial bracketing ────────────────────────────
+    // Pairs of stations on opposite sides of spot (bearing ≥120° apart)
+    // that agree on direction and speed → very strong signal.
+    const bracketedSet = new Set<SourceEntry>();
+    for (let i = 0; i < eligible.length; i++) {
+      for (let j = i + 1; j < eligible.length; j++) {
+        const bearingDiff = angleDifference(eligible[i].bearing, eligible[j].bearing);
+        if (bearingDiff >= BRACKET_BEARING_THRESHOLD &&
+            angleDifference(eligible[i].dir!, eligible[j].dir!) <= DIR_AGREE_THRESHOLD &&
+            eligible[i].speedKt >= eligible[j].speedKt * SPEED_RATIO_MIN &&
+            eligible[i].speedKt <= eligible[j].speedKt * SPEED_RATIO_MAX) {
+          bracketedSet.add(eligible[i]);
+          bracketedSet.add(eligible[j]);
         }
+      }
+    }
+    for (const e of bracketedSet) {
+      const prev = tierMultipliers.get(e) ?? 1;
+      tierMultipliers.set(e, Math.max(prev, BRACKET_BOOST));
+    }
+
+    // ── Tier 3: Source corroboration ──────────────────────────
+    // Any 2+ sources agreeing on direction+speed (any quality) get a boost.
+    // Extra bonus when high-quality sources agree.
+    const refDir2 = eligible[0].dir!;
+    const corroborating = eligible.filter(e =>
+      angleDifference(e.dir!, refDir2) <= DIR_AGREE_THRESHOLD &&
+      e.speedKt >= eligible[0].speedKt * SPEED_RATIO_MIN &&
+      e.speedKt <= eligible[0].speedKt * SPEED_RATIO_MAX,
+    );
+    if (corroborating.length >= 2) {
+      const hasProAgreement = corroborating.filter(e => (SOURCE_QUALITY[e.source] ?? 0.7) >= 0.85).length >= 2;
+      const boost = (corroborating.length >= 3 ? CORROBORATION_BOOST_3 : CORROBORATION_BOOST_2)
+        + (hasProAgreement ? PRO_CORROBORATION_EXTRA : 0);
+      for (const e of corroborating) {
+        const prev = tierMultipliers.get(e) ?? 1;
+        tierMultipliers.set(e, Math.max(prev, boost));
       }
     }
   }
 
-  // ── Outlier detection (SOURCE_QUALITY v2) ─────────────────
-  // If 3+ sources, compute median speed. Stations >3x median get weight halved.
-  // This prevents a single broken/sheltered station from skewing consensus.
-  // NOTE: Runs AFTER corroboration boost, so professional median is now higher
-  // and sheltered stations are more likely to be flagged as outlier-low.
+  // Apply max tier multiplier to each entry
+  for (const e of entries) {
+    const mul = tierMultipliers.get(e);
+    if (mul !== undefined) e.weight *= mul;
+  }
+
+  // ── Step 4: Outlier detection (weighted median, tighter thresholds) ──
   if (entries.length >= 3) {
-    const speeds = entries.map(e => e.speedKt).sort((a, b) => a - b);
-    const mid = Math.floor(speeds.length / 2);
-    const median = speeds.length % 2 === 1 ? speeds[mid] : (speeds[mid - 1] + speeds[mid]) / 2;
-    if (median > 2) { // Only penalize if there's real wind (avoid div-by-zero on calm days)
+    const wMedian = computeWeightedMedian(entries);
+    if (wMedian > 3) { // Only when there's meaningful wind
       for (const e of entries) {
-        if (e.speedKt > median * 3) {
-          e.weight *= 0.5; // Outlier high — likely broken anemometer or gust spike
-        } else if (e.speedKt < median * 0.2) {
-          e.weight *= 0.4; // Outlier low — likely sheltered, reporting calm when others show wind
+        const ratio = e.speedKt / wMedian;
+        if (ratio > 3.0) {
+          e.weight *= 0.5;  // Outlier high — broken anemometer or gust spike
+        } else if (ratio < SEVERE_LOW_THRESHOLD) {
+          e.weight *= SEVERE_LOW_PENALTY;  // Near-zero — certainly broken/sheltered
+        } else if (ratio < LOW_OUTLIER_THRESHOLD) {
+          e.weight *= LOW_OUTLIER_PENALTY;  // Low — likely sheltered
         }
       }
     }
