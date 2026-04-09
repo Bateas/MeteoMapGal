@@ -2,6 +2,7 @@ import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
+import { isWindBlacklisted } from './spotScoringEngine';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -112,7 +113,8 @@ export function interpolateScalar(
   lat: number,
   lon: number,
   stations: StationScalarData[],
-  power = 2,
+  power = 2.5,
+  maxRadiusKm = 25,
 ): number {
   if (stations.length === 0) return 0;
 
@@ -123,12 +125,14 @@ export function interpolateScalar(
     const d = fastDistanceKm(lat, lon, s.lat, s.lon);
 
     if (d < 0.05) return s.value;
+    if (d > maxRadiusKm) continue;
 
     const w = (1 / Math.pow(d, power)) * (s.freshness ?? 1.0);
     valueSum += w * s.value;
     weightSum += w;
   }
 
+  if (weightSum === 0) return 0;
   return valueSum / weightSum;
 }
 
@@ -247,6 +251,7 @@ export function extractWindData(
   const now = Date.now();
   for (const station of stations) {
     if (station.tempOnly) continue;
+    if (isWindBlacklisted(station.id)) continue; // sheltered/broken → contaminate IDW
     const reading = readings.get(station.id);
     if (!reading || reading.windSpeed === null || reading.windDirection === null) continue;
     if (reading.windSpeed < 0.1) continue; // skip truly calm (< 0.1 m/s)
