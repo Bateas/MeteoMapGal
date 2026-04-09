@@ -175,6 +175,70 @@ export function getZonesByConcello(concello: string): WaterZone[] {
   );
 }
 
+// ── Coastline segment extraction for wave overlay (#56) ──────
+
+/** Signed area — positive = counterclockwise, negative = clockwise */
+function signedArea(polygon: [number, number][]): number {
+  let area = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const j = (i + 1) % polygon.length;
+    area += polygon[i][0] * polygon[j][1];
+    area -= polygon[j][0] * polygon[i][1];
+  }
+  return area / 2;
+}
+
+/** Extract coastline as LineString segments with outward normal bearing.
+ *  Each segment = pair of consecutive polygon vertices.
+ *  Normal points OUTWARD from the polygon (seaward for water zone polygons). */
+export function extractCoastlineSegments(zones: WaterZone[]): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+
+  for (const zone of zones) {
+    const poly = zone.polygon;
+    if (poly.length < 3) continue;
+
+    // Determine winding: if area > 0, counterclockwise; < 0, clockwise
+    const cw = signedArea(poly) < 0;
+
+    for (let i = 0; i < poly.length; i++) {
+      const j = (i + 1) % poly.length;
+      // Skip closing segment if last point == first point
+      if (poly[i][0] === poly[j][0] && poly[i][1] === poly[j][1]) continue;
+
+      const dx = poly[j][0] - poly[i][0]; // lon delta
+      const dy = poly[j][1] - poly[i][1]; // lat delta
+
+      // Outward normal: for CW polygon, left normal = outward
+      // For CCW polygon, right normal = outward
+      let nx: number, ny: number;
+      if (cw) {
+        nx = -dy; ny = dx;  // left normal
+      } else {
+        nx = dy; ny = -dx;  // right normal
+      }
+
+      // Convert normal to compass bearing (0=N, 90=E)
+      const normalBearing = ((Math.atan2(nx, ny) * 180) / Math.PI + 360) % 360;
+
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: [poly[i], poly[j]],
+        },
+        properties: {
+          zoneId: zone.id,
+          segmentIndex: i,
+          normalBearing: Math.round(normalBearing),
+        },
+      });
+    }
+  }
+
+  return { type: 'FeatureCollection', features };
+}
+
 export function zoneToBounds(zone: WaterZone): { ne: [number, number]; sw: [number, number] } {
   let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
   for (const [lon, lat] of zone.polygon) {
