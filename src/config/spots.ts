@@ -722,6 +722,8 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     hardGates: { maxWindKt: 30 },
     webcams: [
       { label: 'Castrelo (ESP32-CAM)', url: 'https://meteomapgal.navia3d.com/webcam/castrelo.jpg', type: 'image', source: 'Propia', azimuth: 225, refreshInterval: 60 },
+      { label: 'Ribadavia N-120 (DGT)', url: 'https://infocar.dgt.es/etraffic/data/camaras/1187.jpg', type: 'image', source: 'DGT', azimuth: 270, refreshInterval: 600 },
+      { label: 'Fea-Arrabaldo AG-53 (DGT)', url: 'https://infocar.dgt.es/etraffic/data/camaras/557.jpg', type: 'image', source: 'DGT', azimuth: 180, refreshInterval: 600 },
     ],
   },
 ];
