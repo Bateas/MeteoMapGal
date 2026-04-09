@@ -13,6 +13,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import { FORECAST_MODELS } from '../../types/forecast';
 import type { HourlyForecast, ForecastModel } from '../../types/forecast';
+import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
 import type { ThermalWindRule } from '../../types/thermal';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useUIStore } from '../../store/uiStore';
@@ -825,11 +826,31 @@ function SailingConclusion({
 
 // ── Main component ────────────────────────────────────────
 
-export function ForecastTimeline({ expanded = false }: { expanded?: boolean } = {}) {
-  const hourly = useForecastStore((s) => s.hourly);
-  const fetchedAt = useForecastStore((s) => s.fetchedAt);
-  const isLoading = useForecastStore((s) => s.isLoading);
-  const error = useForecastStore((s) => s.error);
+export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: boolean; spotCoords?: { lat: number; lon: number } } = {}) {
+  const storeHourly = useForecastStore((s) => s.hourly);
+  const storeFetchedAt = useForecastStore((s) => s.fetchedAt);
+  const storeLoading = useForecastStore((s) => s.isLoading);
+  const storeError = useForecastStore((s) => s.error);
+
+  // Spot-specific forecast: fetch MeteoSIX for spot coords when provided
+  const [spotHourly, setSpotHourly] = useState<HourlyForecast[]>([]);
+  const [spotLoading, setSpotLoading] = useState(false);
+  const [spotFetchedAt, setSpotFetchedAt] = useState<Date | null>(null);
+  useEffect(() => {
+    if (!spotCoords) return;
+    setSpotLoading(true);
+    fetchMeteoSixForecast(spotCoords.lat, spotCoords.lon)
+      .then(data => { setSpotHourly(data); setSpotFetchedAt(new Date()); })
+      .catch(() => {})
+      .finally(() => setSpotLoading(false));
+  }, [spotCoords?.lat, spotCoords?.lon]);
+
+  // Use spot data when available, otherwise sector data
+  const hourly = spotCoords && spotHourly.length > 0 ? spotHourly : storeHourly;
+  const fetchedAt = spotCoords && spotFetchedAt ? spotFetchedAt : storeFetchedAt;
+  const isLoading = spotCoords ? spotLoading : storeLoading;
+  const error = spotCoords ? null : storeError;
+
   const [range, setRange] = useState(expanded ? 48 : 24);
   const [viewMode, setViewMode] = useState<'chart' | 'table'>(expanded ? 'table' : 'chart');
 

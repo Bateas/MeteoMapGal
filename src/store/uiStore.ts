@@ -29,7 +29,9 @@ interface UIState {
   setActiveBottomTab: (tab: 'map' | 'spots' | 'datos' | 'prevision' | 'mas' | null) => void;
   /** Forecast panel expanded (overlay/fullscreen) */
   forecastPanelOpen: boolean;
-  setForecastPanelOpen: (open: boolean) => void;
+  /** When set, ForecastPanel shows forecast for this spot instead of sector center */
+  forecastPanelSpotId: string | null;
+  setForecastPanelOpen: (open: boolean, spotId?: string | null) => void;
   /** Desktop sidebar collapsed to icon strip (persisted) */
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -76,10 +78,12 @@ export const useUIStore = create<UIState>()(
       activeBottomTab: null,
       setActiveBottomTab: (tab) => set({ activeBottomTab: tab }),
       forecastPanelOpen: false,
-      setForecastPanelOpen: (open) => set((s) => {
+      forecastPanelSpotId: null,
+      setForecastPanelOpen: (open, spotId) => set((s) => {
+        const newSpotId = open ? (spotId ?? null) : null;
         // Close sidebar on mobile when opening forecast panel
-        if (open && s.isMobile) return { forecastPanelOpen: true, sidebarOpen: false, fieldDrawerOpen: false };
-        return { forecastPanelOpen: open };
+        if (open && s.isMobile) return { forecastPanelOpen: true, forecastPanelSpotId: newSpotId, sidebarOpen: false, fieldDrawerOpen: false };
+        return { forecastPanelOpen: open, forecastPanelSpotId: newSpotId };
       }),
       sidebarCollapsed: true, // collapsed by default — map-first
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
