@@ -15,8 +15,8 @@ interface Props {
   height?: number;
 }
 
-const CHART_H = 60;
-const MARGIN = { top: 2, bottom: 14, left: 0, right: 0 };
+const CHART_H = 90;
+const MARGIN = { top: 4, bottom: 16, left: 0, right: 0 };
 
 function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
   const chartData = useMemo(() => {
