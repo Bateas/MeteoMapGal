@@ -18,6 +18,7 @@ import {
   VISION_PROVIDERS,
   type VisionProviderConfig,
 } from '../services/webcamVisionService';
+import { isDaylight } from '../services/solarUtils';
 import { useVisibilityPolling } from './useVisibilityPolling';
 
 /** Polling interval: 15 minutes */
@@ -62,6 +63,12 @@ export function useWebcamVision() {
 
   const runAnalysis = useCallback(async () => {
     if (!isEnabled || runningRef.current) return;
+
+    // Night guard — webcam images are black at night, skip processing
+    if (!isDaylight()) {
+      console.log('[WebcamVision] Skipped — nighttime (no daylight)');
+      return;
+    }
 
     const now = Date.now();
     if (now - lastRunRef.current < MIN_INTERVAL_MS) return;
