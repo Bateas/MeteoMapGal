@@ -8,8 +8,10 @@
  * Opened via: sidebar "Ampliar" button, mobile bottom nav "Previsión",
  * or keyboard shortcut 'P'.
  */
-import { memo, useEffect, useCallback, useState } from 'react';
+import { memo, useEffect, useCallback, useState, useMemo } from 'react';
 import { useUIStore } from '../../store/uiStore';
+import { useSectorStore } from '../../store/sectorStore';
+import { getSpotsForSector } from '../../config/spots';
 import { ForecastTimeline } from './ForecastTimeline';
 import { WeatherIcon } from '../icons/WeatherIcons';
 
@@ -102,9 +104,18 @@ function ForecastLegend({ onClose }: { onClose: () => void }) {
 
 function ForecastPanelInner() {
   const open = useUIStore((s) => s.forecastPanelOpen);
+  const spotId = useUIStore((s) => s.forecastPanelSpotId);
   const setOpen = useUIStore((s) => s.setForecastPanelOpen);
   const isMobile = useUIStore((s) => s.isMobile);
   const [showLegend, setShowLegend] = useState(false);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+
+  // Resolve spot name + coords for header
+  const spotInfo = useMemo(() => {
+    if (!spotId) return null;
+    const spots = getSpotsForSector(sectorId);
+    return spots.find(s => s.id === spotId) ?? null;
+  }, [spotId, sectorId]);
 
   const close = useCallback(() => setOpen(false), [setOpen]);
 
@@ -135,7 +146,7 @@ function ForecastPanelInner() {
         <div className="flex items-center gap-2">
           <WeatherIcon id="cloud-sun" size={18} className="text-sky-400" />
           <h2 className="text-sm font-semibold text-slate-200">
-            Prevision detallada
+            Prevision {spotInfo ? spotInfo.name : 'detallada'}
           </h2>
         </div>
 
@@ -177,7 +188,7 @@ function ForecastPanelInner() {
 
       {/* Content — ForecastTimeline in expanded mode */}
       <div className="flex-1 overflow-y-auto min-h-0 p-3">
-        <ForecastTimeline expanded />
+        <ForecastTimeline expanded spotCoords={spotInfo ? { lat: spotInfo.center[1], lon: spotInfo.center[0] } : undefined} />
       </div>
     </div>
   );
