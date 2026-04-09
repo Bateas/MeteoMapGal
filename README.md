@@ -60,8 +60,11 @@
 
 
 ### Scoring inteligente (13 spots)
-- **Vela** (10 spots): 9 niveles de viento (CALMA a HURACAN). Consenso de multiples estaciones ponderado por distancia y calidad
+- **Vela** (10 spots): 9 niveles de viento (CALMA a HURACAN). Consenso espacial de multiples estaciones con coherencia regional
 - **Surf** (3 spots BETA): 5 niveles de oleaje (FLAT / PEQUE / SURF OK / CLASICO / GRANDE) con correccion costera por playa y alineamiento del swell
+- **Coherencia espacial del viento** (#63): si estaciones a barlovento y sotavento coinciden en direccion y velocidad, el agua entre ellas tiene ese mismo viento. 3 niveles: coherencia regional (60%+ coinciden), bracketing espacial (opuestos a ±120°), corroboracion de fuentes
+- Boyas en agua pesan x1.5 sobre estaciones terrestres (exposure boost)
+- Outlier detection con mediana ponderada — estaciones sheltered penalizadas automaticamente
 - Cada spot muestra las fuentes que contribuyen al veredicto (nombre, velocidad, peso %)
 - Deteccion de patrones locales: termicas, bocanas, virazones de ria
 - Ventanas de navegacion: "Cuando salgo?" con prevision 48h
