@@ -860,7 +860,9 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const sectorName = useSectorStore((s) => s.activeSector.shortName);
   // Reference point for the forecast (so users know WHERE the data is for)
-  const forecastRef = sectorId === 'embalse' ? 'Embalse de Castrelo' : 'Cesantes (interior ria)';
+  const forecastRef = spotCoords
+    ? '' // ForecastPanel header already shows spot name
+    : sectorId === 'embalse' ? 'Embalse de Castrelo' : 'Cesantes (interior ria)';
 
   // Filter data by selected time range
   const visibleData = useMemo(() => {
