@@ -72,11 +72,18 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
       }
     }
 
-    // Day boundaries
-    const dayLines: number[] = [];
+    // Day boundaries with labels
+    const dayLines: { x: number; label: string }[] = [];
+    const today = new Date();
+    const todayStr = today.toDateString();
+    const tomorrowStr = new Date(today.getTime() + 86400000).toDateString();
     for (let i = 1; i < data.length; i++) {
       if (data[i].time.getHours() === 0) {
-        dayLines.push((i / (w - 1)) * 100);
+        const dayStr = data[i].time.toDateString();
+        const label = dayStr === todayStr ? 'Hoy'
+          : dayStr === tomorrowStr ? 'Manana'
+          : data[i].time.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
+        dayLines.push({ x: (i / (w - 1)) * 100, label });
       }
     }
 
@@ -127,7 +134,7 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
         role="img"
         aria-label="Meteograma: viento, temperatura y precipitacion"
       >
-        {/* Night shading */}
+        {/* Night shading — darker for clear day/night distinction */}
         {chartData.nightRegions.map((r, i) => (
           <rect
             key={`night-${i}`}
@@ -135,20 +142,29 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
             y={0}
             width={`${r.x2 - r.x1}%`}
             height={height}
-            fill="rgba(15,23,42,0.3)"
+            fill="rgba(15,23,42,0.45)"
           />
         ))}
 
-        {/* Day boundary lines */}
-        {chartData.dayLines.map((x, i) => (
-          <line
-            key={`day-${i}`}
-            x1={`${x}%`} y1={0}
-            x2={`${x}%`} y2={height}
-            stroke="#334155"
-            strokeWidth="0.3"
-            strokeDasharray="1,1"
-          />
+        {/* Day boundary lines — solid, visible */}
+        {chartData.dayLines.map((d, i) => (
+          <g key={`day-${i}`}>
+            <line
+              x1={`${d.x}%`} y1={0}
+              x2={`${d.x}%`} y2={height}
+              stroke="#475569"
+              strokeWidth="0.5"
+            />
+            <text
+              x={`${d.x + 1}%`}
+              y={MARGIN.top + 6}
+              fontSize="4"
+              fill="#94a3b8"
+              fontWeight="bold"
+            >
+              {d.label}
+            </text>
+          </g>
         ))}
 
         {/* Precip bars */}
@@ -191,15 +207,26 @@ function ForecastMeteogramInner({ data, height = CHART_H }: Props) {
           opacity="0.7"
         />
 
-        {/* Now marker */}
+        {/* Now marker — bright red, clearly visible */}
         {chartData.nowX >= 0 && (
-          <line
-            x1={`${chartData.nowX}%`} y1={0}
-            x2={`${chartData.nowX}%`} y2={height}
-            stroke="#ef4444"
-            strokeWidth="0.4"
-            vectorEffect="non-scaling-stroke"
-          />
+          <g>
+            <line
+              x1={`${chartData.nowX}%`} y1={0}
+              x2={`${chartData.nowX}%`} y2={height}
+              stroke="#ef4444"
+              strokeWidth="0.8"
+              vectorEffect="non-scaling-stroke"
+            />
+            <text
+              x={`${chartData.nowX + 0.5}%`}
+              y={height - MARGIN.bottom + 4}
+              fontSize="3.5"
+              fill="#ef4444"
+              fontWeight="bold"
+            >
+              Ahora
+            </text>
+          </g>
         )}
 
         {/* Best hour marker */}
