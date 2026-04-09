@@ -162,16 +162,17 @@ export function SpotScoringSection() {
             Además del viento, el score (0-100) incorpora factores que matizan:
           </p>
           <ul className="space-y-1 pl-3">
+            <li><strong className="text-cyan-400">Coherencia regional</strong> — si el 60%+ de las estaciones coinciden en dirección y velocidad, esa es la señal real. Las estaciones que no coinciden (probablemente sheltered) se penalizan automáticamente.</li>
+            <li><strong className="text-cyan-400">Bracketing espacial</strong> — si dos estaciones en lados opuestos del spot (separadas ≥120°) coinciden, el agua entre ellas tiene ese mismo viento. Boost x2.5.</li>
+            <li><strong className="text-blue-400">Boost boya x1.5</strong> — las boyas miden viento en el agua sin obstrucciones. Pesan un 50% más que estaciones terrestres a igual distancia.</li>
             <li><strong className="text-slate-300">Patrón reconocido</strong> — térmica, nortada, terral, virazón. Umbral: ≥5kt en spots térmicos, ≥8kt en el resto.</li>
-            <li><strong className="text-slate-300">Consenso</strong> — cuántas estaciones confirman viento (más = mayor fiabilidad).</li>
             <li><strong className="text-slate-300">Oleaje</strong> — crítico en Cíes-Ría, moderado en Centro Ría, ignorado en Cesantes.</li>
             <li><strong className="text-slate-300">Norte en Cesantes</strong> — penaliza: el norte mata la térmica.</li>
             <li><strong className="text-slate-300">Canalización térmica</strong> — bonus si en Cesantes hay térmica WSW activa (amplifica viento).</li>
-            <li><strong className="text-slate-300">Calibración por spot</strong> — offset en nudos que compensa estaciones montadas a baja altura.</li>
             <li><strong className="text-amber-400">Precursor humedad (bruma)</strong> — si la boya cercana detecta humedad &gt;65% + dirección WSW + horario diurno, el sistema anticipa viento probable. Correlación 96% en análisis histórico 3 años.</li>
             <li><strong className="text-sky-400">Tendencia de viento</strong> — analiza los últimos 30 minutos. Si sube &gt;3kt marca "viento subiendo", si sube &gt;6kt marca "subida rápida" con alerta.</li>
-            <li><strong className="text-blue-400">Boost boya 2x</strong> — las boyas preferidas dentro de 5km pesan el doble. Miden viento en el agua = lo que siente el navegante.</li>
             <li><strong className="text-emerald-400">Viento en costa</strong> — si una estación costera (aguas arriba) marca viento y el spot está en calma, indica viento frontal aproximándose.</li>
+            <li><strong className="text-slate-500">Outlier automático</strong> — estaciones que reportan &lt;35% de la mediana ponderada se penalizan. Las que reportan &lt;15% prácticamente se ignoran.</li>
           </ul>
         </div>
       </div>
