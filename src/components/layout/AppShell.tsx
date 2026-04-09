@@ -26,9 +26,8 @@ const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default
 const FeedbackModal = lazy(() => import('../common/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
 import { ToastContainer } from '../common/ToastContainer';
 const OnboardingTour = lazy(() => import('../common/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
-// Daily summary DISABLED in frontend — moved to ingestor (24/7, no duplicate sends)
-// import { shouldSendDailySummary, sendDailySummary } from '../../services/dailySummaryService';
-import { tryAutoSector } from '../../services/geolocationService';
+// Daily summary handled by ingestor 24/7 (dailySummary.ts) — frontend service removed
+// Geolocation disabled — browser permission popup scares first-visit users
 const ConditionsTicker = lazy(() => import('../common/ConditionsTicker').then(m => ({ default: m.ConditionsTicker })));
 const ForecastPanel = lazy(() => import('../charts/ForecastPanel').then(m => ({ default: m.ForecastPanel })));
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
@@ -238,10 +237,7 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, [readingsCount > 0, activeSector.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Geolocation auto-sector (runs once per device, first visit only)
-  // Geolocation auto-sector DISABLED — the browser permission popup on first
-  // visit scares users away. Sector switch is manual via header buttons.
-  // useEffect(() => { tryAutoSector(); }, []);
+  // Geolocation auto-sector removed — see geolocationService.ts if needed later
 
   // Prune stale reading history every 30 min (entries > 24h old) + daily summary check
   const pruneHistory = useWeatherStore((s) => s.pruneHistory);
