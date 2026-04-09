@@ -30,11 +30,12 @@ interface ForecastTableProps {
 }
 
 function formatHour(d: Date): string {
-  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+  // Compact: just "14" not "14:00" — saves ~40% width per column
+  return String(d.getHours()).padStart(2, '0');
 }
 
 function shortHour(d: Date): string {
-  return d.getHours().toString().padStart(2, '0');
+  return String(d.getHours());
 }
 
 function formatDay(d: Date): string {
@@ -237,7 +238,8 @@ export function ForecastTable({ data, expanded = false }: ForecastTableProps) {
 
   const hasThermal = isEmbalse && thermalScores.some(ts => ts.score >= 35);
   const sz = expanded ? 'text-xs' : 'text-[11px]';
-  const pad = expanded ? 'px-2 py-1.5' : 'px-1.5 py-1';
+  const pad = expanded ? 'px-1 py-1.5' : 'px-1 py-1';
+  const cellMinW = expanded ? 'min-w-[32px]' : 'min-w-[28px]';
   const labelPad = expanded ? 'px-3 py-1.5' : 'px-2 py-1';
   const arrowSize = expanded ? 14 : 12;
 
@@ -411,7 +413,7 @@ export function ForecastTable({ data, expanded = false }: ForecastTableProps) {
               return (
                 <th
                   key={i}
-                  className={`${pad} text-center font-mono whitespace-nowrap relative ${
+                  className={`${pad} ${cellMinW} text-center font-mono whitespace-nowrap relative ${
                     isNow ? 'bg-blue-500/20 text-blue-300 font-bold' : isNight ? 'text-slate-600' : 'text-slate-300'
                   } ${i === bestIdx ? 'ring-1 ring-green-500/50 ring-inset rounded' : ''}`}
                   style={{
@@ -448,13 +450,13 @@ export function ForecastTable({ data, expanded = false }: ForecastTableProps) {
                 return (
                   <td
                     key={i}
-                    className={`${pad} text-center whitespace-nowrap transition-colors ${
+                    className={`${pad} ${cellMinW} text-center whitespace-nowrap transition-colors ${
                       isNow ? 'border-x border-blue-500/30' : ''
                     } ${isNight ? 'opacity-50' : ''} ${
                       isBest && row.label === 'Calidad' ? 'bg-green-500/10' : ''
                     }`}
                     style={{
-                      borderLeft: !isNow && p.time.getHours() === 0 ? '2px solid #334155' : undefined,
+                      borderLeft: !isNow && p.time.getHours() === 0 ? '2px solid #64748b' : undefined,
                       background: isNow ? `linear-gradient(${bg}, rgba(59,130,246,0.06))` : bg,
                     }}
                   >
