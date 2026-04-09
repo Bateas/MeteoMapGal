@@ -415,7 +415,7 @@ export function ForecastTable({ data, expanded = false }: ForecastTableProps) {
                     isNow ? 'bg-blue-500/20 text-blue-300 font-bold' : isNight ? 'text-slate-600' : 'text-slate-300'
                   } ${i === bestIdx ? 'ring-1 ring-green-500/50 ring-inset rounded' : ''}`}
                   style={{
-                    borderLeft: p.time.getHours() === 0 ? '2px solid #334155' : undefined,
+                    borderLeft: p.time.getHours() === 0 ? '2px solid #64748b' : undefined,
                   }}
                 >
                   {/* Green top stripe for good sailing hours */}
