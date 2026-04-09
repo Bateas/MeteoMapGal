@@ -36,7 +36,12 @@ export function buildFieldAlerts(
   if (field.frost.level !== 'none') {
     const score = campoLevelToScore(field.frost.level);
     const tempStr = field.frost.minTemp != null ? `${field.frost.minTemp.toFixed(1)}°C` : '?';
-    let frostDetail = `Mín prevista ${tempStr}`;
+    // Show time window so user knows it's tonight, not now
+    const tw = field.frost.timeWindow;
+    const timeStr = tw
+      ? ` · Esta noche ${tw.from.getHours()}:00–${tw.to.getHours()}:00h`
+      : '';
+    let frostDetail = `Mín prevista ${tempStr}${timeStr}`;
     // NAO/AO context: negative phases amplify and sustain cold events
     if (nao && nao.value < -1) frostDetail += ' · NAO−: patrón frío persistente';
     else if (ao && ao.value < -1) frostDetail += ' · AO−: aire ártico activo';
