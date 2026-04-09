@@ -84,6 +84,24 @@ export function logPredictionSnapshot(
   } catch {
     // localStorage full or unavailable — silently skip
   }
+
+  // Also send to ingestor API for persistent TimescaleDB storage
+  try {
+    fetch('/api/v1/storm-predictions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sector: sectorId,
+        probability: prediction.probability,
+        horizon: prediction.horizon,
+        severity: prediction.severity,
+        hasLightning,
+        signals: prediction.signals.map((s) => Math.round(s.weight * 100) / 100),
+      }),
+    }).catch(() => {}); // Fire-and-forget, don't block UI
+  } catch {
+    // Network unavailable — silently skip
+  }
 }
 
 /**

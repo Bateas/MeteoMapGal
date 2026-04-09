@@ -421,6 +421,53 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/webcam-vision': handleWebcamVision,
 };
 
+// ── Storm prediction POST handler ──────────────────────
+
+async function handleStormPredictionPost(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let body: any;
+  try {
+    body = JSON.parse(Buffer.concat(chunks).toString());
+  } catch {
+    res.writeHead(400, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Invalid JSON' }));
+    return;
+  }
+
+  const { sector, probability, horizon, severity, hasLightning, signals } = body;
+  if (typeof probability !== 'number' || typeof sector !== 'string' || !Array.isArray(signals)) {
+    res.writeHead(400, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Missing required fields: sector, probability, signals[]' }));
+    return;
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO storm_predictions (time, sector, probability, horizon, severity, has_lightning,
+        signal_cape, signal_precip, signal_cloud, signal_lightning, signal_approach,
+        signal_shadow, signal_gusts, signal_mg_warning, signal_sky_state)
+       VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       ON CONFLICT (time, sector) DO NOTHING`,
+      [
+        sector, probability, horizon ?? null, severity ?? null, hasLightning ?? false,
+        signals[0] ?? null, signals[1] ?? null, signals[2] ?? null,
+        signals[3] ?? null, signals[4] ?? null, signals[5] ?? null,
+        signals[6] ?? null, signals[7] ?? null, signals[8] ?? null,
+      ],
+    );
+    res.writeHead(201, corsHeaders(origin));
+    res.end(JSON.stringify({ ok: true }));
+  } catch (err) {
+    log.error('Storm prediction insert error:', (err as Error).message);
+    error(res, 'DB error', 500, origin);
+  }
+}
+
 // ── Webcam upload handler ──────────────────────────────
 
 async function handleWebcamUpload(
@@ -481,12 +528,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Webcam upload: POST /api/webcam/:spotId
+  // POST routes
   if (req.method === 'POST') {
     const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
-    const m = url.pathname.match(/^\/api\/webcam\/([a-z0-9-]+)$/);
-    if (m) {
-      await handleWebcamUpload(m[1], req, res, origin);
+    const webcamMatch = url.pathname.match(/^\/api\/webcam\/([a-z0-9-]+)$/);
+    if (webcamMatch) {
+      await handleWebcamUpload(webcamMatch[1], req, res, origin);
+    } else if (url.pathname === '/api/v1/storm-predictions') {
+      await handleStormPredictionPost(req, res, origin);
     } else {
       error(res, 'Method not allowed', 405, origin);
     }
