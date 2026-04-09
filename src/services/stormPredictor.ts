@@ -113,11 +113,14 @@ export function predictStorm(
 
   // ── 3. Cloud cover (next 3h) ──
   const maxCloud = Math.max(0, ...next3h.map((f) => f.cloudCover ?? 0));
+  // Cloud cover alone is a weak storm signal — only counts when other signals active
+  const hasOtherSignals = capeSignal.active || precipSignal.active;
   const cloudSignal: StormSignal = {
     name: 'Nubosidad',
-    active: maxCloud >= CLOUD_THRESHOLD,
+    active: maxCloud >= CLOUD_THRESHOLD && hasOtherSignals,
     value: `${maxCloud.toFixed(0)}%`,
-    weight: maxCloud >= 95 ? 0.1 : maxCloud >= CLOUD_THRESHOLD ? 0.05 : 0,
+    // Clouds alone = 0 weight. Only amplifies when CAPE or precip present
+    weight: !hasOtherSignals ? 0 : maxCloud >= 95 ? 0.08 : maxCloud >= CLOUD_THRESHOLD ? 0.04 : 0,
   };
   signals.push(cloudSignal);
   probability += cloudSignal.weight * 100;
