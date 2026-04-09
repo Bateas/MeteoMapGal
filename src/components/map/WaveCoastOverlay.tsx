@@ -92,6 +92,12 @@ function WaveCoastOverlayInner() {
     return { type: 'FeatureCollection' as const, features };
   }, [swellDir, maxWaveHeight]);
 
+  // DISABLED: v1 exposure classification is wrong — polygon normals ≠ wave fetch.
+  // Interior ría segments show as "exposed" when no waves ever reach them.
+  // Needs redesign: distance-from-mouth or DEM-based zone approach.
+  // TODO #56 v2
+  return null;
+  // eslint-disable-next-line no-unreachable
   if (!showWaveCoast || sectorId !== 'rias' || !geojson) return null;
 
   return (

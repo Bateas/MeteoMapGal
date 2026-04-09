@@ -182,14 +182,9 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
                   color="#06b6d4"
                   isMobile={isMobile}
                 />
-                <OverlayToggle
-                  label="Costa y olas"
-                  sublabel="Exposición oleaje + altura"
-                  active={showWaveCoast}
-                  onClick={toggleWaveCoast}
-                  color="#3b82f6"
-                  isMobile={isMobile}
-                />
+                {/* Costa y olas: DISABLED — #56 v1 exposure classification is wrong
+                   (polygon normals ≠ fetch/wave propagation). Needs redesign with
+                   distance-from-mouth or DEM-based zone approach. */}
               </div>
             </>
           )}

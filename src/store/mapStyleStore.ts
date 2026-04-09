@@ -135,7 +135,7 @@ export const useMapStyleStore = create<MapStyleState>()(
         showIGNHillshade: false,
         showIGNContours: false,
         showIGNOrtho: false,
-        showWaveCoast: false,
+        showWaveCoast: false, // DISABLED by default — #56 v1 has wrong exposure (normals ≠ fetch). Needs redesign
 
         setStyle: (activeStyleId) =>
           set({ activeStyleId }, undefined, 'setStyle'),
