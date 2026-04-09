@@ -50,6 +50,10 @@ const WEBCAM_DIR = process.env.WEBCAM_DIR || '/var/www/meteomapgal/webcam';
 const WEBCAM_TOKEN = process.env.WEBCAM_TOKEN || '';
 const AEMET_API_KEY = process.env.AEMET_API_KEY || '';
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
+const METEOSIX_API_KEY = process.env.METEOSIX_API_KEY || '';
+const METEOSIX_BASE = 'https://servizos.meteogalicia.gal/apiv5';
+const OBSCOSTEIRO_API_KEY = process.env.OBSCOSTEIRO_API_KEY || '';
+const OBSCOSTEIRO_BASE = 'https://servizos.meteogalicia.gal/observacion_costeira/api';
 
 // CORS: allow frontend origins
 const ALLOWED_ORIGINS = new Set([
@@ -627,6 +631,114 @@ async function handleAemetDataProxy(
   }
 }
 
+// ── MeteoSIX proxy (server-side key injection) ─────────
+// Frontend calls /api/v1/meteosix/getNumericForecastInfo?coords=...
+// This handler injects METEOSIX_API_KEY. Cached 3min.
+
+const meteosixCache = new Map<string, { data: Buffer; contentType: string; ts: number }>();
+const METEOSIX_CACHE_TTL = 3 * 60_000;
+
+async function handleMeteoSixProxy(
+  msPath: string,
+  query: string,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  if (!METEOSIX_API_KEY) {
+    error(res, 'METEOSIX_API_KEY not configured on server', 503, origin);
+    return;
+  }
+
+  const cacheKey = `${msPath}?${query}`;
+  const cached = meteosixCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < METEOSIX_CACHE_TTL) {
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'HIT' });
+    res.end(cached.data);
+    return;
+  }
+
+  try {
+    const sep = query ? '&' : '';
+    const url = `${METEOSIX_BASE}${msPath}?${query}${sep}API_KEY=${METEOSIX_API_KEY}`;
+    const upstream = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
+    const contentType = upstream.headers.get('content-type') || 'application/json';
+    const buf = Buffer.from(await upstream.arrayBuffer());
+
+    if (upstream.ok) {
+      meteosixCache.set(cacheKey, { data: buf, contentType, ts: Date.now() });
+      if (meteosixCache.size > 100) {
+        const now = Date.now();
+        for (const [k, v] of meteosixCache) { if (now - v.ts > METEOSIX_CACHE_TTL) meteosixCache.delete(k); }
+      }
+    }
+
+    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
+    res.end(buf);
+  } catch (err) {
+    log.error('[MeteoSIX Proxy]', (err as Error).message);
+    if (cached) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'STALE' });
+      res.end(cached.data);
+      return;
+    }
+    error(res, 'MeteoSIX upstream error', 502, origin);
+  }
+}
+
+// ── ObsCosteiro proxy (server-side key injection) ───────
+// Frontend calls /api/v1/obscosteiro/ultimo/recente/{boiaId}
+// This handler injects apikey header. Cached 3min.
+
+const obsCache = new Map<string, { data: Buffer; contentType: string; ts: number }>();
+const OBS_CACHE_TTL = 3 * 60_000;
+
+async function handleObsCosteiroProxy(
+  obsPath: string,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  if (!OBSCOSTEIRO_API_KEY) {
+    error(res, 'OBSCOSTEIRO_API_KEY not configured on server', 503, origin);
+    return;
+  }
+
+  const cached = obsCache.get(obsPath);
+  if (cached && Date.now() - cached.ts < OBS_CACHE_TTL) {
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'HIT' });
+    res.end(cached.data);
+    return;
+  }
+
+  try {
+    const url = `${OBSCOSTEIRO_BASE}${obsPath}`;
+    const upstream = await fetch(url, {
+      headers: { apikey: OBSCOSTEIRO_API_KEY, Accept: 'application/json' },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const contentType = upstream.headers.get('content-type') || 'application/json';
+    const buf = Buffer.from(await upstream.arrayBuffer());
+
+    if (upstream.ok) {
+      obsCache.set(obsPath, { data: buf, contentType, ts: Date.now() });
+      if (obsCache.size > 50) {
+        const now = Date.now();
+        for (const [k, v] of obsCache) { if (now - v.ts > OBS_CACHE_TTL) obsCache.delete(k); }
+      }
+    }
+
+    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
+    res.end(buf);
+  } catch (err) {
+    log.error('[ObsCosteiro Proxy]', (err as Error).message);
+    if (cached) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'STALE' });
+      res.end(cached.data);
+      return;
+    }
+    error(res, 'ObsCosteiro upstream error', 502, origin);
+  }
+}
+
 // ── Server ─────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
@@ -663,15 +775,26 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
     const pathname = url.pathname.replace(/\/+$/, ''); // strip trailing slash
 
-    // ── AEMET proxy routes (key stays server-side) ──
+    // ── API key proxy routes (keys stay server-side) ──
     if (pathname.startsWith('/api/v1/aemet/')) {
-      const aemetPath = pathname.slice('/api/v1/aemet'.length); // e.g. /api/observacion/...
+      const aemetPath = pathname.slice('/api/v1/aemet'.length);
       await handleAemetProxy(aemetPath, res, origin);
       return;
     }
     if (pathname.startsWith('/api/v1/aemet-data/')) {
-      const dataPath = pathname.slice('/api/v1/aemet-data'.length); // e.g. /opendata/sh/XXXXX
+      const dataPath = pathname.slice('/api/v1/aemet-data'.length);
       await handleAemetDataProxy(dataPath, res, origin);
+      return;
+    }
+    if (pathname.startsWith('/api/v1/meteosix/')) {
+      const msPath = pathname.slice('/api/v1/meteosix'.length); // e.g. /getNumericForecastInfo
+      const query = url.search.slice(1); // strip leading ?
+      await handleMeteoSixProxy(msPath, query, res, origin);
+      return;
+    }
+    if (pathname.startsWith('/api/v1/obscosteiro/')) {
+      const obsPath = pathname.slice('/api/v1/obscosteiro'.length); // e.g. /ultimo/recente/15009
+      await handleObsCosteiroProxy(obsPath, res, origin);
       return;
     }
 
