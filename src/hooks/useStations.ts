@@ -70,8 +70,12 @@ export function useStations() {
       import('../store/spotStore').then(m => m.useSpotStore.getState().selectSpot(''));
       import('../store/weatherSelectionStore').then(m => m.useWeatherSelectionStore.getState().selectStation(null));
       import('../store/buoyStore').then(m => m.useBuoyStore.getState().selectBuoy(null));
+      // Force discovery for new sector immediately (don't rely on second effect)
+      const signal = { cancelled: false };
+      load(signal);
+      return () => { signal.cancelled = true; };
     }
-  }, [activeSector.id, setStations]);
+  }, [activeSector.id, setStations, load]);
 
   useEffect(() => {
     if (stations.length > 0) return; // Already loaded
