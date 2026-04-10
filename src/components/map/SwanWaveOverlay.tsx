@@ -66,7 +66,7 @@ function SwanWaveOverlayInner() {
   const isMobile = useUIStore((s) => s.isMobile);
 
   const [hourOffset, setHourOffset] = useState(0);
-  const [serverUp, setServerUp] = useState(true); // optimistic
+  const [serverUp, setServerUp] = useState(false); // pessimistic — wait for health check
   const lastCheckRef = useRef(0);
 
   const maxWaveHeight = useMemo(() => {
@@ -81,21 +81,27 @@ function SwanWaveOverlayInner() {
 
   // Health check: verify CESGA THREDDS is up before loading tiles
   useEffect(() => {
-    if (!wantsActive) return;
-    if (Date.now() - lastCheckRef.current < HEALTH_CHECK_INTERVAL) return;
+    if (!wantsActive) { setServerUp(false); return; }
+    // Skip re-check if recently verified OK
+    if (serverUp && Date.now() - lastCheckRef.current < HEALTH_CHECK_INTERVAL) return;
 
-    lastCheckRef.current = Date.now();
     const ctrl = new AbortController();
-    fetch(SWAN_HEALTH_URL, { signal: ctrl.signal, mode: 'cors' })
+    // Use actual tile request (not GetCapabilities) — CESGA may 200 on caps but 403 on tiles
+    const testTile = '/swan-api/thredds/wms/SWAN/agg/SWAN_agg_best.ncd'
+      + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=hs&SRS=EPSG:4326'
+      + '&BBOX=-9,42,-8,43&WIDTH=16&HEIGHT=16&FORMAT=image/png&TRANSPARENT=true';
+    fetch(testTile, { signal: ctrl.signal })
       .then((r) => {
+        lastCheckRef.current = Date.now();
         setServerUp(r.ok);
-        if (!r.ok) console.warn(`[SWAN] Server returned ${r.status} — overlay disabled`);
+        if (!r.ok) console.warn(`[SWAN] Tile test returned ${r.status} — overlay disabled`);
       })
       .catch(() => {
         setServerUp(false);
         console.warn('[SWAN] Health check failed — overlay disabled');
       });
     return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantsActive]);
 
   const isActive = wantsActive && serverUp;
