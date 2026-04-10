@@ -13,7 +13,7 @@
  *
  * Rías sector only. No auth needed.
  */
-import { memo, useMemo, useState, useCallback } from 'react';
+import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useSectorStore } from '../../store/sectorStore';
 import { useMapStyleStore } from '../../store/mapStyleStore';
@@ -33,7 +33,13 @@ const SWAN_WMS_BASE =
   + '&TRANSPARENT=true'
   + '&COLORSCALERANGE=0,3';
 
+/** Health check URL — single small tile to verify CESGA is up */
+const SWAN_HEALTH_URL =
+  '/swan-api/thredds/wms/SWAN/agg/SWAN_agg_best.ncd'
+  + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetCapabilities';
+
 const AUTO_WAVE_THRESHOLD = 0.5;
+const HEALTH_CHECK_INTERVAL = 10 * 60 * 1000; // Re-check every 10min
 const HOUR_STEPS = 48; // ±48h from now
 
 /** Build TIME parameter for a given hour offset from now */
@@ -60,6 +66,8 @@ function SwanWaveOverlayInner() {
   const isMobile = useUIStore((s) => s.isMobile);
 
   const [hourOffset, setHourOffset] = useState(0);
+  const [serverUp, setServerUp] = useState(true); // optimistic
+  const lastCheckRef = useRef(0);
 
   const maxWaveHeight = useMemo(() => {
     let max = 0;
@@ -69,7 +77,28 @@ function SwanWaveOverlayInner() {
     return max;
   }, [buoys]);
 
-  const isActive = sectorId === 'rias' && (showSwan || maxWaveHeight >= AUTO_WAVE_THRESHOLD);
+  const wantsActive = sectorId === 'rias' && (showSwan || maxWaveHeight >= AUTO_WAVE_THRESHOLD);
+
+  // Health check: verify CESGA THREDDS is up before loading tiles
+  useEffect(() => {
+    if (!wantsActive) return;
+    if (Date.now() - lastCheckRef.current < HEALTH_CHECK_INTERVAL) return;
+
+    lastCheckRef.current = Date.now();
+    const ctrl = new AbortController();
+    fetch(SWAN_HEALTH_URL, { signal: ctrl.signal, mode: 'cors' })
+      .then((r) => {
+        setServerUp(r.ok);
+        if (!r.ok) console.warn(`[SWAN] Server returned ${r.status} — overlay disabled`);
+      })
+      .catch(() => {
+        setServerUp(false);
+        console.warn('[SWAN] Health check failed — overlay disabled');
+      });
+    return () => ctrl.abort();
+  }, [wantsActive]);
+
+  const isActive = wantsActive && serverUp;
 
   // Build tile URL with TIME parameter
   const tileUrl = useMemo(() => {
