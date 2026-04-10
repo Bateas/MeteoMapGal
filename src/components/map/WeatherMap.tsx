@@ -14,6 +14,7 @@ import { TempOnlyOverlay } from './TempOnlyMarker';
 import { StationPopup } from './StationPopup';
 import { WindFieldOverlay, registerWindArrowIcons } from './WindFieldOverlay';
 const ThermalZoneOverlay = lazy(() => import('./ThermalZoneOverlay').then(m => ({ default: m.ThermalZoneOverlay })));
+const ThermalFlowOverlay = lazy(() => import('./ThermalFlowOverlay').then(m => ({ default: m.ThermalFlowOverlay })));
 import { ThermalAlertMarkers } from './ThermalAlertMarker';
 import { PropagationArrows } from './PropagationArrow';
 // Heavy overlays: lazy-loaded (toggle/condition-gated, not needed at first paint)
@@ -372,6 +373,7 @@ export function WeatherMap() {
 
         {/* Thermal zone polygons — only for Embalse sector */}
         {activeSector.id === 'embalse' && <Suspense fallback={null}><ThermalZoneOverlay /></Suspense>}
+        {activeSector.id === 'embalse' && <Suspense fallback={null}><ThermalFlowOverlay /></Suspense>}
 
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
