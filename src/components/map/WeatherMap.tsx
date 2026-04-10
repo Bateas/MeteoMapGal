@@ -25,6 +25,8 @@ const WaveCoastOverlay = lazy(() => import('./WaveCoastOverlay').then(m => ({ de
 const UpwellingOverlay = lazy(() => import('./UpwellingOverlay').then(m => ({ default: m.UpwellingOverlay })));
 const WaveExposureOverlay = lazy(() => import('./WaveExposureOverlay').then(m => ({ default: m.WaveExposureOverlay })));
 const SwanWaveOverlay = lazy(() => import('./SwanWaveOverlay').then(m => ({ default: m.SwanWaveOverlay })));
+const UVHazeOverlay = lazy(() => import('./UVHazeOverlay').then(m => ({ default: m.UVHazeOverlay })));
+const WindRampOverlay = lazy(() => import('./WindRampOverlay').then(m => ({ default: m.WindRampOverlay })));
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
 const AlertPanel = lazy(() => import('./AlertPanel').then(m => ({ default: m.AlertPanel })));
 const WindParticleOverlay = lazy(() => import('./WindParticleOverlay').then(m => ({ default: m.WindParticleOverlay })));
@@ -428,6 +430,12 @@ export function WeatherMap() {
 
         {/* Fog overlay — terrain-based valley fill when fog detected */}
         <Suspense fallback={null}><FogOverlay /></Suspense>
+
+        {/* UV glow + Haze/calima — zone-based atmospheric effects (auto-reactive) */}
+        <Suspense fallback={null}><UVHazeOverlay /></Suspense>
+
+        {/* Wind ramp pulse — stations glow when wind increases +6kt/30min */}
+        <Suspense fallback={null}><WindRampOverlay /></Suspense>
 
         {/* Wave coast exposure + height overlay — vector coastline (Rías only) */}
         <Suspense fallback={null}><WaveCoastOverlay /></Suspense>
