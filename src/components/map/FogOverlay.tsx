@@ -125,9 +125,13 @@ function FogOverlayInner() {
   const [fogGeoJSON, setFogGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
 
   // Fix: field is `alerts` not `unifiedAlerts` (bug discovered S116)
+  // Only activate overlay on REAL fog (moderate+), not dew point info alerts (S118 false positive fix)
   const alerts = useAlertStore((s) => s.alerts) ?? [];
   const fogAlert: UnifiedAlert | undefined = alerts.find(a =>
-    a.category === 'fog' || a.title?.toLowerCase().includes('niebla') || a.title?.toLowerCase().includes('rocío')
+    (a.category === 'fog' || a.title?.toLowerCase().includes('niebla'))
+    && a.level !== 'none' && a.level !== 'info'
+    // Exclude low-level dew point alerts — normal evening cooling, not real fog
+    && !a.title?.toLowerCase().includes('rocío')
   );
 
   const fogMeta = fogAlert?.fogMeta ?? null;
