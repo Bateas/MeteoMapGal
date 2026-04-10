@@ -39,6 +39,15 @@ function formatDay(d: Date): string {
   return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
 }
 
+/** Format time with day prefix when NOT today — "17:00" vs "sáb 17h" */
+function formatTimeRef(d: Date): string {
+  const now = new Date();
+  const isToday = d.getDate() === now.getDate() && d.getMonth() === now.getMonth();
+  if (isToday) return formatHour(d);
+  const days = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+  return `${days[d.getDay()]} ${d.getHours()}h`;
+}
+
 /** Map MeteoSIX sky_state to our weather icons (when available) */
 function skyStateIcon(skyState: string | null): IconId | null {
   if (!skyState) return null;
@@ -724,13 +733,13 @@ function SailingConclusion({
 
   if (hasGoodWind && stableDir && !hasRain) {
     lines.push({
-      text: `Buen dia para navegar — viento hasta ${bestKt.toFixed(0)}kt${sailingSummary.bestTime ? ` sobre las ${formatHour(sailingSummary.bestTime)}` : ''}, direccion estable.`,
+      text: `Buen dia para navegar — viento hasta ${bestKt.toFixed(0)}kt${sailingSummary.bestTime ? ` sobre las ${formatTimeRef(sailingSummary.bestTime)}` : ''}, direccion estable.`,
       color: '#22c55e',
       icon: 'sailboat',
     });
   } else if (hasGoodWind && !stableDir) {
     lines.push({
-      text: `Viento suficiente (${bestKt.toFixed(0)}kt) pero direccion inestable — cambios frecuentes.`,
+      text: `Viento suficiente (${bestKt.toFixed(0)}kt${sailingSummary.bestTime ? `, ${formatTimeRef(sailingSummary.bestTime)}` : ''}) pero direccion inestable — cambios frecuentes.`,
       color: '#facc15',
       icon: 'wind',
     });
@@ -1067,7 +1076,7 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
             <span className="flex items-center gap-1">
               <WeatherIcon id="sailboat" size={12} className="text-sky-400" />
               Mejor: <span className="text-white font-semibold">{sailingSummary.bestKt.toFixed(0)} kt</span>
-              {sailingSummary.bestTime && <span className="text-slate-500">({formatHour(sailingSummary.bestTime)})</span>}
+              {sailingSummary.bestTime && <span className="text-slate-500">({formatTimeRef(sailingSummary.bestTime)})</span>}
             </span>
           )}
           {/* Rain hours */}
