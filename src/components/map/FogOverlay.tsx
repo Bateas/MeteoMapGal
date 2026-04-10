@@ -73,7 +73,8 @@ function sampleFogZones(
       const lat = bbox.south + (row + 0.5) * cellH;
 
       const elev = queryElevation({ lng, lat });
-      const altitude = elev ?? 0;
+      if (elev === null || elev === undefined) continue; // water or unloaded — skip
+      const altitude = elev;
       if (altitude > maxAltitude) continue;
 
       // Per-cell density based on altitude (lower = denser)
