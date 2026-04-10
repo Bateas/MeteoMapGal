@@ -7,7 +7,7 @@
  * Badge shows wind in knots — the data a sailor actually needs.
  * Sector-aware: renders spots for the active sector.
  */
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Marker, useMap } from 'react-map-gl/maplibre';
 import { getSpotsForSector } from '../../config/spots';
 import { useSpotStore } from '../../store/spotStore';
@@ -203,6 +203,22 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   const iconSize = isActive ? 22 : 18;
   const gaugeR = size / 2 + 5;
 
+  // ── Verdict upgrade flash — detect transitions to better conditions ──
+  const prevVerdictRef = useRef(verdict);
+  const [upgradeFlash, setUpgradeFlash] = useState(false);
+  useEffect(() => {
+    const prev = prevVerdictRef.current;
+    prevVerdictRef.current = verdict;
+    // Detect upgrade: calm/light/unknown → sailing/good/strong
+    const lowVerdicts = ['calm', 'light', 'unknown'];
+    const highVerdicts = ['sailing', 'good', 'strong'];
+    if (lowVerdicts.includes(prev) && highVerdicts.includes(verdict)) {
+      setUpgradeFlash(true);
+      const t = setTimeout(() => setUpgradeFlash(false), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [verdict]);
+
   const handleClick = useCallback(
     (e: { originalEvent: MouseEvent }) => {
       e.originalEvent.stopPropagation();
@@ -298,7 +314,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
 
         {/* Verdict badge — centered above the marker */}
         <div
-          className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center"
+          className={`absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center${upgradeFlash ? ' animate-verdict-pop' : ''}`}
           style={{
             top: -2,
             transform: `translateX(-50%) translateY(-100%)`,
@@ -307,12 +323,14 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
             fontFamily: "'JetBrains Mono', ui-monospace, monospace",
             lineHeight: '14px',
             padding: isLoading ? '2px 6px' : '3px 8px',
-            background: 'rgba(15, 23, 42, 0.9)',
-            border: `1.5px solid ${colors.ring}70`,
+            background: upgradeFlash ? 'rgba(34, 197, 94, 0.25)' : 'rgba(15, 23, 42, 0.9)',
+            border: `1.5px solid ${upgradeFlash ? '#22c55e' : colors.ring + '70'}`,
             borderRadius: 6,
             color: isLoading ? '#93c5fd' : colors.text,
             backdropFilter: 'blur(4px)',
             WebkitBackdropFilter: 'blur(4px)',
+            boxShadow: upgradeFlash ? `0 0 12px ${colors.glow}88, 0 0 24px ${colors.glow}44` : undefined,
+            transition: 'background 1s ease, border-color 1s ease, box-shadow 1s ease',
           } as React.CSSProperties}
         >
           {isLoading ? <LoadingSpinner /> : badgeText}
