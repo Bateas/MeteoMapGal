@@ -129,8 +129,9 @@ function FogOverlayInner() {
   const alerts = useAlertStore((s) => s.alerts) ?? [];
   const fogAlert: UnifiedAlert | undefined = alerts.find(a =>
     (a.category === 'fog' || a.title?.toLowerCase().includes('niebla'))
-    && a.level !== 'none' && a.level !== 'info'
-    // Exclude low-level dew point alerts — normal evening cooling, not real fog
+    // Only paint overlay on HIGH+ severity — confirmed fog, not just "riesgo"
+    // moderate = risk (60% confidence) should NOT paint the entire sector
+    && (a.level === 'high' || a.level === 'critical')
     && !a.title?.toLowerCase().includes('rocío')
   );
 
