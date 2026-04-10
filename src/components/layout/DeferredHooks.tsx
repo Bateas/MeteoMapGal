@@ -14,7 +14,6 @@ import { useBuoyData } from '../../hooks/useBuoyData';
 import { useSpotScoring } from '../../hooks/useSpotScoring';
 import { useSailingWindows } from '../../hooks/useSailingWindows';
 import { useWebcamVision } from '../../hooks/useWebcamVision';
-import { useAirQuality } from '../../hooks/useAirQuality';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 
 export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: React.MutableRefObject<TeleconnectionIndex[]> }) {
@@ -27,7 +26,6 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useSpotScoring();
   useSailingWindows();
   useWebcamVision();
-  useAirQuality();
 
   // NAO/AO teleconnection indices — 15s extra after deferred mount
   useEffect(() => {

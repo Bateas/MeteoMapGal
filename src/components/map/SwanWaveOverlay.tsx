@@ -33,13 +33,7 @@ const SWAN_WMS_BASE =
   + '&TRANSPARENT=true'
   + '&COLORSCALERANGE=0,3';
 
-/** Health check URL — single small tile to verify CESGA is up */
-const SWAN_HEALTH_URL =
-  '/swan-api/thredds/wms/SWAN/agg/SWAN_agg_best.ncd'
-  + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetCapabilities';
-
 const AUTO_WAVE_THRESHOLD = 0.5;
-const HEALTH_CHECK_INTERVAL = 10 * 60 * 1000; // Re-check every 10min
 const HOUR_STEPS = 48; // ±48h from now
 
 /** Build TIME parameter for a given hour offset from now */
@@ -66,7 +60,7 @@ function SwanWaveOverlayInner() {
   const isMobile = useUIStore((s) => s.isMobile);
 
   const [hourOffset, setHourOffset] = useState(0);
-  const [serverUp, setServerUp] = useState(false); // pessimistic — wait for health check
+  const [serverUp, setServerUp] = useState(false);
   const lastCheckRef = useRef(0);
 
   const maxWaveHeight = useMemo(() => {
@@ -79,27 +73,17 @@ function SwanWaveOverlayInner() {
 
   const wantsActive = sectorId === 'rias' && (showSwan || maxWaveHeight >= AUTO_WAVE_THRESHOLD);
 
-  // Health check: verify CESGA THREDDS is up before loading tiles
+  // Health check: verify CESGA THREDDS is up before loading any tiles
   useEffect(() => {
     if (!wantsActive) { setServerUp(false); return; }
-    // Skip re-check if recently verified OK
-    if (serverUp && Date.now() - lastCheckRef.current < HEALTH_CHECK_INTERVAL) return;
-
+    if (serverUp && Date.now() - lastCheckRef.current < 600_000) return; // 10min cache
     const ctrl = new AbortController();
-    // Use actual tile request (not GetCapabilities) — CESGA may 200 on caps but 403 on tiles
     const testTile = '/swan-api/thredds/wms/SWAN/agg/SWAN_agg_best.ncd'
       + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=hs&SRS=EPSG:4326'
       + '&BBOX=-9,42,-8,43&WIDTH=16&HEIGHT=16&FORMAT=image/png&TRANSPARENT=true';
     fetch(testTile, { signal: ctrl.signal })
-      .then((r) => {
-        lastCheckRef.current = Date.now();
-        setServerUp(r.ok);
-        if (!r.ok) console.warn(`[SWAN] Tile test returned ${r.status} — overlay disabled`);
-      })
-      .catch(() => {
-        setServerUp(false);
-        console.warn('[SWAN] Health check failed — overlay disabled');
-      });
+      .then((r) => { lastCheckRef.current = Date.now(); setServerUp(r.ok); })
+      .catch(() => setServerUp(false));
     return () => ctrl.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantsActive]);
