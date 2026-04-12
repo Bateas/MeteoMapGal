@@ -56,6 +56,7 @@ function formatOffset(h: number): string {
 function SwanWaveOverlayInner() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const showSwan = useMapStyleStore((s) => s.showUpwelling);
+  const toggleSwan = useMapStyleStore((s) => s.toggleUpwelling);
   const buoys = useBuoyStore((s) => s.buoys);
   const isMobile = useUIStore((s) => s.isMobile);
 
@@ -71,7 +72,18 @@ function SwanWaveOverlayInner() {
     return max;
   }, [buoys]);
 
-  const wantsActive = sectorId === 'rias' && (showSwan || maxWaveHeight >= AUTO_WAVE_THRESHOLD);
+  // Auto-activate: when waves ≥ threshold, suggest turning ON (user can toggle OFF)
+  const autoActivated = useRef(false);
+  useEffect(() => {
+    if (sectorId !== 'rias' || showSwan || autoActivated.current) return;
+    if (maxWaveHeight >= AUTO_WAVE_THRESHOLD) {
+      autoActivated.current = true;
+      toggleSwan(); // turns ON — user can toggle OFF in Capas Marinas
+    }
+  }, [sectorId, maxWaveHeight, showSwan, toggleSwan]);
+
+  // Toggle is the ONLY control — no bypass. User can always dismiss.
+  const wantsActive = sectorId === 'rias' && showSwan;
 
   // Health check: verify CESGA THREDDS is up before loading any tiles
   useEffect(() => {
@@ -155,6 +167,23 @@ function SwanWaveOverlayInner() {
             <span>Ahora</span>
             <span>+24h</span>
             <span>+48h</span>
+          </div>
+          {/* Color scale legend */}
+          <div className="mt-2 pt-1.5 border-t border-slate-700/50">
+            <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-1">
+              <span>Altura ola (m)</span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              <div className="h-2.5 flex-1 rounded-sm" style={{ background: 'linear-gradient(to right, #0a0a5c, #1e3a8a, #0ea5e9, #22d3ee, #4ade80, #facc15, #f97316, #ef4444)' }} />
+            </div>
+            <div className="flex justify-between text-[9px] text-slate-500 mt-0.5">
+              <span>0</span>
+              <span>0.5</span>
+              <span>1.0</span>
+              <span>1.5</span>
+              <span>2.0</span>
+              <span>3.0+</span>
+            </div>
           </div>
         </div>
       )}
