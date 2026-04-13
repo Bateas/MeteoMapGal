@@ -85,19 +85,23 @@ function SwanWaveOverlayInner() {
   // Toggle is the ONLY control — no bypass. User can always dismiss.
   const wantsActive = sectorId === 'rias' && showSwan;
 
-  // Health check: verify CESGA THREDDS is up before loading any tiles
+  // Health check: verify CESGA THREDDS is up before loading tiles. Retries every 10min.
   useEffect(() => {
     if (!wantsActive) { setServerUp(false); return; }
-    if (serverUp && Date.now() - lastCheckRef.current < 600_000) return; // 10min cache
-    const ctrl = new AbortController();
+
     const testTile = '/swan-api/thredds/wms/SWAN/agg/SWAN_agg_best.ncd'
       + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=hs&SRS=EPSG:4326'
       + '&BBOX=-9,42,-8,43&WIDTH=16&HEIGHT=16&FORMAT=image/png&TRANSPARENT=true';
-    fetch(testTile, { signal: ctrl.signal })
-      .then((r) => { lastCheckRef.current = Date.now(); setServerUp(r.ok); })
-      .catch(() => setServerUp(false));
-    return () => ctrl.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const doCheck = () => {
+      fetch(testTile, { signal: AbortSignal.timeout(10_000) })
+        .then((r) => setServerUp(r.ok))
+        .catch(() => setServerUp(false));
+    };
+
+    doCheck(); // immediate first check
+    const interval = setInterval(doCheck, 600_000); // retry every 10min
+    return () => clearInterval(interval);
   }, [wantsActive]);
 
   const isActive = wantsActive && serverUp;
