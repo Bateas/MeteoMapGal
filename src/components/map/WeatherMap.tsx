@@ -21,6 +21,7 @@ import { PropagationArrows } from './PropagationArrow';
 const LightningOverlay = lazy(() => import('./LightningOverlay').then(m => ({ default: m.LightningOverlay })));
 const StormClusterOverlay = lazy(() => import('./StormClusterOverlay').then(m => ({ default: m.StormClusterOverlay })));
 const FogOverlay = lazy(() => import('./FogOverlay').then(m => ({ default: m.FogOverlay })));
+const WindRampOverlay = lazy(() => import('./WindRampOverlay').then(m => ({ default: m.WindRampOverlay })));
 const WaveCoastOverlay = lazy(() => import('./WaveCoastOverlay').then(m => ({ default: m.WaveCoastOverlay })));
 const UpwellingOverlay = lazy(() => import('./UpwellingOverlay').then(m => ({ default: m.UpwellingOverlay })));
 const WaveExposureOverlay = lazy(() => import('./WaveExposureOverlay').then(m => ({ default: m.WaveExposureOverlay })));
@@ -428,6 +429,9 @@ export function WeatherMap() {
 
         {/* Fog overlay — terrain-based valley fill when fog detected */}
         <Suspense fallback={null}><FogOverlay /></Suspense>
+
+        {/* Wind ramp pulse — stations glow when wind increases +6kt/30min */}
+        <Suspense fallback={null}><WindRampOverlay /></Suspense>
 
         {/* Wave coast exposure + height overlay — vector coastline (Rías only) */}
         <Suspense fallback={null}><WaveCoastOverlay /></Suspense>
