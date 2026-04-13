@@ -138,52 +138,49 @@ function SwanWaveOverlayInner() {
         />
       </Source>
 
-      {/* Time slider — floating control */}
-      {showSwan && (
+      {/* Desktop: horizontal time slider + legend panel */}
+      {!isMobile && showSwan && (
         <div
-          className={`absolute z-30 bg-slate-900/90 border border-slate-700/50 rounded-lg shadow-lg px-3 py-2
-            ${isMobile ? 'bottom-[7rem] left-2 right-2' : 'bottom-8 left-1/2 -translate-x-1/2 w-80'}`}
+          className="absolute z-30 bottom-8 left-1/2 -translate-x-1/2 w-80 bg-slate-900/90 border border-slate-700/50 rounded-lg shadow-lg px-3 py-2"
           style={{ pointerEvents: 'auto' }}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Oleaje SWAN
-            </span>
-            <span className="text-[12px] font-semibold text-sky-400">
-              {formatOffset(hourOffset)}
-            </span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Oleaje SWAN</span>
+            <span className="text-[12px] font-semibold text-sky-400">{formatOffset(hourOffset)}</span>
           </div>
-          <input
-            type="range"
-            min={0}
-            max={HOUR_STEPS}
-            step={1}
-            value={hourOffset}
-            onChange={handleSlider}
-            className="w-full h-1.5 accent-sky-500 cursor-pointer"
-            aria-label="Hora del forecast SWAN"
-          />
+          <input type="range" min={0} max={HOUR_STEPS} step={1} value={hourOffset} onChange={handleSlider}
+            className="w-full h-1.5 accent-sky-500 cursor-pointer" aria-label="Hora del forecast SWAN" />
           <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
-            <span>Ahora</span>
-            <span>+24h</span>
-            <span>+48h</span>
+            <span>Ahora</span><span>+24h</span><span>+48h</span>
           </div>
-          {/* Color scale legend */}
           <div className="mt-2 pt-1.5 border-t border-slate-700/50">
-            <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-1">
-              <span>Altura ola (m)</span>
-            </div>
-            <div className="flex items-center gap-0.5">
-              <div className="h-2.5 flex-1 rounded-sm" style={{ background: 'linear-gradient(to right, #0a0a5c, #1e3a8a, #0ea5e9, #22d3ee, #4ade80, #facc15, #f97316, #ef4444)' }} />
-            </div>
+            <div className="text-[10px] text-slate-400 mb-1">Altura ola (m)</div>
+            <div className="h-2.5 rounded-sm" style={{ background: 'linear-gradient(to right, #0a0a5c, #1e3a8a, #0ea5e9, #22d3ee, #4ade80, #facc15, #f97316, #ef4444)' }} />
             <div className="flex justify-between text-[9px] text-slate-500 mt-0.5">
-              <span>0</span>
-              <span>0.5</span>
-              <span>1.0</span>
-              <span>1.5</span>
-              <span>2.0</span>
-              <span>3.0+</span>
+              <span>0</span><span>0.5</span><span>1.0</span><span>1.5</span><span>2.0</span><span>3+</span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile: vertical panel on left edge — slider + legend, no overlap with bottom controls */}
+      {isMobile && showSwan && isActive && (
+        <div
+          className="absolute z-30 left-1 bg-slate-900/85 border border-slate-700/40 rounded-lg shadow-lg px-1.5 py-2.5"
+          style={{ top: '38%', transform: 'translateY(-50%)', pointerEvents: 'auto' }}
+        >
+          <div className="flex flex-col items-center gap-1">
+            {/* Time slider section */}
+            <span className="text-[10px] font-bold text-sky-400 leading-tight">{formatOffset(hourOffset)}</span>
+            <input type="range" min={0} max={HOUR_STEPS} step={1} value={hourOffset} onChange={handleSlider}
+              className="accent-sky-500 cursor-pointer" aria-label="Hora del forecast SWAN"
+              style={{ writingMode: 'vertical-lr', direction: 'rtl', width: 24, height: 80 }} />
+            {/* Separator */}
+            <div className="w-4 border-t border-slate-600/50 my-0.5" />
+            {/* Wave height scale */}
+            <span className="text-[9px] text-slate-300 font-bold leading-tight">3m</span>
+            <div className="w-3 rounded-sm" style={{ height: 60, background: 'linear-gradient(to top, #0a0a5c, #1e3a8a, #0ea5e9, #22d3ee, #4ade80, #facc15, #f97316, #ef4444)' }} />
+            <span className="text-[9px] text-slate-300 font-bold leading-tight">0</span>
           </div>
         </div>
       )}
