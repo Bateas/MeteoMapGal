@@ -500,7 +500,7 @@ export function WeatherMap() {
       <SectorSelector />
       <MapStyleSelector />
       <SSTLegend />
-      {!isMobile && <SpotScoreLegend />}
+      {/* SpotScoreLegend removed — verdict info visible on each spot badge. Revisit if needed for specific modes */}
       {activeSector.id === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
 
