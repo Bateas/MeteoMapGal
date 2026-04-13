@@ -10,6 +10,7 @@
 import { memo, useEffect, useCallback, useState, useRef } from 'react';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { SECTORS } from '../../config/sectors';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 
@@ -76,6 +77,8 @@ export const OnboardingTour = memo(function OnboardingTour() {
   const complete = useUIStore((s) => s.completeOnboarding);
   const isMobile = useUIStore((s) => s.isMobile);
   const sectorName = useSectorStore((s) => s.activeSector.name);
+  const activeSectorId = useSectorStore((s) => s.activeSector.id);
+  const switchSector = useSectorStore((s) => s.switchSector);
 
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
   const prevHighlightRef = useRef<Element | null>(null);
@@ -201,6 +204,26 @@ export const OnboardingTour = memo(function OnboardingTour() {
         <p className="text-sm text-slate-400 leading-relaxed mb-3">
           {current.desc}
         </p>
+
+        {/* Sector chooser — step 0 only */}
+        {isFirst && (
+          <div className="flex gap-2 mb-3">
+            {SECTORS.map((sector) => (
+              <button
+                key={sector.id}
+                onClick={() => switchSector(sector.id)}
+                className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-lg border transition-colors
+                  ${activeSectorId === sector.id
+                    ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
+                    : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+              >
+                <WeatherIcon id={sector.icon} size={22} />
+                <span className="text-[11px] font-bold">{sector.shortName}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Tip */}
         {current.tip && (

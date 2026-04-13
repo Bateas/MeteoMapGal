@@ -9,15 +9,13 @@ interface ThemeStore {
   toggleTheme: () => void;
 }
 
-/** Detect system preference — only used on first visit (before localStorage has a value) */
-const systemTheme: ThemeMode =
-  typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches
-    ? 'light' : 'dark';
+/** Dark by default — MeteoMapGal is designed dark-first. Persist saves user choice after toggle. */
+const defaultTheme: ThemeMode = 'dark';
 
 export const useThemeStore = create<ThemeStore>()(
   persist(
     (set) => ({
-      theme: systemTheme,
+      theme: defaultTheme,
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
     }),
