@@ -103,10 +103,10 @@ export const MeteoGuide = memo(function MeteoGuide() {
           onClick={() => setOpen(false)}
           className="shrink-0 ml-2 text-slate-500 hover:text-white transition-colors text-sm px-3 py-2 rounded hover:bg-slate-800 min-h-[44px] min-w-[44px] active:bg-slate-700 flex items-center gap-1"
         >
-          <WeatherIcon id="x" size={18} />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
           {!isMobile && (
             <>
-              Cerrar <kbd className="ml-1 text-[11px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">G</kbd>
+              Volver <kbd className="ml-1 text-[11px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">G</kbd>
             </>
           )}
         </button>

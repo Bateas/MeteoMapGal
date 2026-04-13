@@ -66,15 +66,17 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const cached = spotForecasts.get(spot.id);
   const spotForecast = cached?.data ?? [];
   const [spotFcLoading, setSpotFcLoading] = useState(false);
+  const [spotFcError, setSpotFcError] = useState(false);
 
   useEffect(() => {
     const stale = !cached || Date.now() - cached.fetchedAt > 30 * 60_000;
     if (!stale || spotFcLoading) return;
     setSpotFcLoading(true);
+    setSpotFcError(false);
     const [lon, lat] = spot.center;
     fetchMeteoSixForecast(lat, lon)
       .then((data) => setSpotForecast(spot.id, data))
-      .catch((err) => console.warn(`[SpotForecast] ${spot.id}:`, err))
+      .catch((err) => { console.warn(`[SpotForecast] ${spot.id}:`, err); setSpotFcError(true); })
       .finally(() => setSpotFcLoading(false));
   }, [spot.id, spot.center, cached, spotFcLoading, setSpotForecast]);
   // MOHID sea temp (Rías only — fetch alongside spot forecast)
@@ -381,7 +383,13 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Forecast mini-timeline (12h) — per-spot WRF 1km, hide for surf ── */}
       {spot.category !== 'surf' && spotForecast.length > 0 && <ForecastMiniTimeline forecast={spotForecast} />}
       {spot.category !== 'surf' && spotFcLoading && spotForecast.length === 0 && (
-        <div className="text-[11px] text-slate-500 mt-1">Cargando prevision WRF 1km...</div>
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1">
+          <svg className="animate-spin" width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#475569" strokeWidth="1.5" /><path d="M6 1.5a4.5 4.5 0 0 1 4.5 4.5" fill="none" stroke="#93c5fd" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          Cargando prevision WRF 1km...
+        </div>
+      )}
+      {spot.category !== 'surf' && spotFcError && spotForecast.length === 0 && !spotFcLoading && (
+        <div className="text-[11px] text-slate-500/70 mt-1">Prevision WRF no disponible</div>
       )}
 
       {/* ── Open full forecast panel — always visible, not inside ForecastMiniTimeline ── */}
