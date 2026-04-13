@@ -63,7 +63,10 @@ export const StormIndicator = memo(function StormIndicator() {
       title={tooltip}
     >
       <WeatherIcon id="zap" size={isMobile ? 18 : 14} />
-      <span className={isMobile ? 'text-xs' : ''}>{label}</span>
+      {/* Mobile: hide "RAYOS" text when no storm — just icon. Show label when active (PELIGRO/AVISO/%) */}
+      {(!isMobile || label !== 'RAYOS') && (
+        <span className={isMobile ? 'text-xs' : ''}>{label}</span>
+      )}
       {isStale && (
         <span className="text-[9px] text-amber-500 font-mono" title={lightningError ?? `Dato hace ${fetchAgeMin}min`}>
           {fetchAgeMin}m

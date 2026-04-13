@@ -60,7 +60,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
   return (
     <div
       ref={panelRef}
-      className={`${isMobile ? 'fixed z-30 top-[12rem] right-2' : 'absolute z-30 top-2 right-12'}`}
+      className={`${isMobile ? `fixed right-2 ${open ? 'z-50 top-[4.5rem]' : 'z-30 top-[12rem]'}` : 'absolute z-30 top-2 right-12'}`}
     >
       {/* Trigger button — swatch preview */}
       <button
@@ -99,7 +99,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
       {/* Dropdown panel */}
       {open && (
         <div className={`mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-2xl overflow-hidden overflow-y-auto
-          ${isMobile ? 'w-40 max-h-[calc(100dvh-8rem)]' : 'w-48 max-h-[70vh]'}`}
+          ${isMobile ? 'w-44 max-h-[calc(100dvh-16rem)]' : 'w-48 max-h-[70vh]'}`}
         >
           <div className="px-2 py-1.5 border-b border-slate-700/40">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Mapa base</span>
