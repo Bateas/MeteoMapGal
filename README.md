@@ -1,8 +1,8 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.38.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.50.4-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-282%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-286%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
 **Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 19 webcams con IA y mapa 3D interactivo.
@@ -166,6 +166,7 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 | Puertos del Estado, Obs. Costeiro | Boyas marinas |
 | MeteoSIX v5 (MeteoGalicia) | WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temp mar) |
 | Open-Meteo | CAPE, CIN, LI, rachas, visibilidad (conveccion background) |
+| CESGA SWAN (THREDDS) | Oleaje nearshore ~250m (WMS overlay con slider temporal 48h) |
 | RainViewer, IHM, ENAIRE | Radar precipitacion, mareas, espacio aereo |
 | CMEMS, INTECMAR, IGN | SST, corrientes, cartografia |
 | MeteoGalicia Webcams + Ollama | 19 camaras + vision IA (Beaufort, niebla) |
