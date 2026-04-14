@@ -3,7 +3,7 @@ import { isWithinRadius } from '../services/geoUtils';
 import { fetchWithRetry } from './fetchWithRetry';
 
 const SKYX_SN = 'SKY-100A0B765294EA4';
-const SKYX_AUTH = 'a21bd737-a714-4a5c-9b08-e7d3d2693a51';
+// Auth token injected server-side by nginx (prod) and vite proxy (dev) — NOT in frontend bundle
 const SKYX_STATION_ID = 'skyx_SKY100';
 const SKYX_STATION_NAME = 'SkyX1';
 const TIMEOUT_MS = 5_000;
@@ -55,7 +55,7 @@ export async function fetchSkyXData(
   try {
     const res = await fetchWithRetry(`/skyx-api/api/v1/pub/device/last/report/${SKYX_SN}`, {
       label: 'SkyX',
-      headers: { 'X-Auth': SKYX_AUTH },
+      // X-Auth injected by proxy (nginx prod / vite dev)
       timeout: TIMEOUT_MS,
       maxRetries: 1,
     });
@@ -134,7 +134,7 @@ export async function fetchSkyXReading(): Promise<NormalizedReading | null> {
   try {
     const res = await fetchWithRetry(`/skyx-api/api/v1/pub/device/last/report/${SKYX_SN}`, {
       label: 'SkyX',
-      headers: { 'X-Auth': SKYX_AUTH },
+      // X-Auth injected by proxy (nginx prod / vite dev)
       timeout: TIMEOUT_MS,
       maxRetries: 1,
     });

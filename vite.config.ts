@@ -121,6 +121,7 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/skyx-api/, ''),
         secure: true,
+        headers: { 'X-Auth': process.env.SKYX_AUTH || 'a21bd737-a714-4a5c-9b08-e7d3d2693a51' },
       },
       '/hfradar-api': {
         target: 'https://opendap.intecmar.gal',

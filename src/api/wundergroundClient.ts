@@ -9,8 +9,8 @@
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { isWithinRadius } from '../services/geoUtils';
 
-// Public API key exposed in wunderground.com source code
-const API_KEY = import.meta.env.VITE_WU_API_KEY ?? 'e1f10a1e78da46f5b10a1e78da96f525';
+// WU API key — only used as fallback when ingestor unavailable (dev mode)
+const API_KEY = import.meta.env.VITE_WU_API_KEY ?? '';
 const BASE_URL = 'https://api.weather.com';
 
 // ── Types ────────────────────────────────────────────────
@@ -58,6 +58,8 @@ export async function fetchWUNearbyStations(
   center: [number, number] = [-8.1, 42.29],
   radiusKm = 35,
 ): Promise<NormalizedStation[]> {
+  if (!API_KEY) return []; // No direct WU access without key — ingestor handles it
+
   const [centerLon, centerLat] = center;
 
   const url = new URL('/v3/location/near', BASE_URL);
@@ -112,6 +114,7 @@ export async function fetchWUNearbyStations(
  * Fetch current observation for a single PWS station.
  */
 async function fetchWUCurrent(stationId: string): Promise<WUObservation | null> {
+  if (!API_KEY) return null; // No direct WU access without key — ingestor handles it
   const rawId = stationId.replace('wu_', '');
   const url = new URL('/v2/pws/observations/current', BASE_URL);
   url.searchParams.set('stationId', rawId);
