@@ -453,7 +453,7 @@ async function handleStormPredictionPost(
   }
 
   try {
-    await pool.query(
+    await getPool().query(
       `INSERT INTO storm_predictions (time, sector, probability, horizon, severity, has_lightning,
         signal_cape, signal_precip, signal_cloud, signal_lightning, signal_approach,
         signal_shadow, signal_gusts, signal_mg_warning, signal_sky_state)
