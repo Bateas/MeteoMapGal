@@ -305,8 +305,10 @@ export async function fetchBuoyLastReading(stationId: number, stationName?: stri
  * Fails silently per station — returns whatever succeeds.
  */
 export async function fetchAllRiasBuoys(): Promise<BuoyReading[]> {
+  // Only fetch from PORTUS stations — OBSCOSTEIRO-only stations (Muros 15009) come via fetchAllObsReadings()
+  const portusStations = RIAS_BUOY_STATIONS.filter((s) => s.type !== 'OBSCOSTEIRO');
   const results = await Promise.allSettled(
-    RIAS_BUOY_STATIONS.map((s) => fetchBuoyLastReading(s.id, s.name))
+    portusStations.map((s) => fetchBuoyLastReading(s.id, s.name))
   );
 
   return results
