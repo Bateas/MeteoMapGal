@@ -168,11 +168,7 @@ function parseObsReading(station: ObsStation, data: ObsResponse): BuoyReading | 
  * Fails silently per station — returns whatever succeeds.
  */
 export async function fetchAllObsReadings(): Promise<BuoyReading[]> {
-  if (!API_KEY) {
-    console.debug('[ObsCosteiro] No API key configured, skipping');
-    return [];
-  }
-
+  // API key is injected server-side by ingestor proxy — no frontend key needed
   const results = await Promise.allSettled(
     OBS_STATIONS.map(async (station) => {
       const data = await obsFetch(station.obsId);
