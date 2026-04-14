@@ -53,7 +53,7 @@ const AEMET_BASE = 'https://opendata.aemet.es/opendata';
 const METEOSIX_API_KEY = process.env.METEOSIX_API_KEY || '';
 const METEOSIX_BASE = 'https://servizos.meteogalicia.gal/apiv5';
 const OBSCOSTEIRO_API_KEY = process.env.OBSCOSTEIRO_API_KEY || '';
-const OBSCOSTEIRO_BASE = 'https://servizos.meteogalicia.gal/observacion_costeira/api';
+const OBSCOSTEIRO_BASE = 'https://apis-ext.xunta.gal/mgplatpubapi/v1/api';
 
 // CORS: allow frontend origins
 const ALLOWED_ORIGINS = new Set([
