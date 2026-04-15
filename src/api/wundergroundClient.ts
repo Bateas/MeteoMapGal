@@ -9,7 +9,9 @@
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { isWithinRadius } from '../services/geoUtils';
 
-// WU API key — only used as fallback when ingestor unavailable (dev mode)
+// WU public API key — IBM embeds this in wunderground.com source code.
+// Used ONLY for station discovery (location/near). Observations go via ingestor.
+const WU_PUBLIC_KEY = 'e1f10a1e78da46f5b10a1e78da96f525';
 const API_KEY = import.meta.env.VITE_WU_API_KEY ?? '';
 const BASE_URL = 'https://api.weather.com';
 
@@ -58,15 +60,14 @@ export async function fetchWUNearbyStations(
   center: [number, number] = [-8.1, 42.29],
   radiusKm = 35,
 ): Promise<NormalizedStation[]> {
-  if (!API_KEY) return []; // No direct WU access without key — ingestor handles it
-
+  // Discovery uses public key (IBM embeds it in wunderground.com) — NOT a secret
   const [centerLon, centerLat] = center;
 
   const url = new URL('/v3/location/near', BASE_URL);
   url.searchParams.set('geocode', `${centerLat},${centerLon}`);
   url.searchParams.set('product', 'pws');
   url.searchParams.set('format', 'json');
-  url.searchParams.set('apiKey', API_KEY);
+  url.searchParams.set('apiKey', WU_PUBLIC_KEY);
 
   try {
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15_000) });
