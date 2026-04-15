@@ -502,12 +502,32 @@ async function handleStormPredictionPost(
 
 // ── Webcam upload handler ──────────────────────────────
 
+// Rate limit for webcam uploads: max 20 per hour per IP
+const webcamUploadCounts = new Map<string, { count: number; resetAt: number }>();
+const WEBCAM_UPLOAD_MAX = 20;
+const WEBCAM_UPLOAD_WINDOW_MS = 60 * 60_000; // 1 hour
+
 async function handleWebcamUpload(
   spotId: string,
   req: http.IncomingMessage,
   res: http.ServerResponse,
   origin?: string
 ): Promise<void> {
+  // Server-side rate limit per IP
+  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const bucket = webcamUploadCounts.get(ip);
+  if (bucket && now < bucket.resetAt) {
+    if (bucket.count >= WEBCAM_UPLOAD_MAX) {
+      res.writeHead(429, corsHeaders(origin));
+      res.end(JSON.stringify({ error: 'Rate limit exceeded (20/hour)' }));
+      return;
+    }
+    bucket.count++;
+  } else {
+    webcamUploadCounts.set(ip, { count: 1, resetAt: now + WEBCAM_UPLOAD_WINDOW_MS });
+  }
+
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (WEBCAM_TOKEN && token !== WEBCAM_TOKEN) {
