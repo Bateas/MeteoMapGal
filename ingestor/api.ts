@@ -107,6 +107,26 @@ function parseSearchParams(url: URL): Record<string, string> {
   return params;
 }
 
+// ── Input validation ──────────────────────────────────
+const VALID_SECTORS = new Set(['embalse', 'rias']);
+const VALID_SOURCES = new Set(['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx']);
+const STATION_ID_RE = /^[a-zA-Z0-9_-]{2,50}$/;
+
+function validateSector(sector: string | undefined): string | null {
+  if (!sector) return null;
+  return VALID_SECTORS.has(sector) ? sector : null;
+}
+
+function validateStationId(id: string | undefined): string | null {
+  if (!id) return null;
+  return STATION_ID_RE.test(id) ? id : null;
+}
+
+function validateSource(source: string | undefined): string | null {
+  if (!source) return null;
+  return VALID_SOURCES.has(source) ? source : null;
+}
+
 /**
  * Default time range: last 24 hours.
  * Returns [from, to] as ISO strings.
@@ -176,7 +196,11 @@ async function handleLatest(
   res: http.ServerResponse,
   origin?: string
 ): Promise<void> {
-  const rows = await queryLatest(params.station_id || undefined, params.source || undefined);
+  const stationId = validateStationId(params.station_id) ?? undefined;
+  const source = validateSource(params.source) ?? undefined;
+  if (params.station_id && !stationId) { error(res, 'Invalid station_id format', 400, origin); return; }
+  if (params.source && !source) { error(res, 'Invalid source', 400, origin); return; }
+  const rows = await queryLatest(stationId, source);
   json(res, { count: rows.length, readings: rows }, 200, origin);
 }
 
@@ -275,7 +299,9 @@ async function handleBuoyLatest(
   res: http.ServerResponse,
   origin?: string
 ): Promise<void> {
-  const stationId = params.station_id ? parseInt(params.station_id, 10) : undefined;
+  const rawId = params.station_id;
+  if (rawId && !/^\d{1,6}$/.test(rawId)) { error(res, 'Invalid station_id (numeric only)', 400, origin); return; }
+  const stationId = rawId ? parseInt(rawId, 10) : undefined;
   const rows = await queryBuoyLatest(stationId);
   json(res, { count: rows.length, readings: rows }, 200, origin);
 }
@@ -649,6 +675,12 @@ async function handleMeteoSixProxy(
     return;
   }
 
+  // SSRF whitelist — only allow forecast API paths
+  if (!msPath.startsWith('/getNumericForecastInfo')) {
+    error(res, 'Invalid MeteoSIX path', 400, origin);
+    return;
+  }
+
   const cacheKey = `${msPath}?${query}`;
   const cached = meteosixCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < METEOSIX_CACHE_TTL) {
@@ -699,6 +731,12 @@ async function handleObsCosteiroProxy(
 ): Promise<void> {
   if (!OBSCOSTEIRO_API_KEY) {
     error(res, 'OBSCOSTEIRO_API_KEY not configured on server', 503, origin);
+    return;
+  }
+
+  // SSRF whitelist — only allow observation data paths
+  if (!obsPath.startsWith('/ultimo/')) {
+    error(res, 'Invalid ObsCosteiro path', 400, origin);
     return;
   }
 
