@@ -76,7 +76,9 @@ async function runCycle(): Promise<void> {
       log.warn('Analyzer failed:', (err as Error).message));
 
     // 5. Webcam vision analysis (every 3 cycles = ~15min, if enabled)
-    await runWebcamAnalysis(cycleCount).catch(err =>
+    // Fire-and-forget — Ollama CPU inference takes 6-7min for 12 cameras.
+    // MUST NOT block the polling loop (caused 2h freeze in S121).
+    runWebcamAnalysis(cycleCount).catch(err =>
       log.warn('Webcam analysis failed:', (err as Error).message));
 
     // 6. Check if daily summary should be sent (9:00 AM, once per day)
