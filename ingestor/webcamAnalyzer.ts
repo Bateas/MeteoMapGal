@@ -301,9 +301,16 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
 
   log.info(`[Webcam] Starting vision analysis (${RIAS_WEBCAMS.length} cameras)...`);
   const results: WebcamAnalysisResult[] = [];
+  const GLOBAL_TIMEOUT_MS = 120_000; // 120s max — never block longer than this
+  const startTime = Date.now();
 
   // Sequential processing — Ollama handles one image at a time
   for (const webcam of RIAS_WEBCAMS) {
+    // Hard timeout: stop processing remaining cameras if we've exceeded budget
+    if (Date.now() - startTime > GLOBAL_TIMEOUT_MS) {
+      log.warn(`[Webcam] Global timeout (${GLOBAL_TIMEOUT_MS / 1000}s) — ${results.length}/${RIAS_WEBCAMS.length} cameras processed, skipping rest`);
+      break;
+    }
     try {
       const result = await analyzeWebcam(webcam);
       if (result) results.push(result);
@@ -312,7 +319,7 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
     }
   }
 
-  log.info(`[Webcam] Analysis complete: ${results.length}/${RIAS_WEBCAMS.length} cameras processed`);
+  log.info(`[Webcam] Analysis complete: ${results.length}/${RIAS_WEBCAMS.length} cameras processed (${((Date.now() - startTime) / 1000).toFixed(1)}s)`);
 
   // Persist to DB
   if (results.length > 0) {
