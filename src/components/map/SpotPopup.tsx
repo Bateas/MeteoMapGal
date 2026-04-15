@@ -74,9 +74,17 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     setSpotFcLoading(true);
     setSpotFcError(false);
     const [lon, lat] = spot.center;
-    fetchMeteoSixForecast(lat, lon)
+    // Retry once after 3s on failure (MeteoSIX intermittent 502/503)
+    const fetchWithRetry = () =>
+      fetchMeteoSixForecast(lat, lon).catch((err) => {
+        console.warn(`[SpotForecast] ${spot.id} attempt 1 failed:`, err);
+        return new Promise<Awaited<ReturnType<typeof fetchMeteoSixForecast>>>((resolve, reject) =>
+          setTimeout(() => fetchMeteoSixForecast(lat, lon).then(resolve).catch(reject), 3000)
+        );
+      });
+    fetchWithRetry()
       .then((data) => setSpotForecast(spot.id, data))
-      .catch((err) => { console.warn(`[SpotForecast] ${spot.id}:`, err); setSpotFcError(true); })
+      .catch((err) => { console.warn(`[SpotForecast] ${spot.id} both attempts failed:`, err); setSpotFcError(true); })
       .finally(() => setSpotFcLoading(false));
   }, [spot.id, spot.center, cached, spotFcLoading, setSpotForecast]);
   // MOHID sea temp (Rías only — fetch alongside spot forecast)
