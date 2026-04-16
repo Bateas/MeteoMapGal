@@ -14,6 +14,7 @@ import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { useWarningsStore } from '../../hooks/useWarnings';
 import { useUIStore } from '../../store/uiStore';
+import { useAirQualityStore } from '../../store/airQualityStore';
 import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
@@ -315,6 +316,19 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         color,
         bg,
         priority: w.maxLevel >= 2 ? 10 : 8,
+      });
+    }
+
+    // ── UV warning (priority 4 — subtle, only when high) ──
+    const aq = useAirQualityStore.getState().data;
+    if (aq && aq.uvIndex >= 6) {
+      const uvLevel = aq.uvIndex >= 11 ? 'EXTREMO' : aq.uvIndex >= 8 ? 'Muy alto' : 'Alto';
+      result.push({
+        key: 'uv-index',
+        text: `UV ${Math.round(aq.uvIndex)} ${uvLevel}`,
+        color: aq.uvIndex >= 8 ? 'text-red-400' : 'text-amber-400',
+        bg: aq.uvIndex >= 8 ? 'bg-red-900/20' : 'bg-amber-900/20',
+        priority: aq.uvIndex >= 8 ? 6 : 4,
       });
     }
 
