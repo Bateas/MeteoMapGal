@@ -20,6 +20,7 @@ import type { ThermalPrecursorResult } from '../../services/thermalPrecursorServ
 import type { WebcamVisionResult } from '../../services/webcamVisionService';
 import type { HourlyForecast } from '../../types/forecast';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
+import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
@@ -361,6 +362,41 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           {aqData.uvIndex >= 11 ? ' EXTREMO — protección total' : aqData.uvIndex >= 8 ? ' Muy alto — crema SPF50+' : ' Alto — protección recomendada'}
         </div>
       )}
+
+      {/* ── Sunset countdown (reactive — only when <2h of daylight remaining) ── */}
+      {(() => {
+        const now = new Date();
+        const { sunrise, sunset } = getSunTimes(now, spot.center);
+        const msToSunset = sunset.getTime() - now.getTime();
+        const minutesToSunset = Math.floor(msToSunset / 60_000);
+
+        // Before sunrise
+        if (now < sunrise) {
+          const minutesToSunrise = Math.floor((sunrise.getTime() - now.getTime()) / 60_000);
+          if (minutesToSunrise <= 120) {
+            return (
+              <div className="text-[11px] text-sky-400 mb-1">
+                <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Amanece a las {formatTime(sunrise)}
+              </div>
+            );
+          }
+          return null;
+        }
+
+        // During daylight, <2h to sunset
+        if (minutesToSunset > 0 && minutesToSunset <= 120) {
+          const color = minutesToSunset <= 30 ? 'text-red-400' : minutesToSunset <= 60 ? 'text-amber-400' : 'text-orange-400/80';
+          const hours = Math.floor(minutesToSunset / 60);
+          const mins = minutesToSunset % 60;
+          const remainStr = hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
+          return (
+            <div className={`text-[11px] mb-1 ${color}`}>
+              <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Anochece en {remainStr} ({formatTime(sunset)})
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* ── Air quality warning (only when poor — AQI >= 60) ── */}
       {aqData && aqData.europeanAqi >= 60 && (
