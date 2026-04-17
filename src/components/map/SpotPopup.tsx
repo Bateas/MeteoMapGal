@@ -362,6 +362,14 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Air quality warning (only when poor — AQI >= 60) ── */}
+      {aqData && aqData.europeanAqi >= 60 && (
+        <div className={`text-[11px] mb-1 ${aqData.europeanAqi >= 80 ? 'text-red-400' : 'text-orange-400'}`}>
+          Calidad del aire: {aqData.europeanAqi >= 80 ? 'Muy mala' : 'Mala'}
+          {aqData.pm2_5 >= 35 ? ` (PM2.5 ${Math.round(aqData.pm2_5)} µg/m³)` : ''}
+        </div>
+      )}
+
       {/* Thermal boost indicator removed — redundant with "Térmica X% prob" already shown above */}
 
       {/* ── Scoring confidence ── */}
