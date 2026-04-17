@@ -363,35 +363,31 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Sunset countdown (reactive — only when <2h of daylight remaining) ── */}
+      {/* ── Sunset countdown (reactive — only when <1h of daylight remaining) ── */}
       {(() => {
         const now = new Date();
         const { sunrise, sunset } = getSunTimes(now, spot.center);
-        const msToSunset = sunset.getTime() - now.getTime();
-        const minutesToSunset = Math.floor(msToSunset / 60_000);
+        const minutesToSunset = Math.floor((sunset.getTime() - now.getTime()) / 60_000);
 
-        // Before sunrise
+        // Before sunrise — show if <1h
         if (now < sunrise) {
           const minutesToSunrise = Math.floor((sunrise.getTime() - now.getTime()) / 60_000);
-          if (minutesToSunrise <= 120) {
+          if (minutesToSunrise <= 60) {
             return (
-              <div className="text-[11px] text-sky-400 mb-1">
-                <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Amanece a las {formatTime(sunrise)}
+              <div className="text-[11px] text-sky-400/80 mb-1">
+                <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Amanece en {minutesToSunrise}min ({formatTime(sunrise)})
               </div>
             );
           }
           return null;
         }
 
-        // During daylight, <2h to sunset
-        if (minutesToSunset > 0 && minutesToSunset <= 120) {
-          const color = minutesToSunset <= 30 ? 'text-red-400' : minutesToSunset <= 60 ? 'text-amber-400' : 'text-orange-400/80';
-          const hours = Math.floor(minutesToSunset / 60);
-          const mins = minutesToSunset % 60;
-          const remainStr = hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
+        // During daylight, <1h to sunset
+        if (minutesToSunset > 0 && minutesToSunset <= 60) {
+          const color = minutesToSunset <= 20 ? 'text-red-400' : minutesToSunset <= 40 ? 'text-amber-400' : 'text-orange-400/80';
           return (
             <div className={`text-[11px] mb-1 ${color}`}>
-              <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Anochece en {remainStr} ({formatTime(sunset)})
+              <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Anochece en {minutesToSunset}min ({formatTime(sunset)})
             </div>
           );
         }
