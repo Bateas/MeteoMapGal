@@ -25,6 +25,7 @@ import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
 import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
 import { useSectorStore } from '../../store/sectorStore';
+import { useAirQualityStore } from '../../store/airQualityStore';
 import { computeSurfVerdict, swellAlignmentMultiplier, type SurfVerdictResult } from '../spot/surfVerdictEngine';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs, dirArrow, azimuthLabel } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
@@ -89,6 +90,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   }, [spot.id, spot.center, cached, spotFcLoading, setSpotForecast]);
   // MOHID sea temp (Rías only — fetch alongside spot forecast)
   const sectorId = useSectorStore((s) => s.activeSector.id);
+  const aqData = useAirQualityStore((s) => s.data);
   const [mohidSeaTemp, setMohidSeaTemp] = useState<number | null>(null);
 
   useEffect(() => {
@@ -349,6 +351,14 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         <div className="text-[11px] text-blue-300/70 mb-1">
           <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Térmica {score.thermal.thermalProbability}% prob
           {score.thermal.windWindow && ` · ${score.thermal.windWindow.startHour}h–${score.thermal.windWindow.endHour}h`}
+        </div>
+      )}
+
+      {/* ── UV warning (subtle — only when UV >= 6) ── */}
+      {aqData && aqData.uvIndex >= 6 && (
+        <div className={`text-[11px] mb-1 ${aqData.uvIndex >= 8 ? 'text-red-400' : 'text-amber-400'}`}>
+          <WeatherIcon id="sun" size={12} className="inline -mt-px" /> UV {Math.round(aqData.uvIndex)}
+          {aqData.uvIndex >= 11 ? ' EXTREMO — protección total' : aqData.uvIndex >= 8 ? ' Muy alto — crema SPF50+' : ' Alto — protección recomendada'}
         </div>
       )}
 
