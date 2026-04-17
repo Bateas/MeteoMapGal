@@ -332,6 +332,20 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
+    // ── Air quality warning (priority 5 — only when poor) ──
+    // European AQI: 0-20 good, 20-40 fair, 40-60 moderate, 60-80 poor, 80-100 very poor
+    if (aq && aq.europeanAqi >= 60) {
+      const aqLabel = aq.europeanAqi >= 80 ? 'Muy mala' : 'Mala';
+      const pm25Label = aq.pm2_5 >= 35 ? ` (PM2.5 ${Math.round(aq.pm2_5)})` : '';
+      result.push({
+        key: 'air-quality',
+        text: `Calidad del aire: ${aqLabel}${pm25Label}`,
+        color: aq.europeanAqi >= 80 ? 'text-red-400' : 'text-orange-400',
+        bg: aq.europeanAqi >= 80 ? 'bg-red-900/20' : 'bg-orange-900/20',
+        priority: aq.europeanAqi >= 80 ? 7 : 5,
+      });
+    }
+
     // ── Station count + stale info (priority 1) ──
     const staleCount = stations.filter(s => {
       const r = readings.get(s.id);
