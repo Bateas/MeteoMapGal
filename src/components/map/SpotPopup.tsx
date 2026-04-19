@@ -377,7 +377,12 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             }
           }
           const mouthHum = computeMouthHumidity(stations, readings);
-          const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth);
+          // Air temp from spot's score (or compute from local readings) + water from MOHID/buoy
+          const airTempLocal = score?.airTemp ?? null;
+          const waterTempLocal = score?.waterTemp ?? mohidSeaTemp ?? null;
+          // Local station wind: use spot's current scored wind as base
+          const localStationKt = score?.wind?.avgSpeedKt ?? null;
+          const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt);
           if (!pred.active || pred.predictedKt === null) return null;
           const color = pred.severity === 'high' ? 'text-amber-400' : pred.severity === 'moderate' ? 'text-sky-400' : 'text-slate-300';
           const bg = pred.severity === 'high' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30';
