@@ -33,6 +33,7 @@ const ForecastPanel = lazy(() => import('../charts/ForecastPanel').then(m => ({ 
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { aggregateAllAlerts } from '../../services/alertService';
+import { detectFogBySolarSignature } from '../../services/maritimeFogService';
 import { useThemeStore } from '../../store/themeStore';
 import { useWebcamStore } from '../../store/webcamStore';
 import { processAlertNotifications } from '../../services/notificationService';
@@ -336,12 +337,13 @@ export function AppShell() {
           }
         }
       }
-      // Add stations with solar+humidity fog signature
-      for (const sg of stationsGeo) {
-        const r = currentReadings.get(sg.id);
-        if (r?.humidity != null && r.solarRadiation != null && r.humidity >= 85 && r.solarRadiation < 300) {
-          fogSources.push({ lat: sg.lat, lon: sg.lon, type: 'station', id: sg.id });
-        }
+      // Add stations with solar+humidity fog signature — but only those that pass
+      // the full physical check (daylight hours + interior sun baseline). At night
+      // every station has solar=0 + HR>=85, which would paint the entire sector.
+      // detectFogBySolarSignature enforces hour 9-19 + hasInteriorSun=true.
+      const solarFogStations = detectFogBySolarSignature(currentReadings, stationsGeo);
+      for (const s of solarFogStations) {
+        fogSources.push({ lat: s.lat, lon: s.lon, type: 'station', id: s.id });
       }
       // ── DEV SIMULATION: ?simfog=id1,id2 inject fake fog detectors for testing ──
       try {
