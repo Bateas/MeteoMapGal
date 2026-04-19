@@ -354,7 +354,7 @@ export const AirspaceOverlay = memo(function AirspaceOverlay() {
           latitude={zonePopup.lat}
           closeOnClick={false}
           onClose={() => setZonePopup(null)}
-          maxWidth="280px"
+          maxWidth="380px"
         >
           <div className="p-1.5 text-xs">
             <h3 className="font-bold text-slate-200 text-sm mb-1">{zonePopup.name}</h3>
@@ -386,7 +386,7 @@ export const AirspaceOverlay = memo(function AirspaceOverlay() {
           latitude={notamPopup.lat}
           closeOnClick={false}
           onClose={() => setNotamPopup(null)}
-          maxWidth="300px"
+          maxWidth="380px"
         >
           <div className="p-1.5 text-xs">
             <h3 className="font-bold text-slate-200 text-sm mb-1">

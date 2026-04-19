@@ -245,6 +245,7 @@ export const AviationOverlay = memo(function AviationOverlay() {
           latitude={selectedAircraft.lat}
           closeOnClick={false}
           onClose={() => setSelectedAircraft(null)}
+          maxWidth="380px"
           anchor="bottom"
           className="aviation-popup"
         >

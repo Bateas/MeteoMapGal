@@ -50,6 +50,10 @@ interface UIState {
   setOnboardingStep: (step: number | null) => void;
   completeOnboarding: () => void;
   resetOnboarding: () => void;
+  /** Alpha mode: enables experimental features (Regatta, etc.). Persisted. */
+  alphaMode: boolean;
+  toggleAlphaMode: () => void;
+  setAlphaMode: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -102,6 +106,9 @@ export const useUIStore = create<UIState>()(
       setOnboardingStep: (step) => set({ onboardingStep: step }),
       completeOnboarding: () => set({ onboardingStep: null, onboardingCompleted: true }),
       resetOnboarding: () => set({ onboardingStep: 0, onboardingCompleted: false }),
+      alphaMode: false,
+      toggleAlphaMode: () => set((s) => ({ alphaMode: !s.alphaMode })),
+      setAlphaMode: (v) => set({ alphaMode: v }),
     }),
     {
       name: 'meteomap-ui',
@@ -109,6 +116,7 @@ export const useUIStore = create<UIState>()(
         onboardingCompleted: state.onboardingCompleted,
         bathymetryVisible: state.bathymetryVisible,
         sstVisible: state.sstVisible,
+        alphaMode: state.alphaMode,
       }),
     },
   ),
