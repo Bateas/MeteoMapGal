@@ -178,6 +178,10 @@ function TrackingTogglesInline({ isMobile, sectorId }: { isMobile: boolean; sect
 
 function EventModeButton({ isMobile }: { isMobile: boolean }) {
   const active = useRegattaStore((s) => s.active);
+  const alphaMode = useUIStore((s) => s.alphaMode);
+
+  // Alpha feature — hidden unless user enables Alpha Mode in settings
+  if (!alphaMode && !active) return null;
 
   const handleClick = () => {
     if (active) {
