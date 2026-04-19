@@ -48,6 +48,7 @@ import { useToastStore } from '../../store/toastStore';
 import { useAirspaceStore } from '../../store/airspaceStore';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 import type { TeleconnectionIndex } from '../../api/naoClient';
+import { RIAS_WEBCAMS } from '../../config/webcams';
 const DeferredHooks = lazy(() => import('./DeferredHooks').then(m => ({ default: m.DeferredHooks })));
 
 /** Collapsed sidebar: vertical icon strip with tab shortcuts — sector-aware */
@@ -324,11 +325,7 @@ export function AppShell() {
         webcamFogDetected = false;
         // Build webcam id → coords map
         const webcamCoords = new Map<string, { lat: number; lon: number }>();
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { RIAS_WEBCAMS } = require('../../config/webcams') as { RIAS_WEBCAMS: { id: string; lat: number; lon: number }[] };
-          for (const w of RIAS_WEBCAMS) webcamCoords.set(w.id, { lat: w.lat, lon: w.lon });
-        } catch { /* webcam config unavailable */ }
+        for (const w of RIAS_WEBCAMS) webcamCoords.set(w.id, { lat: w.lat, lon: w.lon });
         for (const [id, result] of visionResults) {
           if (result.beaufort >= 0 && result.weather.fogVisible && (now - result.analyzedAt.getTime()) < 30 * 60_000) {
             webcamFogDetected = true;
@@ -351,8 +348,6 @@ export function AppShell() {
         const simfog = new URLSearchParams(window.location.search).get('simfog');
         if (simfog) {
           // Build coords lookup from webcams + stations
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { RIAS_WEBCAMS } = require('../../config/webcams') as { RIAS_WEBCAMS: { id: string; lat: number; lon: number }[] };
           const camCoords = new Map(RIAS_WEBCAMS.map(w => [w.id, { lat: w.lat, lon: w.lon }]));
           const stCoords = new Map(stationsGeo.map(s => [s.id, { lat: s.lat, lon: s.lon }]));
           for (const id of simfog.split(',').map(s => s.trim()).filter(Boolean)) {
