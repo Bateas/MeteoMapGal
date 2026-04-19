@@ -82,9 +82,11 @@ function sampleFogZonesLocal(
       const lng = bbox.west + (col + 0.5) * cellW;
       const lat = bbox.south + (row + 0.5) * cellH;
 
+      // S122 fix: maritime fog floats over water AND coastal lowlands.
+      // null elevation = water → ALLOW (fog is here!). High altitude = mountain → SKIP.
       const elev = queryElevation({ lng, lat });
-      if (elev === null || elev === undefined) continue; // water — skip
-      if (elev > maxAltitude) continue;
+      const isWater = elev === null || elev === undefined;
+      if (!isWater && elev > maxAltitude) continue;
 
       // Find closest detector source
       let minDist = Infinity;
@@ -96,7 +98,8 @@ function sampleFogZonesLocal(
 
       // Density: falls with distance from source AND with altitude
       const distFactor = Math.max(0, 1.0 - minDist / FOG_RADIUS_KM); // 1 at source, 0 at edge
-      const altFactor = 1.0 - elev / maxAltitude;
+      // Water = max altitude factor (1.0). Land = falls with elevation.
+      const altFactor = isWater ? 1.0 : (1.0 - elev / maxAltitude);
       const density = Math.max(0.15, Math.min(1.0, distFactor * 0.7 + altFactor * 0.3));
 
       const x1 = bbox.west + col * cellW;
@@ -110,7 +113,7 @@ function sampleFogZonesLocal(
           type: 'Polygon',
           coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
         },
-        properties: { elevation: elev, density, color },
+        properties: { elevation: elev ?? 0, density, color },
       });
     }
   }
@@ -208,7 +211,8 @@ function FogOverlayInner() {
     (a.category === 'fog' || a.title?.toLowerCase().includes('niebla'))
     // Only paint overlay on HIGH+ severity — confirmed fog, not just "riesgo"
     // moderate = risk (60% confidence) should NOT paint the entire sector
-    && (a.level === 'high' || a.level === 'critical')
+    // S122: was 'a.level' which doesn't exist — field is 'severity'. Bug existing since type rename
+    && (a.severity === 'high' || a.severity === 'critical')
     && !a.title?.toLowerCase().includes('rocío')
   );
 
