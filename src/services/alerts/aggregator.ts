@@ -135,6 +135,8 @@ export function aggregateAllAlerts(sources: {
   webcamFogCount?: number;
   /** IDs of webcams reporting fog */
   webcamFogIds?: string[];
+  /** Detector points with coords for localized FogOverlay (S122) */
+  fogSources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[];
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
   // Extract NAO/AO for context enrichment
   const nao = sources.teleconnections?.find((t) => t.name === 'NAO');
@@ -150,7 +152,7 @@ export function aggregateAllAlerts(sources: {
     ...(sources.currentReadings && sources.readingHistory
       ? enrichPressureAlerts(buildPressureTrendAlerts(sources.currentReadings, sources.readingHistory), nao) : []),
     ...(sources.buoys && sources.currentReadings && sources.stationsGeo
-      ? buildMaritimeFogAlerts(sources.buoys, sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected, sources.webcamFogCount, sources.webcamFogIds) : []),
+      ? buildMaritimeFogAlerts(sources.buoys, sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected, sources.webcamFogCount, sources.webcamFogIds, sources.fogSources) : []),
     ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),
     ...(sources.buoys && sources.sstHistory ? buildUpwellingAlerts(sources.buoys, sources.sstHistory) : []),
     ...(sources.currentReadings && sources.readingHistory
