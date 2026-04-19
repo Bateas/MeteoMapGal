@@ -41,12 +41,18 @@ export interface CesantesPrediction {
 /** Mouth-of-ría buoys for synoptic SW wind detection */
 const MOUTH_BUOY_IDS = new Set([2248, 1252, 1253]); // Cabo Silleiro, Cíes, A Guarda
 
-/** SW direction range (Atlantic onshore) */
-const SW_DIR_MIN = 200;
-const SW_DIR_MAX = 270;
+/** SW direction range — broader: includes S-SSE (160°) through WSW (280°) */
+const SW_DIR_MIN = 160;
+const SW_DIR_MAX = 280;
 
 /** Minimum synoptic wind to trigger canalization (m/s) */
-const MIN_SW_WIND_MS = 5.0; // ~10kt
+const MIN_SW_WIND_MS = 4.0; // ~8kt — lowered, A Guarda often reports 8-12kt SSE
+
+/** Thermal breeze (afternoon SW pattern) thresholds */
+const THERMAL_HOUR_MIN = 12;
+const THERMAL_HOUR_MAX = 20;
+const THERMAL_MIN_AIR_TEMP = 16; // °C — sun heats land
+const THERMAL_MIN_DELTA_T = 2;   // °C land-sea differential
 
 /** Humidity threshold in mouth of ría (indicates moisture inflow) */
 const HIGH_MOUTH_HUMIDITY = 85;
@@ -72,6 +78,12 @@ export function predictCesantesCanalization(
   buoys: BuoyReading[],
   mouthHumidity: number | null,
   webcamFogInMouth: boolean = false,
+  /** Air temperature near Cesantes (°C) — for thermal breeze detection */
+  airTempLocal: number | null = null,
+  /** Water temperature (sea surface) — for ΔT thermal calculation */
+  waterTemp: number | null = null,
+  /** Highest local station wind reading (kt) — fallback when no synoptic */
+  localStationKt: number | null = null,
 ): CesantesPrediction {
   const inactive: CesantesPrediction = {
     active: false,
@@ -83,7 +95,7 @@ export function predictCesantesCanalization(
     severity: 'info',
   };
 
-  // Find mouth-of-ría buoy with SW wind
+  // Find mouth-of-ría buoy with SW wind (broader range)
   const mouthBuoys = buoys.filter((b) => MOUTH_BUOY_IDS.has(b.stationId));
   let synopticWindMs: number | null = null;
   let synopticDir: number | null = null;
@@ -93,7 +105,6 @@ export function predictCesantesCanalization(
     if (b.windSpeed === null || b.windDir === null) continue;
     if (b.windSpeed < MIN_SW_WIND_MS) continue;
     if (b.windDir < SW_DIR_MIN || b.windDir > SW_DIR_MAX) continue;
-    // Use strongest SW wind among mouth buoys
     if (synopticWindMs === null || b.windSpeed > synopticWindMs) {
       synopticWindMs = b.windSpeed;
       synopticDir = b.windDir;
@@ -101,14 +112,43 @@ export function predictCesantesCanalization(
     }
   }
 
-  if (synopticWindMs === null || synopticDir === null) {
-    return inactive;
+  // ── MODE 2: Thermal breeze (afternoon SW pattern, no strong synoptic needed) ──
+  // Classic Cesantes pattern Apr-Oct: sun heats land → low pressure inland → SW marine breeze
+  // even when mouth buoys offline or no Atlantic synoptic SW.
+  const hour = new Date().getHours();
+  const isThermalHour = hour >= THERMAL_HOUR_MIN && hour <= THERMAL_HOUR_MAX;
+  const isWarmAir = airTempLocal !== null && airTempLocal >= THERMAL_MIN_AIR_TEMP;
+  const deltaT = (airTempLocal !== null && waterTemp !== null) ? airTempLocal - waterTemp : null;
+  const isThermalDelta = deltaT !== null && deltaT >= THERMAL_MIN_DELTA_T;
+
+  if (synopticWindMs === null) {
+    // No synoptic SW found — try thermal breeze mode
+    if (!isThermalHour || !isWarmAir || !isThermalDelta) {
+      return inactive;
+    }
+    // Use local station wind (or default 6kt if not provided) — thermal breeze adds local boost
+    const baseKt = localStationKt ?? 6;
+    const thermalBoostKt = Math.min(8, deltaT * 2); // +2kt per °C of land-sea ΔT, max +8kt
+    const predictedKt = baseKt + thermalBoostKt;
+    if (predictedKt < 10) return inactive;
+    return {
+      active: true,
+      confidence: 70,
+      predictedKt: Math.round(predictedKt),
+      predictedDir: 230, // Typical SW thermal breeze
+      boostFactor: predictedKt / Math.max(baseKt, 1),
+      signals: [
+        `Brisa térmica vespertina (${hour}h, aire ${airTempLocal!.toFixed(0)}°C, ΔT +${deltaT.toFixed(1)}°C)`,
+        `Estaciones cercanas leen ${baseKt.toFixed(0)}kt — Cesantes acelerada por canalización local`,
+      ],
+      severity: predictedKt >= 15 ? 'high' : 'moderate',
+    };
   }
 
+  // ── MODE 1: Synoptic SW canalization (Atlantic wind) ──
   const signals: string[] = [];
   signals.push(`SW sinóptico ${(synopticWindMs * 1.944).toFixed(0)}kt en ${sourceBuoy}`);
 
-  // Determine boost factor
   let boostFactor = BOOST_BASE;
   let confidence = 50;
   let severity: 'info' | 'moderate' | 'high' = 'info';
@@ -127,13 +167,18 @@ export function predictCesantesCanalization(
     signals.push('Canalización SW estándar (sin convergencia húmeda)');
   }
 
-  // Apply cap
+  // Thermal breeze ENHANCES synoptic SW in afternoon (additive boost)
+  if (isThermalHour && isWarmAir && isThermalDelta) {
+    boostFactor += 0.3;
+    confidence += 10;
+    signals.push(`+ Brisa térmica vespertina activa (aire ${airTempLocal!.toFixed(0)}°C ΔT +${deltaT!.toFixed(1)}°C)`);
+  }
+
   boostFactor = Math.min(boostFactor, MAX_BOOST);
 
   const predictedMs = synopticWindMs * boostFactor;
   const predictedKt = predictedMs * 1.944;
 
-  // Only report if predicted wind is meaningfully sailable (>10kt)
   if (predictedKt < 10) return inactive;
 
   return {
