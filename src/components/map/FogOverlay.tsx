@@ -41,6 +41,83 @@ const MIN_CLUSTER_POINTS = 8;
 
 // ── Terrain sampling → GeoJSON with density ─────────
 
+/** Distance in km between two lat/lon points (fast equirectangular). */
+function distKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const x = dLon * Math.cos(((lat1 + lat2) / 2) * Math.PI / 180);
+  return Math.sqrt(x * x + dLat * dLat) * R;
+}
+
+/**
+ * S122 — Localized fog sampling around detector points (no longer paints full sector).
+ * Each detector source contributes a buffer ~6km radius. Density falls with distance.
+ * Only paints cells with low elevation (coastal/water-level).
+ */
+function sampleFogZonesLocal(
+  queryElevation: (lngLat: { lng: number; lat: number }) => number | null,
+  sources: { lat: number; lon: number }[],
+  config: typeof FOG_CONFIG.embalse,
+  fogType: 'radiative' | 'advective',
+): GeoJSON.FeatureCollection {
+  const FOG_RADIUS_KM = 6; // Each source paints up to 6km around itself
+  const { maxAltitude, cols, rows } = config;
+  const color = fogType === 'advective' ? config.advectiveColor : config.radiativeColor;
+
+  // Compute tight bbox covering all sources + buffer
+  const buffer = 0.06; // ~6km in degrees
+  const bbox = {
+    west: Math.min(...sources.map(s => s.lon)) - buffer,
+    east: Math.max(...sources.map(s => s.lon)) + buffer,
+    south: Math.min(...sources.map(s => s.lat)) - buffer,
+    north: Math.max(...sources.map(s => s.lat)) + buffer,
+  };
+  const cellW = (bbox.east - bbox.west) / cols;
+  const cellH = (bbox.north - bbox.south) / rows;
+  const features: GeoJSON.Feature[] = [];
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const lng = bbox.west + (col + 0.5) * cellW;
+      const lat = bbox.south + (row + 0.5) * cellH;
+
+      const elev = queryElevation({ lng, lat });
+      if (elev === null || elev === undefined) continue; // water — skip
+      if (elev > maxAltitude) continue;
+
+      // Find closest detector source
+      let minDist = Infinity;
+      for (const src of sources) {
+        const d = distKm(lat, lng, src.lat, src.lon);
+        if (d < minDist) minDist = d;
+      }
+      if (minDist > FOG_RADIUS_KM) continue; // outside any source's range
+
+      // Density: falls with distance from source AND with altitude
+      const distFactor = Math.max(0, 1.0 - minDist / FOG_RADIUS_KM); // 1 at source, 0 at edge
+      const altFactor = 1.0 - elev / maxAltitude;
+      const density = Math.max(0.15, Math.min(1.0, distFactor * 0.7 + altFactor * 0.3));
+
+      const x1 = bbox.west + col * cellW;
+      const x2 = x1 + cellW;
+      const y1 = bbox.south + row * cellH;
+      const y2 = y1 + cellH;
+
+      features.push({
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
+        },
+        properties: { elevation: elev, density, color },
+      });
+    }
+  }
+
+  return { type: 'FeatureCollection', features };
+}
+
 function sampleFogZones(
   queryElevation: (lngLat: { lng: number; lat: number }) => number | null,
   config: typeof FOG_CONFIG.embalse,
@@ -153,19 +230,21 @@ function FogOverlayInner() {
     const map = mapRef?.getMap();
     if (!map) return;
 
-    const data = sampleFogZones(
-      (lngLat) => {
-        try { return map.queryTerrainElevation?.(lngLat) ?? null; }
-        catch { return null; }
-      },
-      config,
-      fogType,
-      fogMeta?.windDir,
-    );
+    const queryElev = (lngLat: { lng: number; lat: number }) => {
+      try { return map.queryTerrainElevation?.(lngLat) ?? null; }
+      catch { return null; }
+    };
+
+    // S122: prefer LOCALIZED sampling when detector sources are available
+    const sources = fogMeta?.sources ?? [];
+    const data = sources.length > 0
+      ? sampleFogZonesLocal(queryElev, sources, config, fogType)
+      : sampleFogZones(queryElev, config, fogType, fogMeta?.windDir);
+
     if (data.features.length >= MIN_CLUSTER_POINTS) {
       setFogGeoJSON(data);
     }
-  }, [mapRef, config, sectorId, fogType, fogMeta?.windDir]);
+  }, [mapRef, config, sectorId, fogType, fogMeta?.windDir, fogMeta?.sources]);
 
   useEffect(() => {
     if (!active) {
