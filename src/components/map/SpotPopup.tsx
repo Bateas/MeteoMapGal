@@ -121,6 +121,38 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const verdict: SpotVerdict = score?.verdict ?? 'unknown';
   const vs = VERDICT_STYLE[verdict];
 
+  // ── Cesantes canalization predictor (S122) — memoized for use in wind display ──
+  const cesantesPrediction = (() => {
+    if (spot.id !== 'cesantes') return null;
+    try {
+      const buoys = useBuoyStore.getState().buoys ?? [];
+      const stations = useWeatherStore.getState().stations ?? [];
+      const readings = useWeatherStore.getState().currentReadings ?? new Map();
+      const visionResults = useWebcamStore.getState().visionResults ?? new Map();
+      const mouthCams = ['mg-ciesfaro-norte', 'mg-ciesfaro-sur', 'mg-ciesrodas', 'mg-cangas', 'mg-aguete'];
+      let webcamFogInMouth = false;
+      for (const id of mouthCams) {
+        const r = visionResults.get?.(id);
+        if (r?.weather?.fogVisible && (Date.now() - r.analyzedAt.getTime()) < 30 * 60_000) {
+          webcamFogInMouth = true; break;
+        }
+      }
+      const mouthHum = computeMouthHumidity(stations, readings);
+      const airTempLocal = score?.airTemp ?? null;
+      const waterTempLocal = score?.waterTemp ?? mohidSeaTemp ?? null;
+      const localStationKt = score?.wind?.avgSpeedKt ?? null;
+      const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt);
+      return pred.active ? pred : null;
+    } catch (err) {
+      console.warn('[CesantesPredictor] error:', err);
+      return null;
+    }
+  })();
+  // Predicción "fuerte": ≥4kt sobre la lectura → reemplaza wind display
+  const measuredKt = score?.wind?.avgSpeedKt ?? 0;
+  const useStrongPrediction = cesantesPrediction !== null && cesantesPrediction.predictedKt !== null
+    && (cesantesPrediction.predictedKt - measuredKt) >= 4;
+
   // ── Surf verdict: wave-based, overrides wind verdict for surf spots ──
   const [marineForecast, setMarineForecast] = useState<MarineForecastHour[]>([]);
   useEffect(() => {
@@ -273,9 +305,18 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
           <div className="flex items-baseline gap-1">
             <span className="text-slate-500 text-[11px]">Viento</span>
-            <span className="font-bold" style={{ color: windKtColor(score.wind.avgSpeedKt) }}>
-              {score.wind.avgSpeedKt.toFixed(0)} kt
-            </span>
+            {useStrongPrediction && cesantesPrediction?.predictedKt ? (
+              <>
+                <span className="font-bold" style={{ color: windKtColor(cesantesPrediction.predictedKt) }}>
+                  ~{cesantesPrediction.predictedKt} kt
+                </span>
+                <span className="text-[9px] text-slate-500 italic">(red: {score.wind.avgSpeedKt.toFixed(0)})</span>
+              </>
+            ) : (
+              <span className="font-bold" style={{ color: windKtColor(score.wind.avgSpeedKt) }}>
+                {score.wind.avgSpeedKt.toFixed(0)} kt
+              </span>
+            )}
             <SpotWindTrend spotId={spot.id} />
             <SpotWindSparkline spotId={spot.id} />
           </div>
@@ -360,48 +401,22 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── Cesantes Canalization predictor (S122 — local boost prediction) ── */}
-      {spot.id === 'cesantes' && (() => {
-        try {
-          const buoys = useBuoyStore.getState().buoys ?? [];
-          const stations = useWeatherStore.getState().stations ?? [];
-          const readings = useWeatherStore.getState().currentReadings ?? new Map();
-          const visionResults = useWebcamStore.getState().visionResults ?? new Map();
-          // Check if any mouth-of-ría webcam has fog
-          const mouthCams = ['mg-ciesfaro-norte', 'mg-ciesfaro-sur', 'mg-ciesrodas', 'mg-cangas', 'mg-aguete'];
-          let webcamFogInMouth = false;
-          for (const id of mouthCams) {
-            const r = visionResults.get?.(id);
-            if (r?.weather?.fogVisible && (Date.now() - r.analyzedAt.getTime()) < 30 * 60_000) {
-              webcamFogInMouth = true;
-              break;
-            }
-          }
-          const mouthHum = computeMouthHumidity(stations, readings);
-          // Air temp from spot's score (or compute from local readings) + water from MOHID/buoy
-          const airTempLocal = score?.airTemp ?? null;
-          const waterTempLocal = score?.waterTemp ?? mohidSeaTemp ?? null;
-          // Local station wind: use spot's current scored wind as base
-          const localStationKt = score?.wind?.avgSpeedKt ?? null;
-          const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt);
-          if (!pred.active || pred.predictedKt === null) return null;
-          const color = pred.severity === 'high' ? 'text-amber-400' : pred.severity === 'moderate' ? 'text-sky-400' : 'text-slate-300';
-          const bg = pred.severity === 'high' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30';
-          return (
-            <div className={`text-[11px] mb-2 px-2 py-1.5 rounded border ${bg} ${color}`}>
-              <div className="font-bold flex items-center gap-1">
-                <WeatherIcon id="wind" size={12} className="inline -mt-px" />
-                Predicción local: ~{pred.predictedKt}kt SW
-                <span className="text-[9px] opacity-70">×{pred.boostFactor.toFixed(1)} canalización</span>
-              </div>
-              <div className="text-[10px] opacity-80 mt-0.5">
-                {pred.signals.join(' · ')}
-              </div>
+      {cesantesPrediction !== null && cesantesPrediction.predictedKt !== null && (() => {
+        const pred = cesantesPrediction;
+        const color = pred.severity === 'high' ? 'text-amber-400' : pred.severity === 'moderate' ? 'text-sky-400' : 'text-slate-300';
+        const bg = pred.severity === 'high' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30';
+        return (
+          <div className={`text-[11px] mb-2 px-2 py-1.5 rounded border ${bg} ${color}`}>
+            <div className="font-bold flex items-center gap-1">
+              <WeatherIcon id="wind" size={12} className="inline -mt-px" />
+              Predicción local: ~{pred.predictedKt}kt SW
+              <span className="text-[9px] opacity-70">×{pred.boostFactor.toFixed(1)} canalización</span>
             </div>
-          );
-        } catch (err) {
-          console.warn('[CesantesPredictor] error:', err);
-          return null;
-        }
+            <div className="text-[10px] opacity-80 mt-0.5">
+              {pred.signals.join(' · ')}
+            </div>
+          </div>
+        );
       })()}
 
       {/* ── UV warning (subtle — only when UV >= 6) ── */}
