@@ -134,7 +134,9 @@ export const RIAS_SPOTS: SailingSpot[] = [
     ],
     // Closest stations to Cesantes scoring zone
     preferredStations: [
-      'mc_ESGAL3600000036209A', // Vigo-Coia (~5km, replaces offline Redondela+Vigo Centro)
+      'mg_10154', // MG estación más cercana (~2.1km) — primary
+      'wu_IREDON16', // Redondela WU (~5.5km) — corroboration
+      'mc_ESGAL3600000036316A', // Vigo-Coia (~6.7km) — backup
     ],
     preferredBuoys: [
       1251, // Rande CETMAR (~3km) — key buoy for interior ría
