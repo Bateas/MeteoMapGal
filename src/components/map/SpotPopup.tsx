@@ -361,37 +361,42 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Cesantes Canalization predictor (S122 — local boost prediction) ── */}
       {spot.id === 'cesantes' && (() => {
-        const buoys = useBuoyStore.getState().readings;
-        const stations = useWeatherStore.getState().stations;
-        const readings = useWeatherStore.getState().latestReadings;
-        const visionResults = useWebcamStore.getState().visionResults;
-        // Check if any mouth-of-ría webcam has fog
-        const mouthCams = ['mg-ciesfaro-norte', 'mg-ciesfaro-sur', 'mg-ciesrodas', 'mg-cangas', 'mg-aguete'];
-        let webcamFogInMouth = false;
-        for (const id of mouthCams) {
-          const r = visionResults.get(id);
-          if (r?.weather.fogVisible && (Date.now() - r.analyzedAt.getTime()) < 30 * 60_000) {
-            webcamFogInMouth = true;
-            break;
+        try {
+          const buoys = useBuoyStore.getState().buoys ?? [];
+          const stations = useWeatherStore.getState().stations ?? [];
+          const readings = useWeatherStore.getState().currentReadings ?? new Map();
+          const visionResults = useWebcamStore.getState().visionResults ?? new Map();
+          // Check if any mouth-of-ría webcam has fog
+          const mouthCams = ['mg-ciesfaro-norte', 'mg-ciesfaro-sur', 'mg-ciesrodas', 'mg-cangas', 'mg-aguete'];
+          let webcamFogInMouth = false;
+          for (const id of mouthCams) {
+            const r = visionResults.get?.(id);
+            if (r?.weather?.fogVisible && (Date.now() - r.analyzedAt.getTime()) < 30 * 60_000) {
+              webcamFogInMouth = true;
+              break;
+            }
           }
+          const mouthHum = computeMouthHumidity(stations, readings);
+          const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth);
+          if (!pred.active || pred.predictedKt === null) return null;
+          const color = pred.severity === 'high' ? 'text-amber-400' : pred.severity === 'moderate' ? 'text-sky-400' : 'text-slate-300';
+          const bg = pred.severity === 'high' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30';
+          return (
+            <div className={`text-[11px] mb-2 px-2 py-1.5 rounded border ${bg} ${color}`}>
+              <div className="font-bold flex items-center gap-1">
+                <WeatherIcon id="wind" size={12} className="inline -mt-px" />
+                Predicción local: ~{pred.predictedKt}kt SW
+                <span className="text-[9px] opacity-70">×{pred.boostFactor.toFixed(1)} canalización</span>
+              </div>
+              <div className="text-[10px] opacity-80 mt-0.5">
+                {pred.signals.join(' · ')}
+              </div>
+            </div>
+          );
+        } catch (err) {
+          console.warn('[CesantesPredictor] error:', err);
+          return null;
         }
-        const mouthHum = computeMouthHumidity(stations, readings);
-        const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth);
-        if (!pred.active || pred.predictedKt === null) return null;
-        const color = pred.severity === 'high' ? 'text-amber-400' : pred.severity === 'moderate' ? 'text-sky-400' : 'text-slate-300';
-        const bg = pred.severity === 'high' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30';
-        return (
-          <div className={`text-[11px] mb-2 px-2 py-1.5 rounded border ${bg} ${color}`}>
-            <div className="font-bold flex items-center gap-1">
-              <WeatherIcon id="wind" size={12} className="inline -mt-px" />
-              Predicción local: ~{pred.predictedKt}kt SW
-              <span className="text-[9px] opacity-70">×{pred.boostFactor.toFixed(1)} canalización</span>
-            </div>
-            <div className="text-[10px] opacity-80 mt-0.5">
-              {pred.signals.join(' · ')}
-            </div>
-          </div>
-        );
       })()}
 
       {/* ── UV warning (subtle — only when UV >= 6) ── */}
