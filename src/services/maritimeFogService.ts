@@ -527,6 +527,56 @@ export function assessMaritimeFogRisk(
 }
 
 /**
+ * Detect stations with fog signature: HIGH humidity + LOW solar radiation simultaneously.
+ *
+ * Physical principle (S122 user insight): true fog blocks sunlight. A station
+ * with HR > 85% AND solar < 300 W/m² (during daytime) has fog overhead, not
+ * just humid air. Cross-reference with INTERIOR stations (high solar, low HR)
+ * to confirm spatial localization vs general overcast.
+ *
+ * Returns list of stations actively in fog by radiation signature.
+ */
+export function detectFogBySolarSignature(
+  stationReadings: Map<string, NormalizedReading>,
+  stations: { id: string; lat: number; lon: number }[],
+): { id: string; humidity: number; solar: number; lat: number; lon: number }[] {
+  // Only meaningful during daylight when sun should illuminate
+  const hour = new Date().getHours();
+  if (hour < 9 || hour > 19) return [];
+
+  // First check: is there sun at all? Find at least 1 interior station with high solar
+  // Without this baseline, low solar = night/clouds, not fog
+  let hasInteriorSun = false;
+  for (const s of stations) {
+    // Interior = inland (lon > -8.5) or far from coast
+    if (s.lon < -8.5) continue;
+    const r = stationReadings.get(s.id);
+    if (r?.solarRadiation != null && r.solarRadiation >= 350) {
+      hasInteriorSun = true;
+      break;
+    }
+  }
+  if (!hasInteriorSun) return []; // Generally cloudy/dusk — can't distinguish fog
+
+  // Find coastal/near-coast stations with fog signature
+  const fogStations: { id: string; humidity: number; solar: number; lat: number; lon: number }[] = [];
+  for (const s of stations) {
+    const r = stationReadings.get(s.id);
+    if (!r || r.humidity == null || r.solarRadiation == null) continue;
+    if (r.humidity >= 85 && r.solarRadiation < 300) {
+      fogStations.push({
+        id: s.id,
+        humidity: r.humidity,
+        solar: r.solarRadiation,
+        lat: s.lat,
+        lon: s.lon,
+      });
+    }
+  }
+  return fogStations;
+}
+
+/**
  * Build UnifiedAlert[] from maritime fog assessment.
  * Only emits alerts if risk is riesgo or above.
  */
@@ -540,29 +590,46 @@ export function buildMaritimeFogAlerts(
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
 
-  // ── INDEPENDENT WEBCAM-DRIVEN ALERT (S122 fix) ───────────────
-  // If physics detects no fog but 2+ webcams confirm visually, generate alert anyway.
+  // ── INDEPENDENT EVIDENCE-DRIVEN ALERT (S122) ────────────────────
+  // If physics detects no fog but other evidence confirms, generate alert anyway:
+  // - 2+ webcams visually confirming fog
+  // - 2+ stations with fog signature (HR>85% + solar<300 simultaneously)
   // The physics detector uses zone-wide median humidity which dilutes localized fog.
-  // Cameras see ground truth: if 2+ cams in different locations show fog, fog exists.
-  if (risk.level === 'none' && webcamFogCount !== undefined && webcamFogCount >= 2) {
+  const solarFogStations = detectFogBySolarSignature(stationReadings, stations);
+  const solarFogCount = solarFogStations.length;
+  const cams = webcamFogCount ?? 0;
+  const totalEvidence = cams + solarFogCount;
+
+  if (risk.level === 'none' && totalEvidence >= 2) {
     const camList = (webcamFogIds ?? []).slice(0, 3).join(', ');
+    const stationList = solarFogStations.slice(0, 3).map(s => s.id).join(', ');
+    const parts: string[] = [];
+    if (cams > 0) parts.push(`${cams} cámara${cams > 1 ? 's' : ''} visualiza${cams > 1 ? 'n' : ''} niebla${camList ? ` (${camList})` : ''}`);
+    if (solarFogCount > 0) {
+      const avgHr = Math.round(solarFogStations.reduce((a, b) => a + b.humidity, 0) / solarFogCount);
+      const avgSolar = Math.round(solarFogStations.reduce((a, b) => a + b.solar, 0) / solarFogCount);
+      parts.push(`${solarFogCount} estación${solarFogCount > 1 ? 'es' : ''} con HR ${avgHr}% + radiación ${avgSolar}W/m² (sol bloqueado)${stationList ? ` — ${stationList}` : ''}`);
+    }
     return [{
       id: 'maritime-fog-webcam',
       category: 'fog' as const,
-      severity: 'high' as const,
-      score: 65,
+      severity: totalEvidence >= 4 ? 'critical' as const : 'high' as const,
+      score: totalEvidence >= 4 ? 80 : 65,
       icon: 'fog' as const,
-      title: 'Niebla detectada en webcams',
-      detail: `${webcamFogCount} cámaras visualizan niebla activa${camList ? ` (${camList})` : ''}. Visibilidad reducida confirmada.`,
-      urgent: webcamFogCount >= 3,
+      title: cams > 0 && solarFogCount > 0
+        ? 'Niebla confirmada (cámaras + radiación)'
+        : cams > 0 ? 'Niebla detectada en webcams'
+        : 'Niebla detectada por radiación solar',
+      detail: parts.join(' · ') + '. Visibilidad reducida confirmada.',
+      urgent: totalEvidence >= 3,
       updatedAt: new Date(),
-      confidence: 80,
+      confidence: cams > 0 && solarFogCount > 0 ? 95 : 80,
       fogMeta: {
         type: 'advective' as const,
         windDir: null,
         windSpeed: null,
         spread: null,
-        webcamConfirmed: true,
+        webcamConfirmed: cams > 0,
       },
     }];
   }
