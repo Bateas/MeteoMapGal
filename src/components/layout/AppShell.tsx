@@ -346,6 +346,43 @@ export function AppShell() {
           fogSources.push({ lat: sg.lat, lon: sg.lon, type: 'station', id: sg.id });
         }
       }
+      // ── DEV SIMULATION: ?simfog=id1,id2 inject fake fog detectors for testing ──
+      try {
+        const simfog = new URLSearchParams(window.location.search).get('simfog');
+        if (simfog) {
+          // Build coords lookup from webcams + stations
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { RIAS_WEBCAMS } = require('../../config/webcams') as { RIAS_WEBCAMS: { id: string; lat: number; lon: number }[] };
+          const camCoords = new Map(RIAS_WEBCAMS.map(w => [w.id, { lat: w.lat, lon: w.lon }]));
+          const stCoords = new Map(stationsGeo.map(s => [s.id, { lat: s.lat, lon: s.lon }]));
+          for (const id of simfog.split(',').map(s => s.trim()).filter(Boolean)) {
+            const c = camCoords.get(id) ?? stCoords.get(id);
+            if (c) {
+              fogSources.push({ lat: c.lat, lon: c.lon, type: 'webcam', id: `sim-${id}` });
+              webcamFogCount++;
+              webcamFogIds.push(`sim-${id}`);
+              webcamFogDetected = true;
+            }
+          }
+          if (fogSources.length > 0) {
+            console.log('[SIM FOG] Injected', fogSources.length, 'fake detectors:', fogSources.map(s => s.id).join(', '));
+          }
+        }
+      } catch (err) { console.warn('[SIM FOG] error:', err); }
+
+      // ── DEBUG: trace fog alert input ──
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
+        console.log('[AppShell] fog inputs:', {
+          buoys: buoys.length,
+          stationsGeo: stationsGeo.length,
+          currentReadings: currentReadings.size,
+          webcamFogCount,
+          webcamFogIds,
+          fogSources: fogSources.length,
+          sectorId: activeSector.id,
+          willCallBuildMaritimeFog: activeSector.id === 'rias' && buoys.length > 0,
+        });
+      }
 
       const { alerts, risk } = aggregateAllAlerts({
         stormAlert,
