@@ -587,6 +587,7 @@ export function buildMaritimeFogAlerts(
   webcamFogDetected?: boolean,
   webcamFogCount?: number,
   webcamFogIds?: string[],
+  fogSources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[],
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
 
@@ -630,6 +631,7 @@ export function buildMaritimeFogAlerts(
         windSpeed: null,
         spread: null,
         webcamConfirmed: cams > 0,
+        sources: fogSources,
       },
     }];
   }

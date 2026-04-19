@@ -318,15 +318,32 @@ export function AppShell() {
       let webcamFogDetected: boolean | undefined;
       let webcamFogCount = 0;
       const webcamFogIds: string[] = [];
+      const fogSources: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[] = [];
       if (visionResults.size > 0) {
         const now = Date.now();
         webcamFogDetected = false;
+        // Build webcam id → coords map
+        const webcamCoords = new Map<string, { lat: number; lon: number }>();
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { RIAS_WEBCAMS } = require('../../config/webcams') as { RIAS_WEBCAMS: { id: string; lat: number; lon: number }[] };
+          for (const w of RIAS_WEBCAMS) webcamCoords.set(w.id, { lat: w.lat, lon: w.lon });
+        } catch { /* webcam config unavailable */ }
         for (const [id, result] of visionResults) {
           if (result.beaufort >= 0 && result.weather.fogVisible && (now - result.analyzedAt.getTime()) < 30 * 60_000) {
             webcamFogDetected = true;
             webcamFogCount++;
             webcamFogIds.push(id);
+            const c = webcamCoords.get(id);
+            if (c) fogSources.push({ lat: c.lat, lon: c.lon, type: 'webcam', id });
           }
+        }
+      }
+      // Add stations with solar+humidity fog signature
+      for (const sg of stationsGeo) {
+        const r = currentReadings.get(sg.id);
+        if (r?.humidity != null && r.solarRadiation != null && r.humidity >= 85 && r.solarRadiation < 300) {
+          fogSources.push({ lat: sg.lat, lon: sg.lon, type: 'station', id: sg.id });
         }
       }
 
@@ -347,6 +364,7 @@ export function AppShell() {
         webcamFogDetected,
         webcamFogCount,
         webcamFogIds,
+        fogSources: fogSources.length > 0 ? fogSources : undefined,
       });
       setUnifiedAlerts(alerts, risk);
       // Trigger notifications for new/escalated alerts
