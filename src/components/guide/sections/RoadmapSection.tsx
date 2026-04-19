@@ -4,8 +4,11 @@
  */
 import { WeatherIcon } from '../../icons/WeatherIcons';
 import type { IconId } from '../../icons/WeatherIcons';
+import { useUIStore } from '../../../store/uiStore';
 
 export function RoadmapSection() {
+  const alphaMode = useUIStore((s) => s.alphaMode);
+  const toggleAlphaMode = useUIStore((s) => s.toggleAlphaMode);
   return (
     <div className="space-y-8">
       <div className="space-y-2">
@@ -141,6 +144,28 @@ export function RoadmapSection() {
               className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
             >Reportar bug / Sugerencias</a>
           </p>
+        </div>
+
+        {/* ── Alpha mode toggle (experimental features) ─────── */}
+        <div className="bg-amber-950/20 rounded-lg p-3 border border-amber-900/40 mt-4">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={alphaMode}
+              onChange={toggleAlphaMode}
+              className="mt-0.5 w-4 h-4 rounded accent-amber-500"
+            />
+            <div className="flex-1">
+              <div className="text-[13px] font-bold text-amber-300 flex items-center gap-2">
+                Modo Alpha
+                <span className="text-[8px] font-bold text-amber-500/70 uppercase tracking-wider">experimental</span>
+              </div>
+              <p className="text-[11px] text-amber-200/60 mt-1">
+                Activa funcionalidades en pruebas. Actualmente: <strong>Modo Evento / Regata</strong>.
+                Pueden ser inestables o cambiar sin aviso.
+              </p>
+            </div>
+          </label>
         </div>
       </div>
     </div>
