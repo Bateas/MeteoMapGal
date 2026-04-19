@@ -10,7 +10,7 @@
  *
  * Activated by fog alerts in alertStore. Samples terrain DEM on activation.
  */
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useSectorStore } from '../../store/sectorStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -205,6 +205,10 @@ function FogOverlayInner() {
   const { current: mapRef } = useMap();
   const [opacity, setOpacity] = useState(0);
   const [fogGeoJSON, setFogGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
+  // Fade transition: ramps 0→1 on activation (~2s) and 1→0 on dissipation (~5s).
+  // Asymmetric timing matches real fog — forms gradually, lifts slowly.
+  const [fadeOpacity, setFadeOpacity] = useState(0);
+  const lastFogRef = useRef<GeoJSON.FeatureCollection | null>(null);
 
   // Fix: field is `alerts` not `unifiedAlerts` (bug discovered S116)
   // Only activate overlay on REAL fog (moderate+), not dew point info alerts (S118 false positive fix)
@@ -272,12 +276,41 @@ function FogOverlayInner() {
     };
   }, [active, sectorId, buildFogZones, mapRef]);
 
-  // Breathing animation — subtle pulse with per-cell density modulation
+  // Retain last valid fogGeoJSON so fade-out animates on dissipation
   useEffect(() => {
-    if (!active || !fogGeoJSON) {
-      setOpacity(0);
-      return;
-    }
+    if (fogGeoJSON) lastFogRef.current = fogGeoJSON;
+  }, [fogGeoJSON]);
+
+  // Fade in/out transition (placebo growth/dissipation effect)
+  // - appearing: 2s ease-in (fog forms quickly once detected)
+  // - dissipating: 5s ease-out (fog lifts slowly, like real marine fog burning off)
+  useEffect(() => {
+    const shouldShow = active && fogGeoJSON != null;
+    const target = shouldShow ? 1 : 0;
+    const startT = Date.now();
+    const startV = fadeOpacity;
+    const delta = target - startV;
+    if (Math.abs(delta) < 0.01) return;
+    const duration = delta > 0 ? 2000 : 5000;
+    let frame: number;
+    const tick = () => {
+      const elapsed = Date.now() - startT;
+      const progress = Math.min(1, elapsed / duration);
+      // easeInOutCubic
+      const eased = progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+      setFadeOpacity(startV + delta * eased);
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  // eslint-disable-next-line react-hooks/exhaustive-deps — fadeOpacity intentionally read as start value, not tracked
+  }, [active, fogGeoJSON != null]);
+
+  // Breathing pulse — subtle "alive" feel
+  useEffect(() => {
+    if (fadeOpacity === 0) { setOpacity(0); return; }
     let frame: number;
     const start = Date.now();
     function animate() {
@@ -288,19 +321,22 @@ function FogOverlayInner() {
     }
     frame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frame);
-  }, [active, fogGeoJSON]);
+  }, [fadeOpacity === 0]);
 
-  if (!active || !fogGeoJSON || opacity === 0) return null;
+  // Keep rendering during fade-out by falling back to last valid features
+  const renderGeoJSON = fogGeoJSON ?? (fadeOpacity > 0.01 ? lastFogRef.current : null);
+  if (!renderGeoJSON || fadeOpacity < 0.01 || opacity === 0) return null;
+  const finalOpacity = opacity * fadeOpacity;
 
   return (
-    <Source id="fog-overlay" type="geojson" data={fogGeoJSON}>
-      {/* Fog fill — per-cell density × breathing opacity */}
+    <Source id="fog-overlay" type="geojson" data={renderGeoJSON}>
+      {/* Fog fill — per-cell density × breathing opacity × fade transition */}
       <Layer
         id="fog-fill"
         type="fill"
         paint={{
           'fill-color': ['get', 'color'],
-          'fill-opacity': ['*', ['get', 'density'], opacity],
+          'fill-opacity': ['*', ['get', 'density'], finalOpacity],
           'fill-antialias': false,
         }}
       />
@@ -312,7 +348,7 @@ function FogOverlayInner() {
           'line-color': config.glowColor,
           'line-width': 12,
           'line-blur': 18,
-          'line-opacity': opacity * 0.3,
+          'line-opacity': finalOpacity * 0.3,
         }}
       />
     </Source>
