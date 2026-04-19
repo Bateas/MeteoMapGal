@@ -132,11 +132,13 @@ export const RIAS_SPOTS: SailingSpot[] = [
         description: 'Entra por Rande canalizado. Racheado e irregular, complica la navegación. Si hay norte fuerte, el viento SW de tardes no se forma.',
       },
     ],
-    // Closest stations to Cesantes scoring zone
+    // Closest stations to Cesantes (none truly local — valley uncovered).
+    // Real wind in Cesantes valley predicted via cesantesCanalizationDetector
+    // when SW synoptic + mouth humidity/fog align (1.4-2.0x boost factor).
     preferredStations: [
-      'mg_10154', // MG estación más cercana (~2.1km) — primary
-      'wu_IREDON16', // Redondela WU (~5.5km) — corroboration
-      'mc_ESGAL3600000036316A', // Vigo-Coia (~6.7km) — backup
+      'mg_10154', // ~2.1km closest, but reads sheltered conditions
+      'wu_IREDON16', // ~5.5km Redondela
+      'mc_ESGAL3600000036316A', // ~6.7km Vigo-Coia
     ],
     preferredBuoys: [
       1251, // Rande CETMAR (~3km) — key buoy for interior ría

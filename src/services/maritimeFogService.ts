@@ -535,8 +535,38 @@ export function buildMaritimeFogAlerts(
   stationReadings: Map<string, NormalizedReading>,
   stations: { id: string; lat: number; lon: number }[],
   webcamFogDetected?: boolean,
+  webcamFogCount?: number,
+  webcamFogIds?: string[],
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
+
+  // ── INDEPENDENT WEBCAM-DRIVEN ALERT (S122 fix) ───────────────
+  // If physics detects no fog but 2+ webcams confirm visually, generate alert anyway.
+  // The physics detector uses zone-wide median humidity which dilutes localized fog.
+  // Cameras see ground truth: if 2+ cams in different locations show fog, fog exists.
+  if (risk.level === 'none' && webcamFogCount !== undefined && webcamFogCount >= 2) {
+    const camList = (webcamFogIds ?? []).slice(0, 3).join(', ');
+    return [{
+      id: 'maritime-fog-webcam',
+      category: 'fog' as const,
+      severity: 'high' as const,
+      score: 65,
+      icon: 'fog' as const,
+      title: 'Niebla detectada en webcams',
+      detail: `${webcamFogCount} cámaras visualizan niebla activa${camList ? ` (${camList})` : ''}. Visibilidad reducida confirmada.`,
+      urgent: webcamFogCount >= 3,
+      updatedAt: new Date(),
+      confidence: 80,
+      fogMeta: {
+        type: 'advective' as const,
+        windDir: null,
+        windSpeed: null,
+        spread: null,
+        webcamConfirmed: true,
+      },
+    }];
+  }
+
   if (risk.level === 'none') return [];
 
   // Webcam fog confirmation modifies severity:

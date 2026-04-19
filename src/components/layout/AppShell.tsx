@@ -313,16 +313,19 @@ export function AppShell() {
     const t = setTimeout(() => {
       // Station geo for maritime fog (nearby station lookup)
       const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
-      // Check webcam vision for fog confirmation (any webcam with fogVisible in last 30min)
+      // Check webcam vision for fog detection (cameras with fogVisible in last 30min)
       const visionResults = useWebcamStore.getState().visionResults;
       let webcamFogDetected: boolean | undefined;
+      let webcamFogCount = 0;
+      const webcamFogIds: string[] = [];
       if (visionResults.size > 0) {
         const now = Date.now();
-        webcamFogDetected = false; // we have data, assume no fog
-        for (const [, result] of visionResults) {
+        webcamFogDetected = false;
+        for (const [id, result] of visionResults) {
           if (result.beaufort >= 0 && result.weather.fogVisible && (now - result.analyzedAt.getTime()) < 30 * 60_000) {
             webcamFogDetected = true;
-            break;
+            webcamFogCount++;
+            webcamFogIds.push(id);
           }
         }
       }
@@ -342,6 +345,8 @@ export function AppShell() {
         stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
         teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
         webcamFogDetected,
+        webcamFogCount,
+        webcamFogIds,
       });
       setUnifiedAlerts(alerts, risk);
       // Trigger notifications for new/escalated alerts
