@@ -61,12 +61,12 @@ function sampleFogZonesLocal(
   config: typeof FOG_CONFIG.embalse,
   fogType: 'radiative' | 'advective',
 ): GeoJSON.FeatureCollection {
-  const FOG_RADIUS_KM = 6; // Each source paints up to 6km around itself
+  const FOG_RADIUS_KM = 4; // Each source paints up to 4km around itself (webcam visibility range in fog)
   const { maxAltitude, cols, rows } = config;
   const color = fogType === 'advective' ? config.advectiveColor : config.radiativeColor;
 
   // Compute tight bbox covering all sources + buffer
-  const buffer = 0.06; // ~6km in degrees
+  const buffer = 0.04; // ~4km in degrees
   const bbox = {
     west: Math.min(...sources.map(s => s.lon)) - buffer,
     east: Math.max(...sources.map(s => s.lon)) + buffer,
@@ -96,11 +96,13 @@ function sampleFogZonesLocal(
       }
       if (minDist > FOG_RADIUS_KM) continue; // outside any source's range
 
-      // Density: falls with distance from source AND with altitude
-      const distFactor = Math.max(0, 1.0 - minDist / FOG_RADIUS_KM); // 1 at source, 0 at edge
+      // Density: quadratic falloff with distance (sharper edge), blended with altitude
+      const linearDist = Math.max(0, 1.0 - minDist / FOG_RADIUS_KM); // 1 at source, 0 at edge
+      const distFactor = linearDist * linearDist; // quadratic → sharper falloff, less bleed
       // Water = max altitude factor (1.0). Land = falls with elevation.
       const altFactor = isWater ? 1.0 : (1.0 - elev / maxAltitude);
-      const density = Math.max(0.15, Math.min(1.0, distFactor * 0.7 + altFactor * 0.3));
+      const density = Math.min(1.0, distFactor * 0.8 + altFactor * 0.2);
+      if (density < 0.08) continue; // skip cells too transparent to see
 
       const x1 = bbox.west + col * cellW;
       const x2 = x1 + cellW;
