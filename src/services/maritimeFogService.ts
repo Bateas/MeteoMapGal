@@ -601,7 +601,11 @@ export function buildMaritimeFogAlerts(
   const cams = webcamFogCount ?? 0;
   const totalEvidence = cams + solarFogCount;
 
-  if (risk.level === 'none' && totalEvidence >= 2) {
+  // S122 fix: evidence-driven path fires whenever 2+ independent confirmations exist,
+  // regardless of physics risk level. Physics alone can say 'riesgo' while cameras +
+  // solar signature visually prove actual fog — in that case we want severity=high
+  // AND fogMeta.sources populated for the localized overlay.
+  if (totalEvidence >= 2) {
     const camList = (webcamFogIds ?? []).slice(0, 3).join(', ');
     const stationList = solarFogStations.slice(0, 3).map(s => s.id).join(', ');
     const parts: string[] = [];
@@ -685,6 +689,7 @@ export function buildMaritimeFogAlerts(
       windSpeed: risk.windSpeed ?? null,
       spread: null,
       webcamConfirmed: webcamFogDetected === true,
+      sources: fogSources,
     },
   }];
 }
