@@ -24,4 +24,5 @@ export interface NormalizedReading {
   solarRadiation: number | null;  // W/m² — global shortwave (pyranometer or PWS sensor)
   pressure: number | null;        // hPa — station-level atmospheric pressure
   dewPoint: number | null;        // °C — dew point temperature (measured or from API)
+  visibility?: number | null;     // km — horizontal visibility (AEMET airports only; <1km = fog ICAO)
 }
