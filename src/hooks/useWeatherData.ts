@@ -26,6 +26,7 @@ export function useWeatherData() {
   const setLoading = useWeatherStore((s) => s.setLoading);
   const setError = useWeatherStore((s) => s.setError);
   const updateSourceStatus = useWeatherStore((s) => s.updateSourceStatus);
+  const setVisibilityReadings = useWeatherStore((s) => s.setVisibilityReadings);
   const addToast = useToastStore((s) => s.addToast);
   const toastedSourceErrors = useRef(new Set<string>());
   const cacheLoadedForSector = useRef<string | null>(null);
@@ -67,11 +68,34 @@ export function useWeatherData() {
         tasks.push(
           fetchAllObservations().then((aemetObs) => {
             const readings: NormalizedReading[] = [];
+            // Regional visibility — Galician AEMET stations with `vis` sensor (airports +
+            // coastal METAR). Captured regardless of sector — fog detection needs region-wide
+            // coverage (e.g. Lavacolla fog informs Rías even though 70km outside sector).
+            const visReadings: { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }[] = [];
+            const GALICIA_VIS_IDS = new Set(['1351', '1387', '1387E', '1400', '1428', '1484C', '1505', '1690A']);
+            const latestVisByStation = new Map<string, typeof visReadings[0]>();
             for (const obs of aemetObs) {
               if (aemetStationIds.has(`aemet_${obs.idema}`)) {
                 readings.push(normalizeAemetObservation(obs));
               }
+              // Also capture regional visibility independent of sector
+              if (GALICIA_VIS_IDS.has(obs.idema) && obs.vis != null && obs.vis >= 0 && obs.vis <= 50) {
+                const entry = {
+                  stationId: `aemet_${obs.idema}`,
+                  name: obs.ubi ?? obs.idema,
+                  lat: obs.lat,
+                  lon: obs.lon,
+                  visibility: obs.vis,
+                  timestamp: new Date(obs.fint),
+                };
+                const existing = latestVisByStation.get(entry.stationId);
+                if (!existing || entry.timestamp > existing.timestamp) {
+                  latestVisByStation.set(entry.stationId, entry);
+                }
+              }
             }
+            for (const v of latestVisByStation.values()) visReadings.push(v);
+            setVisibilityReadings(visReadings);
             updateSourceStatus('aemet', true, readings.length);
             return readings;
           }).catch((err) => {

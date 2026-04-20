@@ -345,6 +345,17 @@ export function AppShell() {
       for (const s of solarFogStations) {
         fogSources.push({ lat: s.lat, lon: s.lon, type: 'station', id: s.id });
       }
+      // AEMET airports/coastal stations with measured visibility <1km → official fog.
+      // Works 24/7 (not daylight-dependent like solar signature), reported by certified
+      // AEMET sensors at Estaca de Bares / A Coruña / Alvedro / Fisterra / Lavacolla /
+      // Pontevedra / Lugo / Ourense. Regional (sector-agnostic) — captured even when
+      // outside active sector radius since fog mass propagates across rías.
+      const visMap = useWeatherStore.getState().visibilityReadings;
+      for (const v of visMap.values()) {
+        if (v.visibility < 1) {
+          fogSources.push({ lat: v.lat, lon: v.lon, type: 'station', id: v.stationId });
+        }
+      }
       // ── DEV SIMULATION: ?simfog=id1,id2 inject fake fog detectors for testing ──
       try {
         const simfog = new URLSearchParams(window.location.search).get('simfog');
@@ -399,6 +410,7 @@ export function AppShell() {
         webcamFogCount,
         webcamFogIds,
         fogSources: fogSources.length > 0 ? fogSources : undefined,
+        regionalVisibility: useWeatherStore.getState().visibilityReadings,
       });
       setUnifiedAlerts(alerts, risk);
       // Trigger notifications for new/escalated alerts

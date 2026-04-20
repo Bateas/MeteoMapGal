@@ -20,6 +20,10 @@ export function normalizeAemetStation(raw: AemetRawStation): NormalizedStation {
 
 /** Normalize an AEMET observation to our reading format */
 export function normalizeAemetObservation(raw: AemetRawObservation): NormalizedReading {
+  // AEMET `vis` = visibility in km (SYNOP encoding 0-55). Sanity: accept 0-50,
+  // reject SYNOP special codes (>=90). Only airport/aeronautical stations report it.
+  const visRaw = raw.vis;
+  const visibility = visRaw != null && visRaw >= 0 && visRaw <= 50 ? visRaw : null;
   return {
     stationId: `aemet_${raw.idema}`,
     timestamp: new Date(raw.fint),
@@ -32,6 +36,7 @@ export function normalizeAemetObservation(raw: AemetRawObservation): NormalizedR
     solarRadiation: null, // AEMET obs don't include solar in this endpoint
     pressure: raw.plession ?? null,   // Station-level pressure (hPa)
     dewPoint: raw.tpr ?? null,        // Dew point from AEMET
+    visibility,                       // km — null for stations without sensor
   };
 }
 
