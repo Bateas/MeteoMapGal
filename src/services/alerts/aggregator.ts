@@ -137,6 +137,8 @@ export function aggregateAllAlerts(sources: {
   webcamFogIds?: string[];
   /** Detector points with coords for localized FogOverlay (S122) */
   fogSources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[];
+  /** Regional AEMET visibility readings (sector-agnostic) — AEMET airport/coastal with `vis` sensor */
+  regionalVisibility?: Map<string, { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }>;
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
   // Extract NAO/AO for context enrichment
   const nao = sources.teleconnections?.find((t) => t.name === 'NAO');
@@ -151,8 +153,11 @@ export function aggregateAllAlerts(sources: {
     ...buildFieldAlerts(sources.fieldAlerts, nao, ao),
     ...(sources.currentReadings && sources.readingHistory
       ? enrichPressureAlerts(buildPressureTrendAlerts(sources.currentReadings, sources.readingHistory), nao) : []),
-    ...(sources.buoys && sources.currentReadings && sources.stationsGeo
-      ? buildMaritimeFogAlerts(sources.buoys, sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected, sources.webcamFogCount, sources.webcamFogIds, sources.fogSources) : []),
+    // Maritime fog: fires for Rías (buoys) OR when regional visibility/cams have evidence
+    // (applicable even to Embalse — Ourense AEMET 1690A is within 27km and reports visibility)
+    ...(sources.currentReadings && sources.stationsGeo &&
+        (sources.buoys || sources.regionalVisibility || sources.webcamFogDetected)
+      ? buildMaritimeFogAlerts(sources.buoys ?? [], sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected, sources.webcamFogCount, sources.webcamFogIds, sources.fogSources, sources.regionalVisibility) : []),
     ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),
     ...(sources.buoys && sources.sstHistory ? buildUpwellingAlerts(sources.buoys, sources.sstHistory) : []),
     ...(sources.currentReadings && sources.readingHistory

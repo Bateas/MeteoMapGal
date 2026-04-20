@@ -22,11 +22,24 @@ function readingChanged(prev: NormalizedReading | undefined, next: NormalizedRea
   return true;
 }
 
+/** Regional visibility reading (AEMET airports/coastal — independent of active sector).
+ *  Used for fog detection across all Galicia regardless of which ría the user is viewing. */
+export interface VisibilityReading {
+  stationId: string;
+  name: string;
+  lat: number;
+  lon: number;
+  visibility: number; // km — ICAO: <1 = fog, <5 = mist/haze
+  timestamp: Date;
+}
+
 interface WeatherState {
   // Data
   stations: NormalizedStation[];
   currentReadings: Map<string, NormalizedReading>;
   readingHistory: Map<string, NormalizedReading[]>;
+  /** Regional AEMET visibility (sector-agnostic). Keyed by full stationId (`aemet_1428`). */
+  visibilityReadings: Map<string, VisibilityReading>;
 
   // Epoch counters — increment only when data actually changes.
   // Components can use these for cheap change detection instead of Map references.
@@ -45,6 +58,8 @@ interface WeatherState {
   // Actions
   setStations: (stations: NormalizedStation[]) => void;
   updateReadings: (readings: NormalizedReading[]) => void;
+  /** Replace regional visibility readings (full refresh, not merge). */
+  setVisibilityReadings: (readings: VisibilityReading[]) => void;
   appendHistory: (readings: NormalizedReading[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -112,6 +127,7 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
   stations: [],
   currentReadings: new Map(),
   readingHistory: new Map(),
+  visibilityReadings: new Map(),
   readingsEpoch: 0,
   historyEpoch: 0,
   lastFetchTime: null,
@@ -198,6 +214,12 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
 
     // Auto-cache after successful fresh update (throttled — at most every 30s)
     scheduleCacheSnapshot(() => get().cacheSnapshot());
+  },
+
+  setVisibilityReadings: (readings) => {
+    const next = new Map<string, VisibilityReading>();
+    for (const r of readings) next.set(r.stationId, r);
+    set({ visibilityReadings: next }, undefined, 'setVisibilityReadings');
   },
 
   // Append readings to history only (for model/interpolated data like Open-Meteo).

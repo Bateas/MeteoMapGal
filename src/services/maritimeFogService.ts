@@ -588,6 +588,7 @@ export function buildMaritimeFogAlerts(
   webcamFogCount?: number,
   webcamFogIds?: string[],
   fogSources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[],
+  regionalVisibility?: Map<string, { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }>,
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
 
@@ -599,12 +600,24 @@ export function buildMaritimeFogAlerts(
   const solarFogStations = detectFogBySolarSignature(stationReadings, stations);
   const solarFogCount = solarFogStations.length;
   const cams = webcamFogCount ?? 0;
-  const totalEvidence = cams + solarFogCount;
+
+  // AEMET airport/coastal visibility <1km (ICAO fog). Each counts as 2 evidence units —
+  // certified government sensors, strongest signal we have (even a single station
+  // reporting fog is effectively confirmed). Uses regionalVisibility map (sector-
+  // agnostic) — the 8 Galician AEMET stations that report `vis` sit outside most sector
+  // radii but their data still matters for maritime fog propagation.
+  const visFogStations: { id: string; vis: number; name: string }[] = [];
+  if (regionalVisibility) {
+    for (const v of regionalVisibility.values()) {
+      if (v.visibility < 1) visFogStations.push({ id: v.stationId, vis: v.visibility, name: v.name });
+    }
+  }
+  const visFogCount = visFogStations.length;
+  const totalEvidence = cams + solarFogCount + visFogCount * 2;
 
   // S122 fix: evidence-driven path fires whenever 2+ independent confirmations exist,
   // regardless of physics risk level. Physics alone can say 'riesgo' while cameras +
-  // solar signature visually prove actual fog — in that case we want severity=high
-  // AND fogMeta.sources populated for the localized overlay.
+  // solar signature + airport visibility visually prove actual fog.
   if (totalEvidence >= 2) {
     const camList = (webcamFogIds ?? []).slice(0, 3).join(', ');
     const stationList = solarFogStations.slice(0, 3).map(s => s.id).join(', ');
@@ -615,20 +628,30 @@ export function buildMaritimeFogAlerts(
       const avgSolar = Math.round(solarFogStations.reduce((a, b) => a + b.solar, 0) / solarFogCount);
       parts.push(`${solarFogCount} estación${solarFogCount > 1 ? 'es' : ''} con HR ${avgHr}% + radiación ${avgSolar}W/m² (sol bloqueado)${stationList ? ` — ${stationList}` : ''}`);
     }
+    if (visFogCount > 0) {
+      const minVis = Math.min(...visFogStations.map(v => v.vis));
+      const nameList = visFogStations.slice(0, 2).map(v => v.name.replace(/\/.*$/, '')).join(', ');
+      parts.push(`AEMET visibilidad ${(minVis * 1000).toFixed(0)}m (${nameList})`);
+    }
+    const hasOfficial = visFogCount > 0;
     return [{
       id: 'maritime-fog-webcam',
       category: 'fog' as const,
       severity: totalEvidence >= 4 ? 'critical' as const : 'high' as const,
       score: totalEvidence >= 4 ? 80 : 65,
       icon: 'fog' as const,
-      title: cams > 0 && solarFogCount > 0
+      title: hasOfficial && cams > 0
+        ? 'Niebla confirmada (AEMET + cámaras)'
+        : hasOfficial
+        ? 'Niebla confirmada (AEMET aeropuerto)'
+        : cams > 0 && solarFogCount > 0
         ? 'Niebla confirmada (cámaras + radiación)'
         : cams > 0 ? 'Niebla detectada en webcams'
         : 'Niebla detectada por radiación solar',
       detail: parts.join(' · ') + '. Visibilidad reducida confirmada.',
       urgent: totalEvidence >= 3,
       updatedAt: new Date(),
-      confidence: cams > 0 && solarFogCount > 0 ? 95 : 80,
+      confidence: hasOfficial ? 98 : (cams > 0 && solarFogCount > 0 ? 95 : 80),
       fogMeta: {
         type: 'advective' as const,
         windDir: null,
