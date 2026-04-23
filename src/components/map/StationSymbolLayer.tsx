@@ -213,6 +213,7 @@ export function StationSymbolLayer({
           'icon-ignore-placement': true,
           // Source label always visible (A, MG, MC, WU, NT, SX)
           'text-field': ['get', 'sourceLabel'],
+          'text-font': ['Noto Sans Bold'],
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 7, 11, 9, 12, 11],
           'text-offset': [0, 0],
           'text-anchor': 'center',
@@ -252,6 +253,7 @@ export function StationSymbolLayer({
         filter={filter}
         layout={{
           'text-field': ['step', ['zoom'], '', 11, ['get', 'name']],
+          'text-font': ['Noto Sans Regular'],
           'text-size': 11,
           'text-offset': [0, 1.8],
           'text-anchor': 'top',

@@ -128,6 +128,7 @@ export function WebcamSymbolLayer({
           'icon-rotation-alignment': 'map',
           // Camera name below at higher zoom
           'text-field': ['step', ['zoom'], '', 11, ['get', 'name']],
+          'text-font': ['Noto Sans Regular'],
           'text-size': 10,
           'text-offset': [0, 1.6],
           'text-anchor': 'top',
