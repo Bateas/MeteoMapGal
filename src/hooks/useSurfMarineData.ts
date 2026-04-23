@@ -5,13 +5,14 @@
  * Fallback chain: ingestor API (/api/v1/marine) → Open-Meteo Marine direct.
  * Runs on mount + every 15 min. Only for Rías sector (surf spots are Rías-only).
  */
-import { useEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import { useSectorStore } from '../store/sectorStore';
 import { useSpotStore } from '../store/spotStore';
 import { getSpotsForSector } from '../config/spots';
 import { fetchMarineForecast, type MarineForecastHour } from '../api/marineClient';
 import { fetchMeteoSixMarine } from '../api/meteoSixClient';
 import { swellAlignmentMultiplier } from '../components/spot/surfVerdictEngine';
+import { useVisibilityPolling } from './useVisibilityPolling';
 
 const INTERVAL = 15 * 60_000; // 15 min
 
@@ -75,56 +76,36 @@ function basicSurfVerdict(wh: number, tp: number): { label: string; color: strin
 export function useSurfMarineData() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const setSurfWave = useSpotStore((s) => s.setSurfWave);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
+  const fetchAll = useCallback(async () => {
     const spots = getSpotsForSector(sectorId).filter((s) => s.category === 'surf');
     if (spots.length === 0) return;
-
-    async function fetchAll() {
-      for (const spot of spots) {
-        try {
-          const hours = await fetchMarineForSpot(spot.id, spot.center[1], spot.center[0]);
-          const now = hours[0];
-          if (now) {
-            // Per-spot coastal correction × swell direction alignment
-          const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
-          const swDir = now.swellDirection ?? now.waveDirection ?? null;
-          const align = swDir != null && spot.beachOrientation != null
-            ? swellAlignmentMultiplier(swDir, spot.beachOrientation)
-            : 1.0;
-          const wh = rawWh * (spot.coastalFactor ?? 0.85) * align;
-            const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
-            const v = basicSurfVerdict(wh, tp);
-            setSurfWave(spot.id, {
-              waveHeight: wh,
-              swellHeight: now.swellHeight,
-              period: tp,
-              verdictLabel: v.label,
-              verdictColor: v.color,
-            });
-          }
-        } catch { /* ignore — cached data will be used */ }
-      }
+    for (const spot of spots) {
+      try {
+        const hours = await fetchMarineForSpot(spot.id, spot.center[1], spot.center[0]);
+        const now = hours[0];
+        if (!now) continue;
+        // Per-spot coastal correction × swell direction alignment
+        const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
+        const swDir = now.swellDirection ?? now.waveDirection ?? null;
+        const align = swDir != null && spot.beachOrientation != null
+          ? swellAlignmentMultiplier(swDir, spot.beachOrientation)
+          : 1.0;
+        const wh = rawWh * (spot.coastalFactor ?? 0.85) * align;
+        const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
+        const v = basicSurfVerdict(wh, tp);
+        setSurfWave(spot.id, {
+          waveHeight: wh,
+          swellHeight: now.swellHeight,
+          period: tp,
+          verdictLabel: v.label,
+          verdictColor: v.color,
+        });
+      } catch { /* ignore — cached data will be used */ }
     }
-
-    fetchAll();
-    timerRef.current = setInterval(fetchAll, INTERVAL);
-
-    // Pause polling when tab is hidden (save bandwidth)
-    const onVisibility = () => {
-      if (document.hidden) {
-        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-      } else {
-        fetchAll();
-        timerRef.current = setInterval(fetchAll, INTERVAL);
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
   }, [sectorId, setSurfWave]);
+
+  // S122: switched from bespoke visibility-aware setInterval to shared hook.
+  // Pauses automatically when tab is hidden (saves bandwidth + Open-Meteo rate limit).
+  useVisibilityPolling(fetchAll, INTERVAL, true);
 }
