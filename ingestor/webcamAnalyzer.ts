@@ -7,6 +7,7 @@
  * Runs every 3 ingestor cycles (~15min). No browser APIs — pure Node.js.
  */
 
+import { createHash } from 'crypto';
 import { log } from './logger.js';
 import { batchUpsertWebcamReadings } from './db.js';
 import { dispatchVisibilityAlert } from './alertDispatcher.js';
@@ -21,10 +22,12 @@ const IMAGE_MAX_SIZE = 512; // Resize images to max 512px for LLM
 const API_TIMEOUT_MS = 60_000; // 60s timeout for Ollama (CPU inference is slow)
 
 // ── Stale image detection — skip analysis if webcam image hasn't changed ──
-// Stores last image size per webcam URL. If identical = frozen/cached image.
-const lastImageSize = new Map<string, number>();
+// SHA-1 hash of the full image buffer (8 bytes is enough for signature).
+// Byte-length alone had false negatives when two different images happened to
+// have identical size. Hash is collision-free in practice for JPEG streams.
+const lastImageHash = new Map<string, string>();
 const lastImageChangeTime = new Map<string, number>();
-const STALE_IMAGE_MAX_AGE_MS = 60 * 60_000; // 1h — if image unchanged for 1h, it's frozen
+const STALE_IMAGE_MAX_AGE_MS = 30 * 60_000; // 30min — aggressive: if unchanged half an hour, skip analysis
 const MAP_CLEANUP_INTERVAL_MS = 24 * 60 * 60_000; // Cleanup old entries daily
 let lastMapCleanup = Date.now();
 
@@ -83,19 +86,21 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
       return null;
     }
 
-    // Stale image detection — if exact same byte size as last fetch, image is frozen
-    const prevSize = lastImageSize.get(url);
+    // Stale image detection — hash the buffer, skip if unchanged for >30min.
+    // Hashing is O(n) but only ~0.5ms for 500KB images (dominated by Ollama 60s anyway).
+    const hash = createHash('sha1').update(buffer).digest('hex').slice(0, 16);
+    const prevHash = lastImageHash.get(url);
     const now = Date.now();
-    if (prevSize === buffer.length) {
-      // Same size — check how long it's been frozen
+    if (prevHash === hash) {
       const changeTime = lastImageChangeTime.get(url) ?? now;
+      const frozenMin = Math.round((now - changeTime) / 60_000);
       if (now - changeTime > STALE_IMAGE_MAX_AGE_MS) {
-        log.warn(`[Webcam] Image frozen >1h (${buffer.length}B unchanged): ${url}`);
+        log.warn(`[Webcam] Image frozen ${frozenMin}min (hash ${hash} unchanged): ${url}`);
         return null;
       }
     } else {
-      // Image changed — update tracking
-      lastImageSize.set(url, buffer.length);
+      // Hash changed → image updated, reset tracking
+      lastImageHash.set(url, hash);
       lastImageChangeTime.set(url, now);
     }
 
@@ -285,7 +290,7 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
 
   // Periodic cleanup of stale image tracking maps (prevent unbounded growth)
   if (Date.now() - lastMapCleanup > MAP_CLEANUP_INTERVAL_MS) {
-    lastImageSize.clear();
+    lastImageHash.clear();
     lastImageChangeTime.clear();
     lastMapCleanup = Date.now();
   }
