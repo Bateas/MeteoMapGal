@@ -147,6 +147,7 @@ export function BuoySymbolLayer({
           'icon-ignore-placement': true,
           // "B" label centered on diamond
           'text-field': 'B',
+          'text-font': ['Noto Sans Bold'],
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 7, 11, 9, 12, 11],
           'text-offset': [0, 0],
           'text-anchor': 'center',
@@ -168,6 +169,7 @@ export function BuoySymbolLayer({
         type="symbol"
         layout={{
           'text-field': ['step', ['zoom'], '', 10, ['get', 'waveLabel']],
+          'text-font': ['Noto Sans Bold'],
           'text-size': 11,
           'text-offset': [0, -2],
           'text-anchor': 'bottom',
@@ -186,6 +188,7 @@ export function BuoySymbolLayer({
         type="symbol"
         layout={{
           'text-field': ['step', ['zoom'], '', 11, ['get', 'name']],
+          'text-font': ['Noto Sans Regular'],
           'text-size': 10,
           'text-offset': [0, 1.8],
           'text-anchor': 'top',
