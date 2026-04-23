@@ -1,0 +1,52 @@
+# Dependabot — weekly dep updates, grouped to avoid PR noise.
+# Target: catch security patches + major versions without daily PRs.
+version: 2
+updates:
+  # Frontend dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      # Batch minor + patch into a single PR per group
+      react-ecosystem:
+        patterns:
+          - "react*"
+          - "@types/react*"
+      vite-ecosystem:
+        patterns:
+          - "vite*"
+          - "@vitejs/*"
+          - "vitest"
+      maplibre:
+        patterns:
+          - "maplibre-gl"
+          - "react-map-gl"
+      typescript-tooling:
+        patterns:
+          - "typescript"
+          - "@typescript-eslint/*"
+          - "eslint*"
+    labels:
+      - "dependencies"
+
+  # Ingestor dependencies (separate schedule — backend changes less)
+  - package-ecosystem: "npm"
+    directory: "/ingestor"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ingestor"
+
+  # GitHub Actions versions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "ci"

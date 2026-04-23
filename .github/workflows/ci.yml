@@ -1,0 +1,57 @@
+name: CI
+
+# Build + test on every push to master and on every PR.
+# Uses Node 22 (matches LXC 305 prod), runs in parallel on Ubuntu.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  # Cancel in-progress runs when a new commit is pushed to the same branch/PR
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test + Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run tests (Vitest)
+        run: npx vitest run
+        env:
+          CI: true
+
+      - name: Production build
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Bundle size report
+        run: |
+          echo "### Bundle sizes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Chunk | Size | Gzipped |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-----:|--------:|" >> $GITHUB_STEP_SUMMARY
+          for f in dist/assets/main-*.js dist/assets/maplibre-*.js dist/assets/recharts-*.js; do
+            if [ -f "$f" ]; then
+              name=$(basename "$f" | sed 's/-[A-Za-z0-9_-]*\.js$//')
+              size=$(stat -c%s "$f" | numfmt --to=iec)
+              gz=$(gzip -c "$f" | wc -c | numfmt --to=iec)
+              echo "| $name | $size | $gz |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
