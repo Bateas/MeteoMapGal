@@ -85,16 +85,24 @@ function SwanWaveOverlayInner() {
   // Toggle is the ONLY control — no bypass. User can always dismiss.
   const wantsActive = sectorId === 'rias' && showSwan;
 
-  // Health check: verify CESGA THREDDS is up before loading tiles. Retries every 10min.
+  // Health check: verify CESGA THREDDS has CURRENT data before loading tiles.
+  // v2.56.7: added TIME parameter matching what real tiles will send. Without it,
+  // the test passed (server is up) but real tiles returned 400 because the SWAN
+  // dataset is often frozen days behind — CESGA academic server stalls frequently.
+  // Retries every 10min in case the model catches up.
   useEffect(() => {
     if (!wantsActive) { setServerUp(false); return; }
 
-    const testTile = '/swan-api/thredds/wms/SWAN/agg/SWAN_agg_best.ncd'
-      + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=hs&SRS=EPSG:4326'
-      + '&BBOX=-9,42,-8,43&WIDTH=16&HEIGHT=16&FORMAT=image/png&TRANSPARENT=true';
+    const buildTestTile = () => {
+      const time = timeForOffset(0); // TIME = current hour (same as initial tiles)
+      return '/swan-api/thredds/wms/SWAN/agg/SWAN_agg_best.ncd'
+        + '?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=hs&SRS=EPSG:4326'
+        + '&BBOX=-9,42,-8,43&WIDTH=16&HEIGHT=16&FORMAT=image/png&TRANSPARENT=true'
+        + `&TIME=${time}`;
+    };
 
     const doCheck = () => {
-      fetch(testTile, { signal: AbortSignal.timeout(10_000) })
+      fetch(buildTestTile(), { signal: AbortSignal.timeout(10_000) })
         .then((r) => setServerUp(r.ok))
         .catch(() => setServerUp(false));
     };
