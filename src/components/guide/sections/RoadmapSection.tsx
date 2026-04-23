@@ -38,9 +38,10 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="bell" title="Avisos oficiales MeteoGalicia" desc="RSS de avisos adversos: tormentas, oleaje, viento, lluvia. Niveles amarillo/naranja/rojo. Integrado en predictor + ticker + panel condiciones." status="done" />
 
         <TimelineMilestone iconId="thermometer" title="MeteoSIX v5 — WRF 1km por spot" desc="Prevision atmosferica a 1km de resolucion de MeteoGalicia. Cada spot consulta su celda exacta. USWAN para oleaje nearshore, MOHID para temperatura del mar." status="done" />
-        <TimelineMilestone iconId="cloud" title="Niebla con modelo de terreno" desc="Overlay DEM: detecta niebla radiativa (valles Embalse <185m) y advectiva (Rias <35m). Validacion con webcams DGT (Ribadavia, Fea-Arrabaldo)." status="done" />
+        <TimelineMilestone iconId="cloud" title="Niebla localizada multi-evidencia" desc="Overlay que se activa por detector (radio 4km). Cruza: webcams con IA de vision, firma solar (HR>85% + radiacion bloqueada), visibilidad oficial AEMET de 8 aeropuertos/estaciones costeras (<1km = niebla confirmada). Fade asimetrico 2s aparicion / 5s disipacion que mimica niebla real." status="done" />
         <TimelineMilestone iconId="compass" title="Panel de prevision Windguru-style" desc="Vista fullscreen (tecla P) con tabla de colores por intensidad, dots de calidad, dimming nocturno, conclusion inteligente y meteograma SVG." status="done" />
         <TimelineMilestone iconId="camera" title="Webcams DGT" desc="Camaras de trafico en Ribadavia y Fea-Arrabaldo para validar niebla en valles interiores." status="done" />
+        <TimelineMilestone iconId="wind" title="Predictor de canalizacion en Cesantes" desc="Cesantes tiene una ensenada abrigada donde las estaciones cercanas subestiman el viento real. Modelo que detecta (1) canalizacion sinoptica del SW y (2) brisa termica tarde → estima viento local cuando supera medicion en +4kt." status="done" />
 
         {/* ── Proximamente ── */}
         <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
