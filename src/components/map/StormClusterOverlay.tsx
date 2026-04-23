@@ -28,25 +28,41 @@ function convexHull(points: [number, number][]): [number, number][] {
   return [...lower, ...upper];
 }
 
-/** Build cluster shape from actual strike positions (convex hull) */
-function clusterShape(
-  cluster: StormCluster,
-  bufferKm: number,
-): GeoJSON.Feature<GeoJSON.Polygon> | null {
-  // Use pre-computed strike positions from cluster (no re-scanning needed)
-  const points = cluster.strikePositions;
-  if (points.length < 3) return null; // need 3+ points for hull
+/** Module-level hull cache, keyed by clusterId+strikeCount. Avoids O(n log n)
+ *  recomputation on every render when the underlying strikes haven't changed.
+ *  Cleared entries when strike signature mismatches — bounded by active cluster count. */
+const hullCache = new Map<string, [number, number][]>();
 
+function getCachedHull(cluster: StormCluster): [number, number][] | null {
+  const points = cluster.strikePositions;
+  if (points.length < 3) return null;
+  const key = `${cluster.id}:${cluster.strikeCount}`;
+  const cached = hullCache.get(key);
+  if (cached) return cached;
   const hull = convexHull(points);
   if (hull.length < 3) return null;
+  hullCache.set(key, hull);
+  // Bound cache: keep ~20 most recent (clusters rarely exceed this)
+  if (hullCache.size > 30) {
+    const first = hullCache.keys().next().value;
+    if (first) hullCache.delete(first);
+  }
+  return hull;
+}
 
+/** Build cluster shape from pre-computed hull + buffer expansion */
+function hullToShape(
+  cluster: StormCluster,
+  hull: [number, number][],
+  bufferKm: number,
+): GeoJSON.Feature<GeoJSON.Polygon> {
   // Expand hull outward for visual buffer
+  const bufDeg = bufferKm / 111.32;
   const expanded = hull.map(([lon, lat]) => {
     const dx = lon - cluster.lon;
     const dy = lat - cluster.lat;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 0.00001) return [lon, lat] as [number, number];
-    const bufDeg = bufferKm / 111.32;
     const factor = 1 + bufDeg / dist;
     return [cluster.lon + dx * factor, cluster.lat + dy * factor] as [number, number];
   });
@@ -304,24 +320,19 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     const features: GeoJSON.Feature[] = [];
 
     for (const cluster of clusters) {
-      // Try convex hull from actual strike positions (organic shape)
-      const hullShape = clusterShape(cluster, 8); // 8km buffer for haze
-      if (hullShape) {
-        hullShape.properties = {
-          ...hullShape.properties,
-          type: 'haze',
-        };
-        features.push(hullShape);
-      }
+      // Compute convex hull ONCE per cluster (cached by clusterId+strikeCount).
+      // Both haze and core reuse the same hull, just different buffer expansion.
+      const hull = getCachedHull(cluster);
 
-      // Inner core — tighter hull (3km buffer)
-      const coreShape = clusterShape(cluster, 3);
-      if (coreShape) {
-        coreShape.properties = {
-          ...coreShape.properties,
-          type: 'core',
-          newestAgeMin: cluster.newestAgeMin,
-        };
+      if (hull) {
+        // Haze — 8km buffer
+        const hazeShape = hullToShape(cluster, hull, 8);
+        hazeShape.properties = { ...hazeShape.properties, type: 'haze' };
+        features.push(hazeShape);
+
+        // Core — 3km buffer (tighter)
+        const coreShape = hullToShape(cluster, hull, 3);
+        coreShape.properties = { ...coreShape.properties, type: 'core', newestAgeMin: cluster.newestAgeMin };
         features.push(coreShape);
       } else {
         // Fallback to circle if not enough strikes for hull
