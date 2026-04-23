@@ -71,7 +71,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   // Spot-specific WRF 1km forecast — fetch on open, cache 30min
   const cached = spotForecasts.get(spot.id);
   const spotForecast = cached?.data ?? [];
-  const [spotFcLoading, setSpotFcLoading] = useState(false);
+  // Initial loading = true when no fresh cache → UI shows "Cargando..." from first
+  // render instead of flashing blank then loading → blank again. (S123 flicker fix)
+  const [spotFcLoading, setSpotFcLoading] = useState(
+    () => !cached || Date.now() - cached.fetchedAt > 30 * 60_000
+  );
   const [spotFcError, setSpotFcError] = useState(false);
 
   useEffect(() => {
