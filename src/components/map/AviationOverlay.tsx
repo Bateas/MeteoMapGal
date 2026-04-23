@@ -209,6 +209,7 @@ export const AviationOverlay = memo(function AviationOverlay() {
           type="symbol"
           layout={{
             'text-field': ['get', 'altLabel'],
+            'text-font': ['Noto Sans Bold'],
             'text-size': 10,
             'text-offset': [0, -1.8],
             'text-anchor': 'bottom',
@@ -226,6 +227,7 @@ export const AviationOverlay = memo(function AviationOverlay() {
           type="symbol"
           layout={{
             'text-field': ['get', 'callsign'],
+            'text-font': ['Noto Sans Regular'],
             'text-size': ['interpolate', ['linear'], ['zoom'], 10, 0, 12, 9, 14, 11],
             'text-offset': [0, 1.6],
             'text-anchor': 'top',
