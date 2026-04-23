@@ -241,17 +241,8 @@ export function AppShell() {
 
   // Geolocation auto-sector removed — see geolocationService.ts if needed later
 
-  // Prune stale reading history every 30 min (entries > 24h old) + daily summary check
-  const pruneHistory = useWeatherStore((s) => s.pruneHistory);
-  const pruneAlertHistory = useAlertStore((s) => s.pruneAlertHistory);
-  useEffect(() => {
-    const id = setInterval(() => {
-      pruneHistory();
-      pruneAlertHistory();
-      // Daily summary moved to ingestor (24/7, single source, no visitor duplicates)
-    }, 30 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [pruneHistory, pruneAlertHistory]);
+  // Prune stale history moved to DeferredHooks (off critical path).
+  // Daily summary moved to ingestor (24/7, single source, no visitor duplicates).
 
   // Campo (agricultural alerts) drawer — state in uiStore
   // Use convectionData for alerts (has CAPE/CIN/gusts from Open-Meteo), fallback to hourly
