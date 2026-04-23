@@ -22,9 +22,7 @@ const LightningOverlay = lazy(() => import('./LightningOverlay').then(m => ({ de
 const StormClusterOverlay = lazy(() => import('./StormClusterOverlay').then(m => ({ default: m.StormClusterOverlay })));
 const FogOverlay = lazy(() => import('./FogOverlay').then(m => ({ default: m.FogOverlay })));
 const WindRampOverlay = lazy(() => import('./WindRampOverlay').then(m => ({ default: m.WindRampOverlay })));
-const WaveCoastOverlay = lazy(() => import('./WaveCoastOverlay').then(m => ({ default: m.WaveCoastOverlay })));
 const UpwellingOverlay = lazy(() => import('./UpwellingOverlay').then(m => ({ default: m.UpwellingOverlay })));
-const WaveExposureOverlay = lazy(() => import('./WaveExposureOverlay').then(m => ({ default: m.WaveExposureOverlay })));
 const SwanWaveOverlay = lazy(() => import('./SwanWaveOverlay').then(m => ({ default: m.SwanWaveOverlay })));
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
 const AlertPanel = lazy(() => import('./AlertPanel').then(m => ({ default: m.AlertPanel })));
@@ -423,24 +421,14 @@ export function WeatherMap() {
           </>
         )}
 
-        {/* StormRadarAuto disabled — RainViewer tiles can't filter by intensity,
-            low opacity hides everything, high opacity shows light rain that clutters map.
-            Users activate manual Radar layer when needed. */}
-
         {/* Fog overlay — terrain-based valley fill when fog detected */}
         <Suspense fallback={null}><FogOverlay /></Suspense>
 
         {/* Wind ramp pulse — stations glow when wind increases +6kt/30min */}
         <Suspense fallback={null}><WindRampOverlay /></Suspense>
 
-        {/* Wave coast exposure + height overlay — vector coastline (Rías only) */}
-        <Suspense fallback={null}><WaveCoastOverlay /></Suspense>
-
-        {/* Upwelling + coastline overlay — DEM-based water mask (#59 v2) */}
+        {/* EMODnet bathymetry + coastline — professional marine data (Rías only) */}
         <Suspense fallback={null}><UpwellingOverlay /></Suspense>
-
-        {/* Wave exposure — coastline colored by swell direction (#56 v3 — DISABLED, needs fetch model) */}
-        <Suspense fallback={null}><WaveExposureOverlay /></Suspense>
 
         {/* SWAN nearshore wave model — real wave propagation inside rías (#56 v4) */}
         <Suspense fallback={null}><SwanWaveOverlay /></Suspense>
