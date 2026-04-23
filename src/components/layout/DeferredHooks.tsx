@@ -16,6 +16,8 @@ import { useSailingWindows } from '../../hooks/useSailingWindows';
 import { useWebcamVision } from '../../hooks/useWebcamVision';
 import { useAirQuality } from '../../hooks/useAirQuality';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
+import { useWeatherStore } from '../../store/weatherStore';
+import { useAlertStore } from '../../store/alertStore';
 
 export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: React.MutableRefObject<TeleconnectionIndex[]> }) {
   useThermalAnalysis();
@@ -38,6 +40,20 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
     }, 15_000);
     return () => clearTimeout(t);
   }, [teleconnectionsRef]);
+
+  // Prune stale reading history + alert history every 30min. Moved here (from
+  // AppShell) to keep it off the initial mount critical path. Runs 3s after
+  // deferred mount and then every 30min — first prune is at deferred+30min,
+  // acceptable since history starts empty anyway.
+  const pruneHistory = useWeatherStore((s) => s.pruneHistory);
+  const pruneAlertHistory = useAlertStore((s) => s.pruneAlertHistory);
+  useEffect(() => {
+    const id = setInterval(() => {
+      pruneHistory();
+      pruneAlertHistory();
+    }, 30 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [pruneHistory, pruneAlertHistory]);
 
   return null;
 }
