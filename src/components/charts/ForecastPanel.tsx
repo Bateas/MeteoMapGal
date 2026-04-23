@@ -10,6 +10,7 @@
  */
 import { memo, useEffect, useCallback, useState, useMemo } from 'react';
 import { useUIStore } from '../../store/uiStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useSectorStore } from '../../store/sectorStore';
 import { getSpotsForSector } from '../../config/spots';
 import { ForecastTimeline } from './ForecastTimeline';
@@ -109,6 +110,8 @@ function ForecastPanelInner() {
   const isMobile = useUIStore((s) => s.isMobile);
   const [showLegend, setShowLegend] = useState(false);
   const sectorId = useSectorStore((s) => s.activeSector.id);
+  // Focus trap: Tab no escapa al mapa cuando el panel está abierto (WCAG 2.4.3)
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(open);
 
   // Resolve spot name + coords for header
   const spotInfo = useMemo(() => {
@@ -133,6 +136,7 @@ function ForecastPanelInner() {
 
   return (
     <div
+      ref={focusTrapRef}
       className={`fixed inset-0 z-50 flex flex-col bg-slate-900 ${
         isMobile ? '' : 'md:left-0'
       }`}
