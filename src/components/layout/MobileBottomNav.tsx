@@ -117,7 +117,7 @@ function MobileBottomNavInner() {
               .map((item) => (
                 <button
                   key={item.label}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800 transition-colors text-left min-h-[40px] ${item.highlight ?? 'text-slate-300 hover:text-white'}`}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800 transition-colors text-left min-h-[44px] ${item.highlight ?? 'text-slate-300 hover:text-white'}`}
                   onClick={() => {
                     if (item.action) {
                       item.action();
@@ -135,7 +135,7 @@ function MobileBottomNavInner() {
               href="https://ko-fi.com/bateas"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-colors min-h-[40px]"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-colors min-h-[44px]"
             >
               <WeatherIcon id="anchor" size={16} className="shrink-0" />
               <span className="text-[13px] font-medium">Apoyar</span>

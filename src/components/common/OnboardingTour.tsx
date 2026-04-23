@@ -8,6 +8,7 @@
  * Persisted via Zustand → localStorage. Auto-launches 3s after first load.
  */
 import { memo, useEffect, useCallback, useState, useRef } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { SECTORS } from '../../config/sectors';
@@ -82,6 +83,8 @@ export const OnboardingTour = memo(function OnboardingTour() {
 
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
   const prevHighlightRef = useRef<Element | null>(null);
+  // Focus trap: Tab no escapa al mapa cuando el tour está abierto (WCAG 2.4.3)
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(!completed && step > 0);
 
   // Auto-launch on first visit, 3s after load
   useEffect(() => {
@@ -167,6 +170,7 @@ export const OnboardingTour = memo(function OnboardingTour() {
 
   return (
     <div
+      ref={focusTrapRef}
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
       onClick={handleSkip}
       onKeyDown={(e) => { if (e.key === 'Escape') handleSkip(); }}
