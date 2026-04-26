@@ -1,12 +1,12 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.56.8-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.56.25-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![CI](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml/badge.svg)](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-286%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-656%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
-**Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 19 webcams con IA y mapa 3D interactivo.
+**Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 22 webcams con IA y mapa 3D interactivo.
 
 **Pruebalo**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) — Gratuito, sin registro. Funciona en movil y escritorio.
 
@@ -150,7 +150,7 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 - Validacion con webcams DGT (Ribadavia, Fea-Arrabaldo)
 
 ### Vision IA (webcams)
-- 19 camaras MeteoGalicia + 2 DGT analizadas cada 15min
+- 22 camaras analizadas cada 15min (19 MeteoGalicia + 2 DGT + 1 ESP32-CAM propia en Castrelo)
 - Estimacion Beaufort 0-7 desde la superficie del agua
 - Deteccion de niebla, visibilidad, estado del cielo
 - Alertas automaticas por visibilidad reducida
@@ -170,7 +170,7 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 | CESGA SWAN (THREDDS) | Oleaje nearshore ~250m (WMS overlay con slider temporal 48h) |
 | RainViewer, IHM, ENAIRE | Radar precipitacion, mareas, espacio aereo |
 | CMEMS, INTECMAR, IGN | SST, corrientes, cartografia |
-| MeteoGalicia Webcams + Ollama | 19 camaras + vision IA (Beaufort, niebla) |
+| Webcams (MG + DGT) + Ollama vision | 19 camaras MeteoGalicia + 2 DGT (Ribadavia, Fea-Arrabaldo) + ESP32-CAM Castrelo (vision IA: Beaufort, niebla) |
 | MeteoGalicia Avisos Adversos | Alertas oficiales (tormentas, oleaje, viento) |
 | meteo2api (red europea) | Rayos geolocalizados en tiempo real |
 
@@ -190,14 +190,14 @@ npm run build           # Produccion → dist/
 npm test                # 656 tests (Vitest)
 ```
 
-**Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.19 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB
+**Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.24 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB
 
 **Arquitectura**:
 - Frontend: React SPA con 19 stores Zustand, predictor de tormentas 8 senales, 7 sub-componentes SpotPopup
 - Backend: Ingestor Node.js 24/7 → TimescaleDB (polling 6 fuentes cada 5min + MeteoSIX WRF/USWAN)
 - Modelos: WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temperatura del mar), Open-Meteo (conveccion)
 - Produccion: nginx reverse proxy en Proxmox LXC, Cloudflare Tunnel
-- Performance: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle 333KB
+- Performance: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle ~340KB (gzip ~110KB)
 
 ---
 
