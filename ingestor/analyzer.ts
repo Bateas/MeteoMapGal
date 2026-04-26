@@ -14,20 +14,22 @@ import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { dispatchSpotAlert, dispatchForecastAlert } from './alertDispatcher.js';
 import { haversineDistance } from '../src/services/geoUtils.js';
-import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
+import { degreesToCardinal } from '../src/services/windUtils.js';
 import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
+import {
+  windVerdict,
+  scoreSpot,
+  VERDICT_LABEL,
+  ALERT_VERDICTS,
+  LOW_VERDICTS,
+  type SpotDef,
+  type Verdict,
+  type StationReading,
+  type BuoyWind,
+  type SpotResult,
+} from './analyzerLogic.js';
 
 // ── Spot definitions ────────────────────────────────
-
-interface SpotDef {
-  id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  sector: 'embalse' | 'rias';
-  radiusKm: number;
-  thermalDetection: boolean;
-}
 
 const SPOTS: SpotDef[] = [
   { id: 'castrelo', name: 'Castrelo', lat: 42.2991, lon: -8.1087, sector: 'embalse', radiusKm: 15, thermalDetection: true },
@@ -42,36 +44,8 @@ const SPOTS: SpotDef[] = [
   { id: 'illa-arousa', name: 'Illa Arousa', lat: 42.546, lon: -8.860, sector: 'rias', radiusKm: 8, thermalDetection: true },
 ];
 
-// ── Verdict thresholds (matching frontend) ──────────
-
-type Verdict = 'calm' | 'light' | 'sailing' | 'good' | 'strong' | 'unknown';
-
-const VERDICT_LABEL: Record<Verdict, string> = {
-  calm: 'CALMA', light: 'FLOJO', sailing: 'NAVEGABLE',
-  good: 'BUENO', strong: 'FUERTE', unknown: 'SIN DATOS',
-};
-
-const ALERT_VERDICTS: Set<Verdict> = new Set(['sailing', 'good', 'strong']);
-const LOW_VERDICTS: Set<Verdict> = new Set(['calm', 'light', 'unknown']);
-
-/** Match frontend spotScoringEngine thresholds exactly */
-function windVerdict(avgKt: number, spotId: string): Verdict {
-  const kt = Math.round(avgKt);
-  // Cies-Ria: ocean conditions — higher thresholds
-  if (spotId === 'cies-ria') {
-    if (kt < 5) return 'calm';
-    if (kt < 10) return 'light';
-    if (kt < 14) return 'sailing';
-    if (kt < 18) return 'good';
-    return 'strong';
-  }
-  // All other spots: ria/embalse thresholds
-  if (kt < 6) return 'calm';
-  if (kt < 8) return 'light';
-  if (kt < 12) return 'sailing';
-  if (kt < 18) return 'good';
-  return 'strong';
-}
+// ── Verdict thresholds + scoring imported from analyzerLogic ──────────
+// (windVerdict, scoreSpot, inferCastreloDirection — pure functions, tested separately)
 
 // ── State ───────────────────────────────────────────
 
@@ -85,17 +59,6 @@ const FORECAST_INTERVAL_MS = 30 * 60_000; // 30 minutes
 // BUOY_COORDS → RIAS_BUOY_STATIONS (buoyClient)
 
 // ── DB queries ──────────────────────────────────────
-
-interface StationReading {
-  station_id: string;
-  latitude: number;
-  longitude: number;
-  wind_speed: number | null;
-  wind_gust: number | null;
-  wind_dir: number | null;
-  temperature: number | null;
-  humidity: number | null;
-}
 
 /**
  * Get latest reading per station (last 30 min) with coordinates.
@@ -129,14 +92,6 @@ const BUOY_COORDS: Record<number, { lat: number; lon: number }> = Object.fromEnt
   RIAS_BUOY_STATIONS.map(b => [b.id, { lat: b.lat, lon: b.lon }])
 );
 
-interface BuoyWind {
-  station_id: number;
-  wind_speed: number;
-  wind_dir: number | null;
-  lat: number;
-  lon: number;
-}
-
 /**
  * Get latest buoy readings (last 2h) with coordinates.
  */
@@ -159,128 +114,6 @@ async function getLatestBuoyWinds(): Promise<BuoyWind[]> {
   } catch (err) {
     return [];
   }
-}
-
-// ── Scoring ─────────────────────────────────────────
-
-interface SpotResult {
-  spot: SpotDef;
-  avgWindKt: number;
-  maxGustKt: number;
-  avgDir: number | null;
-  verdict: Verdict;
-  stationCount: number;
-  /** Inferred direction for spots without vane (e.g. Castrelo SkyX) */
-  inferredDir?: string | null;
-}
-
-/**
- * Score a spot based on nearby station wind consensus.
- * Filters stations by distance to spot (radiusKm).
- * Matches frontend spotScoringEngine logic.
- */
-function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWind[]): SpotResult {
-  // Filter to stations within spot radius
-  const nearby = readings.filter(r =>
-    r.latitude !== 0 && r.longitude !== 0 &&
-    haversineDistance(spot.lat, spot.lon, r.latitude, r.longitude) <= spot.radiusKm
-  );
-
-  let windSum = 0, gustMax = 0, dirCount = 0, count = 0;
-  // Circular mean for wind direction (avoids 350+10 = 180 bug)
-  let sinSum = 0, cosSum = 0;
-
-  for (const r of nearby) {
-    if (r.wind_speed != null) {
-      const kt = msToKnots(r.wind_speed);
-      windSum += kt;
-      count++;
-      if (r.wind_gust != null) {
-        const gKt = msToKnots(r.wind_gust);
-        if (gKt > gustMax) gustMax = gKt;
-      }
-      if (r.wind_dir != null) {
-        const rad = r.wind_dir * Math.PI / 180;
-        sinSum += Math.sin(rad);
-        cosSum += Math.cos(rad);
-        dirCount++;
-      }
-    }
-  }
-
-  // Include buoy winds — filtered by distance
-  const nearbyBuoys = buoyWinds.filter(b =>
-    b.lat !== 0 && b.lon !== 0 &&
-    haversineDistance(spot.lat, spot.lon, b.lat, b.lon) <= spot.radiusKm
-  );
-  for (const b of nearbyBuoys) {
-    const kt = msToKnots(b.wind_speed);
-    windSum += kt;
-    count++;
-    if (b.wind_dir != null) {
-      const rad = b.wind_dir * Math.PI / 180;
-      sinSum += Math.sin(rad);
-      cosSum += Math.cos(rad);
-      dirCount++;
-    }
-  }
-
-  if (count === 0) {
-    return { spot, avgWindKt: 0, maxGustKt: 0, avgDir: null, verdict: 'unknown', stationCount: 0 };
-  }
-
-  const avgWindKt = Math.round(windSum / count);
-  const avgDir = dirCount > 0
-    ? (Math.round(Math.atan2(sinSum / dirCount, cosSum / dirCount) * 180 / Math.PI) + 360) % 360
-    : null;
-  const verdict = windVerdict(avgWindKt, spot.id);
-
-  // For spots without direction data (e.g. Castrelo SkyX has no vane),
-  // infer direction from temporal context + nearby station consensus
-  let inferredDir: string | null = null;
-  if (avgDir === null && avgWindKt >= 3 && spot.id === 'castrelo') {
-    inferredDir = inferCastreloDirection(readings);
-  }
-
-  return { spot, avgWindKt, maxGustKt: Math.round(gustMax), avgDir, verdict, stationCount: count, inferredDir };
-}
-
-/**
- * Infer wind direction for Castrelo when SkyX has no vane.
- * Uses nearby stations with direction (AEMET Ribadavia, MG stations)
- * + time-of-day heuristic (14-18h sunny = likely SW thermal).
- */
-function inferCastreloDirection(readings: StationReading[]): string | null {
-  // Find stations within 15km of Castrelo that have wind direction
-  const castreloLat = 42.2991, castreloLon = -8.1087;
-  const nearby = readings.filter(r =>
-    r.wind_dir != null && r.wind_speed != null && r.wind_speed > 1.0 &&
-    r.latitude !== 0 && r.longitude !== 0 &&
-    haversineDistance(castreloLat, castreloLon, r.latitude, r.longitude) <= 15
-  );
-
-  if (nearby.length === 0) return null;
-
-  // Circular mean of nearby directions
-  let sinSum = 0, cosSum = 0;
-  for (const r of nearby) {
-    const rad = r.wind_dir! * Math.PI / 180;
-    sinSum += Math.sin(rad);
-    cosSum += Math.cos(rad);
-  }
-  const avgDeg = (Math.round(Math.atan2(sinSum / nearby.length, cosSum / nearby.length) * 180 / Math.PI) + 360) % 360;
-  const cardinal = degreesToCardinal(avgDeg);
-
-  // Time-of-day heuristic: afternoon + SW-ish = thermal
-  const hour = new Date().getHours();
-  const isSWish = avgDeg >= 200 && avgDeg <= 280;
-  const isAfternoon = hour >= 13 && hour <= 19;
-
-  if (isSWish && isAfternoon) {
-    return `${cardinal} (termico probable)`;
-  }
-
-  return cardinal;
 }
 
 // ── Main analyzer ───────────────────────────────────
