@@ -3,8 +3,6 @@ import { useMap } from 'react-map-gl/maplibre';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { fetchRainViewerFrames, buildTileUrl, type RainViewerFrame } from '../../api/rainviewerClient';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
-import { WeatherIcon } from '../icons/WeatherIcons';
-
 /**
  * Radar overlay — RainViewer tiles (past 2h + nowcast 30min).
  *
@@ -22,7 +20,6 @@ const ANIMATION_SPEED = 600; // ms per frame
 
 // ── Component ─────────────────────────────────────────
 export const RadarOverlay = memo(function RadarOverlay() {
-  const { current: mapInstance } = useMap();
   const activeLayer = useWeatherLayerStore((s) => s.activeLayer);
   const opacity = useWeatherLayerStore((s) => s.layerOpacity);
   const isActive = activeLayer === 'radar';

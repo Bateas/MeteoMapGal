@@ -180,7 +180,6 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
 
   // Process Netatmo stations
   if (netatmoStations.status === 'fulfilled') {
-    const ntCount = stations.length;
     let windCount = 0;
     let tempOnlyCount = 0;
     for (const station of netatmoStations.value) {

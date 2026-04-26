@@ -126,7 +126,6 @@ function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
 
 export function AppShell() {
   const { forceRefresh, retryDiscovery } = useWeatherData();
-  const isLoading = useWeatherStore((s) => s.isLoading);
   const error = useWeatherStore((s) => s.error);
   const stations = useWeatherStore((s) => s.stations);
   const activeSector = useSectorStore((s) => s.activeSector);

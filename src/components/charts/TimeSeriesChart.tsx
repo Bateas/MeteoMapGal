@@ -8,7 +8,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { msToKnots, degreesToCardinal } from '../../services/windUtils';
+import { msToKnots } from '../../services/windUtils';
 import { escapeCSV } from '../../services/csvUtils';
 import { useToastStore } from '../../store/toastStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -61,7 +61,7 @@ export function TimeSeriesChart() {
   const [activeMetric, setActiveMetric] = useState<MetricKey>('windSpeed');
   const [timeRange, setTimeRange] = useState(24);
   const [dbData, setDbData] = useState<Map<string, HistoryReading[]>>(new Map());
-  const [dbLoading, setDbLoading] = useState(false);
+  const [, setDbLoading] = useState(false);
   const dbFetchRef = useRef<string>(''); // track last fetch key to avoid duplicate requests
 
   const metric = METRICS.find((m) => m.key === activeMetric)!;

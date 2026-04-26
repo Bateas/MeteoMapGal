@@ -62,7 +62,6 @@ function SwanWaveOverlayInner() {
 
   const [hourOffset, setHourOffset] = useState(0);
   const [serverUp, setServerUp] = useState(false);
-  const lastCheckRef = useRef(0);
 
   const maxWaveHeight = useMemo(() => {
     let max = 0;

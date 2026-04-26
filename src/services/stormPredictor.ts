@@ -52,7 +52,6 @@ const CAPE_HIGH = 800;       // J/kg — storms likely
 const CAPE_SEVERE = 1500;    // J/kg — severe storms
 const PRECIP_THRESHOLD = 2;  // mm/h — significant rain
 const CLOUD_THRESHOLD = 80;  // % — heavy overcast
-const VISIBILITY_LOW = 5000; // m — reduced visibility
 
 // ── Core Predictor ───────────────────────────────────────
 

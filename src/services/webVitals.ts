@@ -5,11 +5,10 @@
  */
 import { onLCP, onINP, onCLS } from 'web-vitals';
 
-const THRESHOLDS = {
-  LCP: { good: 2500, poor: 4000 },
-  INP: { good: 200, poor: 500 },
-  CLS: { good: 0.1, poor: 0.25 },
-};
+// Reference thresholds (for documentation):
+// LCP: good <2500ms, poor >4000ms
+// INP: good <200ms, poor >500ms
+// CLS: good <0.1, poor >0.25
 
 function ratingColor(rating: string): string {
   return rating === 'good' ? '#22c55e' : rating === 'needs-improvement' ? '#eab308' : '#ef4444';

@@ -239,7 +239,7 @@ function OverlayToggle({
   onClick,
   color,
   isMobile,
-  icon,
+  icon: _icon,
 }: {
   label: string;
   sublabel: string;

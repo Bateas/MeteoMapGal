@@ -199,7 +199,7 @@ export async function dispatchSpotAlert(
 export async function dispatchForecastAlert(
   sector: string,
   label: string,
-  confidence: string,
+  _confidence: string,
 ): Promise<void> {
   if (isNightTime()) return;
   if (isInCooldown(lastForecastAlert, sector, FORECAST_COOLDOWN_MS)) return;
@@ -231,7 +231,7 @@ const lastVisibilityAlert = new Map<string, number>();
 export async function dispatchVisibilityAlert(
   webcamId: string,
   spotId: string,
-  description: string,
+  _description: string,
   webcamName?: string,
   beaufort?: number,
 ): Promise<void> {

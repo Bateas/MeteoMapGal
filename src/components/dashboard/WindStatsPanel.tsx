@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
-import { msToKnots, degreesToCardinal, windSpeedColor } from '../../services/windUtils';
+import { msToKnots, windSpeedColor } from '../../services/windUtils';
 import type { NormalizedReading } from '../../types/station';
 import { BarChart3, Compass, Wind } from 'lucide-react';
 

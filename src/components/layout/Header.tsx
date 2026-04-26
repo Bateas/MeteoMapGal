@@ -6,7 +6,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
 import { SECTORS } from '../../config/sectors';
-import { getSunTimes, formatTime, isDaylight } from '../../services/solarUtils';
+import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { scoreForecastThermal, thermalColor } from '../../services/forecastScoringUtils';
 import { useUIStore } from '../../store/uiStore';
@@ -37,7 +37,6 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   const forecastHourly = useForecastStore((s) => s.hourly);
   const thermalRules = useThermalStore((s) => s.rules);
   const isMobile = useUIStore((s) => s.isMobile);
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const theme = useThemeStore((s) => s.theme);
 

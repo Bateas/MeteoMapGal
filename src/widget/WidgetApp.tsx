@@ -13,10 +13,6 @@
  *     width="320" height="180" frameborder="0"></iframe>
  */
 import { useEffect, useState } from 'react';
-import { useWeatherStore } from '../store/weatherStore';
-import { useBuoyStore } from '../store/buoyStore';
-import { useSectorStore } from '../store/sectorStore';
-import { useSpotStore } from '../store/spotStore';
 import { getSpotsForSector, ALL_SPOTS } from '../config/spots';
 import type { SpotId, SailingSpot } from '../config/spots';
 import type { SpotScore, SpotVerdict } from '../services/spotScoringEngine';
@@ -36,7 +32,7 @@ import {
   normalizeMeteoGaliciaObservation,
   normalizeMeteoclimaticObservation,
 } from '../services/normalizer';
-import type { NormalizedStation, NormalizedReading } from '../types/station';
+import type { NormalizedReading } from '../types/station';
 import { SECTORS } from '../config/sectors';
 
 // ── URL params ──────────────────────────────────────

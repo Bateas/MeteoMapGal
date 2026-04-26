@@ -199,7 +199,7 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
   readings,
   buoys,
   compact = false,
-  zoomLevel = 12,
+  zoomLevel: _zoomLevel = 12,
 }: WindFieldOverlayProps) {
   // Wait until wind-arrow icons are registered on the map to avoid flash of default markers
   const { current: mapRef } = useMap();

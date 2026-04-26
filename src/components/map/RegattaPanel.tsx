@@ -54,7 +54,6 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const readings = useWeatherStore((s) => s.currentReadings);
   const buoys = useBuoyStore((s) => s.buoys);
   const alerts = useAlertStore((s) => s.alerts);
-  const stormAlert = useLightningStore((s) => s.stormAlert);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const isRias = sectorId === 'rias';
   const safetyLog = useRegattaStore((s) => s.safetyLog);

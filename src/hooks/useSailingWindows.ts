@@ -8,7 +8,6 @@
  */
 
 import { useCallback } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { useSectorStore } from '../store/sectorStore';
 import { useSpotStore } from '../store/spotStore';
 import { useForecastStore } from './useForecastTimeline';
@@ -16,7 +15,6 @@ import { useThermalStore } from '../store/thermalStore';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { getSpotsForSector } from '../config/spots';
 import { computeSpotWindows } from '../services/sailingWindowService';
-import type { HourlyForecast } from '../types/forecast';
 import type { SpotWindowResult } from '../services/sailingWindowService';
 
 /** Poll every 30 min */
