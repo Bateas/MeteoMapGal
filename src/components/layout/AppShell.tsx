@@ -227,7 +227,7 @@ export function AppShell() {
     // Show map after 1.5s regardless of data — tiles are already loading
     const t = setTimeout(() => setMapRevealed(true), 1500);
     return () => clearTimeout(t);
-  }, [activeSector.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeSector.id]);  
 
   // Hide LoadingScreen after min display time OR data ready (whichever is later)
   // activeSector.id in deps ensures timer resets on sector switch (prevents stale dismiss)

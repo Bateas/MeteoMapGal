@@ -27,8 +27,8 @@ export interface MarineForecastHour {
   swellDirection: number | null;   // swell dir (degrees)
 }
 
-let cache: Map<string, MarineData> = new Map();
-let forecastCache: Map<string, { data: MarineForecastHour[]; fetchedAt: number }> = new Map();
+const cache: Map<string, MarineData> = new Map();
+const forecastCache: Map<string, { data: MarineForecastHour[]; fetchedAt: number }> = new Map();
 const FORECAST_CACHE_TTL = 30 * 60_000; // 30 min — forecast changes slowly
 
 function cacheKey(lat: number, lon: number): string {

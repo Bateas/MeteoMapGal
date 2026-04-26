@@ -177,7 +177,7 @@ export function WidgetApp() {
     const refreshId = setInterval(() => { loadData(); }, 5 * 60_000);
 
     return () => { cancelled = true; clearInterval(refreshId); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   return (
     <div style={{
