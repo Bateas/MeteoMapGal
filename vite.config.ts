@@ -40,7 +40,7 @@ export default defineConfig(({ mode }) => {
   test: {
     globals: true,
     environment: 'jsdom',
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'ingestor/**/*.test.ts'],
     setupFiles: ['src/test/setup.ts'],
   },
   server: {
