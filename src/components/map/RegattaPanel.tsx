@@ -86,7 +86,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
     // First try stations IN zone (exclude stale readings >30min)
     const staleMs = STALE_THRESHOLD_MIN * 60_000;
     const now = Date.now();
-    let inZone: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[] = [];
+    const inZone: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[] = [];
     for (const st of stations) {
       if (!isPointInBounds(st.lat, st.lon, ne, sw)) continue;
       const r = readings.get(st.id);

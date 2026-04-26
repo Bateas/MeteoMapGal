@@ -102,7 +102,7 @@ function countUpwellingWindHours(history: SSTSnapshot[]): {
 
   const sorted = [...history].sort((a, b) => a.time - b.time);
   let consecutiveMs = 0;
-  let windSpeeds: number[] = [];
+  const windSpeeds: number[] = [];
 
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];

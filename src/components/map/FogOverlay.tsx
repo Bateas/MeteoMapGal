@@ -165,7 +165,7 @@ function sampleFogZones(
       if (altitude > maxAltitude) continue;
 
       // Per-cell density based on altitude (lower = denser)
-      let altFactor = 1.0 - (altitude / maxAltitude);
+      const altFactor = 1.0 - (altitude / maxAltitude);
 
       // Directional advance for advective fog
       let density: number;
