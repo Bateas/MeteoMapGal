@@ -42,6 +42,8 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="compass" title="Panel de prevision Windguru-style" desc="Vista fullscreen (tecla P) con tabla de colores por intensidad, dots de calidad, dimming nocturno, conclusion inteligente y meteograma SVG." status="done" />
         <TimelineMilestone iconId="camera" title="Webcams DGT" desc="Camaras de trafico en Ribadavia y Fea-Arrabaldo para validar niebla en valles interiores." status="done" />
         <TimelineMilestone iconId="wind" title="Predictor de canalizacion en Cesantes" desc="Cesantes tiene una ensenada abrigada donde las estaciones cercanas subestiman el viento real. Modelo que detecta (1) canalizacion sinoptica del SW y (2) brisa termica tarde → estima viento local cuando supera medicion en +4kt." status="done" />
+        <TimelineMilestone iconId="cloud" title="Detector de calima/Saharan dust" desc="Overlay que se activa solo cuando Open-Meteo reporta polvo del Sáhara. Tinte marrón-ocre sutil con 3 niveles (leve / moderada / fuerte) según concentración de polvo y opacidad atmosférica (AOD). Fade asimétrico 2s/5s." status="done" />
+        <TimelineMilestone iconId="info" title="Aviso cuando el modelo SWAN cae" desc="El servidor académico CESGA falla a menudo. Ahora se muestra una nota clara cuando el overlay no puede cargar — los datos por spot siguen vía Open-Meteo Marine en los popups." status="done" />
 
         {/* ── Proximamente ── */}
         <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
@@ -118,7 +120,7 @@ export function RoadmapSection() {
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
               <span className="text-slate-500">22 webcams + IA</span>
-              <span className="text-slate-500">656 tests</span>
+              <span className="text-slate-500">675 tests</span>
               <span className="text-slate-500">TimescaleDB 24/7</span>
             </div>
           </div>
