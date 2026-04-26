@@ -8,7 +8,7 @@
  * UX: Click point A → click point B → shows line + distance label.
  * Click again to start new measurement. Press Escape or toggle off to cancel.
  */
-import { useState, useEffect, useCallback, memo, useRef } from 'react';
+import { useState, useEffect, memo, useRef } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import { Source, Layer, Marker } from 'react-map-gl/maplibre';
 import type { LineLayerSpecification } from 'maplibre-gl';

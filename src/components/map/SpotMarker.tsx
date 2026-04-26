@@ -182,7 +182,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   verdict,
   windKt,
   waveHeight,
-  wavePeriod,
+  wavePeriod: _wavePeriod,
   isActive,
   isLoading,
   onSelect,

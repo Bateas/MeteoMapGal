@@ -24,7 +24,6 @@ import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { NormalizedReading } from '../types/station';
 import type { AlertLevel } from '../types/campo';
 import type { UnifiedAlert } from '../services/alertService';
-import { angleDifference } from './windUtils';
 import { fastDistanceKm } from './idwInterpolation';
 
 // ── Types ────────────────────────────────────────────────────
@@ -57,7 +56,6 @@ export interface MaritimeFogRisk {
 
 /** Onshore wind directions for Galician Atlantic coast (SW through NW) */
 const ONSHORE_DIR_MIN = 180; // S
-const ONSHORE_DIR_MAX = 360; // N (via W)
 
 /** Wind speed sweet spot for advection fog (m/s) */
 const MIN_WIND_FOR_ADVECTION = 1.0;

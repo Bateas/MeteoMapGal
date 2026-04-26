@@ -108,14 +108,8 @@ function parseSearchParams(url: URL): Record<string, string> {
 }
 
 // ── Input validation ──────────────────────────────────
-const VALID_SECTORS = new Set(['embalse', 'rias']);
 const VALID_SOURCES = new Set(['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx']);
 const STATION_ID_RE = /^[a-zA-Z0-9_-]{2,50}$/;
-
-function validateSector(sector: string | undefined): string | null {
-  if (!sector) return null;
-  return VALID_SECTORS.has(sector) ? sector : null;
-}
 
 function validateStationId(id: string | undefined): string | null {
   if (!id) return null;

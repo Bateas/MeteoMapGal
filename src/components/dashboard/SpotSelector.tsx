@@ -13,7 +13,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
-import type { SpotScore, SpotVerdict, SpotThermalContext } from '../../services/spotScoringEngine';
+import type { SpotScore, SpotThermalContext } from '../../services/spotScoringEngine';
 import type { SpotWindowResult } from '../../services/sailingWindowService';
 import type { HourlyForecast } from '../../types/forecast';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
@@ -65,7 +65,6 @@ export const SpotSelector = memo(function SpotSelector() {
 
   // Wind info for header
   const windKt = activeScore?.wind?.avgSpeedKt;
-  const windDir = activeScore?.wind?.dominantDir;
 
   return (
     <div className={`rounded-lg border ${v.border} ${v.bg} transition-all`}>
@@ -143,7 +142,7 @@ export const SpotSelector = memo(function SpotSelector() {
 // ── Per-spot card ─────────────────────────────────────────────────
 
 function SpotCard({
-  spotId,
+  spotId: _spotId,
   icon,
   name,
   description,

@@ -16,7 +16,7 @@ const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', feature
  * 4. Click handler for custom zone drawing
  */
 export const RegattaOverlay = memo(function RegattaOverlay() {
-  const { active, showZoneSelector, drawingPhase, firstCorner, zone, zonePolygon, buoyMarkers } = useRegattaStore();
+  const { active, showZoneSelector, drawingPhase, firstCorner, zonePolygon, buoyMarkers } = useRegattaStore();
   const activeSector = useSectorStore((s) => s.activeSector);
   const { current: mapRef } = useMap();
 

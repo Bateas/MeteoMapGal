@@ -19,15 +19,6 @@ const BASE_URL = 'https://api.weather.com';
 
 // ── Types ────────────────────────────────────────────────
 
-interface WUNearbyStation {
-  stationId: string;
-  stationName: string | null;
-  latitude: number;
-  longitude: number;
-  distanceKm: number;
-  qcStatus: number; // -1=unchecked, 0=failed, 1=passed
-}
-
 interface WUObservation {
   stationID: string;
   obsTimeUtc: string;

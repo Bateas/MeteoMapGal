@@ -2,8 +2,6 @@ import { memo, useEffect, useState } from 'react';
 import { useRegattaStore } from '../../store/regattaStore';
 import { fetchOpenMeteoForecast } from '../../api/openMeteoClient';
 import { msToKnots } from '../../services/windUtils';
-import type { ForecastPoint } from '../../api/openMeteoClient';
-
 interface TimeSlot {
   hour: string; // "14h"
   windKt: number;
@@ -38,7 +36,7 @@ const LEVEL_COLORS = {
 export const RegattaTimeline = memo(function RegattaTimeline() {
   const { active, zone } = useRegattaStore();
   const [slots, setSlots] = useState<TimeSlot[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
 
   useEffect(() => {
     if (!active || !zone) return;

@@ -36,7 +36,6 @@ import { TemperatureToggle } from './TemperatureToggle';
 const BathymetryOverlay = lazy(() => import('./BathymetryOverlay').then(m => ({ default: m.BathymetryOverlay })));
 const SSTOverlay = lazy(() => import('./SSTOverlay').then(m => ({ default: m.SSTOverlay })));
 import { SSTLegend } from './SSTLegend';
-import { SpotScoreLegend } from './SpotScoreLegend';
 import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { MapStyleSelector } from './MapStyleSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
@@ -215,7 +214,6 @@ export function WeatherMap() {
   // Track zoom level for label visibility — quantized to visual breakpoints
   // to avoid re-rendering ~84 markers on every 0.1 zoom change
   const [zoomLevel, setZoomLevel] = useState(activeSector.initialView.zoom);
-  const showStationLabels = zoomLevel >= 11;
   const quantizeZoom = useCallback((z: number) => {
     // Only 4 breakpoints matter: <9.5, 9.5-11, 11-12, >=12
     if (z < 9.5) return 9;

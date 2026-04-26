@@ -914,7 +914,6 @@ function WindStatusCard({
 
   // Zones with wind data
   const zonesWithWind = zoneSummaries.filter((z) => z.stationCount > 0);
-  const agreeingZones = zoneSummaries.filter((z) => z.agrees);
 
   return (
     <div

@@ -74,7 +74,7 @@ export function logReadings(readings: NormalizedReading[]): void {
 
   try {
     localStorage.setItem(STORAGE_KEY, pruned);
-  } catch (e) {
+  } catch {
     // localStorage full - prune more aggressively
     console.warn('[DataLogger] Storage full, pruning to 30 days');
     const aggressivePrune = pruneOldData(existing, 30);
