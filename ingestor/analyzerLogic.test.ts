@@ -42,16 +42,6 @@ const castrelo: SpotDef = {
   thermalDetection: true,
 };
 
-const ciesRia: SpotDef = {
-  id: 'cies-ria',
-  name: 'Cies-Ria',
-  lat: 42.22,
-  lon: -8.87,
-  sector: 'rias',
-  radiusKm: 12,
-  thermalDetection: false,
-};
-
 function makeReading(overrides: Partial<StationReading> = {}): StationReading {
   return {
     station_id: 'mg_test',

@@ -13,11 +13,9 @@ import { log } from './logger.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { dispatchSpotAlert, dispatchForecastAlert } from './alertDispatcher.js';
-import { haversineDistance } from '../src/services/geoUtils.js';
 import { degreesToCardinal } from '../src/services/windUtils.js';
 import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import {
-  windVerdict,
   scoreSpot,
   VERDICT_LABEL,
   ALERT_VERDICTS,
@@ -111,7 +109,7 @@ async function getLatestBuoyWinds(): Promise<BuoyWind[]> {
       lat: BUOY_COORDS[r.station_id]?.lat ?? 0,
       lon: BUOY_COORDS[r.station_id]?.lon ?? 0,
     }));
-  } catch (err) {
+  } catch {
     return [];
   }
 }
