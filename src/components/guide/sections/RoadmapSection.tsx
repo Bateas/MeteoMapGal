@@ -124,26 +124,40 @@ export function RoadmapSection() {
           </div>
         </div>
 
-        {/* Open source note */}
-        <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50">
+        {/* Atribuciones obligatorias + nota de uso */}
+        <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50 space-y-2">
           <p className="text-[11px] text-slate-400">
-            <strong className="text-slate-300">Código abierto:</strong> MeteoMapGal es un proyecto open source
-            basado íntegramente en datos abiertos. Todas las licencias utilizadas (MIT, BSD, Apache)
-            son libres — permiten su uso, modificación y distribución sin restricciones.
-            {' '}
+            <strong className="text-slate-300">Atribuciones:</strong>{' '}
+            © AEMET (CC BY 4.0) · © MeteoGalicia – Xunta de Galicia (CC BY 4.0) ·{' '}
+            Datos de Puertos del Estado · © Instituto Hidrográfico de la Marina ·{' '}
+            E.U. Copernicus Marine Service (CMEMS) · © EMODnet Bathymetry (CC BY 4.0) ·{' '}
+            Modelo SWAN — CESGA · INTECMAR / RADAR ON RAIA · ENAIRE / AESA ·{' '}
+            © Meteoclimatic · Powered by Weather Underground® · Powered by Netatmo ·{' '}
+            Open-Meteo.com (CC BY 4.0) · RainViewer.com · meteo2api ·{' '}
+            © OpenStreetMap contributors · © CARTO · © IGN España (CC BY 4.0) ·{' '}
+            AWS Open Data (Mapzen Terrarium) · Noto Sans © Google (OFL).
+          </p>
+          <p className="text-[11px] text-amber-400/90">
+            <strong>NO APTO PARA NAVEGACIÓN MARÍTIMA NI AÉREA.</strong>{' '}
+            Cartas náuticas, mareas, boyas y zonas aéreas son visualización ilustrativa.
+            Use siempre datos oficiales para decisiones operativas.
+          </p>
+          <p className="text-[11px] text-slate-400">
+            <strong className="text-slate-300">Licencia software:</strong>{' '}
             <a
               href="https://github.com/Bateas/MeteoMapGal"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
-            >Ver en GitHub</a>
+            >MIT (código)</a>. Cada fuente de datos retiene su propia licencia — algunas
+            requieren autorización para uso comercial. Proyecto sin ánimo de lucro.
             {' · '}
             <a
               href="https://github.com/Bateas/MeteoMapGal/issues"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
-            >Reportar bug / Sugerencias</a>
+            >Reportar bug</a>
           </p>
         </div>
 
