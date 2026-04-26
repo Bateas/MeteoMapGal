@@ -159,6 +159,8 @@ export const MeteoGuide = memo(function MeteoGuide() {
               </div>
               <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
                 MeteoMapGal es gratuito y open source. Si te resulta útil, puedes apoyar su desarrollo.
+                Las donaciones son <strong className="text-slate-400">voluntarias y sin contraprestación</strong>:
+                cubren coste de servidor + tiempo. La app y los datos seguirán siendo libres y gratuitos.
               </p>
               <a
                 href="https://ko-fi.com/bateas"
