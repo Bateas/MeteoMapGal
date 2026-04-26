@@ -101,8 +101,13 @@ function sampleFogZonesLocal(
       const distFactor = linearDist * linearDist; // quadratic → sharper falloff, less bleed
       // Water = max altitude factor (1.0). Land = falls with elevation.
       const altFactor = isWater ? 1.0 : (1.0 - elev / maxAltitude);
-      const density = Math.min(1.0, distFactor * 0.8 + altFactor * 0.2);
-      if (density < 0.08) continue; // skip cells too transparent to see
+      const rawDensity = Math.min(1.0, distFactor * 0.8 + altFactor * 0.2);
+      if (rawDensity < 0.08) continue; // skip cells too transparent to see
+      // S123: discretize density into 4 buckets (0.25/0.5/0.75/1.0). Adjacent cells
+      // sharing the same bucket get identical fill-opacity → MapLibre merges them
+      // without visible seams (the "tile mosaic" artifact disappears within rings).
+      // Trade-off: stepped gradient instead of smooth, but visually much cleaner.
+      const density = Math.round(rawDensity * 4) / 4;
 
       const x1 = bbox.west + col * cellW;
       const x2 = x1 + cellW;
