@@ -27,7 +27,7 @@ export function RoadmapSection() {
         <TimelineGroup label="Últimas novedades" dotColor="bg-emerald-500" textColor="text-emerald-400" />
         <TimelineMilestone iconId="sailboat" title="13 spots con veredicto automático" desc="10 de vela + 3 de surf. Scoring basado en 100+ estaciones y 13 boyas marinas." status="done" />
         <TimelineMilestone iconId="waves" title="Previsión de olas 24h" desc="Altura, período, tendencia y veredicto de surf (FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE)." status="done" />
-        <TimelineMilestone iconId="camera" title="20 webcams con visión IA" desc="19 cámaras MeteoGalicia + webcam propia ESP32-CAM en Castrelo. Análisis automático: Beaufort, niebla, visibilidad." status="done" />
+        <TimelineMilestone iconId="camera" title="22 webcams con visión IA" desc="19 cámaras MeteoGalicia + 2 cámaras DGT (Ribadavia, Fea-Arrabaldo) + webcam propia ESP32-CAM en Castrelo. Análisis automático: Beaufort, niebla, visibilidad." status="done" />
         <TimelineMilestone iconId="bell" title="Alertas inteligentes por Telegram" desc="Avisos de cambio de condiciones: viento, niebla, tormentas, olas. Silencio nocturno." status="done" />
         <TimelineMilestone iconId="sailboat" title="Modo Evento para regatas" desc="Zona de agua, panel de seguridad, balizas, mareas, aviación, previsión 6h." status="done" />
         <TimelineMilestone iconId="compass" title="Previsión horaria por spot" desc="Ventana de navegación 48h + mini-timeline 12h directamente en el popup." status="done" />
@@ -86,14 +86,14 @@ export function RoadmapSection() {
             <SourceRow letter="L" name="MeteoGalicia" desc="Red de detección de rayos" color="#f43f5e" />
             <SourceRow letter="E" name="ENAIRE" desc="Espacio aéreo y NOTAMs para drones" color="#6366f1" />
             <SourceRow letter="T" name="IHM / Puertos del Estado" desc="Predicciones de mareas (5 puertos)" color="#14b8a6" />
-            <SourceRow letter="B" name="Puertos del Estado (PORTUS)" desc="Boyas marinas — oleaje, viento, corrientes (12 estaciones)" color="#06b6d4" />
+            <SourceRow letter="B" name="Puertos del Estado (PORTUS) + Obs. Costeiro" desc="13 boyas marinas — oleaje, viento, corrientes, mareas" color="#06b6d4" />
             <SourceRow letter="X" name="Observatorio Costeiro (Xunta)" desc="Boyas suplementarias — humedad, punto de rocío, 10min (6 plataformas)" color="#14b8a6" />
             <SourceRow letter="H" name="RADAR ON RAIA (INTECMAR)" desc="Corrientes superficiales — radar HF costero, actualización horaria" color="#0ea5e9" />
             <SourceRow letter="C" name="CMEMS / Copernicus Marine" desc="Temperatura superficial del mar (SST) — WMTS tiles" color="#0d9488" />
             <SourceRow letter="D" name="EMODnet" desc="Batimetría — profundidades marinas WMS" color="#475569" />
             <SourceRow letter="N" name="NOAA" desc="Índices NAO/AO — teleconexiones atlánticas" color="#059669" />
             <SourceRow letter="I" name="IGN" desc="Cartografía: ortofotos PNOA, sombreado MDT, curvas de nivel" color="#7c3aed" />
-            <SourceRow letter="W" name="MeteoGalicia Webcams" desc="19 camaras costeras publicas (imagenes cada 5 min)" color="#3b82f6" />
+            <SourceRow letter="W" name="MeteoGalicia Webcams" desc="19 camaras costeras publicas (imagenes cada 5 min) + 2 DGT" color="#3b82f6" />
             <SourceRow letter="D" name="DGT Webcams" desc="Camaras de trafico (Ribadavia, Fea-Arrabaldo) — validacion de niebla interior" color="#64748b" />
             <SourceRow letter="O" name="Open-Meteo Marine" desc="Previsión horaria de oleaje y swell (48h)" color="#06b6d4" />
             <SourceRow letter="V" name="MeteoGalicia Avisos" desc="Avisos adversos oficiales — tormentas, oleaje, viento, lluvia (RSS)" color="#eab308" />
@@ -117,8 +117,8 @@ export function RoadmapSection() {
             </div>
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
-              <span className="text-slate-500">19 webcams + IA</span>
-              <span className="text-slate-500">260 tests</span>
+              <span className="text-slate-500">22 webcams + IA</span>
+              <span className="text-slate-500">656 tests</span>
               <span className="text-slate-500">TimescaleDB 24/7</span>
             </div>
           </div>
