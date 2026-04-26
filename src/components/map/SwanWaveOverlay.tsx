@@ -150,7 +150,7 @@ function SwanWaveOverlayInner() {
       </Source>
 
       {/* Desktop: horizontal time slider + legend panel */}
-      {!isMobile && showSwan && (
+      {!isMobile && showSwan && isActive && (
         <div
           className="absolute z-30 bottom-8 left-1/2 -translate-x-1/2 w-80 bg-slate-900/90 border border-slate-700/50 rounded-lg shadow-lg px-3 py-2"
           style={{ pointerEvents: 'auto' }}
@@ -171,6 +171,23 @@ function SwanWaveOverlayInner() {
               <span>0</span><span>0.5</span><span>1.0</span><span>1.5</span><span>2.0</span><span>3+</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* CESGA SWAN offline notice — overlay still toggled ON but server down.
+          Per-spot wave data is still flowing via Open-Meteo Marine in spot popups. */}
+      {!isMobile && showSwan && !serverUp && (
+        <div
+          className="absolute z-30 bottom-8 left-1/2 -translate-x-1/2 w-80 bg-slate-900/85 border border-amber-500/40 rounded-lg shadow-lg px-3 py-2"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">SWAN no disponible</span>
+          </div>
+          <p className="text-[10.5px] text-slate-400 leading-snug">
+            Modelo CESGA caído. Los datos de oleaje por spot siguen activos vía Open-Meteo Marine
+            (popups de spots y boyas).
+          </p>
         </div>
       )}
 
