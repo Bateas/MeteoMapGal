@@ -452,7 +452,7 @@ function analyzeDayDiagnosis(
   // Compare today's profile to AEMET historical thermal days:
   // Best: Tmax>30, HR<65%, ΔT>20, August, SW wind
   let patternScore = 0;
-  let patternNotes: string[] = [];
+  const patternNotes: string[] = [];
 
   if (deltaT !== null) {
     if (deltaT >= 20) { patternScore += 30; patternNotes.push('ΔT alto'); }

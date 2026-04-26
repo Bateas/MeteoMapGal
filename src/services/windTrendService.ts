@@ -86,7 +86,7 @@ export function analyzeWindTrend(
     const firstDir = dirsWithData[0].windDirection!;
     const lastDir = dirsWithData[dirsWithData.length - 1].windDirection!;
     // Shortest angular difference with sign
-    let diff = ((lastDir - firstDir + 540) % 360) - 180;
+    const diff = ((lastDir - firstDir + 540) % 360) - 180;
     if (Math.abs(diff) > DIR_CHANGE_THRESHOLD) {
       dirTrend = diff > 0 ? 'veering' : 'backing';
     }
