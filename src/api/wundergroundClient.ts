@@ -9,8 +9,10 @@
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { isWithinRadius } from '../services/geoUtils';
 
-// WU public API key — IBM embeds this in wunderground.com source code.
+// WU public API key — PUBLIC, embedded by IBM in wunderground.com source code.
 // Used ONLY for station discovery (location/near). Observations go via ingestor.
+// NOT a credential leak: appears verbatim in any wunderground.com page source.
+// Removing this fallback BROKE discovery (see commits 9f07f33 → 58ea5ca). Do NOT remove.
 const WU_PUBLIC_KEY = 'e1f10a1e78da46f5b10a1e78da96f525';
 const API_KEY = import.meta.env.VITE_WU_API_KEY ?? '';
 const BASE_URL = 'https://api.weather.com';

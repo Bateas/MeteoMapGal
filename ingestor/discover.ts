@@ -121,6 +121,8 @@ function discoverMeteoclimatic(): NormalizedStation[] {
 // ── Weather Underground ───────────────────────────────
 
 async function discoverWunderground(): Promise<NormalizedStation[]> {
+  // WU public API key fallback — IBM-embedded public key (see src/api/wundergroundClient.ts).
+  // NOT a credential leak. Required: removing it breaks discovery (9f07f33 → 58ea5ca).
   const apiKey = process.env.WU_API_KEY || 'e1f10a1e78da46f5b10a1e78da96f525';
   const allStations: NormalizedStation[] = [];
 
@@ -332,6 +334,9 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
 
 // ── SkyX ─────────────────────────────────────────────
 
+// SkyX public auth token — single shared station (Cesantes), not a per-user credential.
+// PUBLIC: token is fetched by the SkyX web client at api.skyxglobal.com on every page load.
+// NOT a credential leak. Anyone can read this from a browser DevTools network panel.
 const SKYX_API = 'https://api.skyxglobal.com';
 const SKYX_SN = 'SKY-100A0B765294EA4';
 const SKYX_AUTH = 'a21bd737-a714-4a5c-9b08-e7d3d2693a51';
