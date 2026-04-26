@@ -558,20 +558,44 @@ export function detectFogBySolarSignature(
   }
   if (!hasInteriorSun) return []; // Generally cloudy/dusk — can't distinguish fog
 
-  // Find coastal/near-coast stations with fog signature
+  // S123: discard the whole signature if active rain detected anywhere — storms produce
+  // the same HR-high + solar-low pattern but it's NOT fog. Even one station reporting
+  // precipitation > 0.1mm in last reading invalidates the signature regionally.
+  let stormPrecipDetected = false;
+  for (const s of stations) {
+    const r = stationReadings.get(s.id);
+    if (r?.precipitation != null && r.precipitation > 0.1) {
+      stormPrecipDetected = true;
+      break;
+    }
+  }
+  if (stormPrecipDetected) return []; // Active rain → it's a storm, not fog
+
+  // Find stations with fog signature — STRICT requirements (S123 anti-storm-confusion):
+  //   1. HR >= 90% (raised from 85% — fog needs near-saturation)
+  //   2. Solar < 300 W/m² (sun blocked = fog candidate)
+  //   3. **Dew point spread T-Td < 2°C** (real fog REQUIRES saturation; storm clouds
+  //      block sun without saturating air → spread stays >3°C)
+  //   4. **No precipitation** at this station (rain ≠ fog)
   const fogStations: { id: string; humidity: number; solar: number; lat: number; lon: number }[] = [];
   for (const s of stations) {
     const r = stationReadings.get(s.id);
     if (!r || r.humidity == null || r.solarRadiation == null) continue;
-    if (r.humidity >= 85 && r.solarRadiation < 300) {
-      fogStations.push({
-        id: s.id,
-        humidity: r.humidity,
-        solar: r.solarRadiation,
-        lat: s.lat,
-        lon: s.lon,
-      });
-    }
+    if (r.humidity < 90) continue;            // raised threshold
+    if (r.solarRadiation >= 300) continue;
+    // Dew point spread check — discriminates fog (saturated) from clouds (dry-ish)
+    if (r.temperature == null || r.dewPoint == null) continue; // need both for spread
+    const spread = r.temperature - r.dewPoint;
+    if (spread >= 2) continue; // air not saturated → not fog (it's storm clouds)
+    // No active precipitation at this exact station
+    if (r.precipitation != null && r.precipitation > 0.1) continue;
+    fogStations.push({
+      id: s.id,
+      humidity: r.humidity,
+      solar: r.solarRadiation,
+      lat: s.lat,
+      lon: s.lon,
+    });
   }
   return fogStations;
 }
