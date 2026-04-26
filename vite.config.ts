@@ -124,6 +124,8 @@ export default defineConfig(({ mode }) => {
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/skyx-api/, ''),
         secure: true,
+        // SkyX public auth — extracted from their own web client (DevTools Network panel).
+        // NOT a credential leak. Single shared Cesantes station, no per-user auth.
         headers: { 'X-Auth': process.env.SKYX_AUTH || 'a21bd737-a714-4a5c-9b08-e7d3d2693a51' },
       },
       '/hfradar-api': {
