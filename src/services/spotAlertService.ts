@@ -53,7 +53,7 @@ const VERDICT_LABEL: Record<SpotVerdict, string> = {
  * Check spot scores for verdict transitions and send alerts.
  * Call this after every scoring cycle.
  */
-export function checkSpotAlerts(scores: Map<string, SpotScore>, sectorName: string): void {
+export function checkSpotAlerts(scores: Map<string, SpotScore>, _sectorName: string): void {
   // Skip in development
   if (import.meta.env.DEV) return;
 
@@ -104,7 +104,7 @@ export function checkSpotAlerts(scores: Map<string, SpotScore>, sectorName: stri
  * Post spot alert to n8n webhook.
  * Reuses the same alert endpoint — n8n can filter by category='spot'.
  */
-async function sendSpotAlert(payload: Record<string, unknown>): Promise<void> {
+async function _sendSpotAlert(payload: Record<string, unknown>): Promise<void> {
   try {
     await fetch(SPOT_ALERT_ENDPOINT, {
       method: 'POST',

@@ -20,7 +20,6 @@ export const StormIndicator = memo(function StormIndicator() {
 
   const hasStorm = stormLevel !== 'none';
   const hasPrediction = prediction.probability >= 25;
-  const isActive = hasStorm || hasPrediction;
   const ageMin = updatedAt ? Math.round((Date.now() - updatedAt.getTime()) / 60_000) : null;
   const fetchAgeMin = lastFetch ? Math.round((Date.now() - lastFetch.getTime()) / 60_000) : null;
   const isStale = fetchAgeMin !== null && fetchAgeMin >= 5;

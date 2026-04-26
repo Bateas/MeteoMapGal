@@ -13,7 +13,7 @@
  * Click NOTAM marker → popup with full NOTAM info.
  */
 
-import { useEffect, useMemo, useState, useCallback, memo } from 'react';
+import { useEffect, useMemo, useState, memo } from 'react';
 import { Source, Layer, Popup, useMap } from 'react-map-gl/maplibre';
 import { useAirspaceStore } from '../../store/airspaceStore';
 import { useUIStore } from '../../store/uiStore';

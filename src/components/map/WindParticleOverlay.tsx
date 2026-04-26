@@ -20,7 +20,6 @@ const SPEED_SCALE_BASE = 0.0006;
 const SPEED_SCALE_REF_ZOOM = 10;
 const LINE_WIDTH_BASE = 1.8;
 const LINE_WIDTH_MAX = 3.5;
-const HEAD_RADIUS = 2.5;
 
 // ── Particle type ──────────────────────────────────────────
 
@@ -191,8 +190,6 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       // Instead: project 4 corners once → linear interpolation per particle = O(1).
       const zoomFactor = Math.pow(2, SPEED_SCALE_REF_ZOOM - map.getZoom());
       const speedScale = SPEED_SCALE_BASE * zoomFactor;
-      const vpW = w / dpr;
-      const vpH = h / dpr;
 
       // Pitch-aware projection strategy:
       // - Low pitch (<15°): fast linear interpolation from 4 corner projections (O(1) per particle)

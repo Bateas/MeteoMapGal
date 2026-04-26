@@ -15,7 +15,6 @@ import {
   solarRadiationIcon,
   pressureColor,
   dewPointSpreadColor,
-  msToKnots,
 } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';

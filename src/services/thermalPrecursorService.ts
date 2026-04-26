@@ -466,16 +466,13 @@ function detectWindDivergence(
 
   if (withWind.length < 2) return empty;
 
-  // Count stations in thermal sector vs not
+  // Count stations in thermal sector
   let thermalCount = 0;
-  let otherCount = 0;
 
   for (const s of withWind) {
     const r = readings.get(s.id)!;
     if (angleDifference(r.windDirection!, THERMAL_DIR_CENTER) <= THERMAL_DIR_TOLERANCE) {
       thermalCount++;
-    } else {
-      otherCount++;
     }
   }
 

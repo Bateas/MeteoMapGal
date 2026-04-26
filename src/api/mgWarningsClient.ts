@@ -187,7 +187,6 @@ function parseWarningsXML(xml: string): MGWarning[] {
     const item = itemBlock.split('</item>')[0];
     if (!item) continue;
 
-    const title = extractTag(item, 'title') ?? '';
     const link = extractTag(item, 'link') ?? '';
     const pubDateStr = extractTag(item, 'pubDate') ?? '';
     const publishedAt = pubDateStr ? new Date(pubDateStr) : new Date();

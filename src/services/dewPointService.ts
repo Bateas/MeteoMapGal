@@ -305,7 +305,7 @@ export function analyzeFog(
 
   // Consistency bonus: if spread trend is smooth (low variance)
   if (trendSeries.length >= 4 && spreadTrend !== null) {
-    const predicted = trendSeries.map((p, i) => {
+    const predicted = trendSeries.map((p) => {
       const dt = (p.time.getTime() - trendSeries[0].time.getTime()) / 3_600_000;
       return trendSeries[0].spread + spreadTrend * dt;
     });

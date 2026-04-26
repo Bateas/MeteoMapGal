@@ -6,7 +6,7 @@
  * matched pattern, score, and summary text.
  * Themed per verdict color to match SpotMarker.
  */
-import { memo, useState, useMemo, useEffect, useCallback } from 'react';
+import { memo, useState, useMemo, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
@@ -14,7 +14,7 @@ import { useUIStore } from '../../store/uiStore';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
-import type { SailingSpot, SpotWebcam, WindPattern } from '../../config/spots';
+import type { SailingSpot } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
 import type { WebcamVisionResult } from '../../services/webcamVisionService';
@@ -31,8 +31,8 @@ import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineCl
 import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
 import { useSectorStore } from '../../store/sectorStore';
 import { useAirQualityStore } from '../../store/airQualityStore';
-import { computeSurfVerdict, swellAlignmentMultiplier, type SurfVerdictResult } from '../spot/surfVerdictEngine';
-import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs, dirArrow, azimuthLabel } from '../spot/spotColors';
+import { computeSurfVerdict, swellAlignmentMultiplier } from '../spot/surfVerdictEngine';
+import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
 import { ScoringBreakdown, Cell } from '../spot/ScoringBreakdown';
@@ -1170,7 +1170,7 @@ function TemperatureSection({ score, mohidSeaTemp }: { score: SpotScore; mohidSe
 
 // ── Share button — Web Share API with clipboard fallback ──────────
 
-function ShareButton({ spot, score, verdict, vs }: {
+function ShareButton({ spot, score, verdict: _verdict, vs }: {
   spot: SailingSpot;
   score?: SpotScore;
   verdict: SpotVerdict;

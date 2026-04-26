@@ -107,7 +107,6 @@ const stationSubLabelLayer: LayerProps = {
 
 export const TemperatureOverlay = memo(function TemperatureOverlay() {
   const showOverlay = useTemperatureOverlayStore((s) => s.showOverlay);
-  const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const buoys = useBuoyStore((s) => s.buoys);

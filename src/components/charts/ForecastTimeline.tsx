@@ -2,17 +2,17 @@ import { useMemo, useState, useEffect } from 'react';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useThermalStore } from '../../store/thermalStore';
 import { useSectorStore } from '../../store/sectorStore';
-import { msToKnots, degreesToCardinal, windSpeedColor, isDirectionInRange, angleDifference } from '../../services/windUtils';
+import { msToKnots, degreesToCardinal, windSpeedColor, angleDifference } from '../../services/windUtils';
 import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { scoreForecastThermal, thermalColor, thermalBg } from '../../services/forecastScoringUtils';
-import type { ThermalScore, ForecastBreakdown } from '../../services/forecastScoringUtils';
+import type { ThermalScore } from '../../services/forecastScoringUtils';
 import { ForecastTable } from './ForecastTable';
 import { ForecastMeteogram } from './ForecastMeteogram';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import { FORECAST_MODELS } from '../../types/forecast';
-import type { HourlyForecast, ForecastModel } from '../../types/forecast';
+import type { HourlyForecast } from '../../types/forecast';
 import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
 import type { ThermalWindRule } from '../../types/thermal';
 import { useWeatherStore } from '../../store/weatherStore';
@@ -507,7 +507,7 @@ function analyzeDayDiagnosis(
   };
 }
 
-function DiagnosisPanel({ diag, deltaT }: { diag: DayDiagnosis; deltaT: number | null }) {
+function DiagnosisPanel({ diag, deltaT: _deltaT }: { diag: DayDiagnosis; deltaT: number | null }) {
   const sun = useMemo(() => getSunTimes(), []);
   const pressureIcon = diag.pressureTrend === 'rising' ? '\u2197' : diag.pressureTrend === 'falling' ? '\u2198' : '\u2192';
   const pressureColor = diag.pressureTrend === 'rising' ? '#22c55e' : diag.pressureTrend === 'falling' ? '#ef4444' : '#64748b';

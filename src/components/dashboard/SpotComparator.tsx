@@ -12,7 +12,7 @@ import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
 import { VERDICT_STYLE, VERDICT_HEX } from '../../config/verdictStyles';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
-import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
+import type { SpotVerdict } from '../../services/spotScoringEngine';
 
 export const SpotComparator = memo(function SpotComparator() {
   const sectorId = useSectorStore((s) => s.activeSector.id);

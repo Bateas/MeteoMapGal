@@ -75,7 +75,7 @@ export function StationSymbolLayer({
   readings,
   selectedStationId,
   onSelectStation,
-  zoomLevel,
+  zoomLevel: _zoomLevel,
 }: StationSymbolLayerProps) {
   const { current: mapRef } = useMap();
 

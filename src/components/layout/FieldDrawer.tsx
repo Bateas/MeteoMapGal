@@ -4,7 +4,7 @@
  * Overlays the map. Doesn't touch the sidebar.
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { FieldAlerts, AlertLevel } from '../../types/campo';
 import type { HourlyForecast } from '../../types/forecast';
@@ -13,7 +13,6 @@ import { checkFrost, checkRainHail } from '../../services/fieldAlertEngine';
 import { useUIStore } from '../../store/uiStore';
 import { useAirspaceStore } from '../../store/airspaceStore';
 import { useAlertStore } from '../../store/alertStore';
-import type { AlertHistoryEntry } from '../../store/alertStore';
 import type { NotamSummary } from '../../services/airspaceService';
 import { SkeletonLoader } from '../common/SkeletonLoader';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -26,7 +25,6 @@ import { useStormPrediction } from '../../hooks/useStormPrediction';
 import type { StormPrediction, StormSignal } from '../../services/stormPredictor';
 import { useWarningsStore } from '../../hooks/useWarnings';
 import { warningLevelColor, classifyWarningType } from '../../api/mgWarningsClient';
-import type { MGWarning } from '../../api/mgWarningsClient';
 
 // Lazy-load heavy dashboard components (~400 lines each)
 const TidePanel = lazy(() => import('../dashboard/TidePanel').then(m => ({ default: m.TidePanel })));
@@ -552,7 +550,6 @@ function FogSection({ alerts }: { alerts: FieldAlerts }) {
 
 function WindStatusSection({ alerts }: { alerts: FieldAlerts }) {
   const windStatus = useThermalStore((s) => s.windStatus);
-  const zones = useThermalStore((s) => s.zones);
 
   const consensus = windStatus?.consensus ?? null;
   const trend = windStatus?.trend ?? null;
