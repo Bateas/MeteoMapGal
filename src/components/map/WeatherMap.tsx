@@ -22,6 +22,7 @@ const LightningOverlay = lazy(() => import('./LightningOverlay').then(m => ({ de
 const StormClusterOverlay = lazy(() => import('./StormClusterOverlay').then(m => ({ default: m.StormClusterOverlay })));
 const FogOverlay = lazy(() => import('./FogOverlay').then(m => ({ default: m.FogOverlay })));
 const WindRampOverlay = lazy(() => import('./WindRampOverlay').then(m => ({ default: m.WindRampOverlay })));
+const HazeOverlay = lazy(() => import('./HazeOverlay').then(m => ({ default: m.HazeOverlay })));
 const UpwellingOverlay = lazy(() => import('./UpwellingOverlay').then(m => ({ default: m.UpwellingOverlay })));
 const SwanWaveOverlay = lazy(() => import('./SwanWaveOverlay').then(m => ({ default: m.SwanWaveOverlay })));
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
@@ -487,6 +488,9 @@ export function WeatherMap() {
       <MapContextMenu mapRef={mapRef} />
 
       {/* HTML overlays on top of map */}
+      {/* Haze/calima overlay — DOM tint outside <Map>, auto-activates on Saharan dust */}
+      <Suspense fallback={null}><HazeOverlay /></Suspense>
+
       <SectorSelector />
       <MapStyleSelector />
       <SSTLegend />

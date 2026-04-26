@@ -14,6 +14,10 @@ export interface AirQualityCurrent {
   uvIndex: number;
   pm2_5: number;
   europeanAqi: number;
+  /** Saharan dust concentration μg/m³ (calima indicator) */
+  dust: number;
+  /** Atmospheric aerosol optical depth (0-3, higher = hazier) */
+  aerosolOpticalDepth: number;
   fetchedAt: number;
 }
 
@@ -37,7 +41,7 @@ export async function fetchAirQualityCurrent(
       ).catch(() => null),
       openMeteoFetch(
         `${AQ_BASE}?latitude=${lat}&longitude=${lon}` +
-        `&current=pm2_5,european_aqi&timezone=Europe%2FMadrid&forecast_days=1`
+        `&current=pm2_5,european_aqi,dust,aerosol_optical_depth&timezone=Europe%2FMadrid&forecast_days=1`
       ).catch(() => null),
     ]);
 
@@ -48,6 +52,8 @@ export async function fetchAirQualityCurrent(
       uvIndex: uvData?.current?.uv_index ?? 0,
       pm2_5: aqData?.current?.pm2_5 ?? 0,
       europeanAqi: aqData?.current?.european_aqi ?? 0,
+      dust: aqData?.current?.dust ?? 0,
+      aerosolOpticalDepth: aqData?.current?.aerosol_optical_depth ?? 0,
       fetchedAt: Date.now(),
     };
   } catch (err) {
