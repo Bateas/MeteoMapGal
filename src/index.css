@@ -448,6 +448,29 @@ body {
   animation: slide-out-down 0.2s ease-in forwards;
 }
 
+/* Lightning strike ripple — concentric rings expanding outward over 3s.
+   Triggered per strike id by LightningRippleOverlay. Outer ring leads,
+   inner ring trails (creates a trailing-shockwave feel). */
+@keyframes lightning-ripple-outer {
+  0%   { r: 2; opacity: 0.85; }
+  60%  { r: 38; opacity: 0.55; }
+  100% { r: 56; opacity: 0; }
+}
+@keyframes lightning-ripple-inner {
+  0%   { r: 2; opacity: 0.95; }
+  60%  { r: 22; opacity: 0.65; }
+  100% { r: 42; opacity: 0; }
+}
+@keyframes lightning-ripple-core {
+  0%   { r: 3; opacity: 1; }
+  20%  { r: 5; opacity: 1; }
+  100% { r: 1; opacity: 0; }
+}
+@keyframes lightning-ripple-fade {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* Shimmer sweep — subtle highlight for active GO / critical badges */
 @keyframes shimmer {
   0% { background-position: -200% center; }
