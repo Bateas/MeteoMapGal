@@ -1,6 +1,6 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.59.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.59.2-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![CI](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml/badge.svg)](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-812%20passed-brightgreen)](src/test/)
