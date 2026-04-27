@@ -289,8 +289,43 @@ CREATE TABLE IF NOT EXISTS active_fires (
 SELECT create_hypertable('active_fires', 'time', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_fires_loc ON active_fires (lat, lon);
 
+-- ── Upper-air sounding (S125 Phase 1b TIER 1 — sinóptica) ────────
+-- Wind + temperature at standard pressure levels (850/700/500 hPa) per
+-- sector. Data from Open-Meteo `hourly=wind_speed_850hPa,...`. Hourly cadence
+-- per sector × 3 levels = ~144 rows/day, ~5MB/year. Kept forever — this is
+-- the synoptic spine of the historical dataset (without aloft wind we cannot
+-- correlate "where lightning forms" with "what the atmosphere is doing").
+CREATE TABLE IF NOT EXISTS upper_air_hourly (
+  time            TIMESTAMPTZ      NOT NULL,
+  sector          TEXT             NOT NULL,
+  pressure_hpa    SMALLINT         NOT NULL,        -- 850 | 700 | 500
+  wind_dir_deg    REAL,                             -- meteorological "from"
+  wind_speed_ms   REAL,
+  temperature_c   REAL,
+  geopotential_m  REAL,                             -- height of the pressure level (m)
+  PRIMARY KEY (time, sector, pressure_hpa)
+);
+SELECT create_hypertable('upper_air_hourly', 'time', if_not_exists => TRUE);
+
+-- ── Convection indices per sector (S125 Phase 1b TIER 1) ─────────
+-- Persists the CAPE/CIN/LI/PWAT we already fetch for the storm predictor
+-- but currently throw away after each cycle. Required for predictor
+-- calibration: "when CAPE > X and LI < -Y, did lightning ACTUALLY occur?"
+CREATE TABLE IF NOT EXISTS convection_hourly (
+  time            TIMESTAMPTZ      NOT NULL,
+  sector          TEXT             NOT NULL,
+  cape            REAL,                             -- J/kg, surface-based
+  cin             REAL,                             -- J/kg, convective inhibition
+  lifted_index    REAL,                             -- LI dimensionless
+  precipitable_water REAL,                          -- PWAT mm, total atmospheric column
+  boundary_layer_m   REAL,                          -- BL height m
+  PRIMARY KEY (time, sector)
+);
+SELECT create_hypertable('convection_hourly', 'time', if_not_exists => TRUE);
+
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
 -- SELECT add_retention_policy('alerts', INTERVAL '1 year', if_not_exists => TRUE);
 -- SELECT add_retention_policy('webcam_readings', INTERVAL '6 months', if_not_exists => TRUE);
--- Lightning + fires kept FOREVER (foundation of historical pattern dataset)
+-- Lightning + fires + upper_air + convection kept FOREVER (foundation of
+-- historical pattern dataset — these tables are the substrate, not derived)
