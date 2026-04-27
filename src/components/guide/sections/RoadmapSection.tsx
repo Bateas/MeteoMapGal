@@ -46,6 +46,8 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="info" title="Aviso cuando el modelo SWAN cae" desc="El servidor académico CESGA falla a menudo. Ahora se muestra una nota clara cuando el overlay no puede cargar — los datos por spot siguen vía Open-Meteo Marine en los popups." status="done" />
         <TimelineMilestone iconId="zap" title="Incendios activos en tiempo real" desc="Detección de focos de incendio vía satélite NASA FIRMS (VIIRS 375m, latencia ≤1h). Cobertura Galicia + Asturias W + Norte Portugal. Puntos rojos pulsantes en el mapa, tamaño según intensidad calorífica (FRP). Aviso en ticker cuando hay focos activos." status="done" />
         <TimelineMilestone iconId="info" title="Calidad del aire oficial Xunta" desc="Datos de la Rede Galega de Calidade do Aire (MeteoGalicia ICA). Cuando alguna estación marca calidad deficiente o peor, el ticker la nombra junto con el contaminante responsable (O3, PM10, NO2, etc). Sustituye a Open-Meteo en Galicia." status="done" />
+        <TimelineMilestone iconId="cloud" title="Penachos de humo direccionales" desc="Cuando hay fuegos activos, se dibuja un cono marrón corriente abajo del foco con la dirección y velocidad del viento real de la estación más cercana. La longitud crece con la intensidad del foco (FRP). Físicamente coherente: si el viento es flojo no aparece, si cambia el viento el penacho rota." status="done" />
+        <TimelineMilestone iconId="cloud" title="Halo de niebla en estaciones AEMET" desc="Cuando un aeropuerto o estación oficial AEMET reporta visibilidad &lt;2km, aparece un halo blanco-azulado a su alrededor. Constreñido a la cota baja de la propia estación: nunca pinta cumbres. Sólo se ve cuando hay datos oficiales que lo confirman." status="done" />
 
         {/* ── Proximamente ── */}
         <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
@@ -124,7 +126,7 @@ export function RoadmapSection() {
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
               <span className="text-slate-500">22 webcams + IA</span>
-              <span className="text-slate-500">703 tests</span>
+              <span className="text-slate-500">757 tests</span>
               <span className="text-slate-500">TimescaleDB 24/7</span>
             </div>
           </div>

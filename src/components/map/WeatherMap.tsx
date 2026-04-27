@@ -25,6 +25,7 @@ const WindRampOverlay = lazy(() => import('./WindRampOverlay').then(m => ({ defa
 const HazeOverlay = lazy(() => import('./HazeOverlay').then(m => ({ default: m.HazeOverlay })));
 const FireOverlay = lazy(() => import('./FireOverlay').then(m => ({ default: m.FireOverlay })));
 const SmokePlumeOverlay = lazy(() => import('./SmokePlumeOverlay').then(m => ({ default: m.SmokePlumeOverlay })));
+const AemetVisibilityHalo = lazy(() => import('./AemetVisibilityHalo').then(m => ({ default: m.AemetVisibilityHalo })));
 const UpwellingOverlay = lazy(() => import('./UpwellingOverlay').then(m => ({ default: m.UpwellingOverlay })));
 const SwanWaveOverlay = lazy(() => import('./SwanWaveOverlay').then(m => ({ default: m.SwanWaveOverlay })));
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
@@ -424,6 +425,10 @@ export function WeatherMap() {
 
         {/* Fog overlay — terrain-based valley fill when fog detected */}
         <Suspense fallback={null}><FogOverlay /></Suspense>
+
+        {/* Official AEMET visibility halo — pale glow at airports/coastal stations
+            reporting vis<2km. DEM-aware: only paints valley/coast, not hilltops. */}
+        <Suspense fallback={null}><AemetVisibilityHalo /></Suspense>
 
         {/* Wind ramp pulse — stations glow when wind increases +6kt/30min */}
         <Suspense fallback={null}><WindRampOverlay /></Suspense>
