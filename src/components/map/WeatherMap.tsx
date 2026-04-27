@@ -26,6 +26,7 @@ const HazeOverlay = lazy(() => import('./HazeOverlay').then(m => ({ default: m.H
 const FireOverlay = lazy(() => import('./FireOverlay').then(m => ({ default: m.FireOverlay })));
 const SmokePlumeOverlay = lazy(() => import('./SmokePlumeOverlay').then(m => ({ default: m.SmokePlumeOverlay })));
 const AemetVisibilityHalo = lazy(() => import('./AemetVisibilityHalo').then(m => ({ default: m.AemetVisibilityHalo })));
+const LightningRippleOverlay = lazy(() => import('./LightningRippleOverlay').then(m => ({ default: m.LightningRippleOverlay })));
 const UpwellingOverlay = lazy(() => import('./UpwellingOverlay').then(m => ({ default: m.UpwellingOverlay })));
 const SwanWaveOverlay = lazy(() => import('./SwanWaveOverlay').then(m => ({ default: m.SwanWaveOverlay })));
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
@@ -450,6 +451,9 @@ export function WeatherMap() {
 
         {/* Lightning strikes overlay */}
         <Suspense fallback={null}><LightningOverlay /></Suspense>
+
+        {/* Ripple animation on every NEW lightning strike (last 30s) */}
+        <Suspense fallback={null}><LightningRippleOverlay /></Suspense>
 
         {/* AEMET Radar nacional — includes Cerceda/A Coruña */}
         <Suspense fallback={null}><RadarOverlay /></Suspense>
