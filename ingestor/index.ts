@@ -18,6 +18,7 @@ import { log } from './logger.js';
 import { checkAndSendDailySummary } from './dailySummary.js';
 import { runAnalysis } from './analyzer.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
+import { runLightningCycle } from './lightningFetcher.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -33,6 +34,7 @@ const DISCOVER_MS = DISCOVER_INTERVAL_MIN * 60_000;
 let stations = new Map<string, NormalizedStation>();
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let discoverTimer: ReturnType<typeof setInterval> | null = null;
+let lightningTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -151,6 +153,17 @@ async function start(): Promise<void> {
     rediscover().catch((err) => log.error('Discover timer error:', (err as Error).message));
   }, DISCOVER_MS);
 
+  // Lightning fetcher (S125 historical-data Phase 1a) — independent 5min poll.
+  // Decoupled from the main weather cycle so a slow station fetch never delays
+  // strike persistence (real-time forensics matter for the lightning data).
+  // First run after 30s stagger so it doesn't pile on top of the initial cycle.
+  setTimeout(() => {
+    runLightningCycle().catch((err) => log.error('[Lightning] init err:', (err as Error).message));
+  }, 30_000);
+  lightningTimer = setInterval(() => {
+    runLightningCycle().catch((err) => log.error('[Lightning] timer err:', (err as Error).message));
+  }, 5 * 60_000);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -165,6 +178,7 @@ async function shutdown(signal: string): Promise<void> {
   // Clear timers
   if (pollTimer) clearInterval(pollTimer);
   if (discoverTimer) clearInterval(discoverTimer);
+  if (lightningTimer) clearInterval(lightningTimer);
 
   // Close database pool
   await closePool();

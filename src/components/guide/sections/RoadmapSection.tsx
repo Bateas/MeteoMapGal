@@ -50,6 +50,7 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="cloud" title="Halo de niebla en estaciones AEMET" desc="Cuando un aeropuerto o estación oficial AEMET reporta visibilidad &lt;2km, aparece un halo blanco-azulado a su alrededor. Constreñido a la cota baja de la propia estación: nunca pinta cumbres. Sólo se ve cuando hay datos oficiales que lo confirman." status="done" />
         <TimelineMilestone iconId="zap" title="Ondas concéntricas en cada rayo nuevo" desc="Cada rayo recién registrado emite una onda animada que se expande durante 3 segundos. Llamada visual urgente: si está cayendo AHORA cerca, se ve sin necesidad de leer ningún texto. Anillo amarillo brillante para los rayos a tierra (más peligrosos), tono más suave para los intra-nube." status="done" />
         <TimelineMilestone iconId="zap" title="Tracker de tormentas más fiable" desc="Auditoría a fondo del cálculo de centroide y dirección. ID estable por núcleo (mismo ID entre polls = mismo storm físico), matching greedy-global sin doble asignación, mediana multi-snapshot de velocidad para suprimir el ruido en clusters pequeños, umbral de match adaptativo. La flecha de avance y el ETA son ahora mucho más estables." status="done" />
+        <TimelineMilestone iconId="zap" title="Histórico de rayos en TimescaleDB" desc="Cada rayo registrado por la red MeteoGalicia se persiste 24/7 en base de datos propia. Primera fase de un dataset histórico riguroso para detectar patrones reales: zonas de mayor incidencia, correlación con dirección de viento, paso de frentes, hora del día. A medida que se acumulen meses se podrán extraer patrones que ningún modelo genérico captura para Galicia." status="done" />
 
         {/* ── Proximamente ── */}
         <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
@@ -128,7 +129,7 @@ export function RoadmapSection() {
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
               <span className="text-slate-500">22 webcams + IA</span>
-              <span className="text-slate-500">781 tests</span>
+              <span className="text-slate-500">796 tests</span>
               <span className="text-slate-500">TimescaleDB 24/7</span>
             </div>
           </div>

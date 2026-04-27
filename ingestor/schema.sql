@@ -251,7 +251,46 @@ CREATE TABLE IF NOT EXISTS storm_predictions (
 );
 SELECT create_hypertable('storm_predictions', 'time', if_not_exists => TRUE);
 
+-- ── Lightning strikes (S125 historical-data-vision Phase 1a) ────
+-- Individual strikes from MeteoGalicia meteo2api raios/lenda.
+-- Persisting raw strikes enables: (a) heatmap of where lightning hits most,
+-- (b) cross-correlation with synoptic flow + fronts + station wind, (c)
+-- calibration of stormPredictor weights from real ground truth.
+-- Volume: ~500/day Galicia typical, ~5000/day extreme storm = ~7.5MB/year.
+CREATE TABLE IF NOT EXISTS lightning_strikes (
+  time           TIMESTAMPTZ     NOT NULL,
+  lat            DOUBLE PRECISION NOT NULL,
+  lon            DOUBLE PRECISION NOT NULL,
+  peak_current   REAL,                       -- kA, signed (positive/negative polarity)
+  cloud_to_cloud BOOLEAN         NOT NULL DEFAULT FALSE,
+  multiplicity   SMALLINT        DEFAULT 1,
+  -- PK gives natural dedup across overlapping polls. lat/lon truncated to ~1m
+  -- precision is more than enough — meteo2api itself emits 5-decimal coords.
+  PRIMARY KEY (time, lat, lon)
+);
+SELECT create_hypertable('lightning_strikes', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_strikes_loc ON lightning_strikes (lat, lon);
+
+-- ── Active fires (S125 historical-data-vision Phase 1a) ─────────
+-- NASA FIRMS VIIRS hotspots persisted from each /api/v1/firms cache miss.
+-- Keys include satellite + acq time so the same physical fire seen by SNPP
+-- and NOAA-20 doesn't get deduped (we want both observations for accuracy).
+CREATE TABLE IF NOT EXISTS active_fires (
+  time           TIMESTAMPTZ     NOT NULL,
+  lat            DOUBLE PRECISION NOT NULL,
+  lon            DOUBLE PRECISION NOT NULL,
+  satellite      TEXT            NOT NULL,
+  brightness     REAL,                        -- bright_ti4, Kelvin
+  frp            REAL,                        -- Fire Radiative Power, MW
+  confidence     TEXT,                        -- 'low' | 'nominal' | 'high'
+  daynight       CHAR(1),
+  PRIMARY KEY (time, lat, lon, satellite)
+);
+SELECT create_hypertable('active_fires', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_fires_loc ON active_fires (lat, lon);
+
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
 -- SELECT add_retention_policy('alerts', INTERVAL '1 year', if_not_exists => TRUE);
 -- SELECT add_retention_policy('webcam_readings', INTERVAL '6 months', if_not_exists => TRUE);
+-- Lightning + fires kept FOREVER (foundation of historical pattern dataset)
