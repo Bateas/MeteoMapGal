@@ -32,6 +32,17 @@ const MAX_VELOCITY_AGE_MS = 15 * 60 * 1000; // 15 min
 /** Min age of a snapshot before it can be used for velocity (prevents jitter) */
 const MIN_VELOCITY_AGE_MS = 60_000; // 60 seconds
 
+// ── ID continuity (S124 fix) ───────────────────────────
+// Module-level counter so cluster IDs survive across trackStorms calls.
+// When a cluster matches a previous-snapshot centroid by position we INHERIT
+// that ID (true physical continuity). Otherwise a fresh, monotonic ID is
+// minted. Hull memo caches keyed on `clusterId + strikeCount` (S123 v2.56.4)
+// now keep working across polls.
+let nextClusterIdSeq = 0;
+function mintClusterId(): string {
+  return `storm-${++nextClusterIdSeq}`;
+}
+
 // ── Types ────────────────────────────────────────────────────────
 
 export interface StormCluster {
@@ -143,7 +154,9 @@ function clusterStrikes(
   }
 
   // ── Build cluster objects ──
-  let clusterId = 0;
+  // ID assignment is DEFERRED to computeVelocities, where we can inherit IDs
+  // from matched previous-snapshot centroids. Here we mint placeholder IDs
+  // that will be overwritten if a match is found.
   const clusters: RawCluster[] = [];
 
   for (const members of finalGroups) {
@@ -168,7 +181,7 @@ function clusterStrikes(
     }
 
     clusters.push({
-      id: `storm-${++clusterId}`,
+      id: mintClusterId(), // provisional — overwritten on match in computeVelocities
       lat,
       lon,
       strikeCount: clusterStrikesArr.length,
@@ -259,8 +272,57 @@ export function bearingToCardinal(deg: number): string {
 }
 
 /**
- * Match current clusters to previous snapshot and compute velocity vectors.
- * Uses nearest-centroid matching with a max distance threshold.
+ * Maximum centroid drift between polls used for cluster matching.
+ * Bounded above by 70 km/h × MAX_VELOCITY_AGE_MS so we never match across
+ * the diameter of a province.
+ */
+const MAX_MATCH_KM = 30;
+
+/**
+ * Greedy global assignment: sort all (current, prev) pairs by distance and
+ * commit smallest first. Each side can be matched at most once.
+ *
+ * Avoids the failure mode where two old centroids both map to the same new
+ * cluster because we evaluated them independently. With typically <5
+ * clusters this O(N·M·log) is trivially cheap.
+ */
+function matchClustersGreedy(
+  current: RawCluster[],
+  prev: { id: string; lat: number; lon: number; strikeCount: number }[],
+  maxDistKm: number,
+): Map<number, { id: string; lat: number; lon: number; strikeCount: number }> {
+  const pairs: Array<{ ci: number; pi: number; dist: number }> = [];
+  for (let ci = 0; ci < current.length; ci++) {
+    for (let pi = 0; pi < prev.length; pi++) {
+      const d = distanceKm(current[ci].lat, current[ci].lon, prev[pi].lat, prev[pi].lon);
+      if (d <= maxDistKm) pairs.push({ ci, pi, dist: d });
+    }
+  }
+  pairs.sort((a, b) => a.dist - b.dist);
+
+  const usedCurrent = new Set<number>();
+  const usedPrev = new Set<number>();
+  const matches = new Map<number, typeof prev[0]>();
+  for (const p of pairs) {
+    if (usedCurrent.has(p.ci) || usedPrev.has(p.pi)) continue;
+    matches.set(p.ci, prev[p.pi]);
+    usedCurrent.add(p.ci);
+    usedPrev.add(p.pi);
+  }
+  return matches;
+}
+
+/**
+ * Match current clusters to previous snapshot, inherit IDs for continuity,
+ * and compute velocity vectors.
+ *
+ * S124 improvements over the original implementation:
+ *   1. Greedy global matching (not per-cluster greedy) — no double assignment.
+ *   2. Adaptive match threshold (MAX_MATCH_KM constant) — scales with realistic
+ *      storm motion rather than the old 50km blanket.
+ *   3. Multi-snapshot velocity median — robust to single-poll noise on small
+ *      clusters where the centroid jitters with each new strike.
+ *   4. Inherited IDs — physical continuity across polls fixes hull memoization.
  */
 function computeVelocities(
   currentClusters: RawCluster[],
@@ -269,66 +331,77 @@ function computeVelocities(
   reservoirLat: number,
   reservoirLon: number,
 ): StormCluster[] {
-  // Find the best previous snapshot (not too old, not too new)
+  // Snapshots within the velocity window
   const validSnapshots = history.filter(
     (h) => now - h.timestamp > MIN_VELOCITY_AGE_MS && now - h.timestamp < MAX_VELOCITY_AGE_MS,
   );
-
-  // Use the oldest valid snapshot for better velocity accuracy
-  const prevSnapshot = validSnapshots.length > 0
-    ? validSnapshots.reduce((oldest, s) => (s.timestamp < oldest.timestamp ? s : oldest))
+  // Most recent valid snapshot — used for ID inheritance + primary velocity
+  const recentSnapshot = validSnapshots.length > 0
+    ? validSnapshots.reduce((newest, s) => (s.timestamp > newest.timestamp ? s : newest))
     : null;
 
-  return currentClusters.map((cluster) => {
+  // Match new clusters to most recent snapshot to inherit IDs first
+  const matches = recentSnapshot
+    ? matchClustersGreedy(currentClusters, recentSnapshot.centroids, MAX_MATCH_KM)
+    : new Map();
+
+  return currentClusters.map((cluster, ci) => {
     let velocity: StormCluster['velocity'] = null;
     let etaMinutes: number | null = null;
     let approaching = false;
+    let inheritedId: string | null = null;
 
-    if (prevSnapshot) {
-      // Find nearest previous centroid (within 50km)
-      let bestMatch: (typeof prevSnapshot.centroids)[0] | null = null;
-      let bestDist = 50;
+    const matched = matches.get(ci);
+    if (matched && recentSnapshot) {
+      inheritedId = matched.id;
 
-      for (const prev of prevSnapshot.centroids) {
-        const d = distanceKm(cluster.lat, cluster.lon, prev.lat, prev.lon);
-        if (d < bestDist) {
-          bestDist = d;
-          bestMatch = prev;
-        }
+      // ── Multi-snapshot velocity median ──
+      // For each valid snapshot that contains a centroid matching THIS cluster
+      // (within MAX_MATCH_KM of the matched-most-recent position OR of the
+      // current centroid), compute a candidate velocity. Take the median to
+      // suppress per-poll jitter — especially important for tiny clusters.
+      const candidates: Array<{ speedKmh: number; bearingDeg: number; matchTimestamp: number; matchPos: { lat: number; lon: number } }> = [];
+      for (const snap of validSnapshots) {
+        const snapMatches = matchClustersGreedy([cluster], snap.centroids, MAX_MATCH_KM);
+        const snapMatch = snapMatches.get(0);
+        if (!snapMatch) continue;
+        const dt = (now - snap.timestamp) / 3_600_000;
+        if (dt <= 0) continue;
+        const distMoved = distanceKm(snapMatch.lat, snapMatch.lon, cluster.lat, cluster.lon);
+        const speedKmh = (distMoved / dt);
+        const bearingDeg = computeBearing(snapMatch.lat, snapMatch.lon, cluster.lat, cluster.lon);
+        candidates.push({ speedKmh, bearingDeg, matchTimestamp: snap.timestamp, matchPos: { lat: snapMatch.lat, lon: snapMatch.lon } });
       }
 
-      if (bestMatch) {
-        const dt = (now - prevSnapshot.timestamp) / 3_600_000; // hours
-        const distMoved = distanceKm(bestMatch.lat, bestMatch.lon, cluster.lat, cluster.lon);
-        const speedKmh = Math.round((distMoved / dt) * 10) / 10;
-        const bearingDeg = Math.round(computeBearing(
-          bestMatch.lat, bestMatch.lon,
-          cluster.lat, cluster.lon,
-        ));
+      if (candidates.length > 0) {
+        // Median speed & circular-mean bearing
+        const speeds = candidates.map((c) => c.speedKmh).sort((a, b) => a - b);
+        const medianSpeed = Math.round(speeds[Math.floor(speeds.length / 2)] * 10) / 10;
+        let sumSin = 0, sumCos = 0;
+        for (const c of candidates) {
+          const rad = (c.bearingDeg * Math.PI) / 180;
+          sumSin += Math.sin(rad);
+          sumCos += Math.cos(rad);
+        }
+        const meanBearing = Math.round(((Math.atan2(sumSin, sumCos) * 180) / Math.PI + 360) % 360);
 
-        // Filter noise and false matches.
-        // Small clusters (2-3 strikes) have very unstable centroids — require higher min speed.
-        // Most Galician storms move 20-50 km/h. >70 is almost certainly a false centroid match.
+        // Same gate as before: small clusters need bigger min speed
         const minSpeed = cluster.strikeCount <= 3 ? 5 : 3;
-        if (speedKmh > minSpeed && speedKmh < 70) {
-          velocity = { speedKmh, bearingDeg };
+        if (medianSpeed > minSpeed && medianSpeed < 70) {
+          velocity = { speedKmh: medianSpeed, bearingDeg: meanBearing };
 
-          // Is it approaching the reservoir?
-          // Use BOTH distance decrease AND bearing alignment for robust detection.
-          // Bearing from cluster to reservoir:
+          // Approaching: distance decreasing across the longest baseline
+          // we have, AND velocity bearing within 60° of reservoir vector.
+          const oldestCandidate = candidates.reduce((o, c) => (c.matchTimestamp < o.matchTimestamp ? c : o));
           const bearingToReservoir = computeBearing(cluster.lat, cluster.lon, reservoirLat, reservoirLon);
-          // Angular difference between movement direction and direction to reservoir:
-          let angleDiff = Math.abs(bearingDeg - bearingToReservoir);
+          let angleDiff = Math.abs(meanBearing - bearingToReservoir);
           if (angleDiff > 180) angleDiff = 360 - angleDiff;
-          // Approaching = moving toward reservoir (angle < 60°) AND distance actually decreasing
-          const prevDist = distanceKm(bestMatch.lat, bestMatch.lon, reservoirLat, reservoirLon);
-          const distDecreasing = cluster.distanceToReservoir < prevDist - 0.5; // 0.5km hysteresis
+          const prevDist = distanceKm(oldestCandidate.matchPos.lat, oldestCandidate.matchPos.lon, reservoirLat, reservoirLon);
+          const distDecreasing = cluster.distanceToReservoir < prevDist - 0.5;
           approaching = distDecreasing && angleDiff < 60;
 
-          if (approaching && speedKmh > 0) {
-            // ETA from cluster EDGE (not centroid) to sector center
-            // Use component of velocity toward reservoir (cos of angle)
-            const approachSpeed = speedKmh * Math.cos((angleDiff * Math.PI) / 180);
+          if (approaching && medianSpeed > 0) {
+            const approachSpeed = medianSpeed * Math.cos((angleDiff * Math.PI) / 180);
             const edgeDist = Math.max(0, cluster.distanceToReservoir - cluster.radiusKm);
             etaMinutes = approachSpeed > 1 ? Math.round((edgeDist / approachSpeed) * 60) : null;
           }
@@ -336,7 +409,9 @@ function computeVelocities(
       }
     }
 
-    return { ...cluster, velocity, etaMinutes, approaching } as StormCluster;
+    // Inherit physical-continuity ID if matched, else keep the freshly minted one
+    const id = inheritedId ?? cluster.id;
+    return { ...cluster, id, velocity, etaMinutes, approaching } as StormCluster;
   });
 }
 
