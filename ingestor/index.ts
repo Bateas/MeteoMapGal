@@ -19,6 +19,7 @@ import { checkAndSendDailySummary } from './dailySummary.js';
 import { runAnalysis } from './analyzer.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
 import { runLightningCycle } from './lightningFetcher.js';
+import { runSynopticCycle } from './synopticFetcher.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -35,6 +36,7 @@ let stations = new Map<string, NormalizedStation>();
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let discoverTimer: ReturnType<typeof setInterval> | null = null;
 let lightningTimer: ReturnType<typeof setInterval> | null = null;
+let synopticTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -153,7 +155,7 @@ async function start(): Promise<void> {
     rediscover().catch((err) => log.error('Discover timer error:', (err as Error).message));
   }, DISCOVER_MS);
 
-  // Lightning fetcher (S125 historical-data Phase 1a) — independent 5min poll.
+  // Lightning fetcher (S125 Phase 1a) — independent 5min poll.
   // Decoupled from the main weather cycle so a slow station fetch never delays
   // strike persistence (real-time forensics matter for the lightning data).
   // First run after 30s stagger so it doesn't pile on top of the initial cycle.
@@ -163,6 +165,16 @@ async function start(): Promise<void> {
   lightningTimer = setInterval(() => {
     runLightningCycle().catch((err) => log.error('[Lightning] timer err:', (err as Error).message));
   }, 5 * 60_000);
+
+  // Synoptic fetcher (S125 Phase 1b TIER 1) — upper-air winds + convection.
+  // Open-Meteo refreshes hourly so polling more often is wasted bandwidth.
+  // 60s stagger from lightning timer to spread Open-Meteo load over time.
+  setTimeout(() => {
+    runSynopticCycle().catch((err) => log.error('[Synoptic] init err:', (err as Error).message));
+  }, 90_000);
+  synopticTimer = setInterval(() => {
+    runSynopticCycle().catch((err) => log.error('[Synoptic] timer err:', (err as Error).message));
+  }, 60 * 60_000);
 
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
@@ -179,6 +191,7 @@ async function shutdown(signal: string): Promise<void> {
   if (pollTimer) clearInterval(pollTimer);
   if (discoverTimer) clearInterval(discoverTimer);
   if (lightningTimer) clearInterval(lightningTimer);
+  if (synopticTimer) clearInterval(synopticTimer);
 
   // Close database pool
   await closePool();

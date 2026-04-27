@@ -51,6 +51,8 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="zap" title="Ondas concéntricas en cada rayo nuevo" desc="Cada rayo recién registrado emite una onda animada que se expande durante 3 segundos. Llamada visual urgente: si está cayendo AHORA cerca, se ve sin necesidad de leer ningún texto. Anillo amarillo brillante para los rayos a tierra (más peligrosos), tono más suave para los intra-nube." status="done" />
         <TimelineMilestone iconId="zap" title="Tracker de tormentas más fiable" desc="Auditoría a fondo del cálculo de centroide y dirección. ID estable por núcleo (mismo ID entre polls = mismo storm físico), matching greedy-global sin doble asignación, mediana multi-snapshot de velocidad para suprimir el ruido en clusters pequeños, umbral de match adaptativo. La flecha de avance y el ETA son ahora mucho más estables." status="done" />
         <TimelineMilestone iconId="zap" title="Histórico de rayos en TimescaleDB" desc="Cada rayo registrado por la red MeteoGalicia se persiste 24/7 en base de datos propia. Primera fase de un dataset histórico riguroso para detectar patrones reales: zonas de mayor incidencia, correlación con dirección de viento, paso de frentes, hora del día. A medida que se acumulen meses se podrán extraer patrones que ningún modelo genérico captura para Galicia." status="done" />
+        <TimelineMilestone iconId="info" title="Histórico sinóptico — viento en altura" desc="Datos horarios de viento, temperatura y altura geopotencial a 850, 700 y 500 hPa por sector — la base de toda la dinámica que mueve las tormentas. Sin esto solo veríamos el resultado en superficie; con esto podemos correlacionar lo que pasa abajo con lo que está pasando arriba." status="done" />
+        <TimelineMilestone iconId="zap" title="Histórico de inestabilidad atmosférica" desc="CAPE, CIN, índice de levantamiento y agua precipitable persistidos por hora y sector. Permitirá calibrar el predictor de tormentas con casos reales de Galicia: ¿qué umbrales de CAPE producen actividad eléctrica aquí, no en el genérico continental?" status="done" />
 
         {/* ── Proximamente ── */}
         <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
@@ -129,7 +131,7 @@ export function RoadmapSection() {
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
               <span className="text-slate-500">22 webcams + IA</span>
-              <span className="text-slate-500">796 tests</span>
+              <span className="text-slate-500">812 tests</span>
               <span className="text-slate-500">TimescaleDB 24/7</span>
             </div>
           </div>
