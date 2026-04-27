@@ -15,6 +15,9 @@ import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { useWarningsStore } from '../../hooks/useWarnings';
 import { useUIStore } from '../../store/uiStore';
 import { useAirQualityStore } from '../../store/airQualityStore';
+import { useIcaStore } from '../../store/icaStore';
+import { icaCategory } from '../../api/meteoGaliciaIcaClient';
+import { useFireStore } from '../../store/fireStore';
 import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
@@ -333,8 +336,30 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     }
 
     // ── Air quality warning (priority 5 — only when poor) ──
-    // European AQI: 0-20 good, 20-40 fair, 40-60 moderate, 60-80 poor, 80-100 very poor
-    if (aq && aq.europeanAqi >= 60) {
+    // PRIMARY: MeteoGalicia ICA (official Xunta, station-by-station). When any
+    // station registers ICA ≥ 2.5 (deficiente or worse), surface the worst one.
+    // FALLBACK: Open-Meteo European AQI when ICA has no readings yet (boot or
+    // outage at ideg.xunta.gal).
+    const icaReadings = useIcaStore.getState().readings;
+    if (icaReadings.length > 0) {
+      let worst: typeof icaReadings[0] | null = null;
+      for (const r of icaReadings) {
+        if ((!worst || r.ica > worst.ica) && r.ica >= 2.5) worst = r;
+      }
+      if (worst) {
+        const cat = icaCategory(worst.ica);
+        const labelEs = worst.categoryEs || (cat === 'muy_mala' ? 'Muy mala' : cat === 'mala' ? 'Mala' : 'Deficiente');
+        const isSevere = cat === 'mala' || cat === 'muy_mala';
+        result.push({
+          key: 'air-quality',
+          text: `Aire ${labelEs} en ${worst.station} (${worst.dominantPollutant})`,
+          color: isSevere ? 'text-red-400' : 'text-orange-400',
+          bg: isSevere ? 'bg-red-900/20' : 'bg-orange-900/20',
+          priority: isSevere ? 7 : 5,
+        });
+      }
+    } else if (aq && aq.europeanAqi >= 60) {
+      // Fallback to Open-Meteo when ICA hasn't loaded
       const aqLabel = aq.europeanAqi >= 80 ? 'Muy mala' : 'Mala';
       const pm25Label = aq.pm2_5 >= 35 ? ` (PM2.5 ${Math.round(aq.pm2_5)})` : '';
       result.push({
@@ -343,6 +368,22 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         color: aq.europeanAqi >= 80 ? 'text-red-400' : 'text-orange-400',
         bg: aq.europeanAqi >= 80 ? 'bg-red-900/20' : 'bg-orange-900/20',
         priority: aq.europeanAqi >= 80 ? 7 : 5,
+      });
+    }
+
+    // ── Active wildfires warning (NASA FIRMS, priority 6 — high) ──
+    const fires = useFireStore.getState().fires;
+    if (fires.length > 0) {
+      const maxFrp = fires.reduce((m, f) => Math.max(m, f.frp), 0);
+      const isLarge = maxFrp >= 100 || fires.length >= 5;
+      result.push({
+        key: 'active-fires',
+        text: fires.length === 1
+          ? `🔥 1 foco activo${maxFrp >= 50 ? ` (${Math.round(maxFrp)}MW)` : ''}`
+          : `🔥 ${fires.length} focos activos${isLarge ? ` (max ${Math.round(maxFrp)}MW)` : ''}`,
+        color: isLarge ? 'text-red-400' : 'text-orange-400',
+        bg: isLarge ? 'bg-red-900/20' : 'bg-orange-900/20',
+        priority: isLarge ? 7 : 6,
       });
     }
 
