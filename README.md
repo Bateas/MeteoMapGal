@@ -1,9 +1,9 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.57.2-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.58.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![CI](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml/badge.svg)](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-675%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-703%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
 **Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 22 webcams con IA y mapa 3D interactivo.
@@ -173,6 +173,8 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 | Webcams (MG + DGT) + Ollama vision | 19 camaras MeteoGalicia + 2 DGT (Ribadavia, Fea-Arrabaldo) + ESP32-CAM Castrelo (vision IA: Beaufort, niebla) |
 | MeteoGalicia Avisos Adversos | Alertas oficiales (tormentas, oleaje, viento) |
 | meteo2api (red europea) | Rayos geolocalizados en tiempo real |
+| NASA FIRMS VIIRS | Focos de incendio activos (375m, ≤60min latencia) |
+| MeteoGalicia ICA (Xunta) | Calidad del aire oficial — Rede Galega |
 
 > Todos los datos de fuentes abiertas. Solo AEMET requiere clave API gratuita.
 
@@ -187,7 +189,7 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # 675 tests (Vitest)
+npm test                # 703 tests (Vitest)
 ```
 
 **Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.24 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB
