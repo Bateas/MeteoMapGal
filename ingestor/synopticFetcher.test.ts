@@ -122,14 +122,15 @@ describe('parseSynopticPayload — happy path', () => {
     expect(row.windDirDeg).toBe(320);
   });
 
-  it('parses convection bundle values', () => {
+  it('parses convection bundle values (precipitable_water always null — not provided by Open-Meteo)', () => {
     const r = parseSynopticPayload(
-      makePayload(1, { cape: [1500], cin: [-100], li: [-5], pwat: [40], blh: [1200] }),
+      makePayload(1, { cape: [1500], cin: [-100], li: [-5], blh: [1200] }),
       'embalse',
     );
     expect(r.convection[0]).toMatchObject({
       cape: 1500, cin: -100, liftedIndex: -5,
-      precipitableWater: 40, boundaryLayerM: 1200,
+      precipitableWater: null, // hardcoded null after S125 hotfix
+      boundaryLayerM: 1200,
     });
   });
 });
@@ -159,19 +160,20 @@ describe('parseSynopticPayload — null handling', () => {
     expect(others).toEqual([500, 700]);
   });
 
-  it('skips convection row entirely if all 5 indices null', () => {
+  it('skips convection row entirely if all 4 indices null', () => {
     const r = parseSynopticPayload(makePayload(1, {
-      cape: [null], cin: [null], li: [null], pwat: [null], blh: [null],
+      cape: [null], cin: [null], li: [null], blh: [null],
     }), 'embalse');
     expect(r.convection).toHaveLength(0);
   });
 
   it('keeps convection row if ANY index has a value', () => {
     const r = parseSynopticPayload(makePayload(1, {
-      cape: [1200], cin: [null], li: [null], pwat: [null], blh: [null],
+      cape: [1200], cin: [null], li: [null], blh: [null],
     }), 'embalse');
     expect(r.convection).toHaveLength(1);
     expect(r.convection[0].cape).toBe(1200);
+    expect(r.convection[0].precipitableWater).toBeNull();
   });
 });
 

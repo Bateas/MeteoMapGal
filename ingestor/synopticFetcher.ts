@@ -52,6 +52,8 @@ export interface ConvectionRow {
   cape: number | null;
   cin: number | null;
   liftedIndex: number | null;
+  /** ALWAYS NULL — Open-Meteo doesn't expose precipitable_water in this endpoint
+   *  (validated S125 returned 400). Column kept for future fill-in from another source. */
   precipitableWater: number | null;
   boundaryLayerM: number | null;
 }
@@ -62,7 +64,6 @@ interface OpenMeteoResponse {
     cape?: (number | null)[];
     convective_inhibition?: (number | null)[];
     lifted_index?: (number | null)[];
-    precipitable_water?: (number | null)[];
     boundary_layer_height?: (number | null)[];
     [k: string]: unknown;
   };
@@ -119,14 +120,14 @@ export function parseSynopticPayload(
     const cape = h.cape?.[i] ?? null;
     const cin = h.convective_inhibition?.[i] ?? null;
     const li = h.lifted_index?.[i] ?? null;
-    const pwat = h.precipitable_water?.[i] ?? null;
     const blh = h.boundary_layer_height?.[i] ?? null;
-    if (cape != null || cin != null || li != null || pwat != null || blh != null) {
+    if (cape != null || cin != null || li != null || blh != null) {
       convection.push({
         time: t,
         sector,
         cape, cin, liftedIndex: li,
-        precipitableWater: pwat, boundaryLayerM: blh,
+        precipitableWater: null, // Open-Meteo doesn't provide it in this endpoint
+        boundaryLayerM: blh,
       });
     }
   }
@@ -143,7 +144,10 @@ async function fetchSector(lat: number, lon: number): Promise<OpenMeteoResponse 
     `temperature_${p}hPa`,
     `geopotential_height_${p}hPa`,
   ]);
-  const convectionVars = ['cape', 'convective_inhibition', 'lifted_index', 'precipitable_water', 'boundary_layer_height'];
+  // S125 hotfix: precipitable_water removed — Open-Meteo /v1/forecast returns
+  // 400 "Cannot initialize ... from invalid String value precipitable_water".
+  // The DB column stays (nullable) for future fill-in from another source.
+  const convectionVars = ['cape', 'convective_inhibition', 'lifted_index', 'boundary_layer_height'];
 
   const params = new URLSearchParams({
     latitude: lat.toString(),
