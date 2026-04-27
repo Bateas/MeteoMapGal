@@ -54,6 +54,11 @@ const METEOSIX_API_KEY = process.env.METEOSIX_API_KEY || '';
 const METEOSIX_BASE = 'https://servizos.meteogalicia.gal/apiv5';
 const OBSCOSTEIRO_API_KEY = process.env.OBSCOSTEIRO_API_KEY || '';
 const OBSCOSTEIRO_BASE = 'https://apis-ext.xunta.gal/mgplatpubapi/v1/api';
+const FIRMS_API_KEY = process.env.FIRMS_API_KEY || '';
+const FIRMS_BASE = 'https://firms.modaps.eosdis.nasa.gov/api/area/csv';
+// Galicia + buffer (Asturias W + Norte Portugal — fires often cross borders).
+// Hardcoded server-side: prevents the proxy from being used as an open FIRMS gateway.
+const FIRMS_BBOX = '-10.0,41.5,-6.0,44.0';
 
 // CORS: allow frontend origins
 const ALLOWED_ORIGINS = new Set([
@@ -631,6 +636,66 @@ async function handleAemetProxy(
   }
 }
 
+// ── NASA FIRMS proxy (active wildfires) ──────────────────
+// Frontend calls /api/v1/firms?days=N (1-5).
+// Key + bbox locked server-side. Cache 30min (FIRMS updates ~every 60min
+// on satellite passes; 30min cache keeps load on NASA low without missing
+// new passes).
+
+const firmsCache = new Map<number, { data: Buffer; ts: number }>();
+const FIRMS_CACHE_TTL = 30 * 60_000; // 30 minutes
+const FIRMS_TIMEOUT_MS = 10_000;
+
+async function handleFirmsProxy(
+  daysParam: string | null,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  if (!FIRMS_API_KEY) {
+    error(res, 'FIRMS_API_KEY not configured on server', 503, origin);
+    return;
+  }
+
+  // Validate days: 1..5 (FIRMS Area-API limit)
+  const days = Math.max(1, Math.min(5, parseInt(daysParam || '1', 10) || 1));
+
+  const cached = firmsCache.get(days);
+  if (cached && Date.now() - cached.ts < FIRMS_CACHE_TTL) {
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': 'text/csv', 'X-Cache': 'HIT' });
+    res.end(cached.data);
+    return;
+  }
+
+  try {
+    // VIIRS_SNPP_NRT — best resolution (375m) + URT pipeline
+    const url = `${FIRMS_BASE}/${FIRMS_API_KEY}/VIIRS_SNPP_NRT/${FIRMS_BBOX}/${days}`;
+    const upstream = await fetch(url, { signal: AbortSignal.timeout(FIRMS_TIMEOUT_MS) });
+    const buf = Buffer.from(await upstream.arrayBuffer());
+
+    if (upstream.ok) {
+      firmsCache.set(days, { data: buf, ts: Date.now() });
+      // Cap cache to a handful of days entries
+      if (firmsCache.size > 10) {
+        const now = Date.now();
+        for (const [k, v] of firmsCache) {
+          if (now - v.ts > FIRMS_CACHE_TTL) firmsCache.delete(k);
+        }
+      }
+    }
+
+    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': 'text/csv', 'X-Cache': 'MISS' });
+    res.end(buf);
+  } catch (err) {
+    log.error('[FIRMS Proxy]', (err as Error).message);
+    if (cached) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': 'text/csv', 'X-Cache': 'STALE' });
+      res.end(cached.data);
+      return;
+    }
+    error(res, 'FIRMS upstream error', 502, origin);
+  }
+}
+
 // ── AEMET data proxy (step 2 — signed URLs) ────────────
 // AEMET step 1 returns a datos URL like https://opendata.aemet.es/opendata/sh/XXXXX
 // Step 2 fetches that URL (no api_key needed, it's a signed URL).
@@ -847,6 +912,10 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/v1/obscosteiro/')) {
       const obsPath = pathname.slice('/api/v1/obscosteiro'.length); // e.g. /ultimo/recente/15009
       await handleObsCosteiroProxy(obsPath, res, origin);
+      return;
+    }
+    if (pathname === '/api/v1/firms') {
+      await handleFirmsProxy(url.searchParams.get('days'), res, origin);
       return;
     }
 

@@ -15,6 +15,7 @@ import { useSpotScoring } from '../../hooks/useSpotScoring';
 import { useSailingWindows } from '../../hooks/useSailingWindows';
 import { useWebcamVision } from '../../hooks/useWebcamVision';
 import { useAirQuality } from '../../hooks/useAirQuality';
+import { useActiveFires } from '../../hooks/useActiveFires';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -30,6 +31,7 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useSailingWindows();
   useWebcamVision();
   useAirQuality();
+  useActiveFires();
 
   // NAO/AO teleconnection indices — 15s extra after deferred mount
   useEffect(() => {
