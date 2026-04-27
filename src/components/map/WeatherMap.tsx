@@ -23,6 +23,7 @@ const StormClusterOverlay = lazy(() => import('./StormClusterOverlay').then(m =>
 const FogOverlay = lazy(() => import('./FogOverlay').then(m => ({ default: m.FogOverlay })));
 const WindRampOverlay = lazy(() => import('./WindRampOverlay').then(m => ({ default: m.WindRampOverlay })));
 const HazeOverlay = lazy(() => import('./HazeOverlay').then(m => ({ default: m.HazeOverlay })));
+const FireOverlay = lazy(() => import('./FireOverlay').then(m => ({ default: m.FireOverlay })));
 const UpwellingOverlay = lazy(() => import('./UpwellingOverlay').then(m => ({ default: m.UpwellingOverlay })));
 const SwanWaveOverlay = lazy(() => import('./SwanWaveOverlay').then(m => ({ default: m.SwanWaveOverlay })));
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
@@ -425,6 +426,9 @@ export function WeatherMap() {
 
         {/* Wind ramp pulse — stations glow when wind increases +6kt/30min */}
         <Suspense fallback={null}><WindRampOverlay /></Suspense>
+
+        {/* NASA FIRMS active wildfires (Galicia + buffer). Auto-shows when fires present */}
+        <Suspense fallback={null}><FireOverlay /></Suspense>
 
         {/* EMODnet bathymetry + coastline — professional marine data (Rías only) */}
         <Suspense fallback={null}><UpwellingOverlay /></Suspense>
