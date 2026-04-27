@@ -24,6 +24,7 @@ const FogOverlay = lazy(() => import('./FogOverlay').then(m => ({ default: m.Fog
 const WindRampOverlay = lazy(() => import('./WindRampOverlay').then(m => ({ default: m.WindRampOverlay })));
 const HazeOverlay = lazy(() => import('./HazeOverlay').then(m => ({ default: m.HazeOverlay })));
 const FireOverlay = lazy(() => import('./FireOverlay').then(m => ({ default: m.FireOverlay })));
+const SmokePlumeOverlay = lazy(() => import('./SmokePlumeOverlay').then(m => ({ default: m.SmokePlumeOverlay })));
 const UpwellingOverlay = lazy(() => import('./UpwellingOverlay').then(m => ({ default: m.UpwellingOverlay })));
 const SwanWaveOverlay = lazy(() => import('./SwanWaveOverlay').then(m => ({ default: m.SwanWaveOverlay })));
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
@@ -426,6 +427,9 @@ export function WeatherMap() {
 
         {/* Wind ramp pulse — stations glow when wind increases +6kt/30min */}
         <Suspense fallback={null}><WindRampOverlay /></Suspense>
+
+        {/* Smoke plumes downwind of fires — rendered BEFORE FireOverlay so flame markers overlay smoke */}
+        <Suspense fallback={null}><SmokePlumeOverlay /></Suspense>
 
         {/* NASA FIRMS active wildfires (Galicia + buffer). Auto-shows when fires present */}
         <Suspense fallback={null}><FireOverlay /></Suspense>
