@@ -15,6 +15,9 @@
  *   GET /api/v1/buoys            → All buoy stations with last reading
  *   GET /api/v1/buoys/readings   → Buoy time series (raw or hourly)
  *   GET /api/v1/buoys/latest     → Latest buoy reading per station
+ *   GET /api/v1/analytics/lightning-heatmap?from=&to=&minStrikes= → Spatial cells
+ *   GET /api/v1/analytics/convection-trend?sector=&days=          → Daily peak CAPE/LI
+ *   GET /api/v1/analytics/air-quality-trend?days=&station=        → Daily AQ rollup
  *
  * Usage:
  *   node --import tsx api.ts
@@ -38,6 +41,9 @@ import {
   queryBuoyReadings,
   queryBuoyLatest,
   queryBuoyHourly,
+  queryLightningHeatmap,
+  queryConvectionTrend,
+  queryAirQualityTrend,
 } from './queries.js';
 import { getPool } from './db.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
@@ -428,6 +434,88 @@ async function handleWebcamVision(
   }
 }
 
+// ── Analytics endpoints (Phase 3) ──────────────────────
+// Hit the continuous aggregates created by Phase 2 (schema.sql). Each
+// endpoint returns a small bounded payload (≤ 5000 rows) so the frontend can
+// render heatmaps / trend lines without paginating.
+
+const MAX_RANGE_DAYS = 365;
+
+/** Parse an ISO timestamp from a query param; returns null if missing/invalid. */
+function parseISODate(v: string | undefined): Date | null {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Default `from` when caller omits it: `to` minus N days, clamped to 1 year. */
+function defaultFrom(to: Date, defaultDays: number): Date {
+  return new Date(to.getTime() - defaultDays * 86_400_000);
+}
+
+async function handleAnalyticsLightningHeatmap(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const to = parseISODate(params.to) ?? new Date();
+  const from = parseISODate(params.from) ?? defaultFrom(to, 30);
+  if (to < from) { error(res, 'Parameter "to" must be >= "from"', 400, origin); return; }
+  const rangeDays = (to.getTime() - from.getTime()) / 86_400_000;
+  if (rangeDays > MAX_RANGE_DAYS) {
+    error(res, `Range too wide (max ${MAX_RANGE_DAYS} days)`, 400, origin); return;
+  }
+  const minStrikes = Math.max(1, parseInt(params.minStrikes || '1', 10) || 1);
+
+  try {
+    const cells = await queryLightningHeatmap(from, to, minStrikes);
+    json(res, {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      minStrikes,
+      count: cells.length,
+      cells,
+    }, 200, origin);
+  } catch (err) {
+    error(res, (err as Error).message, 500, origin);
+  }
+}
+
+async function handleAnalyticsConvectionTrend(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const sector = params.sector;
+  if (!sector || (sector !== 'embalse' && sector !== 'rias')) {
+    error(res, 'Missing or invalid parameter: sector (embalse or rias)', 400, origin); return;
+  }
+  const days = Math.min(MAX_RANGE_DAYS, Math.max(1, parseInt(params.days || '30', 10) || 30));
+
+  try {
+    const days_ = await queryConvectionTrend(sector, days);
+    json(res, { sector, days, count: days_.length, trend: days_ }, 200, origin);
+  } catch (err) {
+    error(res, (err as Error).message, 500, origin);
+  }
+}
+
+async function handleAnalyticsAirQualityTrend(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const days = Math.min(MAX_RANGE_DAYS, Math.max(1, parseInt(params.days || '30', 10) || 30));
+  const station = params.station ? params.station.slice(0, 100) : undefined;
+
+  try {
+    const rows = await queryAirQualityTrend(days, station);
+    json(res, { days, station: station ?? null, count: rows.length, trend: rows }, 200, origin);
+  } catch (err) {
+    error(res, (err as Error).message, 500, origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -455,6 +543,10 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/spots/scores': handleSpotScores,
   // Webcam vision latest results
   '/api/v1/webcam-vision': handleWebcamVision,
+  // ── Analytics (Phase 3) — pre-computed rollups from continuous aggregates ──
+  '/api/v1/analytics/lightning-heatmap':  handleAnalyticsLightningHeatmap,
+  '/api/v1/analytics/convection-trend':   handleAnalyticsConvectionTrend,
+  '/api/v1/analytics/air-quality-trend':  handleAnalyticsAirQualityTrend,
 };
 
 // ── Storm prediction POST handler ──────────────────────
