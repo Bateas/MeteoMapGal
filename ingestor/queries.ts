@@ -453,3 +453,153 @@ export async function queryMultiStation(
   );
   return result.rows;
 }
+
+// ── Analytics (Phase 3) — hit continuous aggregates from Phase 2 ──
+
+export interface LightningHeatmapCell {
+  lat: number;
+  lon: number;
+  strikeCount: number;
+  avgPeakCurrent: number | null;
+  maxPeakCurrent: number | null;
+  ccCount: number;
+}
+
+/**
+ * Lightning heatmap aggregated over a time window. Hits
+ * `lightning_hourly_zone` (continuous aggregate) and rolls up by cell so the
+ * frontend gets one row per ~5km cell with totals.
+ *
+ * Bounded: maxRows defaults to 5000 (≈ all of Galicia for a year of activity).
+ */
+export async function queryLightningHeatmap(
+  from: Date,
+  to: Date,
+  minStrikes = 1,
+  maxRows = 5000,
+): Promise<LightningHeatmapCell[]> {
+  const db = (await import('./db.js')).getPool();
+  const result = await db.query(
+    `SELECT
+       lat_cell::float8                     AS lat,
+       lon_cell::float8                     AS lon,
+       SUM(strike_count)::int               AS strike_count,
+       SUM(strike_count * avg_peak_current)
+         / NULLIF(SUM(strike_count), 0)     AS avg_peak_current,
+       MAX(max_peak_current)                AS max_peak_current,
+       SUM(cc_count)::int                   AS cc_count
+     FROM lightning_hourly_zone
+     WHERE bucket >= $1 AND bucket <= $2
+     GROUP BY lat_cell, lon_cell
+     HAVING SUM(strike_count) >= $3
+     ORDER BY strike_count DESC
+     LIMIT $4`,
+    [from, to, minStrikes, maxRows],
+  );
+  return result.rows.map((r) => ({
+    lat: Number(r.lat),
+    lon: Number(r.lon),
+    strikeCount: Number(r.strike_count),
+    avgPeakCurrent: r.avg_peak_current == null ? null : Number(r.avg_peak_current),
+    maxPeakCurrent: r.max_peak_current == null ? null : Number(r.max_peak_current),
+    ccCount: Number(r.cc_count),
+  }));
+}
+
+export interface ConvectionTrendDay {
+  date: string; // YYYY-MM-DD (Europe/Madrid)
+  sector: string;
+  peakCape: number | null;
+  minLiftedIndex: number | null;
+  avgCape: number | null;
+  avgCin: number | null;
+  avgBlh: number | null;
+}
+
+/**
+ * Daily convection trend per sector. Hits `convection_daily_sector`.
+ * Used for "did this week / month show unusual instability?" trend lines.
+ */
+export async function queryConvectionTrend(
+  sector: string,
+  days = 30,
+): Promise<ConvectionTrendDay[]> {
+  const db = (await import('./db.js')).getPool();
+  const result = await db.query(
+    `SELECT
+       to_char(bucket AT TIME ZONE 'Europe/Madrid', 'YYYY-MM-DD') AS date,
+       sector,
+       peak_cape,
+       min_lifted_index,
+       avg_cape,
+       avg_cin,
+       avg_blh
+     FROM convection_daily_sector
+     WHERE sector = $1
+       AND bucket > NOW() - make_interval(days => $2)
+     ORDER BY bucket ASC
+     LIMIT 400`,
+    [sector, days],
+  );
+  return result.rows.map((r) => ({
+    date: r.date,
+    sector: r.sector,
+    peakCape: r.peak_cape == null ? null : Number(r.peak_cape),
+    minLiftedIndex: r.min_lifted_index == null ? null : Number(r.min_lifted_index),
+    avgCape: r.avg_cape == null ? null : Number(r.avg_cape),
+    avgCin: r.avg_cin == null ? null : Number(r.avg_cin),
+    avgBlh: r.avg_blh == null ? null : Number(r.avg_blh),
+  }));
+}
+
+export interface AirQualityTrendRow {
+  date: string;
+  station: string;
+  lat: number;
+  lon: number;
+  avgIca: number | null;
+  peakIca: number | null;
+  hoursUnhealthy: number;
+}
+
+/**
+ * Daily AQ rollup per station. Hits `ica_daily_station`.
+ * Optional `station` param filters; otherwise all stations.
+ */
+export async function queryAirQualityTrend(
+  days = 30,
+  station?: string,
+): Promise<AirQualityTrendRow[]> {
+  const db = (await import('./db.js')).getPool();
+  const params: unknown[] = [days];
+  let stationClause = '';
+  if (station) {
+    params.push(station);
+    stationClause = `AND station = $${params.length}`;
+  }
+  const result = await db.query(
+    `SELECT
+       to_char(bucket AT TIME ZONE 'Europe/Madrid', 'YYYY-MM-DD') AS date,
+       station,
+       lat,
+       lon,
+       avg_ica,
+       peak_ica,
+       hours_unhealthy
+     FROM ica_daily_station
+     WHERE bucket > NOW() - make_interval(days => $1)
+       ${stationClause}
+     ORDER BY bucket DESC, station
+     LIMIT 5000`,
+    params,
+  );
+  return result.rows.map((r) => ({
+    date: r.date,
+    station: r.station,
+    lat: Number(r.lat),
+    lon: Number(r.lon),
+    avgIca: r.avg_ica == null ? null : Number(r.avg_ica),
+    peakIca: r.peak_ica == null ? null : Number(r.peak_ica),
+    hoursUnhealthy: Number(r.hours_unhealthy ?? 0),
+  }));
+}
