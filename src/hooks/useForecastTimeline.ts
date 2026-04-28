@@ -45,6 +45,7 @@ interface OMForecastResponse {
     boundary_layer_height: (number | null)[];
     is_day: (number | null)[];
     visibility: (number | null)[];
+    temperature_500hPa?: (number | null)[];
   };
 }
 
@@ -100,7 +101,9 @@ async function fetchFromOwnAPI(sectorId: string): Promise<HourlyForecast[] | nul
         pressure: number | null; solarRadiation: number | null; cape: number | null;
         liftedIndex?: number | null; cin?: number | null;
         boundaryLayerHeight: number | null; visibility: number | null;
-        snowLevel?: number | null; skyState?: string | null; isDay: boolean;
+        snowLevel?: number | null; skyState?: string | null;
+        temperature500hPa?: number | null;
+        isDay: boolean;
       }>;
     };
 
@@ -125,6 +128,7 @@ async function fetchFromOwnAPI(sectorId: string): Promise<HourlyForecast[] | nul
       visibility: h.visibility ?? null,
       snowLevel: h.snowLevel ?? null,
       skyState: h.skyState ?? null,
+      temperature500hPa: h.temperature500hPa ?? null,
       isDay: h.isDay ?? false,
     }));
   } catch {
@@ -141,6 +145,8 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
     'cloud_cover', 'surface_pressure',
     'shortwave_radiation', 'cape', 'lifted_index', 'convective_inhibition',
     'boundary_layer_height', 'is_day', 'visibility',
+    // Cold-tops indicator → enables full hail-risk classification (S126 follow-up)
+    'temperature_500hPa',
   ].join(',');
 
   const modelParam = model !== 'best_match' ? `&models=${model}` : '';
@@ -181,6 +187,7 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
       visibility: h.visibility[i],
       snowLevel: null,
       skyState: null,
+      temperature500hPa: h.temperature_500hPa?.[i] ?? null,
       isDay: h.is_day[i] === 1,
     });
   }

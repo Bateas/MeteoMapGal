@@ -204,13 +204,14 @@ function collectCurrentConvection(): ConvectionState | null {
     const d = Math.abs(f.time.getTime() - now);
     if (d < bestDist) { best = f; bestDist = d; }
   }
-  // Open-Meteo /v1/forecast doesn't expose temperature_500hPa here — we'd
-  // need to plumb upper_air_hourly from the ingestor API. For now hail
-  // criterion uses the moderate (CAPE+LI only) rule → 'posible' max.
+  // T_500hPa plumbed S126+1: fetched alongside CAPE/LI from Open-Meteo.
+  // When present (Auto path), unlocks 'probable' hail risk via cold-tops rule.
+  // WRF-MG primary path won't carry it (MeteoSIX doesn't expose pressure-level
+  // temps) but convectionData is always Open-Meteo background, so it's there.
   return {
     cape: best.cape ?? null,
     liftedIndex: best.liftedIndex ?? null,
-    temperature500hPa: null,
+    temperature500hPa: best.temperature500hPa ?? null,
   };
 }
 

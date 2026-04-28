@@ -42,7 +42,10 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
       'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
       'precipitation', 'precipitation_probability',
       'cloud_cover', 'surface_pressure',
-      'shortwave_radiation', 'cape', 'boundary_layer_height', 'is_day', 'visibility',
+      'shortwave_radiation', 'cape', 'lifted_index', 'convective_inhibition',
+      'boundary_layer_height', 'is_day', 'visibility',
+      // Cold-tops indicator for hail risk (S126 follow-up)
+      'temperature_500hPa',
     ].join(','),
     past_hours: '6',
     forecast_hours: '48',
@@ -72,9 +75,12 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
       surface_pressure: (number | null)[];
       shortwave_radiation: (number | null)[];
       cape: (number | null)[];
+      lifted_index?: (number | null)[];
+      convective_inhibition?: (number | null)[];
       boundary_layer_height: (number | null)[];
       is_day: (number | null)[];
       visibility: (number | null)[];
+      temperature_500hPa?: (number | null)[];
     };
   };
 
@@ -94,8 +100,13 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
     pressure: h.surface_pressure?.[i] ?? null,
     solarRadiation: h.shortwave_radiation?.[i] ?? null,
     cape: h.cape?.[i] ?? null,
+    cin: h.convective_inhibition?.[i] ?? null,
+    liftedIndex: h.lifted_index?.[i] ?? null,
     boundaryLayerHeight: h.boundary_layer_height?.[i] ?? null,
     visibility: h.visibility?.[i] ?? null,
+    snowLevel: null,
+    skyState: null,
+    temperature500hPa: h.temperature_500hPa?.[i] ?? null,
     isDay: h.is_day?.[i] === 1,
   }));
 }
@@ -147,6 +158,7 @@ export async function getForecast(sector: 'embalse' | 'rias'): Promise<HourlyFor
           h.windGusts = om.windGusts;
           h.boundaryLayerHeight = om.boundaryLayerHeight;
           h.precipProbability = om.precipProbability;
+          h.temperature500hPa = om.temperature500hPa;
         }
       }
       log.info(`Forecast ${sector}: WRF primary + Open-Meteo convection merged`);
