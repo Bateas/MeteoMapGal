@@ -26,6 +26,21 @@ const MIN_CLUSTER_SIZE = 2;
 /** Only use strikes from the last N minutes for clustering */
 const CLUSTER_WINDOW_MIN = 60;
 
+/**
+ * Window for the LEADING-EDGE centroid (S126+1 fix for bug #5).
+ *
+ * For elongated squall lines, the weighted centroid (CLUSTER_WINDOW_MIN=60)
+ * lags behind the propagating front because old (still-recent) strikes anchor
+ * it backwards. We compute a SECOND centroid from strikes ≤ this window only
+ * — that's the "head" of the storm — and use it for matching across polls and
+ * for velocity. The display centroid stays the same so hull rendering still
+ * covers the full extent.
+ */
+const LEAD_WINDOW_MIN = 12;
+/** Min strikes required for a leading point to be representative; below this
+ *  we fall back to the youngest 25 % of strikes in the cluster. */
+const LEAD_MIN_STRIKES = 2;
+
 /** Max time window for velocity computation (between two polls) */
 const MAX_VELOCITY_AGE_MS = 15 * 60 * 1000; // 15 min
 
@@ -47,10 +62,17 @@ function mintClusterId(): string {
 
 export interface StormCluster {
   id: string;
-  /** Centroid latitude */
+  /** Centroid latitude (whole-cluster, weighted by recency — used for display & hull) */
   lat: number;
-  /** Centroid longitude */
+  /** Centroid longitude (whole-cluster) */
   lon: number;
+  /** Leading-edge latitude (centroid of youngest strikes ≤ LEAD_WINDOW_MIN).
+   *  Used for ID matching across polls and velocity computation, so squall
+   *  lines whose old strikes drag the whole-cluster centroid still track
+   *  correctly. Falls back to display centroid for tiny / compact clusters. */
+  leadLat: number;
+  /** Leading-edge longitude */
+  leadLon: number;
   /** Number of strikes in the cluster */
   strikeCount: number;
   /** Radius of the cluster in km */
@@ -97,6 +119,9 @@ interface RawCluster {
   id: string;
   lat: number;
   lon: number;
+  /** Leading-edge centroid from youngest strikes (see LEAD_WINDOW_MIN). */
+  leadLat: number;
+  leadLon: number;
   strikeCount: number;
   radiusKm: number;
   maxPeakCurrent: number;
@@ -180,6 +205,26 @@ function clusterStrikes(
     const lat = wSum > 0 ? wLat / wSum : clusterStrikesArr[0].lat;
     const lon = wSum > 0 ? wLon / wSum : clusterStrikesArr[0].lon;
 
+    // ── Leading-edge centroid (S126+1 fix for bug #5) ──
+    // Use only strikes ≤ LEAD_WINDOW_MIN. If too few qualify (e.g. cluster
+    // built from older strikes), fall back to the youngest 25 % so we always
+    // have a point. Tighter recency weighting (÷5 vs ÷15) further pulls the
+    // lead toward the very newest strikes.
+    let leadStrikes = clusterStrikesArr.filter((s) => s.ageMinutes <= LEAD_WINDOW_MIN);
+    if (leadStrikes.length < LEAD_MIN_STRIKES) {
+      const sortedByAge = [...clusterStrikesArr].sort((a, b) => a.ageMinutes - b.ageMinutes);
+      leadStrikes = sortedByAge.slice(0, Math.max(LEAD_MIN_STRIKES, Math.ceil(clusterStrikesArr.length * 0.25)));
+    }
+    let lLat = 0, lLon = 0, lSum = 0;
+    for (const st of leadStrikes) {
+      const w = 1 / (1 + st.ageMinutes / 5);
+      lLat += st.lat * w;
+      lLon += st.lon * w;
+      lSum += w;
+    }
+    const leadLat = lSum > 0 ? lLat / lSum : lat;
+    const leadLon = lSum > 0 ? lLon / lSum : lon;
+
     // Radius: max distance from centroid to any strike
     let maxDist = 0;
     for (const st of clusterStrikesArr) {
@@ -191,6 +236,8 @@ function clusterStrikes(
       id: mintClusterId(), // provisional — overwritten on match in computeVelocities
       lat,
       lon,
+      leadLat,
+      leadLon,
       strikeCount: clusterStrikesArr.length,
       radiusKm: Math.round(maxDist * 10) / 10,
       maxPeakCurrent: Math.max(...clusterStrikesArr.map((s) => Math.abs(s.peakCurrent))),
@@ -292,6 +339,13 @@ const MAX_MATCH_KM = 30;
  * Avoids the failure mode where two old centroids both map to the same new
  * cluster because we evaluated them independently. With typically <5
  * clusters this O(N·M·log) is trivially cheap.
+ *
+ * S126+1 (bug #5 fix): matching uses the LEADING-EDGE point of each current
+ * cluster (`leadLat/leadLon`) against the snapshot's stored point. Snapshots
+ * also store leading points (see snapshot construction in trackStorms). For
+ * compact clusters lead ≈ centroid so behavior is unchanged; for elongated
+ * squall lines this lets the head propagate across polls even when the tail
+ * (still within 60-min window) holds the whole-cluster centroid back.
  */
 function matchClustersGreedy(
   current: RawCluster[],
@@ -301,7 +355,7 @@ function matchClustersGreedy(
   const pairs: Array<{ ci: number; pi: number; dist: number }> = [];
   for (let ci = 0; ci < current.length; ci++) {
     for (let pi = 0; pi < prev.length; pi++) {
-      const d = distanceKm(current[ci].lat, current[ci].lon, prev[pi].lat, prev[pi].lon);
+      const d = distanceKm(current[ci].leadLat, current[ci].leadLon, prev[pi].lat, prev[pi].lon);
       if (d <= maxDistKm) pairs.push({ ci, pi, dist: d });
     }
   }
@@ -374,9 +428,10 @@ function computeVelocities(
         if (!snapMatch) continue;
         const dt = (now - snap.timestamp) / 3_600_000;
         if (dt <= 0) continue;
-        const distMoved = distanceKm(snapMatch.lat, snapMatch.lon, cluster.lat, cluster.lon);
+        // Velocity from LEAD-to-LEAD movement — head propagation, not centroid drift.
+        const distMoved = distanceKm(snapMatch.lat, snapMatch.lon, cluster.leadLat, cluster.leadLon);
         const speedKmh = (distMoved / dt);
-        const bearingDeg = computeBearing(snapMatch.lat, snapMatch.lon, cluster.lat, cluster.lon);
+        const bearingDeg = computeBearing(snapMatch.lat, snapMatch.lon, cluster.leadLat, cluster.leadLon);
         candidates.push({ speedKmh, bearingDeg, matchTimestamp: snap.timestamp, matchPos: { lat: snapMatch.lat, lon: snapMatch.lon } });
       }
 
@@ -444,13 +499,17 @@ export function trackStorms(
   // Step 2: Compute velocities by matching with history
   const clusters = computeVelocities(rawClusters, previousHistory, now, reservoirLat, reservoirLon);
 
-  // Step 3: Add current snapshot to history (keep last 10 snapshots, ~20 min at 2-min polls)
+  // Step 3: Add current snapshot to history (keep last 10 snapshots, ~20 min at 2-min polls).
+  // Snapshot stores the LEADING-EDGE point so future polls match head-to-head
+  // (S126+1 bug #5 fix). For compact clusters lead == centroid so this doesn't
+  // change behavior; for squall lines it stops the trailing tail from anchoring
+  // the match position backwards.
   const snapshot: ClusterSnapshot = {
     timestamp: now,
     centroids: rawClusters.map((c) => ({
       id: c.id,
-      lat: c.lat,
-      lon: c.lon,
+      lat: c.leadLat,
+      lon: c.leadLon,
       strikeCount: c.strikeCount,
     })),
   };
