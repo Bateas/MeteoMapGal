@@ -20,6 +20,8 @@ import { runAnalysis } from './analyzer.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
 import { runLightningCycle } from './lightningFetcher.js';
 import { runSynopticCycle } from './synopticFetcher.js';
+import { runFirmsCycle } from './firmsFetcher.js';
+import { runIcaCycle } from './icaFetcher.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -37,6 +39,8 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let discoverTimer: ReturnType<typeof setInterval> | null = null;
 let lightningTimer: ReturnType<typeof setInterval> | null = null;
 let synopticTimer: ReturnType<typeof setInterval> | null = null;
+let firmsTimer: ReturnType<typeof setInterval> | null = null;
+let icaTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -176,6 +180,26 @@ async function start(): Promise<void> {
     runSynopticCycle().catch((err) => log.error('[Synoptic] timer err:', (err as Error).message));
   }, 60 * 60_000);
 
+  // FIRMS fetcher (S126 Phase 1b TIER 2) — wildfire hotspots persistence.
+  // 30min cadence matches FIRMS NRT latency and the proxy's cache TTL.
+  // 150s stagger so it lands after lightning + synoptic to spread network load.
+  setTimeout(() => {
+    runFirmsCycle().catch((err) => log.error('[FIRMS Fetcher] init err:', (err as Error).message));
+  }, 150_000);
+  firmsTimer = setInterval(() => {
+    runFirmsCycle().catch((err) => log.error('[FIRMS Fetcher] timer err:', (err as Error).message));
+  }, 30 * 60_000);
+
+  // ICA fetcher (S126 Phase 1b TIER 2) — Xunta air-quality persistence.
+  // 30min cadence matches Xunta's hourly publication with margin.
+  // 210s stagger so it lands after FIRMS to spread Xunta API load.
+  setTimeout(() => {
+    runIcaCycle().catch((err) => log.error('[ICA Fetcher] init err:', (err as Error).message));
+  }, 210_000);
+  icaTimer = setInterval(() => {
+    runIcaCycle().catch((err) => log.error('[ICA Fetcher] timer err:', (err as Error).message));
+  }, 30 * 60_000);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -192,6 +216,8 @@ async function shutdown(signal: string): Promise<void> {
   if (discoverTimer) clearInterval(discoverTimer);
   if (lightningTimer) clearInterval(lightningTimer);
   if (synopticTimer) clearInterval(synopticTimer);
+  if (firmsTimer) clearInterval(firmsTimer);
+  if (icaTimer) clearInterval(icaTimer);
 
   // Close database pool
   await closePool();
