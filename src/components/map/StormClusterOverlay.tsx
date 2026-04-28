@@ -234,21 +234,27 @@ function projectedPath(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
 function clusterInfoPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point> {
   const lines: string[] = [];
 
-  // Line 1: strike count
-  lines.push(`${cluster.strikeCount} rayos`);
+  // Line 1: storm type label (S126) — falls back to plain strike count
+  // when intensity not yet enriched (first poll, no readings, etc.)
+  if (cluster.intensity && cluster.intensity.type !== 'sin datos') {
+    lines.push(cluster.intensity.label);
+    lines.push(`${cluster.strikeCount} rayos`);
+  } else {
+    lines.push(`${cluster.strikeCount} rayos`);
+  }
 
-  // Line 2: speed + direction (if velocity known)
+  // Line: speed + direction (if velocity known)
   if (cluster.velocity) {
     const dir = bearingToCardinal(cluster.velocity.bearingDeg);
     lines.push(`→ ${cluster.velocity.speedKmh.toFixed(0)} km/h ${dir}`);
   }
 
-  // Line 3: ETA (if approaching)
+  // Line: ETA (if approaching)
   if (cluster.approaching && cluster.etaMinutes != null) {
     lines.push(`ETA ~${cluster.etaMinutes} min`);
   }
 
-  // Line 4: distance
+  // Line: distance
   lines.push(`${cluster.distanceToReservoir.toFixed(0)} km`);
 
   return {

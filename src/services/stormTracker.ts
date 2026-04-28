@@ -71,6 +71,13 @@ export interface StormCluster {
   approaching: boolean;
   /** Strike positions [lon, lat] for overlay hull rendering */
   strikePositions: [number, number][];
+  /**
+   * Storm intensity classification (S126). Optional — populated by
+   * `enrichClustersWithIntensity` AFTER the basic tracker computes positions.
+   * Carries type/rainRate/hailRisk/label so the overlay can render the
+   * differential visual hint and an enriched popup label.
+   */
+  intensity?: import('./stormIntensityService').StormIntensity;
 }
 
 export interface StormTrackerState {
