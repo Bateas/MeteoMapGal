@@ -353,15 +353,24 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       // Both haze and core reuse the same hull, just different buffer expansion.
       const hull = getCachedHull(cluster);
 
+      // Storm-intensity type drives mass-core color (S126+1) — passed as a
+      // string property; the layer paint reads it via ['get', 'intensityType'].
+      const intensityType = cluster.intensity?.type ?? 'unknown';
+
       if (hull) {
         // Haze — 8km buffer
         const hazeShape = hullToShape(cluster, hull, 8);
-        hazeShape.properties = { ...hazeShape.properties, type: 'haze' };
+        hazeShape.properties = { ...hazeShape.properties, type: 'haze', intensityType };
         features.push(hazeShape);
 
         // Core — 3km buffer (tighter)
         const coreShape = hullToShape(cluster, hull, 3);
-        coreShape.properties = { ...coreShape.properties, type: 'core', newestAgeMin: cluster.newestAgeMin };
+        coreShape.properties = {
+          ...coreShape.properties,
+          type: 'core',
+          newestAgeMin: cluster.newestAgeMin,
+          intensityType,
+        };
         features.push(coreShape);
       } else {
         // Fallback to circle if not enough strikes for hull
@@ -373,6 +382,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           intensity: Math.min(cluster.strikeCount / 10, 1),
           distance: cluster.distanceToReservoir,
           newestAgeMin: cluster.newestAgeMin,
+          intensityType,
         };
         features.push(core);
       }
@@ -409,15 +419,35 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
 
   const hailStripes = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-    const features: GeoJSON.Feature[] = [];
-    for (const c of clusters) {
+
+    // Declutter (S126+1 polish): when many clusters carry hail risk simultaneously
+    // (typical of widespread events with CAPE+LI just past threshold), the
+    // 3-ring halo around every single one creates a moiré pattern that drowns
+    // the map. Cap at the TOP 3 by strike count — keeps the hail visual on
+    // the most active cells where the risk is most concrete.
+    const HAIL_RING_LIMIT = 3;
+    const candidates = clusters.filter((c) => {
       const risk = c.intensity?.hailRisk;
-      if (risk !== 'probable' && risk !== 'posible') continue;
+      return risk === 'probable' || risk === 'posible';
+    });
+    // Sort by strikeCount desc, keep top N. Probable always wins over posible
+    // at equal strike count by sorting probable-first.
+    candidates.sort((a, b) => {
+      const aProb = a.intensity?.hailRisk === 'probable' ? 1 : 0;
+      const bProb = b.intensity?.hailRisk === 'probable' ? 1 : 0;
+      if (aProb !== bProb) return bProb - aProb;
+      return b.strikeCount - a.strikeCount;
+    });
+    const top = candidates.slice(0, HAIL_RING_LIMIT);
+
+    const features: GeoJSON.Feature[] = [];
+    for (const c of top) {
+      const risk = c.intensity!.hailRisk;
       // Three concentric rings — outer/middle/inner — at fixed distance so
       // the stripe pattern reads even when cluster is small.
       // Inner is brighter, outer fades to suggest a halo effect.
       for (const km of [4, 6, 8]) {
-        const ring = circlePolygon(c.lon, c.lat, km);
+        const ring = circlePolygon(c.leadLon ?? c.lon, c.leadLat ?? c.lat, km);
         ring.properties = { ringKm: km, risk };
         features.push(ring);
       }
@@ -654,6 +684,11 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       </Source>
 
       {/* ── Cluster masses (haze + core) ─────────────────────── */}
+      {/* S126+1 polish: opacities lowered (~30%) because translucent fills
+           COMPOUND when clusters overlap. With 5+ active cells the previous
+           values stacked to near-opaque red over a wide area, drowning the
+           base map. New values keep each individual cluster legible while
+           letting overlap regions stay readable instead of going opaque. */}
       <Source id="storm-cluster-masses" type="geojson" data={clusterMasses}>
         {/* Outer haze — dark purple/red diffused area */}
         <Layer
@@ -664,26 +699,36 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'fill-color': [
               'case',
               ['==', ['get', 'approaching'], 1],
-              'rgba(220, 38, 38, 0.14)',  // red-ish for approaching
-              'rgba(139, 92, 246, 0.10)', // purple for others
+              'rgba(220, 38, 38, 0.09)',  // red-ish for approaching (was 0.14)
+              'rgba(139, 92, 246, 0.06)', // purple for others (was 0.10)
             ],
             'fill-antialias': true,
           }}
         />
-        {/* Inner core — more opaque, danger feel */}
+        {/* Inner core — color now driven by storm intensity TYPE when known
+             (S126+1), with age as a fallback. This way "estratiforme leve"
+             reads cool/blue while "lluvia intensa" reads warm/red — distinct
+             at a glance even before reading the label. */}
         <Layer
           id="storm-mass-core"
           type="fill"
           filter={['==', ['get', 'type'], 'core']}
           paint={{
             'fill-color': [
-              'interpolate',
-              ['linear'],
-              ['get', 'newestAgeMin'],
-              0, 'rgba(239, 68, 68, 0.30)',   // very fresh → strong red
-              15, 'rgba(249, 115, 22, 0.20)',  // 15min → orange
-              30, 'rgba(168, 85, 247, 0.12)',  // 30min → fading purple
-              60, 'rgba(100, 116, 139, 0.06)', // 60min → gray
+              'match', ['coalesce', ['get', 'intensityType'], 'unknown'],
+              'lluvia intensa',     'rgba(220, 38, 38, 0.22)',   // red, danger
+              'lluvia con rayos',   'rgba(249, 115, 22, 0.18)',  // orange
+              'eléctrica seca',     'rgba(234, 179, 8, 0.14)',   // amber/yellow
+              'estratiforme leve',  'rgba(96, 165, 250, 0.10)',  // cool blue, low alarm
+              'mixta',              'rgba(168, 85, 247, 0.16)',  // purple
+              // unknown / not-yet-classified → gentle age-based fade
+              [
+                'interpolate', ['linear'], ['get', 'newestAgeMin'],
+                0,  'rgba(239, 68, 68, 0.18)',
+                15, 'rgba(249, 115, 22, 0.13)',
+                30, 'rgba(168, 85, 247, 0.08)',
+                60, 'rgba(100, 116, 139, 0.04)',
+              ],
             ],
             'fill-antialias': true,
           }}
@@ -696,8 +741,8 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'line-color': [
               'case',
               ['==', ['get', 'approaching'], 1],
-              'rgba(239, 68, 68, 0.50)',
-              'rgba(168, 85, 247, 0.35)',
+              'rgba(239, 68, 68, 0.40)',  // was 0.50
+              'rgba(168, 85, 247, 0.25)', // was 0.35
             ],
             'line-width': 2,
             'line-dasharray': [3, 2],
