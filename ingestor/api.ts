@@ -335,8 +335,13 @@ async function handleForecast(
       pressure: h.pressure,
       solarRadiation: h.solarRadiation,
       cape: h.cape,
+      cin: h.cin,
+      liftedIndex: h.liftedIndex,
       boundaryLayerHeight: h.boundaryLayerHeight,
       visibility: h.visibility,
+      snowLevel: h.snowLevel,
+      skyState: h.skyState,
+      temperature500hPa: h.temperature500hPa ?? null,
       isDay: h.isDay,
     })),
   }, 200, origin);

@@ -39,6 +39,9 @@ export interface HourlyForecast {
   snowLevel: number | null;
   /** Sky state from MeteoSIX WRF (SUNNY, CLOUDY, FOG, STORMS, etc.) — null for Open-Meteo */
   skyState: string | null;
+  /** Temperature at 500 hPa (°C) — cold-tops indicator for hail risk classification.
+   *  Available from Open-Meteo (Auto/best_match path). Null for WRF-MG (not in MeteoSIX). */
+  temperature500hPa?: number | null;
   /** Is it currently daytime? */
   isDay: boolean;
   // ── Marine wave data (from Open-Meteo Marine API or MeteoSIX USWAN, Rías surf spots only) ──
