@@ -116,18 +116,35 @@ function circlePolygon(
  * Generate velocity arrow as a LineString from cluster centroid
  * in the direction of movement, length proportional to speed.
  */
+/**
+ * How far ahead (km) to project the storm given its current velocity.
+ * Used by both `velocityArrow` and `arrowTip`. Represents ~30 minutes of
+ * forecast at current speed, with a minimum of 6 km so even slow storms show
+ * a visible direction indicator, and a maximum of 25 km to prevent fast-
+ * moving outlier vectors from dominating the map.
+ */
+function projectionLengthKm(speedKmh: number): number {
+  return Math.max(6, Math.min((speedKmh / 60) * 30, 25));
+}
+
 function velocityArrow(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineString> | null {
   if (!cluster.velocity) return null;
 
   const { bearingDeg, speedKmh } = cluster.velocity;
-  // Arrow length: 1km per 4 km/h of speed, min 3km, capped at 18km
-  const arrowLenKm = Math.max(3, Math.min(speedKmh / 4, 18));
+  // 30-minute projection at current speed (S126+1 — was 1 km per 4 km/h, too short)
+  const arrowLenKm = projectionLengthKm(speedKmh);
   const bearingRad = (bearingDeg * Math.PI) / 180;
 
-  const endLat = cluster.lat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
+  // Arrow originates from the LEADING-EDGE point (v2.62.1 dual-centroid model)
+  // so the projection vector matches what the velocity was actually computed
+  // from (lead-to-lead movement, not display centroid drift).
+  const startLat = cluster.leadLat ?? cluster.lat;
+  const startLon = cluster.leadLon ?? cluster.lon;
+
+  const endLat = startLat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
   const endLon =
-    cluster.lon +
-    (arrowLenKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) *
+    startLon +
+    (arrowLenKm / (111.32 * Math.cos((startLat * Math.PI) / 180))) *
       Math.sin(bearingRad);
 
   return {
@@ -135,7 +152,7 @@ function velocityArrow(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
     geometry: {
       type: 'LineString',
       coordinates: [
-        [cluster.lon, cluster.lat],
+        [startLon, startLat],
         [endLon, endLat],
       ],
     },
@@ -153,15 +170,17 @@ function arrowTip(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Polygon> | nul
   if (!cluster.velocity) return null;
 
   const { bearingDeg, speedKmh } = cluster.velocity;
-  const arrowLenKm = Math.max(3, Math.min(speedKmh / 4, 18));
+  const arrowLenKm = projectionLengthKm(speedKmh);
   const bearingRad = (bearingDeg * Math.PI) / 180;
-  const tipSizeKm = 2.5; // bigger arrowhead for visibility
+  const tipSizeKm = 3.5; // bigger arrowhead for visibility (was 2.5)
 
-  // Tip point
-  const tipLat = cluster.lat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
+  // Tip point — measured from the LEADING-EDGE start (v2.62.1)
+  const startLat = cluster.leadLat ?? cluster.lat;
+  const startLon = cluster.leadLon ?? cluster.lon;
+  const tipLat = startLat + (arrowLenKm / 111.32) * Math.cos(bearingRad);
   const tipLon =
-    cluster.lon +
-    (arrowLenKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) *
+    startLon +
+    (arrowLenKm / (111.32 * Math.cos((startLat * Math.PI) / 180))) *
       Math.sin(bearingRad);
 
   // Two base points of the triangle (perpendicular to bearing)
@@ -208,12 +227,16 @@ function projectedPath(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
 
   const { bearingDeg, speedKmh } = cluster.velocity;
   const bearingRad = (bearingDeg * Math.PI) / 180;
-  const coords: [number, number][] = [[cluster.lon, cluster.lat]];
+  // Project from the LEADING-EDGE point so every visual indicator (trail tail,
+  // velocity arrow, projected path) shares the same anchor.
+  const startLat = cluster.leadLat ?? cluster.lat;
+  const startLon = cluster.leadLon ?? cluster.lon;
+  const coords: [number, number][] = [[startLon, startLat]];
 
   for (const min of [5, 10, 15, 20, 30]) {
     const distKm = (speedKmh / 60) * min;
-    const lat = cluster.lat + (distKm / 111.32) * Math.cos(bearingRad);
-    const lon = cluster.lon + (distKm / (111.32 * Math.cos((cluster.lat * Math.PI) / 180))) * Math.sin(bearingRad);
+    const lat = startLat + (distKm / 111.32) * Math.cos(bearingRad);
+    const lon = startLon + (distKm / (111.32 * Math.cos((startLat * Math.PI) / 180))) * Math.sin(bearingRad);
     coords.push([lon, lat]);
   }
 
@@ -464,38 +487,92 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
   }, [showOverlay, clusters]);
 
   // ── Storm trail history (fading previous centroid positions) ──
-  const trailPoints = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusterHistory.length <= 1) return EMPTY_FC;
+  // Two GeoJSON sources:
+  //   trailLines  → LineString per cluster ID through historical centroids +
+  //                 current position. Visually shows the storm's trajectory.
+  //   trailPoints → fading dots at past positions (kept for ghost-like effect
+  //                 at each snapshot tick, layered on top of the line).
+  const { trailLines, trailPoints } = useMemo<{
+    trailLines: GeoJSON.FeatureCollection;
+    trailPoints: GeoJSON.FeatureCollection;
+  }>(() => {
+    if (!showOverlay || clusterHistory.length <= 1) {
+      return { trailLines: EMPTY_FC, trailPoints: EMPTY_FC };
+    }
 
     const now = Date.now();
-    const features: GeoJSON.Feature[] = [];
 
-    // Skip the most recent snapshot (that's the current position)
-    const pastSnapshots = clusterHistory.slice(0, -1);
+    // Group all centroids by cluster ID across history snapshots.
+    type Pos = { ts: number; lat: number; lon: number; strikeCount: number };
+    const byId = new Map<string, Pos[]>();
+    for (const snap of clusterHistory) {
+      for (const c of snap.centroids) {
+        if (!byId.has(c.id)) byId.set(c.id, []);
+        byId.get(c.id)!.push({
+          ts: snap.timestamp, lat: c.lat, lon: c.lon, strikeCount: c.strikeCount,
+        });
+      }
+    }
+    // Append the CURRENT cluster centroid so the trail line connects all the
+    // way to "now". Without this the line stops at the previous poll position.
+    for (const c of clusters) {
+      if (!byId.has(c.id)) byId.set(c.id, []);
+      byId.get(c.id)!.push({
+        ts: now, lat: c.leadLat ?? c.lat, lon: c.leadLon ?? c.lon, strikeCount: c.strikeCount,
+      });
+    }
 
-    for (const snapshot of pastSnapshots) {
-      const ageMs = now - snapshot.timestamp;
-      const ageMinutes = ageMs / 60_000;
-      // Normalize age: 0 = recent, 1 = old (15 min max)
-      const ageFactor = Math.min(ageMinutes / 15, 1);
+    const lineFeatures: GeoJSON.Feature[] = [];
+    const pointFeatures: GeoJSON.Feature[] = [];
 
-      for (const centroid of snapshot.centroids) {
-        features.push({
+    for (const [id, positions] of byId) {
+      if (positions.length < 2) continue;
+      positions.sort((a, b) => a.ts - b.ts);
+
+      // Length-of-trail in km (sum of segment distances) — useful for the line
+      // width to scale with how far the storm has moved.
+      let trailKm = 0;
+      for (let i = 1; i < positions.length; i++) {
+        const a = positions[i - 1], b = positions[i];
+        const dLat = (b.lat - a.lat) * 111.32;
+        const dLon = (b.lon - a.lon) * 111.32 * Math.cos((a.lat * Math.PI) / 180);
+        trailKm += Math.hypot(dLat, dLon);
+      }
+
+      lineFeatures.push({
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: positions.map((p) => [p.lon, p.lat]),
+        },
+        properties: {
+          id,
+          points: positions.length,
+          trailKm: Math.round(trailKm * 10) / 10,
+        },
+      });
+
+      // Drop a fading dot at every PAST position (skip last = current centroid)
+      for (let i = 0; i < positions.length - 1; i++) {
+        const p = positions[i];
+        const ageMin = (now - p.ts) / 60_000;
+        const ageFactor = Math.min(ageMin / 15, 1);
+        pointFeatures.push({
           type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [centroid.lon, centroid.lat],
-          },
+          geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
           properties: {
             age: ageFactor,
-            strikeCount: centroid.strikeCount,
+            strikeCount: p.strikeCount,
           },
         });
       }
     }
 
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusterHistory]);
+    return {
+      trailLines: { type: 'FeatureCollection', features: lineFeatures },
+      trailPoints: { type: 'FeatureCollection', features: pointFeatures },
+    };
+  }, [showOverlay, clusterHistory, clusters]);
 
   if (!showOverlay) return null;
 
@@ -733,7 +810,37 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         />
       </Source>
 
-      {/* ── Storm trail history (fading ghost positions) ───────── */}
+      {/* ── Storm trajectory LINE (where the storm came from → now) ── */}
+      {/* One LineString per cluster ID, connecting all historical centroids
+          plus the current position. Makes movement visually obvious — you
+          see the storm "trail" pointing back to where it started. */}
+      <Source id="storm-trail-lines" type="geojson" data={trailLines}>
+        {/* Soft glow underlay — wider, blurred, low opacity */}
+        <Layer
+          id="storm-trail-line-glow"
+          type="line"
+          layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+          paint={{
+            'line-color': 'rgba(168, 85, 247, 0.35)',
+            'line-width': 8,
+            'line-blur': 4,
+          }}
+        />
+        {/* Solid trail line — bright purple dashed so it reads as "history" */}
+        <Layer
+          id="storm-trail-line-core"
+          type="line"
+          layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+          paint={{
+            'line-color': '#a855f7', // purple-500 — distinct from orange velocity arrow
+            'line-width': 2.5,
+            'line-opacity': 0.85,
+            'line-dasharray': [3, 2],
+          }}
+        />
+      </Source>
+
+      {/* ── Storm trail history (fading ghost positions at each snapshot) ── */}
       <Source id="storm-trail-points" type="geojson" data={trailPoints}>
         {/* Ghost glow */}
         <Layer
