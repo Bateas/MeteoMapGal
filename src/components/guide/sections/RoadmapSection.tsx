@@ -53,6 +53,7 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="zap" title="Histórico de rayos en TimescaleDB" desc="Cada rayo registrado por la red MeteoGalicia se persiste 24/7 en base de datos propia. Primera fase de un dataset histórico riguroso para detectar patrones reales: zonas de mayor incidencia, correlación con dirección de viento, paso de frentes, hora del día. A medida que se acumulen meses se podrán extraer patrones que ningún modelo genérico captura para Galicia." status="done" />
         <TimelineMilestone iconId="info" title="Histórico sinóptico — viento en altura" desc="Datos horarios de viento, temperatura y altura geopotencial a 850, 700 y 500 hPa por sector — la base de toda la dinámica que mueve las tormentas. Sin esto solo veríamos el resultado en superficie; con esto podemos correlacionar lo que pasa abajo con lo que está pasando arriba." status="done" />
         <TimelineMilestone iconId="zap" title="Histórico de inestabilidad atmosférica" desc="CAPE, CIN, índice de levantamiento y agua precipitable persistidos por hora y sector. Permitirá calibrar el predictor de tormentas con casos reales de Galicia: ¿qué umbrales de CAPE producen actividad eléctrica aquí, no en el genérico continental?" status="done" />
+        <TimelineMilestone iconId="zap" title="Tipo de tormenta y riesgo de granizo" desc="Cada núcleo tormentoso clasifica ahora qué tipo es: 'eléctrica seca' (rayos sin lluvia, peligro incendio campo), 'lluvia intensa' (chaparrón, refugio), 'lluvia con rayos', 'estratiforme leve'. Más: si la atmósfera (CAPE alto + LI muy negativo) sugiere granizo, se pintan anillos rayados azul-hielo alrededor del núcleo y la etiqueta lo avisa. Sustituye al 'vemos los rayos pero ni idea si va a caer poca lluvia o un mega chaparrón'." status="done" />
 
         {/* ── Proximamente ── */}
         <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
@@ -131,7 +132,7 @@ export function RoadmapSection() {
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
               <span className="text-slate-500">100+ estaciones</span>
               <span className="text-slate-500">22 webcams + IA</span>
-              <span className="text-slate-500">812 tests</span>
+              <span className="text-slate-500">849 tests</span>
               <span className="text-slate-500">TimescaleDB 24/7</span>
             </div>
           </div>
