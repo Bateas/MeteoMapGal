@@ -13,11 +13,10 @@
  *
  * Rías sector only. No auth needed.
  */
-import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { memo, useMemo, useState, useCallback, useEffect } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useSectorStore } from '../../store/sectorStore';
 import { useMapStyleStore } from '../../store/mapStyleStore';
-import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
 import { fetchMarineData } from '../../api/marineClient';
 
@@ -47,8 +46,11 @@ const SWAN_WMS_BASE =
   + '&TRANSPARENT=true'
   + '&COLORSCALERANGE=0,3';
 
-const AUTO_WAVE_THRESHOLD = 0.5;
 const HOUR_STEPS = 48; // ±48h from now
+// Note: SWAN no longer auto-activates (S126+1). It's an opt-in layer the user
+// toggles from the marine layers menu. Auto-loading on every page load was
+// hammering the academic CESGA server unnecessarily and adding visual weight
+// when users may not care about waves at that moment.
 
 /** Build TIME parameter for a given hour offset from now */
 function timeForOffset(offsetHours: number): string {
@@ -70,32 +72,21 @@ function formatOffset(h: number): string {
 function SwanWaveOverlayInner() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const showSwan = useMapStyleStore((s) => s.showUpwelling);
-  const toggleSwan = useMapStyleStore((s) => s.toggleUpwelling);
-  const buoys = useBuoyStore((s) => s.buoys);
   const isMobile = useUIStore((s) => s.isMobile);
 
   const [hourOffset, setHourOffset] = useState(0);
   const [serverUp, setServerUp] = useState(false);
 
-  const maxWaveHeight = useMemo(() => {
-    let max = 0;
-    for (const b of buoys) {
-      if (b.waveHeight != null && b.waveHeight > max) max = b.waveHeight;
-    }
-    return max;
-  }, [buoys]);
+  // S126+1: auto-activation removed. SWAN is now strictly opt-in via the
+  // marine layers menu. Reasons:
+  //   - CESGA academic server is unstable and we were hitting it on every
+  //     load; this reduces load on a fragile dependency.
+  //   - Visually heavy overlay on a map that already has many active layers.
+  //   - User explicitly asked for manual control.
+  // The buoys/maxWaveHeight reads are no longer needed; left the import
+  // intact in case future features want them, but the values aren't read.
 
-  // Auto-activate: when waves ≥ threshold, suggest turning ON (user can toggle OFF)
-  const autoActivated = useRef(false);
-  useEffect(() => {
-    if (sectorId !== 'rias' || showSwan || autoActivated.current) return;
-    if (maxWaveHeight >= AUTO_WAVE_THRESHOLD) {
-      autoActivated.current = true;
-      toggleSwan(); // turns ON — user can toggle OFF in Capas Marinas
-    }
-  }, [sectorId, maxWaveHeight, showSwan, toggleSwan]);
-
-  // Toggle is the ONLY control — no bypass. User can always dismiss.
+  // Toggle is the ONLY control. User activates from "Capas marinas" menu.
   const wantsActive = sectorId === 'rias' && showSwan;
 
   // Health check: verify CESGA THREDDS has CURRENT data before loading tiles.

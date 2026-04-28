@@ -86,6 +86,34 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
   features: [],
 };
 
+// ── Fade-out thresholds (S126+1 polish) ────────────────────────────
+// Storms enter "dissipation" phase when their newest strike is older than
+// DISSIPATING_AGE_MIN. At that point predictions stop being trustworthy
+// (atmosphere may have changed, no ground truth lately) so we hide future-
+// pointing visuals (arrow, ghost, hail rings) and dim the cluster mass.
+// Past EXPIRED_AGE_MIN the cluster is essentially memory — render as a
+// faint silhouette only.
+const DISSIPATING_AGE_MIN = 15;
+const EXPIRED_AGE_MIN = 30;
+
+/**
+ * Returns true when the cluster has had recent enough activity to justify
+ * showing prediction visuals (arrow, ghost, hail). Below this threshold the
+ * predictor's velocity/atmosphere data is still operationally meaningful.
+ */
+function isClusterActive(c: StormCluster): boolean {
+  return c.newestAgeMin <= DISSIPATING_AGE_MIN;
+}
+
+/**
+ * Trail/arrow/ghost should only render when there's actual movement to show.
+ * Without velocity computed (cluster matched but moved less than minSpeed
+ * gate), drawing a trail line with no flecha + no ghost is incoherent.
+ */
+function isClusterMoving(c: StormCluster): boolean {
+  return c.velocity != null;
+}
+
 /**
  * Generate a circle polygon (GeoJSON) centered at [lon, lat] with given radius in km.
  * Uses 64 segments for smoothness.
@@ -362,7 +390,12 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         // visually dominate when 5+ overlap. They now stay closer to the actual
         // strike footprint instead of inflating the hull by 8 km in every direction.
         const hazeShape = hullToShape(cluster, hull, 4);
-        hazeShape.properties = { ...hazeShape.properties, type: 'haze', intensityType };
+        hazeShape.properties = {
+          ...hazeShape.properties,
+          type: 'haze',
+          intensityType,
+          newestAgeMin: cluster.newestAgeMin,
+        };
         features.push(hazeShape);
 
         const coreShape = hullToShape(cluster, hull, 1.5);
@@ -412,6 +445,10 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
     const features: GeoJSON.Feature[] = [];
     for (const c of clusters) {
+      // S126+1: only render ghost for active + moving clusters (same gate as
+      // velocity arrow + ghost projection rule). Dissipating storms or
+      // stationary clusters get no future projection.
+      if (!isClusterActive(c)) continue;
       if (!c.velocity || c.velocity.speedKmh < 5) continue; // skip nearly-stationary
       const { bearingDeg, speedKmh } = c.velocity;
       const projKm = projectionLengthKm(speedKmh);
@@ -464,6 +501,9 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     // the most active cells where the risk is most concrete.
     const HAIL_RING_LIMIT = 3;
     const candidates = clusters.filter((c) => {
+      // S126+1: skip dissipating storms — the atmosphere that produced their
+      // hail risk is no longer current.
+      if (!isClusterActive(c)) return false;
       const risk = c.intensity?.hailRisk;
       return risk === 'probable' || risk === 'posible';
     });
@@ -514,11 +554,16 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     };
   }, [showOverlay, clusters]);
 
-  // ── Velocity arrows (split into separate collections for line vs fill layers)
+  // ── Velocity arrows + projection paths ──────────────────────────
+  // S126+1: skip clusters that are dissipating (newest strike >15 min old)
+  // OR that have no velocity computed. Predictions on stale storms are
+  // engañosas; trail-without-arrow is incoherent. Only active + moving
+  // clusters get future-pointing visuals.
   const velocityLines = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
     const features: GeoJSON.Feature[] = [];
     for (const c of clusters) {
+      if (!isClusterActive(c) || !isClusterMoving(c)) continue;
       const arrow = velocityArrow(c);
       if (arrow) features.push(arrow);
     }
@@ -529,17 +574,18 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
     const features: GeoJSON.Feature[] = [];
     for (const c of clusters) {
+      if (!isClusterActive(c) || !isClusterMoving(c)) continue;
       const tip = arrowTip(c);
       if (tip) features.push(tip);
     }
     return { type: 'FeatureCollection', features };
   }, [showOverlay, clusters]);
 
-  // ── Projected paths (approaching clusters only) ──────────
   const projectedPaths = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
     const features: GeoJSON.Feature[] = [];
     for (const c of clusters) {
+      if (!isClusterActive(c) || !isClusterMoving(c)) continue;
       const path = projectedPath(c);
       if (path) features.push(path);
     }
@@ -569,23 +615,39 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
 
     const now = Date.now();
 
+    // S126+1: only build trails for currently-active + moving clusters. Drawing
+    // a trail with no companion arrow + ghost (because velocity gate filtered)
+    // is incoherent and confused users.
+    const eligibleIds = new Set<string>();
+    for (const c of clusters) {
+      if (isClusterMoving(c)) eligibleIds.add(c.id);
+    }
+
     // Group all centroids by cluster ID across history snapshots.
-    type Pos = { ts: number; lat: number; lon: number; strikeCount: number };
+    type Pos = { ts: number; lat: number; lon: number; strikeCount: number; ageMin: number };
     const byId = new Map<string, Pos[]>();
     for (const snap of clusterHistory) {
+      if (!snap.centroids) continue;
       for (const c of snap.centroids) {
+        if (!eligibleIds.has(c.id)) continue;
         if (!byId.has(c.id)) byId.set(c.id, []);
         byId.get(c.id)!.push({
           ts: snap.timestamp, lat: c.lat, lon: c.lon, strikeCount: c.strikeCount,
+          ageMin: 0, // computed below for points only
         });
       }
     }
     // Append the CURRENT cluster centroid so the trail line connects all the
-    // way to "now". Without this the line stops at the previous poll position.
+    // way to "now". Tag with newestAgeMin so the layer can fade dissipating
+    // storms (rule 3 of S126+1 fade-out polish).
+    const ageById = new Map<string, number>();
     for (const c of clusters) {
+      if (!eligibleIds.has(c.id)) continue;
+      ageById.set(c.id, c.newestAgeMin);
       if (!byId.has(c.id)) byId.set(c.id, []);
       byId.get(c.id)!.push({
-        ts: now, lat: c.leadLat ?? c.lat, lon: c.leadLon ?? c.lon, strikeCount: c.strikeCount,
+        ts: now, lat: c.leadLat ?? c.lat, lon: c.leadLon ?? c.lon,
+        strikeCount: c.strikeCount, ageMin: 0,
       });
     }
 
@@ -606,6 +668,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         trailKm += Math.hypot(dLat, dLon);
       }
 
+      const newestAgeMin = ageById.get(id) ?? 0;
       lineFeatures.push({
         type: 'Feature',
         geometry: {
@@ -616,6 +679,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           id,
           points: positions.length,
           trailKm: Math.round(trailKm * 10) / 10,
+          newestAgeMin,
         },
       });
 
@@ -728,6 +792,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
            letting overlap regions stay readable instead of going opaque. */}
       <Source id="storm-cluster-masses" type="geojson" data={clusterMasses}>
         {/* Outer haze — dark purple/red diffused area */}
+        {/* S126+1 fade: opacity decreases with newestAgeMin (15min→0.5×, 30min→0.2×) */}
         <Layer
           id="storm-mass-haze"
           type="fill"
@@ -736,10 +801,17 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'fill-color': [
               'case',
               ['==', ['get', 'approaching'], 1],
-              'rgba(220, 38, 38, 0.09)',  // red-ish for approaching (was 0.14)
-              'rgba(139, 92, 246, 0.06)', // purple for others (was 0.10)
+              'rgba(220, 38, 38, 0.09)',
+              'rgba(139, 92, 246, 0.06)',
             ],
             'fill-antialias': true,
+            'fill-opacity': [
+              'interpolate', ['linear'], ['coalesce', ['get', 'newestAgeMin'], 0],
+              0,  1.0,
+              15, 0.5,
+              30, 0.2,
+              60, 0.1,
+            ],
           }}
         />
         {/* Inner core — color now driven by storm intensity TYPE when known
@@ -768,6 +840,14 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
               ],
             ],
             'fill-antialias': true,
+            // S126+1 fade: dissipating storms get diluted, expired ones become silhouettes
+            'fill-opacity': [
+              'interpolate', ['linear'], ['coalesce', ['get', 'newestAgeMin'], 0],
+              0,  1.0,
+              15, 0.5,   // DISSIPATING_AGE_MIN — half opacity
+              30, 0.2,   // EXPIRED_AGE_MIN — barely visible silhouette
+              60, 0.08,  // window edge — almost gone
+            ],
           }}
         />
         <Layer
@@ -778,11 +858,18 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'line-color': [
               'case',
               ['==', ['get', 'approaching'], 1],
-              'rgba(239, 68, 68, 0.40)',  // was 0.50
-              'rgba(168, 85, 247, 0.25)', // was 0.35
+              'rgba(239, 68, 68, 0.40)',
+              'rgba(168, 85, 247, 0.25)',
             ],
             'line-width': 2,
             'line-dasharray': [3, 2],
+            'line-opacity': [
+              'interpolate', ['linear'], ['coalesce', ['get', 'newestAgeMin'], 0],
+              0,  1.0,
+              15, 0.5,
+              30, 0.2,
+              60, 0.05,
+            ],
           }}
         />
       </Source>
@@ -948,7 +1035,8 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           plus the current position. Makes movement visually obvious — you
           see the storm "trail" pointing back to where it started. */}
       <Source id="storm-trail-lines" type="geojson" data={trailLines}>
-        {/* Soft glow underlay — wider, blurred, low opacity */}
+        {/* Soft glow underlay — wider, blurred, low opacity. S126+1: fades when
+            the cluster is dissipating so trail tells "memory of a fading storm". */}
         <Layer
           id="storm-trail-line-glow"
           type="line"
@@ -957,6 +1045,13 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'line-color': 'rgba(168, 85, 247, 0.35)',
             'line-width': 8,
             'line-blur': 4,
+            'line-opacity': [
+              'interpolate', ['linear'], ['coalesce', ['get', 'newestAgeMin'], 0],
+              0,  1.0,
+              15, 0.6,   // dissipating
+              30, 0.25,  // expired
+              60, 0.05,
+            ],
           }}
         />
         {/* Solid trail line — bright purple dashed so it reads as "history" */}
@@ -967,8 +1062,14 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           paint={{
             'line-color': '#a855f7', // purple-500 — distinct from orange velocity arrow
             'line-width': 2.5,
-            'line-opacity': 0.85,
             'line-dasharray': [3, 2],
+            'line-opacity': [
+              'interpolate', ['linear'], ['coalesce', ['get', 'newestAgeMin'], 0],
+              0,  0.85,
+              15, 0.55,
+              30, 0.2,
+              60, 0.05,
+            ],
           }}
         />
       </Source>
