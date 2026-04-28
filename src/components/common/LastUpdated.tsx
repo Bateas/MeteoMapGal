@@ -2,6 +2,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import type { WeatherSource, SourceStatus } from '../../store/weatherStore';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Database } from 'lucide-react';
 
 const SOURCE_LABELS: Record<WeatherSource, string> = {
   aemet: 'AEMET',
@@ -51,7 +52,10 @@ export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
         {isLoading ? (
           <span className="text-[11px] text-blue-400 animate-pulse">...</span>
         ) : isUsingCachedData && lastFetchTime ? (
-          <span className="text-[11px] text-amber-400 font-mono" title="Datos en caché">⚡{compactAge(lastFetchTime)}</span>
+          <span className="inline-flex items-center gap-0.5 text-[11px] text-amber-400 font-mono" title="Datos en caché">
+            <Database size={10} aria-hidden="true" />
+            {compactAge(lastFetchTime)}
+          </span>
         ) : lastFetchTime ? (
           <span className="text-[11px] text-slate-500 font-mono">{compactAge(lastFetchTime)}</span>
         ) : null}
