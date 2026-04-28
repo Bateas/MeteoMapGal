@@ -19,6 +19,20 @@ import { useSectorStore } from '../../store/sectorStore';
 import { useMapStyleStore } from '../../store/mapStyleStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
+import { fetchMarineData } from '../../api/marineClient';
+
+// ── Open-Meteo Marine fallback — used when CESGA SWAN is down ──
+// 6 strategic sample points covering Rías Baixas. Drawn as colored dots so
+// users still get a coarse spatial wave context when the high-resolution
+// SWAN model is unavailable. Cache lives inside marineClient (10 min).
+const OPEN_METEO_FALLBACK_POINTS: Array<{ id: string; lat: number; lon: number; label: string }> = [
+  { id: 'vigo-bocana',     lat: 42.20, lon: -8.90, label: 'Bocana Vigo' },
+  { id: 'pontevedra-bocana', lat: 42.39, lon: -8.95, label: 'Bocana Pontevedra' },
+  { id: 'pontevedra-int',  lat: 42.39, lon: -8.78, label: 'Interior Pontevedra' },
+  { id: 'arousa-bocana',   lat: 42.55, lon: -9.05, label: 'Bocana Arousa' },
+  { id: 'arousa-int',      lat: 42.57, lon: -8.85, label: 'Interior Arousa' },
+  { id: 'muros-bocana',    lat: 42.78, lon: -9.10, label: 'Bocana Muros' },
+];
 
 // ── WMS config ───────────────────────────────────────
 
@@ -113,6 +127,36 @@ function SwanWaveOverlayInner() {
 
   const isActive = wantsActive && serverUp;
 
+  // ── Open-Meteo Marine fallback when CESGA is down ──
+  // Pull the 6 sample points lazily, cache via marineClient (10 min).
+  const fallbackActive = wantsActive && !serverUp;
+  const [fallbackData, setFallbackData] = useState<Array<{ lat: number; lon: number; waveHeight: number; label: string }>>([]);
+  useEffect(() => {
+    if (!fallbackActive) { setFallbackData([]); return; }
+    let cancelled = false;
+    (async () => {
+      const results: Array<{ lat: number; lon: number; waveHeight: number; label: string }> = [];
+      for (const pt of OPEN_METEO_FALLBACK_POINTS) {
+        const d = await fetchMarineData(pt.lat, pt.lon);
+        if (cancelled) return;
+        if (d?.waveHeight != null) {
+          results.push({ lat: pt.lat, lon: pt.lon, waveHeight: d.waveHeight, label: pt.label });
+        }
+      }
+      if (!cancelled) setFallbackData(results);
+    })();
+    return () => { cancelled = true; };
+  }, [fallbackActive]);
+
+  const fallbackGeoJson = useMemo(() => ({
+    type: 'FeatureCollection' as const,
+    features: fallbackData.map((p) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [p.lon, p.lat] },
+      properties: { waveHeight: p.waveHeight, label: p.label },
+    })),
+  }), [fallbackData]);
+
   // Build tile URL with TIME parameter
   const tileUrl = useMemo(() => {
     const time = timeForOffset(hourOffset);
@@ -123,31 +167,89 @@ function SwanWaveOverlayInner() {
     setHourOffset(parseInt(e.target.value, 10));
   }, []);
 
-  if (!isActive) return null;
+  if (!isActive && !fallbackActive) return null;
 
   return (
     <>
-      {/* WMS raster tiles */}
-      <Source
-        key={`swan-${hourOffset}`}
-        id="swan-wave"
-        type="raster"
-        tiles={[tileUrl]}
-        tileSize={256}
-        minzoom={8}
-        maxzoom={13}
-        attribution="&copy; MeteoGalicia SWAN (CESGA)"
-      >
-        <Layer
-          id="swan-wave-layer"
+      {/* WMS raster tiles — only when CESGA is up */}
+      {isActive && (
+        <Source
+          key={`swan-${hourOffset}`}
+          id="swan-wave"
           type="raster"
+          tiles={[tileUrl]}
+          tileSize={256}
           minzoom={8}
-          paint={{
-            'raster-opacity': 0.6,
-            'raster-fade-duration': 200,
-          }}
-        />
-      </Source>
+          maxzoom={13}
+          attribution="&copy; MeteoGalicia SWAN (CESGA)"
+        >
+          <Layer
+            id="swan-wave-layer"
+            type="raster"
+            minzoom={8}
+            paint={{
+              'raster-opacity': 0.6,
+              'raster-fade-duration': 200,
+            }}
+          />
+        </Source>
+      )}
+
+      {/* Open-Meteo Marine fallback — colored dots at strategic Rías points */}
+      {fallbackActive && fallbackData.length > 0 && (
+        <Source id="swan-fallback" type="geojson" data={fallbackGeoJson}>
+          {/* Halo (white outline) for legibility */}
+          <Layer
+            id="swan-fallback-halo"
+            type="circle"
+            paint={{
+              'circle-radius': 11,
+              'circle-color': '#ffffff',
+              'circle-opacity': 0.7,
+              'circle-blur': 0.4,
+            }}
+          />
+          {/* Wave-height-colored dot — same scale as the SWAN legend (0-3m) */}
+          <Layer
+            id="swan-fallback-dot"
+            type="circle"
+            paint={{
+              'circle-radius': 8,
+              'circle-color': [
+                'interpolate', ['linear'], ['get', 'waveHeight'],
+                0,    '#0a0a5c',
+                0.5,  '#1e3a8a',
+                1.0,  '#0ea5e9',
+                1.5,  '#22d3ee',
+                2.0,  '#4ade80',
+                2.5,  '#facc15',
+                3.0,  '#f97316',
+                4.0,  '#ef4444',
+              ],
+              'circle-opacity': 0.9,
+              'circle-stroke-color': '#0f172a',
+              'circle-stroke-width': 1.5,
+            }}
+          />
+          {/* Wave-height label (e.g. "1.4 m") */}
+          <Layer
+            id="swan-fallback-label"
+            type="symbol"
+            layout={{
+              'text-field': ['concat', ['number-format', ['get', 'waveHeight'], { 'max-fraction-digits': 1 }], ' m'],
+              'text-font': ['Noto Sans Bold'],
+              'text-size': 11,
+              'text-offset': [0, 1.6],
+              'text-allow-overlap': true,
+            }}
+            paint={{
+              'text-color': '#f1f5f9',
+              'text-halo-color': '#0f172a',
+              'text-halo-width': 1.5,
+            }}
+          />
+        </Source>
+      )}
 
       {/* Desktop: horizontal time slider + legend panel */}
       {!isMobile && showSwan && isActive && (
@@ -175,18 +277,18 @@ function SwanWaveOverlayInner() {
       )}
 
       {/* CESGA SWAN offline notice — overlay still toggled ON but server down.
-          Per-spot wave data is still flowing via Open-Meteo Marine in spot popups. */}
+          Open-Meteo Marine fallback dots are visible at 6 strategic points. */}
       {!isMobile && showSwan && !serverUp && (
         <div
           className="absolute z-30 bottom-8 left-1/2 -translate-x-1/2 w-80 bg-slate-900/85 border border-amber-500/40 rounded-lg shadow-lg px-3 py-2"
           style={{ pointerEvents: 'auto' }}
         >
           <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">SWAN no disponible</span>
+            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">SWAN no disponible — modo respaldo</span>
           </div>
           <p className="text-[10.5px] text-slate-400 leading-snug">
-            Modelo CESGA caído. Los datos de oleaje por spot siguen activos vía Open-Meteo Marine
-            (popups de spots y boyas).
+            Modelo CESGA caído. Mostrando alturas de ola en bocanas/interior vía Open-Meteo Marine
+            ({fallbackData.length} puntos). Resolución reducida.
           </p>
         </div>
       )}
