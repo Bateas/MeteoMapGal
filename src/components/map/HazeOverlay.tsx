@@ -15,6 +15,7 @@
 
 import { memo, useEffect, useState } from 'react';
 import { useAirQualityStore } from '../../store/airQualityStore';
+import { useWeatherStore } from '../../store/weatherStore';
 import { classifyHaze, type HazeSeverity } from '../../services/hazeService';
 
 const FADE_IN_MS = 2_000;
@@ -22,7 +23,16 @@ const FADE_OUT_MS = 5_000;
 
 function HazeOverlayInner() {
   const data = useAirQualityStore((s) => s.data);
-  const assessment = classifyHaze(data?.dust, data?.aerosolOpticalDepth);
+  // S126 multi-evidence cross-feed: AEMET vis < 2km confirms model calima
+  // and bumps severity. Visibility alone never triggers (could be fog).
+  const visibilityReadings = useWeatherStore((s) => s.visibilityReadings);
+  let minVis: number | null = null;
+  for (const v of visibilityReadings.values()) {
+    if (typeof v.visibility === 'number' && Number.isFinite(v.visibility)) {
+      if (minVis === null || v.visibility < minVis) minVis = v.visibility;
+    }
+  }
+  const assessment = classifyHaze(data?.dust, data?.aerosolOpticalDepth, minVis);
 
   // Track displayed severity separately from current to drive fade-out
   // even when the latest data swings to 'none' (so the calima visually
