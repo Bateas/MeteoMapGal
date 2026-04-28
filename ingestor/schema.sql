@@ -345,6 +345,158 @@ CREATE TABLE IF NOT EXISTS convection_hourly (
 );
 SELECT create_hypertable('convection_hourly', 'time', if_not_exists => TRUE);
 
+-- ════════════════════════════════════════════════════════════════
+-- Phase 2 — Continuous aggregates (S126+1)
+-- ════════════════════════════════════════════════════════════════
+-- These materialized views pre-compute the rollups we'll hit on the analytics
+-- tab + future ML feature engineering. TimescaleDB refreshes them on a policy
+-- (every N minutes, covering the last X hours) so reads are fast and writes
+-- pay only the marginal-bucket cost.
+--
+-- Naming convention: <source>_<bucket>_<dimension>
+--   lightning_hourly_zone   → strikes per hour per ~5 km cell
+--   convection_daily_sector → daily peak instability per sector
+--   ica_daily_station       → daily AQ stats per station
+--
+-- All defined idempotently (DO blocks, IF NOT EXISTS guards) so applying the
+-- schema repeatedly is a no-op.
+
+-- ── lightning_hourly_zone ───────────────────────────────
+-- "Where do storms hit most?" base layer. Buckets coords to 0.05 deg
+-- (~5.5 km lat × ~4 km lon at 42°N) so the heatmap stays small while keeping
+-- enough spatial resolution to distinguish ría from interior.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM timescaledb_information.continuous_aggregates
+    WHERE view_name = 'lightning_hourly_zone'
+  ) THEN
+    EXECUTE '
+      CREATE MATERIALIZED VIEW lightning_hourly_zone
+      WITH (timescaledb.continuous) AS
+      SELECT
+        time_bucket(''1 hour'', time)               AS bucket,
+        ROUND(lat::numeric, 2)                      AS lat_cell,
+        ROUND(lon::numeric, 2)                      AS lon_cell,
+        COUNT(*)                                    AS strike_count,
+        AVG(ABS(peak_current))                      AS avg_peak_current,
+        MAX(ABS(peak_current))                      AS max_peak_current,
+        SUM(CASE WHEN cloud_to_cloud THEN 1 ELSE 0 END) AS cc_count
+      FROM lightning_strikes
+      GROUP BY bucket, lat_cell, lon_cell
+      WITH NO DATA
+    ';
+  END IF;
+END $$;
+
+-- Refresh policy: every 30 min refresh the last 6 h (late strikes + dedup).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM timescaledb_information.jobs
+    WHERE proc_name = 'policy_refresh_continuous_aggregate'
+      AND hypertable_name = 'lightning_hourly_zone'
+  ) THEN
+    PERFORM add_continuous_aggregate_policy(
+      'lightning_hourly_zone',
+      start_offset => INTERVAL '6 hours',
+      end_offset   => INTERVAL '5 minutes',
+      schedule_interval => INTERVAL '30 minutes'
+    );
+  END IF;
+END $$;
+
+-- ── convection_daily_sector ─────────────────────────────
+-- Daily peak instability per sector. Correlates with lightning_hourly_zone
+-- to answer "did the predictor's CAPE ever materialise as strikes?"
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM timescaledb_information.continuous_aggregates
+    WHERE view_name = 'convection_daily_sector'
+  ) THEN
+    EXECUTE '
+      CREATE MATERIALIZED VIEW convection_daily_sector
+      WITH (timescaledb.continuous) AS
+      SELECT
+        time_bucket(''1 day'', time, ''Europe/Madrid'')  AS bucket,
+        sector,
+        MAX(cape)                AS peak_cape,
+        MIN(lifted_index)        AS min_lifted_index,
+        AVG(cape)                AS avg_cape,
+        AVG(cin)                 AS avg_cin,
+        AVG(boundary_layer_m)    AS avg_blh
+      FROM convection_hourly
+      GROUP BY bucket, sector
+      WITH NO DATA
+    ';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM timescaledb_information.jobs
+    WHERE proc_name = 'policy_refresh_continuous_aggregate'
+      AND hypertable_name = 'convection_daily_sector'
+  ) THEN
+    PERFORM add_continuous_aggregate_policy(
+      'convection_daily_sector',
+      start_offset => INTERVAL '3 days',
+      end_offset   => INTERVAL '1 hour',
+      schedule_interval => INTERVAL '1 hour'
+    );
+  END IF;
+END $$;
+
+-- ── ica_daily_station ───────────────────────────────────
+-- Daily AQ rollup per station. Drives "bad-air episode" detection:
+--   peak ICA + most-frequent dominant pollutant + hours over threshold.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM timescaledb_information.continuous_aggregates
+    WHERE view_name = 'ica_daily_station'
+  ) THEN
+    EXECUTE '
+      CREATE MATERIALIZED VIEW ica_daily_station
+      WITH (timescaledb.continuous) AS
+      SELECT
+        time_bucket(''1 day'', time, ''Europe/Madrid'') AS bucket,
+        station,
+        AVG(lat)                                AS lat,
+        AVG(lon)                                AS lon,
+        AVG(ica)                                AS avg_ica,
+        MAX(ica)                                AS peak_ica,
+        SUM(CASE WHEN ica >= 4 THEN 1 ELSE 0 END) AS hours_unhealthy
+      FROM ica_readings
+      GROUP BY bucket, station
+      WITH NO DATA
+    ';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM timescaledb_information.jobs
+    WHERE proc_name = 'policy_refresh_continuous_aggregate'
+      AND hypertable_name = 'ica_daily_station'
+  ) THEN
+    PERFORM add_continuous_aggregate_policy(
+      'ica_daily_station',
+      start_offset => INTERVAL '3 days',
+      end_offset   => INTERVAL '1 hour',
+      schedule_interval => INTERVAL '1 hour'
+    );
+  END IF;
+END $$;
+
+-- Read-only access for the app role (continuous aggregates need explicit GRANT)
+GRANT SELECT ON lightning_hourly_zone   TO meteomap_app;
+GRANT SELECT ON convection_daily_sector TO meteomap_app;
+GRANT SELECT ON ica_daily_station       TO meteomap_app;
+
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
 -- SELECT add_retention_policy('alerts', INTERVAL '1 year', if_not_exists => TRUE);
