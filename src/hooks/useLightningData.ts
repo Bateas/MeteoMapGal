@@ -8,6 +8,9 @@ import type { StormCluster } from '../services/stormTracker';
 import type { LightningStrike, StormAlert, StormAlertLevel } from '../types/lightning';
 import type { ClusterSnapshot } from '../services/stormTracker';
 import { useSectorStore } from '../store/sectorStore';
+import { useWeatherStore } from '../store/weatherStore';
+import { useForecastStore } from './useForecastTimeline';
+import { enrichClustersWithIntensity, type NearbyPrecipReading, type ConvectionState } from '../services/stormIntensityService';
 import { useVisibilityPolling } from './useVisibilityPolling';
 
 /**
@@ -167,6 +170,50 @@ function computeStormAlert(
 // Export the ClusterSnapshot type for stormTracker
 export type { ClusterSnapshot };
 
+// ── S126 storm intensity enrichment helpers ──────────────────────────
+// Pull-on-demand state collectors. Don't create reactive subscriptions —
+// the storm tracker poll cycle is the only consumer.
+
+function collectNearbyReadings(): NearbyPrecipReading[] {
+  const wx = useWeatherStore.getState();
+  const stations = wx.stations;
+  const now = Date.now();
+  const out: NearbyPrecipReading[] = [];
+  for (const s of stations) {
+    const r = wx.currentReadings.get(s.id);
+    if (!r || r.precipitation == null) continue;
+    out.push({
+      lat: s.lat,
+      lon: s.lon,
+      precipMm: r.precipitation,
+      ageSeconds: r.timestamp ? Math.floor((now - r.timestamp.getTime()) / 1000) : Infinity,
+    });
+  }
+  return out;
+}
+
+function collectCurrentConvection(): ConvectionState | null {
+  const fc = useForecastStore.getState();
+  const list = fc.convectionData.length > 0 ? fc.convectionData : fc.hourly;
+  if (list.length === 0) return null;
+  // Find the entry closest to NOW
+  const now = Date.now();
+  let best = list[0];
+  let bestDist = Math.abs(best.time.getTime() - now);
+  for (const f of list) {
+    const d = Math.abs(f.time.getTime() - now);
+    if (d < bestDist) { best = f; bestDist = d; }
+  }
+  // Open-Meteo /v1/forecast doesn't expose temperature_500hPa here — we'd
+  // need to plumb upper_air_hourly from the ingestor API. For now hail
+  // criterion uses the moderate (CAPE+LI only) rule → 'posible' max.
+  return {
+    cape: best.cape ?? null,
+    liftedIndex: best.liftedIndex ?? null,
+    temperature500hPa: null,
+  };
+}
+
 export function useLightningData() {
   const {
     setStrikes,
@@ -216,7 +263,16 @@ export function useLightningData() {
       );
       historyRef.current = history;
       setClusterHistory(history);
-      setClusters(clusters);
+
+      // S126 — enrich each cluster with intensity classification.
+      // Pulls precip readings + convection state via getState() so we don't
+      // add extra reactive dependencies to this cycle.
+      const enriched = enrichClustersWithIntensity(
+        clusters,
+        collectNearbyReadings(),
+        collectCurrentConvection(),
+      );
+      setClusters(enriched);
 
       const alert = computeStormAlert(strikes, clusters, prevAlertRef.current, centerLat, centerLon);
       setAlert(alert);
