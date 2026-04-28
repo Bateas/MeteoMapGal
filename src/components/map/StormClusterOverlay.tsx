@@ -358,13 +358,14 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       const intensityType = cluster.intensity?.type ?? 'unknown';
 
       if (hull) {
-        // Haze — 8km buffer
-        const hazeShape = hullToShape(cluster, hull, 8);
+        // S126+1 polish: buffers reduced (was 8 / 3) so cluster polygons no longer
+        // visually dominate when 5+ overlap. They now stay closer to the actual
+        // strike footprint instead of inflating the hull by 8 km in every direction.
+        const hazeShape = hullToShape(cluster, hull, 4);
         hazeShape.properties = { ...hazeShape.properties, type: 'haze', intensityType };
         features.push(hazeShape);
 
-        // Core — 3km buffer (tighter)
-        const coreShape = hullToShape(cluster, hull, 3);
+        const coreShape = hullToShape(cluster, hull, 1.5);
         coreShape.properties = {
           ...coreShape.properties,
           type: 'core',
@@ -374,7 +375,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         features.push(coreShape);
       } else {
         // Fallback to circle if not enough strikes for hull
-        const coreRadius = Math.min(Math.max(cluster.radiusKm, 4), 25);
+        const coreRadius = Math.min(Math.max(cluster.radiusKm, 3), 12);
         const core = circlePolygon(cluster.lon, cluster.lat, coreRadius);
         core.properties = {
           type: 'core',
@@ -401,6 +402,42 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
   //
   // Other types (eléctrica seca, estratiforme, mixta) keep the existing
   // visualization since their cluster label already differentiates them.
+
+  // ── Ghost projection (S126+1) — where the storm WILL BE in 30 min ──
+  // For every cluster with velocity, draw a faint outline circle at its
+  // projected +30 min position. Says "this is where it's headed" as a SHAPE,
+  // not just a line endpoint. The user reads the cone "current cluster →
+  // ghost outline" as the storm sweeping forward.
+  const projectedGhosts = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
+    const features: GeoJSON.Feature[] = [];
+    for (const c of clusters) {
+      if (!c.velocity || c.velocity.speedKmh < 5) continue; // skip nearly-stationary
+      const { bearingDeg, speedKmh } = c.velocity;
+      const projKm = projectionLengthKm(speedKmh);
+      const bearingRad = (bearingDeg * Math.PI) / 180;
+      const startLat = c.leadLat ?? c.lat;
+      const startLon = c.leadLon ?? c.lon;
+      // +30 min projected center
+      const futureLat = startLat + (projKm / 111.32) * Math.cos(bearingRad);
+      const futureLon =
+        startLon +
+        (projKm / (111.32 * Math.cos((startLat * Math.PI) / 180))) *
+          Math.sin(bearingRad);
+      // Use a scaled-down radius — the future shape is a rough estimate, not
+      // a hard prediction; show it smaller than current core to communicate
+      // uncertainty.
+      const ghostRadius = Math.min(Math.max(c.radiusKm * 0.7, 3), 10);
+      const ring = circlePolygon(futureLon, futureLat, ghostRadius);
+      ring.properties = {
+        approaching: c.approaching ? 1 : 0,
+        intensityType: c.intensity?.type ?? 'unknown',
+        speedKmh,
+      };
+      features.push(ring);
+    }
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, clusters]);
 
   const intensityWetFills = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
@@ -750,7 +787,45 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         />
       </Source>
 
+      {/* ── Ghost projection (+30 min) — where the storm will be ───── */}
+      {/* S126+1: faint dashed circle at the projected +30 min position of every
+           moving cluster. Reads as "the storm sweeping forward" together with the
+           velocity arrow — current cluster mass + arrow + ghost outline = trajectory. */}
+      <Source id="storm-projected-ghosts" type="geojson" data={projectedGhosts}>
+        <Layer
+          id="storm-projected-fill"
+          type="fill"
+          paint={{
+            'fill-color': [
+              'case',
+              ['==', ['get', 'approaching'], 1],
+              'rgba(239, 68, 68, 0.10)',  // soft red — approaching: warning hint
+              'rgba(168, 85, 247, 0.06)', // very soft purple — moving away
+            ],
+            'fill-antialias': true,
+          }}
+        />
+        <Layer
+          id="storm-projected-outline"
+          type="line"
+          paint={{
+            'line-color': [
+              'case',
+              ['==', ['get', 'approaching'], 1],
+              'rgba(239, 68, 68, 0.55)',
+              'rgba(168, 85, 247, 0.40)',
+            ],
+            'line-width': 2,
+            'line-dasharray': [2, 3],
+            'line-opacity': 0.85,
+          }}
+        />
+      </Source>
+
       {/* ── S126: Wet-fill (lluvia intensa) — translucent blue core ─── */}
+      {/* S126+1 polish: more prominent — wet-fill is the "this storm is dumping
+           water on you" signal, and was getting drowned by the orange/red mass-core
+           underneath. Higher opacity floor, stronger outline, sized to read clearly. */}
       <Source id="storm-intensity-wet" type="geojson" data={intensityWetFills}>
         <Layer
           id="storm-intensity-wet-fill"
@@ -759,20 +834,33 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'fill-color': '#3b82f6',
             'fill-opacity': [
               'interpolate', ['linear'], ['get', 'rate'],
-              0, 0.18,
-              10, 0.28,
-              25, 0.38,
-              50, 0.48,
+              0, 0.30,   // was 0.18 — even light "lluvia intensa" reads clearly
+              10, 0.42,  // was 0.28
+              25, 0.55,  // was 0.38
+              50, 0.65,  // was 0.48
             ],
             'fill-antialias': true,
           }}
         />
+        {/* Inner glow halo — soft blue around the wet zone — adds depth + draws eye */}
+        <Layer
+          id="storm-intensity-wet-glow"
+          type="line"
+          paint={{
+            'line-color': 'rgba(59, 130, 246, 0.45)',
+            'line-width': 6,
+            'line-blur': 4,
+          }}
+        />
+        {/* Solid outline — high contrast against orange/red mass-core underneath */}
         <Layer
           id="storm-intensity-wet-outline"
           type="line"
           paint={{
-            'line-color': 'rgba(59, 130, 246, 0.55)',
-            'line-width': 1.5,
+            'line-color': '#1e40af', // blue-800 — saturated, readable on warm bg
+            'line-width': 2.5,        // was 1.5 — thicker
+            'line-opacity': 0.9,
+            'line-dasharray': [4, 2], // dashed → reads as "rain zone" rather than border
           }}
         />
       </Source>
