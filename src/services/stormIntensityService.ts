@@ -10,7 +10,7 @@
  *   - convection state (CAPE/LI/temperature_500hPa) — optional
  *
  * Outputs structured intensity tags + label so StormClusterOverlay can:
- *   - show enriched popup ("🌩️ Eléctrica seca · 0.3mm/h")
+ *   - show enriched label on map ("Eléctrica seca · 0.3mm/h · Granizo posible")
  *   - paint differential visual hints (hail-stripes / wet-fill / dry-rings)
  *
  * Rules tuned for Galicia atmosphere (low BLH typical, frequent dry
@@ -56,11 +56,15 @@ export interface StormIntensity {
   /** Strike-rate proxy (strikes/15min from cluster newest strikes) */
   strikeRate15min: number;
   hailRisk: HailRisk;
-  /** Short emoji tag for cluster popup */
-  emoji: string;
-  /** Single-line summary for the cluster label (Spanish) */
+  /** Single-line summary for the cluster label (Spanish) — text only, no emojis */
   label: string;
-  /** Indication for which visual style to apply (frontend overlay hint) */
+  /** Indication for which visual style to apply (frontend overlay hint).
+   *  Project convention: visual differentiation lives in mass-core color, hail
+   *  rings, wet-fill — NOT in label text. Lucide SVG icons are the standard
+   *  iconography elsewhere in the UI; map labels stay text-only because
+   *  MapLibre text-fields can't render arbitrary glyphs reliably (see S126+1
+   *  protomaps 404 incident with weather emojis 🌧️ 🌦️ 🌩️ — Unicode
+   *  block U+1F300-1F37F isn't covered by the Noto Sans Bold tiles). */
   visualStyle: 'dry-rings' | 'wet-fill' | 'mixed' | 'stratiform' | 'default';
 }
 
@@ -178,28 +182,41 @@ function classifyType(rainRate: number | null, strikeRate: number): StormType {
 }
 
 // ── Visual / label helpers ───────────────────────────
+//
+// S126+1: emoji prefixes were removed (project convention "No emojis in UI").
+// Emojis like 🌧️ 🌦️ 🌩️ live in Unicode block U+1F300-1F37F which isn't
+// covered by the protomaps Noto Sans Bold font tiles → MapLibre fired a
+// 404 + CORS error per cluster label render. The visual differentiation
+// of storm type is already conveyed by:
+//   - mass-core color (v2.66.0): red/orange/amber/blue per type
+//   - wet-fill blue (lluvia intensa)
+//   - hail rings (granizo posible/probable)
+// so the emojis were redundant.
 
-const TYPE_VISUALS: Record<StormType, { emoji: string; visualStyle: StormIntensity['visualStyle'] }> = {
-  'eléctrica seca':    { emoji: '⚡',  visualStyle: 'dry-rings' },
-  'lluvia intensa':    { emoji: '🌧️', visualStyle: 'wet-fill' },
-  'lluvia con rayos':  { emoji: '⛈️', visualStyle: 'mixed' },
-  'estratiforme leve': { emoji: '🌦️', visualStyle: 'stratiform' },
-  'mixta':             { emoji: '🌩️', visualStyle: 'default' },
-  'sin datos':         { emoji: '❓',  visualStyle: 'default' },
+const TYPE_VISUALS: Record<StormType, { visualStyle: StormIntensity['visualStyle'] }> = {
+  'eléctrica seca':    { visualStyle: 'dry-rings' },
+  'lluvia intensa':    { visualStyle: 'wet-fill' },
+  'lluvia con rayos':  { visualStyle: 'mixed' },
+  'estratiforme leve': { visualStyle: 'stratiform' },
+  'mixta':             { visualStyle: 'default' },
+  'sin datos':         { visualStyle: 'default' },
 };
 
-function buildLabel(type: StormType, rainRate: number | null, hail: HailRisk, emoji: string): string {
+function buildLabel(type: StormType, rainRate: number | null, hail: HailRisk): string {
   let base = '';
   switch (type) {
-    case 'eléctrica seca':    base = `${emoji} Eléctrica seca`; break;
-    case 'lluvia intensa':    base = `${emoji} Lluvia intensa`; break;
-    case 'lluvia con rayos':  base = `${emoji} Lluvia con rayos`; break;
-    case 'estratiforme leve': base = `${emoji} Estratiforme`; break;
-    case 'mixta':             base = `${emoji} Tormenta`; break;
-    case 'sin datos':         base = `${emoji} Sin datos`; break;
+    case 'eléctrica seca':    base = 'Eléctrica seca'; break;
+    case 'lluvia intensa':    base = 'Lluvia intensa'; break;
+    case 'lluvia con rayos':  base = 'Lluvia con rayos'; break;
+    case 'estratiforme leve': base = 'Estratiforme'; break;
+    case 'mixta':             base = 'Tormenta'; break;
+    case 'sin datos':         base = 'Sin datos'; break;
   }
   const rainTag = rainRate != null && rainRate > 0 ? ` · ${rainRate}mm/h` : '';
-  const hailTag = hail === 'probable' ? ' · ⚠ Granizo probable' : hail === 'posible' ? ' · Granizo posible' : '';
+  // Hail badge — plain text, no warning glyph (kept ASCII for font safety).
+  // Tier difference is communicated by the hail-rings visual layer (more
+  // intense cyan at probable) rather than text prominence.
+  const hailTag = hail === 'probable' ? ' · Granizo probable' : hail === 'posible' ? ' · Granizo posible' : '';
   return `${base}${rainTag}${hailTag}`;
 }
 
@@ -238,8 +255,7 @@ export function classifyStormIntensity(
     rainRateMmH,
     strikeRate15min: strikeRate,
     hailRisk,
-    emoji: visuals.emoji,
-    label: buildLabel(type, rainRateMmH, hailRisk, visuals.emoji),
+    label: buildLabel(type, rainRateMmH, hailRisk),
     visualStyle: visuals.visualStyle,
   };
 }
