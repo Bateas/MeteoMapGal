@@ -358,6 +358,50 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     return { type: 'FeatureCollection', features };
   }, [showOverlay, clusters]);
 
+  // ── S126 storm intensity visual differentials ────────────────
+  // Two visual layers tied to cluster.intensity (set by enrichClustersWithIntensity):
+  //   1. Wet-fill circle — translucent blue tint when 'lluvia intensa' detected.
+  //      Says "this storm is dumping water on you, take cover" without reading text.
+  //   2. Hail stripes — concentric dashed rings (ice-blue-and-white) when
+  //      hailRisk === 'probable' (full atmospheric criterion). Says "this is
+  //      potentially severe, granizo posible" — even more urgent than rain.
+  //
+  // Other types (eléctrica seca, estratiforme, mixta) keep the existing
+  // visualization since their cluster label already differentiates them.
+
+  const intensityWetFills = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
+    const features: GeoJSON.Feature[] = [];
+    for (const c of clusters) {
+      if (c.intensity?.visualStyle !== 'wet-fill') continue;
+      // Tighter than cluster radius to NOT overlap fully — reads as a "wet
+      // core" within the storm cell, ~5km irrespective of cluster size.
+      const radius = Math.min(Math.max(c.radiusKm * 0.7, 4), 8);
+      const poly = circlePolygon(c.lon, c.lat, radius);
+      poly.properties = { rate: c.intensity.rainRateMmH ?? 0 };
+      features.push(poly);
+    }
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, clusters]);
+
+  const hailStripes = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
+    const features: GeoJSON.Feature[] = [];
+    for (const c of clusters) {
+      const risk = c.intensity?.hailRisk;
+      if (risk !== 'probable' && risk !== 'posible') continue;
+      // Three concentric rings — outer/middle/inner — at fixed distance so
+      // the stripe pattern reads even when cluster is small.
+      // Inner is brighter, outer fades to suggest a halo effect.
+      for (const km of [4, 6, 8]) {
+        const ring = circlePolygon(c.lon, c.lat, km);
+        ring.properties = { ringKm: km, risk };
+        features.push(ring);
+      }
+    }
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, clusters]);
+
   // ── Cluster centroids (pulsing dots) ─────────────────────────
   const clusterCentroids = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
@@ -580,6 +624,71 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             ],
             'line-width': 2,
             'line-dasharray': [3, 2],
+          }}
+        />
+      </Source>
+
+      {/* ── S126: Wet-fill (lluvia intensa) — translucent blue core ─── */}
+      <Source id="storm-intensity-wet" type="geojson" data={intensityWetFills}>
+        <Layer
+          id="storm-intensity-wet-fill"
+          type="fill"
+          paint={{
+            'fill-color': '#3b82f6',
+            'fill-opacity': [
+              'interpolate', ['linear'], ['get', 'rate'],
+              0, 0.18,
+              10, 0.28,
+              25, 0.38,
+              50, 0.48,
+            ],
+            'fill-antialias': true,
+          }}
+        />
+        <Layer
+          id="storm-intensity-wet-outline"
+          type="line"
+          paint={{
+            'line-color': 'rgba(59, 130, 246, 0.55)',
+            'line-width': 1.5,
+          }}
+        />
+      </Source>
+
+      {/* ── S126: Hail stripes — ice-blue dashed rings on probable/posible granizo ── */}
+      <Source id="storm-intensity-hail" type="geojson" data={hailStripes}>
+        {/* Outer halo glow — soft, wide, low-opacity for depth */}
+        <Layer
+          id="storm-intensity-hail-glow"
+          type="line"
+          paint={{
+            'line-color': 'rgba(186, 230, 253, 0.30)',
+            'line-width': 8,
+            'line-blur': 4,
+          }}
+        />
+        {/* Striped ring on top — alternating dash pattern for "ice/granizo" feel */}
+        <Layer
+          id="storm-intensity-hail-stripes"
+          type="line"
+          paint={{
+            // Color varies by risk level: probable = stronger cyan, posible = lighter
+            'line-color': [
+              'match', ['get', 'risk'],
+              'probable', 'rgba(56, 189, 248, 0.95)',
+              'posible',  'rgba(186, 230, 253, 0.75)',
+              'rgba(186, 230, 253, 0.6)',
+            ],
+            // Inner ring (4km) thicker; outer rings (6, 8km) thinner
+            'line-width': [
+              'match', ['get', 'ringKm'],
+              4, 2.5,
+              6, 1.8,
+              8, 1.2,
+              1.5,
+            ],
+            // Dashed pattern reads as "stripes" / icy bands
+            'line-dasharray': [3, 3],
           }}
         />
       </Source>
