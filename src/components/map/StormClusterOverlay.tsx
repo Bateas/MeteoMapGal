@@ -910,9 +910,12 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       </Source>
 
       {/* ── S126: Wet-fill (lluvia intensa) — translucent blue core ─── */}
-      {/* S126+1 polish: more prominent — wet-fill is the "this storm is dumping
-           water on you" signal, and was getting drowned by the orange/red mass-core
-           underneath. Higher opacity floor, stronger outline, sized to read clearly. */}
+      {/* S126+1 v2 polish: opacities reduced ~40 % from v2.67.0. Original
+           values made even moderate rain (15-20 mm/h) read as a near-solid
+           blue blob covering most of the cluster radius. New scale keeps the
+           "this is rain" signal but stays subtle enough not to dominate the
+           map. The hail-rings + label already escalate visually for severe
+           cases — wet-fill is just the type marker. */}
       <Source id="storm-intensity-wet" type="geojson" data={intensityWetFills}>
         <Layer
           id="storm-intensity-wet-fill"
@@ -921,33 +924,33 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'fill-color': '#3b82f6',
             'fill-opacity': [
               'interpolate', ['linear'], ['get', 'rate'],
-              0, 0.30,   // was 0.18 — even light "lluvia intensa" reads clearly
-              10, 0.42,  // was 0.28
-              25, 0.55,  // was 0.38
-              50, 0.65,  // was 0.48
+              0, 0.16,   // light: barely tinted
+              10, 0.24,  // moderate
+              25, 0.34,  // heavy: clearly visible
+              50, 0.42,  // extreme: prominent but still translucent
             ],
             'fill-antialias': true,
           }}
         />
-        {/* Inner glow halo — soft blue around the wet zone — adds depth + draws eye */}
+        {/* Inner glow halo — soft blue around the wet zone — adds depth */}
         <Layer
           id="storm-intensity-wet-glow"
           type="line"
           paint={{
-            'line-color': 'rgba(59, 130, 246, 0.45)',
-            'line-width': 6,
-            'line-blur': 4,
+            'line-color': 'rgba(59, 130, 246, 0.25)',
+            'line-width': 5,
+            'line-blur': 3,
           }}
         />
-        {/* Solid outline — high contrast against orange/red mass-core underneath */}
+        {/* Solid outline — readable on warm bg without overpowering */}
         <Layer
           id="storm-intensity-wet-outline"
           type="line"
           paint={{
-            'line-color': '#1e40af', // blue-800 — saturated, readable on warm bg
-            'line-width': 2.5,        // was 1.5 — thicker
-            'line-opacity': 0.9,
-            'line-dasharray': [4, 2], // dashed → reads as "rain zone" rather than border
+            'line-color': '#1e40af', // blue-800
+            'line-width': 1.8,
+            'line-opacity': 0.65,
+            'line-dasharray': [4, 2],
           }}
         />
       </Source>
