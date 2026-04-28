@@ -14,10 +14,14 @@ CREATE TABLE IF NOT EXISTS readings (
   pressure    DOUBLE PRECISION,
   dew_point   DOUBLE PRECISION,
   precip      DOUBLE PRECISION,
-  solar_rad   DOUBLE PRECISION
+  solar_rad   DOUBLE PRECISION,
+  visibility  DOUBLE PRECISION  -- km, only ~8 AEMET airport stations report it (S126 Phase 1b TIER 2)
 );
 
 SELECT create_hypertable('readings', 'time', if_not_exists => TRUE);
+
+-- Idempotent column add for already-deployed databases (no-op if column exists)
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS visibility DOUBLE PRECISION;
 
 -- Unique constraint for dedup (ON CONFLICT DO NOTHING)
 CREATE UNIQUE INDEX IF NOT EXISTS readings_time_station_idx
@@ -306,6 +310,24 @@ CREATE TABLE IF NOT EXISTS upper_air_hourly (
   PRIMARY KEY (time, sector, pressure_hpa)
 );
 SELECT create_hypertable('upper_air_hourly', 'time', if_not_exists => TRUE);
+
+-- ── ICA air quality (S126 Phase 1b TIER 2) ──────────────────────
+-- Official MeteoGalicia/Xunta network: ~30 stations reporting hourly.
+-- Persists raw ICA decimal value + dominant pollutant per station so we
+-- can later correlate poor-air episodes with calima fronts, traffic, fires.
+-- Volume: ~30 stations × 24h = 720 rows/day ≈ 263K/year ≈ 25MB/year. Trivial.
+CREATE TABLE IF NOT EXISTS ica_readings (
+  time            TIMESTAMPTZ      NOT NULL,
+  station         TEXT             NOT NULL,
+  lat             DOUBLE PRECISION NOT NULL,
+  lon             DOUBLE PRECISION NOT NULL,
+  ica             REAL,                              -- decimal 1.0-5.0
+  category_es     TEXT,                              -- "Adecuada", "Mala", etc
+  dominant        TEXT,                              -- O3, NO2, PM10, PM25, SO2, CO, BEN
+  PRIMARY KEY (time, station)
+);
+SELECT create_hypertable('ica_readings', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_ica_loc ON ica_readings (lat, lon);
 
 -- ── Convection indices per sector (S125 Phase 1b TIER 1) ─────────
 -- Persists the CAPE/CIN/LI/PWAT we already fetch for the storm predictor

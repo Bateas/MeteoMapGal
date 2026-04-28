@@ -53,7 +53,7 @@ function sourceLabel(stationId: string): string {
 }
 
 /** Number of columns per reading row */
-const COLS = 12;
+const COLS = 13; // S126: +visibility (AEMET airport stations only)
 
 /**
  * Batch upsert readings into TimescaleDB.
@@ -96,7 +96,7 @@ export async function batchUpsert(
       const r = batch[j];
       const offset = j * COLS;
       placeholders.push(
-        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12})`
+        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13})`
       );
       values.push(
         r.timestamp,           // time
@@ -111,11 +111,12 @@ export async function batchUpsert(
         r.dewPoint,            // dew_point
         r.precipitation,       // precip
         r.solarRadiation,      // solar_rad
+        r.visibility ?? null,  // visibility — S126 Phase 1b TIER 2 (only AEMET airport ~8 stations)
       );
     }
 
     const sql = `
-      INSERT INTO readings (time, station_id, source, temperature, humidity, wind_speed, wind_gust, wind_dir, pressure, dew_point, precip, solar_rad)
+      INSERT INTO readings (time, station_id, source, temperature, humidity, wind_speed, wind_gust, wind_dir, pressure, dew_point, precip, solar_rad, visibility)
       VALUES ${placeholders.join(', ')}
       ON CONFLICT (time, station_id) DO NOTHING
     `;
