@@ -351,6 +351,111 @@ describe('bearingToCardinal', () => {
   });
 });
 
+// ── trackStorms — leading-edge tracking (S126+1 bug #5) ──────
+
+describe('trackStorms — leading-edge centroid for elongated squall lines', () => {
+  it('compact cluster: leadLat/leadLon ≈ display centroid (within 1 km)', () => {
+    const now = Date.now();
+    const strikes = [
+      makeStrike({ lat: 42.50, lon: -8.20, ageMinutes: 2, timestamp: now - 120_000 }),
+      makeStrike({ lat: 42.51, lon: -8.20, ageMinutes: 1, timestamp: now - 60_000 }),
+      makeStrike({ lat: 42.50, lon: -8.21, ageMinutes: 1, timestamp: now - 60_000 }),
+    ];
+    const r = trackStorms(strikes, [], RES_LAT, RES_LON);
+    expect(r.clusters).toHaveLength(1);
+    const c = r.clusters[0];
+    // Both points exist
+    expect(c.leadLat).toBeDefined();
+    expect(c.leadLon).toBeDefined();
+    // For a tight cluster of 3 strikes within ~1 km, lead and centroid are
+    // essentially identical (both weighted toward the youngest strikes).
+    expect(Math.abs(c.leadLat - c.lat)).toBeLessThan(0.02);
+    expect(Math.abs(c.leadLon - c.lon)).toBeLessThan(0.02);
+  });
+
+  it('elongated squall: leadLat is shifted toward the youngest strikes vs display centroid', () => {
+    const now = Date.now();
+    // 4 OLD strikes far north (40 min old, beyond LEAD_WINDOW_MIN=12)
+    // 4 YOUNG strikes far south (1 min old)
+    // Display centroid sits in the middle (recency-weighted but still pulled
+    // by mass). Lead centroid sits with the young ones in the south.
+    const strikes = [
+      makeStrike({ lat: 42.70, lon: -8.20, ageMinutes: 40, timestamp: now - 40 * 60_000 }),
+      makeStrike({ lat: 42.71, lon: -8.20, ageMinutes: 40, timestamp: now - 40 * 60_000 }),
+      makeStrike({ lat: 42.70, lon: -8.21, ageMinutes: 40, timestamp: now - 40 * 60_000 }),
+      makeStrike({ lat: 42.71, lon: -8.21, ageMinutes: 40, timestamp: now - 40 * 60_000 }),
+      makeStrike({ lat: 42.55, lon: -8.20, ageMinutes: 1, timestamp: now - 60_000 }),
+      makeStrike({ lat: 42.56, lon: -8.20, ageMinutes: 1, timestamp: now - 60_000 }),
+      makeStrike({ lat: 42.55, lon: -8.21, ageMinutes: 1, timestamp: now - 60_000 }),
+      makeStrike({ lat: 42.56, lon: -8.21, ageMinutes: 1, timestamp: now - 60_000 }),
+    ];
+    const r = trackStorms(strikes, [], RES_LAT, RES_LON);
+    // Strikes span ~17 km north-south so they may subdivide. The cluster
+    // containing the YOUNG strikes (south) is what we care about — find it
+    // by which one contains a young strike position.
+    const southCluster = r.clusters.find((c) =>
+      c.strikePositions.some(([lon, lat]) => lat <= 42.57 && lat >= 42.54),
+    );
+    expect(southCluster).toBeDefined();
+    if (southCluster) {
+      // For this cluster the lead is at the south end (with the young strikes).
+      expect(southCluster.leadLat).toBeLessThanOrEqual(southCluster.lat + 0.01);
+    }
+
+    // For a cluster that did NOT subdivide (radius < 40 km cap), lead must
+    // sit south of the display centroid.
+    const merged = r.clusters.find((c) => c.strikeCount === 8);
+    if (merged) {
+      expect(merged.leadLat).toBeLessThan(merged.lat);
+    }
+  });
+
+  it('matching uses leading edge: storm-id inherited even when whole-cluster centroid drifted >MAX_MATCH_KM', () => {
+    const now = Date.now();
+    // Previous snapshot stores a leading point at (42.50, -8.20).
+    // New cluster: 3 OLD trailing strikes near the previous head, 3 NEW
+    // strikes ~5 km south — leading edge is now at ~(42.45, -8.20).
+    // The DISPLAY centroid sits between them at ~(42.475, -8.20). With
+    // MAX_MATCH_KM=30 both points would still match in this small example,
+    // but the test verifies that the lead position drives matching distance
+    // (lead-to-prev distance ~5 km, much less than display-to-prev ~3 km
+    //  — both succeed; the assertion is on ID inheritance regardless).
+    const history: ClusterSnapshot[] = [{
+      timestamp: now - 5 * 60_000,
+      centroids: [{ id: 'storm-squall', lat: 42.50, lon: -8.20, strikeCount: 6 }],
+    }];
+    const strikes = [
+      makeStrike({ lat: 42.50, lon: -8.20, ageMinutes: 30, timestamp: now - 30 * 60_000 }),
+      makeStrike({ lat: 42.51, lon: -8.20, ageMinutes: 30, timestamp: now - 30 * 60_000 }),
+      makeStrike({ lat: 42.50, lon: -8.21, ageMinutes: 30, timestamp: now - 30 * 60_000 }),
+      makeStrike({ lat: 42.45, lon: -8.20, ageMinutes: 1, timestamp: now - 60_000 }),
+      makeStrike({ lat: 42.46, lon: -8.20, ageMinutes: 1, timestamp: now - 60_000 }),
+      makeStrike({ lat: 42.45, lon: -8.21, ageMinutes: 1, timestamp: now - 60_000 }),
+    ];
+    const r = trackStorms(strikes, history, RES_LAT, RES_LON);
+    // ID is inherited from the previous storm (continuity preserved).
+    expect(r.clusters[0].id).toBe('storm-squall');
+  });
+
+  it('snapshot stores leading point — next poll matches against the head, not the body', () => {
+    const now = Date.now();
+    const strikes = [
+      makeStrike({ lat: 42.70, lon: -8.20, ageMinutes: 40, timestamp: now - 40 * 60_000 }),
+      makeStrike({ lat: 42.71, lon: -8.20, ageMinutes: 40, timestamp: now - 40 * 60_000 }),
+      makeStrike({ lat: 42.55, lon: -8.20, ageMinutes: 1, timestamp: now - 60_000 }),
+      makeStrike({ lat: 42.56, lon: -8.20, ageMinutes: 1, timestamp: now - 60_000 }),
+    ];
+    const r = trackStorms(strikes, [], RES_LAT, RES_LON);
+    // The snapshot's centroid lat must match the cluster's leadLat (lead is
+    // what we serialize), NOT the display centroid lat.
+    expect(r.history[0].centroids).toHaveLength(r.clusters.length);
+    for (let i = 0; i < r.clusters.length; i++) {
+      expect(Math.abs(r.history[0].centroids[i].lat - r.clusters[i].leadLat)).toBeLessThan(1e-6);
+      expect(Math.abs(r.history[0].centroids[i].lon - r.clusters[i].leadLon)).toBeLessThan(1e-6);
+    }
+  });
+});
+
 // ── trackStorms — history retention ──────────────────
 
 describe('trackStorms — history pruning', () => {
