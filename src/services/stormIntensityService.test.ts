@@ -223,15 +223,18 @@ describe('classifyStormIntensity — output shape', () => {
     expect(r).toHaveProperty('rainRateMmH');
     expect(r).toHaveProperty('strikeRate15min');
     expect(r).toHaveProperty('hailRisk');
-    expect(r).toHaveProperty('emoji');
     expect(r).toHaveProperty('label');
     expect(r).toHaveProperty('visualStyle');
   });
 
-  it('label always begins with an emoji', () => {
+  it('label is plain text (no emojis — S126+1 protomaps font 404 fix)', () => {
     const r = classifyStormIntensity(makeCluster({ strikeCount: 25 }), [makeReading(0)], null);
-    // First character should be an emoji (≥1 byte and non-ASCII)
     expect(r.label.length).toBeGreaterThan(2);
-    expect(r.emoji).toBeTruthy();
+    // Only ASCII + Latin-1 + safe punctuation. No characters in U+1F300-1F37F
+    // (Misc Symbols and Pictographs) which protomaps Noto Sans doesn't cover.
+    for (const ch of r.label) {
+      const code = ch.codePointAt(0) ?? 0;
+      expect(code < 0x1F000 || code > 0x1FAFF).toBe(true);
+    }
   });
 });
