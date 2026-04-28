@@ -113,3 +113,55 @@ describe('classifyHaze — output shape', () => {
     expect(classifyHaze(500, 2).opacity).toBeLessThanOrEqual(0.25);
   });
 });
+
+// ── S126: AEMET visibility cross-feed ───────────────────────────
+
+describe('classifyHaze — visibility cross-feed (S126 multi-evidence)', () => {
+  it('low visibility ALONE does NOT trigger calima (could be fog)', () => {
+    // No model evidence + AEMET reports 0.5km vis → still none
+    expect(classifyHaze(0, 0, 0.5).severity).toBe('none');
+    expect(classifyHaze(null, null, 1).severity).toBe('none');
+  });
+
+  it('vis<2km + any model leve+ → bumped to fuerte', () => {
+    // Model says leve, visibility confirms strong → fuerte
+    expect(classifyHaze(30, 0, 1).severity).toBe('fuerte');
+    // Model says moderada → fuerte
+    expect(classifyHaze(60, 0, 0.5).severity).toBe('fuerte');
+    // Model already fuerte → still fuerte (idempotent)
+    expect(classifyHaze(150, 0, 0.5).severity).toBe('fuerte');
+  });
+
+  it('vis<5km + leve → bumped to moderada', () => {
+    expect(classifyHaze(30, 0, 3).severity).toBe('moderada');
+    // Boundary: vis=4.9 still triggers
+    expect(classifyHaze(30, 0, 4.9).severity).toBe('moderada');
+  });
+
+  it('vis<5km + moderada → STAYS moderada (no double bump)', () => {
+    // We already classified as moderada by model; visibility just confirms
+    expect(classifyHaze(60, 0, 3).severity).toBe('moderada');
+  });
+
+  it('vis≥5km does NOT bump anything (atmosphere clean enough)', () => {
+    expect(classifyHaze(30, 0, 8).severity).toBe('leve');
+    expect(classifyHaze(60, 0, 10).severity).toBe('moderada');
+  });
+
+  it('null/undefined visibility behaves like before (no bump, just model)', () => {
+    expect(classifyHaze(30, 0, null).severity).toBe('leve');
+    expect(classifyHaze(30, 0, undefined).severity).toBe('leve');
+    expect(classifyHaze(30, 0).severity).toBe('leve');
+  });
+
+  it('NaN visibility ignored (defensive)', () => {
+    expect(classifyHaze(30, 0, NaN).severity).toBe('leve');
+    expect(classifyHaze(30, 0, Infinity).severity).toBe('leve');
+  });
+
+  it('visibility cross-feed only acts when model has detected (multi-evidence override)', () => {
+    // ZERO model + low visibility → none. Visibility alone cannot trigger.
+    expect(classifyHaze(0, 0, 0.5).severity).toBe('none');
+    expect(classifyHaze(null, null, 0.1).severity).toBe('none');
+  });
+});
