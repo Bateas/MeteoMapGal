@@ -91,8 +91,12 @@ export interface StormCluster {
   etaMinutes: number | null;
   /** Is the cluster moving toward the reservoir? */
   approaching: boolean;
-  /** Strike positions [lon, lat] for overlay hull rendering */
+  /** Strike positions [lon, lat] for overlay hull rendering — ALL strikes in window */
   strikePositions: [number, number][];
+  /** Recent strikes only (≤ HULL_RECENT_WINDOW_MIN). Used by the overlay so the
+   *  cluster polygon hugs the active front instead of the trailing tail.
+   *  Falls back to strikePositions when fewer than 3 recent ones exist. */
+  recentStrikePositions: [number, number][];
   /**
    * Storm intensity classification (S126). Optional — populated by
    * `enrichClustersWithIntensity` AFTER the basic tracker computes positions.
@@ -129,7 +133,23 @@ interface RawCluster {
   newestAgeMin: number;
   distanceToReservoir: number;
   strikePositions: [number, number][];
+  recentStrikePositions: [number, number][];
 }
+
+/**
+ * Window for the visual hull (S126+1 polish).
+ *
+ * The CLUSTER_WINDOW_MIN=60 is right for "should we still consider this a
+ * cluster?" but wrong for "where do we draw its silhouette?". Old strikes
+ * still in the window pull the convex hull backwards even when the active
+ * front has moved on. Drawing the hull from strikes ≤ HULL_RECENT_WINDOW_MIN
+ * keeps the polygon focused on the cell's current footprint.
+ *
+ * Falls back to all strikes when fewer than HULL_MIN_RECENT_STRIKES qualify
+ * (so isolated cells don't disappear visually mid-poll).
+ */
+const HULL_RECENT_WINDOW_MIN = 20;
+const HULL_MIN_RECENT_STRIKES = 3;
 
 /**
  * BFS radius-based clustering with diameter cap and subdivision.
@@ -249,6 +269,12 @@ function clusterStrikes(
         distanceKm(lat, lon, reservoirLat, reservoirLon) * 10,
       ) / 10,
       strikePositions: clusterStrikesArr.map((s) => [s.lon, s.lat] as [number, number]),
+      recentStrikePositions: (() => {
+        const recent = clusterStrikesArr.filter((s) => s.ageMinutes <= HULL_RECENT_WINDOW_MIN);
+        return recent.length >= HULL_MIN_RECENT_STRIKES
+          ? recent.map((s) => [s.lon, s.lat] as [number, number])
+          : clusterStrikesArr.map((s) => [s.lon, s.lat] as [number, number]); // fallback: all
+      })(),
     });
   }
 
