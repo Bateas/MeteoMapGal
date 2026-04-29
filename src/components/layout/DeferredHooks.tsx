@@ -17,6 +17,7 @@ import { useWebcamVision } from '../../hooks/useWebcamVision';
 import { useAirQuality } from '../../hooks/useAirQuality';
 import { useActiveFires } from '../../hooks/useActiveFires';
 import { useIcaData } from '../../hooks/useIcaData';
+import { useConvectionAutoActivate } from '../../hooks/useConvectionAutoActivate';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -34,6 +35,8 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useAirQuality();
   useActiveFires();
   useIcaData();
+  // S126+1+1 v2.70.3: auto-toggle convection grid when forecast shows risk
+  useConvectionAutoActivate();
 
   // NAO/AO teleconnection indices — 15s extra after deferred mount
   useEffect(() => {
