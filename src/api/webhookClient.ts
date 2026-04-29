@@ -80,38 +80,18 @@ function isNightSilence(): boolean {
   return hour >= NIGHT_SILENCE_START || hour < NIGHT_SILENCE_END;
 }
 
-// ── n8n health check ────────────────────────────────────
-
-let lastHealthCheck = 0;
-let n8nHealthy = true;
-const HEALTH_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 min
-
-/**
- * Non-blocking n8n health check. Logs warning if n8n is unreachable.
- * Called before sending webhooks — skips if n8n was recently unhealthy.
- */
+// ── n8n health check (REMOVED S126+1) ───────────────────
+// Previous version HEAD-probed `/api/webhook/meteomap-alert` every 30 min and
+// treated 404 as "n8n is up". That painted a 404 error into the F12 console on
+// every browser session even when everything worked. Removed because:
+//   1. The actual POST has its own try/catch + cooldown — it skips silently if
+//      n8n is unreachable, so a preflight check adds no value.
+//   2. n8n returns 404 for HEAD on the webhook URL (n8n design) → the probe
+//      value was just "did the request reach the server?", which we can read
+//      from the real POST's success/failure.
+//   3. The console noise muddied real diagnostic output during the Apr 28 event.
 async function checkN8nHealth(): Promise<boolean> {
-  if (import.meta.env.DEV) return true;
-
-  const now = Date.now();
-  if (now - lastHealthCheck < HEALTH_CHECK_INTERVAL_MS) return n8nHealthy;
-
-  lastHealthCheck = now;
-  try {
-    const res = await fetch(`${WEBHOOK_BASE}/meteomap-alert`, {
-      method: 'HEAD',
-      signal: AbortSignal.timeout(5_000),
-    });
-    // n8n returns 404 for HEAD but the connection succeeds = n8n is up
-    n8nHealthy = res.status < 500;
-    if (!n8nHealthy) {
-      console.warn(`[Webhook] n8n unhealthy (status ${res.status})`);
-    }
-  } catch {
-    n8nHealthy = false;
-    console.warn('[Webhook] n8n unreachable — Telegram alerts will not be delivered');
-  }
-  return n8nHealthy;
+  return true;
 }
 
 /** Check if n8n is currently considered healthy */
