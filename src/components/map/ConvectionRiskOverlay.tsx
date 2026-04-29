@@ -30,11 +30,13 @@ function ConvectionRiskOverlayInner() {
     if (!showRisk || !snapshot) {
       return { type: 'FeatureCollection', features: [] };
     }
-    // Only emit cells with measurable risk — keeps the heatmap tight to
-    // actual hot spots rather than painting the whole map a faint pink.
+    // S126+1+1 v2.70.1: lowered threshold from 1.0 → 0.3 so faint risk
+    // (CAPE 300 + LI -1, etc.) still produces visible heat. With the
+    // original threshold most non-storm days showed nothing, even though
+    // the grid was successfully fetched.
     const features: GeoJSON.Feature[] = [];
     for (const c of snapshot.cells) {
-      if (c.risk < 1) continue;
+      if (c.risk < 0.3) continue;
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
@@ -48,63 +50,85 @@ function ConvectionRiskOverlayInner() {
     return { type: 'FeatureCollection', features };
   }, [showRisk, snapshot]);
 
-  if (!showRisk || !snapshot || geoJson.features.length === 0) return null;
+  // "No risk detected" indicator — shown when overlay is ON, snapshot
+  // arrived, but there's no convective potential anywhere on the grid.
+  // Confirms the system fetched data successfully (vs "still loading").
+  const noRiskMode = showRisk && snapshot != null && geoJson.features.length === 0;
+
+  if (!showRisk) return null;
 
   return (
-    <Source id="convection-risk" type="geojson" data={geoJson}>
-      {/* MapLibre native heatmap layer — interpolates between cells smoothly. */}
-      <Layer
-        id="convection-risk-heat"
-        type="heatmap"
-        paint={{
-          // Intensity weight per point, scaled from risk score.
-          // Risk 0 → 0, risk 18 (extreme) → 1.0.
-          'heatmap-weight': [
-            'interpolate', ['linear'], ['get', 'risk'],
-            0,  0,
-            2,  0.15,   // CAPE 1000 + LI -2 — early warning territory
-            5,  0.35,   // CAPE 1500 + LI -3 — granizo posible
-            10, 0.6,    // CAPE 2000 + LI -5 — granizo probable
-            20, 0.85,   // CAPE 3000 + LI -7 — extremo
-            40, 1.0,    // CAPE 4000 + LI -10 — pure violence
-          ],
-          // Higher zoom = need MORE intensity per point to maintain heat.
-          'heatmap-intensity': [
-            'interpolate', ['linear'], ['zoom'],
-            7,  0.6,
-            10, 1.0,
-            13, 1.6,
-          ],
-          // Color ramp — yellow (low) → orange → red (high). Cool (no risk)
-          // is fully transparent so the base map shows through.
-          'heatmap-color': [
-            'interpolate', ['linear'], ['heatmap-density'],
-            0,    'rgba(0, 0, 0, 0)',
-            0.10, 'rgba(250, 204, 21, 0.18)', // yellow-400 — barely visible
-            0.30, 'rgba(249, 115, 22, 0.30)', // orange-500
-            0.55, 'rgba(220, 38, 38, 0.42)',  // red-600
-            0.80, 'rgba(190, 18, 60, 0.55)',  // rose-700 (severe)
-            1.00, 'rgba(126, 0, 30, 0.65)',   // dark crimson (extreme)
-          ],
-          // Each cell paints a halo proportional to grid spacing.
-          // Galicia 5km grid → ~30-50 px at typical sector zoom.
-          'heatmap-radius': [
-            'interpolate', ['linear'], ['zoom'],
-            7,  18,
-            9,  28,
-            11, 45,
-            13, 70,
-          ],
-          // Fade out as user zooms way in (cells become too discrete).
-          'heatmap-opacity': [
-            'interpolate', ['linear'], ['zoom'],
-            7,  1.0,
-            12, 0.85,
-            14, 0.5,
-          ],
-        }}
-      />
-    </Source>
+    <>
+      {snapshot && geoJson.features.length > 0 && (
+        <Source id="convection-risk" type="geojson" data={geoJson}>
+          <Layer
+            id="convection-risk-heat"
+            type="heatmap"
+            paint={{
+              // S126+1+1 v2.70.1: weight curve bumped — even risk 1 (CAPE 500
+              // + LI -2 territory) now produces visible heat instead of
+              // hiding until risk≥5. Lets the map flag morning ramp-ups
+              // before peak afternoon CAPE.
+              'heatmap-weight': [
+                'interpolate', ['linear'], ['get', 'risk'],
+                0,  0,
+                0.5, 0.15, // marginal CAPE — barely visible halo
+                1,  0.30,  // CAPE 1000 + LI -1 — early warning
+                3,  0.55,  // CAPE 1500 + LI -2 — moderate
+                8,  0.80,  // CAPE 2000 + LI -4 — granizo posible
+                18, 1.0,   // CAPE 3000 + LI -6 — extremo
+              ],
+              'heatmap-intensity': [
+                'interpolate', ['linear'], ['zoom'],
+                6,  0.8,
+                9,  1.2,
+                12, 1.8,
+              ],
+              'heatmap-color': [
+                'interpolate', ['linear'], ['heatmap-density'],
+                0,    'rgba(0, 0, 0, 0)',
+                0.08, 'rgba(250, 204, 21, 0.20)', // yellow — early warning
+                0.25, 'rgba(249, 115, 22, 0.35)', // orange
+                0.50, 'rgba(220, 38, 38, 0.50)',  // red
+                0.78, 'rgba(190, 18, 60, 0.62)',  // rose-700 (severe)
+                1.00, 'rgba(126, 0, 30, 0.72)',   // crimson (extreme)
+              ],
+              // S126+1+1 v2.70.1: bigger radius at low zooms so scattered cells
+              // still merge into a visible blob at sector view.
+              'heatmap-radius': [
+                'interpolate', ['linear'], ['zoom'],
+                6,  35,
+                8,  50,
+                10, 65,
+                12, 80,
+              ],
+              'heatmap-opacity': [
+                'interpolate', ['linear'], ['zoom'],
+                6,  1.0,
+                12, 0.85,
+                14, 0.5,
+              ],
+            }}
+          />
+        </Source>
+      )}
+      {/* No-risk badge — confirms the system fetched data successfully */}
+      {noRiskMode && (
+        <div
+          className="absolute top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none
+                     bg-slate-900/85 border border-slate-700/50 rounded-md px-3 py-1.5
+                     shadow-lg"
+        >
+          <div className="text-[11px] text-slate-300">
+            <span className="font-bold text-emerald-400">Riesgo convectivo:</span>{' '}
+            sin potencial detectado en Galicia
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5">
+            Atmósfera estable — peak CAPE {snapshot?.peakCape ?? 0} J/kg, min LI {snapshot?.minLiftedIndex.toFixed(1) ?? '0.0'}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -98,10 +98,19 @@ export function cellKey(cell: { i: number; j: number }): string {
 // ── Open-Meteo multi-point fetcher ───────────────────────
 
 /**
- * Maximum coordinates per Open-Meteo call (per the API docs).
- * Larger grids are split into batches.
+ * Maximum coordinates per Open-Meteo call.
+ *
+ * Open-Meteo docs say "multiple coordinates supported per call" without an
+ * explicit cap, but in practice 1000 coords produces URLs of ~20 KB that
+ * trigger a 414 / silent CORS rejection (S126+1+1 v2.70.1 incident — the
+ * browser saw "blocked by CORS policy" because the server dropped the
+ * request before sending CORS headers).
+ *
+ * 200 keeps URLs under ~2 KB, well within typical server limits while
+ * still amortizing rate-limit cost (vs single-coord-per-call which would
+ * bust the 10K/day quota fast).
  */
-const MAX_COORDS_PER_CALL = 1000;
+const MAX_COORDS_PER_CALL = 200;
 
 /** Delay between sequential batches to be polite (Open-Meteo free tier). */
 const BATCH_DELAY_MS = 1000;
