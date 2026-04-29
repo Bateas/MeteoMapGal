@@ -21,6 +21,7 @@ import { PropagationArrows } from './PropagationArrow';
 const LightningOverlay = lazy(() => import('./LightningOverlay').then(m => ({ default: m.LightningOverlay })));
 const StormClusterOverlay = lazy(() => import('./StormClusterOverlay').then(m => ({ default: m.StormClusterOverlay })));
 const GustFrontOverlay = lazy(() => import('./GustFrontOverlay').then(m => ({ default: m.GustFrontOverlay })));
+const ConvectionRiskOverlay = lazy(() => import('./ConvectionRiskOverlay').then(m => ({ default: m.ConvectionRiskOverlay })));
 const FogOverlay = lazy(() => import('./FogOverlay').then(m => ({ default: m.FogOverlay })));
 const WindRampOverlay = lazy(() => import('./WindRampOverlay').then(m => ({ default: m.WindRampOverlay })));
 const HazeOverlay = lazy(() => import('./HazeOverlay').then(m => ({ default: m.HazeOverlay })));
@@ -448,6 +449,7 @@ export function WeatherMap() {
         <Suspense fallback={null}><SwanWaveOverlay /></Suspense>
 
         {/* Storm cluster masses + radius rings (below strikes) */}
+        <Suspense fallback={null}><ConvectionRiskOverlay /></Suspense>
         <Suspense fallback={null}><StormClusterOverlay /></Suspense>
         <Suspense fallback={null}><GustFrontOverlay /></Suspense>
 

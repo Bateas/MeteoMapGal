@@ -23,6 +23,8 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
   const showNauticalChart = useMapStyleStore((s) => s.showNauticalChart);
   const showCoastal = useMapStyleStore((s) => s.showUpwelling);
   const toggleCoastal = useMapStyleStore((s) => s.toggleUpwelling);
+  const showConvectionRisk = useMapStyleStore((s) => s.showConvectionRisk);
+  const toggleConvectionRisk = useMapStyleStore((s) => s.toggleConvectionRisk);
   const toggleSeamarks = useMapStyleStore((s) => s.toggleSeamarks);
   const toggleNauticalChart = useMapStyleStore((s) => s.toggleNauticalChart);
   const showIGNHillshade = useMapStyleStore((s) => s.showIGNHillshade);
@@ -193,6 +195,21 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
               </div>
             </>
           )}
+
+          {/* ── Atmospheric overlays (both sectors) ── */}
+          <div className="border-t border-slate-700/40 px-2 py-1.5">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Atmósfera</span>
+          </div>
+          <div className="pb-1.5 px-1">
+            <OverlayToggle
+              label="Riesgo convectivo"
+              sublabel="CAPE × LI por celda 5 km — predice dónde se formarán las tormentas"
+              active={showConvectionRisk}
+              onClick={toggleConvectionRisk}
+              color="#dc2626"
+              isMobile={isMobile}
+            />
+          </div>
 
           {/* ── IGN terrain overlay toggles (both sectors) ── */}
           <div className="border-t border-slate-700/40 px-2 py-1.5">

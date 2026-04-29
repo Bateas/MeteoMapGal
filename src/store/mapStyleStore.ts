@@ -117,6 +117,8 @@ interface MapStyleState {
   showWaveCoast: boolean;
   /** Upwelling overlay — cold water zones when N/NW wind sustained (#59) */
   showUpwelling: boolean;
+  /** Convection risk heatmap — spatial CAPE×-LI grid (S126+1+1, v2.70.0) */
+  showConvectionRisk: boolean;
 
   setStyle: (id: MapStyleId) => void;
   toggleSeamarks: () => void;
@@ -126,6 +128,7 @@ interface MapStyleState {
   toggleIGNOrtho: () => void;
   toggleWaveCoast: () => void;
   toggleUpwelling: () => void;
+  toggleConvectionRisk: () => void;
 }
 
 export const useMapStyleStore = create<MapStyleState>()(
@@ -140,6 +143,7 @@ export const useMapStyleStore = create<MapStyleState>()(
         showIGNOrtho: false,
         showWaveCoast: false, // DISABLED by default — #56 v1 has wrong exposure (normals ≠ fetch). Needs redesign
         showUpwelling: false,
+        showConvectionRisk: false, // opt-in; auto-activates when peak risk score > threshold
 
         setStyle: (activeStyleId) =>
           set({ activeStyleId }, undefined, 'setStyle'),
@@ -164,6 +168,9 @@ export const useMapStyleStore = create<MapStyleState>()(
 
         toggleUpwelling: () =>
           set({ showUpwelling: !get().showUpwelling }, undefined, 'toggleUpwelling'),
+
+        toggleConvectionRisk: () =>
+          set({ showConvectionRisk: !get().showConvectionRisk }, undefined, 'toggleConvectionRisk'),
       }),
       {
         name: 'meteomap-map-style',
