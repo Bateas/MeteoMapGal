@@ -4,6 +4,7 @@ import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { fetchLightningStrikes, distanceKm } from '../api/lightningClient';
 import { trackStorms } from '../services/stormTracker';
+import { detectGustFronts } from '../services/gustFrontService';
 import type { StormCluster } from '../services/stormTracker';
 import type { LightningStrike, StormAlert, StormAlertLevel } from '../types/lightning';
 import type { ClusterSnapshot } from '../services/stormTracker';
@@ -42,11 +43,14 @@ interface LightningState {
   error: string | null;
   showOverlay: boolean;
   clusterHistory: ClusterSnapshot[];
+  /** Stations marking outflow signature ahead of an active cluster (S126+1 v2.69.0) */
+  gustFronts: import('../services/gustFrontService').GustFrontDetection[];
 
   setStrikes: (strikes: LightningStrike[]) => void;
   setAlert: (alert: StormAlert) => void;
   setClusters: (clusters: StormCluster[]) => void;
   setClusterHistory: (history: ClusterSnapshot[]) => void;
+  setGustFronts: (fronts: import('../services/gustFrontService').GustFrontDetection[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setLastFetch: (date: Date) => void;
@@ -76,11 +80,13 @@ export const useLightningStore = create<LightningState>()(
       error: null,
       showOverlay: true,
       clusterHistory: [],
+      gustFronts: [],
 
       setStrikes: (strikes) => set({ strikes }),
       setAlert: (alert) => set({ stormAlert: alert }),
       setClusters: (clusters) => set({ clusters }),
       setClusterHistory: (clusterHistory) => set({ clusterHistory }),
+      setGustFronts: (gustFronts) => set({ gustFronts }),
       setLoading: (isLoading) => set({ isLoading }),
       setError: (error) => set({ error }),
       setLastFetch: (date) => set({ lastFetch: date }),
@@ -192,6 +198,29 @@ function collectNearbyReadings(): NearbyPrecipReading[] {
   return out;
 }
 
+function collectGustFrontReadings(): import('../services/gustFrontService').GustFrontReading[] {
+  const wx = useWeatherStore.getState();
+  const now = Date.now();
+  const out: import('../services/gustFrontService').GustFrontReading[] = [];
+  for (const s of wx.stations) {
+    const r = wx.currentReadings.get(s.id);
+    if (!r || r.windSpeed == null || r.windGust == null || r.windDirection == null) continue;
+    if (!r.timestamp) continue;
+    const ageMin = (now - r.timestamp.getTime()) / 60_000;
+    out.push({
+      stationId: s.id,
+      stationName: s.name,
+      lat: s.lat,
+      lon: s.lon,
+      windMs: r.windSpeed,
+      gustMs: r.windGust,
+      windDirDeg: r.windDirection,
+      ageMin,
+    });
+  }
+  return out;
+}
+
 function collectCurrentConvection(): ConvectionState | null {
   const fc = useForecastStore.getState();
   const list = fc.convectionData.length > 0 ? fc.convectionData : fc.hourly;
@@ -221,6 +250,7 @@ export function useLightningData() {
     setAlert,
     setClusters,
     setClusterHistory,
+    setGustFronts,
     setLoading,
     setError,
     setLastFetch,
@@ -230,6 +260,7 @@ export function useLightningData() {
     setAlert: s.setAlert,
     setClusters: s.setClusters,
     setClusterHistory: s.setClusterHistory,
+    setGustFronts: s.setGustFronts,
     setLoading: s.setLoading,
     setError: s.setError,
     setLastFetch: s.setLastFetch,
@@ -275,6 +306,12 @@ export function useLightningData() {
       );
       setClusters(enriched);
 
+      // S126+1 v2.69.0 — gust front detection. Cross stations with active
+      // clusters; flag those whose gust ratio + bearing alignment match an
+      // outflow signature. Pulls station data via getState() (same pattern).
+      const fronts = detectGustFronts(collectGustFrontReadings(), enriched);
+      setGustFronts(fronts);
+
       const alert = computeStormAlert(strikes, clusters, prevAlertRef.current, centerLat, centerLon);
       setAlert(alert);
       prevAlertRef.current = alert;
@@ -297,7 +334,7 @@ export function useLightningData() {
     } finally {
       setLoading(false);
     }
-  }, [setStrikes, setAlert, setClusters, setClusterHistory, setLoading, setError, setLastFetch, sectorCenter]);
+  }, [setStrikes, setAlert, setClusters, setClusterHistory, setGustFronts, setLoading, setError, setLastFetch, sectorCenter]);
 
   // Visibility-aware polling — pauses when tab is hidden
   useVisibilityPolling(fetchAndUpdate, POLL_INTERVAL_MS);
