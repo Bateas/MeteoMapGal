@@ -16,6 +16,7 @@
  */
 import { memo, useMemo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
+import { Zap } from 'lucide-react';
 import { useMapStyleStore } from '../../store/mapStyleStore';
 import { useConvectionGrid, useConvectionGridStore } from '../../hooks/useConvectionGrid';
 
@@ -125,6 +126,27 @@ function ConvectionRiskOverlayInner() {
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5">
             Atmósfera estable — peak CAPE {snapshot?.peakCape ?? 0} J/kg, min LI {snapshot?.minLiftedIndex.toFixed(1) ?? '0.0'}
+          </div>
+        </div>
+      )}
+      {/* High-risk badge — visible when overlay rendered + peak risk crosses
+          the activation threshold. Useful to say "this is why the overlay
+          appeared automatically" when auto-activation kicked in. */}
+      {snapshot && snapshot.peakRisk >= 4 && geoJson.features.length > 0 && (
+        <div
+          className="absolute top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none
+                     bg-red-950/90 border border-red-500/60 rounded-md px-3 py-1.5
+                     shadow-lg"
+        >
+          <div className="text-[11px] flex items-center gap-1.5">
+            <Zap size={12} className="text-red-300" aria-hidden="true" />
+            <span className="font-bold text-red-300">Riesgo convectivo activo:</span>{' '}
+            <span className="text-red-100">
+              peak CAPE {snapshot.peakCape} J/kg · min LI {snapshot.minLiftedIndex.toFixed(1)}
+            </span>
+          </div>
+          <div className="text-[10px] text-red-300/80 mt-0.5">
+            Zonas rojas = formación más probable de tormentas próximas 6 h
           </div>
         </div>
       )}
