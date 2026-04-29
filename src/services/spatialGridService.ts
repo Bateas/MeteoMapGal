@@ -46,15 +46,26 @@ export interface GridCell {
 
 /**
  * Galicia + neighboring buffer. Captures storms forming over Portugal Norte
- * or Asturias west that may drift in. ~5 km cells = 47 × 48 ≈ 2256 points,
- * which Open-Meteo serves in 2-3 batches.
+ * or Asturias west that may drift in.
+ *
+ * Resolution choice (S126+1+1 v2.70.2):
+ *   Open-Meteo's free tier counts each coordinate as 1 API call against
+ *   the burst limit (~600/min). At 5 km the grid is ~2256 cells and a
+ *   single fetch instantly tripped 429 across the whole IP. Coarsened to
+ *   15 km (~280 cells) to fit in 2 batches of ≤200 coords each — still
+ *   ~50× better than the previous 2-sector-points coverage, and Castrelo
+ *   de Miño valley fits in a single cell.
+ *
+ *   Long-term: migrate the fetch to the ingestor (server-side, one call
+ *   per 30 min serves all users) and bump back to 5 km. Tracked in
+ *   memory/pending-work.md.
  */
 export const GALICIA_GRID: GridDef = {
   latMin: 41.7,
   latMax: 43.8,
   lonMin: -9.4,
   lonMax: -6.5,
-  resolutionKm: 5,
+  resolutionKm: 15,
 };
 
 /**
@@ -112,8 +123,9 @@ export function cellKey(cell: { i: number; j: number }): string {
  */
 const MAX_COORDS_PER_CALL = 200;
 
-/** Delay between sequential batches to be polite (Open-Meteo free tier). */
-const BATCH_DELAY_MS = 1000;
+/** Delay between sequential batches — bumped from 1s to 3s in v2.70.2.
+ *  Open-Meteo's burst-limit window is tight; spacing gives it time to reset. */
+const BATCH_DELAY_MS = 3000;
 
 interface FetchOpts {
   /** Open-Meteo `hourly=` variables (comma-joined into the URL) */
@@ -171,10 +183,28 @@ export async function fetchGridForecast(
   return results;
 }
 
+/** When we detect 429 we set this guard so subsequent calls in the same
+ *  fetch loop short-circuit instead of hammering Open-Meteo further. The
+ *  caller can read `wasRateLimited()` after the call to decide whether
+ *  to extend its own cool-down. */
+let rateLimitedUntil = 0;
+
+export function isRateLimited(): boolean {
+  return Date.now() < rateLimitedUntil;
+}
+
+const RATE_LIMIT_COOLDOWN_MS = 30 * 60_000; // 30 min
+
 async function fetchBatch(
   batch: GridCell[],
   opts: FetchOpts,
 ): Promise<GridCellResponse[]> {
+  // If we recently saw a 429, short-circuit further calls in this fetch loop.
+  // The caller's higher-level dedup will still mark the snapshot stale.
+  if (isRateLimited()) {
+    return batch.map((cell) => ({ cell, hourly: null, current: null }));
+  }
+
   const params = new URLSearchParams({
     latitude: batch.map((c) => c.lat.toFixed(4)).join(','),
     longitude: batch.map((c) => c.lon.toFixed(4)).join(','),
@@ -190,8 +220,12 @@ async function fetchBatch(
     const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
       signal: opts.signal,
     });
+    if (res.status === 429) {
+      // Rate limited — set the global guard so we don't keep hammering.
+      rateLimitedUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+      return batch.map((cell) => ({ cell, hourly: null, current: null }));
+    }
     if (!res.ok) {
-      // Treat the whole batch as failed — every cell gets null
       return batch.map((cell) => ({ cell, hourly: null, current: null }));
     }
     const json = await res.json();
