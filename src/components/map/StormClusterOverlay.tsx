@@ -34,15 +34,20 @@ function convexHull(points: [number, number][]): [number, number][] {
 const hullCache = new Map<string, [number, number][]>();
 
 function getCachedHull(cluster: StormCluster): [number, number][] | null {
-  const points = cluster.strikePositions;
+  // S126+1 polish: hull is computed from RECENT strikes only (≤20 min old in
+  // stormTracker), so the cluster polygon hugs the active front instead of
+  // including the trailing tail. Falls back to all strikes if too few recent
+  // ones (handled in stormTracker.recentStrikePositions).
+  const points = cluster.recentStrikePositions ?? cluster.strikePositions;
   if (points.length < 3) return null;
-  const key = `${cluster.id}:${cluster.strikeCount}`;
+  // Cache key includes recent count so the hull invalidates when strikes age
+  // out of the recent window even if total strikeCount is unchanged.
+  const key = `${cluster.id}:${cluster.strikeCount}:${points.length}`;
   const cached = hullCache.get(key);
   if (cached) return cached;
   const hull = convexHull(points);
   if (hull.length < 3) return null;
   hullCache.set(key, hull);
-  // Bound cache: keep ~20 most recent (clusters rarely exceed this)
   if (hullCache.size > 30) {
     const first = hullCache.keys().next().value;
     if (first) hullCache.delete(first);
