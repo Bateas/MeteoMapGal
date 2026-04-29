@@ -20,6 +20,7 @@ import { PropagationArrows } from './PropagationArrow';
 // Heavy overlays: lazy-loaded (toggle/condition-gated, not needed at first paint)
 const LightningOverlay = lazy(() => import('./LightningOverlay').then(m => ({ default: m.LightningOverlay })));
 const StormClusterOverlay = lazy(() => import('./StormClusterOverlay').then(m => ({ default: m.StormClusterOverlay })));
+const GustFrontOverlay = lazy(() => import('./GustFrontOverlay').then(m => ({ default: m.GustFrontOverlay })));
 const FogOverlay = lazy(() => import('./FogOverlay').then(m => ({ default: m.FogOverlay })));
 const WindRampOverlay = lazy(() => import('./WindRampOverlay').then(m => ({ default: m.WindRampOverlay })));
 const HazeOverlay = lazy(() => import('./HazeOverlay').then(m => ({ default: m.HazeOverlay })));
@@ -448,6 +449,7 @@ export function WeatherMap() {
 
         {/* Storm cluster masses + radius rings (below strikes) */}
         <Suspense fallback={null}><StormClusterOverlay /></Suspense>
+        <Suspense fallback={null}><GustFrontOverlay /></Suspense>
 
         {/* Lightning strikes overlay */}
         <Suspense fallback={null}><LightningOverlay /></Suspense>
