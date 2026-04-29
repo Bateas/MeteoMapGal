@@ -39,8 +39,11 @@ describe('generateGridCells — basic shape', () => {
     const cells = generateGridCells(GALICIA_GRID);
     const lats = cells.map((c) => c.lat);
     expect(Math.min(...lats)).toBe(GALICIA_GRID.latMin);
-    expect(Math.max(...lats)).toBeLessThanOrEqual(GALICIA_GRID.latMax + 0.05);
-    expect(Math.max(...lats)).toBeGreaterThanOrEqual(GALICIA_GRID.latMax - 0.1);
+    // Allow up to 1 cell of slop at the top boundary (may or may not be included
+    // depending on resolution alignment with the lat range).
+    const slop = GALICIA_GRID.resolutionKm / 111.32;
+    expect(Math.max(...lats)).toBeLessThanOrEqual(GALICIA_GRID.latMax + slop);
+    expect(Math.max(...lats)).toBeGreaterThanOrEqual(GALICIA_GRID.latMax - slop * 1.5);
   });
 
   it('cells span the full lon range', () => {
@@ -50,11 +53,19 @@ describe('generateGridCells — basic shape', () => {
     expect(Math.max(...lons)).toBeLessThanOrEqual(GALICIA_GRID.lonMax + 0.1);
   });
 
-  it('Galicia grid produces ~2000-2500 cells at 5km resolution', () => {
+  it('Galicia grid at 15km resolution produces ~250-350 cells (free-tier friendly)', () => {
+    // S126+1+1 v2.70.2: resolution coarsened from 5km → 15km because Open-Meteo
+    // free tier counts each coordinate as 1 API call against the burst limit,
+    // and 5km (~2256 cells) blew the limit on every fetch. 15km still gives
+    // 9× better coverage than the previous 2-sector-points baseline.
     const count = estimateCellCount(GALICIA_GRID);
-    // Expected: ~47 lat × ~48 lon ≈ 2256
+    expect(count).toBeGreaterThan(200);
+    expect(count).toBeLessThan(400);
+  });
+
+  it('5km resolution would produce ~2000+ cells (documented for future migration)', () => {
+    const count = estimateCellCount({ ...GALICIA_GRID, resolutionKm: 5 });
     expect(count).toBeGreaterThan(1800);
-    expect(count).toBeLessThan(3000);
   });
 
   it('coarser resolution produces proportionally fewer cells', () => {
