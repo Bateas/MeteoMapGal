@@ -32,7 +32,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Run tests (Vitest)
-        run: npx vitest run
+        run: npx vitest run --reporter=verbose --bail=1
         env:
           CI: true
 
