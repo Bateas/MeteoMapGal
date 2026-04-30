@@ -29,8 +29,15 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install dependencies (root)
         run: npm ci --no-audit --no-fund
+
+      - name: Install dependencies (ingestor)
+        # ingestor has its own package.json (pg, dotenv) — vitest picks
+        # up ingestor/**/*.test.ts which imports from these modules.
+        # Without this step, ingestor/icaFetcher.test.ts and others fail
+        # with "Cannot find module pg" on a fresh CI runner.
+        run: cd ingestor && npm ci --no-audit --no-fund
 
       - name: Run tests (Vitest)
         run: |
