@@ -21,8 +21,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@typescript-eslint/*"
         update-types: ["version-update:semver-major"]
+      # Vitest 4.1.x has known incompatibility with jsdom on Node 22 CI
+      # (issue #9279). Pin to 4.0.x until upstream fix lands.
       - dependency-name: "vitest"
-        update-types: ["version-update:semver-major"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "@vitest/*"
         update-types: ["version-update:semver-major"]
       # TypeScript 6.0 (Mar 2026) breaks moduleResolution: classic + target default
@@ -37,6 +39,10 @@ updates:
         update-types: ["version-update:semver-major"]
       # jsdom 29 may break test setup — bump only after manual local validation
       - dependency-name: "jsdom"
+        update-types: ["version-update:semver-major"]
+      # lucide-react 0.x → 1.x (Apr 2026): icon API + tree-shaking changes.
+      # Project uses 100+ icons; needs sweep + visual QA, not a passive bump.
+      - dependency-name: "lucide-react"
         update-types: ["version-update:semver-major"]
     groups:
       # Batch minor + patch into a single PR per group
