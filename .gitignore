@@ -1,11 +1,10 @@
 # Environment
 .env
-.env.local
-.env.*.local
-deploy.env
+.env.*
+*.local
 
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -13,57 +12,43 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# Build artifacts
+node_modules/
+dist/
+dist-ssr/
 
-# Editor directories and files
+# Editor / OS
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+nul
 
-# Claude Code local settings (may contain infrastructure IPs)
-.claude/settings.local.json
-
-# Playwright MCP debugging artifacts
-.playwright-mcp/
-
-# Temporary planning / review files
+# Local-only working files
+.claude/
+CLAUDE.md
 plan.md
 review-*.png
 loading-*.jpeg
-nul
-CLAUDE.md
+.playwright-mcp/
 
-# Claude Code config
-.claude/
-
-# Deploy config (contains host info)
-deploy.env.example
-
-# Internal infrastructure scripts
+# Operational / deploy (not app code)
+deploy.env
+deploy.env.*
 deploy.sh
 deploy.ps1
 lxc-setup.sh
-
-# One-off analysis scripts (not app code)
-scripts/
-
-# n8n workflows (operational, not app code)
-n8n-workflow-*.json
 n8n/
+n8n-workflow-*.json
 
-# Private documents
+# Non-app directories
+scripts/
 docs/
-pitch-deck-*.html
-
-# Reference materials (outside repo)
 Fuentes/
 repo-filterclean/
+pitch-deck-*.html
