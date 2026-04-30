@@ -19,6 +19,19 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@vitest/*"
         update-types: ["version-update:semver-major"]
+      # TypeScript 6.0 (Mar 2026) breaks moduleResolution: classic + target default
+      # → migration session required, not a passive bump
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # Vite 8 swaps esbuild → Rolldown (Rust bundler), plugin-react 6 swaps
+      # Babel → Oxc. Both need vite.config.ts re-validation across 19 proxy routes.
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitejs/*"
+        update-types: ["version-update:semver-major"]
+      # jsdom 29 may break test setup — bump only after manual local validation
+      - dependency-name: "jsdom"
+        update-types: ["version-update:semver-major"]
     groups:
       # Batch minor + patch into a single PR per group
       react-ecosystem:
