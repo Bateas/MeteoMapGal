@@ -1,7 +1,8 @@
 name: CI
 
 # Build + test on every push to master and on every PR.
-# Uses Node 22 (matches LXC 305 prod), runs in parallel on Ubuntu.
+# Uses Node 24 (matches local dev). LXC 305 prod can be bumped to Node 24
+# in next deploy (Node 24 is current LTS; backwards compatible).
 
 on:
   push:
@@ -22,17 +23,24 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Node 22
+      - name: Setup Node 24
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
       - name: Run tests (Vitest)
-        run: npx vitest run
+        run: |
+          npx vitest run --reporter=verbose 2>&1 | tee /tmp/test-output.log
+          test_exit=${PIPESTATUS[0]}
+          echo '## Vitest output (last 80 lines)' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -80 /tmp/test-output.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          exit $test_exit
         env:
           CI: true
 
