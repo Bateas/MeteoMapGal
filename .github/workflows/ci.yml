@@ -36,13 +36,24 @@ jobs:
         run: |
           npx vitest run --reporter=verbose 2>&1 | tee /tmp/test-output.log
           test_exit=${PIPESTATUS[0]}
-          echo '## Vitest output (last 80 lines)' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -80 /tmp/test-output.log >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          if [ $test_exit -ne 0 ]; then
+            echo "::group::Failing tests"
+            grep -E "(FAIL|×|✗|Error:)" /tmp/test-output.log | head -20 | while read line; do
+              echo "::error::$line"
+            done
+            echo "::endgroup::"
+          fi
           exit $test_exit
         env:
           CI: true
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-output
+          path: /tmp/test-output.log
+          retention-days: 7
 
       - name: Production build
         run: npm run build
