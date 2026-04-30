@@ -13,6 +13,12 @@ updates:
     ignore:
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+      # @eslint/js v10 requires eslint v10 (linked versions). Bumping
+      # @eslint/js alone breaks the eslint flat config.
+      - dependency-name: "@eslint/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint-plugin-*"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "@typescript-eslint/*"
         update-types: ["version-update:semver-major"]
       - dependency-name: "vitest"
