@@ -14,7 +14,12 @@ export default defineConfig(({ mode }) => {
   },
   build: {
     target: 'esnext',
-    sourcemap: false,
+    // 'hidden': sourcemaps generated as separate .map files (not referenced
+    // from the bundle) — adds ~2MB total to dist/ but enables stack traces
+    // pointing to original source when reading prod errors locally with the
+    // Chrome devtools "Add source map" feature. No SEO/perf cost since the
+    // .map files are only fetched on demand.
+    sourcemap: 'hidden',
     // Filter modulepreload: only preload chunks needed for first paint.
     // Vite adds preloads for ALL transitive deps including lazy chunks like
     // recharts (412KB) and shared service chunks (240KB) — wastes bandwidth.
