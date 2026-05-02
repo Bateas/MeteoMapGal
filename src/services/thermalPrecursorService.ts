@@ -107,12 +107,14 @@ export function computeThermalPrecursors(
   now: Date = new Date(),
 ): ThermalPrecursorResult {
   const hour = now.getHours();
-  const month = now.getMonth() + 1;
 
-  // Outside thermal season (May-Sep) or night → no precursors
-  if (month < 5 || month > 9 || hour < 6 || hour > 21) {
-    return emptyResult(spot.id, now, 'Fuera de temporada térmica');
-  }
+  // NOTE: previously this returned early outside May-Sep / 6h-21h. Removed
+  // because anomalous thermal events do occur outside that window (warm
+  // October days, late-spring evenings, etc.) and we want those detected
+  // too. Each individual signal detector that's actually time-of-day-
+  // sensitive (terral, solar ramp) has its own internal gate; the others
+  // are weather-driven regardless of season. Outside the typical window
+  // the probability will naturally come out low — but no longer zero.
 
   // Classify stations: coastal (<5km from coast/spot) vs inland (>10km inland)
   const { coastal, inland } = classifyStations(spot, stations, readings);
@@ -138,7 +140,11 @@ export function computeThermalPrecursors(
   // ── Signal 7: WRF sky_state clear during thermal window (MeteoSIX) ──
   // SUNNY/PARTLY_CLOUDY between 13-18h → favorable for thermal development.
   // Weight: 5% (complementary — doesn't replace other signals).
-  const thermalWindowHours = forecast.filter(f => {
+  // `forecast` is typed `HourlyForecast[] | null` — guard against null
+  // before .filter() (the function above already handles null in
+  // detectForecastFavorable). Without this guard the deferred hook crashes
+  // on first run when the forecast store hasn't hydrated yet.
+  const thermalWindowHours = (forecast ?? []).filter(f => {
     const h = f.time.getHours();
     const diff = f.time.getTime() - now.getTime();
     return diff >= 0 && diff < 8 * 3600_000 && h >= 13 && h <= 18;
