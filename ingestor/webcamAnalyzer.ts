@@ -31,6 +31,28 @@ const STALE_IMAGE_MAX_AGE_MS = 30 * 60_000; // 30min — aggressive: if unchange
 const MAP_CLEANUP_INTERVAL_MS = 24 * 60 * 60_000; // Cleanup old entries daily
 let lastMapCleanup = Date.now();
 
+// ── Per-webcam state (cache + adaptive schedule) ─────
+//
+// Layer 1 (pre-classifier) needs the last result to reuse when the image is
+// trivial (calm water / uniform sky) and Beaufort was already 0-1. Layer 2
+// (adaptive schedule, see webcamScheduler.ts) needs the last few Beaufort
+// readings to decide if a camera is "stable calm" or has an "active event".
+import { shouldAnalyzeCam } from './webcamScheduler.js';
+import type { WebcamScheduleState } from './webcamScheduler.js';
+
+interface WebcamState extends WebcamScheduleState {
+  lastResult: WebcamAnalysisResult | null;
+}
+const webcamStates = new Map<string, WebcamState>();
+
+// ── Pre-classifier thresholds (Layer 1) ──────────────
+// Computed on a 64x64 grayscale downsample. variance < 200 ≈ smooth surface
+// (calm water OR overcast sky); edgeRate < 0.05 ≈ very few sharp transitions
+// (almost no waves/whitecaps/spray). Both true AND last beaufort ≤ 1 → safe
+// to skip the LLM and reuse last verdict, dropping confidence to 'low'.
+const PRECLASSIFIER_VARIANCE_THRESHOLD = 200;
+const PRECLASSIFIER_EDGE_RATE_THRESHOLD = 0.05;
+
 // ── Beaufort prompt (adapted from webcamVisionService.ts) ────
 
 // Prompt optimized for small vision models (moondream 1.8B).
@@ -67,7 +89,16 @@ export interface WebcamAnalysisResult {
 
 // ── Image fetching (Node.js native) ──────────────────
 
-async function fetchImageAsBase64(url: string): Promise<string | null> {
+/**
+ * Result of fetching + preprocessing one webcam image. Drives whether we
+ * call the LLM, reuse the cached verdict, or give up.
+ */
+type FetchOutcome =
+  | { kind: 'fresh'; base64: string; isTrivial: boolean }
+  | { kind: 'frozen' }   // image unchanged for >STALE_IMAGE_MAX_AGE_MS
+  | { kind: 'failed' };  // network/decode failure
+
+async function fetchImage(url: string): Promise<FetchOutcome> {
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(15_000),
@@ -75,7 +106,7 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
     });
     if (!response.ok) {
       log.warn(`[Webcam] Image fetch failed: ${url} → ${response.status}`);
-      return null;
+      return { kind: 'failed' };
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
@@ -83,44 +114,101 @@ async function fetchImageAsBase64(url: string): Promise<string | null> {
     // Skip tiny images (error pages, "no disponible" placeholders)
     if (buffer.length < 5000) {
       log.warn(`[Webcam] Image too small (${buffer.length}B): ${url}`);
-      return null;
+      return { kind: 'failed' };
     }
 
     // Stale image detection — hash the buffer, skip if unchanged for >30min.
-    // Hashing is O(n) but only ~0.5ms for 500KB images (dominated by Ollama 60s anyway).
     const hash = createHash('sha1').update(buffer).digest('hex').slice(0, 16);
     const prevHash = lastImageHash.get(url);
     const now = Date.now();
     if (prevHash === hash) {
       const changeTime = lastImageChangeTime.get(url) ?? now;
-      const frozenMin = Math.round((now - changeTime) / 60_000);
       if (now - changeTime > STALE_IMAGE_MAX_AGE_MS) {
+        const frozenMin = Math.round((now - changeTime) / 60_000);
         log.warn(`[Webcam] Image frozen ${frozenMin}min (hash ${hash} unchanged): ${url}`);
-        return null;
+        return { kind: 'frozen' };
       }
     } else {
-      // Hash changed → image updated, reset tracking
       lastImageHash.set(url, hash);
       lastImageChangeTime.set(url, now);
     }
 
-    // Resize with sharp if available, otherwise use raw
+    // Resize + pre-classifier. Both depend on sharp; if missing we fall back
+    // to raw buffer + isTrivial=false so behavior matches pre-S134.
     try {
       const sharp = (await import('sharp')).default;
       const resized = await sharp(buffer)
         .resize(IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
-      return resized.toString('base64');
+      const isTrivial = await isImageTrivial(buffer, sharp);
+      return { kind: 'fresh', base64: resized.toString('base64'), isTrivial };
     } catch {
-      // sharp not installed — use original image
-      return buffer.toString('base64');
+      return { kind: 'fresh', base64: buffer.toString('base64'), isTrivial: false };
     }
   } catch (err) {
     log.warn(`[Webcam] Image fetch error: ${url} — ${(err as Error).message}`);
-    return null;
+    return { kind: 'failed' };
   }
 }
+
+/**
+ * Pre-classifier (Layer 1). Computes luma variance + Sobel-ish edge rate on a
+ * 64×64 grayscale downsample (~4096 pixels — 1-2ms). "Trivial" = low texture
+ * AND few sharp transitions: typically calm water or fully-overcast sky.
+ *
+ * Returns true only when BOTH metrics agree. Single false negative is cheap
+ * (we still call the LLM); single false positive (skip + reuse) is what we
+ * want to minimize, so thresholds are conservative.
+ */
+async function isImageTrivial(
+  buffer: Buffer,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sharp: any,
+): Promise<boolean> {
+  try {
+    const { data, info } = await sharp(buffer)
+      .resize(64, 64, { fit: 'fill' })
+      .grayscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    // Variance of luma
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) sum += data[i];
+    const mean = sum / data.length;
+    let varSum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const d = data[i] - mean;
+      varSum += d * d;
+    }
+    const variance = varSum / data.length;
+
+    // Edge rate — count adjacent pixels with |Δluma| > 20 (Sobel-ish)
+    let edges = 0;
+    const w = info.width;
+    for (let y = 0; y < info.height - 1; y++) {
+      for (let x = 0; x < w - 1; x++) {
+        const i = y * w + x;
+        const dx = Math.abs(data[i] - data[i + 1]);
+        const dy = Math.abs(data[i] - data[i + w]);
+        if (dx > 20 || dy > 20) edges++;
+      }
+    }
+    const edgeRate = edges / data.length;
+
+    return (
+      variance < PRECLASSIFIER_VARIANCE_THRESHOLD &&
+      edgeRate < PRECLASSIFIER_EDGE_RATE_THRESHOLD
+    );
+  } catch {
+    // Pre-classifier never blocks the pipeline — on error, behave as if not trivial
+    return false;
+  }
+}
+
+// shouldAnalyzeCam now lives in webcamScheduler.ts (pure module — no `sharp`
+// dependency, importable from tests). See top-of-file imports.
 
 // ── Ollama Vision API call ───────────────────────────
 
@@ -251,13 +339,55 @@ function parseVisionResponse(raw: string): Partial<WebcamAnalysisResult> {
 
 // ── Single webcam analysis ───────────────────────────
 
+/**
+ * Reuse the previous result while attenuating confidence. Used when:
+ *   - The image is byte-identical and we already have a verdict (frozen).
+ *   - The pre-classifier flagged the scene as trivial AND last beaufort ≤ 1
+ *     (calm-on-calm — no point burning ~30s of CPU on the LLM).
+ */
+function reuseLastResult(
+  prev: WebcamAnalysisResult,
+  reason: 'frozen' | 'trivial',
+): WebcamAnalysisResult {
+  return {
+    ...prev,
+    confidence: 'low',
+    provider: `${prev.provider}-${reason}`,
+    latencyMs: 0,
+    analyzedAt: new Date(),
+  };
+}
+
 async function analyzeWebcam(webcam: WebcamStation): Promise<WebcamAnalysisResult | null> {
   const start = Date.now();
+  const state = webcamStates.get(webcam.id);
+  const prev = state?.lastResult ?? null;
 
-  const imageBase64 = await fetchImageAsBase64(webcam.imageUrl);
-  if (!imageBase64) return null;
+  const fetchOutcome = await fetchImage(webcam.imageUrl);
 
-  const rawResponse = await callOllamaVision(imageBase64);
+  if (fetchOutcome.kind === 'failed') return null;
+
+  if (fetchOutcome.kind === 'frozen') {
+    if (prev) {
+      log.info(`[Webcam] ${webcam.name}: reusing last verdict (image frozen)`);
+      return reuseLastResult(prev, 'frozen');
+    }
+    return null; // no prev to reuse — first time + frozen
+  }
+
+  // Layer 1 short-circuit: trivial scene + last reading was calm → reuse
+  if (
+    fetchOutcome.isTrivial &&
+    prev &&
+    prev.beaufort >= 0 &&
+    prev.beaufort <= 1
+  ) {
+    log.info(`[Webcam] ${webcam.name}: pre-classifier skip (trivial, prev Beaufort ${prev.beaufort})`);
+    return reuseLastResult(prev, 'trivial');
+  }
+
+  // Otherwise run the full LLM pipeline
+  const rawResponse = await callOllamaVision(fetchOutcome.base64);
   if (!rawResponse) return null;
 
   const parsed = parseVisionResponse(rawResponse);
@@ -285,8 +415,11 @@ async function analyzeWebcam(webcam: WebcamStation): Promise<WebcamAnalysisResul
 // ── Batch analysis (all Rías webcams) ────────────────
 
 export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisResult[]> {
-  // Only run every N cycles
-  if (cycle % WEBCAM_ANALYSIS_INTERVAL !== 0) return [];
+  // Pre-S134 the function ran every WEBCAM_ANALYSIS_INTERVAL cycles for ALL
+  // cameras at once. Now scheduling is per-cam (see shouldAnalyzeCam), so
+  // this is called every cycle but most cams skip cheaply. The constant is
+  // kept as the *default* cadence inside shouldAnalyzeCam (3 cycles).
+  void WEBCAM_ANALYSIS_INTERVAL;
 
   // Periodic cleanup of stale image tracking maps (prevent unbounded growth)
   if (Date.now() - lastMapCleanup > MAP_CLEANUP_INTERVAL_MS) {
@@ -304,27 +437,55 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
     return [];
   }
 
-  log.info(`[Webcam] Starting vision analysis (${RIAS_WEBCAMS.length} cameras)...`);
+  // Decide which cams are due this cycle (Layer 2 — adaptive schedule)
+  const dueCams: WebcamStation[] = [];
+  for (const webcam of RIAS_WEBCAMS) {
+    const state = webcamStates.get(webcam.id);
+    if (shouldAnalyzeCam(state)) {
+      dueCams.push(webcam);
+    } else if (state) {
+      state.cyclesSinceLastAnalysis++;
+    }
+  }
+
+  if (dueCams.length === 0) {
+    log.info(`[Webcam] All ${RIAS_WEBCAMS.length} cameras within their adaptive interval — skipping cycle`);
+    return [];
+  }
+
+  log.info(`[Webcam] Starting vision analysis (${dueCams.length}/${RIAS_WEBCAMS.length} due this cycle)...`);
   const results: WebcamAnalysisResult[] = [];
   const GLOBAL_TIMEOUT_MS = 120_000; // 120s max — never block longer than this
   const startTime = Date.now();
 
   // Sequential processing — Ollama handles one image at a time
-  for (const webcam of RIAS_WEBCAMS) {
+  for (const webcam of dueCams) {
     // Hard timeout: stop processing remaining cameras if we've exceeded budget
     if (Date.now() - startTime > GLOBAL_TIMEOUT_MS) {
-      log.warn(`[Webcam] Global timeout (${GLOBAL_TIMEOUT_MS / 1000}s) — ${results.length}/${RIAS_WEBCAMS.length} cameras processed, skipping rest`);
+      log.warn(`[Webcam] Global timeout (${GLOBAL_TIMEOUT_MS / 1000}s) — ${results.length}/${dueCams.length} cameras processed, skipping rest`);
       break;
     }
     try {
       const result = await analyzeWebcam(webcam);
-      if (result) results.push(result);
+      if (result) {
+        results.push(result);
+        // Update per-cam state (cache + history) for next cycle's scheduler
+        const state = webcamStates.get(webcam.id) ?? {
+          lastResult: null,
+          beaufortHistory: [],
+          cyclesSinceLastAnalysis: 0,
+        };
+        state.lastResult = result;
+        state.beaufortHistory = [result.beaufort, ...state.beaufortHistory].slice(0, 5);
+        state.cyclesSinceLastAnalysis = 0;
+        webcamStates.set(webcam.id, state);
+      }
     } catch (err) {
       log.warn(`[Webcam] ${webcam.name} failed: ${(err as Error).message}`);
     }
   }
 
-  log.info(`[Webcam] Analysis complete: ${results.length}/${RIAS_WEBCAMS.length} cameras processed (${((Date.now() - startTime) / 1000).toFixed(1)}s)`);
+  log.info(`[Webcam] Analysis complete: ${results.length}/${dueCams.length} cameras processed (${((Date.now() - startTime) / 1000).toFixed(1)}s)`);
 
   // Persist to DB
   if (results.length > 0) {
