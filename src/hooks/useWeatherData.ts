@@ -14,7 +14,6 @@ import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
 import { normalizeAemetObservation, normalizeMeteoGaliciaObservation, normalizeMeteoclimaticObservation } from '../services/normalizer';
 import type { NormalizedReading } from '../types/station';
 import { REFRESH_INTERVAL_MS } from '../config/constants';
-import { logReadings } from '../services/stationDataLogger';
 import { useToastStore } from '../store/toastStore';
 
 export function useWeatherData() {
@@ -239,7 +238,6 @@ export function useWeatherData() {
 
       if (allReadings.length > 0) {
         updateReadings(allReadings);
-        logReadings(allReadings);
       }
 
       // Toast for source errors (once per source)
