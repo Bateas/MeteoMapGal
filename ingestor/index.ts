@@ -23,6 +23,7 @@ import { runSynopticCycle } from './synopticFetcher.js';
 import { runFirmsCycle } from './firmsFetcher.js';
 import { runIcaCycle } from './icaFetcher.js';
 import { runConvectionGridCycle } from './convectionGridFetcher.js';
+import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -43,6 +44,7 @@ let synopticTimer: ReturnType<typeof setInterval> | null = null;
 let firmsTimer: ReturnType<typeof setInterval> | null = null;
 let icaTimer: ReturnType<typeof setInterval> | null = null;
 let convGridTimer: ReturnType<typeof setInterval> | null = null;
+let outcomesTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -214,6 +216,18 @@ async function start(): Promise<void> {
     runConvectionGridCycle().catch((err) => log.error('[ConvGrid] timer err:', (err as Error).message));
   }, 30 * 60_000);
 
+  // Outcome evaluator (S133) — nightly job that evaluates each storm_prediction
+  // against real lightning + rain (Open-Meteo grid + station pluviometers).
+  // Runs every 6h instead of "true 3 AM cron" — simpler scheduling and the
+  // job is idempotent (skips already-evaluated rows) so re-running is free.
+  // 360s stagger so it lands after ConvGrid first cycle, ensuring data is in.
+  setTimeout(() => {
+    runOutcomeEvaluatorCycle().catch((err) => log.error('[Outcomes] init err:', (err as Error).message));
+  }, 360_000);
+  outcomesTimer = setInterval(() => {
+    runOutcomeEvaluatorCycle().catch((err) => log.error('[Outcomes] timer err:', (err as Error).message));
+  }, 6 * 60 * 60_000);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -233,6 +247,7 @@ async function shutdown(signal: string): Promise<void> {
   if (firmsTimer) clearInterval(firmsTimer);
   if (icaTimer) clearInterval(icaTimer);
   if (convGridTimer) clearInterval(convGridTimer);
+  if (outcomesTimer) clearInterval(outcomesTimer);
 
   // Close database pool
   await closePool();

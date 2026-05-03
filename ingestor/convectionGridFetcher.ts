@@ -100,6 +100,13 @@ const HOURLY_VARS = [
   'lifted_index',
   'convective_inhibition',
   'boundary_layer_height',
+  // S133: precipitation per cell — needed to build "ground truth" of what
+  // actually happened, vs the CAPE×LI prediction. Open-Meteo bills per
+  // coordinate, not per variable, so this adds zero quota cost.
+  // For past hours this is the model's analysis (data-assimilated), for
+  // future hours it's the forecast — both useful for ML training when we
+  // join later with prediction_outcomes.
+  'precipitation',
 ] as const;
 
 const FORECAST_HORIZON_HOURS = 6;
@@ -180,6 +187,8 @@ export interface ConvectionGridRow {
   liftedIndex: number | null;
   cin: number | null;
   boundaryLayerM: number | null;
+  /** S133: mm/h precipitation. Past hours = analysis, future = forecast. */
+  precipMm: number | null;
   risk: number;
 }
 
@@ -205,8 +214,9 @@ export function parseGridResponses(responses: CellHourly[]): ConvectionGridRow[]
       const li   = readNumOrNull(r.hourly.lifted_index, h);
       const cin  = readNumOrNull(r.hourly.convective_inhibition, h);
       const blh  = readNumOrNull(r.hourly.boundary_layer_height, h);
+      const pmm  = readNumOrNull(r.hourly.precipitation, h);
       // Skip cells where everything's null (saves DB write bandwidth)
-      if (cape == null && li == null && cin == null && blh == null) continue;
+      if (cape == null && li == null && cin == null && blh == null && pmm == null) continue;
       rows.push({
         time: t,
         cellI: r.cell.i,
@@ -214,6 +224,7 @@ export function parseGridResponses(responses: CellHourly[]): ConvectionGridRow[]
         lat: r.cell.lat,
         lon: r.cell.lon,
         cape, liftedIndex: li, cin, boundaryLayerM: blh,
+        precipMm: pmm,
         risk: convectionRiskScore(cape, li),
       });
     }
@@ -245,15 +256,15 @@ async function batchInsertRows(rows: ConvectionGridRow[]): Promise<number> {
     const params: unknown[] = [];
     let p = 1;
     for (const r of slice) {
-      values.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
+      values.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
       params.push(
         r.time, now, r.cellI, r.cellJ, r.lat, r.lon,
-        r.cape, r.liftedIndex, r.cin, r.boundaryLayerM, r.risk,
+        r.cape, r.liftedIndex, r.cin, r.boundaryLayerM, r.precipMm, r.risk,
       );
     }
     const sql = `
       INSERT INTO convection_grid_hourly
-        (time, fetched_at, cell_i, cell_j, lat, lon, cape, lifted_index, cin, boundary_layer_m, risk)
+        (time, fetched_at, cell_i, cell_j, lat, lon, cape, lifted_index, cin, boundary_layer_m, precip_mm, risk)
       VALUES ${values.join(', ')}
       ON CONFLICT (time, cell_i, cell_j) DO UPDATE
         SET fetched_at       = EXCLUDED.fetched_at,
@@ -261,6 +272,7 @@ async function batchInsertRows(rows: ConvectionGridRow[]): Promise<number> {
             lifted_index     = EXCLUDED.lifted_index,
             cin              = EXCLUDED.cin,
             boundary_layer_m = EXCLUDED.boundary_layer_m,
+            precip_mm        = EXCLUDED.precip_mm,
             risk             = EXCLUDED.risk
     `;
     try {
