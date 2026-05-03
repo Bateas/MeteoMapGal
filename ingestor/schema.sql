@@ -497,6 +497,43 @@ GRANT SELECT ON lightning_hourly_zone   TO meteomap_app;
 GRANT SELECT ON convection_daily_sector TO meteomap_app;
 GRANT SELECT ON ica_daily_station       TO meteomap_app;
 
+-- ── Spatial convection grid (S132 — 5km Galicia) ──────
+-- One row per (forecast_time, cell). The fetcher runs every 30min covering
+-- t+0..t+5h. ON CONFLICT DO UPDATE so re-fetches refine the same cell with
+-- a fresher model run. cell_i/cell_j are the grid indices from
+-- spatialGridService.generateGridCells(GALICIA_GRID).
+--
+-- Volume estimate at 5km resolution:
+--   ~2256 cells × 6 hours horizon × 48 runs/day = ~650K rows/day
+--   With TimescaleDB compression (~3×) and 30d retention: ~1 GB total.
+-- Starting at 10km (~640 cells) for first week, then promote to 5km.
+CREATE TABLE IF NOT EXISTS convection_grid_hourly (
+  time              TIMESTAMPTZ NOT NULL,        -- forecast_time (UTC hour)
+  fetched_at        TIMESTAMPTZ NOT NULL,        -- when this row was ingested
+  cell_i            SMALLINT    NOT NULL,
+  cell_j            SMALLINT    NOT NULL,
+  lat               REAL        NOT NULL,
+  lon               REAL        NOT NULL,
+  cape              REAL,                        -- J/kg
+  lifted_index      REAL,                        -- °C (negative = unstable)
+  cin               REAL,                        -- J/kg (positive value)
+  boundary_layer_m  REAL,                        -- m
+  risk              REAL        NOT NULL DEFAULT 0,  -- 0-100 (CAPE × -LI / 1000)
+  PRIMARY KEY (time, cell_i, cell_j)
+);
+
+SELECT create_hypertable(
+  'convection_grid_hourly', 'time',
+  chunk_time_interval => INTERVAL '7 days',
+  if_not_exists => TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_cgh_time_risk
+  ON convection_grid_hourly (time DESC, risk DESC);
+
+-- ON CONFLICT DO UPDATE requires UPDATE permission (not just INSERT)
+GRANT SELECT, INSERT, UPDATE ON convection_grid_hourly TO meteomap_app;
+
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
 -- SELECT add_retention_policy('alerts', INTERVAL '1 year', if_not_exists => TRUE);

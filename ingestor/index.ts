@@ -22,6 +22,7 @@ import { runLightningCycle } from './lightningFetcher.js';
 import { runSynopticCycle } from './synopticFetcher.js';
 import { runFirmsCycle } from './firmsFetcher.js';
 import { runIcaCycle } from './icaFetcher.js';
+import { runConvectionGridCycle } from './convectionGridFetcher.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -41,6 +42,7 @@ let lightningTimer: ReturnType<typeof setInterval> | null = null;
 let synopticTimer: ReturnType<typeof setInterval> | null = null;
 let firmsTimer: ReturnType<typeof setInterval> | null = null;
 let icaTimer: ReturnType<typeof setInterval> | null = null;
+let convGridTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -200,6 +202,18 @@ async function start(): Promise<void> {
     runIcaCycle().catch((err) => log.error('[ICA Fetcher] timer err:', (err as Error).message));
   }, 30 * 60_000);
 
+  // Convection grid fetcher (S132) — spatial CAPE/LI grid persistence.
+  // Replaces frontend-direct Open-Meteo multi-point queries (which hit free-tier
+  // burst limit). 30min cadence matches forecast model refresh; ~90 batched
+  // calls per cycle at 10km / ~270 at 5km — well under quota from a single IP.
+  // 270s stagger so it lands after ICA to spread Open-Meteo load.
+  setTimeout(() => {
+    runConvectionGridCycle().catch((err) => log.error('[ConvGrid] init err:', (err as Error).message));
+  }, 270_000);
+  convGridTimer = setInterval(() => {
+    runConvectionGridCycle().catch((err) => log.error('[ConvGrid] timer err:', (err as Error).message));
+  }, 30 * 60_000);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -218,6 +232,7 @@ async function shutdown(signal: string): Promise<void> {
   if (synopticTimer) clearInterval(synopticTimer);
   if (firmsTimer) clearInterval(firmsTimer);
   if (icaTimer) clearInterval(icaTimer);
+  if (convGridTimer) clearInterval(convGridTimer);
 
   // Close database pool
   await closePool();

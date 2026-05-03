@@ -603,3 +603,97 @@ export async function queryAirQualityTrend(
     hoursUnhealthy: Number(r.hours_unhealthy ?? 0),
   }));
 }
+
+
+// ── Convection grid (S132) ──────────────────────────────
+
+export interface ConvectionGridCell {
+  lat: number;
+  lon: number;
+  cape: number | null;
+  liftedIndex: number | null;
+  cin: number | null;
+  risk: number;
+}
+
+export interface ConvectionGridResult {
+  forecastTime: string | null;
+  fetchedAt: string | null;
+  resolutionKm: number;
+  peakCape: number;
+  minLiftedIndex: number;
+  peakRisk: number;
+  cells: ConvectionGridCell[];
+}
+
+/**
+ * Get the spatial convection grid snapshot for a given hour offset.
+ *
+ * `hourOffset` 0 = closest hour to now, 1..5 = future hours.
+ *
+ * The query picks the cells from the most recent fetched_at that has data
+ * for the requested forecast time. We don't want to mix cells from different
+ * runs (would create spatial inconsistencies) so we constrain to the latest
+ * `fetched_at` for that specific `time`.
+ */
+export async function queryConvectionGrid(hourOffset = 0): Promise<ConvectionGridResult> {
+  const db = (await import('./db.js')).getPool();
+  // Step 1: find the target forecast hour and the latest fetched_at for it
+  const meta = await db.query(
+    `SELECT time, max(fetched_at) AS fetched_at
+     FROM convection_grid_hourly
+     WHERE time = (
+       SELECT date_trunc('hour', NOW() + ($1 * INTERVAL '1 hour'))
+     )
+     GROUP BY time
+     LIMIT 1`,
+    [hourOffset],
+  );
+  if (meta.rows.length === 0) {
+    return {
+      forecastTime: null, fetchedAt: null, resolutionKm: 10,
+      peakCape: 0, minLiftedIndex: 0, peakRisk: 0, cells: [],
+    };
+  }
+  const forecastTime = meta.rows[0].time as Date;
+  const fetchedAt = meta.rows[0].fetched_at as Date;
+
+  // Step 2: pull cells from that specific (time, fetched_at) pair
+  const result = await db.query(
+    `SELECT lat, lon, cape, lifted_index, cin, risk
+     FROM convection_grid_hourly
+     WHERE time = $1 AND fetched_at = $2
+     LIMIT 5000`,
+    [forecastTime, fetchedAt],
+  );
+
+  let peakCape = 0;
+  let minLI = 100;
+  let peakRisk = 0;
+  const cells: ConvectionGridCell[] = result.rows.map((r) => {
+    const cape = r.cape == null ? null : Number(r.cape);
+    const li = r.lifted_index == null ? null : Number(r.lifted_index);
+    const risk = Number(r.risk ?? 0);
+    if (cape != null && cape > peakCape) peakCape = cape;
+    if (li != null && li < minLI) minLI = li;
+    if (risk > peakRisk) peakRisk = risk;
+    return {
+      lat: Number(r.lat),
+      lon: Number(r.lon),
+      cape,
+      liftedIndex: li,
+      cin: r.cin == null ? null : Number(r.cin),
+      risk,
+    };
+  });
+
+  return {
+    forecastTime: forecastTime.toISOString(),
+    fetchedAt: fetchedAt.toISOString(),
+    resolutionKm: 10,
+    peakCape: Math.round(peakCape),
+    minLiftedIndex: minLI === 100 ? 0 : Math.round(minLI * 10) / 10,
+    peakRisk,
+    cells,
+  };
+}

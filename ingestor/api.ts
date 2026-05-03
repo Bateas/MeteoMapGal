@@ -18,6 +18,7 @@
  *   GET /api/v1/analytics/lightning-heatmap?from=&to=&minStrikes= → Spatial cells
  *   GET /api/v1/analytics/convection-trend?sector=&days=          → Daily peak CAPE/LI
  *   GET /api/v1/analytics/air-quality-trend?days=&station=        → Daily AQ rollup
+ *   GET /api/v1/analytics/convection-grid?hourOffset=             → Spatial CAPE/LI grid
  *
  * Usage:
  *   node --import tsx api.ts
@@ -44,6 +45,7 @@ import {
   queryLightningHeatmap,
   queryConvectionTrend,
   queryAirQualityTrend,
+  queryConvectionGrid,
 } from './queries.js';
 import { getPool } from './db.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
@@ -516,6 +518,41 @@ async function handleAnalyticsAirQualityTrend(
   }
 }
 
+/**
+ * Spatial convection grid (S132) — CAPE/LI/CIN per cell over Galicia.
+ *
+ * Query params:
+ *   - hourOffset: 0 (default = closest hour to now), 1..5 = future hours
+ *
+ * Response shape (compact tuples to keep payload small at 5km resolution):
+ *   {
+ *     forecastTime: "2026-05-03T14:00:00.000Z",
+ *     fetchedAt:    "2026-05-03T13:32:11.000Z",
+ *     resolutionKm: 10,
+ *     peakCape: 1820, minLiftedIndex: -3.4, peakRisk: 6.2,
+ *     cells: [{ lat, lon, cape, liftedIndex, cin, risk }, ...]
+ *   }
+ *
+ * Cache 5min — the fetcher runs every 30min so 5min stale is acceptable
+ * and cuts DB load when many users hit it simultaneously.
+ */
+async function handleAnalyticsConvectionGrid(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const hourOffset = Math.min(5, Math.max(0, parseInt(params.hourOffset || '0', 10) || 0));
+
+  try {
+    const result = await queryConvectionGrid(hourOffset);
+    // Set cache header before sending
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    json(res, { hourOffset, ...result }, 200, origin);
+  } catch (err) {
+    error(res, (err as Error).message, 500, origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -547,6 +584,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/analytics/lightning-heatmap':  handleAnalyticsLightningHeatmap,
   '/api/v1/analytics/convection-trend':   handleAnalyticsConvectionTrend,
   '/api/v1/analytics/air-quality-trend':  handleAnalyticsAirQualityTrend,
+  '/api/v1/analytics/convection-grid':    handleAnalyticsConvectionGrid,
 };
 
 // ── Storm prediction POST handler ──────────────────────
