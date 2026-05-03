@@ -518,9 +518,13 @@ CREATE TABLE IF NOT EXISTS convection_grid_hourly (
   lifted_index      REAL,                        -- °C (negative = unstable)
   cin               REAL,                        -- J/kg (positive value)
   boundary_layer_m  REAL,                        -- m
+  precip_mm         REAL,                        -- S133: mm/h, Open-Meteo `precipitation`
   risk              REAL        NOT NULL DEFAULT 0,  -- 0-100 (CAPE × -LI / 1000)
   PRIMARY KEY (time, cell_i, cell_j)
 );
+
+-- For existing deployments: add column if missing (non-breaking migration)
+ALTER TABLE convection_grid_hourly ADD COLUMN IF NOT EXISTS precip_mm REAL;
 
 SELECT create_hypertable(
   'convection_grid_hourly', 'time',
@@ -533,6 +537,38 @@ CREATE INDEX IF NOT EXISTS idx_cgh_time_risk
 
 -- ON CONFLICT DO UPDATE requires UPDATE permission (not just INSERT)
 GRANT SELECT, INSERT, UPDATE ON convection_grid_hourly TO meteomap_app;
+
+-- ── Prediction outcomes (S133 — measure storm_predictions accuracy) ──
+-- For each prediction made by the frontend stormPredictor, evaluate what
+-- ACTUALLY happened in the next 6h. Enables measuring accuracy over time
+-- and eventually re-calibrating signal weights from real outcomes.
+--
+-- Evaluation runs nightly (3 AM UTC) on predictions made >=6h ago that
+-- don't have an outcome yet. See ingestor/outcomeEvaluator.ts.
+CREATE TABLE IF NOT EXISTS prediction_outcomes (
+  prediction_time TIMESTAMPTZ NOT NULL,    -- = storm_predictions.time
+  sector          TEXT NOT NULL,            -- = storm_predictions.sector
+  evaluated_at    TIMESTAMPTZ NOT NULL,
+  -- Snapshot of what the prediction said (denormalized for ML training queries)
+  predicted_probability SMALLINT,
+  predicted_horizon     TEXT,
+  predicted_severity    TEXT,
+  -- Reality observed in the [prediction_time, prediction_time + 6h] window
+  observed_lightning_count INT  DEFAULT 0,
+  -- Open-Meteo grid (spatial coverage, model analysis ~10km interpolation)
+  observed_max_rain_grid_mm     REAL,
+  -- Real station readings (direct pluviometer measurements — ground truth where coverage exists)
+  observed_max_rain_stations_mm REAL,
+  -- Verdict uses MAX(grid, stations). NULL when prediction was in uncertain 30-60% band
+  was_correct  BOOLEAN,
+  notes        TEXT,
+  PRIMARY KEY (prediction_time, sector)
+);
+
+CREATE INDEX IF NOT EXISTS idx_outcomes_eval_at
+  ON prediction_outcomes (evaluated_at DESC);
+
+GRANT SELECT, INSERT ON prediction_outcomes TO meteomap_app;
 
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);

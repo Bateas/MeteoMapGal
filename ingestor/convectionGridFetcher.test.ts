@@ -82,12 +82,15 @@ describe('parseGridResponses', () => {
         lifted_index: [-3, -4],
         convective_inhibition: [10, 5],
         boundary_layer_height: [1200, 1400],
+        precipitation: [0.5, 8.2],
       },
     }]);
     expect(rows).toHaveLength(2);
     expect(rows[0].cape).toBe(1500);
     expect(rows[0].liftedIndex).toBe(-3);
+    expect(rows[0].precipMm).toBe(0.5);
     expect(rows[0].risk).toBe(4.5); // 1500 * 3 / 1000
+    expect(rows[1].precipMm).toBe(8.2);
     expect(rows[1].risk).toBe(8); // 2000 * 4 / 1000
   });
 
@@ -100,9 +103,27 @@ describe('parseGridResponses', () => {
         lifted_index: [null],
         convective_inhibition: [null],
         boundary_layer_height: [null],
+        precipitation: [null],
       },
     }]);
     expect(rows).toEqual([]);
+  });
+
+  it('keeps row when ONLY precip is present (rainy day, low CAPE)', () => {
+    const rows = parseGridResponses([{
+      cell,
+      hourly: {
+        time: ['2026-05-03T14:00:00Z'],
+        cape: [null],
+        lifted_index: [null],
+        convective_inhibition: [null],
+        boundary_layer_height: [null],
+        precipitation: [3.2],
+      },
+    }]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].precipMm).toBe(3.2);
+    expect(rows[0].risk).toBe(0); // no CAPE → risk 0, but rain still tracked
   });
 
   it('preserves cell index info', () => {
