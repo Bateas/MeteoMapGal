@@ -128,7 +128,8 @@ async function findPendingPredictions(): Promise<PredictionRow[]> {
     `SELECT p.time, p.sector, p.probability, p.horizon, p.severity
      FROM storm_predictions p
      LEFT JOIN prediction_outcomes o
-       ON o.prediction_time = p.time AND o.sector = p.sector
+       ON date_trunc('milliseconds', o.prediction_time) = date_trunc('milliseconds', p.time)
+       AND o.sector = p.sector
      WHERE p.time <= $1
        AND o.prediction_time IS NULL
      ORDER BY p.time DESC
