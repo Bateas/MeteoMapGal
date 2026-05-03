@@ -183,18 +183,19 @@ async function observeWindow(
   );
 
   // Max precip from REAL station pluviometers in sector during the window.
-  // `readings` lacks lat/lon directly so we JOIN with `stations`. Only
-  // surface stations report `precip` (most do, including AEMET/MG/MC).
-  // This is the GROUND TRUTH where coverage exists — direct pluviometer
-  // measurement, not model interpolation.
+  // `readings` lacks lat/lon directly so we JOIN with `stations`. Columns
+  // in `stations` are: station_id (PK), source, name, latitude, longitude,
+  // altitude, updated_at. Only surface stations report `precip` (most do,
+  // including AEMET/MG/MC). This is the GROUND TRUTH where coverage exists
+  // — direct pluviometer measurement, not model interpolation.
   const rainStationsQ = await db.query(
     `SELECT max(r.precip) AS max_mm
      FROM readings r
-     JOIN stations s ON r.station_id = s.id
+     JOIN stations s ON r.station_id = s.station_id
      WHERE r.time >= $1 AND r.time <= $2
        AND r.precip IS NOT NULL
-       AND s.lat BETWEEN $3 AND $4
-       AND s.lon BETWEEN $5 AND $6`,
+       AND s.latitude  BETWEEN $3 AND $4
+       AND s.longitude BETWEEN $5 AND $6`,
     [start, end, bbox.latMin, bbox.latMax, bbox.lonMin, bbox.lonMax],
   );
 
