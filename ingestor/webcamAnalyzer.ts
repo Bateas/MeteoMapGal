@@ -98,7 +98,7 @@ type FetchOutcome =
   | { kind: 'frozen' }   // image unchanged for >STALE_IMAGE_MAX_AGE_MS
   | { kind: 'failed' };  // network/decode failure
 
-async function fetchImage(url: string): Promise<FetchOutcome> {
+async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcome> {
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(15_000),
@@ -141,7 +141,7 @@ async function fetchImage(url: string): Promise<FetchOutcome> {
         .resize(IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
-      const isTrivial = await isImageTrivial(buffer, sharp);
+      const isTrivial = await isImageTrivial(buffer, sharp, webcamName);
       return { kind: 'fresh', base64: resized.toString('base64'), isTrivial };
     } catch {
       return { kind: 'fresh', base64: buffer.toString('base64'), isTrivial: false };
@@ -165,6 +165,7 @@ async function isImageTrivial(
   buffer: Buffer,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sharp: any,
+  webcamName?: string,
 ): Promise<boolean> {
   try {
     const { data, info } = await sharp(buffer)
@@ -197,10 +198,18 @@ async function isImageTrivial(
     }
     const edgeRate = edges / data.length;
 
-    return (
+    const trivial =
       variance < PRECLASSIFIER_VARIANCE_THRESHOLD &&
-      edgeRate < PRECLASSIFIER_EDGE_RATE_THRESHOLD
+      edgeRate < PRECLASSIFIER_EDGE_RATE_THRESHOLD;
+
+    // Always log the metrics so thresholds can be calibrated against real
+    // imagery. Cost is ~1 line per cam per cycle; cheap.
+    log.info(
+      `[Webcam] ${webcamName ?? '?'} stats: variance=${variance.toFixed(0)} ` +
+      `edgeRate=${edgeRate.toFixed(3)} → ${trivial ? 'TRIVIAL' : 'non-trivial'}`,
     );
+
+    return trivial;
   } catch {
     // Pre-classifier never blocks the pipeline — on error, behave as if not trivial
     return false;
@@ -363,7 +372,7 @@ async function analyzeWebcam(webcam: WebcamStation): Promise<WebcamAnalysisResul
   const state = webcamStates.get(webcam.id);
   const prev = state?.lastResult ?? null;
 
-  const fetchOutcome = await fetchImage(webcam.imageUrl);
+  const fetchOutcome = await fetchImage(webcam.imageUrl, webcam.name);
 
   if (fetchOutcome.kind === 'failed') return null;
 
