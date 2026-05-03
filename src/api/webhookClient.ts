@@ -90,8 +90,11 @@ function isNightSilence(): boolean {
 //      value was just "did the request reach the server?", which we can read
 //      from the real POST's success/failure.
 //   3. The console noise muddied real diagnostic output during the Apr 28 event.
+/** n8n health flag — kept always-true since we removed the HEAD probe (S126+1) */
+const n8nHealthy = true;
+
 async function checkN8nHealth(): Promise<boolean> {
-  return true;
+  return n8nHealthy;
 }
 
 /** Check if n8n is currently considered healthy */
@@ -108,11 +111,24 @@ let lastWebhookTime = 0;
 
 /**
  * Post an alert to the n8n webhook endpoint.
- * Non-blocking, fails silently on any error.
  *
- * Night silence (23:00-07:00): only critical alerts are sent.
+ * Currently a no-op: the ingestor's `alertDispatcher.ts` runs 24/7 with full
+ * database state and is the single source of truth for Telegram notifications.
+ * Two senders would mean duplicate messages, divergent thresholds, and
+ * split-brain cooldowns. The function stays exported so existing call sites
+ * compile without changes — it just returns immediately and avoids hitting
+ * the deprecated `/api/webhook/meteomap-alert` route (which would 404 in F12).
+ *
+ * To re-enable the frontend path: replace the return with the original logic
+ * (see git history pre-S130) and add the nginx proxy block for `/api/webhook/`.
  */
-export async function postAlertWebhook(payload: WebhookAlertPayload): Promise<void> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function postAlertWebhook(_payload: WebhookAlertPayload): Promise<void> {
+  return;
+}
+
+// Kept exported for type compatibility with future re-enablement.
+async function _legacyPostAlertWebhook(payload: WebhookAlertPayload): Promise<void> {
   try {
     // Skip webhook in development — no n8n server running
     if (import.meta.env.DEV) return;
