@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS readings (
   dew_point   DOUBLE PRECISION,
   precip      DOUBLE PRECISION,
   solar_rad   DOUBLE PRECISION,
-  visibility  DOUBLE PRECISION  -- km, only ~8 AEMET airport stations report it (S126 Phase 1b TIER 2)
+  visibility  DOUBLE PRECISION  -- km, only ~8 AEMET airport stations report it
 );
 
 SELECT create_hypertable('readings', 'time', if_not_exists => TRUE);
@@ -255,7 +255,7 @@ CREATE TABLE IF NOT EXISTS storm_predictions (
 );
 SELECT create_hypertable('storm_predictions', 'time', if_not_exists => TRUE);
 
--- ── Lightning strikes (S125 historical-data-vision Phase 1a) ────
+-- ── Lightning strikes (historical-data-vision Phase 1a) ────
 -- Individual strikes from MeteoGalicia meteo2api raios/lenda.
 -- Persisting raw strikes enables: (a) heatmap of where lightning hits most,
 -- (b) cross-correlation with synoptic flow + fronts + station wind, (c)
@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS lightning_strikes (
 SELECT create_hypertable('lightning_strikes', 'time', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_strikes_loc ON lightning_strikes (lat, lon);
 
--- ── Active fires (S125 historical-data-vision Phase 1a) ─────────
+-- ── Active fires (historical-data-vision Phase 1a) ─────────
 -- NASA FIRMS VIIRS hotspots persisted from each /api/v1/firms cache miss.
 -- Keys include satellite + acq time so the same physical fire seen by SNPP
 -- and NOAA-20 doesn't get deduped (we want both observations for accuracy).
@@ -293,7 +293,7 @@ CREATE TABLE IF NOT EXISTS active_fires (
 SELECT create_hypertable('active_fires', 'time', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_fires_loc ON active_fires (lat, lon);
 
--- ── Upper-air sounding (S125 Phase 1b TIER 1 — sinóptica) ────────
+-- ── Upper-air sounding (Phase 1b TIER 1 — sinóptica) ────────
 -- Wind + temperature at standard pressure levels (850/700/500 hPa) per
 -- sector. Data from Open-Meteo `hourly=wind_speed_850hPa,...`. Hourly cadence
 -- per sector × 3 levels = ~144 rows/day, ~5MB/year. Kept forever — this is
@@ -311,7 +311,7 @@ CREATE TABLE IF NOT EXISTS upper_air_hourly (
 );
 SELECT create_hypertable('upper_air_hourly', 'time', if_not_exists => TRUE);
 
--- ── ICA air quality (S126 Phase 1b TIER 2) ──────────────────────
+-- ── ICA air quality (Phase 1b TIER 2) ──────────────────────
 -- Official MeteoGalicia/Xunta network: ~30 stations reporting hourly.
 -- Persists raw ICA decimal value + dominant pollutant per station so we
 -- can later correlate poor-air episodes with calima fronts, traffic, fires.
@@ -329,7 +329,7 @@ CREATE TABLE IF NOT EXISTS ica_readings (
 SELECT create_hypertable('ica_readings', 'time', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_ica_loc ON ica_readings (lat, lon);
 
--- ── Convection indices per sector (S125 Phase 1b TIER 1) ─────────
+-- ── Convection indices per sector (Phase 1b TIER 1) ─────────
 -- Persists the CAPE/CIN/LI/PWAT we already fetch for the storm predictor
 -- but currently throw away after each cycle. Required for predictor
 -- calibration: "when CAPE > X and LI < -Y, did lightning ACTUALLY occur?"
@@ -346,7 +346,7 @@ CREATE TABLE IF NOT EXISTS convection_hourly (
 SELECT create_hypertable('convection_hourly', 'time', if_not_exists => TRUE);
 
 -- ════════════════════════════════════════════════════════════════
--- Phase 2 — Continuous aggregates (S126+1)
+-- Phase 2 — Continuous aggregates
 -- ════════════════════════════════════════════════════════════════
 -- These materialized views pre-compute the rollups we'll hit on the analytics
 -- tab + future ML feature engineering. TimescaleDB refreshes them on a policy
@@ -497,7 +497,7 @@ GRANT SELECT ON lightning_hourly_zone   TO meteomap_app;
 GRANT SELECT ON convection_daily_sector TO meteomap_app;
 GRANT SELECT ON ica_daily_station       TO meteomap_app;
 
--- ── Spatial convection grid (S132 — 5km Galicia) ──────
+-- ── Spatial convection grid (5km Galicia) ──────
 -- One row per (forecast_time, cell). The fetcher runs every 30min covering
 -- t+0..t+5h. ON CONFLICT DO UPDATE so re-fetches refine the same cell with
 -- a fresher model run. cell_i/cell_j are the grid indices from
@@ -518,7 +518,7 @@ CREATE TABLE IF NOT EXISTS convection_grid_hourly (
   lifted_index      REAL,                        -- °C (negative = unstable)
   cin               REAL,                        -- J/kg (positive value)
   boundary_layer_m  REAL,                        -- m
-  precip_mm         REAL,                        -- S133: mm/h, Open-Meteo `precipitation`
+  precip_mm         REAL,                        -- mm/h, Open-Meteo `precipitation`
   risk              REAL        NOT NULL DEFAULT 0,  -- 0-100 (CAPE × -LI / 1000)
   PRIMARY KEY (time, cell_i, cell_j)
 );
@@ -538,7 +538,64 @@ CREATE INDEX IF NOT EXISTS idx_cgh_time_risk
 -- ON CONFLICT DO UPDATE requires UPDATE permission (not just INSERT)
 GRANT SELECT, INSERT, UPDATE ON convection_grid_hourly TO meteomap_app;
 
--- ── Prediction outcomes (S133 — measure storm_predictions accuracy) ──
+-- ── convection_grid_daily_peak ──────────────────────────
+-- Daily peak per cell. Powers the "Histórico de inestabilidad" tab on the
+-- frontend (Phase 4) without scanning ~650K rows per query: each cell
+-- collapses to one row per day with its peak CAPE/risk and total precip.
+-- Useful queries:
+--   SELECT * FROM convection_grid_daily_peak
+--    WHERE bucket >= NOW() - INTERVAL '30 days'
+--      AND peak_risk > 10                      -- 30d hotspot map
+--   GROUP BY cell_i, cell_j;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM timescaledb_information.continuous_aggregates
+    WHERE view_name = 'convection_grid_daily_peak'
+  ) THEN
+    EXECUTE '
+      CREATE MATERIALIZED VIEW convection_grid_daily_peak
+      WITH (timescaledb.continuous) AS
+      SELECT
+        time_bucket(''1 day'', time, ''Europe/Madrid'') AS bucket,
+        cell_i,
+        cell_j,
+        AVG(lat)              AS lat,
+        AVG(lon)              AS lon,
+        MAX(cape)             AS peak_cape,
+        MIN(lifted_index)     AS min_lifted_index,
+        MAX(risk)             AS peak_risk,
+        AVG(cape)             AS avg_cape,
+        AVG(cin)              AS avg_cin,
+        SUM(precip_mm)        AS total_precip_mm,
+        MAX(precip_mm)        AS peak_precip_mm,
+        COUNT(*)              AS samples
+      FROM convection_grid_hourly
+      GROUP BY bucket, cell_i, cell_j
+      WITH NO DATA
+    ';
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM timescaledb_information.jobs
+    WHERE proc_name = 'policy_refresh_continuous_aggregate'
+      AND hypertable_name = 'convection_grid_daily_peak'
+  ) THEN
+    PERFORM add_continuous_aggregate_policy(
+      'convection_grid_daily_peak',
+      start_offset      => INTERVAL '3 days',
+      end_offset        => INTERVAL '1 hour',
+      schedule_interval => INTERVAL '1 hour'
+    );
+  END IF;
+END $$;
+
+GRANT SELECT ON convection_grid_daily_peak TO meteomap_app;
+
+-- ── Prediction outcomes — measure storm_predictions accuracy ──
 -- For each prediction made by the frontend stormPredictor, evaluate what
 -- ACTUALLY happened in the next 6h. Enables measuring accuracy over time
 -- and eventually re-calibrating signal weights from real outcomes.

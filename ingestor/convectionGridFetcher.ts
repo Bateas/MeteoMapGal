@@ -1,5 +1,5 @@
 /**
- * Convection grid fetcher — S132.
+ * Convection grid fetcher.
  *
  * Pulls Open-Meteo CAPE/CIN/LI/BLH for every cell of a regular grid over
  * Galicia, computes per-cell risk score, and persists a row per
@@ -100,7 +100,7 @@ const HOURLY_VARS = [
   'lifted_index',
   'convective_inhibition',
   'boundary_layer_height',
-  // S133: precipitation per cell — needed to build "ground truth" of what
+  // precipitation per cell — needed to build "ground truth" of what
   // actually happened, vs the CAPE×LI prediction. Open-Meteo bills per
   // coordinate, not per variable, so this adds zero quota cost.
   // For past hours this is the model's analysis (data-assimilated), for
@@ -187,7 +187,7 @@ export interface ConvectionGridRow {
   liftedIndex: number | null;
   cin: number | null;
   boundaryLayerM: number | null;
-  /** S133: mm/h precipitation. Past hours = analysis, future = forecast. */
+  /** mm/h precipitation. Past hours = analysis, future = forecast. */
   precipMm: number | null;
   risk: number;
 }

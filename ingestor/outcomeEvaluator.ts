@@ -1,5 +1,5 @@
 /**
- * Prediction outcome evaluator — S133.
+ * Prediction outcome evaluator.
  *
  * For each row in `storm_predictions` whose horizon (6h) has fully elapsed
  * AND no outcome row exists yet, evaluate what actually happened in
