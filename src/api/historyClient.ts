@@ -156,19 +156,43 @@ export async function fetchReadings(
   return data.readings;
 }
 
+/**
+ * Circuit-breaker: when a source's `/readings/latest` endpoint is failing
+ * (5xx after retries), block re-attempts for SOURCE_COOLDOWN_MS to stop
+ * the browser from auto-logging another wave of 503s on the next poll.
+ * Cleared when a request succeeds.
+ */
+const sourceCooldownUntil = new Map<string, number>();
+const SOURCE_COOLDOWN_MS = 5 * 60 * 1000; // 5 min
+
 /** Get latest reading for all stations (or a specific one), optionally filtered by source */
 export async function fetchLatestReadings(
   stationId?: string,
   source?: string
 ): Promise<HistoryReading[]> {
+  const cooldownKey = source ?? '__all__';
+  const cooldownUntil = sourceCooldownUntil.get(cooldownKey);
+  if (cooldownUntil != null && Date.now() < cooldownUntil) {
+    // Skip silently — recent failure, give the server a break.
+    return [];
+  }
+
   const params: Record<string, string> = {};
   if (stationId) params.station_id = stationId;
   if (source) params.source = source;
-  const data = await fetchJson<{ readings: HistoryReading[] }>(
-    `${BASE}/readings/latest`,
-    Object.keys(params).length > 0 ? params : {}
-  );
-  return data.readings;
+  try {
+    const data = await fetchJson<{ readings: HistoryReading[] }>(
+      `${BASE}/readings/latest`,
+      Object.keys(params).length > 0 ? params : {}
+    );
+    sourceCooldownUntil.delete(cooldownKey); // success — clear cooldown
+    return data.readings;
+  } catch (err) {
+    // After fetchJson exhausts its 502/503/504 retries we land here.
+    // Trip the breaker so the next poll skips this source quickly.
+    sourceCooldownUntil.set(cooldownKey, Date.now() + SOURCE_COOLDOWN_MS);
+    throw err;
+  }
 }
 
 /** Convert DB HistoryReading → NormalizedReading (for consolidated source fetches) */
