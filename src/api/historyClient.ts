@@ -82,22 +82,38 @@ async function fetchJson<T>(path: string, params?: Record<string, string>): Prom
     }
   }
 
-  const res = await fetch(url.toString(), {
-    signal: AbortSignal.timeout(TIMEOUT),
-  });
+  // S131: retry on 502/503/504 (transient gateway/server hiccups). Reduces F12
+  // noise from "GET ... 503" entries the browser auto-logs even when our catch
+  // handles the error gracefully. Backoff: 800ms, 2400ms (jittered).
+  const RETRY_STATUSES = new Set([502, 503, 504]);
+  const MAX_RETRIES = 2;
+  let lastErrorMsg = '';
 
-  if (!res.ok) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(TIMEOUT),
+    });
+
+    if (res.ok) return res.json();
+
+    if (RETRY_STATUSES.has(res.status) && attempt < MAX_RETRIES) {
+      const baseDelay = 800 * Math.pow(3, attempt); // 800, 2400
+      const jitter = baseDelay * (0.7 + Math.random() * 0.6); // ±30%
+      await new Promise((r) => setTimeout(r, jitter));
+      continue;
+    }
+
     const body = await res.json().catch(() => ({ error: res.statusText }));
-    const msg = body.error || `API error ${res.status}`;
+    lastErrorMsg = body.error || `API error ${res.status}`;
     // 404 = station not yet in DB (new station, no accumulated data)
     // 500 = DB query failed (station exists but query error)
     // Both are non-critical for user — show friendly message
     if (res.status === 404) throw new Error('Sin datos históricos para esta estación');
     if (res.status === 500) throw new Error('Error temporal del servidor de datos');
-    throw new Error(msg);
+    throw new Error(lastErrorMsg);
   }
 
-  return res.json();
+  throw new Error(lastErrorMsg || 'API: reintentos agotados');
 }
 
 // ── API Functions ──────────────────────────────────────

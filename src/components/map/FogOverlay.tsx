@@ -82,19 +82,22 @@ function sampleFogZonesLocal(
       const lng = bbox.west + (col + 0.5) * cellW;
       const lat = bbox.south + (row + 0.5) * cellH;
 
-      // S122 fix: maritime fog floats over water AND coastal lowlands.
-      // null elevation = water → ALLOW (fog is here!). High altitude = mountain → SKIP.
-      const elev = queryElevation({ lng, lat });
-      const isWater = elev === null || elev === undefined;
-      if (!isWater && elev > maxAltitude) continue;
-
-      // Find closest detector source
+      // S131 perf: distance filter FIRST (cheap math), then elevation lookup
+      // (expensive DEM read). Previously elev was sampled for every cell of the
+      // sector grid (8000-12000 cells) but only ~10% pass the 4km radius — we
+      // were paying 90% of DEM cost for nothing. Saves ~600ms during fog build.
       let minDist = Infinity;
       for (const src of sources) {
         const d = distKm(lat, lng, src.lat, src.lon);
         if (d < minDist) minDist = d;
       }
       if (minDist > FOG_RADIUS_KM) continue; // outside any source's range
+
+      // S122 fix: maritime fog floats over water AND coastal lowlands.
+      // null elevation = water → ALLOW (fog is here!). High altitude = mountain → SKIP.
+      const elev = queryElevation({ lng, lat });
+      const isWater = elev === null || elev === undefined;
+      if (!isWater && elev > maxAltitude) continue;
 
       // Density: quadratic falloff with distance (sharper edge), blended with altitude
       const linearDist = Math.max(0, 1.0 - minDist / FOG_RADIUS_KM); // 1 at source, 0 at edge
@@ -241,9 +244,20 @@ function FogOverlayInner() {
     return () => clearTimeout(timer);
   }, [hasFogAlert]);
 
+  // S131 perf: prevent re-entrancy. The build effect can fire 2-4× during
+  // initial load (timer 3s + 'terrain' event + store rehydration). Each fire
+  // is ~150ms (post-S131 fix), still cumulative if all run back-to-back.
+  // Skip rebuilds < 2s apart — geometry doesn't change that fast anyway.
+  const lastBuildAtRef = useRef<number>(0);
+  const MIN_BUILD_GAP_MS = 2000;
+
   const buildFogZones = useCallback(() => {
     const map = mapRef?.getMap();
     if (!map) return;
+
+    const now = Date.now();
+    if (now - lastBuildAtRef.current < MIN_BUILD_GAP_MS) return;
+    lastBuildAtRef.current = now;
 
     const queryElev = (lngLat: { lng: number; lat: number }) => {
       try { return map.queryTerrainElevation?.(lngLat) ?? null; }
@@ -267,6 +281,8 @@ function FogOverlayInner() {
       return;
     }
     setFogGeoJSON(null);
+    // Reset throttle so the first build after (re)activation isn't blocked
+    lastBuildAtRef.current = 0;
 
     const map = mapRef?.getMap();
     if (!map) return;
