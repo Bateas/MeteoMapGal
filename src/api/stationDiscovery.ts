@@ -89,7 +89,13 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
     }
     console.debug(`[Discovery] Found ${stations.length} AEMET stations in radius`);
   } else {
-    console.error('[Discovery] AEMET station fetch failed:', aemetStations.reason);
+    // 503 from AEMET step-2 is transient — next discovery cycle (1h) will recover
+    const msg = String(aemetStations.reason);
+    if (msg.includes('step 2 failed: 503')) {
+      console.debug('[Discovery] AEMET 503 transient, will retry next cycle');
+    } else {
+      console.error('[Discovery] AEMET station fetch failed:', aemetStations.reason);
+    }
   }
 
   // Process MeteoGalicia stations
