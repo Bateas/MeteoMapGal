@@ -84,18 +84,23 @@ async function runCycle(): Promise<void> {
     }
 
     // 4. Run spot analyzer — scoring + transitions + thermal forecast
+    // Failure here means alert pipeline is broken — promoted to error after
+    // S134 audit (was warn — masking real pipeline outage).
     await runAnalysis().catch(err =>
-      log.warn('Analyzer failed:', (err as Error).message));
+      log.error('Analyzer failed:', (err as Error).message));
 
     // 5. Webcam vision analysis (every 3 cycles = ~15min, if enabled)
     // Fire-and-forget — Ollama CPU inference takes 6-7min for 12 cameras.
     // MUST NOT block the polling loop (caused 2h freeze in S121).
+    // Failure = vision pipeline down, not transient → log.error.
     runWebcamAnalysis(cycleCount).catch(err =>
-      log.warn('Webcam analysis failed:', (err as Error).message));
+      log.error('Webcam analysis failed:', (err as Error).message));
 
     // 6. Check if daily summary should be sent (9:00 AM, once per day)
+    // Failure here means user does NOT receive Telegram morning summary —
+    // critical visibility, log.error mandatory.
     await checkAndSendDailySummary().catch(err =>
-      log.warn('Daily summary check failed:', (err as Error).message));
+      log.error('Daily summary check failed:', (err as Error).message));
 
     const elapsed = ((Date.now() - cycleStart) / 1000).toFixed(1);
     log.ok(`Cycle ${cycleCount} complete (${elapsed}s)`);

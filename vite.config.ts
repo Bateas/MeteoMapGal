@@ -25,7 +25,13 @@ export default defineConfig(({ mode }) => {
     // recharts (412KB) and shared service chunks (240KB) — wastes bandwidth.
     modulePreload: {
       resolveDependencies: (_filename, deps) =>
-        deps.filter(d => !d.includes('recharts') && !d.includes('windTrend') && !d.includes('date-fns') && !d.includes('aemetDaily')),
+        deps.filter(d =>
+          !d.includes('recharts') &&
+          !d.includes('windTrend') &&
+          !d.includes('date-fns') &&
+          !d.includes('aemetDaily') &&
+          !d.includes('stationDiscovery')  // S134 audit: 239KB, not LCP-critical
+        ),
     },
     rollupOptions: {
       input: {

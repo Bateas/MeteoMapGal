@@ -13,7 +13,14 @@ const COLORS = {
 } as const;
 
 function ts(): string {
-  return new Date().toISOString().slice(11, 19); // HH:MM:SS
+  // Local time HH:MM:SS — matches the host TZ (Europe/Madrid in prod).
+  // Avoids the UTC vs CEST mismatch when grepping logs against `date`.
+  const d = new Date();
+  return [
+    String(d.getHours()).padStart(2, '0'),
+    String(d.getMinutes()).padStart(2, '0'),
+    String(d.getSeconds()).padStart(2, '0'),
+  ].join(':');
 }
 
 export const log = {

@@ -56,7 +56,17 @@ async function fetchAemet(
     const buf = await dataRes.arrayBuffer();
     const charset = dataRes.headers.get('content-type')?.match(/charset=([^\s;]+)/i)?.[1] ?? 'iso-8859-1';
     const text = new TextDecoder(charset).decode(buf);
-    const rawObs: AemetRawObservation[] = JSON.parse(text);
+    const rawObs = JSON.parse(text) as AemetRawObservation[] | { descripcion?: string; estado?: number };
+
+    // AEMET sometimes returns an error object instead of an array (transient
+    // backend hiccups, especially overnight). Guard against `.filter is not
+    // a function` crash by checking shape before accessing array methods.
+    if (!Array.isArray(rawObs)) {
+      const detail = (rawObs as { descripcion?: string; estado?: number }).descripcion
+        ?? `estado=${(rawObs as { estado?: number }).estado ?? 'unknown'}`;
+      log.warn(`AEMET obs: response not an array (${detail}), skipping cycle`);
+      return [];
+    }
 
     // Filter to our stations only
     const readings = rawObs
@@ -66,7 +76,11 @@ async function fetchAemet(
     log.info(`AEMET: ${readings.length} readings`);
     return readings;
   } catch (err) {
-    log.error('AEMET fetch failed:', (err as Error).message);
+    // Transient (network, JSON parse, AEMET 5xx) — next poll recovers.
+    // Downgraded to warn after S133/S134 audit; was log.error before, but
+    // these errors are systemic to AEMET's flaky overnight API and would
+    // spam ERROR-level logs nightly without action signal.
+    log.warn('AEMET fetch failed:', (err as Error).message);
     return [];
   }
 }

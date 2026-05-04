@@ -238,7 +238,7 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, [readingsCount > 0, activeSector.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Geolocation auto-sector removed — see geolocationService.ts if needed later
+  // Geolocation auto-sector removed (permission popup scared users)
 
   // Prune stale history moved to DeferredHooks (off critical path).
   // Daily summary moved to ingestor (24/7, single source, no visitor duplicates).

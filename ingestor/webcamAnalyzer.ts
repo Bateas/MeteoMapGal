@@ -50,8 +50,13 @@ const webcamStates = new Map<string, WebcamState>();
 // (calm water OR overcast sky); edgeRate < 0.05 ≈ very few sharp transitions
 // (almost no waves/whitecaps/spray). Both true AND last beaufort ≤ 1 → safe
 // to skip the LLM and reuse last verdict, dropping confidence to 'low'.
-const PRECLASSIFIER_VARIANCE_THRESHOLD = 200;
-const PRECLASSIFIER_EDGE_RATE_THRESHOLD = 0.05;
+// Calibrated empirically (S134) with 50 cycles of real Galician coastal cams.
+// Distribution observed: variance 1485-6285 (median ~3200), edgeRate 0.022-0.258
+// (median ~0.110). Initial values 200 / 0.05 produced 0 hits. Current thresholds
+// expect ~16-18% hit rate when prev Beaufort ≤ 1. Each hit saves ~30-45s of
+// moondream CPU.
+const PRECLASSIFIER_VARIANCE_THRESHOLD = 3000;
+const PRECLASSIFIER_EDGE_RATE_THRESHOLD = 0.08;
 
 // ── Beaufort prompt (adapted from webcamVisionService.ts) ────
 
