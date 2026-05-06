@@ -65,6 +65,12 @@ const MAX_AGE_MS = 2 * 60 * 60_000; // 2 hours
 // ── PORTUS fetch ────────────────────────────────────────
 
 async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow | null> {
+  // Defensive guard — IDs >= 15000 belong to ObsCosteiro, not PORTUS.
+  // Puertos del Estado emailed warning of IP block when this leaked.
+  if (station.id >= 15000) {
+    log.warn(`PORTUS fetch refused for ObsCosteiro id ${station.id} — use OBS_STATIONS path`);
+    return null;
+  }
   try {
     const categories = ['WAVE', 'WIND', 'WATER_TEMP', 'AIR_TEMP', 'SEA_LEVEL', 'CURRENTS', 'SALINITY'];
     const res = await fetch(`${PORTUS_BASE}/lastData/station/${station.id}?locale=es`, {

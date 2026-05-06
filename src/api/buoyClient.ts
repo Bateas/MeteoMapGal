@@ -232,6 +232,14 @@ export async function fetchBuoyStations(category: string = 'WAVE'): Promise<Buoy
  * Decodes integer-encoded values using the factor field.
  */
 export async function fetchBuoyLastReading(stationId: number, stationName?: string): Promise<BuoyReading | null> {
+  // Defensive guard — Puertos del Estado emailed warning that station IDs
+  // in the 15000+ range belong to ObsCosteiro, NOT PORTUS, and they would
+  // IP-block us if we kept hitting their API with them. Refuse outright
+  // instead of trusting the call site's filter.
+  if (stationId >= 15000) {
+    console.warn(`[BuoyClient] refused PORTUS call for ObsCosteiro id ${stationId} (use fetchAllObsReadings instead)`);
+    return null;
+  }
   try {
     const categories = ['WAVE', 'WIND', 'WATER_TEMP', 'AIR_TEMP', 'SEA_LEVEL', 'CURRENTS', 'SALINITY'];
     const result = await portusPost<PortusLastDataResponse>(
