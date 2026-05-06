@@ -158,7 +158,8 @@ export async function fetchSkyXReading(): Promise<NormalizedReading | null> {
       dewPoint: null,
       solarRadiation: null,
     };
-  } catch {
+  } catch (err) {
+    console.debug('[SkyX] fetch/parse failed', err);
     return null;
   }
 }
