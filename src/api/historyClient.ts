@@ -309,7 +309,8 @@ export async function fetchStationStats(
       }
     );
     return data.stats;
-  } catch {
+  } catch (err) {
+    console.debug('[History] stats fetch failed', err);
     return null;
   }
 }

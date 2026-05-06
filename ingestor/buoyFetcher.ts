@@ -48,9 +48,11 @@ interface ObsStation {
   name: string;
 }
 
-const OBS_STATIONS: ObsStation[] = [
+// `enabled: false` skips polling without removing the row — flip back when
+// the station returns to service (no diff in IDs/maps elsewhere).
+const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
   { obsId: 15001, canonicalId: 1250, name: 'Cortegada (Arousa)' },
-  { obsId: 15002, canonicalId: 1252, name: 'Islas Cíes' },     // OFFLINE since Dec 2025
+  { obsId: 15002, canonicalId: 1252, name: 'Islas Cíes', enabled: false },     // OFFLINE since Dec 2025
   { obsId: 15004, canonicalId: 1253, name: 'A Guarda' },
   { obsId: 15005, canonicalId: 1255, name: 'Ribeira' },
   { obsId: 15100, canonicalId: 1251, name: 'Rande (Ría Vigo)' },
@@ -295,7 +297,7 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   const [portusResults, obsResults] = await Promise.all([
     Promise.allSettled(RIAS_BUOY_STATIONS.map(fetchPortusStation)),
     obsApiKey
-      ? Promise.allSettled(OBS_STATIONS.map((s) => fetchObsStation(s, obsApiKey)))
+      ? Promise.allSettled(OBS_STATIONS.filter((s) => s.enabled !== false).map((s) => fetchObsStation(s, obsApiKey)))
       : Promise.resolve([]),
   ]);
 

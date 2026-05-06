@@ -18,7 +18,8 @@ function getCachedHistory(key: string): NormalizedReading[] | null {
     }
     // Restore Date objects from ISO strings
     return data.map((r) => ({ ...r, timestamp: new Date(r.timestamp) }));
-  } catch {
+  } catch (err) {
+    console.debug('[OpenMeteo cache] read failed', err);
     return null;
   }
 }
@@ -29,8 +30,9 @@ function setCachedHistory(key: string, data: NormalizedReading[]): void {
       HISTORY_CACHE_PREFIX + key,
       JSON.stringify({ ts: Date.now(), data }),
     );
-  } catch {
-    // sessionStorage full — silently ignore
+  } catch (err) {
+    // sessionStorage full or unavailable — degrade silently
+    console.debug('[OpenMeteo cache] write failed', err);
   }
 }
 
@@ -283,7 +285,8 @@ export async function fetchDailyContext(
     const deltaT = tempMax !== null && tempMin !== null ? tempMax - tempMin : null;
 
     return { tempMax, tempMin, deltaT };
-  } catch {
+  } catch (err) {
+    console.debug('[OpenMeteo daily delta] fetch failed', err);
     return { tempMax: null, tempMin: null, deltaT: null };
   }
 }
@@ -347,7 +350,8 @@ export async function fetchAtmosphericContext(
       convectiveInhibition: data.hourly.convective_inhibition?.[0] ?? null,
       fetchedAt: new Date(),
     };
-  } catch {
+  } catch (err) {
+    console.debug('[OpenMeteo convection ctx] fetch failed', err);
     return nullContext;
   }
 }
