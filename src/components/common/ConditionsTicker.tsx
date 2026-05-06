@@ -23,6 +23,7 @@ import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { fetchTidePredictions, type TidePoint } from '../../api/tideClient';
+import { isPeakUvHour, uvCategory, uvTickerLabel, UV_TICKER_THRESHOLD } from '../../services/uvService';
 
 /** Find the next tide point (high or low) relative to now */
 function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean } | null {
@@ -322,16 +323,23 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
-    // ── UV warning (priority 4 — subtle, only when high) ──
+    // ── UV warning — only in peak hours (12-16h) and only actionable values ──
+    // Reactive map philosophy: UV during off-peak hours doesn't change a user's
+    // current decision (no real exposure outside the window). Threshold raised
+    // from ≥6 to ≥7 to dedupe with the standard "high" threshold; sub-7 is the
+    // upper-half of "moderate" and the user usually knows already.
     const aq = useAirQualityStore.getState().data;
-    if (aq && aq.uvIndex >= 6) {
-      const uvLevel = aq.uvIndex >= 11 ? 'EXTREMO' : aq.uvIndex >= 8 ? 'Muy alto' : 'Alto';
+    if (aq && aq.uvIndex >= UV_TICKER_THRESHOLD && isPeakUvHour()) {
+      const uvRounded = Math.round(aq.uvIndex);
+      const cat = uvCategory(uvRounded);
+      const isExtreme = cat === 'extreme';
+      const isVeryHigh = cat === 'very_high';
       result.push({
         key: 'uv-index',
-        text: `UV ${Math.round(aq.uvIndex)} ${uvLevel}`,
-        color: aq.uvIndex >= 8 ? 'text-red-400' : 'text-amber-400',
-        bg: aq.uvIndex >= 8 ? 'bg-red-900/20' : 'bg-amber-900/20',
-        priority: aq.uvIndex >= 8 ? 6 : 4,
+        text: uvTickerLabel(uvRounded),
+        color: isExtreme ? 'text-purple-400' : isVeryHigh ? 'text-red-400' : 'text-amber-400',
+        bg: isExtreme ? 'bg-purple-900/25' : isVeryHigh ? 'bg-red-900/20' : 'bg-amber-900/20',
+        priority: isExtreme ? 8 : isVeryHigh ? 6 : 4,
       });
     }
 
