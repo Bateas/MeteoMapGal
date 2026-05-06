@@ -1,9 +1,9 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.61.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.77.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![CI](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml/badge.svg)](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-849%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-966%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
 **Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 22 webcams con IA y mapa 3D interactivo.
@@ -25,6 +25,7 @@
 | **Kitesurfistas / Windsurfistas** | Ventana de viento optima en las proximas 48h |
 | **Clubs nauticos** | Panel de seguridad para regatas. Semaforo automatico + log exportable |
 | **Coordinadores de seguridad** | Modo Evento: zona personalizable, alertas rayos/viento, responsabilidad documentada |
+| **Mariscadores recreativos** | Aguas vivas extremas (coef ≥95) + storm surge avisado en tiempo real |
 | **Agricultores / Viticultores** | Helada, lluvia, ET0, grados-dia, riesgo fitosanitario |
 
 ---
@@ -117,6 +118,14 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 - Niebla maritima, frentes de viento, inversiones termicas
 - Clasificacion por severidad: info / aviso / alerta / peligro
 
+### Avisos reactivos en el ticker
+Solo aparecen cuando son accionables — fuera de su ventana, silencio:
+- **UV index extremo** (12-16h, peak sun): UV ≥ 7 con reflexión agua +30% calculada (`UV 8 ALTO · agua +10.4 · gorra/protector`). Escala WHO con colores estándar
+- **Aguas vivas extremas** (Rías): coeficiente ≥ 95 + cross-check storm surge por presión baja (`Aguas vivas extremas (coef 102) · bajamar 06:34 · marea +0.3m por baja presión`)
+- **Brisa térmica forecast** (Embalse Apr-Sep): detecta días con T>25°C + HR<55% + cielo despejado 12h+ antes
+- **Calidad del aire**: cuando ICA Xunta marca deficiente o peor, nombra estación + contaminante
+- **Avisos AEMET/MeteoGalicia**: integrados en ticker con color por severidad oficial
+
 ### Scoring inteligente — popup de spot
 
 <p align="center">
@@ -143,6 +152,8 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
 - **Meteograma SVG**: sparkline viento+temp+precipitacion (0KB extra de bundle)
 - **Conclusion inteligente**: resumen en lenguaje natural de la prevision 48h
 - **Predictor de tormentas**: 8 senales combinadas → probabilidad 0-100%
+- **Predictor con accuracy medible**: cada predicción se evalúa automáticamente 6h después contra rayos reales + precipitación de estaciones. Substrate de calibración ML para próximas iteraciones
+- **Convection grid 10km**: CAPE/LI/CIN/precip persistido por celda en TimescaleDB (retención 2 años) → mapas de inestabilidad históricos consultables en milisegundos via continuous aggregates
 
 ### Niebla (DEM terrain overlay)
 - Deteccion de niebla radiativa (Embalse) y advectiva (Rias) por analisis dewpoint/temp/HR
@@ -189,17 +200,18 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # 849 tests (Vitest)
+npm test                # 966 tests (Vitest)
 ```
 
-**Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.24 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB
+**Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.24 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB · Sharp (image preprocess) · Ollama (vision)
 
 **Arquitectura**:
-- Frontend: React SPA con 19 stores Zustand, predictor de tormentas 8 senales, 7 sub-componentes SpotPopup
-- Backend: Ingestor Node.js 24/7 → TimescaleDB (polling 6 fuentes cada 5min + MeteoSIX WRF/USWAN)
-- Modelos: WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temperatura del mar), Open-Meteo (conveccion)
-- Produccion: nginx reverse proxy en Proxmox LXC, Cloudflare Tunnel
-- Performance: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle ~340KB (gzip ~110KB)
+- **Frontend**: React SPA con 20 stores Zustand, predictor de tormentas 8 señales, 7 sub-componentes SpotPopup
+- **Backend**: Ingestor Node.js 24/7 → TimescaleDB (polling 6 fuentes cada 5min + MeteoSIX WRF/USWAN + Ollama vision IA)
+- **Modelos**: WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temperatura del mar), Open-Meteo (conveccion + grid CAPE/LI 10km)
+- **Producción**: nginx reverse proxy en Proxmox LXC + smart deploy script (detecta diff, solo corre lo necesario), Cloudflare Tunnel
+- **Performance**: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle ~353KB (gzip ~110KB)
+- **Resilience**: Circuit breaker per-source en clientes API (3 capas defensivas), pre-classifier ahorra ~25min CPU/día en webcam vision, retention 2 años uniforme en hypertables críticas
 
 ---
 
