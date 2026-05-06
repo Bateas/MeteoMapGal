@@ -23,12 +23,12 @@ interface BuoyStation {
   type: string;
 }
 
-const RIAS_BUOY_STATIONS: BuoyStation[] = [
+const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
   // Exterior
   { id: 2248, name: 'Cabo Silleiro', type: 'REDEXT' },
   { id: 1253, name: 'A Guarda', type: 'CETMAR' },
   // Ría de Vigo
-  { id: 1252, name: 'Islas Cíes', type: 'CETMAR' },
+  { id: 1252, name: 'Islas Cíes', type: 'CETMAR', enabled: false },  // OFFLINE since Dec 2025 (same as ObsCosteiro 15002)
   { id: 1251, name: 'Rande (Ría Vigo)', type: 'CETMAR' },
   { id: 3221, name: 'Vigo (marea)', type: 'REDMAR' },
   // Ría de Pontevedra
@@ -295,7 +295,7 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
 
   // Fetch both sources in parallel
   const [portusResults, obsResults] = await Promise.all([
-    Promise.allSettled(RIAS_BUOY_STATIONS.map(fetchPortusStation)),
+    Promise.allSettled(RIAS_BUOY_STATIONS.filter((s) => s.enabled !== false).map(fetchPortusStation)),
     obsApiKey
       ? Promise.allSettled(OBS_STATIONS.filter((s) => s.enabled !== false).map((s) => fetchObsStation(s, obsApiKey)))
       : Promise.resolve([]),
