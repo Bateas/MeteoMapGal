@@ -244,7 +244,16 @@ export async function getNetatmoToken(): Promise<string | null> {
     netatmoTokenExpiry = Date.now() + 55 * 60_000; // Refresh 5min before 1h expiry
     return netatmoToken;
   } catch (err) {
-    log.error('Netatmo token failed:', (err as Error).message);
+    // Sanitize token-like substrings before logging — Netatmo SDK / network
+    // errors sometimes include the refresh_token / access_token in the message
+    // (e.g. when Node prints the failed request body as part of the error).
+    // Pattern strips `refresh_token=...`, `access_token=...`, and standalone
+    // long opaque hex/base64 strings (>=24 chars) typical of Netatmo tokens.
+    const raw = (err as Error).message;
+    const sanitized = raw
+      .replace(/(refresh_token|access_token)=[^&\s"']+/gi, '$1=***')
+      .replace(/\b[A-Za-z0-9_-]{24,}\b/g, '***');
+    log.error('Netatmo token failed:', sanitized);
     return null;
   }
 }

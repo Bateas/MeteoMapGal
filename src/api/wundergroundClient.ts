@@ -122,7 +122,8 @@ async function fetchWUCurrent(stationId: string): Promise<WUObservation | null> 
 
     const data = await res.json();
     return data?.observations?.[0] ?? null;
-  } catch {
+  } catch (err) {
+    console.debug('[Wunderground] fetch failed', err);
     return null;
   }
 }

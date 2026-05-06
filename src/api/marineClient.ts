@@ -66,7 +66,8 @@ export async function fetchMarineData(lat: number, lon: number): Promise<MarineD
 
     cache.set(key, data);
     return data;
-  } catch {
+  } catch (err) {
+    console.debug('[Marine] using cached marine snapshot', err);
     return cached || null;
   }
 }
@@ -118,7 +119,8 @@ export async function fetchMarineForecast(lat: number, lon: number): Promise<Mar
 
     forecastCache.set(key, { data: hours, fetchedAt: Date.now() });
     return hours;
-  } catch {
+  } catch (err) {
+    console.debug('[Marine forecast] using stale cache', err);
     return cached?.data ?? [];
   }
 }

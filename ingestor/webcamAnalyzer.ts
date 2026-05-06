@@ -50,7 +50,7 @@ const webcamStates = new Map<string, WebcamState>();
 // (calm water OR overcast sky); edgeRate < 0.05 ≈ very few sharp transitions
 // (almost no waves/whitecaps/spray). Both true AND last beaufort ≤ 1 → safe
 // to skip the LLM and reuse last verdict, dropping confidence to 'low'.
-// Calibrated empirically (S134) with 50 cycles of real Galician coastal cams.
+// Calibrated empirically with 50 cycles of real Galician coastal cams.
 // Distribution observed: variance 1485-6285 (median ~3200), edgeRate 0.022-0.258
 // (median ~0.110). Initial values 200 / 0.05 produced 0 hits. Current thresholds
 // expect ~16-18% hit rate when prev Beaufort ≤ 1. Each hit saves ~30-45s of
@@ -139,7 +139,7 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
     }
 
     // Resize + pre-classifier. Both depend on sharp; if missing we fall back
-    // to raw buffer + isTrivial=false so behavior matches pre-S134.
+    // to raw buffer + isTrivial=false so behavior matches the original path.
     try {
       const sharp = (await import('sharp')).default;
       const resized = await sharp(buffer)
@@ -429,7 +429,7 @@ async function analyzeWebcam(webcam: WebcamStation): Promise<WebcamAnalysisResul
 // ── Batch analysis (all Rías webcams) ────────────────
 
 export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisResult[]> {
-  // Pre-S134 the function ran every WEBCAM_ANALYSIS_INTERVAL cycles for ALL
+  // Originally the function ran every WEBCAM_ANALYSIS_INTERVAL cycles for ALL
   // cameras at once. Now scheduling is per-cam (see shouldAnalyzeCam), so
   // this is called every cycle but most cams skip cheaply. The constant is
   // kept as the *default* cadence inside shouldAnalyzeCam (3 cycles).

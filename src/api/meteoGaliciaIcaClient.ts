@@ -90,7 +90,8 @@ export async function fetchIcaObservations(): Promise<IcaReading[]> {
       });
     }
     return out;
-  } catch {
+  } catch (err) {
+    console.debug('[MG ICA] fetch/parse failed', err);
     return [];
   }
 }

@@ -1,7 +1,7 @@
 /**
  * Convection grid service — frontend client for the ingestor backend.
  *
- * Since S132 the heavy lifting moved to the ingestor:
+ * The heavy lifting lives in the ingestor:
  *   - `ingestor/convectionGridFetcher.ts` runs every 30min, fetches Open-Meteo
  *     for the whole Galicia grid, persists to TimescaleDB.
  *   - `GET /api/v1/analytics/convection-grid` serves the latest snapshot.
@@ -81,7 +81,7 @@ export function convectionRiskScore(cape: number | null, li: number | null): num
  *
  * Network cost per call: ~5-20KB gzipped (~640 cells at 10km resolution,
  * up to ~2256 at 5km). One round-trip vs the 12 batched Open-Meteo calls
- * of the pre-S132 frontend implementation.
+ * of the original frontend implementation.
  */
 export async function fetchConvectionGrid(
   opts: { hourOffset?: number; signal?: AbortSignal } = {},

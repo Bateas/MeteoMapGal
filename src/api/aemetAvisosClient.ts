@@ -120,7 +120,8 @@ export async function fetchAemetAvisos(): Promise<AemetAviso[]> {
 
     cache = { data: avisos, fetchedAt: Date.now() };
     return avisos;
-  } catch {
+  } catch (err) {
+    console.debug('[AEMET avisos] using stale cache', err);
     return cache?.data ?? [];
   }
 }

@@ -26,9 +26,11 @@ interface ObsStation {
   lon: number;
 }
 
-const OBS_STATIONS: ObsStation[] = [
+// `enabled: false` skips the station from polling without removing it (so when
+// it comes back online we just flip the flag, no diff in IDs/coords/maps).
+const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
   { obsId: 15001, canonicalId: 1250,  name: 'Cortegada (Arousa)', lat: 42.632, lon: -8.779 },
-  { obsId: 15002, canonicalId: 1252,  name: 'Islas Cíes',        lat: 42.180, lon: -8.892 }, // OFFLINE since Dec 2025
+  { obsId: 15002, canonicalId: 1252,  name: 'Islas Cíes',        lat: 42.180, lon: -8.892, enabled: false }, // OFFLINE since Dec 2025
   { obsId: 15004, canonicalId: 1253,  name: 'A Guarda',          lat: 41.900, lon: -8.876 },
   { obsId: 15005, canonicalId: 1255,  name: 'Ribeira',           lat: 42.554, lon: -8.990 },
   { obsId: 15100, canonicalId: 1251,  name: 'Rande (Ría Vigo)',  lat: 42.288, lon: -8.658 },
@@ -169,8 +171,10 @@ function parseObsReading(station: ObsStation, data: ObsResponse): BuoyReading | 
  */
 export async function fetchAllObsReadings(): Promise<BuoyReading[]> {
   // API key is injected server-side by ingestor proxy — no frontend key needed
+  // Skip stations marked `enabled: false` (e.g. Cíes 15002 OFFLINE since Dec 2025)
+  const activeStations = OBS_STATIONS.filter((s) => s.enabled !== false);
   const results = await Promise.allSettled(
-    OBS_STATIONS.map(async (station) => {
+    activeStations.map(async (station) => {
       const data = await obsFetch(station.obsId);
       if (!data) return null;
       return parseObsReading(station, data);
