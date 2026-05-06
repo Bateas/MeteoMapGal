@@ -24,6 +24,13 @@ import { VERDICT_STYLE } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { fetchTidePredictions, type TidePoint } from '../../api/tideClient';
 import { isPeakUvHour, uvCategory, uvTickerLabel, UV_TICKER_THRESHOLD } from '../../services/uvService';
+import {
+  tideCoefficient,
+  estimateStormSurge,
+  nextAmplitude,
+  tideTickerLabel,
+  shouldShowTideAlert,
+} from '../../services/tideAlertService';
 
 /** Find the next tide point (high or low) relative to now */
 function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean } | null {
@@ -183,6 +190,31 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           bg: 'bg-cyan-900/20',
           priority: 7,
         });
+
+        // ── Aguas vivas / storm-surge alert (priority 8-9) ──
+        // Compute coef from the next consecutive amplitude. Cross-check buoy
+        // pressure for inverse-barometric surge (≥ 0.2 m worth surfacing).
+        const amp = nextAmplitude(tidePoints);
+        const coef = tideCoefficient(amp);
+        // Cheapest/freshest pressure: any buoy reporting airPressure (Cabo
+        // Silleiro typical). Pick the lowest — we want surge worst-case.
+        let minPressure: number | null = null;
+        for (const b of buoyReadings.values()) {
+          if (b.airPressure != null && (minPressure == null || b.airPressure < minPressure)) {
+            minPressure = b.airPressure;
+          }
+        }
+        const surge = estimateStormSurge(minPressure);
+        if (coef != null && shouldShowTideAlert(coef, surge)) {
+          const isExtreme = coef >= 100;
+          result.push({
+            key: 'tide-alert',
+            text: tideTickerLabel(coef, next.point, surge),
+            color: isExtreme ? 'text-cyan-200' : 'text-cyan-300',
+            bg: isExtreme ? 'bg-cyan-800/30' : 'bg-cyan-900/25',
+            priority: isExtreme ? 9 : 8,
+          });
+        }
       }
     }
 
