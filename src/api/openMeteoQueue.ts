@@ -17,16 +17,16 @@
  */
 
 const MIN_INTERVAL_MS = 1500;  // 1.5s between requests (~40/min, conservative to avoid 429s)
-const MAX_RETRIES = 2;
-const RETRY_BASE_MS = 8000; // 8s, 16s exponential backoff (longer cooldown after 429)
+const MAX_RETRIES = 1;         // 1 retry max — second 429 trips the breaker (was 2 → 3 visible network calls)
+const RETRY_BASE_MS = 8000;    // 8s backoff before the single retry
 
 // Circuit breaker — when the IP gets rate-limited, retrying every queue item
 // just produces more 429s and burns minutes per request waiting on backoffs
-// for nothing. After N consecutive 429s, freeze ALL Open-Meteo calls for
-// COOLDOWN_MS and resolve them as 429 immediately (no retries, no waits).
-// Cleared on the first successful response.
-const RATE_LIMIT_TRIP_THRESHOLD = 3;          // 3 consecutive 429s trips the breaker
-const RATE_LIMIT_COOLDOWN_MS = 5 * 60_000;    // 5 min freeze
+// for nothing. After 2 consecutive 429s (1 attempt + 1 retry), freeze ALL
+// Open-Meteo calls for COOLDOWN_MS and resolve them as 429 immediately
+// (no retries, no waits, no network). Cleared on the first successful response.
+const RATE_LIMIT_TRIP_THRESHOLD = 2;          // 2 consecutive 429s trips (was 3)
+const RATE_LIMIT_COOLDOWN_MS = 3 * 60_000;    // 3 min freeze (was 5; faster recovery)
 let consecutive429s = 0;
 let rateLimitedUntil = 0;
 
