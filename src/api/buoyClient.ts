@@ -95,12 +95,12 @@ export interface BuoyReading {
 }
 
 /** Predefined stations for Rías Baixas sector — all 3 Rías covered */
-export const RIAS_BUOY_STATIONS: { id: number; name: string; lat: number; lon: number; type: string }[] = [
+export const RIAS_BUOY_STATIONS: { id: number; name: string; lat: number; lon: number; type: string; enabled?: boolean }[] = [
   // ── Exterior / Atlántico ──
   { id: 2248, name: 'Cabo Silleiro',      lat: 42.12, lon: -9.43, type: 'REDEXT' },
   { id: 1253, name: 'A Guarda',           lat: 41.90, lon: -8.90, type: 'CETMAR' },
   // ── Ría de Vigo ──
-  { id: 1252, name: 'Islas Cíes',         lat: 42.17, lon: -8.91, type: 'CETMAR' },
+  { id: 1252, name: 'Islas Cíes',         lat: 42.17, lon: -8.91, type: 'CETMAR', enabled: false }, // OFFLINE since Dec 2025 (same physical station as ObsCosteiro 15002)
   { id: 1251, name: 'Rande (Ría Vigo)',   lat: 42.29, lon: -8.66, type: 'CETMAR' },
   { id: 3221, name: 'Vigo (marea)',       lat: 42.24, lon: -8.73, type: 'REDMAR' },
   // ── Ría de Pontevedra ──
@@ -306,7 +306,11 @@ export async function fetchBuoyLastReading(stationId: number, stationName?: stri
  */
 export async function fetchAllRiasBuoys(): Promise<BuoyReading[]> {
   // Only fetch from PORTUS stations — OBSCOSTEIRO-only stations (Muros 15009) come via fetchAllObsReadings()
-  const portusStations = RIAS_BUOY_STATIONS.filter((s) => s.type !== 'OBSCOSTEIRO');
+  // Skip ObsCosteiro-only stations (handled by fetchAllObsReadings) AND
+  // stations explicitly marked offline via `enabled: false` (e.g. Cíes 1252).
+  const portusStations = RIAS_BUOY_STATIONS.filter(
+    (s) => s.type !== 'OBSCOSTEIRO' && s.enabled !== false,
+  );
   const results = await Promise.allSettled(
     portusStations.map((s) => fetchBuoyLastReading(s.id, s.name))
   );
