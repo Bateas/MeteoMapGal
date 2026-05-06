@@ -20,6 +20,16 @@ const MIN_INTERVAL_MS = 1500;  // 1.5s between requests (~40/min, conservative t
 const MAX_RETRIES = 2;
 const RETRY_BASE_MS = 8000; // 8s, 16s exponential backoff (longer cooldown after 429)
 
+// Circuit breaker — when the IP gets rate-limited, retrying every queue item
+// just produces more 429s and burns minutes per request waiting on backoffs
+// for nothing. After N consecutive 429s, freeze ALL Open-Meteo calls for
+// COOLDOWN_MS and resolve them as 429 immediately (no retries, no waits).
+// Cleared on the first successful response.
+const RATE_LIMIT_TRIP_THRESHOLD = 3;          // 3 consecutive 429s trips the breaker
+const RATE_LIMIT_COOLDOWN_MS = 5 * 60_000;    // 5 min freeze
+let consecutive429s = 0;
+let rateLimitedUntil = 0;
+
 interface QueueItem {
   url: string;
   options?: RequestInit;
@@ -83,15 +93,35 @@ async function fetchWithRetry(
   options?: RequestInit,
   attempt = 0
 ): Promise<Response> {
+  // Circuit breaker — short-circuit the request if cooldown is active
+  if (Date.now() < rateLimitedUntil) {
+    return new Response(null, { status: 429, statusText: 'Cooldown' });
+  }
+
   const res = await fetch(url, options);
 
-  if (res.status === 429 && attempt < MAX_RETRIES) {
-    const delay = RETRY_BASE_MS * Math.pow(2, attempt);
-    console.warn(
-      `[OpenMeteo] 429 rate limited, retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`
-    );
-    await new Promise((r) => setTimeout(r, delay));
-    return fetchWithRetry(url, options, attempt + 1);
+  if (res.status === 429) {
+    consecutive429s++;
+    if (consecutive429s >= RATE_LIMIT_TRIP_THRESHOLD) {
+      rateLimitedUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+      console.warn(
+        `[OpenMeteo] ${consecutive429s} consecutive 429s — circuit breaker tripped, ` +
+        `pausing all calls for ${RATE_LIMIT_COOLDOWN_MS / 60_000}min`
+      );
+      return res;
+    }
+    if (attempt < MAX_RETRIES) {
+      const delay = RETRY_BASE_MS * Math.pow(2, attempt);
+      console.warn(
+        `[OpenMeteo] 429 rate limited, retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`
+      );
+      await new Promise((r) => setTimeout(r, delay));
+      return fetchWithRetry(url, options, attempt + 1);
+    }
+  } else if (res.ok) {
+    // Successful response clears the breaker state
+    consecutive429s = 0;
+    rateLimitedUntil = 0;
   }
 
   return res;
