@@ -30,7 +30,7 @@ function timeAgo(ts: string): string {
   return `${Math.round(hrs / 24)}d`;
 }
 
-// Color scales imported from buoyUtils.ts — shared with BuoyMarker & BuoyPopup
+// Color scales imported from buoyUtils.ts — shared with BuoyPopup + BuoySymbolLayer
 
 export const BuoyPanel = memo(function BuoyPanel() {
   // Display-only — data fetching handled by useBuoyData hook in AppShell
