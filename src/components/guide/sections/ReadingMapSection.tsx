@@ -424,9 +424,9 @@ export function ReadingMapSection() {
 
         {/* Predictor explanation */}
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
-          <p className="text-xs font-bold text-purple-400">Predictor de tormentas (8 senales)</p>
+          <p className="text-xs font-bold text-purple-400">Predictor de tormentas (9 señales)</p>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            MeteoMapGal cruza <strong className="text-slate-200">8 fuentes de datos</strong> para estimar la probabilidad
+            MeteoMapGal cruza <strong className="text-slate-200">9 señales</strong> para estimar la probabilidad
             de tormenta en tu zona. El resultado aparece en el indicador <strong className="text-purple-300">RAYOS</strong> de
             la barra inferior del mapa.
           </p>
@@ -440,6 +440,7 @@ export function ReadingMapSection() {
               { name: 'Avance', desc: 'Tormenta acercandose', color: '#f97316' },
               { name: 'Sombra', desc: 'Caida radiacion solar', color: '#6366f1' },
               { name: 'Aviso MG', desc: 'Alerta oficial MeteoGalicia', color: '#eab308' },
+              { name: 'Sky state', desc: 'WRF MeteoSIX cielo tormentoso', color: '#ec4899' },
             ].map((s) => (
               <div key={s.name} className="flex items-center gap-1.5 text-[10px]">
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
