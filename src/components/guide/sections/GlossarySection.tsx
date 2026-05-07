@@ -447,7 +447,7 @@ export function GlossarySection() {
         <Term
           term="IDW (Inverse Distance Weighting)"
           definition="Técnica de interpolación que estima valores entre estaciones. Las estaciones más cercanas tienen más peso en la estimación."
-          example="Las capas de viento y humedad usan IDW para crear un mapa continuo a partir de 40 estaciones discretas."
+          example="Las capas de viento y humedad usan IDW para crear un mapa continuo a partir de 100+ estaciones discretas."
           color="#a855f7"
           search={q}
         />

@@ -218,7 +218,7 @@ function IntroSection() {
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             6 fuentes meteorológicas combinadas: AEMET, MeteoGalicia, Meteoclimatic,
-            Weather Underground, Netatmo y SkyX. Más de 90 estaciones en ambas zonas.
+            Weather Underground, Netatmo y SkyX. Más de 100 estaciones en ambas zonas.
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
@@ -244,8 +244,8 @@ function IntroSection() {
             <WeatherIcon id="thermometer" size={16} /> Spots de navegación
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            10 spots con scoring automático: calma/flojo/navegable/bueno/fuerte.
-            Hexágonos con arco de viento, pronóstico 48h y ventanas de navegación.
+            13 spots monitorizados (10 vela + 3 surf). Vela: scoring calma/flojo/navegable/bueno/fuerte.
+            Surf: FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE. Pronóstico 48h y ventanas de navegación.
           </p>
         </div>
       </div>
