@@ -50,6 +50,13 @@ interface RaiosResponse {
 let cache: { data: LightningStrike[]; fetchedAt: number } | null = null;
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
+// Circuit breaker — meteo2api falla a veces (5xx upstream, 401 si rotan token).
+// Sin breaker, cada poll cada N min sigue golpeando el endpoint que está
+// caído, generando ruido en F12 + carga inútil. Tras un fallo, freeze 3min;
+// se sirve cache stale o array vacío en ese tiempo.
+let lightningRateLimitedUntil = 0;
+const LIGHTNING_COOLDOWN_MS = 3 * 60_000;
+
 // ── Parsing ──────────────────────────────────────────────────────
 
 /** Parse MeteoGalicia date format "DD-MM-YYYY HH:MM" → unix ms (UTC) */
@@ -112,6 +119,12 @@ export async function fetchLightningStrikes(): Promise<LightningStrike[]> {
     return recomputeAges(cache.data);
   }
 
+  // Circuit breaker — if upstream just failed, don't hammer it again.
+  // Serve stale cache if we have it; otherwise empty.
+  if (Date.now() < lightningRateLimitedUntil) {
+    return cache ? recomputeAges(cache.data) : [];
+  }
+
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
@@ -147,10 +160,13 @@ export async function fetchLightningStrikes(): Promise<LightningStrike[]> {
     );
 
     cache = { data: strikes, fetchedAt: nowMs };
+    lightningRateLimitedUntil = 0; // success clears the breaker
     return strikes;
   } catch (err) {
-    console.error('[Lightning] Fetch error:', err);
-    // Return stale cache if available
+    // Trip the breaker for COOLDOWN_MS and demote log to debug — every poll
+    // re-attempting the same dead upstream just spammed F12 console.error.
+    lightningRateLimitedUntil = Date.now() + LIGHTNING_COOLDOWN_MS;
+    console.debug('[Lightning] Fetch error (cooldown 3min):', err);
     if (cache) return recomputeAges(cache.data);
     return [];
   }
