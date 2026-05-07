@@ -1,6 +1,6 @@
 /**
  * Shared color scales for marine buoy data visualization.
- * Used by BuoyMarker, BuoyPopup, and BuoyPanel to ensure
+ * Used by BuoySymbolLayer, BuoyPopup, and BuoyPanel to ensure
  * consistent coloring across all views.
  *
  * Wave height scale: WMO Sea State Code + Beaufort correlation.

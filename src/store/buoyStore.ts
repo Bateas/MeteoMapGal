@@ -1,6 +1,6 @@
 /**
  * Zustand store for marine buoy data (Puertos del Estado).
- * Shared between BuoyPanel (sidebar) and BuoyMarker (map).
+ * Shared between BuoyPanel (sidebar) and BuoySymbolLayer (map).
  * Only active when sector is 'rias'.
  */
 import { create } from 'zustand';
