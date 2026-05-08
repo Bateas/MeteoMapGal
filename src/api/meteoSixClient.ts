@@ -128,6 +128,44 @@ function parseFeatureToTimeMap(feature: MeteoSIXFeature): Map<string, Record<str
   return timeMap;
 }
 
+// ── Circuit breaker ──
+//
+// MeteoSIX upstream falls over for minutes at a time (5xx ráfaga, especially
+// during model run hours). Without a breaker, every popup opens fires a 30s
+// timeout per endpoint while the user stares at a spinner. With it, once an
+// endpoint has failed, the next call rejects fast for COOLDOWN_MS so the
+// consumer can immediately show the error state instead of waiting.
+//
+// Per-endpoint state — one model can be up while another is down.
+const breakers = new Map<'wrf' | 'uswan' | 'mohid', number>();
+const METEOSIX_COOLDOWN_MS = 3 * 60_000;
+
+class MeteoSixBreakerOpenError extends Error {
+  constructor(retryAfterMs: number) {
+    super(`MeteoSIX breaker open for ${Math.ceil(retryAfterMs / 1000)}s`);
+    this.name = 'MeteoSixBreakerOpenError';
+  }
+}
+
+function checkBreaker(key: 'wrf' | 'uswan' | 'mohid'): void {
+  const openUntil = breakers.get(key) ?? 0;
+  const now = Date.now();
+  if (now < openUntil) throw new MeteoSixBreakerOpenError(openUntil - now);
+}
+
+function tripBreaker(key: 'wrf' | 'uswan' | 'mohid'): void {
+  breakers.set(key, Date.now() + METEOSIX_COOLDOWN_MS);
+}
+
+function clearBreaker(key: 'wrf' | 'uswan' | 'mohid'): void {
+  breakers.delete(key);
+}
+
+/** Test-only: reset all breakers between cases. */
+export function _resetMeteoSixBreakers(): void {
+  breakers.clear();
+}
+
 // ── Public API ──
 
 /**
@@ -141,13 +179,22 @@ export async function fetchMeteoSixForecast(
   lat: number,
   lon: number,
 ): Promise<HourlyForecast[]> {
+  checkBreaker('wrf');
+
   // Wind default is km/h — we convert to m/s in the transform below
   const url = METEOSIX.forecast(lon, lat, ATMO_VARIABLES, '1km', 'WRF');
 
-  // MeteoSIX 1km grid with 8 variables can take 20-30s to respond
-  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  let res: Response;
+  try {
+    // MeteoSIX 1km grid with 8 variables can take 20-30s to respond
+    res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  } catch (err) {
+    tripBreaker('wrf');
+    throw err;
+  }
 
   if (!res.ok) {
+    tripBreaker('wrf');
     const text = await res.text().catch(() => '');
     throw new Error(`MeteoSIX WRF: ${res.status} — ${text.slice(0, 200)}`);
   }
@@ -155,8 +202,11 @@ export async function fetchMeteoSixForecast(
   const data: MeteoSIXResponse = await res.json();
 
   if (!data.features || data.features.length === 0) {
+    tripBreaker('wrf');
     throw new Error('MeteoSIX: no features in response');
   }
+
+  clearBreaker('wrf');
 
   const timeMap = parseFeatureToTimeMap(data.features[0]);
   const result: HourlyForecast[] = [];
@@ -204,18 +254,31 @@ export async function fetchMeteoSixMarine(
   lat: number,
   lon: number,
 ): Promise<MarineForecastHour[]> {
+  checkBreaker('uswan');
+
   const url = METEOSIX.forecast(lon, lat, MARINE_VARIABLES, 'Galicia', 'USWAN');
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  } catch (err) {
+    tripBreaker('uswan');
+    throw err;
+  }
+
   if (!res.ok) {
+    tripBreaker('uswan');
     const text = await res.text().catch(() => '');
     throw new Error(`MeteoSIX USWAN: ${res.status} — ${text.slice(0, 200)}`);
   }
 
   const data: MeteoSIXResponse = await res.json();
   if (!data.features || data.features.length === 0) {
+    tripBreaker('uswan');
     throw new Error('MeteoSIX USWAN: no features in response');
   }
+
+  clearBreaker('uswan');
 
   const timeMap = parseFeatureToTimeMap(data.features[0]);
   const result: MarineForecastHour[] = [];
@@ -249,13 +312,36 @@ export async function fetchMeteoSixSeaTemp(
   lat: number,
   lon: number,
 ): Promise<Array<{ time: Date; seaTemp: number | null }>> {
+  // MOHID is best-effort (coverage is limited) — return [] on breaker open
+  // instead of throwing, since the consumer (SpotPopup) already swallows.
+  try {
+    checkBreaker('mohid');
+  } catch {
+    return [];
+  }
+
   const url = METEOSIX.forecast(lon, lat, 'sea_water_temperature', 'Vigo', 'MOHID');
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) return []; // Silently fail — MOHID coverage is limited
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  } catch {
+    tripBreaker('mohid');
+    return [];
+  }
+
+  if (!res.ok) {
+    tripBreaker('mohid');
+    return []; // Silently fail — MOHID coverage is limited
+  }
 
   const data: MeteoSIXResponse = await res.json();
-  if (!data.features || data.features.length === 0) return [];
+  if (!data.features || data.features.length === 0) {
+    // Empty response is normal outside MOHID coverage area — don't trip
+    return [];
+  }
+
+  clearBreaker('mohid');
 
   const timeMap = parseFeatureToTimeMap(data.features[0]);
   const result: Array<{ time: Date; seaTemp: number | null }> = [];
