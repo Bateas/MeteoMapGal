@@ -134,11 +134,23 @@ function parsePortusResponse(
   station: BuoyStation,
   data: { fecha?: string; datos?: any[] }
 ): BuoyReadingRow | null {
-  if (!data?.datos?.length || !data.fecha) return null;
+  // S135+2 diagnostic: log WHY a station returns null. Three reasons:
+  //   - empty payload (no datos array, no fecha)
+  //   - stale data (fecha older than MAX_AGE_MS)
+  //   - parsed OK but no recognized parameters (rare)
+  // Aggregating these in the cycle counter using synthetic status codes
+  // outside the HTTP range (-1 = empty, -2 = stale, -3 = no params).
+  if (!data?.datos?.length || !data.fecha) {
+    portusFailureCounters.set(-1, (portusFailureCounters.get(-1) ?? 0) + 1);
+    return null;
+  }
 
   // Check freshness
   const age = Date.now() - new Date(data.fecha).getTime();
-  if (age > MAX_AGE_MS) return null;
+  if (age > MAX_AGE_MS) {
+    portusFailureCounters.set(-2, (portusFailureCounters.get(-2) ?? 0) + 1);
+    return null;
+  }
 
   const row: BuoyReadingRow = {
     time: data.fecha,
@@ -366,16 +378,25 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
 
   const portusCount = portus.length;
   const obsCount = obs.length;
-  log.info(`Buoys: PORTUS ${portusCount}/12, ObsCosteiro ${obsCount}/6 → ${merged.length} merged`);
+  const portusEnabled = portusStations.length;
+  const obsEnabled = obsStations.length;
+  log.info(`Buoys: PORTUS ${portusCount}/${portusEnabled}, ObsCosteiro ${obsCount}/${obsEnabled} → ${merged.length} merged`);
 
-  // Diagnostic: when PORTUS rejects most stations, surface the actual HTTP
-  // status distribution so we can tell rate-limit (429) from auth (403)
-  // from server error (5xx). Only logs when there were failures, to keep
-  // noise down on healthy cycles.
+  // Diagnostic: when PORTUS gives < total back, surface WHY. Distinguishes:
+  //   HTTP 429/403/5xx — upstream rejecting at network layer
+  //   -1 empty        — 200 OK but no `datos` array or no `fecha`
+  //   -2 stale        — 200 OK but fecha older than MAX_AGE_MS (2h)
+  // This is what makes "PORTUS 1/12" actionable instead of opaque.
   if (portusFailureCounters.size > 0) {
+    const codeLabel = (code: number): string => {
+      if (code === -1) return 'empty';
+      if (code === -2) return 'stale';
+      if (code === -3) return 'no-params';
+      return String(code);
+    };
     const breakdown = Array.from(portusFailureCounters.entries())
       .sort(([, a], [, b]) => b - a)
-      .map(([status, count]) => `${count}× ${status}`)
+      .map(([code, count]) => `${count}× ${codeLabel(code)}`)
       .join(', ');
     log.warn(`PORTUS rejections this cycle: ${breakdown}`);
   }
