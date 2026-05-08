@@ -379,18 +379,17 @@ describe('station blind sector demotion', () => {
   });
 
   it('demotes when station IS in its documented blind sector', () => {
-    // Spot whose reference is Cangas, with observed dir in sheltered band.
+    // Cangas's empirically-validated blind sectors (S135+2 audit) are
+    // now 300-30° (wrap) and 60-180° — direction 30° is at the edge
+    // of the wrap-around N sector.
     const r = detectViracionPhase('cies-ria', {
       reading: reading({
         stationId: 'mc_ESGAL3600000036940A',
-        windDirection: 220,        // Inside Cangas blind sector (180-240)
-        windSpeed: 2.0,
+        windDirection: 30,         // Inside Cangas wrap blind sector (300-30°)
+        windSpeed: 1.5,
       }),
-      now: thermalDayAt(16),
+      now: thermalDayAt(7),         // morning, terral phase
     });
-    // Direction 220 is OUTSIDE the cies-ria afternoon range (270-310),
-    // so isOnPattern = false → confidence already low. We mainly want
-    // to verify the source flag is set correctly.
     expect(r.sources.stationBlindSector).toBe(true);
   });
 

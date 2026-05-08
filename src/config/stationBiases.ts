@@ -78,15 +78,21 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
   'mc_ESGAL3600000036940A': {
     stationId: 'mc_ESGAL3600000036940A',
     unreliableSectors: [
-      // Cangas is on the N coast of Ría de Vigo at the foot of Monte
-      // Costa da Vela. Winds from S/SW (i.e. from over the ría from
-      // the Vigo side) hit the mountain before the anemometer →
-      // significant shelter. Audit S135+2 shows afternoon viración
-      // at 5-6 kt vs Vigo port's 8-9 kt for same hours.
-      { from: 180, to: 240, type: 'sheltered' },
+      // Empirical buoy audit (S135+2, 5500+ paired hours):
+      //   N flow (300-360 + 0-30°): ratio 0.23-0.40 vs Marín REDMAR
+      //                              → severely sheltered (mountain to N)
+      //   E flow  (60-180°):         ratio 0.30-0.49
+      //                              → sheltered (interior peninsula)
+      //   SW/W   (210-270°):         ratio 0.56-0.64 (LEAST sheltered)
+      //
+      // Original "documented-gotcha" said S/SW sheltered. WRONG —
+      // empirical data shows the OPPOSITE: N/NW are most sheltered,
+      // SW is the cleanest sector because it comes over the open ría.
+      { from: 300, to: 30, type: 'sheltered' },  // wraps midnight: 300-30°
+      { from: 60, to: 180, type: 'sheltered' },
     ],
-    note: 'Cangas — Monte Costa da Vela apantalla viento del S/SW. Audit S135+2: lee ~60% del viento de Porto de Vigo en mismas horas.',
-    evidence: 'empirical-neighbor',
+    note: 'Cangas — Monte Costa da Vela apantalla N/NW (ratio 0.23-0.40 vs Marín REDMAR). E-S también apantallado (0.30-0.49). SW (210-270°) MENOS apantallado (0.56-0.64) porque viene sobre la ría abierta. Audit S135+2 corrigió el bias documentado anteriormente.',
+    evidence: 'empirical-buoy',
   },
 
   'mg_10018': {
@@ -96,10 +102,12 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       // flow from any other angle gets channeled into the valley axis,
       // so the station essentially reads NE or SW regardless of the
       // real ría wind. Documented in cesantesCanalizationDetector.ts.
+      // No empirical buoy ratio available (Cesantes wind data didn't
+      // overlap buoy active hours during the S135+2 audit window).
       { from: 90, to: 200, type: 'channeled' },
       { from: 270, to: 360, type: 'channeled' },
     ],
-    note: 'Cesantes — valle Redondela canaliza todo flujo a eje NE-SW. Otras direcciones leen artefactos.',
+    note: 'Cesantes — valle Redondela canaliza todo flujo a eje NE-SW. Otras direcciones leen artefactos. Pendiente validación empírica próximo audit (boya Marín no se solapó suficiente con esta estación).',
     evidence: 'documented-gotcha',
   },
 
@@ -110,6 +118,8 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       // the open ocean sector. Documented gotcha: reads 5kt when the
       // ría is at 20kt. Only valid for Corrubedo SURF spot itself
       // (0.4km away) — never used as proxy for other spots.
+      // No empirical buoy data available (Corrubedo too far from
+      // Marín REDMAR / Cabo Silleiro for direct comparison).
       { from: 220, to: 320, type: 'sheltered' },
     ],
     note: 'Corrubedo MG — apantallada por dunas/relieve costero para sector W/SW. Solo válida para spot Corrubedo Surf local.',
@@ -119,15 +129,63 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
   'mg_10064': {
     stationId: 'mg_10064',
     unreliableSectors: [
-      // Lourizán is at 52m altitude on the south slope of the Ría de
-      // Pontevedra. Downslope acceleration from N-NE flow makes
-      // morning terral readings overestimate. CLAUDE.md gotcha:
-      // "Lourizán (52m, 1.8km) — land station, less representative
-      // than water buoys".
-      { from: 0, to: 60, type: 'accelerated' },
+      // Empirical buoy audit (S135+2, 7000+ paired hours):
+      //   ALL directions: ratio 0.13-0.39 vs both buoys.
+      //   This station is GLOBALLY unreliable for "real ría wind",
+      //   not directionally biased. Original gotcha said it was
+      //   "accelerated for N/NE downslope" — empirically wrong:
+      //   it underreads in every sector tested.
+      //
+      // Practical implication: the detector should NOT use Lourizán
+      // as a primary reference for any spot. CLAUDE.md gotcha is
+      // updated.
+      { from: 0, to: 360, type: 'sheltered' },  // entire compass
     ],
-    note: 'Lourizán (52m altitud) — falda S de Ría Pontevedra acelera viento N/NE downslope.',
-    evidence: 'documented-gotcha',
+    note: 'Lourizán — globalmente subvalora viento ría (ratio 0.13-0.39 todas direcciones, audit S135+2). Probablemente apantallada por edificios/topografía local. NO usar como referencia primaria de viento ría — preferir mg_14005 Porto de Marín.',
+    evidence: 'empirical-buoy',
+  },
+
+  'mg_14001': {
+    stationId: 'mg_14001',
+    unreliableSectors: [
+      // Empirical buoy audit (S135+2):
+      //   E-SE (90-180°): ratio 0.28-0.84 vs Marín REDMAR
+      //                   → underreads (city/port skyline blocks)
+      //   N/NE (0-60°): ratio 0.91-1.01 (RELIABLE)
+      //   SW/W (210-330°): ratio 1.03-1.29 (RELIABLE, slightly
+      //                                      over-reads — port acts
+      //                                      as a venturi)
+      // Verdict: gold-standard reference for viración (afternoon
+      // SW pattern is in the reliable sector).
+      { from: 90, to: 180, type: 'sheltered' },
+    ],
+    note: 'Porto de Vigo — apantallada por skyline portuario+ciudad para E-SE (ratio 0.28-0.84). Sectores principales para viración (N/NE matutino + SW/W vespertino) son CONFIABLES (ratio 0.91-1.29 vs Marín REDMAR). Audit S135+2.',
+    evidence: 'empirical-buoy',
+  },
+
+  'mg_14005': {
+    stationId: 'mg_14005',
+    unreliableSectors: [
+      // Empirical buoy audit (S135+2):
+      //   N/NE (0-60°): ratio 0.67-0.81 (decent, slightly under)
+      //   E (90°): ratio 0.31 (sheltered single sector — anomaly)
+      //   S (180°): ratio 0.97 (matches buoy)
+      //   W (240-300°): ratio 0.43-0.58 → afternoon viración
+      //                  underread by ~50%! When detector reports
+      //                  "6 kt" via this station, real ría wind is
+      //                  closer to 11 kt.
+      //
+      // Implication: the detector's confidence ladder for Lourido /
+      // Castiñeiras spots should pull buoy data when available. The
+      // viración pattern threshold (expectedAfternoonKt: 7) was set
+      // assuming the station value WAS the truth — it's actually
+      // half-truth. Future v2.79.X may apply a correction factor
+      // 1.7-1.8× for this station's W sector.
+      { from: 240, to: 300, type: 'sheltered' },
+      { from: 90, to: 90, type: 'sheltered' },  // anomalous single sector
+    ],
+    note: 'Porto de Marín — sector W/WNW (240-300°) subvalora ~50% (ratio 0.43-0.58 vs Marín REDMAR). Afternoon viración leída como "6 kt" puede ser ~11 kt real en agua abierta. Audit S135+2.',
+    evidence: 'empirical-buoy',
   },
 };
 
