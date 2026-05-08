@@ -51,10 +51,18 @@ function ConvectionRiskOverlayInner() {
     return { type: 'FeatureCollection', features };
   }, [showRisk, snapshot]);
 
-  // "No risk detected" indicator — shown when overlay is ON, snapshot
-  // arrived, but there's no convective potential anywhere on the grid.
-  // Confirms the system fetched data successfully (vs "still loading").
-  const noRiskMode = showRisk && snapshot != null && geoJson.features.length === 0;
+  // Disambiguate three states (S135+2 — was conflating them as "estable"):
+  //   1. dataMissing : snapshot != null but forecastTime == null OR cells == 0
+  //                    → backend returned empty default (fetcher hasn't run for
+  //                    this hour, or Open-Meteo cycle aborted).
+  //                    Showing "atmósfera estable" here is FALSE — we don't know.
+  //   2. realStable  : snapshot has data + geoJson empty (real cells, no risk)
+  //                    → atmosphere is genuinely stable.
+  //   3. risk active : snapshot has data + geoJson features → render heatmap.
+  const dataMissing =
+    showRisk && snapshot != null && (snapshot.forecastTime == null || snapshot.cells.length === 0);
+  const realStable =
+    showRisk && snapshot != null && !dataMissing && geoJson.features.length === 0;
 
   if (!showRisk) return null;
 
@@ -113,8 +121,8 @@ function ConvectionRiskOverlayInner() {
           />
         </Source>
       )}
-      {/* No-risk badge — confirms the system fetched data successfully */}
-      {noRiskMode && (
+      {/* Real-stable badge — confirms the system fetched data + atmosphere is stable */}
+      {realStable && (
         <div
           className="absolute top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none
                      bg-slate-900/85 border border-slate-700/50 rounded-md px-3 py-1.5
@@ -126,6 +134,23 @@ function ConvectionRiskOverlayInner() {
           </div>
           <div className="text-[10px] text-slate-500 mt-0.5">
             Atmósfera estable — peak CAPE {snapshot?.peakCape ?? 0} J/kg, min LI {snapshot?.minLiftedIndex.toFixed(1) ?? '0.0'}
+          </div>
+        </div>
+      )}
+      {/* Data-missing badge — backend returned empty snapshot (fetcher behind
+          or Open-Meteo cycle aborted). Don't claim "estable" — we don't know. */}
+      {dataMissing && (
+        <div
+          className="absolute top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none
+                     bg-amber-950/85 border border-amber-700/50 rounded-md px-3 py-1.5
+                     shadow-lg"
+        >
+          <div className="text-[11px] text-amber-200">
+            <span className="font-bold text-amber-400">Riesgo convectivo:</span>{' '}
+            datos en cola
+          </div>
+          <div className="text-[10px] text-amber-400/70 mt-0.5">
+            Pendiente próxima actualización del modelo (~30 min)
           </div>
         </div>
       )}
