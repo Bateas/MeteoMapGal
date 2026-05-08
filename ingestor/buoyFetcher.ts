@@ -22,6 +22,14 @@ interface BuoyStation {
   id: number;
   name: string;
   type: string;
+  /**
+   * Custom PORTUS categories list. Default (undefined) uses all 7. Override
+   * for stations that don't have certain sensors — saves a wasted parse and
+   * removes them from the "empty" failure counter. Rande for example has
+   * no anemometer (documented gotcha), so requesting WAVE+WIND always
+   * returns nothing relevant for our row shape.
+   */
+  categories?: string[];
 }
 
 const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
@@ -30,7 +38,11 @@ const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
   { id: 1253, name: 'A Guarda', type: 'CETMAR' },
   // Ría de Vigo
   { id: 1252, name: 'Islas Cíes', type: 'CETMAR', enabled: false },  // OFFLINE since Dec 2025 (same as ObsCosteiro 15002)
-  { id: 1251, name: 'Rande (Ría Vigo)', type: 'CETMAR' },
+  // Rande has NO anemometer (documented gotcha) — only humidity/temp/dewpoint.
+  // Asking PORTUS for WAVE+WIND always returns "empty" from our parser's
+  // perspective. Requesting only the relevant categories cleans the logs.
+  { id: 1251, name: 'Rande (Ría Vigo)', type: 'CETMAR',
+    categories: ['WATER_TEMP', 'AIR_TEMP', 'AIR_PRESSURE'] },
   { id: 3221, name: 'Vigo (marea)', type: 'REDMAR' },
   // Ría de Pontevedra
   { id: 4272, name: 'Ons', type: 'REMPOR' },
@@ -42,6 +54,18 @@ const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
   { id: 1255, name: 'Ribeira', type: 'CETMAR' },
   { id: 3220, name: 'Vilagarcía (marea)', type: 'REDMAR' },
 ];
+
+// Per-type expected "stale-after" thresholds in minutes. Calibrated from
+// the S135+2 audit observation of upstream publishing cadences. Cycle-end
+// check in fetchBuoyObservations() compares each enabled station's last-
+// seen timestamp against its type's threshold and warns if exceeded.
+const STALE_AFTER_MIN: Record<string, number> = {
+  CETMAR: 90,        // PORTUS coastal moored — 30-60min cadence + slack
+  REDEXT: 90,        // Oceanic moored — 30min cadence + slack
+  REDMAR: 60,        // Tide gauges with met — 10-15min cadence + slack
+  REMPOR: 60,        // Port stations — 15min cadence + slack
+  OBSCOSTEIRO: 30,   // Xunta API — 10min cadence + slack
+};
 
 interface ObsStation {
   obsId: number;
@@ -78,6 +102,20 @@ const MAX_AGE_MS = 6 * 60 * 60_000;
  */
 const portusFailureCounters = new Map<number, number>();
 
+/**
+ * Per-station last-seen tracker. Updated every cycle from the readings
+ * actually returned this cycle. Compared against STALE_AFTER_MIN at end
+ * of cycle to detect upstream regressions per-station — closes the loop
+ * on the S135+2 lesson where buoys 2248 + 3223 went silently dead for 40
+ * days because the global empty-cycles counter never tripped (other
+ * stations were still reporting).
+ *
+ * Map: station_id → epoch ms of last successful read.
+ * Initial state is empty after restart — first cycle skips the check
+ * (any station that didn't appear yet is "unseen", not "stale").
+ */
+const buoyLastSeen = new Map<number, number>();
+
 // ── PORTUS fetch ────────────────────────────────────────
 
 async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow | null> {
@@ -88,7 +126,11 @@ async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow 
     return null;
   }
   try {
-    const categories = ['WAVE', 'WIND', 'WATER_TEMP', 'AIR_TEMP', 'SEA_LEVEL', 'CURRENTS', 'SALINITY'];
+    // Use station-specific categories if defined (e.g. Rande has no anemometer),
+    // otherwise the default full list.
+    const categories = station.categories ?? [
+      'WAVE', 'WIND', 'WATER_TEMP', 'AIR_TEMP', 'SEA_LEVEL', 'CURRENTS', 'SALINITY',
+    ];
     // Browser-style User-Agent. Default Node fetch sends an empty UA which
     // some upstreams (incl. PORTUS) treat as "bot" and rate-limit harder.
     const headers = {
@@ -405,6 +447,43 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
       .map(([code, count]) => `${count}× ${codeLabel(code)}`)
       .join(', ');
     log.warn(`PORTUS rejections this cycle: ${breakdown}`);
+  }
+
+  // Per-station freshness check. Closes the S135+2 lesson: the global
+  // "consecutiveEmptyBuoyCycles" counter (v2.79.5) only fires when ALL
+  // stations are silent for 1h+. Individual stations could go dark for
+  // weeks and we'd never know — that's exactly how 2248 + 3223 hid.
+  //
+  // Now: every cycle, update the lastSeen map for stations that returned
+  // data, then warn for any station whose lastSeen exceeds the type's
+  // expected cadence × buffer.
+  const nowMs = Date.now();
+  for (const r of merged) {
+    buoyLastSeen.set(r.stationId, nowMs);
+  }
+
+  const staleStations: string[] = [];
+  for (const station of portusStations) {
+    const last = buoyLastSeen.get(station.id);
+    if (!last) continue; // never seen yet → skip on first cycles after restart
+    const ageMin = Math.round((nowMs - last) / 60_000);
+    const threshold = STALE_AFTER_MIN[station.type] ?? 90;
+    if (ageMin > threshold) {
+      staleStations.push(`${station.name} ${ageMin}m (>${threshold}m for ${station.type})`);
+    }
+  }
+  for (const station of obsStations) {
+    const last = buoyLastSeen.get(station.canonicalId);
+    if (!last) continue;
+    const ageMin = Math.round((nowMs - last) / 60_000);
+    const threshold = STALE_AFTER_MIN.OBSCOSTEIRO;
+    if (ageMin > threshold) {
+      staleStations.push(`${station.name} ${ageMin}m (>${threshold}m OBSCOSTEIRO)`);
+    }
+  }
+
+  if (staleStations.length > 0) {
+    log.warn(`[Buoys] per-station stale: ${staleStations.join(' | ')}`);
   }
 
   return merged;
