@@ -336,10 +336,12 @@ export function AppShell() {
       for (const s of solarFogStations) {
         fogSources.push({ lat: s.lat, lon: s.lon, type: 'station', id: s.id });
       }
-      // AEMET airports/coastal stations with measured visibility <1km → official fog.
-      // Works 24/7 (not daylight-dependent like solar signature), reported by certified
-      // AEMET sensors at Estaca de Bares / A Coruña / Alvedro / Fisterra / Lavacolla /
-      // Pontevedra / Lugo / Ourense.
+      // AEMET stations with measured visibility <1km → official fog.
+      // Works 24/7 (not daylight-dependent like solar signature). The 8 reporting
+      // stations are a MIX of types (NOT all airports): faros = Estaca de Bares
+      // (1351), Fisterra (1400) — coastal lighthouses, not airports; aeropuertos
+      // = Alvedro (1387E), Lavacolla (1428); aeródromo = Rozas (1505); ciudades
+      // = A Coruña (1387), Pontevedra (1484C), Ourense (1690A).
       //
       // Sector filter (S135+2 — reactive map philosophy): drop sources beyond
       // 1.5× sector radius. Fisterra fog at 130km is irrelevant to Embalse
