@@ -97,7 +97,9 @@ export async function fetchWUNearbyStations(
     console.debug(`[WU] Found ${stations.length} PWS stations in radius`);
     return stations;
   } catch (err) {
-    console.error('[WU] Station discovery error:', err);
+    // Demoted to debug: WU PWS endpoint occasionally 503s; browser
+    // already auto-logs the network failure. Silent fallback to empty list.
+    console.debug('[WU] Station discovery error:', err);
     return [];
   }
 }

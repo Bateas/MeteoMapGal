@@ -169,8 +169,10 @@ async function _legacyPostAlertWebhook(payload: WebhookAlertPayload): Promise<vo
         if (time < cutoff) webhookCooldowns.delete(id);
       }
     }
-  } catch {
-    // Webhook failure is non-critical — silently ignore
+  } catch (err) {
+    // Webhook failure is non-critical — debug log so dev can see
+    // intermittent issues without spamming end-user F12 console.
+    console.debug('[Webhook] alert post failed', err);
   }
 }
 
@@ -217,7 +219,9 @@ export async function postSailingSummary(payload: WebhookSummaryPayload): Promis
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-  } catch {
-    // Webhook failure is non-critical — silently ignore
+  } catch (err) {
+    // Webhook failure is non-critical — debug log so dev can see
+    // intermittent issues without spamming end-user F12 console.
+    console.debug('[Webhook] summary post failed', err);
   }
 }

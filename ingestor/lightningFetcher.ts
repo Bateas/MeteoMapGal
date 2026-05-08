@@ -183,7 +183,7 @@ export async function runLightningCycle(): Promise<void> {
     data.raiosNegat || [],
   );
   if (strikes.length === 0) {
-    log.info(`[Lightning] poll ok — 0 strikes in window`);
+    log.debug(`[Lightning] poll ok — 0 strikes in window`);
     return;
   }
 

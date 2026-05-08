@@ -122,7 +122,7 @@ export async function runFirmsCycle(): Promise<void> {
   }));
 
   if (fires.length === 0) {
-    log.info(`[FIRMS Fetcher] poll ok — 0 valid fires in window (${allFires.length} raw, all filtered out)`);
+    log.debug(`[FIRMS Fetcher] poll ok — 0 valid fires in window (${allFires.length} raw, all filtered out)`);
     return;
   }
 

@@ -76,7 +76,7 @@ export async function runIcaCycle(): Promise<void> {
   }
 
   if (observations.length === 0) {
-    log.info('[ICA Fetcher] poll ok — 0 observations returned');
+    log.debug('[ICA Fetcher] poll ok — 0 observations returned');
     return;
   }
 

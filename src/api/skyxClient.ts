@@ -117,10 +117,13 @@ export async function fetchSkyXData(
     console.debug(`[Discovery] SkyX station: ${SKYX_STATION_NAME} at ${coords.lat.toFixed(4)},${coords.lon.toFixed(4)}`);
     return { station, reading };
   } catch (err) {
+    // Demoted to debug: SkyX upstream produces transient 5xx; the browser
+    // already auto-logs the network failure to F12 — duplicating with
+    // console.error just spammed the console for users.
     if (err instanceof DOMException && err.name === 'AbortError') {
-      console.warn('[SkyX] Request timeout');
+      console.debug('[SkyX] Request timeout');
     } else {
-      console.error('[SkyX] Fetch error:', err);
+      console.debug('[SkyX] Fetch error:', err);
     }
     return { station: null, reading: null };
   }
