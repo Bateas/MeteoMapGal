@@ -63,6 +63,15 @@ const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
 const NO_DATA = -9999;
 const MAX_AGE_MS = 2 * 60 * 60_000; // 2 hours
 
+/**
+ * HTTP status code → count for the current cycle. fetchPortusStation
+ * increments this on every non-OK response. fetchBuoyObservations
+ * resets it before fetching and prints a cycle summary at the end.
+ * This gives one informative line per cycle instead of N×11 noisy
+ * per-station warnings.
+ */
+const portusFailureCounters = new Map<number, number>();
+
 // ── PORTUS fetch ────────────────────────────────────────
 
 async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow | null> {
@@ -88,10 +97,11 @@ async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow 
     });
 
     if (!res.ok) {
-      // S135+2: log the actual HTTP status. Previously non-5xx silently
-      // returned null which made it impossible to tell rate-limit (429)
-      // from auth (403) from generic error (4xx).
-      log.debug(`PORTUS ${station.name} (${station.id}): HTTP ${res.status}`);
+      // Aggregate the status code into a module-level counter so the cycle
+      // summary log can say "11 failed: 9× 429, 2× 503" — quieter than
+      // 11 separate warn lines per cycle but still actionable.
+      // (See logCycleSummary() at the end of fetchBuoyObservations.)
+      portusFailureCounters.set(res.status, (portusFailureCounters.get(res.status) ?? 0) + 1);
       if (res.status >= 500 || res.status === 429) {
         // Retry on 5xx or 429 with longer backoff (PORTUS rate-limit window
         // appears to be ~30-60s based on observed behaviour).
@@ -103,7 +113,7 @@ async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow 
           signal: AbortSignal.timeout(TIMEOUT),
         });
         if (!retry.ok) {
-          log.debug(`PORTUS ${station.name} retry: HTTP ${retry.status}`);
+          portusFailureCounters.set(retry.status, (portusFailureCounters.get(retry.status) ?? 0) + 1);
           return null;
         }
         const retryData = await retry.json();
@@ -331,6 +341,9 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   const portusStations = RIAS_BUOY_STATIONS.filter((s) => s.enabled !== false);
   const obsStations = OBS_STATIONS.filter((s) => s.enabled !== false);
 
+  // Reset the per-cycle failure counter before we start fetching.
+  portusFailureCounters.clear();
+
   // Fetch both sources in parallel
   const [portusResults, obsResults] = await Promise.all([
     allSettledLimit(portusStations, fetchPortusStation, PORTUS_CONCURRENCY),
@@ -354,6 +367,18 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   const portusCount = portus.length;
   const obsCount = obs.length;
   log.info(`Buoys: PORTUS ${portusCount}/12, ObsCosteiro ${obsCount}/6 → ${merged.length} merged`);
+
+  // Diagnostic: when PORTUS rejects most stations, surface the actual HTTP
+  // status distribution so we can tell rate-limit (429) from auth (403)
+  // from server error (5xx). Only logs when there were failures, to keep
+  // noise down on healthy cycles.
+  if (portusFailureCounters.size > 0) {
+    const breakdown = Array.from(portusFailureCounters.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([status, count]) => `${count}× ${status}`)
+      .join(', ');
+    log.warn(`PORTUS rejections this cycle: ${breakdown}`);
+  }
 
   return merged;
 }
