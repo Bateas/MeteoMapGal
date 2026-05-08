@@ -84,17 +84,21 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     setSpotFcLoading(true);
     setSpotFcError(false);
     const [lon, lat] = spot.center;
-    // Retry once after 3s on failure (MeteoSIX intermittent 502/503)
+    // Retry once after 3s on failure (MeteoSIX intermittent 502/503).
+    // EXCEPTION: if the meteoSix circuit breaker is already open, the retry
+    // would short-circuit instantly anyway — bail immediately to surface
+    // the error state to the user without the extra 3s wait.
     const fetchWithRetry = () =>
       fetchMeteoSixForecast(lat, lon).catch((err) => {
-        console.warn(`[SpotForecast] ${spot.id} attempt 1 failed:`, err);
+        if ((err as Error)?.name === 'MeteoSixBreakerOpenError') throw err;
+        console.debug(`[SpotForecast] ${spot.id} attempt 1 failed:`, err);
         return new Promise<Awaited<ReturnType<typeof fetchMeteoSixForecast>>>((resolve, reject) =>
           setTimeout(() => fetchMeteoSixForecast(lat, lon).then(resolve).catch(reject), 3000)
         );
       });
     fetchWithRetry()
       .then((data) => setSpotForecast(spot.id, data))
-      .catch((err) => { console.warn(`[SpotForecast] ${spot.id} both attempts failed:`, err); setSpotFcError(true); })
+      .catch((err) => { console.debug(`[SpotForecast] ${spot.id} both attempts failed:`, err); setSpotFcError(true); })
       .finally(() => setSpotFcLoading(false));
   }, [spot.id, spot.center, cached, spotFcLoading, setSpotForecast]);
   // MOHID sea temp (Rías only — fetch alongside spot forecast)
