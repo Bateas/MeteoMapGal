@@ -24,6 +24,12 @@
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
+import {
+  isOpen as isOpenMeteoBreakerOpen,
+  minutesUntilReset as openMeteoMinutesUntilReset,
+  reportRateLimit as reportOpenMeteoRateLimit,
+  reportSuccess as reportOpenMeteoSuccess,
+} from './openMeteoBreaker.js';
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 const FETCH_TIMEOUT_MS = 12_000;
@@ -113,13 +119,9 @@ const FORECAST_HORIZON_HOURS = 6;
 const MAX_COORDS_PER_CALL = 200;
 const BATCH_DELAY_MS = 10_000;
 
-// Circuit breaker for Open-Meteo rate-limit. Open-Meteo's free tier counts
-// each coordinate as 1 API call against the burst quota (~600/min). A full
-// 600-cell grid cycle eats the entire minute's allowance, so when the IP
-// gets 429'd we MUST stop hammering or the next cycle (30 min later) will
-// hit the same wall. 60 min cooldown lets the rolling-window quota reset.
-let breakerOpenUntil = 0;
-const BREAKER_COOLDOWN_MS = 60 * 60_000;
+// The 429 circuit breaker now lives in `./openMeteoBreaker.ts` and is
+// shared with forecastFetcher + synopticFetcher — when ANY caller trips
+// it, ALL pause. Same upstream IP, same rolling quota window.
 
 interface BatchResponse {
   /** Always an array — Open-Meteo returns array shape for multi-point queries */
@@ -334,10 +336,10 @@ async function batchInsertRows(rows: ConvectionGridRow[]): Promise<number> {
  *   4. Bulk insert with ON CONFLICT DO UPDATE
  */
 export async function runConvectionGridCycle(): Promise<void> {
-  const now = Date.now();
-  if (now < breakerOpenUntil) {
-    const minLeft = Math.ceil((breakerOpenUntil - now) / 60_000);
-    log.warn(`[ConvGrid] breaker open — skipping cycle, ${minLeft} min until retry`);
+  if (isOpenMeteoBreakerOpen()) {
+    log.warn(
+      `[ConvGrid] Open-Meteo breaker open — skipping cycle, ${openMeteoMinutesUntilReset()} min until retry`,
+    );
     return;
   }
 
@@ -348,16 +350,18 @@ export async function runConvectionGridCycle(): Promise<void> {
   const validResponses = responses.filter((r) => r.hourly != null).length;
 
   if (rateLimited) {
-    breakerOpenUntil = Date.now() + BREAKER_COOLDOWN_MS;
+    reportOpenMeteoRateLimit('ConvGrid');
     log.warn(
-      `[ConvGrid] Open-Meteo rate-limited — opening breaker for ${BREAKER_COOLDOWN_MS / 60_000} min ` +
-        `(got ${validResponses}/${cells.length} cells before abort)`,
+      `[ConvGrid] cycle stopped at first 429 — got ${validResponses}/${cells.length} cells before abort`,
     );
     // Even partial data is worth persisting if any batch succeeded before the 429
     if (validResponses === 0) return;
   } else if (validResponses === 0) {
     log.warn(`[ConvGrid] cycle aborted — 0/${cells.length} cells returned data (Open-Meteo down)`);
     return;
+  } else {
+    // Full cycle ok → clear the shared breaker so siblings can resume immediately
+    reportOpenMeteoSuccess();
   }
 
   const rows = parseGridResponses(responses);
@@ -365,9 +369,4 @@ export async function runConvectionGridCycle(): Promise<void> {
   log.info(
     `[ConvGrid] cycle ok — ${validResponses}/${cells.length} cells, ${rows.length} rows parsed, ${written} written`,
   );
-}
-
-/** Test-only: reset breaker state between cases. */
-export function _resetConvGridBreaker(): void {
-  breakerOpenUntil = 0;
 }
