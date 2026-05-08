@@ -309,8 +309,8 @@ function RadarLegend() {
     <div className="space-y-1">
       <span className="text-[11px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> Radar</span>
       <div className="text-[11px] text-slate-400">
-        AEMET nacional (estático) + RainViewer (animación 2h).
-        Pulsa el botón del mapa para animar.
+        RainViewer — radar animado de las últimas 2 h.
+        Pulsa el botón del mapa para reproducir.
       </div>
       <div className="flex items-center gap-0">
         {[
