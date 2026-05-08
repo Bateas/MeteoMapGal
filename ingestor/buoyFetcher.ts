@@ -74,24 +74,38 @@ async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow 
   }
   try {
     const categories = ['WAVE', 'WIND', 'WATER_TEMP', 'AIR_TEMP', 'SEA_LEVEL', 'CURRENTS', 'SALINITY'];
+    // Browser-style User-Agent. Default Node fetch sends an empty UA which
+    // some upstreams (incl. PORTUS) treat as "bot" and rate-limit harder.
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (compatible; MeteoMapGal/1.0; +https://meteomapgal.navia3d.com)',
+    };
     const res = await fetch(`${PORTUS_BASE}/lastData/station/${station.id}?locale=es`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(categories),
       signal: AbortSignal.timeout(TIMEOUT),
     });
 
     if (!res.ok) {
-      if (res.status >= 500) {
-        // Single retry for 5xx
-        await new Promise((r) => setTimeout(r, 3000));
+      // S135+2: log the actual HTTP status. Previously non-5xx silently
+      // returned null which made it impossible to tell rate-limit (429)
+      // from auth (403) from generic error (4xx).
+      log.debug(`PORTUS ${station.name} (${station.id}): HTTP ${res.status}`);
+      if (res.status >= 500 || res.status === 429) {
+        // Retry on 5xx or 429 with longer backoff (PORTUS rate-limit window
+        // appears to be ~30-60s based on observed behaviour).
+        await new Promise((r) => setTimeout(r, 5000));
         const retry = await fetch(`${PORTUS_BASE}/lastData/station/${station.id}?locale=es`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(categories),
           signal: AbortSignal.timeout(TIMEOUT),
         });
-        if (!retry.ok) return null;
+        if (!retry.ok) {
+          log.debug(`PORTUS ${station.name} retry: HTTP ${retry.status}`);
+          return null;
+        }
         const retryData = await retry.json();
         return parsePortusResponse(station, retryData);
       }
@@ -303,10 +317,15 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   // Concurrency caps — PORTUS rate-limits aggressively per IP. The S135+2
   // audit revealed buoys 2248 and 3223 had been silently dead for 40 days
   // because the 12-way Promise.allSettled fan-out had most stations losing
-  // the race for PORTUS's 1-2 concurrent connection slots. With cap=2,
-  // every station gets a turn within the cycle, and the upstream is
-  // happier (no more flood-warning emails).
-  const PORTUS_CONCURRENCY = 2;
+  // the race for PORTUS's connection budget.
+  //
+  // v2.79.6 set PORTUS=2; logs still showed 0-1/12 success per cycle.
+  // v2.79.8 drops to PORTUS=1 (fully sequential) since manual curl from
+  // the same IP works fine — the issue is concurrent-connections-from-
+  // same-IP, not total request volume. Sequential gives every station
+  // ~1.5s per attempt with the 5s backoff on 429 (~25-30s per cycle for
+  // 11 stations, fits within the 5min poll window).
+  const PORTUS_CONCURRENCY = 1;
   const OBS_CONCURRENCY = 3;
 
   const portusStations = RIAS_BUOY_STATIONS.filter((s) => s.enabled !== false);
