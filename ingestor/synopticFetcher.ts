@@ -22,6 +22,12 @@
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
+import {
+  isOpen as isOpenMeteoBreakerOpen,
+  minutesUntilReset as openMeteoMinutesUntilReset,
+  reportRateLimit as reportOpenMeteoRateLimit,
+  reportSuccess as reportOpenMeteoSuccess,
+} from './openMeteoBreaker.js';
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 const FETCH_TIMEOUT_MS = 12_000;
@@ -138,6 +144,7 @@ export function parseSynopticPayload(
 // ── Fetcher ──────────────────────────────────────────
 
 async function fetchSector(lat: number, lon: number): Promise<OpenMeteoResponse | null> {
+  if (isOpenMeteoBreakerOpen()) return null;
   const upperVars = PRESSURE_LEVELS.flatMap((p) => [
     `wind_direction_${p}hPa`,
     `wind_speed_${p}hPa`,
@@ -164,9 +171,11 @@ async function fetchSector(lat: number, lon: number): Promise<OpenMeteoResponse 
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
+      if (res.status === 429) reportOpenMeteoRateLimit('synoptic');
       log.warn(`[Synoptic] Open-Meteo ${res.status} for ${lat},${lon}`);
       return null;
     }
+    reportOpenMeteoSuccess();
     return await res.json() as OpenMeteoResponse;
   } catch (err) {
     log.warn(`[Synoptic] fetch failed: ${(err as Error).message}`);
@@ -248,6 +257,13 @@ async function batchInsertConvection(rows: ConvectionRow[]): Promise<number> {
  * of recent past hours (where the data is most accurate).
  */
 export async function runSynopticCycle(): Promise<void> {
+  if (isOpenMeteoBreakerOpen()) {
+    log.warn(
+      `[Synoptic] Open-Meteo breaker open — skipping cycle, ${openMeteoMinutesUntilReset()} min until retry`,
+    );
+    return;
+  }
+
   let totalUpper = 0;
   let totalConv = 0;
 
