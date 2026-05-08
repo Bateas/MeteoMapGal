@@ -12,6 +12,12 @@ const COLORS = {
   cyan: '\x1b[36m',
 } as const;
 
+// Debug logs are off by default to keep journalctl quiet on routine
+// no-activity polls (e.g. "0 strikes in window" on calm winter nights).
+// Set INGESTOR_DEBUG=true in the systemd Environment block to re-enable
+// when investigating a specific issue.
+const DEBUG_ENABLED = process.env.INGESTOR_DEBUG === 'true';
+
 function ts(): string {
   // Local time HH:MM:SS — matches the host TZ (Europe/Madrid in prod).
   // Avoids the UTC vs CEST mismatch when grepping logs against `date`.
@@ -35,5 +41,9 @@ export const log = {
   },
   error(msg: string, ...args: unknown[]) {
     console.error(`${COLORS.dim}${ts()}${COLORS.reset} ${COLORS.red}ERROR${COLORS.reset} ${msg}`, ...args);
+  },
+  debug(msg: string, ...args: unknown[]) {
+    if (!DEBUG_ENABLED) return;
+    console.log(`${COLORS.dim}${ts()} DEBUG ${msg}${COLORS.reset}`, ...args);
   },
 };
