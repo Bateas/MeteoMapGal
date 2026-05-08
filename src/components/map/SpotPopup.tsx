@@ -32,6 +32,7 @@ import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixC
 import { useSectorStore } from '../../store/sectorStore';
 import { useAirQualityStore } from '../../store/airQualityStore';
 import { computeSurfVerdict, swellAlignmentMultiplier } from '../spot/surfVerdictEngine';
+import { detectViracionPhase } from '../../services/viracionDetector';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
@@ -160,6 +161,50 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const measuredKt = score?.wind?.avgSpeedKt ?? 0;
   const useStrongPrediction = cesantesPrediction !== null && cesantesPrediction.predictedKt !== null
     && (cesantesPrediction.predictedKt - measuredKt) >= 4;
+
+  // ── Viración (daily wind cycle phase) — Rías sailing spots only ──
+  // Cross-validates the spot's reference station against its preferred buoy
+  // when both are available. Conservative emit: only renders when the
+  // detector's confidence ≥ medium AND phase ≠ unknown. No alerts, no
+  // overlays — just one informative line near the wind display.
+  const viracion = (() => {
+    if (sectorId !== 'rias' || spot.category === 'surf') return null;
+    try {
+      const readingsMap = useWeatherStore.getState().currentReadings ?? new Map();
+      const buoys = useBuoyStore.getState().buoys ?? [];
+      const refStationId = spot.preferredStations?.[0];
+      const reading = refStationId ? readingsMap.get(refStationId) ?? null : null;
+      // Pick the spot's first preferred buoy if it has wind data
+      const refBuoyId = spot.preferredBuoys?.[0];
+      const buoyRow = refBuoyId ? buoys.find((b) => b.stationId === refBuoyId) : undefined;
+      const buoyInput = buoyRow && buoyRow.windDir != null
+        ? { windDirection: buoyRow.windDir, windKt: buoyRow.windSpeed != null ? buoyRow.windSpeed * 1.94384 : undefined }
+        : null;
+      // Use the closest forecast hour as the synoptic gate input
+      const nowMs = Date.now();
+      let synopticKt: number | null = null;
+      let bestDt = Infinity;
+      for (const h of spotForecast) {
+        const dt = Math.abs(h.time.getTime() - nowMs);
+        if (dt < bestDt && h.windSpeed != null) {
+          bestDt = dt;
+          synopticKt = h.windSpeed * 1.94384;
+        }
+      }
+      const result = detectViracionPhase(spot.id, {
+        reading,
+        buoy: buoyInput,
+        synopticKt,
+        now: new Date(nowMs),
+      });
+      // Conservative: hide everything except medium/high confidence
+      if (result.phase === 'unknown' || result.confidence === 'low') return null;
+      return result;
+    } catch (err) {
+      console.debug('[Viracion] detector error:', err);
+      return null;
+    }
+  })();
 
   // ── Surf verdict: wave-based, overrides wind verdict for surf spots ──
   const [marineForecast, setMarineForecast] = useState<MarineForecastHour[]>([]);
@@ -395,6 +440,21 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Thermal forecast early warning (BETA) — uses spot-specific WRF 1km ── */}
       {spot.thermalDetection && spotForecast.length > 0 && (
         <ThermalForecastBadge forecast={spotForecast} />
+      )}
+
+      {/* ── Viración (daily wind cycle phase) — Rías only, conservative emit ── */}
+      {viracion && (
+        <div
+          className={`text-[11px] mb-2 px-2 py-1 rounded border ${
+            viracion.confidence === 'high'
+              ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
+              : 'bg-slate-700/30 border-slate-600/40 text-slate-300'
+          }`}
+          title={`Fase: ${viracion.phase} · Confianza: ${viracion.confidence}`}
+        >
+          <WeatherIcon id="wind" size={11} className="inline -mt-px mr-1" />
+          {viracion.description}
+        </div>
       )}
 
       {/* ── Tide summary (Rías sailing spots — surf spots show tide above verdict) ── */}
