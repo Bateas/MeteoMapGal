@@ -8,6 +8,12 @@
 
 import { log } from './logger.js';
 import { getWrfForecast, getUswanForecast, isMeteoSixConfigured } from './meteoSixFetcher.js';
+import {
+  isOpen as isOpenMeteoBreakerOpen,
+  reportRateLimit as reportOpenMeteoRateLimit,
+  reportSuccess as reportOpenMeteoSuccess,
+  OpenMeteoBreakerError,
+} from './openMeteoBreaker.js';
 import type { HourlyForecast } from '../src/types/forecast.js';
 
 export type { HourlyForecast };
@@ -34,6 +40,9 @@ const cache = new Map<string, CacheEntry>();
 // ── Fetch ───────────────────────────────────────────
 
 async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]> {
+  if (isOpenMeteoBreakerOpen()) {
+    throw new OpenMeteoBreakerError('forecast: paused');
+  }
   const params = new URLSearchParams({
     latitude: lat.toString(),
     longitude: lon.toString(),
@@ -58,8 +67,10 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
   });
 
   if (!res.ok) {
+    if (res.status === 429) reportOpenMeteoRateLimit('forecast');
     throw new Error(`Open-Meteo ${res.status}: ${res.statusText}`);
   }
+  reportOpenMeteoSuccess();
 
   const json = await res.json() as {
     hourly: {
@@ -219,6 +230,9 @@ export interface MarineForecastHour {
 const marineCache = new Map<string, { data: MarineForecastHour[]; fetchedAt: number }>();
 
 async function fetchMarine(lat: number, lon: number): Promise<MarineForecastHour[]> {
+  if (isOpenMeteoBreakerOpen()) {
+    throw new OpenMeteoBreakerError('marine: paused');
+  }
   const params = new URLSearchParams({
     latitude: lat.toString(),
     longitude: lon.toString(),
@@ -228,7 +242,11 @@ async function fetchMarine(lat: number, lon: number): Promise<MarineForecastHour
   });
 
   const res = await fetch(`${MARINE_URL}?${params}`, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) throw new Error(`Marine API ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 429) reportOpenMeteoRateLimit('marine');
+    throw new Error(`Marine API ${res.status}`);
+  }
+  reportOpenMeteoSuccess();
 
   const json = await res.json() as {
     hourly: {
