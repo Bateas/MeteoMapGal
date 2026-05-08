@@ -61,7 +61,13 @@ const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
 ];
 
 const NO_DATA = -9999;
-const MAX_AGE_MS = 2 * 60 * 60_000; // 2 hours
+// 6 hours, not 2: PORTUS publishes oceanic-mooring buoys (REDEXT) and tide-
+// gauge meteorology (REDMAR) with cadences of 1-3 hours, not minutes. The
+// S135+2 audit caught us silently rejecting 9 of 11 PORTUS stations every
+// cycle because the "fecha" was 2.5-5 h old — by upstream design, not bug.
+// 6 h is generous enough to keep all working stations through, while still
+// catching genuinely stuck buoys (like Cíes in Dec 2025, gated separately).
+const MAX_AGE_MS = 6 * 60 * 60_000;
 
 /**
  * HTTP status code → count for the current cycle. fetchPortusStation
