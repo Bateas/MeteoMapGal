@@ -111,7 +111,15 @@ const HOURLY_VARS = [
 
 const FORECAST_HORIZON_HOURS = 6;
 const MAX_COORDS_PER_CALL = 200;
-const BATCH_DELAY_MS = 3000;
+const BATCH_DELAY_MS = 10_000;
+
+// Circuit breaker for Open-Meteo rate-limit. Open-Meteo's free tier counts
+// each coordinate as 1 API call against the burst quota (~600/min). A full
+// 600-cell grid cycle eats the entire minute's allowance, so when the IP
+// gets 429'd we MUST stop hammering or the next cycle (30 min later) will
+// hit the same wall. 60 min cooldown lets the rolling-window quota reset.
+let breakerOpenUntil = 0;
+const BREAKER_COOLDOWN_MS = 60 * 60_000;
 
 interface BatchResponse {
   /** Always an array — Open-Meteo returns array shape for multi-point queries */
@@ -124,7 +132,12 @@ interface CellHourly {
   hourly: BatchResponse['hourly'] | null;
 }
 
-async function fetchBatch(batch: GridCell[]): Promise<CellHourly[]> {
+interface BatchResult {
+  cells: CellHourly[];
+  rateLimited: boolean;
+}
+
+async function fetchBatch(batch: GridCell[]): Promise<BatchResult> {
   const params = new URLSearchParams({
     latitude: batch.map((c) => c.lat.toFixed(4)).join(','),
     longitude: batch.map((c) => c.lon.toFixed(4)).join(','),
@@ -138,37 +151,63 @@ async function fetchBatch(batch: GridCell[]): Promise<CellHourly[]> {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
+      const isRateLimit = res.status === 429;
       log.warn(`[ConvGrid] Open-Meteo ${res.status} for batch of ${batch.length} cells`);
-      return batch.map((cell) => ({ cell, hourly: null }));
+      return {
+        cells: batch.map((cell) => ({ cell, hourly: null })),
+        rateLimited: isRateLimit,
+      };
     }
     const json = await res.json();
     // Multi-point response: array, same order as input coords
     if (Array.isArray(json)) {
-      return batch.map((cell, idx) => ({
-        cell,
-        hourly: (json[idx] as BatchResponse | undefined)?.hourly ?? null,
-      }));
+      return {
+        cells: batch.map((cell, idx) => ({
+          cell,
+          hourly: (json[idx] as BatchResponse | undefined)?.hourly ?? null,
+        })),
+        rateLimited: false,
+      };
     }
     // Single-point fallback (when batch.length === 1)
     if (json && typeof json === 'object') {
-      return [{ cell: batch[0], hourly: (json as BatchResponse).hourly ?? null }];
+      return {
+        cells: [{ cell: batch[0], hourly: (json as BatchResponse).hourly ?? null }],
+        rateLimited: false,
+      };
     }
-    return batch.map((cell) => ({ cell, hourly: null }));
+    return {
+      cells: batch.map((cell) => ({ cell, hourly: null })),
+      rateLimited: false,
+    };
   } catch (err) {
     log.warn(`[ConvGrid] batch fetch failed: ${(err as Error).message}`);
-    return batch.map((cell) => ({ cell, hourly: null }));
+    return {
+      cells: batch.map((cell) => ({ cell, hourly: null })),
+      rateLimited: false,
+    };
   }
 }
 
-async function fetchAllCells(cells: GridCell[]): Promise<CellHourly[]> {
+interface FetchAllResult {
+  responses: CellHourly[];
+  rateLimited: boolean;
+}
+
+async function fetchAllCells(cells: GridCell[]): Promise<FetchAllResult> {
   const out: CellHourly[] = [];
   for (let i = 0; i < cells.length; i += MAX_COORDS_PER_CALL) {
     if (i > 0) await sleep(BATCH_DELAY_MS);
     const batch = cells.slice(i, i + MAX_COORDS_PER_CALL);
     const r = await fetchBatch(batch);
-    out.push(...r);
+    out.push(...r.cells);
+    // Abort the rest of the batches on the first 429 — every further batch
+    // would be a wasted call against the (already exhausted) quota window.
+    if (r.rateLimited) {
+      return { responses: out, rateLimited: true };
+    }
   }
-  return out;
+  return { responses: out, rateLimited: false };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -295,13 +334,29 @@ async function batchInsertRows(rows: ConvectionGridRow[]): Promise<number> {
  *   4. Bulk insert with ON CONFLICT DO UPDATE
  */
 export async function runConvectionGridCycle(): Promise<void> {
+  const now = Date.now();
+  if (now < breakerOpenUntil) {
+    const minLeft = Math.ceil((breakerOpenUntil - now) / 60_000);
+    log.warn(`[ConvGrid] breaker open — skipping cycle, ${minLeft} min until retry`);
+    return;
+  }
+
   const cells = generateGridCells(GALICIA_GRID);
   log.info(`[ConvGrid] Starting cycle: ${cells.length} cells, resolution ${GALICIA_GRID.resolutionKm}km`);
 
-  const responses = await fetchAllCells(cells);
+  const { responses, rateLimited } = await fetchAllCells(cells);
   const validResponses = responses.filter((r) => r.hourly != null).length;
-  if (validResponses === 0) {
-    log.warn(`[ConvGrid] cycle aborted — 0/${cells.length} cells returned data (Open-Meteo down or rate-limited)`);
+
+  if (rateLimited) {
+    breakerOpenUntil = Date.now() + BREAKER_COOLDOWN_MS;
+    log.warn(
+      `[ConvGrid] Open-Meteo rate-limited — opening breaker for ${BREAKER_COOLDOWN_MS / 60_000} min ` +
+        `(got ${validResponses}/${cells.length} cells before abort)`,
+    );
+    // Even partial data is worth persisting if any batch succeeded before the 429
+    if (validResponses === 0) return;
+  } else if (validResponses === 0) {
+    log.warn(`[ConvGrid] cycle aborted — 0/${cells.length} cells returned data (Open-Meteo down)`);
     return;
   }
 
@@ -310,4 +365,9 @@ export async function runConvectionGridCycle(): Promise<void> {
   log.info(
     `[ConvGrid] cycle ok — ${validResponses}/${cells.length} cells, ${rows.length} rows parsed, ${written} written`,
   );
+}
+
+/** Test-only: reset breaker state between cases. */
+export function _resetConvGridBreaker(): void {
+  breakerOpenUntil = 0;
 }
