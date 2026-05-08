@@ -78,20 +78,21 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
   'mc_ESGAL3600000036940A': {
     stationId: 'mc_ESGAL3600000036940A',
     unreliableSectors: [
-      // Empirical buoy audit (S135+2, 5500+ paired hours):
-      //   N flow (300-360 + 0-30°): ratio 0.23-0.40 vs Marín REDMAR
-      //                              → severely sheltered (mountain to N)
-      //   E flow  (60-180°):         ratio 0.30-0.49
-      //                              → sheltered (interior peninsula)
-      //   SW/W   (210-270°):         ratio 0.56-0.64 (LEAST sheltered)
+      // Re-audit S135+2 with fresh ground truth (3221 Vigo REDMAR, same
+      // ría — 12000+ paired hours):
+      //   N (0-30°):   ratio 0.37-0.38 → severely sheltered (Monte to NW)
+      //   E-SE (60-150°): ratio 0.43-0.56 → moderate shelter
+      //   S (180°):    ratio 0.62 → borderline OK (NOT in blind list)
+      //   SW-W (210-300°): ratio 0.57-0.71 → cleanest direction
+      //   NW (330°):   ratio 0.60 → borderline OK (NOT in blind list)
       //
-      // Original "documented-gotcha" said S/SW sheltered. WRONG —
-      // empirical data shows the OPPOSITE: N/NW are most sheltered,
-      // SW is the cleanest sector because it comes over the open ría.
-      { from: 300, to: 30, type: 'sheltered' },  // wraps midnight: 300-30°
-      { from: 60, to: 180, type: 'sheltered' },
+      // Initial v2.79.4 entry said 60-180° + wrap-around 300-30°. The
+      // fresh audit (vs same-ría buoy, more samples) shows S (180°) and
+      // NW (300-330°) are NOT actually as sheltered as the cross-ría
+      // 3223 audit suggested. Narrowing to the truly bad sectors:
+      { from: 0, to: 150, type: 'sheltered' },  // N + NE + E + SE
     ],
-    note: 'Cangas — Monte Costa da Vela apantalla N/NW (ratio 0.23-0.40 vs Marín REDMAR). E-S también apantallado (0.30-0.49). SW (210-270°) MENOS apantallado (0.56-0.64) porque viene sobre la ría abierta. Audit S135+2 corrigió el bias documentado anteriormente.',
+    note: 'Cangas — Monte Costa da Vela apantalla N/NE/E/SE (ratio 0.37-0.56 vs 3221 Vigo REDMAR, mismo ría). S (180°) y SW/W (210-300°) razonables (0.57-0.71). Re-audit S135+2 fresh con boya viva refinó el patrón inicial.',
     evidence: 'empirical-buoy',
   },
 
@@ -148,18 +149,19 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
   'mg_14001': {
     stationId: 'mg_14001',
     unreliableSectors: [
-      // Empirical buoy audit (S135+2):
-      //   E-SE (90-180°): ratio 0.28-0.84 vs Marín REDMAR
-      //                   → underreads (city/port skyline blocks)
-      //   N/NE (0-60°): ratio 0.91-1.01 (RELIABLE)
-      //   SW/W (210-330°): ratio 1.03-1.29 (RELIABLE, slightly
-      //                                      over-reads — port acts
-      //                                      as a venturi)
-      // Verdict: gold-standard reference for viración (afternoon
-      // SW pattern is in the reliable sector).
-      { from: 90, to: 180, type: 'sheltered' },
+      // Re-audit S135+2 with 3221 Vigo REDMAR (same ría, 12000+ hours):
+      //   N-NE (0-90°):  ratio 0.82-1.21 → matches buoy + slight venturi
+      //   E-SE (120-150°): ratio 0.46-0.49 → BLIND (city skyline blocks)
+      //   S (180°):      ratio 0.96 → matches
+      //   SW-W (210-300°): ratio 0.92-1.03 → matches
+      //   NW (330°):     ratio 1.26 → venturi acceleration
+      //
+      // Initial v2.79.4 said 90-180° blind. Fresh audit narrows the
+      // truly-bad band to just 120-150° (E-SE). 90° (E pure) and 180°
+      // (S) are actually reliable.
+      { from: 120, to: 150, type: 'sheltered' },
     ],
-    note: 'Porto de Vigo — apantallada por skyline portuario+ciudad para E-SE (ratio 0.28-0.84). Sectores principales para viración (N/NE matutino + SW/W vespertino) son CONFIABLES (ratio 0.91-1.29 vs Marín REDMAR). Audit S135+2.',
+    note: 'Porto de Vigo — gold standard. Único sector apantallado: E-SE 120-150° (ratio 0.46-0.49) por skyline portuario. Resto de sectores confiables (0.82-1.21 vs 3221 Vigo REDMAR). Re-audit S135+2 narrowed the band.',
     evidence: 'empirical-buoy',
   },
 
