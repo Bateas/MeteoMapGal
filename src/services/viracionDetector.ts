@@ -42,6 +42,7 @@
 
 import type { SpotId } from '../config/spots';
 import type { NormalizedReading } from '../types/station';
+import { isStationBlindAt } from '../config/stationBiases';
 
 /** Daily phase of the wind cycle. */
 export type ViracionPhase =
@@ -132,6 +133,32 @@ export interface ViracionDetection {
   isOnPattern: boolean;
   /** Short human-readable summary, Spanish, for SpotPopup display. */
   description: string;
+  /**
+   * Source quality flags — what cross-validation was used to arrive at
+   * the confidence rating. Useful for debugging and the monthly review.
+   */
+  sources: {
+    station: boolean;
+    /** Buoy reading was provided AND agreed with the station within tolerance. */
+    buoyConfirmed: boolean;
+    /** Buoy reading was provided AND CONTRADICTED the station >60° divergent. */
+    buoyConflict: boolean;
+    /** Station is in a documented blind sector for the observed direction. */
+    stationBlindSector: boolean;
+  };
+}
+
+/**
+ * Optional cross-source ground truth. A buoy in open water has no
+ * orographic shielding — when its direction agrees with the station's
+ * we can promote confidence; when it disagrees we know the station
+ * reading is suspect.
+ */
+export interface BuoyReading {
+  /** Compass direction, degrees. */
+  windDirection: number;
+  /** Speed in knots. Optional — used for sanity check only. */
+  windKt?: number;
 }
 
 const NO_DETECTION: ViracionDetection = {
@@ -139,7 +166,14 @@ const NO_DETECTION: ViracionDetection = {
   confidence: 'low',
   isOnPattern: false,
   description: '',
+  sources: { station: false, buoyConfirmed: false, buoyConflict: false, stationBlindSector: false },
 };
+
+/** Smallest angular distance between two compass directions, 0..180°. */
+export function circularDirDistance(a: number, b: number): number {
+  const diff = Math.abs(((a - b) % 360) + 360) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
 
 // ── Helpers ──
 
@@ -180,33 +214,64 @@ function isThermalSeason(d: Date): boolean {
 
 // ── Public API ──
 
+export interface ViracionInputs {
+  /** Latest reading from the spot's reference station (preferredStations[0]). */
+  reading: NormalizedReading | null;
+  /** Optional ground-truth buoy reading from open water — promotes / demotes confidence. */
+  buoy?: BuoyReading | null;
+  /** Synoptic wind speed forecast for now (kt). >12 kt overrides thermal pattern. */
+  synopticKt?: number | null;
+  /** Clock injection for tests. */
+  now?: Date;
+}
+
 /**
- * Classify the current viración phase for a spot, given the latest reading
- * from its reference station and the synoptic forecast wind for now-ish.
+ * Classify the current viración phase for a spot.
  *
- * @param spotId         the spot identifier
- * @param reading        the latest wind reading from the spot's reference
- *                       station (use spot.preferredStations[0] in callers).
- *                       null → returns NO_DETECTION
- * @param synopticKt     the synoptic forecast wind speed in kt for the
- *                       current hour. >12 kt → thermal pattern is overridden,
- *                       so we report 'unknown' / low confidence.
- *                       null → don't apply the synoptic gate.
- * @param now            optional clock injection for tests.
+ * Confidence is built on three independent sources:
+ *   1. Station reading vs expected sector for the current hour.
+ *   2. Buoy reading (if provided) — open-water ground truth.
+ *   3. Station bias (stationBiases.ts) — known orographic distortion.
+ *
+ * Decision matrix:
+ *   Station on-pattern + buoy confirms (within 45°)  → HIGH
+ *   Station on-pattern + no buoy + station NOT blind → HIGH (if speed OK)
+ *   Station on-pattern + buoy CONFLICTS (>60°)       → MEDIUM ("boya discrepa")
+ *   Station on-pattern + station IS blind, no buoy   → MEDIUM ("estación apantallada")
+ *   Station off-pattern (any source)                  → LOW
  */
 export function detectViracionPhase(
   spotId: SpotId,
-  reading: NormalizedReading | null,
-  synopticKt: number | null,
-  now: Date = new Date(),
+  inputs: ViracionInputs | NormalizedReading | null = null,
+  // Legacy positional args for backward compatibility:
+  legacySynopticKt?: number | null,
+  legacyNow?: Date,
 ): ViracionDetection {
-  // Out of season → silent. Cero spam de octubre a marzo.
+  // ── Normalize inputs (support both new + legacy call signatures) ──
+  let reading: NormalizedReading | null;
+  let buoy: BuoyReading | null | undefined;
+  let synopticKt: number | null | undefined;
+  let now: Date;
+
+  if (inputs && typeof inputs === 'object' && 'reading' in inputs) {
+    reading = inputs.reading;
+    buoy = inputs.buoy ?? null;
+    synopticKt = inputs.synopticKt ?? null;
+    now = inputs.now ?? new Date();
+  } else {
+    // Legacy: detectViracionPhase(spotId, reading, synopticKt?, now?)
+    reading = (inputs as NormalizedReading | null) ?? null;
+    buoy = null;
+    synopticKt = legacySynopticKt ?? null;
+    now = legacyNow ?? new Date();
+  }
+
+  // Out of season → silent.
   if (!isThermalSeason(now)) return NO_DETECTION;
 
   const pattern = getPattern(spotId);
   if (!pattern) return NO_DETECTION;
 
-  // No reading → can't decide.
   if (!reading || reading.windDirection == null) return NO_DETECTION;
 
   // Synoptic kills thermal: above ~12 kt the gradient flow takes over.
@@ -216,6 +281,7 @@ export function detectViracionPhase(
       confidence: 'low',
       isOnPattern: false,
       description: 'Sinóptico fuerte — viración no esperada',
+      sources: { station: true, buoyConfirmed: false, buoyConflict: false, stationBlindSector: false },
     };
   }
 
@@ -237,25 +303,71 @@ export function detectViracionPhase(
     expectedPhase = 'unknown';
   }
 
-  // ── Confidence: does observed match expected for this phase? ──
-  let isOnPattern = false;
-  let description = '';
+  if (expectedPhase === 'unknown') return NO_DETECTION;
 
+  // ── Pattern check: does the station reading match the expected sector? ──
+  let isOnPattern = false;
   switch (expectedPhase) {
     case 'terral':
       isOnPattern = dirInRange(obsDir, pattern.morningDir);
+      break;
+    case 'transition':
+      isOnPattern = true; // transition is permissive — wind can be in any sector
+      break;
+    case 'viracion':
+    case 'decaying':
+      isOnPattern = dirInRange(obsDir, pattern.afternoonDir);
+      break;
+  }
+
+  // ── Cross-source signals ──
+  const stationBlind = isStationBlindAt(reading.stationId, obsDir);
+
+  let buoyConfirmed = false;
+  let buoyConflict = false;
+  if (buoy && Number.isFinite(buoy.windDirection)) {
+    const dirDiff = circularDirDistance(obsDir, buoy.windDirection);
+    if (dirDiff <= 45) {
+      buoyConfirmed = true;
+    } else if (dirDiff > 60) {
+      buoyConflict = true;
+    }
+  }
+
+  // ── Confidence ladder ──
+  //
+  // The buoy is ground truth in open water — it overrides station-side
+  // suspicion either way.
+  let confidence: ViracionDetection['confidence'];
+  if (!isOnPattern) {
+    confidence = 'low';
+  } else if (buoyConflict) {
+    confidence = 'medium';
+  } else if (buoyConfirmed) {
+    confidence = 'high';
+  } else if (stationBlind) {
+    // Pattern matched, but the station is in a known blind sector and
+    // we have no buoy to corroborate. Could be a genuine viración OR a
+    // local artifact — keep at medium.
+    confidence = 'medium';
+  } else if (expectedPhase === 'viracion' && obsKt != null && obsKt >= pattern.expectedAfternoonKt * 0.5) {
+    confidence = 'high';
+  } else {
+    confidence = 'medium';
+  }
+
+  // ── Description: phase + qualifiers ──
+  let description: string;
+  switch (expectedPhase) {
+    case 'terral':
       description = isOnPattern
         ? 'Terral matutino — viración prevista hacia el mediodía'
         : 'Patrón matutino irregular';
       break;
     case 'transition':
-      // Direction can be ANY during transition — check it's not strongly
-      // committed to either morning or afternoon sector
-      isOnPattern = true; // transition is permissive
       description = 'Viración entrando — viento girando';
       break;
     case 'viracion':
-      isOnPattern = dirInRange(obsDir, pattern.afternoonDir);
       if (isOnPattern && obsKt != null && obsKt >= pattern.expectedAfternoonKt * 0.5) {
         description = `Viración activa — ${Math.round(obsKt)} kt`;
       } else if (isOnPattern) {
@@ -265,32 +377,25 @@ export function detectViracionPhase(
       }
       break;
     case 'decaying':
-      isOnPattern = dirInRange(obsDir, pattern.afternoonDir);
       description = isOnPattern ? 'Viración decayendo' : 'Calmando';
       break;
-    case 'unknown':
-      return NO_DETECTION;
   }
-
-  // Confidence:
-  //   high   = onPattern + speed in expected range (only for viración hours)
-  //   medium = onPattern but atypical speed
-  //   low    = off-pattern
-  let confidence: ViracionDetection['confidence'];
-  if (!isOnPattern) {
-    confidence = 'low';
-  } else if (expectedPhase === 'viracion' && obsKt != null && obsKt >= pattern.expectedAfternoonKt * 0.5) {
-    confidence = 'high';
-  } else if (expectedPhase === 'viracion' && obsKt != null && obsKt < pattern.expectedAfternoonKt * 0.5) {
-    confidence = 'medium';
-  } else {
-    confidence = 'medium';
-  }
+  // Append cross-source qualifiers so the user sees WHY the confidence
+  // is what it is. Keeps the line short.
+  if (buoyConfirmed && isOnPattern) description += ' · confirmado por boya';
+  else if (buoyConflict) description += ' · boya discrepa';
+  else if (stationBlind && isOnPattern && !buoy) description += ' · estación apantallada';
 
   return {
     phase: expectedPhase,
     confidence,
     isOnPattern,
     description,
+    sources: {
+      station: true,
+      buoyConfirmed,
+      buoyConflict,
+      stationBlindSector: stationBlind,
+    },
   };
 }
