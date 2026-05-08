@@ -17,6 +17,10 @@ import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 const ANIMATION_SPEED = 600; // ms per frame
+// Frames older than this are treated as stale even if the cache is fresh.
+// RainViewer publishes every ~10 min; >30 min means the upstream is stuck or
+// the API has been failing silently while we kept polling.
+const STALE_FRAME_AGE_MS = 30 * 60 * 1000;
 
 // ── Component ─────────────────────────────────────────
 export const RadarOverlay = memo(function RadarOverlay() {
@@ -39,17 +43,32 @@ export const RadarOverlay = memo(function RadarOverlay() {
     setLoading(true);
     try {
       const data = await fetchRainViewerFrames();
-      if (data && data.past.length > 0) {
+      // Detect "stuck" upstream: API responds with frames but they're all stale.
+      // Without this guard we'd keep showing 1h-old radar tiles thinking the
+      // refresh succeeded, which is exactly the "se queda dias pillado" symptom.
+      const newestFrameTimeMs = data?.past.length
+        ? data.past[data.past.length - 1].time * 1000
+        : 0;
+      const isFresh = newestFrameTimeMs > 0 && Date.now() - newestFrameTimeMs < STALE_FRAME_AGE_MS;
+
+      if (data && data.past.length > 0 && isFresh) {
         setRvHost(data.host);
         const allFrames = [...data.past, ...data.nowcast];
         setFrames(allFrames);
         setFrameIndex(data.past.length - 1);
         setRadarError(null);
         failCountRef.current = 0;
-      } else if (frames.length === 0) {
+      } else {
+        // Either no frames at all OR newest frame is stale. Count both as failures
+        // (regardless of whether we have cached frames showing — old radar lying
+        // is worse than a clear error message).
         failCountRef.current++;
         if (failCountRef.current >= 3) {
-          setRadarError('Radar no disponible');
+          setRadarError(
+            data && data.past.length > 0
+              ? 'Radar desactualizado — RainViewer no responde'
+              : 'Radar no disponible',
+          );
         }
       }
     } catch {
@@ -60,7 +79,7 @@ export const RadarOverlay = memo(function RadarOverlay() {
     } finally {
       setLoading(false);
     }
-  }, [frames.length]);
+  }, []);
 
   // Polling
   useVisibilityPolling(loadRainViewer, REFRESH_INTERVAL, isActive);
@@ -96,6 +115,13 @@ export const RadarOverlay = memo(function RadarOverlay() {
 
   const currentFrame = frames[frameIndex];
   const currentTileUrl = currentFrame ? buildTileUrl(rvHost, currentFrame.path) : null;
+
+  // Show a yellow "OLD" tag if the latest frame is suspiciously old. Visible
+  // even when no error has fired yet — gives the user a heads-up that what
+  // they're seeing may not reflect current weather.
+  const newestFrame = frames.length > 0 ? frames[Math.min(frameIndex + 1, frames.length) - 1] : null;
+  const newestAgeMin = newestFrame ? Math.round((Date.now() - newestFrame.time * 1000) / 60_000) : 0;
+  const showStaleHint = newestFrame != null && newestAgeMin > 20;
 
   return (
     <>
@@ -140,6 +166,16 @@ export const RadarOverlay = memo(function RadarOverlay() {
             {/* Nowcast indicator */}
             {currentFrame && frames.indexOf(currentFrame) >= frames.length - 3 && (
               <span className="text-[11px] text-amber-400 font-semibold">PREV</span>
+            )}
+
+            {/* Staleness hint — visible when the latest cached frame is >20 min old */}
+            {showStaleHint && (
+              <span
+                className="text-[11px] text-amber-400 font-semibold"
+                title={`Última frame disponible hace ${newestAgeMin} min — RainViewer puede estar caído.`}
+              >
+                {newestAgeMin}min
+              </span>
             )}
           </div>
         </div>
