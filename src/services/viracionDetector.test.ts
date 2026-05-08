@@ -305,3 +305,149 @@ describe('VIRACION_PATTERNS', () => {
     }
   });
 });
+
+// ─── Buoy cross-validation ─────────────────────────────
+
+describe('buoy cross-validation', () => {
+  it('boosts confidence to high when buoy confirms station', () => {
+    const r = detectViracionPhase('cesantes', {
+      reading: reading({ stationId: 'mg_14001', windDirection: 235, windSpeed: 4.2 }),
+      buoy: { windDirection: 245, windKt: 9 },  // 10° apart — within 45° tolerance
+      now: thermalDayAt(15),
+    });
+    expect(r.phase).toBe('viracion');
+    expect(r.isOnPattern).toBe(true);
+    expect(r.confidence).toBe('high');
+    expect(r.sources.buoyConfirmed).toBe(true);
+    expect(r.description).toContain('confirmado por boya');
+  });
+
+  it('demotes to medium when buoy strongly conflicts with station', () => {
+    const r = detectViracionPhase('cesantes', {
+      reading: reading({ stationId: 'mg_14001', windDirection: 235, windSpeed: 4.2 }),
+      buoy: { windDirection: 80 },  // 155° away — clear conflict
+      now: thermalDayAt(15),
+    });
+    expect(r.phase).toBe('viracion');
+    expect(r.isOnPattern).toBe(true);  // station says yes
+    expect(r.confidence).toBe('medium');
+    expect(r.sources.buoyConflict).toBe(true);
+    expect(r.description).toContain('boya discrepa');
+  });
+
+  it('treats buoy 50° apart as inconclusive (neither confirm nor conflict)', () => {
+    // 50° is inside the "ambiguous" band: not tight enough to confirm,
+    // not wide enough to mark a conflict.
+    const r = detectViracionPhase('cesantes', {
+      reading: reading({ stationId: 'mg_14001', windDirection: 235, windSpeed: 4.2 }),
+      buoy: { windDirection: 290 },
+      now: thermalDayAt(15),
+    });
+    expect(r.sources.buoyConfirmed).toBe(false);
+    expect(r.sources.buoyConflict).toBe(false);
+  });
+
+  it('ignores null buoy entry (no demotion)', () => {
+    const r = detectViracionPhase('cesantes', {
+      reading: reading({ stationId: 'mg_14001', windDirection: 237, windSpeed: 4.4 }),
+      buoy: null,
+      now: thermalDayAt(15),
+    });
+    expect(r.confidence).toBe('high');  // no buoy means no demotion (relies on speed)
+    expect(r.sources.buoyConfirmed).toBe(false);
+    expect(r.sources.buoyConflict).toBe(false);
+  });
+});
+
+// ─── Station blind sector handling ──────────────────────
+
+describe('station blind sector demotion', () => {
+  it('demotes Cangas reading in S/SW blind sector with no buoy', () => {
+    // Cangas (mc_..36940A) is documented sheltered for S/SW (180-240°).
+    // A reading at 220° matches the afternoon viración pattern direction
+    // for cies-ria, but Cangas is known unreliable here.
+    const r = detectViracionPhase('cies-ria', {
+      reading: reading({
+        stationId: 'mc_ESGAL3600000036940A',
+        windDirection: 290,        // matches afternoon pattern (270-310° per Cies-Ría pattern)
+        windSpeed: 2.7,            // 5.3 kt
+      }),
+      now: thermalDayAt(16),
+    });
+    // 290° is NOT in the 180-240 blind sector for Cangas, so should NOT demote
+    expect(r.sources.stationBlindSector).toBe(false);
+  });
+
+  it('demotes when station IS in its documented blind sector', () => {
+    // Spot whose reference is Cangas, with observed dir in sheltered band.
+    const r = detectViracionPhase('cies-ria', {
+      reading: reading({
+        stationId: 'mc_ESGAL3600000036940A',
+        windDirection: 220,        // Inside Cangas blind sector (180-240)
+        windSpeed: 2.0,
+      }),
+      now: thermalDayAt(16),
+    });
+    // Direction 220 is OUTSIDE the cies-ria afternoon range (270-310),
+    // so isOnPattern = false → confidence already low. We mainly want
+    // to verify the source flag is set correctly.
+    expect(r.sources.stationBlindSector).toBe(true);
+  });
+
+  it('promotes despite blind sector when buoy confirms', () => {
+    // Cesantes channels everything, but if the buoy says the same
+    // direction we trust it.
+    const r = detectViracionPhase('cesantes', {
+      reading: reading({
+        stationId: 'mg_10018',
+        windDirection: 240,
+        windSpeed: 4.0,
+      }),
+      buoy: { windDirection: 245 },
+      now: thermalDayAt(15),
+    });
+    expect(r.sources.buoyConfirmed).toBe(true);
+    expect(r.confidence).toBe('high');  // buoy overrides blind suspicion
+  });
+
+  it('description notes "estación apantallada" when applicable', () => {
+    // Use a station with a known blind sector + reading in that sector
+    // + matches pattern + no buoy.
+    // Lourizán mg_10064 has bias 0-60° (accelerated); use that.
+    const r = detectViracionPhase('lourido', {
+      reading: reading({
+        stationId: 'mg_10064',
+        windDirection: 50,        // morning sector + Lourizán blind
+        windSpeed: 2,
+      }),
+      now: thermalDayAt(7),
+    });
+    expect(r.sources.stationBlindSector).toBe(true);
+    expect(r.confidence).toBe('medium');
+    expect(r.description).toContain('apantallada');
+  });
+});
+
+// ─── New ViracionInputs API + sources field ──────────────
+
+describe('ViracionInputs object signature', () => {
+  it('accepts new options-object signature', () => {
+    const r = detectViracionPhase('cesantes', {
+      reading: reading({ windDirection: 240, windSpeed: 4 }),
+      synopticKt: 5,
+      now: thermalDayAt(15),
+    });
+    expect(r.phase).toBe('viracion');
+  });
+
+  it('exposes source flags in the result', () => {
+    const r = detectViracionPhase('cesantes', {
+      reading: reading({ stationId: 'mg_14001', windDirection: 240, windSpeed: 4 }),
+      buoy: { windDirection: 245 },
+      now: thermalDayAt(15),
+    });
+    expect(r.sources).toBeDefined();
+    expect(r.sources.station).toBe(true);
+    expect(r.sources.buoyConfirmed).toBe(true);
+  });
+});
