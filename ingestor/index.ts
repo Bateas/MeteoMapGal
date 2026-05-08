@@ -48,6 +48,16 @@ let outcomesTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
+// Staleness alarm for buoy data. The 5-min polling cycle gives:
+//   12 cycles  = ~1 h    (warn — could be transient)
+//   288 cycles = ~24 h   (error — pipeline definitely broken; re-emit daily)
+// Calibrated from the S135+2 incident where buoys were silently dead for
+// 40 days (PORTUS IP block in late March 2026, undetected because no log
+// alarm was wired up).
+let consecutiveEmptyBuoyCycles = 0;
+const BUOY_STALE_CYCLES_WARN = 12;
+const BUOY_STALE_CYCLES_ERROR = 288;
+
 // ── Core cycle ───────────────────────────────────────
 
 async function runCycle(): Promise<void> {
@@ -81,6 +91,31 @@ async function runCycle(): Promise<void> {
     if (buoyReadings.length > 0) {
       const { inserted: bInserted, skipped: bSkipped } = await batchUpsertBuoys(buoyReadings);
       log.info(`Buoys: ${buoyReadings.length} readings → ${bInserted} new, ${bSkipped} dedup`);
+      consecutiveEmptyBuoyCycles = 0;  // success — clear the staleness counter
+    } else {
+      // Track empty cycles. Five-minute polling × 288 cycles/day = >50 empty
+      // cycles in a row means buoys have been silent for a couple of hours.
+      // The S135+2 audit caught a 40-DAY blackout (PORTUS IP block) that
+      // went unnoticed because the analyzer happily ran with stale data.
+      // Escalate the log level so this CAN'T be missed again.
+      consecutiveEmptyBuoyCycles++;
+      if (consecutiveEmptyBuoyCycles === BUOY_STALE_CYCLES_WARN) {
+        log.warn(
+          `[Buoys] no readings for ${consecutiveEmptyBuoyCycles} cycles ` +
+            `(~${Math.round((consecutiveEmptyBuoyCycles * 5) / 60)} h) — investigate PORTUS / ObsCosteiro`,
+        );
+      } else if (
+        consecutiveEmptyBuoyCycles >= BUOY_STALE_CYCLES_ERROR &&
+        consecutiveEmptyBuoyCycles % BUOY_STALE_CYCLES_ERROR === 0
+      ) {
+        // Re-emit error every 24h while the situation persists.
+        log.error(
+          `[Buoys] STALE: zero readings for ${consecutiveEmptyBuoyCycles} cycles ` +
+            `(~${Math.round((consecutiveEmptyBuoyCycles * 5) / 60 / 24)} days). ` +
+            `Pipeline almost certainly broken — ` +
+            `check PORTUS reachability and ObsCosteiro auth.`,
+        );
+      }
     }
 
     // 4. Run spot analyzer — scoring + transitions + thermal forecast
