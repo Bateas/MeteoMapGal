@@ -31,14 +31,39 @@ const cache: Map<string, MarineData> = new Map();
 const forecastCache: Map<string, { data: MarineForecastHour[]; fetchedAt: number }> = new Map();
 const FORECAST_CACHE_TTL = 30 * 60_000; // 30 min — forecast changes slowly
 
+// Circuit breaker — Open-Meteo Marine occasionally 5xxs in bursts. Without
+// the breaker, every spot popup + every refresh hammers the dead upstream
+// for nothing (browser auto-logs each 5xx to F12). After a failure, freeze
+// all calls for 3min and serve cached data instead.
+let marineBreakerOpenUntil = 0;
+const MARINE_COOLDOWN_MS = 3 * 60_000;
+
 function cacheKey(lat: number, lon: number): string {
   return `${lat.toFixed(2)},${lon.toFixed(2)}`;
+}
+
+function isBreakerOpen(): boolean {
+  return Date.now() < marineBreakerOpenUntil;
+}
+
+function tripBreaker(): void {
+  marineBreakerOpenUntil = Date.now() + MARINE_COOLDOWN_MS;
+}
+
+function clearBreaker(): void {
+  marineBreakerOpenUntil = 0;
+}
+
+/** Test-only: reset breaker between cases. */
+export function _resetMarineBreaker(): void {
+  marineBreakerOpenUntil = 0;
 }
 
 export async function fetchMarineData(lat: number, lon: number): Promise<MarineData | null> {
   const key = cacheKey(lat, lon);
   const cached = cache.get(key);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached;
+  if (isBreakerOpen()) return cached || null;
 
   try {
     const params = new URLSearchParams({
@@ -49,7 +74,10 @@ export async function fetchMarineData(lat: number, lon: number): Promise<MarineD
     });
 
     const res = await fetch(`${BASE_URL}?${params}`, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return cached || null;
+    if (!res.ok) {
+      tripBreaker();
+      return cached || null;
+    }
 
     const json = await res.json();
     const c = json.current;
@@ -65,8 +93,10 @@ export async function fetchMarineData(lat: number, lon: number): Promise<MarineD
     };
 
     cache.set(key, data);
+    clearBreaker();
     return data;
   } catch (err) {
+    tripBreaker();
     console.debug('[Marine] using cached marine snapshot', err);
     return cached || null;
   }
@@ -81,6 +111,7 @@ export async function fetchMarineForecast(lat: number, lon: number): Promise<Mar
   const key = cacheKey(lat, lon);
   const cached = forecastCache.get(key);
   if (cached && Date.now() - cached.fetchedAt < FORECAST_CACHE_TTL) return cached.data;
+  if (isBreakerOpen()) return cached?.data ?? [];
 
   try {
     const params = new URLSearchParams({
@@ -92,7 +123,10 @@ export async function fetchMarineForecast(lat: number, lon: number): Promise<Mar
     });
 
     const res = await fetch(`${BASE_URL}?${params}`, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) return cached?.data ?? [];
+    if (!res.ok) {
+      tripBreaker();
+      return cached?.data ?? [];
+    }
 
     const json = await res.json();
     const h = json.hourly;
@@ -118,8 +152,10 @@ export async function fetchMarineForecast(lat: number, lon: number): Promise<Mar
     }
 
     forecastCache.set(key, { data: hours, fetchedAt: Date.now() });
+    clearBreaker();
     return hours;
   } catch (err) {
+    tripBreaker();
     console.debug('[Marine forecast] using stale cache', err);
     return cached?.data ?? [];
   }
