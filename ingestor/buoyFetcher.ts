@@ -10,6 +10,7 @@
 
 import type { BuoyReadingRow } from './db.js';
 import { log } from './logger.js';
+import { allSettledLimit } from './concurrency.js';
 
 const PORTUS_BASE = 'https://portus.puertos.es/portussvr/api';
 const OBS_BASE = 'https://apis-ext.xunta.gal/mgplatpubapi/v1/api';
@@ -299,12 +300,24 @@ function mergeBuoyReadings(portus: BuoyReadingRow[], obs: BuoyReadingRow[]): Buo
 export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   const obsApiKey = process.env.OBSCOSTEIRO_API_KEY || '';
 
+  // Concurrency caps — PORTUS rate-limits aggressively per IP. The S135+2
+  // audit revealed buoys 2248 and 3223 had been silently dead for 40 days
+  // because the 12-way Promise.allSettled fan-out had most stations losing
+  // the race for PORTUS's 1-2 concurrent connection slots. With cap=2,
+  // every station gets a turn within the cycle, and the upstream is
+  // happier (no more flood-warning emails).
+  const PORTUS_CONCURRENCY = 2;
+  const OBS_CONCURRENCY = 3;
+
+  const portusStations = RIAS_BUOY_STATIONS.filter((s) => s.enabled !== false);
+  const obsStations = OBS_STATIONS.filter((s) => s.enabled !== false);
+
   // Fetch both sources in parallel
   const [portusResults, obsResults] = await Promise.all([
-    Promise.allSettled(RIAS_BUOY_STATIONS.filter((s) => s.enabled !== false).map(fetchPortusStation)),
+    allSettledLimit(portusStations, fetchPortusStation, PORTUS_CONCURRENCY),
     obsApiKey
-      ? Promise.allSettled(OBS_STATIONS.filter((s) => s.enabled !== false).map((s) => fetchObsStation(s, obsApiKey)))
-      : Promise.resolve([]),
+      ? allSettledLimit(obsStations, (s) => fetchObsStation(s, obsApiKey), OBS_CONCURRENCY)
+      : Promise.resolve([] as PromiseSettledResult<BuoyReadingRow | null>[]),
   ]);
 
   const portus = (portusResults as PromiseSettledResult<BuoyReadingRow | null>[])
