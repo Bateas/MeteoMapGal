@@ -1,9 +1,9 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.77.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.80.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![CI](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml/badge.svg)](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-966%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-1020%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
 **Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 22 webcams con IA y mapa 3D interactivo.
@@ -69,6 +69,7 @@
 - Outlier detection con mediana ponderada — estaciones sheltered penalizadas automaticamente
 - Cada spot muestra las fuentes que contribuyen al veredicto (nombre, velocidad, peso %)
 - Deteccion de patrones locales: termicas, bocanas, virazones de ria
+- **Viración detector** (Rías): identifica fase del ciclo diario (terral matutino → transición → viración tarde → decay nocturno) por spot. Cross-validación con boya local cuando disponible. Patrón empirico calibrado de 12000+ horas de datos reales por ría
 - Ventanas de navegacion: "Cuando salgo?" con prevision 48h
 - **Prevision WRF 1km por spot**: MeteoSIX de MeteoGalicia, cada spot usa su celda de grid exacta
 - **Temperatura del mar (MOHID)**: modelo oceanografico como fallback cuando no hay boya
@@ -90,7 +91,7 @@ Deteccion y tracking de nucleos tormentosos en tiempo real, directamente en el m
   ┄ Punteada  Proyeccion 5-30 min
 ```
 
-- **Predictor de 8 senales**: CAPE, CIN, lluvia, nubes, rayos, avance, sombra solar, avisos MeteoGalicia
+- **Predictor de 9 senales**: CAPE, CIN, lluvia, nubes, rayos, avance, sombra solar, avisos MeteoGalicia
 - **Avisos oficiales**: RSS de MeteoGalicia (amarillo/naranja/rojo) integrado en ticker y panel
 - **ETA inteligente**: usa la componente de velocidad hacia ti, no la velocidad total
 - **Subdivision automatica**: frentes de 100+ km se dividen en clusters manejables
@@ -151,7 +152,7 @@ Solo aparecen cuando son accionables — fuera de su ventana, silencio:
 - **Panel fullscreen**: tabla estilo Windguru con colores por intensidad, dots de calidad, dimming nocturno
 - **Meteograma SVG**: sparkline viento+temp+precipitacion (0KB extra de bundle)
 - **Conclusion inteligente**: resumen en lenguaje natural de la prevision 48h
-- **Predictor de tormentas**: 8 senales combinadas → probabilidad 0-100%
+- **Predictor de tormentas**: 9 senales combinadas → probabilidad 0-100%
 - **Predictor con accuracy medible**: cada predicción se evalúa automáticamente 6h después contra rayos reales + precipitación de estaciones. Substrate de calibración ML para próximas iteraciones
 - **Convection grid 10km**: CAPE/LI/CIN/precip persistido por celda en TimescaleDB (retención 2 años) → mapas de inestabilidad históricos consultables en milisegundos via continuous aggregates
 
@@ -200,7 +201,7 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # 966 tests (Vitest)
+npm test                # 1020 tests (Vitest)
 ```
 
 **Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.24 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB · Sharp (image preprocess) · Ollama (vision)
