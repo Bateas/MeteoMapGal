@@ -16,6 +16,7 @@ import {
 import { parseMeteoclimaticXml } from './xml.js';
 import { getNetatmoToken } from './discover.js';
 import { log } from './logger.js';
+import { allSettledLimit } from './concurrency.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
 const MG_BASE = 'https://servizos.meteogalicia.gal';
@@ -103,21 +104,23 @@ async function fetchMeteoGalicia(
   const mgStations = stations.filter((s) => s.source === 'meteogalicia');
   if (mgStations.length === 0) return [];
 
-  const results = await Promise.allSettled(
-    mgStations.map(async (station) => {
-      const numId = station.id.replace('mg_', '');
-      const res = await fetchMGWithRetry(
-        `${MG_BASE}/mgrss/observacion/ultimos10minEstacionsMeteo.action?idEst=${numId}`
-      );
-      const data: MeteoGaliciaObsResponse = await res.json();
-      const entries = data.listUltimos10min ?? [];
-      if (entries.length === 0) return null;
+  // Cap parallelism at 8 — without this we'd fan out to ~50 simultaneous
+  // fetches per cycle, hammering the LXC's DNS resolver and MeteoGalicia
+  // with a thundering herd. 8 is plenty to finish a cycle in ~2s and lets
+  // undici reuse TCP connections across requests to the same host.
+  const results = await allSettledLimit(mgStations, async (station) => {
+    const numId = station.id.replace('mg_', '');
+    const res = await fetchMGWithRetry(
+      `${MG_BASE}/mgrss/observacion/ultimos10minEstacionsMeteo.action?idEst=${numId}`,
+    );
+    const data: MeteoGaliciaObsResponse = await res.json();
+    const entries = data.listUltimos10min ?? [];
+    if (entries.length === 0) return null;
 
-      // Take latest entry
-      const entry = entries[0];
-      return normalizeMeteoGaliciaObservation(parseInt(numId, 10), entry);
-    })
-  );
+    // Take latest entry
+    const entry = entries[0];
+    return normalizeMeteoGaliciaObservation(parseInt(numId, 10), entry);
+  }, 8);
 
   const readings = results
     .filter((r): r is PromiseFulfilledResult<NormalizedReading | null> => r.status === 'fulfilled')
@@ -206,35 +209,35 @@ async function fetchWunderground(
   const apiKey = process.env.WU_API_KEY || 'e1f10a1e78da46f5b10a1e78da96f525';
   const readings: NormalizedReading[] = [];
 
-  const results = await Promise.allSettled(
-    wuStations.map(async (station) => {
-      const rawId = station.id.replace('wu_', '');
-      const res = await fetch(
-        `${WU_BASE}/v2/pws/observations/current?stationId=${rawId}&format=json&units=s&apiKey=${apiKey}`,
-        { signal: AbortSignal.timeout(TIMEOUT) }
-      );
-      const data = await res.json();
-      const obs: WUObservation[] = data.observations ?? [];
-      if (obs.length === 0) return null;
+  // Cap parallelism at 6 — same DNS-storm rationale as MeteoGalicia.
+  // WU was ~30 stations all firing in the same second pre-S135+2.
+  const results = await allSettledLimit(wuStations, async (station) => {
+    const rawId = station.id.replace('wu_', '');
+    const res = await fetch(
+      `${WU_BASE}/v2/pws/observations/current?stationId=${rawId}&format=json&units=s&apiKey=${apiKey}`,
+      { signal: AbortSignal.timeout(TIMEOUT) },
+    );
+    const data = await res.json();
+    const obs: WUObservation[] = data.observations ?? [];
+    if (obs.length === 0) return null;
 
-      const o = obs[0];
-      const m = o.metric_si;
-      const reading: NormalizedReading = {
-        stationId: station.id,
-        timestamp: new Date(o.obsTimeUtc),
-        windSpeed: m.windSpeed,
-        windGust: m.windGust,
-        windDirection: o.winddir,
-        temperature: m.temp,
-        humidity: o.humidity,
-        precipitation: m.precipTotal,
-        solarRadiation: o.solarRadiation,
-        pressure: m.pressure,
-        dewPoint: m.dewpt,
-      };
-      return reading;
-    })
-  );
+    const o = obs[0];
+    const m = o.metric_si;
+    const reading: NormalizedReading = {
+      stationId: station.id,
+      timestamp: new Date(o.obsTimeUtc),
+      windSpeed: m.windSpeed,
+      windGust: m.windGust,
+      windDirection: o.winddir,
+      temperature: m.temp,
+      humidity: o.humidity,
+      precipitation: m.precipTotal,
+      solarRadiation: o.solarRadiation,
+      pressure: m.pressure,
+      dewPoint: m.dewpt,
+    };
+    return reading;
+  }, 6);
 
   for (const result of results) {
     if (result.status === 'fulfilled' && result.value) {
