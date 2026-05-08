@@ -34,6 +34,7 @@ import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { aggregateAllAlerts } from '../../services/alertService';
 import { detectFogBySolarSignature } from '../../services/maritimeFogService';
+import { haversineDistance } from '../../services/geoUtils';
 import { useThemeStore } from '../../store/themeStore';
 import { useWebcamStore } from '../../store/webcamStore';
 import { processAlertNotifications } from '../../services/notificationService';
@@ -338,13 +339,20 @@ export function AppShell() {
       // AEMET airports/coastal stations with measured visibility <1km → official fog.
       // Works 24/7 (not daylight-dependent like solar signature), reported by certified
       // AEMET sensors at Estaca de Bares / A Coruña / Alvedro / Fisterra / Lavacolla /
-      // Pontevedra / Lugo / Ourense. Regional (sector-agnostic) — captured even when
-      // outside active sector radius since fog mass propagates across rías.
+      // Pontevedra / Lugo / Ourense.
+      //
+      // Sector filter (S135+2 — reactive map philosophy): drop sources beyond
+      // 1.5× sector radius. Fisterra fog at 130km is irrelevant to Embalse
+      // sailors — rendering a fog blob on the coast distracts from local
+      // conditions. Buffer 1.5× catches fringe weather propagating in.
       const visMap = useWeatherStore.getState().visibilityReadings;
+      const [secLon, secLat] = activeSector.center;
+      const sectorMaxDistKm = activeSector.radiusKm * 1.5;
       for (const v of visMap.values()) {
-        if (v.visibility < 1) {
-          fogSources.push({ lat: v.lat, lon: v.lon, type: 'station', id: v.stationId });
-        }
+        if (v.visibility >= 1) continue;
+        const distKm = haversineDistance(secLat, secLon, v.lat, v.lon);
+        if (distKm > sectorMaxDistKm) continue;
+        fogSources.push({ lat: v.lat, lon: v.lon, type: 'station', id: v.stationId });
       }
       // ── DEV SIMULATION: ?simfog=id1,id2 inject fake fog detectors for testing ──
       try {
