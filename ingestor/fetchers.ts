@@ -17,6 +17,7 @@ import { parseMeteoclimaticXml } from './xml.js';
 import { getNetatmoToken } from './discover.js';
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
+import * as aemetBreaker from './aemetBreaker.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
 const MG_BASE = 'https://servizos.meteogalicia.gal';
@@ -34,6 +35,15 @@ async function fetchAemet(
   const apiKey = process.env.AEMET_API_KEY;
   if (!apiKey || stationIds.size === 0) return [];
 
+  // Skip silently if we tripped a 429 recently — AEMET's quota recovers
+  // slowly, hammering it just keeps the breaker open. The first 429
+  // already logged a single WARN; no need for 12 more this hour.
+  try {
+    aemetBreaker.checkBreaker('observation poll');
+  } catch {
+    return [];
+  }
+
   try {
     // Step 1: metadata URL
     const metaRes = await fetch(
@@ -42,7 +52,7 @@ async function fetchAemet(
     );
 
     if (metaRes.status === 429) {
-      log.warn('AEMET rate-limited (429), skipping this cycle');
+      aemetBreaker.reportRateLimit('observation poll');
       return [];
     }
 
@@ -74,6 +84,7 @@ async function fetchAemet(
       .filter((o) => stationIds.has(`aemet_${o.idema}`))
       .map(normalizeAemetObservation);
 
+    aemetBreaker.reportSuccess();
     log.info(`AEMET: ${readings.length} readings`);
     return readings;
   } catch (err) {

@@ -12,6 +12,7 @@ import { SECTORS } from '../src/config/sectors.js';
 import { normalizeAemetStation, normalizeMeteoGaliciaStation } from '../src/services/normalizer.js';
 import { isWithinRadius } from '../src/services/geoUtils.js';
 import { log } from './logger.js';
+import * as aemetBreaker from './aemetBreaker.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
 const MG_BASE = 'https://servizos.meteogalicia.gal';
@@ -68,13 +69,31 @@ async function discoverAemet(): Promise<NormalizedStation[]> {
     return [];
   }
 
+  // Skip silently if the breaker is open (set by either polling or a
+  // previous discovery hitting 429). Discovery only runs hourly, but
+  // there's no point making the breaker think AEMET is back when polling
+  // is still being rejected.
+  try {
+    aemetBreaker.checkBreaker('discovery');
+  } catch {
+    return [];
+  }
+
   try {
     // Step 1: Get metadata URL
     const metaRes = await fetch(
       `${AEMET_BASE}/api/valores/climatologicos/inventarioestaciones/todasestaciones?api_key=${apiKey}`,
       { signal: AbortSignal.timeout(TIMEOUT) }
     );
+    if (metaRes.status === 429) {
+      aemetBreaker.reportRateLimit('discovery');
+      return [];
+    }
     const meta: AemetApiResponse = await metaRes.json();
+    if (meta.estado === 429) {
+      aemetBreaker.reportRateLimit('discovery');
+      return [];
+    }
     if (meta.estado !== 200 || !meta.datos) {
       log.warn('AEMET inventory: unexpected status', meta.estado);
       return [];
@@ -101,6 +120,7 @@ async function discoverAemet(): Promise<NormalizedStation[]> {
     const visStations = stations.filter((s) =>
       AEMET_REGIONAL_VIS_STATIONS.has(s.id.replace(/^aemet_/, ''))
     ).length;
+    aemetBreaker.reportSuccess();
     log.info(`AEMET: ${stations.length} stations in range (${visStations} regional vis)`);
     return stations;
   } catch (err) {
