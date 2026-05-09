@@ -35,6 +35,7 @@ const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ defaul
 const AlertPanel = lazy(() => import('./AlertPanel').then(m => ({ default: m.AlertPanel })));
 const WindParticleOverlay = lazy(() => import('./WindParticleOverlay').then(m => ({ default: m.WindParticleOverlay })));
 const HumidityHeatmapOverlay = lazy(() => import('./HumidityHeatmapOverlay').then(m => ({ default: m.HumidityHeatmapOverlay })));
+const IcaOverlay = lazy(() => import('./IcaOverlay').then(m => ({ default: m.IcaOverlay })));
 const RadarOverlay = lazy(() => import('./RadarOverlay').then(m => ({ default: m.RadarOverlay })));
 const CurrentsOverlay = lazy(() => import('./CurrentsOverlay').then(m => ({ default: m.CurrentsOverlay })));
 const AirspaceOverlay = lazy(() => import('./AirspaceOverlay').then(m => ({ default: m.AirspaceOverlay })));
@@ -504,6 +505,8 @@ export function WeatherMap() {
       {/* Canvas overlays on top of map (need project/unproject) */}
       <Suspense fallback={null}><WindParticleOverlay mapRef={mapRef} /></Suspense>
       <Suspense fallback={null}><HumidityHeatmapOverlay mapRef={mapRef} /></Suspense>
+      {/* Air-quality heatmap — auto-activates when any station reports ICA ≥ 3 */}
+      <Suspense fallback={null}><IcaOverlay mapRef={mapRef} /></Suspense>
 
       {/* Right-click context menu */}
       <MapContextMenu mapRef={mapRef} />
