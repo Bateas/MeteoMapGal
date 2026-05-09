@@ -38,6 +38,29 @@ function inAnySector(lat: number, lon: number): boolean {
 
 // ── AEMET ─────────────────────────────────────────────
 
+/**
+ * AEMET stations that report visibility (`vis` field) for Galicia. These
+ * are the ONLY 8 stations that have an aeronautical-grade visibility
+ * sensor in our region. We always include them in discovery regardless
+ * of sector radius because their readings are REGIONAL signal (used by
+ * FogOverlay multi-evidence detection across all of Galicia, not tied
+ * to a specific sector). Without this whitelist, only 1484C (Pontevedra)
+ * and 1690A (Ourense) fall inside any sector radius — the other 6
+ * (Estaca de Bares N coast, A Coruña, Alvedro, Fisterra, Lavacolla,
+ * Lugo) are filtered out, leaving the fog detector blind to the entire
+ * north + west coast.
+ */
+const AEMET_REGIONAL_VIS_STATIONS = new Set([
+  '1351',  // Estaca de Bares (faro N coast)
+  '1387',  // A Coruña ciudad
+  '1387E', // Alvedro aeropuerto
+  '1400',  // Fisterra (faro Cabo Fisterra)
+  '1428',  // Santiago/Lavacolla aeropuerto
+  '1484C', // Pontevedra Mourente (in Rías sector — included anyway via radius)
+  '1505',  // Lugo/Rozas aeródromo
+  '1690A', // Ourense ciudad (in Embalse sector — included anyway via radius)
+]);
+
 async function discoverAemet(): Promise<NormalizedStation[]> {
   const apiKey = process.env.AEMET_API_KEY;
   if (!apiKey) {
@@ -64,11 +87,21 @@ async function discoverAemet(): Promise<NormalizedStation[]> {
     const text = new TextDecoder(charset).decode(buf);
     const rawStations: AemetRawStation[] = JSON.parse(text);
 
+    // Include stations that are EITHER in a sector radius OR in the regional
+    // visibility whitelist (see AEMET_REGIONAL_VIS_STATIONS comment above).
     const stations = rawStations
       .map(normalizeAemetStation)
-      .filter((s) => inAnySector(s.lat, s.lon));
+      .filter((s) => {
+        // Strip the `aemet_` prefix to compare against AEMET native IDs
+        const nativeId = s.id.replace(/^aemet_/, '');
+        if (AEMET_REGIONAL_VIS_STATIONS.has(nativeId)) return true;
+        return inAnySector(s.lat, s.lon);
+      });
 
-    log.info(`AEMET: ${stations.length} stations in range`);
+    const visStations = stations.filter((s) =>
+      AEMET_REGIONAL_VIS_STATIONS.has(s.id.replace(/^aemet_/, ''))
+    ).length;
+    log.info(`AEMET: ${stations.length} stations in range (${visStations} regional vis)`);
     return stations;
   } catch (err) {
     log.error('AEMET discovery failed:', (err as Error).message);
