@@ -87,8 +87,15 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
 
   const readings = useIcaStore((s) => s.readings);
 
-  // Auto-activate: only when at least one station reports ICA ≥ 3
-  const isActive = readings.some((r) => r.ica >= ACTIVATION_THRESHOLD);
+  // Auto-activate: only when at least one station reports ICA ≥ 3.
+  // Debug override: ?icaDebug=1 forces the overlay on for visual QA when
+  // air is clean (galicia averages 1-2 most days). Read once at mount —
+  // no need to react to URL changes.
+  const debugForce = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('icaDebug') === '1';
+  const isActive = debugForce
+    ? readings.length >= 2
+    : readings.some((r) => r.ica >= ACTIVATION_THRESHOLD);
 
   const drawHeatmap = useCallback(() => {
     const canvas = canvasRef.current;
