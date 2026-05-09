@@ -49,7 +49,7 @@ describe('haloRadiusKm', () => {
 
 // ── densityForCell — topographic gating ──────────────
 
-describe', => {
+describe('densityForCell — altitude gate', () => {
   it('returns 0 when station altitude is unknown (defer halo)', () => {
     expect(densityForCell(1, 5, 100, null, 0.5)).toBe(0);
     expect(densityForCell(1, 5, 100, undefined, 0.5)).toBe(0);

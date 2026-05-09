@@ -116,7 +116,7 @@ describe('classifyHaze — output shape', () => {
 
 // ── AEMET visibility cross-feed ───────────────────────────
 
-describe', => {
+describe('classifyHaze — visibility cross-feed', () => {
   it('low visibility ALONE does NOT trigger calima (could be fog)', () => {
     // No model evidence + AEMET reports 0.5km vis → still none
     expect(classifyHaze(0, 0, 0.5).severity).toBe('none');
