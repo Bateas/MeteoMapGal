@@ -39,7 +39,9 @@ export const RadarOverlay = memo(function RadarOverlay() {
   const animTimerRef = useRef<ReturnType<typeof setInterval>>();
 
   // ── RainViewer fetch ──
-  const loadRainViewer = useCallback(async () => {
+  // `manual = true` → user-initiated retry. Surface error after 1 fail (not 3)
+  // so the user gets immediate feedback instead of silent "nothing happens".
+  const loadRainViewer = useCallback(async (manual = false) => {
     setLoading(true);
     try {
       const data = await fetchRainViewerFrames();
@@ -63,7 +65,8 @@ export const RadarOverlay = memo(function RadarOverlay() {
         // (regardless of whether we have cached frames showing — old radar lying
         // is worse than a clear error message).
         failCountRef.current++;
-        if (failCountRef.current >= 3) {
+        const threshold = manual ? 1 : 3;
+        if (failCountRef.current >= threshold) {
           setRadarError(
             data && data.past.length > 0
               ? 'Radar desactualizado — RainViewer no responde'
@@ -73,7 +76,8 @@ export const RadarOverlay = memo(function RadarOverlay() {
       }
     } catch {
       failCountRef.current++;
-      if (failCountRef.current >= 3) {
+      const threshold = manual ? 1 : 3;
+      if (failCountRef.current >= threshold) {
         setRadarError('Error cargando radar');
       }
     } finally {
@@ -194,11 +198,20 @@ export const RadarOverlay = memo(function RadarOverlay() {
           <div className="bg-amber-900/60 text-amber-300 text-xs px-3 py-1.5 rounded-full border border-amber-600/50 flex items-center gap-2">
             <span>{radarError}</span>
             <button
-              onClick={() => { setRadarError(null); failCountRef.current = 0; loadRainViewer(); }}
+              onClick={() => { setRadarError(null); failCountRef.current = 0; loadRainViewer(true); }}
               className="px-2 py-0.5 bg-amber-700/40 hover:bg-amber-600/40 rounded text-[10px] font-bold"
+              disabled={loading}
             >
               Reintentar
             </button>
+          </div>
+        </div>
+      )}
+      {/* Loading hint while a manual retry is in flight (frames empty + error cleared) */}
+      {loading && frames.length === 0 && radarError === null && failCountRef.current > 0 && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="bg-slate-800/80 text-slate-300 text-xs px-3 py-1.5 rounded-full border border-slate-600/50">
+            Reintentando radar…
           </div>
         </div>
       )}
