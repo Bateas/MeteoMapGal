@@ -129,7 +129,7 @@ describe('parseSynopticPayload — happy path', () => {
     );
     expect(r.convection[0]).toMatchObject({
       cape: 1500, cin: -100, liftedIndex: -5,
-      precipitableWater: null, // hardcoded null after S125 hotfix
+      precipitableWater: null, // hardcoded null after hotfix
       boundaryLayerM: 1200,
     });
   });

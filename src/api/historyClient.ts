@@ -82,7 +82,7 @@ async function fetchJson<T>(path: string, params?: Record<string, string>): Prom
     }
   }
 
-  // S131: retry on 502/503/504 (transient gateway/server hiccups). Reduces F12
+  // retry on 502/503/504 (transient gateway/server hiccups). Reduces F12
   // noise from "GET ... 503" entries the browser auto-logs even when our catch
   // handles the error gracefully. Backoff: 800ms, 2400ms (jittered).
   const RETRY_STATUSES = new Set([502, 503, 504]);

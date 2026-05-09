@@ -78,7 +78,7 @@ let notamsCachedAt = 0;
 // Uses /enaire-api proxy (Vite dev) / nginx (prod) to avoid CORS
 
 // Layer 1 (Medioambiente — ZEPA) is intentionally DISABLED: ENAIRE returns
-// 0 features for this layer in Galicia (verified S134 audit). Querying it
+// 0 features for this layer in Galicia. Querying it
 // every refresh just wastes one network round-trip with no signal. For real
 // ZEPA coverage use the MITECO WMS source instead (documented gotcha).
 const UAS_LAYERS = [0, 2, 3]; // Aero, Infra, Urbano (was [0,1,2,3])

@@ -135,7 +135,7 @@ export function aggregateAllAlerts(sources: {
   webcamFogCount?: number;
   /** IDs of webcams reporting fog */
   webcamFogIds?: string[];
-  /** Detector points with coords for localized FogOverlay (S122) */
+  /** Detector points with coords for localized FogOverlay */
   fogSources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[];
   /** Regional AEMET visibility readings (sector-agnostic) — AEMET airport/coastal with `vis` sensor */
   regionalVisibility?: Map<string, { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }>;

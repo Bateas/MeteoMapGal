@@ -2,7 +2,7 @@
  * Tests for dewPointService — pure dew point math + analyzeFog() prediction engine.
  *
  * Critical path: feeds FogOverlay (visual) and FieldDrawer fog section. Bugs cause
- * either silent overlay (S122 require() bug) or false PELIGRO (S114 dewPoint
+ * either silent overlay bug) or false PELIGRO ( dewPoint
  * critico cap). Both well-known incidents — these tests guard the regressions.
  */
 
@@ -121,7 +121,7 @@ describe('analyzeFog — fog at small spread', () => {
   });
 
   it('caps at "alto" max — never returns "critico"', () => {
-    // Regression guard: S114 dewPointService critico uncapped → false PELIGRO
+    // Regression guard: dewPointService critico uncapped → false PELIGRO
     const map = new Map<string, NormalizedReading[]>();
     for (const id of ['s1', 's2', 's3', 's4']) {
       map.set(id, history(id, NOW, { temp: 10, humidity: 100 }));

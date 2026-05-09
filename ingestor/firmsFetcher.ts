@@ -1,5 +1,5 @@
 /**
- * NASA FIRMS active-fires fetcher (S126 Phase 1b TIER 2).
+ * NASA FIRMS active-fires fetcher.
  *
  * Persists every wildfire hotspot returned by the FIRMS VIIRS S-NPP NRT
  * pipeline into the `active_fires` hypertable. Independent of the HTTP proxy

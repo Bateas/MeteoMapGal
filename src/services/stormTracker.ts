@@ -27,7 +27,7 @@ const MIN_CLUSTER_SIZE = 2;
 const CLUSTER_WINDOW_MIN = 60;
 
 /**
- * Window for the LEADING-EDGE centroid (S126+1 fix for bug #5).
+ * Window for the LEADING-EDGE centroid.
  *
  * For elongated squall lines, the weighted centroid (CLUSTER_WINDOW_MIN=60)
  * lags behind the propagating front because old (still-recent) strikes anchor
@@ -47,11 +47,11 @@ const MAX_VELOCITY_AGE_MS = 15 * 60 * 1000; // 15 min
 /** Min age of a snapshot before it can be used for velocity (prevents jitter) */
 const MIN_VELOCITY_AGE_MS = 60_000; // 60 seconds
 
-// ── ID continuity (S124 fix) ───────────────────────────
+// ── ID continuity ───────────────────────────
 // Module-level counter so cluster IDs survive across trackStorms calls.
 // When a cluster matches a previous-snapshot centroid by position we INHERIT
 // that ID (true physical continuity). Otherwise a fresh, monotonic ID is
-// minted. Hull memo caches keyed on `clusterId + strikeCount` (S123 v2.56.4)
+// minted. Hull memo caches keyed on `clusterId + strikeCount`
 // now keep working across polls.
 let nextClusterIdSeq = 0;
 function mintClusterId(): string {
@@ -98,7 +98,7 @@ export interface StormCluster {
    *  Falls back to strikePositions when fewer than 3 recent ones exist. */
   recentStrikePositions: [number, number][];
   /**
-   * Storm intensity classification (S126). Optional — populated by
+   * Storm intensity classification. Optional — populated by
    * `enrichClustersWithIntensity` AFTER the basic tracker computes positions.
    * Carries type/rainRate/hailRisk/label so the overlay can render the
    * differential visual hint and an enriched popup label.
@@ -137,7 +137,7 @@ interface RawCluster {
 }
 
 /**
- * Window for the visual hull (S126+1 polish).
+ * Window for the visual hull.
  *
  * The CLUSTER_WINDOW_MIN=60 is right for "should we still consider this a
  * cluster?" but wrong for "where do we draw its silhouette?". Old strikes
@@ -225,7 +225,7 @@ function clusterStrikes(
     const lat = wSum > 0 ? wLat / wSum : clusterStrikesArr[0].lat;
     const lon = wSum > 0 ? wLon / wSum : clusterStrikesArr[0].lon;
 
-    // ── Leading-edge centroid (S126+1 fix for bug #5) ──
+    // ── Leading-edge centroid ──
     // Use only strikes ≤ LEAD_WINDOW_MIN. If too few qualify (e.g. cluster
     // built from older strikes), fall back to the youngest 25 % so we always
     // have a point. Tighter recency weighting (÷5 vs ÷15) further pulls the
@@ -366,7 +366,7 @@ const MAX_MATCH_KM = 30;
  * cluster because we evaluated them independently. With typically <5
  * clusters this O(N·M·log) is trivially cheap.
  *
- * S126+1 (bug #5 fix): matching uses the LEADING-EDGE point of each current
+ * (bug #5 fix): matching uses the LEADING-EDGE point of each current
  * cluster (`leadLat/leadLon`) against the snapshot's stored point. Snapshots
  * also store leading points (see snapshot construction in trackStorms). For
  * compact clusters lead ≈ centroid so behavior is unchanged; for elongated
@@ -403,7 +403,7 @@ function matchClustersGreedy(
  * Match current clusters to previous snapshot, inherit IDs for continuity,
  * and compute velocity vectors.
  *
- * S124 improvements over the original implementation:
+ * improvements over the original implementation:
  *   1. Greedy global matching (not per-cluster greedy) — no double assignment.
  *   2. Adaptive match threshold (MAX_MATCH_KM constant) — scales with realistic
  *      storm motion rather than the old 50km blanket.
@@ -527,7 +527,7 @@ export function trackStorms(
 
   // Step 3: Add current snapshot to history (keep last 10 snapshots, ~20 min at 2-min polls).
   // Snapshot stores the LEADING-EDGE point so future polls match head-to-head
-  // (S126+1 bug #5 fix). For compact clusters lead == centroid so this doesn't
+  //. For compact clusters lead == centroid so this doesn't
   // change behavior; for squall lines it stops the trailing tail from anchoring
   // the match position backwards.
   const snapshot: ClusterSnapshot = {

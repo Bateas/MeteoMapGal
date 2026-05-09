@@ -6,7 +6,7 @@
  * to FORM today (vs the storm cluster overlay which shows where they're
  * already firing).
  *
- * Operational use case (S126+1+1):
+ * Operational use case:
  *   - Viticultor opens map at 11:00
  *   - Sees red blob over Castrelo de Miño / Ribeiro corridor
  *   - Knows: "this afternoon high hail risk in my zone — prepare nets"
@@ -31,7 +31,7 @@ function ConvectionRiskOverlayInner() {
     if (!showRisk || !snapshot) {
       return { type: 'FeatureCollection', features: [] };
     }
-    // S126+1+1 v2.70.1: lowered threshold from 1.0 → 0.3 so faint risk
+    // lowered threshold from 1.0 → 0.3 so faint risk
     // (CAPE 300 + LI -1, etc.) still produces visible heat. With the
     // original threshold most non-storm days showed nothing, even though
     // the grid was successfully fetched.
@@ -51,7 +51,7 @@ function ConvectionRiskOverlayInner() {
     return { type: 'FeatureCollection', features };
   }, [showRisk, snapshot]);
 
-  // Disambiguate three states (S135+2 — was conflating them as "estable"):
+  // Disambiguate three states (was conflating them as "estable"):
   //   1. dataMissing : snapshot != null but forecastTime == null OR cells == 0
   //                    → backend returned empty default (fetcher hasn't run for
   //                    this hour, or Open-Meteo cycle aborted).
@@ -74,7 +74,7 @@ function ConvectionRiskOverlayInner() {
             id="convection-risk-heat"
             type="heatmap"
             paint={{
-              // S126+1+1 v2.70.1: weight curve bumped — even risk 1 (CAPE 500
+              // weight curve bumped — even risk 1 (CAPE 500
               // + LI -2 territory) now produces visible heat instead of
               // hiding until risk≥5. Lets the map flag morning ramp-ups
               // before peak afternoon CAPE.
@@ -102,7 +102,7 @@ function ConvectionRiskOverlayInner() {
                 0.78, 'rgba(190, 18, 60, 0.62)',  // rose-700 (severe)
                 1.00, 'rgba(126, 0, 30, 0.72)',   // crimson (extreme)
               ],
-              // S126+1+1 v2.70.1: bigger radius at low zooms so scattered cells
+              // bigger radius at low zooms so scattered cells
               // still merge into a visible blob at sector view.
               'heatmap-radius': [
                 'interpolate', ['linear'], ['zoom'],

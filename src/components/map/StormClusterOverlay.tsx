@@ -34,7 +34,7 @@ function convexHull(points: [number, number][]): [number, number][] {
 const hullCache = new Map<string, [number, number][]>();
 
 function getCachedHull(cluster: StormCluster): [number, number][] | null {
-  // S126+1 polish: hull is computed from RECENT strikes only (≤20 min old in
+  // polish: hull is computed from RECENT strikes only (≤20 min old in
   // stormTracker), so the cluster polygon hugs the active front instead of
   // including the trailing tail. Falls back to all strikes if too few recent
   // ones (handled in stormTracker.recentStrikePositions).
@@ -91,7 +91,7 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
   features: [],
 };
 
-// ── Fade-out thresholds (S126+1 polish) ────────────────────────────
+// ── Fade-out thresholds ────────────────────────────
 // Storms enter "dissipation" phase when their newest strike is older than
 // DISSIPATING_AGE_MIN. At that point predictions stop being trustworthy
 // (atmosphere may have changed, no ground truth lately) so we hide future-
@@ -164,7 +164,7 @@ function velocityArrow(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
   if (!cluster.velocity) return null;
 
   const { bearingDeg, speedKmh } = cluster.velocity;
-  // 30-minute projection at current speed (S126+1 — was 1 km per 4 km/h, too short)
+  // 30-minute projection at current speed (was 1 km per 4 km/h, too short)
   const arrowLenKm = projectionLengthKm(speedKmh);
   const bearingRad = (bearingDeg * Math.PI) / 180;
 
@@ -290,7 +290,7 @@ function projectedPath(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
 function clusterInfoPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point> {
   const lines: string[] = [];
 
-  // Line 1: storm type label (S126) — falls back to plain strike count
+  // Line 1: storm type label — falls back to plain strike count
   // when intensity not yet enriched (first poll, no readings, etc.)
   if (cluster.intensity && cluster.intensity.type !== 'sin datos') {
     lines.push(cluster.intensity.label);
@@ -386,12 +386,12 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       // Both haze and core reuse the same hull, just different buffer expansion.
       const hull = getCachedHull(cluster);
 
-      // Storm-intensity type drives mass-core color (S126+1) — passed as a
+      // Storm-intensity type drives mass-core color — passed as a
       // string property; the layer paint reads it via ['get', 'intensityType'].
       const intensityType = cluster.intensity?.type ?? 'unknown';
 
       if (hull) {
-        // S126+1 polish: buffers reduced (was 8 / 3) so cluster polygons no longer
+        // polish: buffers reduced (was 8 / 3) so cluster polygons no longer
         // visually dominate when 5+ overlap. They now stay closer to the actual
         // strike footprint instead of inflating the hull by 8 km in every direction.
         const hazeShape = hullToShape(cluster, hull, 4);
@@ -430,7 +430,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     return { type: 'FeatureCollection', features };
   }, [showOverlay, clusters]);
 
-  // ── S126 storm intensity visual differentials ────────────────
+  // ── storm intensity visual differentials ────────────────
   // Two visual layers tied to cluster.intensity (set by enrichClustersWithIntensity):
   //   1. Wet-fill circle — translucent blue tint when 'lluvia intensa' detected.
   //      Says "this storm is dumping water on you, take cover" without reading text.
@@ -441,7 +441,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
   // Other types (eléctrica seca, estratiforme, mixta) keep the existing
   // visualization since their cluster label already differentiates them.
 
-  // ── Ghost projection (S126+1) — where the storm WILL BE in 30 min ──
+  // ── Ghost projection — where the storm WILL BE in 30 min ──
   // For every cluster with velocity, draw a faint outline circle at its
   // projected +30 min position. Says "this is where it's headed" as a SHAPE,
   // not just a line endpoint. The user reads the cone "current cluster →
@@ -450,7 +450,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
     const features: GeoJSON.Feature[] = [];
     for (const c of clusters) {
-      // S126+1: only render ghost for active + moving clusters (same gate as
+      // only render ghost for active + moving clusters (same gate as
       // velocity arrow + ghost projection rule). Dissipating storms or
       // stationary clusters get no future projection.
       if (!isClusterActive(c)) continue;
@@ -499,14 +499,14 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
   const hailStripes = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || clusters.length === 0) return EMPTY_FC;
 
-    // Declutter (S126+1 polish): when many clusters carry hail risk simultaneously
+    // Declutter: when many clusters carry hail risk simultaneously
     // (typical of widespread events with CAPE+LI just past threshold), the
     // 3-ring halo around every single one creates a moiré pattern that drowns
     // the map. Cap at the TOP 3 by strike count — keeps the hail visual on
     // the most active cells where the risk is most concrete.
     const HAIL_RING_LIMIT = 3;
     const candidates = clusters.filter((c) => {
-      // S126+1: skip dissipating storms — the atmosphere that produced their
+      // skip dissipating storms — the atmosphere that produced their
       // hail risk is no longer current.
       if (!isClusterActive(c)) return false;
       const risk = c.intensity?.hailRisk;
@@ -560,7 +560,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
   }, [showOverlay, clusters]);
 
   // ── Velocity arrows + projection paths ──────────────────────────
-  // S126+1: skip clusters that are dissipating (newest strike >15 min old)
+  // skip clusters that are dissipating (newest strike >15 min old)
   // OR that have no velocity computed. Predictions on stale storms are
   // engañosas; trail-without-arrow is incoherent. Only active + moving
   // clusters get future-pointing visuals.
@@ -620,7 +620,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
 
     const now = Date.now();
 
-    // S126+1: only build trails for currently-active + moving clusters. Drawing
+    // only build trails for currently-active + moving clusters. Drawing
     // a trail with no companion arrow + ghost (because velocity gate filtered)
     // is incoherent and confused users.
     const eligibleIds = new Set<string>();
@@ -644,7 +644,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
     }
     // Append the CURRENT cluster centroid so the trail line connects all the
     // way to "now". Tag with newestAgeMin so the layer can fade dissipating
-    // storms (rule 3 of S126+1 fade-out polish).
+    // storms (rule 3 of fade-out polish).
     const ageById = new Map<string, number>();
     for (const c of clusters) {
       if (!eligibleIds.has(c.id)) continue;
@@ -790,14 +790,14 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       </Source>
 
       {/* ── Cluster masses (haze + core) ─────────────────────── */}
-      {/* S126+1 polish: opacities lowered (~30%) because translucent fills
+      {/* polish: opacities lowered (~30%) because translucent fills
            COMPOUND when clusters overlap. With 5+ active cells the previous
            values stacked to near-opaque red over a wide area, drowning the
            base map. New values keep each individual cluster legible while
            letting overlap regions stay readable instead of going opaque. */}
       <Source id="storm-cluster-masses" type="geojson" data={clusterMasses}>
         {/* Outer haze — dark purple/red diffused area */}
-        {/* S126+1 fade: opacity decreases with newestAgeMin (15min→0.5×, 30min→0.2×) */}
+        {/* fade: opacity decreases with newestAgeMin (15min→0.5×, 30min→0.2×) */}
         <Layer
           id="storm-mass-haze"
           type="fill"
@@ -820,7 +820,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           }}
         />
         {/* Inner core — color now driven by storm intensity TYPE when known
-             (S126+1), with age as a fallback. This way "estratiforme leve"
+, with age as a fallback. This way "estratiforme leve"
              reads cool/blue while "lluvia intensa" reads warm/red — distinct
              at a glance even before reading the label. */}
         <Layer
@@ -845,7 +845,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
               ],
             ],
             'fill-antialias': true,
-            // S126+1 fade: dissipating storms get diluted, expired ones become silhouettes
+            // fade: dissipating storms get diluted, expired ones become silhouettes
             'fill-opacity': [
               'interpolate', ['linear'], ['coalesce', ['get', 'newestAgeMin'], 0],
               0,  1.0,
@@ -880,7 +880,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       </Source>
 
       {/* ── Ghost projection (+30 min) — where the storm will be ───── */}
-      {/* S126+1: faint dashed circle at the projected +30 min position of every
+      {/* faint dashed circle at the projected +30 min position of every
            moving cluster. Reads as "the storm sweeping forward" together with the
            velocity arrow — current cluster mass + arrow + ghost outline = trajectory. */}
       <Source id="storm-projected-ghosts" type="geojson" data={projectedGhosts}>
@@ -914,8 +914,8 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         />
       </Source>
 
-      {/* ── S126: Wet-fill (lluvia intensa) — translucent blue core ─── */}
-      {/* S126+1 v2 polish: opacities reduced ~40 % from v2.67.0. Original
+      {/* ── Wet-fill (lluvia intensa) — translucent blue core ─── */}
+      {/* v2 polish: opacities reduced ~40 % from v2.67.0. Original
            values made even moderate rain (15-20 mm/h) read as a near-solid
            blue blob covering most of the cluster radius. New scale keeps the
            "this is rain" signal but stays subtle enough not to dominate the
@@ -960,7 +960,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         />
       </Source>
 
-      {/* ── S126: Hail stripes — ice-blue dashed rings on probable/posible granizo ── */}
+      {/* ── Hail stripes — ice-blue dashed rings on probable/posible granizo ── */}
       <Source id="storm-intensity-hail" type="geojson" data={hailStripes}>
         {/* Outer halo glow — soft, wide, low-opacity for depth */}
         <Layer
@@ -1043,7 +1043,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           plus the current position. Makes movement visually obvious — you
           see the storm "trail" pointing back to where it started. */}
       <Source id="storm-trail-lines" type="geojson" data={trailLines}>
-        {/* Soft glow underlay — wider, blurred, low opacity. S126+1: fades when
+        {/* Soft glow underlay — wider, blurred, low opacity. fades when
             the cluster is dissipating so trail tells "memory of a fading storm". */}
         <Layer
           id="storm-trail-line-glow"
