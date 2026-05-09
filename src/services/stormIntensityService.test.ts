@@ -227,7 +227,7 @@ describe('classifyStormIntensity — output shape', () => {
     expect(r).toHaveProperty('visualStyle');
   });
 
-  it('label is plain text (no emojis — S126+1 protomaps font 404 fix)', () => {
+  it('label is plain text (no emojis  protomaps font 404 fix)', () => {
     const r = classifyStormIntensity(makeCluster({ strikeCount: 25 }), [makeReading(0)], null);
     expect(r.label.length).toBeGreaterThan(2);
     // Only ASCII + Latin-1 + safe punctuation. No characters in U+1F300-1F37F

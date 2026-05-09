@@ -5,7 +5,7 @@
  * AlertPanel UI. A bug in severityFromScore or the weighted-max algorithm
  * causes silent miscategorisation of alerts (high → moderate or vice versa).
  *
- * S123: first test file for src/services/alerts/ (8 files, 0 tests previously).
+ * first test file for src/services/alerts/ (8 files, 0 tests previously).
  */
 
 import { describe, it, expect } from 'vitest';

@@ -51,7 +51,7 @@ let cycleCount = 0;
 // Staleness alarm for buoy data. The 5-min polling cycle gives:
 //   12 cycles  = ~1 h    (warn — could be transient)
 //   288 cycles = ~24 h   (error — pipeline definitely broken; re-emit daily)
-// Calibrated from the S135+2 incident where buoys were silently dead for
+// Calibrated from the incident where buoys were silently dead for
 // 40 days (PORTUS IP block in late March 2026, undetected because no log
 // alarm was wired up).
 let consecutiveEmptyBuoyCycles = 0;
@@ -95,7 +95,7 @@ async function runCycle(): Promise<void> {
     } else {
       // Track empty cycles. Five-minute polling × 288 cycles/day = >50 empty
       // cycles in a row means buoys have been silent for a couple of hours.
-      // The S135+2 audit caught a 40-DAY blackout (PORTUS IP block) that
+      // The audit caught a 40-DAY blackout (PORTUS IP block) that
       // went unnoticed because the analyzer happily ran with stale data.
       // Escalate the log level so this CAN'T be missed again.
       consecutiveEmptyBuoyCycles++;
@@ -120,13 +120,13 @@ async function runCycle(): Promise<void> {
 
     // 4. Run spot analyzer — scoring + transitions + thermal forecast
     // Failure here means alert pipeline is broken — promoted to error after
-    // S134 audit (was warn — masking real pipeline outage).
+    // audit (was warn — masking real pipeline outage).
     await runAnalysis().catch(err =>
       log.error('Analyzer failed:', (err as Error).message));
 
     // 5. Webcam vision analysis (every 3 cycles = ~15min, if enabled)
     // Fire-and-forget — Ollama CPU inference takes 6-7min for 12 cameras.
-    // MUST NOT block the polling loop (caused 2h freeze in S121).
+    // MUST NOT block the polling loop (caused 2h freeze in).
     // Failure = vision pipeline down, not transient → log.error.
     runWebcamAnalysis(cycleCount).catch(err =>
       log.error('Webcam analysis failed:', (err as Error).message));
@@ -203,7 +203,7 @@ async function start(): Promise<void> {
     rediscover().catch((err) => log.error('Discover timer error:', (err as Error).message));
   }, DISCOVER_MS);
 
-  // Lightning fetcher (S125 Phase 1a) — independent 5min poll.
+  // Lightning fetcher — independent 5min poll.
   // Decoupled from the main weather cycle so a slow station fetch never delays
   // strike persistence (real-time forensics matter for the lightning data).
   // First run after 30s stagger so it doesn't pile on top of the initial cycle.
@@ -214,7 +214,7 @@ async function start(): Promise<void> {
     runLightningCycle().catch((err) => log.error('[Lightning] timer err:', (err as Error).message));
   }, 5 * 60_000);
 
-  // Synoptic fetcher (S125 Phase 1b TIER 1) — upper-air winds + convection.
+  // Synoptic fetcher — upper-air winds + convection.
   // Open-Meteo refreshes hourly so polling more often is wasted bandwidth.
   // 60s stagger from lightning timer to spread Open-Meteo load over time.
   setTimeout(() => {
@@ -224,7 +224,7 @@ async function start(): Promise<void> {
     runSynopticCycle().catch((err) => log.error('[Synoptic] timer err:', (err as Error).message));
   }, 60 * 60_000);
 
-  // FIRMS fetcher (S126 Phase 1b TIER 2) — wildfire hotspots persistence.
+  // FIRMS fetcher — wildfire hotspots persistence.
   // 30min cadence matches FIRMS NRT latency and the proxy's cache TTL.
   // 150s stagger so it lands after lightning + synoptic to spread network load.
   setTimeout(() => {
@@ -234,7 +234,7 @@ async function start(): Promise<void> {
     runFirmsCycle().catch((err) => log.error('[FIRMS Fetcher] timer err:', (err as Error).message));
   }, 30 * 60_000);
 
-  // ICA fetcher (S126 Phase 1b TIER 2) — Xunta air-quality persistence.
+  // ICA fetcher — Xunta air-quality persistence.
   // 30min cadence matches Xunta's hourly publication with margin.
   // 210s stagger so it lands after FIRMS to spread Xunta API load.
   setTimeout(() => {
@@ -244,7 +244,7 @@ async function start(): Promise<void> {
     runIcaCycle().catch((err) => log.error('[ICA Fetcher] timer err:', (err as Error).message));
   }, 30 * 60_000);
 
-  // Convection grid fetcher (S132) — spatial CAPE/LI grid persistence.
+  // Convection grid fetcher — spatial CAPE/LI grid persistence.
   // Replaces frontend-direct Open-Meteo multi-point queries (which hit free-tier
   // burst limit). 30min cadence matches forecast model refresh; ~90 batched
   // calls per cycle at 10km / ~270 at 5km — well under quota from a single IP.
@@ -256,7 +256,7 @@ async function start(): Promise<void> {
     runConvectionGridCycle().catch((err) => log.error('[ConvGrid] timer err:', (err as Error).message));
   }, 30 * 60_000);
 
-  // Outcome evaluator (S133) — nightly job that evaluates each storm_prediction
+  // Outcome evaluator — nightly job that evaluates each storm_prediction
   // against real lightning + rain (Open-Meteo grid + station pluviometers).
   // Runs every 6h instead of "true 3 AM cron" — simpler scheduling and the
   // job is idempotent (skips already-evaluated rows) so re-running is free.

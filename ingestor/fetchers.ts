@@ -78,7 +78,7 @@ async function fetchAemet(
     return readings;
   } catch (err) {
     // Transient (network, JSON parse, AEMET 5xx) — next poll recovers.
-    // Downgraded to warn after S133/S134 audit; was log.error before, but
+    // Downgraded to warn after / audit; was log.error before, but
     // these errors are systemic to AEMET's flaky overnight API and would
     // spam ERROR-level logs nightly without action signal.
     log.warn('AEMET fetch failed:', (err as Error).message);
@@ -210,7 +210,7 @@ async function fetchWunderground(
   const readings: NormalizedReading[] = [];
 
   // Cap parallelism at 6 — same DNS-storm rationale as MeteoGalicia.
-  // WU was ~30 stations all firing in the same second pre-S135+2.
+  // WU was ~30 stations all firing in the same second.
   const results = await allSettledLimit(wuStations, async (station) => {
     const rawId = station.id.replace('wu_', '');
     const res = await fetch(

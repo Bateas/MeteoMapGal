@@ -16,7 +16,7 @@
  * ─── Empirical basis ────────────────────────────────────────────
  *
  * Thresholds below come from a SQL audit of TimescaleDB readings
- * (Mar-May 2026, ~30+ thermal days per spot). Audit S135+2 confirmed:
+ * (Mar-May 2026, ~30+ thermal days per spot). Audit confirmed:
  *   - Transition hour: 11-13h local across all spots
  *   - Morning direction VARIES per spot (orography)
  *   - Afternoon direction VARIES per spot (orientation to the Atlantic)
@@ -77,7 +77,7 @@ export interface ViracionPattern {
 }
 
 /**
- * Empirical patterns derived from TimescaleDB SQL audit S135+2.
+ * Empirical patterns derived from TimescaleDB SQL audit.
  * Each entry is grouped by the spots that share the same "on-water"
  * reference station — these are the spots whose viración pattern is
  * physically the same.

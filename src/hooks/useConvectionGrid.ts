@@ -9,7 +9,7 @@
  * fires while the convection-risk overlay is toggled ON — avoids burning
  * Open-Meteo quota when the user isn't looking.
  *
- * S126+1+1 v2.70.1: added in-flight dedup. The first version fired on
+ * added in-flight dedup. The first version fired on
  * (a) component mount + (b) toggle-on useEffect + (c) the visibility-poller's
  * stagger tick, all close in time. With React Strict Mode in dev that can
  * triple the calls and trigger Open-Meteo's short-term 429 rate limit. A

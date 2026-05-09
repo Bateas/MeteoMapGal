@@ -1,5 +1,5 @@
 /**
- * Synoptic (upper-air + convection) fetcher — S125 Phase 1b TIER 1.
+ * Synoptic (upper-air + convection) fetcher  Phase 1b TIER 1.
  *
  * Pulls Open-Meteo hourly data for two sector centers and persists:
  *   1. Upper-air winds + temperature at 850 / 700 / 500 hPa
@@ -59,7 +59,7 @@ export interface ConvectionRow {
   cin: number | null;
   liftedIndex: number | null;
   /** ALWAYS NULL — Open-Meteo doesn't expose precipitable_water in this endpoint
-   *  (validated S125 returned 400). Column kept for future fill-in from another source. */
+   *  (validated returned 400). Column kept for future fill-in from another source. */
   precipitableWater: number | null;
   boundaryLayerM: number | null;
 }
@@ -151,7 +151,7 @@ async function fetchSector(lat: number, lon: number): Promise<OpenMeteoResponse 
     `temperature_${p}hPa`,
     `geopotential_height_${p}hPa`,
   ]);
-  // S125 hotfix: precipitable_water removed — Open-Meteo /v1/forecast returns
+  // hotfix: precipitable_water removed — Open-Meteo /v1/forecast returns
   // 400 "Cannot initialize ... from invalid String value precipitable_water".
   // The DB column stays (nullable) for future fill-in from another source.
   const convectionVars = ['cape', 'convective_inhibition', 'lifted_index', 'boundary_layer_height'];

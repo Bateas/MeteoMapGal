@@ -527,7 +527,7 @@ export function assessMaritimeFogRisk(
 /**
  * Detect stations with fog signature: HIGH humidity + LOW solar radiation simultaneously.
  *
- * Physical principle (S122 user insight): true fog blocks sunlight. A station
+ * Physical principle: true fog blocks sunlight. A station
  * with HR > 85% AND solar < 300 W/m² (during daytime) has fog overhead, not
  * just humid air. Cross-reference with INTERIOR stations (high solar, low HR)
  * to confirm spatial localization vs general overcast.
@@ -556,7 +556,7 @@ export function detectFogBySolarSignature(
   }
   if (!hasInteriorSun) return []; // Generally cloudy/dusk — can't distinguish fog
 
-  // S123: discard the whole signature if active rain detected anywhere — storms produce
+  // discard the whole signature if active rain detected anywhere — storms produce
   // the same HR-high + solar-low pattern but it's NOT fog. Even one station reporting
   // precipitation > 0.1mm in last reading invalidates the signature regionally.
   let stormPrecipDetected = false;
@@ -569,7 +569,7 @@ export function detectFogBySolarSignature(
   }
   if (stormPrecipDetected) return []; // Active rain → it's a storm, not fog
 
-  // Find stations with fog signature — STRICT requirements (S123 anti-storm-confusion):
+  // Find stations with fog signature — STRICT requirements:
   //   1. HR >= 90% (raised from 85% — fog needs near-saturation)
   //   2. Solar < 300 W/m² (sun blocked = fog candidate)
   //   3. **Dew point spread T-Td < 2°C** (real fog REQUIRES saturation; storm clouds
@@ -614,7 +614,7 @@ export function buildMaritimeFogAlerts(
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
 
-  // ── INDEPENDENT EVIDENCE-DRIVEN ALERT (S122) ────────────────────
+  // ── INDEPENDENT EVIDENCE-DRIVEN ALERT ────────────────────
   // If physics detects no fog but other evidence confirms, generate alert anyway:
   // - 2+ webcams visually confirming fog
   // - 2+ stations with fog signature (HR>85% + solar<300 simultaneously)
@@ -637,7 +637,7 @@ export function buildMaritimeFogAlerts(
   const visFogCount = visFogStations.length;
   const totalEvidence = cams + solarFogCount + visFogCount * 2;
 
-  // S122 fix: evidence-driven path fires whenever 2+ independent confirmations exist,
+  // fix: evidence-driven path fires whenever 2+ independent confirmations exist,
   // regardless of physics risk level. Physics alone can say 'riesgo' while cameras +
   // solar signature + airport visibility visually prove actual fog.
   if (totalEvidence >= 2) {

@@ -78,7 +78,7 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
   'mc_ESGAL3600000036940A': {
     stationId: 'mc_ESGAL3600000036940A',
     unreliableSectors: [
-      // Re-audit S135+2 with fresh ground truth (3221 Vigo REDMAR, same
+      // Re-audit with fresh ground truth (3221 Vigo REDMAR, same
       // ría — 12000+ paired hours):
       //   N (0-30°):   ratio 0.37-0.38 → severely sheltered (Monte to NW)
       //   E-SE (60-150°): ratio 0.43-0.56 → moderate shelter
@@ -92,7 +92,7 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       // 3223 audit suggested. Narrowing to the truly bad sectors:
       { from: 0, to: 150, type: 'sheltered' },  // N + NE + E + SE
     ],
-    note: 'Cangas — Monte Costa da Vela apantalla N/NE/E/SE (ratio 0.37-0.56 vs 3221 Vigo REDMAR, mismo ría). S (180°) y SW/W (210-300°) razonables (0.57-0.71). Re-audit S135+2 fresh con boya viva refinó el patrón inicial.',
+    note: 'Cangas — Monte Costa da Vela apantalla N/NE/E/SE (ratio 0.37-0.56 vs 3221 Vigo REDMAR, mismo ría). S (180°) y SW/W (210-300°) razonables (0.57-0.71). Re-audit fresh con boya viva refinó el patrón inicial.',
     evidence: 'empirical-buoy',
   },
 
@@ -104,7 +104,7 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       // so the station essentially reads NE or SW regardless of the
       // real ría wind. Documented in cesantesCanalizationDetector.ts.
       // No empirical buoy ratio available (Cesantes wind data didn't
-      // overlap buoy active hours during the S135+2 audit window).
+      // overlap buoy active hours during the audit window).
       { from: 90, to: 200, type: 'channeled' },
       { from: 270, to: 360, type: 'channeled' },
     ],
@@ -130,7 +130,7 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
   'mg_10064': {
     stationId: 'mg_10064',
     unreliableSectors: [
-      // Empirical buoy audit (S135+2, 7000+ paired hours):
+      // Empirical buoy audit:
       //   ALL directions: ratio 0.13-0.39 vs both buoys.
       //   This station is GLOBALLY unreliable for "real ría wind",
       //   not directionally biased. Original gotcha said it was
@@ -142,14 +142,14 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       // updated.
       { from: 0, to: 360, type: 'sheltered' },  // entire compass
     ],
-    note: 'Lourizán — globalmente subvalora viento ría (ratio 0.13-0.39 todas direcciones, audit S135+2). Probablemente apantallada por edificios/topografía local. NO usar como referencia primaria de viento ría — preferir mg_14005 Porto de Marín.',
+    note: 'Lourizán — globalmente subvalora viento ría (ratio 0.13-0.39 todas direcciones, audit). Probablemente apantallada por edificios/topografía local. NO usar como referencia primaria de viento ría — preferir mg_14005 Porto de Marín.',
     evidence: 'empirical-buoy',
   },
 
   'mg_14001': {
     stationId: 'mg_14001',
     unreliableSectors: [
-      // Re-audit S135+2 with 3221 Vigo REDMAR (same ría, 12000+ hours):
+      // Re-audit with 3221 Vigo REDMAR (same ría, 12000+ hours):
       //   N-NE (0-90°):  ratio 0.82-1.21 → matches buoy + slight venturi
       //   E-SE (120-150°): ratio 0.46-0.49 → BLIND (city skyline blocks)
       //   S (180°):      ratio 0.96 → matches
@@ -161,14 +161,14 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       // (S) are actually reliable.
       { from: 120, to: 150, type: 'sheltered' },
     ],
-    note: 'Porto de Vigo — gold standard. Único sector apantallado: E-SE 120-150° (ratio 0.46-0.49) por skyline portuario. Resto de sectores confiables (0.82-1.21 vs 3221 Vigo REDMAR). Re-audit S135+2 narrowed the band.',
+    note: 'Porto de Vigo — gold standard. Único sector apantallado: E-SE 120-150° (ratio 0.46-0.49) por skyline portuario. Resto de sectores confiables (0.82-1.21 vs 3221 Vigo REDMAR). Re-audit narrowed the band.',
     evidence: 'empirical-buoy',
   },
 
   'mg_14005': {
     stationId: 'mg_14005',
     unreliableSectors: [
-      // Empirical buoy audit (S135+2):
+      // Empirical buoy audit:
       //   N/NE (0-60°): ratio 0.67-0.81 (decent, slightly under)
       //   E (90°): ratio 0.31 (sheltered single sector — anomaly)
       //   S (180°): ratio 0.97 (matches buoy)
@@ -186,7 +186,7 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       { from: 240, to: 300, type: 'sheltered' },
       { from: 90, to: 90, type: 'sheltered' },  // anomalous single sector
     ],
-    note: 'Porto de Marín — sector W/WNW (240-300°) subvalora ~50% (ratio 0.43-0.58 vs Marín REDMAR). Afternoon viración leída como "6 kt" puede ser ~11 kt real en agua abierta. Audit S135+2.',
+    note: 'Porto de Marín — sector W/WNW (240-300°) subvalora ~50% (ratio 0.43-0.58 vs Marín REDMAR). Afternoon viración leída como "6 kt" puede ser ~11 kt real en agua abierta. Audit.',
     evidence: 'empirical-buoy',
   },
 };

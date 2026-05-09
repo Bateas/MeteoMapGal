@@ -23,7 +23,7 @@ const FADE_OUT_MS = 5_000;
 
 function HazeOverlayInner() {
   const data = useAirQualityStore((s) => s.data);
-  // S126 multi-evidence cross-feed: AEMET vis < 2km confirms model calima
+  // multi-evidence cross-feed: AEMET vis < 2km confirms model calima
   // and bumps severity. Visibility alone never triggers (could be fog).
   const visibilityReadings = useWeatherStore((s) => s.visibilityReadings);
   let minVis: number | null = null;

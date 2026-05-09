@@ -1,7 +1,7 @@
 /**
  * Cesantes Canalization Predictor — Ría de Vigo interior wind boost.
  *
- * Pattern (S122 — observed by user):
+ * Pattern (observed by user):
  *   - SW synoptic wind from Atlantic (Cabo Silleiro, Cíes >10kt)
  *   - Maritime fog in the mouth of the ría (Moaña HR>85%)
  *   - Air-water differential creates pressure gradient

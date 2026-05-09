@@ -519,7 +519,7 @@ async function handleAnalyticsAirQualityTrend(
 }
 
 /**
- * Spatial convection grid (S132) — CAPE/LI/CIN per cell over Galicia.
+ * Spatial convection grid — CAPE/LI/CIN per cell over Galicia.
  *
  * Query params:
  *   - hourOffset: 0 (default = closest hour to now), 1..5 = future hours

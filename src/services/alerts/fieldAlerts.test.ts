@@ -4,7 +4,7 @@
  * Critical path: feeds Telegram alert pipeline (frost, hail, fog, drone) +
  * frontend FieldDrawer. Pure transformation function.
  *
- * S123: fourth test file in src/services/alerts/.
+ * fourth test file in src/services/alerts/.
  */
 
 import { describe, it, expect } from 'vitest';

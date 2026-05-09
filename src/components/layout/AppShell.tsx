@@ -343,7 +343,7 @@ export function AppShell() {
       // = Alvedro (1387E), Lavacolla (1428); aeródromo = Rozas (1505); ciudades
       // = A Coruña (1387), Pontevedra (1484C), Ourense (1690A).
       //
-      // Sector filter (S135+2 — reactive map philosophy): drop sources beyond
+      // Sector filter (reactive map philosophy): drop sources beyond
       // 1.5× sector radius. Fisterra fog at 130km is irrelevant to Embalse
       // sailors — rendering a fog blob on the coast distracts from local
       // conditions. Buffer 1.5× catches fringe weather propagating in.

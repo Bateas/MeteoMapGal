@@ -47,7 +47,7 @@ const SWAN_WMS_BASE =
   + '&COLORSCALERANGE=0,3';
 
 const HOUR_STEPS = 48; // ±48h from now
-// Note: SWAN no longer auto-activates (S126+1). It's an opt-in layer the user
+// Note: SWAN no longer auto-activates. It's an opt-in layer the user
 // toggles from the marine layers menu. Auto-loading on every page load was
 // hammering the academic CESGA server unnecessarily and adding visual weight
 // when users may not care about waves at that moment.
@@ -77,7 +77,7 @@ function SwanWaveOverlayInner() {
   const [hourOffset, setHourOffset] = useState(0);
   const [serverUp, setServerUp] = useState(false);
 
-  // S126+1: auto-activation removed. SWAN is now strictly opt-in via the
+  // auto-activation removed. SWAN is now strictly opt-in via the
   // marine layers menu. Reasons:
   //   - CESGA academic server is unstable and we were hitting it on every
   //     load; this reduces load on a fragile dependency.

@@ -5,7 +5,7 @@
  * flag, and cross-feeds the storm predictor. Bugs here = wrong direction
  * arrows / wrong ETAs / phantom storms reported on the map.
  *
- * S124 audit: written to capture current behavior + flag the 5 known
+ * audit: written to capture current behavior + flag the 5 known
  * issues (cluster-ID instability, greedy match, single-snapshot velocity,
  * fixed match threshold, centroid-drift ≠ storm motion).
  */
@@ -267,7 +267,7 @@ describe('trackStorms — KNOWN BUG: cluster IDs reset every call', () => {
     expect(r2.clusters[0].id).toMatch(/^storm-\d+$/);
   });
 
-  it('IDs follow storm-N pattern with module-monotonic numbering (S124 fix)', () => {
+  it('IDs follow storm-N pattern with module-monotonic numbering', () => {
     // BFS still visits strikes in array order (id=1,2 are the FAR cluster).
     // After v2.58 refactor, IDs come from a module-level counter and survive
     // across trackStorms calls. After in-call sort, the BUILD order survives:
@@ -351,7 +351,7 @@ describe('bearingToCardinal', () => {
   });
 });
 
-// ── trackStorms — leading-edge tracking (S126+1 bug #5) ──────
+// ── trackStorms — leading-edge tracking ──────
 
 describe('trackStorms — leading-edge centroid for elongated squall lines', () => {
   it('compact cluster: leadLat/leadLon ≈ display centroid (within 1 km)', () => {

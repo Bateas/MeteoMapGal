@@ -51,7 +51,7 @@ function distKm(lat1: number, lon1: number, lat2: number, lon2: number): number 
 }
 
 /**
- * S122 — Localized fog sampling around detector points (no longer paints full sector).
+ * Localized fog sampling around detector points (no longer paints full sector).
  * Each detector source contributes a buffer ~6km radius. Density falls with distance.
  * Only paints cells with low elevation (coastal/water-level).
  */
@@ -82,7 +82,7 @@ function sampleFogZonesLocal(
       const lng = bbox.west + (col + 0.5) * cellW;
       const lat = bbox.south + (row + 0.5) * cellH;
 
-      // S131 perf: distance filter FIRST (cheap math), then elevation lookup
+      // perf: distance filter FIRST (cheap math), then elevation lookup
       // (expensive DEM read). Previously elev was sampled for every cell of the
       // sector grid (8000-12000 cells) but only ~10% pass the 4km radius — we
       // were paying 90% of DEM cost for nothing. Saves ~600ms during fog build.
@@ -93,7 +93,7 @@ function sampleFogZonesLocal(
       }
       if (minDist > FOG_RADIUS_KM) continue; // outside any source's range
 
-      // S122 fix: maritime fog floats over water AND coastal lowlands.
+      // fix: maritime fog floats over water AND coastal lowlands.
       // null elevation = water → ALLOW (fog is here!). High altitude = mountain → SKIP.
       const elev = queryElevation({ lng, lat });
       const isWater = elev === null || elev === undefined;
@@ -106,7 +106,7 @@ function sampleFogZonesLocal(
       const altFactor = isWater ? 1.0 : (1.0 - elev / maxAltitude);
       const rawDensity = Math.min(1.0, distFactor * 0.8 + altFactor * 0.2);
       if (rawDensity < 0.08) continue; // skip cells too transparent to see
-      // S123: discretize density into 4 buckets (0.25/0.5/0.75/1.0). Adjacent cells
+      // discretize density into 4 buckets (0.25/0.5/0.75/1.0). Adjacent cells
       // sharing the same bucket get identical fill-opacity → MapLibre merges them
       // without visible seams (the "tile mosaic" artifact disappears within rings).
       // Trade-off: stepped gradient instead of smooth, but visually much cleaner.
@@ -218,14 +218,14 @@ function FogOverlayInner() {
   const [fadeOpacity, setFadeOpacity] = useState(0);
   const lastFogRef = useRef<GeoJSON.FeatureCollection | null>(null);
 
-  // Fix: field is `alerts` not `unifiedAlerts` (bug discovered S116)
-  // Only activate overlay on REAL fog (moderate+), not dew point info alerts (S118 false positive fix)
+  // Fix: field is `alerts` not `unifiedAlerts` (bug discovered)
+  // Only activate overlay on REAL fog (moderate+), not dew point info alerts
   const alerts = useAlertStore((s) => s.alerts) ?? [];
   const fogAlert: UnifiedAlert | undefined = alerts.find(a =>
     (a.category === 'fog' || a.title?.toLowerCase().includes('niebla'))
     // Only paint overlay on HIGH+ severity — confirmed fog, not just "riesgo"
     // moderate = risk (60% confidence) should NOT paint the entire sector
-    // S122: was 'a.level' which doesn't exist — field is 'severity'. Bug existing since type rename
+    // was 'a.level' which doesn't exist — field is 'severity'. Bug existing since type rename
     && (a.severity === 'high' || a.severity === 'critical')
     && !a.title?.toLowerCase().includes('rocío')
   );
@@ -244,9 +244,9 @@ function FogOverlayInner() {
     return () => clearTimeout(timer);
   }, [hasFogAlert]);
 
-  // S131 perf: prevent re-entrancy. The build effect can fire 2-4× during
+  // perf: prevent re-entrancy. The build effect can fire 2-4× during
   // initial load (timer 3s + 'terrain' event + store rehydration). Each fire
-  // is ~150ms (post-S131 fix), still cumulative if all run back-to-back.
+  // is ~150ms, still cumulative if all run back-to-back.
   // Skip rebuilds < 2s apart — geometry doesn't change that fast anyway.
   const lastBuildAtRef = useRef<number>(0);
   const MIN_BUILD_GAP_MS = 2000;
@@ -264,7 +264,7 @@ function FogOverlayInner() {
       catch { return null; }
     };
 
-    // S122: prefer LOCALIZED sampling when detector sources are available
+    // prefer LOCALIZED sampling when detector sources are available
     const sources = fogMeta?.sources ?? [];
     const data = sources.length > 0
       ? sampleFogZonesLocal(queryElev, sources, config, fogType)

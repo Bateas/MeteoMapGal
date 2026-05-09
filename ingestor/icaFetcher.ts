@@ -1,5 +1,5 @@
 /**
- * MeteoGalicia ICA (Índice de Calidade do Aire) fetcher — S126 Phase 1b TIER 2.
+ * MeteoGalicia ICA (Índice de Calidade do Aire) fetcher  Phase 1b TIER 2.
  *
  * Persists every hourly observation from the Xunta's official air-quality
  * network into `ica_readings`. ~30 stations across Galicia × hourly polls.

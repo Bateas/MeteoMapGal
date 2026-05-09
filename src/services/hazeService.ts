@@ -30,14 +30,14 @@ export interface HazeAssessment {
  * Inputs:
  * - dust: μg/m³ (Saharan dust component, from Open-Meteo CAMS aerosol model)
  * - aod: aerosol_optical_depth (dimensionless, 0=clear, >1=heavy haze)
- * - minVisibilityKm (optional, S126): worst visibility currently reported by
+ * - minVisibilityKm (optional): worst visibility currently reported by
  *   any AEMET airport station. Acts as OFFICIAL EVIDENCE that bumps severity
  *   when the model already detected something:
  *     · vis<5km + any model leve+ → at least 'moderada'
  *     · vis<2km + any model leve+ → 'fuerte'
  *   Visibility reduction WITHOUT model detection is NOT enough — could be fog
  *   or rain. The model has to corroborate. Multi-evidence override pattern
- *   (same logic as the fog detector S122).
+ *   (same logic as the fog detector).
  *
  * Both dust+AOD null/0 → `none`. Either signal can promote severity; we take
  * the higher of the two (worst-case) to avoid masking calima when one
@@ -65,7 +65,7 @@ export function classifyHaze(
   // Model-derived severity (Open-Meteo only)
   let severity = maxSeverity(dustLevel, aodLevel);
 
-  // S126 multi-evidence bump from official AEMET visibility.
+  // multi-evidence bump from official AEMET visibility.
   // ONLY applies when the model already detected calima (severity != none).
   // Reduced visibility with a clean model is more likely fog/rain than dust.
   if (severity !== 'none' && minVisibilityKm != null && Number.isFinite(minVisibilityKm)) {

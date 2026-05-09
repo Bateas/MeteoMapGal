@@ -5,7 +5,7 @@
  * of TimescaleDB readings (Mar-May 2026). These tests replay those numbers
  * back in to confirm the classifier matches what we measured in production.
  *
- * Reference data (audit S135+2):
+ * Reference data (audit):
  *   Vigo  (mg_14001): morning NE 35-75°, afternoon SW 235-238° peak 8-9kt
  *   Marín (mg_14005): morning E/SE 40-130°, afternoon SW 231-259° peak 6-7kt
  *   Cangas (mc_..36940A): morning N 336-31°, afternoon W 287-299° peak 5-6kt
@@ -379,7 +379,7 @@ describe('station blind sector demotion', () => {
   });
 
   it('demotes when station IS in its documented blind sector', () => {
-    // Cangas's empirically-validated blind sectors (S135+2 audit) are
+    // Cangas's empirically-validated blind sectors are
     // now 300-30° (wrap) and 60-180° — direction 30° is at the edge
     // of the wrap-around N sector.
     const r = detectViracionPhase('cies-ria', {

@@ -1,5 +1,5 @@
 /**
- * Lightning fetcher (S125 historical-data-vision Phase 1a).
+ * Lightning fetcher.
  *
  * Mirrors the frontend `src/api/lightningClient.ts` but writes every observed
  * strike into the `lightning_strikes` hypertable on TimescaleDB. Runs 24/7

@@ -7,7 +7,7 @@
  *   reports vis < 2km (data-confirmed fog, not modeled).
  * - Each halo is anchored to that station's actual altitude. Cells more
  *   than 50m above the station are skipped — niebla is a cold-air-pool
- *   phenomenon, never on hilltops (user requirement S124).
+ *   phenomenon, never on hilltops (user requirement).
  * - Coastal stations (≤50m altitude) extend the halo over water; interior
  *   stations don't (no advective component to fall back on).
  *

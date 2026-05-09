@@ -105,7 +105,7 @@ export function useSurfMarineData() {
     }
   }, [sectorId, setSurfWave]);
 
-  // S122: switched from bespoke visibility-aware setInterval to shared hook.
+  // switched from bespoke visibility-aware setInterval to shared hook.
   // Pauses automatically when tab is hidden (saves bandwidth + Open-Meteo rate limit).
   useVisibilityPolling(fetchAll, INTERVAL, true);
 }

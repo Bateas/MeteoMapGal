@@ -53,7 +53,7 @@ function sourceLabel(stationId: string): string {
 }
 
 /** Number of columns per reading row */
-const COLS = 13; // S126: +visibility (AEMET airport stations only)
+const COLS = 13; // +visibility (AEMET airport stations only)
 
 /**
  * Batch upsert readings into TimescaleDB.
@@ -111,7 +111,7 @@ export async function batchUpsert(
         r.dewPoint,            // dew_point
         r.precipitation,       // precip
         r.solarRadiation,      // solar_rad
-        r.visibility ?? null,  // visibility — S126 Phase 1b TIER 2 (only AEMET airport ~8 stations)
+        r.visibility ?? null,  // visibility  Phase 1b TIER 2 (only AEMET airport ~8 stations)
       );
     }
 

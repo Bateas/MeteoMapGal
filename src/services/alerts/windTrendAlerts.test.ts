@@ -5,7 +5,7 @@
  * Critical path: feeds Telegram alerts when sudden wind changes hit. Uses
  * the real analyzeWindTrend service (no mocking) since it's pure.
  *
- * S123: sixth (final) test file in src/services/alerts/.
+ * sixth (final) test file in src/services/alerts/.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';

@@ -53,7 +53,7 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
       'cloud_cover', 'surface_pressure',
       'shortwave_radiation', 'cape', 'lifted_index', 'convective_inhibition',
       'boundary_layer_height', 'is_day', 'visibility',
-      // Cold-tops indicator for hail risk (S126 follow-up)
+      // Cold-tops indicator for hail risk
       'temperature_500hPa',
     ].join(','),
     past_hours: '6',

@@ -56,7 +56,7 @@ const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
 ];
 
 // Per-type expected "stale-after" thresholds in minutes. Calibrated from
-// the S135+2 audit observation of upstream publishing cadences. Cycle-end
+// the audit observation of upstream publishing cadences. Cycle-end
 // check in fetchBuoyObservations() compares each enabled station's last-
 // seen timestamp against its type's threshold and warns if exceeded.
 const STALE_AFTER_MIN: Record<string, number> = {
@@ -87,7 +87,7 @@ const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
 const NO_DATA = -9999;
 // 6 hours, not 2: PORTUS publishes oceanic-mooring buoys (REDEXT) and tide-
 // gauge meteorology (REDMAR) with cadences of 1-3 hours, not minutes. The
-// S135+2 audit caught us silently rejecting 9 of 11 PORTUS stations every
+// audit caught us silently rejecting 9 of 11 PORTUS stations every
 // cycle because the "fecha" was 2.5-5 h old — by upstream design, not bug.
 // 6 h is generous enough to keep all working stations through, while still
 // catching genuinely stuck buoys (like Cíes in Dec 2025, gated separately).
@@ -106,7 +106,7 @@ const portusFailureCounters = new Map<number, number>();
  * Per-station last-seen tracker. Updated every cycle from the readings
  * actually returned this cycle. Compared against STALE_AFTER_MIN at end
  * of cycle to detect upstream regressions per-station — closes the loop
- * on the S135+2 lesson where buoys 2248 + 3223 went silently dead for 40
+ * on the lesson where buoys 2248 + 3223 went silently dead for 40
  * days because the global empty-cycles counter never tripped (other
  * stations were still reporting).
  *
@@ -182,7 +182,7 @@ function parsePortusResponse(
   station: BuoyStation,
   data: { fecha?: string; datos?: any[] }
 ): BuoyReadingRow | null {
-  // S135+2 diagnostic: log WHY a station returns null. Three reasons:
+  // diagnostic: log WHY a station returns null. Three reasons:
   //   - empty payload (no datos array, no fecha)
   //   - stale data (fecha older than MAX_AGE_MS)
   //   - parsed OK but no recognized parameters (rare)
@@ -384,7 +384,7 @@ function mergeBuoyReadings(portus: BuoyReadingRow[], obs: BuoyReadingRow[]): Buo
 export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   const obsApiKey = process.env.OBSCOSTEIRO_API_KEY || '';
 
-  // Concurrency caps — PORTUS rate-limits aggressively per IP. The S135+2
+  // Concurrency caps — PORTUS rate-limits aggressively per IP. The
   // audit revealed buoys 2248 and 3223 had been silently dead for 40 days
   // because the 12-way Promise.allSettled fan-out had most stations losing
   // the race for PORTUS's connection budget.
@@ -449,7 +449,7 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
     log.warn(`PORTUS rejections this cycle: ${breakdown}`);
   }
 
-  // Per-station freshness check. Closes the S135+2 lesson: the global
+  // Per-station freshness check. Closes the lesson: the global
   // "consecutiveEmptyBuoyCycles" counter (v2.79.5) only fires when ALL
   // stations are silent for 1h+. Individual stations could go dark for
   // weeks and we'd never know — that's exactly how 2248 + 3223 hid.

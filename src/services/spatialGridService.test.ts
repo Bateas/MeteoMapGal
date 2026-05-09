@@ -54,7 +54,7 @@ describe('generateGridCells — basic shape', () => {
   });
 
   it('Galicia grid at 15km resolution produces ~250-350 cells (free-tier friendly)', () => {
-    // S126+1+1 v2.70.2: resolution coarsened from 5km → 15km because Open-Meteo
+    // resolution coarsened from 5km → 15km because Open-Meteo
     // free tier counts each coordinate as 1 API call against the burst limit,
     // and 5km (~2256 cells) blew the limit on every fetch. 15km still gives
     // 9× better coverage than the previous 2-sector-points baseline.

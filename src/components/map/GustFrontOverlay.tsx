@@ -10,7 +10,7 @@
  *        Both pulse via interpolated radius to draw the eye without blocking
  *        the station marker underneath.
  *
- * S126+1 v2.69.0 — phase 1 (visual). Phase 2 (DB persistence) planned in
+ * phase 1 (visual). Phase 2 (DB persistence) planned in
  * memory/pending-work.md.
  */
 import { memo, useMemo } from 'react';

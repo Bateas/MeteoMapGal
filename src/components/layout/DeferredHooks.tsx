@@ -35,7 +35,7 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useAirQuality();
   useActiveFires();
   useIcaData();
-  // S126+1+1 v2.70.3: auto-toggle convection grid when forecast shows risk
+  // auto-toggle convection grid when forecast shows risk
   useConvectionAutoActivate();
 
   // NAO/AO teleconnection indices — 15s extra after deferred mount
