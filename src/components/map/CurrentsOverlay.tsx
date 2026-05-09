@@ -60,7 +60,14 @@ function buildCurrentsUrl(): string {
   // Cache buster — changes every 30 min to match refresh interval
   const t = Math.floor(Date.now() / REFRESH_INTERVAL);
   params.set('_t', String(t));
-  return `${WMS_BASE}?${params.toString()}`;
+  // Build absolute URL forcing HTTPS — MapLibre ImageSource resolves relative
+  // URLs against document.baseURI, which under some edge caches / tunnel configs
+  // resolves to http:// causing mixed-content blocks. Forcing the protocol
+  // matches what the page itself was loaded with (always https in prod).
+  const origin = typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.host}`
+    : '';
+  return `${origin}${WMS_BASE}?${params.toString()}`;
 }
 
 // ── Component ───────────────────────────────────────
