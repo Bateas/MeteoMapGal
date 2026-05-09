@@ -145,7 +145,7 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
     'cloud_cover', 'surface_pressure',
     'shortwave_radiation', 'cape', 'lifted_index', 'convective_inhibition',
     'boundary_layer_height', 'is_day', 'visibility',
-    // Cold-tops indicator → enables full hail-risk classification (S126 follow-up)
+    // Cold-tops indicator → enables full hail-risk classification
     'temperature_500hPa',
   ].join(',');
 

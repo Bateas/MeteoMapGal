@@ -1,5 +1,5 @@
 /**
- * Storm intensity classifier — S126.
+ * Storm intensity classifier .
  *
  * "Vemos las tormentas pero ni idea si va a caer poca lluvia o un mega
  * chaparrón o es tormenta eléctrica puramente" → close that gap.
@@ -62,7 +62,7 @@ export interface StormIntensity {
    *  Project convention: visual differentiation lives in mass-core color, hail
    *  rings, wet-fill — NOT in label text. Lucide SVG icons are the standard
    *  iconography elsewhere in the UI; map labels stay text-only because
-   *  MapLibre text-fields can't render arbitrary glyphs reliably (see S126+1
+   *  MapLibre text-fields can't render arbitrary glyphs reliably (see
    *  protomaps 404 incident with weather emojis 🌧️ 🌦️ 🌩️ — Unicode
    *  block U+1F300-1F37F isn't covered by the Noto Sans Bold tiles). */
   visualStyle: 'dry-rings' | 'wet-fill' | 'mixed' | 'stratiform' | 'default';
@@ -183,7 +183,7 @@ function classifyType(rainRate: number | null, strikeRate: number): StormType {
 
 // ── Visual / label helpers ───────────────────────────
 //
-// S126+1: emoji prefixes were removed (project convention "No emojis in UI").
+// emoji prefixes were removed (project convention "No emojis in UI").
 // Emojis like 🌧️ 🌦️ 🌩️ live in Unicode block U+1F300-1F37F which isn't
 // covered by the protomaps Noto Sans Bold font tiles → MapLibre fired a
 // 404 + CORS error per cluster label render. The visual differentiation

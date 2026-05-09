@@ -47,7 +47,7 @@ export interface UnifiedAlert {
     windSpeed: number | null;
     spread: number | null;
     webcamConfirmed: boolean;
-    /** Detector points (S122) — paint fog ONLY around these locations, not entire sector */
+    /** Detector points — paint fog ONLY around these locations, not entire sector */
     sources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[];
   };
 }

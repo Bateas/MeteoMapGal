@@ -117,7 +117,7 @@ interface MapStyleState {
   showWaveCoast: boolean;
   /** Upwelling overlay — cold water zones when N/NW wind sustained (#59) */
   showUpwelling: boolean;
-  /** Convection risk heatmap — spatial CAPE×-LI grid (S126+1+1, v2.70.0) */
+  /** Convection risk heatmap — spatial CAPE×-LI grid */
   showConvectionRisk: boolean;
 
   setStyle: (id: MapStyleId) => void;

@@ -73,7 +73,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const cached = spotForecasts.get(spot.id);
   const spotForecast = cached?.data ?? [];
   // Initial loading = true when no fresh cache → UI shows "Cargando..." from first
-  // render instead of flashing blank then loading → blank again. (S123 flicker fix)
+  // render instead of flashing blank then loading → blank again.
   const [spotFcLoading, setSpotFcLoading] = useState(
     () => !cached || Date.now() - cached.fetchedAt > 30 * 60_000
   );
@@ -130,7 +130,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const verdict: SpotVerdict = score?.verdict ?? 'unknown';
   const vs = VERDICT_STYLE[verdict];
 
-  // ── Cesantes canalization predictor (S122) — memoized for use in wind display ──
+  // ── Cesantes canalization predictor — memoized for use in wind display ──
   const cesantesPrediction = (() => {
     if (spot.id !== 'cesantes') return null;
     try {
@@ -468,7 +468,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Cesantes Canalization predictor (S122 — local boost prediction) ── */}
+      {/* ── Cesantes Canalization predictor (local boost prediction) ── */}
       {cesantesPrediction !== null && cesantesPrediction.predictedKt !== null && (() => {
         const pred = cesantesPrediction;
         const color = pred.severity === 'high' ? 'text-amber-400' : pred.severity === 'moderate' ? 'text-sky-400' : 'text-slate-300';

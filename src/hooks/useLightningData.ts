@@ -43,7 +43,7 @@ interface LightningState {
   error: string | null;
   showOverlay: boolean;
   clusterHistory: ClusterSnapshot[];
-  /** Stations marking outflow signature ahead of an active cluster (S126+1 v2.69.0) */
+  /** Stations marking outflow signature ahead of an active cluster */
   gustFronts: import('../services/gustFrontService').GustFrontDetection[];
 
   setStrikes: (strikes: LightningStrike[]) => void;
@@ -176,7 +176,7 @@ function computeStormAlert(
 // Export the ClusterSnapshot type for stormTracker
 export type { ClusterSnapshot };
 
-// ── S126 storm intensity enrichment helpers ──────────────────────────
+// ── storm intensity enrichment helpers ──────────────────────────
 // Pull-on-demand state collectors. Don't create reactive subscriptions —
 // the storm tracker poll cycle is the only consumer.
 
@@ -233,7 +233,7 @@ function collectCurrentConvection(): ConvectionState | null {
     const d = Math.abs(f.time.getTime() - now);
     if (d < bestDist) { best = f; bestDist = d; }
   }
-  // T_500hPa plumbed S126+1: fetched alongside CAPE/LI from Open-Meteo.
+  // T_500hPa plumbed fetched alongside CAPE/LI from Open-Meteo.
   // When present (Auto path), unlocks 'probable' hail risk via cold-tops rule.
   // WRF-MG primary path won't carry it (MeteoSIX doesn't expose pressure-level
   // temps) but convectionData is always Open-Meteo background, so it's there.
@@ -296,7 +296,7 @@ export function useLightningData() {
       historyRef.current = history;
       setClusterHistory(history);
 
-      // S126 — enrich each cluster with intensity classification.
+      // enrich each cluster with intensity classification.
       // Pulls precip readings + convection state via getState() so we don't
       // add extra reactive dependencies to this cycle.
       const enriched = enrichClustersWithIntensity(
@@ -306,7 +306,7 @@ export function useLightningData() {
       );
       setClusters(enriched);
 
-      // S126+1 v2.69.0 — gust front detection. Cross stations with active
+      // gust front detection. Cross stations with active
       // clusters; flag those whose gust ratio + bearing alignment match an
       // outflow signature. Pulls station data via getState() (same pattern).
       const fronts = detectGustFronts(collectGustFrontReadings(), enriched);

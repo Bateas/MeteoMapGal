@@ -6,7 +6,7 @@
  * dew point per cell), upper-air grid (winds at 850/700/500 hPa per cell),
  * UV-index grid, AQ grid, etc.
  *
- * Why a grid at all (S126+1+1 motivation):
+ * Why a grid at all:
  *   Until now CAPE/LI/CIN was queried at TWO points (sector centers — Embalse
  *   + Rías). That tells us "does the sector have storm potential?" but NOT
  *   "WHERE inside Galicia will it form?". Apr 27 hailstorm hit Castrelo de
@@ -48,7 +48,7 @@ export interface GridCell {
  * Galicia + neighboring buffer. Captures storms forming over Portugal Norte
  * or Asturias west that may drift in.
  *
- * Resolution choice (S126+1+1 v2.70.2):
+ * Resolution choice:
  *   Open-Meteo's free tier counts each coordinate as 1 API call against
  *   the burst limit (~600/min). At 5 km the grid is ~2256 cells and a
  *   single fetch instantly tripped 429 across the whole IP. Coarsened to
@@ -113,7 +113,7 @@ export function cellKey(cell: { i: number; j: number }): string {
  *
  * Open-Meteo docs say "multiple coordinates supported per call" without an
  * explicit cap, but in practice 1000 coords produces URLs of ~20 KB that
- * trigger a 414 / silent CORS rejection (S126+1+1 v2.70.1 incident — the
+ * trigger a 414 / silent CORS rejection ( v2.70.1 incident — the
  * browser saw "blocked by CORS policy" because the server dropped the
  * request before sending CORS headers).
  *

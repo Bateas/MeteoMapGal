@@ -605,7 +605,7 @@ export async function queryAirQualityTrend(
 }
 
 
-// ── Convection grid (S132) ──────────────────────────────
+// ── Convection grid ──────────────────────────────
 
 export interface ConvectionGridCell {
   lat: number;

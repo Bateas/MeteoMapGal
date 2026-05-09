@@ -32,7 +32,7 @@ export async function fetchActiveFires(days = 1): Promise<FirmsFetchResult> {
   const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
 
   if (!res.ok) {
-    // Don't crash UI — return empty list. The pessimistic-init pattern from S118.
+    // Don't crash UI — return empty list (pessimistic-init pattern).
     return { fires: [], fetchedAt: Date.now(), fromCache: 'unknown' };
   }
 

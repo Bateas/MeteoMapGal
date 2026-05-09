@@ -6,7 +6,7 @@
  * StormIndicator UI. A bug in stormAlertScore() shifts danger thresholds and
  * delays/inflates real-life storm warnings.
  *
- * S123: second test file for src/services/alerts/.
+ * second test file for src/services/alerts/.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -141,7 +141,7 @@ describe('buildStormShadowAlerts — confidence + lightning gating', () => {
   });
 
   it('returns empty for clouds-only (no lightning, no wind outflow)', () => {
-    // S114 rule: clouds without confirmation are NOT alerts at all
+    // rule: clouds without confirmation are NOT alerts at all
     const alerts = buildStormShadowAlerts(shadow({
       confidence: 80,
       lightningNearby: 0,

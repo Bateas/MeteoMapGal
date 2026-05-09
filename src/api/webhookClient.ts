@@ -80,7 +80,7 @@ function isNightSilence(): boolean {
   return hour >= NIGHT_SILENCE_START || hour < NIGHT_SILENCE_END;
 }
 
-// ── n8n health check (REMOVED S126+1) ───────────────────
+// ── n8n health check (REMOVED) ───────────────────
 // Previous version HEAD-probed `/api/webhook/meteomap-alert` every 30 min and
 // treated 404 as "n8n is up". That painted a 404 error into the F12 console on
 // every browser session even when everything worked. Removed because:
@@ -90,7 +90,7 @@ function isNightSilence(): boolean {
 //      value was just "did the request reach the server?", which we can read
 //      from the real POST's success/failure.
 //   3. The console noise muddied real diagnostic output during the Apr 28 event.
-/** n8n health flag — kept always-true since we removed the HEAD probe (S126+1) */
+/** n8n health flag — kept always-true since we removed the HEAD probe */
 const n8nHealthy = true;
 
 async function checkN8nHealth(): Promise<boolean> {
@@ -120,7 +120,7 @@ let lastWebhookTime = 0;
  * the deprecated `/api/webhook/meteomap-alert` route (which would 404 in F12).
  *
  * To re-enable the frontend path: replace the return with the original logic
- * (see git history pre-S130) and add the nginx proxy block for `/api/webhook/`.
+ * and add the nginx proxy block for `/api/webhook/`.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function postAlertWebhook(_payload: WebhookAlertPayload): Promise<void> {

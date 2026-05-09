@@ -5,7 +5,7 @@
  * transformation, capped at 'moderate' severity by design (notable but
  * not dangerous — never orange/red).
  *
- * S123: fifth test file in src/services/alerts/.
+ * fifth test file in src/services/alerts/.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';

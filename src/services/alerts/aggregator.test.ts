@@ -3,9 +3,9 @@
  *
  * Critical path: feeds 24/7 Telegram alert pipeline (ingestor) AND frontend AlertPanel.
  * Aggregator wires builders together with gating logic — bugs here cause silent
- * suppression of entire alert categories (S122 fog overlay was dead 6mo).
+ * suppression of entire alert categories.
  *
- * S123: third test file for src/services/alerts/. Focus on COMPOSITION + GATING.
+ * third test file for src/services/alerts/. Focus on COMPOSITION + GATING.
  * Builders are tested separately (stormAlerts.test.ts, riskEngine.test.ts, etc.)
  */
 

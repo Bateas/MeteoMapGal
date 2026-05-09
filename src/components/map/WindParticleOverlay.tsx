@@ -315,7 +315,7 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
     const handleMoveStart = () => { mapMovingRef.current = true; };
 
     // Re-spawn particles on map move (zoom/pan) to avoid stale positions.
-    // S123 perf: removed forced `windGridRef.current = null` — the boundsKey
+    // perf: removed forced `windGridRef.current = null` — the boundsKey
     // check in animate() already rebuilds when bounds change. Forcing null on
     // every moveend caused redundant 576-cell IDW rebuilds during smooth zoom
     // (each wheel tick fires moveend) even when bounds were nearly identical.

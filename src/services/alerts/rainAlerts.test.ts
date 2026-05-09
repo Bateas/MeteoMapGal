@@ -4,7 +4,7 @@
  * Critical path: feeds Telegram alert pipeline + frontend AlertPanel for
  * incoming precipitation. Pure function, no API calls.
  *
- * S123: third test file in src/services/alerts/.
+ * third test file in src/services/alerts/.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
