@@ -9,6 +9,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useUIStore } from '../../store/uiStore';
 import { useMapStyleStore, getStyleDef } from '../../store/mapStyleStore';
+import { getProfileFlags } from '../../services/profileFlags';
 import { StationSymbolLayer, registerStationIcon } from './StationSymbolLayer';
 import { TempOnlyOverlay } from './TempOnlyMarker';
 import { StationPopup } from './StationPopup';
@@ -132,6 +133,9 @@ export function WeatherMap() {
   const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
   const selectStation = useWeatherSelectionStore((s) => s.selectStation);
   const isMobile = useUIStore((s) => s.isMobile);
+  const userProfile = useUIStore((s) => s.userProfile);
+  const weatherSubProfile = useUIStore((s) => s.weatherSubProfile);
+  const profileFlags = useMemo(() => getProfileFlags(userProfile, weatherSubProfile), [userProfile, weatherSubProfile]);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 
@@ -320,14 +324,30 @@ export function WeatherMap() {
     selectSpot('');
   }, [selectStation, selectBuoy, selectSpot]);
 
-  /** Register all map icons when the map loads. */
-  const handleMapLoad = useCallback(() => {
-    const map = mapRef.current?.getMap();
-    if (!map) return;
+  /** Register all custom SDF/raster icons. Idempotent (each register*
+   *  guards with map.hasImage). Must run on initial load AND after every
+   *  setStyle — MapLibre wipes addImage() icons on a style rebuild. */
+  const registerAllIcons = useCallback((map: maplibregl.Map) => {
     registerWindArrowIcons(map, 48);
     registerStationIcon(map);
     registerBuoyIcon(map);
     registerWebcamIcon(map);
+  }, []);
+
+  /** Register all map icons when the map loads. */
+  const handleMapLoad = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    registerAllIcons(map);
+    // CRITICAL: `onLoad` fires ONCE. A base-map switch or sector change
+    // rebuilds mapStyle → react-map-gl calls map.setStyle() → MapLibre
+    // destroys every addImage() icon (station-circle, wind arrows, buoy,
+    // webcam). Without re-registering, the symbol layers render with a
+    // missing icon-image → markers vanish SILENTLY (no JS error). The
+    // `style.load` event fires after every setStyle (and the initial load),
+    // so re-running the idempotent registrars there keeps markers alive
+    // across any style rebuild.
+    map.on('style.load', () => registerAllIcons(map));
     // Localize MapLibre navigation controls to Spanish
     requestAnimationFrame(() => {
       const container = map.getContainer();
@@ -335,7 +355,7 @@ export function WeatherMap() {
       container.querySelector('.maplibregl-ctrl-zoom-out')?.setAttribute('aria-label', 'Alejar');
       container.querySelector('.maplibregl-ctrl-compass')?.setAttribute('aria-label', 'Restablecer orientación norte');
     });
-  }, []);
+  }, [registerAllIcons]);
 
   return (
     <div ref={containerRef} className="relative w-full h-full overflow-hidden" role="region" aria-label="Mapa meteorológico interactivo de Galicia" style={{ contain: 'layout style paint' }}>
@@ -383,20 +403,26 @@ export function WeatherMap() {
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
 
-        {/* Wind field arrows around stations + buoys */}
-        <WindFieldOverlay stations={stations} readings={currentReadings} buoys={activeSector.id === 'rias' ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
+        {/* Wind field arrows around stations + buoys (gated by profile) */}
+        {profileFlags.showWindArrows && (
+          <WindFieldOverlay stations={stations} readings={currentReadings} buoys={activeSector.id === 'rias' ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
+        )}
 
         {/* Temp-only station dots — GPU-accelerated (single source + 3 layers) */}
-        <TempOnlyOverlay stations={stations} readings={currentReadings} />
+        {profileFlags.showTempOnlyDots && (
+          <TempOnlyOverlay stations={stations} readings={currentReadings} />
+        )}
 
         {/* Station markers — GPU symbol layer (replaces 90+ DOM markers) */}
-        <StationSymbolLayer
-          stations={stations}
-          readings={currentReadings}
-          selectedStationId={selectedStationId}
-          onSelectStation={selectStation}
-          zoomLevel={zoomLevel}
-        />
+        {profileFlags.showStationMarkers && (
+          <StationSymbolLayer
+            stations={stations}
+            readings={currentReadings}
+            selectedStationId={selectedStationId}
+            onSelectStation={selectStation}
+            zoomLevel={zoomLevel}
+          />
+        )}
 
         {/* Marine buoy markers — GPU circle+symbol layer (Rías only) */}
         {activeSector.id === 'rias' && (
@@ -540,7 +566,7 @@ export function WeatherMap() {
           <div className="flex items-center justify-center gap-1.5 max-w-full overflow-x-auto scrollbar-none pointer-events-auto">
             <Suspense fallback={null}><StormIndicator /></Suspense>
             <TemperatureToggle />
-            <WeatherLayerSelector />
+            {profileFlags.showWeatherLayerSelector && <WeatherLayerSelector />}
             <button
               onClick={() => setDistanceActive((v) => !v)}
               className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}
@@ -558,7 +584,7 @@ export function WeatherMap() {
           <div className="flex items-end gap-2 shrink-0">
             <Suspense fallback={null}><StormIndicator /></Suspense>
             <TemperatureToggle />
-            <WeatherLayerSelector />
+            {profileFlags.showWeatherLayerSelector && <WeatherLayerSelector />}
             <button
               onClick={() => setDistanceActive((v) => !v)}
               className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}
