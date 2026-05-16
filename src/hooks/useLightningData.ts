@@ -12,6 +12,7 @@ import { useSectorStore } from '../store/sectorStore';
 import { useWeatherStore } from '../store/weatherStore';
 import { useForecastStore } from './useForecastTimeline';
 import { enrichClustersWithIntensity, type NearbyPrecipReading, type ConvectionState } from '../services/stormIntensityService';
+import type { RecentLightningActivity } from '../services/stormPredictor';
 import { useVisibilityPolling } from './useVisibilityPolling';
 
 /**
@@ -37,6 +38,8 @@ const POLL_INTERVAL_MS = 2 * 60 * 1000;
 interface LightningState {
   strikes: LightningStrike[];
   stormAlert: StormAlert;
+  /** Windowed strike counts within WATCH_KM — fuels stormPredictor hysteresis */
+  recentActivity: RecentLightningActivity;
   clusters: StormCluster[];
   lastFetch: Date | null;
   isLoading: boolean;
@@ -48,6 +51,7 @@ interface LightningState {
 
   setStrikes: (strikes: LightningStrike[]) => void;
   setAlert: (alert: StormAlert) => void;
+  setRecentActivity: (a: RecentLightningActivity) => void;
   setClusters: (clusters: StormCluster[]) => void;
   setClusterHistory: (history: ClusterSnapshot[]) => void;
   setGustFronts: (fronts: import('../services/gustFrontService').GustFrontDetection[]) => void;
@@ -69,11 +73,39 @@ const NO_ALERT: StormAlert = {
   updatedAt: new Date(),
 };
 
+const NO_ACTIVITY: RecentLightningActivity = { count30m: 0, count15m: 0, count5m: 0 };
+
+/**
+ * Windowed strike counts within WATCH_KM of the sector center. Pure +
+ * testable. Powers the stormPredictor temporal hysteresis so a brief lull
+ * between strikes doesn't collapse severity to 'none' mid-storm.
+ */
+export function computeRecentActivity(
+  strikes: LightningStrike[],
+  centerLat: number,
+  centerLon: number,
+  now: number = Date.now(),
+): RecentLightningActivity {
+  let c30 = 0;
+  let c15 = 0;
+  let c5 = 0;
+  for (const s of strikes) {
+    const ageMs = now - s.timestamp;
+    if (ageMs < 0 || ageMs >= 30 * 60_000) continue;
+    if (distanceKm(s.lat, s.lon, centerLat, centerLon) > WATCH_KM) continue;
+    c30++;
+    if (ageMs < 15 * 60_000) c15++;
+    if (ageMs < 5 * 60_000) c5++;
+  }
+  return { count30m: c30, count15m: c15, count5m: c5 };
+}
+
 export const useLightningStore = create<LightningState>()(
   devtools(
     (set, get) => ({
       strikes: [],
       stormAlert: NO_ALERT,
+      recentActivity: NO_ACTIVITY,
       clusters: [],
       lastFetch: null,
       isLoading: false,
@@ -84,6 +116,7 @@ export const useLightningStore = create<LightningState>()(
 
       setStrikes: (strikes) => set({ strikes }),
       setAlert: (alert) => set({ stormAlert: alert }),
+      setRecentActivity: (recentActivity) => set({ recentActivity }),
       setClusters: (clusters) => set({ clusters }),
       setClusterHistory: (clusterHistory) => set({ clusterHistory }),
       setGustFronts: (gustFronts) => set({ gustFronts }),
@@ -254,6 +287,7 @@ export function useLightningData() {
     setLoading,
     setError,
     setLastFetch,
+    setRecentActivity,
     stormAlert,
   } = useLightningStore(useShallow((s) => ({
     setStrikes: s.setStrikes,
@@ -264,6 +298,7 @@ export function useLightningData() {
     setLoading: s.setLoading,
     setError: s.setError,
     setLastFetch: s.setLastFetch,
+    setRecentActivity: s.setRecentActivity,
     stormAlert: s.stormAlert,
   })));
 
@@ -315,6 +350,8 @@ export function useLightningData() {
       const alert = computeStormAlert(strikes, clusters, prevAlertRef.current, centerLat, centerLon);
       setAlert(alert);
       prevAlertRef.current = alert;
+
+      setRecentActivity(computeRecentActivity(strikes, centerLat, centerLon));
 
       setLastFetch(new Date());
     } catch (err) {

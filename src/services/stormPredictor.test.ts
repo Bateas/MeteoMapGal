@@ -324,4 +324,64 @@ describe('stormPredictor', () => {
       expect(mgSignal?.value).toBe('Ninguno');
     });
   });
+
+  // ── Temporal hysteresis (2026-04-28 audit fixes) ──────
+  describe('lightning hysteresis', () => {
+    it('holds moderate when alert is none but storm was active in last 30min (lull, not over)', () => {
+      // The 18:02 case: severe(98%) at 18:01 → none at 18:02 with 262 strikes.
+      // Instantaneous alert dropped but 30min activity is heavy.
+      const calm = makeForecast({ cape: 200 });
+      const result = predictStorm([calm], NO_ALERT, null, [], {
+        count30m: 120, count15m: 40, count5m: 0,
+      });
+      expect(result.severity).not.toBe('none');
+      expect(['moderate', 'severe']).toContain(result.severity);
+    });
+
+    it('escalates to severe with heavy recent activity + instability even if last poll calm', () => {
+      // The 17:07 case: none(10%) with 468 strikes/window.
+      const unstable = makeForecast({ cape: 1000, liftedIndex: -5 });
+      const result = predictStorm([unstable], NO_ALERT, null, [], {
+        count30m: 250, count15m: 90, count5m: 5,
+      });
+      expect(result.severity).toBe('severe');
+    });
+
+    it('anticipates: high CAPE + LI + overcast, NO strikes yet → moderate (not none)', () => {
+      // The 11:00-13:00 miss: CAPE 1500+/LI<-4/overcast for hours at "none".
+      const building = makeForecast({ cape: 1600, liftedIndex: -5, cloudCover: 90 });
+      const result = predictStorm([building], NO_ALERT, null, [], {
+        count30m: 0, count15m: 0, count5m: 0,
+      });
+      expect(result.severity).toBe('moderate');
+    });
+
+    it('no hysteresis param = original behaviour (backwards compatible)', () => {
+      // Existing callers without recentActivity must behave exactly as before.
+      const calm = makeForecast({ cape: 100 });
+      const result = predictStorm([calm], NO_ALERT, null, []);
+      expect(result.severity).toBe('none');
+    });
+
+    it('low recent activity (<30 in 30min) does NOT trigger the floor', () => {
+      // A few isolated strikes shouldn't keep severity elevated.
+      const calm = makeForecast({ cape: 100 });
+      const result = predictStorm([calm], NO_ALERT, null, [], {
+        count30m: 10, count15m: 2, count5m: 0,
+      });
+      expect(result.severity).toBe('none');
+    });
+
+    it('does not downgrade an active instantaneous alert', () => {
+      // When the alert IS firing, hysteresis only adds, never weakens.
+      const unstable = makeForecast({ cape: 1600, liftedIndex: -5 });
+      const dangerAlert: StormAlert = {
+        ...NO_ALERT, level: 'danger', nearestKm: 3, recentCount: 50, trend: 'approaching',
+      };
+      const result = predictStorm([unstable], dangerAlert, null, [], {
+        count30m: 300, count15m: 100, count5m: 20,
+      });
+      expect(['severe', 'extreme']).toContain(result.severity);
+    });
+  });
 });
