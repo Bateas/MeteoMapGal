@@ -73,13 +73,20 @@ echo "  VERSION_BUMPED        = $VERSION_BUMPED ($OLD_VERSION → $NEW_VERSION)"
 echo
 
 # ── npm install (only if package.json changed) ────────
+# .npmrc enforces ignore-scripts=true (supply-chain hardening: a
+# trojanized dep cannot run code via postinstall on this prod box).
+# esbuild (postinstall: platform binary) + sharp (ingestor, install:
+# libvips) are the ONLY legit script-needing deps — re-run explicitly
+# with the override. Without this, npm run build fails after any bump
+# that reinstalls esbuild ("installed esbuild for another platform").
 if [ "$ROOT_PKG_CHANGED" = true ]; then
     echo "📦 npm install (root)..."
     npm install --no-audit --no-fund
+    npm rebuild esbuild --foreground-scripts --ignore-scripts=false
 fi
 if [ "$INGESTOR_PKG_CHANGED" = true ]; then
     echo "📦 npm install (ingestor)..."
-    (cd ingestor && npm install --no-audit --no-fund)
+    (cd ingestor && npm install --no-audit --no-fund && npm rebuild esbuild sharp --foreground-scripts --ignore-scripts=false)
 fi
 
 # ── Build frontend (if frontend changed OR version bumped) ─
