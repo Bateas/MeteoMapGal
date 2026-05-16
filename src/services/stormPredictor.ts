@@ -45,6 +45,27 @@ export interface StormSignal {
   weight: number; // 0-1 contribution to probability
 }
 
+/**
+ * Recent lightning activity within the alert radius, bucketed by time
+ * window. Used for temporal hysteresis: `stormAlert.level` is the
+ * INSTANTANEOUS state (strikes in the last poll). During an active storm
+ * there are 60-90s gaps between strikes, so the instantaneous level flaps
+ * to 'none' even though the storm is obviously ongoing — this caused the
+ * 2026-04-28 audit to show severe→none→severe bouncing within 1 minute,
+ * and a 6h "none" miss while 625 strikes/window were observed.
+ *
+ * These windowed counts let the predictor hold a severity floor through
+ * brief lulls and anticipate a building storm.
+ */
+export interface RecentLightningActivity {
+  /** Strikes within alert radius in the last 30 min */
+  count30m: number;
+  /** Last 15 min */
+  count15m: number;
+  /** Last 5 min */
+  count5m: number;
+}
+
 // ── Thresholds ───────────────────────────────────────────
 
 const CAPE_MODERATE = 300;   // J/kg — convection possible
@@ -60,6 +81,7 @@ export function predictStorm(
   stormAlert: StormAlert,
   stormShadow: StormShadow | null,
   mgWarnings?: MGWarning[],
+  recentActivity?: RecentLightningActivity,
 ): StormPrediction {
   const signals: StormSignal[] = [];
   let probability = 0;
@@ -220,14 +242,47 @@ export function predictStorm(
   }
 
   // ── Determine severity ──
-  // Lightning confirmation required for severe/extreme — CAPE alone is potential, not actual
-  const hasLightning = stormAlert.level !== 'none';
+  // Lightning confirmation required for severe/extreme — CAPE alone is potential, not actual.
+  //
+  // Temporal hysteresis (fixes 2026-04-28 bouncing): treat the storm as
+  // "electrically active" if EITHER the instantaneous alert fired OR there
+  // was sustained recent activity. A 60-90s gap between strikes must not
+  // collapse severity to 'none' mid-storm.
+  const ra = recentActivity;
+  const sustainedRecent = ra != null && ra.count30m >= 30;
+  const hasLightning = stormAlert.level !== 'none' || sustainedRecent;
   let severity: StormPrediction['severity'] = 'none';
   if ((maxCape >= CAPE_SEVERE && hasLightning) || (stormAlert.level === 'danger' && maxPrecip > 10)) {
     severity = 'extreme';
   } else if (stormAlert.level === 'danger' || (stormAlert.level === 'warning' && maxCape >= CAPE_HIGH)) {
     severity = 'severe';
   } else if (hasLightning || maxCape >= CAPE_HIGH || probability >= 30) {
+    severity = 'moderate';
+  }
+
+  // ── Hysteresis floors & anticipation ──
+  // 1. Heavy recent activity + instability → at least 'severe' even if the
+  //    last poll happened to land in a lull (the 17:07/18:02 misses).
+  if (ra != null && ra.count30m >= 200 && maxCape >= CAPE_HIGH && severity !== 'extreme') {
+    severity = 'severe';
+  }
+  // 2. Storm was clearly active in the last 30 min but the instantaneous
+  //    state is calm → never report 'none'. Hold 'moderate' so the user
+  //    isn't told "all clear" 1 minute after a severe alert.
+  if (ra != null && ra.count30m >= 30 && severity === 'none') {
+    severity = 'moderate';
+  }
+  // 3. Pre-storm anticipation: strong instability building, no strikes YET.
+  //    This is the 11:00-13:00 miss — CAPE 1500+/LI<-4/overcast for hours
+  //    while the predictor sat at 'none'. Bump to 'moderate' so the user
+  //    gets a heads-up before the first strike.
+  if (
+    severity === 'none' &&
+    maxCape >= CAPE_SEVERE &&
+    minLI < -4 &&
+    maxCloud >= CLOUD_THRESHOLD &&
+    (ra == null || ra.count30m === 0)
+  ) {
     severity = 'moderate';
   }
 

@@ -31,19 +31,23 @@ export function useStormPrediction(): StormPrediction {
   // Use convectionData (Open-Meteo background) for CAPE/CIN/LI — falls back to hourly if same source
   const forecast = useForecastStore((s) => s.convectionData.length > 0 ? s.convectionData : s.hourly);
   const stormAlert = useLightningStore((s) => s.stormAlert);
+  const recentActivity = useLightningStore((s) => s.recentActivity);
   const stormShadow = useStormShadowStore((s) => s.stormShadow);
   const sectorWarnings = useWarningsStore((s) => s.sectorWarnings);
 
   return useMemo(() => {
-    // Need at least some data source active
+    // Need at least some data source active. Note recentActivity can keep the
+    // prediction alive through a lull even when stormAlert just dropped to
+    // 'none' — that's the whole point of the hysteresis.
     if (
       forecast.length === 0 &&
       stormAlert.level === 'none' &&
+      recentActivity.count30m === 0 &&
       stormShadow == null &&
       sectorWarnings.length === 0
     ) {
       return NO_PREDICTION;
     }
-    return predictStorm(forecast, stormAlert, stormShadow, sectorWarnings);
-  }, [forecast, stormAlert, stormShadow, sectorWarnings]);
+    return predictStorm(forecast, stormAlert, stormShadow, sectorWarnings, recentActivity);
+  }, [forecast, stormAlert, recentActivity, stormShadow, sectorWarnings]);
 }
