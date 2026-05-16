@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseRaioDate, mapStrikesForPersist } from './lightningFetcher';
+import { parseRaioDate, mapStrikesForPersist, isInGaliciaScope } from './lightningFetcher';
 
 // ── parseRaioDate ────────────────────────────────────
 
@@ -116,5 +116,66 @@ describe('mapStrikesForPersist', () => {
     const strikes = mapStrikesForPersist([mkRaio({ date: '27-04-2026 14:35' })], []);
     expect(strikes[0].time).toBeInstanceOf(Date);
     expect(strikes[0].time.toISOString()).toBe('2026-04-27T14:35:00.000Z');
+  });
+
+  it('flags isGalicia=true for strikes inside the bbox', () => {
+    // Central Galicia (Lugo area)
+    const s = mapStrikesForPersist([mkRaio({ latitude: 42.59, longitude: -7.86 })], []);
+    expect(s[0].isGalicia).toBe(true);
+  });
+
+  it('flags isGalicia=false for strikes outside (Castilla interior)', () => {
+    // East of -6.0 → out of scope (e.g. Zamora/León interior)
+    const s = mapStrikesForPersist([mkRaio({ latitude: 41.9, longitude: -5.5 })], []);
+    expect(s[0].isGalicia).toBe(false);
+  });
+});
+
+// ── isInGaliciaScope ─────────────────────────────────
+
+describe('isInGaliciaScope', () => {
+  it('accepts central Galicia (Lugo)', () => {
+    expect(isInGaliciaScope(42.59, -7.86)).toBe(true);
+  });
+
+  it('accepts Rías Baixas coast (Vigo)', () => {
+    expect(isInGaliciaScope(42.24, -8.72)).toBe(true);
+  });
+
+  it('accepts Estaca de Bares north edge', () => {
+    expect(isInGaliciaScope(43.79, -7.69)).toBe(true);
+  });
+
+  it('accepts offshore Atlantic within 100km buffer', () => {
+    expect(isInGaliciaScope(42.5, -10.2)).toBe(true);
+  });
+
+  it('accepts northern Portugal (Porto/Aveiro)', () => {
+    expect(isInGaliciaScope(41.6, -8.6)).toBe(true);
+  });
+
+  it('accepts Ourense + León border buffer (E -6.0)', () => {
+    expect(isInGaliciaScope(42.1, -6.3)).toBe(true);
+  });
+
+  it('rejects Castilla interior (lon east of -6.0)', () => {
+    expect(isInGaliciaScope(41.9, -5.5)).toBe(false);
+  });
+
+  it('rejects deep Portugal (lat south of 41.5)', () => {
+    expect(isInGaliciaScope(40.8, -8.5)).toBe(false);
+  });
+
+  it('rejects Asturias/Cantabria (lat north of 44.5)', () => {
+    expect(isInGaliciaScope(44.9, -6.5)).toBe(false);
+  });
+
+  it('rejects far Atlantic (lon west of -10.5)', () => {
+    expect(isInGaliciaScope(42.5, -11.2)).toBe(false);
+  });
+
+  it('boundary: exactly on the edge is inclusive', () => {
+    expect(isInGaliciaScope(44.5, -6.0)).toBe(true);
+    expect(isInGaliciaScope(41.5, -10.5)).toBe(true);
   });
 });

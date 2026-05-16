@@ -56,6 +56,42 @@ export interface PersistedStrike {
   peakCurrent: number;
   cloudToCloud: boolean;
   multiplicity: number;
+  /** Inside the Galicia + relevant-buffer bbox (see GALICIA_SCOPE). */
+  isGalicia: boolean;
+}
+
+/**
+ * Geographic scope for "relevant" lightning. meteo2api returns strikes for
+ * the whole NW Iberian peninsula; ~32% (audited 2026-05-14) fall outside the
+ * area that actually affects Galician weather (Castilla interior, deep
+ * Portugal, Asturias). We KEEP those rows (storm-approach analysis may want
+ * them) but flag them so the predictor / analyzer can calibrate on
+ * `WHERE is_galicia = TRUE` only.
+ *
+ * Bbox rationale:
+ *   N 44.5  — Estaca de Bares + ~20km buffer
+ *   S 41.5  — northern Portugal down to Aveiro
+ *   W -10.5 — ~100km offshore Atlantic (catch oceanic fronts before landfall)
+ *   E -6.0  — Ourense interior + León/Zamora border. Wider than the strict
+ *             Galicia edge (-6.5) on purpose: an eastern storm at -6.3°W can
+ *             move into Ourense within an hour, so the tracker needs to see
+ *             it coming. The Macizo Galaico blocks most, but not all.
+ */
+export const GALICIA_SCOPE = {
+  north: 44.5,
+  south: 41.5,
+  west: -10.5,
+  east: -6.0,
+} as const;
+
+/** True if a strike is within the Galicia-relevant bbox. Pure + testable. */
+export function isInGaliciaScope(lat: number, lon: number): boolean {
+  return (
+    lat >= GALICIA_SCOPE.south &&
+    lat <= GALICIA_SCOPE.north &&
+    lon >= GALICIA_SCOPE.west &&
+    lon <= GALICIA_SCOPE.east
+  );
 }
 
 // ── Pure parsing (testable in isolation) ─────────────
@@ -96,6 +132,7 @@ export function mapStrikesForPersist(
       peakCurrent: signedCurrent,
       cloudToCloud: false, // meteo2api lenda is cloud-to-ground only
       multiplicity: 1,
+      isGalicia: isInGaliciaScope(s.latitude, s.longitude),
     };
   };
 
@@ -148,12 +185,12 @@ async function batchInsertStrikes(strikes: PersistedStrike[]): Promise<number> {
   const params: unknown[] = [];
   let p = 1;
   for (const s of strikes) {
-    values.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
-    params.push(s.time, s.lat, s.lon, s.peakCurrent, s.cloudToCloud, s.multiplicity);
+    values.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
+    params.push(s.time, s.lat, s.lon, s.peakCurrent, s.cloudToCloud, s.multiplicity, s.isGalicia);
   }
 
   const sql = `
-    INSERT INTO lightning_strikes (time, lat, lon, peak_current, cloud_to_cloud, multiplicity)
+    INSERT INTO lightning_strikes (time, lat, lon, peak_current, cloud_to_cloud, multiplicity, is_galicia)
     VALUES ${values.join(', ')}
     ON CONFLICT (time, lat, lon) DO NOTHING
   `;
@@ -188,8 +225,8 @@ export async function runLightningCycle(): Promise<void> {
   }
 
   const inserted = await batchInsertStrikes(strikes);
-  const galicia = data.numTotalRaiosGalicia ?? 0;
+  const inScope = strikes.filter((s) => s.isGalicia).length;
   log.info(
-    `[Lightning] poll ok — ${strikes.length} returned by API (${galicia} in Galicia), ${inserted} new rows persisted`,
+    `[Lightning] poll ok — ${strikes.length} returned by API (${inScope} in Galicia scope, ${strikes.length - inScope} buffer), ${inserted} new rows persisted`,
   );
 }
