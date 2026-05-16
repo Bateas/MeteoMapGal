@@ -30,14 +30,24 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies (root)
-        run: npm ci --no-audit --no-fund
+        # .npmrc sets ignore-scripts=true (supply-chain hardening). esbuild's
+        # postinstall (downloads the platform binary) is then re-run
+        # explicitly with the override — without it `npm run build` fails
+        # with "You installed esbuild for another platform".
+        run: |
+          npm ci --no-audit --no-fund
+          npm rebuild esbuild --foreground-scripts --ignore-scripts=false
 
       - name: Install dependencies (ingestor)
         # ingestor has its own package.json (pg, dotenv) — vitest picks
         # up ingestor/**/*.test.ts which imports from these modules.
         # Without this step, ingestor/icaFetcher.test.ts and others fail
         # with "Cannot find module pg" on a fresh CI runner.
-        run: cd ingestor && npm ci --no-audit --no-fund
+        # sharp (install) + esbuild (postinstall) need their scripts re-run
+        # past the ignore-scripts=true policy.
+        run: |
+          cd ingestor && npm ci --no-audit --no-fund
+          npm rebuild esbuild sharp --foreground-scripts --ignore-scripts=false
 
       - name: Run tests (Vitest)
         run: |

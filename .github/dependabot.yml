@@ -1,5 +1,13 @@
 # Dependabot — weekly dep updates, grouped to avoid PR noise.
 # Target: catch security patches + major versions without daily PRs.
+#
+# SUPPLY-CHAIN DEFENSE: `cooldown` delays opening a PR until a release has
+# been public for N days. Trojanized packages (compromised maintainer —
+# Shai-Hulud sept-2025, tj-actions mar-2025) are detected and yanked from
+# the registry within hours/days, so a poisoned version is gone before we
+# ever see the PR. This is the PRIMARY defense; `.npmrc ignore-scripts` is
+# the secondary one. Combined with: never `npm install` a fresh bump the
+# same day. See CLAUDE.md "PROTOCOLO DEPENDENCIAS / SUPPLY-CHAIN".
 version: 2
 updates:
   # Frontend dependencies
@@ -8,6 +16,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     # Hold majors that require migration work we haven't done yet
     ignore:
@@ -73,15 +83,20 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "ingestor"
 
-  # GitHub Actions versions
+  # GitHub Actions versions (also a supply-chain target — tj-actions
+  # mar-2025 incident; cooldown applies here too)
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
     labels:
       - "ci"
