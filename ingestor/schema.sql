@@ -268,12 +268,23 @@ CREATE TABLE IF NOT EXISTS lightning_strikes (
   peak_current   REAL,                       -- kA, signed (positive/negative polarity)
   cloud_to_cloud BOOLEAN         NOT NULL DEFAULT FALSE,
   multiplicity   SMALLINT        DEFAULT 1,
+  -- TRUE if inside the Galicia-relevant bbox (N 44.5 / S 41.5 / W -10.5 /
+  -- E -6.0). meteo2api returns the whole NW peninsula; ~32% (audited
+  -- 2026-05-14) fall outside the area that affects Galician weather. Kept
+  -- for storm-approach analysis but the predictor/analyzer should filter
+  -- WHERE is_galicia = TRUE for clean calibration. DEFAULT TRUE so legacy
+  -- rows before the backfill don't silently drop out of queries.
+  is_galicia     BOOLEAN         NOT NULL DEFAULT TRUE,
   -- PK gives natural dedup across overlapping polls. lat/lon truncated to ~1m
   -- precision is more than enough — meteo2api itself emits 5-decimal coords.
   PRIMARY KEY (time, lat, lon)
 );
 SELECT create_hypertable('lightning_strikes', 'time', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_strikes_loc ON lightning_strikes (lat, lon);
+-- Idempotent add for existing deployments (CREATE TABLE IF NOT EXISTS skips
+-- the new column on an already-existing table — this ALTER applies it).
+ALTER TABLE lightning_strikes ADD COLUMN IF NOT EXISTS is_galicia BOOLEAN NOT NULL DEFAULT TRUE;
+CREATE INDEX IF NOT EXISTS idx_strikes_galicia ON lightning_strikes (is_galicia, time DESC);
 
 -- ── Active fires (historical-data-vision Phase 1a) ─────────
 -- NASA FIRMS VIIRS hotspots persisted from each /api/v1/firms cache miss.
