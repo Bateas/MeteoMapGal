@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { APP_VERSION } from './config/version'
 
 // One-shot cleanup of legacy localStorage keys.
 // `meteomap_station_log` was a frontend CSV log of every station reading,
@@ -26,10 +27,13 @@ createRoot(document.getElementById('root')!).render(
 import { initWebVitals } from './services/webVitals';
 initWebVitals();
 
-// Register service worker in production
+// Register service worker in production. The ?v=<APP_VERSION> query lets the
+// SW derive its own CACHE_NAME per app version (see public/sw.js header). A
+// version bump → new registration URL → re-install → activate purges old
+// caches → no stale-chunk bootstrap crashes after rapid deploys.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
+    navigator.serviceWorker.register(`/sw.js?v=${APP_VERSION}`).catch(() => {
       // SW registration failed — non-critical
     });
   });

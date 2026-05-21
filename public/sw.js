@@ -1,6 +1,14 @@
 // MeteoMap Service Worker — cache-first for static assets, network-first for HTML,
 // cache-then-network for map tiles, network-only for API
-const CACHE_NAME = 'meteomap-v6';
+//
+// CACHE_NAME is derived from the ?v=<APP_VERSION> query that main.tsx appends
+// when registering the SW. Every app version bump → new CACHE_NAME → activate
+// handler purges all previous caches automatically. Prevents the "stale chunk
+// after rapid deploys" bug seen in S136+1 day 3 (`h.value is not iterable`).
+// TILE_CACHE keeps its own stable name on purpose — map tiles outlive app
+// versions.
+const SW_VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
+const CACHE_NAME = `meteomap-v${SW_VERSION}`;
 const TILE_CACHE = 'meteomap-tiles-v1';
 const MAX_TILE_CACHE = 500; // LRU eviction above this
 
