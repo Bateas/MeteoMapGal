@@ -15,6 +15,11 @@ export function ReadingMapSection() {
         <h3 className="text-sm font-bold text-white">Elementos de la interfaz</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <MiniExplainer
+            iconId="eye-off"
+            title="Modo simple / avanzado"
+            text='Botón "Simple" en la cabecera (móvil: centro de la barra inferior). Si te abruma tanta información, actívalo: esconde estaciones, flechas de viento, contadores, gráficas y rankings, dejando solo spots, previsión, boyas y avisos importantes. Vuelves al modo completo cuando quieras pulsando "Avanzado".'
+          />
+          <MiniExplainer
             iconId="layers"
             title="Panel lateral (izquierda)"
             text="Panel fijo con pestañas: Estaciones (lista completa), Gráfica (series temporales), Comparar (spots lado a lado), Previsión (48h), Rankings (top por métrica) e Historial (datos almacenados). Colapsable con el botón ◀."

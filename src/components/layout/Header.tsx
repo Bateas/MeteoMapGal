@@ -37,6 +37,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   const forecastHourly = useForecastStore((s) => s.hourly);
   const thermalRules = useThermalStore((s) => s.rules);
   const isMobile = useUIStore((s) => s.isMobile);
+  const simpleMode = useUIStore((s) => s.simpleMode);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const theme = useThemeStore((s) => s.theme);
 
@@ -105,7 +106,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                     <WeatherIcon id={sector.icon} size={14} />
                     <span>{sector.shortName}</span>
                   </span>
-                  {isActive && stationCount > 0 && (
+                  {isActive && stationCount > 0 && !simpleMode && (
                     <span className="text-[11px] text-blue-200/60 font-normal leading-none">{readingCount}/{stationCount}</span>
                   )}
                 </button>
@@ -122,6 +123,26 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                 {readingCount}/{stationCount}
               </span>
             )}
+            {/* Simple/Avanzado toggle — placed next to the sector selector so
+                it sits in the same "view-mode" zone (sector + density both
+                pick what the user wants to see). Icon = current state:
+                eye = everything visible, eye-off = simpleMode hiding things.
+                Label = action: clicking will toggle to that mode. */}
+            <button
+              data-tour="simple-toggle"
+              onClick={() => useUIStore.getState().toggleSimpleMode()}
+              className={`ml-1 px-2.5 py-1.5 rounded-lg border transition-all min-h-[36px] inline-flex items-center gap-1.5 text-[12px] font-semibold ${
+                simpleMode
+                  ? 'text-amber-300 border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 hover:border-amber-400/60 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
+                  : 'text-slate-300 border-slate-600/60 bg-slate-800/60 hover:bg-slate-700/70 hover:text-white hover:border-slate-500/80'
+              }`}
+              aria-pressed={simpleMode}
+              aria-label={simpleMode ? 'Volver a modo avanzado' : 'Activar modo simple'}
+              title={simpleMode ? 'Modo simple ACTIVO — click para volver al avanzado' : 'Modo simple: oculta detalle del mapa y panel'}
+            >
+              <WeatherIcon id={simpleMode ? 'eye-off' : 'eye'} size={14} />
+              <span>{simpleMode ? 'Avanzado' : 'Simple'}</span>
+            </button>
           </>
         )}
         {/* Source status — hidden on narrow desktop, visible on lg+ */}

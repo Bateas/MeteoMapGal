@@ -47,6 +47,7 @@ import {
   Navigation,
   Layers,
   Eye,
+  EyeOff,
   Camera,
   ThumbsUp,
   ThumbsDown,
@@ -68,7 +69,7 @@ export type IconId =
   | 'mountain' | 'beach' | 'tag' | 'cloud-drizzle' | 'map'
   | 'leaf' | 'clock' | 'x' | 'clipboard-list' | 'anchor'
   | 'database' | 'gauge' | 'check' | 'sprout'
-  | 'compass' | 'navigation' | 'layers' | 'eye' | 'camera'
+  | 'compass' | 'navigation' | 'layers' | 'eye' | 'eye-off' | 'camera'
   | 'thumbs-up' | 'thumbs-down' | 'bell' | 'bell-off'
   | 'ruler' | 'activity' | 'message-square' | 'maximize';
 
@@ -225,6 +226,7 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'navigation': Navigation,
   'layers': Layers,
   'eye': Eye,
+  'eye-off': EyeOff,
   'camera': Camera,
   'thumbs-up': ThumbsUp,
   'thumbs-down': ThumbsDown,
@@ -322,6 +324,7 @@ const ICON_LABELS: Record<IconId, string> = {
   'navigation': 'Navegación',
   'layers': 'Batimetría',
   'eye': 'Privacidad',
+  'eye-off': 'Ocultar detalle',
   'camera': 'Webcam',
   'thumbs-up': 'Correcto',
   'thumbs-down': 'Incorrecto',
