@@ -55,12 +55,21 @@ function distKm(lat1: number, lon1: number, lat2: number, lon2: number): number 
  * Each detector source contributes a buffer ~6km radius. Density falls with distance.
  * Only paints cells with low elevation (coastal/water-level).
  */
-function sampleFogZonesLocal(
+// Yield to the event loop every CHUNK_CELLS iterations so the main thread
+// stays responsive. Without this, processing ~1800 cells back-to-back blocks
+// the browser for 400-700ms (visible jank + `setTimeout handler took 621ms`
+// violations on mobile when fog appears). 100 cells × ~0.3ms = ~30ms per
+// chunk, comfortably under the 50ms long-task threshold.
+const CHUNK_CELLS = 100;
+const yieldToEventLoop = () => new Promise<void>((r) => setTimeout(r, 0));
+
+async function sampleFogZonesLocal(
   queryElevation: (lngLat: { lng: number; lat: number }) => number | null,
   sources: { lat: number; lon: number }[],
   config: typeof FOG_CONFIG.embalse,
   fogType: 'radiative' | 'advective',
-): GeoJSON.FeatureCollection {
+  signal?: AbortSignal,
+): Promise<GeoJSON.FeatureCollection> {
   const FOG_RADIUS_KM = 4; // Each source paints up to 4km around itself (webcam visibility range in fog)
   const { maxAltitude, cols, rows } = config;
   const color = fogType === 'advective' ? config.advectiveColor : config.radiativeColor;
@@ -76,9 +85,16 @@ function sampleFogZonesLocal(
   const cellW = (bbox.east - bbox.west) / cols;
   const cellH = (bbox.north - bbox.south) / rows;
   const features: GeoJSON.Feature[] = [];
+  let cellsProcessed = 0;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
+      // Yield to event loop every CHUNK_CELLS cells (~30ms of work) so the
+      // main thread can render and respond to input. Also check for abort.
+      if (++cellsProcessed % CHUNK_CELLS === 0) {
+        await yieldToEventLoop();
+        if (signal?.aborted) throw new DOMException('Fog build aborted', 'AbortError');
+      }
       const lng = bbox.west + (col + 0.5) * cellW;
       const lat = bbox.south + (row + 0.5) * cellH;
 
@@ -131,12 +147,13 @@ function sampleFogZonesLocal(
   return { type: 'FeatureCollection', features };
 }
 
-function sampleFogZones(
+async function sampleFogZones(
   queryElevation: (lngLat: { lng: number; lat: number }) => number | null,
   config: typeof FOG_CONFIG.embalse,
   fogType: 'radiative' | 'advective',
   windDir?: number | null,
-): GeoJSON.FeatureCollection {
+  signal?: AbortSignal,
+): Promise<GeoJSON.FeatureCollection> {
   const { bbox, cols, rows, maxAltitude } = config;
   const cellW = (bbox.east - bbox.west) / cols;
   const cellH = (bbox.north - bbox.south) / rows;
@@ -156,9 +173,16 @@ function sampleFogZones(
   const bboxCenterLat = (bbox.south + bbox.north) / 2;
   const halfW = (bbox.east - bbox.west) / 2;
   const halfH = (bbox.north - bbox.south) / 2;
+  let cellsProcessed = 0;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
+      // Yield + abort check every CHUNK_CELLS cells — same pattern as the
+      // local sampler, see comment above.
+      if (++cellsProcessed % CHUNK_CELLS === 0) {
+        await yieldToEventLoop();
+        if (signal?.aborted) throw new DOMException('Fog build aborted', 'AbortError');
+      }
       const lng = bbox.west + (col + 0.5) * cellW;
       const lat = bbox.south + (row + 0.5) * cellH;
 
@@ -250,8 +274,12 @@ function FogOverlayInner() {
   // Skip rebuilds < 2s apart — geometry doesn't change that fast anyway.
   const lastBuildAtRef = useRef<number>(0);
   const MIN_BUILD_GAP_MS = 2000;
+  // Cancel any in-flight async build when a new one starts (sector change,
+  // wind dir update, sources update, unmount). Avoids stale GeoJSON landing
+  // after a newer build was requested.
+  const buildAbortRef = useRef<AbortController | null>(null);
 
-  const buildFogZones = useCallback(() => {
+  const buildFogZones = useCallback(async () => {
     const map = mapRef?.getMap();
     if (!map) return;
 
@@ -259,19 +287,30 @@ function FogOverlayInner() {
     if (now - lastBuildAtRef.current < MIN_BUILD_GAP_MS) return;
     lastBuildAtRef.current = now;
 
+    // Cancel previous build and start a new one
+    buildAbortRef.current?.abort();
+    const ac = new AbortController();
+    buildAbortRef.current = ac;
+
     const queryElev = (lngLat: { lng: number; lat: number }) => {
       try { return map.queryTerrainElevation?.(lngLat) ?? null; }
       catch { return null; }
     };
 
-    // prefer LOCALIZED sampling when detector sources are available
-    const sources = fogMeta?.sources ?? [];
-    const data = sources.length > 0
-      ? sampleFogZonesLocal(queryElev, sources, config, fogType)
-      : sampleFogZones(queryElev, config, fogType, fogMeta?.windDir);
+    try {
+      // prefer LOCALIZED sampling when detector sources are available
+      const sources = fogMeta?.sources ?? [];
+      const data = sources.length > 0
+        ? await sampleFogZonesLocal(queryElev, sources, config, fogType, ac.signal)
+        : await sampleFogZones(queryElev, config, fogType, fogMeta?.windDir, ac.signal);
 
-    if (data.features.length >= MIN_CLUSTER_POINTS) {
-      setFogGeoJSON(data);
+      if (ac.signal.aborted) return; // newer build raced past us
+      if (data.features.length >= MIN_CLUSTER_POINTS) {
+        setFogGeoJSON(data);
+      }
+    } catch (err) {
+      if ((err as DOMException)?.name === 'AbortError') return; // expected on rebuild
+      throw err;
     }
   }, [mapRef, config, sectorId, fogType, fogMeta?.windDir, fogMeta?.sources]);
 
@@ -287,13 +326,14 @@ function FogOverlayInner() {
     const map = mapRef?.getMap();
     if (!map) return;
 
-    const timer = setTimeout(buildFogZones, 3000);
-    const onTerrain = () => setTimeout(buildFogZones, 500);
+    const timer = setTimeout(() => { void buildFogZones(); }, 3000);
+    const onTerrain = () => { setTimeout(() => { void buildFogZones(); }, 500); };
     map.once('terrain', onTerrain);
 
     return () => {
       clearTimeout(timer);
       map.off('terrain', onTerrain);
+      buildAbortRef.current?.abort();
     };
   }, [active, sectorId, buildFogZones, mapRef]);
 
