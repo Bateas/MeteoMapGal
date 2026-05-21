@@ -10,14 +10,10 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 
 type BottomTab = 'map' | 'spots' | 'datos' | 'prevision' | 'mas';
-
-const TABS: { id: BottomTab; label: string; icon: IconId }[] = [
-  { id: 'map', label: 'Mapa', icon: 'map' },
-  { id: 'spots', label: 'Spots', icon: 'map-pin' },
-  { id: 'datos', label: 'Datos', icon: 'activity' },
-  { id: 'prevision', label: 'Previsión', icon: 'cloud-sun' },
-  { id: 'mas', label: 'Más', icon: 'layers' },
-];
+// 'simple' is a quick-action toggle in the bottom nav, not a real tab —
+// pressing it flips simpleMode (no view change). 'datos' lives in the
+// "Más" menu instead of the primary bar (S136+1 day 4 UX iteration).
+type BottomNavId = BottomTab | 'simple';
 
 // ── "Más" menu items ────────────────────────────────────
 
@@ -39,9 +35,22 @@ function MobileBottomNavInner() {
   const setForecastPanelOpen = useUIStore((s) => s.setForecastPanelOpen);
   const toggleGuide = useUIStore((s) => s.toggleGuide);
   const setFeedbackOpen = useUIStore((s) => s.setFeedbackOpen);
+  const simpleMode = useUIStore((s) => s.simpleMode);
+  const toggleSimpleMode = useUIStore((s) => s.toggleSimpleMode);
   const sectorId = useSectorStore((s) => s.activeSector.id);
 
   const [moreOpen, setMoreOpen] = useState(false);
+
+  // Primary bottom nav entries. 'simple' is a quick-action toggle in the
+  // central slot — pressing it flips simpleMode without changing the view.
+  // Icon + label reflect the current state.
+  const TABS: { id: BottomNavId; label: string; icon: IconId }[] = [
+    { id: 'map', label: 'Mapa', icon: 'map' },
+    { id: 'spots', label: 'Spots', icon: 'map-pin' },
+    { id: 'simple', label: simpleMode ? 'Avanzado' : 'Simple', icon: simpleMode ? 'eye-off' : 'eye' },
+    { id: 'prevision', label: 'Previsión', icon: 'cloud-sun' },
+    { id: 'mas', label: 'Más', icon: 'layers' },
+  ];
 
   const openSidebarTab = useCallback((tab: string, navTab: BottomTab) => {
     setRequestedTab(tab);
@@ -51,8 +60,14 @@ function MobileBottomNavInner() {
     setMoreOpen(false);
   }, [setRequestedTab, setSidebarOpen, setFieldDrawerOpen, setActiveTab]);
 
-  const handleTab = useCallback((id: BottomTab) => {
+  const handleTab = useCallback((id: BottomNavId) => {
     setMoreOpen(false);
+
+    if (id === 'simple') {
+      // Quick-action toggle — no view switch, no activeTab change.
+      toggleSimpleMode();
+      return;
+    }
 
     if (id === 'map') {
       // Close all panels — return to map
@@ -85,11 +100,14 @@ function MobileBottomNavInner() {
       setActiveTab('mas');
       return;
     }
-  }, [setSidebarOpen, setFieldDrawerOpen, setActiveTab, openSidebarTab, setForecastPanelOpen]);
+  }, [setSidebarOpen, setFieldDrawerOpen, setActiveTab, openSidebarTab, setForecastPanelOpen, toggleSimpleMode]);
 
   const menuItems: MenuItem[] = [
     { icon: 'book-open', label: 'Guía MeteoMapGal', action: () => { toggleGuide(); setMoreOpen(false); }, highlight: 'text-sky-400' },
     { icon: 'message-square', label: 'Enviar Feedback', action: () => { setFeedbackOpen(true); setMoreOpen(false); }, highlight: 'text-emerald-400' },
+    // "Datos" moved here from the primary nav so the Simple/Avanzado toggle
+    // can occupy the central slot (S136+1 day 4 UX iteration).
+    { icon: 'activity', label: 'Datos del panel', action: () => { setFieldDrawerOpen(true); setActiveTab('datos'); setMoreOpen(false); } },
     { icon: 'activity', label: 'Gráfica', tab: 'chart' },
     { icon: 'compass', label: 'Comparar', tab: 'compare' },
     { icon: 'layers', label: 'Rankings', tab: 'rankings' },
@@ -151,15 +169,20 @@ function MobileBottomNavInner() {
       >
         <div className="flex items-stretch justify-around">
           {TABS.map(({ id, label, icon }) => {
-            const isActive = activeTab === id;
+            // 'simple' is a toggle (highlighted when simpleMode active, amber);
+            // other ids are tabs (highlighted when active, sky).
+            const isActive = id === 'simple' ? simpleMode : activeTab === id;
+            const activeColor = id === 'simple' ? 'text-amber-300' : 'text-sky-400';
             return (
               <button
                 key={id}
+                data-tour={id === 'simple' ? 'simple-toggle' : undefined}
                 className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[48px] pt-1.5 pb-1 transition-colors ${
-                  isActive ? 'text-sky-400' : 'text-slate-400'
+                  isActive ? activeColor : 'text-slate-400'
                 }`}
                 onClick={() => handleTab(id)}
                 aria-label={label}
+                aria-pressed={id === 'simple' ? simpleMode : undefined}
               >
                 <WeatherIcon id={icon} size={20} />
                 <span className="text-[10px] font-medium leading-none">{label}</span>

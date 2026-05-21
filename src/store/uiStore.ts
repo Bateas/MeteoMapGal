@@ -54,6 +54,17 @@ interface UIState {
   alphaMode: boolean;
   toggleAlphaMode: () => void;
   setAlphaMode: (v: boolean) => void;
+  /**
+   * Simple mode (S136+1 day 4 — Plan B from session-S136-1-profile-onboarding-WIP):
+   * when true, the UI hides clutter (station markers, wind arrows,
+   * ConditionsTicker, bottom layers toolbar) and reduces the sidebar to
+   * essentials. Spots, buoys, reactive overlays (storm/fog/calima/ICA) and
+   * sector selector stay visible. Default OFF for all users — opt-in toggle.
+   * Persisted.
+   */
+  simpleMode: boolean;
+  toggleSimpleMode: () => void;
+  setSimpleMode: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -109,6 +120,9 @@ export const useUIStore = create<UIState>()(
       alphaMode: false,
       toggleAlphaMode: () => set((s) => ({ alphaMode: !s.alphaMode })),
       setAlphaMode: (v) => set({ alphaMode: v }),
+      simpleMode: false,
+      toggleSimpleMode: () => set((s) => ({ simpleMode: !s.simpleMode })),
+      setSimpleMode: (v) => set({ simpleMode: v }),
     }),
     {
       name: 'meteomap-ui',
@@ -117,6 +131,7 @@ export const useUIStore = create<UIState>()(
         bathymetryVisible: state.bathymetryVisible,
         sstVisible: state.sstVisible,
         alphaMode: state.alphaMode,
+        simpleMode: state.simpleMode,
       }),
     },
   ),

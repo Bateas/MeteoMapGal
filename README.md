@@ -46,14 +46,22 @@
 3. Toca un **spot** (icono hexagonal) para ver condiciones y veredicto
 4. Escala de colores: gris = calma, azul = flojo, verde = navegable, amarillo = bueno, naranja = fuerte
 5. Explora: Estaciones, Grafica, Prevision, Rankings, Historial
-6. **Alertas Telegram**: resumen diario a las 9:00 + alertas instantaneas de cambio de viento
-7. **Modo Evento**: selecciona una zona de agua para monitorizar seguridad en tiempo real
+6. **Modo Simple**: si te abruma, pulsa el boton "Simple" en la cabecera (centro de la barra inferior en movil). Esconde detalles y deja solo lo esencial — spots, prevision y avisos importantes
+7. **Alertas Telegram**: resumen diario a las 9:00 + alertas instantaneas de cambio de viento
+8. **Modo Evento**: selecciona una zona de agua para monitorizar seguridad en tiempo real
 
 > El viento se mide en **nudos (kt)**: 1 nudo = 1,852 km/h.
 
 ---
 
 ## Funcionalidades principales
+
+### Modo Simple / Avanzado
+- Toggle accesible en cabecera (desktop) y centro de la barra inferior (movil)
+- Pensado para usuarios casuales que solo quieren saber "como esta hoy" sin abrumarse
+- En modo Simple se esconden: marcadores de estaciones, flechas de viento, ticker de condiciones, selector de capas y tabs secundarios (Grafica, Comparar, Rankings, Historial)
+- Se mantienen: spots con veredicto, boyas, previsiones, alertas reactivas (tormentas, niebla, calima, calidad del aire), sector selector
+- Banner ambar persistente cuando esta activo, con un clic para volver al modo completo
 
 ### Mapa en tiempo real
 - Mapa 3D (MapLibre GL) con 6 estilos base + terreno

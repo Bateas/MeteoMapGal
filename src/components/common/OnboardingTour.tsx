@@ -33,6 +33,13 @@ const STEPS: Step[] = [
     highlight: '[data-tour="sectors"]',
   },
   {
+    icon: 'eye-off',
+    title: '¿Demasiada información?',
+    desc: 'Si te abruma, pulsa el botón "Simple" en la cabecera (resaltado). Esconde detalles del mapa y panel y deja solo lo esencial: spots, previsión y avisos importantes. Puedes volver al modo completo cuando quieras.',
+    tip: 'En móvil está en el centro de la barra inferior.',
+    highlight: '[data-tour="simple-toggle"]',
+  },
+  {
     icon: 'map-pin',
     title: 'Spots de navegación',
     desc: 'Los marcadores grandes son spots con scoring automático (0-100). Toca uno para ver viento, oleaje, mareas, pronóstico 12h y ventanas de navegación.',
