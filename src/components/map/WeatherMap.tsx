@@ -132,6 +132,7 @@ export function WeatherMap() {
   const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
   const selectStation = useWeatherSelectionStore((s) => s.selectStation);
   const isMobile = useUIStore((s) => s.isMobile);
+  const simpleMode = useUIStore((s) => s.simpleMode);
 
   const selectedStation = stations.find((s) => s.id === selectedStationId);
 
@@ -399,20 +400,26 @@ export function WeatherMap() {
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
 
-        {/* Wind field arrows around stations + buoys */}
-        <WindFieldOverlay stations={stations} readings={currentReadings} buoys={activeSector.id === 'rias' ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
+        {/* Wind field arrows around stations + buoys (hidden in simpleMode) */}
+        {!simpleMode && (
+          <WindFieldOverlay stations={stations} readings={currentReadings} buoys={activeSector.id === 'rias' ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
+        )}
 
-        {/* Temp-only station dots — GPU-accelerated (single source + 3 layers) */}
+        {/* Temp-only station dots — GPU-accelerated. Kept visible in simpleMode
+            (small temp dots are informational without overwhelming). */}
         <TempOnlyOverlay stations={stations} readings={currentReadings} />
 
-        {/* Station markers — GPU symbol layer (replaces 90+ DOM markers) */}
-        <StationSymbolLayer
-          stations={stations}
-          readings={currentReadings}
-          selectedStationId={selectedStationId}
-          onSelectStation={selectStation}
-          zoomLevel={zoomLevel}
-        />
+        {/* Station markers — GPU symbol layer. Hidden in simpleMode to keep the
+            map focused on spots, buoys and reactive overlays. */}
+        {!simpleMode && (
+          <StationSymbolLayer
+            stations={stations}
+            readings={currentReadings}
+            selectedStationId={selectedStationId}
+            onSelectStation={selectStation}
+            zoomLevel={zoomLevel}
+          />
+        )}
 
         {/* Marine buoy markers — GPU circle+symbol layer (Rías only) */}
         {activeSector.id === 'rias' && (
@@ -556,7 +563,7 @@ export function WeatherMap() {
           <div className="flex items-center justify-center gap-1.5 max-w-full overflow-x-auto scrollbar-none pointer-events-auto">
             <Suspense fallback={null}><StormIndicator /></Suspense>
             <TemperatureToggle />
-            <WeatherLayerSelector />
+            {!simpleMode && <WeatherLayerSelector />}
             <button
               onClick={() => setDistanceActive((v) => !v)}
               className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}
@@ -574,7 +581,7 @@ export function WeatherMap() {
           <div className="flex items-end gap-2 shrink-0">
             <Suspense fallback={null}><StormIndicator /></Suspense>
             <TemperatureToggle />
-            <WeatherLayerSelector />
+            {!simpleMode && <WeatherLayerSelector />}
             <button
               onClick={() => setDistanceActive((v) => !v)}
               className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}

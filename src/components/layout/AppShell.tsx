@@ -53,18 +53,23 @@ import type { TeleconnectionIndex } from '../../api/naoClient';
 import { RIAS_WEBCAMS } from '../../config/webcams';
 const DeferredHooks = lazy(() => import('./DeferredHooks').then(m => ({ default: m.DeferredHooks })));
 
-/** Collapsed sidebar: vertical icon strip with tab shortcuts — sector-aware */
+/** Collapsed sidebar: vertical icon strip with tab shortcuts — sector-aware.
+ *  In simpleMode, hides Gráfica/Rankings/Historial (S136+1 day 4 — user
+ *  feedback: "lo más limpio posible para no abrumar"). Keeps Estaciones +
+ *  Previsión always, Térmico only in Embalse. */
 function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
   const sectorId = useSectorStore((s) => s.activeSector.id);
-  const TABS = [
+  const simpleMode = useUIStore((s) => s.simpleMode);
+  const allTabs = [
     { icon: 'map-pin' as const, label: 'Estaciones', shortcut: '1', tab: 'stations' },
-    { icon: 'activity' as const, label: 'Gráfica', shortcut: '2', tab: 'chart' },
+    { icon: 'activity' as const, label: 'Gráfica', shortcut: '2', tab: 'chart', hideInSimple: true },
     { icon: 'compass' as const, label: 'Previsión', shortcut: '3', tab: 'forecast' },
     // Térmico only in Embalse — dynamic, not hardcoded
     ...(sectorId === 'embalse' ? [{ icon: 'flame' as const, label: 'Térmico', shortcut: '4', tab: 'thermal' }] : []),
-    { icon: 'layers' as const, label: 'Rankings', shortcut: sectorId === 'embalse' ? '5' : '4', tab: 'rankings' },
-    { icon: 'clock' as const, label: 'Historial', shortcut: sectorId === 'embalse' ? '6' : '5', tab: 'history' },
+    { icon: 'layers' as const, label: 'Rankings', shortcut: sectorId === 'embalse' ? '5' : '4', tab: 'rankings', hideInSimple: true },
+    { icon: 'clock' as const, label: 'Historial', shortcut: sectorId === 'embalse' ? '6' : '5', tab: 'history', hideInSimple: true },
   ];
+  const TABS = allTabs.filter((t) => !simpleMode || !('hideInSimple' in t && t.hideInSimple));
   return (
     <div className="flex flex-col items-center py-2 gap-1 h-full">
       {/* Expand button */}
@@ -133,6 +138,7 @@ export function AppShell() {
 
   // ── Responsive state ──────────────────────────────────
   const isMobile = useUIStore((s) => s.isMobile);
+  const simpleMode = useUIStore((s) => s.simpleMode);
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
   const toggleSidebarCollapsed = useUIStore((s) => s.toggleSidebarCollapsed);
   const theme = useThemeStore((s) => s.theme);
@@ -505,7 +511,24 @@ export function AppShell() {
       {/* Deferred hooks — mount after 3s to unblock first paint (LCP) */}
       {deferredReady && <DeferredHooks teleconnectionsRef={teleconnectionsRef} />}
 
-      <ErrorBoundary section="Ticker"><Suspense fallback={null}><ConditionsTicker /></Suspense></ErrorBoundary>
+      {/* Visual confirmation of simpleMode + escape hatch. Without this the
+          user may toggle simpleMode by accident and not understand why content
+          disappeared. Clickable → toggles back to advanced. */}
+      {simpleMode && (
+        <button
+          onClick={() => useUIStore.getState().toggleSimpleMode()}
+          className="w-full bg-amber-500/10 hover:bg-amber-500/20 border-b border-amber-500/30 px-3 py-1 text-[11px] text-amber-300 hover:text-amber-200 font-medium transition-colors flex items-center justify-center gap-2 min-h-[28px]"
+          aria-label="Modo simple activo, pulsa para volver al modo avanzado"
+          title="Pulsa para volver al modo avanzado"
+        >
+          <WeatherIcon id="eye-off" size={12} />
+          <span>Modo simple activo · pulsa para ver todo</span>
+        </button>
+      )}
+
+      {!simpleMode && (
+        <ErrorBoundary section="Ticker"><Suspense fallback={null}><ConditionsTicker /></Suspense></ErrorBoundary>
+      )}
       <SourceStatusBanner />
 
       <div className="flex-1 flex overflow-hidden relative">

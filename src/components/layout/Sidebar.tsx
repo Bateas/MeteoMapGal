@@ -41,12 +41,26 @@ const SpotComparator = lazy(() =>
 
 type Tab = 'stations' | 'chart' | 'compare' | 'forecast' | 'thermal' | 'history' | 'rankings' | 'verify';
 
+// Tabs visible in simpleMode. Other tabs are hidden to reduce overwhelm.
+// User feedback S136+1 day 4: "lo más limpio posible para no abrumar" →
+// keep only Estaciones + Previsión (+ Térmico in Embalse via isEmbalse gate).
+// If activeTab is not in this set when simpleMode toggles ON, fallback to 'stations'.
+const SIMPLE_TABS: ReadonlySet<Tab> = new Set<Tab>(['stations', 'forecast', 'thermal']);
+
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
   const activeSectorId = useSectorStore((s) => s.activeSector.id);
   const isEmbalse = activeSectorId === 'embalse';
   const isRias = activeSectorId === 'rias';
   const isMobile = useUIStore((s) => s.isMobile);
+  const simpleMode = useUIStore((s) => s.simpleMode);
+
+  // Fallback when simpleMode hides the current tab
+  useEffect(() => {
+    if (simpleMode && !SIMPLE_TABS.has(activeTab)) {
+      setActiveTab('stations');
+    }
+  }, [simpleMode, activeTab]);
 
   // Prefetch chart-heavy tabs + recharts chunk (412KB) 1.5s after sidebar mount.
   // By the time the user clicks "Gráfica" / "Previsión" / "Térmico" / "Historial",
@@ -130,24 +144,28 @@ export function Sidebar() {
         >
           Estaciones
         </button>
-        <button
-          role="tab"
-          aria-selected={activeTab === 'chart'}
-          aria-controls="tabpanel-chart"
-          onClick={() => setActiveTab('chart')}
-          className={`${tabBase} ${activeTab === 'chart' ? tabOn('border-blue-500') : tabOff}`}
-        >
-          Gráfica
-        </button>
-        <button
-          role="tab"
-          aria-selected={activeTab === 'compare'}
-          aria-controls="tabpanel-compare"
-          onClick={() => setActiveTab('compare')}
-          className={`${tabBase} ${activeTab === 'compare' ? tabOn('border-cyan-500') : tabOff}`}
-        >
-          Comparar
-        </button>
+        {!simpleMode && (
+          <button
+            role="tab"
+            aria-selected={activeTab === 'chart'}
+            aria-controls="tabpanel-chart"
+            onClick={() => setActiveTab('chart')}
+            className={`${tabBase} ${activeTab === 'chart' ? tabOn('border-blue-500') : tabOff}`}
+          >
+            Gráfica
+          </button>
+        )}
+        {!simpleMode && (
+          <button
+            role="tab"
+            aria-selected={activeTab === 'compare'}
+            aria-controls="tabpanel-compare"
+            onClick={() => setActiveTab('compare')}
+            className={`${tabBase} ${activeTab === 'compare' ? tabOn('border-cyan-500') : tabOff}`}
+          >
+            Comparar
+          </button>
+        )}
         <button
           role="tab"
           aria-selected={activeTab === 'forecast'}
@@ -168,24 +186,28 @@ export function Sidebar() {
             Térmico
           </button>
         )}
-        <button
-          role="tab"
-          aria-selected={activeTab === 'rankings'}
-          aria-controls="tabpanel-rankings"
-          onClick={() => setActiveTab('rankings')}
-          className={`${tabBase} ${activeTab === 'rankings' ? tabOn('border-emerald-500') : tabOff}`}
-        >
-          Rankings
-        </button>
-        <button
-          role="tab"
-          aria-selected={activeTab === 'history'}
-          aria-controls="tabpanel-history"
-          onClick={() => setActiveTab('history')}
-          className={`${tabBase} ${activeTab === 'history' ? tabOn('border-amber-500') : tabOff}`}
-        >
-          Historial
-        </button>
+        {!simpleMode && (
+          <button
+            role="tab"
+            aria-selected={activeTab === 'rankings'}
+            aria-controls="tabpanel-rankings"
+            onClick={() => setActiveTab('rankings')}
+            className={`${tabBase} ${activeTab === 'rankings' ? tabOn('border-emerald-500') : tabOff}`}
+          >
+            Rankings
+          </button>
+        )}
+        {!simpleMode && (
+          <button
+            role="tab"
+            aria-selected={activeTab === 'history'}
+            aria-controls="tabpanel-history"
+            onClick={() => setActiveTab('history')}
+            className={`${tabBase} ${activeTab === 'history' ? tabOn('border-amber-500') : tabOff}`}
+          >
+            Historial
+          </button>
+        )}
       </div>
       </nav>
 
