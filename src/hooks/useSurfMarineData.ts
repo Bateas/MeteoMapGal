@@ -5,7 +5,7 @@
  * Fallback chain: ingestor API (/api/v1/marine) → Open-Meteo Marine direct.
  * Runs on mount + every 15 min. Only for Rías sector (surf spots are Rías-only).
  */
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useSectorStore } from '../store/sectorStore';
 import { useSpotStore } from '../store/spotStore';
 import { getSpotsForSector } from '../config/spots';
@@ -77,12 +77,21 @@ export function useSurfMarineData() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const setSurfWave = useSpotStore((s) => s.setSurfWave);
 
+  // Sector ref to drop stale fetches when the user switches sectors mid-loop
+  // (3 surf spots × ~1-2s = up to 6s exposure window per cycle — S136+1 day 4
+  // race-condition audit).
+  const sectorIdRef = useRef(sectorId);
+  useEffect(() => { sectorIdRef.current = sectorId; }, [sectorId]);
+
   const fetchAll = useCallback(async () => {
+    const fetchSectorId = sectorId;
     const spots = getSpotsForSector(sectorId).filter((s) => s.category === 'surf');
     if (spots.length === 0) return;
     for (const spot of spots) {
+      if (sectorIdRef.current !== fetchSectorId) return; // sector switched — drop remaining
       try {
         const hours = await fetchMarineForSpot(spot.id, spot.center[1], spot.center[0]);
+        if (sectorIdRef.current !== fetchSectorId) return; // sector switched during fetch
         const now = hours[0];
         if (!now) continue;
         // Per-spot coastal correction × swell direction alignment
