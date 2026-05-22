@@ -280,10 +280,19 @@ export function WeatherMap() {
     prevWebcamRef.current = selectedWebcamId;
   }, [selectedBuoyId, selectedStationId, activeSpotId, selectedWebcamId, selectStation, selectBuoy, selectSpot, selectWebcam]);
 
-  /** Fly to sector view when it changes. */
+  /** Fly to sector view when it changes — and close any popup that belongs
+   *  to the previous sector (spots, stations, buoys, webcams). Without this
+   *  reset, a selection persists across sector switches and re-opens when
+   *  the user returns to the original sector (S136+1 day 4 audit — first
+   *  reported as the Cesantes auto-open bug, extended to all map selections
+   *  because they share the same leakage pattern). */
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    if (activeSpotId) selectSpot('');
+    if (selectedStationId) selectStation(null);
+    if (selectedBuoyId != null) selectBuoy(null);
+    if (selectedWebcamId) selectWebcam(null);
     const { longitude, latitude, zoom, pitch, bearing } = activeSector.initialView;
     map.flyTo({
       center: [longitude, latitude],
@@ -294,6 +303,7 @@ export function WeatherMap() {
     });
   // initialView is derived from sector id (immutable configs), but include it
   // so the linter sees all values used inside the effect are listed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- selection getters/setters intentionally omitted: only react to sector changes
   }, [activeSector.id, activeSector.initialView]);
 
   /** Fly to a specific target (triggered from FieldDrawer zone click / SpotComparator). */
@@ -323,13 +333,21 @@ export function WeatherMap() {
 
   /** Register all custom SDF/raster icons. Idempotent (each register*
    *  guards with map.hasImage). Must run on initial load AND after every
-   *  setStyle — MapLibre wipes addImage() icons on a style rebuild. */
+   *  setStyle — MapLibre wipes addImage() icons on a style rebuild.
+   *
+   *  Aircraft icon (S136+1 day 4 audit): lives in the lazy AviationOverlay
+   *  chunk, so we dynamic-import it. Only Embalse + regatta surface aviation,
+   *  so we gate the import to avoid pulling that chunk for Rías-only users.
+   *  Fire-and-forget — the registrar is idempotent. */
   const registerAllIcons = useCallback((map: maplibregl.Map) => {
     registerWindArrowIcons(map, 48);
     registerStationIcon(map);
     registerBuoyIcon(map);
     registerWebcamIcon(map);
-  }, []);
+    if (activeSector.id === 'embalse' || regattaActive) {
+      import('./AviationOverlay').then(({ registerAircraftIcon }) => registerAircraftIcon(map));
+    }
+  }, [activeSector.id, regattaActive]);
 
   /** Register all map icons when the map loads. */
   const handleMapLoad = useCallback(() => {

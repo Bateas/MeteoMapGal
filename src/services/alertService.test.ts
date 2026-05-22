@@ -5,7 +5,6 @@ import { describe, it, expect } from 'vitest';
 import {
   buildStormAlerts,
   buildInversionAlerts,
-  buildThermalAlerts,
   buildFieldAlerts,
   computeCompositeRisk,
   aggregateAllAlerts,
@@ -13,7 +12,6 @@ import {
 } from './alertService';
 import type { StormAlert } from '../types/lightning';
 import type { ThermalProfile } from './lapseRateService';
-import type { ZoneAlert, MicroZoneId } from '../types/thermal';
 import type { FieldAlerts } from '../types/campo';
 
 // ── Storm alerts ────────────────────────────────────────
@@ -118,39 +116,6 @@ describe('buildInversionAlerts', () => {
   });
 });
 
-// ── Thermal alerts ──────────────────────────────────────
-
-describe('buildThermalAlerts', () => {
-  it('returns empty for empty zones', () => {
-    expect(buildThermalAlerts(new Map())).toEqual([]);
-  });
-
-  it('skips zones with alertLevel "none"', () => {
-    const zones = new Map<MicroZoneId, ZoneAlert>();
-    zones.set('carballiño' as MicroZoneId, {
-      alertLevel: 'none',
-      maxScore: 0,
-      activeRules: [],
-    } as ZoneAlert);
-    expect(buildThermalAlerts(zones)).toEqual([]);
-  });
-
-  it('returns moderate alert for zone with high alert level (score 75)', () => {
-    const zones = new Map<MicroZoneId, ZoneAlert>();
-    zones.set('ribadavia' as MicroZoneId, {
-      alertLevel: 'high',
-      maxScore: 75,
-      activeRules: [{ id: 'r1' }, { id: 'r2' }],
-    } as unknown as ZoneAlert);
-    const alerts = buildThermalAlerts(zones);
-    expect(alerts).toHaveLength(1);
-    // Score 75 → capped at moderate (yellow), not info (blue)
-    expect(alerts[0].severity).toBe('moderate');
-    expect(alerts[0].score).toBe(75);
-    expect(alerts[0].title).toContain('ALTO');
-  });
-});
-
 // ── Composite risk ──────────────────────────────────────
 
 describe('computeCompositeRisk', () => {
@@ -220,7 +185,6 @@ describe('aggregateAllAlerts', () => {
     const { alerts, risk } = aggregateAllAlerts({
       stormAlert: null,
       thermalProfile: null,
-      zoneAlerts: new Map(),
       fieldAlerts: null,
     });
     expect(alerts).toEqual([]);
@@ -228,22 +192,21 @@ describe('aggregateAllAlerts', () => {
   });
 
   it('sorts alerts by score descending', () => {
-    const zones = new Map<MicroZoneId, ZoneAlert>();
-    zones.set('ribadavia' as MicroZoneId, {
-      alertLevel: 'medium',
-      maxScore: 45,
-      activeRules: [{ id: 'r1' }],
-    } as unknown as ZoneAlert);
-
+    // Two builders firing in parallel (storm + inversion) — verifies the
+    // aggregator sorts the combined list descending by score.
     const storm: StormAlert = {
       level: 'watch', nearestKm: 40, recentCount: 2,
       trend: 'stable', rings: [], updatedAt: new Date(),
     };
+    const inversion: ThermalProfile = {
+      hasInversion: true,
+      status: 'strong-inversion', // bypasses isNight filter
+      regression: { slopePerKm: 5, rSquared: 0.8, stationCount: 10 },
+    } as unknown as ThermalProfile;
 
     const { alerts } = aggregateAllAlerts({
       stormAlert: storm,
-      thermalProfile: null,
-      zoneAlerts: zones,
+      thermalProfile: inversion,
       fieldAlerts: null,
     });
 

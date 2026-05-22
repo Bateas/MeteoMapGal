@@ -1,16 +1,21 @@
 /**
- * Thermal and inversion alert builders — converts thermal profile and
- * zone alert data into UnifiedAlert[].
+ * Inversion alert builder — converts thermal profile data into UnifiedAlert[].
+ *
+ * Note (S136+1 day 4): the previous `buildThermalAlerts(zoneAlerts)` that
+ * emitted one alert per micro-zone of Castrelo (embalse / carballino / norte /
+ * ourense / ...) was removed. It was redundant with thermalPrecursorService
+ * (single 7-signal probability) + the Thermal tab (Embalse-only breakdown),
+ * spammed 5 alerts at once on Embalse, and leaked cross-sector into Rías
+ * because the data flow had no sector gate. Zone breakdowns still live in
+ * the Thermal tab (`ThermalWindPanel.tsx`) which is Embalse-only by design.
  */
 
 import type { ThermalProfile } from '../lapseRateService';
-import type { ZoneAlert, MicroZoneId } from '../../types/thermal';
 import type { TeleconnectionIndex } from '../../api/naoClient';
 import type { UnifiedAlert, AlertSeverity } from './types';
 
 /**
- * Cap severity for informational categories (inversion, thermal).
- * These are notable but not dangerous — max yellow (moderate), never orange/red.
+ * Cap severity for inversion alerts — notable but not dangerous, max yellow.
  * Strong events with high scores deserve yellow, weak ones stay blue (info).
  */
 function cappedSeverity(score: number): AlertSeverity {
@@ -58,33 +63,4 @@ export function buildInversionAlerts(
     urgent: isStrong && rSquared >= 0.5,
     updatedAt: new Date(),
   }];
-}
-
-// ── Thermal wind alerts -> UnifiedAlert ───────────────────────
-
-export function buildThermalAlerts(
-  zoneAlerts: Map<MicroZoneId, ZoneAlert>,
-): UnifiedAlert[] {
-  const results: UnifiedAlert[] = [];
-
-  for (const [zoneId, za] of zoneAlerts) {
-    if (za.alertLevel === 'none') continue;
-
-    const score = za.maxScore;
-    const levelLabel = za.alertLevel === 'high' ? 'ALTO' : za.alertLevel === 'medium' ? 'MEDIO' : 'BAJO';
-
-    results.push({
-      id: `thermal-${zoneId}`,
-      category: 'thermal',
-      severity: cappedSeverity(score),
-      score,
-      icon: 'thermal-wind',
-      title: `Térmico ${levelLabel} — ${zoneId}`,
-      detail: `${score}% — ${za.activeRules.length} regla(s) activa(s)`,
-      urgent: za.alertLevel === 'high' && score >= 70,
-      updatedAt: new Date(),
-      zoneId,
-    });
-  }
-  return results;
 }
