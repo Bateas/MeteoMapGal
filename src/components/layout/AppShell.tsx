@@ -18,7 +18,6 @@ import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
 import { fetchSeasonGDD } from '../../services/gddService';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
-import { useThermalStore } from '../../store/thermalStore';
 import { useAlertStore } from '../../store/alertStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
@@ -296,7 +295,6 @@ export function AppShell() {
   // ── Unified alert aggregation + notifications ──────────
   const stormAlert = useLightningStore((s) => s.stormAlert);
   const stormShadow = useStormShadowStore((s) => s.stormShadow);
-  const zoneAlerts = useThermalStore((s) => s.zoneAlerts);
   const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
   const setUnifiedAlerts = useAlertStore((s) => s.setAlerts);
   const notifConfig = useNotificationStore((s) => s.config);
@@ -401,7 +399,6 @@ export function AppShell() {
       const { alerts, risk } = aggregateAllAlerts({
         stormAlert,
         thermalProfile,
-        zoneAlerts,
         fieldAlerts,
         forecast: forecastRef.current,
         stormShadow,
@@ -424,7 +421,7 @@ export function AppShell() {
     }, 500);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory
-  }, [stormAlert, stormShadow, thermalProfile, zoneAlerts, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, historyEpoch, buoys, sstHistory, stations, activeSector.id]);
+  }, [stormAlert, stormShadow, thermalProfile, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, historyEpoch, buoys, sstHistory, stations, activeSector.id]);
 
   // ── Keyboard shortcuts (desktop only) ───────────────────
   useEffect(() => {

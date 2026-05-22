@@ -8,7 +8,6 @@
 import type { FieldAlerts } from '../../types/campo';
 import type { StormAlert } from '../../types/lightning';
 import type { ThermalProfile } from '../lapseRateService';
-import type { MicroZoneId, ZoneAlert } from '../../types/thermal';
 import type { HourlyForecast } from '../../types/forecast';
 import type { StormShadow } from '../stormShadowDetector';
 import type { BuoyReading } from '../../api/buoyClient';
@@ -16,7 +15,7 @@ import type { SSTSnapshot } from '../../store/buoyStore';
 import type { TeleconnectionIndex } from '../../api/naoClient';
 import type { AlertCategory, AlertSeverity, CompositeRisk, UnifiedAlert } from './types';
 import { buildStormAlerts, buildStormShadowAlerts } from './stormAlerts';
-import { buildInversionAlerts, buildThermalAlerts } from './thermalAlerts';
+import { buildInversionAlerts } from './thermalAlerts';
 import { buildFieldAlerts } from './fieldAlerts';
 import { computeCompositeRisk } from './riskEngine';
 import { buildInversionForecastAlert } from '../inversionForecastService';
@@ -119,7 +118,6 @@ export function deduplicateByCategory(alerts: UnifiedAlert[]): UnifiedAlert[] {
 export function aggregateAllAlerts(sources: {
   stormAlert: StormAlert | null;
   thermalProfile: ThermalProfile | null;
-  zoneAlerts: Map<MicroZoneId, ZoneAlert>;
   fieldAlerts: FieldAlerts | null;
   forecast?: HourlyForecast[];
   stormShadow?: StormShadow | null;
@@ -149,7 +147,10 @@ export function aggregateAllAlerts(sources: {
     ...buildStormShadowAlerts(sources.stormShadow ?? null, sources.currentReadings),
     ...buildInversionAlerts(sources.thermalProfile, nao, ao),
     ...(sources.forecast ? buildInversionForecastAlert(sources.forecast) : []),
-    ...buildThermalAlerts(sources.zoneAlerts),
+    // Per-zone thermal alerts (Térmico ALTO/MEDIO/BAJO — embalse/carballino/...) removed S136+1 day 4.
+    // Reason: redundant with thermalPrecursorService (single 7-signal probability) and with the
+    // dedicated Thermal tab (Embalse-only, full breakdown). Spammed 5 alerts at once on Embalse
+    // and leaked cross-sector into Rías because the data flow had no sector gate.
     ...buildFieldAlerts(sources.fieldAlerts, nao, ao),
     ...(sources.currentReadings && sources.readingHistory
       ? enrichPressureAlerts(buildPressureTrendAlerts(sources.currentReadings, sources.readingHistory), nao) : []),
