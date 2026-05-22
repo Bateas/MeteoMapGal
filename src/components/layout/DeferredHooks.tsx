@@ -17,7 +17,6 @@ import { useWebcamVision } from '../../hooks/useWebcamVision';
 import { useAirQuality } from '../../hooks/useAirQuality';
 import { useActiveFires } from '../../hooks/useActiveFires';
 import { useIcaData } from '../../hooks/useIcaData';
-import { useConvectionAutoActivate } from '../../hooks/useConvectionAutoActivate';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -35,8 +34,15 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useAirQuality();
   useActiveFires();
   useIcaData();
-  // auto-toggle convection grid when forecast shows risk
-  useConvectionAutoActivate();
+  // Convection risk overlay (CAPE × LI) is NO LONGER auto-activated
+  // (S136+1 day 4 audit — user feedback): the model-based prediction can
+  // contradict live radar/lightning (green zones with active red strikes,
+  // 30-60 min model staleness vs sub-15-min storm dynamics). Casual users
+  // lose trust when reality and prediction disagree visually. The manual
+  // toggle lives in MapStyleSelector → ATMÓSFERA for power users that want
+  // a "where COULD storms form in next 6 h" overview.
+  // (useConvectionAutoActivate hook kept in src/hooks/ for potential
+  //  future re-enable under a stricter threshold / lightning-aware gate.)
 
   // NAO/AO teleconnection indices — 15s extra after deferred mount
   useEffect(() => {
