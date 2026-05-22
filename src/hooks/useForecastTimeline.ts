@@ -232,10 +232,20 @@ export function useForecastTimeline() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const coords = SECTOR_COORDS[sectorId] ?? SECTOR_COORDS.embalse;
 
+  // Track the current sector so an in-flight fetch from a previous sector
+  // can detect that the user has switched and drop its stale result before
+  // overwriting fresh state (S136+1 day 4 audit — useVisibilityPolling does
+  // not abort in-flight fetches when its callback ref updates, so a slow
+  // Embalse fetch could still land after the Rías one started).
+  const sectorIdRef = useRef(sectorId);
+  useEffect(() => { sectorIdRef.current = sectorId; }, [sectorId]);
+
   const poll = useCallback(async () => {
+    const fetchSectorId = sectorId;
     setLoading(true);
     try {
       const data = await fetchForecastTimeline(activeModel, coords[0], coords[1], sectorId);
+      if (sectorIdRef.current !== fetchSectorId) return; // sector changed mid-fetch — drop stale
       setHourly(data);
       setError(null);
       setFetchedAt(new Date());
@@ -243,11 +253,17 @@ export function useForecastTimeline() {
       // Background: always fetch Open-Meteo for CAPE/CIN/LI/gusts/visibility (storm predictor + alerts)
       if (activeModel !== 'best_match') {
         fetchFromOwnAPI(sectorId)
-          .then(bg => { if (bg && bg.length > 0) setConvectionData(bg); })
+          .then(bg => {
+            if (sectorIdRef.current !== fetchSectorId) return;
+            if (bg && bg.length > 0) setConvectionData(bg);
+          })
           .catch(() => {
             // Fallback to Open-Meteo direct if ingestor unavailable
             fetchFromOpenMeteo('best_match', coords[0], coords[1])
-              .then(bg => setConvectionData(bg))
+              .then(bg => {
+                if (sectorIdRef.current !== fetchSectorId) return;
+                setConvectionData(bg);
+              })
               .catch(() => { /* silent — convection data is supplementary */ });
           });
       } else {
@@ -255,24 +271,31 @@ export function useForecastTimeline() {
         setConvectionData(data);
       }
     } catch (err) {
+      if (sectorIdRef.current !== fetchSectorId) return; // dropped: stale sector
       const msg = err instanceof Error ? err.message : 'Error cargando previsión';
       setError(msg);
       console.error('[Forecast] Error:', err);
     } finally {
-      setLoading(false);
+      if (sectorIdRef.current === fetchSectorId) setLoading(false);
     }
   }, [sectorId, activeModel, coords, setHourly, setConvectionData, setLoading, setError, setFetchedAt]);
 
   // Visibility-aware polling — pauses when tab is hidden
   useVisibilityPolling(poll, POLL_INTERVAL_MS, true, 5_000); // Stagger: 5s after page load
 
-  // Force immediate re-fetch when model changes (ref update alone waits for next interval tick)
+  // Force immediate re-fetch when model OR sector changes (callback ref
+  // updates alone wait for the next interval tick, which can be up to 5min
+  // away — meanwhile the user sees stale forecast for the new sector).
   const prevModelRef = useRef(activeModel);
+  const prevSectorRef = useRef(sectorId);
   useEffect(() => {
-    if (prevModelRef.current !== activeModel) {
+    const modelChanged = prevModelRef.current !== activeModel;
+    const sectorChanged = prevSectorRef.current !== sectorId;
+    if (modelChanged || sectorChanged) {
       prevModelRef.current = activeModel;
+      prevSectorRef.current = sectorId;
       setHourly([]); // Clear stale data to show loading state
       poll();
     }
-  }, [activeModel, poll, setHourly]);
+  }, [activeModel, sectorId, poll, setHourly]);
 }
