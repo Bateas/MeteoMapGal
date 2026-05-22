@@ -68,7 +68,13 @@ export const useSpotStore = create<SpotState & SpotActions>()(
   devtools(
     persist(
       (set) => ({
-        activeSpotId: DEFAULT_SPOT_ID,
+        // activeSpotId starts empty so no popup auto-opens on first visit
+        // (S136+1 day 4 — user reported: "estoy en zona embalse y se me activa
+        //  el popup del spot cesantes" — Cesantes is a Rías spot, leaked from
+        //  hardcoded DEFAULT_SPOT_ID across sectors). activeSpot remains the
+        // Cesantes object only as a type fallback — it is never displayed
+        // because WeatherMap gates the popup on `activeSpotId !== ''`.
+        activeSpotId: '',
         activeSpot: ALL_SPOTS.find((s) => s.id === DEFAULT_SPOT_ID)!,
         favoriteSpotId: null,
         scores: new Map(),

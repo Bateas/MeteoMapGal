@@ -1,17 +1,17 @@
 /**
- * Tests for thermalAlerts builders — inversions + thermal wind zone alerts.
+ * Tests for thermalAlerts builders — inversion detection only.
  *
- * Critical path: feeds frontend AlertPanel + ThermalWindPanel. Pure
- * transformation, capped at 'moderate' severity by design (notable but
- * not dangerous — never orange/red).
+ * S136+1 day 4: removed the per-micro-zone `buildThermalAlerts` tests
+ * along with the function itself (was spammy + redundant with the
+ * thermal precursor service and the dedicated Thermal tab).
  *
- * fifth test file in src/services/alerts/.
+ * Critical path: feeds frontend AlertPanel inversion entries. Capped
+ * at 'moderate' severity by design (notable but not dangerous).
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { buildInversionAlerts, buildThermalAlerts } from './thermalAlerts';
+import { buildInversionAlerts } from './thermalAlerts';
 import type { ThermalProfile } from '../lapseRateService';
-import type { ZoneAlert, MicroZoneId } from '../../types/thermal';
 import type { TeleconnectionIndex } from '../../api/naoClient';
 
 // Fixed daytime hour so isNight=false in tests (unless overridden)
@@ -138,82 +138,3 @@ describe('buildInversionAlerts — content', () => {
   });
 });
 
-// ── buildThermalAlerts ─────────────────────────────────────
-
-function zoneAlert(over: Partial<ZoneAlert> & {
-  zoneId: MicroZoneId;
-  maxScore: number;
-  alertLevel: ZoneAlert['alertLevel'];
-}): ZoneAlert {
-  return {
-    activeRules: [],
-    ...over,
-  };
-}
-
-describe('buildThermalAlerts', () => {
-  it('returns [] for empty Map', () => {
-    expect(buildThermalAlerts(new Map())).toEqual([]);
-  });
-
-  it('skips zones with alertLevel=none', () => {
-    const map = new Map<MicroZoneId, ZoneAlert>([
-      ['embalse', zoneAlert({ zoneId: 'embalse', maxScore: 10, alertLevel: 'none' })],
-    ]);
-    expect(buildThermalAlerts(map)).toEqual([]);
-  });
-
-  it('emits one alert per active zone', () => {
-    const map = new Map<MicroZoneId, ZoneAlert>([
-      ['embalse', zoneAlert({ zoneId: 'embalse', maxScore: 70, alertLevel: 'high' })],
-      ['ourense', zoneAlert({ zoneId: 'ourense', maxScore: 50, alertLevel: 'medium' })],
-      ['norte', zoneAlert({ zoneId: 'norte', maxScore: 5, alertLevel: 'none' })],
-    ]);
-    const alerts = buildThermalAlerts(map);
-    expect(alerts).toHaveLength(2); // 'norte' skipped (none)
-    expect(alerts.map(a => a.id).sort()).toEqual([
-      'thermal-embalse', 'thermal-ourense',
-    ]);
-  });
-
-  it('formats title with level label + zone id', () => {
-    const map = new Map<MicroZoneId, ZoneAlert>([
-      ['embalse', zoneAlert({ zoneId: 'embalse', maxScore: 75, alertLevel: 'high' })],
-    ]);
-    expect(buildThermalAlerts(map)[0].title).toBe('Térmico ALTO — embalse');
-  });
-
-  it('maps alertLevel to label: high=ALTO, medium=MEDIO, low=BAJO', () => {
-    const map = new Map<MicroZoneId, ZoneAlert>([
-      ['embalse', zoneAlert({ zoneId: 'embalse', maxScore: 30, alertLevel: 'low' })],
-    ]);
-    expect(buildThermalAlerts(map)[0].title).toContain('BAJO');
-  });
-
-  it('caps severity at moderate (info or moderate, never high/critical)', () => {
-    const map = new Map<MicroZoneId, ZoneAlert>([
-      ['embalse', zoneAlert({ zoneId: 'embalse', maxScore: 95, alertLevel: 'high' })],
-    ]);
-    const sev = buildThermalAlerts(map)[0].severity;
-    expect(['info', 'moderate']).toContain(sev);
-  });
-
-  it('includes zoneId metadata field', () => {
-    const map = new Map<MicroZoneId, ZoneAlert>([
-      ['ourense', zoneAlert({ zoneId: 'ourense', maxScore: 60, alertLevel: 'medium' })],
-    ]);
-    expect(buildThermalAlerts(map)[0].zoneId).toBe('ourense');
-  });
-
-  it('urgent=true only when level=high AND score>=70', () => {
-    const map = new Map<MicroZoneId, ZoneAlert>([
-      ['embalse', zoneAlert({ zoneId: 'embalse', maxScore: 75, alertLevel: 'high' })],
-    ]);
-    expect(buildThermalAlerts(map)[0].urgent).toBe(true);
-
-    const map2 = new Map<MicroZoneId, ZoneAlert>([
-      ['embalse', zoneAlert({ zoneId: 'embalse', maxScore: 65, alertLevel: 'high' })],
-    ]);
-    expect(buildThermalAlerts(map2)[0].urgent).toBe(false); // score<70
-  });
-});
