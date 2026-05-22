@@ -223,11 +223,10 @@ export const RadarOverlay = memo(function RadarOverlay() {
 function RainViewerLayer({ tileUrl, opacity }: { tileUrl: string; opacity: number }) {
   const { current: mapInstance } = useMap();
 
-  useEffect(() => {
-    if (!mapInstance) return;
-    const map = mapInstance.getMap();
-    if (!map) return;
-
+  // Shared installer so both the deps effect and the style.load listener
+  // can re-apply the source + layer with identical config. Idempotent —
+  // exits early if the source already exists with current tiles.
+  const installLayer = useCallback((map: maplibregl.Map) => {
     const sourceId = 'rainviewer-tiles';
     const layerId = 'rainviewer-raster';
 
@@ -261,12 +260,34 @@ function RainViewerLayer({ tileUrl, opacity }: { tileUrl: string; opacity: numbe
       source: sourceId,
       paint: { 'raster-opacity': opacity, 'raster-fade-duration': 300 },
     });
+  }, [tileUrl, opacity]);
 
+  useEffect(() => {
+    if (!mapInstance) return;
+    const map = mapInstance.getMap();
+    if (!map) return;
+    installLayer(map);
     return () => {
+      const sourceId = 'rainviewer-tiles';
+      const layerId = 'rainviewer-raster';
       if (map.getLayer(layerId)) map.removeLayer(layerId);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     };
-  }, [mapInstance, tileUrl, opacity]);
+  }, [mapInstance, installLayer]);
+
+  // Re-apply source + layer after any setStyle (S136+1 day 4 audit):
+  // MapLibre wipes all sources/layers on a style rebuild (base-map change)
+  // and the deps effect above does NOT re-run because mapInstance/tileUrl/
+  // opacity didn't change. Without this listener the radar disappears
+  // silently when the user switches the base map while radar is active.
+  useEffect(() => {
+    if (!mapInstance) return;
+    const map = mapInstance.getMap();
+    if (!map) return;
+    const reapply = () => installLayer(map);
+    map.on('style.load', reapply);
+    return () => { map.off('style.load', reapply); };
+  }, [mapInstance, installLayer]);
 
   return null;
 }
