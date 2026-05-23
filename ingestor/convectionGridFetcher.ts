@@ -32,7 +32,14 @@ import {
 } from './openMeteoBreaker.js';
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
-const FETCH_TIMEOUT_MS = 12_000;
+// 12s was too tight for 200-coord multi-point queries when Open-Meteo
+// is under load — south + middle Galicia batches were timing out silently
+// while the smaller (north) batch succeeded, so the API only ever served
+// north cells. 25s gives the server room to assemble 6×5×200 = 6000
+// numbers without us giving up early.
+const FETCH_TIMEOUT_MS = 25_000;
+const MAX_BATCH_ATTEMPTS = 2;
+const RETRY_DELAY_MS = 4_000;
 
 // ── Grid definition (mirrors src/services/spatialGridService.ts) ─────
 
@@ -116,7 +123,13 @@ const HOURLY_VARS = [
 ] as const;
 
 const FORECAST_HORIZON_HOURS = 6;
-const MAX_COORDS_PER_CALL = 200;
+// Reduced from 200 → 100. Smaller batches respond faster (Open-Meteo
+// assembles fewer cells per call) and a failed batch costs us less data.
+// At 10km Galicia grid (~576 cells) this is 6 batches instead of 3 — with
+// BATCH_DELAY_MS=10s that's ~50s of fetch time vs ~20s before, but the
+// success rate per-batch is much higher and the DB query now tolerates
+// partial cycles anyway (DISTINCT ON freshest-per-cell, 2h window).
+const MAX_COORDS_PER_CALL = 100;
 const BATCH_DELAY_MS = 10_000;
 
 // The 429 circuit breaker now lives in `./openMeteoBreaker.ts` and is
@@ -139,7 +152,12 @@ interface BatchResult {
   rateLimited: boolean;
 }
 
-async function fetchBatch(batch: GridCell[]): Promise<BatchResult> {
+/**
+ * Single fetch attempt — no retry. The outer wrapper retries on transient
+ * errors (timeout / 5xx) but NOT on 429 (rate-limit should bubble up so we
+ * abort the whole cycle).
+ */
+async function fetchBatchOnce(batch: GridCell[]): Promise<BatchResult & { transient: boolean }> {
   const params = new URLSearchParams({
     latitude: batch.map((c) => c.lat.toFixed(4)).join(','),
     longitude: batch.map((c) => c.lon.toFixed(4)).join(','),
@@ -154,10 +172,13 @@ async function fetchBatch(batch: GridCell[]): Promise<BatchResult> {
     });
     if (!res.ok) {
       const isRateLimit = res.status === 429;
-      log.warn(`[ConvGrid] Open-Meteo ${res.status} for batch of ${batch.length} cells`);
+      const isTransient = !isRateLimit && (res.status >= 500 || res.status === 408);
       return {
         cells: batch.map((cell) => ({ cell, hourly: null })),
         rateLimited: isRateLimit,
+        transient: isTransient,
+        // attached so the caller can log a uniform "status / reason"
+        ...({ httpStatus: res.status } as object),
       };
     }
     const json = await res.json();
@@ -169,6 +190,7 @@ async function fetchBatch(batch: GridCell[]): Promise<BatchResult> {
           hourly: (json[idx] as BatchResponse | undefined)?.hourly ?? null,
         })),
         rateLimited: false,
+        transient: false,
       };
     }
     // Single-point fallback (when batch.length === 1)
@@ -176,19 +198,55 @@ async function fetchBatch(batch: GridCell[]): Promise<BatchResult> {
       return {
         cells: [{ cell: batch[0], hourly: (json as BatchResponse).hourly ?? null }],
         rateLimited: false,
+        transient: false,
       };
     }
     return {
       cells: batch.map((cell) => ({ cell, hourly: null })),
       rateLimited: false,
+      transient: false,
     };
   } catch (err) {
-    log.warn(`[ConvGrid] batch fetch failed: ${(err as Error).message}`);
+    // AbortError (timeout) is transient by definition — retry once with a
+    // longer effective window thanks to backoff.
+    const msg = (err as Error).message;
+    const isTimeout = (err as Error).name === 'AbortError' || /timeout/i.test(msg);
     return {
       cells: batch.map((cell) => ({ cell, hourly: null })),
       rateLimited: false,
+      transient: isTimeout,
     };
   }
+}
+
+/**
+ * Retries transient failures once (timeout / 5xx). Logs each attempt.
+ * 429 rate-limit short-circuits — caller aborts the cycle.
+ */
+async function fetchBatch(batch: GridCell[], batchIdx: number): Promise<BatchResult> {
+  for (let attempt = 1; attempt <= MAX_BATCH_ATTEMPTS; attempt++) {
+    const r = await fetchBatchOnce(batch);
+    const ok = r.cells.some((c) => c.hourly != null);
+    if (ok) {
+      if (attempt > 1) log.info(`[ConvGrid] batch ${batchIdx} ok on retry ${attempt - 1}`);
+      return { cells: r.cells, rateLimited: false };
+    }
+    if (r.rateLimited) {
+      log.warn(`[ConvGrid] batch ${batchIdx} 429 — aborting cycle`);
+      return r;
+    }
+    if (r.transient && attempt < MAX_BATCH_ATTEMPTS) {
+      log.warn(`[ConvGrid] batch ${batchIdx} transient err — retrying in ${RETRY_DELAY_MS}ms`);
+      await sleep(RETRY_DELAY_MS);
+      continue;
+    }
+    // Non-transient or out of retries — give up on this batch (cycle still
+    // continues with remaining batches; DB query tolerates partial coverage).
+    log.warn(`[ConvGrid] batch ${batchIdx} failed after ${attempt} attempt(s) — ${batch.length} cells lost this cycle`);
+    return { cells: r.cells, rateLimited: false };
+  }
+  // Unreachable — loop always returns
+  return { cells: batch.map((cell) => ({ cell, hourly: null })), rateLimited: false };
 }
 
 interface FetchAllResult {
@@ -198,10 +256,11 @@ interface FetchAllResult {
 
 async function fetchAllCells(cells: GridCell[]): Promise<FetchAllResult> {
   const out: CellHourly[] = [];
+  let batchIdx = 0;
   for (let i = 0; i < cells.length; i += MAX_COORDS_PER_CALL) {
     if (i > 0) await sleep(BATCH_DELAY_MS);
     const batch = cells.slice(i, i + MAX_COORDS_PER_CALL);
-    const r = await fetchBatch(batch);
+    const r = await fetchBatch(batch, batchIdx++);
     out.push(...r.cells);
     // Abort the rest of the batches on the first 429 — every further batch
     // would be a wasted call against the (already exhausted) quota window.
@@ -366,7 +425,15 @@ export async function runConvectionGridCycle(): Promise<void> {
 
   const rows = parseGridResponses(responses);
   const written = await batchInsertRows(rows);
-  log.info(
-    `[ConvGrid] cycle ok — ${validResponses}/${cells.length} cells, ${rows.length} rows parsed, ${written} written`,
+  const missing = cells.length - validResponses;
+  // Coverage warning: if more than ~25% of cells silently failed this cycle,
+  // the partial-cycle pattern is back. The DB query tolerates this thanks
+  // to the 2 h freshness window, but operators should notice if it persists.
+  const lost = missing / cells.length;
+  const logFn = lost > 0.25 ? log.warn : log.info;
+  logFn(
+    `[ConvGrid] cycle ${rateLimited ? 'partial-429' : 'ok'} — ${validResponses}/${cells.length} cells` +
+      (missing > 0 ? ` (lost ${missing})` : '') +
+      `, ${rows.length} rows parsed, ${written} written`,
   );
 }
