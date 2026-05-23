@@ -631,52 +631,57 @@ export interface ConvectionGridResult {
  *
  * `hourOffset` 0 = closest hour to now, 1..5 = future hours.
  *
- * The query picks the cells from the most recent fetched_at that has data
- * for the requested forecast time. We don't want to mix cells from different
- * runs (would create spatial inconsistencies) so we constrain to the latest
- * `fetched_at` for that specific `time`.
+ * Picks the most recent value PER (cell_i, cell_j) for the target hour,
+ * within a 2 h staleness window. Earlier versions filtered by a single
+ * `fetched_at = MAX(fetched_at)` which silently hid every cell that hadn't
+ * been refreshed in the most recent cycle — a real bug observed in prod:
+ * Open-Meteo timed out on the first 2 batches of 200 cells (south + middle
+ * Galicia) but the 3rd batch (north) succeeded, so MAX(fetched_at) only
+ * matched the north cells and the south of Galicia disappeared from the
+ * overlay. The DISTINCT ON approach tolerates partial-cycle failures: south
+ * cells from the previous successful cycle (≤2 h ago) keep showing while
+ * truly stale data is excluded.
  */
 export async function queryConvectionGrid(hourOffset = 0): Promise<ConvectionGridResult> {
   const db = (await import('./db.js')).getPool();
-  // Step 1: find the target forecast hour and the latest fetched_at for it
-  const meta = await db.query(
-    `SELECT time, max(fetched_at) AS fetched_at
+
+  // One query, latest-per-cell within 2 h freshness window.
+  // ORDER BY (cell_i, cell_j, fetched_at DESC) matches the DISTINCT ON keys
+  // — DISTINCT ON keeps the first row per group, which after that ORDER is
+  // the freshest fetched_at value for each cell.
+  const result = await db.query(
+    `SELECT DISTINCT ON (cell_i, cell_j)
+       time, fetched_at, lat, lon, cape, lifted_index, cin, risk
      FROM convection_grid_hourly
-     WHERE time = (
-       SELECT date_trunc('hour', NOW() + ($1 * INTERVAL '1 hour'))
-     )
-     GROUP BY time
-     LIMIT 1`,
+     WHERE time = date_trunc('hour', NOW() + ($1 * INTERVAL '1 hour'))
+       AND fetched_at > NOW() - INTERVAL '2 hours'
+     ORDER BY cell_i, cell_j, fetched_at DESC
+     LIMIT 5000`,
     [hourOffset],
   );
-  if (meta.rows.length === 0) {
+
+  if (result.rows.length === 0) {
     return {
       forecastTime: null, fetchedAt: null, resolutionKm: 10,
       peakCape: 0, minLiftedIndex: 0, peakRisk: 0, cells: [],
     };
   }
-  const forecastTime = meta.rows[0].time as Date;
-  const fetchedAt = meta.rows[0].fetched_at as Date;
-
-  // Step 2: pull cells from that specific (time, fetched_at) pair
-  const result = await db.query(
-    `SELECT lat, lon, cape, lifted_index, cin, risk
-     FROM convection_grid_hourly
-     WHERE time = $1 AND fetched_at = $2
-     LIMIT 5000`,
-    [forecastTime, fetchedAt],
-  );
 
   let peakCape = 0;
   let minLI = 100;
   let peakRisk = 0;
+  let maxFetched: Date | null = null;
+  let forecastTime: Date | null = null;
   const cells: ConvectionGridCell[] = result.rows.map((r) => {
     const cape = r.cape == null ? null : Number(r.cape);
     const li = r.lifted_index == null ? null : Number(r.lifted_index);
     const risk = Number(r.risk ?? 0);
+    const f = r.fetched_at as Date;
     if (cape != null && cape > peakCape) peakCape = cape;
     if (li != null && li < minLI) minLI = li;
     if (risk > peakRisk) peakRisk = risk;
+    if (!maxFetched || f > maxFetched) maxFetched = f;
+    if (!forecastTime) forecastTime = r.time as Date;
     return {
       lat: Number(r.lat),
       lon: Number(r.lon),
@@ -688,8 +693,8 @@ export async function queryConvectionGrid(hourOffset = 0): Promise<ConvectionGri
   });
 
   return {
-    forecastTime: forecastTime.toISOString(),
-    fetchedAt: fetchedAt.toISOString(),
+    forecastTime: forecastTime ? (forecastTime as Date).toISOString() : null,
+    fetchedAt: maxFetched ? (maxFetched as Date).toISOString() : null,
     resolutionKm: 10,
     peakCape: Math.round(peakCape),
     minLiftedIndex: minLI === 100 ? 0 : Math.round(minLI * 10) / 10,
