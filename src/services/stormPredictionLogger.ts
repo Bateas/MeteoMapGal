@@ -39,7 +39,14 @@ const STORAGE_KEY = 'meteomap-storm-log';
 const MAX_ENTRIES = 500;
 const MIN_LOG_INTERVAL_MS = 5 * 60_000; // Don't log more often than 5 min
 
-let lastLogTime = 0;
+// Defense in depth against duplicate logging. The ingestor side now
+// truncates the timestamp to the minute and relies on ON CONFLICT DO
+// NOTHING for the canonical dedup. Here on the frontend we additionally
+// short-circuit when the snapshot has identical content (probability +
+// horizon + severity + sector + lightning state) to the previous one,
+// even if more than 5 min passed — no point in logging "same prediction"
+// just because time elapsed.
+let lastLogged: { time: number; key: string } | null = null;
 
 /**
  * Log a prediction snapshot if conditions warrant.
@@ -55,9 +62,16 @@ export function logPredictionSnapshot(
   // Only log if there's something interesting (prob > 0 OR lightning active)
   if (prediction.probability === 0 && !hasLightning) return;
 
-  // Throttle to 5 min intervals
-  if (now - lastLogTime < MIN_LOG_INTERVAL_MS) return;
-  lastLogTime = now;
+  // Content key — collapses identical-state snapshots into one log entry
+  // regardless of how often the upstream effect fires.
+  const key = `${sectorId}|${prediction.probability}|${prediction.horizon}|${prediction.severity}|${hasLightning ? '1' : '0'}`;
+
+  // Throttle: skip if same content as last log (any time gap) OR same time-window
+  if (lastLogged) {
+    if (lastLogged.key === key) return;
+    if (now - lastLogged.time < MIN_LOG_INTERVAL_MS) return;
+  }
+  lastLogged = { time: now, key };
 
   const entry: PredictionLogEntry = {
     ts: now,
