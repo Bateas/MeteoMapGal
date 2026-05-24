@@ -27,12 +27,42 @@ createRoot(document.getElementById('root')!).render(
 import { initWebVitals } from './services/webVitals';
 initWebVitals();
 
-// F12 debug helpers — invocables como `__meteomapDebug.lightning()` desde la
-// consola del navegador. Verifica si MG envía timestamps UTC (parser actual
-// asume UTC) o Madrid local (silencioso bug que filtraría strikes ~2 h).
+// F12 debug helpers — invocables desde la consola del navegador.
+// `__meteomapDebug.<fn>()` para verificar hipótesis live sin tocar código.
+// Survive esbuild.drop (no usamos console.*), pueden invocarse en prod.
 import { getLightningParseDebug } from './api/lightningClient';
+import { useLightningStore } from './hooks/useLightningData';
 (window as unknown as { __meteomapDebug?: object }).__meteomapDebug = {
+  /** Parser TZ debug — verifica que MG envía UTC vs Madrid local */
   lightning: getLightningParseDebug,
+  /** Recent strike activity counts: count30m / count15m / count5m (within WATCH_KM) */
+  activity: () => useLightningStore.getState().recentActivity,
+  /** Storm clusters with velocity + ETA — compact summary per cluster */
+  clusters: () => useLightningStore.getState().clusters.map((c) => ({
+    id: c.id,
+    strikeCount: c.strikeCount,
+    distanceKm: c.distanceToReservoir,
+    velocity: c.velocity,
+    etaMinutes: c.etaMinutes,
+    approaching: c.approaching,
+    newestAgeMin: c.newestAgeMin,
+  })),
+  /** Current storm alert state — level, nearestKm, recentCount, trend, ETA */
+  alert: () => useLightningStore.getState().stormAlert,
+  /** Timestamp of last successful lightning fetch */
+  lastFetch: () => useLightningStore.getState().lastFetch,
+  /** Single-shot dump of everything storm-related — quick health check */
+  dump: () => ({
+    parseTZ: getLightningParseDebug(),
+    activity: useLightningStore.getState().recentActivity,
+    alert: useLightningStore.getState().stormAlert,
+    clusterCount: useLightningStore.getState().clusters.length,
+    lastFetch: useLightningStore.getState().lastFetch,
+    pollInterval: useLightningStore.getState().recentActivity.count5m >= 1 ||
+                  useLightningStore.getState().recentActivity.count15m >= 5
+      ? '60s (storm-active adaptive)'
+      : '120s (quiet)',
+  }),
 };
 
 // Register service worker in production. The ?v=<APP_VERSION> query lets the
