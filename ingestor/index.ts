@@ -215,14 +215,16 @@ async function start(): Promise<void> {
   }, 5 * 60_000);
 
   // Synoptic fetcher — upper-air winds + convection.
-  // Open-Meteo refreshes hourly so polling more often is wasted bandwidth.
-  // 60s stagger from lightning timer to spread Open-Meteo load over time.
+  // Bumped 1h → 2h to fit within Open-Meteo free tier daily quota (S136+2).
+  // Real upper-air radiosonde launches happen twice/day (00 UTC + 12 UTC) — 2h
+  // refresh from the model is already overkill. Halves the synoptic share of
+  // the daily quota with zero operational loss.
   setTimeout(() => {
     runSynopticCycle().catch((err) => log.error('[Synoptic] init err:', (err as Error).message));
   }, 90_000);
   synopticTimer = setInterval(() => {
     runSynopticCycle().catch((err) => log.error('[Synoptic] timer err:', (err as Error).message));
-  }, 60 * 60_000);
+  }, 2 * 60 * 60_000);
 
   // FIRMS fetcher — wildfire hotspots persistence.
   // 30min cadence matches FIRMS NRT latency and the proxy's cache TTL.
@@ -246,15 +248,20 @@ async function start(): Promise<void> {
 
   // Convection grid fetcher — spatial CAPE/LI grid persistence.
   // Replaces frontend-direct Open-Meteo multi-point queries (which hit free-tier
-  // burst limit). 30min cadence matches forecast model refresh; ~90 batched
-  // calls per cycle at 10km / ~270 at 5km — well under quota from a single IP.
+  // burst limit). Bumped 30min → 90min to fit within the Open-Meteo daily IP
+  // quota (S136+2 quota crisis): each cycle costs ~600 coordinate-equivalent
+  // calls (Open-Meteo charges per coord). At 30min the LXC was burning
+  // ~28,800 calls/day → quota exhausted after ~30min and breaker open the
+  // rest of the day. 90min = ~9,600/day, leaves room for forecast + synoptic.
+  // Operationally fine: CAPE ramps gradually during the day, 90min refresh is
+  // plenty for "where do storms form this afternoon" use case.
   // 270s stagger so it lands after ICA to spread Open-Meteo load.
   setTimeout(() => {
     runConvectionGridCycle().catch((err) => log.error('[ConvGrid] init err:', (err as Error).message));
   }, 270_000);
   convGridTimer = setInterval(() => {
     runConvectionGridCycle().catch((err) => log.error('[ConvGrid] timer err:', (err as Error).message));
-  }, 30 * 60_000);
+  }, 90 * 60_000);
 
   // Outcome evaluator — nightly job that evaluates each storm_prediction
   // against real lightning + rain (Open-Meteo grid + station pluviometers).
