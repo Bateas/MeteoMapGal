@@ -215,7 +215,7 @@ async function start(): Promise<void> {
   }, 5 * 60_000);
 
   // Synoptic fetcher — upper-air winds + convection.
-  // Bumped 1h → 2h to fit within Open-Meteo free tier daily quota (S136+2).
+  // Bumped 1h → 2h to fit within Open-Meteo free tier daily quota.
   // Real upper-air radiosonde launches happen twice/day (00 UTC + 12 UTC) — 2h
   // refresh from the model is already overkill. Halves the synoptic share of
   // the daily quota with zero operational loss.
@@ -249,7 +249,7 @@ async function start(): Promise<void> {
   // Convection grid fetcher — spatial CAPE/LI grid persistence.
   // Replaces frontend-direct Open-Meteo multi-point queries (which hit free-tier
   // burst limit). Bumped 30min → 90min to fit within the Open-Meteo daily IP
-  // quota (S136+2 quota crisis): each cycle costs ~600 coordinate-equivalent
+  // quota: each cycle costs ~600 coordinate-equivalent
   // calls (Open-Meteo charges per coord). At 30min the LXC was burning
   // ~28,800 calls/day → quota exhausted after ~30min and breaker open the
   // rest of the day. 90min = ~9,600/day, leaves room for forecast + synoptic.

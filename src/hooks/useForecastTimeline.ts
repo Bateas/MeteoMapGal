@@ -234,7 +234,7 @@ export function useForecastTimeline() {
 
   // Track the current sector so an in-flight fetch from a previous sector
   // can detect that the user has switched and drop its stale result before
-  // overwriting fresh state (S136+1 day 4 audit — useVisibilityPolling does
+  // overwriting fresh state (race-condition audit — useVisibilityPolling does
   // not abort in-flight fetches when its callback ref updates, so a slow
   // Embalse fetch could still land after the Rías one started).
   const sectorIdRef = useRef(sectorId);

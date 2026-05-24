@@ -275,7 +275,7 @@ function RainViewerLayer({ tileUrl, opacity }: { tileUrl: string; opacity: numbe
     };
   }, [mapInstance, installLayer]);
 
-  // Re-apply source + layer after any setStyle (S136+1 day 4 audit):
+  // Re-apply source + layer after any setStyle (audit finding):
   // MapLibre wipes all sources/layers on a style rebuild (base-map change)
   // and the deps effect above does NOT re-run because mapInstance/tileUrl/
   // opacity didn't change. Without this listener the radar disappears

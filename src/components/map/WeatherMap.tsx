@@ -283,7 +283,7 @@ export function WeatherMap() {
   /** Fly to sector view when it changes — and close any popup that belongs
    *  to the previous sector (spots, stations, buoys, webcams). Without this
    *  reset, a selection persists across sector switches and re-opens when
-   *  the user returns to the original sector (S136+1 day 4 audit — first
+   *  the user returns to the original sector (audit — first
    *  reported as the Cesantes auto-open bug, extended to all map selections
    *  because they share the same leakage pattern). */
   useEffect(() => {
@@ -335,7 +335,7 @@ export function WeatherMap() {
    *  guards with map.hasImage). Must run on initial load AND after every
    *  setStyle — MapLibre wipes addImage() icons on a style rebuild.
    *
-   *  Aircraft icon (S136+1 day 4 audit): lives in the lazy AviationOverlay
+   *  Aircraft icon (audit): lives in the lazy AviationOverlay
    *  chunk, so we dynamic-import it. Only Embalse + regatta surface aviation,
    *  so we gate the import to avoid pulling that chunk for Rías-only users.
    *  Fire-and-forget — the registrar is idempotent. */
