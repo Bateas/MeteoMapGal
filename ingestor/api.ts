@@ -614,10 +614,17 @@ async function handleStormPredictionPost(
 
   try {
     await getPool().query(
+      // `date_trunc('minute', NOW())` rounds the timestamp down to the
+      // nearest minute so two POSTs landing within the same minute (from
+      // a frontend that re-rendered fast) collapse to a single primary key
+      // value and the ON CONFLICT clause catches them. Before this, NOW()
+      // returned microsecond-precision and two near-simultaneous inserts
+      // ended up with distinct timestamps → both rows persisted, polluting
+      // the DB with virtual duplicates that broke accuracy-rate math.
       `INSERT INTO storm_predictions (time, sector, probability, horizon, severity, has_lightning,
         signal_cape, signal_precip, signal_cloud, signal_lightning, signal_approach,
         signal_shadow, signal_gusts, signal_mg_warning, signal_sky_state)
-       VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       VALUES (date_trunc('minute', NOW()), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (time, sector) DO NOTHING`,
       [
         sector, probability, horizon ?? null, severity ?? null, hasLightning ?? false,
