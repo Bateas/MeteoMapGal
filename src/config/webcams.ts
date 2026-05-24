@@ -264,8 +264,11 @@ export const NORTH_WEBCAMS: WebcamStation[] = [
 ];
 
 // ── Embalse / Valle Miño cameras (DGT traffic cams — fog validation) ──
-
-const DGT_IMG_BASE = 'https://infocar.dgt.es/etraffic/data/camaras';
+// DGT migrated their image host from `infocar.dgt.es/etraffic/data/camaras/`
+// to `etraffic.dgt.es/camarasEtraffic/` (verified S136+2). The old URL
+// returns 302 to an HTML landing page, breaking the cameras silently.
+// Camera IDs (1187, 557) remain unchanged.
+const DGT_IMG_BASE = 'https://etraffic.dgt.es/camarasEtraffic';
 
 export const EMBALSE_WEBCAMS: WebcamStation[] = [
   {
@@ -282,16 +285,16 @@ export const EMBALSE_WEBCAMS: WebcamStation[] = [
     purpose: 'Fog validation valley floor',
   },
   {
-    id: 'dgt-fea-arrabaldo',
-    name: 'Fea-Arrabaldo AG-53 (DGT)',
+    id: 'dgt-barbantes',
+    name: 'Barbantes A-52 (DGT)',
     source: 'dgt',
-    lat: 42.3230, lon: -7.9860,
-    azimuth: 180, // S — parte alta embalse
+    lat: 42.3460, lon: -8.0160,
+    azimuth: 180, // S — corredor del Miño cerca del embalse
     imageUrl: `${DGT_IMG_BASE}/557.jpg`,
     refreshInterval: 600,
     sector: 'embalse',
-    province: 'Ourense', concello: 'Ourense',
-    purpose: 'Fog validation upper reservoir',
+    province: 'Ourense', concello: 'Cenlle',
+    purpose: 'Fog validation Miño corridor near reservoir',
   },
 ];
 
