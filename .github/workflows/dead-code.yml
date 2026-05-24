@@ -1,0 +1,70 @@
+name: Dead Code Detection
+
+# Informational only — does NOT block merges. Runs knip to surface unused
+# exports, files, deps, and unresolved imports. Acts as a soft alarm so the
+# repo doesn't accumulate dead code silently (same problem we hit with sharp
+# in webcamAnalyzer.ts that disappeared for months).
+#
+# When this report grows large enough to be useful, a dedicated cleanup
+# sprint can act on it. Day-to-day it's just a check developers see in PR
+# status without it becoming a blocker.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  knip:
+    name: knip report
+    runs-on: ubuntu-latest
+    # Soft check — surface findings but never fail the workflow on them.
+    continue-on-error: true
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies (root)
+        # Same hardening as the main CI: ignore-scripts=true + esbuild override.
+        run: |
+          npm ci --no-audit --no-fund
+          npm rebuild esbuild --foreground-scripts --ignore-scripts=false
+
+      - name: Install dependencies (ingestor)
+        # knip scans ingestor/ too, so we need its modules resolvable.
+        run: |
+          cd ingestor && npm ci --no-audit --no-fund
+
+      - name: Run knip
+        # Capture output for the summary and for PR comments. `|| true` keeps
+        # the job green regardless of findings — this is informational only.
+        run: |
+          npx knip --reporter compact > /tmp/knip.txt 2>&1 || true
+          {
+            echo "## knip dead-code report"
+            echo ""
+            echo '```'
+            cat /tmp/knip.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload knip report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: knip-report
+          path: /tmp/knip.txt
+          retention-days: 14
