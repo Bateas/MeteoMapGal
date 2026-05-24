@@ -39,6 +39,8 @@ import { SpotHistoryChart } from '../spot/SpotHistoryChart';
 import { ScoringBreakdown, Cell } from '../spot/ScoringBreakdown';
 import { WebcamSection } from '../spot/WebcamSection';
 import { WindPatterns } from '../spot/WindPatterns';
+import { useHistoricalBaseline } from '../../hooks/useHistoricalBaseline';
+import { describeVsBaseline, severityToBadgeClass } from '../../services/historicalBaselineService';
 
 // ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -396,19 +398,45 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Wind trend (30min ramp detection) ── */}
-      {score?.windTrend && score.windTrend.signal !== 'none' && (
-        <div className={`text-[11px] rounded px-2 py-1 mb-2 ${
-          score.windTrend.signal === 'rapid' ? 'text-red-400 bg-red-500/10' :
-          score.windTrend.signal === 'building' ? 'text-sky-400 bg-sky-500/10' :
-          'text-amber-400 bg-amber-500/10'
-        }`}>
-          {score.windTrend.signal === 'rapid' && <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px mr-1" />}
-          {score.windTrend.signal === 'building' && <WeatherIcon id="wind" size={11} className="inline -mt-px mr-1" />}
-          {score.windTrend.signal === 'dropping' && <WeatherIcon id="wind" size={11} className="inline -mt-px mr-1" />}
-          {score.windTrend.label}
-        </div>
-      )}
+      {/* ── Wind trend (30min ramp detection) — flecha animada + rate compacto ── */}
+      {score?.windTrend && score.windTrend.signal !== 'none' && (() => {
+        const t = score.windTrend;
+        // Rate per 30 min — easier to grok than per hour for sailing decisions
+        const ratePer30Min = Math.round(t.rateKtPerHour / 2);
+        const sign = ratePer30Min > 0 ? '+' : '';
+        // Arrow rotation by signal — ramp (↗ 45°), rapid (↑ 0°), drop (↘ 135°)
+        const arrowDeg =
+          t.signal === 'rapid' ? -90
+          : t.signal === 'building' ? -45
+          : 45; // dropping
+        const styles =
+          t.signal === 'rapid' ? 'text-red-400 bg-red-500/10 border-red-500/30'
+          : t.signal === 'building' ? 'text-sky-400 bg-sky-500/10 border-sky-500/30'
+          : 'text-amber-400 bg-amber-500/10 border-amber-500/30';
+        return (
+          <div
+            className={`text-[11px] rounded px-2 py-1 mb-2 flex items-center gap-1.5 border ${styles}`}
+            title={t.label}
+          >
+            <svg
+              width="11" height="11" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="2.5"
+              strokeLinecap="round" strokeLinejoin="round"
+              className={`shrink-0 ${t.signal === 'rapid' ? 'animate-pulse' : ''}`}
+              style={{ transform: `rotate(${arrowDeg}deg)` }}
+              aria-hidden="true"
+            >
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+            <span className="tabular-nums">
+              {sign}{ratePer30Min}kt/30min
+            </span>
+            <span className="text-current/70">
+              {t.signal === 'rapid' ? 'subida rápida' : t.signal === 'building' ? 'subiendo' : 'bajando'}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* ── Wave conditions (coastal spots — NOT surf, which uses marine forecast) ── */}
       {spot.category !== 'surf' && score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
@@ -457,6 +485,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
+      {/* ── Historical baseline badge — sailing spots only, sailing-relevant signal ── */}
+      {spot.category !== 'surf' && score?.wind != null && score.wind.avgSpeedKt > 0.5 && (
+        <HistoricalBaselineBadge spot={spot} currentKt={score.wind.avgSpeedKt} />
+      )}
+
       {/* ── Tide summary (Rías sailing spots — surf spots show tide above verdict) ── */}
       {spot.tideStationId && spot.category !== 'surf' && <SpotTideSummary tideStationId={spot.tideStationId} />}
 
@@ -495,7 +528,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         </div>
       )}
 
-      {/* ── Sunset countdown (reactive — only when <1h of daylight remaining) ── */}
+      {/* ── Sunset countdown + Daylight battery (reactive — daylight remaining) ── */}
       {(() => {
         const now = new Date();
         const { sunrise, sunset } = getSunTimes(now, spot.center);
@@ -514,12 +547,45 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           return null;
         }
 
-        // During daylight, <1h to sunset
+        // During daylight, <1h to sunset — urgent text countdown
         if (minutesToSunset > 0 && minutesToSunset <= 60) {
           const color = minutesToSunset <= 20 ? 'text-red-400' : minutesToSunset <= 40 ? 'text-amber-400' : 'text-orange-400/80';
           return (
             <div className={`text-[11px] mb-1 ${color}`}>
               <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Anochece en {minutesToSunset}min ({formatTime(sunset)})
+            </div>
+          );
+        }
+
+        // During daylight, >1h to sunset — show daylight battery bar (visual)
+        // Battery scale: full day at this latitude ~8-15 h. We cap at 8 h so
+        // the bar fills meaningfully for "session window" planning.
+        // Colors: green ≥5h, amber 3-5h, orange 1-3h. <1h is handled above.
+        if (minutesToSunset > 60) {
+          const hoursLeft = minutesToSunset / 60;
+          const pct = Math.min(100, Math.max(8, (minutesToSunset / 480) * 100));
+          const barColor =
+            hoursLeft >= 5 ? 'bg-emerald-500'
+            : hoursLeft >= 3 ? 'bg-amber-400'
+            : 'bg-orange-400';
+          const textColor =
+            hoursLeft >= 5 ? 'text-slate-400'
+            : hoursLeft >= 3 ? 'text-amber-300/90'
+            : 'text-orange-300';
+          const hours = Math.floor(hoursLeft);
+          const mins = minutesToSunset - hours * 60;
+          const label = hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
+          return (
+            <div className={`text-[11px] mb-1 ${textColor} flex items-center gap-1.5`} title={`Anochece a las ${formatTime(sunset)}`}>
+              <WeatherIcon id="sun" size={12} className="-mt-px shrink-0" />
+              <span className="shrink-0">Luz</span>
+              <span
+                className="inline-block h-1.5 bg-slate-700/60 rounded overflow-hidden flex-1 max-w-[80px]"
+                aria-hidden="true"
+              >
+                <span className={`block h-full ${barColor}`} style={{ width: `${pct}%` }} />
+              </span>
+              <span className="shrink-0 tabular-nums">{label}</span>
             </div>
           );
         }
@@ -1291,5 +1357,39 @@ function ShareButton({ spot, score, verdict: _verdict, vs }: {
       <WeatherIcon id="navigation" size={10} />
       {copied ? 'Copiado' : 'Compartir'}
     </button>
+  );
+}
+
+/**
+ * Historical baseline badge — "Hoy vs media".
+ *
+ * Renders a single line near the verdict comparing current wind against
+ * the spot's reference station's 30-day baseline. Skips entirely when:
+ *   - The spot has no preferred station (early-life or surf)
+ *   - The baseline has <24 h of samples (just-discovered station)
+ *   - Current wind is within ±25 % of average (not actionable)
+ *
+ * Wired up as a per-popup mount; data is cached process-wide for 1 h.
+ */
+function HistoricalBaselineBadge({ spot, currentKt }: { spot: SailingSpot; currentKt: number }) {
+  // Use the spot's first preferred station as the reference — it's the
+  // baseline-stable anchor (in `spots.ts` config), not subject to discovery
+  // churn that affects ad-hoc nearby stations.
+  const refStation = spot.preferredStations[0];
+  const { baseline } = useHistoricalBaseline(refStation, 'wind', 30);
+
+  if (!baseline) return null;
+
+  const insight = describeVsBaseline(currentKt, baseline, 'kt', 'últimos 30 días');
+  if (!insight) return null;
+
+  return (
+    <div
+      className={`text-[11px] mb-2 px-2 py-1 rounded border ${severityToBadgeClass(insight.severity)}`}
+      title={`Referencia: ${refStation} · p75 ${baseline.p75} kt · p90 ${baseline.p90} kt · ${baseline.hoursSampled} h muestreadas`}
+    >
+      <WeatherIcon id="info" size={11} className="inline -mt-px mr-1" />
+      {insight.phrase}
+    </div>
   );
 }
