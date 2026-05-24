@@ -23,6 +23,10 @@ export const StormIndicator = memo(function StormIndicator() {
   const ageMin = updatedAt ? Math.round((Date.now() - updatedAt.getTime()) / 60_000) : null;
   const fetchAgeMin = lastFetch ? Math.round((Date.now() - lastFetch.getTime()) / 60_000) : null;
   const isStale = fetchAgeMin !== null && fetchAgeMin >= 5;
+  /** Heavy stale = beyond the worst-case "MG publish lag + 2 polls" window.
+   *  Anything past this means a fetch is really stuck and the user should
+   *  know the map data on screen does NOT reflect current conditions. */
+  const isVeryStale = fetchAgeMin !== null && fetchAgeMin >= 7;
 
   // Color: purple for lightning, amber for prediction-only
   const isPurple = hasStorm;
@@ -67,7 +71,10 @@ export const StormIndicator = memo(function StormIndicator() {
         <span className={isMobile ? 'text-xs' : ''}>{label}</span>
       )}
       {isStale && (
-        <span className="text-[9px] text-amber-500 font-mono" title={lightningError ?? `Dato hace ${fetchAgeMin}min`}>
+        <span
+          className={`text-[9px] font-mono ${isVeryStale ? 'text-red-500 font-bold animate-pulse' : 'text-amber-500'}`}
+          title={lightningError ?? `Dato hace ${fetchAgeMin}min${isVeryStale ? ' — datos posiblemente desactualizados' : ''}`}
+        >
           {fetchAgeMin}m
         </span>
       )}
