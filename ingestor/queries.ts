@@ -706,3 +706,86 @@ export async function queryConvectionGrid(hourOffset = 0): Promise<ConvectionGri
     cells,
   };
 }
+
+
+// ── Historical baseline — wind / temp / humidity per station ──
+
+export interface HistoricalBaselineRow {
+  /** Average across the full window */
+  avg: number;
+  /** Percentile 50 (median) — typical condition */
+  p50: number;
+  /** Percentile 75 — "this is a windy day" threshold */
+  p75: number;
+  /** Percentile 90 — "rare windy day" threshold */
+  p90: number;
+  /** Max gust seen in the window */
+  maxGust: number | null;
+  /** Number of hours sampled */
+  hoursSampled: number;
+}
+
+export interface HistoricalBaselineResult {
+  stationId: string;
+  metric: 'wind' | 'gust' | 'temp' | 'humidity';
+  days: number;
+  /** null if no data in window */
+  baseline: HistoricalBaselineRow | null;
+}
+
+/**
+ * Compute baseline stats for a station+metric over the last N days using the
+ * `readings_hourly` CAGG (1h buckets, pre-aggregated).
+ *
+ * Used by the "Hoy vs media" badge in SpotPopup to translate raw numbers
+ * into actionable insight: "12 kt today = +45% over last 30-day average".
+ *
+ * Days capped at 365 for query safety; default 30.
+ */
+export async function queryHistoricalBaseline(
+  stationId: string,
+  metric: 'wind' | 'gust' | 'temp' | 'humidity',
+  days: number,
+): Promise<HistoricalBaselineResult> {
+  const safeDays = Math.min(365, Math.max(1, days));
+  const column = ({
+    wind: 'avg_wind',
+    gust: 'max_gust',
+    temp: 'avg_temp',
+    humidity: 'avg_humidity',
+  } as const)[metric];
+
+  const db = (await import('./db.js')).getPool();
+  const result = await db.query(
+    `SELECT
+       AVG(${column})::REAL                                                 AS avg,
+       percentile_cont(0.5)  WITHIN GROUP (ORDER BY ${column})::REAL        AS p50,
+       percentile_cont(0.75) WITHIN GROUP (ORDER BY ${column})::REAL        AS p75,
+       percentile_cont(0.90) WITHIN GROUP (ORDER BY ${column})::REAL        AS p90,
+       MAX(max_gust)::REAL                                                  AS max_gust,
+       COUNT(*)::INT                                                        AS hours_sampled
+     FROM readings_hourly
+     WHERE station_id = $1
+       AND bucket > NOW() - ($2 * INTERVAL '1 day')
+       AND ${column} IS NOT NULL`,
+    [stationId, safeDays],
+  );
+
+  const row = result.rows[0];
+  if (!row || row.hours_sampled === 0) {
+    return { stationId, metric, days: safeDays, baseline: null };
+  }
+  return {
+    stationId,
+    metric,
+    days: safeDays,
+    baseline: {
+      avg: Math.round(Number(row.avg) * 10) / 10,
+      p50: Math.round(Number(row.p50) * 10) / 10,
+      p75: Math.round(Number(row.p75) * 10) / 10,
+      p90: Math.round(Number(row.p90) * 10) / 10,
+      maxGust: row.max_gust == null ? null : Math.round(Number(row.max_gust) * 10) / 10,
+      hoursSampled: Number(row.hours_sampled),
+    },
+  };
+}
