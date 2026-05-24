@@ -48,7 +48,13 @@ interface RaiosResponse {
 // ── Cache ────────────────────────────────────────────────────────
 
 let cache: { data: LightningStrike[]; fetchedAt: number } | null = null;
-const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+/** Cache TTL for quiet conditions (no recent nearby strikes). */
+const CACHE_TTL_NORMAL_MS = 2 * 60 * 1000;
+/** Cache TTL when a storm is active (recent strikes < 15 min ago, < 80 km).
+ *  Shorter TTL = fresher data during the moments that matter, with the
+ *  trade-off being more MG API calls during storms (which is exactly when
+ *  the user needs the up-to-date map). */
+const CACHE_TTL_STORM_MS = 30 * 1000;
 
 // Circuit breaker — meteo2api falla a veces (5xx upstream, 401 si rotan token).
 // Sin breaker, cada poll cada N min sigue golpeando el endpoint que está
@@ -56,6 +62,62 @@ const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 // se sirve cache stale o array vacío en ese tiempo.
 let lightningRateLimitedUntil = 0;
 const LIGHTNING_COOLDOWN_MS = 3 * 60_000;
+
+// ── TZ debug — exposed via window.__meteomapDebug.lightning() ─────────
+// Captures the first raw date string from each MG response so we can
+// verify from F12 whether MG actually sends UTC (as the parser assumes)
+// or Madrid local time (which would silently filter strikes for ~2 h
+// because their ageMinutes would be negative).
+interface LightningParseDebug {
+  rawDateFromMG: string;
+  parsedAsISO: string;
+  inMadridLocal: string;
+  ageMinutesIfUTC: number;
+  ageMinutesIfMadridLocal: number;
+  expectedAgeIfUTCCorrect: 'fresh strike (~0-10 min)' | 'negative — strike in future' | 'large positive — already old';
+  conclusion: string;
+}
+let __lastLightningSample: { rawDate: string; parsedMs: number; capturedAt: number } | null = null;
+
+/**
+ * Inspect from F12 console:
+ *   `__meteomapDebug.lightning()` → object with raw vs parsed comparison.
+ *
+ * If `ageMinutesIfUTC` is around 0-15 → MG sends UTC, parser is correct.
+ * If it's around -120 (=summer CEST offset) → MG sends Madrid local time,
+ * parser is wrong by 2 h, strikes are being silently filtered as "future".
+ */
+export function getLightningParseDebug(): LightningParseDebug | null {
+  if (!__lastLightningSample) return null;
+  const d = new Date(__lastLightningSample.parsedMs);
+  const now = Date.now();
+  const ageIfUTC = Math.round((now - __lastLightningSample.parsedMs) / 60_000);
+  // If MG actually sends Madrid local but we parse as UTC, the "real" UTC
+  // timestamp is 1-2 h earlier (CET/CEST), so age would be that much larger.
+  // We approximate +120 min (summer CEST = UTC+2).
+  const ageIfMadridLocal = ageIfUTC + 120;
+  let conclusion: string;
+  if (ageIfUTC < -10) {
+    conclusion = '🚨 BUG: MG envía Madrid local, parser está mal — strikes en futuro se filtran';
+  } else if (ageIfUTC > 0 && ageIfUTC < 30) {
+    conclusion = '✅ OK: parser UTC correcto, strikes recientes con edad razonable';
+  } else {
+    conclusion = `⚠️ ambiguo: edad ${ageIfUTC} min, esperar más samples o storm activo`;
+  }
+  return {
+    rawDateFromMG: __lastLightningSample.rawDate,
+    parsedAsISO: d.toISOString(),
+    inMadridLocal: d.toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }),
+    ageMinutesIfUTC: ageIfUTC,
+    ageMinutesIfMadridLocal: ageIfMadridLocal,
+    expectedAgeIfUTCCorrect: ageIfUTC < -10
+      ? 'negative — strike in future'
+      : ageIfUTC > 120
+        ? 'large positive — already old'
+        : 'fresh strike (~0-10 min)',
+    conclusion,
+  };
+}
 
 // ── Parsing ──────────────────────────────────────────────────────
 
@@ -103,6 +165,24 @@ function parseStrikes(
 
   // Sort newest first
   strikes.sort((a, b) => b.timestamp - a.timestamp);
+
+  // Stash a sample for the TZ debug helper. We use the newest strike (post-sort)
+  // because that's the most informative for "are fresh strikes really fresh".
+  if (strikes.length > 0) {
+    // We need the RAW date string of the newest strike. Index into positives/negatives
+    // by matching timestamp (only one will match).
+    const newestTs = strikes[0].timestamp;
+    const allRaw = [...positives, ...negatives];
+    const matching = allRaw.find((r) => parseRaioDate(r.date) === newestTs);
+    if (matching) {
+      __lastLightningSample = {
+        rawDate: matching.date,
+        parsedMs: newestTs,
+        capturedAt: now,
+      };
+    }
+  }
+
   return strikes;
 }
 
@@ -112,10 +192,16 @@ function parseStrikes(
  * Fetch lightning strikes from the last 24 hours.
  * Uses MeteoGalicia's `raios/lenda` endpoint.
  * Returns parsed LightningStrike[] sorted by timestamp (newest first).
+ *
+ * `opts.stormActive` shortens the cache TTL from 2 min to 30 s — used during
+ * active storms (recent nearby strikes) so the user sees fresh strikes ASAP.
  */
-export async function fetchLightningStrikes(): Promise<LightningStrike[]> {
+export async function fetchLightningStrikes(
+  opts: { stormActive?: boolean } = {},
+): Promise<LightningStrike[]> {
+  const ttl = opts.stormActive ? CACHE_TTL_STORM_MS : CACHE_TTL_NORMAL_MS;
   // Return cached data if fresh enough
-  if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
+  if (cache && Date.now() - cache.fetchedAt < ttl) {
     return recomputeAges(cache.data);
   }
 

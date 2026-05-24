@@ -27,6 +27,14 @@ createRoot(document.getElementById('root')!).render(
 import { initWebVitals } from './services/webVitals';
 initWebVitals();
 
+// F12 debug helpers — invocables como `__meteomapDebug.lightning()` desde la
+// consola del navegador. Verifica si MG envía timestamps UTC (parser actual
+// asume UTC) o Madrid local (silencioso bug que filtraría strikes ~2 h).
+import { getLightningParseDebug } from './api/lightningClient';
+(window as unknown as { __meteomapDebug?: object }).__meteomapDebug = {
+  lightning: getLightningParseDebug,
+};
+
 // Register service worker in production. The ?v=<APP_VERSION> query lets the
 // SW derive its own CACHE_NAME per app version (see public/sw.js header). A
 // version bump → new registration URL → re-install → activate purges old

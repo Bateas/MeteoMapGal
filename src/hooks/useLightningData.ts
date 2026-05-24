@@ -28,8 +28,16 @@ const WATCH_KM = 80; // Extended from 50 — shows "Rayos detectados" info for d
 /** Only consider strikes from the last 30 minutes for alert scoring */
 const RECENT_WINDOW_MS = 30 * 60 * 1000;
 
-/** Polling interval: 2 minutes */
-const POLL_INTERVAL_MS = 2 * 60 * 1000;
+/** Polling interval for quiet conditions (no recent nearby strikes). */
+const POLL_INTERVAL_NORMAL_MS = 2 * 60 * 1000;
+/** Polling interval when a storm is active (recent strikes nearby).
+ *  Shorter cadence + matching shorter cache TTL (see lightningClient.ts)
+ *  cuts worst-case render lag during storms from ~4 min to ~1.5 min. */
+const POLL_INTERVAL_STORM_MS = 60 * 1000;
+/** Threshold for "storm active" — at least one strike within the last 5 min
+ *  inside the watch radius. Cheap to evaluate (recentActivity is already
+ *  computed every poll for the predictor). */
+const STORM_ACTIVE_COUNT5M_MIN = 1;
 
 // ---------------------------------------------------------------------------
 // Zustand store for lightning state
@@ -310,13 +318,18 @@ export function useLightningData() {
 
   const retryCountRef = useRef(0);
 
+  // Read recentActivity reactively so the storm-active flag drives both the
+  // cache TTL passed into fetchLightningStrikes() and the poll cadence below.
+  const recentActivity = useLightningStore((s) => s.recentActivity);
+  const stormActive = recentActivity.count5m >= STORM_ACTIVE_COUNT5M_MIN;
+
   const fetchAndUpdate = useCallback(async () => {
     const centerLat = sectorCenter[1];
     const centerLon = sectorCenter[0];
 
     setLoading(true);
     try {
-      const strikes = await fetchLightningStrikes();
+      const strikes = await fetchLightningStrikes({ stormActive });
       setStrikes(strikes);
       setError(null);
       retryCountRef.current = 0; // reset on success
@@ -371,8 +384,13 @@ export function useLightningData() {
     } finally {
       setLoading(false);
     }
-  }, [setStrikes, setAlert, setClusters, setClusterHistory, setGustFronts, setLoading, setError, setLastFetch, sectorCenter]);
+  }, [setStrikes, setAlert, setClusters, setClusterHistory, setGustFronts, setLoading, setError, setLastFetch, setRecentActivity, sectorCenter, stormActive]);
 
-  // Visibility-aware polling — pauses when tab is hidden
-  useVisibilityPolling(fetchAndUpdate, POLL_INTERVAL_MS);
+  // Visibility-aware polling — pauses when tab is hidden.
+  // Adaptive cadence: 60 s during active storms (count5m≥1 within WATCH_KM),
+  // 2 min otherwise. Combined with the matching cache-TTL drop in
+  // lightningClient.ts this brings worst-case render lag from ~4 min → ~1.5 min
+  // during the moments that matter, without burning extra calls when quiet.
+  const pollInterval = stormActive ? POLL_INTERVAL_STORM_MS : POLL_INTERVAL_NORMAL_MS;
+  useVisibilityPolling(fetchAndUpdate, pollInterval);
 }
