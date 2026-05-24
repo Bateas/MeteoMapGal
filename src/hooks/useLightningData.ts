@@ -34,10 +34,19 @@ const POLL_INTERVAL_NORMAL_MS = 2 * 60 * 1000;
  *  Shorter cadence + matching shorter cache TTL (see lightningClient.ts)
  *  cuts worst-case render lag during storms from ~4 min to ~1.5 min. */
 const POLL_INTERVAL_STORM_MS = 60 * 1000;
-/** Threshold for "storm active" — at least one strike within the last 5 min
- *  inside the watch radius. Cheap to evaluate (recentActivity is already
- *  computed every poll for the predictor). */
+/** Thresholds for "storm active" — adaptive polling activates when EITHER
+ *  - a strike was published in the last 5 min within the watch radius, OR
+ *  - sustained activity (≥5 strikes) within the last 15 min.
+ *
+ *  Why the OR fallback: MG's publish lag is typically 3-5 min, so strikes
+ *  often appear with age 4-5 min on first poll. A strict count5m≥1 gate
+ *  silently fails to activate when every strike crosses the 5 min boundary
+ *  just before we see it. Confirmed live during the S136+2 night storm:
+ *  Network panel showed 2:44 between polls despite ~10 strikes/min nearby.
+ *  Adding count15m≥5 catches the "sustained storm" case even when MG lag
+ *  pushes individual strikes past the 5 min cutoff. */
 const STORM_ACTIVE_COUNT5M_MIN = 1;
+const STORM_ACTIVE_COUNT15M_MIN = 5;
 
 // ---------------------------------------------------------------------------
 // Zustand store for lightning state
@@ -321,7 +330,9 @@ export function useLightningData() {
   // Read recentActivity reactively so the storm-active flag drives both the
   // cache TTL passed into fetchLightningStrikes() and the poll cadence below.
   const recentActivity = useLightningStore((s) => s.recentActivity);
-  const stormActive = recentActivity.count5m >= STORM_ACTIVE_COUNT5M_MIN;
+  const stormActive =
+    recentActivity.count5m >= STORM_ACTIVE_COUNT5M_MIN ||
+    recentActivity.count15m >= STORM_ACTIVE_COUNT15M_MIN;
 
   const fetchAndUpdate = useCallback(async () => {
     const centerLat = sectorCenter[1];
