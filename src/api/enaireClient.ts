@@ -74,6 +74,38 @@ let zonesCachedAt = 0;
 let cachedNotams: ActiveNotam[] = [];
 let notamsCachedAt = 0;
 
+// ── Circuit breaker ─────────────────────────────────────────
+// ENAIRE ArcGIS REST goes down periodically (auth.enaire.es maintenance,
+// CORS upstream changes, transient 5xx). Without a breaker every poll on
+// every visitor's browser keeps hammering the dead endpoint — wasted
+// network + F12 console noise + the cache fallback is already in place
+// so an empty result for a few minutes is fine. Same pattern as
+// lightningClient.ts: one shared breaker for both UAS + NOTAM endpoints
+// (same upstream infrastructure → same failure modes correlate).
+const ENAIRE_COOLDOWN_MS = 30 * 60_000;
+let enaireBreakerOpenUntil = 0;
+
+function isEnaireBreakerOpen(): boolean {
+  return Date.now() < enaireBreakerOpenUntil;
+}
+
+function tripEnaireBreaker(label: string, err: unknown): void {
+  const wasOpen = enaireBreakerOpenUntil > Date.now();
+  enaireBreakerOpenUntil = Date.now() + ENAIRE_COOLDOWN_MS;
+  if (!wasOpen) {
+    console.warn(`[${label}] Fetch error — breaker open ${ENAIRE_COOLDOWN_MS / 60_000} min:`, err);
+  }
+  // After the first trip we log debug only so the F12 console doesn't
+  // accumulate one warn per visitor per failed poll for 30 min.
+}
+
+function clearEnaireBreaker(): void {
+  if (enaireBreakerOpenUntil !== 0) {
+    console.debug('[ENAIRE] breaker cleared by successful response');
+  }
+  enaireBreakerOpenUntil = 0;
+}
+
 // ── Proxy-aware URL builder ────────────────────────────────
 // Uses /enaire-api proxy (Vite dev) / nginx (prod) to avoid CORS
 
@@ -226,6 +258,12 @@ export async function fetchUasZones(
     return cachedZones;
   }
 
+  // Breaker open — silently serve cache (or empty). Avoids hammering a dead
+  // endpoint with every poll across every visitor for 30 min.
+  if (isEnaireBreakerOpen()) {
+    return cachedZones;
+  }
+
   try {
     // Fetch all 4 layers in parallel
     const responses = await Promise.allSettled(
@@ -257,11 +295,12 @@ export async function fetchUasZones(
 
     cachedZones = zones;
     zonesCachedAt = Date.now();
+    clearEnaireBreaker();
     console.debug(`[ENAIRE UAS] Fetched ${zones.length} zones`);
 
     return zones;
   } catch (err) {
-    console.warn('[ENAIRE UAS] Fetch error:', err);
+    tripEnaireBreaker('ENAIRE UAS', err);
     return cachedZones; // Graceful fallback to stale cache
   }
 }
@@ -275,6 +314,11 @@ export async function fetchActiveNotams(
   bbox: [number, number, number, number],
 ): Promise<ActiveNotam[]> {
   if (cachedNotams.length > 0 && Date.now() - notamsCachedAt < NOTAM_CACHE_TTL) {
+    return cachedNotams;
+  }
+
+  // Same breaker as UAS — same upstream, same failure correlation.
+  if (isEnaireBreakerOpen()) {
     return cachedNotams;
   }
 
@@ -316,11 +360,12 @@ export async function fetchActiveNotams(
 
     cachedNotams = unique;
     notamsCachedAt = Date.now();
+    clearEnaireBreaker();
     console.debug(`[ENAIRE NOTAM] Fetched ${unique.length} active NOTAMs`);
 
     return unique;
   } catch (err) {
-    console.warn('[ENAIRE NOTAM] Fetch error:', err);
+    tripEnaireBreaker('ENAIRE NOTAM', err);
     return cachedNotams; // Graceful fallback to stale cache
   }
 }
