@@ -1,9 +1,9 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.80.1-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.81.23-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![CI](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml/badge.svg)](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1020%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-1028%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
 **Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 22 webcams con IA y mapa 3D interactivo.
@@ -209,7 +209,8 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # 1020 tests (Vitest)
+npm test                # 1028 tests (Vitest)
+npm run knip            # Detector dead-code (informativo)
 ```
 
 **Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.24 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB · Sharp (image preprocess) · Ollama (vision)
@@ -219,8 +220,9 @@ npm test                # 1020 tests (Vitest)
 - **Backend**: Ingestor Node.js 24/7 → TimescaleDB (polling 6 fuentes cada 5min + MeteoSIX WRF/USWAN + Ollama vision IA)
 - **Modelos**: WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temperatura del mar), Open-Meteo (conveccion + grid CAPE/LI 10km)
 - **Producción**: nginx reverse proxy en Proxmox LXC + smart deploy script (detecta diff, solo corre lo necesario), Cloudflare Tunnel
-- **Performance**: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle ~353KB (gzip ~110KB)
-- **Resilience**: Circuit breaker per-source en clientes API (3 capas defensivas), pre-classifier ahorra ~25min CPU/día en webcam vision, retention 2 años uniforme en hypertables críticas
+- **Performance**: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle ~365KB (gzip ~121KB), FogOverlay chunked-async (yields cada 100 cells, 0 long tasks)
+- **Resilience**: Circuit breaker en TODOS los clientes API (4 capas: AEMET, Open-Meteo, lightning, ENAIRE), pre-classifier ahorra ~25min CPU/día en webcam vision, retention 2 años uniforme en hypertables críticas, convection grid query DISTINCT ON tolera cycles parciales
+- **Calidad**: knip dead-code detector como CI soft check (informativo), tests 1028/1028, 0 vulnerabilidades npm audit
 
 ---
 
