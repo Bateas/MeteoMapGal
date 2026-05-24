@@ -147,7 +147,7 @@ export function aggregateAllAlerts(sources: {
     ...buildStormShadowAlerts(sources.stormShadow ?? null, sources.currentReadings),
     ...buildInversionAlerts(sources.thermalProfile, nao, ao),
     ...(sources.forecast ? buildInversionForecastAlert(sources.forecast) : []),
-    // Per-zone thermal alerts (Térmico ALTO/MEDIO/BAJO — embalse/carballino/...) removed S136+1 day 4.
+    // Per-zone thermal alerts (Térmico ALTO/MEDIO/BAJO — embalse/carballino/...) removed.
     // Reason: redundant with thermalPrecursorService (single 7-signal probability) and with the
     // dedicated Thermal tab (Embalse-only, full breakdown). Spammed 5 alerts at once on Embalse
     // and leaked cross-sector into Rías because the data flow had no sector gate.

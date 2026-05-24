@@ -55,7 +55,7 @@ interface UIState {
   toggleAlphaMode: () => void;
   setAlphaMode: (v: boolean) => void;
   /**
-   * Simple mode (S136+1 day 4 — Plan B from session-S136-1-profile-onboarding-WIP):
+   * Simple mode (Plan B from earlier profile-onboarding exploration):
    * when true, the UI hides clutter (station markers, wind arrows,
    * ConditionsTicker, bottom layers toolbar) and reduces the sidebar to
    * essentials. Spots, buoys, reactive overlays (storm/fog/calima/ICA) and

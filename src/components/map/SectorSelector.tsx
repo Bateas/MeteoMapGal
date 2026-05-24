@@ -9,7 +9,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
  * Positioned top-left, below the navigation control.
  * Icon-only on mobile to save space.
  *
- * Desktop sizing (S136+1 user feedback): users reported the buttons were
+ * Desktop sizing (user feedback): users reported the buttons were
  * too small / didn't stand out — a primary action shouldn't look like
  * decorative chrome. Bumped to a clear 40px height + larger text + 2px
  * border + glow on the active state so it reads as "this is THE big

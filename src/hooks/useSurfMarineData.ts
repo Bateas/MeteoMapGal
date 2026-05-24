@@ -78,7 +78,7 @@ export function useSurfMarineData() {
   const setSurfWave = useSpotStore((s) => s.setSurfWave);
 
   // Sector ref to drop stale fetches when the user switches sectors mid-loop
-  // (3 surf spots × ~1-2s = up to 6s exposure window per cycle — S136+1 day 4
+  // (3 surf spots × ~1-2s = up to 6s exposure window per cycle —
   // race-condition audit).
   const sectorIdRef = useRef(sectorId);
   useEffect(() => { sectorIdRef.current = sectorId; }, [sectorId]);

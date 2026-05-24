@@ -7,7 +7,7 @@
  *
  * @see ./alerts/types.ts        — Shared types (AlertSeverity, UnifiedAlert, CompositeRisk, etc.)
  * @see ./alerts/stormAlerts.ts   — buildStormAlerts(), buildStormShadowAlerts()
- * @see ./alerts/thermalAlerts.ts — buildInversionAlerts() (per-zone buildThermalAlerts removed S136+1 day 4 — see file header)
+ * @see ./alerts/thermalAlerts.ts — buildInversionAlerts() (per-zone buildThermalAlerts removed — see file header)
  * @see ./alerts/fieldAlerts.ts   — buildFieldAlerts(), campoLevelToScore()
  * @see ./alerts/riskEngine.ts    — computeCompositeRisk(), severityFromScore(), colorFromSeverity()
  * @see ./alerts/aggregator.ts    — aggregateAllAlerts(), deduplicateByCategory(), enrichPressureAlerts()

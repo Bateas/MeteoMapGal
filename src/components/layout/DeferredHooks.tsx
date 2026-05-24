@@ -35,7 +35,7 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useActiveFires();
   useIcaData();
   // Convection risk overlay (CAPE × LI) is NO LONGER auto-activated
-  // (S136+1 day 4 audit — user feedback): the model-based prediction can
+  // (audit — user feedback): the model-based prediction can
   // contradict live radar/lightning (green zones with active red strikes,
   // 30-60 min model staleness vs sub-15-min storm dynamics). Casual users
   // lose trust when reality and prediction disagree visually. The manual
