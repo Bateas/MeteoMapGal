@@ -25,7 +25,11 @@ const FORECAST_COORDS = [
   { sector: 'rias', lat: 42.307, lon: -8.619 },
 ] as const;
 
-const CACHE_TTL_MS = 30 * 60_000; // 30 minutes
+// Bumped 30min → 60min (S136+2) to halve the forecast share of the Open-Meteo
+// daily quota. The underlying WRF/ICON/GFS models refresh every 6 h, so 60min
+// of cache age is well within model freshness. Forecast panels are predictive
+// (not reactive) — user looking at "wind tomorrow" doesn't notice 30 vs 60 min.
+const CACHE_TTL_MS = 60 * 60_000;
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 
 // ── Cache ───────────────────────────────────────────
