@@ -1,0 +1,31 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/main.tsx",
+    "src/widget/widget.tsx",
+    "ingestor/index.ts",
+    "ingestor/api.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "ingestor/**/*.ts"
+  ],
+  "ignore": [
+    "**/*.test.{ts,tsx}",
+    "src/test/**",
+    "scripts/**",
+    "dist/**",
+    "ingestor/node_modules/**"
+  ],
+  "ignoreDependencies": [
+    "@types/node",
+    "lucide-react"
+  ],
+  "rules": {
+    "dependencies": "warn",
+    "devDependencies": "warn",
+    "exports": "warn",
+    "types": "warn",
+    "files": "warn"
+  }
+}
