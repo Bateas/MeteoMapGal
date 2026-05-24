@@ -503,7 +503,12 @@ BEGIN
   END IF;
 END $$;
 
--- Read-only access for the app role (continuous aggregates need explicit GRANT)
+-- Read-only access for the app role (continuous aggregates need explicit GRANT
+-- — they do NOT inherit from the base table's permissions because the CAGG
+-- is owned by `postgres`. Missing GRANT → endpoint returns
+-- `permission denied for view X`, silent in the ingestor log).
+GRANT SELECT ON readings_hourly         TO meteomap_app;
+GRANT SELECT ON buoy_readings_hourly    TO meteomap_app;
 GRANT SELECT ON lightning_hourly_zone   TO meteomap_app;
 GRANT SELECT ON convection_daily_sector TO meteomap_app;
 GRANT SELECT ON ica_daily_station       TO meteomap_app;
