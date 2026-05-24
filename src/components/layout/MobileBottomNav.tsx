@@ -12,7 +12,7 @@ import type { IconId } from '../icons/WeatherIcons';
 type BottomTab = 'map' | 'spots' | 'datos' | 'prevision' | 'mas';
 // 'simple' is a quick-action toggle in the bottom nav, not a real tab —
 // pressing it flips simpleMode (no view change). 'datos' lives in the
-// "Más" menu instead of the primary bar (S136+1 day 4 UX iteration).
+// "Más" menu instead of the primary bar (UX iteration).
 type BottomNavId = BottomTab | 'simple';
 
 // ── "Más" menu items ────────────────────────────────────
@@ -106,7 +106,7 @@ function MobileBottomNavInner() {
     { icon: 'book-open', label: 'Guía MeteoMapGal', action: () => { toggleGuide(); setMoreOpen(false); }, highlight: 'text-sky-400' },
     { icon: 'message-square', label: 'Enviar Feedback', action: () => { setFeedbackOpen(true); setMoreOpen(false); }, highlight: 'text-emerald-400' },
     // "Datos" moved here from the primary nav so the Simple/Avanzado toggle
-    // can occupy the central slot (S136+1 day 4 UX iteration).
+    // can occupy the central slot (UX iteration).
     { icon: 'activity', label: 'Datos del panel', action: () => { setFieldDrawerOpen(true); setActiveTab('datos'); setMoreOpen(false); } },
     { icon: 'activity', label: 'Gráfica', tab: 'chart' },
     { icon: 'compass', label: 'Comparar', tab: 'compare' },

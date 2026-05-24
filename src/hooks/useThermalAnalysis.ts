@@ -122,8 +122,8 @@ export function useThermalAnalysis() {
   // a complete time series to compute temperature rise rates, humidity trends, etc.
   //
   // AbortController guards against the in-flight fetch landing after the user
-  // switches away from Embalse mid-fetch (S136+1 day 4 audit — closes the last
-  // hook in the race-condition cluster after useForecastTimeline/useSurfMarineData).
+  // switches away from Embalse mid-fetch (race-condition audit — closes the last
+  // hook in the cluster after useForecastTimeline/useSurfMarineData).
   // 6 parallel zone fetches × ~1-2s each = up to ~5s exposure window per cycle.
   useEffect(() => {
     if (!isEmbalse) return;

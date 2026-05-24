@@ -1,7 +1,7 @@
 /**
  * Inversion alert builder — converts thermal profile data into UnifiedAlert[].
  *
- * Note (S136+1 day 4): the previous `buildThermalAlerts(zoneAlerts)` that
+ * Note: the previous `buildThermalAlerts(zoneAlerts)` that
  * emitted one alert per micro-zone of Castrelo (embalse / carballino / norte /
  * ourense / ...) was removed. It was redundant with thermalPrecursorService
  * (single 7-signal probability) + the Thermal tab (Embalse-only breakdown),

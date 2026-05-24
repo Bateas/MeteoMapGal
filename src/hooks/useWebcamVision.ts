@@ -1,11 +1,17 @@
 /**
  * Hook for webcam vision analysis — Beaufort estimation via LLM.
  *
- * Development mode: Uses LM Studio on localhost:1234.
- * Only analyzes webcams with type='image' (direct image URL).
+ * DEV-ONLY path. In production the source of truth is `useWebcamVisionData`
+ * which reads the ingestor API (`/api/v1/webcam-vision`) backed by the
+ * server-side Ollama on the LXC. This hook hammers an LLM endpoint from
+ * the user's browser instead and only runs when `VITE_VISION_ENABLED=true`
+ * — meant for local LM Studio development against a single dev machine.
+ *
+ * Keep both hooks: in PROD the env flag is unset, this short-circuits,
+ * and only `useWebcamVisionData` fires. In DEV without an LXC, this is
+ * the only way to exercise the analysis pipeline locally.
  *
  * Polling: every 15 minutes (visibility-aware).
- * Disabled by default — enable via `VITE_VISION_ENABLED=true`.
  */
 import { useEffect, useRef, useCallback } from 'react';
 import { useSpotStore } from '../store/spotStore';

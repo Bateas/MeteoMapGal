@@ -42,7 +42,7 @@ const SpotComparator = lazy(() =>
 type Tab = 'stations' | 'chart' | 'compare' | 'forecast' | 'thermal' | 'history' | 'rankings' | 'verify';
 
 // Tabs visible in simpleMode. Other tabs are hidden to reduce overwhelm.
-// User feedback S136+1 day 4: "lo más limpio posible para no abrumar" →
+// User feedback: "lo más limpio posible para no abrumar" →
 // keep only Estaciones + Previsión (+ Térmico in Embalse via isEmbalse gate).
 // If activeTab is not in this set when simpleMode toggles ON, fallback to 'stations'.
 const SIMPLE_TABS: ReadonlySet<Tab> = new Set<Tab>(['stations', 'forecast', 'thermal']);

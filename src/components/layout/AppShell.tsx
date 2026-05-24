@@ -53,7 +53,7 @@ import { RIAS_WEBCAMS } from '../../config/webcams';
 const DeferredHooks = lazy(() => import('./DeferredHooks').then(m => ({ default: m.DeferredHooks })));
 
 /** Collapsed sidebar: vertical icon strip with tab shortcuts — sector-aware.
- *  In simpleMode, hides Gráfica/Rankings/Historial (S136+1 day 4 — user
+ *  In simpleMode, hides Gráfica/Rankings/Historial (per user
  *  feedback: "lo más limpio posible para no abrumar"). Keeps Estaciones +
  *  Previsión always, Térmico only in Embalse. */
 function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
