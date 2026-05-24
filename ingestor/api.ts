@@ -46,6 +46,7 @@ import {
   queryConvectionTrend,
   queryAirQualityTrend,
   queryConvectionGrid,
+  queryHistoricalBaseline,
 } from './queries.js';
 import { getPool } from './db.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
@@ -553,6 +554,38 @@ async function handleAnalyticsConvectionGrid(
   }
 }
 
+/**
+ * GET /api/v1/analytics/historical-baseline?station_id=X&metric=wind&days=30
+ * Returns avg + p50/p75/p90 + max_gust from the `readings_hourly` CAGG.
+ *
+ * Powers the "Hoy vs media histórica" badge in SpotPopup. Browser caches
+ * 1 h since baselines are slow-moving (rolling 30d window).
+ */
+async function handleAnalyticsHistoricalBaseline(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const stationId = params.station_id;
+  if (!stationId || stationId.length > 100) {
+    error(res, 'Missing or invalid station_id', 400, origin); return;
+  }
+  const allowed = ['wind', 'gust', 'temp', 'humidity'] as const;
+  const metric = (allowed.includes(params.metric as typeof allowed[number])
+    ? params.metric
+    : 'wind') as 'wind' | 'gust' | 'temp' | 'humidity';
+  const days = Math.min(365, Math.max(1, parseInt(params.days || '30', 10) || 30));
+
+  try {
+    const result = await queryHistoricalBaseline(stationId, metric, days);
+    // 1 h cache — baselines move slow; reduces N×users → 1 query/window.
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    json(res, result, 200, origin);
+  } catch (err) {
+    error(res, (err as Error).message, 500, origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -585,6 +618,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/analytics/convection-trend':   handleAnalyticsConvectionTrend,
   '/api/v1/analytics/air-quality-trend':  handleAnalyticsAirQualityTrend,
   '/api/v1/analytics/convection-grid':    handleAnalyticsConvectionGrid,
+  '/api/v1/analytics/historical-baseline': handleAnalyticsHistoricalBaseline,
 };
 
 // ── Storm prediction POST handler ──────────────────────
