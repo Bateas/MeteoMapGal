@@ -38,15 +38,16 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies (root)
-        # Same hardening as the main CI: ignore-scripts=true + esbuild override.
+        # `npm install` (not `npm ci`) — same reason as CI workflow: Windows
+        # lockfile lacks Linux-only transitives like @emnapi/core.
         run: |
-          npm ci --no-audit --no-fund
+          npm install --no-audit --no-fund
           npm rebuild esbuild --foreground-scripts --ignore-scripts=false
 
       - name: Install dependencies (ingestor)
         # knip scans ingestor/ too, so we need its modules resolvable.
         run: |
-          cd ingestor && npm ci --no-audit --no-fund
+          cd ingestor && npm install --no-audit --no-fund
 
       - name: Run knip
         # Capture output for the summary and for PR comments. `|| true` keeps
