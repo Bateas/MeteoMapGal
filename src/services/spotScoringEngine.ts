@@ -1101,7 +1101,14 @@ export function scoreAllSpots(
     let cesantesPrediction: CesantesPrediction | null = null;
     if (spot.id === 'cesantes') {
       const mouthHum = computeMouthHumidity(stations, readings);
-      const airTempLocal = stationData.find(s => s.reading.temperature !== null)?.reading.temperature ?? null;
+      // Bug v2.81.31: stationData is not distance-sorted, so .find() may return
+      // a far station with a low temp (e.g. interior 15°C) → ΔT goes negative
+      // → detector inactive. Same logic as score.airTemp computed later in the
+      // same loop. Sort by distance first to get the *nearest* station's temp,
+      // matching what SpotPopup reads from score.airTemp.
+      const airTempLocal = [...stationData]
+        .sort((a, b) => a.distKm - b.distKm)
+        .find(s => s.reading.temperature !== null)?.reading.temperature ?? null;
       const localStationKt = wind?.avgSpeedKt ?? null;
       // Climatological SST fallback for Ría de Vigo interior (Rande area).
       // Required when the closest buoys (Rande 1251 ObsCosteiro) don't report
