@@ -30,23 +30,24 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies (root)
-        # .npmrc sets ignore-scripts=true (supply-chain hardening). esbuild's
-        # postinstall (downloads the platform binary) is then re-run
-        # explicitly with the override — without it `npm run build` fails
-        # with "You installed esbuild for another platform".
+        # `npm install` instead of `npm ci`: lockfile generated locally on
+        # Windows doesn't always include Linux-only transitive deps (e.g.
+        # @emnapi/core pulled by sharp's libvips download which only runs
+        # on Linux). `npm install` regenerates the lockfile in-place on the
+        # Linux runner; `npm ci` would refuse with EUSAGE. Trade-off: not
+        # bit-reproducible across runs, but acceptable for a solo-dev repo.
+        # .npmrc sets ignore-scripts=true (supply-chain hardening) so the
+        # esbuild postinstall is re-run explicitly with the override.
         run: |
-          npm ci --no-audit --no-fund
+          npm install --no-audit --no-fund
           npm rebuild esbuild --foreground-scripts --ignore-scripts=false
 
       - name: Install dependencies (ingestor)
-        # ingestor has its own package.json (pg, dotenv) — vitest picks
-        # up ingestor/**/*.test.ts which imports from these modules.
-        # Without this step, ingestor/icaFetcher.test.ts and others fail
-        # with "Cannot find module pg" on a fresh CI runner.
-        # sharp (install) + esbuild (postinstall) need their scripts re-run
-        # past the ignore-scripts=true policy.
+        # Same `npm install` approach — ingestor has sharp too. vitest picks
+        # up ingestor/**/*.test.ts which imports from pg, so deps must be
+        # resolvable on the runner.
         run: |
-          cd ingestor && npm ci --no-audit --no-fund
+          cd ingestor && npm install --no-audit --no-fund
           npm rebuild esbuild sharp --foreground-scripts --ignore-scripts=false
 
       - name: Run tests (Vitest)
