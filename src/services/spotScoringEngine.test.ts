@@ -241,15 +241,27 @@ describe('Cesantes canalization override', () => {
 
   it('overrides FLOJO verdict to BUENO when thermal breeze predicts ≥4kt above measured', () => {
     // Reproduces the v2.81.29 prod bug: station reads 6kt + airTemp 25°C + waterTemp 21°C (ΔT=4°C)
-    // → detector predicts baseKt 6 + (4 × 2) = 14kt → verdict should be 'good', not 'light'
+    // → detector predicts baseKt 6 + (4 × 2) = 14kt → verdict should be 'good', not 'light'.
+    //
+    // Note on the kt range below: the final summary speed depends on the
+    // humidityPrecursorBoost which uses `new Date().getHours()` (local time).
+    // The test runs in CI Linux UTC (15h → timeFactor 1.0) and on Windows CEST
+    // (17h → timeFactor 0.7), producing different boost magnitudes. Both are
+    // physically valid; assert the BAND (>= 13 kt, the relevant outcome) not
+    // an exact number so the test is timezone-stable.
     const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
     const reading = makeReading('mg_test', msFromKt(6), 230, 25);
     const results = scoreAllSpots([cesantes], [station], new Map([['mg_test', reading]]), [randeBuoy]);
     const score = results.get('cesantes')!;
     expect(score.verdict).toBe('good');
     expect(score.thermalBoosted).toBe(true);
-    // Summary should reflect canalized wind, not raw 6kt
-    expect(score.summary).toMatch(/14kt|13kt|15kt/i);
+    // Effective wind should reflect the canalized boost, not raw 6kt — band
+    // covers both CI (≈16 kt) and local (≈15 kt) without coupling to timezone.
+    expect(score.effectiveWindKt).not.toBeNull();
+    expect(score.effectiveWindKt!).toBeGreaterThanOrEqual(13);
+    // Summary should contain the boosted figure (not raw 6kt) — pattern matches
+    // any two-digit kt in the canalized band 13-19.
+    expect(score.summary).toMatch(/1[3-9]kt/i);
   });
 
   it('does NOT override when ΔT <2°C (detector gate fails)', () => {
