@@ -87,7 +87,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
             lon={spot.center[0]}
             lat={spot.center[1]}
             verdict={verdict}
-            windKt={score?.wind?.avgSpeedKt ?? null}
+            windKt={score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null}
             waveHeight={spot.category === 'surf' ? (surfWaveCache.get(spot.id)?.waveHeight ?? null) : (score?.waves?.waveHeight ?? null)}
             wavePeriod={spot.category === 'surf' ? (surfWaveCache.get(spot.id)?.period ?? null) : (score?.waves?.wavePeriod ?? null)}
             isActive={isActive}
