@@ -126,12 +126,27 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
     const trailCtx = trailCanvas.getContext('2d');
     if (!ctx || !trailCtx) return;
 
+    // Throttle particle animation to ~30fps (33ms gate). 250 particles × ~10
+    // ops/particle/frame at 60fps was the dominant CPU cost when wind layer
+    // was active (S136+3 audit hallazgo #1). Visual perception of fluid
+    // motion is preserved above ~24fps; 30fps cuts the cost ~50% with no
+    // perceptible quality loss.
+    const FRAME_GATE_MS = 33;
+    let lastAnimateAt = 0;
+
     const animate = () => {
+      const nowMs = Date.now();
       // Skip animation during map pan/zoom — frees frame budget for smooth dragging
       if (mapMovingRef.current) {
         animFrameRef.current = requestAnimationFrame(animate);
         return;
       }
+      // Frame-rate gate: only do the heavy work every ~33ms
+      if (nowMs - lastAnimateAt < FRAME_GATE_MS) {
+        animFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+      lastAnimateAt = nowMs;
 
       const dpr = effectiveDpr;
       const w = canvas.width;
@@ -149,7 +164,8 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
 
       const windData = windDataRef.current;
       if (windData.length === 0) {
-        animFrameRef.current = requestAnimationFrame(animate);
+        // Bug audit #2: don't reschedule rAF when there's no data. Wait for
+        // the effect's data dep to re-trigger the loop when wind arrives.
         return;
       }
 

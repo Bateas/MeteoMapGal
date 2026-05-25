@@ -353,6 +353,9 @@ function FogOverlayInner() {
   // Fade in/out transition (placebo growth/dissipation effect)
   // - appearing: 2s ease-in (fog forms quickly once detected)
   // - dissipating: 5s ease-out (fog lifts slowly, like real marine fog burning off)
+  // Throttled to 20fps (50ms gate) — same reason as breathing pulse: setState
+  // at full 60fps re-renders FogOverlay → MapLibre re-processes Source GeoJSON
+  // → CPU spike. 20fps fade is still visually smooth (S136+3 audit #11).
   useEffect(() => {
     const shouldShow = active && fogGeoJSON != null;
     const target = shouldShow ? 1 : 0;
@@ -362,15 +365,22 @@ function FogOverlayInner() {
     if (Math.abs(delta) < 0.01) return;
     const duration = delta > 0 ? 2000 : 5000;
     let frame: number;
+    let lastUpdate = 0;
+    const FADE_GATE_MS = 50;
     const tick = () => {
-      const elapsed = Date.now() - startT;
-      const progress = Math.min(1, elapsed / duration);
-      // easeInOutCubic
-      const eased = progress < 0.5
-        ? 4 * progress * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-      setFadeOpacity(startV + delta * eased);
-      if (progress < 1) frame = requestAnimationFrame(tick);
+      const now = Date.now();
+      if (now - lastUpdate >= FADE_GATE_MS) {
+        lastUpdate = now;
+        const elapsed = now - startT;
+        const progress = Math.min(1, elapsed / duration);
+        // easeInOutCubic
+        const eased = progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+        setFadeOpacity(startV + delta * eased);
+        if (progress >= 1) return; // done, stop scheduling
+      }
+      frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
