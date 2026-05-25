@@ -235,7 +235,15 @@ async function sampleFogZones(
 function FogOverlayInner() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const { current: mapRef } = useMap();
-  const [opacity, setOpacity] = useState(0);
+  // breathing opacity stored in a ref so the requestAnimationFrame loop can
+  // update the MapLibre paint property directly via setPaintProperty WITHOUT
+  // triggering a React re-render every frame. The previous setState+rAF combo
+  // re-rendered FogOverlay at 60fps, which caused MapLibre to re-process the
+  // (1000+ feature) GeoJSON Source on each frame → browser CPU saturation
+  // reported by the user (S136+3 v2.81.33 trace: 7.2s scripts in 7.6s window).
+  const opacityRef = useRef(0);
+  const fadeOpacityRef = useRef(0);
+  const [opacityVisible, setOpacityVisible] = useState(false); // gates the <Source> mount
   const [fogGeoJSON, setFogGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // Fade transition: ramps 0→1 on activation (~2s) and 1→0 on dissipation (~5s).
   // Asymmetric timing matches real fog — forms gradually, lifts slowly.
@@ -369,47 +377,75 @@ function FogOverlayInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps — fadeOpacity intentionally read as start value, not tracked
   }, [active, fogGeoJSON != null]);
 
-  // Breathing pulse — subtle "alive" feel
+  // Mirror fadeOpacity into a ref so the breathing rAF loop can read the
+  // latest value WITHOUT a dependency on the state (which would re-create
+  // the loop every fade-tick — 120 times during a 2s fade-in).
+  useEffect(() => { fadeOpacityRef.current = fadeOpacity; }, [fadeOpacity]);
+
+  // Decide whether the Source/Layers should be mounted at all. Cheap, only
+  // changes when fade enters/exits the "visible" range.
   useEffect(() => {
-    if (fadeOpacity === 0) { setOpacity(0); return; }
+    setOpacityVisible(fadeOpacity > 0.01);
+  }, [fadeOpacity]);
+
+  // Breathing pulse — subtle "alive" feel. Updates the MapLibre paint
+  // property directly via setPaintProperty so React doesn't re-render at
+  // 60fps. Reads fadeOpacity from a ref so this loop is created ONCE per
+  // active session (not on every fade-tick state update).
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map || !opacityVisible) return;
     let frame: number;
     const start = Date.now();
-    function animate() {
+    const update = () => {
       const t = (Date.now() - start) / 1000;
-      const o = 0.12 + 0.04 * Math.sin(t * 0.6);
-      setOpacity(o);
-      frame = requestAnimationFrame(animate);
-    }
-    frame = requestAnimationFrame(animate);
+      const breathing = 0.12 + 0.04 * Math.sin(t * 0.6);
+      const final = breathing * fadeOpacityRef.current;
+      opacityRef.current = final;
+      try {
+        if (map.getLayer('fog-fill')) {
+          map.setPaintProperty('fog-fill', 'fill-opacity', [
+            '*', ['get', 'density'], final,
+          ]);
+        }
+        if (map.getLayer('fog-glow')) {
+          map.setPaintProperty('fog-glow', 'line-opacity', final * 0.3);
+        }
+      } catch {
+        // layer being torn down — ignore, next mount will pick up
+      }
+      frame = requestAnimationFrame(update);
+    };
+    frame = requestAnimationFrame(update);
     return () => cancelAnimationFrame(frame);
-  }, [fadeOpacity === 0]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps — opacityVisible gate, mapRef stable
+  }, [opacityVisible, mapRef]);
 
   // Keep rendering during fade-out by falling back to last valid features
   const renderGeoJSON = fogGeoJSON ?? (fadeOpacity > 0.01 ? lastFogRef.current : null);
-  if (!renderGeoJSON || fadeOpacity < 0.01 || opacity === 0) return null;
-  const finalOpacity = opacity * fadeOpacity;
+  if (!renderGeoJSON || !opacityVisible) return null;
 
   return (
     <Source id="fog-overlay" type="geojson" data={renderGeoJSON}>
-      {/* Fog fill — per-cell density × breathing opacity × fade transition */}
+      {/* Fog fill — opacity is updated imperatively in the rAF loop above */}
       <Layer
         id="fog-fill"
         type="fill"
         paint={{
           'fill-color': ['get', 'color'],
-          'fill-opacity': ['*', ['get', 'density'], finalOpacity],
+          'fill-opacity': ['*', ['get', 'density'], 0.16], // starting value; rAF updates it
           'fill-antialias': false,
         }}
       />
-      {/* Soft outer glow */}
+      {/* Soft outer glow — line-blur reduced 18→8 for cheaper GPU paint */}
       <Layer
         id="fog-glow"
         type="line"
         paint={{
           'line-color': config.glowColor,
-          'line-width': 12,
-          'line-blur': 18,
-          'line-opacity': finalOpacity * 0.3,
+          'line-width': 8,
+          'line-blur': 8,
+          'line-opacity': 0.05, // starting value; rAF updates it
         }}
       />
     </Source>
