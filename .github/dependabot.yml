@@ -91,12 +91,21 @@ updates:
       - "ingestor"
 
   # GitHub Actions versions (also a supply-chain target — tj-actions
-  # mar-2025 incident; cooldown applies here too)
+  # mar-2025 incident; cooldown applies here too).
+  #
+  # Block major bumps: Dependabot mergeó checkout v4→v6 + setup-node v4→v6
+  # in PRs #6/#7 (2026-04-23) but those versions DO NOT EXIST in the GitHub
+  # Actions marketplace yet (latest stable is v4). The merge silently broke
+  # CI for ~1 month with "exit code 1 after 5s" until detected by user on
+  # 2026-05-25. Always-on guard against the same trap recurring.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
     cooldown:
       default-days: 7
+    ignore:
+      - dependency-name: "actions/*"
+        update-types: ["version-update:semver-major"]
     labels:
       - "ci"
