@@ -611,17 +611,23 @@ export function buildMaritimeFogAlerts(
   webcamFogIds?: string[],
   fogSources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[],
   regionalVisibility?: Map<string, { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }>,
+  webcamCriticalVisibilityCount?: number,
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
 
   // ── INDEPENDENT EVIDENCE-DRIVEN ALERT ────────────────────
   // If physics detects no fog but other evidence confirms, generate alert anyway:
-  // - 2+ webcams visually confirming fog
+  // - 2+ webcams visually confirming fog (each counts 1)
+  // - 1 webcam reporting visibility 'poor' (<1km) — counts 2 (very strong signal,
+  //   same weight as AEMET station vis<1km — the IA's "poor" only fires when
+  //   horizon truly invisible, e.g. Cíes Faro Sur during marine fog event)
   // - 2+ stations with fog signature (HR>85% + solar<300 simultaneously)
+  // - AEMET station vis<1km (counts 2)
   // The physics detector uses zone-wide median humidity which dilutes localized fog.
   const solarFogStations = detectFogBySolarSignature(stationReadings, stations);
   const solarFogCount = solarFogStations.length;
   const cams = webcamFogCount ?? 0;
+  const critCams = webcamCriticalVisibilityCount ?? 0;
 
   // AEMET airport/coastal visibility <1km (ICAO fog). Each counts as 2 evidence units —
   // certified government sensors, strongest signal we have (even a single station
@@ -635,7 +641,12 @@ export function buildMaritimeFogAlerts(
     }
   }
   const visFogCount = visFogStations.length;
-  const totalEvidence = cams + solarFogCount + visFogCount * 2;
+  // Critical-visibility webcams (IA reported 'poor' i.e. <1km) get the same
+  // weight as AEMET station vis<1km because the signal is equally unambiguous:
+  // the IA only marks 'poor' when the horizon is invisible. Helps fire alerts
+  // in zones with strong marine fog but no nearby AEMET vis station (Cíes /
+  // outer rías) where the only available source is the lighthouse cameras.
+  const totalEvidence = cams + critCams + solarFogCount + visFogCount * 2;
 
   // fix: evidence-driven path fires whenever 2+ independent confirmations exist,
   // regardless of physics risk level. Physics alone can say 'riesgo' while cameras +

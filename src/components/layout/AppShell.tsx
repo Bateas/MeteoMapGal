@@ -314,6 +314,7 @@ export function AppShell() {
       const visionResults = useWebcamStore.getState().visionResults;
       let webcamFogDetected: boolean | undefined;
       let webcamFogCount = 0;
+      let webcamCriticalVisibilityCount = 0;
       const webcamFogIds: string[] = [];
       const fogSources: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[] = [];
       if (visionResults.size > 0) {
@@ -327,6 +328,10 @@ export function AppShell() {
             webcamFogDetected = true;
             webcamFogCount++;
             webcamFogIds.push(id);
+            // visibility 'poor' (<1km from the IA) is a critical signal — same
+            // weight as AEMET station vis<1km. Lets single-camera marine fog
+            // in zones without nearby AEMET vis (Cíes / outer rías) fire alerts.
+            if (result.weather.visibility === 'poor') webcamCriticalVisibilityCount++;
             const c = webcamCoords.get(id);
             if (c) fogSources.push({ lat: c.lat, lon: c.lon, type: 'webcam', id });
           }
@@ -412,6 +417,7 @@ export function AppShell() {
         webcamFogDetected,
         webcamFogCount,
         webcamFogIds,
+        webcamCriticalVisibilityCount,
         fogSources: fogSources.length > 0 ? fogSources : undefined,
         regionalVisibility: useWeatherStore.getState().visibilityReadings,
       });
