@@ -28,6 +28,7 @@ import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
 import { detectBocana } from './bocanaDetector';
+import { predictCesantesCanalization, computeMouthHumidity, type CesantesPrediction } from './cesantesCanalizationDetector';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -776,6 +777,7 @@ function scoreSpot(
   thermalData?: SpotThermalContext,
   buoyData?: { buoy: BuoyReading; distKm: number }[],
   stationData?: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
+  cesantesPrediction?: CesantesPrediction | null,
 ): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; humiditySignal: string | null; thetaVGradient: number | null } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
@@ -829,6 +831,20 @@ function scoreSpot(
       effectiveSpd = spd * boostFactor;
       thermalBoosted = true;
     }
+  }
+
+  // ── Cesantes canalization override (replaces thermal boost when stronger) ──
+  // Sheltered preferred stations (Lourizán, Marín Porto, Vigo Porto) consistently
+  // under-read by 0.4-0.6× ratio vs real ría wind (see monthly-station-bias-audit).
+  // When the canalization detector confirms strong thermal breeze with confidence ≥70%
+  // AND predicts ≥4kt higher than measured, trust the physical model — empirical
+  // webcam evidence (kiters/windsurfers planning) matches detector when stations don't.
+  if (spot.id === 'cesantes' && cesantesPrediction?.active
+      && cesantesPrediction.predictedKt !== null
+      && cesantesPrediction.confidence >= 70
+      && (cesantesPrediction.predictedKt - spd) >= 4) {
+    effectiveSpd = cesantesPrediction.predictedKt;
+    thermalBoosted = true;
   }
 
   // ── Humidity precursor boost (ría bruma pattern) ──────────
@@ -951,7 +967,8 @@ function scoreSpot(
   score = Math.max(0, Math.min(100, score));
 
   // ── Summary ────────────────────────────────────────────
-  let summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData);
+  // Pass effectiveSpd so summary reflects boosted/canalized wind, not raw stations.
+  let summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData, effectiveSpd);
   if (bocanaSignal) summary += ' · ' + bocanaSignal;
 
   return { score, verdict, hardGate: null, summary, thermalBoosted, humiditySignal: precursor.signal ?? bocanaSignal, thetaVGradient: precursor.thetaVGradient };
@@ -967,9 +984,12 @@ function buildSpotSummary(
   waterTemp: number | null,
   thermalBoosted = false,
   thermalData?: SpotThermalContext,
+  effectiveSpd?: number,
 ): string {
   const parts: string[] = [];
-  const spd = wind.avgSpeedKt;
+  // When thermal/canalization boost overrides the consensus, the summary should
+  // reflect the effective wind that drove the verdict (not the raw station read).
+  const spd = effectiveSpd ?? wind.avgSpeedKt;
   const dir = wind.dominantDir;
   const pattern = wind.matchedPattern;
 
@@ -1074,7 +1094,21 @@ export function scoreAllSpots(
 
     // Pass thermal data to scoring when spot has thermalDetection
     const spotThermal = spot.thermalDetection ? thermalData : undefined;
-    let { score, verdict, hardGate, summary, thermalBoosted, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData);
+
+    // Cesantes canalization prediction — feeds scoring override when stations
+    // under-read by ≥4kt during thermal breeze hours. Detector is gated by
+    // physics (ΔT ≥2°C + hour 12-20 + airTemp ≥16°C), not always-on.
+    let cesantesPrediction: CesantesPrediction | null = null;
+    if (spot.id === 'cesantes') {
+      const mouthHum = computeMouthHumidity(stations, readings);
+      const airTempLocal = stationData.find(s => s.reading.temperature !== null)?.reading.temperature ?? null;
+      const localStationKt = wind?.avgSpeedKt ?? null;
+      cesantesPrediction = predictCesantesCanalization(
+        buoys, mouthHum, false, airTempLocal, waterTemp, localStationKt,
+      );
+    }
+
+    let { score, verdict, hardGate, summary, thermalBoosted, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, cesantesPrediction);
 
     // Scoring confidence based on source count and type
     const sourceCount = wind?.stationCount ?? 0;

@@ -2,7 +2,7 @@
  * Tests for spotScoringEngine — core verdict + scoring logic.
  * Covers: windVerdict thresholds, scoreAllSpots integration, hard gates.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { scoreAllSpots, type SpotScore, type SpotVerdict } from './spotScoringEngine';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../types/buoy';
@@ -209,5 +209,85 @@ describe('spatial wind coherence', () => {
     const results = scoreAllSpots([cesantes], [s1, s2, s3, shelt], readings, []);
     // Sheltered penalized by regional coherence + tighter outlier → consensus ≥12kt
     expect(results.get('cesantes')!.wind!.avgSpeedKt).toBeGreaterThanOrEqual(12);
+  });
+});
+
+// ── Cesantes Canalization Override (S136+3) ───────────────────────────
+// Connects cesantesCanalizationDetector to scoring — sheltered preferred
+// stations (Lourizán/Marín/Vigo Porto) under-read by ~50% during thermal breeze.
+// Without this fix, popup said "FLOJO 6kt" while kiters/windsurfers planning
+// in the water with ~14-18kt SW (validated by webcam evidence May 2026).
+
+describe('Cesantes canalization override', () => {
+  const cesantes = RIAS_SPOTS.find(s => s.id === 'cesantes')!;
+
+  // Rande buoy 1251 with realistic water temp (ObsCosteiro has no wind, only T/HR)
+  const randeBuoy: BuoyReading = {
+    stationId: 1251, stationName: 'Rande', timestamp: new Date(),
+    waveHeight: null, wavePeriod: null, waveDirection: null,
+    waveHeightMax: null, wavePeriodMean: null,
+    windSpeed: null, windDir: null, windGust: null,
+    waterTemp: 21, airTemp: null, humidity: 70, dewPoint: 18,
+    airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
+    seaLevelHeight: null,
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // 17:00 local = peak thermal breeze hour in Cesantes
+    vi.setSystemTime(new Date('2026-05-25T15:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('overrides FLOJO verdict to BUENO when thermal breeze predicts ≥4kt above measured', () => {
+    // Reproduces the v2.81.29 prod bug: station reads 6kt + airTemp 25°C + waterTemp 21°C (ΔT=4°C)
+    // → detector predicts baseKt 6 + (4 × 2) = 14kt → verdict should be 'good', not 'light'
+    const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
+    const reading = makeReading('mg_test', msFromKt(6), 230, 25);
+    const results = scoreAllSpots([cesantes], [station], new Map([['mg_test', reading]]), [randeBuoy]);
+    const score = results.get('cesantes')!;
+    expect(score.verdict).toBe('good');
+    expect(score.thermalBoosted).toBe(true);
+    // Summary should reflect canalized wind, not raw 6kt
+    expect(score.summary).toMatch(/14kt|13kt|15kt/i);
+  });
+
+  it('does NOT override when ΔT <2°C (detector gate fails)', () => {
+    // ΔT 1°C (airTemp 22, water 21) — fails detector's ≥2°C gate → no canalization
+    // Use a low-humidity buoy to avoid other thermal boosts polluting the assertion.
+    const dryBuoy: BuoyReading = { ...randeBuoy, humidity: 40 };
+    const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
+    const reading = makeReading('mg_test', msFromKt(7), 230, 22);
+    const results = scoreAllSpots([cesantes], [station], new Map([['mg_test', reading]]), [dryBuoy]);
+    const score = results.get('cesantes')!;
+    // Without canalization boost (14kt), verdict cannot reach 'good' (≥12kt threshold)
+    expect(score.verdict).not.toBe('good');
+    // Summary should NOT contain "14kt" or similar canalized values
+    expect(score.summary).not.toMatch(/1[2-9]kt/);
+  });
+
+  it('does NOT trigger outside thermal hours (early morning)', () => {
+    vi.setSystemTime(new Date('2026-05-25T05:00:00Z')); // 07h local — before window
+    const dryBuoy: BuoyReading = { ...randeBuoy, humidity: 40 };
+    const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
+    const reading = makeReading('mg_test', msFromKt(6), 230, 25);
+    const results = scoreAllSpots([cesantes], [station], new Map([['mg_test', reading]]), [dryBuoy]);
+    const score = results.get('cesantes')!;
+    // Outside window → no canalization → no thermalBoosted from this path
+    expect(score.thermalBoosted).toBe(false);
+    expect(score.verdict).not.toBe('good');
+  });
+
+  it('does NOT apply to other Rías spots (Cesantes-only gate)', () => {
+    const bocana = RIAS_SPOTS.find(s => s.id === 'bocana')!;
+    const dryBuoy: BuoyReading = { ...randeBuoy, humidity: 40 };
+    const station = makeStation('mg_test', bocana.center[1], bocana.center[0]);
+    const reading = makeReading('mg_test', msFromKt(6), 230, 25);
+    const results = scoreAllSpots([bocana], [station], new Map([['mg_test', reading]]), [dryBuoy]);
+    const score = results.get('bocana')!;
+    // Bocana wouldn't reach 'good' from 6kt without Cesantes-specific canalization
+    expect(score.verdict).not.toBe('good');
+    // avgSpeedKt remains close to measured 6kt — not promoted to 14kt
+    expect(score.wind!.avgSpeedKt).toBeLessThan(10);
   });
 });
