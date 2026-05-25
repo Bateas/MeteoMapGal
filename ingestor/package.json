@@ -16,7 +16,7 @@
     "sharp": "^0.34.0"
   },
   "devDependencies": {
-    "tsx": "^4.19.2",
+    "tsx": "^4.22.1",
     "@types/pg": "^8.20.0",
     "@types/node": "^25.6.0"
   }
