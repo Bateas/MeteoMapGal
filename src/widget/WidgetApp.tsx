@@ -169,11 +169,24 @@ export function WidgetApp() {
 
     loadData();
 
-    // Auto-refresh every 5 minutes
-    const refreshId = setInterval(() => { loadData(); }, 5 * 60_000);
+    // Auto-refresh every 5 minutes — skip when document is hidden so the
+    // widget doesn't drain network/CPU when embedded in a tab the user is
+    // not currently viewing (audit S136+3 #13).
+    const refreshId = setInterval(() => {
+      if (document.hidden) return;
+      loadData();
+    }, 5 * 60_000);
+    // Refresh immediately when the user returns to the tab so they don't see
+    // a stale snapshot while waiting for the next 5min tick.
+    const onVisible = () => { if (!document.hidden) loadData(); };
+    document.addEventListener('visibilitychange', onVisible);
 
-    return () => { cancelled = true; clearInterval(refreshId); };
-  }, []);  
+    return () => {
+      cancelled = true;
+      clearInterval(refreshId);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   return (
     <div style={{
