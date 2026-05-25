@@ -323,8 +323,31 @@ export function AppShell() {
         // Build webcam id → coords map
         const webcamCoords = new Map<string, { lat: number; lon: number }>();
         for (const w of RIAS_WEBCAMS) webcamCoords.set(w.id, { lat: w.lat, lon: w.lon });
+        // Pre-check: any AEMET station reporting vis<1km right now? If so,
+        // it's a regional fog event — webcams in low-confidence partly-cloudy
+        // state should be counted as evidence even if the IA didn't trip
+        // fogVisible (moondream often misclassifies blanket marine fog as
+        // 'good visibility partly_cloudy' — confirmed S136+3 Cíes case).
+        const aemetVis = useWeatherStore.getState().visibilityReadings;
+        let regionalAemetFog = false;
+        if (aemetVis) {
+          for (const v of aemetVis.values()) {
+            if (v.visibility < 1) { regionalAemetFog = true; break; }
+          }
+        }
         for (const [id, result] of visionResults) {
-          if (result.beaufort >= 0 && result.weather.fogVisible && (now - result.analyzedAt.getTime()) < 30 * 60_000) {
+          const ageOk = (now - result.analyzedAt.getTime()) < 30 * 60_000;
+          if (!ageOk || result.beaufort < 0) continue;
+          // Primary path: IA marked fog directly OR derived from visibility.
+          const directFog = result.weather.fogVisible;
+          // Secondary path (S136+3 v2.81.44): regional AEMET fog confirmed +
+          // this webcam reports low-confidence partly-cloudy/overcast → the
+          // IA is likely seeing fog but not labeling it. Counts as evidence.
+          const lowConfNonClear = result.confidence === 'low'
+            && result.weather.sky !== 'clear'
+            && !result.weather.precipitation;
+          const indirectFog = regionalAemetFog && lowConfNonClear;
+          if (directFog || indirectFog) {
             webcamFogDetected = true;
             webcamFogCount++;
             webcamFogIds.push(id);
