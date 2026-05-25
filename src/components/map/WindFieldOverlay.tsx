@@ -37,42 +37,41 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
   features: [],
 };
 
-/** Push hex-pattern arrow features for a single wind source (station or buoy). */
+/** Push a single arrow feature for a wind source (station or buoy).
+ *
+ * Previously this rendered a 6-arrow hex ring around each source, totaling
+ * ~600 features (90 stations × 6 + 13 buoys × 6) per render. At zoom in,
+ * MapLibre re-tessellates every symbol → noticeable lag on each zoom step.
+ *
+ * One arrow per source = 100 features. Direction stays visually clear (the
+ * arrow geometry IS the direction indicator), the station marker provides
+ * the location, and zoom-based clustering still hides arrows <4kt at low
+ * zoom. Audit S136+3 #3.
+ */
 function pushHexArrows(
   features: GeoJSON.Feature[],
   lon: number,
   lat: number,
   windSpeed: number,
   windDir: number,
-  offsetScale: number,
+  _offsetScale: number,
   compact: boolean,
 ): void {
   const rotation = (windDir + 180) % 360;
   const level = speedToLevel(windSpeed);
-
-  // Inner ring (6 arrows)
-  for (let i = 0; i < OFFSETS.length; i++) {
-    const [dx, dy] = OFFSETS[i];
-    features.push({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [
-          lon + dx * OFFSET_LON * offsetScale,
-          lat + dy * OFFSET_LAT * offsetScale,
-        ],
-      },
-      properties: {
-        rotation,
-        speed: windSpeed,
-        speedLevel: level,
-        opacity: compact ? 0.65 : 0.75,
-      },
-    });
-  }
-
-  // Outer ring disabled — 12 arrows per station too visually dense.
-  // 6-arrow inner ring provides clear wind direction without clutter.
+  features.push({
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [lon, lat],
+    },
+    properties: {
+      rotation,
+      speed: windSpeed,
+      speedLevel: level,
+      opacity: compact ? 0.7 : 0.85, // slightly more opaque since only one arrow per source now
+    },
+  });
 }
 
 /**
