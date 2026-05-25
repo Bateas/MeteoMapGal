@@ -32,6 +32,8 @@ initWebVitals();
 // Survive esbuild.drop (no usamos console.*), pueden invocarse en prod.
 import { getLightningParseDebug } from './api/lightningClient';
 import { useLightningStore } from './hooks/useLightningData';
+import { useWebcamStore } from './store/webcamStore';
+import { useAlertStore } from './store/alertStore';
 (window as unknown as { __meteomapDebug?: object }).__meteomapDebug = {
   /** Parser TZ debug — verifica que MG envía UTC vs Madrid local */
   lightning: getLightningParseDebug,
@@ -51,6 +53,39 @@ import { useLightningStore } from './hooks/useLightningData';
   alert: () => useLightningStore.getState().stormAlert,
   /** Timestamp of last successful lightning fetch */
   lastFetch: () => useLightningStore.getState().lastFetch,
+  /** Webcam vision IA results — what moondream sees on each camera.
+   *  Useful to diagnose why FogOverlay doesn't paint a zone where the
+   *  webcam clearly shows fog. Filter by id prefix (e.g. 'cies', 'patos'). */
+  webcamVision: (filterIdSubstring?: string) => {
+    const results = useWebcamStore.getState().visionResults;
+    const entries = Array.from(results.entries())
+      .filter(([id]) => !filterIdSubstring || id.toLowerCase().includes(filterIdSubstring.toLowerCase()))
+      .map(([id, r]) => ({
+        id,
+        beaufort: r.beaufort,
+        confidence: r.confidence,
+        sky: r.weather.sky,
+        visibility: r.weather.visibility,
+        fogVisible: r.weather.fogVisible,
+        precipitation: r.weather.precipitation,
+        description: r.weather.weatherDescription?.slice(0, 80) ?? '',
+        ageMin: Math.round((Date.now() - r.analyzedAt.getTime()) / 60_000),
+      }));
+    return entries;
+  },
+  /** Fog alerts currently in alertStore — verifies multi-evidence detector
+   *  output. If fogVisible is true on a webcam but no alert here, the
+   *  threshold `totalEvidence >= 2` is blocking. */
+  fogAlerts: () => useAlertStore.getState().alerts
+    .filter((a) => a.category === 'fog' || (a.title ?? '').toLowerCase().includes('niebla'))
+    .map((a) => ({
+      title: a.title,
+      severity: a.severity,
+      score: a.score,
+      detail: a.detail?.slice(0, 120),
+      sources: a.fogMeta?.sources?.length ?? 0,
+      webcamConfirmed: a.fogMeta?.webcamConfirmed ?? false,
+    })),
   /** Single-shot dump of everything storm-related — quick health check */
   dump: () => ({
     parseTZ: getLightningParseDebug(),
