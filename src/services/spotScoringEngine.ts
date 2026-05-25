@@ -1103,8 +1103,22 @@ export function scoreAllSpots(
       const mouthHum = computeMouthHumidity(stations, readings);
       const airTempLocal = stationData.find(s => s.reading.temperature !== null)?.reading.temperature ?? null;
       const localStationKt = wind?.avgSpeedKt ?? null;
+      // Climatological SST fallback for Ría de Vigo interior (Rande area).
+      // Required when the closest buoys (Rande 1251 ObsCosteiro) don't report
+      // a waterTemp sensor — SpotPopup falls back to MOHID fetch but the
+      // scoring engine has no fetch access. Gated by airTempLocal >= 20°C
+      // so the fallback only kicks in during clear summer-like conditions
+      // where the canalization is physically plausible (May-Sep daytime),
+      // not on cold/marginal days where the prediction would be unreliable.
+      // Values from MOHID monthly climatology, ±1°C accurate for inner ría.
+      const RIA_VIGO_INTERIOR_SST_BY_MONTH = [
+        13, 13, 13, 14, 16, 18, 20, 21, 20, 18, 16, 14, // Jan..Dec
+      ];
+      const summerLike = airTempLocal !== null && airTempLocal >= 20;
+      const waterTempForDetector = waterTemp
+        ?? (summerLike ? RIA_VIGO_INTERIOR_SST_BY_MONTH[new Date().getMonth()] : null);
       cesantesPrediction = predictCesantesCanalization(
-        buoys, mouthHum, false, airTempLocal, waterTemp, localStationKt,
+        buoys, mouthHum, false, airTempLocal, waterTempForDetector, localStationKt,
       );
     }
 
