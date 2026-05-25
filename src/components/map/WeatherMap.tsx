@@ -66,9 +66,9 @@ const RegattaPanel = lazy(() => import('./RegattaPanel').then(m => ({ default: m
 import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
-import { useAviationData } from '../../hooks/useAviationData';
-import { useSurfMarineData } from '../../hooks/useSurfMarineData';
-import { useWebcamVisionData } from '../../hooks/useWebcamVisionData';
+// Audit S136+3 #7: useAviationData, useSurfMarineData, useWebcamVisionData
+// moved to DeferredHooks — they fetch from external services and don't need
+// to fire on critical-path mount. Stores they write to are still read here.
 import { WebcamSymbolLayer, registerWebcamIcon } from './WebcamSymbolLayer';
 import { WebcamPopup } from './WebcamPopup';
 import { useWebcamStore } from '../../store/webcamStore';
@@ -134,13 +134,21 @@ export function WeatherMap() {
   const isMobile = useUIStore((s) => s.isMobile);
   const simpleMode = useUIStore((s) => s.simpleMode);
 
-  const selectedStation = stations.find((s) => s.id === selectedStationId);
+  // Audit S136+3 #9: memoize .find() calls — without this they re-run on EVERY
+  // re-render (and WeatherMap re-renders often due to many store subscriptions).
+  const selectedStation = useMemo(
+    () => stations.find((s) => s.id === selectedStationId),
+    [stations, selectedStationId],
+  );
 
   // Buoy data from shared store (populated by BuoyPanel in Rías Baixas sector)
   const buoys = useBuoyStore((s) => s.buoys);
   const selectedBuoyId = useBuoyStore((s) => s.selectedBuoyId);
   const selectBuoy = useBuoyStore((s) => s.selectBuoy);
-  const selectedBuoy = buoys.find((b) => b.stationId === selectedBuoyId);
+  const selectedBuoy = useMemo(
+    () => buoys.find((b) => b.stationId === selectedBuoyId),
+    [buoys, selectedBuoyId],
+  );
 
   // Spot state
   const activeSpotId = useSpotStore((s) => s.activeSpotId);
@@ -159,9 +167,7 @@ export function WeatherMap() {
   const flyToTarget = useUIStore((s) => s.flyToTarget);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
-  useAviationData();
-  useWebcamVisionData();
-  useSurfMarineData();
+  // Moved to DeferredHooks (audit S136+3 #7)
 
   // Regatta mode: fade non-essential elements.
   // CSS class handles DOM markers (.maplibregl-marker).

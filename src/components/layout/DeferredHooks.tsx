@@ -17,6 +17,13 @@ import { useWebcamVision } from '../../hooks/useWebcamVision';
 import { useAirQuality } from '../../hooks/useAirQuality';
 import { useActiveFires } from '../../hooks/useActiveFires';
 import { useIcaData } from '../../hooks/useIcaData';
+// Audit S136+3 #7+#8: hooks previously running directly in WeatherMap /
+// AppShell, now deferred 3s like the rest. They write to stores so consumer
+// components (overlays, popups) read via subscriptions and stay reactive.
+import { useAviationData } from '../../hooks/useAviationData';
+import { useSurfMarineData } from '../../hooks/useSurfMarineData';
+import { useWebcamVisionData } from '../../hooks/useWebcamVisionData';
+import { useForecastTimeline } from '../../hooks/useForecastTimeline';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -34,6 +41,10 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useAirQuality();
   useActiveFires();
   useIcaData();
+  useAviationData();
+  useSurfMarineData();
+  useWebcamVisionData();
+  useForecastTimeline();
   // Convection risk overlay (CAPE × LI) is NO LONGER auto-activated
   // (audit — user feedback): the model-based prediction can
   // contradict live radar/lightning (green zones with active red strikes,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -12,7 +12,9 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { useStormShadowStore } from '../../hooks/useStormShadow';
-import { useForecastTimeline, useForecastStore } from '../../hooks/useForecastTimeline';
+// useForecastTimeline moved to DeferredHooks (audit S136+3 #8) — still need
+// useForecastStore subscription here for downstream alert pipeline.
+import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { logPredictionSnapshot } from '../../services/stormPredictionLogger';
 import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
@@ -194,9 +196,8 @@ export function AppShell() {
     if (isMobile && !ui.sidebarOpen) ui.setSidebarOpen(true);
   }, [requestedTab, isMobile]);
 
-  // ── Critical hooks (needed for first render) ───────────
-  // Hourly forecast timeline: 48h WRF-MG + Open-Meteo background, polls every 30 min
-  useForecastTimeline();
+  // useForecastTimeline moved to DeferredHooks (audit S136+3 #8) — not on
+  // critical path for first paint; consumers read from useForecastStore.
 
   // ── Deferred hooks — mount after 3s to unblock first paint ──
   const [deferredReady, setDeferredReady] = useState(false);
@@ -250,8 +251,16 @@ export function AppShell() {
   // Daily summary moved to ingestor (24/7, single source, no visitor duplicates).
 
   // Campo (agricultural alerts) drawer — state in uiStore
-  // Use convectionData for alerts (has CAPE/CIN/gusts from Open-Meteo), fallback to hourly
-  const forecastHourly = useForecastStore((s) => s.convectionData.length > 0 ? s.convectionData : s.hourly);
+  // Use convectionData for alerts (has CAPE/CIN/gusts from Open-Meteo), fallback to hourly.
+  // Audit S136+3 #16: separate selectors prevent the ternary from returning a
+  // new reference each render — derive the picked array via useMemo so React
+  // re-renders only when the source arrays actually change.
+  const convectionData = useForecastStore((s) => s.convectionData);
+  const hourly = useForecastStore((s) => s.hourly);
+  const forecastHourly = useMemo(
+    () => (convectionData.length > 0 ? convectionData : hourly),
+    [convectionData, hourly],
+  );
   const readingHistory = useWeatherStore((s) => s.readingHistory);
   const historyEpoch = useWeatherStore((s) => s.historyEpoch);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
@@ -283,13 +292,20 @@ export function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory changes
   }, [forecastHourly, historyEpoch, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD]);
   // ── Temperature gradient: compute lapse rate on every reading update ──
+  // Audit S136+3 #10: debounce 500ms — currentReadings mutates on every
+  // weather poll (~5min) but the lapse rate doesn't change meaningfully
+  // within seconds. The debounce batches multi-station updates that arrive
+  // in quick succession during a single poll cycle.
   const setThermalProfile = useTemperatureOverlayStore((s) => s.setThermalProfile);
   useEffect(() => {
     if (stations.length === 0 || currentReadings.size === 0) return;
-    const temps = extractStationTemps(stations, currentReadings);
-    if (temps.length < 2) return;
-    const profile = analyzeThermalProfile(temps);
-    setThermalProfile(profile);
+    const t = setTimeout(() => {
+      const temps = extractStationTemps(stations, currentReadings);
+      if (temps.length < 2) return;
+      const profile = analyzeThermalProfile(temps);
+      setThermalProfile(profile);
+    }, 500);
+    return () => clearTimeout(t);
   }, [stations, currentReadings, setThermalProfile]);
 
   // ── Unified alert aggregation + notifications ──────────
@@ -305,9 +321,29 @@ export function AppShell() {
   const forecastRef = useRef(forecastHourly);
   forecastRef.current = forecastHourly;
 
+  // Audit S136+3 #6: signature-hash skip — the 500ms debounce only batches
+  // updates WITHIN a single render tick, but useEffect still fires whenever
+  // any dep changes. Compare a cheap signature (counts + key timestamps)
+  // against last run; if identical, skip the 11 alert builders entirely.
+  const lastAggregateSigRef = useRef<string>('');
+
   // Debounced alert aggregation — 500ms delay avoids running 11 alert builders on every tick
   useEffect(() => {
     const t = setTimeout(() => {
+      // Cheap input-signature check — skip if nothing relevant changed
+      // (Map.size + history epoch + storm timestamp + forecast fetchedAt
+      // are the high-signal axes for "is this rebuild meaningful?").
+      const sig = [
+        currentReadings.size,
+        historyEpoch,
+        stormAlert?.level ?? 'none',
+        stormShadow?.detectedAt?.getTime() ?? 0,
+        forecastFetchedAt ?? 0,
+        buoys.length,
+        thermalProfile?.lapseRate ?? 0,
+      ].join('|');
+      if (sig === lastAggregateSigRef.current) return;
+      lastAggregateSigRef.current = sig;
       // Station geo for maritime fog (nearby station lookup)
       const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
       // Check webcam vision for fog detection (cameras with fogVisible in last 30min)
