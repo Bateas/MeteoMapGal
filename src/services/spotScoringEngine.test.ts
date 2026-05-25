@@ -290,4 +290,36 @@ describe('Cesantes canalization override', () => {
     // avgSpeedKt remains close to measured 6kt — not promoted to 14kt
     expect(score.wind!.avgSpeedKt).toBeLessThan(10);
   });
+
+  it('uses climatological SST fallback when buoys have no waterTemp (real prod case)', () => {
+    // Reproduces v2.81.30 prod bug: buoys near Cesantes (Rande, Vigo Porto) don't
+    // report waterTemp → engine had no SST → detector inactive → verdict stays FLOJO
+    // even when SpotPopup shows the prediction (it uses MOHID fetch as fallback).
+    // After fix: when airTempLocal >= 20°C, engine falls back to monthly climatology.
+    const buoyWithoutWaterTemp: BuoyReading = { ...randeBuoy, waterTemp: null };
+    const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
+    const reading = makeReading('mg_test', msFromKt(7), 230, 27); // 27°C summer day
+    const results = scoreAllSpots(
+      [cesantes], [station], new Map([['mg_test', reading]]), [buoyWithoutWaterTemp],
+    );
+    const score = results.get('cesantes')!;
+    // May climatology SST=16°C, airTemp=27 → ΔT=11°C → +8kt cap → 7+8=15kt → 'good'
+    expect(score.verdict).toBe('good');
+    expect(score.thermalBoosted).toBe(true);
+  });
+
+  it('does NOT use SST fallback in cold conditions (airTemp <20°C)', () => {
+    // On cool spring/autumn days (airTemp <20°C), the SST fallback is too risky
+    // — better to leave detector inactive and use raw station consensus.
+    const buoyWithoutWaterTemp: BuoyReading = { ...randeBuoy, waterTemp: null, humidity: 40 };
+    const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
+    const reading = makeReading('mg_test', msFromKt(7), 230, 18); // 18°C, below threshold
+    const results = scoreAllSpots(
+      [cesantes], [station], new Map([['mg_test', reading]]), [buoyWithoutWaterTemp],
+    );
+    const score = results.get('cesantes')!;
+    // No fallback → detector inactive → verdict from raw 7kt → 'light'
+    expect(score.verdict).toBe('light');
+    expect(score.thermalBoosted).toBe(false);
+  });
 });
