@@ -447,15 +447,25 @@ function parseVisionResponse(raw: string): ParsedVisionResponse {
     const sky = VALID_SKY.has(parsed.sky) ? parsed.sky : 'unknown';
     const visibility = VALID_VISIBILITY.has(parsed.visibility) ? parsed.visibility : 'good';
 
+    // fogVisible derivation: moondream is conservative — it tags `fog: true` only
+    // for dense blanket fog. Marine fog at Cíes/Bao often shows as "partly_cloudy
+    // with moderate visibility" + low wind + no rain → visually obvious fog from
+    // the webcam but `parsed.fog` is false (S136+3 user-reported gap). Widen the
+    // criterion to include physical fingerprint: visibility limited + non-clear
+    // sky + calm + no precip = marine fog likely.
+    const beaufort = typeof parsed.beaufort === 'number' ? Math.max(-1, Math.min(7, parsed.beaufort)) : -1;
+    const fogVisible = !!parsed.fog
+      || visibility === 'poor'
+      || (visibility === 'moderate' && sky !== 'clear' && beaufort <= 2 && !parsed.precipitation);
     return {
-      beaufort: typeof parsed.beaufort === 'number' ? Math.max(-1, Math.min(7, parsed.beaufort)) : -1,
+      beaufort,
       confidence: parsed.confidence ?? 'low',
       description: parsed.description ?? '',
       weather: {
         sky,
         visibility,
         precipitation: !!parsed.precipitation,
-        fogVisible: !!parsed.fog,
+        fogVisible,
         cloudType: parsed.clouds || null,
         seaState: parsed.sea_state || null,
         light: ['bright', 'diffuse', 'dim', 'dark'].includes(parsed.light) ? parsed.light : null,
