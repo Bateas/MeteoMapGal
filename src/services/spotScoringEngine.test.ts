@@ -308,6 +308,39 @@ describe('Cesantes canalization override', () => {
     expect(score.thermalBoosted).toBe(true);
   });
 
+  it('effectiveWindKt matches the verdict (marker-popup coherence)', () => {
+    // After v2.81.31/32: marker was showing wind.avgSpeedKt (7kt) while
+    // the verdict was 'good' (from canalized 15kt). The user saw "BUENO 7kt"
+    // which is incoherent. effectiveWindKt should equal the boosted speed
+    // when the override fires.
+    const buoyWithoutWaterTemp: BuoyReading = { ...randeBuoy, waterTemp: null };
+    const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
+    const reading = makeReading('mg_test', msFromKt(7), 230, 27);
+    const results = scoreAllSpots(
+      [cesantes], [station], new Map([['mg_test', reading]]), [buoyWithoutWaterTemp],
+    );
+    const score = results.get('cesantes')!;
+    expect(score.verdict).toBe('good');
+    // Raw consensus is 7kt but the canalized prediction (15kt) drove the verdict
+    expect(score.wind!.avgSpeedKt).toBeLessThanOrEqual(8); // raw stays low
+    expect(score.effectiveWindKt).toBeGreaterThanOrEqual(12); // matches 'good' threshold
+  });
+
+  it('effectiveWindKt equals wind.avgSpeedKt when no boost applies', () => {
+    // For spots without canalization (e.g. cold day), effectiveWindKt should
+    // equal raw consensus — no silent inflation of displayed kt.
+    const dryBuoy: BuoyReading = { ...randeBuoy, humidity: 40 };
+    const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
+    const reading = makeReading('mg_test', msFromKt(8), 230, 15); // cold airTemp
+    const results = scoreAllSpots(
+      [cesantes], [station], new Map([['mg_test', reading]]), [dryBuoy],
+    );
+    const score = results.get('cesantes')!;
+    expect(score.thermalBoosted).toBe(false);
+    // effectiveWindKt should match raw consensus within ±0.5kt rounding
+    expect(Math.abs((score.effectiveWindKt ?? 0) - score.wind!.avgSpeedKt)).toBeLessThan(1);
+  });
+
   it('does NOT use SST fallback in cold conditions (airTemp <20°C)', () => {
     // On cool spring/autumn days (airTemp <20°C), the SST fallback is too risky
     // — better to leave detector inactive and use raw station consensus.

@@ -107,6 +107,10 @@ export interface SpotScore {
   hasStormAlert: boolean;
   /** True when thermal boost was applied (land stations underestimate water wind) */
   thermalBoosted: boolean;
+  /** Effective wind speed that drove the verdict (kt). Equals wind.avgSpeedKt
+   *  unless a boost/override applied (thermal, canalization, bocana). Used by
+   *  SpotMarker so the displayed kt stays coherent with the verdict color. */
+  effectiveWindKt: number | null;
   /** Scoring confidence: 'high' (3+ sources), 'medium' (2), 'low' (1 or only land) */
   scoringConfidence: 'high' | 'medium' | 'low';
   /** Wind trend from reading history (30min window) */
@@ -778,7 +782,7 @@ function scoreSpot(
   buoyData?: { buoy: BuoyReading; distKm: number }[],
   stationData?: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
   cesantesPrediction?: CesantesPrediction | null,
-): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; humiditySignal: string | null; thetaVGradient: number | null } {
+): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; effectiveWindKt: number | null; humiditySignal: string | null; thetaVGradient: number | null } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
     return {
@@ -786,7 +790,7 @@ function scoreSpot(
       verdict: 'strong',
       hardGate: `Viento ${wind.avgSpeedKt.toFixed(0)}kt > ${spot.hardGates.maxWindKt}kt`,
       summary: `Viento excesivo (${wind.avgSpeedKt.toFixed(0)}kt). Peligroso.`,
-      thermalBoosted: false, humiditySignal: null, thetaVGradient: null,
+      thermalBoosted: false, effectiveWindKt: wind?.avgSpeedKt ?? null, humiditySignal: null, thetaVGradient: null,
     };
   }
 
@@ -797,13 +801,13 @@ function scoreSpot(
       verdict: 'strong',
       hardGate: `Oleaje ${waves.waveHeight.toFixed(1)}m > ${spot.hardGates.maxWaveHeight}m`,
       summary: `Oleaje excesivo (${waves.waveHeight.toFixed(1)}m). Peligroso.`,
-      thermalBoosted: false, humiditySignal: null, thetaVGradient: null,
+      thermalBoosted: false, effectiveWindKt: wind?.avgSpeedKt ?? null, humiditySignal: null, thetaVGradient: null,
     };
   }
 
   // ── No data ────────────────────────────────────────────
   if (!wind) {
-    return { score: 0, verdict: 'unknown', hardGate: null, summary: 'Sin datos de viento.', thermalBoosted: false, humiditySignal: null };
+    return { score: 0, verdict: 'unknown', hardGate: null, summary: 'Sin datos de viento.', thermalBoosted: false, effectiveWindKt: null, humiditySignal: null, thetaVGradient: null };
   }
 
   const spd = wind.avgSpeedKt;
@@ -971,7 +975,7 @@ function scoreSpot(
   let summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData, effectiveSpd);
   if (bocanaSignal) summary += ' · ' + bocanaSignal;
 
-  return { score, verdict, hardGate: null, summary, thermalBoosted, humiditySignal: precursor.signal ?? bocanaSignal, thetaVGradient: precursor.thetaVGradient };
+  return { score, verdict, hardGate: null, summary, thermalBoosted, effectiveWindKt: Math.round(effectiveSpd * 10) / 10, humiditySignal: precursor.signal ?? bocanaSignal, thetaVGradient: precursor.thetaVGradient };
 }
 
 // ── Summary Builder ──────────────────────────────────────────
@@ -1129,7 +1133,7 @@ export function scoreAllSpots(
       );
     }
 
-    let { score, verdict, hardGate, summary, thermalBoosted, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, cesantesPrediction);
+    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, cesantesPrediction);
 
     // Scoring confidence based on source count and type
     const sourceCount = wind?.stationCount ?? 0;
@@ -1271,6 +1275,7 @@ export function scoreAllSpots(
       thermal: spot.thermalDetection ? (thermalData ?? null) : null,
       hasStormAlert: thermalData?.hasStormAlert ?? false,
       thermalBoosted,
+      effectiveWindKt,
       scoringConfidence,
       gustKt,
       windTrend,
