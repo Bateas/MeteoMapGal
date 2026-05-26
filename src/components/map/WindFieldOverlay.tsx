@@ -37,16 +37,16 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
   features: [],
 };
 
-/** Push a single arrow feature for a wind source (station or buoy).
+/** Push hex-pattern arrow features for a single wind source (station or buoy).
  *
- * Previously this rendered a 6-arrow hex ring around each source, totaling
- * ~600 features (90 stations × 6 + 13 buoys × 6) per render. At zoom in,
- * MapLibre re-tessellates every symbol → noticeable lag on each zoom step.
+ * Restored in v2.81.49 after user feedback: "lo de quitar las flechas de las
+ * estaciones pierde sentido". The single-arrow variant (S136+3 #3 audit) saved
+ * GPU work but stripped the visual signature that users associated with the
+ * station's wind reading.
  *
- * One arrow per source = 100 features. Direction stays visually clear (the
- * arrow geometry IS the direction indicator), the station marker provides
- * the location, and zoom-based clustering still hides arrows <4kt at low
- * zoom. Audit S136+3 #3.
+ * Cost: ~600 features (90 stations × 6 + 13 buoys × 6) per render. Mitigations
+ * still in place: zoom-based hiding (<4kt at zoom <10, <2kt at zoom <11),
+ * WindParticleOverlay 30fps throttle, StormCluster source consolidation.
  */
 function pushHexArrows(
   features: GeoJSON.Feature[],
@@ -54,24 +54,35 @@ function pushHexArrows(
   lat: number,
   windSpeed: number,
   windDir: number,
-  _offsetScale: number,
+  offsetScale: number,
   compact: boolean,
 ): void {
   const rotation = (windDir + 180) % 360;
   const level = speedToLevel(windSpeed);
-  features.push({
-    type: 'Feature',
-    geometry: {
-      type: 'Point',
-      coordinates: [lon, lat],
-    },
-    properties: {
-      rotation,
-      speed: windSpeed,
-      speedLevel: level,
-      opacity: compact ? 0.7 : 0.85, // slightly more opaque since only one arrow per source now
-    },
-  });
+
+  // Inner ring (6 arrows)
+  for (let i = 0; i < OFFSETS.length; i++) {
+    const [dx, dy] = OFFSETS[i];
+    features.push({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [
+          lon + dx * OFFSET_LON * offsetScale,
+          lat + dy * OFFSET_LAT * offsetScale,
+        ],
+      },
+      properties: {
+        rotation,
+        speed: windSpeed,
+        speedLevel: level,
+        opacity: compact ? 0.65 : 0.75,
+      },
+    });
+  }
+
+  // Outer ring disabled — 12 arrows per station too visually dense.
+  // 6-arrow inner ring provides clear wind direction without clutter.
 }
 
 /**
