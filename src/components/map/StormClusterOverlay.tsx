@@ -100,6 +100,7 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
 // faint silhouette only.
 const DISSIPATING_AGE_MIN = 15;
 const EXPIRED_AGE_MIN = 30;
+void EXPIRED_AGE_MIN; // referenced in paint expressions via numeric literal
 
 /**
  * Returns true when the cluster has had recent enough activity to justify
@@ -121,13 +122,14 @@ function isClusterMoving(c: StormCluster): boolean {
 
 /**
  * Generate a circle polygon (GeoJSON) centered at [lon, lat] with given radius in km.
- * Uses 64 segments for smoothness.
+ * Default segments=32 (was 64 pre-S136+3+1 — half vertices for same visual smoothness
+ * at typical zoom levels; gpu cost ~50% lower in storm-pico render).
  */
 function circlePolygon(
   lon: number,
   lat: number,
   radiusKm: number,
-  segments = 64,
+  segments = 32,
 ): GeoJSON.Feature<GeoJSON.Polygon> {
   const coords: [number, number][] = [];
   for (let i = 0; i <= segments; i++) {
@@ -145,10 +147,6 @@ function circlePolygon(
   };
 }
 
-/**
- * Generate velocity arrow as a LineString from cluster centroid
- * in the direction of movement, length proportional to speed.
- */
 /**
  * How far ahead (km) to project the storm given its current velocity.
  * Used by both `velocityArrow` and `arrowTip`. Represents ~30 minutes of
@@ -283,9 +281,6 @@ function projectedPath(cluster: StormCluster): GeoJSON.Feature<GeoJSON.LineStrin
   };
 }
 
-/**
- * ETA label at the cluster centroid for approaching storms.
- */
 /** Build rich info label for EVERY cluster (on-map, no drawer needed) */
 function clusterInfoPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point> {
   const lines: string[] = [];
@@ -330,13 +325,15 @@ function clusterInfoPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point>
 /**
  * Storm cluster visualization overlay.
  *
- * Renders on the map:
- * 1. Watch radius (50km) — faint dashed ring around reservoir
- * 2. Warning radius (25km) — subtle ring
- * 3. Danger radius (5km) — inner ring
- * 4. Storm cluster masses — gradient-filled circles showing storm extent
- * 5. Cluster centroids — pulsing markers
- * 6. Velocity arrows — direction of storm movement
+ * Renders on the map (consolidated S136+3+1 — 12 sources → 3):
+ *   - storm-polygons: rings + masses + ghosts + wet + hail + velocity tips
+ *   - storm-lines: velocity shafts + trail lines + projected paths
+ *   - storm-points: trail dots + centroids + ETA labels
+ * Each feature carries a `kind` property used by layer filters.
+ *
+ * Win: -75% source updates / style diffing, -50% circlePolygon vertices
+ * (segments 64→32). Probably mitigates mousemove violations 167-483ms
+ * reported during active storms with 16+ clusters.
  */
 export const StormClusterOverlay = memo(function StormClusterOverlay() {
   const clusters = useLightningStore((s) => s.clusters);
@@ -348,56 +345,42 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
   const centerLon = sectorCenter[0];
   const centerLat = sectorCenter[1];
 
-  // ── Watch / Warning / Danger radius rings ────────────────────
-  const radiusRings = useMemo<GeoJSON.FeatureCollection>(() => {
+  // ── POLYGON SOURCE ───────────────────────────────────────────────
+  // Consolidates: radiusRings + clusterMasses (haze + core) + projectedGhosts
+  // + intensityWetFills + hailStripes + velocityTips.
+  // Each feature tagged with `kind` ∈ {ring-watch, ring-warning, ring-danger,
+  // mass-haze, mass-core, projected-ghost, wet-fill, hail-ring, velocity-tip}.
+  const stormPolygons = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay) return EMPTY_FC;
 
     const features: GeoJSON.Feature[] = [];
 
-    // Only show rings when there are active clusters or alerts
+    // ── Radius rings (watch 80km / warning 25km / danger 5km) ──
+    // Only show when alert active or clusters present.
     if (alertLevel !== 'none' || clusters.length > 0) {
-      // 50km watch ring
       const watch = circlePolygon(centerLon, centerLat, 80); // matches WATCH_KM in useLightningData
-      watch.properties = { ring: 'watch', radius: 50 };
+      watch.properties = { kind: 'ring-watch', radius: 50 };
       features.push(watch);
 
-      // 25km warning ring
       const warning = circlePolygon(centerLon, centerLat, 25);
-      warning.properties = { ring: 'warning', radius: 25 };
+      warning.properties = { kind: 'ring-warning', radius: 25 };
       features.push(warning);
 
-      // 5km danger ring
       const danger = circlePolygon(centerLon, centerLat, 5);
-      danger.properties = { ring: 'danger', radius: 5 };
+      danger.properties = { kind: 'ring-danger', radius: 5 };
       features.push(danger);
     }
 
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, alertLevel, clusters.length, centerLon, centerLat]);
-
-  // ── Cluster mass areas (convex hull from actual strike positions) ──
-  const clusterMasses = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-
-    const features: GeoJSON.Feature[] = [];
-
+    // ── Cluster masses (haze + core via convex hull) ──
     for (const cluster of clusters) {
-      // Compute convex hull ONCE per cluster (cached by clusterId+strikeCount).
-      // Both haze and core reuse the same hull, just different buffer expansion.
       const hull = getCachedHull(cluster);
-
-      // Storm-intensity type drives mass-core color — passed as a
-      // string property; the layer paint reads it via ['get', 'intensityType'].
       const intensityType = cluster.intensity?.type ?? 'unknown';
 
       if (hull) {
-        // polish: buffers reduced (was 8 / 3) so cluster polygons no longer
-        // visually dominate when 5+ overlap. They now stay closer to the actual
-        // strike footprint instead of inflating the hull by 8 km in every direction.
         const hazeShape = hullToShape(cluster, hull, 4);
         hazeShape.properties = {
           ...hazeShape.properties,
-          type: 'haze',
+          kind: 'mass-haze',
           intensityType,
           newestAgeMin: cluster.newestAgeMin,
         };
@@ -406,9 +389,9 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         const coreShape = hullToShape(cluster, hull, 1.5);
         coreShape.properties = {
           ...coreShape.properties,
-          type: 'core',
-          newestAgeMin: cluster.newestAgeMin,
+          kind: 'mass-core',
           intensityType,
+          newestAgeMin: cluster.newestAgeMin,
         };
         features.push(coreShape);
       } else {
@@ -416,7 +399,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         const coreRadius = Math.min(Math.max(cluster.radiusKm, 3), 12);
         const core = circlePolygon(cluster.lon, cluster.lat, coreRadius);
         core.properties = {
-          type: 'core',
+          kind: 'mass-core',
           approaching: cluster.approaching ? 1 : 0,
           intensity: Math.min(cluster.strikeCount / 10, 1),
           distance: cluster.distanceToReservoir,
@@ -427,309 +410,243 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       }
     }
 
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters]);
-
-  // ── storm intensity visual differentials ────────────────
-  // Two visual layers tied to cluster.intensity (set by enrichClustersWithIntensity):
-  //   1. Wet-fill circle — translucent blue tint when 'lluvia intensa' detected.
-  //      Says "this storm is dumping water on you, take cover" without reading text.
-  //   2. Hail stripes — concentric dashed rings (ice-blue-and-white) when
-  //      hailRisk === 'probable' (full atmospheric criterion). Says "this is
-  //      potentially severe, granizo posible" — even more urgent than rain.
-  //
-  // Other types (eléctrica seca, estratiforme, mixta) keep the existing
-  // visualization since their cluster label already differentiates them.
-
-  // ── Ghost projection — where the storm WILL BE in 30 min ──
-  // For every cluster with velocity, draw a faint outline circle at its
-  // projected +30 min position. Says "this is where it's headed" as a SHAPE,
-  // not just a line endpoint. The user reads the cone "current cluster →
-  // ghost outline" as the storm sweeping forward.
-  const projectedGhosts = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-    const features: GeoJSON.Feature[] = [];
+    // ── Projected ghosts (+30 min) — active + moving + non-stationary ──
     for (const c of clusters) {
-      // only render ghost for active + moving clusters (same gate as
-      // velocity arrow + ghost projection rule). Dissipating storms or
-      // stationary clusters get no future projection.
       if (!isClusterActive(c)) continue;
-      if (!c.velocity || c.velocity.speedKmh < 5) continue; // skip nearly-stationary
+      if (!c.velocity || c.velocity.speedKmh < 5) continue;
       const { bearingDeg, speedKmh } = c.velocity;
       const projKm = projectionLengthKm(speedKmh);
       const bearingRad = (bearingDeg * Math.PI) / 180;
       const startLat = c.leadLat ?? c.lat;
       const startLon = c.leadLon ?? c.lon;
-      // +30 min projected center
       const futureLat = startLat + (projKm / 111.32) * Math.cos(bearingRad);
       const futureLon =
         startLon +
         (projKm / (111.32 * Math.cos((startLat * Math.PI) / 180))) *
           Math.sin(bearingRad);
-      // Use a scaled-down radius — the future shape is a rough estimate, not
-      // a hard prediction; show it smaller than current core to communicate
-      // uncertainty.
       const ghostRadius = Math.min(Math.max(c.radiusKm * 0.7, 3), 10);
       const ring = circlePolygon(futureLon, futureLat, ghostRadius);
       ring.properties = {
+        kind: 'projected-ghost',
         approaching: c.approaching ? 1 : 0,
         intensityType: c.intensity?.type ?? 'unknown',
         speedKmh,
       };
       features.push(ring);
     }
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters]);
 
-  const intensityWetFills = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-    const features: GeoJSON.Feature[] = [];
+    // ── Wet fills (lluvia intensa — wet-core within storm cell) ──
     for (const c of clusters) {
       if (c.intensity?.visualStyle !== 'wet-fill') continue;
-      // Tighter than cluster radius to NOT overlap fully — reads as a "wet
-      // core" within the storm cell, ~5km irrespective of cluster size.
       const radius = Math.min(Math.max(c.radiusKm * 0.7, 4), 8);
       const poly = circlePolygon(c.lon, c.lat, radius);
-      poly.properties = { rate: c.intensity.rainRateMmH ?? 0 };
+      poly.properties = { kind: 'wet-fill', rate: c.intensity.rainRateMmH ?? 0 };
       features.push(poly);
     }
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters]);
 
-  const hailStripes = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-
-    // Declutter: when many clusters carry hail risk simultaneously
-    // (typical of widespread events with CAPE+LI just past threshold), the
-    // 3-ring halo around every single one creates a moiré pattern that drowns
-    // the map. Cap at the TOP 3 by strike count — keeps the hail visual on
-    // the most active cells where the risk is most concrete.
+    // ── Hail rings (top-3 active+probable/posible by strikeCount) ──
     const HAIL_RING_LIMIT = 3;
-    const candidates = clusters.filter((c) => {
-      // skip dissipating storms — the atmosphere that produced their
-      // hail risk is no longer current.
+    const hailCandidates = clusters.filter((c) => {
       if (!isClusterActive(c)) return false;
       const risk = c.intensity?.hailRisk;
       return risk === 'probable' || risk === 'posible';
     });
-    // Sort by strikeCount desc, keep top N. Probable always wins over posible
-    // at equal strike count by sorting probable-first.
-    candidates.sort((a, b) => {
+    hailCandidates.sort((a, b) => {
       const aProb = a.intensity?.hailRisk === 'probable' ? 1 : 0;
       const bProb = b.intensity?.hailRisk === 'probable' ? 1 : 0;
       if (aProb !== bProb) return bProb - aProb;
       return b.strikeCount - a.strikeCount;
     });
-    const top = candidates.slice(0, HAIL_RING_LIMIT);
-
-    const features: GeoJSON.Feature[] = [];
-    for (const c of top) {
+    for (const c of hailCandidates.slice(0, HAIL_RING_LIMIT)) {
       const risk = c.intensity!.hailRisk;
-      // Three concentric rings — outer/middle/inner — at fixed distance so
-      // the stripe pattern reads even when cluster is small.
-      // Inner is brighter, outer fades to suggest a halo effect.
       for (const km of [4, 6, 8]) {
         const ring = circlePolygon(c.leadLon ?? c.lon, c.leadLat ?? c.lat, km);
-        ring.properties = { ringKm: km, risk };
+        ring.properties = { kind: 'hail-ring', ringKm: km, risk };
         features.push(ring);
       }
     }
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters]);
 
-  // ── Cluster centroids (pulsing dots) ─────────────────────────
-  const clusterCentroids = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-
-    return {
-      type: 'FeatureCollection',
-      features: clusters.map((c) => ({
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [c.lon, c.lat],
-        },
-        properties: {
-          approaching: c.approaching ? 1 : 0,
-          strikeCount: c.strikeCount,
-          distance: c.distanceToReservoir,
-          speedKmh: c.velocity?.speedKmh ?? 0,
-        },
-      })),
-    };
-  }, [showOverlay, clusters]);
-
-  // ── Velocity arrows + projection paths ──────────────────────────
-  // skip clusters that are dissipating (newest strike >15 min old)
-  // OR that have no velocity computed. Predictions on stale storms are
-  // engañosas; trail-without-arrow is incoherent. Only active + moving
-  // clusters get future-pointing visuals.
-  const velocityLines = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-    const features: GeoJSON.Feature[] = [];
-    for (const c of clusters) {
-      if (!isClusterActive(c) || !isClusterMoving(c)) continue;
-      const arrow = velocityArrow(c);
-      if (arrow) features.push(arrow);
-    }
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters]);
-
-  const velocityTips = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-    const features: GeoJSON.Feature[] = [];
+    // ── Velocity tips (arrow heads — small triangle polygons) ──
     for (const c of clusters) {
       if (!isClusterActive(c) || !isClusterMoving(c)) continue;
       const tip = arrowTip(c);
-      if (tip) features.push(tip);
+      if (tip) {
+        tip.properties = { ...tip.properties, kind: 'velocity-tip' };
+        features.push(tip);
+      }
     }
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters]);
 
-  const projectedPaths = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, alertLevel, clusters, centerLon, centerLat]);
+
+  // ── LINE SOURCE ─────────────────────────────────────────────────
+  // Consolidates: velocityLines + projectedPaths + trailLines.
+  // Each feature tagged with `kind` ∈ {velocity-shaft, projected-path, trail-line}.
+  const stormLines = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay) return EMPTY_FC;
+
     const features: GeoJSON.Feature[] = [];
+
+    // ── Velocity arrow shafts ──
+    for (const c of clusters) {
+      if (!isClusterActive(c) || !isClusterMoving(c)) continue;
+      const arrow = velocityArrow(c);
+      if (arrow) {
+        arrow.properties = { ...arrow.properties, kind: 'velocity-shaft' };
+        features.push(arrow);
+      }
+    }
+
+    // ── Projected paths (dashed future trajectory) ──
     for (const c of clusters) {
       if (!isClusterActive(c) || !isClusterMoving(c)) continue;
       const path = projectedPath(c);
-      if (path) features.push(path);
-    }
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters]);
-
-  // ── Cluster info labels (ALL clusters — on-map, no drawer needed) ──
-  const etaLabels = useMemo<GeoJSON.FeatureCollection>(() => {
-    if (!showOverlay || clusters.length === 0) return EMPTY_FC;
-    const features: GeoJSON.Feature[] = clusters.map((c) => clusterInfoPoint(c));
-    return { type: 'FeatureCollection', features };
-  }, [showOverlay, clusters]);
-
-  // ── Storm trail history (fading previous centroid positions) ──
-  // Two GeoJSON sources:
-  //   trailLines  → LineString per cluster ID through historical centroids +
-  //                 current position. Visually shows the storm's trajectory.
-  //   trailPoints → fading dots at past positions (kept for ghost-like effect
-  //                 at each snapshot tick, layered on top of the line).
-  const { trailLines, trailPoints } = useMemo<{
-    trailLines: GeoJSON.FeatureCollection;
-    trailPoints: GeoJSON.FeatureCollection;
-  }>(() => {
-    if (!showOverlay || clusterHistory.length <= 1) {
-      return { trailLines: EMPTY_FC, trailPoints: EMPTY_FC };
+      if (path) {
+        path.properties = { ...path.properties, kind: 'projected-path' };
+        features.push(path);
+      }
     }
 
-    const now = Date.now();
+    // ── Trail lines (history → now per moving cluster) ──
+    if (clusterHistory.length > 1) {
+      const now = Date.now();
+      const eligibleIds = new Set<string>();
+      for (const c of clusters) {
+        if (isClusterMoving(c)) eligibleIds.add(c.id);
+      }
 
-    // only build trails for currently-active + moving clusters. Drawing
-    // a trail with no companion arrow + ghost (because velocity gate filtered)
-    // is incoherent and confused users.
-    const eligibleIds = new Set<string>();
-    for (const c of clusters) {
-      if (isClusterMoving(c)) eligibleIds.add(c.id);
-    }
-
-    // Group all centroids by cluster ID across history snapshots.
-    type Pos = { ts: number; lat: number; lon: number; strikeCount: number; ageMin: number };
-    const byId = new Map<string, Pos[]>();
-    for (const snap of clusterHistory) {
-      if (!snap.centroids) continue;
-      for (const c of snap.centroids) {
+      type Pos = { ts: number; lat: number; lon: number; strikeCount: number };
+      const byId = new Map<string, Pos[]>();
+      for (const snap of clusterHistory) {
+        if (!snap.centroids) continue;
+        for (const c of snap.centroids) {
+          if (!eligibleIds.has(c.id)) continue;
+          if (!byId.has(c.id)) byId.set(c.id, []);
+          byId.get(c.id)!.push({ ts: snap.timestamp, lat: c.lat, lon: c.lon, strikeCount: c.strikeCount });
+        }
+      }
+      const ageById = new Map<string, number>();
+      for (const c of clusters) {
         if (!eligibleIds.has(c.id)) continue;
+        ageById.set(c.id, c.newestAgeMin);
         if (!byId.has(c.id)) byId.set(c.id, []);
-        byId.get(c.id)!.push({
-          ts: snap.timestamp, lat: c.lat, lon: c.lon, strikeCount: c.strikeCount,
-          ageMin: 0, // computed below for points only
-        });
-      }
-    }
-    // Append the CURRENT cluster centroid so the trail line connects all the
-    // way to "now". Tag with newestAgeMin so the layer can fade dissipating
-    // storms (rule 3 of fade-out polish).
-    const ageById = new Map<string, number>();
-    for (const c of clusters) {
-      if (!eligibleIds.has(c.id)) continue;
-      ageById.set(c.id, c.newestAgeMin);
-      if (!byId.has(c.id)) byId.set(c.id, []);
-      byId.get(c.id)!.push({
-        ts: now, lat: c.leadLat ?? c.lat, lon: c.leadLon ?? c.lon,
-        strikeCount: c.strikeCount, ageMin: 0,
-      });
-    }
-
-    const lineFeatures: GeoJSON.Feature[] = [];
-    const pointFeatures: GeoJSON.Feature[] = [];
-
-    for (const [id, positions] of byId) {
-      if (positions.length < 2) continue;
-      positions.sort((a, b) => a.ts - b.ts);
-
-      // Length-of-trail in km (sum of segment distances) — useful for the line
-      // width to scale with how far the storm has moved.
-      let trailKm = 0;
-      for (let i = 1; i < positions.length; i++) {
-        const a = positions[i - 1], b = positions[i];
-        const dLat = (b.lat - a.lat) * 111.32;
-        const dLon = (b.lon - a.lon) * 111.32 * Math.cos((a.lat * Math.PI) / 180);
-        trailKm += Math.hypot(dLat, dLon);
+        byId.get(c.id)!.push({ ts: now, lat: c.leadLat ?? c.lat, lon: c.leadLon ?? c.lon, strikeCount: c.strikeCount });
       }
 
-      const newestAgeMin = ageById.get(id) ?? 0;
-      lineFeatures.push({
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: positions.map((p) => [p.lon, p.lat]),
-        },
-        properties: {
-          id,
-          points: positions.length,
-          trailKm: Math.round(trailKm * 10) / 10,
-          newestAgeMin,
-        },
-      });
+      for (const [id, positions] of byId) {
+        if (positions.length < 2) continue;
+        positions.sort((a, b) => a.ts - b.ts);
 
-      // Drop a fading dot at every PAST position (skip last = current centroid)
-      for (let i = 0; i < positions.length - 1; i++) {
-        const p = positions[i];
-        const ageMin = (now - p.ts) / 60_000;
-        const ageFactor = Math.min(ageMin / 15, 1);
-        pointFeatures.push({
+        let trailKm = 0;
+        for (let i = 1; i < positions.length; i++) {
+          const a = positions[i - 1], b = positions[i];
+          const dLat = (b.lat - a.lat) * 111.32;
+          const dLon = (b.lon - a.lon) * 111.32 * Math.cos((a.lat * Math.PI) / 180);
+          trailKm += Math.hypot(dLat, dLon);
+        }
+
+        const newestAgeMin = ageById.get(id) ?? 0;
+        features.push({
           type: 'Feature',
-          geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+          geometry: {
+            type: 'LineString',
+            coordinates: positions.map((p) => [p.lon, p.lat]),
+          },
           properties: {
-            age: ageFactor,
-            strikeCount: p.strikeCount,
+            kind: 'trail-line',
+            id,
+            points: positions.length,
+            trailKm: Math.round(trailKm * 10) / 10,
+            newestAgeMin,
           },
         });
       }
     }
 
-    return {
-      trailLines: { type: 'FeatureCollection', features: lineFeatures },
-      trailPoints: { type: 'FeatureCollection', features: pointFeatures },
-    };
-  }, [showOverlay, clusterHistory, clusters]);
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, clusters, clusterHistory]);
+
+  // ── POINT SOURCE ────────────────────────────────────────────────
+  // Consolidates: trailPoints + clusterCentroids + etaLabels.
+  // Each feature tagged with `kind` ∈ {trail-point, centroid, label}.
+  const stormPoints = useMemo<GeoJSON.FeatureCollection>(() => {
+    if (!showOverlay) return EMPTY_FC;
+
+    const features: GeoJSON.Feature[] = [];
+
+    // ── Trail past positions (fading dots, skip last = current centroid) ──
+    if (clusterHistory.length > 1) {
+      const now = Date.now();
+      const eligibleIds = new Set<string>();
+      for (const c of clusters) {
+        if (isClusterMoving(c)) eligibleIds.add(c.id);
+      }
+      // Drop a fading dot at every PAST position. Current position is handled
+      // by the centroid layer below.
+      for (const snap of clusterHistory) {
+        if (!snap.centroids) continue;
+        for (const c of snap.centroids) {
+          if (!eligibleIds.has(c.id)) continue;
+          const ageMin = (now - snap.timestamp) / 60_000;
+          const ageFactor = Math.min(ageMin / 15, 1);
+          features.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
+            properties: {
+              kind: 'trail-point',
+              age: ageFactor,
+              strikeCount: c.strikeCount,
+            },
+          });
+        }
+      }
+    }
+
+    // ── Cluster centroids (pulsing dots — one per current cluster) ──
+    for (const c of clusters) {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
+        properties: {
+          kind: 'centroid',
+          approaching: c.approaching ? 1 : 0,
+          strikeCount: c.strikeCount,
+          distance: c.distanceToReservoir,
+          speedKmh: c.velocity?.speedKmh ?? 0,
+        },
+      });
+    }
+
+    // ── ETA labels (rich info text — one per cluster) ──
+    for (const c of clusters) {
+      const info = clusterInfoPoint(c);
+      info.properties = { ...info.properties, kind: 'label' };
+      features.push(info);
+    }
+
+    return { type: 'FeatureCollection', features };
+  }, [showOverlay, clusters, clusterHistory]);
 
   if (!showOverlay) return null;
 
   return (
     <>
-      {/* ── Radius rings ─────────────────────────────────────── */}
-      <Source id="storm-radius-rings" type="geojson" data={radiusRings}>
+      {/* ── POLYGON SOURCE ─────────────────────────────────────── */}
+      <Source id="storm-polygons" type="geojson" data={stormPolygons}>
+        {/* ── Radius rings: fill (danger only) + glows + main lines ── */}
         <Layer
           id="storm-ring-fill"
           type="fill"
-          filter={['==', ['get', 'ring'], 'danger']}
+          filter={['==', ['get', 'kind'], 'ring-danger']}
           paint={{
             'fill-color': 'rgba(239, 68, 68, 0.04)',
             'fill-antialias': true,
           }}
         />
-        {/* Glow halos — wider, semi-transparent lines behind the main rings */}
         <Layer
           id="storm-ring-glow-watch"
           type="line"
-          filter={['==', ['get', 'ring'], 'watch']}
+          filter={['==', ['get', 'kind'], 'ring-watch']}
           paint={{
             'line-color': 'rgba(234, 179, 8, 0.08)',
             'line-width': 6,
@@ -739,7 +656,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         <Layer
           id="storm-ring-glow-warning"
           type="line"
-          filter={['==', ['get', 'ring'], 'warning']}
+          filter={['==', ['get', 'kind'], 'ring-warning']}
           paint={{
             'line-color': 'rgba(249, 115, 22, 0.12)',
             'line-width': 8,
@@ -749,18 +666,17 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         <Layer
           id="storm-ring-glow-danger"
           type="line"
-          filter={['==', ['get', 'ring'], 'danger']}
+          filter={['==', ['get', 'kind'], 'ring-danger']}
           paint={{
             'line-color': 'rgba(239, 68, 68, 0.15)',
             'line-width': 10,
             'line-blur': 6,
           }}
         />
-        {/* Main dashed rings on top of glow */}
         <Layer
           id="storm-ring-line-watch"
           type="line"
-          filter={['==', ['get', 'ring'], 'watch']}
+          filter={['==', ['get', 'kind'], 'ring-watch']}
           paint={{
             'line-color': 'rgba(234, 179, 8, 0.25)',
             'line-width': 1,
@@ -770,7 +686,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         <Layer
           id="storm-ring-line-warning"
           type="line"
-          filter={['==', ['get', 'ring'], 'warning']}
+          filter={['==', ['get', 'kind'], 'ring-warning']}
           paint={{
             'line-color': 'rgba(249, 115, 22, 0.35)',
             'line-width': 1.5,
@@ -780,28 +696,19 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         <Layer
           id="storm-ring-line-danger"
           type="line"
-          filter={['==', ['get', 'ring'], 'danger']}
+          filter={['==', ['get', 'kind'], 'ring-danger']}
           paint={{
             'line-color': 'rgba(239, 68, 68, 0.5)',
             'line-width': 2,
             'line-dasharray': [3, 2],
           }}
         />
-      </Source>
 
-      {/* ── Cluster masses (haze + core) ─────────────────────── */}
-      {/* polish: opacities lowered (~30%) because translucent fills
-           COMPOUND when clusters overlap. With 5+ active cells the previous
-           values stacked to near-opaque red over a wide area, drowning the
-           base map. New values keep each individual cluster legible while
-           letting overlap regions stay readable instead of going opaque. */}
-      <Source id="storm-cluster-masses" type="geojson" data={clusterMasses}>
-        {/* Outer haze — dark purple/red diffused area */}
-        {/* fade: opacity decreases with newestAgeMin (15min→0.5×, 30min→0.2×) */}
+        {/* ── Cluster masses: haze + core fill + core outline ── */}
         <Layer
           id="storm-mass-haze"
           type="fill"
-          filter={['==', ['get', 'type'], 'haze']}
+          filter={['==', ['get', 'kind'], 'mass-haze']}
           paint={{
             'fill-color': [
               'case',
@@ -819,23 +726,18 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             ],
           }}
         />
-        {/* Inner core — color now driven by storm intensity TYPE when known
-, with age as a fallback. This way "estratiforme leve"
-             reads cool/blue while "lluvia intensa" reads warm/red — distinct
-             at a glance even before reading the label. */}
         <Layer
           id="storm-mass-core"
           type="fill"
-          filter={['==', ['get', 'type'], 'core']}
+          filter={['==', ['get', 'kind'], 'mass-core']}
           paint={{
             'fill-color': [
               'match', ['coalesce', ['get', 'intensityType'], 'unknown'],
-              'lluvia intensa',     'rgba(220, 38, 38, 0.22)',   // red, danger
-              'lluvia con rayos',   'rgba(249, 115, 22, 0.18)',  // orange
-              'eléctrica seca',     'rgba(234, 179, 8, 0.14)',   // amber/yellow
-              'estratiforme leve',  'rgba(96, 165, 250, 0.10)',  // cool blue, low alarm
-              'mixta',              'rgba(168, 85, 247, 0.16)',  // purple
-              // unknown / not-yet-classified → gentle age-based fade
+              'lluvia intensa',     'rgba(220, 38, 38, 0.22)',
+              'lluvia con rayos',   'rgba(249, 115, 22, 0.18)',
+              'eléctrica seca',     'rgba(234, 179, 8, 0.14)',
+              'estratiforme leve',  'rgba(96, 165, 250, 0.10)',
+              'mixta',              'rgba(168, 85, 247, 0.16)',
               [
                 'interpolate', ['linear'], ['get', 'newestAgeMin'],
                 0,  'rgba(239, 68, 68, 0.18)',
@@ -845,20 +747,19 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
               ],
             ],
             'fill-antialias': true,
-            // fade: dissipating storms get diluted, expired ones become silhouettes
             'fill-opacity': [
               'interpolate', ['linear'], ['coalesce', ['get', 'newestAgeMin'], 0],
               0,  1.0,
-              15, 0.5,   // DISSIPATING_AGE_MIN — half opacity
-              30, 0.2,   // EXPIRED_AGE_MIN — barely visible silhouette
-              60, 0.08,  // window edge — almost gone
+              15, 0.5,
+              30, 0.2,
+              60, 0.08,
             ],
           }}
         />
         <Layer
           id="storm-mass-core-outline"
           type="line"
-          filter={['==', ['get', 'type'], 'core']}
+          filter={['==', ['get', 'kind'], 'mass-core']}
           paint={{
             'line-color': [
               'case',
@@ -877,22 +778,18 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             ],
           }}
         />
-      </Source>
 
-      {/* ── Ghost projection (+30 min) — where the storm will be ───── */}
-      {/* faint dashed circle at the projected +30 min position of every
-           moving cluster. Reads as "the storm sweeping forward" together with the
-           velocity arrow — current cluster mass + arrow + ghost outline = trajectory. */}
-      <Source id="storm-projected-ghosts" type="geojson" data={projectedGhosts}>
+        {/* ── Projected ghosts (+30 min): fill + outline ── */}
         <Layer
           id="storm-projected-fill"
           type="fill"
+          filter={['==', ['get', 'kind'], 'projected-ghost']}
           paint={{
             'fill-color': [
               'case',
               ['==', ['get', 'approaching'], 1],
-              'rgba(239, 68, 68, 0.10)',  // soft red — approaching: warning hint
-              'rgba(168, 85, 247, 0.06)', // very soft purple — moving away
+              'rgba(239, 68, 68, 0.10)',
+              'rgba(168, 85, 247, 0.06)',
             ],
             'fill-antialias': true,
           }}
@@ -900,6 +797,7 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         <Layer
           id="storm-projected-outline"
           type="line"
+          filter={['==', ['get', 'kind'], 'projected-ghost']}
           paint={{
             'line-color': [
               'case',
@@ -912,79 +810,68 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'line-opacity': 0.85,
           }}
         />
-      </Source>
 
-      {/* ── Wet-fill (lluvia intensa) — translucent blue core ─── */}
-      {/* v2 polish: opacities reduced ~40 % from v2.67.0. Original
-           values made even moderate rain (15-20 mm/h) read as a near-solid
-           blue blob covering most of the cluster radius. New scale keeps the
-           "this is rain" signal but stays subtle enough not to dominate the
-           map. The hail-rings + label already escalate visually for severe
-           cases — wet-fill is just the type marker. */}
-      <Source id="storm-intensity-wet" type="geojson" data={intensityWetFills}>
+        {/* ── Wet fills (lluvia intensa): fill + inner glow + outline ── */}
         <Layer
           id="storm-intensity-wet-fill"
           type="fill"
+          filter={['==', ['get', 'kind'], 'wet-fill']}
           paint={{
             'fill-color': '#3b82f6',
             'fill-opacity': [
               'interpolate', ['linear'], ['get', 'rate'],
-              0, 0.16,   // light: barely tinted
-              10, 0.24,  // moderate
-              25, 0.34,  // heavy: clearly visible
-              50, 0.42,  // extreme: prominent but still translucent
+              0, 0.16,
+              10, 0.24,
+              25, 0.34,
+              50, 0.42,
             ],
             'fill-antialias': true,
           }}
         />
-        {/* Inner glow halo — soft blue around the wet zone — adds depth */}
         <Layer
           id="storm-intensity-wet-glow"
           type="line"
+          filter={['==', ['get', 'kind'], 'wet-fill']}
           paint={{
             'line-color': 'rgba(59, 130, 246, 0.25)',
             'line-width': 5,
             'line-blur': 3,
           }}
         />
-        {/* Solid outline — readable on warm bg without overpowering */}
         <Layer
           id="storm-intensity-wet-outline"
           type="line"
+          filter={['==', ['get', 'kind'], 'wet-fill']}
           paint={{
-            'line-color': '#1e40af', // blue-800
+            'line-color': '#1e40af',
             'line-width': 1.8,
             'line-opacity': 0.65,
             'line-dasharray': [4, 2],
           }}
         />
-      </Source>
 
-      {/* ── Hail stripes — ice-blue dashed rings on probable/posible granizo ── */}
-      <Source id="storm-intensity-hail" type="geojson" data={hailStripes}>
-        {/* Outer halo glow — soft, wide, low-opacity for depth */}
+        {/* ── Hail rings: glow + striped ring ── */}
         <Layer
           id="storm-intensity-hail-glow"
           type="line"
+          filter={['==', ['get', 'kind'], 'hail-ring']}
           paint={{
             'line-color': 'rgba(186, 230, 253, 0.30)',
             'line-width': 8,
             'line-blur': 4,
           }}
         />
-        {/* Striped ring on top — alternating dash pattern for "ice/granizo" feel */}
         <Layer
           id="storm-intensity-hail-stripes"
           type="line"
+          filter={['==', ['get', 'kind'], 'hail-ring']}
           paint={{
-            // Color varies by risk level: probable = stronger cyan, posible = lighter
             'line-color': [
               'match', ['get', 'risk'],
               'probable', 'rgba(56, 189, 248, 0.95)',
               'posible',  'rgba(186, 230, 253, 0.75)',
               'rgba(186, 230, 253, 0.6)',
             ],
-            // Inner ring (4km) thicker; outer rings (6, 8km) thinner
             'line-width': [
               'match', ['get', 'ringKm'],
               4, 2.5,
@@ -992,18 +879,28 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
               8, 1.2,
               1.5,
             ],
-            // Dashed pattern reads as "stripes" / icy bands
             'line-dasharray': [3, 3],
+          }}
+        />
+
+        {/* ── Velocity arrow tips (triangle fill) ── */}
+        <Layer
+          id="storm-velocity-tip"
+          type="fill"
+          filter={['==', ['get', 'kind'], 'velocity-tip']}
+          paint={{
+            'fill-color': 'rgba(249, 115, 22, 0.85)',
           }}
         />
       </Source>
 
-      {/* ── Velocity arrow shafts (LineString source) ─────────── */}
-      <Source id="storm-velocity-lines" type="geojson" data={velocityLines}>
-        {/* Arrow shaft glow (wider, semi-transparent for glow effect) */}
+      {/* ── LINE SOURCE ────────────────────────────────────────── */}
+      <Source id="storm-lines" type="geojson" data={stormLines}>
+        {/* ── Velocity arrow shafts: glow + solid core ── */}
         <Layer
           id="storm-velocity-glow"
           type="line"
+          filter={['==', ['get', 'kind'], 'velocity-shaft']}
           paint={{
             'line-color': [
               'case',
@@ -1015,39 +912,22 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'line-blur': 3,
           }}
         />
-        {/* Arrow shaft (solid core) */}
         <Layer
           id="storm-velocity-line"
           type="line"
+          filter={['==', ['get', 'kind'], 'velocity-shaft']}
           paint={{
-            'line-color': '#f97316', // orange — consistent, visible on both dark and purple backgrounds
+            'line-color': '#f97316',
             'line-width': 3.5,
             'line-opacity': 0.9,
           }}
         />
-      </Source>
 
-      {/* ── Velocity arrow tips (Polygon source) ─────────────── */}
-      <Source id="storm-velocity-tips" type="geojson" data={velocityTips}>
-        <Layer
-          id="storm-velocity-tip"
-          type="fill"
-          paint={{
-            'fill-color': 'rgba(249, 115, 22, 0.85)', // orange — matches shaft
-          }}
-        />
-      </Source>
-
-      {/* ── Storm trajectory LINE (where the storm came from → now) ── */}
-      {/* One LineString per cluster ID, connecting all historical centroids
-          plus the current position. Makes movement visually obvious — you
-          see the storm "trail" pointing back to where it started. */}
-      <Source id="storm-trail-lines" type="geojson" data={trailLines}>
-        {/* Soft glow underlay — wider, blurred, low opacity. fades when
-            the cluster is dissipating so trail tells "memory of a fading storm". */}
+        {/* ── Trail lines (history → now): glow + dashed core ── */}
         <Layer
           id="storm-trail-line-glow"
           type="line"
+          filter={['==', ['get', 'kind'], 'trail-line']}
           layout={{ 'line-cap': 'round', 'line-join': 'round' }}
           paint={{
             'line-color': 'rgba(168, 85, 247, 0.35)',
@@ -1056,19 +936,19 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'line-opacity': [
               'interpolate', ['linear'], ['coalesce', ['get', 'newestAgeMin'], 0],
               0,  1.0,
-              15, 0.6,   // dissipating
-              30, 0.25,  // expired
+              15, 0.6,
+              30, 0.25,
               60, 0.05,
             ],
           }}
         />
-        {/* Solid trail line — bright purple dashed so it reads as "history" */}
         <Layer
           id="storm-trail-line-core"
           type="line"
+          filter={['==', ['get', 'kind'], 'trail-line']}
           layout={{ 'line-cap': 'round', 'line-join': 'round' }}
           paint={{
-            'line-color': '#a855f7', // purple-500 — distinct from orange velocity arrow
+            'line-color': '#a855f7',
             'line-width': 2.5,
             'line-dasharray': [3, 2],
             'line-opacity': [
@@ -1080,19 +960,40 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             ],
           }}
         />
+
+        {/* ── Projected paths: glow + dashed line ── */}
+        <Layer
+          id="storm-projected-path-glow"
+          type="line"
+          filter={['==', ['get', 'kind'], 'projected-path']}
+          paint={{
+            'line-color': 'rgba(249, 115, 22, 0.15)',
+            'line-width': 12,
+            'line-blur': 4,
+          }}
+        />
+        <Layer
+          id="storm-projected-path-line"
+          type="line"
+          filter={['==', ['get', 'kind'], 'projected-path']}
+          paint={{
+            'line-color': 'rgba(249, 115, 22, 0.6)',
+            'line-width': 2,
+            'line-dasharray': [4, 4],
+          }}
+        />
       </Source>
 
-      {/* ── Storm trail history (fading ghost positions at each snapshot) ── */}
-      <Source id="storm-trail-points" type="geojson" data={trailPoints}>
-        {/* Ghost glow */}
+      {/* ── POINT SOURCE ───────────────────────────────────────── */}
+      <Source id="storm-points" type="geojson" data={stormPoints}>
+        {/* ── Trail past positions (fading dots): glow + core ── */}
         <Layer
           id="storm-trail-glow"
           type="circle"
+          filter={['==', ['get', 'kind'], 'trail-point']}
           paint={{
             'circle-radius': [
-              'interpolate',
-              ['linear'],
-              ['get', 'age'],
+              'interpolate', ['linear'], ['get', 'age'],
               0, 10,
               1, 4,
             ],
@@ -1100,22 +1001,18 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'circle-blur': 1,
           }}
         />
-        {/* Ghost core dot */}
         <Layer
           id="storm-trail-core"
           type="circle"
+          filter={['==', ['get', 'kind'], 'trail-point']}
           paint={{
             'circle-radius': [
-              'interpolate',
-              ['linear'],
-              ['get', 'age'],
+              'interpolate', ['linear'], ['get', 'age'],
               0, 4,
               1, 2,
             ],
             'circle-color': [
-              'interpolate',
-              ['linear'],
-              ['get', 'age'],
+              'interpolate', ['linear'], ['get', 'age'],
               0, 'rgba(168, 85, 247, 0.6)',
               0.5, 'rgba(168, 85, 247, 0.3)',
               1, 'rgba(100, 116, 139, 0.1)',
@@ -1124,19 +1021,15 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'circle-stroke-color': 'rgba(168, 85, 247, 0.2)',
           }}
         />
-      </Source>
 
-      {/* ── Cluster centroids ────────────────────────────────── */}
-      <Source id="storm-centroids" type="geojson" data={clusterCentroids}>
-        {/* Outer glow pulse */}
+        {/* ── Cluster centroids: glow pulse + core marker ── */}
         <Layer
           id="storm-centroid-glow"
           type="circle"
+          filter={['==', ['get', 'kind'], 'centroid']}
           paint={{
             'circle-radius': [
-              'interpolate',
-              ['linear'],
-              ['get', 'strikeCount'],
+              'interpolate', ['linear'], ['get', 'strikeCount'],
               2, 16,
               10, 24,
               20, 32,
@@ -1150,10 +1043,10 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'circle-blur': 1,
           }}
         />
-        {/* Core centroid marker */}
         <Layer
           id="storm-centroid-core"
           type="circle"
+          filter={['==', ['get', 'kind'], 'centroid']}
           paint={{
             'circle-radius': 6,
             'circle-color': [
@@ -1167,35 +1060,12 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'circle-stroke-color': 'rgba(255, 255, 255, 0.4)',
           }}
         />
-      </Source>
 
-      {/* ── Projected storm paths (dashed future trajectory) ── */}
-      <Source id="storm-projected-paths" type="geojson" data={projectedPaths}>
-        <Layer
-          id="storm-projected-path-glow"
-          type="line"
-          paint={{
-            'line-color': 'rgba(249, 115, 22, 0.15)',
-            'line-width': 12,
-            'line-blur': 4,
-          }}
-        />
-        <Layer
-          id="storm-projected-path-line"
-          type="line"
-          paint={{
-            'line-color': 'rgba(249, 115, 22, 0.6)',
-            'line-width': 2,
-            'line-dasharray': [4, 4],
-          }}
-        />
-      </Source>
-
-      {/* ── Cluster info labels (on-map, always visible) ──── */}
-      <Source id="storm-eta-labels" type="geojson" data={etaLabels}>
+        {/* ── ETA / info labels (on-map text — no drawer needed) ── */}
         <Layer
           id="storm-info-text"
           type="symbol"
+          filter={['==', ['get', 'kind'], 'label']}
           layout={{
             'text-field': ['get', 'label'],
             'text-font': ['Noto Sans Bold'],
