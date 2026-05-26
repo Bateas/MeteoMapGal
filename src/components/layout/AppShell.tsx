@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -11,13 +11,8 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useLightningStore } from '../../hooks/useLightningData';
-import { useStormShadowStore } from '../../hooks/useStormShadow';
-// useForecastTimeline moved to DeferredHooks (audit S136+3 #8) — still need
-// useForecastStore subscription here for downstream alert pipeline.
-import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { logPredictionSnapshot } from '../../services/stormPredictionLogger';
 import { useStormPrediction } from '../../hooks/useStormPrediction';
-import { checkAllFieldAlerts } from '../../services/fieldAlertEngine';
 import { fetchSeasonGDD } from '../../services/gddService';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -33,25 +28,14 @@ const ConditionsTicker = lazy(() => import('../common/ConditionsTicker').then(m 
 const ForecastPanel = lazy(() => import('../charts/ForecastPanel').then(m => ({ default: m.ForecastPanel })));
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
-import { aggregateAllAlerts } from '../../services/alertService';
-import { detectFogBySolarSignature } from '../../services/maritimeFogService';
-import { haversineDistance } from '../../services/geoUtils';
 import { useThemeStore } from '../../store/themeStore';
-import { useWebcamStore } from '../../store/webcamStore';
-import { processAlertNotifications } from '../../services/notificationService';
-import { useNotificationStore } from '../../store/notificationStore';
-import {
-  extractStationTemps,
-  analyzeThermalProfile,
-} from '../../services/lapseRateService';
 import { useSectorStore } from '../../store/sectorStore';
-import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
 import { useToastStore } from '../../store/toastStore';
 import { useAirspaceStore } from '../../store/airspaceStore';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 import type { TeleconnectionIndex } from '../../api/naoClient';
-import { RIAS_WEBCAMS } from '../../config/webcams';
+import { useUnifiedAlertPipeline } from '../../hooks/useUnifiedAlertPipeline';
 const DeferredHooks = lazy(() => import('./DeferredHooks').then(m => ({ default: m.DeferredHooks })));
 
 /** Collapsed sidebar: vertical icon strip with tab shortcuts — sector-aware.
@@ -250,21 +234,6 @@ export function AppShell() {
   // Prune stale history moved to DeferredHooks (off critical path).
   // Daily summary moved to ingestor (24/7, single source, no visitor duplicates).
 
-  // Campo (agricultural alerts) drawer — state in uiStore
-  // Use convectionData for alerts (has CAPE/CIN/gusts from Open-Meteo), fallback to hourly.
-  // Audit S136+3 #16: separate selectors prevent the ternary from returning a
-  // new reference each render — derive the picked array via useMemo so React
-  // re-renders only when the source arrays actually change.
-  const convectionData = useForecastStore((s) => s.convectionData);
-  const hourly = useForecastStore((s) => s.hourly);
-  const forecastHourly = useMemo(
-    () => (convectionData.length > 0 ? convectionData : hourly),
-    [convectionData, hourly],
-  );
-  const readingHistory = useWeatherStore((s) => s.readingHistory);
-  const historyEpoch = useWeatherStore((s) => s.historyEpoch);
-  const currentReadings = useWeatherStore((s) => s.currentReadings);
-
   // GDD season accumulation — deferred 20s to avoid Open-Meteo queue congestion at startup
   const [seasonGDD, setSeasonGDD] = useState<{ accumulated: number; days: number } | null>(null);
   const gddFetchedRef = useRef(false);
@@ -280,213 +249,17 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, [activeSector.center]);
 
-  // Debounced field alerts — 500ms delay avoids recomputing on every data tick
-  const [fieldAlerts, setFieldAlerts] = useState<ReturnType<typeof checkAllFieldAlerts> | null>(null);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (forecastHourly.length > 0 || readingHistory.size > 0) {
-        setFieldAlerts(checkAllFieldAlerts(forecastHourly, readingHistory, stations, currentReadings, activeSector.center, airspaceCheck ?? undefined, seasonGDD));
-      }
-    }, 500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory changes
-  }, [forecastHourly, historyEpoch, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD]);
-  // ── Temperature gradient: compute lapse rate on every reading update ──
-  // Audit S136+3 #10: debounce 500ms — currentReadings mutates on every
-  // weather poll (~5min) but the lapse rate doesn't change meaningfully
-  // within seconds. The debounce batches multi-station updates that arrive
-  // in quick succession during a single poll cycle.
-  const setThermalProfile = useTemperatureOverlayStore((s) => s.setThermalProfile);
-  useEffect(() => {
-    if (stations.length === 0 || currentReadings.size === 0) return;
-    const t = setTimeout(() => {
-      const temps = extractStationTemps(stations, currentReadings);
-      if (temps.length < 2) return;
-      const profile = analyzeThermalProfile(temps);
-      setThermalProfile(profile);
-    }, 500);
-    return () => clearTimeout(t);
-  }, [stations, currentReadings, setThermalProfile]);
-
-  // ── Unified alert aggregation + notifications ──────────
-  const stormAlert = useLightningStore((s) => s.stormAlert);
-  const stormShadow = useStormShadowStore((s) => s.stormShadow);
-  const thermalProfile = useTemperatureOverlayStore((s) => s.thermalProfile);
-  const setUnifiedAlerts = useAlertStore((s) => s.setAlerts);
-  const notifConfig = useNotificationStore((s) => s.config);
-  const buoys = useBuoyStore((s) => s.buoys);
-  const sstHistory = useBuoyStore((s) => s.sstHistory);
-  // Use fetchedAt as stable trigger instead of the array (avoids React deps size warning)
-  const forecastFetchedAt = useForecastStore((s) => s.fetchedAt);
-  const forecastRef = useRef(forecastHourly);
-  forecastRef.current = forecastHourly;
-
-  // Audit S136+3 #6: signature-hash skip — the 500ms debounce only batches
-  // updates WITHIN a single render tick, but useEffect still fires whenever
-  // any dep changes. Compare a cheap signature (counts + key timestamps)
-  // against last run; if identical, skip the 11 alert builders entirely.
-  const lastAggregateSigRef = useRef<string>('');
-
-  // Debounced alert aggregation — 500ms delay avoids running 11 alert builders on every tick
-  useEffect(() => {
-    const t = setTimeout(() => {
-      // Cheap input-signature check — skip if nothing relevant changed
-      // (Map.size + history epoch + storm timestamp + forecast fetchedAt
-      // are the high-signal axes for "is this rebuild meaningful?").
-      const sig = [
-        currentReadings.size,
-        historyEpoch,
-        stormAlert?.level ?? 'none',
-        stormShadow?.detectedAt?.getTime() ?? 0,
-        forecastFetchedAt ?? 0,
-        buoys.length,
-        thermalProfile?.lapseRate ?? 0,
-      ].join('|');
-      if (sig === lastAggregateSigRef.current) return;
-      lastAggregateSigRef.current = sig;
-      // Station geo for maritime fog (nearby station lookup)
-      const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
-      // Check webcam vision for fog detection (cameras with fogVisible in last 30min)
-      const visionResults = useWebcamStore.getState().visionResults;
-      let webcamFogDetected: boolean | undefined;
-      let webcamFogCount = 0;
-      let webcamCriticalVisibilityCount = 0;
-      const webcamFogIds: string[] = [];
-      const fogSources: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[] = [];
-      if (visionResults.size > 0) {
-        const now = Date.now();
-        webcamFogDetected = false;
-        // Build webcam id → coords map
-        const webcamCoords = new Map<string, { lat: number; lon: number }>();
-        for (const w of RIAS_WEBCAMS) webcamCoords.set(w.id, { lat: w.lat, lon: w.lon });
-        // Pre-check: any AEMET station reporting vis<1km right now? If so,
-        // it's a regional fog event — webcams in low-confidence partly-cloudy
-        // state should be counted as evidence even if the IA didn't trip
-        // fogVisible (moondream often misclassifies blanket marine fog as
-        // 'good visibility partly_cloudy' — confirmed S136+3 Cíes case).
-        const aemetVis = useWeatherStore.getState().visibilityReadings;
-        let regionalAemetFog = false;
-        if (aemetVis) {
-          for (const v of aemetVis.values()) {
-            if (v.visibility < 1) { regionalAemetFog = true; break; }
-          }
-        }
-        for (const [id, result] of visionResults) {
-          const ageOk = (now - result.analyzedAt.getTime()) < 30 * 60_000;
-          if (!ageOk || result.beaufort < 0) continue;
-          // Primary path: IA marked fog directly OR derived from visibility.
-          const directFog = result.weather.fogVisible;
-          // Secondary path (S136+3 v2.81.44): regional AEMET fog confirmed +
-          // this webcam reports low-confidence partly-cloudy/overcast → the
-          // IA is likely seeing fog but not labeling it. Counts as evidence.
-          const lowConfNonClear = result.confidence === 'low'
-            && result.weather.sky !== 'clear'
-            && !result.weather.precipitation;
-          const indirectFog = regionalAemetFog && lowConfNonClear;
-          if (directFog || indirectFog) {
-            webcamFogDetected = true;
-            webcamFogCount++;
-            webcamFogIds.push(id);
-            // visibility 'poor' (<1km from the IA) is a critical signal — same
-            // weight as AEMET station vis<1km. Lets single-camera marine fog
-            // in zones without nearby AEMET vis (Cíes / outer rías) fire alerts.
-            if (result.weather.visibility === 'poor') webcamCriticalVisibilityCount++;
-            const c = webcamCoords.get(id);
-            if (c) fogSources.push({ lat: c.lat, lon: c.lon, type: 'webcam', id });
-          }
-        }
-      }
-      // Add stations with solar+humidity fog signature — but only those that pass
-      // the full physical check (daylight hours + interior sun baseline). At night
-      // every station has solar=0 + HR>=85, which would paint the entire sector.
-      // detectFogBySolarSignature enforces hour 9-19 + hasInteriorSun=true.
-      const solarFogStations = detectFogBySolarSignature(currentReadings, stationsGeo);
-      for (const s of solarFogStations) {
-        fogSources.push({ lat: s.lat, lon: s.lon, type: 'station', id: s.id });
-      }
-      // AEMET stations with measured visibility <1km → official fog.
-      // Works 24/7 (not daylight-dependent like solar signature). The 8 reporting
-      // stations are a MIX of types (NOT all airports): faros = Estaca de Bares
-      // (1351), Fisterra (1400) — coastal lighthouses, not airports; aeropuertos
-      // = Alvedro (1387E), Lavacolla (1428); aeródromo = Rozas (1505); ciudades
-      // = A Coruña (1387), Pontevedra (1484C), Ourense (1690A).
-      //
-      // Sector filter (reactive map philosophy): drop sources beyond
-      // 1.5× sector radius. Fisterra fog at 130km is irrelevant to Embalse
-      // sailors — rendering a fog blob on the coast distracts from local
-      // conditions. Buffer 1.5× catches fringe weather propagating in.
-      const visMap = useWeatherStore.getState().visibilityReadings;
-      const [secLon, secLat] = activeSector.center;
-      const sectorMaxDistKm = activeSector.radiusKm * 1.5;
-      for (const v of visMap.values()) {
-        if (v.visibility >= 1) continue;
-        const distKm = haversineDistance(secLat, secLon, v.lat, v.lon);
-        if (distKm > sectorMaxDistKm) continue;
-        fogSources.push({ lat: v.lat, lon: v.lon, type: 'station', id: v.stationId });
-      }
-      // ── DEV SIMULATION: ?simfog=id1,id2 inject fake fog detectors for testing ──
-      try {
-        const simfog = new URLSearchParams(window.location.search).get('simfog');
-        if (simfog) {
-          // Build coords lookup from webcams + stations
-          const camCoords = new Map(RIAS_WEBCAMS.map(w => [w.id, { lat: w.lat, lon: w.lon }]));
-          const stCoords = new Map(stationsGeo.map(s => [s.id, { lat: s.lat, lon: s.lon }]));
-          for (const id of simfog.split(',').map(s => s.trim()).filter(Boolean)) {
-            const c = camCoords.get(id) ?? stCoords.get(id);
-            if (c) {
-              fogSources.push({ lat: c.lat, lon: c.lon, type: 'webcam', id: `sim-${id}` });
-              webcamFogCount++;
-              webcamFogIds.push(`sim-${id}`);
-              webcamFogDetected = true;
-            }
-          }
-          if (fogSources.length > 0) {
-            console.log('[SIM FOG] Injected', fogSources.length, 'fake detectors:', fogSources.map(s => s.id).join(', '));
-          }
-        }
-      } catch (err) { console.warn('[SIM FOG] error:', err); }
-
-      // ── DEBUG: trace fog alert input ──
-      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
-        console.log('[AppShell] fog inputs:', {
-          buoys: buoys.length,
-          stationsGeo: stationsGeo.length,
-          currentReadings: currentReadings.size,
-          webcamFogCount,
-          webcamFogIds,
-          fogSources: fogSources.length,
-          sectorId: activeSector.id,
-          willCallBuildMaritimeFog: activeSector.id === 'rias' && buoys.length > 0,
-        });
-      }
-
-      const { alerts, risk } = aggregateAllAlerts({
-        stormAlert,
-        thermalProfile,
-        fieldAlerts,
-        forecast: forecastRef.current,
-        stormShadow,
-        currentReadings,
-        readingHistory,
-        // Maritime alerts (cross-sea, fog, upwelling) only apply to coastal Rías sector
-        buoys: activeSector.id === 'rias' && buoys.length > 0 ? buoys : undefined,
-        sstHistory: activeSector.id === 'rias' && sstHistory.size > 0 ? sstHistory : undefined,
-        stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
-        teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
-        webcamFogDetected,
-        webcamFogCount,
-        webcamFogIds,
-        webcamCriticalVisibilityCount,
-        fogSources: fogSources.length > 0 ? fogSources : undefined,
-        regionalVisibility: useWeatherStore.getState().visibilityReadings,
-      });
-      setUnifiedAlerts(alerts, risk);
-      // Trigger notifications for new/escalated alerts
-      processAlertNotifications(alerts, risk, notifConfig);
-    }, 500);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory
-  }, [stormAlert, stormShadow, thermalProfile, fieldAlerts, forecastFetchedAt, setUnifiedAlerts, notifConfig, currentReadings, historyEpoch, buoys, sstHistory, stations, activeSector.id]);
+  // ── Unified alert pipeline (extracted S136+3+2 TIER 2 A2-5) ──────
+  // The 3-effect chain (lapseRate → fieldAlerts → unified aggregation)
+  // lives in useUnifiedAlertPipeline now. AppShell only consumes
+  // fieldAlerts (for Header). The 12+ store subscriptions stay isolated
+  // in the hook so re-renders are scoped to the hook's internal state.
+  const fieldAlerts = useUnifiedAlertPipeline({
+    stations,
+    airspaceCheck,
+    seasonGDD,
+    teleconnectionsRef,
+  });
 
   // ── Keyboard shortcuts (desktop only) ───────────────────
   useEffect(() => {
@@ -544,9 +317,10 @@ export function AppShell() {
 
   // ── Storm prediction logging (for future ML calibration) ──
   const stormPrediction = useStormPrediction();
+  const stormAlertLevel = useLightningStore((s) => s.stormAlert.level);
   useEffect(() => {
-    logPredictionSnapshot(stormPrediction, stormAlert.level !== 'none', activeSector.id);
-  }, [stormPrediction, stormAlert.level, activeSector.id]);
+    logPredictionSnapshot(stormPrediction, stormAlertLevel !== 'none', activeSector.id);
+  }, [stormPrediction, stormAlertLevel, activeSector.id]);
 
   return (
     <div className="h-screen-safe w-full flex flex-col bg-slate-950 text-white overflow-hidden">
