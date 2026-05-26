@@ -65,17 +65,21 @@ const FORECAST_INTERVAL_MS = 30 * 60_000; // 30 minutes
 async function getLatestReadings(): Promise<StationReading[]> {
   const db = getPool();
   try {
+    // Phase A (TIER 1 P0): extended fields for detector connection
+    //   - dew_point, solar_rad, pressure feed Cesantes canalization mouth-humidity
+    //     and bocana solar gating
+    //   - All optional in StationReading interface — older code keeps working
     const result = await db.query<StationReading>(`
       SELECT DISTINCT ON (r.station_id)
         r.station_id,
         r.wind_speed, r.wind_gust, r.wind_dir,
         r.temperature, r.humidity,
+        r.dew_point, r.solar_rad, r.pressure,
         COALESCE(s.latitude, 0.0) as latitude,
         COALESCE(s.longitude, 0.0) as longitude
       FROM readings r
       LEFT JOIN stations s ON s.station_id = r.station_id
       WHERE r.time > NOW() - INTERVAL '30 minutes'
-        AND r.wind_speed IS NOT NULL
       ORDER BY r.station_id, r.time DESC
     `);
     return result.rows;
@@ -90,26 +94,65 @@ const BUOY_COORDS: Record<number, { lat: number; lon: number }> = Object.fromEnt
   RIAS_BUOY_STATIONS.map(b => [b.id, { lat: b.lat, lon: b.lon }])
 );
 
+/** Buoy name lookup for canalization detector (which reports source buoy in signals) */
+const BUOY_NAMES: Record<number, string> = Object.fromEntries(
+  RIAS_BUOY_STATIONS.map(b => [b.id, b.name])
+);
+
 /**
- * Get latest buoy readings (last 2h) with coordinates.
+ * Get latest buoy readings (last 6h) with coordinates and extended fields.
+ *
+ * Window 6h (was 2h) tolerates PORTUS publish-lag for REDEXT/CETMAR/REMPOR
+ * which publish every 30-60min. The 2h window dropped >half the buoys
+ * silently during normal operation (S135+2 lesson). Detectors only need
+ * "current state" — 6h-old buoy data is still meaningful for SW synoptic.
+ *
+ * Phase A (TIER 1 P0): includes water_temp, air_temp, humidity, wave_*
+ * needed by bocana detector (Rande ΔT) + canalization (mouth buoys SW)
+ * + surf verdict (wave_height/period).
+ *
+ * NB: removed `wind_speed > 0` filter — Rande (1251) has no anemometer
+ * but still publishes water/air temp + humidity (key signal for bocana).
  */
-async function getLatestBuoyWinds(): Promise<BuoyWind[]> {
+async function getLatestBuoys(): Promise<BuoyWind[]> {
   const db = getPool();
   try {
-    const result = await db.query<{ station_id: number; wind_speed: number; wind_dir: number | null }>(`
+    const result = await db.query<{
+      station_id: number;
+      wind_speed: number | null;
+      wind_dir: number | null;
+      water_temp: number | null;
+      air_temp: number | null;
+      humidity: number | null;
+      wave_height: number | null;
+      wave_period: number | null;
+      wave_dir: number | null;
+    }>(`
       SELECT DISTINCT ON (station_id)
-        station_id, wind_speed, wind_dir
+        station_id,
+        wind_speed, wind_dir,
+        water_temp, air_temp, humidity,
+        wave_height, wave_period, wave_dir
       FROM buoy_readings
-      WHERE time > NOW() - INTERVAL '2 hours'
-        AND wind_speed IS NOT NULL AND wind_speed > 0
+      WHERE time > NOW() - INTERVAL '6 hours'
       ORDER BY station_id, time DESC
     `);
     return result.rows.map(r => ({
-      ...r,
+      station_id: r.station_id,
+      wind_speed: r.wind_speed ?? 0,
+      wind_dir: r.wind_dir,
       lat: BUOY_COORDS[r.station_id]?.lat ?? 0,
       lon: BUOY_COORDS[r.station_id]?.lon ?? 0,
+      station_name: BUOY_NAMES[r.station_id] ?? `Boya ${r.station_id}`,
+      water_temp: r.water_temp,
+      air_temp: r.air_temp,
+      humidity: r.humidity,
+      wave_height: r.wave_height,
+      wave_period: r.wave_period,
+      wave_dir: r.wave_dir,
     }));
-  } catch {
+  } catch (err) {
+    log.warn(`getLatestBuoys failed: ${(err as Error).message}`);
     return [];
   }
 }
@@ -141,17 +184,27 @@ export async function runAnalysis(): Promise<void> {
 
   // 1. Get latest readings from DB
   const readings = await getLatestReadings();
-  const buoyWinds = await getLatestBuoyWinds();
+  const buoys = await getLatestBuoys();
 
-  if (readings.length === 0 && buoyWinds.length === 0) {
+  if (readings.length === 0 && buoys.length === 0) {
     return; // No data, skip
   }
 
   // 2. Score each spot, detect transitions, and persist to DB
   const scoreRows: SpotResult[] = [];
+  const boostedSpots: string[] = [];
   for (const spot of SPOTS) {
-    const result = scoreSpot(spot, readings, buoyWinds);
+    const result = scoreSpot(spot, readings, buoys);
     scoreRows.push(result);
+
+    // Log boosts at cycle end (avoid noisy logs on single transitions).
+    // The detector summary is more useful than per-spot WARN entries.
+    if (result.boostedBy && result.rawWindKt !== undefined) {
+      boostedSpots.push(
+        `${spot.id}=${result.rawWindKt}→${result.avgWindKt}kt (${result.boostedBy} ${result.boostConfidence}%)`
+      );
+    }
+
     const prev = previousVerdicts.get(spot.id) ?? 'unknown';
 
     // Detect transition: low → good (skip marginal sailing <10kt — too noisy)
@@ -167,6 +220,11 @@ export async function runAnalysis(): Promise<void> {
     }
 
     previousVerdicts.set(spot.id, result.verdict);
+  }
+
+  // Detector summary log (cycle-level — once per 5min poll instead of per-spot)
+  if (boostedSpots.length > 0) {
+    log.info(`Detector boosts active: ${boostedSpots.join(', ')}`);
   }
 
   // 3. Persist spot scores to DB (for verification dashboard)
