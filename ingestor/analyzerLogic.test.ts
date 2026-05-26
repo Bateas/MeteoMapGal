@@ -409,3 +409,249 @@ describe('inferCastreloDirection', () => {
     expect(result).not.toContain('termico');
   });
 });
+
+// ── scoreSpot — Cesantes canalization override (TIER 1 P0) ────────
+//
+// These integration tests exercise the connection between the ingestor analyzer
+// and the frontend cesantesCanalizationDetector. Pre-S136+3+1 the analyzer used
+// raw wind consensus only → Cesantes always read 5-10kt (sheltered behind Monte
+// Costa da Vela) → Telegram alerts never fired even on classic SW canalization
+// days. Now: if predictCesantesCanalization is active + confidence ≥70 + delta
+// ≥4kt, scoreSpot returns the boosted effectiveKt.
+
+const bocana: SpotDef = {
+  id: 'bocana',
+  name: 'Bocana',
+  lat: 42.268,
+  lon: -8.714,
+  sector: 'rias',
+  radiusKm: 12,
+  thermalDetection: false,
+};
+
+describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('boosts MODE 2 thermal breeze (afternoon + warm air + ΔT)', () => {
+    // 14:00 (thermal hour), warm air station near Cesantes (22°C),
+    // mouth buoy with water 18°C (ΔT = +4) → MODE 2 fires
+    vi.setSystemTime(new Date('2026-06-15T14:00:00+02:00'));
+    const localStation = makeReading({
+      station_id: 'mg_cesantes',
+      latitude: 42.307,
+      longitude: -8.619,
+      wind_speed: 3, // 5.8kt raw — would be 'calm' (<6)
+      wind_dir: 240,
+      temperature: 22, // warm
+      humidity: 60,
+    });
+    const mouthBuoy = makeBuoy({
+      station_id: 1252, // Cíes (CETMAR) — mouth of Ría de Vigo
+      lat: 42.17, lon: -8.91,
+      water_temp: 18,
+      wind_speed: 0, // no synoptic SW
+      wind_dir: null,
+    });
+    const result = scoreSpot(cesantes, [localStation], [mouthBuoy]);
+    expect(result.rawWindKt).toBe(6); // raw 5.8 rounds to 6
+    // MODE 2 thermal breeze adds boost — expect at least 'sailing' or better
+    expect(result.boostedBy).toBe('cesantes-canalization');
+    expect(result.avgWindKt).toBeGreaterThanOrEqual(10);
+    expect(result.boostConfidence).toBeGreaterThanOrEqual(70);
+  });
+
+  it('boosts MODE 1 synoptic SW + humid mouth (confidence 70 gate)', () => {
+    // Cabo Silleiro SW 8m/s + mouth station HR 90% → BOOST_HUMID (1.7×)
+    // confidence = 70% (gate). Predicted ~26kt vs raw 5kt → delta 21kt.
+    vi.setSystemTime(new Date('2026-04-15T10:00:00+02:00'));
+    const localStation = makeReading({
+      station_id: 'mg_cesantes',
+      latitude: 42.307, longitude: -8.619,
+      wind_speed: 2.6, // 5kt raw
+      wind_dir: 240,
+      temperature: 14,
+      humidity: 70,
+    });
+    // Station inside mouth bbox (lon < -8.78, lat 42.15-42.30) with humid air
+    const moana = makeReading({
+      station_id: 'mg_moana',
+      latitude: 42.28, longitude: -8.80, // mouth zone
+      wind_speed: 4, wind_dir: 230,
+      temperature: 14, humidity: 90, // HR ≥85% → BOOST_HUMID
+    });
+    const silleiro = makeBuoy({
+      station_id: 2248, // Cabo Silleiro REDEXT
+      lat: 42.12, lon: -9.43,
+      wind_speed: 8, // 15.5kt — synoptic SW
+      wind_dir: 220,
+    });
+    const result = scoreSpot(cesantes, [localStation, moana], [silleiro]);
+    // Raw avg: localStation (5kt) only — moana is 26km away, outside radiusKm=12
+    // and Silleiro buoy is ~30km away, also outside radius.
+    expect(result.rawWindKt).toBe(5);
+    expect(result.boostedBy).toBe('cesantes-canalization');
+    expect(result.avgWindKt).toBeGreaterThanOrEqual(10);
+  });
+
+  it('does NOT boost when raw wind already strong (delta < 4kt)', () => {
+    // Even with synoptic SW, if raw matches prediction (within 4kt), no boost
+    // because the gate `predictedKt - rawKt >= 4` is not met.
+    vi.setSystemTime(new Date('2026-04-15T10:00:00+02:00'));
+    const localStation = makeReading({
+      station_id: 'mg_cesantes',
+      latitude: 42.307,
+      longitude: -8.619,
+      wind_speed: 8, // ~15.5kt raw — already strong
+      wind_dir: 240,
+      temperature: 14,
+    });
+    const silleiro = makeBuoy({
+      station_id: 2248, lat: 42.12, lon: -9.43,
+      wind_speed: 5, // 9.7kt synoptic — prediction ~13kt, delta ~2kt
+      wind_dir: 220,
+    });
+    const result = scoreSpot(cesantes, [localStation], [silleiro]);
+    expect(result.boostedBy).toBeNull();
+    expect(result.avgWindKt).toBe(result.rawWindKt);
+  });
+
+  it('does NOT boost outside thermal hour + no synoptic SW', () => {
+    // Pre-dawn (4 AM), warm air doesn't matter — thermal hour gate fails,
+    // no mouth buoy SW. Detector returns inactive → raw wind preserved.
+    vi.setSystemTime(new Date('2026-04-15T04:00:00+02:00'));
+    const localStation = makeReading({
+      wind_speed: 3, wind_dir: 240, temperature: 14,
+    });
+    const result = scoreSpot(cesantes, [localStation], []);
+    expect(result.boostedBy).toBeNull();
+  });
+
+  it('only fires for spot.id === "cesantes" — other spots unaffected', () => {
+    // Same conditions that would boost Cesantes, applied to Lourido (12km away).
+    // Should NOT receive the canalization override.
+    vi.setSystemTime(new Date('2026-06-15T14:00:00+02:00'));
+    const localStation = makeReading({
+      station_id: 'mg_local',
+      latitude: 42.365, longitude: -8.675, // near Lourido
+      wind_speed: 3, wind_dir: 240, temperature: 22, humidity: 60,
+    });
+    const lourido: SpotDef = {
+      id: 'lourido', name: 'Lourido', lat: 42.365, lon: -8.675,
+      sector: 'rias', radiusKm: 12, thermalDetection: true,
+    };
+    const result = scoreSpot(lourido, [localStation], []);
+    expect(result.boostedBy).toBeNull();
+  });
+});
+
+// ── scoreSpot — Bocana terral matinal (Phase B TIER 1 P0) ────────
+
+describe('scoreSpot — Bocana terral matinal (Phase B TIER 1 P0)', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('boosts during 6-11h with Rande ΔT + Vigo NE wind', () => {
+    // Classic bocana pattern: 8AM, Rande water 16°C / air 13°C (ΔT +3),
+    // humidity 75%, Vigo buoy reports 5m/s @ 60° (NE channeled wind).
+    // Land stations: 1-2kt only.
+    vi.setSystemTime(new Date('2026-04-15T08:00:00+02:00'));
+    const landStation = makeReading({
+      station_id: 'mg_marin',
+      latitude: 42.268, longitude: -8.714,
+      wind_speed: 1, // 2kt raw on land
+      wind_dir: 60,
+      temperature: 13,
+      solar_rad: 200, // clear sky
+    });
+    const rande = makeBuoy({
+      station_id: 1251, // Rande (no anemometer — just temps)
+      lat: 42.29, lon: -8.66,
+      wind_speed: 0,
+      wind_dir: null,
+      water_temp: 16,
+      air_temp: 13, // ΔT = +3
+      humidity: 75,
+    });
+    const vigo = makeBuoy({
+      station_id: 3221, // Vigo REDMAR
+      lat: 42.24, lon: -8.73,
+      wind_speed: 5, // 9.7kt
+      wind_dir: 60, // NE in bocana range (20-140)
+    });
+    const result = scoreSpot(bocana, [landStation], [rande, vigo]);
+    expect(result.boostedBy).toBe('bocana-terral');
+    // Raw was ~6kt (land 2kt + buoy 9.7kt avg), boost adds 2-8kt
+    expect(result.avgWindKt).toBeGreaterThan(result.rawWindKt!);
+  });
+
+  it('does NOT boost outside 6-11h window', () => {
+    // Same conditions but at 14:00 — bocana is morning only
+    vi.setSystemTime(new Date('2026-04-15T14:00:00+02:00'));
+    const landStation = makeReading({ wind_speed: 1, wind_dir: 60 });
+    const rande = makeBuoy({
+      station_id: 1251, lat: 42.29, lon: -8.66,
+      wind_speed: 0, wind_dir: null,
+      water_temp: 16, air_temp: 13, humidity: 75,
+    });
+    const result = scoreSpot(bocana, [landStation], [rande]);
+    expect(result.boostedBy).toBeNull();
+  });
+
+  it('does NOT boost when ΔT is too small (no thermal motor)', () => {
+    // Morning hour but water = air → no terral conditions
+    vi.setSystemTime(new Date('2026-04-15T08:00:00+02:00'));
+    const rande = makeBuoy({
+      station_id: 1251, lat: 42.29, lon: -8.66,
+      wind_speed: 0, wind_dir: null,
+      water_temp: 14, air_temp: 14, humidity: 75, // ΔT = 0
+    });
+    const land = makeReading({ wind_speed: 1, wind_dir: 60 });
+    const result = scoreSpot(bocana, [land], [rande]);
+    expect(result.boostedBy).toBeNull();
+  });
+
+  it('only fires for spot.id === "bocana" — Cesantes unaffected', () => {
+    // Same bocana conditions, scored for Cesantes spot — should not apply
+    // the bocana boost (Cesantes uses its own canalization detector instead).
+    vi.setSystemTime(new Date('2026-04-15T08:00:00+02:00'));
+    const land = makeReading({
+      station_id: 'mg_cesantes',
+      latitude: 42.307, longitude: -8.619,
+      wind_speed: 1, wind_dir: 60, temperature: 13,
+    });
+    const rande = makeBuoy({
+      station_id: 1251, lat: 42.29, lon: -8.66,
+      wind_speed: 0, wind_dir: null,
+      water_temp: 16, air_temp: 13, humidity: 75,
+    });
+    const result = scoreSpot(cesantes, [land], [rande]);
+    expect(result.boostedBy).not.toBe('bocana-terral');
+  });
+});
+
+// ── scoreSpot — rawWindKt always populated ──────────────────
+
+describe('scoreSpot — result invariants', () => {
+  it('rawWindKt always populated when count > 0', () => {
+    const r = makeReading({ wind_speed: 5 });
+    const result = scoreSpot(cesantes, [r], []);
+    expect(result.rawWindKt).toBeDefined();
+    expect(result.rawWindKt).toBeGreaterThan(0);
+  });
+
+  it('boostedBy is null when no detector fires', () => {
+    const r = makeReading({ wind_speed: 5, wind_dir: 90 }); // E wind, no SW
+    const result = scoreSpot(cesantes, [r], []);
+    // Random E wind at random time — no canalization, no bocana
+    expect(result.boostedBy).toBeNull();
+  });
+
+  it('rawWindKt and avgWindKt match when no boost applied', () => {
+    const r = makeReading({ wind_speed: 5, wind_dir: 90 });
+    const result = scoreSpot(cesantes, [r], []);
+    if (result.boostedBy === null) {
+      expect(result.avgWindKt).toBe(result.rawWindKt);
+    }
+  });
+});
