@@ -70,10 +70,13 @@ function LightningRippleInner() {
     }
   }, [strikes]);
 
-  // Prune expired ripples every 250ms
+  // Prune expired ripples every 250ms. Skip while tab is backgrounded —
+  // no point pruning visual ripples the user can't see, and a backgrounded
+  // tab can accumulate hundreds of stale entries waiting for setState batches.
   useEffect(() => {
     if (active.length === 0) return;
     const t = setInterval(() => {
+      if (document.hidden) return;
       const now = Date.now();
       setActive((prev) => prev.filter((r) => now - r.spawnTime < RIPPLE_DURATION_MS));
     }, 250);

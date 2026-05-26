@@ -67,10 +67,11 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const [panelPos, setPanelPos] = useState({ x: 56, y: 80 }); // left:56px (left-14), top:80px
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
-  // Timer tick
+  // Timer tick — display only shows mins:secs (no centiseconds), so 500ms is
+  // enough resolution. 100ms was 5× re-render rate for zero visible benefit.
   useEffect(() => {
     if (!timerRunning) { setDisplayMs(elapsedMs); return; }
-    const iv = setInterval(() => setDisplayMs(elapsedMs + (Date.now() - timerStartMs)), 100);
+    const iv = setInterval(() => setDisplayMs(elapsedMs + (Date.now() - timerStartMs)), 500);
     return () => clearInterval(iv);
   }, [timerRunning, timerStartMs, elapsedMs]);
 
