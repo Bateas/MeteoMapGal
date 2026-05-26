@@ -7,7 +7,10 @@ import { extractHumidityData, interpolateScalar } from '../../services/idwInterp
 // ── Configuration ──────────────────────────────────────────
 
 const GRID_SIZE = 12; // px per cell — larger = faster, less detail
-const DEBOUNCE_MS = 200;
+// 400ms (was 200ms): humidity is a slow-changing variable, user notices
+// no difference between 200 and 400ms but the second one halves the rerender
+// rate during pan/zoom which is where IDW interpolation dominates the CPU.
+const DEBOUNCE_MS = 400;
 
 // ── Color scale: dry (orange/red) → moderate (yellow/green) → humid (blue/dark blue) ──
 
