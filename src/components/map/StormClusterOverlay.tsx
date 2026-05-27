@@ -431,6 +431,9 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
         approaching: c.approaching ? 1 : 0,
         intensityType: c.intensity?.type ?? 'unknown',
         speedKmh,
+        // confidence tier (S136+3+3 T2-1): drives opacity / dash strength so
+        // low-confidence vectors don't claim certainty they don't have.
+        confidence: c.velocity?.confidence ?? 'medium',
       };
       features.push(ring);
     }
@@ -471,7 +474,11 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       if (!isClusterActive(c) || !isClusterMoving(c)) continue;
       const tip = arrowTip(c);
       if (tip) {
-        tip.properties = { ...tip.properties, kind: 'velocity-tip' };
+        tip.properties = {
+          ...tip.properties,
+          kind: 'velocity-tip',
+          confidence: c.velocity?.confidence ?? 'medium',
+        };
         features.push(tip);
       }
     }
@@ -492,7 +499,11 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       if (!isClusterActive(c) || !isClusterMoving(c)) continue;
       const arrow = velocityArrow(c);
       if (arrow) {
-        arrow.properties = { ...arrow.properties, kind: 'velocity-shaft' };
+        arrow.properties = {
+          ...arrow.properties,
+          kind: 'velocity-shaft',
+          confidence: c.velocity?.confidence ?? 'medium',
+        };
         features.push(arrow);
       }
     }
@@ -502,7 +513,11 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
       if (!isClusterActive(c) || !isClusterMoving(c)) continue;
       const path = projectedPath(c);
       if (path) {
-        path.properties = { ...path.properties, kind: 'projected-path' };
+        path.properties = {
+          ...path.properties,
+          kind: 'projected-path',
+          confidence: c.velocity?.confidence ?? 'medium',
+        };
         features.push(path);
       }
     }
@@ -779,7 +794,10 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           }}
         />
 
-        {/* ── Projected ghosts (+30 min): fill + outline ── */}
+        {/* ── Projected ghosts (+30 min): fill + outline ──
+            confidence-aware: low fit (R² < 0.6) renders the ghost very tenue
+            and dashes more aggressively so the eye reads "rough estimate";
+            high fit renders solid + brighter to communicate "trustworthy". */}
         <Layer
           id="storm-projected-fill"
           type="fill"
@@ -792,6 +810,14 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
               'rgba(168, 85, 247, 0.06)',
             ],
             'fill-antialias': true,
+            // confidence modulator: high=1.4×, medium=1.0×, low=0.5×
+            'fill-opacity': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 1.0,
+              'medium', 0.75,
+              'low', 0.4,
+              0.75,
+            ],
           }}
         />
         <Layer
@@ -805,9 +831,29 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
               'rgba(239, 68, 68, 0.55)',
               'rgba(168, 85, 247, 0.40)',
             ],
-            'line-width': 2,
-            'line-dasharray': [2, 3],
-            'line-opacity': 0.85,
+            // high=2.5px solid-ish, medium=2px, low=1.5px tenue
+            'line-width': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 2.5,
+              'medium', 2,
+              'low', 1.5,
+              2,
+            ],
+            // dashes tighter when confident, more spaced when low confidence
+            'line-dasharray': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', ['literal', [3, 2]],
+              'medium', ['literal', [2, 3]],
+              'low', ['literal', [1, 5]],
+              ['literal', [2, 3]],
+            ],
+            'line-opacity': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 1.0,
+              'medium', 0.85,
+              'low', 0.4,
+              0.85,
+            ],
           }}
         />
 
@@ -889,14 +935,24 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           type="fill"
           filter={['==', ['get', 'kind'], 'velocity-tip']}
           paint={{
-            'fill-color': 'rgba(249, 115, 22, 0.85)',
+            // confidence-modulated opacity: low fits get a dimmer tip so the
+            // arrowhead reads as "soft pointer" rather than "definitive vector".
+            'fill-color': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 'rgba(249, 115, 22, 0.95)',
+              'medium', 'rgba(249, 115, 22, 0.85)',
+              'low', 'rgba(249, 115, 22, 0.45)',
+              'rgba(249, 115, 22, 0.85)',
+            ],
           }}
         />
       </Source>
 
       {/* ── LINE SOURCE ────────────────────────────────────────── */}
       <Source id="storm-lines" type="geojson" data={stormLines}>
-        {/* ── Velocity arrow shafts: glow + solid core ── */}
+        {/* ── Velocity arrow shafts: glow + solid core ──
+            Confidence modulates width + opacity. Low-confidence shaft is
+            thinner and tenue so it suggests "tentative" not "certain". */}
         <Layer
           id="storm-velocity-glow"
           type="line"
@@ -908,8 +964,21 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
               'rgba(239, 68, 68, 0.3)',
               'rgba(167, 139, 250, 0.2)',
             ],
-            'line-width': 8,
+            'line-width': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 10,
+              'medium', 8,
+              'low', 5,
+              8,
+            ],
             'line-blur': 3,
+            'line-opacity': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 1.0,
+              'medium', 0.85,
+              'low', 0.45,
+              0.85,
+            ],
           }}
         />
         <Layer
@@ -918,8 +987,20 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           filter={['==', ['get', 'kind'], 'velocity-shaft']}
           paint={{
             'line-color': '#f97316',
-            'line-width': 3.5,
-            'line-opacity': 0.9,
+            'line-width': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 4,
+              'medium', 3.5,
+              'low', 2.5,
+              3.5,
+            ],
+            'line-opacity': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 1.0,
+              'medium', 0.9,
+              'low', 0.5,
+              0.9,
+            ],
           }}
         />
 
@@ -961,7 +1042,9 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           }}
         />
 
-        {/* ── Projected paths: glow + dashed line ── */}
+        {/* ── Projected paths: glow + dashed line ──
+            Same confidence pattern as ghosts/shaft — low fits get fainter
+            and more spaced dashes so they read as "rough projection". */}
         <Layer
           id="storm-projected-path-glow"
           type="line"
@@ -970,6 +1053,13 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'line-color': 'rgba(249, 115, 22, 0.15)',
             'line-width': 12,
             'line-blur': 4,
+            'line-opacity': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 1.0,
+              'medium', 0.85,
+              'low', 0.35,
+              0.85,
+            ],
           }}
         />
         <Layer
@@ -978,8 +1068,27 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
           filter={['==', ['get', 'kind'], 'projected-path']}
           paint={{
             'line-color': 'rgba(249, 115, 22, 0.6)',
-            'line-width': 2,
-            'line-dasharray': [4, 4],
+            'line-width': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 2.5,
+              'medium', 2,
+              'low', 1.5,
+              2,
+            ],
+            'line-dasharray': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', ['literal', [4, 3]],
+              'medium', ['literal', [4, 4]],
+              'low', ['literal', [2, 6]],
+              ['literal', [4, 4]],
+            ],
+            'line-opacity': [
+              'match', ['coalesce', ['get', 'confidence'], 'medium'],
+              'high', 1.0,
+              'medium', 0.9,
+              'low', 0.4,
+              0.9,
+            ],
           }}
         />
       </Source>
