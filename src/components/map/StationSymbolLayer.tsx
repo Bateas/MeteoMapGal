@@ -8,12 +8,17 @@
  * Wind arrows are handled separately by WindFieldOverlay (already GPU).
  * This layer shows: colored circle (temperature) + station name label.
  */
-import { useMemo, useEffect, useCallback } from 'react';
-import { Source, Layer, useMap } from 'react-map-gl/maplibre';
+import { useMemo, useEffect, useCallback, useState } from 'react';
+import { Source, Layer, Marker, useMap } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { temperatureColor, windSpeedColor } from '../../services/windUtils';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
 import { isWindBlacklisted } from '../../services/spotScoringEngine';
+import {
+  clusterStations,
+  STATION_CLUSTER_DISABLE_ZOOM,
+  type StationClusterGroup,
+} from '../../services/stationClustering';
 
 interface StationSymbolLayerProps {
   stations: NormalizedStation[];
@@ -80,18 +85,35 @@ export function StationSymbolLayer({
 }: StationSymbolLayerProps) {
   const { current: mapRef } = useMap();
 
-  // Build GeoJSON from stations + readings
+  // Track current zoom — clustering only kicks in below threshold so this
+  // re-renders only at meaningful transitions in practice.
+  const [zoom, setZoom] = useState(() => mapRef?.getMap()?.getZoom() ?? 11);
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onZoom = () => setZoom(map.getZoom());
+    map.on('zoom', onZoom);
+    return () => { map.off('zoom', onZoom); };
+  }, [mapRef]);
+
+  // Filter out tempOnly + wind-blacklisted, then cluster by proximity.
+  // Wind-blacklisted stations are hidden entirely — their wind readings
+  // are unreliable (<0.20 ratio vs buoys); they still contribute temp /
+  // humidity internally to alerts and overlays. tempOnly stations also
+  // skipped here (rendered by other dedicated layers).
+  const items = useMemo(() => {
+    const eligible = stations.filter((s) => !s.tempOnly && !isWindBlacklisted(s.id));
+    return clusterStations(eligible, readings, zoom);
+  }, [stations, readings, zoom]);
+
+  // Build GeoJSON from STANDALONE stations only — clustered ones rendered
+  // as DOM markers below.
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
 
-    for (const station of stations) {
-      if (station.tempOnly) continue;
-      // Hide wind-blacklisted stations from the map entirely — their wind
-      // readings are unreliable (audited <0.20 ratio vs buoys) and showing
-      // them as wind sources would mislead users. They still contribute
-      // temperature/humidity/etc internally to alerts and overlays. See
-      // WIND_BLACKLIST in spotScoringEngine.ts for the full audit-based list.
-      if (isWindBlacklisted(station.id)) continue;
+    for (const item of items) {
+      if (item.type !== 'station') continue;
+      const station = item.station;
       const reading = readings.get(station.id);
       const windMs = reading?.windSpeed ?? 0;
       const age = ageMins(reading?.timestamp);
@@ -118,7 +140,24 @@ export function StationSymbolLayer({
     }
 
     return { type: 'FeatureCollection', features };
-  }, [stations, readings, selectedStationId]);
+  }, [items, readings, selectedStationId]);
+
+  const clusterItems = useMemo(
+    () => items.filter((it): it is StationClusterGroup => it.type === 'cluster'),
+    [items],
+  );
+
+  const handleClusterClick = useCallback((cluster: StationClusterGroup) => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    // Fly to centroid + zoom past the cluster disable threshold so individual
+    // stations re-appear.
+    map.flyTo({
+      center: [cluster.lon, cluster.lat],
+      zoom: STATION_CLUSTER_DISABLE_ZOOM + 0.5,
+      duration: 700,
+    });
+  }, [mapRef]);
 
   // Click handler — map event instead of per-marker
   const handleClick = useCallback(
@@ -296,6 +335,70 @@ export function StationSymbolLayer({
           'circle-opacity': 0.9,
         }}
       />
+      {clusterItems.map((cluster) => (
+        <StationClusterMarker key={cluster.id} cluster={cluster} onClick={handleClusterClick} />
+      ))}
     </Source>
+  );
+}
+
+// ── Cluster marker (DOM) ───────────────────────────────────────
+
+interface StationClusterMarkerProps {
+  cluster: StationClusterGroup;
+  onClick: (cluster: StationClusterGroup) => void;
+}
+
+function StationClusterMarker({ cluster, onClick }: StationClusterMarkerProps) {
+  // Color band derived from the cluster's representative temperature so
+  // the user can see warm vs cold zones at a glance.
+  const ringColor = cluster.representativeTemp != null
+    ? temperatureColor(cluster.representativeTemp)
+    : '#64748b';
+  const spreadLabel = cluster.tempSpread != null && cluster.tempSpread >= 2
+    ? ` · Δ${cluster.tempSpread.toFixed(1)}°`
+    : '';
+
+  return (
+    <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center">
+      <button
+        onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
+        className="relative flex items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer"
+        style={{
+          width: 36,
+          height: 36,
+          background: 'rgba(15, 23, 42, 0.82)',
+          border: `2px solid ${ringColor}`,
+          boxShadow: `0 0 10px ${ringColor}80, inset 0 0 6px ${ringColor}40`,
+        }}
+        title={`${cluster.count} estaciones${cluster.avgTemp != null ? ` · ${cluster.avgTemp.toFixed(1)}°C` : ''}${spreadLabel} — click para acercar`}
+        aria-label={`Cluster de ${cluster.count} estaciones`}
+      >
+        <span
+          className="font-bold tabular-nums leading-none"
+          style={{
+            color: ringColor,
+            fontSize: cluster.avgTemp != null ? '11px' : '14px',
+            textShadow: '0 0 4px rgba(0,0,0,0.95)',
+          }}
+        >
+          {cluster.avgTemp != null ? `${cluster.avgTemp.toFixed(0)}°` : cluster.count}
+        </span>
+        {/* Count badge in corner */}
+        <span
+          className="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full text-[9px] font-bold tabular-nums"
+          style={{
+            minWidth: 16,
+            height: 16,
+            padding: '0 4px',
+            background: 'rgba(15, 23, 42, 0.95)',
+            color: '#cbd5e1',
+            border: '1px solid rgba(148, 163, 184, 0.5)',
+          }}
+        >
+          {cluster.count}
+        </span>
+      </button>
+    </Marker>
   );
 }
