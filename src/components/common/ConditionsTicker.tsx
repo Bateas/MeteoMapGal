@@ -385,9 +385,16 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         const cat = icaCategory(worst.ica);
         const labelEs = worst.categoryEs || (cat === 'muy_mala' ? 'Muy mala' : cat === 'mala' ? 'Mala' : 'Deficiente');
         const isSevere = cat === 'mala' || cat === 'muy_mala';
+        // Expand pollutant code so non-technical users understand what's high.
+        // The label "Calidad del aire" (feminine) agrees with categoryEs values
+        // ("Moderada", "Mala") — earlier "Aire Moderada" was a gender mismatch.
+        const pollutantEs = ({
+          O3: 'ozono', NO2: 'NO₂', PM10: 'partículas PM10',
+          PM25: 'PM2.5', 'PM2.5': 'PM2.5', SO2: 'SO₂', CO: 'CO',
+        } as Record<string, string>)[worst.dominantPollutant] ?? worst.dominantPollutant;
         result.push({
           key: 'air-quality',
-          text: `Aire ${labelEs} en ${worst.station} (${worst.dominantPollutant})`,
+          text: `Calidad del aire ${labelEs.toLowerCase()} en ${worst.station}${pollutantEs ? ` · ${pollutantEs}` : ''}`,
           color: isSevere ? 'text-red-400' : 'text-orange-400',
           bg: isSevere ? 'bg-red-900/20' : 'bg-orange-900/20',
           priority: isSevere ? 7 : 5,
