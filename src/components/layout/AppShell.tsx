@@ -27,6 +27,7 @@ const OnboardingTour = lazy(() => import('../common/OnboardingTour').then(m => (
 const ConditionsTicker = lazy(() => import('../common/ConditionsTicker').then(m => ({ default: m.ConditionsTicker })));
 const ForecastPanel = lazy(() => import('../charts/ForecastPanel').then(m => ({ default: m.ForecastPanel })));
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
+import { MagicWindowBanner } from '../common/MagicWindowBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { useThemeStore } from '../../store/themeStore';
 import { useSectorStore } from '../../store/sectorStore';
@@ -368,6 +369,9 @@ export function AppShell() {
         <ErrorBoundary section="Ticker"><Suspense fallback={null}><ConditionsTicker /></Suspense></ErrorBoundary>
       )}
       <SourceStatusBanner />
+      {/* Magic Window banner (T2-2) — appears only when backend detector confirms
+          a rare optimal-sailing convergence in Rías. Self-hides when not active. */}
+      <MagicWindowBanner />
 
       <div className="flex-1 flex overflow-hidden relative">
         {/* Desktop sidebar: collapsible (icon strip ↔ full panel) */}

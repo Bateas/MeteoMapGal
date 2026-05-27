@@ -586,6 +586,54 @@ async function handleAnalyticsHistoricalBaseline(
   }
 }
 
+/**
+ * GET /api/v1/magic-window/latest?sector=rias
+ *
+ * Returns the most recent magic window detection for the sector (defaults to
+ * rias). Returns `{ active: false }` when no recent entry within the last 4h
+ * or when the most recent has score < threshold. Frontend banner uses this
+ * to decide whether to show the "no te lo pierdas" callout.
+ *
+ * Cache 30s — magic windows update every poll cycle (5 min) so 30s stale
+ * isn't a problem and shields the DB from a hammered endpoint.
+ */
+async function handleMagicWindowLatest(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const sector = params.sector === 'embalse' ? 'embalse' : 'rias';
+  try {
+    const db = getPool();
+    const result = await db.query<{
+      time: Date; sector: string; score: number; summary: string; estimated_hours: number;
+    }>(
+      `SELECT time, sector, score, summary, estimated_hours
+       FROM magic_windows
+       WHERE sector = $1
+         AND time > NOW() - INTERVAL '4 hours'
+       ORDER BY time DESC LIMIT 1`,
+      [sector],
+    );
+    res.setHeader('Cache-Control', 'public, max-age=30');
+    if (result.rows.length === 0) {
+      json(res, { active: false, sector }, 200, origin);
+      return;
+    }
+    const row = result.rows[0];
+    json(res, {
+      active: true,
+      sector: row.sector,
+      score: row.score,
+      summary: row.summary,
+      estimatedHours: row.estimated_hours,
+      detectedAt: row.time.toISOString(),
+    }, 200, origin);
+  } catch (err) {
+    error(res, (err as Error).message, 500, origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -619,6 +667,8 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/analytics/air-quality-trend':  handleAnalyticsAirQualityTrend,
   '/api/v1/analytics/convection-grid':    handleAnalyticsConvectionGrid,
   '/api/v1/analytics/historical-baseline': handleAnalyticsHistoricalBaseline,
+  // ── Magic Window (T2-2 S136+3+3) ──
+  '/api/v1/magic-window/latest':          handleMagicWindowLatest,
 };
 
 // ── Storm prediction POST handler ──────────────────────

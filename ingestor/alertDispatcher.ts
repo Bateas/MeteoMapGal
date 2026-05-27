@@ -257,6 +257,51 @@ export async function dispatchVisibilityAlert(
   }
 }
 
+// ── Magic Window alerts (T2-2 S136+3+3) ───────────────
+
+/** Magic window alerts are RARE by design — 6h cooldown prevents spam
+ *  during sustained windows where score oscillates around threshold. */
+const MAGIC_WINDOW_COOLDOWN_MS = 6 * 60 * 60_000;
+const lastMagicWindowAlert = new Map<string, number>();
+
+/**
+ * Dispatch a "Magic Window" detection — rare optimal-sailing convergence.
+ *
+ * Distinct from spot verdict transitions: this is a SECTOR-WIDE alert
+ * indicating that synoptic + thermal + canalization aligned, so MULTIPLE
+ * spots will become favorable in the next 1-6h. Tone: "no te lo pierdas".
+ */
+export async function dispatchMagicWindowAlert(
+  sector: string,
+  score: number,
+  summary: string,
+  estimatedHours: number,
+): Promise<void> {
+  if (isNightTime()) return;
+  if (isInCooldown(lastMagicWindowAlert, sector, MAGIC_WINDOW_COOLDOWN_MS)) return;
+
+  // Tone scales with score
+  const title = score >= 90
+    ? `Ventana MAGICA — ${sector}`
+    : `Ventana favorable — ${sector}`;
+  const text = `${summary} (estimacion ${estimatedHours}h)`;
+
+  const ok = await postWebhook({
+    type: 'magic-window',
+    sector,
+    score,
+    estimatedHours,
+    title,
+    message: text,
+    severity: score >= 90 ? 'high' : 'moderate',
+  });
+
+  if (ok) {
+    lastMagicWindowAlert.set(sector, Date.now());
+    log.ok(`Magic window: ${sector} score=${score} → alert sent`);
+  }
+}
+
 /**
  * Reset cooldowns (e.g., on restart).
  */
@@ -264,4 +309,5 @@ export function resetCooldowns(): void {
   lastSpotAlert.clear();
   lastForecastAlert.clear();
   lastVisibilityAlert.clear();
+  lastMagicWindowAlert.clear();
 }
