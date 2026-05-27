@@ -59,6 +59,15 @@ const circleCoreLayer: LayerProps = {
 /**
  * Temperature value label — positioned ABOVE the station marker so it
  * doesn't overlap with the marker icon or the map place name.
+ *
+ * Declutter behavior (user feedback 2026-05-28):
+ * - At zoom <10 (wide Rías view), labels are HIDDEN — the dots stay
+ *   visible but ~80 numbers overlapping became unreadable.
+ * - At zoom 10-12, MapLibre collision detection is ON
+ *   (`text-allow-overlap: false`), so when two labels would overlap
+ *   only one wins. User scrolls/zooms to see different ones.
+ * - At zoom 12+, label size grows; eventually they have room and most
+ *   end up visible (still no force-overlap so labels stay readable).
  */
 const tempLabelLayer: LayerProps = {
   id: 'temp-label',
@@ -66,9 +75,10 @@ const tempLabelLayer: LayerProps = {
   layout: {
     'text-field': ['get', 'label'],
     'text-font': ['Noto Sans Bold'],
-    'text-size': ['interpolate', ['linear'], ['zoom'], 9, 11, 12, 15, 15, 22],
-    'text-allow-overlap': true,
-    'text-ignore-placement': true,
+    'text-size': ['interpolate', ['linear'], ['zoom'], 9.5, 0, 10, 10, 12, 14, 15, 20],
+    'text-allow-overlap': false,
+    'text-ignore-placement': false,
+    'text-padding': 4,
     'text-offset': [0, -1.8],
     'text-anchor': 'bottom',
   },
@@ -76,6 +86,7 @@ const tempLabelLayer: LayerProps = {
     'text-color': '#ffffff',
     'text-halo-color': 'rgba(0, 0, 0, 0.95)',
     'text-halo-width': 2.5,
+    'text-opacity': ['interpolate', ['linear'], ['zoom'], 9.5, 0, 10, 1],
   },
 };
 
