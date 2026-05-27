@@ -3,7 +3,7 @@
  * Covers: windVerdict thresholds, scoreAllSpots integration, hard gates.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { scoreAllSpots, type SpotScore, type SpotVerdict } from './spotScoringEngine';
+import { scoreAllSpots, isWindBlacklisted, type SpotScore, type SpotVerdict } from './spotScoringEngine';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../types/buoy';
 import { RIAS_SPOTS, EMBALSE_SPOTS } from '../config/spots';
@@ -366,5 +366,36 @@ describe('Cesantes canalization override', () => {
     // No fallback → detector inactive → verdict from raw 7kt → 'light'
     expect(score.verdict).toBe('light');
     expect(score.thermalBoosted).toBe(false);
+  });
+});
+
+describe('isWindBlacklisted — audited 2026-05-27', () => {
+  it('blacklists Lourizán MG (mg_10064) — globally broken (0.13-0.18 all dirs)', () => {
+    expect(isWindBlacklisted('mg_10064')).toBe(true);
+  });
+
+  it('blacklists confirmed-dead WU stations', () => {
+    expect(isWindBlacklisted('wu_IVIGO48')).toBe(true);
+    expect(isWindBlacklisted('wu_IOROSA14')).toBe(true);
+    expect(isWindBlacklisted('wu_ICANGA14')).toBe(true);
+  });
+
+  it('blacklists very-sheltered WU stations (audit < 0.20 ratio)', () => {
+    expect(isWindBlacklisted('wu_ISANXE3')).toBe(true);
+    expect(isWindBlacklisted('wu_IRIANX3')).toBe(true);
+    expect(isWindBlacklisted('wu_IBAION7')).toBe(true);
+  });
+
+  it('does NOT blacklist usable WU stations (ratio > 0.50)', () => {
+    // Top WU performers from 2026-05-27 audit
+    expect(isWindBlacklisted('wu_IPOIO15')).toBe(false);  // 0.63
+    expect(isWindBlacklisted('wu_IMEIS30')).toBe(false);  // 0.55
+    expect(isWindBlacklisted('wu_ICAMBA8')).toBe(false);  // 0.54
+  });
+
+  it('does NOT blacklist healthy official stations', () => {
+    expect(isWindBlacklisted('mg_14001')).toBe(false);    // Vigo Porto: gold standard
+    expect(isWindBlacklisted('aemet_1387E')).toBe(false); // Alvedro airport
+    expect(isWindBlacklisted('aemet_1428')).toBe(false);  // Lavacolla airport
   });
 });
