@@ -318,6 +318,12 @@ export const RegattaPanel = memo(function RegattaPanel() {
       if ((a.category === 'storm' || a.category === 'rain') && !alertMsgs.some(m => m.includes('ormenta') || m.includes('ayo'))) {
         alertMsgs.push(a.title);
       }
+      // Downburst seco — sudden severe gusts without rain, sailing-critical
+      if (a.category === 'downburst') {
+        if (a.severity === 'high' && semaphore !== 'red') semaphore = 'red';
+        else if (a.severity === 'moderate' && semaphore === 'green') semaphore = 'yellow';
+        if (!alertMsgs.some(m => m.includes('downburst'))) alertMsgs.push(a.title);
+      }
     }
 
     // Build wind sources for transparency display
