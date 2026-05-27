@@ -343,20 +343,12 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
-    // ── MG official warnings (priority 10 — high visibility) ──
-    for (const w of mgWarnings) {
-      const levelLabel = w.maxLevel === 3 ? 'ROJO' : w.maxLevel === 2 ? 'NARANJA' : 'AMARILLO';
-      const color = w.maxLevel === 3 ? 'text-red-400' : w.maxLevel === 2 ? 'text-orange-400' : 'text-yellow-400';
-      const bg = w.maxLevel >= 2 ? 'bg-orange-900/25' : 'bg-yellow-900/20';
-      const zoneNames = w.zones.map((z) => z.name).join(', ');
-      result.push({
-        key: `mg-${w.typeId}-${w.maxLevel}`,
-        text: `Aviso ${levelLabel}: ${w.type} · ${zoneNames}`,
-        color,
-        bg,
-        priority: w.maxLevel >= 2 ? 10 : 8,
-      });
-    }
+    // ── MG official warnings — NOT pushed to the ticker ──
+    // Rendered as a static strip ABOVE the marquee (see return block below).
+    // Reason: official MeteoGalicia AMARILLO/NARANJA/ROJO warnings are too
+    // critical to bury in a scrolling strip — the user reported they get
+    // cut off / stacked. Static strip means they're always visible without
+    // waiting for the marquee to cycle.
 
     // ── UV warning — only in peak hours (12-16h) and only actionable values ──
     // Reactive map philosophy: UV during off-peak hours doesn't change a user's
@@ -469,7 +461,38 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     return result;
   }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, tidePoints, isMobile]);
 
-  if (items.length === 0) return null;
+  // ── Official MG warnings — static strip above the marquee ─────
+  // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).
+  // Stacked vertically when there are several so the user sees ALL of them
+  // immediately without waiting for the ticker to cycle.
+  const officialWarnings = useMemo(() => {
+    return mgWarnings.map((w) => {
+      const levelLabel = w.maxLevel === 3 ? 'ROJO' : w.maxLevel === 2 ? 'NARANJA' : 'AMARILLO';
+      const zoneNames = w.zones.map((z) => z.name).join(', ');
+      const color = w.maxLevel === 3
+        ? 'text-red-200'
+        : w.maxLevel === 2 ? 'text-orange-200' : 'text-yellow-200';
+      const bg = w.maxLevel === 3
+        ? 'bg-red-950/70 border-l-red-500'
+        : w.maxLevel === 2
+          ? 'bg-orange-950/60 border-l-orange-500'
+          : 'bg-yellow-950/50 border-l-yellow-500';
+      const chipColor = w.maxLevel === 3
+        ? 'bg-red-500/30 text-red-100'
+        : w.maxLevel === 2 ? 'bg-orange-500/30 text-orange-100' : 'bg-yellow-500/25 text-yellow-100';
+      return {
+        key: `mg-${w.typeId}-${w.maxLevel}`,
+        levelLabel,
+        type: w.type,
+        zoneNames,
+        color,
+        bg,
+        chipColor,
+      };
+    });
+  }, [mgWarnings]);
+
+  if (items.length === 0 && officialWarnings.length === 0) return null;
 
   // Dynamic animation speed: ~8s per item (more items = slower scroll)
   const duration = Math.max(20, items.length * 8);
@@ -478,10 +501,33 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   const tickerContent = [...items, ...items];
 
   return (
+    <div className="flex-shrink-0">
+      {/* ── Static official warnings strip ── */}
+      {officialWarnings.length > 0 && (
+        <div className="flex flex-col">
+          {officialWarnings.map((w) => (
+            <div
+              key={w.key}
+              role="alert"
+              className={`flex items-center gap-2 px-3 py-1 text-[11px] border-l-4 border-b border-slate-800/60 ${w.bg} ${w.color}`}
+            >
+              <span className={`font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-[10px] ${w.chipColor}`}>
+                Aviso {w.levelLabel}
+              </span>
+              <span className="font-semibold">{w.type}</span>
+              <span className="opacity-60">·</span>
+              <span className="opacity-90 truncate">{w.zoneNames}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Scrolling ticker (everything else) ── */}
+      {items.length > 0 && (
     <div
       role="marquee"
       aria-label="Condiciones meteorológicas en tiempo real"
-      className="h-7 bg-slate-900/80 border-b border-slate-700/50 overflow-hidden relative flex-shrink-0 flex"
+      className="h-7 bg-slate-900/80 border-b border-slate-700/50 overflow-hidden relative flex"
     >
       <button
         onClick={() => setPaused(p => !p)}
@@ -515,6 +561,8 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           ))}
         </div>
       </div>
+    </div>
+      )}
     </div>
   );
 });
