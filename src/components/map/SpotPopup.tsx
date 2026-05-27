@@ -11,6 +11,7 @@ import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
+import { fetchSwanHsAt } from '../../api/swanGetFeatureInfo';
 
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -232,6 +233,20 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     return () => { cancelled = true; };
   }, [spot.id, spot.category, spot.center]);
 
+  // ── SWAN per-spot Hs (T5-3 S136+3+3): cross-check Open-Meteo with the
+  // CESGA academic high-resolution model at the actual spot location.
+  // Returns null if CESGA is down (frequent) or the point is out of domain —
+  // silent fail, never blocks the popup. ──
+  const [swanHs, setSwanHs] = useState<number | null>(null);
+  useEffect(() => {
+    if (spot.category !== 'surf') return;
+    let cancelled = false;
+    fetchSwanHsAt(spot.center[1], spot.center[0]).then((result) => {
+      if (!cancelled) setSwanHs(result.hs);
+    });
+    return () => { cancelled = true; };
+  }, [spot.id, spot.category, spot.center]);
+
   const surfInfo = useMemo(() => {
     if (spot.category !== 'surf' || marineForecast.length === 0) return null;
     const now = marineForecast[0];
@@ -353,6 +368,15 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {displayVerdict.summary && (
         <div className="text-[11px] text-slate-300 mb-2 leading-tight break-words" style={{ color: displayVerdict.color }}>
           {displayVerdict.summary}
+        </div>
+      )}
+
+      {/* SWAN per-spot Hs cross-check (T5-3 S136+3+3) — only on surf spots,
+          and only when CESGA actually responded with a value. Silent on
+          failure since it's a complementary signal, not primary. */}
+      {spot.category === 'surf' && swanHs !== null && (
+        <div className="text-[10px] text-cyan-400/80 mb-1 italic">
+          SWAN {swanHs.toFixed(2)} m (modelo alta resolución CESGA en este punto)
         </div>
       )}
 
