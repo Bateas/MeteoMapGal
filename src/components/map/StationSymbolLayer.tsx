@@ -13,6 +13,7 @@ import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { temperatureColor, windSpeedColor } from '../../services/windUtils';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
+import { isWindBlacklisted } from '../../services/spotScoringEngine';
 
 interface StationSymbolLayerProps {
   stations: NormalizedStation[];
@@ -85,6 +86,12 @@ export function StationSymbolLayer({
 
     for (const station of stations) {
       if (station.tempOnly) continue;
+      // Hide wind-blacklisted stations from the map entirely — their wind
+      // readings are unreliable (audited <0.20 ratio vs buoys) and showing
+      // them as wind sources would mislead users. They still contribute
+      // temperature/humidity/etc internally to alerts and overlays. See
+      // WIND_BLACKLIST in spotScoringEngine.ts for the full audit-based list.
+      if (isWindBlacklisted(station.id)) continue;
       const reading = readings.get(station.id);
       const windMs = reading?.windSpeed ?? 0;
       const age = ageMins(reading?.timestamp);
