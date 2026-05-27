@@ -1,9 +1,9 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.81.27-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.81.53-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![CI](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml/badge.svg)](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1042%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-1078%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
 **Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 22 webcams con IA y mapa 3D interactivo.
@@ -175,6 +175,26 @@ Solo aparecen cuando son accionables — fuera de su ventana, silencio:
 - Deteccion de niebla, visibilidad, estado del cielo
 - Alertas automaticas por visibilidad reducida
 
+### Ventana Mágica (Rias Baixas)
+- Detector sector-wide de convergencias raras de SW sinoptico + ΔT termico + boca humeda + hora termica
+- Activa cuando la alineacion da score ≥75/100 (alineacion poco frecuente, ~pocos dias por temporada)
+- Veto eléctrico: ≥3 rayos cerca cancelan la "magia" (storms contradicen el concepto)
+- Banner persistente arriba del mapa + alerta Telegram con cooldown 6h
+- Persistencia en TimescaleDB para análisis histórico de cuántas veces dispara
+
+### Tab Histórico — Resumen sector
+- Vista por defecto del tab Historial: heatmap visual de las CAGGs (continuous aggregates)
+- Tormentas y inestabilidad (CAPE diario últimos 30d, BarChart)
+- Top 5 zonas con más rayos del periodo
+- Calidad del aire (ICA media y pico diario)
+- Toggle a "Por estación" para el explorer detallado por estación
+
+### Storm tracker con vector estable
+- Movimiento del cluster calculado por **regresión lineal** sobre history de centroides (no median)
+- Captura trend monotónico (acelera, gira) en lugar de fluctuar poll-a-poll
+- Confidence tier (low/medium/high) según R² del fit
+- Visual modulado: vectores low-confidence renderizan dashed tenue, high-confidence solid bold
+
 
 ---
 
@@ -209,7 +229,7 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # 1042 tests (Vitest)
+npm test                # 1078 tests (Vitest)
 npm run knip            # Detector dead-code (informativo)
 ```
 
@@ -222,7 +242,7 @@ npm run knip            # Detector dead-code (informativo)
 - **Producción**: nginx reverse proxy en Proxmox LXC + smart deploy script (detecta diff, solo corre lo necesario), Cloudflare Tunnel
 - **Performance**: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle ~365KB (gzip ~121KB), FogOverlay chunked-async (yields cada 100 cells, 0 long tasks)
 - **Resilience**: Circuit breaker en TODOS los clientes API (4 capas: AEMET, Open-Meteo, lightning, ENAIRE), pre-classifier ahorra ~25min CPU/día en webcam vision, retention 2 años uniforme en hypertables críticas, convection grid query DISTINCT ON tolera cycles parciales
-- **Calidad**: knip dead-code detector como CI soft check (informativo), tests 1028/1028, 0 vulnerabilidades npm audit
+- **Calidad**: knip dead-code detector como CI soft check (informativo), tests 1078/1078, 0 vulnerabilidades npm audit
 
 ---
 
