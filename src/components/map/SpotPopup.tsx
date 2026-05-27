@@ -10,6 +10,7 @@ import { memo, useState, useMemo, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
+import { useForecastStore } from '../../hooks/useForecastTimeline';
 
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -636,17 +637,53 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Sailing windows (collapsible) — hide for surf spots ── */}
       {spot.category !== 'surf' && windowResult && <SailingWindowsSection result={windowResult} />}
 
-      {/* ── Forecast mini-timeline (12h) — per-spot WRF 1km, hide for surf ── */}
-      {spot.category !== 'surf' && spotForecast.length > 0 && <ForecastMiniTimeline forecast={spotForecast} />}
-      {spot.category !== 'surf' && spotFcLoading && spotForecast.length === 0 && (
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1">
-          <svg className="animate-spin" width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#475569" strokeWidth="1.5" /><path d="M6 1.5a4.5 4.5 0 0 1 4.5 4.5" fill="none" stroke="#93c5fd" strokeWidth="1.5" strokeLinecap="round" /></svg>
-          Cargando prevision WRF 1km...
-        </div>
-      )}
-      {spot.category !== 'surf' && spotFcError && spotForecast.length === 0 && !spotFcLoading && (
-        <div className="text-[11px] text-slate-500/70 mt-1">Prevision WRF no disponible</div>
-      )}
+      {/* ── Forecast mini-timeline (12h) — per-spot WRF 1km with auto fallback ──
+           T2-5 (S136+3+3): no more 'Cargando...' flicker. While the per-spot
+           WRF 1km fetch is in flight (or has failed), fall back to the sector
+           Auto forecast (Open-Meteo) already in memory — it's coarser but
+           the user always sees DATA instead of a placeholder, and we swap
+           silently to WRF when it lands. */}
+      {spot.category !== 'surf' && (() => {
+        if (spotForecast.length > 0) {
+          // WRF arrived — show it (sharp 1km per-spot)
+          return <ForecastMiniTimeline forecast={spotForecast} />;
+        }
+        // Fallback to sector-level Auto/Open-Meteo cache while WRF loads/fails.
+        // Trim to next 12h to match WRF mini-timeline display window.
+        const autoForecast = useForecastStore.getState().hourly;
+        if (autoForecast.length > 0) {
+          const nowMs = Date.now();
+          const next12h = autoForecast.filter((h) => {
+            const t = h.time instanceof Date ? h.time.getTime() : new Date(h.time).getTime();
+            return t >= nowMs - 30 * 60_000 && t <= nowMs + 12 * 3600_000;
+          });
+          if (next12h.length >= 3) {
+            return (
+              <div>
+                <ForecastMiniTimeline forecast={next12h} />
+                <div className="text-[10px] text-slate-500/80 mt-0.5 italic">
+                  {spotFcError
+                    ? 'WRF 1km no disponible — mostrando Auto (Open-Meteo, sector)'
+                    : 'Auto (Open-Meteo, sector) — WRF 1km cargando…'}
+                </div>
+              </div>
+            );
+          }
+        }
+        // Neither WRF nor Auto available — last-resort placeholder
+        if (spotFcLoading) {
+          return (
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1">
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#475569" strokeWidth="1.5" /><path d="M6 1.5a4.5 4.5 0 0 1 4.5 4.5" fill="none" stroke="#93c5fd" strokeWidth="1.5" strokeLinecap="round" /></svg>
+              Cargando previsión…
+            </div>
+          );
+        }
+        if (spotFcError) {
+          return <div className="text-[11px] text-slate-500/70 mt-1">Previsión no disponible</div>;
+        }
+        return null;
+      })()}
 
       {/* ── Open full forecast panel — always visible, not inside ForecastMiniTimeline ── */}
       {spot.category !== 'surf' && (
