@@ -249,10 +249,16 @@ function computeWeightedMedian(entries: { speedKt: number; weight: number }[]): 
 }
 
 /**
- * Stations statistically confirmed as sheltered for WIND (avg <1.5kt daytime).
- * Based on 2 weeks of DB analysis (Mar 10-25, 2026).
- * These stations still contribute temperature/humidity but are excluded from wind consensus.
- * Re-evaluate quarterly as stations may improve placement.
+ * Stations statistically confirmed as sheltered/broken for WIND.
+ * Criterion: avg_ratio < 0.20 vs Vigo/Silleiro buoys over 30 days
+ * (effectively measures <20% of real wind = useless for scoring).
+ * These stations still contribute temperature/humidity but are excluded
+ * from wind consensus.
+ *
+ * Last audit: 2026-05-27 (30-day window vs buoy 3221+2248).
+ * Audit method: ratio of station hourly avg vs buoy hourly avg, when
+ * buoy_ms > 1.5. See `memory/monthly-station-bias-audit.md`.
+ * Re-evaluate monthly.
  */
 const WIND_BLACKLIST = new Set([
   // Vigo city — balcony/patio stations
@@ -287,6 +293,29 @@ const WIND_BLACKLIST = new Set([
   'wu_ISALVA29',    // Salvaterra
   'mc_ESGAL3200000032003A', // MC Ourense area, avg 0.8kt
   'mc_ESGAL3600000036110B', // MC 380m, avg 0.9kt
+  // ── Added 2026-05-27 audit (ratio < 0.20 vs buoy) ──
+  // MG official station globally useless for wind — broken or completely
+  // sheltered. Still useful for temperature/humidity.
+  'mg_10064',       // Lourizán: ratio 0.13-0.18 all 4 dirs (was 0.13-0.39 in last audit — got WORSE)
+  // WU stations confirmed broken/sheltered (ratio < 0.20)
+  'wu_IOROSA14',    // A Pobra do Caramiñal: ratio 0.00, peak 1.5 m/s
+  'wu_ICANGA14',    // Cangas: ratio 0.00, peak 0.0 m/s (dead)
+  'wu_ISANXE3',     // Sanxenxo: ratio 0.05
+  'wu_ISEIXA6',     // ratio 0.06
+  'wu_INOIA11',     // Noia: ratio 0.07
+  'wu_IPONTE102',   // Pontevedra: ratio 0.10
+  'wu_ITOMIO10',    // Tomiño: ratio 0.12
+  'wu_INOIA4',      // Noia: ratio 0.12
+  'wu_INOIA10',     // Noia: ratio 0.15
+  'wu_IRIANX3',     // Rianxo: ratio 0.15
+  'wu_IRIANX5',     // Rianxo: ratio 0.16
+  'wu_IOROSA9',     // A Pobra: ratio 0.16
+  'wu_IRIBEI61',    // Ribeira: ratio 0.16
+  'wu_IBAION7',     // Baiona: ratio 0.17
+  'wu_IBOIRO4',     // Boiro: ratio 0.14
+  'wu_IGALICIA35',  // ratio 0.18
+  'wu_IREDON36',    // Redondela: ratio 0.18
+  'wu_INOIA1',      // Noia: ratio 0.18
 ]);
 
 /** Source quality multiplier by network */
