@@ -182,14 +182,24 @@ export function renderShareCanvas(canvas: HTMLCanvasElement, data: ShareCardData
   if (data.waveSummary) lines.push(`Olas ${data.waveSummary}`);
   if (lines.length > 0) ctx.fillText(fitText(ctx, lines.join('   -   '), CARD_W - PAD * 2), PAD, 520);
 
+  // Brand bottom-left
   ctx.font = '600 28px "DM Sans", system-ui, sans-serif';
   ctx.fillStyle = '#64748b';
-  ctx.fillText('MeteoMapGal', PAD, CARD_H - 36);
-  ctx.font = '400 24px "DM Sans", system-ui, sans-serif';
+  ctx.fillText('MeteoMapGal', PAD, CARD_H - 90);
+
+  // Deep-link URL bottom-left below the brand — VISIBLE so anyone who
+  // sees the image (even forwarded screenshot) knows where it points.
+  ctx.font = '500 22px "DM Sans", system-ui, sans-serif';
+  ctx.fillStyle = '#7dd3fc';
+  const linkUrl = `meteomapgal.navia3d.com/?sector=${data.sectorId}&spot=${data.spotId}`;
+  ctx.fillText(fitText(ctx, linkUrl, CARD_W - PAD * 2 - 240), PAD, CARD_H - 56);
+
+  // Timestamp bottom-right (smaller, muted)
+  ctx.font = '400 22px "DM Sans", system-ui, sans-serif';
   ctx.fillStyle = '#475569';
-  const footerRight = `meteomapgal.navia3d.com  -  ${formatTimeES(data.generatedAt)}`;
-  const footerW = ctx.measureText(footerRight).width;
-  ctx.fillText(footerRight, CARD_W - PAD - footerW, CARD_H - 36);
+  const tsText = formatTimeES(data.generatedAt);
+  const tsW = ctx.measureText(tsText).width;
+  ctx.fillText(tsText, CARD_W - PAD - tsW, CARD_H - 56);
 }
 
 function roundRect(
