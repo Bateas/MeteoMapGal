@@ -23,15 +23,15 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   const isMobile = useUIStore((s) => s.isMobile);
   const activeLayer = useWeatherLayerStore((s) => s.activeLayer);
   const layerOpacity = useWeatherLayerStore((s) => s.layerOpacity);
-  const activeSector = useSectorStore((s) => s.activeSector);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
 
   const setActiveLayer = useWeatherLayerStore((s) => s.setActiveLayer);
   const setLayerOpacity = useWeatherLayerStore((s) => s.setLayerOpacity);
 
   // Filter sector-restricted buttons (e.g. 'currents' only in Rías)
   const buttons = useMemo(
-    () => LAYER_BUTTONS.filter((b) => !b.sector || b.sector === activeSector.id),
-    [activeSector.id],
+    () => LAYER_BUTTONS.filter((b) => !b.sector || b.sector === sectorId),
+    [sectorId],
   );
 
   const handleLayerClick = (id: WeatherLayerType) => {
@@ -106,7 +106,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
             );
           })}
           {/* Tracking toggles inline — no border separator, same row */}
-          <TrackingTogglesInline isMobile={isMobile} sectorId={activeSector.id} />
+          <TrackingTogglesInline isMobile={isMobile} sectorId={sectorId} />
         </div>
 
         {/* Event/Regatta mode button */}

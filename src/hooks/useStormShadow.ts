@@ -74,7 +74,7 @@ export function useStormShadow() {
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const readingsEpoch = useWeatherStore((s) => s.readingsEpoch);
   const strikes = useLightningStore((s) => s.strikes);
-  const activeSector = useSectorStore((s) => s.activeSector);
+  const sectorCenter = useSectorStore((s) => s.activeSector.center);
 
   const { setSnapshots, setWindAnomalies, setStormShadow, setSolarIndex, setSolarStationCount } =
     useStormShadowStore(useShallow((s) => ({
@@ -90,8 +90,8 @@ export function useStormShadow() {
 
   // Target point: sector center [lon, lat]
   const targetPoint: [number, number] = useMemo(
-    () => activeSector.center,
-    [activeSector.center],
+    () => sectorCenter,
+    [sectorCenter],
   );
 
   useEffect(() => {

@@ -21,13 +21,13 @@ const REFRESH_INTERVAL = 10 * 60_000; // 10 min (Observatorio Costeiro cadence)
 const ERROR_RETRY_MS = 5 * 60_000;    // 5 min retry on error
 
 export function useBuoyData() {
-  const activeSector = useSectorStore((s) => s.activeSector);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
   const setBuoys = useBuoyStore((s) => s.setBuoys);
   const setLoading = useBuoyStore((s) => s.setLoading);
   const setError = useBuoyStore((s) => s.setError);
   const errorRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isRias = activeSector.id === 'rias';
+  const isRias = sectorId === 'rias';
 
   const fetchBuoys = useCallback(async () => {
     // Clear any pending error retry

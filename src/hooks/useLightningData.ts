@@ -319,8 +319,7 @@ export function useLightningData() {
     stormAlert: s.stormAlert,
   })));
 
-  const activeSector = useSectorStore((s) => s.activeSector);
-  const sectorCenter = activeSector.center; // [lon, lat]
+  const sectorCenter = useSectorStore((s) => s.activeSector.center); // [lon, lat]
 
   const prevAlertRef = useRef(stormAlert);
   const historyRef = useRef<ClusterSnapshot[]>([]);

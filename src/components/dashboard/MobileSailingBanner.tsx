@@ -30,7 +30,9 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
   if (!activeSpot || riskSeverity === 'critical') return null;
 
   // Build concise info: "15kt SW"
-  const windKt = activeScore?.wind?.avgSpeedKt;
+  // T3-1 fix S136+3+3: prefer effectiveWindKt (detector-boosted) so Cesantes
+  // with canalization shows 14kt not 5kt — aligns with SpotMarker + popup.
+  const windKt = activeScore?.effectiveWindKt ?? activeScore?.wind?.avgSpeedKt;
   const windDir = activeScore?.wind?.dominantDir;
   const windInfo = windKt != null && verdict !== 'calm' && verdict !== 'unknown'
     ? `${windKt.toFixed(0)}kt ${windDir ?? ''}`

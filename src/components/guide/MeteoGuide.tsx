@@ -51,13 +51,13 @@ export const MeteoGuide = memo(function MeteoGuide() {
     return 'intro';
   })();
   const [activeSection, setActiveSection] = useState(initialSection);
-  const activeSector = useSectorStore((s) => s.activeSector);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
   const isMobile = useUIStore((s) => s.isMobile);
 
   // Filter sections for current sector
   const sections = useMemo(
-    () => ALL_SECTIONS.filter((s) => !s.sectorOnly || s.sectorOnly.includes(activeSector.id)),
-    [activeSector.id],
+    () => ALL_SECTIONS.filter((s) => !s.sectorOnly || s.sectorOnly.includes(sectorId)),
+    [sectorId],
   );
 
   // Reset to intro if current section is hidden after sector switch
@@ -181,7 +181,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
         <div className={`flex-1 min-w-0 overflow-y-auto py-4 sm:py-6 ${isMobile ? 'px-3' : 'px-6'}`}>
           <div className="max-w-3xl mx-auto">
             {activeSection === 'intro' && (
-              activeSector.id === 'embalse' ? <IntroSection /> : <RiasIntroSection />
+              sectorId === 'embalse' ? <IntroSection /> : <RiasIntroSection />
             )}
             {activeSection === 'reading' && <ReadingMapSection />}
             {activeSection === 'spots' && <SpotScoringSection />}
