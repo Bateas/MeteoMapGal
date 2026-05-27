@@ -57,6 +57,7 @@ import {
   Activity,
   MessageSquare,
   Maximize2,
+  Share2,
 } from 'lucide-react';
 
 // ── Icon ID type ──────────────────────────────────────────────
@@ -71,7 +72,7 @@ export type IconId =
   | 'database' | 'gauge' | 'check' | 'sprout'
   | 'compass' | 'navigation' | 'layers' | 'eye' | 'eye-off' | 'camera'
   | 'thumbs-up' | 'thumbs-down' | 'bell' | 'bell-off'
-  | 'ruler' | 'activity' | 'message-square' | 'maximize';
+  | 'ruler' | 'activity' | 'message-square' | 'maximize' | 'share';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
 
@@ -236,6 +237,7 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'activity': Activity,
   'message-square': MessageSquare,
   'maximize': Maximize2,
+  'share': Share2,
 };
 
 // ── WeatherIcon component ─────────────────────────────────────
@@ -334,6 +336,7 @@ const ICON_LABELS: Record<IconId, string> = {
   'activity': 'Actividad',
   'message-square': 'Mensaje',
   'maximize': 'Ampliar',
+  'share': 'Compartir',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */
