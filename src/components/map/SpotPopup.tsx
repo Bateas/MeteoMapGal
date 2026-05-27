@@ -317,11 +317,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             {score && (
               <button
                 onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
-                className={`shrink-0 transition-colors ${isMobile ? 'text-base' : 'text-sm'} text-slate-500 hover:text-sky-300`}
+                className={`shrink-0 inline-flex items-center justify-center transition-colors text-slate-500 hover:text-sky-300 ${isMobile ? 'p-1' : ''}`}
                 title="Compartir como imagen"
                 aria-label="Compartir como imagen"
               >
-                {'\u21aa'}
+                <WeatherIcon id="share" size={isMobile ? 16 : 13} />
               </button>
             )}
             <span className={`text-[11px] font-bold tracking-wider ${

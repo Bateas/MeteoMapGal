@@ -37,6 +37,7 @@ import { useAirspaceStore } from '../../store/airspaceStore';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 import type { TeleconnectionIndex } from '../../api/naoClient';
 import { useUnifiedAlertPipeline } from '../../hooks/useUnifiedAlertPipeline';
+import { useDeepLink } from '../../hooks/useDeepLink';
 const DeferredHooks = lazy(() => import('./DeferredHooks').then(m => ({ default: m.DeferredHooks })));
 
 /** Collapsed sidebar: vertical icon strip with tab shortcuts — sector-aware.
@@ -117,6 +118,10 @@ function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
 }
 
 export function AppShell() {
+  // Deep-link: when arriving via a shared URL ?sector=X&spot=Y, pre-select
+  // sector + open the spot popup. Runs ONCE on mount.
+  useDeepLink();
+
   const { forceRefresh, retryDiscovery } = useWeatherData();
   const error = useWeatherStore((s) => s.error);
   const stations = useWeatherStore((s) => s.stations);

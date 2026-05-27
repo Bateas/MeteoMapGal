@@ -143,19 +143,49 @@ describe('buildShareText', () => {
     expect(text).toContain('Cesantes');
     expect(text).toContain('Navegable');
     expect(text).toContain('12kt');
-    expect(text).toContain('https://meteomapgal.navia3d.com');
+    expect(text).toContain('meteomapgal.navia3d.com');
+  });
+
+  it('includes deep-link with sector + spot params', () => {
+    const data = buildShareData(SPOT_CESANTES, SCORE_BASE, { sectorId: 'rias' });
+    const text = buildShareText(data);
+    expect(text).toContain('sector=rias');
+    expect(text).toContain('spot=cesantes');
   });
 
   it('omits wind segment when not available', () => {
     const data = buildShareData(SPOT_CESANTES, { ...SCORE_BASE, effectiveWindKt: null, wind: null } as SpotScore);
     const text = buildShareText(data);
     expect(text).toContain('Cesantes');
-    expect(text).not.toContain('kt');
+    // wind kt should be absent in line 1 — but "MeteoMapGal" line is still there
+    const firstLine = text.split('\n')[0];
+    expect(firstLine).not.toContain('kt');
   });
 
   it('includes waveSummary when present', () => {
     const data = buildShareData(SPOT_CESANTES, SCORE_BASE, { sectorId: 'rias', waveSummary: '1.2m' });
     const text = buildShareText(data);
     expect(text).toContain('olas 1.2m');
+  });
+
+  it('includes gust line when gusts exceed wind by 5kt+', () => {
+    const score = { ...SCORE_BASE, effectiveWindKt: 12, wind: { ...SCORE_BASE.wind, avgSpeedKt: 12, maxGustKt: 22 } } as SpotScore;
+    const data = buildShareData(SPOT_CESANTES, score);
+    const text = buildShareText(data);
+    expect(text).toContain('rachas 22kt');
+  });
+
+  it('skips gust mention when gusts are close to avg', () => {
+    const score = { ...SCORE_BASE, effectiveWindKt: 12, wind: { ...SCORE_BASE.wind, avgSpeedKt: 12, maxGustKt: 14 } } as SpotScore;
+    const data = buildShareData(SPOT_CESANTES, score);
+    const text = buildShareText(data);
+    expect(text).not.toContain('rachas');
+  });
+
+  it('puts air/water on a separate line', () => {
+    const data = buildShareData(SPOT_CESANTES, SCORE_BASE, { sectorId: 'rias' });
+    const lines = buildShareText(data).split('\n');
+    expect(lines.length).toBeGreaterThanOrEqual(2);
+    expect(lines.some((l) => l.includes('Mar 16.0°C'))).toBe(true);
   });
 });

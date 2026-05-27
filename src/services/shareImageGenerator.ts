@@ -24,7 +24,9 @@ import { VERDICT_STYLE, VERDICT_HEX } from '../config/verdictStyles';
 // ── Data shape ──────────────────────────────────────────────
 
 export interface ShareCardData {
+  spotId: string;
   spotName: string;
+  sectorId: 'embalse' | 'rias';
   sectorLabel: 'Rias Baixas' | 'Embalse de Castrelo';
   verdict: SpotVerdict;
   verdictLabel: string;
@@ -74,7 +76,9 @@ export function buildShareData(
   const gust = score.wind?.maxGustKt ?? null;
 
   return {
+    spotId: spot.id,
     spotName: spot.name,
+    sectorId: extras.sectorId,
     sectorLabel: extras.sectorId === 'rias' ? 'Rias Baixas' : 'Embalse de Castrelo',
     verdict,
     verdictLabel,
@@ -276,12 +280,40 @@ export function buildShareFilename(spotName: string, when: Date): string {
   return `${slug || 'spot'}-${stamp}.png`;
 }
 
+/**
+ * Build a deep-link URL that points to this spot on this sector.
+ * Future: SpotStore + SectorStore read `?sector=` and `?spot=` on mount
+ * and pre-select. Today the params are visible but ignored — the receiver
+ * still lands on the right sector if it matches their default.
+ */
+export function buildShareUrl(data: ShareCardData): string {
+  const params = new URLSearchParams();
+  params.set('sector', data.sectorId);
+  params.set('spot', data.spotId);
+  return `https://meteomapgal.navia3d.com/?${params.toString()}`;
+}
+
 export function buildShareText(data: ShareCardData): string {
-  const bits: string[] = [`${data.spotName} - ${data.verdictLabel}`];
+  // Line 1: spot — verdict · wind · waves
+  const line1Bits: string[] = [`${data.spotName} — ${data.verdictLabel}`];
   if (data.windKt != null) {
-    bits.push(`${data.windKt}kt${data.windDirCardinal ? ' ' + data.windDirCardinal : ''}`);
+    line1Bits.push(`${data.windKt}kt${data.windDirCardinal ? ' ' + data.windDirCardinal : ''}`);
   }
-  if (data.waveSummary) bits.push(`olas ${data.waveSummary}`);
-  bits.push('https://meteomapgal.navia3d.com');
-  return bits.join(' - ');
+  if (data.gustKt != null && data.windKt != null && data.gustKt >= data.windKt + 5) {
+    line1Bits.push(`rachas ${data.gustKt}kt`);
+  }
+  if (data.waveSummary) line1Bits.push(`olas ${data.waveSummary}`);
+
+  // Line 2: water / air bonus
+  const extras: string[] = [];
+  if (data.waterTempC != null) extras.push(`Mar ${data.waterTempC.toFixed(1)}°C`);
+  if (data.airTempC != null) extras.push(`Aire ${data.airTempC.toFixed(1)}°C`);
+
+  // Line 3: deep-link URL
+  const url = buildShareUrl(data);
+
+  const lines = [line1Bits.join(' · ')];
+  if (extras.length > 0) lines.push(extras.join(' · '));
+  lines.push(`MeteoMapGal: ${url}`);
+  return lines.join('\n');
 }
