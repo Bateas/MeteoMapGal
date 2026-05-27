@@ -643,6 +643,28 @@ CREATE INDEX IF NOT EXISTS idx_outcomes_eval_at
 
 GRANT SELECT, INSERT ON prediction_outcomes TO meteomap_app;
 
+-- ── Magic Window detections (T2-2 S136+3+3) ──────────
+-- One row per minute per sector when the magic-window detector fires.
+-- Append-only; low volume (~1 row per hour at most).
+--
+-- The detector evaluates RARE alignments of SW synoptic + delta-T + thermal
+-- hour + humid mouth — when active, multiple Rias Baixas spots become
+-- favorable in the next 1-6h. Frontend may query the latest active row for
+-- a banner.
+CREATE TABLE IF NOT EXISTS magic_windows (
+  time            TIMESTAMPTZ NOT NULL,
+  sector          TEXT        NOT NULL,
+  score           SMALLINT    NOT NULL,
+  summary         TEXT        NOT NULL,
+  estimated_hours SMALLINT    NOT NULL,
+  PRIMARY KEY (time, sector)
+);
+
+CREATE INDEX IF NOT EXISTS idx_magic_windows_recent
+  ON magic_windows (time DESC, sector);
+
+GRANT SELECT, INSERT ON magic_windows TO meteomap_app;
+
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
 -- SELECT add_retention_policy('alerts', INTERVAL '1 year', if_not_exists => TRUE);

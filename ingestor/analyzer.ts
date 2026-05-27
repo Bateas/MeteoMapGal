@@ -12,11 +12,13 @@ import { getPool } from './db.js';
 import { log } from './logger.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
-import { dispatchSpotAlert, dispatchForecastAlert } from './alertDispatcher.js';
+import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
+import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert } from './alertDispatcher.js';
 import { degreesToCardinal } from '../src/services/windUtils.js';
 import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import {
   scoreSpot,
+  buoyWindToBuoyReading,
   VERDICT_LABEL,
   ALERT_VERDICTS,
   LOW_VERDICTS,
@@ -257,5 +259,122 @@ export async function runAnalysis(): Promise<void> {
     } catch (err) {
       log.warn(`Forecast analysis failed: ${(err as Error).message}`);
     }
+  }
+
+  // 4. Magic Window detection (T2-2 S136+3+3, Rías-only sector-wide alert)
+  // Evaluated every cycle but with a 6h cooldown so the alert won't spam
+  // during a sustained window where the score oscillates around threshold.
+  try {
+    await evaluateAndDispatchMagicWindow(readings, buoys);
+  } catch (err) {
+    log.warn(`Magic window evaluation failed: ${(err as Error).message}`);
+  }
+}
+
+// ── Magic Window helpers (T2-2 S136+3+3) ───────────────
+
+/**
+ * Compute mouth-of-ría humidity from station readings — mirror of
+ * `computeMouthHumidityFromRows` in analyzerLogic.ts. Mouth bbox: lon < -8.78,
+ * lat 42.15-42.30. Uses 75th percentile to be robust to interior dry leaks.
+ */
+function mouthHumidityFromRows(readings: StationReading[]): number | null {
+  const vals: number[] = [];
+  for (const r of readings) {
+    if (r.longitude > -8.78 || r.latitude < 42.15 || r.latitude > 42.30) continue;
+    if (r.humidity == null) continue;
+    vals.push(r.humidity);
+  }
+  if (vals.length === 0) return null;
+  const sorted = [...vals].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.75));
+  return sorted[idx];
+}
+
+/**
+ * Count lightning strikes near Rías sector center in the last 15 minutes.
+ * Used as a veto signal for the magic window (electrical activity
+ * contradicts "magic"). Conservative 30km radius.
+ */
+async function countRecentNearbyStrikes(): Promise<number> {
+  const db = getPool();
+  try {
+    // Rías sector center ~ (42.23, -8.80). 30km ≈ 0.27° latitude.
+    const result = await db.query<{ count: string }>(`
+      SELECT COUNT(*)::text AS count
+      FROM lightning_strikes
+      WHERE time > NOW() - INTERVAL '15 minutes'
+        AND lat BETWEEN 41.96 AND 42.50
+        AND lon BETWEEN -9.07 AND -8.53
+    `);
+    return parseInt(result.rows[0]?.count ?? '0', 10) || 0;
+  } catch {
+    // Silent fallback — magic window will fall back to 0 strikes which
+    // is just slightly less conservative.
+    return 0;
+  }
+}
+
+/**
+ * Persist a magic window detection (idempotent via ON CONFLICT — one row per
+ * minute even if the cycle runs faster than that).
+ */
+async function persistMagicWindow(score: number, summary: string, estimatedHours: number): Promise<void> {
+  const db = getPool();
+  try {
+    await db.query(
+      `INSERT INTO magic_windows (time, sector, score, summary, estimated_hours)
+       VALUES (date_trunc('minute', NOW()), 'rias', $1, $2, $3)
+       ON CONFLICT (time, sector) DO NOTHING`,
+      [score, summary, estimatedHours],
+    );
+  } catch (err) {
+    // Table may not exist on older schemas — log but don't crash the cycle.
+    log.warn(`Magic window persist failed (table missing?): ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Run the magic window evaluation against current data and dispatch alert
+ * + persist if active. Sector-scoped to Rías; Embalse returns null fast.
+ */
+async function evaluateAndDispatchMagicWindow(
+  readings: StationReading[],
+  buoys: BuoyWind[],
+): Promise<void> {
+  const buoyReadings = buoys.map(buoyWindToBuoyReading);
+  const mouthHum = mouthHumidityFromRows(readings);
+
+  // Find airTemp near Rías sector center (~42.23, -8.80) — closest land station
+  const sectorLat = 42.23, sectorLon = -8.80;
+  const closestTempStation = readings
+    .filter(r => r.temperature != null && r.latitude !== 0 && r.longitude !== 0)
+    .map(r => ({
+      r,
+      d: Math.sqrt(Math.pow(r.latitude - sectorLat, 2) + Math.pow(r.longitude - sectorLon, 2)),
+    }))
+    .sort((a, b) => a.d - b.d)[0]?.r;
+  const airTemp = closestTempStation?.temperature ?? null;
+
+  const recentStrikes = await countRecentNearbyStrikes();
+
+  const result = evaluateMagicWindow({
+    sector: 'rias',
+    buoys: buoyReadings,
+    mouthHumidity: mouthHum,
+    airTempLocal: airTemp,
+    recentStrikesNearby: recentStrikes,
+  });
+
+  if (!result) return; // Sector not applicable
+
+  if (result.active) {
+    log.info(`Magic Window ACTIVE — score=${result.score}/100, ~${result.estimatedHours}h`);
+    await persistMagicWindow(result.score, result.summary, result.estimatedHours);
+    await dispatchMagicWindowAlert('Rias Baixas', result.score, result.summary, result.estimatedHours);
+  } else if (result.score >= 60) {
+    // Heartbeat: when getting close to threshold, log it so we can verify
+    // the detector is alive and see how often it nearly fires.
+    log.info(`Magic Window near-miss — score=${result.score}/100. ${result.summary}`);
   }
 }
