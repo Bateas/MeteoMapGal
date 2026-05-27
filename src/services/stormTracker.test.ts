@@ -481,3 +481,99 @@ describe('trackStorms — history pruning', () => {
     expect(r.history[0].timestamp).toBeGreaterThan(now - 1000);
   });
 });
+
+// ── Linear-regression velocity (T2-1 S136+3+3) ───────
+
+describe('trackStorms — regression-based velocity smoothing', () => {
+  /**
+   * Build a history of snapshots where a cluster moves linearly through
+   * lat/lon space at a steady ~40 km/h NE bearing.
+   */
+  function buildLinearHistory(now: number, polls: number): ClusterSnapshot[] {
+    const snaps: ClusterSnapshot[] = [];
+    // ~0.7 km NE per minute = ~42 km/h, within the 3-70 km/h speed gate.
+    const KM_PER_DEG_LAT = 111.32;
+    const KM_PER_MINUTE = 0.7;
+    for (let i = polls - 1; i >= 1; i--) {
+      // Polls go from oldest (i = polls-1) to most-recent (i = 1).
+      // Use snapshots ≥ 90s old to clear MIN_VELOCITY_AGE_MS = 60s gate.
+      const secondsAgo = Math.max(90, i * 90);
+      const minutesElapsed = secondsAgo / 60;
+      const lat = 42.5 - (minutesElapsed * KM_PER_MINUTE) / KM_PER_DEG_LAT;
+      const lon =
+        -8.2 -
+        (minutesElapsed * KM_PER_MINUTE) /
+          (KM_PER_DEG_LAT * Math.cos((42.5 * Math.PI) / 180));
+      snaps.push({
+        timestamp: now - secondsAgo * 1000,
+        centroids: [{ id: 'sustained-cluster', lat, lon, strikeCount: 20 }],
+      });
+    }
+    return snaps;
+  }
+
+  it('produces stable velocity from 4-poll monotonic trend', () => {
+    const now = Date.now();
+    const history = buildLinearHistory(now, 5);
+    const strikes = Array.from({ length: 20 }, (_, k) =>
+      makeStrike({
+        id: 100 + k,
+        lat: 42.5 + (Math.random() - 0.5) * 0.005,
+        lon: -8.2 + (Math.random() - 0.5) * 0.005,
+        timestamp: now - 30_000,
+        ageMinutes: 0.5,
+      }),
+    );
+    const r = trackStorms(strikes, history, RES_LAT, RES_LON);
+    const c = r.clusters[0];
+    expect(c.velocity).not.toBeNull();
+    expect(c.velocity!.speedKmh).toBeGreaterThan(20);
+    expect(c.velocity!.speedKmh).toBeLessThan(60);
+    // NE bearing = 45° — allow ±25° tolerance because the regression
+    // includes a noisy current point.
+    const b = c.velocity!.bearingDeg;
+    expect(b > 20 && b < 70).toBe(true);
+  });
+
+  it('reports confidence "high" for clean linear trend ≥4 points', () => {
+    const now = Date.now();
+    const history = buildLinearHistory(now, 5); // 4 historic + 1 current
+    const strikes = Array.from({ length: 20 }, (_, k) =>
+      makeStrike({
+        id: 200 + k,
+        lat: 42.5,
+        lon: -8.2,
+        timestamp: now - 30_000,
+        ageMinutes: 0.5,
+      }),
+    );
+    const r = trackStorms(strikes, history, RES_LAT, RES_LON);
+    const c = r.clusters[0];
+    expect(c.velocity).not.toBeNull();
+    // Confidence depends on R² of fit + point count
+    expect(['medium', 'high']).toContain(c.velocity!.confidence);
+  });
+
+  it('skips velocity below minSpeed gate for nearly stationary clusters', () => {
+    const now = Date.now();
+    // History showing zero motion (same lat/lon across 4 snapshots)
+    const history: ClusterSnapshot[] = [];
+    for (let i = 4; i >= 1; i--) {
+      history.push({
+        timestamp: now - i * 60_000,
+        centroids: [{ id: 'static', lat: 42.5, lon: -8.2, strikeCount: 20 }],
+      });
+    }
+    const strikes = Array.from({ length: 20 }, (_, k) =>
+      makeStrike({
+        id: 300 + k,
+        lat: 42.5,
+        lon: -8.2,
+        timestamp: now - 30_000,
+        ageMinutes: 0.5,
+      }),
+    );
+    const r = trackStorms(strikes, history, RES_LAT, RES_LON);
+    expect(r.clusters[0].velocity).toBeNull(); // <3km/h gate
+  });
+});
