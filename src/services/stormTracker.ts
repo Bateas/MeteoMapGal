@@ -85,8 +85,12 @@ export interface StormCluster {
   newestAgeMin: number;
   /** Distance from this cluster centroid to reservoir (km) */
   distanceToReservoir: number;
-  /** Velocity vector (km/h) — null if not enough history */
-  velocity: { speedKmh: number; bearingDeg: number } | null;
+  /** Velocity vector (km/h) — null if not enough history.
+   *  `confidence` indicates how trustworthy the vector is:
+   *  - 'high' = ≥3 candidates AND linear fit R² ≥ 0.85
+   *  - 'medium' = ≥2 candidates AND R² ≥ 0.6 OR EMA smoothing applied
+   *  - 'low' = single candidate / poor fit (use for severity only, not trajectory) */
+  velocity: { speedKmh: number; bearingDeg: number; confidence?: 'low' | 'medium' | 'high' } | null;
   /** Estimated time of arrival to reservoir (minutes) — null if receding or no vector */
   etaMinutes: number | null;
   /** Is the cluster moving toward the reservoir? */
@@ -400,6 +404,98 @@ function matchClustersGreedy(
 }
 
 /**
+ * Linear regression over time-series positions to compute a stable velocity vector.
+ *
+ * Background (T2-1 S136+3+3): the previous implementation took the MEDIAN of
+ * per-pair speed/bearing candidates. For monotonically-trending storms that
+ * accelerate or change bearing across the window, the median collapses the
+ * trend and produces a vector that lags. Live S136+2 storm showed centroid
+ * jumps of 10/26/43/65 km/h across 4 polls — median ≈ 35 but the radar mass
+ * was steadily moving at ~40-50 km/h NNE.
+ *
+ * Linear regression on (timestamp, lat) and (timestamp, lon) separately
+ * extracts the trend slope, which approximates the storm's TRUE drift rate
+ * across the whole window. R² indicates how well a constant-velocity model
+ * fits — if R² is low, the storm is changing direction and we report 'low'
+ * confidence (callers should de-weight the trajectory but keep severity).
+ *
+ * Returns null if fewer than 2 points or zero time span.
+ */
+interface RegressedVelocity {
+  speedKmh: number;
+  bearingDeg: number;
+  /** Goodness-of-fit (mean R² across lat/lon regressions, 0-1) */
+  rSquared: number;
+  /** Number of points used */
+  pointCount: number;
+}
+
+function regressVelocity(
+  points: Array<{ ts: number; lat: number; lon: number }>,
+  endLat: number,
+  endLon: number,
+  endTs: number,
+): RegressedVelocity | null {
+  // Include the current end point in the regression set
+  const all = [...points, { ts: endTs, lat: endLat, lon: endLon }];
+  if (all.length < 2) return null;
+
+  // Use seconds since first ts to keep numbers small + stable
+  const t0 = all[0].ts;
+  const xs = all.map((p) => (p.ts - t0) / 1000);
+  const ys_lat = all.map((p) => p.lat);
+  const ys_lon = all.map((p) => p.lon);
+
+  const n = all.length;
+  const meanX = xs.reduce((a, b) => a + b, 0) / n;
+  const meanLat = ys_lat.reduce((a, b) => a + b, 0) / n;
+  const meanLon = ys_lon.reduce((a, b) => a + b, 0) / n;
+
+  let sxxLat = 0, sxxLon = 0;
+  let sxyLat = 0, sxyLon = 0;
+  let syyLat = 0, syyLon = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - meanX;
+    const dyLat = ys_lat[i] - meanLat;
+    const dyLon = ys_lon[i] - meanLon;
+    sxxLat += dx * dx;
+    sxxLon += dx * dx;
+    sxyLat += dx * dyLat;
+    sxyLon += dx * dyLon;
+    syyLat += dyLat * dyLat;
+    syyLon += dyLon * dyLon;
+  }
+  if (sxxLat === 0) return null;
+
+  // Slopes: degrees per second
+  const slopeLat = sxyLat / sxxLat;
+  const slopeLon = sxyLon / sxxLon;
+
+  // R² per axis, then mean. If syy is 0 the point is stationary on that axis;
+  // treat it as perfect fit on that axis (R²=1) to avoid divide-by-zero.
+  const rSqLat = syyLat === 0 ? 1 : Math.max(0, Math.min(1, (sxyLat * sxyLat) / (sxxLat * syyLat)));
+  const rSqLon = syyLon === 0 ? 1 : Math.max(0, Math.min(1, (sxyLon * sxyLon) / (sxxLon * syyLon)));
+  const rSquared = (rSqLat + rSqLon) / 2;
+
+  // Convert slope (deg/s) → km/h. Use mean lat for cos correction.
+  const KM_PER_DEG_LAT = 111.32;
+  const km_per_deg_lon = 111.32 * Math.cos((meanLat * Math.PI) / 180);
+  const vLatKmh = slopeLat * KM_PER_DEG_LAT * 3600;
+  const vLonKmh = slopeLon * km_per_deg_lon * 3600;
+  const speedKmh = Math.sqrt(vLatKmh * vLatKmh + vLonKmh * vLonKmh);
+  // Bearing: angle clockwise from N (atan2 of east, north)
+  const bearingRad = Math.atan2(vLonKmh, vLatKmh);
+  const bearingDeg = ((bearingRad * 180) / Math.PI + 360) % 360;
+
+  return {
+    speedKmh: Math.round(speedKmh * 10) / 10,
+    bearingDeg: Math.round(bearingDeg),
+    rSquared,
+    pointCount: n,
+  };
+}
+
+/**
  * Match current clusters to previous snapshot, inherit IDs for continuity,
  * and compute velocity vectors.
  *
@@ -442,56 +538,55 @@ function computeVelocities(
     if (matched && recentSnapshot) {
       inheritedId = matched.id;
 
-      // ── Multi-snapshot velocity median ──
-      // For each valid snapshot that contains a centroid matching THIS cluster
-      // (within MAX_MATCH_KM of the matched-most-recent position OR of the
-      // current centroid), compute a candidate velocity. Take the median to
-      // suppress per-poll jitter — especially important for tiny clusters.
-      const candidates: Array<{ speedKmh: number; bearingDeg: number; matchTimestamp: number; matchPos: { lat: number; lon: number } }> = [];
+      // ── Linear-regression velocity (T2-1 S136+3+3) ──
+      // Collect all valid snapshots that contain a centroid matching THIS cluster
+      // (within MAX_MATCH_KM). Fit lat-vs-time and lon-vs-time linearly to
+      // produce a TREND vector — more stable than per-pair median when the
+      // storm's centroid is jittering on the head-active side.
+      const matchedPoints: Array<{ ts: number; lat: number; lon: number }> = [];
       for (const snap of validSnapshots) {
         const snapMatches = matchClustersGreedy([cluster], snap.centroids, MAX_MATCH_KM);
         const snapMatch = snapMatches.get(0);
         if (!snapMatch) continue;
-        const dt = (now - snap.timestamp) / 3_600_000;
-        if (dt <= 0) continue;
-        // Velocity from LEAD-to-LEAD movement — head propagation, not centroid drift.
-        const distMoved = distanceKm(snapMatch.lat, snapMatch.lon, cluster.leadLat, cluster.leadLon);
-        const speedKmh = (distMoved / dt);
-        const bearingDeg = computeBearing(snapMatch.lat, snapMatch.lon, cluster.leadLat, cluster.leadLon);
-        candidates.push({ speedKmh, bearingDeg, matchTimestamp: snap.timestamp, matchPos: { lat: snapMatch.lat, lon: snapMatch.lon } });
+        matchedPoints.push({ ts: snap.timestamp, lat: snapMatch.lat, lon: snapMatch.lon });
       }
+      // Sort chronologically — regression expects monotonic timestamps.
+      matchedPoints.sort((a, b) => a.ts - b.ts);
 
-      if (candidates.length > 0) {
-        // Median speed & circular-mean bearing
-        const speeds = candidates.map((c) => c.speedKmh).sort((a, b) => a - b);
-        const medianSpeed = Math.round(speeds[Math.floor(speeds.length / 2)] * 10) / 10;
-        let sumSin = 0, sumCos = 0;
-        for (const c of candidates) {
-          const rad = (c.bearingDeg * Math.PI) / 180;
-          sumSin += Math.sin(rad);
-          sumCos += Math.cos(rad);
-        }
-        const meanBearing = Math.round(((Math.atan2(sumSin, sumCos) * 180) / Math.PI + 360) % 360);
+      if (matchedPoints.length >= 1) {
+        // The regression includes the CURRENT lead position as the latest point
+        // (anchors the vector to where the cluster is now).
+        const regressed = regressVelocity(matchedPoints, cluster.leadLat, cluster.leadLon, now);
+        if (regressed) {
+          // Same gate as before: small clusters need a bigger min speed.
+          const minSpeed = cluster.strikeCount <= 3 ? 5 : 3;
+          if (regressed.speedKmh > minSpeed && regressed.speedKmh < 70) {
+            // Confidence tier from points + R²
+            let confidence: 'low' | 'medium' | 'high' = 'low';
+            if (regressed.pointCount >= 4 && regressed.rSquared >= 0.85) confidence = 'high';
+            else if (regressed.pointCount >= 3 && regressed.rSquared >= 0.6) confidence = 'medium';
 
-        // Same gate as before: small clusters need bigger min speed
-        const minSpeed = cluster.strikeCount <= 3 ? 5 : 3;
-        if (medianSpeed > minSpeed && medianSpeed < 70) {
-          velocity = { speedKmh: medianSpeed, bearingDeg: meanBearing };
+            velocity = {
+              speedKmh: regressed.speedKmh,
+              bearingDeg: regressed.bearingDeg,
+              confidence,
+            };
 
-          // Approaching: distance decreasing across the longest baseline
-          // we have, AND velocity bearing within 60° of reservoir vector.
-          const oldestCandidate = candidates.reduce((o, c) => (c.matchTimestamp < o.matchTimestamp ? c : o));
-          const bearingToReservoir = computeBearing(cluster.lat, cluster.lon, reservoirLat, reservoirLon);
-          let angleDiff = Math.abs(meanBearing - bearingToReservoir);
-          if (angleDiff > 180) angleDiff = 360 - angleDiff;
-          const prevDist = distanceKm(oldestCandidate.matchPos.lat, oldestCandidate.matchPos.lon, reservoirLat, reservoirLon);
-          const distDecreasing = cluster.distanceToReservoir < prevDist - 0.5;
-          approaching = distDecreasing && angleDiff < 60;
+            // Approaching: bearing aligned with reservoir vector AND distance
+            // decreasing across the longest baseline.
+            const oldest = matchedPoints[0];
+            const bearingToReservoir = computeBearing(cluster.lat, cluster.lon, reservoirLat, reservoirLon);
+            let angleDiff = Math.abs(regressed.bearingDeg - bearingToReservoir);
+            if (angleDiff > 180) angleDiff = 360 - angleDiff;
+            const prevDist = distanceKm(oldest.lat, oldest.lon, reservoirLat, reservoirLon);
+            const distDecreasing = cluster.distanceToReservoir < prevDist - 0.5;
+            approaching = distDecreasing && angleDiff < 60;
 
-          if (approaching && medianSpeed > 0) {
-            const approachSpeed = medianSpeed * Math.cos((angleDiff * Math.PI) / 180);
-            const edgeDist = Math.max(0, cluster.distanceToReservoir - cluster.radiusKm);
-            etaMinutes = approachSpeed > 1 ? Math.round((edgeDist / approachSpeed) * 60) : null;
+            if (approaching && regressed.speedKmh > 0) {
+              const approachSpeed = regressed.speedKmh * Math.cos((angleDiff * Math.PI) / 180);
+              const edgeDist = Math.max(0, cluster.distanceToReservoir - cluster.radiusKm);
+              etaMinutes = approachSpeed > 1 ? Math.round((edgeDist / approachSpeed) * 60) : null;
+            }
           }
         }
       }
