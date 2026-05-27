@@ -196,11 +196,38 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
 
   if (!isActive) return null;
 
+  // Worst station for the badge — auto-active overlays must SIGNAL what
+  // they are (S136+3+3 user feedback: "¿qué es esto verde/amarillo? ¿CAPE?").
+  // The label clarifies the user isn't looking at radiation or convection.
+  const worst = readings.length > 0
+    ? readings.reduce((max, r) => (r.ica > max.ica ? r : max), readings[0])
+    : null;
+  const worstLabel = worst === null ? '—'
+    : worst.ica >= 4 ? 'Mala'
+    : worst.ica >= 3 ? 'Deficiente'
+    : worst.ica >= 2 ? 'Aceptable'
+    : 'Buena';
+  const labelColor = worst !== null && worst.ica >= 4 ? 'bg-red-600/85 border-red-400/70'
+    : worst !== null && worst.ica >= 3 ? 'bg-orange-600/80 border-orange-400/70'
+    : 'bg-amber-600/75 border-amber-400/70';
+  const pollutant = worst?.dominantPollutant ? ` · ${worst.dominantPollutant}` : '';
+
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      style={{ zIndex: 13 }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        style={{ zIndex: 13 }}
+      />
+      {/* Active overlay badge — discreet identifier so the user knows
+          WHAT the green/amber/orange tint represents. Bottom-left to avoid
+          overlap with the zoom controls (top-right) and ticker (top). */}
+      <div
+        className={`absolute bottom-2 left-2 text-[10px] font-semibold text-white px-2 py-1 rounded border pointer-events-none ${labelColor}`}
+        style={{ zIndex: 14 }}
+      >
+        Calidad aire (ICA) · {worstLabel}{pollutant}
+      </div>
+    </>
   );
 });

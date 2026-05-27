@@ -373,8 +373,18 @@ async function evaluateAndDispatchMagicWindow(
     await persistMagicWindow(result.score, result.summary, result.estimatedHours);
     await dispatchMagicWindowAlert('Rias Baixas', result.score, result.summary, result.estimatedHours);
   } else if (result.score >= 60) {
-    // Heartbeat: when getting close to threshold, log it so we can verify
-    // the detector is alive and see how often it nearly fires.
+    // Heartbeat (loud): close to threshold, log it so we can verify the
+    // detector nearly fires.
     log.info(`Magic Window near-miss — score=${result.score}/100. ${result.summary}`);
+  } else {
+    // Heartbeat compact (log.info): every cycle a single ~60-char line so
+    // `tail` always shows the detector ran. Pattern from CLAUDE.md (S136+3+2):
+    // silent-by-design detectors must heartbeat so 'no log' doesn't read as
+    // 'code broken'. Prefer log.info over log.debug because INGESTOR_DEBUG
+    // is off in prod and the heartbeat would be invisible there.
+    const sw = result.signals.hasSynopticSW ? `SW${result.signals.synopticWindMs?.toFixed(0)}` : 'no-SW';
+    const dt = result.signals.deltaT !== null ? `dT${result.signals.deltaT.toFixed(1)}` : 'no-dT';
+    const hr = result.signals.mouthHumidity !== null ? `HR${result.signals.mouthHumidity.toFixed(0)}` : 'no-HR';
+    log.info(`Magic Window quiet — score=${result.score}/100 (${sw}, ${dt}, ${hr}, h=${result.signals.hour})`);
   }
 }
