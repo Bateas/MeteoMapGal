@@ -14,6 +14,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
+import { clusterSpots, CLUSTER_DISABLE_ZOOM, type SpotClusterGroup } from '../../services/spotClustering';
 
 // ── Verdict colors — aligned with simplified windSpeedColor() scale ──
 const VERDICT_COLORS: Record<SpotVerdict, { ring: string; text: string; glow: string }> = {
@@ -47,17 +48,36 @@ export const SpotMarkers = memo(function SpotMarkers() {
   // Zoom-based scaling for spots — smaller at low zoom to reduce overlap
   const { current: mapRef } = useMap();
   const [zoomScale, setZoomScale] = useState(1);
+  const [zoom, setZoom] = useState(11);
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
     const onZoom = () => {
       const z = map.getZoom();
+      setZoom(z);
       setZoomScale(z >= 11 ? 1 : z >= 10 ? 0.8 : z >= 9 ? 0.65 : 0.5);
     };
     onZoom();
     // Use 'zoom' event (fires during animation) not just 'zoomend'
     map.on('zoom', onZoom);
     return () => { map.off('zoom', onZoom); };
+  }, [mapRef]);
+
+  // Compute cluster items based on current zoom + verdicts
+  const items = useMemo(() => {
+    const verdictMap = new Map<string, SpotVerdict>();
+    for (const spot of spots) {
+      const score = scores.get(spot.id);
+      verdictMap.set(spot.id, score?.verdict ?? 'unknown');
+    }
+    return clusterSpots(spots, verdictMap, zoom);
+  }, [spots, scores, zoom]);
+
+  const handleClusterClick = useCallback((cluster: SpotClusterGroup) => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    // Fly to centroid + zoom to the threshold where the cluster will split.
+    map.flyTo({ center: [cluster.lon, cluster.lat], zoom: CLUSTER_DISABLE_ZOOM + 0.5, duration: 800 });
   }, [mapRef]);
 
   // Show spinner until scoring has run + 3s grace period.
@@ -72,7 +92,18 @@ export const SpotMarkers = memo(function SpotMarkers() {
 
   return (
     <>
-      {spots.map((spot) => {
+      {items.map((item) => {
+        if (item.type === 'cluster') {
+          return (
+            <SpotClusterMarker
+              key={item.id}
+              cluster={item}
+              zoomScale={zoomScale}
+              onClick={handleClusterClick}
+            />
+          );
+        }
+        const spot = item.spot;
         const score = scores.get(spot.id);
         const verdict: SpotVerdict = score?.verdict ?? 'unknown';
         const isActive = spot.id === activeSpotId;
@@ -101,6 +132,52 @@ export const SpotMarkers = memo(function SpotMarkers() {
         );
       })}
     </>
+  );
+});
+
+// ── Cluster marker ──────────────────────────────────────────────
+
+interface SpotClusterMarkerProps {
+  cluster: SpotClusterGroup;
+  zoomScale: number;
+  onClick: (c: SpotClusterGroup) => void;
+}
+
+const SpotClusterMarker = memo(function SpotClusterMarker({
+  cluster,
+  zoomScale,
+  onClick,
+}: SpotClusterMarkerProps) {
+  const colors = VERDICT_COLORS[cluster.worstVerdict];
+  const size = 44 * zoomScale;
+
+  return (
+    <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center">
+      <button
+        onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
+        className="relative flex items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer"
+        style={{
+          width: size,
+          height: size,
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: `2.5px solid ${colors.ring}`,
+          boxShadow: `0 0 14px ${colors.glow}80, inset 0 0 8px ${colors.glow}40`,
+        }}
+        title={`${cluster.count} spots — click para acercar`}
+        aria-label={`Cluster de ${cluster.count} spots, peor estado ${cluster.worstVerdict}`}
+      >
+        <span
+          className="font-bold tabular-nums"
+          style={{
+            color: colors.text,
+            fontSize: `${Math.max(13, 18 * zoomScale)}px`,
+            textShadow: '0 0 6px rgba(0,0,0,0.9)',
+          }}
+        >
+          {cluster.count}
+        </span>
+      </button>
+    </Marker>
   );
 });
 
