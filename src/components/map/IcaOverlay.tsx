@@ -26,7 +26,7 @@
  * ImageData scaled up for smooth gradient at 12px grid cells.
  */
 
-import { useRef, useEffect, useCallback, memo } from 'react';
+import { useRef, useEffect, useCallback, useState, memo } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import { useIcaStore } from '../../store/icaStore';
 import { interpolateScalar } from '../../services/idwInterpolation';
@@ -87,15 +87,28 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
 
   const readings = useIcaStore((s) => s.readings);
 
+  // Session-wide dismiss: user can hide the overlay even when auto-active
+  // (S136+3+3 user feedback "no lo puedo desactivar"). Re-shows on a NEW
+  // reading set (e.g. air quality worsens further to a new max ICA).
+  const [dismissedAtMaxIca, setDismissedAtMaxIca] = useState<number | null>(null);
+
   // Auto-activate: only when at least one station reports ICA ≥ 3.
   // Debug override: ?icaDebug=1 forces the overlay on for visual QA when
   // air is clean (galicia averages 1-2 most days). Read once at mount —
   // no need to react to URL changes.
   const debugForce = typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('icaDebug') === '1';
-  const isActive = debugForce
+  const maxIca = readings.length > 0
+    ? readings.reduce((m, r) => (r.ica > m ? r.ica : m), 0)
+    : 0;
+  const shouldAutoActivate = debugForce
     ? readings.length >= 2
-    : readings.some((r) => r.ica >= ACTIVATION_THRESHOLD);
+    : maxIca >= ACTIVATION_THRESHOLD;
+  // If dismissed at a given max-ICA, stay hidden until air quality WORSENS
+  // beyond that point. Prevents the overlay re-appearing on every refresh
+  // for the same event the user already acknowledged.
+  const isActive = shouldAutoActivate
+    && (dismissedAtMaxIca === null || maxIca > dismissedAtMaxIca + 0.3);
 
   const drawHeatmap = useCallback(() => {
     const canvas = canvasRef.current;
@@ -132,10 +145,14 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
         const lat = leftGeo.lat + tx * (rightGeo.lat - leftGeo.lat);
 
         const value = interpolateScalar(lat, lng, data, 2.5, MAX_RADIUS_KM);
-        // interpolateScalar returns 0 when no station is within radius —
-        // skip those cells so we don't paint a bogus "buena" tint over
-        // areas without sensor coverage.
-        if (value < 0.5) {
+        // PAINT_THRESHOLD = only show cells where the interpolated value is
+        // at or above "aceptable+" (≥ 2.5). Below that the air is "good
+        // enough" and the overlay was effectively painting all of Galicia
+        // with a green/yellow gradient even when only ONE station had ICA≥3.
+        // Reactive-map philosophy (S136+3+3 user feedback): if it doesn't
+        // change my decision RIGHT NOW, don't show it.
+        const PAINT_THRESHOLD = 2.5;
+        if (value < PAINT_THRESHOLD) {
           const idx = (row * cols + col) * 4;
           pixels[idx + 3] = 0;
           continue;
@@ -146,7 +163,11 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
         pixels[idx] = r;
         pixels[idx + 1] = g;
         pixels[idx + 2] = b;
-        pixels[idx + 3] = a;
+        // Dim 50% — much less intrusive than original 110-225 alpha.
+        // Combined with the threshold above, the overlay now ONLY highlights
+        // problematic zones (deficiente+) with a subtle tint instead of
+        // tinting the entire region.
+        pixels[idx + 3] = Math.round(a * 0.5);
       }
     }
 
@@ -219,14 +240,21 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
         className="absolute inset-0 w-full h-full pointer-events-none"
         style={{ zIndex: 13 }}
       />
-      {/* Active overlay badge — discreet identifier so the user knows
-          WHAT the green/amber/orange tint represents. Bottom-left to avoid
-          overlap with the zoom controls (top-right) and ticker (top). */}
+      {/* Active overlay badge — discreet identifier + dismiss button.
+          Bottom-left to avoid overlap with zoom controls + ticker. */}
       <div
-        className={`absolute bottom-2 left-2 text-[10px] font-semibold text-white px-2 py-1 rounded border pointer-events-none ${labelColor}`}
-        style={{ zIndex: 14 }}
+        className={`absolute bottom-2 left-2 text-[10px] font-semibold text-white pl-2 pr-1 py-1 rounded border flex items-center gap-2 ${labelColor}`}
+        style={{ zIndex: 14, pointerEvents: 'auto' }}
       >
-        Calidad aire (ICA) · {worstLabel}{pollutant}
+        <span>Calidad aire (ICA) · {worstLabel}{pollutant}</span>
+        <button
+          onClick={() => setDismissedAtMaxIca(maxIca)}
+          className="text-white/80 hover:text-white text-[12px] leading-none px-1.5 py-0.5 rounded hover:bg-black/30 transition-colors"
+          title="Ocultar (vuelve a aparecer si empeora)"
+          aria-label="Ocultar capa de calidad del aire"
+        >
+          ×
+        </button>
       </div>
     </>
   );
