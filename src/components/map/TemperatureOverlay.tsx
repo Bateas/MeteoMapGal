@@ -75,10 +75,10 @@ const tempLabelLayer: LayerProps = {
   layout: {
     'text-field': ['get', 'label'],
     'text-font': ['Noto Sans Bold'],
-    'text-size': ['interpolate', ['linear'], ['zoom'], 9.5, 0, 10, 10, 12, 14, 15, 20],
+    'text-size': ['interpolate', ['linear'], ['zoom'], 8.5, 9, 10, 12, 12, 15, 15, 20],
     'text-allow-overlap': false,
     'text-ignore-placement': false,
-    'text-padding': 4,
+    'text-padding': 5,
     'text-offset': [0, -1.8],
     'text-anchor': 'bottom',
   },
@@ -86,7 +86,7 @@ const tempLabelLayer: LayerProps = {
     'text-color': '#ffffff',
     'text-halo-color': 'rgba(0, 0, 0, 0.95)',
     'text-halo-width': 2.5,
-    'text-opacity': ['interpolate', ['linear'], ['zoom'], 9.5, 0, 10, 1],
+    'text-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0, 8.5, 1],
   },
 };
 
