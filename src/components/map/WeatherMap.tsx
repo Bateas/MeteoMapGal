@@ -124,7 +124,8 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
 
 export function WeatherMap() {
   const mapRef = useRef<MapRef | null>(null);
-  const activeSector = useSectorStore((s) => s.activeSector);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const sectorInitialView = useSectorStore((s) => s.activeSector.initialView);
   const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
   const mapStyle = useMemo(() => buildMapStyle(activeStyleId), [activeStyleId]);
   const stations = useWeatherStore((s) => s.stations);
@@ -161,7 +162,7 @@ export function WeatherMap() {
   const showWebcams = useWebcamStore((s) => s.showOverlay);
   const selectedWebcamId = useWebcamStore((s) => s.selectedWebcamId);
   const selectWebcam = useWebcamStore((s) => s.selectWebcam);
-  const sectorWebcams = useMemo(() => getWebcamsForSector(activeSector.id), [activeSector.id]);
+  const sectorWebcams = useMemo(() => getWebcamsForSector(sectorId), [sectorId]);
   const selectedWebcam = sectorWebcams.find((c) => c.id === selectedWebcamId) ?? null;
 
   const flyToTarget = useUIStore((s) => s.flyToTarget);
@@ -228,7 +229,7 @@ export function WeatherMap() {
 
   // Track zoom level for label visibility — quantized to visual breakpoints
   // to avoid re-rendering ~84 markers on every 0.1 zoom change
-  const [zoomLevel, setZoomLevel] = useState(activeSector.initialView.zoom);
+  const [zoomLevel, setZoomLevel] = useState(sectorInitialView.zoom);
   const quantizeZoom = useCallback((z: number) => {
     // Only 4 breakpoints matter: <9.5, 9.5-11, 11-12, >=12
     if (z < 9.5) return 9;
@@ -299,7 +300,7 @@ export function WeatherMap() {
     if (selectedStationId) selectStation(null);
     if (selectedBuoyId != null) selectBuoy(null);
     if (selectedWebcamId) selectWebcam(null);
-    const { longitude, latitude, zoom, pitch, bearing } = activeSector.initialView;
+    const { longitude, latitude, zoom, pitch, bearing } = sectorInitialView;
     map.flyTo({
       center: [longitude, latitude],
       zoom,
@@ -310,7 +311,7 @@ export function WeatherMap() {
   // initialView is derived from sector id (immutable configs), but include it
   // so the linter sees all values used inside the effect are listed.
   // eslint-disable-next-line react-hooks/exhaustive-deps -- selection getters/setters intentionally omitted: only react to sector changes
-  }, [activeSector.id, activeSector.initialView]);
+  }, [sectorId, sectorInitialView]);
 
   /** Fly to a specific target (triggered from FieldDrawer zone click / SpotComparator). */
   useEffect(() => {
@@ -350,10 +351,10 @@ export function WeatherMap() {
     registerStationIcon(map);
     registerBuoyIcon(map);
     registerWebcamIcon(map);
-    if (activeSector.id === 'embalse' || regattaActive) {
+    if (sectorId === 'embalse' || regattaActive) {
       import('./AviationOverlay').then(({ registerAircraftIcon }) => registerAircraftIcon(map));
     }
-  }, [activeSector.id, regattaActive]);
+  }, [sectorId, regattaActive]);
 
   /** Register all map icons when the map loads. */
   const handleMapLoad = useCallback(() => {
@@ -383,7 +384,7 @@ export function WeatherMap() {
       <Map
         ref={mapRef}
         mapLib={maplibregl}
-        initialViewState={activeSector.initialView}
+        initialViewState={sectorInitialView}
         style={{ width: '100%', height: '100%' }}
         mapStyle={mapStyle}
         maxPitch={85}
@@ -401,10 +402,10 @@ export function WeatherMap() {
         {/* Localize MapLibre controls to Spanish after mount */}
 
         {/* IHM nautical chart — Rías only, below everything except base tiles */}
-        {activeSector.id === 'rias' && <Suspense fallback={null}><NauticalChartOverlay /></Suspense>}
+        {sectorId === 'rias' && <Suspense fallback={null}><NauticalChartOverlay /></Suspense>}
 
         {/* OpenSeaMap seamarks — Rías only, above nautical chart, below weather overlays */}
-        {activeSector.id === 'rias' && <Suspense fallback={null}><SeamarksOverlay /></Suspense>}
+        {sectorId === 'rias' && <Suspense fallback={null}><SeamarksOverlay /></Suspense>}
 
         {/* IGN terrain overlays — available in both sectors */}
         <IGNOrthoOverlay />
@@ -418,15 +419,15 @@ export function WeatherMap() {
         <Suspense fallback={null}><SSTOverlay /></Suspense>
 
         {/* Thermal zone polygons — only for Embalse sector */}
-        {activeSector.id === 'embalse' && <Suspense fallback={null}><ThermalZoneOverlay /></Suspense>}
-        {activeSector.id === 'embalse' && <Suspense fallback={null}><ThermalFlowOverlay /></Suspense>}
+        {sectorId === 'embalse' && <Suspense fallback={null}><ThermalZoneOverlay /></Suspense>}
+        {sectorId === 'embalse' && <Suspense fallback={null}><ThermalFlowOverlay /></Suspense>}
 
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
 
         {/* Wind field arrows around stations + buoys (hidden in simpleMode) */}
         {!simpleMode && (
-          <WindFieldOverlay stations={stations} readings={currentReadings} buoys={activeSector.id === 'rias' ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
+          <WindFieldOverlay stations={stations} readings={currentReadings} buoys={sectorId === 'rias' ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
         )}
 
         {/* Temp-only station dots — GPU-accelerated. Kept visible in simpleMode
@@ -446,7 +447,7 @@ export function WeatherMap() {
         )}
 
         {/* Marine buoy markers — GPU circle+symbol layer (Rías only) */}
-        {activeSector.id === 'rias' && (
+        {sectorId === 'rias' && (
           <BuoySymbolLayer
             buoys={buoys}
             selectedBuoyId={selectedBuoyId}
@@ -467,7 +468,7 @@ export function WeatherMap() {
         <SpotMarkers />
 
         {/* Thermal alert badges + propagation — only for Embalse sector */}
-        {activeSector.id === 'embalse' && (
+        {sectorId === 'embalse' && (
           <>
             <ThermalAlertMarkers />
             <PropagationArrows />
@@ -517,7 +518,7 @@ export function WeatherMap() {
         <Suspense fallback={null}><AirspaceOverlay /></Suspense>
 
         {/* Aviation aircraft monitoring — Embalse always, Rías during events */}
-        {(activeSector.id === 'embalse' || regattaActive) && <Suspense fallback={null}><AviationOverlay /></Suspense>}
+        {(sectorId === 'embalse' || regattaActive) && <Suspense fallback={null}><AviationOverlay /></Suspense>}
 
         {/* Regatta/Event mode — zone + buoy markers */}
         <RegattaOverlay />
@@ -531,7 +532,7 @@ export function WeatherMap() {
         )}
 
         {/* Selected buoy popup — Rías Baixas only */}
-        {activeSector.id === 'rias' && selectedBuoy && (
+        {sectorId === 'rias' && selectedBuoy && (
           <BuoyPopup reading={selectedBuoy} />
         )}
 
@@ -566,7 +567,7 @@ export function WeatherMap() {
       <MapStyleSelector />
       <SSTLegend />
       {/* SpotScoreLegend removed — verdict info visible on each spot badge. Revisit if needed for specific modes */}
-      {activeSector.id === 'embalse' && <SailingConditionBanner />}
+      {sectorId === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
 
       {/* Regatta/Event mode panel — lazy loaded (only used in event mode) */}

@@ -28,9 +28,11 @@ import {
   type HealthInfo,
 } from '../../api/historyClient';
 import { WindRoseHistorical } from '../charts/WindRoseHistorical';
+import { SectorSummaryPanel } from './SectorSummaryPanel';
 import { msToKnots } from '../../services/windUtils';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
+import { useSectorStore } from '../../store/sectorStore';
 
 // ── Constants ──────────────────────────────────────────
 
@@ -38,6 +40,8 @@ type Metric = 'temperature' | 'wind_speed' | 'wind_gust' | 'humidity' | 'pressur
 type TimeRange = '24h' | '7d' | '30d' | 'custom';
 type Interval = 'raw' | 'hourly';
 type ViewMode = 'chart' | 'windrose';
+/** Top-level toggle: 'sector' = aggregate analytics (Phase 4), 'station' = per-station explorer */
+type Scope = 'sector' | 'station';
 
 const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
   { key: 'temperature', label: 'Temp', unit: '°C', color: '#ef4444' },
@@ -115,6 +119,22 @@ const SOURCE_LABELS: Record<string, string> = {
 export const HistoryDashboard = memo(function HistoryDashboard() {
   // Listen for external station selection (from popup "Ver historial" or map click)
   const historyStationId = useWeatherSelectionStore((s) => s.historyStationId);
+
+  // Sector scope for the Phase 4 summary panel. Narrow string → union so
+  // SectorSummaryPanel's strict prop type accepts it (Sector.id is `string`).
+  const rawSectorId = useSectorStore((s) => s.activeSector.id);
+  const sectorId: 'embalse' | 'rias' = rawSectorId === 'rias' ? 'rias' : 'embalse';
+
+  // Top-level scope toggle. Default: when the user opens the History tab fresh
+  // (no specific station picked), show the sector summary first — answers
+  // "what has the sector done lately?" in 30 seconds. If user clicked "Ver
+  // historial" on a specific station from a popup, jump straight to station view.
+  const [scope, setScope] = useState<Scope>(() => (historyStationId ? 'station' : 'sector'));
+
+  // When an external station selection comes in, switch to station scope.
+  useEffect(() => {
+    if (historyStationId) setScope('station');
+  }, [historyStationId]);
 
   // Core state
   const [stations, setStations] = useState<HistoryStation[]>([]);
@@ -440,7 +460,36 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
           )}
         </div>
 
-        {/* Station selector */}
+        {/* Scope toggle: Sector summary (Phase 4) vs per-station explorer */}
+        <div className="px-3 pb-2">
+          <div className="grid grid-cols-2 gap-1 bg-slate-900/40 p-0.5 rounded text-[11px]">
+            <button
+              onClick={() => setScope('sector')}
+              className={`py-1.5 rounded transition-colors font-medium ${
+                scope === 'sector'
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              aria-pressed={scope === 'sector'}
+            >
+              Resumen sector
+            </button>
+            <button
+              onClick={() => setScope('station')}
+              className={`py-1.5 rounded transition-colors font-medium ${
+                scope === 'station'
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              aria-pressed={scope === 'station'}
+            >
+              Por estación
+            </button>
+          </div>
+        </div>
+
+        {/* Station selector — only in station scope */}
+        {scope === 'station' && (
         <div className="px-3 pb-2">
           <select
             value={selectedStation}
@@ -465,8 +514,10 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
             ))}
           </select>
         </div>
+        )}
 
-        {/* Compare toggle + second station */}
+        {/* Compare toggle + second station — only in station scope */}
+        {scope === 'station' && (
         <div className="px-3 pb-2">
           <button
             onClick={() => {
@@ -510,8 +561,10 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
             </select>
           )}
         </div>
+        )}
 
-        {/* Time range buttons */}
+        {/* Time range buttons — only in station scope */}
+        {scope === 'station' && (
         <div className="flex gap-1 px-3 pb-2">
           {TIME_RANGES.map((r) => (
             <button
@@ -540,9 +593,10 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
             {interval === 'hourly' ? 'horario' : '5min'}
           </span>
         </div>
+        )}
 
         {/* Custom date range picker */}
-        {timeRange === 'custom' && (
+        {scope === 'station' && timeRange === 'custom' && (
           <div className="flex gap-1.5 px-3 pb-2 items-center">
             <input
               type="date"
@@ -560,7 +614,8 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
           </div>
         )}
 
-        {/* Metric toggle + Wind Rose button */}
+        {/* Metric toggle + Wind Rose button — only in station scope */}
+        {scope === 'station' && (
         <div className="flex gap-1 px-3 pb-2">
           {METRICS.map((m) => (
             <button
@@ -596,9 +651,18 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
             Rosa
           </button>
         </div>
+        )}
       </div>
 
-      {/* Chart / Wind Rose */}
+      {/* ── Sector summary panel (Phase 4) ── */}
+      {scope === 'sector' && (
+        <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3">
+          <SectorSummaryPanel sector={sectorId} days={30} />
+        </div>
+      )}
+
+      {/* Chart / Wind Rose — only in station scope */}
+      {scope === 'station' && (
       <div className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-2">
         {viewMode === 'windrose' ? (
           // ── Wind Rose view ──
@@ -710,16 +774,17 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
           </>
         )}
       </div>
+      )}
 
-      {/* Compare legend (when wind rose + compare are both on) */}
-      {viewMode === 'windrose' && compareMode && compareStation && (
+      {/* Compare legend (when wind rose + compare are both on) — station only */}
+      {scope === 'station' && viewMode === 'windrose' && compareMode && compareStation && (
         <div className="text-center text-[11px] text-slate-500">
           Rosa de vientos solo muestra la estación principal
         </div>
       )}
 
-      {/* Stats summary */}
-      {stats && !loading && viewMode === 'chart' && (
+      {/* Stats summary — station only */}
+      {scope === 'station' && stats && !loading && viewMode === 'chart' && (
         <div className="rounded-lg border border-slate-700/50 bg-slate-900/50">
           <div className="grid grid-cols-4 gap-px bg-slate-700/30">
             <StatCell

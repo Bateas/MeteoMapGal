@@ -58,7 +58,9 @@ export function useUnifiedAlertPipeline({
   teleconnectionsRef,
 }: PipelineParams): ReturnType<typeof checkAllFieldAlerts> | null {
   // ── Inputs from stores ───────────────────────────────
-  const activeSector = useSectorStore((s) => s.activeSector);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const sectorCenter = useSectorStore((s) => s.activeSector.center);
+  const sectorRadiusKm = useSectorStore((s) => s.activeSector.radiusKm);
   const convectionData = useForecastStore((s) => s.convectionData);
   const hourly = useForecastStore((s) => s.hourly);
   // Audit S136+3 #16: separate selectors + useMemo prevents ternary from
@@ -112,7 +114,7 @@ export function useUnifiedAlertPipeline({
           readingHistory,
           stations,
           currentReadings,
-          activeSector.center,
+          sectorCenter,
           airspaceCheck ?? undefined,
           seasonGDD,
         ));
@@ -120,7 +122,7 @@ export function useUnifiedAlertPipeline({
     }, 500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory changes
-  }, [forecastHourly, historyEpoch, stations, currentReadings, activeSector.center, airspaceCheck, seasonGDD]);
+  }, [forecastHourly, historyEpoch, stations, currentReadings, sectorCenter, airspaceCheck, seasonGDD]);
 
   // ── Effect 3: Unified aggregation + notifications ─────
   // Audit S136+3 #6: signature-hash skip — the 500ms debounce only batches
@@ -211,8 +213,8 @@ export function useUnifiedAlertPipeline({
       // (not daylight-dependent like solar signature). Filter by 1.5× sector
       // radius — fog 130km away is irrelevant to the user.
       const visMap = useWeatherStore.getState().visibilityReadings;
-      const [secLon, secLat] = activeSector.center;
-      const sectorMaxDistKm = activeSector.radiusKm * 1.5;
+      const [secLon, secLat] = sectorCenter;
+      const sectorMaxDistKm = sectorRadiusKm * 1.5;
       for (const v of visMap.values()) {
         if (v.visibility >= 1) continue;
         const distKm = haversineDistance(secLat, secLon, v.lat, v.lon);
@@ -250,8 +252,8 @@ export function useUnifiedAlertPipeline({
           webcamFogCount,
           webcamFogIds,
           fogSources: fogSources.length,
-          sectorId: activeSector.id,
-          willCallBuildMaritimeFog: activeSector.id === 'rias' && buoys.length > 0,
+          sectorId: sectorId,
+          willCallBuildMaritimeFog: sectorId === 'rias' && buoys.length > 0,
         });
       }
 
@@ -264,8 +266,8 @@ export function useUnifiedAlertPipeline({
         currentReadings,
         readingHistory,
         // Maritime alerts (cross-sea, fog, upwelling) only apply to coastal Rías sector
-        buoys: activeSector.id === 'rias' && buoys.length > 0 ? buoys : undefined,
-        sstHistory: activeSector.id === 'rias' && sstHistory.size > 0 ? sstHistory : undefined,
+        buoys: sectorId === 'rias' && buoys.length > 0 ? buoys : undefined,
+        sstHistory: sectorId === 'rias' && sstHistory.size > 0 ? sstHistory : undefined,
         stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
         teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
         webcamFogDetected,
@@ -284,7 +286,7 @@ export function useUnifiedAlertPipeline({
   }, [
     stormAlert, stormShadow, thermalProfile, fieldAlerts, forecastFetchedAt,
     setUnifiedAlerts, notifConfig, currentReadings, historyEpoch,
-    buoys, sstHistory, stations, activeSector.id, teleconnectionsRef,
+    buoys, sstHistory, stations, sectorId, teleconnectionsRef,
   ]);
 
   return fieldAlerts;

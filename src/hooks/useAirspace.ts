@@ -26,7 +26,9 @@ const EMPTY_CHECK: AirspaceCheck = {
 };
 
 export function useAirspace(): AirspaceCheck {
-  const activeSector = useSectorStore((s) => s.activeSector);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const sectorCenter = useSectorStore((s) => s.activeSector.center);
+  const sectorRadiusKm = useSectorStore((s) => s.activeSector.radiusKm);
   const check = useAirspaceStore((s) => s.check);
   const lastZoneFetch = useAirspaceStore((s) => s.lastZoneFetch);
   const lastNotamFetch = useAirspaceStore((s) => s.lastNotamFetch);
@@ -38,19 +40,19 @@ export function useAirspace(): AirspaceCheck {
   const setError = useAirspaceStore((s) => s.setError);
   const reset = useAirspaceStore((s) => s.reset);
 
-  const prevSectorId = useRef(activeSector.id);
+  const prevSectorId = useRef(sectorId);
 
   // Reset on sector change
   useEffect(() => {
-    if (prevSectorId.current !== activeSector.id) {
+    if (prevSectorId.current !== sectorId) {
       reset();
-      prevSectorId.current = activeSector.id;
+      prevSectorId.current = sectorId;
     }
-  }, [activeSector.id, reset]);
+  }, [sectorId, reset]);
 
   // Fetch zones + NOTAMs and evaluate
   const fetchAndEvaluate = useCallback(async () => {
-    const bbox = bboxFromCenter(activeSector.center, activeSector.radiusKm);
+    const bbox = bboxFromCenter(sectorCenter, sectorRadiusKm);
     const now = Date.now();
 
     const needZones = now - lastZoneFetch > ZONE_CACHE_TTL;
@@ -71,8 +73,8 @@ export function useAirspace(): AirspaceCheck {
       if (needNotams) setNotams(notams);
 
       const result = evaluateAirspace(
-        activeSector.center,
-        activeSector.radiusKm,
+        sectorCenter,
+        sectorRadiusKm,
         zones,
         notams,
       );
@@ -84,7 +86,7 @@ export function useAirspace(): AirspaceCheck {
     } finally {
       setLoading(false);
     }
-  }, [activeSector.center, activeSector.radiusKm, lastZoneFetch, lastNotamFetch, check, setZones, setNotams, setCheck, setLoading, setError]);
+  }, [sectorCenter, sectorRadiusKm, lastZoneFetch, lastNotamFetch, check, setZones, setNotams, setCheck, setLoading, setError]);
 
   // Initial fetch on sector change
   useEffect(() => {

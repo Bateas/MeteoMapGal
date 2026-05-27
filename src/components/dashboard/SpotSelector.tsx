@@ -210,9 +210,14 @@ function SpotCard({
       {score && (
         <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-slate-400">
           {score.wind && (
-            <span>{score.wind.dominantDir} ~{score.wind.avgSpeedKt.toFixed(0)}kt</span>
+            // T3-1 fix S136+3+3: prefer effectiveWindKt (post-detector boost,
+            // e.g. Cesantes canalization can lift 5kt raw → 14kt effective).
+            // Falls back to raw avgSpeedKt for spots without active boost.
+            <span>
+              {score.wind.dominantDir} ~{(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt
+            </span>
           )}
-          {score.gustKt != null && score.gustKt > (score.wind?.avgSpeedKt ?? 0) + 3 && (
+          {score.gustKt != null && score.gustKt > (score.effectiveWindKt ?? score.wind?.avgSpeedKt ?? 0) + 3 && (
             <span className="text-orange-400">Racha {score.gustKt.toFixed(0)}kt</span>
           )}
           {score.wind?.matchedPattern && (

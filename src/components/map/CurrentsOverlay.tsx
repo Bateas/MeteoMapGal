@@ -76,9 +76,9 @@ export const CurrentsOverlay = memo(function CurrentsOverlay() {
   const { current: mapInstance } = useMap();
   const activeLayer = useWeatherLayerStore((s) => s.activeLayer);
   const opacity = useWeatherLayerStore((s) => s.layerOpacity);
-  const activeSector = useSectorStore((s) => s.activeSector);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
 
-  const isActive = activeLayer === 'currents' && activeSector.id === 'rias';
+  const isActive = activeLayer === 'currents' && sectorId === 'rias';
   const [currentsUrl, setCurrentsUrl] = useState<string | null>(null);
 
   // Visibility-aware polling — pauses when tab is hidden

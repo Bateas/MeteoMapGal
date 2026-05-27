@@ -107,7 +107,10 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       // Sailing spots: use wind score
       if (!sc || sc.verdict === 'unknown') continue;
       const v = VERDICT_STYLE[sc.verdict];
-      const kt = sc.wind?.avgSpeedKt;
+      // T3-1 fix S136+3+3: prefer effectiveWindKt (detector-boosted) over raw
+      // avgSpeedKt — keeps ticker aligned with SpotMarker + popup verdict
+      // when Cesantes canalization / Bocana terral are active.
+      const kt = sc.effectiveWindKt ?? sc.wind?.avgSpeedKt;
       const dir = sc.wind?.dominantDir ?? '';
       const pri = sc.verdict === 'calm' ? 1 : sc.verdict === 'light' ? 3 : sc.verdict === 'sailing' ? 7 : 10;
       result.push({

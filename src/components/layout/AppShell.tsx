@@ -119,7 +119,9 @@ export function AppShell() {
   const { forceRefresh, retryDiscovery } = useWeatherData();
   const error = useWeatherStore((s) => s.error);
   const stations = useWeatherStore((s) => s.stations);
-  const activeSector = useSectorStore((s) => s.activeSector);
+  const activeSectorId = useSectorStore((s) => s.activeSector.id);
+  const activeSectorCenter = useSectorStore((s) => s.activeSector.center);
+  const activeSectorName = useSectorStore((s) => s.activeSector.name);
 
   // ── Responsive state ──────────────────────────────────
   const isMobile = useUIStore((s) => s.isMobile);
@@ -209,7 +211,7 @@ export function AppShell() {
     setShowLoading(true);
     setMapRevealed(false);
     loadingStartRef.current = Date.now();
-  }, [activeSector.id]);
+  }, [activeSectorId]);
 
   // Reveal map immediately — tiles load fast, data overlays appear as they arrive.
   // This improves FCP: user sees the map base within ~2s instead of waiting ~12s.
@@ -217,17 +219,17 @@ export function AppShell() {
     // Show map after 1.5s regardless of data — tiles are already loading
     const t = setTimeout(() => setMapRevealed(true), 1500);
     return () => clearTimeout(t);
-  }, [activeSector.id]);  
+  }, [activeSectorId]);
 
   // Hide LoadingScreen after min display time OR data ready (whichever is later)
-  // activeSector.id in deps ensures timer resets on sector switch (prevents stale dismiss)
+  // activeSectorId in deps ensures timer resets on sector switch (prevents stale dismiss)
   useEffect(() => {
     const elapsed = Date.now() - loadingStartRef.current;
     // If data arrived, dismiss quickly. If not, dismiss after 5s max (map visible underneath)
     const maxWait = readingsCount > 0 ? Math.max(0, 2500 - elapsed) : 5000;
     const t = setTimeout(() => setShowLoading(false), maxWait);
     return () => clearTimeout(t);
-  }, [readingsCount > 0, activeSector.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [readingsCount > 0, activeSectorId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Geolocation auto-sector removed (permission popup scared users)
 
@@ -239,7 +241,7 @@ export function AppShell() {
   const gddFetchedRef = useRef(false);
   useEffect(() => {
     if (gddFetchedRef.current) return;
-    const [lon, lat] = activeSector.center;
+    const [lon, lat] = activeSectorCenter;
     const t = setTimeout(() => {
       gddFetchedRef.current = true;
       fetchSeasonGDD(lat, lon).then((result) => {
@@ -247,7 +249,7 @@ export function AppShell() {
       });
     }, 20_000);
     return () => clearTimeout(t);
-  }, [activeSector.center]);
+  }, [activeSectorCenter]);
 
   // ── Unified alert pipeline (extracted S136+3+2 TIER 2 A2-5) ──────
   // The 3-effect chain (lapseRate → fieldAlerts → unified aggregation)
@@ -319,8 +321,8 @@ export function AppShell() {
   const stormPrediction = useStormPrediction();
   const stormAlertLevel = useLightningStore((s) => s.stormAlert.level);
   useEffect(() => {
-    logPredictionSnapshot(stormPrediction, stormAlertLevel !== 'none', activeSector.id);
-  }, [stormPrediction, stormAlertLevel, activeSector.id]);
+    logPredictionSnapshot(stormPrediction, stormAlertLevel !== 'none', activeSectorId);
+  }, [stormPrediction, stormAlertLevel, activeSectorId]);
 
   return (
     <div className="h-screen-safe w-full flex flex-col bg-slate-950 text-white overflow-hidden">
@@ -444,7 +446,7 @@ export function AppShell() {
             Mounted on initial load & sector switch. Handles its own fade-out. */}
         {showLoading && (
           <LoadingScreen
-            sectorName={activeSector.name}
+            sectorName={activeSectorName}
             error={error}
             onRetry={retryDiscovery}
           />
