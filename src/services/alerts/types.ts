@@ -20,7 +20,8 @@ export type AlertCategory =
   | 'wind-front'     // Frente de viento
   | 'pressure'       // Tendencia barométrica
   | 'marine'         // Mar cruzada / oleaje
-  | 'upwelling';     // Afloramiento costero
+  | 'upwelling'      // Afloramiento costero
+  | 'downburst';     // Downburst seco / wind shear costero
 
 export type AlertSeverity = 'info' | 'moderate' | 'high' | 'critical';
 
@@ -67,6 +68,7 @@ export interface CompositeRisk {
 
 export const CATEGORY_WEIGHT: Record<AlertCategory, number> = {
   'storm':       3.0,   // Life-threatening
+  'downburst':   3.5,   // Sudden severe gusts without rain — aviation + sailing critical
   'frost':       2.0,   // Crop damage
   'inversion':   1.8,   // Air quality + sailing impact
   'rain':        1.5,   // Crop / flood

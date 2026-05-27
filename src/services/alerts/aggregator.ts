@@ -25,6 +25,7 @@ import { buildCrossSeaAlerts } from '../crossSeaService';
 import { buildUpwellingAlerts } from '../upwellingService';
 import { buildWindTrendAlerts } from './windTrendAlerts';
 import { buildRainAlerts } from './rainAlerts';
+import { buildDownburstAlerts } from './downburstAlerts';
 
 // ── NAO/AO context helpers ──────────────────────────────────
 
@@ -166,6 +167,7 @@ export function aggregateAllAlerts(sources: {
     ...(sources.currentReadings && sources.readingHistory
       ? buildWindTrendAlerts(sources.currentReadings, sources.readingHistory) : []),
     ...buildRainAlerts(sources.forecast),
+    ...buildDownburstAlerts(sources.currentReadings, sources.forecast),
   ];
 
   // ── Category dedup: merge alerts from same category into one ──
