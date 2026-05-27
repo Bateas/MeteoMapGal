@@ -12,6 +12,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { fetchSwanHsAt } from '../../api/swanGetFeatureInfo';
+import { ShareSpotModal } from '../spot/ShareSpotModal';
 
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -247,6 +248,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
     return () => { cancelled = true; };
   }, [spot.id, spot.category, spot.center]);
 
+  // Share modal (T3-5)
+  const [shareOpen, setShareOpen] = useState(false);
+
   const surfInfo = useMemo(() => {
     if (spot.category !== 'surf' || marineForecast.length === 0) return null;
     const now = marineForecast[0];
@@ -310,6 +314,16 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             >
               {favoriteSpotId === spot.id ? '\u2605' : '\u2606'}
             </button>
+            {score && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
+                className={`shrink-0 transition-colors ${isMobile ? 'text-base' : 'text-sm'} text-slate-500 hover:text-sky-300`}
+                title="Compartir como imagen"
+                aria-label="Compartir como imagen"
+              >
+                {'\u21aa'}
+              </button>
+            )}
             <span className={`text-[11px] font-bold tracking-wider ${
               spot.category === 'surf'
                 ? 'text-cyan-300 bg-cyan-500/20 border-cyan-500/30'
@@ -751,46 +765,56 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   // ── Mobile: bottom sheet ──────────────────────────
   if (isMobile) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up">
-        <div
-          ref={sheetRef}
-          className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[60dvh] overflow-y-auto p-4"
-          style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
-        >
-          {/* Drag handle — swipe down to dismiss */}
-          <div className="flex justify-center mb-3" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-            <div className="w-10 h-1 rounded-full bg-slate-600" />
-          </div>
-          {/* Close button */}
-          <button
-            onClick={dismiss}
-            className="absolute top-3 right-3 p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
-            aria-label="Cerrar"
+      <>
+        <div className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up">
+          <div
+            ref={sheetRef}
+            className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[60dvh] overflow-y-auto p-4"
+            style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          {popupContent}
+            {/* Drag handle — swipe down to dismiss */}
+            <div className="flex justify-center mb-3" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+              <div className="w-10 h-1 rounded-full bg-slate-600" />
+            </div>
+            {/* Close button */}
+            <button
+              onClick={dismiss}
+              className="absolute top-3 right-3 p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
+              aria-label="Cerrar"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            {popupContent}
+          </div>
         </div>
-      </div>
+        {shareOpen && score && (
+          <ShareSpotModal spot={spot} score={score} onClose={() => setShareOpen(false)} />
+        )}
+      </>
     );
   }
 
   // ── Desktop: MapLibre popup ───────────────────────
   return (
-    <Popup
-      longitude={spot.center[0]}
-      latitude={spot.center[1]}
-      anchor="bottom"
-      offset={[0, -40]}
-      closeOnClick={false}
-      onClose={() => selectSpot('')}
-      className="spot-popup"
-      maxWidth="380px"
-    >
-      {popupContent}
-    </Popup>
+    <>
+      <Popup
+        longitude={spot.center[0]}
+        latitude={spot.center[1]}
+        anchor="bottom"
+        offset={[0, -40]}
+        closeOnClick={false}
+        onClose={() => selectSpot('')}
+        className="spot-popup"
+        maxWidth="380px"
+      >
+        {popupContent}
+      </Popup>
+      {shareOpen && score && (
+        <ShareSpotModal spot={spot} score={score} onClose={() => setShareOpen(false)} />
+      )}
+    </>
   );
 });
 
