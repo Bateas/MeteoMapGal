@@ -23,6 +23,7 @@ import { getSpotsForSector } from '../../config/spots';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
+import { assessSeaBreezeRias } from '../../services/seaBreezeService';
 import { fetchTidePredictions, type TidePoint } from '../../api/tideClient';
 import { isPeakUvHour, uvCategory, uvTickerLabel, UV_TICKER_THRESHOLD } from '../../services/uvService';
 import {
@@ -429,6 +430,26 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         bg: isLarge ? 'bg-red-900/20' : 'bg-orange-900/20',
         priority: isLarge ? 7 : 6,
       });
+    }
+
+    // ── Sea breeze / viración térmica engine (priority 6 — Rías only) ──
+    // Sector-wide thermal driver: when inland heats well above the coast on a
+    // summer afternoon, the breeze fills in. Tells the user the engine is ON
+    // before any individual spot flips. Phase A surface (ticker); animated
+    // front arrow is Phase B.
+    if (sectorId === 'rias') {
+      const breeze = assessSeaBreezeRias(readings, stations);
+      if (breeze.active && breeze.phase !== 'building') {
+        // Only surface once the breeze has actually filled in (active/mature) —
+        // 'building' is too speculative for the ticker.
+        result.push({
+          key: 'sea-breeze',
+          text: `Brisa marina ${breeze.phase === 'mature' ? 'plena' : 'activa'}${breeze.deltaT != null ? ` · Δ${breeze.deltaT.toFixed(0)}°C costa-interior` : ''}`,
+          color: 'text-emerald-400',
+          bg: 'bg-emerald-900/20',
+          priority: 6,
+        });
+      }
     }
 
     // ── Upwelling / coastal cold-water rise (priority 5 — Rías only) ──
