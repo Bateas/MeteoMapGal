@@ -12,7 +12,10 @@
 #     sudo chmod +x /usr/local/bin/meteomap-update
 #
 # Usage:
-#     meteomap-update
+#     meteomap-update            # smart deploy: git pull + build only what changed
+#     meteomap-update --force    # rebuild + redeploy the current frontend even if
+#                                # git is already up to date (use after a manual
+#                                # pull left "nothing to deploy", or to re-push)
 #
 # What it does NOT handle (manual on LXC 306 / nginx):
 #   - schema.sql changes      → run psql on DB LXC 306
@@ -25,6 +28,14 @@ REPO=/opt/MeteoMapGal
 WWW=/var/www/meteomapgal
 
 cd "$REPO"
+
+# ── Parse args ────────────────────────────────────────
+FORCE=false
+for arg in "$@"; do
+  case "$arg" in
+    --force|-f) FORCE=true ;;
+  esac
+done
 
 # ── Save current state ────────────────────────────────
 OLD_HEAD=$(git rev-parse HEAD)
@@ -44,8 +55,12 @@ NEW_HEAD=$(git rev-parse HEAD)
 NEW_VERSION=$(grep -oE '"version": "[^"]+"' package.json | head -1 | cut -d'"' -f4)
 
 if [ "$OLD_HEAD" = "$NEW_HEAD" ]; then
-    echo "✅ Already up to date (HEAD $OLD_HEAD). Nothing to deploy."
-    exit 0
+    if [ "$FORCE" = false ]; then
+        echo "✅ Already up to date (HEAD $OLD_HEAD). Nothing to deploy."
+        echo "   (meteomap-update --force → rebuild + redeploy the current frontend anyway)"
+        exit 0
+    fi
+    echo "⚙️  Up to date, but --force given → rebuilding + redeploying frontend."
 fi
 
 # ── Detect what changed ───────────────────────────────
@@ -63,6 +78,11 @@ INGESTOR_CHANGED=false;     has_change '^ingestor/' && INGESTOR_CHANGED=true
 SCHEMA_CHANGED=false;       has_change '^ingestor/schema\.sql$' && SCHEMA_CHANGED=true
 NGINX_CHANGED=false;        has_change '^nginx\.conf$' && NGINX_CHANGED=true
 VERSION_BUMPED=false;       [ "$OLD_VERSION" != "$NEW_VERSION" ] && VERSION_BUMPED=true
+
+# --force: rebuild + redeploy the frontend regardless of the git diff (covers
+# "a manual pull left nothing to deploy" + plain re-push of the current bundle).
+# Frontend-only: does NOT npm-install or restart services.
+if [ "$FORCE" = true ]; then FRONTEND_CHANGED=true; VERSION_BUMPED=true; fi
 
 echo "── Plan ──"
 echo "  ROOT_PKG_CHANGED      = $ROOT_PKG_CHANGED"
