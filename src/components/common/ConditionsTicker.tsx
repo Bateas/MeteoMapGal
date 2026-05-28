@@ -15,6 +15,7 @@ import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { useWarningsStore } from '../../hooks/useWarnings';
 import { useUIStore } from '../../store/uiStore';
 import { useAirQualityStore } from '../../store/airQualityStore';
+import { useAlertStore } from '../../store/alertStore';
 import { useIcaStore } from '../../store/icaStore';
 import { icaCategory } from '../../api/meteoGaliciaIcaClient';
 import { useFireStore } from '../../store/fireStore';
@@ -53,6 +54,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   const forecastHourly = useForecastStore((s) => s.hourly);
   const stormPrediction = useStormPrediction();
   const mgWarnings = useWarningsStore((s) => s.sectorWarnings);
+  const unifiedAlerts = useAlertStore((s) => s.alerts);
   const isMobile = useUIStore((s) => s.isMobile);
 
   // Touch pause state
@@ -429,6 +431,23 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
+    // ── Upwelling / coastal cold-water rise (priority 5 — Rías only) ──
+    // Surface the upwelling alert that the pipeline builds but previously
+    // never reached the user (only AlertPanel). Useful for divers/anglers:
+    // N/NW wind drives Ekman transport → cold deep water rises → fish move.
+    if (sectorId === 'rias') {
+      const up = unifiedAlerts.find((a) => a.category === 'upwelling');
+      if (up) {
+        result.push({
+          key: 'upwelling',
+          text: `Afloramiento: ${up.title}${up.detail ? ` · ${up.detail}` : ''}`,
+          color: 'text-cyan-400',
+          bg: 'bg-cyan-900/20',
+          priority: up.urgent ? 6 : 5,
+        });
+      }
+    }
+
     // ── Station count + stale info (priority 1) ──
     const staleCount = stations.filter(s => {
       const r = readings.get(s.id);
@@ -466,7 +485,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     }
 
     return result;
-  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, tidePoints, isMobile]);
+  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, isMobile]);
 
   // ── Official MG warnings — static strip above the marquee ─────
   // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).
