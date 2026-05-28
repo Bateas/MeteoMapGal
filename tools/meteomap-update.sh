@@ -99,6 +99,18 @@ if [ "$FRONTEND_CHANGED" = true ] || [ "$VERSION_BUMPED" = true ]; then
     npm run build
     echo "📂 Copying dist → $WWW..."
     cp -r dist/* "$WWW/"
+    # Purge orphaned hashed chunks from previous deploys. `cp` only ADDS files,
+    # so old assets/<name>-<hash>.js pile up forever (80+ stale MeteoGuide /
+    # stationDiscovery chunks seen S136+3+5). index.html only references the
+    # current hashes → orphans are harmless, but they bloat the dir and turn any
+    # `grep` verification into noise. Mirror assets/ exactly: --delete removes
+    # anything not in the fresh build. Scoped to assets/ only, so index.html /
+    # sw.js / fonts / icons at the root are untouched. rsync-guarded so the
+    # deploy still works if rsync isn't installed.
+    if command -v rsync >/dev/null 2>&1; then
+      rsync -a --delete dist/assets/ "$WWW/assets/"
+      echo "🧹 Pruned orphaned asset chunks"
+    fi
     echo "✅ Frontend deployed"
 fi
 
