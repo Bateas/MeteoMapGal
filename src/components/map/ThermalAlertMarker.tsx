@@ -28,6 +28,9 @@ const AlertBadge = memo(function AlertBadge({ zoneId, lon, lat, alertLevel, maxS
       latitude={lat}
       anchor="center"
       onClick={handleClick}
+      // z-index 4: above ambient station clusters (1), below the actionable
+      // spots (6) — a thermal-zone badge must never cover a spot marker.
+      style={{ zIndex: 4 }}
     >
       <div
         className={`flex items-center gap-1 px-2 py-1 rounded-full cursor-pointer shadow-lg ${
