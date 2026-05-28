@@ -164,24 +164,11 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
-    // ── Temperature extremes (priority 2) ──
-    let minTemp = 999, maxTemp = -999;
-    let minTempSt = '', maxTempSt = '';
-    for (const st of stations) {
-      const r = readings.get(st.id);
-      if (r?.temperature == null) continue;
-      if (r.temperature < minTemp) { minTemp = r.temperature; minTempSt = st.name; }
-      if (r.temperature > maxTemp) { maxTemp = r.temperature; maxTempSt = st.name; }
-    }
-    if (maxTemp > -999 && maxTemp - minTemp > 2) {
-      result.push({
-        key: 'temp-range',
-        text: `Temp: ${minTemp.toFixed(0)}°–${maxTemp.toFixed(0)}°C (${minTempSt}–${maxTempSt})`,
-        color: 'text-slate-300',
-        bg: '',
-        priority: 2,
-      });
-    }
+    // NOTE: regional temperature range ("Temp X°–Y°C entre estación A y B")
+    // removed S136+3+5 — it's a sector-wide spread that doesn't change any
+    // decision RIGHT NOW (reactive-map doctrine: regional averages/ranges =
+    // noise). Microclimate detail lives on the map (temperature overlay +
+    // per-station markers), not the ticker.
 
     // ── Tide info — Rías only (priority 7) ──
     if (sectorId === 'rias' && tidePoints.length > 0) {
@@ -469,18 +456,20 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       }
     }
 
-    // ── Station count + stale info (priority 1) ──
+    // ── Data-quality WARNING (priority 1) — only when significantly degraded ──
+    // The routine "N/M estaciones activas" count was sector-level noise (a
+    // status count doesn't change a decision NOW). Keep only the warning when
+    // many stations have gone stale → the map is less trustworthy right now.
     const staleCount = stations.filter(s => {
       const r = readings.get(s.id);
       if (!r?.timestamp) return false;
       return (Date.now() - r.timestamp.getTime()) > 30 * 60_000;
     }).length;
-    if (stations.length > 0) {
-      const activeCount = stations.length - staleCount;
+    if (staleCount > 10) {
       result.push({
         key: 'station-status',
-        text: `${activeCount}/${stations.length} estaciones activas${staleCount > 5 ? ` (${staleCount} sin datos)` : ''}`,
-        color: staleCount > 10 ? 'text-amber-400' : 'text-slate-500',
+        text: `Datos parciales — ${staleCount} estaciones sin actualizar`,
+        color: 'text-amber-400',
         bg: '',
         priority: 1,
       });
