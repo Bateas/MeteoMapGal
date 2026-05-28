@@ -3,10 +3,12 @@
  * markers at low zoom to declutter the map. At high zoom each station
  * is rendered individually.
  *
- * Triggered automatically by zoom level:
+ * Triggered automatically by zoom level. The radius grows steeply as you zoom
+ * out so clusters keep MERGING instead of piling up on top of each other:
  *   - zoom >= 9.5 → no clustering, every station rendered as itself
- *   - zoom 8.5..9.5 → 3 km radius grouping
- *   - zoom < 8.5 → 6 km radius grouping (sector-level)
+ *   - zoom 8.5..9.5 → 4 km radius grouping
+ *   - zoom 7.5..8.5 → 10 km radius (ría-level)
+ *   - zoom < 7.5 → 22 km radius (sector-level blobs — a handful, no overlap)
  *
  * Algorithm: greedy single-pass spatial clustering — pick first
  * unclaimed station as seed, absorb all neighbors within `radiusKm`,
@@ -51,11 +53,14 @@ export type StationClusterItem = StationClusterPoint | StationClusterGroup;
 /** No clustering at or above this zoom — show every station individually. */
 export const STATION_CLUSTER_DISABLE_ZOOM = 9.5;
 
-/** Radius (km) used to absorb neighbors into a cluster, given the zoom. */
+/** Radius (km) used to absorb neighbors into a cluster, given the zoom.
+ *  Grows steeply at low zoom so far-out views collapse to a few big blobs
+ *  rather than dozens of overlapping bubbles. */
 export function stationClusterRadiusKm(zoom: number): number {
-  if (zoom >= STATION_CLUSTER_DISABLE_ZOOM) return 0;
-  if (zoom >= 8.5) return 3;
-  return 6;
+  if (zoom >= STATION_CLUSTER_DISABLE_ZOOM) return 0; // >= 9.5: individual
+  if (zoom >= 8.5) return 4;                          // 8.5–9.5: light grouping
+  if (zoom >= 7.5) return 10;                         // 7.5–8.5: ría-level
+  return 22;                                          // < 7.5: sector-level blobs
 }
 
 // ── Distance (fast equirectangular) ───────────────────────
