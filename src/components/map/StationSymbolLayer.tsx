@@ -335,7 +335,11 @@ export function StationSymbolLayer({
           'circle-opacity': 0.9,
         }}
       />
-      {clusterItems.map((cluster) => (
+      {/* Station clusters are ambient context, not protagonists. Hide them
+          entirely at sector scale (<zoom 8) so spots + weather overlays own the
+          far view — an individual station's reading isn't a decision driver at
+          50 km (user feedback v2.81.78). */}
+      {zoom >= 8 && clusterItems.map((cluster) => (
         <StationClusterMarker key={cluster.id} cluster={cluster} onClick={handleClusterClick} />
       ))}
     </Source>
@@ -350,41 +354,40 @@ interface StationClusterMarkerProps {
 }
 
 function StationClusterMarker({ cluster, onClick }: StationClusterMarkerProps) {
-  // Neutral styling on purpose: a cluster says "N stations grouped here —
-  // click to zoom in", NOT temperature. The dedicated temperature overlay
-  // (toggle button) owns the colored-temperature job; duplicating it on every
-  // cluster cluttered the zoomed-out map (user feedback v2.81.76). The average
-  // temp + spread stay in the hover tooltip for anyone curious.
-  const ringColor = '#64748b'; // slate-500 — intentionally neutral
+  // AMBIENT styling on purpose (user feedback v2.81.78): station clusters are
+  // secondary context, not protagonists. Small, translucent, thin muted ring,
+  // small number — they recede so the bold coloured spots clearly dominate.
+  // A cluster just says "N stations here — click to zoom in"; it is NOT a
+  // temperature reading (that's the dedicated temperature overlay's job). The
+  // average temp + spread live in the hover tooltip for anyone curious.
   const spreadLabel = cluster.tempSpread != null && cluster.tempSpread >= 2
     ? ` · Δ${cluster.tempSpread.toFixed(1)}°`
     : '';
   const tempLabel = cluster.avgTemp != null ? ` · ${cluster.avgTemp.toFixed(1)}°C medio` : '';
 
   return (
-    // Low z-index: station clusters are secondary context. Spots (z-index 6)
-    // must always paint ON TOP — they're the actionable element (user feedback
-    // v2.81.77: clusters were covering spots).
+    // Low z-index: station clusters sit BELOW spots (z-index 6) — spots are the
+    // actionable element and must always paint on top.
     <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 1 }}>
       <button
         onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
-        className="flex items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer"
+        className="flex items-center justify-center rounded-full transition-transform hover:scale-125 cursor-pointer"
         style={{
-          width: 30,
-          height: 30,
-          background: 'rgba(15, 23, 42, 0.82)',
-          border: `2px solid ${ringColor}`,
-          boxShadow: `0 0 6px ${ringColor}66`,
+          width: 24,
+          height: 24,
+          background: 'rgba(15, 23, 42, 0.45)',
+          border: '1.5px solid rgba(148, 163, 184, 0.5)', // muted slate, thin
+          boxShadow: 'none',
         }}
         title={`${cluster.count} estaciones${tempLabel}${spreadLabel} — click para acercar`}
         aria-label={`Cluster de ${cluster.count} estaciones`}
       >
         <span
-          className="font-bold tabular-nums leading-none"
+          className="font-semibold tabular-nums leading-none"
           style={{
-            color: '#cbd5e1', // slate-300
-            fontSize: '13px',
-            textShadow: '0 0 4px rgba(0,0,0,0.95)',
+            color: 'rgba(203, 213, 225, 0.8)', // slate-300, dimmed
+            fontSize: '10px',
+            textShadow: '0 0 3px rgba(0,0,0,0.9)',
           }}
         >
           {cluster.count}
