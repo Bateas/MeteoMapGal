@@ -645,20 +645,20 @@ export interface ConvectionGridResult {
 export async function queryConvectionGrid(hourOffset = 0): Promise<ConvectionGridResult> {
   const db = (await import('./db.js')).getPool();
 
-  // One query, latest-per-cell within 3 h freshness window.
+  // One query, latest-per-cell within freshness window.
   // ORDER BY (cell_i, cell_j, fetched_at DESC) matches the DISTINCT ON keys
   // — DISTINCT ON keeps the first row per group, which after that ORDER is
   // the freshest fetched_at value for each cell.
-  // Window bumped 2h → 3h — cycle cadence went from 30min to
-  // 90min, so a single missed cycle is 180min of staleness. 3h tolerates one
-  // failure without dropping cells; longer than that the data is genuinely
-  // stale and should fall through to the dataMissing badge.
+  // Window bumped 3h → 4h (S136+3+5): cycle cadence went 90min → 120min, so a
+  // single missed cycle is now 240min of staleness. 4h tolerates one failure
+  // without dropping cells; longer than that the data is genuinely stale and
+  // should fall through to the dataMissing badge.
   const result = await db.query(
     `SELECT DISTINCT ON (cell_i, cell_j)
        time, fetched_at, lat, lon, cape, lifted_index, cin, risk
      FROM convection_grid_hourly
      WHERE time = date_trunc('hour', NOW() + ($1 * INTERVAL '1 hour'))
-       AND fetched_at > NOW() - INTERVAL '3 hours'
+       AND fetched_at > NOW() - INTERVAL '4 hours'
      ORDER BY cell_i, cell_j, fetched_at DESC
      LIMIT 5000`,
     [hourOffset],
