@@ -42,14 +42,19 @@ describe('stationClusterRadiusKm', () => {
     expect(stationClusterRadiusKm(STATION_CLUSTER_DISABLE_ZOOM + 1)).toBe(0);
   });
 
-  it('returns 3 km between zoom 8.5 and 9.5', () => {
-    expect(stationClusterRadiusKm(8.5)).toBe(3);
-    expect(stationClusterRadiusKm(9)).toBe(3);
+  it('returns 4 km between zoom 8.5 and 9.5', () => {
+    expect(stationClusterRadiusKm(8.5)).toBe(4);
+    expect(stationClusterRadiusKm(9)).toBe(4);
   });
 
-  it('returns 6 km below zoom 8.5', () => {
-    expect(stationClusterRadiusKm(7)).toBe(6);
-    expect(stationClusterRadiusKm(8)).toBe(6);
+  it('returns 10 km between zoom 7.5 and 8.5 (ría-level)', () => {
+    expect(stationClusterRadiusKm(7.5)).toBe(10);
+    expect(stationClusterRadiusKm(8)).toBe(10);
+  });
+
+  it('returns 22 km below zoom 7.5 (sector blobs — merge hard, no pile-up)', () => {
+    expect(stationClusterRadiusKm(7)).toBe(22);
+    expect(stationClusterRadiusKm(6)).toBe(22);
   });
 });
 

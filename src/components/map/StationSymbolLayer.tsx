@@ -362,7 +362,10 @@ function StationClusterMarker({ cluster, onClick }: StationClusterMarkerProps) {
   const tempLabel = cluster.avgTemp != null ? ` · ${cluster.avgTemp.toFixed(1)}°C medio` : '';
 
   return (
-    <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center">
+    // Low z-index: station clusters are secondary context. Spots (z-index 6)
+    // must always paint ON TOP — they're the actionable element (user feedback
+    // v2.81.77: clusters were covering spots).
+    <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 1 }}>
       <button
         onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
         className="flex items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer"

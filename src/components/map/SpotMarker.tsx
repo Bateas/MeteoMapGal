@@ -152,7 +152,8 @@ const SpotClusterMarker = memo(function SpotClusterMarker({
   const size = 44 * zoomScale;
 
   return (
-    <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center">
+    // z-index 6: spots always paint above station clusters (z-index 1).
+    <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 6 }}>
       <button
         onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
         className="relative flex items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer"
@@ -314,7 +315,8 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   const half = svgSize / 2;
 
   return (
-    <Marker longitude={lon} latitude={lat} anchor="center" onClick={handleClick}>
+    // z-index above station clusters (1); active spot floats above other spots.
+    <Marker longitude={lon} latitude={lat} anchor="center" onClick={handleClick} style={{ zIndex: isActive ? 8 : 6 }}>
       <div className="spot-marker relative cursor-pointer" title={shortName} style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center' }}>
         <svg
           width={svgSize}
