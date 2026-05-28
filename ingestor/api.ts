@@ -397,7 +397,8 @@ async function handleSpotScores(
 
   try {
     const result = await db.query(
-      `SELECT time::text, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, station_count
+      `SELECT time::text, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, station_count,
+              raw_wind_kt, boosted_by, boost_confidence
        FROM spot_scores
        WHERE ($1::text IS NULL OR spot_id = $1)
          AND time > NOW() - make_interval(days => $2)

@@ -170,10 +170,16 @@ async function persistSpotScores(results: SpotResult[]): Promise<void> {
   for (const r of results) {
     if (r.verdict === 'unknown') continue;
     await db.query(
-      `INSERT INTO spot_scores (time, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, score, station_count, inferred_dir)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO spot_scores
+         (time, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, score,
+          station_count, inferred_dir, raw_wind_kt, boosted_by, boost_confidence)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT (time, spot_id) DO NOTHING`,
-      [now, r.spot.id, r.spot.sector, r.verdict, r.avgWindKt, r.maxGustKt, r.avgDir, 0, r.stationCount, r.inferredDir || null]
+      [
+        now, r.spot.id, r.spot.sector, r.verdict, r.avgWindKt, r.maxGustKt, r.avgDir, 0,
+        r.stationCount, r.inferredDir || null,
+        r.rawWindKt ?? null, r.boostedBy ?? null, r.boostConfidence ?? null,
+      ]
     );
   }
 }

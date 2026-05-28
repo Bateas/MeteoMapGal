@@ -227,41 +227,46 @@ async function start(): Promise<void> {
   }, 2 * 60 * 60_000);
 
   // FIRMS fetcher — wildfire hotspots persistence.
-  // 30min cadence matches FIRMS NRT latency and the proxy's cache TTL.
+  // 60min cadence (bumped from 30min, S136+3+5 audit): FIRMS NRT latency is
+  // ~1h, so 30min polling re-fetched the same hotspots ~half the time. 60min
+  // matches the data's real refresh and halves NASA FIRMS API calls. Fire
+  // positions don't move fast enough to need sub-hourly refresh.
   // 150s stagger so it lands after lightning + synoptic to spread network load.
   setTimeout(() => {
     runFirmsCycle().catch((err) => log.error('[FIRMS Fetcher] init err:', (err as Error).message));
   }, 150_000);
   firmsTimer = setInterval(() => {
     runFirmsCycle().catch((err) => log.error('[FIRMS Fetcher] timer err:', (err as Error).message));
-  }, 30 * 60_000);
+  }, 60 * 60_000);
 
   // ICA fetcher — Xunta air-quality persistence.
-  // 30min cadence matches Xunta's hourly publication with margin.
+  // 60min cadence (bumped from 30min, S136+3+5 audit): Xunta publishes ICA
+  // hourly, so the 30min poll produced ~50% duplicate inserts (ON CONFLICT
+  // no-ops). 60min matches the actual publication rate with zero data loss.
   // 210s stagger so it lands after FIRMS to spread Xunta API load.
   setTimeout(() => {
     runIcaCycle().catch((err) => log.error('[ICA Fetcher] init err:', (err as Error).message));
   }, 210_000);
   icaTimer = setInterval(() => {
     runIcaCycle().catch((err) => log.error('[ICA Fetcher] timer err:', (err as Error).message));
-  }, 30 * 60_000);
+  }, 60 * 60_000);
 
   // Convection grid fetcher — spatial CAPE/LI grid persistence.
   // Replaces frontend-direct Open-Meteo multi-point queries (which hit free-tier
-  // burst limit). Bumped 30min → 90min to fit within the Open-Meteo daily IP
-  // quota: each cycle costs ~600 coordinate-equivalent
-  // calls (Open-Meteo charges per coord). At 30min the LXC was burning
-  // ~28,800 calls/day → quota exhausted after ~30min and breaker open the
-  // rest of the day. 90min = ~9,600/day, leaves room for forecast + synoptic.
-  // Operationally fine: CAPE ramps gradually during the day, 90min refresh is
-  // plenty for "where do storms form this afternoon" use case.
+  // burst limit). 120min cadence (bumped 90→120min, S136+3+5 audit): each cycle
+  // costs ~600 coordinate-equivalent calls (Open-Meteo charges per coord). This
+  // is the single biggest Open-Meteo consumer. History: 30min=~28,800/day
+  // (quota blown), 90min=~9,600/day (~90% of the 10k daily limit, too tight
+  // alongside forecast+synoptic), 120min=~7,200/day (comfortable headroom).
+  // Operationally fine: CAPE ramps gradually, 120min refresh is plenty for
+  // "where do storms form this afternoon" — it's a predictive overlay, not live.
   // 270s stagger so it lands after ICA to spread Open-Meteo load.
   setTimeout(() => {
     runConvectionGridCycle().catch((err) => log.error('[ConvGrid] init err:', (err as Error).message));
   }, 270_000);
   convGridTimer = setInterval(() => {
     runConvectionGridCycle().catch((err) => log.error('[ConvGrid] timer err:', (err as Error).message));
-  }, 90 * 60_000);
+  }, 120 * 60_000);
 
   // Outcome evaluator — nightly job that evaluates each storm_prediction
   // against real lightning + rain (Open-Meteo grid + station pluviometers).

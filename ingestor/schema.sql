@@ -55,6 +55,11 @@ CREATE INDEX IF NOT EXISTS stations_coords_idx
   ON stations (latitude, longitude);
 
 -- ── Alerts hypertable ────────────────────────────────
+-- ⚠️ RESERVED / NOT WIRED (S136+3+5 audit): no writer or reader anywhere
+-- in ingestor or frontend. Designed for alert persistence but the pipeline
+-- dispatches via webhook (alertDispatcher) without DB logging. Kept empty
+-- intentionally — do NOT re-flag as "dead" without deciding to build the
+-- alert-history feature. DROP only after confirming the feature is abandoned.
 CREATE TABLE IF NOT EXISTS alerts (
   time      TIMESTAMPTZ NOT NULL,
   alert_id  TEXT        NOT NULL,
@@ -179,6 +184,9 @@ BEGIN
 END $$;
 
 -- ── Alert evaluation log (for validation & calibration) ──
+-- ⚠️ RESERVED / NOT WIRED (S136+3+5 audit): no writer or reader yet. Designed
+-- for the alert thumbs-up/down validation feature (analogous to
+-- prediction_outcomes for storms) but never built. Kept empty intentionally.
 -- Records every alert evaluation with input parameters so the user
 -- can validate (thumbs up/down) and we can measure accuracy over time.
 CREATE TABLE IF NOT EXISTS alert_log (
@@ -254,6 +262,36 @@ CREATE TABLE IF NOT EXISTS storm_predictions (
   PRIMARY KEY (time, sector)
 );
 SELECT create_hypertable('storm_predictions', 'time', if_not_exists => TRUE);
+
+-- ── Spot scores (analyzer per-cycle verdict persistence) ────
+-- Written by analyzer.ts persistSpotScores() every 5min poll.
+-- Read by api.ts /api/v1/spots/scores → SpotHistoryChart (24h history).
+-- NOTE: this table was created out-of-band on LXC 306 before being added
+-- here (S136+3+5 audit). The ALTER below adds the detector-boost columns
+-- to pre-existing deployments idempotently.
+CREATE TABLE IF NOT EXISTS spot_scores (
+  time             TIMESTAMPTZ     NOT NULL,
+  spot_id          TEXT            NOT NULL,
+  sector           TEXT            NOT NULL,
+  verdict          TEXT            NOT NULL,
+  wind_kt          REAL,                       -- effective wind (post-boost)
+  gust_kt          REAL,
+  wind_dir         REAL,
+  score            SMALLINT        DEFAULT 0,   -- reserved (analyzer emits verdict, not 0-100)
+  station_count    SMALLINT,
+  inferred_dir     TEXT,
+  -- Detector boost provenance (S136+3+5) — enables auditing Cesantes
+  -- canalization + Bocana terral activation against real conditions.
+  raw_wind_kt      REAL,                        -- measured avg before any boost
+  boosted_by       TEXT,                        -- 'cesantes-canalization' | 'bocana-terral' | NULL
+  boost_confidence SMALLINT,                    -- 0-100 when boosted_by set
+  PRIMARY KEY (time, spot_id)
+);
+SELECT create_hypertable('spot_scores', 'time', if_not_exists => TRUE);
+-- Idempotent column adds for the out-of-band prod table:
+ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS raw_wind_kt REAL;
+ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS boosted_by TEXT;
+ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS boost_confidence SMALLINT;
 
 -- ── Lightning strikes (historical-data-vision Phase 1a) ────
 -- Individual strikes from MeteoGalicia meteo2api raios/lenda.
@@ -664,6 +702,7 @@ CREATE INDEX IF NOT EXISTS idx_magic_windows_recent
   ON magic_windows (time DESC, sector);
 
 GRANT SELECT, INSERT ON magic_windows TO meteomap_app;
+GRANT SELECT, INSERT ON spot_scores TO meteomap_app;
 
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
