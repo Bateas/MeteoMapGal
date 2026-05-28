@@ -350,50 +350,38 @@ interface StationClusterMarkerProps {
 }
 
 function StationClusterMarker({ cluster, onClick }: StationClusterMarkerProps) {
-  // Color band derived from the cluster's representative temperature so
-  // the user can see warm vs cold zones at a glance.
-  const ringColor = cluster.representativeTemp != null
-    ? temperatureColor(cluster.representativeTemp)
-    : '#64748b';
+  // Neutral styling on purpose: a cluster says "N stations grouped here —
+  // click to zoom in", NOT temperature. The dedicated temperature overlay
+  // (toggle button) owns the colored-temperature job; duplicating it on every
+  // cluster cluttered the zoomed-out map (user feedback v2.81.76). The average
+  // temp + spread stay in the hover tooltip for anyone curious.
+  const ringColor = '#64748b'; // slate-500 — intentionally neutral
   const spreadLabel = cluster.tempSpread != null && cluster.tempSpread >= 2
     ? ` · Δ${cluster.tempSpread.toFixed(1)}°`
     : '';
+  const tempLabel = cluster.avgTemp != null ? ` · ${cluster.avgTemp.toFixed(1)}°C medio` : '';
 
   return (
     <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center">
       <button
         onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
-        className="relative flex items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer"
+        className="flex items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer"
         style={{
-          width: 36,
-          height: 36,
+          width: 30,
+          height: 30,
           background: 'rgba(15, 23, 42, 0.82)',
           border: `2px solid ${ringColor}`,
-          boxShadow: `0 0 10px ${ringColor}80, inset 0 0 6px ${ringColor}40`,
+          boxShadow: `0 0 6px ${ringColor}66`,
         }}
-        title={`${cluster.count} estaciones${cluster.avgTemp != null ? ` · ${cluster.avgTemp.toFixed(1)}°C` : ''}${spreadLabel} — click para acercar`}
+        title={`${cluster.count} estaciones${tempLabel}${spreadLabel} — click para acercar`}
         aria-label={`Cluster de ${cluster.count} estaciones`}
       >
         <span
           className="font-bold tabular-nums leading-none"
           style={{
-            color: ringColor,
-            fontSize: cluster.avgTemp != null ? '11px' : '14px',
+            color: '#cbd5e1', // slate-300
+            fontSize: '13px',
             textShadow: '0 0 4px rgba(0,0,0,0.95)',
-          }}
-        >
-          {cluster.avgTemp != null ? `${cluster.avgTemp.toFixed(0)}°` : cluster.count}
-        </span>
-        {/* Count badge in corner */}
-        <span
-          className="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full text-[9px] font-bold tabular-nums"
-          style={{
-            minWidth: 16,
-            height: 16,
-            padding: '0 4px',
-            background: 'rgba(15, 23, 42, 0.95)',
-            color: '#cbd5e1',
-            border: '1px solid rgba(148, 163, 184, 0.5)',
           }}
         >
           {cluster.count}
