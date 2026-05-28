@@ -103,12 +103,15 @@ if [ "$FRONTEND_CHANGED" = true ] || [ "$VERSION_BUMPED" = true ]; then
     # so old assets/<name>-<hash>.js pile up forever (80+ stale MeteoGuide /
     # stationDiscovery chunks seen S136+3+5). index.html only references the
     # current hashes → orphans are harmless, but they bloat the dir and turn any
-    # `grep` verification into noise. Mirror assets/ exactly: --delete removes
-    # anything not in the fresh build. Scoped to assets/ only, so index.html /
-    # sw.js / fonts / icons at the root are untouched. rsync-guarded so the
-    # deploy still works if rsync isn't installed.
-    if command -v rsync >/dev/null 2>&1; then
-      rsync -a --delete dist/assets/ "$WWW/assets/"
+    # `grep` verification into noise. Pure-bash mirror (rsync is NOT installed on
+    # the LXC): remove any web asset whose name isn't in the fresh build. Scoped
+    # to assets/ only — index.html / sw.js / fonts / icons at the root untouched.
+    # Guarded so an empty build can never wipe the live dir.
+    if [ -d dist/assets ] && [ -n "$(ls -A dist/assets 2>/dev/null)" ]; then
+      for f in "$WWW"/assets/*; do
+        [ -e "$f" ] || continue
+        [ -e "dist/assets/$(basename "$f")" ] || rm -f "$f"
+      done
       echo "🧹 Pruned orphaned asset chunks"
     fi
     echo "✅ Frontend deployed"
