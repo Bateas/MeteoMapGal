@@ -53,8 +53,12 @@ export const SpotMarkers = memo(function SpotMarkers() {
     const map = mapRef?.getMap();
     if (!map) return;
     const onZoom = () => {
-      const z = map.getZoom();
-      setZoom(z);
+      // Discretize to 0.5-zoom steps: clusterSpots only cares about coarse zoom
+      // bands, so setting state on every continuous tick (30-60/s during a zoom
+      // gesture) re-runs the cluster useMemo + re-renders all spot markers for
+      // no visible change. Round + bail when the band is unchanged.
+      const z = Math.round(map.getZoom() * 2) / 2;
+      setZoom((prev) => (prev === z ? prev : z));
       setZoomScale(z >= 11 ? 1 : z >= 10 ? 0.8 : z >= 9 ? 0.65 : 0.5);
     };
     onZoom();
