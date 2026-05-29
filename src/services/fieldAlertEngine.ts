@@ -292,8 +292,10 @@ export function computeET0(forecast: HourlyForecast[]): ET0Result {
   // Hargreaves-Samani: ET₀ = 0.0023 × (Tmean + 17.8) × √(Tmax - Tmin) × Ra
   // Ra ≈ estimated from solar radiation average (W/m² → MJ/m²/day)
   const solarVals = day.map((p) => p.solarRadiation).filter((s): s is number => s !== null);
-  // If no solar data, estimate Ra from latitude ~42° (Galicia) — ~20 MJ/m²/day summer, ~8 winter
-  const month = new Date().getMonth(); // 0-11
+  // If no solar data, estimate Ra from latitude ~42° (Galicia) — ~20 MJ/m²/day summer, ~8 winter.
+  // Month derived from the FORECAST's own date (day[0] guaranteed present — day.length>=8 above),
+  // NOT the wall clock: deterministic for tests + correct if the forecast spans midnight.
+  const month = day[0].time.getMonth(); // 0-11
   const defaultRa = [8, 10, 14, 18, 22, 24, 24, 22, 17, 12, 9, 7][month];
   const ra = solarVals.length > 4
     ? (solarVals.reduce((a, b) => a + b, 0) / solarVals.length) * 0.0864 // W/m² → MJ/m²/day
