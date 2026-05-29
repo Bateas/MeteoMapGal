@@ -312,7 +312,7 @@ export function Sidebar() {
         <button
           onClick={() => {
             const { stations, currentReadings } = useWeatherStore.getState();
-            const buoys = useBuoyStore.getState().readings;
+            const buoys = useBuoyStore.getState().buoys;
             const sector = useSectorStore.getState().activeSector;
             downloadGeoJSON(stations, currentReadings, buoys, sector.name);
           }}
