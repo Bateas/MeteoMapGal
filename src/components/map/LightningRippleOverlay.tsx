@@ -29,6 +29,13 @@ interface ActiveRipple {
 
 const RIPPLE_DURATION_MS = 3_000;
 const FRESH_WINDOW_MS = 30_000; // only animate strikes <30s old
+/**
+ * Cap simultaneous ripples. During a storm peak (600+ strikes/h, the project's
+ * declared worst case) dozens of animated SVG <Marker>s could mount at once.
+ * The narrative is "a strike just fell HERE" — only the most recent few matter;
+ * keeping the latest 5 preserves that signal while bounding DOM/animation cost.
+ */
+const MAX_ACTIVE_RIPPLES = 5;
 
 function LightningRippleInner() {
   const strikes = useLightningStore((s) => s.strikes);
@@ -61,7 +68,8 @@ function LightningRippleInner() {
     }
 
     if (newRipples.length === 0) return;
-    setActive((prev) => [...prev, ...newRipples]);
+    // Keep only the most recent MAX_ACTIVE_RIPPLES (slice from the end — newest).
+    setActive((prev) => [...prev, ...newRipples].slice(-MAX_ACTIVE_RIPPLES));
 
     // Garbage-collect the seen set — keep last ~1000 entries
     if (seenIdsRef.current.size > 1500) {

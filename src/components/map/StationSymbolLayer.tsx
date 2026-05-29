@@ -91,7 +91,14 @@ export function StationSymbolLayer({
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
-    const onZoom = () => setZoom(map.getZoom());
+    // Discretize to 0.5-zoom steps: clustering only depends on coarse zoom
+    // bands, so updating state on every continuous zoom tick (30-60/s during a
+    // pinch/scroll) just thrashes the re-cluster useMemo + DOM markers. Round to
+    // the nearest 0.5 and only setState when the band actually changes.
+    const onZoom = () => {
+      const stepped = Math.round(map.getZoom() * 2) / 2;
+      setZoom((prev) => (prev === stepped ? prev : stepped));
+    };
     map.on('zoom', onZoom);
     return () => { map.off('zoom', onZoom); };
   }, [mapRef]);
