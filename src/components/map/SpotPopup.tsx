@@ -36,6 +36,7 @@ import { useSectorStore } from '../../store/sectorStore';
 import { useAirQualityStore } from '../../store/airQualityStore';
 import { computeSurfVerdict, swellAlignmentMultiplier } from '../spot/surfVerdictEngine';
 import { detectViracionPhase } from '../../services/viracionDetector';
+import { assessRainNowcast } from '../../services/rainNowcastService';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
@@ -207,6 +208,27 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       return result;
     } catch (err) {
       console.debug('[Viracion] detector error:', err);
+      return null;
+    }
+  })();
+
+  // ── Rain nowcast: "¿llueve ahora? / ¿lluvia próxima?" ──────────────
+  // Built on data the user trusts: nearby station precip (observed) + the
+  // spot's own forecast (short horizon). NOT the webcam-AI precip flag.
+  const rain = (() => {
+    try {
+      const stations = useWeatherStore.getState().stations ?? [];
+      const readings = useWeatherStore.getState().currentReadings ?? new Map();
+      const forecast = spotForecast.length > 0 ? spotForecast : (useForecastStore.getState().hourly ?? []);
+      return assessRainNowcast({
+        spotCenter: spot.center,
+        radiusKm: spot.radiusKm,
+        stations,
+        readings,
+        forecast,
+      });
+    } catch (err) {
+      console.debug('[RainNowcast] error:', err);
       return null;
     }
   })();
@@ -521,6 +543,21 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         >
           <WeatherIcon id="wind" size={11} className="inline -mt-px mr-1" />
           {viracion.description}
+        </div>
+      )}
+
+      {/* ── Rain nowcast — "¿llueve? / lluvia próxima?" (obs estación + forecast) ── */}
+      {rain && rain.status !== 'unknown' && rain.status !== 'dry' && (
+        <div
+          className={`text-[11px] mb-2 px-2 py-1 rounded border flex items-center gap-1.5 ${
+            rain.status === 'raining'
+              ? 'bg-blue-500/15 border-blue-500/40 text-blue-200'
+              : 'bg-slate-700/30 border-slate-600/40 text-slate-300'
+          }`}
+          title={rain.status === 'raining' ? 'Lluvia observada en estación cercana' : 'Lluvia prevista (previsión)'}
+        >
+          <WeatherIcon id={rain.status === 'raining' ? 'cloud-rain' : 'cloud'} size={12} className="-mt-px" />
+          <span>{rain.summary}</span>
         </div>
       )}
 
