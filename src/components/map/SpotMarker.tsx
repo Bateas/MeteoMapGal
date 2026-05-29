@@ -154,25 +154,41 @@ const SpotClusterMarker = memo(function SpotClusterMarker({
 }: SpotClusterMarkerProps) {
   const colors = VERDICT_COLORS[cluster.worstVerdict];
   const size = 44 * zoomScale;
+  const half = size / 2;
+  // Padding so stroke + drop-shadow aren't clipped by the SVG box.
+  const svgSize = size + 12;
+  const svgHalf = svgSize / 2;
 
   return (
     // z-index 6: spots always paint above station clusters (z-index 1).
+    // Hexagon (not a circle) so a clustered group still reads as "spots",
+    // distinct from the round station/buoy context clusters.
     <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 6 }}>
       <button
         onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
-        className="relative flex items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer"
-        style={{
-          width: size,
-          height: size,
-          background: 'rgba(15, 23, 42, 0.85)',
-          border: `2.5px solid ${colors.ring}`,
-          boxShadow: `0 0 14px ${colors.glow}80, inset 0 0 8px ${colors.glow}40`,
-        }}
+        className="relative flex items-center justify-center transition-transform hover:scale-110 cursor-pointer bg-transparent border-0 p-0"
+        style={{ width: svgSize, height: svgSize }}
         title={`${cluster.count} spots — click para acercar`}
         aria-label={`Cluster de ${cluster.count} spots, peor estado ${cluster.worstVerdict}`}
       >
+        <svg
+          width={svgSize}
+          height={svgSize}
+          viewBox={`${-svgHalf} ${-svgHalf} ${svgSize} ${svgSize}`}
+          style={{ position: 'absolute', inset: 0 }}
+          aria-hidden="true"
+        >
+          <path
+            d={hexPath(half)}
+            fill="rgba(15, 23, 42, 0.85)"
+            stroke={colors.ring}
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            style={{ filter: `drop-shadow(0 0 8px ${colors.glow}80)` }}
+          />
+        </svg>
         <span
-          className="font-bold tabular-nums"
+          className="relative font-bold tabular-nums"
           style={{
             color: colors.text,
             fontSize: `${Math.max(13, 18 * zoomScale)}px`,
