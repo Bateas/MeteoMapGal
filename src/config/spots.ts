@@ -735,6 +735,31 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
 /** All spots from both sectors */
 export const ALL_SPOTS: SailingSpot[] = [...RIAS_SPOTS, ...EMBALSE_SPOTS];
 
+/**
+ * Spots that are actual BEACHES (sand you sit on / swim from) — eligible for
+ * the casual "¿buen día de playa?" verdict. EXCLUDES open-water spots that
+ * live in the middle of the ría (centro-ria, bocana, cíes-ría channel) where
+ * "beach day" makes no sense. Surf spots ARE beaches (Patos/Lanzada/Corrubedo
+ * are all sand). If a future surf spot is on rock, leave it out here.
+ * NOT a SailingSpot field on purpose — it's a single auditable list.
+ */
+export const BEACH_SPOT_IDS = new Set<string>([
+  'cesantes',     // Praia de Cesantes
+  'lourido',      // Praia de Lourido
+  'vao',          // Praia do Vao
+  'lanzada',      // Praia da Lanzada
+  'illa-arousa',  // Praia do Bao (Illa de Arousa)
+  'castineiras',  // Praia de Castiñeiras
+  'surf-patos',
+  'surf-lanzada',
+  'surf-corrubedo',
+]);
+
+/** True if the spot is a beach (sand), eligible for the beach-day verdict. */
+export function isBeachSpot(spotId: string): boolean {
+  return BEACH_SPOT_IDS.has(spotId);
+}
+
 /** Get spots for a specific sector */
 export function getSpotsForSector(sectorId: string): SailingSpot[] {
   if (sectorId === 'rias') return RIAS_SPOTS;

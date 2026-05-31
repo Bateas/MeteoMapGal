@@ -18,6 +18,7 @@ import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
+import { isBeachSpot } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import { formatThermalCountdown } from '../../services/thermalPrecursorService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
@@ -535,8 +536,10 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Thermal onset countdown (P2) — glanceable "entra en ~1h" for thermal
           spots. Deliberately fuzzy (ETA is ±~30min); the full breakdown +
-          window live in the collapsible ThermalPrecursorSection below. ── */}
-      {precursor && (() => {
+          window live in the collapsible ThermalPrecursorSection below.
+          Hide the 'watch' level (≤40%) — "posible térmico ahora" at 25% is
+          noise; the detail section still carries the early vigilancia. ── */}
+      {precursor && precursor.level !== 'watch' && (() => {
         const cd = formatThermalCountdown(precursor);
         if (!cd) return null;
         const tone = cd.tone === 'active'
@@ -586,9 +589,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── ¿Buen día de playa? — casual reframe (EJE ALCANCE prototype).
-          Rías beaches only (surf spots have their own framing). Synthesises
-          sun + air/water temp + wind + rain into a sí/regular/no answer. ── */}
-      {sectorId === 'rias' && spot.category !== 'surf' && (() => {
+          Only on actual BEACH spots (BEACH_SPOT_IDS): excludes open-water ría
+          spots (centro-ria, bocana, cíes-ría) where "beach day" is meaningless,
+          and INCLUDES surf spots (Patos/Lanzada/Corrubedo are beaches).
+          Synthesises sun + air/water temp + wind + rain → sí/regular/no. ── */}
+      {isBeachSpot(spot.id) && (() => {
         const beach = assessBeachDay({
           cloudCoverPct: spotForecast[0]?.cloudCover ?? null,
           windKt: score?.wind?.avgSpeedKt ?? null,
