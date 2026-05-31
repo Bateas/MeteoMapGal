@@ -144,11 +144,16 @@ function selectStationsForSpot(
   const result: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[] = [];
   const [spotLon, spotLat] = spot.center;
   const preferredSet = new Set(spot.preferredStations);
+  // Per-spot exclusion: a station that's fine elsewhere but misrepresents THIS
+  // spot (e.g. Cangas MG underreads Liméns, which has its own N-channeled wind).
+  // Removed at the source so wind/thermal/airTemp/gust all ignore it for this spot.
+  const excludeSet = new Set(spot.excludeStations ?? []);
 
   const now = Date.now();
   const MAX_READING_AGE_MS = STALE_THRESHOLD_MIN * 60_000;
 
   for (const s of stations) {
+    if (excludeSet.has(s.id)) continue;
     const reading = readings.get(s.id);
     if (!reading) continue;
     if (reading.windSpeed === null) continue; // Direction is optional (SkyX, some Netatmo)
