@@ -27,6 +27,7 @@ import type { HourlyForecast } from '../../types/forecast';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { predictCesantesCanalization, computeMouthHumidity } from '../../services/cesantesCanalizationDetector';
+import { predictLimensChanneling } from '../../services/limensChannelingDetector';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWebcamStore } from '../../store/webcamStore';
@@ -140,9 +141,15 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const vs = VERDICT_STYLE[verdict];
 
   // ── Cesantes canalization predictor — memoized for use in wind display ──
-  const cesantesPrediction = (() => {
-    if (spot.id !== 'cesantes') return null;
+  const channelingPrediction = (() => {
     try {
+      // Liméns: N/NNW orographic boost anchored on the Cabo Udra buoy.
+      if (spot.id === 'limens') {
+        const buoys = useBuoyStore.getState().buoys ?? [];
+        const pred = predictLimensChanneling(buoys);
+        return pred.active ? pred : null;
+      }
+      if (spot.id !== 'cesantes') return null;
       const buoys = useBuoyStore.getState().buoys ?? [];
       const stations = useWeatherStore.getState().stations ?? [];
       const readings = useWeatherStore.getState().currentReadings ?? new Map();
@@ -168,8 +175,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   })();
   // Predicción "fuerte": ≥4kt sobre la lectura → reemplaza wind display
   const measuredKt = score?.wind?.avgSpeedKt ?? 0;
-  const useStrongPrediction = cesantesPrediction !== null && cesantesPrediction.predictedKt !== null
-    && (cesantesPrediction.predictedKt - measuredKt) >= 4;
+  const useStrongPrediction = channelingPrediction !== null && channelingPrediction.predictedKt !== null
+    && (channelingPrediction.predictedKt - measuredKt) >= 4;
 
   // ── Viración (daily wind cycle phase) — Rías sailing spots only ──
   // Cross-validates the spot's reference station against its preferred buoy
@@ -424,10 +431,10 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
           <div className="flex items-baseline gap-1">
             <span className="text-slate-500 text-[11px]">Viento</span>
-            {useStrongPrediction && cesantesPrediction?.predictedKt ? (
+            {useStrongPrediction && channelingPrediction?.predictedKt ? (
               <>
-                <span className="font-bold" style={{ color: windKtColor(cesantesPrediction.predictedKt) }}>
-                  ~{cesantesPrediction.predictedKt} kt
+                <span className="font-bold" style={{ color: windKtColor(channelingPrediction.predictedKt) }}>
+                  ~{channelingPrediction.predictedKt} kt
                 </span>
                 <span className="text-[9px] text-slate-500 italic">(red: {score.wind.avgSpeedKt.toFixed(0)})</span>
               </>
@@ -641,15 +648,15 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── Cesantes Canalization predictor (local boost prediction) ── */}
-      {cesantesPrediction !== null && cesantesPrediction.predictedKt !== null && (() => {
-        const pred = cesantesPrediction;
+      {channelingPrediction !== null && channelingPrediction.predictedKt !== null && (() => {
+        const pred = channelingPrediction;
         const color = pred.severity === 'high' ? 'text-amber-400' : pred.severity === 'moderate' ? 'text-sky-400' : 'text-slate-300';
         const bg = pred.severity === 'high' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30';
         return (
           <div className={`text-[11px] mb-2 px-2 py-1.5 rounded border ${bg} ${color}`}>
             <div className="font-bold flex items-center gap-1">
               <WeatherIcon id="wind" size={12} className="inline -mt-px" />
-              Predicción local: ~{pred.predictedKt}kt SW
+              Predicción local: ~{pred.predictedKt}kt {pred.predictedDir != null ? degreesToCardinal(pred.predictedDir) : ''}
               <span className="text-[9px] opacity-70">×{pred.boostFactor.toFixed(1)} canalización</span>
             </div>
             <div className="text-[10px] opacity-80 mt-0.5">
