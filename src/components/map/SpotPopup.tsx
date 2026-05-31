@@ -601,6 +601,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           waterTempC: score?.waterTemp ?? mohidSeaTemp ?? null,
           rainingNow: rain?.status === 'raining',
           rainSoon: rain?.status === 'rain-soon',
+          // Fog/visibility is the one thing webcam-IA reads reliably.
+          foggy: visionResult?.weather.fogVisible === true || visionResult?.weather.visibility === 'poor',
         });
         if (beach.verdict === 'unknown') return null;
         const tone = beach.verdict === 'great'
