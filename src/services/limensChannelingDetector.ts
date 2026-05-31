@@ -23,9 +23,10 @@ import type { CesantesPrediction } from './cesantesCanalizationDetector';
 /** Cabo Udra REMPOR buoy — the N reference that aligns with the Liméns gap. */
 const CABO_UDRA_BUOY_ID = 4273;
 
-/** Channeling sector: NNW → N → just past N (wraps through 0°). Tight on
- *  purpose — NW/W and NE/E don't channel into Liméns. */
-const CHANNEL_DIR_MIN = 320; // NNW
+/** Channeling sector: NW → NNW → N → just past N (wraps through 0°). Floor at
+ *  NW 300° because the user confirmed NW (300°) already channels and runs 15+
+ *  ("y así"); W (270°) and E do NOT reach Liméns, so they stay out. */
+const CHANNEL_DIR_MIN = 300; // NW
 const CHANNEL_DIR_MAX = 10;  // just past N (wraps through 360)
 
 /** Minimum buoy wind to bother boosting (m/s ≈ 8 kt). Below this it's light

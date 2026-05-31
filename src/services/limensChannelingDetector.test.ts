@@ -44,8 +44,14 @@ describe('predictLimensChanneling', () => {
     expect(predictLimensChanneling([buoy(UDRA, ms(16), 350)]).predictedDir).toBe(350);
   });
 
+  it('channels NW (300°) — user confirmed it runs 15+ at NW', () => {
+    expect(predictLimensChanneling([buoy(UDRA, ms(12), 300)]).active).toBe(true);
+    expect(predictLimensChanneling([buoy(UDRA, ms(12), 315)]).active).toBe(true);
+  });
+
   it('does NOT channel W wind (Liméns is sheltered from W)', () => {
     expect(predictLimensChanneling([buoy(UDRA, ms(18), 270)]).active).toBe(false);
+    expect(predictLimensChanneling([buoy(UDRA, ms(18), 290)]).active).toBe(false); // WNW, below NW floor
   });
 
   it('does NOT channel E wind', () => {
