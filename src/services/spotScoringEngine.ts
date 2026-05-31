@@ -29,6 +29,7 @@ import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
 import { detectBocana } from './bocanaDetector';
 import { predictCesantesCanalization, computeMouthHumidity, type CesantesPrediction } from './cesantesCanalizationDetector';
+import { getStationBiasAt } from '../config/stationBiases';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -219,6 +220,7 @@ const SOURCE_QUALITY: Record<string, number> = {
 // ── Spatial wind coherence constants (#63) ────────────────────
 const BUOY_EXPOSURE_BOOST = 1.5;          // Buoys over water — inherently unobstructed
 const PREFERRED_EXPOSURE_BOOST = 1.3;     // Manually vetted preferred stations
+const BIAS_BLIND_PENALTY = 0.3;           // station reading FROM a documented-unreliable sector (stationBiases.ts)
 
 const DIR_AGREE_THRESHOLD = 60;           // degrees — direction "agreement"
 const SPEED_RATIO_MIN = 0.35;            // min ratio for speed "agreement"
@@ -362,7 +364,13 @@ function computeSpotWindConsensus(
     const qualityMul = getSourceQuality(station.id);
     const ageMin = (Date.now() - reading.timestamp.getTime()) / 60_000;
     const freshnessMul = ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;
-    const weight = distWeight * qualityMul * freshnessMul;
+    // Documented orographic bias: when a station reads FROM a direction it's
+    // known to misread (sheltered/channeled/accelerated — empirical buoy audits
+    // + geography, see stationBiases.ts), demote its weight so its bad reading
+    // doesn't drag the consensus. The sector is keyed on wind direction.
+    const biasMul = (reading.windDirection !== null && getStationBiasAt(station.id, reading.windDirection))
+      ? BIAS_BLIND_PENALTY : 1;
+    const weight = distWeight * qualityMul * freshnessMul * biasMul;
     const src = station.id.split('_')[0] as WindContribution['source'];
     const bearing = computeBearing(spotLat, spotLon, station.lat, station.lon);
     entries.push({ speedKt, weight, dir: reading.windDirection, name: station.name, source: src, distKm, bearing, isOverWater: false, stationId: station.id });
