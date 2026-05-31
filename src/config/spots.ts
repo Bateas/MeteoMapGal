@@ -338,14 +338,17 @@ export const RIAS_SPOTS: SailingSpot[] = [
     shortName: 'Liméns',
     icon: 'sailboat',
     center: [-8.814309, 42.257539],
-    radiusKm: 8,
-    description: 'Praia de Liméns, Cangas (sur de la ría de Vigo). Kite/windsurf con N-NNW (nortada); W y E no entran (resguardada). Referencia: boya de Cabo Udra.',
+    // Radio corto a propósito: Liméns tiene su propio viento (N/NNW canalizado);
+    // las estaciones de la ría (Vigo, W) NO lo representan. La referencia (Cabo
+    // Udra, ~9km) entra igual por ser preferida.
+    radiusKm: 6,
+    description: 'Praia de Liméns, Cangas (sur de la ría de Vigo). Kite/windsurf con N-NNW (nortada); W y E no entran (resguardada).',
     windPatterns: [
       {
         name: 'Nortada (N/NNW)',
         direction: 340,
         season: 'Junio–Septiembre, tardes',
-        description: 'El viento bueno de Liméns. Cabo Udra es la referencia (algo más expuesta que la playa).',
+        description: 'El viento bueno de Liméns: N/NNW limpio y constante.',
       },
       {
         name: 'Sur (fuerte)',
@@ -354,19 +357,19 @@ export const RIAS_SPOTS: SailingSpot[] = [
         description: 'Entra fuerte pero incómodo, solo con experiencia.',
       },
     ],
-    // Sin estación de tierra fiable: la MG de Cangas infravalora. Ancla = boya
-    // Cabo Udra, pero está más expuesta que la playa → leve rebaja (ver windCalibrationKt).
-    preferredStations: [],
-    // Cangas MG (~2-3km, dentro del radio) infravalora todas las direcciones
+    // Estación de referencia: Cabo Udra MG (mg_10905, cabo expuesto al N, fresca
+    // y fiable para N/NNW). Es la que manda — la ría sopla otra cosa.
+    preferredStations: ['mg_10905'],
+    // Cangas MG (Meteoclimatic, ~2-3km) infravalora todas las direcciones
     // (ratio 0.23-0.64) → fuera. Sigue válida para centro-ria / virazón.
     excludeStations: ['mc_ESGAL3600000036940A'],
     preferredBuoys: [
-      4273, // Cabo Udra REMPOR (N) — referencia del N/NNW de Liméns
+      4273, // Cabo Udra REMPOR (N) — corrobora, pero suele ir 1-2h retrasada
       1252, // Islas Cíes CETMAR — corroboración oceánica / swell
     ],
     waveRelevance: 'moderate',
     thermalDetection: false, // virazón/bocana NO funcionan en Liméns (confirmado local)
-    // Cabo Udra es más expuesta que la playa de Liméns → lee ~2kt de más. BETA, afinar.
+    // Cabo Udra (cabo) está más expuesto que la playa de Liméns → lee ~2kt de más. BETA.
     windCalibrationKt: -2,
     hardGates: { maxWindKt: 30, maxWaveHeight: 2.5 },
     beta: true,
