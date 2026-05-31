@@ -86,6 +86,51 @@ const LEVEL_IMMINENT = 60;
 const LEVEL_PROBABLE = 40;
 const LEVEL_WATCH = 20;
 
+export type ThermalCountdownTone = 'active' | 'soon' | 'watch';
+
+export interface ThermalCountdown {
+  /** Glanceable phrase, e.g. "Térmico entrando en ~1h" */
+  text: string;
+  tone: ThermalCountdownTone;
+}
+
+/**
+ * Friendly, deliberately-fuzzy thermal-onset countdown for UI display.
+ *
+ * The ETA is uncertain (±~30 min), so we bucket the time into "~Xh" / "ya" /
+ * "ahora" and NEVER show an exact clock — promising a precise minute the
+ * model can't deliver would erode trust. Returns null when there's nothing
+ * actionable to show (level 'none').
+ *
+ * Verb scales with confidence: active → "activo", imminent → "entrando",
+ * probable → "probable", watch → "posible". Tone drives the badge colour.
+ */
+export function formatThermalCountdown(p: ThermalPrecursorResult): ThermalCountdown | null {
+  if (p.level === 'none') return null;
+
+  const m = p.etaMinutes;
+  // Fuzzy "when" phrase — coarse on purpose.
+  let when: string;
+  if (p.level === 'active' || m === 0) when = 'ahora';
+  else if (m == null) when = '';
+  else if (m <= 20) when = 'ya';
+  else if (m <= 75) when = 'en ~1h';
+  else when = `en ~${Math.round(m / 60)}h`;
+
+  const verb =
+    p.level === 'active' ? 'Térmico activo'
+    : p.level === 'imminent' ? 'Térmico entrando'
+    : p.level === 'probable' ? 'Térmico probable'
+    : 'Posible térmico';
+
+  const tone: ThermalCountdownTone =
+    p.level === 'active' ? 'active'
+    : p.level === 'imminent' || p.level === 'probable' ? 'soon'
+    : 'watch';
+
+  return { text: when ? `${verb} ${when}` : verb, tone };
+}
+
 // ── Main function ────────────────────────────────────────
 
 /**

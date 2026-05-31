@@ -19,6 +19,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
+import { formatThermalCountdown } from '../../services/thermalPrecursorService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
 import type { WebcamVisionResult } from '../../services/webcamVisionService';
 import type { HourlyForecast } from '../../types/forecast';
@@ -530,6 +531,28 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {spot.thermalDetection && spotForecast.length > 0 && (
         <ThermalForecastBadge forecast={spotForecast} />
       )}
+
+      {/* ── Thermal onset countdown (P2) — glanceable "entra en ~1h" for thermal
+          spots. Deliberately fuzzy (ETA is ±~30min); the full breakdown +
+          window live in the collapsible ThermalPrecursorSection below. ── */}
+      {precursor && (() => {
+        const cd = formatThermalCountdown(precursor);
+        if (!cd) return null;
+        const tone = cd.tone === 'active'
+          ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
+          : cd.tone === 'soon'
+            ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'
+            : 'bg-slate-700/30 border-slate-600/40 text-slate-300';
+        return (
+          <div
+            className={`text-[11px] font-semibold mb-2 px-2 py-1 rounded border flex items-center gap-1.5 ${tone}`}
+            title={precursor.eta ? `Ventana térmica ${precursor.eta} · ${precursor.confidence} confianza` : 'Estimación aproximada (±30 min)'}
+          >
+            <WeatherIcon id="wind" size={12} className="-mt-px" />
+            <span>{cd.text}</span>
+          </div>
+        );
+      })()}
 
       {/* ── Viración (daily wind cycle phase) — Rías only, conservative emit ── */}
       {viracion && (

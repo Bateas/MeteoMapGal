@@ -10,7 +10,8 @@
  * returns the literal local hour on any CI timezone.
  */
 import { describe, it, expect } from 'vitest';
-import { computeThermalPrecursors } from './thermalPrecursorService';
+import { computeThermalPrecursors, formatThermalCountdown } from './thermalPrecursorService';
+import type { ThermalPrecursorResult } from './thermalPrecursorService';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import type { HourlyForecast } from '../types/forecast';
@@ -220,5 +221,59 @@ describe('computeThermalPrecursors — forecast signal', () => {
     const r = computeThermalPrecursors(cesantes, [], new Map(), [], null, SUMMER_MORNING);
     expect(r.signals.forecastFavorable.active).toBe(false);
     expect(r.signals.skyStateClear.active).toBe(false);
+  });
+});
+
+describe('formatThermalCountdown', () => {
+  const mk = (level: ThermalPrecursorResult['level'], etaMinutes: number | null): ThermalPrecursorResult =>
+    ({ level, etaMinutes } as ThermalPrecursorResult);
+
+  it('returns null when there is no thermal signal', () => {
+    expect(formatThermalCountdown(mk('none', null))).toBeNull();
+  });
+
+  it('reports "ahora" + active tone when thermal is active', () => {
+    const c = formatThermalCountdown(mk('active', 0))!;
+    expect(c.text).toBe('Térmico activo ahora');
+    expect(c.tone).toBe('active');
+  });
+
+  it('treats etaMinutes 0 (already in window) as "ahora"', () => {
+    const c = formatThermalCountdown(mk('imminent', 0))!;
+    expect(c.text).toMatch(/ahora/);
+    expect(c.tone).toBe('soon');
+  });
+
+  it('says "ya" when onset is within 20 min', () => {
+    const c = formatThermalCountdown(mk('imminent', 15))!;
+    expect(c.text).toBe('Térmico entrando ya');
+  });
+
+  it('buckets 30-75 min to "~1h"', () => {
+    expect(formatThermalCountdown(mk('imminent', 60))!.text).toBe('Térmico entrando en ~1h');
+    expect(formatThermalCountdown(mk('probable', 45))!.text).toBe('Térmico probable en ~1h');
+  });
+
+  it('rounds longer waits to whole hours with a "~" prefix', () => {
+    expect(formatThermalCountdown(mk('probable', 130))!.text).toBe('Térmico probable en ~2h');
+    expect(formatThermalCountdown(mk('watch', 175))!.text).toBe('Posible térmico en ~3h');
+  });
+
+  it('uses the muted "watch" tone for low-confidence signals', () => {
+    expect(formatThermalCountdown(mk('watch', 120))!.tone).toBe('watch');
+  });
+
+  it('never emits an exact clock time (only fuzzy buckets)', () => {
+    for (const m of [25, 50, 90, 140, 200, 300]) {
+      const c = formatThermalCountdown(mk('probable', m))!;
+      expect(c.text).not.toMatch(/\d{1,2}:\d{2}/);   // no HH:MM
+      expect(c.text).not.toMatch(/\b1[0-9]h\b/);     // no "13h"-style window time
+      expect(c.text).toMatch(/~|ya|ahora/);          // always fuzzy
+    }
+  });
+
+  it('omits the time phrase gracefully when etaMinutes is null', () => {
+    const c = formatThermalCountdown(mk('probable', null))!;
+    expect(c.text).toBe('Térmico probable');
   });
 });
