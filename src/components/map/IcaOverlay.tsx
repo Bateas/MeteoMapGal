@@ -241,9 +241,12 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
         style={{ zIndex: 13 }}
       />
       {/* Active overlay badge — discreet identifier + dismiss button.
-          Bottom-left to avoid overlap with zoom controls + ticker. */}
+          TOP-left: bottom-left collided with the layers toolbar (same corner),
+          and that toolbar's panel expands UPWARD when a layer is active, so any
+          fixed bottom offset would still overlap. Top-left is free (zoom + style
+          selector are top-right, CriticalAlertBanner is top-center). */}
       <div
-        className={`absolute bottom-2 left-2 text-[10px] font-semibold text-white pl-2 pr-1 py-1 rounded border flex items-center gap-2 ${labelColor}`}
+        className={`absolute top-2 left-2 text-[10px] font-semibold text-white pl-2 pr-1 py-1 rounded border flex items-center gap-2 ${labelColor}`}
         style={{ zIndex: 14, pointerEvents: 'auto' }}
       >
         <span>Calidad aire (ICA) · {worstLabel}{pollutant}</span>
