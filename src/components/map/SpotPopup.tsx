@@ -27,7 +27,6 @@ import type { HourlyForecast } from '../../types/forecast';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { predictCesantesCanalization, computeMouthHumidity } from '../../services/cesantesCanalizationDetector';
-import { predictLimensChanneling } from '../../services/limensChannelingDetector';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWebcamStore } from '../../store/webcamStore';
@@ -142,14 +141,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
   // ── Cesantes canalization predictor — memoized for use in wind display ──
   const channelingPrediction = (() => {
+    if (spot.id !== 'cesantes') return null;
     try {
-      // Liméns: N/NNW orographic boost anchored on the Cabo Udra buoy.
-      if (spot.id === 'limens') {
-        const buoys = useBuoyStore.getState().buoys ?? [];
-        const pred = predictLimensChanneling(buoys);
-        return pred.active ? pred : null;
-      }
-      if (spot.id !== 'cesantes') return null;
       const buoys = useBuoyStore.getState().buoys ?? [];
       const stations = useWeatherStore.getState().stations ?? [];
       const readings = useWeatherStore.getState().currentReadings ?? new Map();

@@ -339,34 +339,35 @@ export const RIAS_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-8.814309, 42.257539],
     radiusKm: 8,
-    description: 'Praia de Liméns, Cangas (orilla sur de la ría de Vigo). Orientada entre montañas: funciona MUY bien con Norte/NNW (nortada), que entra limpio y canalizado. El W NO entra y el E tampoco (resguardada por el monte), y la virazón/bocana térmica no aplica aquí. El Sur entra fuerte pero no es ideal. Microclima propio: a veces sopla mejor el NW en Liméns que en el resto de la ría. Referencia de viento: boya de Cabo Udra (Norte).',
+    description: 'Praia de Liméns, Cangas (sur de la ría de Vigo). Kite/windsurf con N-NNW (nortada); W y E no entran (resguardada). Referencia: boya de Cabo Udra.',
     windPatterns: [
       {
         name: 'Nortada (N/NNW)',
         direction: 340,
         season: 'Junio–Septiembre, tardes',
-        description: 'El viento bueno de Liméns. N/NNW canalizado por la orografía, limpio y constante. La boya de Cabo Udra al norte es la mejor referencia (cuando marca ~338 NNW, Liméns funciona). Ideal kite y windsurf.',
+        description: 'El viento bueno de Liméns. Cabo Udra es la referencia (algo más expuesta que la playa).',
       },
       {
         name: 'Sur (fuerte)',
         direction: 180,
         season: 'Borrascas',
-        description: 'El Sur entra fuerte pero NO es ideal aquí — mar revuelto y rachas, solo con experiencia. El W y el E no entran (monte de por medio).',
+        description: 'Entra fuerte pero incómodo, solo con experiencia.',
       },
     ],
-    // Sin estación de tierra fiable: la MG de Cangas infravalora y la ría tiene
-    // otro viento que Liméns (microclima N canalizado). Ancla = boya Cabo Udra.
+    // Sin estación de tierra fiable: la MG de Cangas infravalora. Ancla = boya
+    // Cabo Udra, pero está más expuesta que la playa → leve rebaja (ver windCalibrationKt).
     preferredStations: [],
-    // Cangas MG está a ~2-3km (dentro del radio) pero infravalora todas las
-    // direcciones (ratio 0.23-0.64) y NO representa el viento N de Liméns →
-    // fuera. Sigue válida para centro-ria / virazón (con su corrección).
+    // Cangas MG (~2-3km, dentro del radio) infravalora todas las direcciones
+    // (ratio 0.23-0.64) → fuera. Sigue válida para centro-ria / virazón.
     excludeStations: ['mc_ESGAL3600000036940A'],
     preferredBuoys: [
-      4273, // Cabo Udra REMPOR (N) — referencia PRIMARIA del N/NNW de Liméns
+      4273, // Cabo Udra REMPOR (N) — referencia del N/NNW de Liméns
       1252, // Islas Cíes CETMAR — corroboración oceánica / swell
     ],
     waveRelevance: 'moderate',
     thermalDetection: false, // virazón/bocana NO funcionan en Liméns (confirmado local)
+    // Cabo Udra es más expuesta que la playa de Liméns → lee ~2kt de más. BETA, afinar.
+    windCalibrationKt: -2,
     hardGates: { maxWindKt: 30, maxWaveHeight: 2.5 },
     beta: true,
     tideStationId: '29', // Vigo

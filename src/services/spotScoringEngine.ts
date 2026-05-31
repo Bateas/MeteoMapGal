@@ -29,7 +29,6 @@ import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
 import { detectBocana } from './bocanaDetector';
 import { predictCesantesCanalization, computeMouthHumidity, type CesantesPrediction } from './cesantesCanalizationDetector';
-import { predictLimensChanneling } from './limensChannelingDetector';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -1142,10 +1141,7 @@ export function scoreAllSpots(
     // under-read by ≥4kt during thermal breeze hours. Detector is gated by
     // physics (ΔT ≥2°C + hour 12-20 + airTemp ≥16°C), not always-on.
     let channelingPrediction: CesantesPrediction | null = null;
-    if (spot.id === 'limens') {
-      // Liméns N/NNW orographic boost — anchored on the Cabo Udra buoy.
-      channelingPrediction = predictLimensChanneling(buoys);
-    } else if (spot.id === 'cesantes') {
+    if (spot.id === 'cesantes') {
       const mouthHum = computeMouthHumidity(stations, readings);
       // Bug v2.81.31: stationData is not distance-sorted, so .find() may return
       // a far station with a low temp (e.g. interior 15°C) → ΔT goes negative
