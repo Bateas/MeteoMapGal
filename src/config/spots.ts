@@ -77,6 +77,10 @@ export interface SailingSpot {
   /** Wind speed calibration offset (kt). Added to consensus avg to compensate
    *  for amateur station low-mounting bias or exposed locations. Default 0. */
   windCalibrationKt?: number;
+  /** Station IDs to EXCLUDE from this spot's scoring even if within radius.
+   *  For stations that are fine elsewhere but misrepresent THIS spot (different
+   *  microclimate / sheltered). e.g. Liméns excludes Cangas MG. */
+  excludeStations?: string[];
   /** Upwind indicator stations — if these show wind in a pattern direction
    *  while the spot is calm, it signals approaching wind (frontal propagation).
    *  NOT used for thermal/bruma patterns (those generate locally).
@@ -353,6 +357,10 @@ export const RIAS_SPOTS: SailingSpot[] = [
     // Sin estación de tierra fiable: la MG de Cangas infravalora y la ría tiene
     // otro viento que Liméns (microclima N canalizado). Ancla = boya Cabo Udra.
     preferredStations: [],
+    // Cangas MG está a ~2-3km (dentro del radio) pero infravalora todas las
+    // direcciones (ratio 0.23-0.64) y NO representa el viento N de Liméns →
+    // fuera. Sigue válida para centro-ria / virazón (con su corrección).
+    excludeStations: ['mc_ESGAL3600000036940A'],
     preferredBuoys: [
       4273, // Cabo Udra REMPOR (N) — referencia PRIMARIA del N/NNW de Liméns
       1252, // Islas Cíes CETMAR — corroboración oceánica / swell

@@ -399,3 +399,23 @@ describe('isWindBlacklisted — audited 2026-05-27', () => {
     expect(isWindBlacklisted('aemet_1428')).toBe(false);  // Lavacolla airport
   });
 });
+
+describe('scoreAllSpots — per-spot station exclusion (excludeStations)', () => {
+  const limens = RIAS_SPOTS.find((s) => s.id === 'limens')!;
+  const CANGAS = 'mc_ESGAL3600000036940A';
+
+  it('Liméns ignores the excluded Cangas MG station even when in range', () => {
+    const cangas = makeStation(CANGAS, limens.center[1], limens.center[0]);
+    const reading = makeReading(CANGAS, msFromKt(12), 340);
+    const results = scoreAllSpots([limens], [cangas], new Map([[CANGAS, reading]]), []);
+    // Cangas is the only nearby station and it's excluded → no wind source left.
+    expect(results.get('limens')!.verdict).toBe('unknown');
+  });
+
+  it('Liméns DOES read a non-excluded station at the same location', () => {
+    const other = makeStation('wu_LIMENS_CTRL', limens.center[1], limens.center[0], 'wunderground');
+    const reading = makeReading('wu_LIMENS_CTRL', msFromKt(12), 340);
+    const results = scoreAllSpots([limens], [other], new Map([['wu_LIMENS_CTRL', reading]]), []);
+    expect(results.get('limens')!.verdict).not.toBe('unknown');
+  });
+});
