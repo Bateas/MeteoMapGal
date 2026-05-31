@@ -38,6 +38,7 @@ import { useAirQualityStore } from '../../store/airQualityStore';
 import { computeSurfVerdict, swellAlignmentMultiplier } from '../spot/surfVerdictEngine';
 import { detectViracionPhase } from '../../services/viracionDetector';
 import { assessRainNowcast } from '../../services/rainNowcastService';
+import { assessBeachDay } from '../../services/beachDayService';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
@@ -583,6 +584,38 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           <span>{rain.summary}</span>
         </div>
       )}
+
+      {/* ── ¿Buen día de playa? — casual reframe (EJE ALCANCE prototype).
+          Rías beaches only (surf spots have their own framing). Synthesises
+          sun + air/water temp + wind + rain into a sí/regular/no answer. ── */}
+      {sectorId === 'rias' && spot.category !== 'surf' && (() => {
+        const beach = assessBeachDay({
+          cloudCoverPct: spotForecast[0]?.cloudCover ?? null,
+          windKt: score?.wind?.avgSpeedKt ?? null,
+          airTempC: score?.airTemp ?? null,
+          waterTempC: score?.waterTemp ?? mohidSeaTemp ?? null,
+          rainingNow: rain?.status === 'raining',
+          rainSoon: rain?.status === 'rain-soon',
+        });
+        if (beach.verdict === 'unknown') return null;
+        const tone = beach.verdict === 'great'
+          ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
+          : beach.verdict === 'ok'
+            ? 'bg-amber-500/12 border-amber-500/35 text-amber-200'
+            : 'bg-slate-700/30 border-slate-600/40 text-slate-400';
+        const dotColor = beach.verdict === 'great' ? '#34d399' : beach.verdict === 'ok' ? '#fbbf24' : '#f87171';
+        return (
+          <div className={`text-[11px] mb-2 px-2 py-1.5 rounded border ${tone}`} title="Resumen casual de condiciones de playa">
+            <div className="font-semibold flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
+              <span>¿Playa? {beach.summary}</span>
+            </div>
+            {beach.reasons.length > 0 && (
+              <div className="mt-0.5 text-[10px] opacity-80">{beach.reasons.join(' · ')}</div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Historical baseline badge — sailing spots only, sailing-relevant signal ── */}
       {spot.category !== 'surf' && score?.wind != null && score.wind.avgSpeedKt > 0.5 && (
