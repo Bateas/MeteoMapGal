@@ -29,6 +29,7 @@ import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
 import { detectBocana } from './bocanaDetector';
 import { predictCesantesCanalization, computeMouthHumidity, type CesantesPrediction } from './cesantesCanalizationDetector';
+import { predictLimensChanneling } from './limensChannelingDetector';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -815,7 +816,7 @@ function scoreSpot(
   thermalData?: SpotThermalContext,
   buoyData?: { buoy: BuoyReading; distKm: number }[],
   stationData?: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
-  cesantesPrediction?: CesantesPrediction | null,
+  channelingPrediction?: CesantesPrediction | null,
 ): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; effectiveWindKt: number | null; humiditySignal: string | null; thetaVGradient: number | null } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
@@ -877,11 +878,15 @@ function scoreSpot(
   // When the canalization detector confirms strong thermal breeze with confidence ≥70%
   // AND predicts ≥4kt higher than measured, trust the physical model — empirical
   // webcam evidence (kiters/windsurfers planning) matches detector when stations don't.
-  if (spot.id === 'cesantes' && cesantesPrediction?.active
-      && cesantesPrediction.predictedKt !== null
-      && cesantesPrediction.confidence >= 70
-      && (cesantesPrediction.predictedKt - spd) >= 4) {
-    effectiveSpd = cesantesPrediction.predictedKt;
+  // Generic channeling override: applies to any spot the engine computed a
+  // local-channeling prediction for (Cesantes SW canalization, Liméns N/NNW).
+  // The engine only sets channelingPrediction for those spots, so no per-id
+  // gate is needed here.
+  if (channelingPrediction?.active
+      && channelingPrediction.predictedKt !== null
+      && channelingPrediction.confidence >= 70
+      && (channelingPrediction.predictedKt - spd) >= 4) {
+    effectiveSpd = channelingPrediction.predictedKt;
     thermalBoosted = true;
   }
 
@@ -1136,8 +1141,11 @@ export function scoreAllSpots(
     // Cesantes canalization prediction — feeds scoring override when stations
     // under-read by ≥4kt during thermal breeze hours. Detector is gated by
     // physics (ΔT ≥2°C + hour 12-20 + airTemp ≥16°C), not always-on.
-    let cesantesPrediction: CesantesPrediction | null = null;
-    if (spot.id === 'cesantes') {
+    let channelingPrediction: CesantesPrediction | null = null;
+    if (spot.id === 'limens') {
+      // Liméns N/NNW orographic boost — anchored on the Cabo Udra buoy.
+      channelingPrediction = predictLimensChanneling(buoys);
+    } else if (spot.id === 'cesantes') {
       const mouthHum = computeMouthHumidity(stations, readings);
       // Bug v2.81.31: stationData is not distance-sorted, so .find() may return
       // a far station with a low temp (e.g. interior 15°C) → ΔT goes negative
@@ -1162,12 +1170,12 @@ export function scoreAllSpots(
       const summerLike = airTempLocal !== null && airTempLocal >= 20;
       const waterTempForDetector = waterTemp
         ?? (summerLike ? RIA_VIGO_INTERIOR_SST_BY_MONTH[new Date().getMonth()] : null);
-      cesantesPrediction = predictCesantesCanalization(
+      channelingPrediction = predictCesantesCanalization(
         buoys, mouthHum, false, airTempLocal, waterTempForDetector, localStationKt,
       );
     }
 
-    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, cesantesPrediction);
+    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction);
 
     // Scoring confidence based on source count and type
     const sourceCount = wind?.stationCount ?? 0;
