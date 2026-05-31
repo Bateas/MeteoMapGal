@@ -419,3 +419,38 @@ describe('scoreAllSpots — per-spot station exclusion (excludeStations)', () =>
     expect(results.get('limens')!.verdict).not.toBe('unknown');
   });
 });
+
+describe('scoreAllSpots — documented station-bias de-weighting', () => {
+  const lourido = RIAS_SPOTS.find((s) => s.id === 'lourido')!;
+  const CANGAS = 'mc_ESGAL3600000036940A'; // documented sheltered 0-150° (N/NE/E/SE)
+  const [lon, lat] = lourido.center;
+
+  // Same setup, only the wind DIRECTION changes: in Cangas's blind sector (N)
+  // its low reading is demoted → consensus leans to the reliable station; in a
+  // reliable sector (SW) it counts fully → consensus drags toward its low value.
+  function consensusAt(dir: number) {
+    const cangas = makeStation(CANGAS, lat, lon);
+    const reliable = makeStation('wu_RELIABLE', lat, lon, 'wunderground');
+    const readings = new Map([
+      [CANGAS, makeReading(CANGAS, msFromKt(5), dir)],            // sheltered station reads low
+      ['wu_RELIABLE', makeReading('wu_RELIABLE', msFromKt(15), dir)], // exposed station reads high
+    ]);
+    return scoreAllSpots([lourido], [cangas, reliable], readings, []).get('lourido')!;
+  }
+
+  it('demotes a station reading from its blind sector (consensus higher than when it counts fully)', () => {
+    const blindN = consensusAt(10);    // N → Cangas blind → demoted
+    const reliableSW = consensusAt(240); // SW → Cangas reliable → full weight
+    expect(blindN.wind).not.toBeNull();
+    expect(reliableSW.wind).not.toBeNull();
+    expect(blindN.wind!.avgSpeedKt).toBeGreaterThan(reliableSW.wind!.avgSpeedKt);
+  });
+
+  it('a station with no documented bias is never demoted (control)', () => {
+    const clean = makeStation('wu_CLEAN', lat, lon, 'wunderground');
+    const readings = new Map([['wu_CLEAN', makeReading('wu_CLEAN', msFromKt(12), 10)]]);
+    const r = scoreAllSpots([lourido], [clean], readings, []).get('lourido')!;
+    expect(r.wind).not.toBeNull();
+    expect(r.wind!.avgSpeedKt).toBeGreaterThan(10); // ~12 + calibration, not demoted
+  });
+});
