@@ -40,6 +40,15 @@ const STRONG_KT = 25;     // wind ≥ this (kt) = strong / caution
 const DAY_START = 8;
 const DAY_END = 21;
 const DIR_MATCH_TOLERANCE = 50; // ° — spot windPattern vs outlook direction
+// Day-hazard thresholds (O2 safety line). Rain: forecast probability + amount.
+const RAIN_PROB = 55;     // % precip probability to flag rain
+const RAIN_MM = 0.3;      // mm — ignore drizzle-trace noise
+// Storm: uncapped instability proxy (CAPE high + lifted index negative + not
+// strongly capped by CIN). Framed as "riesgo" — a forecast risk, NOT a
+// confirmed storm (those need real lightning, per the storm-severity rule).
+const STORM_CAPE = 1000;
+const STORM_LI = -2;
+const STORM_CIN_MAX = 200;
 
 // ── State ───────────────────────────────────────────
 
@@ -63,6 +72,7 @@ interface SectorSummary {
   stationCount: number;
   outlook: DayOutlook | null;      // null = light all day
   favoredSpots: string[];          // spots whose patterns suit the outlook dir
+  hazard: DayHazard;               // rain / storm risk today (O2)
   maxWaveHeight: number | null;    // coastal only
   maxWaveStation: string;
   waterTemp: number | null;        // coastal only
@@ -146,6 +156,55 @@ export function formatOutlook(o: DayOutlook | null): string {
   return `Navegable ${span} · hasta ${o.peakKt}kt${dir}${tag}`;
 }
 
+// ── Day hazard (O2 safety) ──────────────────────────
+
+interface DayHazard {
+  rain: { hour: number; prob: number } | null;
+  storm: boolean;
+}
+
+/**
+ * Scan today's daytime forecast for the day's safety hazard: probable rain +
+ * convective storm RISK (CAPE high + lifted index negative + not capped by
+ * CIN). Pure. Storm is framed as a forecast RISK, not a confirmed storm.
+ */
+export function summarizeDayHazard(hourly: HourlyForecast[], now: Date): DayHazard {
+  const today = now.toDateString();
+  const fromHour = Math.max(now.getHours(), DAY_START);
+
+  let rainHour = -1, rainProb = 0, storm = false;
+  for (const f of hourly) {
+    if (f.time.toDateString() !== today) continue;
+    const h = f.time.getHours();
+    if (h < fromHour || h > DAY_END) continue;
+
+    // Rain: keep the most-probable wet hour.
+    if (f.precipProbability != null && f.precipProbability >= RAIN_PROB
+        && (f.precipitation ?? 0) >= RAIN_MM && f.precipProbability > rainProb) {
+      rainProb = f.precipProbability;
+      rainHour = h;
+    }
+    // Storm risk: uncapped instability.
+    if ((f.cape ?? 0) >= STORM_CAPE && (f.liftedIndex ?? 99) <= STORM_LI
+        && (f.cin ?? 0) < STORM_CIN_MAX) {
+      storm = true;
+    }
+  }
+
+  return {
+    rain: rainHour >= 0 ? { hour: rainHour, prob: Math.round(rainProb) } : null,
+    storm,
+  };
+}
+
+/** Concise hazard line(s). Empty string when the day is clear. */
+export function formatHazard(h: DayHazard): string {
+  const parts: string[] = [];
+  if (h.storm) parts.push('⛈️ Riesgo de tormenta');
+  if (h.rain) parts.push(`🌧️ Lluvia ~${h.rain.hour}h (${h.rain.prob}%)`);
+  return parts.join('\n');
+}
+
 // ── DB queries ──────────────────────────────────────
 
 async function querySectorSummary(
@@ -175,6 +234,7 @@ async function querySectorSummary(
 
     const outlook = summarizeDayOutlook(hourly, now);
     const favoredSpots = outlook ? spotsFavoredByDir(sectorId, outlook.dirDeg) : [];
+    const hazard = summarizeDayHazard(hourly, now);
 
     // Marine obs ONLY for coastal sectors. Embalse is an inland reservoir with
     // no buoys — never attach waves/water temp (was a bug). All buoys are Rías.
@@ -206,6 +266,7 @@ async function querySectorSummary(
       stationCount,
       outlook,
       favoredSpots,
+      hazard,
       maxWaveHeight: maxWave > 0 ? maxWave : null,
       maxWaveStation,
       waterTemp,
@@ -229,6 +290,10 @@ export function buildSectorBlock(s: SectorSummary): string {
     const extra = s.favoredSpots.length > 4 ? ' …' : '';
     block += `🏄 ${shown}${extra}\n`;
   }
+
+  // Day hazard (rain / storm risk) — O2 safety.
+  const hazardLine = formatHazard(s.hazard);
+  if (hazardLine) block += hazardLine + '\n';
 
   if (s.coastal) {
     const marine: string[] = [];
