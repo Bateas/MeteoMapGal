@@ -9,12 +9,12 @@
  *     the coords (reuses the existing rate-limited / sanitized / honeypot path).
  *   • "Eliminar" — removes the local pin.
  */
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useUserSpotStore } from '../../store/userSpotStore';
 import { useUIStore } from '../../store/uiStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import type { UserSpot } from '../../config/userSpots';
+import { type UserSpot, MAX_NAME_CHARS } from '../../config/userSpots';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 
 const VERDICT_FULL: Record<SpotVerdict, string> = {
@@ -32,15 +32,30 @@ interface Props {
 export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props) {
   const selectUserSpot = useUserSpotStore((s) => s.selectUserSpot);
   const removeUserSpot = useUserSpotStore((s) => s.removeUserSpot);
+  const renameUserSpot = useUserSpotStore((s) => s.renameUserSpot);
+
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState(spot.name);
 
   const close = useCallback(() => selectUserSpot(null), [selectUserSpot]);
+
+  const startEdit = useCallback(() => {
+    setNameInput(spot.name);
+    setEditing(true);
+  }, [spot.name]);
+
+  const commitName = useCallback(() => {
+    const clean = nameInput.trim();
+    if (clean) renameUserSpot(spot.id, clean); // store re-sanitizes + caps
+    setEditing(false);
+  }, [nameInput, renameUserSpot, spot.id]);
 
   const handleSuggest = useCallback(() => {
     const [lon, lat] = spot.center;
     const coords = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
     useUIStore.getState().setFeedbackPrefill({
       type: 'sugerencia',
-      text: `Sugiero un spot en estas coordenadas: ${coords}. `,
+      text: `Sugiero validar este spot ("${spot.name}"): ${coords}. `,
     });
     useUIStore.getState().setFeedbackOpen(true);
     close();
@@ -74,7 +89,30 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
             <WeatherIcon id="map-pin" size={15} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-bold truncate">{spot.name}</div>
+            {editing ? (
+              <input
+                autoFocus
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value.slice(0, MAX_NAME_CHARS))}
+                onBlur={commitName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitName();
+                  if (e.key === 'Escape') setEditing(false);
+                }}
+                maxLength={MAX_NAME_CHARS}
+                className="w-full text-sm font-bold bg-slate-800 border border-violet-400/50 rounded px-1.5 py-0.5 text-white focus:outline-none focus:border-violet-400"
+                aria-label="Nombre del spot"
+              />
+            ) : (
+              <button
+                onClick={startEdit}
+                className="group flex items-center gap-1 max-w-full text-sm font-bold hover:text-violet-300 transition-colors"
+                title="Cambiar nombre"
+              >
+                <span className="truncate">{spot.name}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-50 group-hover:opacity-100"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+            )}
             <div className="text-[10px] text-slate-500 font-mono">
               {spot.center[1].toFixed(4)}°N, {Math.abs(spot.center[0]).toFixed(4)}°W
             </div>
@@ -141,7 +179,7 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
           >
             <WeatherIcon id="message-square" size={13} />
-            Sugerir este spot
+            Sugerir validación del spot
           </button>
           <button
             onClick={handleDelete}
