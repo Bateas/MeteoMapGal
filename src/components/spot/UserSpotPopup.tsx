@@ -9,13 +9,38 @@
  *     the coords (reuses the existing rate-limited / sanitized / honeypot path).
  *   • "Eliminar" — removes the local pin.
  */
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useUserSpotStore } from '../../store/userSpotStore';
 import { useUIStore } from '../../store/uiStore';
+import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import { type UserSpot, MAX_NAME_CHARS } from '../../config/userSpots';
+import { type UserSpot, MAX_NAME_CHARS, buildSpotSuggestion } from '../../config/userSpots';
+import { RIAS_TIDE_STATIONS, fetchTidePredictions } from '../../api/tideClient';
+import { fastDistanceKm } from '../../services/idwInterpolation';
+import { msToKnots, degToCardinal8 } from '../../services/windUtils';
+import type { HourlyForecast } from '../../types/forecast';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
+
+/** Average wind over the next few forecast hours (WRF-MG), as kt + cardinal. */
+function summarizeWrfNextHours(hourly: HourlyForecast[], now: Date): { kt: number; dir: string } | null {
+  const future = hourly
+    .filter((h) => h.time.getTime() > now.getTime() && h.windSpeed != null)
+    .slice(0, 6);
+  if (future.length === 0) return null;
+  const avgMs = future.reduce((s, h) => s + h.windSpeed!, 0) / future.length;
+  let sin = 0, cos = 0, n = 0;
+  for (const h of future) {
+    if (h.windDirection != null) {
+      const r = (h.windDirection * Math.PI) / 180;
+      sin += Math.sin(r); cos += Math.cos(r); n++;
+    }
+  }
+  const dirDeg = ((Math.atan2(sin, cos) * 180) / Math.PI + 360) % 360;
+  return { kt: msToKnots(avgMs), dir: n > 0 ? degToCardinal8(dirDeg) : '' };
+}
+
+interface NextTide { type: 'high' | 'low'; time: string; heightM: number }
 
 const VERDICT_FULL: Record<SpotVerdict, string> = {
   calm: 'Calma', light: 'Flojo', sailing: 'Navegable', good: 'Buen viento', strong: 'Viento fuerte', unknown: 'Sin datos',
@@ -36,6 +61,34 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
 
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(spot.name);
+  const [nextTide, setNextTide] = useState<NextTide | null>(null);
+
+  // Fetch the nearest tide station's next high/low (Rías only — the inland
+  // reservoir has no tide). Used to enrich the suggestion report.
+  useEffect(() => {
+    if (spot.sectorId !== 'rias') { setNextTide(null); return; }
+    let cancelled = false;
+    const [lon, lat] = spot.center;
+    let nearest = RIAS_TIDE_STATIONS[0];
+    let best = Infinity;
+    for (const st of RIAS_TIDE_STATIONS) {
+      const d = fastDistanceKm(lat, lon, st.lat, st.lon);
+      if (d < best) { best = d; nearest = st; }
+    }
+    fetchTidePredictions(nearest.id)
+      .then((pts) => {
+        if (cancelled || !pts || pts.length === 0) return;
+        const now = new Date();
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        const next = pts.find((t) => {
+          const p = t.time.split(':').map(Number);
+          return p.length >= 2 && p[0] * 60 + p[1] > nowMins;
+        }) ?? pts[0];
+        setNextTide({ type: next.type, time: next.time, heightM: next.height });
+      })
+      .catch(() => { if (!cancelled) setNextTide(null); });
+    return () => { cancelled = true; };
+  }, [spot.id, spot.sectorId, spot.center]);
 
   const close = useCallback(() => selectUserSpot(null), [selectUserSpot]);
 
@@ -52,14 +105,23 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
 
   const handleSuggest = useCallback(() => {
     const [lon, lat] = spot.center;
-    const coords = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-    useUIStore.getState().setFeedbackPrefill({
-      type: 'sugerencia',
-      text: `Sugiero validar este spot ("${spot.name}"): ${coords}. `,
+    const wrf = summarizeWrfNextHours(useForecastStore.getState().hourly, new Date());
+    const text = buildSpotSuggestion({
+      name: spot.name,
+      lat,
+      lon,
+      windKt: score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null,
+      windDir: score?.wind?.dominantDir ?? null,
+      windSources: score?.wind?.stationCount,
+      waveHeightM: score?.waves?.waveHeight ?? null,
+      waterTempC: score?.waterTemp ?? null,
+      tide: nextTide,
+      wrf,
     });
+    useUIStore.getState().setFeedbackPrefill({ type: 'sugerencia', text: `${text}\n` });
     useUIStore.getState().setFeedbackOpen(true);
     close();
-  }, [spot, close]);
+  }, [spot, score, nextTide, close]);
 
   const handleDelete = useCallback(() => {
     removeUserSpot(spot.id);
@@ -165,10 +227,15 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
         )}
 
         {/* Marine context if available */}
-        {(waveHeight !== null || waterTemp !== null) && (
-          <div className="flex gap-3 mb-2 text-[11px] text-slate-400">
+        {(waveHeight !== null || waterTemp !== null || nextTide) && (
+          <div className="flex gap-3 flex-wrap mb-2 text-[11px] text-slate-400">
             {waveHeight !== null && <span>Olas {waveHeight.toFixed(1)}m</span>}
             {waterTemp !== null && <span>Agua {waterTemp.toFixed(0)}°C</span>}
+            {nextTide && (
+              <span style={{ color: nextTide.type === 'high' ? '#22d3ee' : '#60a5fa' }}>
+                {nextTide.type === 'high' ? '▲ Pleamar' : '▼ Bajamar'} {nextTide.time}
+              </span>
+            )}
           </div>
         )}
 
