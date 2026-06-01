@@ -9,7 +9,7 @@
  *     the coords (reuses the existing rate-limited / sanitized / honeypot path).
  *   • "Eliminar" — removes the local pin.
  */
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useUserSpotStore } from '../../store/userSpotStore';
 import { useUIStore } from '../../store/uiStore';
@@ -63,6 +63,12 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
   const [nameInput, setNameInput] = useState(spot.name);
   const [nextTide, setNextTide] = useState<NextTide | null>(null);
 
+  // WRF-MG sector forecast (next few hours) — shown in the popup AND bundled
+  // into the suggestion report. Subscribes reactively so it fills in once the
+  // deferred forecast hook has fetched.
+  const forecastHourly = useForecastStore((s) => s.hourly);
+  const wrf = useMemo(() => summarizeWrfNextHours(forecastHourly, new Date()), [forecastHourly]);
+
   // Fetch the nearest tide station's next high/low (Rías only — the inland
   // reservoir has no tide). Used to enrich the suggestion report.
   useEffect(() => {
@@ -105,7 +111,6 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
 
   const handleSuggest = useCallback(() => {
     const [lon, lat] = spot.center;
-    const wrf = summarizeWrfNextHours(useForecastStore.getState().hourly, new Date());
     const text = buildSpotSuggestion({
       name: spot.name,
       lat,
@@ -121,7 +126,7 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
     useUIStore.getState().setFeedbackPrefill({ type: 'sugerencia', text: `${text}\n` });
     useUIStore.getState().setFeedbackOpen(true);
     close();
-  }, [spot, score, nextTide, close]);
+  }, [spot, score, nextTide, wrf, close]);
 
   const handleDelete = useCallback(() => {
     removeUserSpot(spot.id);
@@ -236,6 +241,16 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
                 {nextTide.type === 'high' ? '▲ Pleamar' : '▼ Bajamar'} {nextTide.time}
               </span>
             )}
+          </div>
+        )}
+
+        {/* WRF-MG forecast for the next few hours */}
+        {wrf && (
+          <div className="mb-2 text-[11px]">
+            <span className="text-slate-500">Previsión WRF (próx. horas): </span>
+            <span className="text-slate-200 font-semibold tabular-nums">
+              {Math.round(wrf.kt)}kt{wrf.dir ? ` ${wrf.dir}` : ''}
+            </span>
           </div>
         )}
 
