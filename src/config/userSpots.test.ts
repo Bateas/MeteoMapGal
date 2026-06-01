@@ -5,6 +5,7 @@ import {
   makeUserSpotId,
   defaultUserSpotName,
   userSpotToSailingSpot,
+  buildSpotSuggestion,
   USER_SPOT_RADIUS_KM,
   MAX_NAME_CHARS,
   type UserSpot,
@@ -86,5 +87,48 @@ describe('userSpotToSailingSpot', () => {
     expect(s.bocanaDetection).toBeUndefined();
     expect(s.windCalibrationKt).toBeUndefined();
     expect(s.beta).toBe(true);
+  });
+});
+
+describe('buildSpotSuggestion', () => {
+  it('always includes name + coords', () => {
+    const txt = buildSpotSuggestion({ name: 'Punta X', lat: 42.2559, lon: -8.8439 });
+    expect(txt).toMatch(/Sugiero validar este spot: Punta X/);
+    expect(txt).toMatch(/Coordenadas: 42\.25590, -8\.84390/);
+  });
+
+  it('omits missing fields gracefully', () => {
+    const txt = buildSpotSuggestion({ name: 'X', lat: 42, lon: -8 });
+    expect(txt).not.toMatch(/Viento|Olas|Agua|Marea|WRF/);
+  });
+
+  it('appends wind, waves, water, tide and WRF when present', () => {
+    const txt = buildSpotSuggestion({
+      name: 'Mi spot 1', lat: 42.25, lon: -8.84,
+      windKt: 4.3, windDir: 'W', windSources: 7,
+      waveHeightM: 0.1, waterTempC: 15.4,
+      tide: { type: 'low', time: '18:42', heightM: 0.8 },
+      wrf: { kt: 9.2, dir: 'SW' },
+    });
+    expect(txt).toMatch(/Viento ahora: 4kt W \(7 fuentes\)/);
+    expect(txt).toMatch(/Olas: 0\.1m/);
+    expect(txt).toMatch(/Agua: 15C/);
+    expect(txt).toMatch(/Marea: bajando \(bajamar 18:42, 0\.8m\)/);
+    expect(txt).toMatch(/WRF prox horas: 9kt SW/);
+  });
+
+  it('labels a rising tide when the next tide is high', () => {
+    const txt = buildSpotSuggestion({
+      name: 'X', lat: 42, lon: -8,
+      tide: { type: 'high', time: '12:10', heightM: 3.4 },
+    });
+    expect(txt).toMatch(/Marea: subiendo \(pleamar 12:10, 3\.4m\)/);
+  });
+
+  it('is ASCII-safe (no degree, middot or tilde chars)', () => {
+    const txt = buildSpotSuggestion({
+      name: 'X', lat: 42, lon: -8, waterTempC: 15, windKt: 5, wrf: { kt: 9, dir: 'SW' },
+    });
+    expect(txt).not.toMatch(/[°·~"]/);
   });
 });

@@ -86,6 +86,56 @@ export function defaultUserSpotName(existingCount: number): string {
   return `Mi spot ${existingCount + 1}`;
 }
 
+// ── Suggestion report ─────────────────────────────────────────
+
+/** Data snapshot bundled into the "suggest validation" report so the spot can
+ *  be curated with real context. All fields optional — missing ones are
+ *  omitted. ASCII-only output (no °/·/~) so it matches what the user sees and
+ *  survives the feedback sanitizer untouched. */
+export interface SuggestionData {
+  name: string;
+  lat: number;
+  lon: number;
+  windKt?: number | null;
+  windDir?: string | null;
+  windSources?: number;
+  waveHeightM?: number | null;
+  waterTempC?: number | null;
+  /** Next tide (high/low) — conveys whether it is rising or falling now. */
+  tide?: { type: 'high' | 'low'; time: string; heightM: number } | null;
+  /** WRF-MG forecast for the next few hours. */
+  wrf?: { kt: number; dir: string } | null;
+}
+
+/** Build the pre-filled "suggest validation" report text (multi-line, concise,
+ *  ASCII-safe). Always leads with name + coords; appends whatever data exists. */
+export function buildSpotSuggestion(d: SuggestionData): string {
+  const lines: string[] = [];
+  lines.push(`Sugiero validar este spot: ${d.name}`);
+  lines.push(`Coordenadas: ${d.lat.toFixed(5)}, ${d.lon.toFixed(5)}`);
+
+  if (d.windKt != null) {
+    const dir = d.windDir ? ` ${d.windDir}` : '';
+    const src = d.windSources ? ` (${d.windSources} fuentes)` : '';
+    lines.push(`Viento ahora: ${Math.round(d.windKt)}kt${dir}${src}`);
+  }
+  if (d.waveHeightM != null) {
+    lines.push(`Olas: ${d.waveHeightM.toFixed(1)}m`);
+  }
+  if (d.waterTempC != null) {
+    lines.push(`Agua: ${Math.round(d.waterTempC)}C`);
+  }
+  if (d.tide) {
+    const trend = d.tide.type === 'high' ? 'subiendo' : 'bajando';
+    const label = d.tide.type === 'high' ? 'pleamar' : 'bajamar';
+    lines.push(`Marea: ${trend} (${label} ${d.tide.time}, ${d.tide.heightM.toFixed(1)}m)`);
+  }
+  if (d.wrf) {
+    lines.push(`WRF prox horas: ${Math.round(d.wrf.kt)}kt ${d.wrf.dir}`);
+  }
+  return lines.join('\n');
+}
+
 /**
  * Convert a UserSpot into a `SailingSpot` the engine can score.
  *
