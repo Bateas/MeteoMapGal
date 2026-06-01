@@ -13,7 +13,7 @@
     "knip": "knip"
   },
   "dependencies": {
-    "date-fns": "^4.1.0",
+    "date-fns": "^4.3.0",
     "lucide-react": "^0.577.0",
     "maplibre-gl": "^5.24.0",
     "react": "^19.2.6",
