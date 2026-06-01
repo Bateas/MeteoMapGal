@@ -6,13 +6,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   summarizeDayOutlook, spotsFavoredByDir, formatOutlook,
+  summarizeDayHazard, formatHazard,
   buildSectorBlock, buildMessage,
 } from './dailySummary';
 import type { HourlyForecast } from '../src/types/forecast';
 
 const NOW = new Date('2026-06-01T09:00:00'); // lunes 1 de junio, 09:00
 
-function fcHour(hour: number, windMs: number, windDir: number): HourlyForecast {
+function fcHour(hour: number, windMs: number, windDir: number, extra: Partial<HourlyForecast> = {}): HourlyForecast {
   const t = new Date('2026-06-01T00:00:00');
   t.setHours(hour, 0, 0, 0);
   return {
@@ -20,6 +21,7 @@ function fcHour(hour: number, windMs: number, windDir: number): HourlyForecast {
     windGusts: windMs * 1.3, precipitation: 0, precipProbability: 0, cloudCover: 30,
     pressure: 1018, solarRadiation: 500, cape: null, boundaryLayerHeight: null,
     visibility: null, liftedIndex: null, cin: null, snowLevel: null, skyState: null, isDay: true,
+    ...extra,
   };
 }
 const ms = (kt: number) => kt / 1.944;
@@ -97,11 +99,52 @@ describe('formatOutlook', () => {
   });
 });
 
+describe('summarizeDayHazard', () => {
+  it('clear day → no rain, no storm', () => {
+    const h = summarizeDayHazard([14, 16, 18].map((hr) => fcHour(hr, ms(10), 225)), NOW);
+    expect(h.rain).toBeNull();
+    expect(h.storm).toBe(false);
+  });
+
+  it('flags the most-probable wet hour', () => {
+    const h = summarizeDayHazard([
+      fcHour(14, ms(8), 225, { precipProbability: 40, precipitation: 0.5 }), // below RAIN_PROB
+      fcHour(16, ms(8), 225, { precipProbability: 70, precipitation: 1.2 }),
+      fcHour(18, ms(8), 225, { precipProbability: 60, precipitation: 0.8 }),
+    ], NOW);
+    expect(h.rain).toEqual({ hour: 16, prob: 70 });
+  });
+
+  it('ignores high-probability with only a trace of rain', () => {
+    const h = summarizeDayHazard([fcHour(16, ms(8), 225, { precipProbability: 80, precipitation: 0.1 })], NOW);
+    expect(h.rain).toBeNull();
+  });
+
+  it('flags storm risk only when uncapped (CAPE high + LI negative + low CIN)', () => {
+    const risky = summarizeDayHazard([fcHour(17, ms(8), 225, { cape: 1500, liftedIndex: -4, cin: 30 })], NOW);
+    expect(risky.storm).toBe(true);
+    const capped = summarizeDayHazard([fcHour(17, ms(8), 225, { cape: 1500, liftedIndex: -4, cin: 400 })], NOW);
+    expect(capped.storm).toBe(false); // CIN caps it
+  });
+});
+
+describe('formatHazard', () => {
+  it('empty when clear', () => {
+    expect(formatHazard({ rain: null, storm: false })).toBe('');
+  });
+  it('renders storm + rain lines', () => {
+    const s = formatHazard({ rain: { hour: 16, prob: 70 }, storm: true });
+    expect(s).toMatch(/⛈️ Riesgo de tormenta/);
+    expect(s).toMatch(/🌧️ Lluvia ~16h \(70%\)/);
+  });
+});
+
 // SectorSummary shape (interface internal — build structurally).
 function sector(over: Partial<Parameters<typeof buildSectorBlock>[0]> = {}) {
   return {
     name: 'Rías Baixas', coastal: true, stationCount: 100,
-    outlook: null, favoredSpots: [], maxWaveHeight: null, maxWaveStation: '', waterTemp: null,
+    outlook: null, favoredSpots: [], hazard: { rain: null, storm: false },
+    maxWaveHeight: null, maxWaveStation: '', waterTemp: null,
     ...over,
   } as Parameters<typeof buildSectorBlock>[0];
 }
