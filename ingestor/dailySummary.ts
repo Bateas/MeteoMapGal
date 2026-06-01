@@ -1,21 +1,28 @@
 /**
  * Daily summary service for the ingestor.
  *
- * Runs at 9:00 AM — builds a PER-SPOT briefing (the verdict the user trusts)
- * and POSTs to n8n webhook for Telegram delivery. Both sectors in one message.
+ * Runs at 9:00 AM — a concise MORNING BRIEFING of what to EXPECT today per
+ * sector (read from the day's forecast, not the calm 9am snapshot) + which
+ * spots that wind direction favours + real marine obs. POSTs to n8n webhook
+ * for Telegram delivery.
  *
- * Design (S136+3+7 alert audit): the summary reports each sector's SAILABLE
- * spots (read from the `spot_scores` the analyzer persists every cycle) +
- * real marine obs (waves/water temp, Rías only). It deliberately does NOT
- * send regional averages (mean humidity, cross-station temp spread, lone
- * peak-wind) — those don't change a decision and read as noise. This is the
- * base for the future PWA push alerts.
+ * Design (S136+3+7 alert audit, phase 2): the forecast in the ingestor is one
+ * model point PER SECTOR (not per spot), so the honest forecast granularity is
+ * a per-sector outlook — faking per-spot forecast precision would be
+ * unreliable data, which we avoid. We DO name the spots the outlook direction
+ * favours, derived from each spot's curated windPatterns (real local knowledge,
+ * e.g. SW → Cesantes/Lourido; Liméns only on N). The outlook reads actual wind
+ * so it captures thermal (SW), nortada (N) and frontal alike. No regional
+ * averages (mean humidity, temp spread, lone peak wind) — they don't change a
+ * decision. Base for the future PWA push alerts.
  */
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
-import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
-import { ALL_SPOTS } from '../src/config/spots.js';
+import { msToKnots, degreesToCardinal, angleDifference } from '../src/services/windUtils.js';
+import { getAllForecasts } from './forecastFetcher.js';
+import { getSpotsForSector } from '../src/config/spots.js';
+import type { HourlyForecast } from '../src/types/forecast.js';
 
 // ── Config ──────────────────────────────────────────
 
@@ -28,27 +35,11 @@ const SECTORS = [
   { id: 'embalse', name: 'Embalse de Castrelo', center: [-8.1, 42.29], radiusKm: 35, coastal: false },
 ] as const;
 
-/** spot_id → short display name. */
-const SPOT_SHORT = new Map<string, string>(ALL_SPOTS.map((s) => [s.id, s.shortName]));
-
-/** Internal verdict → display label + emoji. Only sailable verdicts surface. */
-const VERDICT_DISPLAY: Record<string, { label: string; emoji: string }> = {
-  sailing: { label: 'navegable', emoji: '🟢' },
-  good:    { label: 'bueno',     emoji: '🟡' },
-  strong:  { label: 'fuerte',    emoji: '🔴' },
-};
-const SAILABLE = new Set(['sailing', 'good', 'strong']);
-/** Verdict ordering for "best first" display. */
-const VERDICT_RANK: Record<string, number> = { good: 3, strong: 2, sailing: 1 };
-
-/** Boost provenance → short human note. */
-function boostNote(boostedBy: string | null): string {
-  if (!boostedBy) return '';
-  if (boostedBy.includes('canaliz')) return ' · canalización';
-  if (boostedBy.includes('bocana')) return ' · bocana';
-  if (boostedBy.includes('thermal') || boostedBy.includes('term')) return ' · térmico';
-  return '';
-}
+const NAVEGABLE_KT = 8;   // wind ≥ this (kt) = worth sailing
+const STRONG_KT = 25;     // wind ≥ this (kt) = strong / caution
+const DAY_START = 8;
+const DAY_END = 21;
+const DIR_MATCH_TOLERANCE = 50; // ° — spot windPattern vs outlook direction
 
 // ── State ───────────────────────────────────────────
 
@@ -56,69 +47,117 @@ let lastSummaryDate = '';
 
 // ── Types ───────────────────────────────────────────
 
-interface SpotLine {
-  shortName: string;
-  verdict: string;       // internal: sailing/good/strong
-  windKt: number;
-  dir: string;           // cardinal
-  boostedBy: string | null;
+interface DayOutlook {
+  startHour: number;
+  endHour: number;
+  peakKt: number;
+  dirDeg: number;                       // dominant direction (degrees)
+  dir: string;                          // cardinal
+  pattern: 'térmico' | 'nortada' | '';  // recognised Galician pattern
+  strong: boolean;
 }
 
 interface SectorSummary {
   name: string;
   coastal: boolean;
   stationCount: number;
-  spots: SpotLine[];               // sailable spots, best first
-  maxWaveHeight: number | null;    // Rías only
+  outlook: DayOutlook | null;      // null = light all day
+  favoredSpots: string[];          // spots whose patterns suit the outlook dir
+  maxWaveHeight: number | null;    // coastal only
   maxWaveStation: string;
-  waterTemp: number | null;        // Rías only
+  waterTemp: number | null;        // coastal only
+}
+
+// ── Forecast outlook (pure) ─────────────────────────
+
+/**
+ * Summarise the day's main wind window from the sector forecast: the span of
+ * remaining daytime hours with sailable wind, its peak and dominant direction.
+ * Returns null when it stays light all day. Captures thermal/nortada/frontal
+ * alike (reads actual wind, not just thermal heuristics).
+ */
+export function summarizeDayOutlook(hourly: HourlyForecast[], now: Date): DayOutlook | null {
+  const today = now.toDateString();
+  const fromHour = Math.max(now.getHours(), DAY_START);
+
+  const sailable = hourly.filter((f) => {
+    if (f.time.toDateString() !== today) return false;
+    const h = f.time.getHours();
+    if (h < fromHour || h > DAY_END) return false;
+    return f.windSpeed != null && msToKnots(f.windSpeed) >= NAVEGABLE_KT;
+  });
+  if (sailable.length === 0) return null;
+
+  let startHour = 99, endHour = 0, peakKt = 0;
+  let sinSum = 0, cosSum = 0, dirN = 0;
+  for (const f of sailable) {
+    const h = f.time.getHours();
+    if (h < startHour) startHour = h;
+    if (h > endHour) endHour = h;
+    const kt = msToKnots(f.windSpeed!);
+    if (kt > peakKt) peakKt = kt;
+    if (f.windDirection != null) {
+      const r = (f.windDirection * Math.PI) / 180;
+      sinSum += Math.sin(r); cosSum += Math.cos(r); dirN++;
+    }
+  }
+  const dirDeg = dirN > 0 ? (((Math.atan2(sinSum, cosSum) * 180) / Math.PI) + 360) % 360 : -1;
+  const pattern: DayOutlook['pattern'] =
+    dirDeg < 0 ? ''
+    : (dirDeg >= 200 && dirDeg <= 260) ? 'térmico'   // SW
+    : (dirDeg >= 310 || dirDeg <= 30) ? 'nortada'    // N
+    : '';
+
+  return {
+    startHour, endHour,
+    peakKt: Math.round(peakKt),
+    dirDeg,
+    dir: dirDeg >= 0 ? degreesToCardinal(dirDeg) : '',
+    pattern,
+    strong: peakKt >= STRONG_KT,
+  };
+}
+
+/**
+ * Spots in a sector whose curated windPatterns suit the outlook direction.
+ * Pure local knowledge — NOT faked forecast precision. e.g. SW → Cesantes,
+ * Lourido; Liméns appears only when N/NNW. Excludes surf spots.
+ */
+export function spotsFavoredByDir(sectorId: string, dirDeg: number): string[] {
+  if (dirDeg < 0) return [];
+  // Match ONLY the primary (first) windPattern — by convention it's the spot's
+  // good wind. The list also holds marginal patterns (e.g. Liméns "Sur fuerte
+  // pero no ideal"), and matching those would mislead (Liméns would show on a
+  // SW day when it only really works on N).
+  return getSpotsForSector(sectorId)
+    .filter((s) => s.category !== 'surf'
+      && s.windPatterns.length > 0
+      && angleDifference(s.windPatterns[0].direction, dirDeg) <= DIR_MATCH_TOLERANCE)
+    .map((s) => s.shortName);
+}
+
+/** One concise outlook line. Exported pure for testing. */
+export function formatOutlook(o: DayOutlook | null): string {
+  if (!o) return 'Flojo hoy · sin viento de vela';
+  const tag = o.pattern ? ` (${o.pattern})` : '';
+  const dir = o.dir ? ` ${o.dir}` : '';
+  const span = o.startHour === o.endHour ? `${o.startHour}h` : `${o.startHour}-${o.endHour}h`;
+  if (o.strong) return `⚠️ Viento fuerte ${span} · hasta ${o.peakKt}kt${dir}${tag}`;
+  return `Navegable ${span} · hasta ${o.peakKt}kt${dir}${tag}`;
 }
 
 // ── DB queries ──────────────────────────────────────
 
-/** Sailable spots for a sector, latest verdict per spot (last 90 min). */
-async function querySpotVerdicts(sectorId: string): Promise<SpotLine[]> {
-  const db = getPool();
-  try {
-    const res = await db.query<{
-      spot_id: string; verdict: string; wind_kt: number | null;
-      wind_dir: number | null; boosted_by: string | null;
-    }>(`
-      SELECT DISTINCT ON (spot_id)
-        spot_id, verdict, wind_kt, wind_dir, boosted_by
-      FROM spot_scores
-      WHERE sector = $1 AND time > NOW() - INTERVAL '90 minutes'
-      ORDER BY spot_id, time DESC
-    `, [sectorId]);
-
-    const lines: SpotLine[] = [];
-    for (const r of res.rows) {
-      if (!SAILABLE.has(r.verdict)) continue;
-      lines.push({
-        shortName: SPOT_SHORT.get(r.spot_id) ?? r.spot_id,
-        verdict: r.verdict,
-        windKt: r.wind_kt != null ? Math.round(r.wind_kt) : 0,
-        dir: r.wind_dir != null ? degreesToCardinal(r.wind_dir) : '',
-        boostedBy: r.boosted_by,
-      });
-    }
-    // Best verdict first, then strongest wind.
-    lines.sort((a, b) =>
-      (VERDICT_RANK[b.verdict] ?? 0) - (VERDICT_RANK[a.verdict] ?? 0) || b.windKt - a.windKt);
-    return lines;
-  } catch (err) {
-    log.warn(`Spot verdicts query failed for ${sectorId}: ${(err as Error).message}`);
-    return [];
-  }
-}
-
-async function querySectorSummary(sectorId: string): Promise<SectorSummary | null> {
+async function querySectorSummary(
+  sectorId: string,
+  hourly: HourlyForecast[],
+  now: Date,
+): Promise<SectorSummary | null> {
   const db = getPool();
   const sector = SECTORS.find(s => s.id === sectorId);
   if (!sector) return null;
 
   try {
-    // Active station count within sector bbox (last 30 min) — coverage signal.
     const latRange = sector.radiusKm / 111;
     const lonRange = sector.radiusKm / 85;
     const countRes = await db.query<{ n: string }>(`
@@ -133,13 +172,12 @@ async function querySectorSummary(sectorId: string): Promise<SectorSummary | nul
       sector.center[0] - lonRange, sector.center[0] + lonRange,
     ]);
     const stationCount = Number(countRes.rows[0]?.n ?? 0);
-    if (stationCount === 0) return null;
 
-    const spots = await querySpotVerdicts(sectorId);
+    const outlook = summarizeDayOutlook(hourly, now);
+    const favoredSpots = outlook ? spotsFavoredByDir(sectorId, outlook.dirDeg) : [];
 
-    // Marine obs ONLY for coastal sectors. Embalse is an inland reservoir — it
-    // has no buoys, so never attach waves/water temp (was a bug: Embalse showed
-    // a Rías buoy wave). Buoys are all in Rías, so no extra geo filter needed.
+    // Marine obs ONLY for coastal sectors. Embalse is an inland reservoir with
+    // no buoys — never attach waves/water temp (was a bug). All buoys are Rías.
     let maxWave = 0, maxWaveStation = '', waterTemp: number | null = null;
     if (sector.coastal) {
       const buoyRes = await db.query<{
@@ -160,11 +198,14 @@ async function querySectorSummary(sectorId: string): Promise<SectorSummary | nul
       }
     }
 
+    if (stationCount === 0 && !outlook && maxWave === 0 && waterTemp === null) return null;
+
     return {
       name: sector.name,
       coastal: sector.coastal,
       stationCount,
-      spots,
+      outlook,
+      favoredSpots,
       maxWaveHeight: maxWave > 0 ? maxWave : null,
       maxWaveStation,
       waterTemp,
@@ -180,18 +221,15 @@ async function querySectorSummary(sectorId: string): Promise<SectorSummary | nul
 /** Per-sector block. Exported pure for testing. */
 export function buildSectorBlock(s: SectorSummary): string {
   let block = `*${s.name}*\n`;
+  block += formatOutlook(s.outlook) + '\n';
 
-  if (s.spots.length > 0) {
-    for (const sp of s.spots.slice(0, 6)) {
-      const d = VERDICT_DISPLAY[sp.verdict];
-      const windStr = sp.windKt > 0 ? ` ${sp.windKt}kt${sp.dir ? ' ' + sp.dir : ''}` : '';
-      block += `${d.emoji} ${sp.shortName} ${d.label}${windStr}${boostNote(sp.boostedBy)}\n`;
-    }
-  } else {
-    block += 'Sin condiciones de vela ahora\n';
+  // Spots the outlook direction favours (cap 4 to stay concise).
+  if (s.outlook && s.favoredSpots.length > 0) {
+    const shown = s.favoredSpots.slice(0, 4).join(' · ');
+    const extra = s.favoredSpots.length > 4 ? ' …' : '';
+    block += `🏄 ${shown}${extra}\n`;
   }
 
-  // Real marine obs — coastal only.
   if (s.coastal) {
     const marine: string[] = [];
     if (s.maxWaveHeight != null) marine.push(`Olas ${s.maxWaveHeight.toFixed(1)}m${s.maxWaveStation ? ` (${s.maxWaveStation})` : ''}`);
@@ -251,9 +289,17 @@ export async function checkAndSendDailySummary(): Promise<void> {
 
   log.info('Generating daily summary...');
 
+  let forecasts: Map<string, HourlyForecast[]>;
+  try {
+    forecasts = await getAllForecasts();
+  } catch (err) {
+    log.warn(`Daily summary forecast fetch failed: ${(err as Error).message}`);
+    forecasts = new Map();
+  }
+
   const [rias, embalse] = await Promise.all([
-    querySectorSummary('rias'),
-    querySectorSummary('embalse'),
+    querySectorSummary('rias', forecasts.get('rias') ?? [], now),
+    querySectorSummary('embalse', forecasts.get('embalse') ?? [], now),
   ]);
 
   if (!rias && !embalse) {
