@@ -4,6 +4,9 @@ import type maplibregl from 'maplibre-gl';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useToastStore } from '../../store/toastStore';
+import { useSectorStore } from '../../store/sectorStore';
+import { useUserSpotStore } from '../../store/userSpotStore';
+import { isInGalicia, MAX_USER_SPOTS } from '../../config/userSpots';
 import { WeatherIcon } from '../icons/WeatherIcons';
 
 interface ContextMenuState {
@@ -27,6 +30,8 @@ export const MapContextMenu = memo(function MapContextMenu({
 
   const stations = useWeatherStore((s) => s.stations);
   const selectStation = useWeatherSelectionStore((s) => s.selectStation);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const addUserSpot = useUserSpotStore((s) => s.addUserSpot);
 
   // ── Open on right-click ────────────────────────────────
   const handleContextMenu = useCallback((e: maplibregl.MapMouseEvent) => {
@@ -90,9 +95,25 @@ export const MapContextMenu = memo(function MapContextMenu({
     setMenu(null);
   };
 
+  const createSpotHere = () => {
+    const addToast = useToastStore.getState().addToast;
+    if (!isInGalicia(menu.lng, menu.lat)) {
+      addToast('Solo puedes crear spots dentro de Galicia', 'warning');
+      setMenu(null);
+      return;
+    }
+    const created = addUserSpot(menu.lng, menu.lat, sectorId);
+    if (created) {
+      addToast(`Spot creado (sin calibrar). Toca el pin para verlo o sugerirlo.`, 'success');
+    } else {
+      addToast(`Máximo ${MAX_USER_SPOTS} spots propios. Elimina alguno primero.`, 'warning');
+    }
+    setMenu(null);
+  };
+
   // ── Position: keep menu inside viewport ────────────────
-  const menuWidth = 220;
-  const menuHeight = nearest ? 120 : 80;
+  const menuWidth = 230;
+  const menuHeight = nearest ? 160 : 120;
   const left = menu.x + menuWidth > window.innerWidth ? menu.x - menuWidth : menu.x;
   const top = menu.y + menuHeight > window.innerHeight ? menu.y - menuHeight : menu.y;
 
@@ -112,6 +133,15 @@ export const MapContextMenu = memo(function MapContextMenu({
 
       {/* Actions */}
       <div className="py-1">
+        <button
+          onClick={createSpotHere}
+          className="w-full px-3 py-1.5 text-left text-xs text-violet-300 hover:bg-violet-500/15 hover:text-violet-100 transition-colors flex items-center gap-2"
+        >
+          <WeatherIcon id="map-pin" size={12} />
+          <span className="flex-1">Crear spot aquí</span>
+          <span className="text-[10px] text-slate-500">sin calibrar</span>
+        </button>
+
         <button
           onClick={copyCoords}
           className="w-full px-3 py-1.5 text-left text-xs text-slate-300 hover:bg-slate-700/60 hover:text-white transition-colors flex items-center gap-2"

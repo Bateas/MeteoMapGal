@@ -53,7 +53,9 @@ import { MapContextMenu } from './MapContextMenu';
 import { BuoySymbolLayer, registerBuoyIcon } from './BuoySymbolLayer';
 import { BuoyPopup } from './BuoyPopup';
 import { SpotMarkers } from './SpotMarker';
+import { UserSpotMarkers } from './UserSpotMarkers';
 const SpotPopup = lazy(() => import('./SpotPopup').then(m => ({ default: m.SpotPopup })));
+const UserSpotPopup = lazy(() => import('../spot/UserSpotPopup').then(m => ({ default: m.UserSpotPopup })));
 const SeamarksOverlay = lazy(() => import('./SeamarksOverlay').then(m => ({ default: m.SeamarksOverlay })));
 const NauticalChartOverlay = lazy(() => import('./NauticalChartOverlay').then(m => ({ default: m.NauticalChartOverlay })));
 import { IGNHillshadeOverlay } from './IGNHillshadeOverlay';
@@ -66,6 +68,7 @@ const RegattaPanel = lazy(() => import('./RegattaPanel').then(m => ({ default: m
 import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
+import { useUserSpotStore } from '../../store/userSpotStore';
 // Audit S136+3 #7: useAviationData, useSurfMarineData, useWebcamVisionData
 // moved to DeferredHooks — they fetch from external services and don't need
 // to fire on critical-path mount. Stores they write to are still read here.
@@ -157,6 +160,16 @@ export function WeatherMap() {
   const spotScores = useSpotStore((s) => s.scores);
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const showSpotPopup = activeSpotId !== '';
+
+  // User-created "chincheta" spots (isolated from the official pipeline)
+  const userSpots = useUserSpotStore((s) => s.userSpots);
+  const selectedUserSpotId = useUserSpotStore((s) => s.selectedUserSpotId);
+  const userScores = useUserSpotStore((s) => s.scores);
+  const selectUserSpot = useUserSpotStore((s) => s.selectUserSpot);
+  const selectedUserSpot = useMemo(
+    () => userSpots.find((u) => u.id === selectedUserSpotId),
+    [userSpots, selectedUserSpotId],
+  );
 
   // Webcam state
   const showWebcams = useWebcamStore((s) => s.showOverlay);
@@ -300,6 +313,7 @@ export function WeatherMap() {
     if (selectedStationId) selectStation(null);
     if (selectedBuoyId != null) selectBuoy(null);
     if (selectedWebcamId) selectWebcam(null);
+    if (selectedUserSpotId) selectUserSpot(null);
     const { longitude, latitude, zoom, pitch, bearing } = sectorInitialView;
     map.flyTo({
       center: [longitude, latitude],
@@ -336,7 +350,13 @@ export function WeatherMap() {
     selectStation(null);
     selectBuoy(null);
     selectSpot('');
-  }, [selectStation, selectBuoy, selectSpot]);
+    selectUserSpot(null);
+  }, [selectStation, selectBuoy, selectSpot, selectUserSpot]);
+
+  // Mutual exclusion: opening an official spot popup closes any user-spot popup.
+  useEffect(() => {
+    if (activeSpotId && selectedUserSpotId) selectUserSpot(null);
+  }, [activeSpotId, selectedUserSpotId, selectUserSpot]);
 
   /** Register all custom SDF/raster icons. Idempotent (each register*
    *  guards with map.hasImage). Must run on initial load AND after every
@@ -467,6 +487,9 @@ export function WeatherMap() {
         {/* Sailing spot markers — both sectors */}
         <SpotMarkers />
 
+        {/* User-created "chincheta" spots — dashed pins, below official spots */}
+        <UserSpotMarkers />
+
         {/* Thermal alert badges + propagation — only for Embalse sector */}
         {sectorId === 'embalse' && (
           <>
@@ -544,6 +567,13 @@ export function WeatherMap() {
         {/* Selected spot popup */}
         {showSpotPopup && activeSpot && Number.isFinite(activeSpot.center?.[0]) && (
           <Suspense fallback={null}><SpotPopup spot={activeSpot} score={spotScores.get(activeSpotId)} /></Suspense>
+        )}
+
+        {/* Selected user-spot popup */}
+        {selectedUserSpot && (
+          <Suspense fallback={null}>
+            <UserSpotPopup spot={selectedUserSpot} score={userScores.get(selectedUserSpot.id)} />
+          </Suspense>
         )}
 
         {/* Distance measurement tool — line + markers rendered inside Map */}
