@@ -40,6 +40,8 @@ function incrementDailyCount(): void {
 export function FeedbackModal() {
   const open = useUIStore((s) => s.feedbackOpen);
   const setOpen = useUIStore((s) => s.setFeedbackOpen);
+  const prefill = useUIStore((s) => s.feedbackPrefill);
+  const setPrefill = useUIStore((s) => s.setFeedbackPrefill);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const addToast = useToastStore((s) => s.addToast);
 
@@ -65,6 +67,15 @@ export function FeedbackModal() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, setOpen]);
+
+  // Consume a pre-fill (e.g. "Sugerir este spot" with coords) once on open.
+  useEffect(() => {
+    if (open && prefill) {
+      setType(prefill.type);
+      setMessage(prefill.text.substring(0, MAX_CHARS));
+      setPrefill(null);
+    }
+  }, [open, prefill, setPrefill]);
 
   const handleSubmit = useCallback(async () => {
     if (honeypot) return;

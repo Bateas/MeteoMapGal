@@ -1,10 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { FeedbackType } from '../services/feedbackSanitize';
 
 interface FlyToTarget {
   lon: number;
   lat: number;
   zoom?: number;
+}
+
+/** Pre-fill for the feedback form (e.g. "Sugerir este spot" with coords). */
+interface FeedbackPrefill {
+  type: FeedbackType;
+  text: string;
 }
 
 interface UIState {
@@ -16,6 +23,9 @@ interface UIState {
   sstVisible: boolean;
   flyToTarget: FlyToTarget | null;
   feedbackOpen: boolean;
+  /** Transient pre-fill consumed by FeedbackModal on open (not persisted). */
+  feedbackPrefill: FeedbackPrefill | null;
+  setFeedbackPrefill: (prefill: FeedbackPrefill | null) => void;
   onboardingStep: number | null;
   onboardingCompleted: boolean;
   /** Requested sidebar tab — set by external components to switch tabs */
@@ -78,6 +88,8 @@ export const useUIStore = create<UIState>()(
       sstVisible: false,
       flyToTarget: null,
       feedbackOpen: false,
+      feedbackPrefill: null,
+      setFeedbackPrefill: (prefill) => set({ feedbackPrefill: prefill }),
       onboardingStep: null,
       onboardingCompleted: false,
       requestedTab: null,

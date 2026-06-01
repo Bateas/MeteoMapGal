@@ -12,6 +12,7 @@ import { useWarnings } from '../../hooks/useWarnings';
 import { useAirspace } from '../../hooks/useAirspace';
 import { useBuoyData } from '../../hooks/useBuoyData';
 import { useSpotScoring } from '../../hooks/useSpotScoring';
+import { useUserSpotScoring } from '../../hooks/useUserSpotScoring';
 import { useSailingWindows } from '../../hooks/useSailingWindows';
 import { useWebcamVision } from '../../hooks/useWebcamVision';
 import { useAirQuality } from '../../hooks/useAirQuality';
@@ -36,6 +37,7 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useAirspace();
   useBuoyData();
   useSpotScoring();
+  useUserSpotScoring();
   useSailingWindows();
   useWebcamVision();
   useAirQuality();
