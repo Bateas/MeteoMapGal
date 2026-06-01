@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import Map, { NavigationControl } from 'react-map-gl/maplibre';
-import type { MapRef } from 'react-map-gl/maplibre';
+import type { MapRef, MapLayerMouseEvent } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -69,6 +69,8 @@ import { useRegattaStore } from '../../store/regattaStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useUserSpotStore } from '../../store/userSpotStore';
+import { useToastStore } from '../../store/toastStore';
+import { isInGalicia, MAX_USER_SPOTS } from '../../config/userSpots';
 // Audit S136+3 #7: useAviationData, useSurfMarineData, useWebcamVisionData
 // moved to DeferredHooks — they fetch from external services and don't need
 // to fire on critical-path mount. Stores they write to are still read here.
@@ -166,6 +168,7 @@ export function WeatherMap() {
   const selectedUserSpotId = useUserSpotStore((s) => s.selectedUserSpotId);
   const userScores = useUserSpotStore((s) => s.scores);
   const selectUserSpot = useUserSpotStore((s) => s.selectUserSpot);
+  const addUserSpot = useUserSpotStore((s) => s.addUserSpot);
   const selectedUserSpot = useMemo(
     () => userSpots.find((u) => u.id === selectedUserSpotId),
     [userSpots, selectedUserSpotId],
@@ -254,6 +257,27 @@ export function WeatherMap() {
   // Distance measurement tool
   const [distanceActive, setDistanceActive] = useState(false);
   const deactivateDistance = useCallback(() => setDistanceActive(false), []);
+
+  // "Crear spot" placement mode — tap the map to drop a user pin. Visible,
+  // tap-based (works identically on mobile + desktop), discoverable via the
+  // toolbar button. Mutually exclusive with the distance tool.
+  const [placingSpot, setPlacingSpot] = useState(false);
+  const togglePlacingSpot = useCallback(() => {
+    setPlacingSpot((v) => {
+      if (!v) setDistanceActive(false);
+      return !v;
+    });
+  }, []);
+  // Crosshair cursor while placing, so it's clear the next tap drops a pin.
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    map.getCanvas().style.cursor = placingSpot ? 'crosshair' : '';
+    return () => {
+      const m = mapRef.current?.getMap();
+      if (m) m.getCanvas().style.cursor = '';
+    };
+  }, [placingSpot]);
 
   // Hide markers during map drag for smooth panning (95 DOM markers = jank)
   // Uses DOM class toggle instead of React state to avoid re-rendering ~100 markers
@@ -346,12 +370,30 @@ export function WeatherMap() {
     setFlyToTarget(null);
   }, [flyToTarget, setFlyToTarget]);
 
-  const handleMapClick = useCallback(() => {
+  const handleMapClick = useCallback((e: MapLayerMouseEvent) => {
+    // Placement mode: the tap drops a user pin here instead of deselecting.
+    if (placingSpot) {
+      const { lng, lat } = e.lngLat;
+      const addToast = useToastStore.getState().addToast;
+      if (!isInGalicia(lng, lat)) {
+        addToast('Solo puedes crear spots dentro de Galicia', 'warning');
+      } else {
+        const created = addUserSpot(lng, lat, sectorId);
+        addToast(
+          created
+            ? 'Spot creado (sin calibrar). Toca el pin para verlo o sugerirlo.'
+            : `Máximo ${MAX_USER_SPOTS} spots propios. Elimina alguno primero.`,
+          created ? 'success' : 'warning',
+        );
+      }
+      setPlacingSpot(false);
+      return;
+    }
     selectStation(null);
     selectBuoy(null);
     selectSpot('');
     selectUserSpot(null);
-  }, [selectStation, selectBuoy, selectSpot, selectUserSpot]);
+  }, [placingSpot, addUserSpot, sectorId, selectStation, selectBuoy, selectSpot, selectUserSpot]);
 
   // Mutual exclusion: opening an official spot popup closes any user-spot popup.
   useEffect(() => {
@@ -600,6 +642,16 @@ export function WeatherMap() {
       {sectorId === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
 
+      {/* "Crear spot" placement-mode hint — transient, while choosing the spot */}
+      {placingSpot && (
+        <div className="absolute z-40 top-16 left-1/2 -translate-x-1/2 pointer-events-none">
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-violet-600/90 text-white text-xs font-semibold shadow-lg backdrop-blur-sm border border-violet-300/50 whitespace-nowrap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Toca el mapa donde quieras crear tu spot
+          </div>
+        </div>
+      )}
+
       {/* Regatta/Event mode panel — lazy loaded (only used in event mode) */}
       <Suspense fallback={null}>
         <RegattaPanel />
@@ -620,12 +672,21 @@ export function WeatherMap() {
             <TemperatureToggle />
             {!simpleMode && <WeatherLayerSelector />}
             <button
-              onClick={() => setDistanceActive((v) => !v)}
+              onClick={() => { setDistanceActive((v) => !v); setPlacingSpot(false); }}
               className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}
               title="Medir distancia"
               aria-label="Medir distancia"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>
+            </button>
+            <button
+              onClick={togglePlacingSpot}
+              className={`flex items-center gap-1 px-2.5 py-2 rounded-lg backdrop-blur-sm border transition-colors text-xs font-semibold ${placingSpot ? 'bg-violet-600/85 border-violet-400/60 text-white' : 'bg-slate-800/80 border-slate-600/30 text-violet-300 hover:text-white'}`}
+              title="Crear un spot propio (sin calibrar)"
+              aria-label="Crear spot"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              Spot
             </button>
           </div>
         </div>
@@ -638,12 +699,21 @@ export function WeatherMap() {
             <TemperatureToggle />
             {!simpleMode && <WeatherLayerSelector />}
             <button
-              onClick={() => setDistanceActive((v) => !v)}
+              onClick={() => { setDistanceActive((v) => !v); setPlacingSpot(false); }}
               className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}
               title="Medir distancia (nm)"
               aria-label="Medir distancia"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>
+            </button>
+            <button
+              onClick={togglePlacingSpot}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg backdrop-blur-sm border transition-colors text-xs font-semibold ${placingSpot ? 'bg-violet-600/85 border-violet-400/60 text-white' : 'bg-slate-800/80 border-slate-600/30 text-violet-300 hover:text-white'}`}
+              title="Crear un spot propio (sin calibrar) — toca el mapa para colocarlo"
+              aria-label="Crear spot"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              Crear spot
             </button>
           </div>
 
