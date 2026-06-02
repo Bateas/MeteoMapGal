@@ -170,6 +170,12 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const measuredKt = score?.wind?.avgSpeedKt ?? 0;
   const useStrongPrediction = channelingPrediction !== null && channelingPrediction.predictedKt !== null
     && (channelingPrediction.predictedKt - measuredKt) >= 4;
+  // Effective wind = the speed that actually drove the verdict (thermal/bocana
+  // boost). Display it so the popup never shows a different kt than the marker/
+  // ticker/banner for the same spot (O3 coherence — popup-vs-engine asymmetry).
+  const effectiveKt = score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? 0;
+  const windIsBoosted = score?.effectiveWindKt != null && score?.wind != null
+    && Math.round(score.effectiveWindKt) !== Math.round(score.wind.avgSpeedKt);
 
   // ── Viración (daily wind cycle phase) — Rías sailing spots only ──
   // Cross-validates the spot's reference station against its preferred buoy
@@ -432,9 +438,14 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
                 <span className="text-[9px] text-slate-500 italic">(red: {score.wind.avgSpeedKt.toFixed(0)})</span>
               </>
             ) : (
-              <span className="font-bold" style={{ color: windKtColor(score.wind.avgSpeedKt) }}>
-                {score.wind.avgSpeedKt.toFixed(0)} kt
-              </span>
+              <>
+                <span className="font-bold" style={{ color: windKtColor(effectiveKt) }}>
+                  {effectiveKt.toFixed(0)} kt
+                </span>
+                {windIsBoosted && (
+                  <span className="text-[9px] text-slate-500 italic">(medido: {score.wind.avgSpeedKt.toFixed(0)})</span>
+                )}
+              </>
             )}
             <SpotWindTrend spotId={spot.id} />
             <SpotWindSparkline spotId={spot.id} />
@@ -1496,7 +1507,7 @@ function ShareButton({ spot, score, verdict: _verdict, vs }: {
   const shareText = useMemo(() => {
     const parts = [`${spot.name}: ${vs.label}`];
     if (score?.wind) {
-      parts.push(`${score.wind.avgSpeedKt.toFixed(0)}kt ${score.wind.dominantDir}`);
+      parts.push(`${(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt ${score.wind.dominantDir}`);
     }
     if (score?.airTemp != null) {
       parts.push(`${score.airTemp.toFixed(0)}°C`);
