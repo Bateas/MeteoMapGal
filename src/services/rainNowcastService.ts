@@ -55,6 +55,12 @@ const FCST_PRECIP_MM = 0.5;
 const FCST_PROB_PCT = 50;
 /** "rain-soon" status only if the forecast rain is within this horizon (h) */
 const SOON_HORIZON_H = 3;
+/** Current-hour forecast precip-probability (%) below which the model says it
+ *  is clearly NOT a rain hour → a station's precip reading is an accumulated
+ *  daily total, not active rain. Works where stations report no solar (WU areas). */
+const FCST_CLEAR_PROB = 25;
+/** How close (ms) a forecast hour must be to "now" to count as the current hour. */
+const NEAR_NOW_MS = 45 * 60 * 1000;
 
 // ── Core ─────────────────────────────────────────────────
 
@@ -97,7 +103,25 @@ export function assessRainNowcast(opts: {
   // Sun clearly out → physically cannot be raining now (suppresses the
   // accumulated-precip artifact). At night solar≈0, so this never triggers.
   const sunIsOut = maxSolar != null && maxSolar >= SUNNY_SOLAR_WM2;
-  const rainingNow = wettestMm >= RAIN_THRESHOLD_MM && !sunIsOut;
+
+  // Current-hour forecast as a 2nd, solar-independent discriminator: if the
+  // model says this is clearly a DRY hour, the station's precip is an
+  // accumulated daily total (rained earlier), not active rain. Critical where
+  // stations report no solar (WU-only areas like Cangas/Liméns).
+  let nearNowProb: number | null = null;
+  let nearNowDt = Infinity;
+  for (const f of forecast) {
+    const adt = Math.abs(f.time.getTime() - nowMs);
+    if (adt <= NEAR_NOW_MS && adt < nearNowDt) {
+      nearNowDt = adt;
+      nearNowProb = f.precipProbability ?? null;
+    }
+  }
+  const forecastClearNow = nearNowProb != null && nearNowProb < FCST_CLEAR_PROB;
+
+  // "Raining now" needs the wet station AND no contradicting variable (sun out
+  // OR the model saying this hour is dry) — never a lone accumulated reading.
+  const rainingNow = wettestMm >= RAIN_THRESHOLD_MM && !sunIsOut && !forecastClearNow;
 
   // ── Forecast: first rain hour in the look-ahead window ──
   let nextRainHours: number | null = null;
