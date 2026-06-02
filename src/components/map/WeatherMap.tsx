@@ -338,6 +338,7 @@ export function WeatherMap() {
     if (selectedBuoyId != null) selectBuoy(null);
     if (selectedWebcamId) selectWebcam(null);
     if (selectedUserSpotId) selectUserSpot(null);
+    setPlacingSpot(false); // exit "Crear spot" placement mode on sector switch
     const { longitude, latitude, zoom, pitch, bearing } = sectorInitialView;
     map.flyTo({
       center: [longitude, latitude],
