@@ -13,7 +13,7 @@
  * (= 16:00 CEST) so the hour is in-range under both CI (UTC) and local (CEST).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { detectNorthWindConsensus, detectFogBySolarSignature } from './maritimeFogService';
+import { detectNorthWindConsensus, detectFogBySolarSignature, buildMaritimeFogAlerts } from './maritimeFogService';
 import type { NormalizedReading } from '../types/station';
 
 function reading(over: Partial<NormalizedReading>): NormalizedReading {
@@ -172,5 +172,42 @@ describe('detectFogBySolarSignature', () => {
       ['coast', reading({ humidity: 85, solarRadiation: 40, temperature: 14, dewPoint: 13.5 })], // HR<90
     ]);
     expect(detectFogBySolarSignature(readings, [interiorSunStation, coastStation])).toEqual([]);
+  });
+});
+
+describe('buildMaritimeFogAlerts — firing gate (varias variables, no a la ligera)', () => {
+  const noStations: { id: string; lat: number; lon: number }[] = [];
+  const fogAlert = (a: ReturnType<typeof buildMaritimeFogAlerts>) =>
+    a.find((x) => x.id === 'maritime-fog-webcam');
+
+  it('does NOT fire on a SINGLE camera (even reporting poor visibility) — sunset glare case', () => {
+    const alerts = buildMaritimeFogAlerts(
+      [], new Map(), noStations,
+      true, 1, ['cam-a'], undefined, undefined, 1, // 1 cam, poor-vis on that same cam
+    );
+    expect(fogAlert(alerts)).toBeUndefined();
+  });
+
+  it('fires (moderate) when TWO cameras corroborate', () => {
+    const alerts = buildMaritimeFogAlerts(
+      [], new Map(), noStations,
+      true, 2, ['cam-a', 'cam-b'], undefined, undefined, 0,
+    );
+    const fog = fogAlert(alerts);
+    expect(fog).toBeDefined();
+    expect(fog!.severity).toBe('moderate'); // webcam-only is capped (T3a)
+  });
+
+  it('fires (high) on a SINGLE certified AEMET visibility station (government sensor)', () => {
+    const regionalVis = new Map([
+      ['1400', { stationId: '1400', name: 'Fisterra', lat: 42.9, lon: -9.27, visibility: 0.3, timestamp: new Date() }],
+    ]);
+    const alerts = buildMaritimeFogAlerts(
+      [], new Map(), noStations,
+      false, 0, [], undefined, regionalVis, 0,
+    );
+    const fog = fogAlert(alerts);
+    expect(fog).toBeDefined();
+    expect(fog!.severity).toBe('high');
   });
 });
