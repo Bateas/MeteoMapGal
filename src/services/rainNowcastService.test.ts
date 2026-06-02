@@ -66,6 +66,25 @@ describe('assessRainNowcast — observed (station)', () => {
     expect(r.rainingNow).toBe(true);
   });
 
+  it('does NOT report raining when the current-hour forecast is clearly dry (WU area, no solar) — Liméns/Cangas case', () => {
+    const stations = [station('a', 42.31, -8.61)];
+    // Station reports 0.4mm (accumulated from earlier), reports NO solar (WU),
+    // but the model says this hour is dry (0% prob) → not raining now.
+    const readings = new Map([['a', reading('a', 0.4)]]);
+    const forecast = [fcHour(0, 0, 0)]; // current hour, 0% precip prob
+    const r = assessRainNowcast(opts({ stations, readings, forecast }));
+    expect(r.rainingNow).toBe(false);
+    expect(r.status).not.toBe('raining');
+  });
+
+  it('reports raining when the current-hour forecast also shows rain likely', () => {
+    const stations = [station('a', 42.31, -8.61)];
+    const readings = new Map([['a', reading('a', 1.0)]]);
+    const forecast = [fcHour(0, 1.0, 80)]; // current hour, rain likely
+    const r = assessRainNowcast(opts({ stations, readings, forecast }));
+    expect(r.rainingNow).toBe(true);
+  });
+
   it('picks the WETTEST nearby station for intensity + attribution', () => {
     const stations = [station('a', 42.31, -8.61), station('b', 42.30, -8.62)];
     const readings = new Map([['a', reading('a', 0.4)], ['b', reading('b', 8)]]);
