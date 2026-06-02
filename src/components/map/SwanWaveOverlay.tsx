@@ -41,7 +41,10 @@ const SWAN_WMS_BASE =
   + '&LAYERS=hs'
   + '&SRS=EPSG:3857'
   + '&BBOX={bbox-epsg-3857}'
-  + '&WIDTH=256&HEIGHT=256'
+  // Oversample: render each 256-tile at 512px → 2x sampling density of the SWAN
+  // grid → smaller, smoother boxfill cells (user report: olas "pixeladas").
+  // Same tile count + bbox; only the PNG is bigger (nginx caches 30min).
+  + '&WIDTH=512&HEIGHT=512'
   + '&FORMAT=image/png'
   + '&TRANSPARENT=true'
   + '&COLORSCALERANGE=0,3';
@@ -181,6 +184,10 @@ function SwanWaveOverlayInner() {
             paint={{
               'raster-opacity': 0.6,
               'raster-fade-duration': 200,
+              // Bilinear interpolation between cells → smooth gradient instead
+              // of hard blocky boxfill edges (default is 'linear' but set it
+              // explicitly so the oversampled tiles are always smoothed).
+              'raster-resampling': 'linear',
             }}
           />
         </Source>
