@@ -37,6 +37,10 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
   const toggleBathymetry = useUIStore((s) => s.toggleBathymetry);
   const sstVisible = useUIStore((s) => s.sstVisible);
   const toggleSST = useUIStore((s) => s.toggleSST);
+  // Simple mode hides the advanced overlay groups (marine / atmosphere / IGN) —
+  // a casual ("mi tío en la barra") only needs to pick a base map, not 9
+  // technical toggles. They reappear in Avanzado.
+  const simpleMode = useUIStore((s) => s.simpleMode);
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -143,16 +147,16 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
             })}
           </div>
 
-          {/* ── Marine overlay toggles (Rías sector only) ── */}
-          {isRias && (
+          {/* ── Marine overlay toggles (Rías sector only — advanced) ── */}
+          {!simpleMode && isRias && (
             <>
               <div className="border-t border-slate-700/40 px-2 py-1.5">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Capas marinas</span>
               </div>
               <div className="pb-1.5 px-1">
                 <OverlayToggle
-                  label="Batimetría"
-                  sublabel="EMODnet — fondo marino"
+                  label="Profundidad del mar"
+                  sublabel="EMODnet — batimetría del fondo"
                   active={bathymetryVisible}
                   onClick={toggleBathymetry}
                   color="#14b8a6"
@@ -160,8 +164,8 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
                   icon={<WeatherIcon id="layers" size={12} />}
                 />
                 <OverlayToggle
-                  label="SST"
-                  sublabel="CMEMS — temp. superficial mar"
+                  label="Temperatura del mar"
+                  sublabel="CMEMS — superficie del mar"
                   active={sstVisible}
                   onClick={toggleSST}
                   color="#f97316"
@@ -196,51 +200,59 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
             </>
           )}
 
-          {/* ── Atmospheric overlays (both sectors) ── */}
-          <div className="border-t border-slate-700/40 px-2 py-1.5">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Atmósfera</span>
-          </div>
-          <div className="pb-1.5 px-1">
-            <OverlayToggle
-              label="Riesgo convectivo"
-              sublabel="CAPE × LI por celda 5 km — predice dónde se formarán las tormentas"
-              active={showConvectionRisk}
-              onClick={toggleConvectionRisk}
-              color="#dc2626"
-              isMobile={isMobile}
-            />
-          </div>
+          {/* ── Atmospheric overlays (both sectors — advanced) ── */}
+          {!simpleMode && (
+            <>
+              <div className="border-t border-slate-700/40 px-2 py-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Atmósfera</span>
+              </div>
+              <div className="pb-1.5 px-1">
+                <OverlayToggle
+                  label="Riesgo de tormenta"
+                  sublabel="CAPE × LI por celda 5 km — dónde puede formarse tormenta"
+                  active={showConvectionRisk}
+                  onClick={toggleConvectionRisk}
+                  color="#dc2626"
+                  isMobile={isMobile}
+                />
+              </div>
+            </>
+          )}
 
-          {/* ── IGN terrain overlay toggles (both sectors) ── */}
-          <div className="border-t border-slate-700/40 px-2 py-1.5">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Capas IGN</span>
-          </div>
-          <div className="pb-1.5 px-1">
-            <OverlayToggle
-              label="Ortofotos"
-              sublabel="PNOA — foto aérea 25cm"
-              active={showIGNOrtho}
-              onClick={toggleIGNOrtho}
-              color="#22c55e"
-              isMobile={isMobile}
-            />
-            <OverlayToggle
-              label="Sombreado"
-              sublabel="MDT — relieve del terreno"
-              active={showIGNHillshade}
-              onClick={toggleIGNHillshade}
-              color="#a78bfa"
-              isMobile={isMobile}
-            />
-            <OverlayToggle
-              label="Curvas de nivel"
-              sublabel="MDT — isohipsas 25m"
-              active={showIGNContours}
-              onClick={toggleIGNContours}
-              color="#f59e0b"
-              isMobile={isMobile}
-            />
-          </div>
+          {/* ── IGN terrain overlay toggles (both sectors — advanced) ── */}
+          {!simpleMode && (
+            <>
+              <div className="border-t border-slate-700/40 px-2 py-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Capas IGN</span>
+              </div>
+              <div className="pb-1.5 px-1">
+                <OverlayToggle
+                  label="Ortofotos"
+                  sublabel="PNOA — foto aérea 25cm"
+                  active={showIGNOrtho}
+                  onClick={toggleIGNOrtho}
+                  color="#22c55e"
+                  isMobile={isMobile}
+                />
+                <OverlayToggle
+                  label="Sombreado"
+                  sublabel="MDT — relieve del terreno"
+                  active={showIGNHillshade}
+                  onClick={toggleIGNHillshade}
+                  color="#a78bfa"
+                  isMobile={isMobile}
+                />
+                <OverlayToggle
+                  label="Curvas de nivel"
+                  sublabel="MDT — isohipsas 25m"
+                  active={showIGNContours}
+                  onClick={toggleIGNContours}
+                  color="#f59e0b"
+                  isMobile={isMobile}
+                />
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
