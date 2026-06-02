@@ -84,6 +84,11 @@ export function predictCesantesCanalization(
   waterTemp: number | null = null,
   /** Highest local station wind reading (kt) — fallback when no synoptic */
   localStationKt: number | null = null,
+  /** Measured local/consensus wind direction (deg). When the real wind is a
+   *  meaningful flow from OUTSIDE the SW arc (e.g. N/NW), the SW thermal breeze
+   *  is NOT establishing — the islands + Monte da Vela block N/NW from reaching
+   *  the Cesantes shore — so the thermal canalization prediction is suppressed. */
+  localWindDir: number | null = null,
 ): CesantesPrediction {
   const inactive: CesantesPrediction = {
     active: false,
@@ -124,6 +129,15 @@ export function predictCesantesCanalization(
   if (synopticWindMs === null) {
     // No synoptic SW found — try thermal breeze mode
     if (!isThermalHour || !isWarmAir || !isThermalDelta) {
+      return inactive;
+    }
+    // A meaningful measured wind (>=5kt) from OUTSIDE the SW arc (160-280°) means
+    // the SW thermal breeze isn't establishing today (e.g. N/NW synoptic). The
+    // islands + Monte da Vela block N/NW from channeling into Cesantes, so do NOT
+    // predict an SW canalization boost on those days (user ground-truth: NW is
+    // tapado, no sigue el patrón de entrada por la boca de la ría).
+    if (localWindDir != null && (localStationKt ?? 0) >= 5
+        && (localWindDir < SW_DIR_MIN || localWindDir > SW_DIR_MAX)) {
       return inactive;
     }
     // Use local station wind (or default 6kt if not provided) — thermal breeze adds local boost

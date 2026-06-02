@@ -50,6 +50,22 @@ describe('assessRainNowcast — observed (station)', () => {
     expect(r.summary).toMatch(/Lloviendo/);
   });
 
+  it('does NOT report raining when the sun is clearly out (accumulated-precip artifact)', () => {
+    const stations = [station('a', 42.31, -8.61)];
+    // 0.5mm (likely accumulated from earlier) but solar 600 W/m² → sunny now.
+    const readings = new Map([['a', { ...reading('a', 0.5), solarRadiation: 600 }]]);
+    const r = assessRainNowcast(opts({ stations, readings }));
+    expect(r.rainingNow).toBe(false);
+    expect(r.status).not.toBe('raining');
+  });
+
+  it('still reports raining under dim/overcast solar (real rain)', () => {
+    const stations = [station('a', 42.31, -8.61)];
+    const readings = new Map([['a', { ...reading('a', 1.2), solarRadiation: 90 }]]);
+    const r = assessRainNowcast(opts({ stations, readings }));
+    expect(r.rainingNow).toBe(true);
+  });
+
   it('picks the WETTEST nearby station for intensity + attribution', () => {
     const stations = [station('a', 42.31, -8.61), station('b', 42.30, -8.62)];
     const readings = new Map([['a', reading('a', 0.4)], ['b', reading('b', 8)]]);

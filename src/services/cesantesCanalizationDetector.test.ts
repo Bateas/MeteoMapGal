@@ -194,6 +194,27 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     expect(r.signals.some((s) => s.includes('Brisa térmica'))).toBe(true);
   });
 
+  it('does NOT fire when measured wind is meaningful and OUTSIDE the SW arc (N/NW)', () => {
+    vi.setSystemTime(new Date('2026-04-26T15:00:00Z')); // thermal hour
+    // Conditions met, but the real wind is NW 320° at 8kt → SW thermal not
+    // establishing (islands block N/NW from reaching Cesantes) → no boost.
+    const r = predictCesantesCanalization([], null, false, 18, 14, 8, 320);
+    expect(r.active).toBe(false);
+  });
+
+  it('still fires when measured wind IS within the SW arc (230°)', () => {
+    vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
+    const r = predictCesantesCanalization([], null, false, 18, 14, 8, 230);
+    expect(r.active).toBe(true);
+  });
+
+  it('does NOT suppress on light variable wind (<5kt) even from the N', () => {
+    vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
+    // 3kt from N — too weak to be a synoptic flow killing the thermal; let it build.
+    const r = predictCesantesCanalization([], null, false, 18, 14, 3, 350);
+    expect(r.active).toBe(true);
+  });
+
   it('does NOT fire outside thermal window (early morning)', () => {
     vi.setSystemTime(new Date('2026-04-26T07:00:00Z')); // 07h
     const r = predictCesantesCanalization([], null, false, 18, 14, 6);

@@ -159,7 +159,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       const airTempLocal = score?.airTemp ?? null;
       const waterTempLocal = score?.waterTemp ?? mohidSeaTemp ?? null;
       const localStationKt = score?.wind?.avgSpeedKt ?? null;
-      const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt);
+      const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt, score?.wind?.dirDeg ?? null);
       return pred.active ? pred : null;
     } catch (err) {
       console.warn('[CesantesPredictor] error:', err);

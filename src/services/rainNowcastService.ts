@@ -41,6 +41,11 @@ export interface RainNowcast {
 
 /** Min precipitation (mm) in a reading to count as "raining" (above sensor noise) */
 const RAIN_THRESHOLD_MM = 0.2;
+/** Solar radiation (W/m²) above which the sun is clearly out → it cannot be
+ *  raining right now. Guards the common false "Lloviendo": many `precipitation`
+ *  fields are an ACCUMULATED daily total (rained at dawn, sunny now), not a
+ *  current rate. Daytime-only by nature (solar is ~0 at night, never triggers). */
+const SUNNY_SOLAR_WM2 = 250;
 /** Max reading age (ms) for the observation to be trusted */
 const MAX_READING_AGE_MS = 60 * 60 * 1000;
 /** Forecast look-ahead window for "rain soon" (hours) */
@@ -70,12 +75,18 @@ export function assessRainNowcast(opts: {
   let wettestMm = 0;
   let wettestName: string | null = null;
   let anyStationData = false;
+  let maxSolar: number | null = null;
 
   for (const s of stations) {
     if (fastDistanceKm(lat, lon, s.lat, s.lon) > radiusKm) continue;
     const r = readings.get(s.id);
-    if (!r || r.precipitation == null) continue;
+    if (!r) continue;
     if (nowMs - r.timestamp.getTime() > MAX_READING_AGE_MS) continue;
+    // Track the sunniest fresh nearby station — high solar = sun out = not raining.
+    if (r.solarRadiation != null && (maxSolar === null || r.solarRadiation > maxSolar)) {
+      maxSolar = r.solarRadiation;
+    }
+    if (r.precipitation == null) continue;
     anyStationData = true;
     if (r.precipitation > wettestMm) {
       wettestMm = r.precipitation;
@@ -83,7 +94,10 @@ export function assessRainNowcast(opts: {
     }
   }
 
-  const rainingNow = wettestMm >= RAIN_THRESHOLD_MM;
+  // Sun clearly out → physically cannot be raining now (suppresses the
+  // accumulated-precip artifact). At night solar≈0, so this never triggers.
+  const sunIsOut = maxSolar != null && maxSolar >= SUNNY_SOLAR_WM2;
+  const rainingNow = wettestMm >= RAIN_THRESHOLD_MM && !sunIsOut;
 
   // ── Forecast: first rain hour in the look-ahead window ──
   let nextRainHours: number | null = null;
