@@ -861,9 +861,23 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Wind patterns (collapsible) ── */}
       {spot.windPatterns.length > 0 && <WindPatterns patterns={spot.windPatterns} />}
 
-      {/* ── Share + Timestamp ── */}
+      {/* ── Share + Apoyar + Timestamp ── */}
       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-700/30">
-        <ShareButton spot={spot} score={score} verdict={verdict} vs={vs} />
+        <div className="flex items-center gap-1.5">
+          <ShareButton spot={spot} score={score} verdict={verdict} vs={vs} />
+          {/* Discreet support link — engagement surface (real spot with data),
+              never on the user-spot "Sin datos" moment. */}
+          <a
+            href="https://ko-fi.com/bateas"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-rose-300 transition-colors rounded px-1.5 py-0.5 hover:bg-slate-800/60"
+            title="Apoyar el proyecto (Ko-fi)"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
+            Apoyar
+          </a>
+        </div>
         {score?.computedAt && (
           <span className="text-[11px] text-slate-500">
             {timeAgoEs(score.computedAt)}
