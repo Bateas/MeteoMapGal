@@ -1175,7 +1175,7 @@ export function scoreAllSpots(
       const waterTempForDetector = waterTemp
         ?? (summerLike ? RIA_VIGO_INTERIOR_SST_BY_MONTH[new Date().getMonth()] : null);
       channelingPrediction = predictCesantesCanalization(
-        buoys, mouthHum, false, airTempLocal, waterTempForDetector, localStationKt,
+        buoys, mouthHum, false, airTempLocal, waterTempForDetector, localStationKt, wind?.dirDeg ?? null,
       );
     }
 
