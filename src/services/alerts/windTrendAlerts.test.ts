@@ -126,8 +126,21 @@ describe('buildWindTrendAlerts — rapid ramp emits alert', () => {
     expect(title).not.toContain('mg_'); // prefix stripped
   });
 
-  it('severity=high when current >=15kt', () => {
-    // 9 m/s ≈ 17.5 kt
+  it('severity=high when current >=15kt AND corroborated (2+ stations)', () => {
+    // 9 m/s ≈ 17.5 kt — needs a 2nd station ramping for 'high' (else capped to moderate)
+    const ramp = [
+      r({ offsetMin: -28, windMs: 4 }),
+      r({ offsetMin: -18, windMs: 5 }),
+      r({ offsetMin: -8, windMs: 7 }),
+      r({ offsetMin: 0, windMs: 9 }),
+    ];
+    const current = new Map([['mg_x', r({ offsetMin: 0, windMs: 9 })], ['mg_y', r({ offsetMin: 0, windMs: 9 })]]);
+    const history = new Map([['mg_x', ramp], ['mg_y', ramp]]);
+    expect(buildWindTrendAlerts(current, history)[0].severity).toBe('high');
+  });
+
+  it('single-station rapid ramp caps to moderate (no spatial corroboration)', () => {
+    // 9 m/s ≈ 17.5 kt but only ONE station → likely a dirty sensor, not a front
     const current = new Map([['mg_x', r({ offsetMin: 0, windMs: 9 })]]);
     const history = new Map([['mg_x', [
       r({ offsetMin: -28, windMs: 4 }),
@@ -135,7 +148,9 @@ describe('buildWindTrendAlerts — rapid ramp emits alert', () => {
       r({ offsetMin: -8, windMs: 7 }),
       r({ offsetMin: 0, windMs: 9 }),
     ]]]);
-    expect(buildWindTrendAlerts(current, history)[0].severity).toBe('high');
+    const a = buildWindTrendAlerts(current, history)[0];
+    expect(a.severity).toBe('moderate');
+    expect(a.urgent).toBe(false);
   });
 
   it('severity=moderate when current 8-14kt', () => {
@@ -150,15 +165,16 @@ describe('buildWindTrendAlerts — rapid ramp emits alert', () => {
     expect(buildWindTrendAlerts(current, history)[0].severity).toBe('moderate');
   });
 
-  it('urgent=true when current >=20kt', () => {
-    // 11 m/s ≈ 21.4 kt
-    const current = new Map([['mg_x', r({ offsetMin: 0, windMs: 11 })]]);
-    const history = new Map([['mg_x', [
+  it('urgent=true when current >=20kt AND corroborated (2+ stations)', () => {
+    // 11 m/s ≈ 21.4 kt — corroboration required for urgent
+    const ramp = [
       r({ offsetMin: -28, windMs: 5 }),
       r({ offsetMin: -18, windMs: 7 }),
       r({ offsetMin: -8, windMs: 9 }),
       r({ offsetMin: 0, windMs: 11 }),
-    ]]]);
+    ];
+    const current = new Map([['mg_x', r({ offsetMin: 0, windMs: 11 })], ['mg_y', r({ offsetMin: 0, windMs: 11 })]]);
+    const history = new Map([['mg_x', ramp], ['mg_y', ramp]]);
     expect(buildWindTrendAlerts(current, history)[0].urgent).toBe(true);
   });
 

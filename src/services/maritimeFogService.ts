@@ -667,11 +667,16 @@ export function buildMaritimeFogAlerts(
       parts.push(`AEMET visibilidad ${(minVis * 1000).toFixed(0)}m (${nameList})`);
     }
     const hasOfficial = visFogCount > 0;
+    // Webcam vision (moondream) is reliable for fog PRESENCE but is not a
+    // certified sensor. A 'high'/'critical' "Niebla confirmada" needs at least
+    // one NON-webcam confirmation (AEMET visibility OR solar-signature station);
+    // webcam-only evidence caps at 'moderate' (notable, not a danger-grade alert).
+    const hasNonWebcamEvidence = visFogCount > 0 || solarFogCount > 0;
     return [{
       id: 'maritime-fog-webcam',
       category: 'fog' as const,
-      severity: totalEvidence >= 4 ? 'critical' as const : 'high' as const,
-      score: totalEvidence >= 4 ? 80 : 65,
+      severity: !hasNonWebcamEvidence ? 'moderate' as const : (totalEvidence >= 4 ? 'critical' as const : 'high' as const),
+      score: !hasNonWebcamEvidence ? 50 : (totalEvidence >= 4 ? 80 : 65),
       icon: 'fog' as const,
       title: hasOfficial && cams > 0
         ? 'Niebla confirmada (AEMET + cámaras)'
