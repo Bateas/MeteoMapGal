@@ -108,7 +108,7 @@ export function buildStormShadowAlerts(
     detail += ` hacia ${dirs[idx]}`;
   }
   if (shadow.etaMinutes !== null) {
-    detail += ` · ETA ~${shadow.etaMinutes} min al embalse`;
+    detail += ` · ETA ~${shadow.etaMinutes} min a la zona`;
   }
 
   // Lightning context
