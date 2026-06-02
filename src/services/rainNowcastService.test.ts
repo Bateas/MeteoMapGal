@@ -40,14 +40,24 @@ const opts = (over: Partial<Parameters<typeof assessRainNowcast>[0]> = {}) => ({
 });
 
 describe('assessRainNowcast — observed (station)', () => {
-  it('raining now when a nearby fresh station reports precip ≥ threshold', () => {
+  it('raining now when a station is wet AND the model corroborates rain this hour', () => {
     const stations = [station('a', 42.31, -8.61)]; // ~1.5km
     const readings = new Map([['a', reading('a', 1.2)]]);
-    const r = assessRainNowcast(opts({ stations, readings }));
+    const forecast = [fcHour(0, 0.6, 70)]; // model confirms rain this hour → corroborated
+    const r = assessRainNowcast(opts({ stations, readings, forecast }));
     expect(r.status).toBe('raining');
     expect(r.rainingNow).toBe(true);
     expect(r.intensityMm).toBeCloseTo(1.2, 1);
     expect(r.summary).toMatch(/Lloviendo/);
+  });
+
+  it('a LONE wet station with NO corroboration does NOT report raining (accumulated-precip, Vao/Cangas case)', () => {
+    const stations = [station('a', 42.31, -8.61)];
+    // 0.4mm accumulated from earlier, no solar, no 2nd wet station, no forecast → not enough.
+    const readings = new Map([['a', reading('a', 0.4)]]);
+    const r = assessRainNowcast(opts({ stations, readings }));
+    expect(r.rainingNow).toBe(false);
+    expect(r.status).not.toBe('raining');
   });
 
   it('does NOT report raining when the sun is clearly out (accumulated-precip artifact)', () => {
@@ -59,9 +69,12 @@ describe('assessRainNowcast — observed (station)', () => {
     expect(r.status).not.toBe('raining');
   });
 
-  it('still reports raining under dim/overcast solar (real rain)', () => {
-    const stations = [station('a', 42.31, -8.61)];
-    const readings = new Map([['a', { ...reading('a', 1.2), solarRadiation: 90 }]]);
+  it('still reports raining under dim/overcast solar when corroborated (real rain, 2 stations)', () => {
+    const stations = [station('a', 42.31, -8.61), station('b', 42.30, -8.62)];
+    const readings = new Map([
+      ['a', { ...reading('a', 1.2), solarRadiation: 90 }],
+      ['b', { ...reading('b', 0.8), solarRadiation: 90 }], // 2nd wet station → corroborated
+    ]);
     const r = assessRainNowcast(opts({ stations, readings }));
     expect(r.rainingNow).toBe(true);
   });
@@ -116,10 +129,10 @@ describe('assessRainNowcast — observed (station)', () => {
     expect(r.status).toBe('dry');
   });
 
-  it('observed rain takes priority over forecast', () => {
-    const stations = [station('a', 42.31, -8.61)];
-    const readings = new Map([['a', reading('a', 2)]]);
-    const forecast = [fcHour(1, 0, 0)]; // forecast says dry soon
+  it('observed rain (corroborated by 2 stations) takes priority over a dry-later forecast', () => {
+    const stations = [station('a', 42.31, -8.61), station('b', 42.30, -8.62)];
+    const readings = new Map([['a', reading('a', 2)], ['b', reading('b', 1.5)]]); // 2 wet → corroborated
+    const forecast = [fcHour(2, 0, 0)]; // forecast says dry later (outside the near-now window)
     const r = assessRainNowcast(opts({ stations, readings, forecast }));
     expect(r.status).toBe('raining');
   });
