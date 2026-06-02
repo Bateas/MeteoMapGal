@@ -648,10 +648,16 @@ export function buildMaritimeFogAlerts(
   // outer rías) where the only available source is the lighthouse cameras.
   const totalEvidence = cams + critCams + solarFogCount + visFogCount * 2;
 
-  // fix: evidence-driven path fires whenever 2+ independent confirmations exist,
-  // regardless of physics risk level. Physics alone can say 'riesgo' while cameras +
-  // solar signature + airport visibility visually prove actual fog.
-  if (totalEvidence >= 2) {
+  // ── Firing gate: NEVER fire on a single unreliable signal ──────────────────
+  // Lección user S136+3+8: the low sun at sunset glared on the water and ONE
+  // webcam (vision model) read it as "fog" → false alert. An event/alert needs
+  // SEVERAL independent variables, not a lone unreliable read. So:
+  //   - cameras (vision model) must corroborate: ≥2 cameras, OR 1 camera + a
+  //     non-camera signal (solar-signature station). A lone camera does NOT fire.
+  //   - a certified AEMET visibility station (government sensor) may fire alone.
+  // `cams` = distinct fog cameras; critCams (poor-vis) is a subset, never extra.
+  const enoughEvidence = visFogCount >= 1 || (cams + solarFogCount) >= 2;
+  if (enoughEvidence) {
     const camList = (webcamFogIds ?? []).slice(0, 3).join(', ');
     const stationList = solarFogStations.slice(0, 3).map(s => s.id).join(', ');
     const parts: string[] = [];
@@ -687,7 +693,7 @@ export function buildMaritimeFogAlerts(
         : cams > 0 ? 'Niebla detectada en webcams'
         : 'Niebla detectada por radiación solar',
       detail: parts.join(' · ') + '. Visibilidad reducida confirmada.',
-      urgent: totalEvidence >= 3,
+      urgent: hasNonWebcamEvidence && totalEvidence >= 3,
       updatedAt: new Date(),
       confidence: hasOfficial ? 98 : (cams > 0 && solarFogCount > 0 ? 95 : 80),
       fogMeta: {
