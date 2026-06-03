@@ -638,7 +638,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Historical baseline badge — sailing spots only, sailing-relevant signal ── */}
       {spot.category !== 'surf' && score?.wind != null && score.wind.avgSpeedKt > 0.5 && (
-        <HistoricalBaselineBadge spot={spot} currentKt={score.wind.avgSpeedKt} />
+        <HistoricalBaselineBadge spot={spot} currentKt={score.wind.avgSpeedKt} verdict={verdict} />
       )}
 
       {/* ── Tide summary (Rías sailing spots — surf spots show tide above verdict) ── */}
@@ -1582,7 +1582,7 @@ function ShareButton({ spot, score, verdict: _verdict, vs }: {
  *
  * Wired up as a per-popup mount; data is cached process-wide for 1 h.
  */
-function HistoricalBaselineBadge({ spot, currentKt }: { spot: SailingSpot; currentKt: number }) {
+function HistoricalBaselineBadge({ spot, currentKt, verdict }: { spot: SailingSpot; currentKt: number; verdict: SpotVerdict }) {
   // Use the spot's first preferred station as the reference — it's the
   // baseline-stable anchor (in `spots.ts` config), not subject to discovery
   // churn that affects ad-hoc nearby stations.
@@ -1593,6 +1593,14 @@ function HistoricalBaselineBadge({ spot, currentKt }: { spot: SailingSpot; curre
 
   const insight = describeVsBaseline(currentKt, baseline, 'kt', 'últimos 30 días');
   if (!insight) return null;
+
+  // Don't celebrate an "above-average" wind next to a poor verdict. At low-wind
+  // spots (e.g. Liméns, media 4 kt) a 7 kt day is "top 10%" yet still FLOJO —
+  // showing "top 10%" beside FLOJO reads contradictory and just creates doubt.
+  // Only surface the badge when the wind is actually usable; the sole exception
+  // is the genuinely-below-average ('low') case, which coheres with FLOJO.
+  const windUsable = verdict === 'sailing' || verdict === 'good' || verdict === 'strong';
+  if (!windUsable && insight.severity !== 'low') return null;
 
   return (
     <div
