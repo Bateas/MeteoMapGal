@@ -1,12 +1,12 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.81.63-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+[![Version](https://img.shields.io/badge/version-2.84.7-blue)](https://github.com/Bateas/MeteoMapGal/releases)
 [![CI](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml/badge.svg)](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1111%20passed-brightgreen)](src/test/)
+[![Tests](https://img.shields.io/badge/tests-1414%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
-**Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 13 spots monitorizados, 22 webcams con IA y mapa 3D interactivo.
+**Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 14 spots monitorizados, 22 webcams con IA y mapa 3D interactivo.
 
 **Pruebalo**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) — Gratuito, sin registro. Funciona en movil y escritorio.
 
@@ -69,8 +69,8 @@
 - Capas: humedad, temperatura, radar, niebla (DEM terrain), webcams, corrientes, cartas nauticas
 
 
-### Scoring inteligente (13 spots)
-- **Vela** (10 spots): 9 niveles de viento (CALMA a HURACAN). Consenso espacial de multiples estaciones con coherencia regional
+### Scoring inteligente (14 spots)
+- **Vela** (11 spots): 9 niveles de viento (CALMA a HURACAN). Consenso espacial de multiples estaciones con coherencia regional
 - **Surf** (3 spots BETA): 5 niveles de oleaje (FLAT / PEQUE / SURF OK / CLASICO / GRANDE) con correccion costera por playa y alineamiento del swell
 - **Coherencia espacial del viento** (#63): si estaciones a barlovento y sotavento coinciden en direccion y velocidad, el agua entre ellas tiene ese mismo viento. 3 niveles: coherencia regional (60%+ coinciden), bracketing espacial (opuestos a ±120°), corroboracion de fuentes
 - Boyas en agua pesan x1.5 sobre estaciones terrestres (exposure boost)
@@ -82,6 +82,12 @@
 - **Prevision WRF 1km por spot**: MeteoSIX de MeteoGalicia, cada spot usa su celda de grid exacta
 - **Temperatura del mar (MOHID)**: modelo oceanografico como fallback cuando no hay boya
 
+### Crear tu propio spot (chincheta)
+- Boton **"Crear spot"** en la barra inferior → toca el mapa y cae una chincheta donde quieras
+- El motor lo puntua con las estaciones del entorno (estimacion basica), con badge **"SIN CALIBRAR"** honesto
+- Muestra viento, olas, agua, marea y prevision WRF de esa zona; renombrable
+- **"Sugerir validacion"**: envia el spot (anonimo) para que se cure como spot oficial
+- Aislado del pipeline oficial: nunca toca el veredicto curado, las alertas ni el resumen
 
 ### Seguimiento de tormentas
 
@@ -229,20 +235,20 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # 1111 tests (Vitest)
+npm test                # 1414 tests (Vitest)
 npm run knip            # Detector dead-code (informativo)
 ```
 
 **Stack**: React 19.2 · TypeScript 5.9 · Vite 7.3 · MapLibre GL 5.24 · Zustand 5 · Tailwind 4.2 · Recharts · TimescaleDB · Sharp (image preprocess) · Ollama (vision)
 
 **Arquitectura**:
-- **Frontend**: React SPA con 20 stores Zustand, predictor de tormentas 8 señales, 7 sub-componentes SpotPopup
+- **Frontend**: React SPA con 24 stores Zustand, predictor de tormentas 9 señales, 7 sub-componentes SpotPopup
 - **Backend**: Ingestor Node.js 24/7 → TimescaleDB (polling 6 fuentes cada 5min + MeteoSIX WRF/USWAN + Ollama vision IA)
 - **Modelos**: WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temperatura del mar), Open-Meteo (conveccion + grid CAPE/LI 10km)
 - **Producción**: nginx reverse proxy en Proxmox LXC + smart deploy script (detecta diff, solo corre lo necesario), Cloudflare Tunnel
 - **Performance**: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle ~365KB (gzip ~121KB), FogOverlay chunked-async (yields cada 100 cells, 0 long tasks)
 - **Resilience**: Circuit breaker en TODOS los clientes API (4 capas: AEMET, Open-Meteo, lightning, ENAIRE), pre-classifier ahorra ~25min CPU/día en webcam vision, retention 2 años uniforme en hypertables críticas, convection grid query DISTINCT ON tolera cycles parciales
-- **Calidad**: knip dead-code detector como CI soft check (informativo), tests 1111/1111, 0 vulnerabilidades npm audit
+- **Calidad**: knip dead-code detector como CI soft check (informativo), tests 1414/1414, 0 vulnerabilidades npm audit
 
 ---
 
