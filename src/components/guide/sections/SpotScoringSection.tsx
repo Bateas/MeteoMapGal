@@ -294,6 +294,30 @@ export function SpotScoringSection() {
         </div>
       </div>
 
+      {/* Crear tu propio spot (chincheta) */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">
+          <WeatherIcon id="map-pin" size={14} className="inline-block mr-1.5 text-violet-400" />
+          Crear tu propio spot
+        </h3>
+        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
+          <p>
+            Pulsa <strong className="text-slate-300">"Crear spot"</strong> en la barra inferior y luego
+            toca el mapa donde quieras: cae una chincheta violeta que el motor puntúa con las estaciones
+            del entorno.
+          </p>
+          <p>
+            Es una <strong className="text-violet-300">estimación SIN CALIBRAR</strong> — muestra viento,
+            olas, agua, marea y previsión WRF de esa zona, pero sin la calibración local de un spot oficial
+            (puede fallar en microclimas). Renómbralo y, si merece la pena, pulsa
+            <strong className="text-slate-300"> "Sugerir validación"</strong> para que se cure como spot oficial.
+          </p>
+          <p className="text-[11px] text-slate-500 italic">
+            Tus spots se guardan solo en tu navegador. No afectan al veredicto oficial ni a las alertas.
+          </p>
+        </div>
+      </div>
+
       {/* Mobile */}
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">En móvil</h3>
