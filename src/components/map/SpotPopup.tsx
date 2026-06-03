@@ -606,6 +606,12 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           and INCLUDES surf spots (Patos/Lanzada/Corrubedo are beaches).
           Synthesises sun + air/water temp + wind + rain → sí/regular/no. ── */}
       {isBeachSpot(spot.id) && (() => {
+        // The beach-day verdict is a DAYTIME decision — nobody goes to the beach
+        // at night, so suppress it between sunset and sunrise (avoids the absurd
+        // "¿Playa? Mal día — lloviendo ahora" showing at 23:36).
+        const nowBeach = new Date();
+        const sun = getSunTimes(nowBeach, spot.center);
+        if (nowBeach < sun.sunrise || nowBeach >= sun.sunset) return null;
         const beach = assessBeachDay({
           cloudCoverPct: spotForecast[0]?.cloudCover ?? null,
           windKt: score?.wind?.avgSpeedKt ?? null,
