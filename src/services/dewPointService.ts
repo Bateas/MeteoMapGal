@@ -317,11 +317,15 @@ export function analyzeFog(
 
   confidence = Math.min(100, confidence);
 
-  // Estimate fog ETA
+  // Estimate fog ETA — only from a MEANINGFUL downward trend, not noise.
+  // A -0.1°C/h drift is within measurement noise; extrapolating it 12h out
+  // produced false yellow advisories. Rigor: require a real drop (matches the
+  // approaching-fog threshold below) + a near-term horizon before claiming
+  // "fog coming".
   let fogEta: Date | null = null;
-  if (spreadTrend !== null && spreadTrend < -0.1 && currentSpread > 0) {
+  if (spreadTrend !== null && spreadTrend < -0.3 && currentSpread > 0) {
     const hoursToFog = currentSpread / Math.abs(spreadTrend);
-    if (hoursToFog <= 12) {
+    if (hoursToFog <= 6) {
       fogEta = new Date(now.getTime() + hoursToFog * 3_600_000);
     }
   }
