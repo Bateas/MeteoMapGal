@@ -28,6 +28,7 @@ import { useBuoyStore } from '../store/buoyStore';
 import { useLightningStore } from './useLightningData';
 import { useNotificationStore } from '../store/notificationStore';
 import { useSectorStore } from '../store/sectorStore';
+import { isCoastalSector } from '../config/sectors';
 import { useStormShadowStore } from './useStormShadow';
 import { useTemperatureOverlayStore } from '../store/temperatureOverlayStore';
 import { useWeatherStore } from '../store/weatherStore';
@@ -258,7 +259,7 @@ export function useUnifiedAlertPipeline({
           webcamFogIds,
           fogSources: fogSources.length,
           sectorId: sectorId,
-          willCallBuildMaritimeFog: sectorId === 'rias' && buoys.length > 0,
+          willCallBuildMaritimeFog: isCoastalSector(sectorId) && buoys.length > 0,
         });
       }
 
@@ -270,9 +271,9 @@ export function useUnifiedAlertPipeline({
         stormShadow,
         currentReadings,
         readingHistory,
-        // Maritime alerts (cross-sea, fog, upwelling) only apply to coastal Rías sector
-        buoys: sectorId === 'rias' && buoys.length > 0 ? buoys : undefined,
-        sstHistory: sectorId === 'rias' && sstHistory.size > 0 ? sstHistory : undefined,
+        // Maritime alerts (cross-sea, fog, upwelling) only apply to coastal sectors
+        buoys: isCoastalSector(sectorId) && buoys.length > 0 ? buoys : undefined,
+        sstHistory: isCoastalSector(sectorId) && sstHistory.size > 0 ? sstHistory : undefined,
         stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
         teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
         webcamFogDetected,

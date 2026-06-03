@@ -1,5 +1,6 @@
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 
 /**
  * Color legend for the CMEMS SST overlay.
@@ -38,7 +39,7 @@ export function SSTLegend() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const isMobile = useUIStore((s) => s.isMobile);
 
-  if (!visible || sectorId !== 'rias') return null;
+  if (!visible || !isCoastalSector(sectorId)) return null;
 
   return (
     <div

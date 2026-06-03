@@ -13,6 +13,7 @@
 import { memo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { useMapStyleStore } from '../../store/mapStyleStore';
 
 // EMODnet Bathymetry v12 — XYZ tiles (fast, pre-rendered)
@@ -32,7 +33,7 @@ function CoastalOverlayInner() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const show = useMapStyleStore((s) => s.showUpwelling);
 
-  if (sectorId !== 'rias' || !show) return null;
+  if (!isCoastalSector(sectorId) || !show) return null;
 
   return (
     <>

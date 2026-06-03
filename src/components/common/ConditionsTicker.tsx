@@ -10,6 +10,7 @@ import { memo, useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { useWarningsStore } from '../../hooks/useWarnings';
@@ -70,7 +71,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   // Tide data — only fetch for Rías sector, cached 60min
   const [tidePoints, setTidePoints] = useState<TidePoint[]>([]);
   useEffect(() => {
-    if (sectorId !== 'rias') { setTidePoints([]); return; }
+    if (!isCoastalSector(sectorId)) { setTidePoints([]); return; }
     let cancelled = false;
     fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
     const iv = setInterval(() => {
@@ -171,7 +172,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     // per-station markers), not the ticker.
 
     // ── Tide info — Rías only (priority 7) ──
-    if (sectorId === 'rias' && tidePoints.length > 0) {
+    if (isCoastalSector(sectorId) && tidePoints.length > 0) {
       const next = getNextTide(tidePoints);
       if (next) {
         const label = next.point.type === 'high' ? 'Pleamar' : 'Bajamar';
@@ -424,7 +425,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     // summer afternoon, the breeze fills in. Tells the user the engine is ON
     // before any individual spot flips. Phase A surface (ticker); animated
     // front arrow is Phase B.
-    if (sectorId === 'rias') {
+    if (isCoastalSector(sectorId)) {
       const breeze = assessSeaBreezeRias(readings, stations);
       if (breeze.active && breeze.phase !== 'building') {
         // Only surface once the breeze has actually filled in (active/mature) —
@@ -443,7 +444,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     // Surface the upwelling alert that the pipeline builds but previously
     // never reached the user (only AlertPanel). Useful for divers/anglers:
     // N/NW wind drives Ekman transport → cold deep water rises → fish move.
-    if (sectorId === 'rias') {
+    if (isCoastalSector(sectorId)) {
       const up = unifiedAlerts.find((a) => a.category === 'upwelling');
       if (up) {
         result.push({

@@ -16,7 +16,7 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 
 export const MapStyleSelector = memo(function MapStyleSelector() {
   const isMobile = useUIStore((s) => s.isMobile);
-  const isRias = useSectorStore((s) => s.activeSector.id === 'rias');
+  const isCoastal = useSectorStore((s) => s.activeSector.coastal);
   const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
   const setStyle = useMapStyleStore((s) => s.setStyle);
   const showSeamarks = useMapStyleStore((s) => s.showSeamarks);
@@ -148,7 +148,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
           </div>
 
           {/* ── Marine overlay toggles (Rías sector only — advanced) ── */}
-          {!simpleMode && isRias && (
+          {!simpleMode && isCoastal && (
             <>
               <div className="border-t border-slate-700/40 px-2 py-1.5">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Capas marinas</span>

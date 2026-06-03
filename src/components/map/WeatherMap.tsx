@@ -130,6 +130,7 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
 export function WeatherMap() {
   const mapRef = useRef<MapRef | null>(null);
   const sectorId = useSectorStore((s) => s.activeSector.id);
+  const isCoastal = useSectorStore((s) => s.activeSector.coastal);
   const sectorInitialView = useSectorStore((s) => s.activeSector.initialView);
   const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
   const mapStyle = useMemo(() => buildMapStyle(activeStyleId), [activeStyleId]);
@@ -464,11 +465,11 @@ export function WeatherMap() {
         <NavigationControl position="top-right" visualizePitch />
         {/* Localize MapLibre controls to Spanish after mount */}
 
-        {/* IHM nautical chart — Rías only, below everything except base tiles */}
-        {sectorId === 'rias' && <Suspense fallback={null}><NauticalChartOverlay /></Suspense>}
+        {/* IHM nautical chart — coastal sectors only, below everything except base tiles */}
+        {isCoastal && <Suspense fallback={null}><NauticalChartOverlay /></Suspense>}
 
-        {/* OpenSeaMap seamarks — Rías only, above nautical chart, below weather overlays */}
-        {sectorId === 'rias' && <Suspense fallback={null}><SeamarksOverlay /></Suspense>}
+        {/* OpenSeaMap seamarks — coastal sectors only, above nautical chart, below weather overlays */}
+        {isCoastal && <Suspense fallback={null}><SeamarksOverlay /></Suspense>}
 
         {/* IGN terrain overlays — available in both sectors */}
         <IGNOrthoOverlay />
@@ -490,7 +491,7 @@ export function WeatherMap() {
 
         {/* Wind field arrows around stations + buoys (hidden in simpleMode) */}
         {!simpleMode && (
-          <WindFieldOverlay stations={stations} readings={currentReadings} buoys={sectorId === 'rias' ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
+          <WindFieldOverlay stations={stations} readings={currentReadings} buoys={isCoastal ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
         )}
 
         {/* Temp-only station dots — GPU-accelerated. Kept visible in simpleMode
@@ -509,8 +510,8 @@ export function WeatherMap() {
           />
         )}
 
-        {/* Marine buoy markers — GPU circle+symbol layer (Rías only) */}
-        {sectorId === 'rias' && (
+        {/* Marine buoy markers — GPU circle+symbol layer (coastal sectors only) */}
+        {isCoastal && (
           <BuoySymbolLayer
             buoys={buoys}
             selectedBuoyId={selectedBuoyId}
@@ -597,8 +598,8 @@ export function WeatherMap() {
           />
         )}
 
-        {/* Selected buoy popup — Rías Baixas only */}
-        {sectorId === 'rias' && selectedBuoy && (
+        {/* Selected buoy popup — coastal sectors only */}
+        {isCoastal && selectedBuoy && (
           <BuoyPopup reading={selectedBuoy} />
         )}
 

@@ -15,6 +15,7 @@ import { fetchAllRiasBuoys, mergeBuoyReadings } from '../api/buoyClient';
 import { fetchAllObsReadings } from '../api/observatorioCosteiro';
 import { useBuoyStore } from '../store/buoyStore';
 import { useSectorStore } from '../store/sectorStore';
+import { isCoastalSector } from '../config/sectors';
 import { useVisibilityPolling } from './useVisibilityPolling';
 
 const REFRESH_INTERVAL = 10 * 60_000; // 10 min (Observatorio Costeiro cadence)
@@ -27,7 +28,7 @@ export function useBuoyData() {
   const setError = useBuoyStore((s) => s.setError);
   const errorRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isRias = sectorId === 'rias';
+  const isRias = isCoastalSector(sectorId);
 
   const fetchBuoys = useCallback(async () => {
     // Clear any pending error retry

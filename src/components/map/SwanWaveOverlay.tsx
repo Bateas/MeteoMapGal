@@ -16,6 +16,7 @@
 import { memo, useMemo, useState, useCallback, useEffect } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { useMapStyleStore } from '../../store/mapStyleStore';
 import { useUIStore } from '../../store/uiStore';
 import { fetchMarineData } from '../../api/marineClient';
@@ -90,7 +91,7 @@ function SwanWaveOverlayInner() {
   // intact in case future features want them, but the values aren't read.
 
   // Toggle is the ONLY control. User activates from "Capas marinas" menu.
-  const wantsActive = sectorId === 'rias' && showSwan;
+  const wantsActive = isCoastalSector(sectorId) && showSwan;
 
   // Health check: verify CESGA THREDDS has CURRENT data before loading tiles.
   // v2.56.7: added TIME parameter matching what real tiles will send. Without it,

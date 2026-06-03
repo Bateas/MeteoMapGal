@@ -1,17 +1,18 @@
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 
 /**
  * EMODnet Bathymetry tile overlay — shows seabed depth contours.
  * Direct XYZ tiles, no proxy needed, no auth.
- * Only visible in Rías Baixas sector (ocean context).
+ * Only visible in coastal sectors (ocean context).
  */
 export function BathymetryOverlay() {
   const visible = useUIStore((s) => s.bathymetryVisible);
   const sectorId = useSectorStore((s) => s.activeSector.id);
 
-  if (!visible || sectorId !== 'rias') return null;
+  if (!visible || !isCoastalSector(sectorId)) return null;
 
   return (
     <Source

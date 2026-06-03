@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { useSectorStore } from '../store/sectorStore';
+import { isCoastalSector } from '../config/sectors';
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -44,12 +45,12 @@ export function useMagicWindow(): MagicWindowStatus | null {
     setStatus(null);
   }, [sectorId]);
 
-  // Magic window only applies to Rías — skip Embalse to save API calls
-  const isRias = sectorId === 'rias';
+  // Magic window (sea-breeze) only applies to coastal sectors — skip inland to save API calls
+  const isCoastal = isCoastalSector(sectorId);
   useVisibilityPolling(async () => {
-    const result = await fetchMagicWindow('rias');
+    const result = await fetchMagicWindow(sectorId);
     setStatus(result);
-  }, POLL_INTERVAL_MS, isRias);
+  }, POLL_INTERVAL_MS, isCoastal);
 
   return status;
 }
