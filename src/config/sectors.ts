@@ -25,6 +25,13 @@ export interface Sector {
   meteoclimaticRegions: string[];
   /** Extra points outside the main radius — stations within 8km of these are included */
   extraCoveragePoints?: { name: string; lon: number; lat: number }[];
+  /**
+   * Coastal sector → enables marine features: buoys, tides, currents (HF radar),
+   * SST, nearshore waves (SWAN), bathymetry, seamarks, nautical charts, upwelling,
+   * advective fog, sea breeze. Inland sectors (false) get thermal features instead.
+   * Drives all marine-vs-inland gating across the app (use isCoastalSector()).
+   */
+  coastal: boolean;
 }
 
 export const SECTORS: Sector[] = [
@@ -33,6 +40,7 @@ export const SECTORS: Sector[] = [
     name: 'Rías Baixas',
     shortName: 'Rías',
     icon: 'waves',
+    coastal: true,
     center: [-8.68, 42.30],          // centered between Vigo/Pontevedra/Arousa
     radiusKm: 30,                     // coastal focus — covers 3 Rías without deep interior stations
     initialView: {
@@ -62,6 +70,7 @@ export const SECTORS: Sector[] = [
     name: 'Embalse de Castrelo',
     shortName: 'Embalse',
     icon: 'sailboat',
+    coastal: false,
     center: [-8.1, 42.29],
     radiusKm: 35,
     initialView: {
@@ -79,3 +88,15 @@ export const SECTORS: Sector[] = [
 ];
 
 export const DEFAULT_SECTOR_ID = 'embalse';
+
+const SECTOR_BY_ID = new Map(SECTORS.map((s) => [s.id, s]));
+
+/**
+ * True when the sector is coastal (marine features apply). Single source of
+ * truth derived from the `coastal` flag on the Sector config — replaces the
+ * old hardcoded `sectorId === 'rias'` checks so new coastal sectors
+ * (e.g. Coruña-Ferrol, Norte de Portugal) inherit all marine features.
+ */
+export function isCoastalSector(sectorId: string | null | undefined): boolean {
+  return sectorId != null && (SECTOR_BY_ID.get(sectorId)?.coastal ?? false);
+}

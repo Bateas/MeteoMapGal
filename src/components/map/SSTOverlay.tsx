@@ -1,6 +1,7 @@
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 
 /**
  * Copernicus Marine (CMEMS) Sea Surface Temperature overlay.
@@ -51,7 +52,7 @@ export function SSTOverlay() {
   const visible = useUIStore((s) => s.sstVisible);
   const sectorId = useSectorStore((s) => s.activeSector.id);
 
-  if (!visible || sectorId !== 'rias') return null;
+  if (!visible || !isCoastalSector(sectorId)) return null;
 
   return (
     <Source

@@ -2,6 +2,7 @@ import { useEffect, useState, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
 /**
@@ -78,7 +79,7 @@ export const CurrentsOverlay = memo(function CurrentsOverlay() {
   const opacity = useWeatherLayerStore((s) => s.layerOpacity);
   const sectorId = useSectorStore((s) => s.activeSector.id);
 
-  const isActive = activeLayer === 'currents' && sectorId === 'rias';
+  const isActive = activeLayer === 'currents' && isCoastalSector(sectorId);
   const [currentsUrl, setCurrentsUrl] = useState<string | null>(null);
 
   // Visibility-aware polling — pauses when tab is hidden

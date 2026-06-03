@@ -13,6 +13,7 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { useAlertStore } from '../../store/alertStore';
 import type { UnifiedAlert } from '../../services/alerts/types';
 
@@ -263,9 +264,10 @@ function FogOverlayInner() {
   );
 
   const fogMeta = fogAlert?.fogMeta ?? null;
-  const fogType = fogMeta?.type ?? (sectorId === 'rias' ? 'advective' : 'radiative');
-  const config = sectorId === 'embalse' ? FOG_CONFIG.embalse : FOG_CONFIG.rias;
-  const hasFogAlert = (sectorId === 'embalse' || sectorId === 'rias') && fogAlert != null;
+  const coastal = isCoastalSector(sectorId);
+  const fogType = fogMeta?.type ?? (coastal ? 'advective' : 'radiative');
+  const config = coastal ? FOG_CONFIG.rias : FOG_CONFIG.embalse;
+  const hasFogAlert = fogAlert != null;
 
   // Debounce activation: require fog alert for 2s before rendering overlay.
   // Prevents flash on page load from transient partial-data fog detection.

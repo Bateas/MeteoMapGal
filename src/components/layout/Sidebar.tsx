@@ -3,6 +3,7 @@ import { ErrorBanner } from '../common/ErrorBanner';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { SkeletonLoader } from '../common/SkeletonLoader';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { useUIStore } from '../../store/uiStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
@@ -51,7 +52,7 @@ export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
   const activeSectorId = useSectorStore((s) => s.activeSector.id);
   const isEmbalse = activeSectorId === 'embalse';
-  const isRias = activeSectorId === 'rias';
+  const isRias = isCoastalSector(activeSectorId);
   const isMobile = useUIStore((s) => s.isMobile);
   const simpleMode = useUIStore((s) => s.simpleMode);
 

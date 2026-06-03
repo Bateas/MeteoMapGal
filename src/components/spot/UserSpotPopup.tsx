@@ -16,6 +16,7 @@ import { useUIStore } from '../../store/uiStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { type UserSpot, MAX_NAME_CHARS, buildSpotSuggestion } from '../../config/userSpots';
+import { isCoastalSector } from '../../config/sectors';
 import { RIAS_TIDE_STATIONS, fetchTidePredictions } from '../../api/tideClient';
 import { fastDistanceKm } from '../../services/idwInterpolation';
 import { msToKnots, degToCardinal8 } from '../../services/windUtils';
@@ -72,7 +73,7 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props)
   // Fetch the nearest tide station's next high/low (Rías only — the inland
   // reservoir has no tide). Used to enrich the suggestion report.
   useEffect(() => {
-    if (spot.sectorId !== 'rias') { setNextTide(null); return; }
+    if (!isCoastalSector(spot.sectorId)) { setNextTide(null); return; }
     let cancelled = false;
     const [lon, lat] = spot.center;
     let nearest = RIAS_TIDE_STATIONS[0];

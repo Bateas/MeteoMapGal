@@ -121,7 +121,7 @@ export const TemperatureOverlay = memo(function TemperatureOverlay() {
   const stations = useWeatherStore((s) => s.stations);
   const currentReadings = useWeatherStore((s) => s.currentReadings);
   const buoys = useBuoyStore((s) => s.buoys);
-  const isRias = useSectorStore((s) => s.activeSector.id === 'rias');
+  const isCoastal = useSectorStore((s) => s.activeSector.coastal);
 
   // ── Temperature circles GeoJSON (stations + buoy water temps) ──
   const circlesGeoJSON = useMemo<GeoJSON.FeatureCollection>(() => {
@@ -147,7 +147,7 @@ export const TemperatureOverlay = memo(function TemperatureOverlay() {
     }
 
     // Buoy water temps (Rías sector only)
-    if (isRias) {
+    if (isCoastal) {
       for (const b of buoys) {
         if (b.waterTemp == null) continue;
         const coords = BUOY_COORDS_MAP.get(b.stationId);
@@ -170,7 +170,7 @@ export const TemperatureOverlay = memo(function TemperatureOverlay() {
     if (features.length === 0) return EMPTY_FC;
 
     return { type: 'FeatureCollection', features };
-  }, [showOverlay, stations, currentReadings, buoys, isRias]);
+  }, [showOverlay, stations, currentReadings, buoys, isCoastal]);
 
   // Don't render any sources when completely off
   if (!showOverlay) return null;

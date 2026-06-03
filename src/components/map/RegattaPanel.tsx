@@ -6,6 +6,7 @@ import { useAlertStore } from '../../store/alertStore';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { useAviationStore } from '../../store/aviationStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { isPointInBounds, haversineDistance } from '../../services/geoUtils';
 import { msToKnots, degreesToCardinal } from '../../services/windUtils';
 import { getSourceQuality, isWindBlacklisted } from '../../services/spotScoringEngine';
@@ -55,7 +56,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
   const buoys = useBuoyStore((s) => s.buoys);
   const alerts = useAlertStore((s) => s.alerts);
   const sectorId = useSectorStore((s) => s.activeSector.id);
-  const isRias = sectorId === 'rias';
+  const isCoastal = isCoastalSector(sectorId);
   const safetyLog = useRegattaStore((s) => s.safetyLog);
   const conditionsHistory = useRegattaStore((s) => s.conditionsHistory);
   const [displayMs, setDisplayMs] = useState(0);
@@ -211,7 +212,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
 
     // Marine data only relevant for Rías (coastal). Embalse = inland reservoir, no ocean data.
     const sId = useSectorStore.getState().activeSector.id;
-    const isCoastal = sId === 'rias';
+    const isCoastal = isCoastalSector(sId);
     const isDeepInterior = isCoastal && centerLon > -8.65; // Only Cesantes/Rande area
     const isSheltered = !isCoastal || isDeepInterior;
 
@@ -424,7 +425,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
 
   // Fetch tides (Rías sector only — inland reservoirs have no tides)
   useEffect(() => {
-    if (!active || !zone || !isRias) return;
+    if (!active || !zone || !isCoastal) return;
     let cancelled = false;
     fetchTides48h().then((data) => {
       if (cancelled) return;
@@ -435,7 +436,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
       setTides(upcoming.slice(0, 4));
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [active, zone, isRias]);
+  }, [active, zone, isCoastal]);
 
   // Fetch AEMET official warnings
   useEffect(() => {
@@ -483,7 +484,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
       `Direccion:     ${c?.windDir ? `${degreesToCardinal(c.windDir)} (${c.windDir}°)` : 'Variable'}`,
       `Estaciones:    ${c?.stationsInZone || 0}${c?.interpolated ? ' (interpoladas)' : ''}`,
       ``,
-      ...(isRias ? [
+      ...(isCoastal ? [
         `--- DATOS MARINOS ---`,
         `Oleaje:        ${c?.waveHeight != null ? c.waveHeight.toFixed(1) + ' m' : 'Aguas protegidas'}`,
         c?.swellHeight != null ? `Mar de fondo:  ${c.swellHeight.toFixed(1)} m` : '',
@@ -683,7 +684,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
           )}
 
           {/* Marine data — only for coastal sector */}
-          {isRias && (
+          {isCoastal && (
             <>
               {cond.waveHeight != null ? (
                 <div className="flex justify-between text-xs">

@@ -18,6 +18,7 @@ import { SkeletonLoader } from '../common/SkeletonLoader';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { useThermalStore } from '../../store/thermalStore';
 import { getLunarPhase, getLunarCalendar } from '../../services/lunarService';
 import { msToKnots } from '../../services/windUtils';
@@ -70,7 +71,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
   const setDroneTabActive = useUIStore((s) => s.setDroneTabActive);
   const forecastHourly = useForecastStore((s) => s.hourly);
   const activeSectorId = useSectorStore((s) => s.activeSector.id);
-  const isRias = activeSectorId === 'rias';
+  const isCoastal = isCoastalSector(activeSectorId);
   const isEmbalse = activeSectorId === 'embalse';
 
   // Sync drone tab state to uiStore (controls AirspaceOverlay visibility)
@@ -188,7 +189,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
           {activeTab === 'nav' && (
             <>
               <Suspense fallback={<SkeletonLoader lines={3} compact />}>
-                {isRias && <TidePanel />}
+                {isCoastal && <TidePanel />}
                 {isEmbalse && (
                   <AlertSection icon={<WeatherIcon id="cloud" size={14} />} title="Perfil Atmosférico" level="none" beta>
                     <AtmosphericProfile />

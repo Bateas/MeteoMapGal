@@ -35,6 +35,7 @@ import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
 import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { useAirQualityStore } from '../../store/airQualityStore';
 import { computeSurfVerdict, swellAlignmentMultiplier } from '../spot/surfVerdictEngine';
 import { detectViracionPhase } from '../../services/viracionDetector';
@@ -117,7 +118,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const [mohidSeaTemp, setMohidSeaTemp] = useState<number | null>(null);
 
   useEffect(() => {
-    if (sectorId !== 'rias') return;
+    if (!isCoastalSector(sectorId)) return;
     const [lon, lat] = spot.center;
     fetchMeteoSixSeaTemp(lat, lon)
       .then((data) => {
@@ -183,7 +184,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   // detector's confidence ≥ medium AND phase ≠ unknown. No alerts, no
   // overlays — just one informative line near the wind display.
   const viracion = (() => {
-    if (sectorId !== 'rias' || spot.category === 'surf') return null;
+    if (!isCoastalSector(sectorId) || spot.category === 'surf') return null;
     try {
       const readingsMap = useWeatherStore.getState().currentReadings ?? new Map();
       const buoys = useBuoyStore.getState().buoys ?? [];
