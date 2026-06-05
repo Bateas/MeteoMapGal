@@ -33,6 +33,7 @@ describe('MobileSailingBanner', () => {
     useSectorStore.setState({
       activeSector: {
         id: 'rias',
+        coastal: true,
         name: 'Rías Baixas',
         center: [-8.68, 42.30],
         radiusKm: 40,

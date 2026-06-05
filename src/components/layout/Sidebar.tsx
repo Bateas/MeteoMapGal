@@ -52,7 +52,7 @@ export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');
   const activeSectorId = useSectorStore((s) => s.activeSector.id);
   const isEmbalse = activeSectorId === 'embalse';
-  const isRias = isCoastalSector(activeSectorId);
+  const isCoastal = isCoastalSector(activeSectorId);
   const isMobile = useUIStore((s) => s.isMobile);
   const simpleMode = useUIStore((s) => s.simpleMode);
 
@@ -220,7 +220,7 @@ export function Sidebar() {
               <ErrorBoundary section="Spots Navegación">
                 <SpotSelector />
               </ErrorBoundary>
-              {isRias && (
+              {isCoastal && (
                 <ErrorBoundary section="Boyas Marinas">
                   <BuoyPanel />
                 </ErrorBoundary>

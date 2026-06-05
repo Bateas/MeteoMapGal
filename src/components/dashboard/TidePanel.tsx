@@ -3,7 +3,7 @@
  *
  * Shows today + tomorrow high/low tides from IHM API.
  * Includes a mini visual tide curve and next tide indicator.
- * Only rendered when activeSector === 'rias'.
+ * Only rendered in coastal sectors (FieldDrawer gates it with isCoastalSector).
  */
 
 import { memo, useState, useMemo, useCallback } from 'react';

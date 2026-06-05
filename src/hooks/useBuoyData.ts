@@ -1,10 +1,10 @@
 /**
  * Hook to fetch and refresh marine buoy data from Puertos del Estado.
  * Mounted in AppShell so data loads regardless of sidebar visibility.
- * Only active when sector is 'rias'. Clears selection on sector switch.
+ * Only active in coastal sectors. Clears selection on sector switch.
  *
- * Uses useVisibilityPolling(enabled=isRias) — polling pauses on Embalse
- * and when the browser tab is hidden.
+ * Uses useVisibilityPolling(enabled=isCoastal) — polling pauses on inland
+ * sectors and when the browser tab is hidden.
  *
  * Error recovery: on failure, retries after 5 min instead of waiting 30 min.
  * buoyClient.ts already retries 5xx errors 2x with exponential backoff before
@@ -28,7 +28,7 @@ export function useBuoyData() {
   const setError = useBuoyStore((s) => s.setError);
   const errorRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isRias = isCoastalSector(sectorId);
+  const isCoastal = isCoastalSector(sectorId);
 
   const fetchBuoys = useCallback(async () => {
     // Clear any pending error retry
@@ -76,13 +76,13 @@ export function useBuoyData() {
 
   // Clear buoy data when leaving Rías — prevents stale maritime alerts in Embalse
   useEffect(() => {
-    if (!isRias) {
+    if (!isCoastal) {
       setBuoys([]);
     }
-  }, [isRias, setBuoys]);
+  }, [isCoastal, setBuoys]);
 
   // Single polling loop — enabled only on Rías sector.
   // useVisibilityPolling fires callback immediately on start → no double fetch.
-  // When isRias becomes false, the hook cleans up the interval.
-  useVisibilityPolling(fetchBuoys, REFRESH_INTERVAL, isRias, 3_000); // Stagger: 3s after page load
+  // When isCoastal becomes false, the hook cleans up the interval.
+  useVisibilityPolling(fetchBuoys, REFRESH_INTERVAL, isCoastal, 3_000); // Stagger: 3s after page load
 }

@@ -3,6 +3,7 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import type { WeatherLayerType } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { isCoastalSector } from '../../config/sectors';
 import { useAviationStore } from '../../store/aviationStore';
 import { useWebcamStore } from '../../store/webcamStore';
 import { useRegattaStore } from '../../store/regattaStore';
@@ -10,11 +11,11 @@ import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 // ── Layer button configs ───────────────────────────────────
 
-const LAYER_BUTTONS: { id: WeatherLayerType; icon: IconId; label: string; sector?: string }[] = [
+const LAYER_BUTTONS: { id: WeatherLayerType; icon: IconId; label: string; coastalOnly?: boolean }[] = [
   { id: 'wind-particles', icon: 'wind', label: 'Viento' },
   { id: 'humidity', icon: 'droplets', label: 'Humedad' },
   { id: 'radar', icon: 'radar', label: 'Radar' },
-  { id: 'currents', icon: 'waves', label: 'Corrientes', sector: 'rias' },
+  { id: 'currents', icon: 'waves', label: 'Corrientes', coastalOnly: true },
 ];
 
 // ── Component ──────────────────────────────────────────────
@@ -28,9 +29,9 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   const setActiveLayer = useWeatherLayerStore((s) => s.setActiveLayer);
   const setLayerOpacity = useWeatherLayerStore((s) => s.setLayerOpacity);
 
-  // Filter sector-restricted buttons (e.g. 'currents' only in Rías)
+  // Filter coastal-only buttons (e.g. 'currents' only in coastal sectors)
   const buttons = useMemo(
-    () => LAYER_BUTTONS.filter((b) => !b.sector || b.sector === sectorId),
+    () => LAYER_BUTTONS.filter((b) => !b.coastalOnly || isCoastalSector(sectorId)),
     [sectorId],
   );
 
