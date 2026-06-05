@@ -6,8 +6,7 @@
  */
 import { useMemo, useEffect, useCallback } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
-import type { BuoyReading } from '../../types/buoy';
-import { BUOY_COORDS_MAP } from '../../api/buoyClient';
+import { BUOY_COORDS_MAP, type BuoyReading } from '../../api/buoyClient';
 import { temperatureColor } from '../../services/windUtils';
 
 interface BuoySymbolLayerProps {
