@@ -154,17 +154,17 @@ export const AviationOverlay = memo(function AviationOverlay() {
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
+    // Named handler refs so cleanup removes the SAME functions (passing fresh
+    // `() => {}` to map.off never matched → handlers leaked every aviation poll).
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => { map.getCanvas().style.cursor = ''; };
     map.on('click', 'aviation-aircraft', handleClick);
-    map.on('mouseenter', 'aviation-aircraft', () => {
-      map.getCanvas().style.cursor = 'pointer';
-    });
-    map.on('mouseleave', 'aviation-aircraft', () => {
-      map.getCanvas().style.cursor = '';
-    });
+    map.on('mouseenter', 'aviation-aircraft', onEnter);
+    map.on('mouseleave', 'aviation-aircraft', onLeave);
     return () => {
       map.off('click', 'aviation-aircraft', handleClick);
-      map.off('mouseenter', 'aviation-aircraft', () => {});
-      map.off('mouseleave', 'aviation-aircraft', () => {});
+      map.off('mouseenter', 'aviation-aircraft', onEnter);
+      map.off('mouseleave', 'aviation-aircraft', onLeave);
     };
   }, [mapRef, handleClick]);
 

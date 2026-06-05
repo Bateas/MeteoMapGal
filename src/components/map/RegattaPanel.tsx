@@ -16,8 +16,8 @@ import { fetchOpenMeteoForecast } from '../../api/openMeteoClient';
 import { APP_VERSION } from '../../config/version';
 import { fetchTides48h, type TidePoint } from '../../api/tideClient';
 import { fetchAemetAvisos, filterAvisosByProvince, AVISO_COLORS, type AemetAviso } from '../../api/aemetAvisosClient';
-import type { NormalizedStation, NormalizedReading } from '../../types/weather';
-import type { ForecastPoint } from '../../api/openMeteoClient';
+import type { NormalizedStation, NormalizedReading } from '../../types/station';
+import type { ForecastPoint } from '../../types/thermal';
 
 const SEM: Record<SemaphoreLevel, { bg: string; border: string; text: string; label: string }> = {
   green: { bg: 'bg-green-500/20', border: 'border-green-500/50', text: 'text-green-400', label: 'SEGURO' },
