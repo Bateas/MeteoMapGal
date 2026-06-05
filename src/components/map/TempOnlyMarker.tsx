@@ -107,11 +107,3 @@ export const TempOnlyOverlay = memo(function TempOnlyOverlay({ stations, reading
     </Source>
   );
 });
-
-// Re-export for backward compatibility (single marker no longer used)
-export const TempOnlyMarker = memo(function TempOnlyMarkerLegacy({}: {
-  station: NormalizedStation;
-  reading?: NormalizedReading;
-}) {
-  return null; // No-op — use TempOnlyOverlay instead
-});

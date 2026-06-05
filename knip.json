@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "src/main.tsx",
-    "src/widget/widget.tsx",
+    "src/widget/main.tsx",
     "ingestor/index.ts",
     "ingestor/api.ts"
   ],
