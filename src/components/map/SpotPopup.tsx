@@ -73,6 +73,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const thermalPrecursors = useSpotStore((s) => s.thermalPrecursors);
   const webcamVision = useSpotStore((s) => s.webcamVision);
   const isMobile = useUIStore((s) => s.isMobile);
+  // Casual users (simpleMode on by default for new visitors) get a lean popup:
+  // the decision essentials stay, the technical/power-user sections hide.
+  const simpleMode = useUIStore((s) => s.simpleMode);
   const dismiss = () => selectSpot('');
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
   const spotForecasts = useSpotStore((s) => s.spotForecasts);
@@ -760,7 +763,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* Thermal boost indicator removed — redundant with "Térmica X% prob" already shown above */}
 
       {/* ── Scoring confidence ── */}
-      {score && score.scoringConfidence === 'low' && (
+      {score && score.scoringConfidence === 'low' && !simpleMode && (
         <div className="text-[11px] text-amber-400/90 italic mb-1">
           <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" /> Baja confianza: solo {score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)
         </div>
@@ -788,7 +791,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── Scoring breakdown (collapsible) — wind-based, hide for surf ── */}
-      {spot.category !== 'surf' && score && score.verdict !== 'unknown' && <ScoringBreakdown score={score} spot={spot} />}
+      {spot.category !== 'surf' && score && score.verdict !== 'unknown' && !simpleMode && <ScoringBreakdown score={score} spot={spot} />}
 
       {/* ── Sailing windows (collapsible) — hide for surf spots ── */}
       {spot.category !== 'surf' && windowResult && <SailingWindowsSection result={windowResult} />}
@@ -865,8 +868,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Spot wind history 24h (wind spots only — surf uses wave forecast) ── */}
       {spot.category !== 'surf' && <SpotHistoryChart spotId={spot.id} />}
 
-      {/* ── Wind patterns (collapsible) ── */}
-      {spot.windPatterns.length > 0 && <WindPatterns patterns={spot.windPatterns} />}
+      {/* ── Wind patterns (collapsible) — power-user detail, hidden in simpleMode ── */}
+      {spot.windPatterns.length > 0 && !simpleMode && <WindPatterns patterns={spot.windPatterns} />}
 
       {/* ── Share + Apoyar + Timestamp ── */}
       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-700/30">
