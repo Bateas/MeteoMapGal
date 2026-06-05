@@ -54,8 +54,6 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   // lose trust when reality and prediction disagree visually. The manual
   // toggle lives in MapStyleSelector → ATMÓSFERA for power users that want
   // a "where COULD storms form in next 6 h" overview.
-  // (useConvectionAutoActivate hook kept in src/hooks/ for potential
-  //  future re-enable under a stricter threshold / lightning-aware gate.)
 
   // NAO/AO teleconnection indices — 15s extra after deferred mount
   useEffect(() => {
