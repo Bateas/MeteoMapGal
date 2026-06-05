@@ -530,8 +530,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── Temperatures & conditions — primary always visible, secondary collapsible ── */}
-      {(score?.airTemp != null || score?.waterTemp != null || mohidSeaTemp != null || score?.humidity != null) && (
-        <TemperatureSection score={score} mohidSeaTemp={score?.waterTemp == null ? mohidSeaTemp : null} />
+      {score && (score.airTemp != null || score.waterTemp != null || mohidSeaTemp != null || score.humidity != null) && (
+        <TemperatureSection score={score} mohidSeaTemp={score.waterTemp == null ? mohidSeaTemp : null} />
       )}
 
       {/* ── Humidity precursor signal (bruma pattern) ── */}
