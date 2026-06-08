@@ -1,37 +1,25 @@
 /**
  * OpenSeaMap seamark overlay — nautical markers, buoys, lights, ports.
- *
- * Renders as transparent PNG tiles ON TOP of the base map.
- * tiles.openseamap.org — free, no auth, XYZ format.
- *
- * Only shown when showSeamarks toggle is active.
- * Best combined with Dark Matter or Positron base for contrast.
+ * Transparent PNG tiles (tiles.openseamap.org, free, no auth) on top of the
+ * base map. Only shown when showSeamarks toggle is active (coastal sectors).
  */
 import { memo } from 'react';
-import { Source, Layer } from 'react-map-gl/maplibre';
 import { useMapStyleStore } from '../../store/mapStyleStore';
+import { RasterTileOverlay } from './RasterTileOverlay';
 
 export const SeamarksOverlay = memo(function SeamarksOverlay() {
   const showSeamarks = useMapStyleStore((s) => s.showSeamarks);
-
-  if (!showSeamarks) return null;
-
   return (
-    <Source
-      id="openseamap"
-      type="raster"
+    <RasterTileOverlay
+      visible={showSeamarks}
+      sourceId="openseamap"
+      layerId="openseamap-tiles"
       tiles={['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png']}
-      tileSize={256}
-      attribution="&copy; OpenSeaMap contributors"
       minzoom={8}
       maxzoom={18}
-    >
-      <Layer
-        id="openseamap-tiles"
-        type="raster"
-        minzoom={8}
-        paint={{ 'raster-opacity': 0.9 }}
-      />
-    </Source>
+      layerMinzoom={8}
+      opacity={0.9}
+      attribution="© OpenSeaMap contributors"
+    />
   );
 });

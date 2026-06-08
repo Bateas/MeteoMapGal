@@ -1,38 +1,27 @@
-import { Source, Layer } from 'react-map-gl/maplibre';
+/**
+ * EMODnet Bathymetry overlay — seabed depth contours. Direct XYZ tiles, no auth.
+ * Only visible in coastal sectors (ocean context).
+ */
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
+import { RasterTileOverlay } from './RasterTileOverlay';
 
-/**
- * EMODnet Bathymetry tile overlay — shows seabed depth contours.
- * Direct XYZ tiles, no proxy needed, no auth.
- * Only visible in coastal sectors (ocean context).
- */
 export function BathymetryOverlay() {
   const visible = useUIStore((s) => s.bathymetryVisible);
   const sectorId = useSectorStore((s) => s.activeSector.id);
-
-  if (!visible || !isCoastalSector(sectorId)) return null;
-
   return (
-    <Source
-      id="emodnet-bathymetry"
-      type="raster"
+    <RasterTileOverlay
+      visible={visible && isCoastalSector(sectorId)}
+      sourceId="emodnet-bathymetry"
+      layerId="bathymetry-layer"
       tiles={['https://tiles.emodnet-bathymetry.eu/v12/mean_atlas_land/web_mercator/{z}/{x}/{y}.png']}
-      tileSize={256}
       minzoom={8}
       maxzoom={14}
-      attribution="&copy; EMODnet Bathymetry"
-    >
-      <Layer
-        id="bathymetry-layer"
-        type="raster"
-        minzoom={8}
-        paint={{
-          'raster-opacity': 0.55,
-          'raster-fade-duration': 300,
-        }}
-      />
-    </Source>
+      layerMinzoom={8}
+      opacity={0.55}
+      fadeDuration={300}
+      attribution="© EMODnet Bathymetry"
+    />
   );
 }

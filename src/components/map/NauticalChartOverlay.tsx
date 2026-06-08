@@ -1,43 +1,29 @@
 /**
  * IHM Electronic Navigational Chart overlay — official Spanish nautical charts.
- *
- * Source: Instituto Hidrográfico de la Marina (ideihm.covam.es)
- * Uses WMTS cached endpoint for performance.
- *
- * Shows navigational features: depth contours, channels, anchorages,
- * restricted areas, traffic separation schemes.
- *
- * Only shown when showNauticalChart toggle is active.
+ * Source: Instituto Hidrográfico de la Marina (ideihm.covam.es), WMS GetMap
+ * consumed by MapLibre as raster tiles via {bbox-epsg-3857}.
+ * Only shown when showNauticalChart toggle is active (coastal sectors).
  */
 import { memo } from 'react';
-import { Source, Layer } from 'react-map-gl/maplibre';
 import { useMapStyleStore } from '../../store/mapStyleStore';
+import { RasterTileOverlay } from './RasterTileOverlay';
 
-/** IHM ENC via WMS — MapLibre consumes WMS as raster tiles with {bbox-epsg-3857} */
 const IHM_WMS_URL =
   'https://ideihm.covam.es/encwms/wms?service=WMS&version=1.1.1&request=GetMap&layers=ENC&styles=&srs=EPSG:3857&format=image/png&transparent=true&width=256&height=256&bbox={bbox-epsg-3857}';
 
 export const NauticalChartOverlay = memo(function NauticalChartOverlay() {
   const showNauticalChart = useMapStyleStore((s) => s.showNauticalChart);
-
-  if (!showNauticalChart) return null;
-
   return (
-    <Source
-      id="ihm-enc"
-      type="raster"
+    <RasterTileOverlay
+      visible={showNauticalChart}
+      sourceId="ihm-enc"
+      layerId="ihm-enc-tiles"
       tiles={[IHM_WMS_URL]}
-      tileSize={256}
-      attribution="&copy; IHM — Instituto Hidrográfico de la Marina"
       minzoom={9}
       maxzoom={17}
-    >
-      <Layer
-        id="ihm-enc-tiles"
-        type="raster"
-        minzoom={9}
-        paint={{ 'raster-opacity': 0.75 }}
-      />
-    </Source>
+      layerMinzoom={9}
+      opacity={0.75}
+      attribution="© IHM — Instituto Hidrográfico de la Marina"
+    />
   );
 });
