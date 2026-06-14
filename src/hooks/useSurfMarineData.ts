@@ -92,7 +92,16 @@ export function useSurfMarineData() {
       try {
         const hours = await fetchMarineForSpot(spot.id, spot.center[1], spot.center[0]);
         if (sectorIdRef.current !== fetchSectorId) return; // sector switched during fetch
-        const now = hours[0];
+        // Pick the forecast hour closest to NOW. Sources (own API / USWAN /
+        // Open-Meteo) return arrays starting at different hours, so blindly
+        // taking hours[0] showed waves from the wrong hour and made the verdict
+        // flicker between refreshes (Patos SURF OK 1.0m ↔ PEQUE 0.4m).
+        const nowMs = Date.now();
+        const now = hours.reduce(
+          (best, h) =>
+            Math.abs(h.time.getTime() - nowMs) < Math.abs(best.time.getTime() - nowMs) ? h : best,
+          hours[0],
+        );
         if (!now) continue;
         // Per-spot coastal correction × swell direction alignment
         const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
