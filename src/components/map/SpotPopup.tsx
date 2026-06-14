@@ -529,7 +529,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── 24h Wave forecast (surf spots only) ── */}
       {spot.category === 'surf' && (
-        <WaveForecastMini lat={spot.center[1]} lon={spot.center[0]} />
+        <WaveForecastMini lat={spot.center[1]} lon={spot.center[0]} coastalFactor={spot.coastalFactor ?? 0.85} />
       )}
 
       {/* ── Temperatures & conditions — primary always visible, secondary collapsible ── */}
@@ -1357,7 +1357,7 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
 
 /** Compact 24h wave forecast bar chart for surf spots.
  * Fetches Open-Meteo Marine hourly and shows wave height + swell + period. */
-function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
+function WaveForecastMini({ lat, lon, coastalFactor }: { lat: number; lon: number; coastalFactor: number }) {
   const [hours, setHours] = useState<MarineForecastHour[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1395,9 +1395,11 @@ function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
     if (s > bestScore) { bestScore = s; bestIdx = i; }
   }
 
-  // Summary text
-  const currentWave = hours[0]?.waveHeight ?? 0;
-  const maxForecast = Math.max(...hours.map((h) => h.waveHeight ?? 0));
+  // Summary text — apply the spot's coastalFactor so the displayed numbers match
+  // the (calibrated) verdict instead of showing the raw open-water model height.
+  // (Bars stay relative to raw maxWave, so the chart SHAPE is unchanged.)
+  const currentWave = (hours[0]?.waveHeight ?? 0) * coastalFactor;
+  const maxForecast = Math.max(...hours.map((h) => (h.waveHeight ?? 0) * coastalFactor));
   const trend = maxForecast > currentWave + 0.3 ? 'subiendo' : maxForecast < currentWave - 0.3 ? 'bajando' : 'estable';
   const bestHour = hours[bestIdx];
   const bestTime = bestHour?.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -1432,7 +1434,7 @@ function WaveForecastMini({ lat, lon }: { lat: number; lon: number }) {
                 opacity: isPast ? 0.5 : 1,
                 border: isBest ? '1px solid #22d3ee' : 'none',
               }}
-              title={`${hourLabel}h: ${wh.toFixed(1)}m total${sw > 0 ? ` (swell ${sw.toFixed(1)}m)` : ''}${h.swellPeriod ? ` Tp ${h.swellPeriod.toFixed(0)}s` : ''}`}
+              title={`${hourLabel}h: ${(wh * coastalFactor).toFixed(1)}m total${sw > 0 ? ` (swell ${(sw * coastalFactor).toFixed(1)}m)` : ''}${h.swellPeriod ? ` Tp ${h.swellPeriod.toFixed(0)}s` : ''}`}
             >
               {/* Swell portion indicator — darker bottom section */}
               {sw > 0 && sw < wh && !isPast && (
