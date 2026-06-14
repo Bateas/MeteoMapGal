@@ -58,7 +58,10 @@ export const LightningOverlay = memo(function LightningOverlay() {
 
   return (
     <>
-    <Source id="lightning-strikes" type="geojson" data={geojson}>
+    {/* buffer:0 — strikes are points; the default 128px tile buffer duplicates
+        thousands of features into neighboring tiles → costly re-tiling on pan
+        with a 24h GeoJSON. Points don't need a buffer. */}
+    <Source id="lightning-strikes" type="geojson" data={geojson} buffer={0}>
       {/* Glow halo behind each strike */}
       <Layer
         id="lightning-glow"
