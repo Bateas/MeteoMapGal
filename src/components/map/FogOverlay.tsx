@@ -67,7 +67,7 @@ const yieldToEventLoop = () => new Promise<void>((r) => setTimeout(r, 0));
 async function sampleFogZonesLocal(
   queryElevation: (lngLat: { lng: number; lat: number }) => number | null,
   sources: { lat: number; lon: number }[],
-  config: typeof FOG_CONFIG.embalse,
+  config: typeof FOG_CONFIG.embalse | typeof FOG_CONFIG.rias,
   fogType: 'radiative' | 'advective',
   signal?: AbortSignal,
 ): Promise<GeoJSON.FeatureCollection> {
@@ -142,89 +142,6 @@ async function sampleFogZonesLocal(
           coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
         },
         properties: { elevation: elev ?? 0, density, color },
-      });
-    }
-  }
-
-  return { type: 'FeatureCollection', features };
-}
-
-async function sampleFogZones(
-  queryElevation: (lngLat: { lng: number; lat: number }) => number | null,
-  config: typeof FOG_CONFIG.embalse,
-  fogType: 'radiative' | 'advective',
-  windDir?: number | null,
-  signal?: AbortSignal,
-): Promise<GeoJSON.FeatureCollection> {
-  const { bbox, cols, rows, maxAltitude } = config;
-  const cellW = (bbox.east - bbox.west) / cols;
-  const cellH = (bbox.north - bbox.south) / rows;
-  const features: GeoJSON.Feature[] = [];
-  const color = fogType === 'advective' ? config.advectiveColor : config.radiativeColor;
-
-  // Precompute directional advance vector for advective fog
-  let advanceDx = 0, advanceDy = 0;
-  const hasDirection = fogType === 'advective' && windDir != null;
-  if (hasDirection) {
-    // Wind blows FROM windDir, fog advances in that direction
-    const rad = ((windDir! + 180) % 360) * Math.PI / 180;
-    advanceDx = Math.sin(rad);
-    advanceDy = Math.cos(rad);
-  }
-  const bboxCenterLng = (bbox.west + bbox.east) / 2;
-  const bboxCenterLat = (bbox.south + bbox.north) / 2;
-  const halfW = (bbox.east - bbox.west) / 2;
-  const halfH = (bbox.north - bbox.south) / 2;
-  let cellsProcessed = 0;
-
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      // Yield + abort check every CHUNK_CELLS cells — same pattern as the
-      // local sampler, see comment above.
-      if (++cellsProcessed % CHUNK_CELLS === 0) {
-        await yieldToEventLoop();
-        if (signal?.aborted) throw new DOMException('Fog build aborted', 'AbortError');
-      }
-      const lng = bbox.west + (col + 0.5) * cellW;
-      const lat = bbox.south + (row + 0.5) * cellH;
-
-      const elev = queryElevation({ lng, lat });
-      if (elev === null || elev === undefined) continue; // water or unloaded — skip
-      const altitude = elev;
-      if (altitude > maxAltitude) continue;
-
-      // Per-cell density based on altitude (lower = denser)
-      const altFactor = 1.0 - (altitude / maxAltitude);
-
-      // Directional advance for advective fog
-      let density: number;
-      if (hasDirection) {
-        const cx = (lng - bboxCenterLng) / halfW;
-        const cy = (lat - bboxCenterLat) / halfH;
-        const advancePos = cx * advanceDx + cy * advanceDy;
-        // Leading edge (negative = toward fog source) = denser
-        const dirFactor = Math.max(0, 1.0 - (advancePos + 1) / 2);
-        density = altFactor * 0.6 + dirFactor * 0.4;
-      } else {
-        // Radiative: pure altitude-based (valley floor = dense)
-        density = altFactor;
-      }
-
-      // Clamp to visible range
-      density = Math.max(0.2, Math.min(1.0, density));
-
-      const x1 = bbox.west + col * cellW;
-      const x2 = x1 + cellW;
-      const y1 = bbox.south + row * cellH;
-      const y2 = y1 + cellH;
-
-      features.push({
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
-        },
-        properties: { elevation: altitude, density, color },
       });
     }
   }
@@ -331,7 +248,7 @@ function FogOverlayInner() {
       if ((err as DOMException)?.name === 'AbortError') return; // expected on rebuild
       throw err;
     }
-  }, [mapRef, config, sectorId, fogType, fogMeta?.windDir, fogMeta?.sources]);
+  }, [mapRef, config, sectorId, fogType, fogMeta?.sources]);
 
   useEffect(() => {
     if (!active) {
