@@ -308,11 +308,20 @@ function FogOverlayInner() {
     };
 
     try {
-      // prefer LOCALIZED sampling when detector sources are available
+      // LOCALIZED sampling ONLY: paint ~4km blobs around real detector sources.
+      // If there are no localized sources we do NOT blanket the whole sector —
+      // that painted fog "donde no era" (a high-severity alert with no precise
+      // location, e.g. buoy-physics-only maritime fog, used to fill the entire
+      // sector bbox over every low-altitude cell). The banner alert still
+      // informs the user; we just don't draw a misleading sector-wide blob.
+      // (This also fixes the "no cargaba bien" lag — the full-sector path
+      // sampled ~12k cells.)
       const sources = fogMeta?.sources ?? [];
-      const data = sources.length > 0
-        ? await sampleFogZonesLocal(queryElev, sources, config, fogType, ac.signal)
-        : await sampleFogZones(queryElev, config, fogType, fogMeta?.windDir, ac.signal);
+      if (sources.length === 0) {
+        if (!ac.signal.aborted) setFogGeoJSON(null);
+        return;
+      }
+      const data = await sampleFogZonesLocal(queryElev, sources, config, fogType, ac.signal);
 
       if (ac.signal.aborted) return; // newer build raced past us
       if (data.features.length >= MIN_CLUSTER_POINTS) {
