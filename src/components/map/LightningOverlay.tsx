@@ -1,4 +1,4 @@
-import { useMemo, memo, useState, useEffect, useRef } from 'react';
+import { useMemo, memo, useState, useEffect, useRef, useCallback } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
 import type { LightningStrike } from '../../types/lightning';
@@ -8,14 +8,20 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
   features: [],
 };
 
-/** Strikes younger than this go to the "live" source (rebuilt every poll);
- *  older ones go to the "historical" source (rebuilt at most every 10 min). */
-const LIVE_MAX_AGE_MIN = 60;
 /** Min interval between historical-source rebuilds. The bulk of the 24h
  *  strikes live here; re-serializing thousands of features to the worker on
  *  every poll caused a main-thread spike. Aging from 2h→2h10m never flips an
  *  ageBucket, so a stale-by-10-min historical layer is visually identical. */
 const HIST_REBUILD_MS = 10 * 60 * 1000;
+/** Historical source = strikes at/above this age. */
+const HIST_MIN_AGE_MIN = 60;
+/** Live source = strikes below this age. It overlaps the historical band by
+ *  10 min (= the rebuild window) on purpose: a strike crossing 60 min must stay
+ *  rendered by the always-fresh live source until the throttled historical
+ *  rebuild picks it up, otherwise it would vanish from BOTH sources for up to
+ *  HIST_REBUILD_MS. The 60-70 min overlap is double-rendered (old, low-opacity
+ *  context strikes — visually negligible) but never leaves a gap. */
+const LIVE_MAX_AGE_MIN = HIST_MIN_AGE_MIN + 10; // 70
 
 function buildFeatures(strikes: LightningStrike[]): GeoJSON.FeatureCollection {
   return {
@@ -172,17 +178,37 @@ export const LightningOverlay = memo(function LightningOverlay() {
   // thousands of 1-24h strikes to the worker on every poll.
   const [histGeojson, setHistGeojson] = useState<GeoJSON.FeatureCollection>(EMPTY_FC);
   const lastHistBuildRef = useRef(0);
+  // Latest strikes, readable by the interval fallback without re-subscribing it.
+  const strikesRef = useRef(strikes);
+  strikesRef.current = strikes;
+
+  const rebuildHistorical = useCallback(() => {
+    const now = Date.now();
+    if (now - lastHistBuildRef.current < HIST_REBUILD_MS) return;
+    lastHistBuildRef.current = now;
+    setHistGeojson(buildFeatures(strikesRef.current.filter((s) => s.ageMinutes >= HIST_MIN_AGE_MIN)));
+  }, []);
+
+  // Rebuild on strikes change (throttled) + immediately on enable; clear on disable.
   useEffect(() => {
     if (!showOverlay) {
       setHistGeojson(EMPTY_FC);
       lastHistBuildRef.current = 0; // force an immediate rebuild when re-enabled
       return;
     }
-    const now = Date.now();
-    if (now - lastHistBuildRef.current < HIST_REBUILD_MS) return;
-    lastHistBuildRef.current = now;
-    setHistGeojson(buildFeatures(strikes.filter((s) => s.ageMinutes >= LIVE_MAX_AGE_MIN)));
-  }, [strikes, showOverlay]);
+    rebuildHistorical();
+  }, [strikes, showOverlay, rebuildHistorical]);
+
+  // Self-scheduled fallback: keep the historical layer aging even if the strikes
+  // array goes reference-stable (e.g. the client returns a cached same-ref array
+  // → the effect above stops firing). Without this the historical source could
+  // freeze with strikes stuck past their real age. Throttle guard makes it a
+  // no-op when the strikes effect already rebuilt recently.
+  useEffect(() => {
+    if (!showOverlay) return;
+    const id = setInterval(rebuildHistorical, HIST_REBUILD_MS);
+    return () => clearInterval(id);
+  }, [showOverlay, rebuildHistorical]);
 
   if (!showOverlay) return null;
 
