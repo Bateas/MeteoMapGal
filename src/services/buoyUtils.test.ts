@@ -15,6 +15,8 @@ import {
   seaStateCode,
   currentSpeedColor,
   currentSpeedClass,
+  isBuoyFresh,
+  BUOY_STALE_MAX_MIN,
 } from './buoyUtils';
 
 // ── waveHeightColor ──────────────────────────────────────────
@@ -205,5 +207,40 @@ describe('currentSpeedClass', () => {
     expect(currentSpeedClass(0.15)).toBe('text-cyan-400');
     expect(currentSpeedClass(0.30)).toBe('text-sky-500');
     expect(currentSpeedClass(0.50)).toBe('text-violet-500');
+  });
+});
+
+// ── isBuoyFresh — freshness gate for verdict/alert ───────────
+
+describe('isBuoyFresh', () => {
+  const NOW = 1_700_000_000_000; // fixed reference for determinism
+
+  it('accepts a recent reading (within the 2h cutoff)', () => {
+    const t = new Date(NOW - 30 * 60_000); // 30 min old
+    expect(isBuoyFresh({ timestamp: t }, BUOY_STALE_MAX_MIN, NOW)).toBe(true);
+  });
+
+  it('rejects a reading older than the cutoff', () => {
+    const t = new Date(NOW - 3 * 60 * 60_000); // 3 h old
+    expect(isBuoyFresh({ timestamp: t }, BUOY_STALE_MAX_MIN, NOW)).toBe(false);
+  });
+
+  it('boundary: exactly at the cutoff is still fresh', () => {
+    const t = new Date(NOW - BUOY_STALE_MAX_MIN * 60_000);
+    expect(isBuoyFresh({ timestamp: t }, BUOY_STALE_MAX_MIN, NOW)).toBe(true);
+  });
+
+  it('treats a missing timestamp as stale (excluded)', () => {
+    expect(isBuoyFresh({ timestamp: null }, BUOY_STALE_MAX_MIN, NOW)).toBe(false);
+    expect(isBuoyFresh({}, BUOY_STALE_MAX_MIN, NOW)).toBe(false);
+  });
+
+  it('treats an unparseable timestamp as stale (NaN → excluded)', () => {
+    expect(isBuoyFresh({ timestamp: 'not-a-date' }, BUOY_STALE_MAX_MIN, NOW)).toBe(false);
+  });
+
+  it('accepts string and epoch-ms timestamps', () => {
+    expect(isBuoyFresh({ timestamp: new Date(NOW - 10 * 60_000).toISOString() }, BUOY_STALE_MAX_MIN, NOW)).toBe(true);
+    expect(isBuoyFresh({ timestamp: NOW - 10 * 60_000 }, BUOY_STALE_MAX_MIN, NOW)).toBe(true);
   });
 });

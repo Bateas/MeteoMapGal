@@ -102,3 +102,26 @@ export function currentSpeedClass(s: number): string {
   if (s < 0.35) return 'text-sky-500';
   return 'text-violet-500';
 }
+
+// ── Freshness gate ─────────────────────────────────────────
+/** Max age (minutes) for a buoy reading to drive a CURRENT verdict/alert.
+ *  More generous than STALE_THRESHOLD_MIN (30) for stations: PORTUS REDEXT/
+ *  CETMAR buoys publish every 30-60min + ~30-90min lag, so 2h keeps the
+ *  legitimate latest reading while rejecting the 3-6h stale ones the fetcher
+ *  still serves (which, at the x1.5 over-water exposure boost, could otherwise
+ *  hold a stale wind verdict or fire a false SST-driven fog alert). */
+export const BUOY_STALE_MAX_MIN = 120;
+
+/** True if a buoy reading is recent enough to drive a current verdict/alert.
+ *  A missing or unparseable timestamp is treated as stale (excluded). Shared by
+ *  spotScoringEngine (wind/humidity/theta-V) and maritimeFogService (SST delta).
+ *  `now` is injectable for deterministic tests. */
+export function isBuoyFresh(
+  buoy: { timestamp?: Date | string | number | null },
+  maxAgeMin: number = BUOY_STALE_MAX_MIN,
+  now: number = Date.now(),
+): boolean {
+  if (!buoy.timestamp) return false;
+  const ageMin = (now - new Date(buoy.timestamp).getTime()) / 60_000;
+  return Number.isFinite(ageMin) && ageMin <= maxAgeMin;
+}
