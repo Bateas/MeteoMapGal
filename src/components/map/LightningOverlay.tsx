@@ -54,15 +54,18 @@ function buildFeatures(strikes: LightningStrike[]): GeoJSON.FeatureCollection {
 
 /**
  * Glow halo + core dot layers for one strike source.
- * Rendered as children of a <Source>; the source binds via react-map-gl context.
- * Identical age-based styling for both the live and historical sources.
+ * `source` is passed EXPLICITLY (not inherited): react-map-gl's <Source> injects
+ * the source id only into its DIRECT children via cloneElement, so wrapping the
+ * Layers in this component would leave them source-less (they'd silently render
+ * nothing — the v2.84.22 regression). Identical age-based styling for both sources.
  */
-function StrikeLayers({ idPrefix }: { idPrefix: string }) {
+function StrikeLayers({ idPrefix, sourceId }: { idPrefix: string; sourceId: string }) {
   return (
     <>
       {/* Glow halo behind each strike */}
       <Layer
         id={`${idPrefix}-glow`}
+        source={sourceId}
         type="circle"
         paint={{
           'circle-radius': [
@@ -96,6 +99,7 @@ function StrikeLayers({ idPrefix }: { idPrefix: string }) {
       {/* Core dot */}
       <Layer
         id={`${idPrefix}-core`}
+        source={sourceId}
         type="circle"
         paint={{
           'circle-radius': [
@@ -218,10 +222,10 @@ export const LightningOverlay = memo(function LightningOverlay() {
           the default 128px tile buffer duplicates features into neighboring
           tiles → costly re-tiling on pan with a 24h GeoJSON. */}
       <Source id="lightning-strikes-hist" type="geojson" data={histGeojson} buffer={0}>
-        <StrikeLayers idPrefix="lightning-hist" />
+        <StrikeLayers idPrefix="lightning-hist" sourceId="lightning-strikes-hist" />
       </Source>
       <Source id="lightning-strikes-live" type="geojson" data={liveGeojson} buffer={0}>
-        <StrikeLayers idPrefix="lightning-live" />
+        <StrikeLayers idPrefix="lightning-live" sourceId="lightning-strikes-live" />
       </Source>
     </>
   );
