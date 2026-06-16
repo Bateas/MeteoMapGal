@@ -1,7 +1,7 @@
 import { useMemo, memo, useState, useEffect, useRef, useCallback } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
-import type { LightningStrike } from '../../types/lightning';
+import { buildStrikeFeatures, isLiveStrike, isHistoricalStrike } from './lightningStrikeFeatures';
 
 const EMPTY_FC: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
@@ -11,46 +11,9 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
 /** Min interval between historical-source rebuilds. The bulk of the 24h
  *  strikes live here; re-serializing thousands of features to the worker on
  *  every poll caused a main-thread spike. Aging from 2h→2h10m never flips an
- *  ageBucket, so a stale-by-10-min historical layer is visually identical. */
+ *  ageBucket, so a stale-by-10-min historical layer is visually identical.
+ *  (The live/historical age boundaries live in lightningStrikeFeatures.ts.) */
 const HIST_REBUILD_MS = 10 * 60 * 1000;
-/** Historical source = strikes at/above this age. */
-const HIST_MIN_AGE_MIN = 60;
-/** Live source = strikes below this age. It overlaps the historical band by
- *  10 min (= the rebuild window) on purpose: a strike crossing 60 min must stay
- *  rendered by the always-fresh live source until the throttled historical
- *  rebuild picks it up, otherwise it would vanish from BOTH sources for up to
- *  HIST_REBUILD_MS. The 60-70 min overlap is double-rendered (old, low-opacity
- *  context strikes — visually negligible) but never leaves a gap. */
-const LIVE_MAX_AGE_MIN = HIST_MIN_AGE_MIN + 10; // 70
-
-function buildFeatures(strikes: LightningStrike[]): GeoJSON.FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: strikes.map((strike) => ({
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [strike.lon, strike.lat],
-      },
-      properties: {
-        id: strike.id,
-        ageMinutes: strike.ageMinutes,
-        peakCurrent: Math.abs(strike.peakCurrent),
-        cloudToCloud: strike.cloudToCloud ? 1 : 0,
-        multiplicity: strike.multiplicity,
-        // Age bucket: 0=fresh (<15m), 1=recent (15-60m), 2=old (1-6h), 3=ancient (6-24h)
-        ageBucket:
-          strike.ageMinutes < 15
-            ? 0
-            : strike.ageMinutes < 60
-              ? 1
-              : strike.ageMinutes < 360
-                ? 2
-                : 3,
-      },
-    })),
-  };
-}
 
 /**
  * Glow halo + core dot layers for one strike source.
@@ -175,7 +138,7 @@ export const LightningOverlay = memo(function LightningOverlay() {
   // Live source: recompute every poll (cheap — only the last hour of strikes).
   const liveGeojson = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || strikes.length === 0) return EMPTY_FC;
-    return buildFeatures(strikes.filter((s) => s.ageMinutes < LIVE_MAX_AGE_MIN));
+    return buildStrikeFeatures(strikes.filter(isLiveStrike));
   }, [strikes, showOverlay]);
 
   // Historical source: throttled rebuild (≥10 min apart) — avoids re-serializing
@@ -190,7 +153,7 @@ export const LightningOverlay = memo(function LightningOverlay() {
     const now = Date.now();
     if (now - lastHistBuildRef.current < HIST_REBUILD_MS) return;
     lastHistBuildRef.current = now;
-    setHistGeojson(buildFeatures(strikesRef.current.filter((s) => s.ageMinutes >= HIST_MIN_AGE_MIN)));
+    setHistGeojson(buildStrikeFeatures(strikesRef.current.filter(isHistoricalStrike)));
   }, []);
 
   // Rebuild on strikes change (throttled) + immediately on enable; clear on disable.

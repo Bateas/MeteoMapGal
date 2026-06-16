@@ -23,6 +23,7 @@ import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
+import { isBuoyFresh } from './buoyUtils';
 import { fastDistanceKm, computeBearing } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
@@ -178,12 +179,6 @@ function selectStationsForSpot(
 /**
  * Select buoy readings relevant to a spot.
  */
-/** Hard freshness cutoff for buoys feeding the wind/humidity verdict. More
- *  generous than STALE_THRESHOLD_MIN (30) for stations because PORTUS REDEXT/
- *  CETMAR buoys publish every 30-60min + ~30-90min lag; 2h keeps the legitimate
- *  latest reading while rejecting the 3-6h stale ones the fetcher still serves. */
-const BUOY_STALE_MAX_MIN = 120;
-
 function selectBuoysForSpot(
   spot: SailingSpot,
   buoys: BuoyReading[],
@@ -196,12 +191,11 @@ function selectBuoysForSpot(
     const coords = BUOY_COORDS_MAP.get(b.stationId);
     if (!coords) continue;
 
-    // Freshness gate: a buoy with no timestamp, or older than BUOY_STALE_MAX_MIN,
-    // must not drive the wind/humidity verdict. A 3-6h-old marine reading at the
-    // x1.5 exposure boost can otherwise dominate a sheltered spot's consensus and
-    // hold a stale "good/strong" verdict against fresh, calm land stations (O3).
-    if (!b.timestamp) continue;
-    if ((Date.now() - new Date(b.timestamp).getTime()) / 60_000 > BUOY_STALE_MAX_MIN) continue;
+    // Freshness gate (BUOY_STALE_MAX_MIN, shared with maritimeFogService): a
+    // 3-6h-old marine reading at the x1.5 over-water exposure boost could
+    // otherwise dominate a sheltered spot's consensus and hold a stale
+    // "good/strong" verdict against fresh, calm land stations (O3).
+    if (!isBuoyFresh(b)) continue;
 
     const distKm = fastDistanceKm(coords.lat, coords.lon, spotLat, spotLon);
     const isPreferred = preferredSet.has(b.stationId);
