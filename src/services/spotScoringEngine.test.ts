@@ -117,6 +117,26 @@ describe('scoreAllSpots', () => {
     expect(results.get('cies-ria')!.verdict).toBe('light');
   });
 
+  it('excludes stale buoys (>2h) from the wind verdict', () => {
+    const cies = RIAS_SPOTS.find(s => s.id === 'cies-ria')!;
+    const base: BuoyReading = {
+      stationId: 2248, stationName: 'Silleiro', timestamp: new Date(),
+      waveHeight: 1.0, wavePeriod: 8, waveDirection: 300,
+      windSpeed: msFromKt(20), windDir: 330, windGust: null,
+      waterTemp: 14, airTemp: 16, humidity: null, dewPoint: null,
+      pressure: null, salinity: null, currentSpeed: null, currentDir: null,
+      seaLevelHeight: null,
+    };
+    // A fresh buoy drives a verdict (no land stations supplied)...
+    const fresh = scoreAllSpots([cies], [], new Map(), [base]);
+    expect(fresh.get('cies-ria')!.verdict).not.toBe('unknown');
+    // ...but the same reading 3h old must be ignored → no usable wind data.
+    const stale = scoreAllSpots([cies], [], new Map(), [
+      { ...base, timestamp: new Date(Date.now() - 3 * 60 * 60_000) },
+    ]);
+    expect(stale.get('cies-ria')!.verdict).toBe('unknown');
+  });
+
   it('rejects stale readings (lower freshness weight)', () => {
     const station = makeStation('test1', cesantes.center[1], cesantes.center[0]);
     const staleReading = makeReading('test1', msFromKt(12), 225);

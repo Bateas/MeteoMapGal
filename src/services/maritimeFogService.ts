@@ -489,6 +489,10 @@ export function detectNorthWindConsensus(
   return Math.max(medianSpeed, avgGust * 0.7) >= MIN_NORTH_SPEED;
 }
 
+/** Stale marine readings must not drive a fog alert — see the gate below.
+ *  Matches the 2h buoy cutoff used by the spot wind verdict (spotScoringEngine). */
+const FOG_BUOY_STALE_MAX_MIN = 120;
+
 /**
  * Assess maritime fog risk across all buoys.
  * Returns the HIGHEST risk found (worst-case scenario for the sector).
@@ -498,7 +502,14 @@ export function assessMaritimeFogRisk(
   stationReadings: Map<string, NormalizedReading>,
   stations: { id: string; lat: number; lon: number }[],
 ): MaritimeFogRisk {
-  if (buoys.length === 0) {
+  // Freshness gate: advection-fog risk hinges entirely on air-water ΔT. A SST
+  // reading hours old (buoy lagging or gone silent) yields a wrong ΔT — a false
+  // "niebla marítima" alert when it cleared, or suppression when it didn't. Fog
+  // is O2 safety-grade, so don't trust stale marine temps.
+  const freshBuoys = buoys.filter(
+    (b) => b.timestamp && (Date.now() - new Date(b.timestamp).getTime()) / 60_000 <= FOG_BUOY_STALE_MAX_MIN,
+  );
+  if (freshBuoys.length === 0) {
     return {
       level: 'none', airWaterDelta: null, humidity: null,
       windSpeed: null, windDir: null, isOnshore: false,
@@ -513,7 +524,7 @@ export function assessMaritimeFogRisk(
   let worst: MaritimeFogRisk | null = null;
   const LEVEL_ORDER: Record<AlertLevel, number> = { none: 0, riesgo: 1, alto: 2, critico: 3 };
 
-  for (const buoy of buoys) {
+  for (const buoy of freshBuoys) {
     const risk = assessBuoyFogRisk(buoy, stationReadings, stations, northWindActive);
     if (!worst || LEVEL_ORDER[risk.level] > LEVEL_ORDER[worst.level] ||
         (risk.level === worst.level && risk.confidence > worst.confidence)) {
