@@ -24,6 +24,7 @@ import type { HourlyForecast } from '../types/forecast';
 import type { SailingSpot } from '../config/spots';
 import { fastDistanceKm } from './idwInterpolation';
 import { isDirectionInRange, msToKnots, angleDifference } from './windUtils';
+import { isBuoyFresh } from './buoyUtils';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -338,9 +339,11 @@ function detectDeltaTWaterAir(
 ): SignalDetail {
   const empty: SignalDetail = { active: false, score: 0, value: 'Sin datos boya', weight: W_DELTA_T };
 
-  // Find nearest buoy with water temp from preferred buoys
+  // Find nearest buoy with water temp from preferred buoys.
+  // Freshness-gate: a stale waterTemp would yield a wrong air-water ΔT and a
+  // wrong precursor boost, so reject readings older than the shared 2h cutoff.
   const relevantBuoys = buoys.filter(b =>
-    spot.preferredBuoys?.includes(b.stationId) && b.waterTemp != null,
+    spot.preferredBuoys?.includes(b.stationId) && b.waterTemp != null && isBuoyFresh(b),
   );
 
   if (relevantBuoys.length === 0) return empty;

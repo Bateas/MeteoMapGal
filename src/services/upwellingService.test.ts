@@ -102,6 +102,27 @@ describe('assessUpwellingRisk', () => {
     expect(risk.level).toBe('none');
   });
 
+  // ── freshness gate on the LIVE reading (24h history window untouched) ──
+
+  it('excludes a buoy whose LIVE reading is stale, even with a critico-magnitude history', () => {
+    const h = new Map([[3221, history({ spanHours: 12, startTemp: 19, endTemp: 14 })]]); // -5°C
+    const staleBuoy = { ...buoy(3221, 14), timestamp: new Date(Date.now() - 3 * HOUR).toISOString() };
+    expect(assessUpwellingRisk([staleBuoy], h).level).toBe('none');
+  });
+
+  it('a FRESH reading still fires despite a ~23h-old oldest snapshot (drop window NOT shortened)', () => {
+    // Oldest snapshot ~23h ago — this is the deliberate 24h Ekman window. Gating
+    // the live reading must NOT touch it: a fresh buoy still yields critico.
+    const h = new Map([[3221, history({ spanHours: 23, startTemp: 19, endTemp: 14 })]]); // -5°C / 23h
+    expect(assessUpwellingRisk([buoy(3221, 14)], h).level).toBe('critico');
+  });
+
+  it('treats a missing timestamp as stale (excluded)', () => {
+    const h = new Map([[3221, history({ spanHours: 12, startTemp: 19, endTemp: 14 })]]);
+    const noTs = { ...buoy(3221, 14), timestamp: undefined as unknown as string };
+    expect(assessUpwellingRisk([noTs], h).level).toBe('none');
+  });
+
   it('escalates riesgo→alto when N/NW wind ≥12kt sustained ≥6h confirms', () => {
     // -1.7°C drop (riesgo on its own) + 8h of NW 15kt wind → escalates to alto
     const h = new Map([[3221, history({

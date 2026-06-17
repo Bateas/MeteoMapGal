@@ -19,6 +19,7 @@ import type { AlertLevel } from '../types/campo';
 import type { UnifiedAlert } from './alertService';
 import type { SSTSnapshot } from '../store/buoyStore';
 import { msToKnots } from './windUtils';
+import { isBuoyFresh } from './buoyUtils';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -241,6 +242,11 @@ export function assessUpwellingRisk(
 
   for (const buoy of buoys) {
     if (buoy.waterTemp === null) continue;
+    // Gate the LIVE reading driving the "upwelling NOW" verdict: if the buoy's
+    // latest measurement is stale (>2h), its newest SST point reflects old water
+    // and must not fire a current alert. The 24h history buffer below is the
+    // intended drop window and is NOT touched — only this entry check changes.
+    if (!isBuoyFresh(buoy)) continue;
     const history = sstHistory.get(buoy.stationId);
     if (!history || history.length < 2) continue;
 

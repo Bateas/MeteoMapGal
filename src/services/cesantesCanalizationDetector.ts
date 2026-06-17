@@ -16,6 +16,7 @@
 
 import type { BuoyReading } from '../api/buoyClient';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
+import { isBuoyFresh } from './buoyUtils';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -107,6 +108,9 @@ export function predictCesantesCanalization(
   let sourceBuoy: string | null = null;
 
   for (const b of mouthBuoys) {
+    // O3: a stale mouth-buoy SW reading must not inflate a CURRENT prediction
+    // wired into the wind verdict (>2h → ignore; missing timestamp = stale).
+    if (!isBuoyFresh(b)) continue;
     if (b.windSpeed === null || b.windDir === null) continue;
     if (b.windSpeed < MIN_SW_WIND_MS) continue;
     if (b.windDir < SW_DIR_MIN || b.windDir > SW_DIR_MAX) continue;

@@ -14,7 +14,9 @@ function buoy(over: Partial<BuoyReading> = {}): BuoyReading {
   return {
     stationId: 1234,
     stationName: 'Test Buoy',
-    timestamp: '2026-04-26T12:00:00Z',
+    // Fresh by default so existing assertions keep firing under the freshness
+    // gate; stale-case tests pass an explicit old timestamp.
+    timestamp: new Date().toISOString(),
     waveHeight: 1.0,
     waveHeightMax: null,
     wavePeriod: 6,
@@ -69,6 +71,38 @@ describe('assessCrossSeaRisk — empty / null inputs', () => {
     const r = assessCrossSeaRisk([buoy({ waveDir: 270, windDir: 260 })]);
     expect(r.level).toBe('none');
     expect(r.hypothesis).toContain('alineado');
+  });
+});
+
+// ── assessCrossSeaRisk — buoy freshness gate ──────────────────
+
+describe('assessCrossSeaRisk — buoy freshness gate', () => {
+  const staleTs = () => new Date(Date.now() - 3 * 60 * 60_000).toISOString(); // 3h old
+
+  it('excludes a stale buoy (>2h) from the verdict', () => {
+    // Default params fire a cross-sea verdict when fresh; 3h old must be ignored.
+    const r = assessCrossSeaRisk([buoy({ timestamp: staleTs() })]);
+    expect(r.level).toBe('none');
+    expect(r.sourceBuoy).toBeNull();
+    expect(buildCrossSeaAlerts([buoy({ timestamp: staleTs() })])).toEqual([]);
+  });
+
+  it('a fresh buoy with the same params still fires', () => {
+    const r = assessCrossSeaRisk([buoy()]); // builder default timestamp is fresh
+    expect(r.level).not.toBe('none');
+  });
+
+  it('treats a missing timestamp as stale (excluded)', () => {
+    const r = assessCrossSeaRisk([buoy({ timestamp: undefined as unknown as string })]);
+    expect(r.level).toBe('none');
+  });
+
+  it('ignores the stale buoy when a fresh one is also present', () => {
+    const stale = buoy({ stationId: 1, stationName: 'Stale', timestamp: staleTs() });
+    const fresh = buoy({ stationId: 2, stationName: 'Fresh' });
+    const r = assessCrossSeaRisk([stale, fresh]);
+    expect(r.level).not.toBe('none');
+    expect(r.sourceBuoy).toBe('Fresh'); // stale dropped before worst-case selection
   });
 });
 

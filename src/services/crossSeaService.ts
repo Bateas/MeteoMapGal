@@ -21,6 +21,7 @@ import type { BuoyReading } from '../api/buoyClient';
 import type { AlertLevel } from '../types/campo';
 import type { UnifiedAlert } from './alertService';
 import { angleDifference } from './windUtils';
+import { isBuoyFresh } from './buoyUtils';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -205,6 +206,10 @@ export function assessCrossSeaRisk(buoys: BuoyReading[]): CrossSeaRisk {
   for (const buoy of buoys) {
     // Only assess buoys with wave data (ocean-facing)
     if (buoy.waveDir === null) continue;
+    // Cross-sea is an INSTANTANEOUS wave-vs-wind angle — a stale reading (>2h)
+    // can hold a phantom verdict long after the sea state changed. Exclude stale
+    // buoys (same gate as the wind verdict + fog alert). O3.
+    if (!isBuoyFresh(buoy)) continue;
 
     const risk = assessBuoyCrossSeaRisk(buoy);
     if (!worst || LEVEL_ORDER[risk.level] > LEVEL_ORDER[worst.level] ||
