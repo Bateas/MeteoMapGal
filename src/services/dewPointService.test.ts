@@ -120,6 +120,21 @@ describe('analyzeFog — fog at small spread', () => {
     expect(r.spread).toBeLessThan(0.5);
   });
 
+  it('returns none when the freshest reading is stale (>90min) — frozen network (O2)', () => {
+    // Same fog-magnitude conditions as above, but analyzed 2h after the readings
+    // end: the station network stalled, so the data describes the PAST. A frozen
+    // station at HR99% must not keep firing a current "niebla" alert nobody can
+    // verify. Without the freshness gate this would return 'riesgo'/'alto'.
+    const map = new Map<string, NormalizedReading[]>();
+    map.set('s1', history('s1', NOW, { temp: 12, humidity: 99 }));
+    map.set('s2', history('s2', NOW, { temp: 11.5, humidity: 99 }));
+    map.set('s3', history('s3', NOW, { temp: 12.2, humidity: 98 }));
+    const twoHoursLater = new Date(NOW.getTime() + 2 * 3_600_000);
+    const r = analyzeFog(map, twoHoursLater);
+    expect(r.level).toBe('none');
+    expect(r.hypothesis).toContain('obsoletos');
+  });
+
   it('caps at "alto" max — never returns "critico"', () => {
     // Regression guard: dewPointService critico uncapped → false PELIGRO
     const map = new Map<string, NormalizedReading[]>();

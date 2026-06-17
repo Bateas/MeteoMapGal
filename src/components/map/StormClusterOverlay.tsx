@@ -1180,7 +1180,14 @@ export const StormClusterOverlay = memo(function StormClusterOverlay() {
             'text-font': ['Noto Sans Bold'],
             'text-size': 12,
             'text-offset': [0, -2.5],
-            'text-allow-overlap': true,
+            // Collision-hide overlapping labels: during a big multi-cluster storm
+            // (16+ cells) allow-overlap=true stacked every label into an unreadable
+            // mush. false lets MapLibre drop colliding ones; the CLOSEST storm wins
+            // the collision via symbol-sort-key (lower distance renders first), since
+            // the nearby cell is the one that matters for "do I take shelter".
+            'text-allow-overlap': false,
+            'text-padding': 6,
+            'symbol-sort-key': ['get', 'distance'],
             'text-anchor': 'bottom',
             'text-line-height': 1.3,
           }}

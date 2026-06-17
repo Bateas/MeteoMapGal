@@ -169,6 +169,18 @@ export function analyzeFog(
 
   if (recentReadings.length < 3) return noFog;
 
+  // Freshness gate (O2 safety): the 6h window builds the spread TREND, but the
+  // CURRENT fog level must rest on a RECENT reading. If the whole station network
+  // stalled (data frozen 1-6h ago), the window still has points but they describe
+  // the PAST — a station frozen at HR95% must not keep firing a current "niebla"
+  // alert that nobody can verify. Require the freshest reading within 90 min.
+  const FOG_STALE_MAX_MS = 90 * 60_000;
+  let freshestMs = 0;
+  for (const r of recentReadings) freshestMs = Math.max(freshestMs, r.timestamp.getTime());
+  if (now.getTime() - freshestMs > FOG_STALE_MAX_MS) {
+    return { ...noFog, hypothesis: 'Sin lecturas recientes — datos de estaciones obsoletos' };
+  }
+
   // Build spread series from ALL stations (gives a zone-wide picture)
   const series = buildSpreadSeries(recentReadings);
   if (series.length < 3) return noFog;
