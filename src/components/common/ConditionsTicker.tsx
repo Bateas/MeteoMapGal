@@ -487,15 +487,17 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       });
     }
 
-    // Sort by priority descending, then limit on mobile
+    // Sort by priority descending, then cap so the marquee stays readable
+    // instead of an endless scroll (the "se hace enorme" problem on desktop,
+    // which had NO cap). The priority sort keeps the decision-relevant items
+    // (storm, spot verdicts, waves, tide); secondary ones (UV, fire, ICA,
+    // afloramiento) still appear when nothing more urgent is happening, but
+    // cede their place during busy conditions — no content type is removed,
+    // it's prioritised by what matters NOW.
     result.sort((a, b) => b.priority - a.priority);
 
-    // Mobile: top 6 items max to keep ticker readable
-    if (isMobile && result.length > 6) {
-      return result.slice(0, 6);
-    }
-
-    return result;
+    const cap = isMobile ? 6 : 9;
+    return result.length > cap ? result.slice(0, cap) : result;
   }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, isMobile]);
 
   // ── Official MG warnings — static strip above the marquee ─────
