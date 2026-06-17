@@ -111,6 +111,34 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
     expect(r.signals[0]).toContain('Cabo Silleiro');
   });
 
+  it('excludes a STALE mouth buoy (>2h) from Mode 1', () => {
+    // Default buoy timestamp is 14:00Z; advance the clock 4h so it is stale.
+    vi.setSystemTime(new Date('2026-04-26T18:00:00Z'));
+    const r = predictCesantesCanalization(
+      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
+      null,
+    );
+    expect(r.active).toBe(false); // stale → Mode 1 skipped, no Mode 2 args supplied
+  });
+
+  it('keeps a FRESH mouth buoy near the 2h boundary', () => {
+    // Buoy 14:00Z, clock 15:30Z → 90min old → still fresh.
+    vi.setSystemTime(new Date('2026-04-26T15:30:00Z'));
+    const r = predictCesantesCanalization(
+      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
+      null,
+    );
+    expect(r.active).toBe(true);
+  });
+
+  it('treats a missing buoy timestamp as stale (Mode 1 skipped)', () => {
+    const r = predictCesantesCanalization(
+      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro', timestamp: undefined as unknown as string })],
+      null,
+    );
+    expect(r.active).toBe(false);
+  });
+
   it('promotes to BOOST_HUMID with mouthHumidity ≥85', () => {
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
