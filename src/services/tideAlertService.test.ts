@@ -7,6 +7,8 @@ import {
   nextAmplitude,
   tideTickerLabel,
   shouldShowTideAlert,
+  peakAmplitude,
+  describeTideStrength,
   COEF_TICKER_THRESHOLD,
   SURGE_TICKER_THRESHOLD_M,
 } from './tideAlertService';
@@ -190,5 +192,67 @@ describe('thresholds — public constants', () => {
 
   it('SURGE_TICKER_THRESHOLD_M = 0.2', () => {
     expect(SURGE_TICKER_THRESHOLD_M).toBe(0.2);
+  });
+});
+
+describe('peakAmplitude', () => {
+  it('returns the largest consecutive high/low difference', () => {
+    const points: TidePoint[] = [
+      { time: '03:15', height: 0.4, type: 'low' },
+      { time: '09:30', height: 3.8, type: 'high' },
+      { time: '15:45', height: 0.6, type: 'low' },
+    ];
+    expect(peakAmplitude(points)).toBeCloseTo(3.4, 5); // 3.8 - 0.4
+  });
+
+  it('null when fewer than 2 points', () => {
+    expect(peakAmplitude([])).toBeNull();
+    expect(peakAmplitude([{ time: '06:00', height: 2, type: 'high' }])).toBeNull();
+  });
+
+  it('null when all heights equal (no movement)', () => {
+    expect(peakAmplitude([
+      { time: '06:00', height: 2, type: 'high' },
+      { time: '12:00', height: 2, type: 'low' },
+    ])).toBeNull();
+  });
+});
+
+describe('describeTideStrength', () => {
+  it('null when amplitude invalid', () => {
+    expect(describeTideStrength(null)).toBeNull();
+    expect(describeTideStrength(0)).toBeNull();
+  });
+
+  it('spring 3.6 m → muy viva (extremas) + seasonal peak', () => {
+    const s = describeTideStrength(3.6)!;
+    expect(s.category).toBe('extremas');
+    expect(s.label).toBe('Marea muy viva');
+    expect(s.isSeasonalPeak).toBe(true);
+    expect(s.coef).toBeGreaterThanOrEqual(100);
+    expect(s.strength).toBeGreaterThan(0.8);
+    expect(s.casual).toMatch(/baja/i);
+  });
+
+  it('strong-but-not-extreme 3.4 m → viva, not seasonal peak', () => {
+    const s = describeTideStrength(3.4)!;
+    expect(s.category).toBe('vivas');
+    expect(s.label).toBe('Marea viva');
+    expect(s.isSeasonalPeak).toBe(false);
+  });
+
+  it('typical 2.0 m → media', () => {
+    expect(describeTideStrength(2.0)!.label).toBe('Marea media');
+  });
+
+  it('neap 0.9 m → muerta, low strength', () => {
+    const s = describeTideStrength(0.9)!;
+    expect(s.label).toBe('Marea muerta');
+    expect(s.strength).toBeLessThan(0.2);
+  });
+
+  it('strength stays within 0-1', () => {
+    expect(describeTideStrength(5.0)!.strength).toBeLessThanOrEqual(1);
+    expect(describeTideStrength(0.5)!.strength).toBeGreaterThanOrEqual(0);
   });
 });
