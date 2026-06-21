@@ -11,6 +11,7 @@ import { fetchTides48h, RIAS_TIDE_STATIONS, DEFAULT_TIDE_STATION } from '../../a
 import type { TidePoint, TideStation } from '../../api/tideClient';
 import { Anchor, ChevronDown, ChevronUp } from 'lucide-react';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
+import { describeTideStrength, peakAmplitude } from '../../services/tideAlertService';
 
 interface TideData {
   today: TidePoint[];
@@ -122,6 +123,19 @@ export const TidePanel = memo(function TidePanel() {
     };
   }, [data]);
 
+  // Casual "how big is the tide today" — translates the coeficiente/"+ -" jargon
+  // (which a casual visitor doesn't read) into plain words + a strength bar.
+  const tideStrength = useMemo(
+    () => (data ? describeTideStrength(peakAmplitude(data.today)) : null),
+    [data],
+  );
+  const strengthTone =
+    tideStrength?.category === 'extremas'
+      ? { text: 'text-amber-300', chip: 'bg-amber-500/20 text-amber-300', bar: 'linear-gradient(90deg, #f59e0b, #fbbf24)' }
+      : tideStrength?.category === 'vivas'
+        ? { text: 'text-cyan-300', chip: 'bg-cyan-500/20 text-cyan-300', bar: 'linear-gradient(90deg, #06b6d4, #22d3ee)' }
+        : { text: 'text-slate-300', chip: 'bg-slate-600/30 text-slate-300', bar: 'linear-gradient(90deg, #475569, #64748b)' };
+
   if (loading && !data) {
     return (
       <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5">
@@ -157,7 +171,12 @@ export const TidePanel = memo(function TidePanel() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-cyan-300">Mareas</span>
-            <span className="text-[11px] text-slate-500">{data.station.name}</span>
+            <span className="text-[11px] text-slate-500 truncate">{data.station.name}</span>
+            {tideStrength && (tideStrength.category === 'vivas' || tideStrength.category === 'extremas') && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 ${strengthTone.chip}`}>
+                {tideStrength.label}
+              </span>
+            )}
           </div>
           {nextTide && (
             <p className="text-[11px] text-slate-400 truncate mt-0.5">
@@ -179,6 +198,28 @@ export const TidePanel = memo(function TidePanel() {
       {/* Expanded: full tide table + tomorrow + station picker */}
       {expanded && (
         <div className="px-3 pb-2.5 space-y-2 border-t border-slate-700/50">
+          {/* Casual tide-strength summary — coeficiente translated to plain words */}
+          {tideStrength && (
+            <div className="pt-2">
+              <div className="flex items-baseline gap-2">
+                <span className={`text-[12px] font-bold ${strengthTone.text}`}>{tideStrength.label}</span>
+                {tideStrength.isSeasonalPeak && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold">
+                    de las más fuertes del año
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-500 ml-auto font-mono">coef {tideStrength.coef}</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">{tideStrength.casual}</p>
+              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mt-1.5">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${Math.round(tideStrength.strength * 100)}%`, background: strengthTone.bar }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Tide progress bar */}
           {tideState && (
             <div className="pt-2">
