@@ -1398,7 +1398,15 @@ function WaveForecastMini({ lat, lon, coastalFactor }: { lat: number; lon: numbe
   // Summary text — apply the spot's coastalFactor so the displayed numbers match
   // the (calibrated) verdict instead of showing the raw open-water model height.
   // (Bars stay relative to raw maxWave, so the chart SHAPE is unchanged.)
-  const currentWave = (hours[0]?.waveHeight ?? 0) * coastalFactor;
+  // Use the forecast hour closest to NOW, not hours[0]: the marine sources start
+  // the array at varying hours, so hours[0] showed a wrong-hour wave and made the
+  // "actual" height + trend flicker between refreshes (matches useSurfMarineData).
+  const nowMs = now.getTime();
+  const currentHour = hours.reduce(
+    (best, h) => (Math.abs(h.time.getTime() - nowMs) < Math.abs(best.time.getTime() - nowMs) ? h : best),
+    hours[0],
+  );
+  const currentWave = (currentHour?.waveHeight ?? 0) * coastalFactor;
   const maxForecast = Math.max(...hours.map((h) => (h.waveHeight ?? 0) * coastalFactor));
   const trend = maxForecast > currentWave + 0.3 ? 'subiendo' : maxForecast < currentWave - 0.3 ? 'bajando' : 'estable';
   const bestHour = hours[bestIdx];
