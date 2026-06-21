@@ -20,7 +20,8 @@ import { useAlertStore } from '../../store/alertStore';
 import { useIcaStore } from '../../store/icaStore';
 import { icaCategory } from '../../api/meteoGaliciaIcaClient';
 import { useFireStore } from '../../store/fireStore';
-import { getSpotsForSector } from '../../config/spots';
+import { getSpotsForSector, isBeachSpot } from '../../config/spots';
+import { assessBeachDay, type BeachDayResult } from '../../services/beachDayService';
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
@@ -124,6 +125,85 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         bg: sc.verdict === 'calm' ? '' : 'bg-emerald-900/25',
         priority: pri,
       });
+    }
+
+    // ── Beach-day casual headline (coastal sector, daytime) — EJE ALCANCE ──
+    // Reframes conditions as a casual "¿buen día de playa?" for the visitor who
+    // doesn't read kt/verdict jargon. Picks the best beach spot in the sector
+    // and runs the same assessBeachDay heuristic the SpotPopup uses. Positive
+    // nudge only (great/ok): a "mal día" is comfort, not safety (danger has its
+    // own items) and would be winter-long noise, so it's suppressed. Daytime
+    // only — a beach verdict at night is absurd.
+    if (isCoastalSector(sectorId)) {
+      const beachHour = new Date().getHours();
+      if (beachHour >= 8 && beachHour < 21) {
+        const nowMs = Date.now();
+        // Cloud + rain context from the sector forecast WHEN available — scores
+        // alone (wind/air/water) already give assessBeachDay enough to commit,
+        // so the casual headline still shows during a forecast hiccup (the reach
+        // lever can't be hostage to the forecast fetch). precipitation (mm)
+        // drives "raining now"; precipProbability is noisy on clear days (gotcha)
+        // so it only softens to "rain soon", never marks a bad day on its own.
+        let cloudCoverPct: number | null = null;
+        let rainingNow = false;
+        let rainSoon = false;
+        if (forecastHourly.length > 0) {
+          const curF = forecastHourly.reduce(
+            (best, hh) => (Math.abs(hh.time.getTime() - nowMs) < Math.abs(best.time.getTime() - nowMs) ? hh : best),
+            forecastHourly[0],
+          );
+          cloudCoverPct = curF.cloudCover ?? null;
+          rainingNow = (curF.precipitation ?? 0) > 0.1;
+          let rainSoonProb = 0;
+          let rainSoonMm = 0;
+          for (const hh of forecastHourly) {
+            const dt = hh.time.getTime() - nowMs;
+            if (dt >= 0 && dt < 4 * 3600_000) {
+              rainSoonProb = Math.max(rainSoonProb, hh.precipProbability ?? 0);
+              rainSoonMm = Math.max(rainSoonMm, hh.precipitation ?? 0);
+            }
+          }
+          rainSoon = rainSoonMm > 0.2 || rainSoonProb >= 60;
+        }
+        const foggy = unifiedAlerts.some(
+          (a) => a.category === 'fog' && (a.severity === 'high' || a.severity === 'critical'),
+        );
+
+        // Score every beach spot in the sector, keep the best verdict.
+        const verdictRank: Record<string, number> = { great: 3, ok: 2, poor: 1, unknown: 0 };
+        let bestBeach: { name: string; res: BeachDayResult } | null = null;
+        for (const spot of spots) {
+          if (!isBeachSpot(spot.id)) continue;
+          const sc = scores.get(spot.id);
+          if (!sc) continue;
+          const res = assessBeachDay({
+            cloudCoverPct,
+            windKt: sc.effectiveWindKt ?? sc.wind?.avgSpeedKt ?? null,
+            airTempC: sc.airTemp ?? null,
+            waterTempC: sc.waterTemp ?? null,
+            rainingNow,
+            rainSoon,
+            foggy,
+          });
+          if (res.verdict !== 'great' && res.verdict !== 'ok') continue;
+          if (!bestBeach || verdictRank[res.verdict] > verdictRank[bestBeach.res.verdict]) {
+            bestBeach = { name: spot.shortName, res };
+          }
+        }
+        if (bestBeach) {
+          const great = bestBeach.res.verdict === 'great';
+          const reason = bestBeach.res.reasons.length > 0
+            ? ` · ${bestBeach.res.reasons.slice(0, 2).join(', ')}`
+            : '';
+          result.push({
+            key: 'beach-day',
+            text: `¿Playa? ${bestBeach.res.summary} en ${bestBeach.name}${reason}`,
+            color: great ? 'text-emerald-300' : 'text-amber-300',
+            bg: great ? 'bg-emerald-900/25' : 'bg-amber-900/20',
+            priority: great ? 9 : 8,
+          });
+        }
+      }
     }
 
     // ── Max gust across stations (priority 8) ──
