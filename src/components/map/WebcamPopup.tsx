@@ -35,7 +35,7 @@ export const WebcamPopup = memo(function WebcamPopup({ webcam, onClose }: Webcam
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 border-t border-green-500/30 backdrop-blur-md rounded-t-xl p-3 max-h-[70vh] overflow-auto">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-bold text-green-400">{webcam.name}</h3>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-lg px-2" aria-label="Cerrar">X</button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-lg flex items-center justify-center min-w-[44px] min-h-[44px] -mr-1" aria-label="Cerrar">X</button>
         </div>
         <WebcamContent webcam={webcam} imgKey={imgKey} imgError={imgError} onImgError={() => setImgError(true)} dirLabel={dirLabel} />
       </div>
