@@ -135,6 +135,13 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
     let lastAnimateAt = 0;
 
     const animate = () => {
+      // Tab hidden → skip the particle work entirely (save battery). The browser
+      // already throttles rAF to ~1fps when backgrounded, but this also avoids the
+      // heavy per-frame draw. Cheap reschedule keeps the loop alive for return.
+      if (document.hidden) {
+        animFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
       const nowMs = Date.now();
       // Skip animation during map pan/zoom — frees frame budget for smooth dragging
       if (mapMovingRef.current) {
