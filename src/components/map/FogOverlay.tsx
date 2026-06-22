@@ -5,7 +5,7 @@
  * - Per-cell density: lower altitude = denser fog (not uniform)
  * - Fog type colors: radiative (warm white) vs advective (blue-steel)
  * - Directional advance: advective fog denser on coast, thins inland
- * - Breathing opacity animation (subtle pulse)
+ * - Fade in/out transition on activation/dissipation (no perpetual animation)
  * - Sectors: Embalse (valley <185m) + Rías Baixas (coastal <35m)
  *
  * Activated by fog alerts in alertStore. Samples terrain DEM on activation.
@@ -154,14 +154,13 @@ async function sampleFogZonesLocal(
 function FogOverlayInner() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const { current: mapRef } = useMap();
-  // Breathing opacity: throttled to 20fps (~50ms) to balance smoothness vs CPU.
-  // The previous 60fps setState in rAF caused MapLibre to re-process the
-  // GeoJSON Source (1000+ features) on every frame → browser CPU saturation
-  // reported by the user (S136+3 v2.81.33 trace: 7.2s scripts in 7.6s).
-  // The v2.81.34 attempt at imperative setPaintProperty broke visualization
-  // because react-map-gl seemingly re-applies the JSX paint object on every
-  // parent re-render. Throttled setState is the pragmatic middle ground.
-  const [opacity, setOpacity] = useState(0);
+  // Steady-state fog opacity (constant). The old "breathing pulse" was a
+  // perpetual ~20fps rAF + setState that re-rendered this component FOREVER
+  // while fog was active — the dominant idle CPU churn in the v2.86.0 pan/perf
+  // trace (it ran the same panning or sitting still, hence the fan spinning on
+  // a static map). The pulse is visually indistinguishable from a constant, so
+  // it's removed; only the brief fade in/out animates now (and that self-stops).
+  const FOG_BASE_OPACITY = 0.12;
   const [fogGeoJSON, setFogGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
   // Fade transition: ramps 0→1 on activation (~2s) and 1→0 on dissipation (~5s).
   // Asymmetric timing matches real fog — forms gradually, lifts slowly.
@@ -296,6 +295,7 @@ function FogOverlayInner() {
     let lastUpdate = 0;
     const FADE_GATE_MS = 50;
     const tick = () => {
+      if (document.hidden) { frame = requestAnimationFrame(tick); return; }
       const now = Date.now();
       if (now - lastUpdate >= FADE_GATE_MS) {
         lastUpdate = now;
@@ -315,39 +315,14 @@ function FogOverlayInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps — fadeOpacity intentionally read as start value, not tracked
   }, [active, fogGeoJSON != null]);
 
-  // Breathing pulse — throttled to 20fps (50ms minimum between setState).
-  // The CPU saturation came from setState at full 60fps re-rendering the
-  // GeoJSON Source. Updating only ~20 times/second still feels smooth to
-  // the eye (above the 16ms perceptual threshold by a comfortable margin)
-  // but cuts the re-render cost by 3×.
-  useEffect(() => {
-    if (fadeOpacity === 0) { setOpacity(0); return; }
-    let frame: number;
-    let lastUpdate = 0;
-    const start = Date.now();
-    const THROTTLE_MS = 50; // 20fps
-    function animate() {
-      const now = Date.now();
-      if (now - lastUpdate >= THROTTLE_MS) {
-        lastUpdate = now;
-        const t = (now - start) / 1000;
-        const o = 0.12 + 0.04 * Math.sin(t * 0.6);
-        setOpacity(o);
-      }
-      frame = requestAnimationFrame(animate);
-    }
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, [fadeOpacity === 0]);
-
   // Keep rendering during fade-out by falling back to last valid features
   const renderGeoJSON = fogGeoJSON ?? (fadeOpacity > 0.01 ? lastFogRef.current : null);
-  if (!renderGeoJSON || fadeOpacity < 0.01 || opacity === 0) return null;
-  const finalOpacity = opacity * fadeOpacity;
+  if (!renderGeoJSON || fadeOpacity < 0.01) return null;
+  const finalOpacity = FOG_BASE_OPACITY * fadeOpacity;
 
   return (
     <Source id="fog-overlay" type="geojson" data={renderGeoJSON}>
-      {/* Fog fill — per-cell density × breathing opacity × fade transition */}
+      {/* Fog fill — per-cell density × constant base opacity × fade transition */}
       <Layer
         id="fog-fill"
         type="fill"
@@ -357,17 +332,17 @@ function FogOverlayInner() {
           'fill-antialias': false,
         }}
       />
-      {/* Soft outer glow — restored from the v2.81.34 over-reduction.
-        line-blur:14 gives a soft halo that visually merges adjacent fog
-        cells; without it the discretized density buckets show as a tile
-        mosaic in the user's view ("mini-cuadrados" in Ons). */}
+      {/* Soft outer glow that merges adjacent fog cells (without it the density
+        buckets show as a "mini-cuadrados" mosaic). line-blur reduced 14→8: a
+        wide blurred line re-rasterizes on every pan frame and the kernel cost
+        scales with the blur radius — 8 still merges the cells but is cheaper. */}
       <Layer
         id="fog-glow"
         type="line"
         paint={{
           'line-color': config.glowColor,
           'line-width': 10,
-          'line-blur': 14,
+          'line-blur': 8,
           'line-opacity': finalOpacity * 0.3,
         }}
       />
