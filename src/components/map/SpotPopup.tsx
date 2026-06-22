@@ -32,7 +32,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useWebcamStore } from '../../store/webcamStore';
 import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
-import { fetchMarineForecast, type MarineForecastHour } from '../../api/marineClient';
+import { fetchMarineForecast, fetchMarineData, type MarineForecastHour } from '../../api/marineClient';
 import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
 import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
@@ -136,6 +136,21 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       })
       .catch(() => {});
   }, [spot.id, spot.center, sectorId]);
+
+  // Open-Meteo Marine SST — localized fallback for SURF spots. The engine skips
+  // the nearest buoy for surf (it can sit in a different water mass — e.g. Patos's
+  // closest buoy is A Guarda at the Miño river mouth, river-cooled to ~15.5°C
+  // while Patos is ~18°C), and MOHID's estuary-only coverage misses exposed
+  // beaches. Open-Meteo Marine SST is global + per-coordinate, so it represents
+  // the actual beach far better than a distant buoy in another water mass.
+  const [marineSST, setMarineSST] = useState<number | null>(null);
+  useEffect(() => {
+    if (spot.category !== 'surf') return;
+    const [lon, lat] = spot.center;
+    fetchMarineData(lat, lon)
+      .then((d) => setMarineSST(d?.seaSurfaceTemp ?? null))
+      .catch(() => {});
+  }, [spot.id, spot.center, spot.category]);
 
   const precursor = spot.thermalDetection ? thermalPrecursors.get(spot.id) : undefined;
   const visionResult = webcamVision.get(spot.id);
@@ -533,8 +548,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── Temperatures & conditions — primary always visible, secondary collapsible ── */}
-      {score && (score.airTemp != null || score.waterTemp != null || mohidSeaTemp != null || score.humidity != null) && (
-        <TemperatureSection score={score} mohidSeaTemp={score.waterTemp == null ? mohidSeaTemp : null} />
+      {score && (score.airTemp != null || score.waterTemp != null || mohidSeaTemp != null || marineSST != null || score.humidity != null) && (
+        <TemperatureSection score={score} mohidSeaTemp={score.waterTemp == null ? mohidSeaTemp : null} marineSST={marineSST} />
       )}
 
       {/* ── Humidity precursor signal (bruma pattern) ── */}
@@ -619,7 +634,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           cloudCoverPct: spotForecast[0]?.cloudCover ?? null,
           windKt: score?.wind?.avgSpeedKt ?? null,
           airTempC: score?.airTemp ?? null,
-          waterTempC: score?.waterTemp ?? mohidSeaTemp ?? null,
+          waterTempC: score?.waterTemp ?? mohidSeaTemp ?? marineSST ?? null,
           rainingNow: rain?.status === 'raining',
           rainSoon: rain?.status === 'rain-soon',
           // Fog/visibility is the one thing webcam-IA reads reliably.
@@ -1481,10 +1496,11 @@ function WaveForecastMini({ lat, lon, coastalFactor }: { lat: number; lon: numbe
 
 // ── Temperature section — primary visible, secondary collapsible ──
 
-function TemperatureSection({ score, mohidSeaTemp }: { score: SpotScore; mohidSeaTemp?: number | null }) {
+function TemperatureSection({ score, mohidSeaTemp, marineSST }: { score: SpotScore; mohidSeaTemp?: number | null; marineSST?: number | null }) {
   const [showMore, setShowMore] = useState(false);
   const hasSecondary = score.dewPoint != null || score.windChill != null || score.heatIndex != null;
-  const waterTemp = score.waterTemp ?? mohidSeaTemp;
+  const waterTemp = score.waterTemp ?? mohidSeaTemp ?? marineSST;
+  const waterLabel = score.waterTemp != null ? 'Agua' : mohidSeaTemp != null ? 'Agua (MOHID)' : 'Agua (modelo)';
 
   return (
     <div className="mb-2 pt-1 border-t border-slate-700/40">
@@ -1494,7 +1510,7 @@ function TemperatureSection({ score, mohidSeaTemp }: { score: SpotScore; mohidSe
         )}
         {waterTemp != null && (
           <Cell
-            label={score.waterTemp != null ? 'Agua' : 'Agua (MOHID)'}
+            label={waterLabel}
             value={`${waterTemp.toFixed(1)}°C`}
             color={waterTColor(waterTemp)}
           />

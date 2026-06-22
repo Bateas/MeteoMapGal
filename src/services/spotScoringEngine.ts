@@ -1140,13 +1140,21 @@ export function scoreAllSpots(
     const wind = computeSpotWindConsensus(spot, stationData, buoyData);
     const waves = extractWaveConditions(buoyData);
 
-    // Water temp + dew point from nearest buoy
+    // Water temp + dew point from nearest buoy.
+    // SURF spots SKIP the buoy water temp: the closest buoy can sit in a totally
+    // different water mass than an exposed surf beach. Real case: Patos grabbed
+    // A Guarda (Miño river mouth, ~28km south) at 15.5°C — river-cooled — while
+    // Patos / Cabo Silleiro were ~18°C. Same "distant buoys != beach conditions"
+    // trap the engine already avoids for waves. With waterTemp left null, the
+    // SpotPopup falls back to the per-spot MOHID model (localized SST), or shows
+    // nothing rather than a wrong number.
+    const skipBuoyWaterTemp = spot.category === 'surf';
     let waterTemp: number | null = null;
     let dewPoint: number | null = null;
     for (const { buoy } of buoyData) {
-      if (waterTemp === null && buoy.waterTemp !== null) waterTemp = buoy.waterTemp;
+      if (!skipBuoyWaterTemp && waterTemp === null && buoy.waterTemp !== null) waterTemp = buoy.waterTemp;
       if (dewPoint === null && buoy.dewPoint !== null) dewPoint = buoy.dewPoint;
-      if (waterTemp !== null && dewPoint !== null) break;
+      if ((skipBuoyWaterTemp || waterTemp !== null) && dewPoint !== null) break;
     }
 
     // Pass thermal data to scoring when spot has thermalDetection
