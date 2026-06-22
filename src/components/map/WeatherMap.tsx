@@ -460,6 +460,13 @@ export function WeatherMap() {
         style={{ width: '100%', height: '100%' }}
         mapStyle={mapStyle}
         maxPitch={85}
+        // Regional app — never need to zoom out past NW Iberia. Without a floor,
+        // zooming "out to the world" forced MapLibre to load global vector tiles
+        // + place every world label (addSymbols) + the DEM, causing a hard hitch
+        // (user-reported). minZoom 6 still shows all of Galicia + margin.
+        minZoom={6}
+        // No horizontal world repetition (extra tiles at low zoom, never useful here).
+        renderWorldCopies={false}
         onClick={handleMapClick}
         onLoad={handleMapLoad}
         onMoveStart={handleMoveStart}
