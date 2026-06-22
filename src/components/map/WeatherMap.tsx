@@ -285,9 +285,17 @@ export function WeatherMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleMoveStart = useCallback(() => {
     containerRef.current?.classList.add('map-panning');
+    // Hide the hillshade layer during the drag — its per-pixel DEM shader is the
+    // biggest unconditional GPU cost per frame and is imperceptible mid-pan.
+    // Hillshade is a SEPARATE layer from the 3D terrain mesh, so toggling only
+    // its visibility does NOT touch setTerrain (avoids the terrain-flatten race).
+    const map = mapRef.current?.getMap();
+    if (map?.getLayer('hillshade')) map.setLayoutProperty('hillshade', 'visibility', 'none');
   }, []);
   const handleMoveEnd = useCallback(() => {
     containerRef.current?.classList.remove('map-panning');
+    const map = mapRef.current?.getMap();
+    if (map?.getLayer('hillshade')) map.setLayoutProperty('hillshade', 'visibility', 'visible');
   }, []);
 
   // Cross-deselection: only one popup at a time (station XOR buoy XOR spot XOR webcam).
