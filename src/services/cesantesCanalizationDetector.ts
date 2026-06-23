@@ -54,6 +54,13 @@ const THERMAL_HOUR_MIN = 12;
 const THERMAL_HOUR_MAX = 20;
 const THERMAL_MIN_AIR_TEMP = 16; // °C — sun heats land
 const THERMAL_MIN_DELTA_T = 2;   // °C land-sea differential
+/** Nearby stations must already show at least this much wind (kt) for the thermal
+ *  breeze to count as ESTABLISHED. Canalization amplifies an existing breeze; a
+ *  large air-water ΔT alone is only the setup, not actual wind. Below this the
+ *  prediction is suppressed (user ground-truth: glassy-calm webcam + 3kt stations
+ *  must NOT yield an 11kt prediction). The documented pattern has nearby stations
+ *  at 5-12kt during real canalization. */
+const THERMAL_MIN_BASE_KT = 5;
 
 /** Humidity threshold in mouth of ría (indicates moisture inflow) */
 const HIGH_MOUTH_HUMIDITY = 85;
@@ -144,6 +151,13 @@ export function predictCesantesCanalization(
         && (localWindDir < SW_DIR_MIN || localWindDir > SW_DIR_MAX)) {
       return inactive;
     }
+    // Reality check: canalization AMPLIFIES an existing breeze, it does not create
+    // wind from a temperature gradient. If the nearby stations are essentially calm
+    // the thermal breeze has not filled in — a big ΔT is only the setup. Without
+    // this, a glassy-calm evening (warm air over cool water = huge ΔT) maxed the
+    // +8kt boost on top of 3kt measured → a phantom 11kt while the webcam showed a
+    // mirror-flat ría (user-reported). Require a real measured breeze first.
+    if ((localStationKt ?? 0) < THERMAL_MIN_BASE_KT) return inactive;
     // Use local station wind (or default 6kt if not provided) — thermal breeze adds local boost
     const baseKt = localStationKt ?? 6;
     const thermalBoostKt = Math.min(8, deltaT * 2); // +2kt per °C of land-sea ΔT, max +8kt
