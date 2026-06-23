@@ -236,11 +236,13 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     expect(r.active).toBe(true);
   });
 
-  it('does NOT suppress on light variable wind (<5kt) even from the N', () => {
+  it('suppresses when nearby stations are calm (<5kt) — thermal breeze not established', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
-    // 3kt from N — too weak to be a synoptic flow killing the thermal; let it build.
-    const r = predictCesantesCanalization([], null, false, 18, 14, 3, 350);
-    expect(r.active).toBe(true);
+    // Regression (user-reported): 3kt measured + a huge ΔT (air 28 / water 16.6)
+    // must NOT yield a phantom ~11kt while the ría webcam is mirror-flat. A large
+    // ΔT is only the setup; with no measured breeze there is nothing to canalize.
+    const r = predictCesantesCanalization([], null, false, 28, 16.6, 3, 230);
+    expect(r.active).toBe(false);
   });
 
   it('does NOT fire outside thermal window (early morning)', () => {
@@ -267,10 +269,18 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     expect(r.active).toBe(false);
   });
 
-  it('uses default baseKt=6 when localStationKt not provided', () => {
+  it('suppresses when no nearby station wind is available — cannot confirm the breeze', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
-    // ΔT=4°C → +8kt thermal boost, base 6 → predicted 14kt
+    // No localStationKt = no measured wind to confirm the breeze is blowing, so a
+    // big ΔT alone must not conjure a prediction.
     const r = predictCesantesCanalization([], null, false, 18, 14);
+    expect(r.active).toBe(false);
+  });
+
+  it('fires Mode 2 when a real breeze (>=5kt) is present with favourable ΔT', () => {
+    vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
+    // 6kt measured + ΔT 4°C → boost applies (breeze established, something to canalize).
+    const r = predictCesantesCanalization([], null, false, 18, 14, 6);
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBeGreaterThanOrEqual(10);
   });
