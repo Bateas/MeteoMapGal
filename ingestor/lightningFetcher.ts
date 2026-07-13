@@ -18,6 +18,11 @@
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
+import {
+  isOpen as isLightningBreakerOpen,
+  reportFailure as reportLightningFailure,
+  reportSuccess as reportLightningSuccess,
+} from './lightningBreaker.js';
 
 const RAIOS_LENDA_URL = 'https://apis-ext.xunta.gal/meteo2api/v1/api/raios/lenda';
 const FETCH_TIMEOUT_MS = 15_000;
@@ -150,6 +155,10 @@ export function mapStrikesForPersist(
 // ── Fetcher ───────────────────────────────────────────
 
 async function fetchRaios(): Promise<RaiosResponse | null> {
+  // During a sustained meteo2api outage, skip the fetch silently instead of
+  // hammering the dead endpoint and logging a WARN every 5-min cycle.
+  if (isLightningBreakerOpen()) return null;
+
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   // meteo2api convention: fechaInicio = newer, fechaFin = older
@@ -164,11 +173,14 @@ async function fetchRaios(): Promise<RaiosResponse | null> {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
+      reportLightningFailure(`API ${res.status}`);
       log.warn(`[Lightning] API ${res.status}`);
       return null;
     }
+    reportLightningSuccess();
     return await res.json();
   } catch (err) {
+    reportLightningFailure((err as Error).message);
     log.warn(`[Lightning] fetch failed: ${(err as Error).message}`);
     return null;
   }
