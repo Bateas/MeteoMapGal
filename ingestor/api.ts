@@ -57,6 +57,7 @@ const PORT = parseInt(process.env.API_PORT || '3001', 10);
 const HOST = process.env.API_HOST || '127.0.0.1';
 const WEBCAM_DIR = process.env.WEBCAM_DIR || '/var/www/meteomapgal/webcam';
 const WEBCAM_TOKEN = process.env.WEBCAM_TOKEN || '';
+if (!WEBCAM_TOKEN) log.warn('[Webcam] WEBCAM_TOKEN not set — uploads disabled (fail-closed)');
 const AEMET_API_KEY = process.env.AEMET_API_KEY || '';
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
 const METEOSIX_API_KEY = process.env.METEOSIX_API_KEY || '';
@@ -673,14 +674,66 @@ const routes: Record<string, RouteHandler> = {
 };
 
 // ── Storm prediction POST handler ──────────────────────
+// This endpoint feeds the ML calibration dataset (prediction_outcomes joins
+// against it), so a drive-by curl could poison accuracy math. The legitimate
+// caller is the anonymous frontend — no real secret is possible (anything in
+// the bundle is public) — so the defense is depth, not authentication:
+// same-origin gate + per-IP rate limit + strict value validation.
+
+const STORM_POST_MAX = 12;                      // per IP per hour (frontend dedups to ~1/min max)
+const STORM_POST_WINDOW_MS = 60 * 60_000;
+const STORM_POST_MAX_BODY = 10 * 1024;          // 10 KB — real payloads are <1 KB
+const STORM_SECTORS = new Set(['rias', 'embalse']);
+const STORM_HORIZONS = new Set(['imminent', 'likely', 'possible', 'none']);
+const STORM_SEVERITIES = new Set(['extreme', 'severe', 'moderate', 'none']);
+const stormPostCounts = new Map<string, { count: number; resetAt: number }>();
 
 async function handleStormPredictionPost(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   origin?: string,
 ): Promise<void> {
+  // Same-origin gate: browsers always send Origin on cross-context fetch;
+  // requests without a whitelisted Origin (curl, scripts) are rejected.
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+    res.writeHead(403, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Forbidden' }));
+    return;
+  }
+
+  // Per-IP rate limit (same pattern as webcam upload)
+  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const bucket = stormPostCounts.get(ip);
+  if (bucket && now < bucket.resetAt) {
+    if (bucket.count >= STORM_POST_MAX) {
+      res.writeHead(429, corsHeaders(origin));
+      res.end(JSON.stringify({ error: 'Rate limit exceeded' }));
+      return;
+    }
+    bucket.count++;
+  } else {
+    stormPostCounts.set(ip, { count: 1, resetAt: now + STORM_POST_WINDOW_MS });
+  }
+
+  const declaredLength = parseInt(req.headers['content-length'] || '0', 10);
+  if (declaredLength > STORM_POST_MAX_BODY) {
+    res.writeHead(413, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Payload too large' }));
+    return;
+  }
+
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let received = 0;
+  for await (const chunk of req) {
+    received += (chunk as Buffer).length;
+    if (received > STORM_POST_MAX_BODY) {
+      res.writeHead(413, corsHeaders(origin));
+      res.end(JSON.stringify({ error: 'Payload too large' }));
+      return;
+    }
+    chunks.push(chunk as Buffer);
+  }
   let body: any;
   try {
     body = JSON.parse(Buffer.concat(chunks).toString());
@@ -690,10 +743,20 @@ async function handleStormPredictionPost(
     return;
   }
 
+  // Strict value validation — shape AND ranges (mirrors stormPredictionLogger.ts)
   const { sector, probability, horizon, severity, hasLightning, signals } = body;
-  if (typeof probability !== 'number' || typeof sector !== 'string' || !Array.isArray(signals)) {
+  const validSignals = Array.isArray(signals) && signals.length <= 12
+    && signals.every((v: unknown) => v === null || (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 1000));
+  if (
+    typeof sector !== 'string' || !STORM_SECTORS.has(sector)
+    || typeof probability !== 'number' || !Number.isFinite(probability) || probability < 0 || probability > 100
+    || (horizon != null && (typeof horizon !== 'string' || !STORM_HORIZONS.has(horizon)))
+    || (severity != null && (typeof severity !== 'string' || !STORM_SEVERITIES.has(severity)))
+    || (hasLightning != null && typeof hasLightning !== 'boolean')
+    || !validSignals
+  ) {
     res.writeHead(400, corsHeaders(origin));
-    res.end(JSON.stringify({ error: 'Missing required fields: sector, probability, signals[]' }));
+    res.end(JSON.stringify({ error: 'Invalid payload' }));
     return;
   }
 
@@ -754,9 +817,16 @@ async function handleWebcamUpload(
     webcamUploadCounts.set(ip, { count: 1, resetAt: now + WEBCAM_UPLOAD_WINDOW_MS });
   }
 
+  // Fail-closed: an unset WEBCAM_TOKEN must disable uploads, not skip auth.
+  if (!WEBCAM_TOKEN) {
+    res.writeHead(503, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Upload disabled' }));
+    return;
+  }
+
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (WEBCAM_TOKEN && token !== WEBCAM_TOKEN) {
+  if (token !== WEBCAM_TOKEN) {
     res.writeHead(401, corsHeaders(origin));
     res.end(JSON.stringify({ error: 'Unauthorized' }));
     return;

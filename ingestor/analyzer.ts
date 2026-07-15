@@ -16,6 +16,7 @@ import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
 import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert } from './alertDispatcher.js';
 import { degreesToCardinal } from '../src/services/windUtils.js';
 import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
+import { getSpotsForSector } from '../src/config/spots.js';
 import {
   scoreSpot,
   buoyWindToBuoyReading,
@@ -30,19 +31,31 @@ import {
 } from './analyzerLogic.js';
 
 // ── Spot definitions ────────────────────────────────
+// Derived from the frontend config (single source of truth). A hardcoded copy
+// lived here before and drifted: Limens was added to spots.ts but never made
+// it to Telegram alerts. Surf spots are excluded — the analyzer scores wind,
+// which is not the verdict that matters on a beach break.
 
-const SPOTS: SpotDef[] = [
-  { id: 'castrelo', name: 'Castrelo', lat: 42.2991, lon: -8.1087, sector: 'embalse', radiusKm: 15, thermalDetection: true },
-  { id: 'cesantes', name: 'Cesantes', lat: 42.307, lon: -8.619, sector: 'rias', radiusKm: 12, thermalDetection: true },
-  { id: 'lourido', name: 'Lourido', lat: 42.365, lon: -8.675, sector: 'rias', radiusKm: 12, thermalDetection: true },
-  { id: 'bocana', name: 'Bocana', lat: 42.268, lon: -8.714, sector: 'rias', radiusKm: 12, thermalDetection: false },
-  { id: 'centro-ria', name: 'Ria de Vigo (centro)', lat: 42.228, lon: -8.803, sector: 'rias', radiusKm: 12, thermalDetection: true },
-  { id: 'cies-ria', name: 'Cies-Ria', lat: 42.22, lon: -8.87, sector: 'rias', radiusKm: 12, thermalDetection: false },
-  { id: 'castineiras', name: 'Castiñeiras', lat: 42.528, lon: -9.001, sector: 'rias', radiusKm: 10, thermalDetection: false },
-  { id: 'vao', name: 'Vao', lat: 42.199, lon: -8.793, sector: 'rias', radiusKm: 8, thermalDetection: false },
-  { id: 'lanzada', name: 'A Lanzada', lat: 42.449, lon: -8.880, sector: 'rias', radiusKm: 10, thermalDetection: false },
-  { id: 'illa-arousa', name: 'Illa Arousa', lat: 42.546, lon: -8.860, sector: 'rias', radiusKm: 8, thermalDetection: true },
-];
+/** The analyzer historically searched wider radii than the frontend scoring
+ *  engine uses per spot. Preserved so verdict behavior does not change. */
+const RADIUS_OVERRIDE: Record<string, number> = {
+  castrelo: 15, cesantes: 12, lourido: 12, bocana: 12, 'centro-ria': 12,
+  'cies-ria': 12, castineiras: 10, vao: 8, lanzada: 10, 'illa-arousa': 8,
+};
+
+const SPOTS: SpotDef[] = (['embalse', 'rias'] as const).flatMap((sector) =>
+  getSpotsForSector(sector)
+    .filter((s) => s.category !== 'surf')
+    .map((s) => ({
+      id: s.id,
+      name: s.shortName,
+      lat: s.center[1],
+      lon: s.center[0],
+      sector,
+      radiusKm: RADIUS_OVERRIDE[s.id] ?? s.radiusKm,
+      thermalDetection: s.thermalDetection,
+    })),
+);
 
 // ── Verdict thresholds + scoring imported from analyzerLogic ──────────
 // (windVerdict, scoreSpot, inferCastreloDirection — pure functions, tested separately)
