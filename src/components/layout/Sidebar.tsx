@@ -40,7 +40,7 @@ const SpotComparator = lazy(() =>
   import('../dashboard/SpotComparator').then((m) => ({ default: m.SpotComparator })),
 );
 
-type Tab = 'stations' | 'chart' | 'compare' | 'forecast' | 'thermal' | 'history' | 'rankings' | 'verify';
+type Tab = 'stations' | 'chart' | 'compare' | 'forecast' | 'thermal' | 'history' | 'rankings';
 
 // Tabs visible in simpleMode. Other tabs are hidden to reduce overwhelm.
 // User feedback: "lo más limpio posible para no abrumar" →

@@ -49,6 +49,7 @@ import { WebcamSection } from '../spot/WebcamSection';
 import { WindPatterns } from '../spot/WindPatterns';
 import { useHistoricalBaseline } from '../../hooks/useHistoricalBaseline';
 import { describeVsBaseline, severityToBadgeClass } from '../../services/historicalBaselineService';
+import { buildShareUrl } from '../../services/shareImageGenerator';
 
 // ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -1553,6 +1554,7 @@ function ShareButton({ spot, score, verdict: _verdict, vs }: {
   vs: typeof VERDICT_STYLE[SpotVerdict];
 }) {
   const [copied, setCopied] = useState(false);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
 
   const shareText = useMemo(() => {
     const parts = [`${spot.name}: ${vs.label}`];
@@ -1570,10 +1572,11 @@ function ShareButton({ spot, score, verdict: _verdict, vs }: {
   }, [spot.name, vs.label, score]);
 
   const handleShare = async () => {
+    // Deep-link: useDeepLink reabre este spot en este sector al recibir el enlace
     const shareData = {
       title: `${spot.name} — MeteoMapGal`,
       text: shareText,
-      url: 'https://meteomapgal.navia3d.com',
+      url: buildShareUrl({ sectorId: sectorId === 'rias' ? 'rias' : 'embalse', spotId: spot.id }),
     };
 
     if (navigator.share) {

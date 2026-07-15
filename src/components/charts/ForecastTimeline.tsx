@@ -825,7 +825,9 @@ function SailingConclusion({
       </div>
       {lines.map((line, i) => (
         <div key={i} className="flex items-start gap-2 text-xs leading-relaxed">
-          <WeatherIcon id={line.icon} size={14} className="shrink-0 mt-0.5" style={{ color: line.color }} />
+          <span className="shrink-0 mt-0.5" style={{ color: line.color, display: 'flex' }}>
+            <WeatherIcon id={line.icon} size={14} />
+          </span>
           <span style={{ color: line.color }}>{line.text}</span>
         </div>
       ))}

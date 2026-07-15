@@ -52,7 +52,9 @@ export function LegalSection() {
           <ul className="space-y-1.5 text-[11px] text-slate-400">
             <AttrRow name="AEMET OpenData" license="CC BY 4.0" desc="Agencia Estatal de Meteorología — datos abiertos" />
             <AttrRow name="MeteoGalicia" license="Datos abiertos Xunta" desc="Xunta de Galicia — red de estaciones" />
-            <AttrRow name="Meteoclimatic" license="Uso libre" desc="Red ciudadana — estaciones personales" />
+            <AttrRow name="Meteoclimatic" license="CC BY-NC-ND" desc="Red ciudadana — estaciones personales" />
+            <AttrRow name="Weather Underground" license="Datos públicos vía web" desc="IBM — red de estaciones personales" />
+            <AttrRow name="Netatmo" license="Datos públicos" desc="Weathermap público — estaciones personales" />
             <AttrRow name="Open-Meteo" license="CC BY 4.0" desc="Modelo numérico ECMWF/GFS" />
             <AttrRow name="IHM / Puertos del Estado" license="Datos públicos" desc="Predicciones de mareas" />
             <AttrRow name="ENAIRE" license="Datos públicos" desc="Espacio aéreo y NOTAMs" />

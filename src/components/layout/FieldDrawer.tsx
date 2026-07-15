@@ -1093,8 +1093,9 @@ function GDDSection({ alerts }: { alerts: FieldAlerts }) {
           {/* Growth stage with progress bar */}
           <div className="mt-1">
             <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[11px] font-semibold text-slate-300">
-                🌱 {gdd.growthStage}
+              <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+                <WeatherIcon id="sprout" size={12} />
+                {gdd.growthStage}
               </span>
               <span className="text-[11px] text-slate-500">{gdd.stageProgress}%</span>
             </div>

@@ -20,7 +20,7 @@ const API_PATHS = [
   '/meteogalicia-api', '/meteoclimatic-api',
   '/netatmo-api', '/netatmo-auth',
   '/meteo2api', '/ideg-api',
-  '/enaire-api', '/ihm-api', '/eumetsat-api', '/portus-api', '/obscosteiro-api', '/hfradar-api', '/skyx-api',
+  '/enaire-api', '/ihm-api', '/portus-api', '/obscosteiro-api', '/hfradar-api', '/skyx-api',
   '/noaa-api', '/opensky-api', '/swan-api', '/api/webhook', '/api/v1',
 ];
 

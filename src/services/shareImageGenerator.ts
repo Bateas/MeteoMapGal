@@ -292,11 +292,10 @@ export function buildShareFilename(spotName: string, when: Date): string {
 
 /**
  * Build a deep-link URL that points to this spot on this sector.
- * Future: SpotStore + SectorStore read `?sector=` and `?spot=` on mount
- * and pre-select. Today the params are visible but ignored — the receiver
- * still lands on the right sector if it matches their default.
+ * `useDeepLink` reads `?sector=` and `?spot=` on mount and pre-selects
+ * the matching sector + spot, so the receiver lands with the popup open.
  */
-export function buildShareUrl(data: ShareCardData): string {
+export function buildShareUrl(data: Pick<ShareCardData, 'sectorId' | 'spotId'>): string {
   const params = new URLSearchParams();
   params.set('sector', data.sectorId);
   params.set('spot', data.spotId);
