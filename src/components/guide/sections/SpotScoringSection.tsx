@@ -59,8 +59,9 @@ export function SpotScoringSection() {
           <div className="text-[11px] font-bold text-blue-400">Rías Baixas</div>
           <SpotRow name="Cesantes" desc="Interior Ría, ensenada de San Simón. Agua plana, térmica WSW tardes." thermal />
           <SpotRow name="Bocana" desc="Estrecho de Rande, Vigo–San Simón. Terral matutino E/ENE." />
-          <SpotRow name="Centro Ría" desc="Canido–Limens. Virazón SW tardes, oleaje moderado." />
+          <SpotRow name="Centro Ría" desc="Aguas abiertas de la Ría de Vigo (zona Canido). Virazón SW tardes, oleaje moderado." />
           <SpotRow name="Cíes-Ría" desc="Baiona–Cíes. Condiciones oceánicas, nortada verano." />
+          <SpotRow name="Liméns" desc="Playa en Cangas, sur de la Ría de Vigo. Canalización propia N/NNW (nortada); referencia Cabo Udra." />
           <SpotRow name="Lourido" desc="Playa Lourido, Ría de Pontevedra. Kite/windsurf, virazón SW." thermal />
           <SpotRow name="Castiñeiras" desc="Costa norte Ría de Arousa. Exposición atlántica, surf y kite." />
           <SpotRow name="Vao" desc="Sur de Vigo, playa urbana. Protección parcial de las Cíes." />

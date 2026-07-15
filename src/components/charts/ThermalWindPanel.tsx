@@ -922,7 +922,9 @@ function WindStatusCard({
     >
       {/* Header */}
       <div className="flex items-center gap-1.5">
-        <WeatherIcon id="wind" size={13} style={{ color: consensusColor }} />
+        <span style={{ color: consensusColor, display: 'flex' }}>
+          <WeatherIcon id="wind" size={13} />
+        </span>
         <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: consensusColor }}>
           Viento en estaciones
         </span>

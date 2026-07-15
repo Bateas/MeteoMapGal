@@ -244,7 +244,7 @@ function IntroSection() {
             <WeatherIcon id="thermometer" size={16} /> Spots de navegación
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            13 spots monitorizados (10 vela + 3 surf). Vela: scoring calma/flojo/navegable/bueno/fuerte.
+            14 spots monitorizados (11 vela + 3 surf). Vela: scoring calma/flojo/navegable/bueno/fuerte.
             Surf: FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE. Pronóstico 48h y ventanas de navegación.
           </p>
         </div>
@@ -304,7 +304,7 @@ function RiasIntroSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="map" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Capas interactivas</p>
-          <p className="text-[11px] text-slate-600">Viento, humedad, satélite IR, radar, rayos</p>
+          <p className="text-[11px] text-slate-600">Viento, humedad, radar, rayos, corrientes, oleaje SWAN</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="alert-triangle" size={24} /></span>

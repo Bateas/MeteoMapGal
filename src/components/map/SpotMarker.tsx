@@ -404,8 +404,9 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
             height={iconSize}
             style={{ pointerEvents: 'none' }}
           >
-            <div style={{ width: iconSize, height: iconSize, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <WeatherIcon id={icon} size={iconSize} style={{ color: colors.ring }} />
+            {/* Lucide icons usan currentColor — el color va en el contenedor, WeatherIcon no acepta style */}
+            <div style={{ width: iconSize, height: iconSize, display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.ring }}>
+              <WeatherIcon id={icon} size={iconSize} />
             </div>
           </foreignObject>
         </svg>
