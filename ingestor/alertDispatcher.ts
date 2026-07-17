@@ -233,22 +233,20 @@ export async function dispatchVisibilityAlert(
   spotId: string,
   _description: string,
   webcamName?: string,
-  beaufort?: number,
 ): Promise<void> {
   if (isNightTime()) return;
   if (isInCooldown(lastVisibilityAlert, webcamId, VISIBILITY_COOLDOWN_MS)) return;
 
   const camLabel = webcamName ?? webcamId;
-  const bfStr = beaufort != null && beaufort >= 0 ? ` · Beaufort ${beaufort}` : '';
 
   const ok = await postWebhook({
     type: 'visibility-alert',
     spot: spotId,
     sector: 'Rias Baixas',
-    text: `Niebla en ${camLabel}${bfStr}`,
+    text: `Niebla en ${camLabel}`,
     severity: 'moderate',
     title: `Niebla detectada — ${camLabel}`,
-    message: `Webcam ${camLabel}: niebla real detectada por Vision IA — visibilidad pobre${bfStr}.`,
+    message: `Webcam ${camLabel}: niebla real detectada por Vision IA — visibilidad pobre.`,
   });
 
   if (ok) {

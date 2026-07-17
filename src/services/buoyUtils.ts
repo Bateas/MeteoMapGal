@@ -48,6 +48,16 @@ export function waterTempClass(t: number): string {
   return 'text-orange-400';
 }
 
+// ── Water temperature qualifier (shared casual vocabulary) ──
+// Single source of truth for the fría / fresca / agradable bands, shared by
+// the beach-day verdict (beachDayService) and the spot popup water badge.
+// Cold water is NORMAL in Galicia — this is an info qualifier, never a penalty.
+export function waterTempLabel(t: number): 'fría' | 'fresca' | 'agradable' {
+  if (t >= 20) return 'agradable';
+  if (t >= 17) return 'fresca';
+  return 'fría';
+}
+
 // ── WMO Sea State Code (0-9) ──────────────────────────────
 // Based on significant wave height (Hm0).
 // Spanish labels matching official maritime terminology.

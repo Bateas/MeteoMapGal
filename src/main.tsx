@@ -5,13 +5,17 @@ import App from './App.tsx'
 import { APP_VERSION } from './config/version'
 
 // One-shot cleanup of legacy localStorage keys.
-// `meteomap_station_log` was a frontend CSV log of every station reading,
-// kept for 90 days. Could grow to ~190 MB per browser. Now obsolete since
-// TimescaleDB holds the same data with proper retention. Drop it on first
-// load in v2.73.0+ to free user storage.
+// - `meteomap_station_log`: frontend CSV log of every station reading, kept
+//   for 90 days. Could grow to ~190 MB per browser. Obsolete since
+//   TimescaleDB holds the same data with proper retention (v2.73.0+).
+// - `thermal_verification`: records from the removed thermalVerificationService —
+//   predictions accumulated but outcomes were never evaluated; real
+//   verification lives server-side (spot scores + prediction outcomes).
 try {
-  if (localStorage.getItem('meteomap_station_log') !== null) {
-    localStorage.removeItem('meteomap_station_log');
+  for (const legacyKey of ['meteomap_station_log', 'thermal_verification']) {
+    if (localStorage.getItem(legacyKey) !== null) {
+      localStorage.removeItem(legacyKey);
+    }
   }
 } catch {
   // localStorage disabled / private mode — ignore

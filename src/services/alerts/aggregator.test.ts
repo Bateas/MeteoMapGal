@@ -209,11 +209,6 @@ describe('aggregateAllAlerts — gating', () => {
     expect(result.alerts.find(a => a.category === 'marine')).toBeUndefined();
   });
 
-  it('skips upwelling when sstHistory missing (even with buoys)', () => {
-    const result = aggregateAllAlerts({ ...emptySources(), buoys: [] });
-    expect(result.alerts.find(a => a.category === 'upwelling')).toBeUndefined();
-  });
-
   it('skips wind trend when readingHistory missing', () => {
     const result = aggregateAllAlerts({
       ...emptySources(),

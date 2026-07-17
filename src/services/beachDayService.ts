@@ -14,6 +14,8 @@
  * not a forecast. Honest about missing data (returns 'unknown', not a guess).
  */
 
+import { waterTempLabel } from './buoyUtils';
+
 export type BeachVerdict = 'great' | 'ok' | 'poor' | 'unknown';
 
 export interface BeachDayInputs {
@@ -103,11 +105,12 @@ export function assessBeachDay(i: BeachDayInputs): BeachDayResult {
   }
 
   // Water — INFO only, small bonus, never a penalty (cold water is normal here).
+  // Vocabulary + thresholds shared via waterTempLabel (buoyUtils).
   if (i.waterTempC != null) {
     const wt = i.waterTempC;
-    if (wt >= 20) { score += 8; reasons.push(`Agua agradable ${Math.round(wt)}°`); }
-    else if (wt >= 17) { score += 4; reasons.push(`Agua fresca ${Math.round(wt)}°`); }
-    else { score += 1; reasons.push(`Agua fría ${Math.round(wt)}°`); }
+    const label = waterTempLabel(wt);
+    score += label === 'agradable' ? 8 : label === 'fresca' ? 4 : 1;
+    reasons.push(`Agua ${label} ${Math.round(wt)}°`);
   }
 
   score = Math.max(0, Math.min(100, score));

@@ -143,31 +143,36 @@ function WindSources({ contributions }: { contributions: WindContribution[] }) {
   );
 }
 
+const VISION_SKY_LABELS: Record<string, string> = {
+  clear: 'Despejado', partly_cloudy: 'Parc. nublado', overcast: 'Cubierto',
+  fog: 'Niebla', rain: 'Lluvia', storm: 'Tormenta', night: 'Noche', unknown: '',
+};
+
+/** Sky/fog seen by the webcam LLM — wind estimate hidden (moondream not reliable for wind). */
 function SpotVisionBadge({ spot }: { spot: SailingSpot }) {
   const visionResults = useWebcamStore((s) => s.visionResults);
   if (!spot.webcams || spot.webcams.length === 0) return null;
 
-  let bestResult: { bf: number; label: string; kt: number; confidence: string; sky: string; fog: boolean; ago: number; webcamName: string } | null = null;
+  let bestResult: { confidence: string; sky: string; fog: boolean; ago: number; webcamName: string } | null = null;
 
   for (const [webcamId, result] of visionResults) {
-    if (result.beaufort < 0) continue;
+    if (result.beaufort < 0) continue; // night/invalid analysis (sentinel only, not displayed)
     if (result.spotId === spot.id) {
       const ago = Math.round((Date.now() - result.analyzedAt.getTime()) / 60_000);
       if (!bestResult || result.confidence === 'high' || ago < (bestResult.ago ?? 999)) {
-        bestResult = { bf: result.beaufort, label: result.beaufortLabel, kt: result.windEstimateKt, confidence: result.confidence, sky: result.weather.sky, fog: result.weather.fogVisible, ago, webcamName: webcamId };
+        bestResult = { confidence: result.confidence, sky: result.weather.sky, fog: result.weather.fogVisible, ago, webcamName: webcamId };
       }
     }
   }
 
   if (!bestResult) return null;
-  const color = bestResult.bf <= 1 ? '#94a3b8' : bestResult.bf <= 3 ? '#38bdf8' : bestResult.bf <= 5 ? '#fbbf24' : '#f87171';
+  const skyLabel = VISION_SKY_LABELS[bestResult.sky] ?? '';
 
   return (
     <div className="mt-1 pt-1 border-t border-slate-700/30">
       <div className="flex items-center gap-1.5 text-[10px]">
         <span className="text-slate-600">Vision IA:</span>
-        <span className="font-bold" style={{ color }}>B{bestResult.bf}</span>
-        <span className="text-slate-500">{bestResult.label} ~{bestResult.kt}kt</span>
+        {skyLabel && <span className="text-slate-400">{skyLabel}</span>}
         {bestResult.fog && <span className="text-amber-400">Niebla</span>}
         <span className="ml-auto text-slate-600">{bestResult.ago < 60 ? `${bestResult.ago}m` : `${Math.round(bestResult.ago / 60)}h`}</span>
       </div>

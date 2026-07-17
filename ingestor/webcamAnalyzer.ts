@@ -525,7 +525,7 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
     if (r.fog && r.visibility === 'poor' && r.spotId) {
       const cam = RIAS_WEBCAMS.find(w => w.id === r.webcamId);
       const camName = cam?.name ?? r.webcamId;
-      await dispatchVisibilityAlert(r.webcamId, r.spotId, r.description, camName, r.beaufort).catch(err =>
+      await dispatchVisibilityAlert(r.webcamId, r.spotId, r.description, camName).catch(err =>
         log.warn(`[Webcam] Fog alert failed: ${(err as Error).message}`));
     }
   }
