@@ -8,7 +8,7 @@
  */
 
 import { useCallback } from 'react';
-import { fetchActiveFires } from '../api/firmsClient';
+import { fetchActiveFires, fetchFireAttribution } from '../api/firmsClient';
 import { useFireStore } from '../store/fireStore';
 import { useVisibilityPolling } from './useVisibilityPolling';
 
@@ -16,11 +16,21 @@ const POLL_INTERVAL = 30 * 60_000; // 30 min
 
 export function useActiveFires() {
   const setFires = useFireStore((s) => s.setFires);
+  const setAttribution = useFireStore((s) => s.setAttribution);
 
   const fetch = useCallback(async () => {
-    const result = await fetchActiveFires(1); // last 24h
+    // Fires come from the live FIRMS proxy; the lightning attribution comes
+    // from our own history. Kept independent so a database hiccup costs the
+    // story behind the fire, never the fire itself.
+    const [result, attribution] = await Promise.all([
+      fetchActiveFires(1), // last 24h
+      // 3 days: a strike can smoulder 7-18h before the satellite sees the
+      // fire, and yesterday's hotspots are still on the map.
+      fetchFireAttribution(3),
+    ]);
     setFires(result.fires);
-  }, [setFires]);
+    setAttribution(attribution);
+  }, [setFires, setAttribution]);
 
   useVisibilityPolling(fetch, POLL_INTERVAL, true, 12_000); // 12s stagger to spread startup load
 }
