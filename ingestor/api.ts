@@ -19,6 +19,7 @@
  *   GET /api/v1/analytics/convection-trend?sector=&days=          → Daily peak CAPE/LI
  *   GET /api/v1/analytics/air-quality-trend?days=&station=        → Daily AQ rollup
  *   GET /api/v1/analytics/convection-grid?hourOffset=             → Spatial CAPE/LI grid
+ *   GET /api/v1/fires?days=                                       → Active fires + lightning attribution
  *
  * Usage:
  *   node --import tsx api.ts
@@ -47,6 +48,7 @@ import {
   queryAirQualityTrend,
   queryConvectionGrid,
   queryHistoricalBaseline,
+  queryFireAttribution,
 } from './queries.js';
 import { getPool } from './db.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
@@ -652,6 +654,34 @@ async function handleMagicWindowLatest(
   }
 }
 
+// ── Fires with lightning attribution ───────────────────
+
+/**
+ * Fires of the last `days` annotated with the strikes that may have lit them.
+ *
+ * Reads `active_fires` (what the 24/7 fetcher has stored) rather than the live
+ * FIRMS proxy: the attribution needs our lightning history anyway, and the
+ * fetcher polls at the same ~1h cadence as the satellites publish.
+ */
+async function handleFires(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const days = Math.min(Math.max(parseInt(params.days || '3', 10) || 3, 1), 30);
+  try {
+    const fires = await queryFireAttribution(days);
+    json(res, {
+      days,
+      count: fires.length,
+      attributedToLightning: fires.filter((f) => f.strikeCount > 0).length,
+      fires,
+    }, 200, origin);
+  } catch (err) {
+    dbError(res, err, 'handleFires', origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -679,6 +709,8 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/spots/scores': handleSpotScores,
   // Webcam vision latest results
   '/api/v1/webcam-vision': handleWebcamVision,
+  // Active fires + the lightning that may have started them
+  '/api/v1/fires': handleFires,
   // ── Analytics (Phase 3) — pre-computed rollups from continuous aggregates ──
   '/api/v1/analytics/lightning-heatmap':  handleAnalyticsLightningHeatmap,
   '/api/v1/analytics/convection-trend':   handleAnalyticsConvectionTrend,

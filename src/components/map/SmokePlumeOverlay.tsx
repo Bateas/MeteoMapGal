@@ -11,7 +11,7 @@
 
 import { memo, useMemo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
-import type { GeoJSON } from 'geojson';
+import type { FeatureCollection } from 'geojson';
 import { useFireStore } from '../../store/fireStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { msToKnots } from '../../services/windUtils';
@@ -47,7 +47,7 @@ function SmokePlumeOverlayInner() {
     return buildAllPlumes(fires, windStations);
   }, [fires, stations, readings]);
 
-  const geojson = useMemo<GeoJSON.FeatureCollection>(() => ({
+  const geojson = useMemo<FeatureCollection>(() => ({
     type: 'FeatureCollection',
     features: plumes.map((p) => ({
       type: 'Feature',

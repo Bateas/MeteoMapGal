@@ -18,7 +18,7 @@
 
 import { memo, useEffect, useState, useCallback, useRef } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
-import type { GeoJSON } from 'geojson';
+import type { Feature, FeatureCollection } from 'geojson';
 import { useWeatherStore } from '../../store/weatherStore';
 import {
   haloRadiusKm,
@@ -37,8 +37,8 @@ type ElevQuery = (lngLat: { lng: number; lat: number }) => number | null;
 function buildHaloGeoJSON(
   queryElev: ElevQuery,
   stations: { id: string; name: string; lat: number; lon: number; vis: number }[],
-): GeoJSON.FeatureCollection {
-  const features: GeoJSON.Feature[] = [];
+): FeatureCollection {
+  const features: Feature[] = [];
   for (const s of stations) {
     const radius = haloRadiusKm(s.vis);
     if (radius <= 0) continue;
@@ -92,9 +92,9 @@ function AemetVisibilityHaloInner() {
   const { current: mapRef } = useMap();
   const visibilityReadings = useWeatherStore((s) => s.visibilityReadings);
 
-  const [geojson, setGeojson] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [geojson, setGeojson] = useState<FeatureCollection | null>(null);
   const [opacity, setOpacity] = useState(0);
-  const lastRef = useRef<GeoJSON.FeatureCollection | null>(null);
+  const lastRef = useRef<FeatureCollection | null>(null);
 
   // Filter visibilityReadings → list of stations with vis<threshold
   const fogStations = (() => {
