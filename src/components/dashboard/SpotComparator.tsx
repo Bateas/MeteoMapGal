@@ -11,7 +11,7 @@ import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
 import { VERDICT_STYLE, VERDICT_HEX } from '../../config/verdictStyles';
-import { msToKnots, degreesToCardinal } from '../../services/windUtils';
+import { degreesToCardinal } from '../../services/windUtils';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
 export const SpotComparator = memo(function SpotComparator() {
@@ -71,14 +71,15 @@ export const SpotComparator = memo(function SpotComparator() {
         const score = scores.get(spot.id);
         const verdict: SpotVerdict = score?.verdict ?? 'unknown';
         const vs = VERDICT_STYLE[verdict];
-        const windKt = score?.windSpeedMs != null
-          ? Math.round(msToKnots(score.windSpeedMs))
-          : null;
+        // effectiveWindKt first — same calibrated value the popup and the
+        // marker show, so the comparison table never contradicts them.
+        const effKt = score?.effectiveWindKt ?? score?.wind?.avgSpeedKt;
+        const windKt = effKt != null ? Math.round(effKt) : null;
         const dir = score?.windDirDeg != null
           ? degreesToCardinal(score.windDirDeg)
           : null;
-        const waveH = score?.waveHeightM != null
-          ? score.waveHeightM.toFixed(1)
+        const waveH = score?.waves?.waveHeight != null
+          ? score.waves.waveHeight.toFixed(1)
           : null;
         const temp = score?.airTemp != null
           ? Math.round(score.airTemp)

@@ -114,6 +114,21 @@ function error(
   json(res, { error: message }, status, origin);
 }
 
+/**
+ * Handler failure: log the real cause server-side, tell the client nothing.
+ * Driver messages name schemas, columns and constraints — useful in the log,
+ * free reconnaissance in a response body.
+ */
+function dbError(
+  res: http.ServerResponse,
+  err: unknown,
+  handler: string,
+  origin?: string
+): void {
+  log.error(`[${handler}]`, (err as Error).message);
+  error(res, 'Internal error', 500, origin);
+}
+
 function parseSearchParams(url: URL): Record<string, string> {
   const params: Record<string, string> = {};
   url.searchParams.forEach((value, key) => {
@@ -409,7 +424,7 @@ async function handleSpotScores(
     );
     json(res, { count: result.rows.length, scores: result.rows }, 200, origin);
   } catch (err) {
-    error(res, (err as Error).message, 500, origin);
+    dbError(res, err, 'handleSpotScores', origin);
   }
 }
 
@@ -435,7 +450,7 @@ async function handleWebcamVision(
     );
     json(res, { count: result.rows.length, readings: result.rows }, 200, origin);
   } catch (err) {
-    error(res, (err as Error).message, 500, origin);
+    dbError(res, err, 'handleWebcamVision', origin);
   }
 }
 
@@ -482,7 +497,7 @@ async function handleAnalyticsLightningHeatmap(
       cells,
     }, 200, origin);
   } catch (err) {
-    error(res, (err as Error).message, 500, origin);
+    dbError(res, err, 'handleAnalyticsLightningHeatmap', origin);
   }
 }
 
@@ -501,7 +516,7 @@ async function handleAnalyticsConvectionTrend(
     const days_ = await queryConvectionTrend(sector, days);
     json(res, { sector, days, count: days_.length, trend: days_ }, 200, origin);
   } catch (err) {
-    error(res, (err as Error).message, 500, origin);
+    dbError(res, err, 'handleAnalyticsConvectionTrend', origin);
   }
 }
 
@@ -517,7 +532,7 @@ async function handleAnalyticsAirQualityTrend(
     const rows = await queryAirQualityTrend(days, station);
     json(res, { days, station: station ?? null, count: rows.length, trend: rows }, 200, origin);
   } catch (err) {
-    error(res, (err as Error).message, 500, origin);
+    dbError(res, err, 'handleAnalyticsAirQualityTrend', origin);
   }
 }
 
@@ -552,7 +567,7 @@ async function handleAnalyticsConvectionGrid(
     res.setHeader('Cache-Control', 'public, max-age=300');
     json(res, { hourOffset, ...result }, 200, origin);
   } catch (err) {
-    error(res, (err as Error).message, 500, origin);
+    dbError(res, err, 'handleAnalyticsConvectionGrid', origin);
   }
 }
 
@@ -584,7 +599,7 @@ async function handleAnalyticsHistoricalBaseline(
     res.setHeader('Cache-Control', 'public, max-age=3600');
     json(res, result, 200, origin);
   } catch (err) {
-    error(res, (err as Error).message, 500, origin);
+    dbError(res, err, 'handleAnalyticsHistoricalBaseline', origin);
   }
 }
 
@@ -632,7 +647,7 @@ async function handleMagicWindowLatest(
       detectedAt: row.time.toISOString(),
     }, 200, origin);
   } catch (err) {
-    error(res, (err as Error).message, 500, origin);
+    dbError(res, err, 'handleMagicWindowLatest', origin);
   }
 }
 

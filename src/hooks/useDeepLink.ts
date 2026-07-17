@@ -22,19 +22,22 @@ export function useDeepLink(): void {
 
     if (!sectorParam && !spotParam) return;
 
-    let sectorId: string | null = null;
-    if (sectorParam && SECTORS.find((s) => s.id === sectorParam)) {
-      sectorId = sectorParam;
+    if (sectorParam && SECTORS.some((s) => s.id === sectorParam)) {
       useSectorStore.getState().switchSector(sectorParam);
     }
 
     if (spotParam) {
-      // Find the spot in the (possibly newly-switched) sector. If sectorParam
-      // wasn't provided, search all spots; fall back to current sector.
-      const targetSector = sectorId ?? useSectorStore.getState().activeSector.id;
-      const spots = getSpotsForSector(targetSector);
-      const match = spots.find((s) => s.id === spotParam);
-      if (match) {
+      // Resolve the spot against every sector, not just the one in the URL:
+      // `?spot=` may come without `?sector=` (hand-written or legacy links), or
+      // with one that doesn't own it. Whoever actually has the spot wins —
+      // otherwise it silently fails to open.
+      const owner = SECTORS.find((s) =>
+        getSpotsForSector(s.id).some((sp) => sp.id === spotParam),
+      )?.id;
+      if (owner) {
+        if (owner !== useSectorStore.getState().activeSector.id) {
+          useSectorStore.getState().switchSector(owner);
+        }
         // Small delay so the sector switch fully commits before opening the
         // popup (spotStore.selectSpot needs the new sector's spots loaded).
         setTimeout(() => {

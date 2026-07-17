@@ -74,8 +74,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const thermalPrecursors = useSpotStore((s) => s.thermalPrecursors);
   const webcamVision = useSpotStore((s) => s.webcamVision);
   const isMobile = useUIStore((s) => s.isMobile);
-  // Casual users (simpleMode on by default for new visitors) get a lean popup:
-  // the decision essentials stay, the technical/power-user sections hide.
+  // With simpleMode on (opt-in today, uiStore defaults it to false) the popup
+  // keeps the decision essentials and hides the technical/power-user sections.
   const simpleMode = useUIStore((s) => s.simpleMode);
   const dismiss = () => selectSpot('');
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);

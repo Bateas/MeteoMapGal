@@ -129,7 +129,7 @@ export function SpotScoringSection() {
 
       {/* 5-level scoring scale */}
       <div className="space-y-2">
-        <h3 className="text-sm font-bold text-white">Escala de viento (9 niveles)</h3>
+        <h3 className="text-sm font-bold text-white">Escala de viento (10 niveles)</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2 text-[11px]">
           <p className="text-slate-400 leading-relaxed">
             El veredicto se basa en el <strong className="text-slate-300">viento real medido</strong> por
