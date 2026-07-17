@@ -300,6 +300,63 @@ export async function dispatchMagicWindowAlert(
   }
 }
 
+// ── Lightning proximity alerts (LOCAL safety) ─────────
+
+/** 45min per sector — a storm parked over the ría would otherwise re-alert
+ *  every 5min cycle. Escalation (aviso → peligro) bypasses the cooldown. */
+const LIGHTNING_COOLDOWN_MS = 45 * 60_000;
+
+type LightningAlertLevel = 'aviso' | 'peligro';
+const LIGHTNING_RANK: Record<LightningAlertLevel, number> = { aviso: 1, peligro: 2 };
+const lastLightningAlert = new Map<string, { at: number; level: LightningAlertLevel }>();
+
+/**
+ * Dispatch a per-spot lightning proximity alert, one message per sector with
+ * the affected spots as lines ("Cesantes: rayo a 6km (5 en 20min)").
+ *
+ * PELIGRO is the one alert allowed through night silence: confirmed strikes
+ * within 10km of a spot are a safety call, not a convenience ping — and the
+ * corroboration rules upstream make it rare. AVISO stays silent at night
+ * like every other alert.
+ */
+export async function dispatchLightningAlert(
+  sector: string,
+  level: LightningAlertLevel,
+  spotLines: string[],
+): Promise<void> {
+  if (level === 'aviso' && isNightTime()) return;
+
+  const prev = lastLightningAlert.get(sector);
+  if (prev && (Date.now() - prev.at) < LIGHTNING_COOLDOWN_MS
+      && LIGHTNING_RANK[level] <= LIGHTNING_RANK[prev.level]) {
+    return;
+  }
+
+  const title = level === 'peligro'
+    ? `RAYOS CERCA — ${sector}`
+    : `Actividad electrica — ${sector}`;
+  const advice = level === 'peligro'
+    ? 'Fuera del agua: refugio cerrado o coche.'
+    : 'Vigila el radar antes de salir.';
+  const emoji = level === 'peligro' ? '⚡🔴' : '⚡🟡';
+  const msg = `${emoji} *${title}*\n${spotLines.join('\n')}\n${advice}`;
+
+  const ok = await postWebhook({
+    type: 'lightning-proximity',
+    sector,
+    level,
+    text: msg,
+    severity: level === 'peligro' ? 'high' : 'moderate',
+    title,
+    message: msg,
+  });
+
+  if (ok) {
+    lastLightningAlert.set(sector, { at: Date.now(), level });
+    log.ok(`Lightning alert: ${sector} ${level.toUpperCase()} — ${spotLines.length} spot(s)`);
+  }
+}
+
 /**
  * Reset cooldowns (e.g., on restart).
  */
@@ -308,4 +365,5 @@ export function resetCooldowns(): void {
   lastForecastAlert.clear();
   lastVisibilityAlert.clear();
   lastMagicWindowAlert.clear();
+  lastLightningAlert.clear();
 }
