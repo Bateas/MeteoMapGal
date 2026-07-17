@@ -1,19 +1,19 @@
 /**
  * NASA FIRMS active-fires fetcher.
  *
- * Persists every wildfire hotspot returned by the FIRMS VIIRS S-NPP NRT
- * pipeline into the `active_fires` hypertable. Independent of the HTTP proxy
- * (`handleFirmsProxy`) — that path serves data to the browser; this path is
- * the historical-dataset writer.
+ * Persists every wildfire hotspot returned by the FIRMS VIIRS NRT pipelines
+ * (S-NPP + NOAA-20, see FIRMS_PRODUCTS) into the `active_fires` hypertable.
+ * Independent of the HTTP proxy (`handleFirmsProxy`) — that path serves data
+ * to the browser; this path is the historical-dataset writer.
  *
  * Why a separate fetcher (not piggy-backing the proxy):
  *   - Proxy fires only when a user opens the web app.
  *   - The dataset must accumulate 24/7 regardless of traffic.
  *   - Insert errors here shouldn't poison the proxy's response.
  *
- * Cadence: 30min. Matches FIRMS NRT latency (~60min satellite pass) so we
- * never miss a pass without piling on. Volume in Galicia: 0-50/day typical,
- * 500+/day during big fire season.
+ * Cadence: 60min (set in index.ts). Matches FIRMS NRT latency (~1h), so a
+ * faster poll would just re-read the same hotspots. Volume in Galicia: 0-50
+ * rows/day typical, 500+/day during big fire season.
  *
  * Reuses the pure parser from `src/services/fireService.ts` so the wire
  * format definition lives in ONE place — no copy-paste drift.
@@ -21,7 +21,7 @@
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
-import { parseFirmsCsv, filterRealFires } from '../src/services/fireService.js';
+import { parseFirmsCsv, filterRealFires, FIRMS_PRODUCTS, mergeFirmsCsv } from '../src/services/fireService.js';
 
 const FIRMS_API_KEY = process.env.FIRMS_API_KEY || '';
 const FIRMS_BASE = 'https://firms.modaps.eosdis.nasa.gov/api/area/csv';
@@ -39,18 +39,25 @@ async function fetchFirmsCsv(): Promise<string | null> {
     log.warn('[FIRMS Fetcher] FIRMS_API_KEY not set — skipping');
     return null;
   }
-  const url = `${FIRMS_BASE}/${FIRMS_API_KEY}/VIIRS_SNPP_NRT/${FIRMS_BBOX}/${FETCH_DAYS}`;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-    if (!res.ok) {
-      log.warn(`[FIRMS Fetcher] upstream ${res.status}`);
-      return null;
-    }
-    return await res.text();
-  } catch (err) {
-    log.warn(`[FIRMS Fetcher] fetch failed: ${(err as Error).message}`);
-    return null;
-  }
+  // Both VIIRS platforms in parallel — see FIRMS_PRODUCTS. A platform that
+  // fails only costs us its own overpasses; the other still lands.
+  const results = await Promise.all(
+    FIRMS_PRODUCTS.map(async (product) => {
+      const url = `${FIRMS_BASE}/${FIRMS_API_KEY}/${product}/${FIRMS_BBOX}/${FETCH_DAYS}`;
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+        if (!res.ok) {
+          log.warn(`[FIRMS Fetcher] ${product} upstream ${res.status}`);
+          return null;
+        }
+        return await res.text();
+      } catch (err) {
+        log.warn(`[FIRMS Fetcher] ${product} failed: ${(err as Error).message}`);
+        return null;
+      }
+    }),
+  );
+  return mergeFirmsCsv(results) || null;
 }
 
 // ── DB persist ────────────────────────────────────────

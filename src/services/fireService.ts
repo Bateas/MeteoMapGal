@@ -10,6 +10,43 @@
 
 import type { ActiveFire, FireConfidence } from '../types/fire';
 
+/**
+ * VIIRS NRT products we poll, both at 375m.
+ *
+ * S-NPP alone gives ~2 overpasses a day; adding NOAA-20 roughly doubles that,
+ * which is time shaved off "the hill is burning" → "we can see it". The two
+ * satellites report the same fire separately and we keep both observations:
+ * active_fires keys on satellite + acquisition time, and the frontend fire id
+ * already includes the timestamp.
+ */
+export const FIRMS_PRODUCTS = ['VIIRS_SNPP_NRT', 'VIIRS_NOAA20_NRT'] as const;
+
+/**
+ * Merge several FIRMS CSV responses into one.
+ *
+ * Keeps the first non-empty header and appends every data row. Empty or
+ * header-only responses contribute nothing — a satellite with no hotspots in
+ * the window is the normal case, not a failure. Returns '' when nothing usable
+ * came back, so callers can tell "no fires" from "no data".
+ */
+export function mergeFirmsCsv(csvs: (string | null)[]): string {
+  let header = '';
+  const rows: string[] = [];
+
+  for (const csv of csvs) {
+    if (!csv) continue;
+    const lines = csv.trim().split(/\r?\n/);
+    if (lines.length === 0 || !lines[0].startsWith('latitude')) continue;
+    if (!header) header = lines[0];
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim()) rows.push(lines[i]);
+    }
+  }
+
+  if (!header) return '';
+  return rows.length ? `${header}\n${rows.join('\n')}` : header;
+}
+
 /** VIIRS confidence letter → enum */
 function parseConfidence(letter: string): FireConfidence {
   const c = letter?.trim().toLowerCase();

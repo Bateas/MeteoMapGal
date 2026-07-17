@@ -50,6 +50,7 @@ import {
 } from './queries.js';
 import { getPool } from './db.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
+import { FIRMS_PRODUCTS, mergeFirmsCsv } from '../src/services/fireService.js';
 
 // ── Configuration ──────────────────────────────────────
 
@@ -979,23 +980,40 @@ async function handleFirmsProxy(
   }
 
   try {
-    // VIIRS_SNPP_NRT — best resolution (375m) + URT pipeline
-    const url = `${FIRMS_BASE}/${FIRMS_API_KEY}/VIIRS_SNPP_NRT/${FIRMS_BBOX}/${days}`;
-    const upstream = await fetch(url, { signal: AbortSignal.timeout(FIRMS_TIMEOUT_MS) });
-    const buf = Buffer.from(await upstream.arrayBuffer());
-
-    if (upstream.ok) {
-      firmsCache.set(days, { data: buf, ts: Date.now() });
-      // Cap cache to a handful of days entries
-      if (firmsCache.size > 10) {
-        const now = Date.now();
-        for (const [k, v] of firmsCache) {
-          if (now - v.ts > FIRMS_CACHE_TTL) firmsCache.delete(k);
+    // Both VIIRS platforms (375m): S-NPP alone is ~2 overpasses/day, NOAA-20
+    // roughly doubles the chance of catching a fire early. Fetched in parallel;
+    // if one platform fails we still serve the other rather than going blind.
+    const results = await Promise.all(
+      FIRMS_PRODUCTS.map(async (product) => {
+        try {
+          const url = `${FIRMS_BASE}/${FIRMS_API_KEY}/${product}/${FIRMS_BBOX}/${days}`;
+          const r = await fetch(url, { signal: AbortSignal.timeout(FIRMS_TIMEOUT_MS) });
+          if (!r.ok) {
+            log.warn(`[FIRMS Proxy] ${product} upstream ${r.status}`);
+            return null;
+          }
+          return await r.text();
+        } catch (err) {
+          log.warn(`[FIRMS Proxy] ${product} failed: ${(err as Error).message}`);
+          return null;
         }
+      }),
+    );
+
+    const merged = mergeFirmsCsv(results);
+    if (!merged) throw new Error('all FIRMS platforms failed');
+    const buf = Buffer.from(merged, 'utf8');
+
+    firmsCache.set(days, { data: buf, ts: Date.now() });
+    // Cap cache to a handful of days entries
+    if (firmsCache.size > 10) {
+      const now = Date.now();
+      for (const [k, v] of firmsCache) {
+        if (now - v.ts > FIRMS_CACHE_TTL) firmsCache.delete(k);
       }
     }
 
-    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': 'text/csv', 'X-Cache': 'MISS' });
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': 'text/csv', 'X-Cache': 'MISS' });
     res.end(buf);
   } catch (err) {
     log.error('[FIRMS Proxy]', (err as Error).message);
