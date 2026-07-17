@@ -325,8 +325,9 @@ ALTER TABLE lightning_strikes ADD COLUMN IF NOT EXISTS is_galicia BOOLEAN NOT NU
 CREATE INDEX IF NOT EXISTS idx_strikes_galicia ON lightning_strikes (is_galicia, time DESC);
 
 -- ── Active fires (historical-data-vision Phase 1a) ─────────
--- NASA FIRMS VIIRS hotspots persisted from each /api/v1/firms cache miss.
--- Keys include satellite + acq time so the same physical fire seen by SNPP
+-- NASA FIRMS VIIRS hotspots, written 24/7 by firmsFetcher.ts (its own NASA
+-- call — the /api/v1/firms proxy only caches for the browser, it never writes).
+-- Keys include satellite + acq time so the same physical fire seen by S-NPP
 -- and NOAA-20 doesn't get deduped (we want both observations for accuracy).
 CREATE TABLE IF NOT EXISTS active_fires (
   time           TIMESTAMPTZ     NOT NULL,

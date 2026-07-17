@@ -9,6 +9,7 @@ import {
   parseFirmsCsv,
   filterRealFires,
   aggregateFiresForSector,
+  mergeFirmsCsv,
 } from './fireService';
 import type { ActiveFire } from '../types/fire';
 
@@ -197,5 +198,44 @@ describe('aggregateFiresForSector', () => {
     const f = [fire(42.58, -8.62)]; // ~30km away
     const r = aggregateFiresForSector(f, cesantesCenter, /*warn*/ 100, /*crit*/ 50);
     expect(r.severity).toBe('alerta'); // now within 50km critical
+  });
+});
+
+describe('mergeFirmsCsv', () => {
+  const rowA = '42.10,-8.20,330.5,0.4,0.4,2026-07-25,1242,N,VIIRS,n,2.0NRT,290.1,12.5,D';
+  const rowB = '42.11,-8.21,335.0,0.4,0.4,2026-07-25,0318,1,VIIRS,h,2.0NRT,295.0,20.0,N';
+
+  it('merges rows from both platforms under a single header', () => {
+    const merged = mergeFirmsCsv([`${HEADER}\n${rowA}`, `${HEADER}\n${rowB}`]);
+    const lines = merged.split('\n');
+    expect(lines[0]).toBe(HEADER);
+    expect(lines).toHaveLength(3);
+    // Both satellites survive the merge — parser sees two observations
+    expect(parseFirmsCsv(merged)).toHaveLength(2);
+  });
+
+  it('keeps the surviving platform when the other returns nothing', () => {
+    expect(parseFirmsCsv(mergeFirmsCsv([`${HEADER}\n${rowA}`, null]))).toHaveLength(1);
+    expect(parseFirmsCsv(mergeFirmsCsv([null, `${HEADER}\n${rowB}`]))).toHaveLength(1);
+  });
+
+  it('header-only responses mean no fires, not a failure', () => {
+    const merged = mergeFirmsCsv([HEADER, HEADER]);
+    expect(merged).toBe(HEADER);
+    expect(parseFirmsCsv(merged)).toEqual([]);
+  });
+
+  it('returns empty string when every platform failed', () => {
+    expect(mergeFirmsCsv([null, null])).toBe('');
+  });
+
+  it('ignores a response that is not FIRMS CSV', () => {
+    const merged = mergeFirmsCsv(['<html>rate limited</html>', `${HEADER}\n${rowA}`]);
+    expect(parseFirmsCsv(merged)).toHaveLength(1);
+  });
+
+  it('tolerates CRLF and trailing newlines', () => {
+    const merged = mergeFirmsCsv([`${HEADER}\r\n${rowA}\r\n`, `${HEADER}\n${rowB}\n`]);
+    expect(parseFirmsCsv(merged)).toHaveLength(2);
   });
 });
