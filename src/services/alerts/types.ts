@@ -20,7 +20,6 @@ export type AlertCategory =
   | 'wind-front'     // Frente de viento
   | 'pressure'       // Tendencia barométrica
   | 'marine'         // Mar cruzada / oleaje
-  | 'upwelling'      // Afloramiento costero
   | 'downburst';     // Downburst seco / wind shear costero
 
 export type AlertSeverity = 'info' | 'moderate' | 'high' | 'critical';
@@ -77,6 +76,5 @@ export const CATEGORY_WEIGHT: Record<AlertCategory, number> = {
   'wind-front':  1.0,   // Propagation info
   'pressure':    2.5,   // Early storm indicator
   'marine':      2.0,   // Cross-sea / wave safety
-  'upwelling':   1.0,   // Coastal upwelling info
   'drone':       0.5,   // Convenience
 };

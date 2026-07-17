@@ -520,23 +520,6 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
       }
     }
 
-    // ── Upwelling / coastal cold-water rise (priority 5 — Rías only) ──
-    // Surface the upwelling alert that the pipeline builds but previously
-    // never reached the user (only AlertPanel). Useful for divers/anglers:
-    // N/NW wind drives Ekman transport → cold deep water rises → fish move.
-    if (isCoastalSector(sectorId)) {
-      const up = unifiedAlerts.find((a) => a.category === 'upwelling');
-      if (up) {
-        result.push({
-          key: 'upwelling',
-          text: `Afloramiento: ${up.title}${up.detail ? ` · ${up.detail}` : ''}`,
-          color: 'text-cyan-400',
-          bg: 'bg-cyan-900/20',
-          priority: up.urgent ? 6 : 5,
-        });
-      }
-    }
-
     // ── Data-quality WARNING (priority 1) — only when significantly degraded ──
     // The routine "N/M estaciones activas" count was sector-level noise (a
     // status count doesn't change a decision NOW). Keep only the warning when

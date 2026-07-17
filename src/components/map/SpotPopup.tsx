@@ -30,7 +30,6 @@ import { predictCesantesCanalization, computeMouthHumidity } from '../../service
 import { useBuoyStore } from '../../store/buoyStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWebcamStore } from '../../store/webcamStore';
-import { beaufortToColor } from '../../services/webcamVisionService';
 import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
 import { fetchMarineForecast, fetchMarineData, type MarineForecastHour } from '../../api/marineClient';
 import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
@@ -41,6 +40,7 @@ import { computeSurfVerdict, swellAlignmentMultiplier } from '../spot/surfVerdic
 import { detectViracionPhase } from '../../services/viracionDetector';
 import { assessRainNowcast } from '../../services/rainNowcastService';
 import { assessBeachDay } from '../../services/beachDayService';
+import { waterTempLabel } from '../../services/buoyUtils';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
@@ -873,8 +873,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Thermal precursor early warning (collapsible) ── */}
       {precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
 
-      {/* ── Webcam Vision — weather analysis from LLM ── */}
-      {visionResult && (visionResult.beaufort >= 0 || visionResult.weather.weatherDescription) && (
+      {/* ── Webcam Vision — weather analysis from LLM (sky/visibility/fog only —
+            wind estimate hidden: moondream is not reliable for wind) ── */}
+      {visionResult && (visionResult.weather.weatherDescription || visionResult.weather.fogVisible || visionResult.weather.sky !== 'unknown') && (
         <WebcamVisionBadge result={visionResult} />
       )}
 
@@ -1137,7 +1138,6 @@ const LIGHT_LABELS: Record<string, string> = {
 
 // ── Webcam Vision result badge ─────────────────────────────
 function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
-  const color = beaufortToColor(result.beaufort);
   const ago = timeAgoEs(result.analyzedAt);
   const w = result.weather;
   const skyInfo = SKY_LABELS[w.sky] ?? SKY_LABELS.unknown;
@@ -1156,17 +1156,6 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
         {/* Sky */}
         <div className="text-slate-500">Cielo</div>
         <div className="col-span-2"><span style={{ color: skyInfo.color }}>{skyInfo.label}</span>{w.cloudType ? ` · ${w.cloudType}` : ''}</div>
-
-        {/* Wind/Beaufort */}
-        {result.beaufort >= 0 && (
-          <>
-            <div className="text-slate-500">Viento</div>
-            <div className="col-span-2">
-              <span className="font-bold" style={{ color }}>B{result.beaufort}</span>
-              <span className="text-slate-400"> {result.beaufortLabel} · ~{result.windEstimateKt}kt</span>
-            </div>
-          </>
-        )}
 
         {/* Sea state */}
         {w.seaState && (
@@ -1512,7 +1501,7 @@ function TemperatureSection({ score, mohidSeaTemp, marineSST }: { score: SpotSco
         {waterTemp != null && (
           <Cell
             label={waterLabel}
-            value={`${waterTemp.toFixed(1)}°C`}
+            value={`${waterTemp.toFixed(1)}°C · ${waterTempLabel(waterTemp)}`}
             color={waterTColor(waterTemp)}
           />
         )}

@@ -11,7 +11,6 @@ import type { ThermalProfile } from '../lapseRateService';
 import type { HourlyForecast } from '../../types/forecast';
 import type { StormShadow } from '../stormShadowDetector';
 import type { BuoyReading } from '../../api/buoyClient';
-import type { SSTSnapshot } from '../../store/buoyStore';
 import type { TeleconnectionIndex } from '../../api/naoClient';
 import type { AlertCategory, AlertSeverity, CompositeRisk, UnifiedAlert } from './types';
 import { buildStormAlerts, buildStormShadowAlerts } from './stormAlerts';
@@ -22,7 +21,6 @@ import { buildInversionForecastAlert } from '../inversionForecastService';
 import { buildPressureTrendAlerts } from '../pressureTrendService';
 import { buildMaritimeFogAlerts } from '../maritimeFogService';
 import { buildCrossSeaAlerts } from '../crossSeaService';
-import { buildUpwellingAlerts } from '../upwellingService';
 import { buildWindTrendAlerts } from './windTrendAlerts';
 import { buildRainAlerts } from './rainAlerts';
 import { buildDownburstAlerts } from './downburstAlerts';
@@ -125,7 +123,6 @@ export function aggregateAllAlerts(sources: {
   currentReadings?: Map<string, import('../../types/station').NormalizedReading>;
   readingHistory?: Map<string, import('../../types/station').NormalizedReading[]>;
   buoys?: BuoyReading[];
-  sstHistory?: Map<number, SSTSnapshot[]>;
   stationsGeo?: { id: string; lat: number; lon: number }[];
   teleconnections?: TeleconnectionIndex[];
   /** True if any webcam Vision IA detects fog in the last 30min */
@@ -163,7 +160,9 @@ export function aggregateAllAlerts(sources: {
         (sources.buoys || sources.regionalVisibility || sources.webcamFogDetected)
       ? buildMaritimeFogAlerts(sources.buoys ?? [], sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected, sources.webcamFogCount, sources.webcamFogIds, sources.fogSources, sources.regionalVisibility, sources.webcamCriticalVisibilityCount) : []),
     ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),
-    ...(sources.buoys && sources.sstHistory ? buildUpwellingAlerts(sources.buoys, sources.sstHistory) : []),
+    // Upwelling alerts removed. The detector required a >=3h SST history buffer
+    // that only lived in session memory, so it never fired in production. The
+    // useful signal (cold water) reaches the user directly from buoy waterTemp.
     ...(sources.currentReadings && sources.readingHistory
       ? buildWindTrendAlerts(sources.currentReadings, sources.readingHistory) : []),
     ...buildRainAlerts(sources.forecast),

@@ -80,7 +80,6 @@ export function useUnifiedAlertPipeline({
   const setUnifiedAlerts = useAlertStore((s) => s.setAlerts);
   const notifConfig = useNotificationStore((s) => s.config);
   const buoys = useBuoyStore((s) => s.buoys);
-  const sstHistory = useBuoyStore((s) => s.sstHistory);
   const forecastFetchedAt = useForecastStore((s) => s.fetchedAt);
   const setThermalProfile = useTemperatureOverlayStore((s) => s.setThermalProfile);
 
@@ -271,9 +270,8 @@ export function useUnifiedAlertPipeline({
         stormShadow,
         currentReadings,
         readingHistory,
-        // Maritime alerts (cross-sea, fog, upwelling) only apply to coastal sectors
+        // Maritime alerts (cross-sea, fog) only apply to coastal sectors
         buoys: isCoastalSector(sectorId) && buoys.length > 0 ? buoys : undefined,
-        sstHistory: isCoastalSector(sectorId) && sstHistory.size > 0 ? sstHistory : undefined,
         stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
         teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
         webcamFogDetected,
@@ -292,7 +290,7 @@ export function useUnifiedAlertPipeline({
   }, [
     stormAlert, stormShadow, thermalProfile, fieldAlerts, forecastFetchedAt,
     setUnifiedAlerts, notifConfig, currentReadings, historyEpoch,
-    buoys, sstHistory, stations, sectorId, teleconnectionsRef,
+    buoys, stations, sectorId, teleconnectionsRef,
   ]);
 
   return fieldAlerts;

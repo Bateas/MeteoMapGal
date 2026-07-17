@@ -1,5 +1,5 @@
 /**
- * Hook for webcam vision analysis — Beaufort estimation via LLM.
+ * Hook for webcam vision analysis — sky/visibility/fog via LLM.
  *
  * DEV-ONLY path. In production the source of truth is `useWebcamVisionData`
  * which reads the ingestor API (`/api/v1/webcam-vision`) backed by the
@@ -100,9 +100,7 @@ export function useWebcamVision() {
         for (const [spotId, result] of results) {
           const w = result.weather;
           console.log(
-            `[WebcamVision] ${spotId}: Beaufort ${result.beaufort} (${result.beaufortLabel}) ` +
-            `~${result.windEstimateKt}kt · ${result.confidence} · ${result.latencyMs}ms\n` +
-            `  Wind: ${result.description}\n` +
+            `[WebcamVision] ${spotId}: ${result.confidence} · ${result.latencyMs}ms\n` +
             `  Weather: ${w.sky} · vis:${w.visibility} · precip:${w.precipitation} · fog:${w.fogVisible}` +
             (w.cloudType ? ` · clouds:${w.cloudType}` : '') +
             (w.weatherDescription ? `\n  ${w.weatherDescription}` : ''),

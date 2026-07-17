@@ -125,10 +125,6 @@ export interface SpotScore {
   humiditySignal: string | null;
   /** Virtual potential temperature gradient: +K=land warmer (virazon), -K=land cooler (bocana) */
   thetaVGradient: number | null;
-  /** Webcam Vision IA Beaufort (informational — does not modify score) */
-  webcamBeaufort: number | null;
-  /** Webcam discrepancy note (when Beaufort diverges from station consensus) */
-  webcamNote: string | null;
   computedAt: Date;
 }
 
@@ -1343,8 +1339,6 @@ export function scoreAllSpots(
       dewPoint,
       humiditySignal,
       thetaVGradient,
-      webcamBeaufort: null, // populated by useSpotScoring post-processing
-      webcamNote: null,
       computedAt,
     });
   }

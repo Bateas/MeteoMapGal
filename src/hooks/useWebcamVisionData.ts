@@ -2,7 +2,8 @@
  * useWebcamVisionData — polls ingestor API for webcam vision analysis results.
  *
  * Reads from /api/v1/webcam-vision (served by ingestor, backed by Ollama).
- * Updates webcamStore.visionResults so popups can display Beaufort + weather data.
+ * Updates webcamStore.visionResults so popups can display sky/visibility/fog.
+ * (Beaufort stays in the payload as a valid-analysis sentinel — never shown as wind.)
  * Falls back gracefully if ingestor API is unavailable.
  */
 
