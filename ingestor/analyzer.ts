@@ -13,7 +13,14 @@ import { log } from './logger.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
-import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert } from './alertDispatcher.js';
+import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert } from './alertDispatcher.js';
+import {
+  assessSpotLightningRisk,
+  formatRiskLine,
+  LIGHTNING_WINDOW_MIN,
+  type ProximityStrike,
+  type SpotLightningRisk,
+} from '../src/services/lightningProximityService.js';
 import { degreesToCardinal } from '../src/services/windUtils.js';
 import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import { getSpotsForSector } from '../src/config/spots.js';
@@ -55,6 +62,15 @@ const SPOTS: SpotDef[] = (['embalse', 'rias'] as const).flatMap((sector) =>
       radiusKm: RADIUS_OVERRIDE[s.id] ?? s.radiusKm,
       thermalDetection: s.thermalDetection,
     })),
+);
+
+/** Lightning safety covers EVERY spot, surf included — a surfer in the water
+ *  cares about a strike more than anyone. The wind-verdict SPOTS list above
+ *  excludes surf on purpose; this one must not. */
+const SAFETY_SPOTS = (['embalse', 'rias'] as const).flatMap((sector) =>
+  getSpotsForSector(sector).map((s) => ({
+    id: s.id, name: s.shortName, lat: s.center[1], lon: s.center[0], sector,
+  })),
 );
 
 // ── Verdict thresholds + scoring imported from analyzerLogic ──────────
@@ -287,6 +303,72 @@ export async function runAnalysis(): Promise<void> {
     await evaluateAndDispatchMagicWindow(readings, buoys);
   } catch (err) {
     log.warn(`Magic window evaluation failed: ${(err as Error).message}`);
+  }
+
+  // 5. LOCAL lightning safety — "rayo a X km de TU spot". Observed strikes
+  // (certified source), not a model; the per-spot distance is the signal the
+  // sector-wide storm probability structurally cannot give.
+  try {
+    await checkLightningProximity();
+  } catch (err) {
+    log.warn(`Lightning proximity check failed: ${(err as Error).message}`);
+  }
+}
+
+// ── Lightning proximity (LOCAL safety) ────────────────
+
+/**
+ * Cloud-to-ground strikes in the proximity window, Galicia bbox only.
+ * Cheap query — lightning_strikes is time-indexed and the window is short.
+ */
+async function getRecentStrikes(): Promise<ProximityStrike[]> {
+  const db = getPool();
+  try {
+    const result = await db.query<{ time: Date; lat: number; lon: number }>(`
+      SELECT time, lat, lon
+      FROM lightning_strikes
+      WHERE time > NOW() - ($1::int * INTERVAL '1 minute')
+        AND cloud_to_cloud = FALSE
+        AND is_galicia = TRUE
+    `, [LIGHTNING_WINDOW_MIN]);
+    return result.rows.map(r => ({ lat: r.lat, lon: r.lon, time: r.time }));
+  } catch (err) {
+    log.warn(`getRecentStrikes failed: ${(err as Error).message}`);
+    return [];
+  }
+}
+
+/**
+ * Assess per-spot lightning risk and dispatch ONE message per sector listing
+ * the affected spots — a storm over the ría would otherwise fire the same
+ * information five times, once per spot.
+ */
+async function checkLightningProximity(): Promise<void> {
+  const strikes = await getRecentStrikes();
+  if (strikes.length === 0) return; // quiet weather — no heartbeat needed
+
+  const risks = assessSpotLightningRisk(SAFETY_SPOTS, strikes);
+  if (risks.length === 0) {
+    // Heartbeat only while there IS activity: shows the detector ran and
+    // judged the storm too far from every spot.
+    log.info(`Lightning proximity quiet — ${strikes.length} strikes in window, none near a spot`);
+    return;
+  }
+
+  const bySector = new Map<string, SpotLightningRisk[]>();
+  for (const r of risks) {
+    const key = r.sector ?? 'rias';
+    const list = bySector.get(key) ?? [];
+    list.push(r);
+    bySector.set(key, list);
+  }
+
+  for (const [sector, list] of bySector) {
+    const worst = list[0].level; // list preserves worst-first sort
+    const lines = list.slice(0, 4).map(formatRiskLine);
+    await dispatchLightningAlert(
+      sector === 'embalse' ? 'Embalse' : 'Rias Baixas', worst, lines,
+    );
   }
 }
 
