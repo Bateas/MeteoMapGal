@@ -172,22 +172,44 @@ export function predictStorm(
   probability += approachSignal.weight * 100;
 
   // ── 6. Storm shadow (solar drop + wind anomaly) ──
+  //
+  // Weight 0 since v2.90.0 — measured, not assumed. Across 1212 predictions
+  // checked against reality (Apr-Jul 2026), windows where this fired saw
+  // lightning 22.9% of the time versus 45.9% when it did not: it predicted the
+  // OPPOSITE of what it claimed, while firing in 64% of all windows and adding
+  // probability every time.
+  //
+  // The physics say the same thing. The detector reads a drop in solar
+  // radiation and calls it "the storm's cloud arriving", but what it actually
+  // reads is "it is cloudy" — and an overcast Galician afternoon never builds
+  // the CAPE a convective storm needs. The confounder (ordinary cloud) is the
+  // overwhelming majority of hits.
+  //
+  // Still computed and still pushed: the signal keeps its slot in the storage
+  // contract (storm_predictions.signal_shadow) so we go on measuring it, and
+  // the shadow detector stays useful elsewhere. Give it weight again only when
+  // it can tell convective cloud from stratiform — and only with numbers.
   const shadowSignal: StormSignal = {
     name: 'Sombra de tormenta',
     active: stormShadow != null && stormShadow.confidence > 40,
     value: stormShadow ? `${stormShadow.confidence}% confianza, ${stormShadow.shadowedStations.length} estaciones` : 'No detectada',
-    weight: stormShadow && stormShadow.confidence > 60 ? 0.15 : stormShadow && stormShadow.confidence > 40 ? 0.1 : 0,
+    weight: 0,
   };
   signals.push(shadowSignal);
   probability += shadowSignal.weight * 100;
 
   // ── 7. Wind gusts forecast ──
+  //
+  // Weight 0 since v2.90.0 — same audit: 31.8% of windows with gusts forecast
+  // saw lightning versus 31.2% without. A 0.6 point lift is not a signal, it
+  // is the base rate. Kept in the list for its storage slot and its display
+  // value; it was paying rent on the probability for nothing.
   const maxGusts = Math.max(0, ...next3h.map((f) => f.windGusts ?? 0));
   const gustSignal: StormSignal = {
     name: 'Rachas previstas',
     active: maxGusts > 10, // >10 m/s = ~20kt
     value: `${(maxGusts * 1.944).toFixed(0)} kt`,
-    weight: maxGusts > 15 ? 0.1 : maxGusts > 10 ? 0.05 : 0,
+    weight: 0,
   };
   signals.push(gustSignal);
   probability += gustSignal.weight * 100;

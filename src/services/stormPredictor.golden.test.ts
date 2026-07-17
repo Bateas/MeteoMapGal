@@ -128,7 +128,7 @@ function golden(p: ReturnType<typeof predictStorm>) {
 
 // ── Golden scenarios ─────────────────────────────────────
 
-describe('stormPredictor golden master (frozen at v2.87.2, pre-calibration)', () => {
+describe('stormPredictor golden master (v2.90.0 — shadow/gusts measured at zero lift)', () => {
   it('signal order is the storage contract for storm_predictions.signal_*', () => {
     const p = predictStorm([makeForecast()], NO_ALERT, null);
     expect(p.signals.map((s) => s.name)).toEqual([
@@ -380,7 +380,7 @@ describe('stormPredictor golden master (frozen at v2.87.2, pre-calibration)', ()
     expect(golden(predictStorm([makeForecast({ cape: 500 })], NO_ALERT, shadow))).toMatchInlineSnapshot(`
       {
         "horizon": "none",
-        "probability": 25,
+        "probability": 10,
         "severity": "none",
         "signals": [
           "CAPE=0.1",
@@ -388,7 +388,7 @@ describe('stormPredictor golden master (frozen at v2.87.2, pre-calibration)', ()
           "Nubosidad=0",
           "Rayos detectados=0",
           "Tormenta acercandose=0",
-          "Sombra de tormenta=0.15",
+          "Sombra de tormenta=0",
           "Rachas previstas=0",
           "Aviso MG oficial=0",
           "WRF prevé tormentas=0",
@@ -401,7 +401,7 @@ describe('stormPredictor golden master (frozen at v2.87.2, pre-calibration)', ()
     expect(golden(predictStorm([makeForecast({ cape: 500, windGusts: 18 })], NO_ALERT, null))).toMatchInlineSnapshot(`
       {
         "horizon": "none",
-        "probability": 20,
+        "probability": 10,
         "severity": "none",
         "signals": [
           "CAPE=0.1",
@@ -410,7 +410,7 @@ describe('stormPredictor golden master (frozen at v2.87.2, pre-calibration)', ()
           "Rayos detectados=0",
           "Tormenta acercandose=0",
           "Sombra de tormenta=0",
-          "Rachas previstas=0.1",
+          "Rachas previstas=0",
           "Aviso MG oficial=0",
           "WRF prevé tormentas=0",
         ],
@@ -480,8 +480,8 @@ describe('stormPredictor golden master (frozen at v2.87.2, pre-calibration)', ()
           "Nubosidad=0.08",
           "Rayos detectados=0.35",
           "Tormenta acercandose=0.15",
-          "Sombra de tormenta=0.15",
-          "Rachas previstas=0.1",
+          "Sombra de tormenta=0",
+          "Rachas previstas=0",
           "Aviso MG oficial=0.3",
           "WRF prevé tormentas=0",
         ],
