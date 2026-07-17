@@ -655,3 +655,140 @@ describe('scoreSpot — result invariants', () => {
     }
   });
 });
+
+// ── scoreSpot — wind blacklist + directional bias gates ──────
+//
+// Mirror of frontend spotScoringEngine quality gates:
+// - Blacklisted stations (avg ratio < 0.20 vs buoy) never enter the
+//   wind consensus, even when they are the only source.
+// - Stations reading FROM a documented blind sector (stationBiases.ts)
+//   are excluded from the unweighted mean — but only while >= 2 wind
+//   sources survive (survival rule: never leave the verdict unknown).
+//
+// Lourido has no detector override (cesantes/bocana only), so these
+// tests are free of wall-clock dependence.
+
+const lourido: SpotDef = {
+  id: 'lourido',
+  name: 'Lourido',
+  lat: 42.365,
+  lon: -8.675,
+  sector: 'rias',
+  radiusKm: 12,
+  thermalDetection: true,
+};
+
+describe('scoreSpot — wind blacklist (isWindBlacklisted)', () => {
+  it('blacklisted station with strong wind does not drag the consensus (speed + gust)', () => {
+    // Clean station: 3 m/s = 5.8kt, gust 7 m/s = 13.6kt
+    const clean = makeReading({
+      station_id: 'mg_clean',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 3, wind_gust: 7, wind_dir: 270,
+    });
+    // Lourizán (mg_10064): blacklisted 2026-05-27 audit (ratio 0.13-0.18).
+    // Give it an absurd 12 m/s + 20 m/s gust — must be fully ignored.
+    const blacklisted = makeReading({
+      station_id: 'mg_10064',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 12, wind_gust: 20, wind_dir: 270,
+    });
+    const result = scoreSpot(lourido, [clean, blacklisted], []);
+    expect(result.stationCount).toBe(1);
+    expect(result.avgWindKt).toBe(6);   // clean only: 5.8 → 6 (blended would be 15)
+    expect(result.verdict).toBe('light');
+    expect(result.maxGustKt).toBe(14);  // clean gust only (blacklisted would be 39)
+  });
+
+  it('only blacklisted stations + no buoys → unknown (no survival rule for blacklist)', () => {
+    const b1 = makeReading({
+      station_id: 'wu_ISANXE3', // ratio 0.05 — audited broken
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 8, wind_dir: 200,
+    });
+    const result = scoreSpot(lourido, [b1], []);
+    expect(result.verdict).toBe('unknown');
+    expect(result.stationCount).toBe(0);
+  });
+
+  it('inferCastreloDirection ignores blacklisted anemometers', () => {
+    // wu_IOUREN24 is blacklisted; even placed right next to Castrelo with a
+    // valid vane it must not steer the inferred direction.
+    const blacklisted = makeReading({
+      station_id: 'wu_IOUREN24',
+      latitude: 42.30, longitude: -8.10,
+      wind_speed: 4, wind_dir: 240,
+    });
+    expect(inferCastreloDirection([blacklisted])).toBeNull();
+  });
+});
+
+describe('scoreSpot — directional bias map (getStationBiasAt)', () => {
+  it('bias-blind station excluded when >= 2 clean wind sources remain', () => {
+    // Porto de Marín (mg_14005) underreads W 240-300° by ~50% (empirical-buoy).
+    // Reading W @ 2 m/s (3.9kt) while two clean stations read 6 m/s (11.7kt).
+    const blind = makeReading({
+      station_id: 'mg_14005',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 2, wind_dir: 270, // inside blind sector 240-300
+    });
+    const clean1 = makeReading({
+      station_id: 'mg_clean1',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 6, wind_dir: 270,
+    });
+    const clean2 = makeReading({
+      station_id: 'wu_clean2',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 6, wind_dir: 270,
+    });
+    const result = scoreSpot(lourido, [blind, clean1, clean2], []);
+    expect(result.stationCount).toBe(2);
+    expect(result.avgWindKt).toBe(12);  // clean only (blended: 9 → wrong 'sailing')
+    expect(result.verdict).toBe('good');
+  });
+
+  it('same station counts normally when reading OUTSIDE its blind sector', () => {
+    // mg_14005 S (180°) matches the buoy (ratio 0.97) — must NOT be excluded.
+    const marinS = makeReading({
+      station_id: 'mg_14005',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 6, wind_dir: 180,
+    });
+    const clean = makeReading({
+      station_id: 'mg_clean',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 6, wind_dir: 180,
+    });
+    const result = scoreSpot(lourido, [marinS, clean], []);
+    expect(result.stationCount).toBe(2);
+    expect(result.avgWindKt).toBe(12);
+  });
+
+  it('survival rule: single bias-blind station still produces a verdict', () => {
+    // Only source is Marín reading from its blind W sector. Excluding it
+    // would leave the spot without data — keep it (demoted beats unknown).
+    const blind = makeReading({
+      station_id: 'mg_14005',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 6, wind_dir: 270,
+    });
+    const result = scoreSpot(lourido, [blind], []);
+    expect(result.verdict).not.toBe('unknown');
+    expect(result.stationCount).toBe(1);
+    expect(result.avgWindKt).toBe(12);
+  });
+
+  it('bias-blind station excluded when 2 nearby buoys cover the consensus', () => {
+    const blind = makeReading({
+      station_id: 'mg_14005',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 2, wind_dir: 270,
+    });
+    const buoy1 = makeBuoy({ station_id: 3223, lat: 42.36, lon: -8.68, wind_speed: 6, wind_dir: 270 });
+    const buoy2 = makeBuoy({ station_id: 4271, lat: 42.37, lon: -8.67, wind_speed: 6, wind_dir: 270 });
+    const result = scoreSpot(lourido, [blind], [buoy1, buoy2]);
+    expect(result.stationCount).toBe(2);  // buoys only — blind station excluded
+    expect(result.avgWindKt).toBe(12);
+  });
+});

@@ -12,6 +12,8 @@ import { haversineDistance } from '../src/services/geoUtils.js';
 import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
 import { predictCesantesCanalization } from '../src/services/cesantesCanalizationDetector.js';
 import { detectBocana } from '../src/services/bocanaDetector.js';
+import { isWindBlacklisted } from '../src/services/spotScoringEngine.js';
+import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
 
 // Climatological monthly SST fallback for Ría de Vigo interior (matches
@@ -155,9 +157,12 @@ export function windVerdict(avgKt: number, spotId: string): Verdict {
  */
 export function inferCastreloDirection(readings: StationReading[]): string | null {
   const castreloLat = 42.2991, castreloLon = -8.1087;
+  // Blacklisted anemometers (sheltered/broken for wind) must not steer the
+  // inferred direction either — same gate as the wind consensus below.
   const nearby = readings.filter(r =>
     r.wind_dir != null && r.wind_speed != null && r.wind_speed > 1.0 &&
     r.latitude !== 0 && r.longitude !== 0 &&
+    !isWindBlacklisted(r.station_id) &&
     haversineDistance(castreloLat, castreloLon, r.latitude, r.longitude) <= 15
   );
 
@@ -318,10 +323,37 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
     haversineDistance(spot.lat, spot.lon, r.latitude, r.longitude) <= spot.radiusKm
   );
 
+  const nearbyBuoys = buoyWinds.filter(b =>
+    b.lat !== 0 && b.lon !== 0 && b.wind_speed > 0 &&
+    haversineDistance(spot.lat, spot.lon, b.lat, b.lon) <= spot.radiusKm
+  );
+
+  // ── Wind quality gates (mirror of frontend spotScoringEngine) ──
+  //
+  // 1. Wind blacklist: stations statistically confirmed sheltered/broken
+  //    for wind (avg ratio < 0.20 vs buoys) NEVER enter the wind consensus.
+  //    They remain valid for temperature/humidity — the detector helpers
+  //    (Cesantes/Bocana boosts) read the unfiltered `readings` array.
+  const windCapable = nearby.filter(
+    r => r.wind_speed != null && !isWindBlacklisted(r.station_id)
+  );
+
+  // 2. Directional bias map (stationBiases.ts): a station reading FROM its
+  //    documented blind sector misreads speed. The frontend demotes its
+  //    weight x0.3; this consensus is an UNWEIGHTED mean, so the biased
+  //    reading is EXCLUDED instead — but only while >= 2 wind sources
+  //    (stations + buoys) survive the exclusion. With fewer, keep it:
+  //    a demoted reading beats an 'unknown' verdict.
+  const isBiasBlind = (r: StationReading): boolean =>
+    r.wind_dir != null && getStationBiasAt(r.station_id, r.wind_dir) !== null;
+  const unbiased = windCapable.filter(r => !isBiasBlind(r));
+  const windReadings =
+    unbiased.length + nearbyBuoys.length >= 2 ? unbiased : windCapable;
+
   let windSum = 0, gustMax = 0, dirCount = 0, count = 0;
   let sinSum = 0, cosSum = 0;
 
-  for (const r of nearby) {
+  for (const r of windReadings) {
     if (r.wind_speed != null) {
       const kt = msToKnots(r.wind_speed);
       windSum += kt;
@@ -339,10 +371,6 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
     }
   }
 
-  const nearbyBuoys = buoyWinds.filter(b =>
-    b.lat !== 0 && b.lon !== 0 && b.wind_speed > 0 &&
-    haversineDistance(spot.lat, spot.lon, b.lat, b.lon) <= spot.radiusKm
-  );
   for (const b of nearbyBuoys) {
     const kt = msToKnots(b.wind_speed);
     windSum += kt;
