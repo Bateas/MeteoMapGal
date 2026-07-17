@@ -133,11 +133,27 @@ describe('stormPredictor', () => {
       expect(result.probability).toBeGreaterThan(30);
     });
 
-    it('includes storm shadow in computation', () => {
+    it('reports storm shadow but does not let it move the probability', () => {
+      // Zero-weighted since v2.90.0: measured over 1212 evaluated predictions,
+      // windows with shadow saw lightning 22.9% of the time vs 45.9% without —
+      // it read "cloudy", not "storm". It stays detected and reported (display
+      // + storage contract) but a cloudy afternoon no longer raises the alarm.
       const shadow = makeShadow({ confidence: 70, etaMinutes: 40 });
       const result = predictStorm([makeForecast()], NO_ALERT, shadow);
-      expect(result.signals.find(s => s.name === 'Sombra de tormenta')?.active).toBe(true);
-      expect(result.probability).toBeGreaterThan(0);
+      const signal = result.signals.find((s) => s.name === 'Sombra de tormenta');
+      expect(signal?.active).toBe(true);
+      expect(signal?.weight).toBe(0);
+      expect(result.probability).toBe(0);
+    });
+
+    it('reports gust forecast but does not let it move the probability', () => {
+      // Same audit: 31.8% with gusts vs 31.2% without — a 0.6 point lift is
+      // the base rate, not a signal.
+      const result = predictStorm([makeForecast({ windGusts: 18 })], NO_ALERT, null);
+      const signal = result.signals.find((s) => s.name === 'Rachas previstas');
+      expect(signal?.active).toBe(true);
+      expect(signal?.weight).toBe(0);
+      expect(result.probability).toBe(0);
     });
 
     it('caps probability at 100', () => {
