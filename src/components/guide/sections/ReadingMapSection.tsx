@@ -27,7 +27,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="gauge"
             title="Panel desplegable (derecha)"
-            text="Botón 'Panel' en la cabecera. Abre el drawer con 4 tabs: Navegación (veredicto viento), Campo (helada, riego, fitosanitario), Dron (espacio aéreo, NOTAMs), Meteo (alertas activas, presión, teleconexiones)."
+            text="Botón 'Panel' en la cabecera. Abre el drawer con 3 tabs: Navegación (veredicto viento), Campo (helada, riego, fitosanitario), Meteo (alertas activas, presión, teleconexiones). Con Modo Alpha activo se añade Dron (espacio aéreo, NOTAMs)."
           />
           <MiniExplainer
             iconId="wind"
@@ -229,7 +229,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="drone"
             title="Espacio aéreo UAS"
-            text="Zonas restringidas ENAIRE (ZGUAS + NOTAMs) visibles al abrir el tab Dron. Clic en zona → flyTo en mapa."
+            text="Zonas restringidas ENAIRE (ZGUAS + NOTAMs) visibles al abrir el tab Dron (Modo Alpha). Clic en zona → flyTo en mapa."
           />
           <MiniExplainer
             iconId="info"

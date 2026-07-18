@@ -8,6 +8,7 @@ import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
+import { isSimpleTab } from '../../config/simpleTabs';
 
 type BottomTab = 'map' | 'spots' | 'datos' | 'prevision' | 'mas';
 // 'simple' is a quick-action toggle in the bottom nav, not a real tab —
@@ -132,6 +133,11 @@ function MobileBottomNavInner() {
           >
             {menuItems
               .filter((item) => !item.embalseOnly || sectorId === 'embalse')
+              // simpleMode: only offer sidebar tabs the Sidebar actually shows
+              // (shared SIMPLE_TABS source of truth — avoids silent bounce).
+              // Items with a custom action (Guía, Feedback, Datos) don't route
+              // through the Sidebar, so they stay available.
+              .filter((item) => !simpleMode || !item.tab || isSimpleTab(item.tab))
               .map((item) => (
                 <button
                   key={item.label}

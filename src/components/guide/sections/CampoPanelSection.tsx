@@ -40,9 +40,9 @@ export function CampoPanelSection() {
           <TabRow
             num="3"
             iconId="drone"
-            name="Dron"
+            name="Dron (Alpha)"
             modules="Vuelo Dron + Espacio aéreo + Viento + Lluvia + Niebla"
-            desc="Para pilotos de dron: aptitud meteorológica y restricciones ENAIRE."
+            desc="Para pilotos de dron: aptitud meteorológica y restricciones ENAIRE. Requiere Modo Alpha (Guía → Roadmap)."
           />
         </div>
       </div>

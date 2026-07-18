@@ -11,6 +11,7 @@ import { useBuoyStore } from '../../store/buoyStore';
 import { downloadGeoJSON } from '../../services/exportService';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { getSpotsForSector } from '../../config/spots';
+import { SIMPLE_TABS, type SidebarTab } from '../../config/simpleTabs';
 
 const StationTable = lazy(() =>
   import('../dashboard/StationTable').then((m) => ({ default: m.StationTable })),
@@ -40,13 +41,9 @@ const SpotComparator = lazy(() =>
   import('../dashboard/SpotComparator').then((m) => ({ default: m.SpotComparator })),
 );
 
-type Tab = 'stations' | 'chart' | 'compare' | 'forecast' | 'thermal' | 'history' | 'rankings';
-
-// Tabs visible in simpleMode. Other tabs are hidden to reduce overwhelm.
-// User feedback: "lo más limpio posible para no abrumar" →
-// keep only Estaciones + Previsión (+ Térmico in Embalse via isEmbalse gate).
-// If activeTab is not in this set when simpleMode toggles ON, fallback to 'stations'.
-const SIMPLE_TABS: ReadonlySet<Tab> = new Set<Tab>(['stations', 'forecast', 'thermal']);
+// Tab ids + simpleMode visibility live in config/simpleTabs.ts (shared with
+// MobileBottomNav so the "Más" menu never requests a tab hidden here).
+type Tab = SidebarTab;
 
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('stations');

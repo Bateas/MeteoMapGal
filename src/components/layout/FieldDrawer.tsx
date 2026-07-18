@@ -1,6 +1,6 @@
 /**
  * FieldDrawer — right-side tabbed drawer for weather alerts.
- * Four context tabs: Navegación, Campo, Dron, Meteo.
+ * Context tabs: Condiciones, Campo, Dron (Dron only with Alpha Mode).
  * Overlays the map. Doesn't touch the sidebar.
  */
 
@@ -33,10 +33,12 @@ const AtmosphericProfile = lazy(() => import('../dashboard/AtmosphericProfile').
 
 export type AlertTab = 'nav' | 'campo' | 'dron';
 
-const TABS: { id: AlertTab; label: string; icon: IconId | null; shortcut: string }[] = [
+// Dron es alpha (decisión v3: "solo DRON fuera") — solo visible con Alpha Mode
+// activado en Guía → Roadmap, mismo patrón que Modo Evento/Regata.
+const TABS: { id: AlertTab; label: string; icon: IconId | null; shortcut: string; alpha?: boolean }[] = [
   { id: 'nav', label: 'Condiciones', icon: 'activity', shortcut: '1' },
   { id: 'campo', label: 'Campo', icon: 'leaf', shortcut: '2' },
-  { id: 'dron', label: 'Dron', icon: 'drone', shortcut: '3' },
+  { id: 'dron', label: 'Dron', icon: 'drone', shortcut: '3', alpha: true },
 ];
 
 interface FieldDrawerProps {
@@ -68,16 +70,31 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
   const drawerRef = useFocusTrap<HTMLDivElement>(open);
   const [activeTab, setActiveTab] = useState<AlertTab>('nav');
   const isMobile = useUIStore((s) => s.isMobile);
+  const alphaMode = useUIStore((s) => s.alphaMode);
   const setDroneTabActive = useUIStore((s) => s.setDroneTabActive);
   const forecastHourly = useForecastStore((s) => s.hourly);
   const activeSectorId = useSectorStore((s) => s.activeSector.id);
   const isCoastal = isCoastalSector(activeSectorId);
   const isEmbalse = activeSectorId === 'embalse';
 
-  // Sync drone tab state to uiStore (controls AirspaceOverlay visibility)
+  // Alpha-gated tabs (Dron) hidden unless Alpha Mode is enabled
+  const visibleTabs = useMemo(
+    () => TABS.filter((t) => !t.alpha || alphaMode),
+    [alphaMode],
+  );
+
+  // If Alpha Mode turns off while the Dron tab is active, fall back to 'nav'
   useEffect(() => {
-    setDroneTabActive(open && activeTab === 'dron');
-  }, [open, activeTab, setDroneTabActive]);
+    if (!alphaMode && activeTab === 'dron') {
+      setActiveTab('nav');
+    }
+  }, [alphaMode, activeTab]);
+
+  // Sync drone tab state to uiStore (controls AirspaceOverlay visibility).
+  // alphaMode guard: never activate the overlay while the Dron tab is hidden.
+  useEffect(() => {
+    setDroneTabActive(open && activeTab === 'dron' && alphaMode);
+  }, [open, activeTab, alphaMode, setDroneTabActive]);
 
   // Close on click outside (but NOT on map interactions — user needs to pan/zoom while drawer is open)
   useEffect(() => {
@@ -106,10 +123,10 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
     if (!open || isMobile) return;
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const idx = parseInt(e.key) - 1;
-    if (idx >= 0 && idx < TABS.length) {
-      setActiveTab(TABS[idx].id);
+    if (idx >= 0 && idx < visibleTabs.length) {
+      setActiveTab(visibleTabs[idx].id);
     }
-  }, [open, isMobile]);
+  }, [open, isMobile, visibleTabs]);
 
   useEffect(() => {
     if (isMobile) return;
@@ -158,7 +175,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
 
       {/* Tab bar */}
       <div className="flex border-b border-slate-700/50">
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -221,8 +238,8 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
             </>
           )}
 
-          {/* ── Dron tab: drone conditions + airspace + wind + rain + fog ── */}
-          {activeTab === 'dron' && (
+          {/* ── Dron tab (alpha): drone conditions + airspace + wind + rain + fog ── */}
+          {activeTab === 'dron' && alphaMode && (
             <>
               <DroneSection alerts={alerts} forecast={forecastHourly} />
               <AirspaceSection />
