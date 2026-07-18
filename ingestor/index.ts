@@ -24,6 +24,7 @@ import { runFirmsCycle } from './firmsFetcher.js';
 import { runIcaCycle } from './icaFetcher.js';
 import { runConvectionGridCycle } from './convectionGridFetcher.js';
 import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
+import { runFireWatchCycle } from './fireWatch.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -45,6 +46,7 @@ let firmsTimer: ReturnType<typeof setInterval> | null = null;
 let icaTimer: ReturnType<typeof setInterval> | null = null;
 let convGridTimer: ReturnType<typeof setInterval> | null = null;
 let outcomesTimer: ReturnType<typeof setInterval> | null = null;
+let fireWatchTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -280,6 +282,20 @@ async function start(): Promise<void> {
     runOutcomeEvaluatorCycle().catch((err) => log.error('[Outcomes] timer err:', (err as Error).message));
   }, 6 * 60 * 60_000);
 
+  // Fire watch — dry-lightning post-storm vigilance (August fire season).
+  // Ground strikes without rain ignite fires that surface 7-18h later (the
+  // lightning-to-fire attribution validated 106/106 June hotspots in that
+  // window), so 30min cadence warns HOURS before FIRMS sees the hotspot.
+  // Fire-and-forget like webcam/dailySummary — NEVER awaited in the poll
+  // loop, and runFireWatchCycle() is internally fail-soft (log.warn only).
+  // 420s stagger so it lands after the outcome evaluator's first run.
+  setTimeout(() => {
+    runFireWatchCycle().catch((err) => log.warn('[FireWatch] init err: ' + (err as Error).message));
+  }, 420_000);
+  fireWatchTimer = setInterval(() => {
+    runFireWatchCycle().catch((err) => log.warn('[FireWatch] timer err: ' + (err as Error).message));
+  }, 30 * 60_000);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -300,6 +316,7 @@ async function shutdown(signal: string): Promise<void> {
   if (icaTimer) clearInterval(icaTimer);
   if (convGridTimer) clearInterval(convGridTimer);
   if (outcomesTimer) clearInterval(outcomesTimer);
+  if (fireWatchTimer) clearInterval(fireWatchTimer);
 
   // Close database pool
   await closePool();
