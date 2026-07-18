@@ -48,6 +48,7 @@ import { WeatherLayerSelector } from './WeatherLayerSelector';
 import { MapStyleSelector } from './MapStyleSelector';
 import { SailingConditionBanner } from './SailingConditionBanner';
 import { CriticalAlertBanner } from './CriticalAlertBanner';
+import { LightningProximityBanner } from './LightningProximityBanner';
 import { SectorSelector } from './SectorSelector';
 import { MapContextMenu } from './MapContextMenu';
 import { BuoySymbolLayer, registerBuoyIcon } from './BuoySymbolLayer';
@@ -658,6 +659,7 @@ export function WeatherMap() {
       {/* SpotScoreLegend removed — verdict info visible on each spot badge. Revisit if needed for specific modes */}
       {sectorId === 'embalse' && <SailingConditionBanner />}
       <CriticalAlertBanner />
+      <LightningProximityBanner />
 
       {/* "Crear spot" placement-mode hint — transient, while choosing the spot */}
       {placingSpot && (
