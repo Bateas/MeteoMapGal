@@ -416,19 +416,27 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
 
       {/* ── Verdict badge — surf uses wave-based verdict, sailing uses wind ── */}
-      <div className="flex items-center gap-2 mb-2">
-        <span
-          className="px-2.5 py-1 rounded-full text-[13px] font-extrabold tracking-wide"
-          style={{ background: displayVerdict.bg, color: displayVerdict.color, border: `1px solid ${displayVerdict.color}40` }}
-        >
-          {displayVerdict.label}
-        </span>
-        {spot.category !== 'surf' && score && (
-          <span className="text-xs text-slate-400 font-mono">
-            {score.score}/100
+      {score?.provisional ? (
+        // Cold-load provisional score (same flag SpotMarker reads): never show
+        // a firm verdict computed from a still-partial reading set.
+        <div className="mb-2 text-[12px] text-slate-400 italic">
+          Calculando condiciones (esperando estaciones)…
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 mb-2">
+          <span
+            className="px-2.5 py-1 rounded-full text-[13px] font-extrabold tracking-wide"
+            style={{ background: displayVerdict.bg, color: displayVerdict.color, border: `1px solid ${displayVerdict.color}40` }}
+          >
+            {displayVerdict.label}
           </span>
-        )}
-      </div>
+          {spot.category !== 'surf' && score && (
+            <span className="text-xs text-slate-400 font-mono">
+              {score.score}/100
+            </span>
+          )}
+        </div>
+      )}
       {/* Surf verdict summary — plain language */}
       {displayVerdict.summary && (
         <div className="text-[11px] text-slate-300 mb-2 leading-tight break-words" style={{ color: displayVerdict.color }}>

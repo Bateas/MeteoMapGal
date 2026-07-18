@@ -10,7 +10,7 @@ import { RIAS_SPOTS, EMBALSE_SPOTS } from '../config/spots';
 
 // ── Helpers ──────────────────────────────────────────────
 
-function makeStation(id: string, lat: number, lon: number, source = 'meteogalicia' as const): NormalizedStation {
+function makeStation(id: string, lat: number, lon: number, source: NormalizedStation['source'] = 'meteogalicia'): NormalizedStation {
   return { id, name: id, lat, lon, altitude: 10, source, tempOnly: false };
 }
 
@@ -472,5 +472,99 @@ describe('scoreAllSpots — documented station-bias de-weighting', () => {
     const r = scoreAllSpots([lourido], [clean], readings, []).get('lourido')!;
     expect(r.wind).not.toBeNull();
     expect(r.wind!.avgSpeedKt).toBeGreaterThan(10); // ~12 + calibration, not demoted
+  });
+});
+
+// ── Provisional flag — cold-load readiness gate (O3) ─────────────
+
+describe('provisional flag (cold-load readiness gate)', () => {
+  const cesantes = RIAS_SPOTS.find((s) => s.id === 'cesantes')!;
+  const castrelo = EMBALSE_SPOTS.find((s) => s.id === 'castrelo')!;
+
+  /** Filler stations WITHOUT readings — raise stations.length only (partial set).
+   *  Placed far away so they can never enter any spot's consensus. */
+  function fillersNoReadings(n: number): NormalizedStation[] {
+    return Array.from({ length: n }, (_, i) => makeStation(`wu_FILL${i}`, 43.9, -6.5, 'wunderground'));
+  }
+
+  /** Filler stations WITH fresh temp-only readings (windSpeed null) — raise the
+   *  fresh-reading count (complete set) without contributing to wind consensus. */
+  function fillersTempOnly(n: number): { stations: NormalizedStation[]; readings: [string, NormalizedReading][] } {
+    const stations = Array.from({ length: n }, (_, i) => makeStation(`wu_TEMP${i}`, 43.9, -6.5, 'wunderground'));
+    const readings: [string, NormalizedReading][] = stations.map((s) => [s.id, makeReading(s.id, null, null)]);
+    return { stations, readings };
+  }
+
+  it('marks provisional with 1 wind source while the reading set is clearly partial (cold load)', () => {
+    const main = makeStation('wu_MAIN', cesantes.center[1], cesantes.center[0], 'wunderground');
+    const stations = [main, ...fillersNoReadings(9)]; // 10 stations, 1 fresh reading → 10% < 40%
+    const readings = new Map([['wu_MAIN', makeReading('wu_MAIN', msFromKt(12), 225)]]);
+    const r = scoreAllSpots([cesantes], stations, readings, []).get('cesantes')!;
+    expect(r.provisional).toBe(true);
+    // The engine still computes a verdict (the UI hides it) — flag, not scoring change
+    expect(r.verdict).not.toBe('unknown');
+  });
+
+  it('does NOT mark provisional with 2+ wind sources even while the set is partial', () => {
+    const a = makeStation('wu_A', cesantes.center[1], cesantes.center[0], 'wunderground');
+    const b = makeStation('wu_B', cesantes.center[1] + 0.01, cesantes.center[0], 'wunderground');
+    const stations = [a, b, ...fillersNoReadings(8)]; // 10 stations, 2 fresh → 20% < 40%
+    const readings = new Map([
+      ['wu_A', makeReading('wu_A', msFromKt(14), 225)],
+      ['wu_B', makeReading('wu_B', msFromKt(14), 230)],
+    ]);
+    const r = scoreAllSpots([cesantes], stations, readings, []).get('cesantes')!;
+    expect(r.provisional).toBe(false);
+  });
+
+  it('does NOT mark provisional with 1 wind source over a COMPLETE reading set (Embalse normal operation — flag must not stick)', () => {
+    // Castrelo often runs on a single wind contribution in steady state — that is
+    // a legitimate low-confidence verdict (scoringConfidence 'low'), NOT loading.
+    const main = makeStation('skyx_TEST', castrelo.center[1], castrelo.center[0], 'skyx');
+    const filler = fillersTempOnly(7);
+    const stations = [main, ...filler.stations]; // 8 stations, 8 fresh readings → 100% ≥ 40%
+    const readings = new Map<string, NormalizedReading>([
+      ['skyx_TEST', makeReading('skyx_TEST', msFromKt(8), 250)],
+      ...filler.readings,
+    ]);
+    const r = scoreAllSpots([castrelo], stations, readings, []).get('castrelo')!;
+    expect(r.provisional).toBe(false);
+    expect(r.verdict).toBe('sailing'); // 8kt verdict renders normally
+    expect(r.scoringConfidence).toBe('low');
+  });
+
+  it('verdict and kt stay intact when not provisional (flag never alters scoring)', () => {
+    const a = makeStation('wu_A', cesantes.center[1], cesantes.center[0], 'wunderground');
+    const b = makeStation('wu_B', cesantes.center[1] + 0.01, cesantes.center[0], 'wunderground');
+    const readings = new Map([
+      ['wu_A', makeReading('wu_A', msFromKt(14), 225)],
+      ['wu_B', makeReading('wu_B', msFromKt(14), 230)],
+    ]);
+    // Same inputs, with and without a partial station set around them
+    const partial = scoreAllSpots([cesantes], [a, b, ...fillersNoReadings(8)], readings, []).get('cesantes')!;
+    const complete = scoreAllSpots([cesantes], [a, b], readings, []).get('cesantes')!;
+    expect(partial.provisional).toBe(false);
+    expect(complete.provisional).toBe(false);
+    expect(partial.verdict).toBe(complete.verdict);
+    expect(partial.effectiveWindKt).toBe(complete.effectiveWindKt);
+  });
+
+  it('never marks surf spots provisional (wave-based verdict, separate pipeline)', () => {
+    const patos = RIAS_SPOTS.find((s) => s.id === 'surf-patos')!;
+    const main = makeStation('wu_SURF', patos.center[1], patos.center[0], 'wunderground');
+    const stations = [main, ...fillersNoReadings(9)]; // clearly partial + 1 wind source
+    const readings = new Map([['wu_SURF', makeReading('wu_SURF', msFromKt(12), 20)]]);
+    const r = scoreAllSpots([patos], stations, readings, []).get('surf-patos')!;
+    expect(r.provisional).toBe(false);
+  });
+
+  it('never hides a hard safety gate behind provisional (danger always renders)', () => {
+    const main = makeStation('wu_DANGER', castrelo.center[1], castrelo.center[0], 'wunderground');
+    const stations = [main, ...fillersNoReadings(9)]; // partial set + 1 source
+    const readings = new Map([['wu_DANGER', makeReading('wu_DANGER', msFromKt(35), 250)]]);
+    const r = scoreAllSpots([castrelo], stations, readings, []).get('castrelo')!;
+    expect(r.hardGateTriggered).not.toBeNull(); // 35kt > maxWindKt 30
+    expect(r.verdict).toBe('strong');
+    expect(r.provisional).toBe(false);
   });
 });
