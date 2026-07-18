@@ -370,9 +370,10 @@ export function AppShell() {
         </button>
       )}
 
-      {!simpleMode && (
-        <ErrorBoundary section="Ticker"><Suspense fallback={null}><ConditionsTicker /></Suspense></ErrorBoundary>
-      )}
+      {/* Ticker mounts ALWAYS — in simpleMode it self-filters to critical
+          items only (official MG warnings + beach headline + safety). Hiding
+          it entirely made simple-mode users miss official NARANJA warnings. */}
+      <ErrorBoundary section="Ticker"><Suspense fallback={null}><ConditionsTicker simple={simpleMode} /></Suspense></ErrorBoundary>
       <SourceStatusBanner />
       {/* Magic Window banner (T2-2) — appears only when backend detector confirms
           a rare optimal-sailing convergence in Rías. Self-hides when not active. */}

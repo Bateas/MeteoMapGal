@@ -5,6 +5,13 @@
  * temperature, forecast. Auto-scrolls horizontally with CSS animation.
  * Mobile: limits to most relevant items to avoid overwhelming scroll.
  * Minimal overhead: reads from existing stores (no new fetches).
+ *
+ * `simple` prop (simpleMode): the ticker ALWAYS mounts — official
+ * MeteoGalicia warnings (static strip) plus a filtered marquee with only
+ * critical/actionable items (beach headline + safety: storm prediction,
+ * forecast storms/fog, active fires). A casual user in simple mode must
+ * never miss an official NARANJA warning. With no critical items and no
+ * warnings, it renders nothing (silence by default).
  */
 import { memo, useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
@@ -48,7 +55,13 @@ function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean
   return null;
 }
 
-export const ConditionsTicker = memo(function ConditionsTicker() {
+interface ConditionsTickerProps {
+  /** Simple mode: filter the marquee to critical items only (official
+   *  warnings strip always shows). Default false = full ticker. */
+  simple?: boolean;
+}
+
+export const ConditionsTicker = memo(function ConditionsTicker({ simple = false }: ConditionsTickerProps) {
   const scores = useSpot.use.scores();
   const readings = useWeather.use.currentReadings();
   const stations = useWeather.use.stations();
@@ -83,7 +96,11 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
   }, [sectorId]);
 
   const items = useMemo(() => {
-    const result: { key: string; text: string; color: string; bg: string; priority: number }[] = [];
+    // `essential: true` marks items that survive the simpleMode filter:
+    // safety (storm, forecast storms/fog, fires) + the casual beach headline.
+    // Conservative criterion: when in doubt, an item is informational (UV,
+    // air quality, tide coef, gusts, thermal) and only shows in full mode.
+    const result: { key: string; text: string; color: string; bg: string; priority: number; essential?: boolean }[] = [];
     const sectorLabel = sectorId === 'rias' ? 'Rías' : 'Embalse';
 
     // ── Spot verdicts (priority 10 = highest for non-calm, 1 for calm) ──
@@ -201,6 +218,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
             color: great ? 'text-emerald-300' : 'text-amber-300',
             bg: great ? 'bg-emerald-900/25' : 'bg-amber-900/20',
             priority: great ? 9 : 8,
+            essential: true,
           });
         }
       }
@@ -356,6 +374,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           color: 'text-slate-300',
           bg: 'bg-slate-700/30',
           priority: 8,
+          essential: true,
         });
       }
 
@@ -371,6 +390,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
           color: 'text-purple-400',
           bg: 'bg-purple-900/25',
           priority: 8,
+          essential: true,
         });
       }
     }
@@ -411,6 +431,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         color: isImminent ? 'text-purple-400' : isLikely ? 'text-amber-400' : 'text-slate-400',
         bg: isImminent ? 'bg-purple-900/30' : isLikely ? 'bg-amber-900/25' : '',
         priority: isImminent ? 11 : isLikely ? 10 : 6,
+        essential: true,
       });
     }
 
@@ -497,6 +518,7 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
         color: isLarge ? 'text-red-400' : 'text-orange-400',
         bg: isLarge ? 'bg-red-900/20' : 'bg-orange-900/20',
         priority: isLarge ? 7 : 6,
+        essential: true,
       });
     }
 
@@ -557,11 +579,17 @@ export const ConditionsTicker = memo(function ConditionsTicker() {
     // afloramiento) still appear when nothing more urgent is happening, but
     // cede their place during busy conditions — no content type is removed,
     // it's prioritised by what matters NOW.
-    result.sort((a, b) => b.priority - a.priority);
+    // Simple mode: only critical/actionable items survive — beach headline +
+    // safety (storm prediction, forecast storms/fog, active fires). All the
+    // informational density (spot verdicts, gusts, waves, tide, forecast
+    // summary, thermal, UV, air quality, sea breeze, station status) shows
+    // only in full mode. No essential items → empty marquee (silence).
+    const pool = simple ? result.filter((it) => it.essential === true) : result;
+    pool.sort((a, b) => b.priority - a.priority);
 
     const cap = isMobile ? 6 : 9;
-    return result.length > cap ? result.slice(0, cap) : result;
-  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, isMobile]);
+    return pool.length > cap ? pool.slice(0, cap) : pool;
+  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, isMobile, simple]);
 
   // ── Official MG warnings — static strip above the marquee ─────
   // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).
