@@ -115,6 +115,15 @@ export interface SpotScore {
   effectiveWindKt: number | null;
   /** Scoring confidence: 'high' (3+ sources), 'medium' (2), 'low' (1 or only land) */
   scoringConfidence: 'high' | 'medium' | 'low';
+  /** Cold-load readiness gate (O3): true when the verdict was computed from an
+   *  input set too thin to trust — the sector's reading set is still clearly
+   *  partial (F5 / shared ?spot= deep-link / sector switch, sources arriving in
+   *  waves) AND fewer than 2 wind sources reached this spot's consensus.
+   *  UI contract (marker=popup coherence): SpotMarker and SpotPopup read THIS
+   *  flag from THIS score and render a neutral "calculando" state instead of
+   *  the verdict/kt. Never true for surf spots (wave-based verdict, separate
+   *  pipeline) nor when a hard safety gate triggered (danger always renders). */
+  provisional: boolean;
   /** Wind trend from reading history (30min window) */
   windTrend: WindTrend | null;
   /** Max wind gust from nearby stations (kt) */
@@ -245,6 +254,11 @@ const LOW_OUTLIER_THRESHOLD = 0.35;       // ratio below weighted median (was 0.
 const SEVERE_LOW_THRESHOLD = 0.15;        // near-zero — certainly broken/sheltered
 const LOW_OUTLIER_PENALTY = 0.3;          // (was 0.4)
 const SEVERE_LOW_PENALTY = 0.1;           // near-zero weight
+
+// ── Cold-load readiness gate (provisional verdicts, O3) ───────
+const PROVISIONAL_MIN_WIND_SOURCES = 2;   // <2 wind contributions = thin consensus
+const PROVISIONAL_FRESH_RATIO = 0.4;      // <40% of stations with a fresh reading = clearly partial set
+const PROVISIONAL_MIN_STATIONS = 8;       // ratio is meaningless for tiny station lists
 
 /** Weighted median — entries with higher weight (corroborated) set the reference */
 function computeWeightedMedian(entries: { speedKt: number; weight: number }[]): number {
@@ -1125,6 +1139,39 @@ export function scoreAllSpots(
   const results = new Map<string, SpotScore>();
   const computedAt = new Date();
 
+  // ── Cold-load readiness gate (O3 — honest "calculando" state) ────────
+  // On a cold load (F5, shared ?spot= deep-link, sector switch) the sector's
+  // reading set fills in waves: cache hydration first (possibly stale), then
+  // each source's fetch. A verdict computed from that partial set can be
+  // confidently WRONG for 1-2 polling cycles (real case: Cesantes "BUENO 12kt"
+  // that corrects to "NAVEG 8kt" once the rest of the network lands).
+  // Criterion — cheap, measured only from what this function already receives:
+  //   provisional = reading set clearly partial AND <2 wind sources for the spot.
+  // "Clearly partial" = fewer than 40% of the sector's discovered stations have
+  // a FRESH (<STALE_THRESHOLD_MIN) reading. BOTH legs are required:
+  //   - The <2-sources leg alone would stick "cargando" forever on calm days:
+  //     the Embalse regularly runs on a single wind contribution (castrelo has
+  //     2 preferred stations — skyx_SKY100 + aemet_1484C — and either can read
+  //     <1kt and drop out of the consensus). A 1-source verdict over a COMPLETE
+  //     reading set is a legitimate low-confidence verdict (scoringConfidence
+  //     'low' already surfaces that in the popup), NOT a loading state.
+  //   - The partial-set leg alone would hide 2+-corroborated verdicts that are
+  //     already grounded enough to show.
+  // The flag clears by DATA, not by time: once the fetch waves land, the fresh
+  // count crosses the ratio and provisional drops. In steady state the ratio
+  // sits near 1 (currentReadings persists across polls), so the gate can only
+  // re-arm on a genuine reset (sector switch) or a massive network outage —
+  // where "esperando estaciones" is literally true.
+  const nowMs = computedAt.getTime();
+  const freshMs = STALE_THRESHOLD_MIN * 60_000;
+  let freshReadingCount = 0;
+  for (const r of readings.values()) {
+    if (nowMs - r.timestamp.getTime() <= freshMs) freshReadingCount++;
+  }
+  const readingSetPartial =
+    stations.length >= PROVISIONAL_MIN_STATIONS &&
+    freshReadingCount < stations.length * PROVISIONAL_FRESH_RATIO;
+
   // Extract NAO/AO for score modulation
   const nao = teleconnections?.find((t) => t.name === 'NAO');
   const ao = teleconnections?.find((t) => t.name === 'AO');
@@ -1196,6 +1243,17 @@ export function scoreAllSpots(
     const sourceCount = wind?.stationCount ?? 0;
     const scoringConfidence: 'high' | 'medium' | 'low' =
       sourceCount >= 3 ? 'high' : sourceCount >= 2 ? 'medium' : 'low';
+
+    // Provisional gate (see readingSetPartial above). Never for surf spots —
+    // their verdict is wave-based (marine forecast pipeline, already fixed via
+    // closest-hour) and must not flicker to "cargando" over the WIND set.
+    // Never over a hard gate — hiding "35kt peligroso" behind "calculando"
+    // would hurt the safety objective (O2); danger verdicts always render.
+    const provisional =
+      spot.category !== 'surf' &&
+      readingSetPartial &&
+      sourceCount < PROVISIONAL_MIN_WIND_SOURCES &&
+      hardGate === null;
 
     // ── NAO/AO score modulation ──────────────────────────
     // NAO+ = Atlantic storms → consistent wind patterns (+5-8%)
@@ -1334,6 +1392,7 @@ export function scoreAllSpots(
       thermalBoosted,
       effectiveWindKt,
       scoringConfidence,
+      provisional,
       gustKt,
       windTrend,
       dewPoint,

@@ -72,7 +72,9 @@ export const SpotMarkers = memo(function SpotMarkers() {
     const verdictMap = new Map<string, SpotVerdict>();
     for (const spot of spots) {
       const score = scores.get(spot.id);
-      verdictMap.set(spot.id, score?.verdict ?? 'unknown');
+      // Provisional score (cold load, reading set still partial): treat as
+      // 'unknown' so cluster aggregates never color from an untrusted verdict.
+      verdictMap.set(spot.id, score?.provisional ? 'unknown' : (score?.verdict ?? 'unknown'));
     }
     return clusterSpots(spots, verdictMap, zoom);
   }, [spots, scores, zoom]);
@@ -109,10 +111,14 @@ export const SpotMarkers = memo(function SpotMarkers() {
         }
         const spot = item.spot;
         const score = scores.get(spot.id);
-        const verdict: SpotVerdict = score?.verdict ?? 'unknown';
+        // Provisional score (cold load — same flag SpotPopup reads): the marker
+        // NEVER shows a provisional verdict/kt. Downgrade to the neutral
+        // 'unknown' render (slate ring, spinner badge, no kt, no gauge).
+        const provisional = score?.provisional === true;
+        const verdict: SpotVerdict = provisional ? 'unknown' : (score?.verdict ?? 'unknown');
         const isActive = spot.id === activeSpotId;
-        // Show spinner while global grace period OR this spot has no data
-        const spotLoading = showSpinner || verdict === 'unknown';
+        // Show spinner while global grace period, provisional data, or no data
+        const spotLoading = showSpinner || provisional || verdict === 'unknown';
         return (
           <SpotMarkerItem
             key={spot.id}
@@ -122,11 +128,12 @@ export const SpotMarkers = memo(function SpotMarkers() {
             lon={spot.center[0]}
             lat={spot.center[1]}
             verdict={verdict}
-            windKt={score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null}
+            windKt={provisional ? null : (score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null)}
             waveHeight={spot.category === 'surf' ? (surfWaveCache.get(spot.id)?.waveHeight ?? null) : (score?.waves?.waveHeight ?? null)}
             wavePeriod={spot.category === 'surf' ? (surfWaveCache.get(spot.id)?.period ?? null) : (score?.waves?.wavePeriod ?? null)}
             isActive={isActive}
             isLoading={spotLoading}
+            isProvisional={provisional}
             onSelect={selectSpot}
             zoomScale={zoomScale}
             isSurf={spot.category === 'surf'}
@@ -216,6 +223,8 @@ interface SpotMarkerItemProps {
   wavePeriod: number | null;
   isActive: boolean;
   isLoading: boolean;
+  /** Cold-load provisional score — label/tooltip say "calculando" (verdict already downgraded to 'unknown' by the parent) */
+  isProvisional?: boolean;
   onSelect: (id: string) => void;
   zoomScale: number;
   isSurf?: boolean;
@@ -283,6 +292,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   wavePeriod: _wavePeriod,
   isActive,
   isLoading,
+  isProvisional,
   onSelect,
   zoomScale,
   isSurf,
@@ -337,13 +347,13 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   return (
     // z-index above station clusters (1); active spot floats above other spots.
     <Marker longitude={lon} latitude={lat} anchor="center" onClick={handleClick} style={{ zIndex: isActive ? 8 : 6 }}>
-      <div className="spot-marker relative cursor-pointer" title={shortName} style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center' }}>
+      <div className="spot-marker relative cursor-pointer" title={isProvisional ? `${shortName} — calculando condiciones` : shortName} style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center' }}>
         <svg
           width={svgSize}
           height={svgSize}
           viewBox={`${-half} ${-half} ${svgSize} ${svgSize}`}
           role="img"
-          aria-label={`Spot ${shortName}: ${badgeText}`}
+          aria-label={isProvisional ? `Spot ${shortName}: calculando condiciones` : `Spot ${shortName}: ${badgeText}`}
         >
           {/* Hit area */}
           <circle r={half} fill="transparent" />
