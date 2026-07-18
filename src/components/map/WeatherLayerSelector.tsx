@@ -119,8 +119,12 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
 
 /* ─── Tracking layer toggles (Webcams, Aviation) — inline in same row ─── */
 
-const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector: string; alpha?: boolean }[] = [
-  { id: 'webcams', icon: 'camera', label: 'Webcams', sector: 'rias' },
+// `sector` undefined = available in ALL sectors. Webcams intentionally has no
+// sector gate: Embalse also has webcams (DGT) and without the button here the
+// overlay activated in Rías stayed stuck visible in Embalse with no way to
+// turn it off (getWebcamsForSector already routes cameras per sector).
+const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector?: string; alpha?: boolean }[] = [
+  { id: 'webcams', icon: 'camera', label: 'Webcams' },
   { id: 'aviation', icon: 'navigation', label: 'Aviones', sector: 'embalse', alpha: true },
 ];
 
@@ -131,7 +135,7 @@ function TrackingTogglesInline({ isMobile, sectorId }: { isMobile: boolean; sect
   const wcShow = useWebcamStore((s) => s.showOverlay);
   const wcToggle = useWebcamStore((s) => s.toggleOverlay);
 
-  const visible = TRACKING_BUTTONS.filter((b) => b.sector === sectorId);
+  const visible = TRACKING_BUTTONS.filter((b) => !b.sector || b.sector === sectorId);
   if (visible.length === 0) return null;
 
   const getState = (id: string) => {

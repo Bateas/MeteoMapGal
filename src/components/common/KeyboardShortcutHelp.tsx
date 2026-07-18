@@ -2,7 +2,7 @@ import { useEffect, useState, memo } from 'react';
 
 const SHORTCUTS = [
   { key: 'P', desc: 'Prevision fullscreen (tabla Windguru + meteograma)' },
-  { key: 'C', desc: 'Panel alertas (Navegacion / Campo / Dron / Meteo)' },
+  { key: 'C', desc: 'Panel alertas (Navegacion / Campo / Meteo)' },
   { key: '1-4', desc: 'Cambiar pestana del panel alertas (si esta abierto)' },
   { key: 'R', desc: 'Refrescar datos' },
   { key: 'T', desc: 'Gradiente temperatura' },

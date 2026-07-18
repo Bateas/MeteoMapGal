@@ -28,6 +28,7 @@ import { useBuoyStore } from '../store/buoyStore';
 import { useLightningStore } from './useLightningData';
 import { useNotificationStore } from '../store/notificationStore';
 import { useSectorStore } from '../store/sectorStore';
+import { useUIStore } from '../store/uiStore';
 import { isCoastalSector } from '../config/sectors';
 import { useStormShadowStore } from './useStormShadow';
 import { useTemperatureOverlayStore } from '../store/temperatureOverlayStore';
@@ -62,6 +63,7 @@ export function useUnifiedAlertPipeline({
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const sectorCenter = useSectorStore((s) => s.activeSector.center);
   const sectorRadiusKm = useSectorStore((s) => s.activeSector.radiusKm);
+  const alphaMode = useUIStore((s) => s.alphaMode);
   const convectionData = useForecastStore((s) => s.convectionData);
   const hourly = useForecastStore((s) => s.hourly);
   // Audit S136+3 #16: separate selectors + useMemo prevents ternary from
@@ -148,6 +150,9 @@ export function useUnifiedAlertPipeline({
         forecastFetchedAt ?? 0,
         buoys.length,
         thermalProfile?.overallLapseRate ?? 0,
+        // alphaMode gates the drone alert filter below — a toggle must
+        // invalidate the cache or the list stays stale until data moves
+        alphaMode ? 1 : 0,
       ].join('|');
       if (sig === lastAggregateSigRef.current) return;
       lastAggregateSigRef.current = sig;
@@ -281,16 +286,20 @@ export function useUnifiedAlertPipeline({
         fogSources: fogSources.length > 0 ? fogSources : undefined,
         regionalVisibility: relevantVisibility.size > 0 ? relevantVisibility : undefined,
       });
-      setUnifiedAlerts(alerts, risk);
+      // Drone surfaces are Alpha-gated (FieldDrawer tab hidden without
+      // alphaMode) — the drone meteo alert must follow, or "Dron: Precaución"
+      // keeps showing in alert lists with no drone tab to act on.
+      const visibleAlerts = alphaMode ? alerts : alerts.filter((a) => a.category !== 'drone');
+      setUnifiedAlerts(visibleAlerts, risk);
       // Trigger notifications for new/escalated alerts
-      processAlertNotifications(alerts, risk, notifConfig);
+      processAlertNotifications(visibleAlerts, risk, notifConfig);
     }, 500);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory
   }, [
     stormAlert, stormShadow, thermalProfile, fieldAlerts, forecastFetchedAt,
     setUnifiedAlerts, notifConfig, currentReadings, historyEpoch,
-    buoys, stations, sectorId, teleconnectionsRef,
+    buoys, stations, sectorId, teleconnectionsRef, alphaMode,
   ]);
 
   return fieldAlerts;
