@@ -357,6 +357,65 @@ export async function dispatchLightningAlert(
   }
 }
 
+// ── Fire watch alerts (dry lightning vigilance) ───────
+
+/** 12h per zone — matches the 7-18h ignition window. One heads-up per zone
+ *  per episode is enough; once a hotspot is confirmed, FIRMS takes over. */
+const FIRE_WATCH_COOLDOWN_MS = 12 * 60 * 60_000;
+const lastFireWatchAlert = new Map<string, number>();
+
+/**
+ * Dispatch a dry-lightning fire-watch alert for a zone.
+ *
+ * This is NOT immediate personal safety (the storm already passed) — it can
+ * wait until 7 AM, so normal night silence applies. The caller re-invokes
+ * every cycle for zones still in watch; the cooldown here only arms after a
+ * successful send, so a zone detected overnight alerts on the first morning
+ * cycle without extra bookkeeping upstream.
+ *
+ * @returns true if the webhook was actually delivered.
+ */
+export async function dispatchFireWatchAlert(
+  zoneId: string,
+  lat: number,
+  lon: number,
+  strikeCount: number,
+  maxKa: number,
+  nearestTown?: string,
+): Promise<boolean> {
+  if (isNightTime()) return false;
+  if (isInCooldown(lastFireWatchAlert, zoneId, FIRE_WATCH_COOLDOWN_MS)) return false;
+
+  const where = nearestTown
+    ? `cerca de ${nearestTown}`
+    : `zona aproximada ${lat.toFixed(2)},${lon.toFixed(2)}`;
+  const rayos = strikeCount === 1
+    ? '1 rayo a tierra sin lluvia'
+    : `${strikeCount} rayos a tierra sin lluvia`;
+  let msg = `Vigilancia incendio — ${rayos} (${where}).`;
+  if (maxKa >= 30) msg += ` Corriente alta ${Math.round(maxKa)}kA.`;
+  msg += ' Ventana tipica 7-18h.';
+
+  const ok = await postWebhook({
+    type: 'fire-watch',
+    zone: zoneId,
+    lat,
+    lon,
+    strikeCount,
+    maxKa: Math.round(maxKa),
+    text: msg,
+    severity: 'moderate',
+    title: `Vigilancia incendio — ${nearestTown ?? zoneId}`,
+    message: msg,
+  });
+
+  if (ok) {
+    lastFireWatchAlert.set(zoneId, Date.now());
+    log.ok(`Fire watch alert: ${zoneId} — ${strikeCount} dry strike(s), max ${Math.round(maxKa)}kA`);
+  }
+  return ok;
+}
+
 /**
  * Reset cooldowns (e.g., on restart).
  */
@@ -366,4 +425,5 @@ export function resetCooldowns(): void {
   lastVisibilityAlert.clear();
   lastMagicWindowAlert.clear();
   lastLightningAlert.clear();
+  lastFireWatchAlert.clear();
 }
