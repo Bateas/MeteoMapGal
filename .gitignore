@@ -52,3 +52,6 @@ docs/
 Fuentes/
 local-tmp/
 pitch-deck-*.html
+
+# TypeScript incremental build cache
+*.tsbuildinfo
