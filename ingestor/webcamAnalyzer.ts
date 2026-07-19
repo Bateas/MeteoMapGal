@@ -31,6 +31,9 @@ const STALE_IMAGE_MAX_AGE_MS = 30 * 60_000; // 30min — aggressive: if unchange
 const MAP_CLEANUP_INTERVAL_MS = 24 * 60 * 60_000; // Cleanup old entries daily
 let lastMapCleanup = Date.now();
 
+// One-shot guard so the "vision is off" notice appears once per process.
+let visionDisabledLogged = false;
+
 // ── Per-webcam state (cache + adaptive schedule) ─────
 //
 // Layer 1 (pre-classifier) needs the last result to reuse when the image is
@@ -103,6 +106,37 @@ type FetchOutcome =
   | { kind: 'frozen' }   // image unchanged for >STALE_IMAGE_MAX_AGE_MS
   | { kind: 'failed' };  // network/decode failure
 
+// `sharp` is loaded lazily so a missing native binary degrades to "send the
+// full-size image, skip the pre-classifier" instead of killing the cycle.
+// It IS declared in package.json, but `.npmrc` sets ignore-scripts=true, so
+// the binary only lands via the explicit `npm rebuild sharp` step — a deploy
+// that skips it breaks the import permanently. That used to be swallowed by an
+// empty catch, which is expensive to miss: without sharp, Layer 1 never skips
+// anything and every image reaches the model at full resolution (2-3x more
+// vision calls, plus timeouts). Log the first failure so the degraded mode is
+// attributable; the flag keeps it to one line per process instead of per image.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SharpModule = any;
+let sharpModule: SharpModule | null = null;
+let sharpLoadFailed = false;
+
+async function loadSharp(): Promise<SharpModule | null> {
+  if (sharpModule) return sharpModule;
+  if (sharpLoadFailed) return null;
+  try {
+    sharpModule = (await import('sharp')).default;
+    return sharpModule;
+  } catch (err) {
+    sharpLoadFailed = true;
+    log.error(
+      `[Webcam] sharp unavailable — pre-classifier DISABLED and images sent at full resolution ` +
+        `(expect more vision calls and timeouts). Run: npm rebuild sharp --foreground-scripts --ignore-scripts=false. ` +
+        `Cause: ${(err as Error).message}`,
+    );
+    return null;
+  }
+}
+
 async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcome> {
   try {
     const response = await fetch(url, {
@@ -138,17 +172,25 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
       lastImageChangeTime.set(url, now);
     }
 
-    // Resize + pre-classifier. Both depend on sharp; if missing we fall back
-    // to raw buffer + isTrivial=false so behavior matches the original path.
+    // Resize + pre-classifier. Both depend on sharp; if it is missing we fall
+    // back to raw buffer + isTrivial=false so behavior matches the original path.
+    const sharp = await loadSharp();
+    if (!sharp) {
+      return { kind: 'fresh', base64: buffer.toString('base64'), isTrivial: false };
+    }
     try {
-      const sharp = (await import('sharp')).default;
       const resized = await sharp(buffer)
         .resize(IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
       const isTrivial = await isImageTrivial(buffer, sharp, webcamName);
       return { kind: 'fresh', base64: resized.toString('base64'), isTrivial };
-    } catch {
+    } catch (err) {
+      // Per-image decode failure (corrupt JPEG, unexpected format) — unlike a
+      // failed import this is not permanent, so it stays a per-image warning.
+      log.warn(
+        `[Webcam] ${webcamName ?? '?'}: sharp could not process the image, sending it unresized — ${(err as Error).message}`,
+      );
       return { kind: 'fresh', base64: buffer.toString('base64'), isTrivial: false };
     }
   } catch (err) {
@@ -442,7 +484,21 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
     lastMapCleanup = Date.now();
   }
 
-  if (process.env.WEBCAM_VISION_ENABLED !== 'true') return [];
+  // Vision is opt-in via WEBCAM_VISION_ENABLED. The variable used to exist
+  // only here — not in .env.example, not in the systemd unit — so regenerating
+  // the .env switched the entire webcam pipeline off with no other symptom.
+  // Say so once per process; the flag keeps it out of every cycle's output.
+  if (process.env.WEBCAM_VISION_ENABLED !== 'true') {
+    if (!visionDisabledLogged) {
+      visionDisabledLogged = true;
+      log.info(
+        '[Webcam] Vision analysis OFF — WEBCAM_VISION_ENABLED is not "true" ' +
+          `(current value: ${process.env.WEBCAM_VISION_ENABLED ?? 'unset'}). ` +
+          'No webcam readings will be produced. Set it in the ingestor .env to enable.',
+      );
+    }
+    return [];
+  }
 
   // Skip analysis at night — cameras show nothing useful, saves Ollama resources
   const hour = new Date().getHours();

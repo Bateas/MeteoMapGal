@@ -10,7 +10,7 @@
  */
 
 import 'dotenv/config';
-import { initPool, pingDb, batchUpsert, batchUpsertBuoys, batchUpsertStations, closePool } from './db.js';
+import { initPool, pingDb, getPool, batchUpsert, batchUpsertBuoys, batchUpsertStations, closePool } from './db.js';
 import { discoverAllStations } from './discover.js';
 import { fetchAllObservations } from './fetchers.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
@@ -25,6 +25,7 @@ import { runIcaCycle } from './icaFetcher.js';
 import { runConvectionGridCycle } from './convectionGridFetcher.js';
 import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import { runFireWatchCycle } from './fireWatch.js';
+import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -60,6 +61,81 @@ let consecutiveEmptyBuoyCycles = 0;
 const BUOY_STALE_CYCLES_WARN = 12;
 const BUOY_STALE_CYCLES_ERROR = 288;
 
+// Per-station buoy staleness. The counter above answers "did ANY buoy
+// report?", which is green as long as one station is alive — that is exactly
+// how buoys 2248 + 3223 stayed dead for 40 days without a single log line.
+// These maps answer the question that actually matters: "which station that
+// used to report has stopped?".
+const buoyLastSeen = new Map<number, number>();
+const buoyStaleWarnedAt = new Map<number, number>();
+
+// PORTUS publishes with up to ~2h of lag and the REDEXT/CETMAR moorings only
+// refresh every 30-60min, so anything under a few hours is normal operation
+// rather than a fault. 12h is comfortably clear of every upstream cadence
+// while still catching a blackout on its first day instead of its fortieth.
+// (buoyFetcher runs a tighter per-cycle check for transient flakiness; this
+// one is the escalation, so it must not fire on the same noise.)
+const BUOY_STATION_STALE_MS = 12 * 60 * 60_000;
+// One line per station per 12h at most — an outage stays visible in the log
+// without burying the cycle output.
+const BUOY_STATION_REWARN_MS = 12 * 60 * 60_000;
+
+// How far back to look when seeding the roster at startup. Without seeding,
+// a station that died BEFORE the process started is simply "never seen" and
+// can never be flagged — a restart would erase the very outage we are hunting.
+// 90 days both covers the 40-day case and retires stations decommissioned a
+// quarter ago, so a permanently removed buoy stops warning on its own.
+const BUOY_SEED_LOOKBACK_DAYS = 90;
+
+/**
+ * Seed `buoyLastSeen` from the DB so staleness survives a restart.
+ * Best-effort: on failure the map stays empty and tracking degrades to
+ * "stations observed since boot", which is still better than nothing.
+ */
+async function seedBuoyLastSeen(): Promise<void> {
+  try {
+    const { rows } = await getPool().query<{ station_id: number; last_time: Date }>(
+      `SELECT station_id, MAX(time) AS last_time
+         FROM buoy_readings
+        WHERE time > NOW() - ($1 || ' days')::INTERVAL
+        GROUP BY station_id`,
+      [String(BUOY_SEED_LOOKBACK_DAYS)],
+    );
+    for (const row of rows) {
+      buoyLastSeen.set(Number(row.station_id), new Date(row.last_time).getTime());
+    }
+    log.info(`[Buoys] staleness roster seeded: ${rows.length} stations seen in the last ${BUOY_SEED_LOOKBACK_DAYS} days`);
+  } catch (err) {
+    log.warn(`[Buoys] could not seed staleness roster — per-station alarm only covers stations seen since boot: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Record which stations reported this cycle, then log any known station that
+ * has gone quiet for longer than the threshold.
+ */
+function checkBuoyStationStaleness(stationIds: number[]): void {
+  const now = Date.now();
+  for (const id of stationIds) buoyLastSeen.set(id, now);
+
+  const stale = findStaleBuoys({
+    now,
+    lastSeen: buoyLastSeen,
+    lastWarnedAt: buoyStaleWarnedAt,
+    staleAfterMs: BUOY_STATION_STALE_MS,
+    reWarnAfterMs: BUOY_STATION_REWARN_MS,
+  });
+  if (stale.length === 0) return;
+
+  for (const s of stale) buoyStaleWarnedAt.set(s.stationId, now);
+  const detail = stale.map((s) => `${s.stationId} (${formatSilence(s.silentMs)})`).join(', ');
+  log.error(
+    `[Buoys] STALE STATIONS: no data for ${detail}. ` +
+      `Other buoys are reporting, so this is a per-station outage — ` +
+      `check the station upstream, or disable it in buoyFetcher if it is gone for good.`,
+  );
+}
+
 // ── Core cycle ───────────────────────────────────────
 
 async function runCycle(): Promise<void> {
@@ -90,10 +166,14 @@ async function runCycle(): Promise<void> {
     // 3. Fetch buoy observations (PORTUS + Observatorio Costeiro)
     const buoyReadings = await fetchBuoyObservations();
 
+    // Per-station tracking runs on EVERY cycle, including empty ones: a cycle
+    // with zero readings is still evidence that no station reported.
+    checkBuoyStationStaleness(buoyReadings.map((r) => r.stationId));
+
     if (buoyReadings.length > 0) {
       const { inserted: bInserted, skipped: bSkipped } = await batchUpsertBuoys(buoyReadings);
       log.info(`Buoys: ${buoyReadings.length} readings → ${bInserted} new, ${bSkipped} dedup`);
-      consecutiveEmptyBuoyCycles = 0;  // success — clear the staleness counter
+      consecutiveEmptyBuoyCycles = 0;  // success — clear the GLOBAL counter only
     } else {
       // Track empty cycles. Five-minute polling × 288 cycles/day = >50 empty
       // cycles in a row means buoys have been silent for a couple of hours.
@@ -183,6 +263,10 @@ async function start(): Promise<void> {
     process.exit(1);
   }
   log.ok('Connected to TimescaleDB');
+
+  // Must run before the first cycle so a station that died before this
+  // process started is already on the roster and can be flagged.
+  await seedBuoyLastSeen();
 
   // 2. Initial station discovery + persist coords
   stations = await discoverAllStations();
