@@ -135,7 +135,15 @@ export function WeatherMap() {
   const isCoastal = useSectorStore((s) => s.activeSector.coastal);
   const sectorInitialView = useSectorStore((s) => s.activeSector.initialView);
   const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
+  const terrain3D = useMapStyleStore((s) => s.terrain3D);
   const mapStyle = useMemo(() => buildMapStyle(activeStyleId), [activeStyleId]);
+  // Initial camera: flat (pitch 0) when 3D relief is off so there's no first-paint
+  // tilt flash before the terrain effect settles. terrain3D read once at mount.
+  const initialView = useMemo(
+    () => (terrain3D ? sectorInitialView : { ...sectorInitialView, pitch: 0 }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialViewState only applies on mount
+    [sectorInitialView],
+  );
   // NOTE: WeatherMap intentionally does NOT subscribe to weatherStore
   // stations/currentReadings — ReadingsLayers/SelectedStationPopup do (per-poll
   // commit isolation, see ReadingsLayers.tsx).
@@ -294,6 +302,29 @@ export function WeatherMap() {
     if (map?.getLayer('hillshade')) map.setLayoutProperty('hillshade', 'visibility', 'visible');
   }, []);
 
+  // 3D relief toggle. Imperative (setTerrain + easeTo pitch), NOT a style
+  // rebuild — so toggling never tears down icons/sources. setTerrain(null) is
+  // safe here: this fires on a deliberate user toggle when the map is idle, not
+  // the forbidden mid-pan flatten hack. Off = flat 2D, the biggest per-frame
+  // GPU saving; on = the wind-arrows-follow-terrain relief effect.
+  const sectorPitchRef = useRef(sectorInitialView.pitch);
+  sectorPitchRef.current = sectorInitialView.pitch;
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const run = () => {
+      if (terrain3D) {
+        map.setTerrain({ source: 'terrainDEM', exaggeration: 1.2 });
+        map.easeTo({ pitch: sectorPitchRef.current, duration: 500 });
+      } else {
+        map.setTerrain(null);
+        map.easeTo({ pitch: 0, duration: 500 });
+      }
+    };
+    if (map.isStyleLoaded()) run();
+    else map.once('load', run);
+  }, [terrain3D]);
+
   // Cross-deselection: only one popup at a time (station XOR buoy XOR spot XOR webcam).
   const prevBuoyRef = useRef<number | null>(null);
   const prevStationRef = useRef<string | null>(null);
@@ -348,7 +379,8 @@ export function WeatherMap() {
     map.flyTo({
       center: [longitude, latitude],
       zoom,
-      pitch,
+      // Respect the 3D toggle across sector switches (flat stays flat).
+      pitch: useMapStyleStore.getState().terrain3D ? pitch : 0,
       bearing,
       duration: 2000,
     });
@@ -437,7 +469,12 @@ export function WeatherMap() {
     // `style.load` event fires after every setStyle (and the initial load),
     // so re-running the idempotent registrars there keeps markers alive
     // across any style rebuild.
-    map.on('style.load', () => registerAllIcons(map));
+    map.on('style.load', () => {
+      registerAllIcons(map);
+      // A rebuilt style re-adds `terrain` — restore the OFF state so a base-map
+      // switch doesn't silently turn 3D relief back on.
+      if (!useMapStyleStore.getState().terrain3D) map.setTerrain(null);
+    });
     // Localize MapLibre navigation controls to Spanish
     requestAnimationFrame(() => {
       const container = map.getContainer();
@@ -452,7 +489,7 @@ export function WeatherMap() {
       <Map
         ref={mapRef}
         mapLib={maplibregl}
-        initialViewState={sectorInitialView}
+        initialViewState={initialView}
         style={{ width: '100%', height: '100%' }}
         mapStyle={mapStyle}
         maxPitch={85}
