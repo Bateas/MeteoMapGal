@@ -25,6 +25,8 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
   const toggleCoastal = useMapStyleStore((s) => s.toggleUpwelling);
   const showConvectionRisk = useMapStyleStore((s) => s.showConvectionRisk);
   const toggleConvectionRisk = useMapStyleStore((s) => s.toggleConvectionRisk);
+  const terrain3D = useMapStyleStore((s) => s.terrain3D);
+  const toggleTerrain3D = useMapStyleStore((s) => s.toggleTerrain3D);
   const toggleSeamarks = useMapStyleStore((s) => s.toggleSeamarks);
   const toggleNauticalChart = useMapStyleStore((s) => s.toggleNauticalChart);
   const showIGNHillshade = useMapStyleStore((s) => s.showIGNHillshade);
@@ -145,6 +147,19 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
                 </button>
               );
             })}
+          </div>
+
+          {/* ── Relieve 3D — visible for everyone (casual-friendly). On = the
+               wind-arrows-follow-terrain effect; off = flat 2D, smoother pan. ── */}
+          <div className="border-t border-slate-700/40 px-1 py-1">
+            <OverlayToggle
+              label="Relieve 3D"
+              sublabel={terrain3D ? 'Inclinado, sigue el terreno' : 'Plano 2D — más fluido'}
+              active={terrain3D}
+              onClick={toggleTerrain3D}
+              color="#38bdf8"
+              isMobile={isMobile}
+            />
           </div>
 
           {/* ── Marine overlay toggles (Rías sector only — advanced) ── */}
