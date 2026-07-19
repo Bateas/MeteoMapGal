@@ -164,4 +164,19 @@ describe('classifyHaze — visibility cross-feed', () => {
     expect(classifyHaze(0, 0, 0.5).severity).toBe('none');
     expect(classifyHaze(null, null, 0.1).severity).toBe('none');
   });
+
+  it('trusts the caller on WHICH visibility it receives (gating contract)', () => {
+    // classifyHaze has no coordinates and no clock, so it cannot tell a nearby
+    // reading from one 110km away, nor a current one from a frozen one. Feeding
+    // it the global minimum is what tinted the Embalse as heavy calima during
+    // real fog at Fisterra. The gate lives in `visibilityFreshness`, upstream;
+    // these two calls are indistinguishable from here — by design.
+    const fromFisterra = classifyHaze(30, 0, 0.2);
+    const fromNextDoor = classifyHaze(30, 0, 0.2);
+    expect(fromFisterra.severity).toBe('fuerte');
+    expect(fromNextDoor.severity).toBe(fromFisterra.severity);
+
+    // Once gated, the same episode over a sector that can see 15km stays leve.
+    expect(classifyHaze(30, 0, 15).severity).toBe('leve');
+  });
 });

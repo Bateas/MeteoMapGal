@@ -30,8 +30,13 @@ export interface HazeAssessment {
  * Inputs:
  * - dust: μg/m³ (Saharan dust component, from Open-Meteo CAMS aerosol model)
  * - aod: aerosol_optical_depth (dimensionless, 0=clear, >1=heavy haze)
- * - minVisibilityKm (optional): worst visibility currently reported by
- *   any AEMET airport station. Acts as OFFICIAL EVIDENCE that bumps severity
+ * - minVisibilityKm (optional): worst visibility reported by the AEMET
+ *   stations that may speak for the sector on screen. CALLER CONTRACT: this
+ *   must already be gated by age and distance (see `visibilityFreshness`) —
+ *   passing the global minimum let dense fog at Fisterra, 110km away, tint an
+ *   inland sector as heavy calima, and let a reading frozen by an AEMET
+ *   outage keep doing so for hours. This function cannot detect either case.
+ *   Acts as OFFICIAL EVIDENCE that bumps severity
  *   when the model already detected something:
  *     · vis<5km + any model leve+ → at least 'moderada'
  *     · vis<2km + any model leve+ → 'fuerte'

@@ -27,6 +27,10 @@ import {
   haloBbox,
   HALO_VIS_THRESHOLD_KM,
 } from '../../services/visibilityHaloService';
+import {
+  isVisibilityFresh,
+  VISIBILITY_STALE_CHECK_INTERVAL_MS,
+} from '../../services/visibilityFreshness';
 
 const SOURCE_ID = 'aemet-visibility-halo';
 const FADE_IN_MS = 2_000;
@@ -100,20 +104,39 @@ function AemetVisibilityHaloInner() {
   const [opacity, setOpacity] = useState(0);
   const lastRef = useRef<FeatureCollection | null>(null);
 
+  // Age is time-dependent but the store only pushes on a successful AEMET
+  // poll — while AEMET is down nothing re-renders this component, so a halo
+  // built from the last reading would sit on the map forever. Tick so the
+  // age check runs on its own clock and the halo can fade out by itself.
+  const [freshnessTick, setFreshnessTick] = useState(0);
+  useEffect(() => {
+    const i = setInterval(
+      () => setFreshnessTick((t) => t + 1),
+      VISIBILITY_STALE_CHECK_INTERVAL_MS,
+    );
+    return () => clearInterval(i);
+  }, []);
+
   // Filter visibilityReadings → list of stations with vis<threshold.
+  // Stale readings are skipped: this halo claims "AEMET is measuring fog HERE,
+  // right now", which a frozen value from a dead poll cannot back.
   // MUST be memoized: a fresh array on every render made `buildHalo` fresh
   // too, which is in the rebuild effect's deps, which calls setGeojson with a
   // new object, which re-renders... forever. The loop only bites while fog is
   // actually reported, so it hid until the halo could produce features.
   const fogStations = useMemo(() => {
     const out: { id: string; name: string; lat: number; lon: number; vis: number }[] = [];
+    const now = Date.now();
     for (const v of visibilityReadings.values()) {
+      if (!isVisibilityFresh(v, now)) continue;
       if (v.visibility < HALO_VIS_THRESHOLD_KM) {
         out.push({ id: v.stationId, name: v.name, lat: v.lat, lon: v.lon, vis: v.visibility });
       }
     }
     return out;
-  }, [visibilityReadings]);
+    // freshnessTick intentionally re-runs the age check over time
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibilityReadings, freshnessTick]);
 
   const buildHalo = useCallback(() => {
     const map = mapRef?.getMap();
