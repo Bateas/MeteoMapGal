@@ -42,7 +42,11 @@ import {
   analyzeThermalProfile,
 } from '../services/lapseRateService';
 import { detectFogBySolarSignature } from '../services/maritimeFogService';
-import { haversineDistance } from '../services/geoUtils';
+import {
+  selectRelevantVisibility,
+  visibilitySignature,
+  SECTOR_VISIBILITY_RADIUS_FACTOR,
+} from '../services/visibilityFreshness';
 import { processAlertNotifications } from '../services/notificationService';
 import { RIAS_WEBCAMS } from '../config/webcams';
 
@@ -135,6 +139,22 @@ export function useUnifiedAlertPipeline({
 
   useEffect(() => {
     const t = setTimeout(() => {
+      // AEMET visibility readings (sector-agnostic map of the 8 Galician stations
+      // with a `vis` sensor), gated on BOTH axes before anything reads them:
+      //  - distance: a real coastal-fog reading 100km+ away (Fisterra
+      //    lighthouse) must NOT fire "Niebla confirmada" over an inland sector.
+      //    1.5x radius keeps Ourense (~27km, valid for Embalse), drops Fisterra.
+      //  - age: the Map survives an AEMET outage untouched, so without a
+      //    freshness gate the alert would keep claiming official confirmation
+      //    from a reading that stopped describing the sky hours ago.
+      const [secLon, secLat] = sectorCenter;
+      const relevantVisibility = selectRelevantVisibility(
+        useWeatherStore.getState().visibilityReadings,
+        secLat,
+        secLon,
+        sectorRadiusKm * SECTOR_VISIBILITY_RADIUS_FACTOR,
+      );
+
       // Cheap input-signature check — skip if nothing relevant changed
       // (Map.size + history epoch + storm timestamp + forecast fetchedAt
       // are the high-signal axes for "is this rebuild meaningful?").
@@ -153,24 +173,16 @@ export function useUnifiedAlertPipeline({
         // alphaMode gates the drone alert filter below — a toggle must
         // invalidate the cache or the list stays stale until data moves
         alphaMode ? 1 : 0,
+        // Digest of the GATED visibility set, so the fog alert can be both
+        // raised (new AEMET batch) and cleared (last batch ageing out) on its
+        // own — neither moves any of the axes above.
+        visibilitySignature(relevantVisibility),
       ].join('|');
       if (sig === lastAggregateSigRef.current) return;
       lastAggregateSigRef.current = sig;
 
       // Station geo for maritime fog (nearby station lookup)
       const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
-
-      // AEMET visibility readings (sector-agnostic map of the 8 Galician stations
-      // with a `vis` sensor) restricted to THIS sector's neighbourhood. A real
-      // coastal-fog reading 100km+ away (Fisterra lighthouse) must NOT fire a
-      // "Niebla confirmada" alert over an inland sector. 1.5x radius keeps
-      // Ourense (~27km, valid for Embalse) but drops Fisterra (~110km from Castrelo).
-      const [secLon, secLat] = sectorCenter;
-      const sectorMaxDistKm = sectorRadiusKm * 1.5;
-      const allVisibility = useWeatherStore.getState().visibilityReadings;
-      const relevantVisibility = new Map(
-        [...allVisibility].filter(([, v]) => haversineDistance(secLat, secLon, v.lat, v.lon) <= sectorMaxDistKm),
-      );
 
       // ── Webcam fog detection (cameras with fogVisible in last 30min) ──
       const visionResults = useWebcamStore.getState().visionResults;
@@ -190,7 +202,7 @@ export function useUnifiedAlertPipeline({
         // state should be counted as evidence even if the IA didn't trip
         // fogVisible (moondream often misclassifies blanket marine fog as
         // 'good visibility partly_cloudy' — confirmed S136+3 Cíes case).
-        // Use the sector-relevant subset (far coastal fog like Fisterra excluded).
+        // Uses the gated subset: only fresh readings from near this sector.
         let regionalAemetFog = false;
         for (const v of relevantVisibility.values()) {
           if (v.visibility < 1) { regionalAemetFog = true; break; }
@@ -225,8 +237,9 @@ export function useUnifiedAlertPipeline({
       }
 
       // AEMET stations with measured visibility <1km → official fog. Works 24/7
-      // (not daylight-dependent). Uses the sector-relevant subset built above,
-      // so far coastal fog (Fisterra ~110km) never paints over an inland sector.
+      // (not daylight-dependent). Uses the gated subset built above, so neither
+      // far coastal fog (Fisterra ~110km) nor a reading frozen by an AEMET
+      // outage can paint fog over this sector.
       for (const v of relevantVisibility.values()) {
         if (v.visibility >= 1) continue;
         fogSources.push({ lat: v.lat, lon: v.lon, type: 'station', id: v.stationId });

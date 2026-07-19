@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MAX_HISTORY_ENTRIES } from '../config/constants';
+import { isVisibilityFresh } from '../services/visibilityFreshness';
 import { useWeatherSelectionStore } from './weatherSelectionStore';
 
 export type WeatherSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx';
@@ -23,7 +24,12 @@ function readingChanged(prev: NormalizedReading | undefined, next: NormalizedRea
 }
 
 /** Regional visibility reading (AEMET airports/coastal — independent of active sector).
- *  Used for fog detection across all Galicia regardless of which ría the user is viewing. */
+ *  Used for fog detection across all Galicia regardless of which ría the user is viewing.
+ *
+ *  CONSUMER CONTRACT: this Map is replaced only on a successful AEMET poll, so
+ *  it holds the last known values indefinitely while AEMET is down. Every
+ *  consumer MUST gate on `timestamp` (and on distance, when attributing the
+ *  reading to a sector) via `services/visibilityFreshness`. */
 export interface VisibilityReading {
   stationId: string;
   name: string;
@@ -218,7 +224,15 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
 
   setVisibilityReadings: (readings) => {
     const next = new Map<string, VisibilityReading>();
-    for (const r of readings) next.set(r.stationId, r);
+    // Drop readings that are already stale on arrival (AEMET occasionally
+    // serves an old batch). This does NOT replace the read-time gate in the
+    // consumers — a batch stored fresh here goes stale in place with no
+    // further store update to announce it.
+    const now = Date.now();
+    for (const r of readings) {
+      if (!isVisibilityFresh(r, now)) continue;
+      next.set(r.stationId, r);
+    }
     set({ visibilityReadings: next }, undefined, 'setVisibilityReadings');
   },
 
