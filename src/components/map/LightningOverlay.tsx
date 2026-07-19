@@ -1,7 +1,7 @@
 import { useMemo, memo, useState, useEffect, useRef, useCallback } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
-import { buildStrikeFeatures, isLiveStrike, isHistoricalStrike } from './lightningStrikeFeatures';
+import { buildStrikeFeatures, isLiveStrike, isHistoricalStrike, shouldRebuildHistorical } from './lightningStrikeFeatures';
 
 const EMPTY_FC: GeoJSON.FeatureCollection = {
   type: 'FeatureCollection',
@@ -152,11 +152,19 @@ export const LightningOverlay = memo(function LightningOverlay() {
   const strikesRef = useRef(strikes);
   strikesRef.current = strikes;
 
+  // Count of the last build — lets the guard detect the empty→data transition
+  // (mount builds with an empty store before the first fetch lands).
+  const lastBuiltCountRef = useRef(0);
+
   const rebuildHistorical = useCallback(() => {
     const now = Date.now();
-    if (now - lastHistBuildRef.current < HIST_REBUILD_MS) return;
+    const hist = strikesRef.current.filter(isHistoricalStrike);
+    if (!shouldRebuildHistorical(
+      now, lastHistBuildRef.current, lastBuiltCountRef.current, hist.length, HIST_REBUILD_MS,
+    )) return;
     lastHistBuildRef.current = now;
-    setHistGeojson(buildStrikeFeatures(strikesRef.current.filter(isHistoricalStrike)));
+    lastBuiltCountRef.current = hist.length;
+    setHistGeojson(buildStrikeFeatures(hist));
   }, []);
 
   // Rebuild on strikes change (throttled) + immediately on enable; clear on disable.
@@ -164,6 +172,7 @@ export const LightningOverlay = memo(function LightningOverlay() {
     if (!showOverlay) {
       setHistGeojson(EMPTY_FC);
       lastHistBuildRef.current = 0; // force an immediate rebuild when re-enabled
+      lastBuiltCountRef.current = 0;
       return;
     }
     rebuildHistorical();

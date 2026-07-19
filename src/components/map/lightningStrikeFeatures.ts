@@ -16,6 +16,29 @@ export const LIVE_MAX_AGE_MIN = 70;
 /** Historical source = strikes at/above this age (min). */
 export const HIST_MIN_AGE_MIN = 60;
 
+/**
+ * Throttle guard for the historical-source rebuild.
+ *
+ * The 10-min throttle exists to avoid re-serializing thousands of features to
+ * the MapLibre worker on every poll — but it must NOT apply to the mount race:
+ * the overlay builds once with the store still EMPTY (arming the throttle),
+ * the first fetch lands seconds later, and day-old strikes would then wait a
+ * full throttle window to appear after every page load.
+ *
+ * Rule: the empty→data transition renders immediately; everything else obeys
+ * the throttle.
+ */
+export function shouldRebuildHistorical(
+  nowMs: number,
+  lastBuildMs: number,
+  lastBuiltCount: number,
+  nextCount: number,
+  throttleMs: number,
+): boolean {
+  if (lastBuiltCount <= 0 && nextCount > 0) return true;
+  return nowMs - lastBuildMs >= throttleMs;
+}
+
 /** Age bucket drives the circle paint: 0=fresh (<15m, bright/large),
  *  1=recent (15-60m), 2=old (1-6h), 3=ancient (6-24h, faint/tiny). */
 export type AgeBucket = 0 | 1 | 2 | 3;
