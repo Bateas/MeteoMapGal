@@ -1278,7 +1278,9 @@ export function scoreAllSpots(
     if (spot.upwindStations && spot.upwindStations.length > 0 && verdict === 'calm') {
       for (const upId of spot.upwindStations) {
         const upReading = readings.get(upId);
-        if (!upReading?.windSpeed || !upReading.windDirection) continue;
+        // Absence check, not falsiness: windDirection 0 = North is real data,
+        // and a falsy guard silently skipped every due-north upwind station.
+        if (upReading?.windSpeed == null || upReading.windDirection == null) continue;
         const upKt = msToKnots(upReading.windSpeed);
         if (upKt < 6) continue; // Need meaningful wind upwind
         // Check if upwind direction matches a frontal pattern (NOT thermal — thermal is local)

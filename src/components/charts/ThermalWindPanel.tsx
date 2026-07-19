@@ -57,6 +57,7 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
     zoneForecast, forecastAlerts, stationToZone, toggleRule,
     selectZone, selectedZoneId, dailyContext, atmosphericContext,
     tendencySignals, humidityAssessments, windStatus,
+    showZoneOverlays, toggleZoneOverlays,
   } = useThermalStore(
     useShallow((s) => ({
       zones: s.zones,
@@ -75,6 +76,8 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
       tendencySignals: s.tendencySignals,
       humidityAssessments: s.humidityAssessments,
       windStatus: s.windStatus,
+      showZoneOverlays: s.showZoneOverlays,
+      toggleZoneOverlays: s.toggleZoneOverlays,
     }))
   );
   const [activeSection, setActiveSection] = useState<PanelSection>('alerts');
@@ -366,6 +369,34 @@ export const ThermalWindPanel = memo(function ThermalWindPanel() {
 
           {/* Wind Status — always visible */}
           <WindStatusCard windStatus={windStatus} propagationEvents={propagationEvents} zones={zones} />
+
+          {/* Map zone layers toggle — the only entry point for these overlays,
+              which render nothing while showZoneOverlays is off. */}
+          <button
+            onClick={toggleZoneOverlays}
+            aria-pressed={showZoneOverlays}
+            className={`w-full flex items-center gap-2 text-left px-2.5 py-1.5 rounded-lg border transition-colors ${
+              showZoneOverlays
+                ? 'border-amber-500/40 bg-amber-500/5'
+                : 'border-slate-700 bg-slate-800/30 hover:bg-slate-800/50'
+            }`}
+          >
+            <span className={`w-3 h-3 rounded border flex items-center justify-center text-[11px] shrink-0 ${
+              showZoneOverlays
+                ? 'border-amber-500 bg-amber-500/20 text-amber-500'
+                : 'border-slate-600'
+            }`}>
+              {showZoneOverlays && '✓'}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className={`text-[11px] font-semibold ${showZoneOverlays ? 'text-amber-400' : 'text-slate-300'}`}>
+                Zonas térmicas en el mapa
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Polígonos de zona, badges de alerta y flechas de propagación
+              </div>
+            </div>
+          </button>
 
           {/* Zone cards */}
           {zones.map((zone) => {

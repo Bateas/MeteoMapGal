@@ -35,17 +35,27 @@ export function useElevationTerrain(mapRef: MapRef | undefined): void {
     if (!map) return;
 
     consumers += 1;
-    if (consumers === 1) {
-      const enable = () => {
-        try {
-          if (!map.getTerrain()) map.setTerrain({ ...TERRAIN_SPEC });
-        } catch { /* style not ready — the next consumer mount retries */ }
-      };
-      if (map.isStyleLoaded()) enable();
-      else map.once('load', enable);
-    }
+
+    // Idempotent: safe to call from several consumers and on every style swap.
+    const enable = () => {
+      try {
+        if (!map.getTerrain()) map.setTerrain({ ...TERRAIN_SPEC });
+      } catch { /* style mid-swap — the next style.load retries */ }
+    };
+
+    // 'style.load', never 'load': 'load' fires once per map, so a consumer
+    // mounting later (these are lazy, they only mount when fog appears) onto a
+    // map whose style is still settling would wait for an event that already
+    // happened — terrain never turns on and elevation queries answer null for
+    // the rest of the session. 'style.load' also re-fires after every
+    // setStyle (base map / sector switch), which wipes the terrain setting.
+    map.on('style.load', enable);
+    if (map.isStyleLoaded()) enable();
 
     return () => {
+      // Per-consumer listener, removed with its own closure, so an unmount
+      // never strips the listener another live consumer is relying on.
+      map.off('style.load', enable);
       consumers = Math.max(0, consumers - 1);
       if (consumers === 0) {
         try { map.setTerrain(null); } catch { /* map already torn down */ }

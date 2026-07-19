@@ -65,6 +65,56 @@ describe('detectTendency — window gating', () => {
   });
 });
 
+describe('detectTendency — 0 is data, not absence', () => {
+  // 0 deg = North and 0 C are real readings. A falsy guard on either used to
+  // return the empty signal, killing the detector on a due-north wind.
+  it('still analyzes with wind from due North (0 deg)', () => {
+    const s = detectTendency(
+      ZONE,
+      [reading({ windDirection: 0, temperature: 30 })],
+      [thermalHistory()],
+      ctx(22),
+      NOW,
+    );
+
+    expect(s.summary).not.toMatch(/Fuera de ventana/);
+    expect(s.score).toBeGreaterThan(0);
+    // North is outside the W/SW/NW thermal sector — reported, not discarded.
+    expect(s.precursors.windInSector).toBe(false);
+    expect(s.precursors.tempScore).toBe(15);
+    expect(s.precursors.deltaTScore).toBe(15);
+  });
+
+  it('averages a due-North wind instead of dropping it', () => {
+    // Both stations read 0 deg; the zone average must stay North, not vanish.
+    const s = detectTendency(
+      ZONE,
+      [reading({ windDirection: 0 }), reading({ windDirection: 0 })],
+      [thermalHistory()],
+      ctx(22),
+      NOW,
+    );
+    expect(s.score).toBeGreaterThan(0);
+    expect(s.precursors.windInSector).toBe(false);
+  });
+
+  it('still analyzes at 0 C', () => {
+    const s = detectTendency(
+      ZONE,
+      [reading({ temperature: 0, windDirection: 270 })],
+      [thermalHistory()],
+      ctx(22),
+      NOW,
+    );
+
+    expect(s.summary).not.toMatch(/Fuera de ventana/);
+    // Freezing kills the thermal, but via the score — not by bailing out.
+    expect(s.precursors.tempScore).toBe(0);
+    expect(s.precursors.tempAboveThreshold).toBe(false);
+    expect(s.precursors.windInSector).toBe(true);
+  });
+});
+
 describe('detectTendency — active thermal (all signals firing)', () => {
   const s = detectTendency(
     ZONE,

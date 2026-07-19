@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { devtools, persist } from 'zustand/middleware';
 import type {
   MicroZone, MicroZoneId, ThermalWindRule,
   RuleScore, ZoneAlert, PropagationEvent,
@@ -66,7 +66,7 @@ interface ThermalState {
   addRules: (rules: ThermalWindRule[]) => void;
 }
 
-export const useThermalStore = create<ThermalState>()(devtools((set, get) => ({
+export const useThermalStore = create<ThermalState>()(devtools(persist((set, get) => ({
   zones: MICRO_ZONES,
   rules: DEFAULT_THERMAL_RULES,
   ruleScores: [],
@@ -117,6 +117,11 @@ export const useThermalStore = create<ThermalState>()(devtools((set, get) => ({
     }
     set({ rules: Array.from(ruleMap.values()) });
   },
+}), {
+  name: 'meteomap-thermal-prefs',
+  // Only the map-overlay preference is persisted. The rest of the store holds
+  // live Maps and model output that must be recomputed, not rehydrated.
+  partialize: (state) => ({ showZoneOverlays: state.showZoneOverlays }),
 }), { name: 'ThermalStore' }));
 
 /**
