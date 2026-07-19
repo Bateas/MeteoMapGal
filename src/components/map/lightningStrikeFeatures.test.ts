@@ -5,6 +5,7 @@ import {
   isLiveStrike,
   isHistoricalStrike,
   buildStrikeFeatures,
+  shouldRebuildHistorical,
   LIVE_MAX_AGE_MIN,
   HIST_MIN_AGE_MIN,
 } from './lightningStrikeFeatures';
@@ -92,5 +93,27 @@ describe('buildStrikeFeatures', () => {
 
   it('returns an empty collection for no strikes', () => {
     expect(buildStrikeFeatures([]).features).toHaveLength(0);
+  });
+});
+
+describe('shouldRebuildHistorical — throttle guard', () => {
+  const THROTTLE = 10 * 60_000;
+
+  it('empty→data transition bypasses the throttle (mount race fix)', () => {
+    // Mount built with 0 strikes at t=0 (arming the throttle); first fetch
+    // lands 3s later with 64 historical strikes → must render NOW, not in 10min
+    expect(shouldRebuildHistorical(3_000, 0, 0, 64, THROTTLE)).toBe(true);
+  });
+
+  it('data→data within the throttle window is blocked', () => {
+    expect(shouldRebuildHistorical(3_000, 0, 64, 66, THROTTLE)).toBe(false);
+  });
+
+  it('data→data after the throttle window is allowed', () => {
+    expect(shouldRebuildHistorical(THROTTLE + 1, 0, 64, 66, THROTTLE)).toBe(true);
+  });
+
+  it('empty→empty stays throttled (no pointless rebuilds while quiet)', () => {
+    expect(shouldRebuildHistorical(3_000, 0, 0, 0, THROTTLE)).toBe(false);
   });
 });
