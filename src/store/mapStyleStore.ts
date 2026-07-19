@@ -119,9 +119,6 @@ interface MapStyleState {
   showUpwelling: boolean;
   /** Convection risk heatmap — spatial CAPE×-LI grid */
   showConvectionRisk: boolean;
-  /** 3D terrain mesh + camera pitch. On = relief effect (wind arrows follow
-   *  the terrain); off = flat 2D top-down, the biggest per-frame GPU saving. */
-  terrain3D: boolean;
 
   setStyle: (id: MapStyleId) => void;
   toggleSeamarks: () => void;
@@ -132,7 +129,6 @@ interface MapStyleState {
   toggleWaveCoast: () => void;
   toggleUpwelling: () => void;
   toggleConvectionRisk: () => void;
-  toggleTerrain3D: () => void;
 }
 
 export const useMapStyleStore = create<MapStyleState>()(
@@ -148,7 +144,6 @@ export const useMapStyleStore = create<MapStyleState>()(
         showWaveCoast: false, // DISABLED by default — #56 v1 has wrong exposure (normals ≠ fetch). Needs redesign
         showUpwelling: false,
         showConvectionRisk: false, // opt-in; auto-activates when peak risk score > threshold
-        terrain3D: true, // 3D relief on by default — the wind-arrows-follow-terrain effect
 
         setStyle: (activeStyleId) =>
           set({ activeStyleId }, undefined, 'setStyle'),
@@ -176,9 +171,6 @@ export const useMapStyleStore = create<MapStyleState>()(
 
         toggleConvectionRisk: () =>
           set({ showConvectionRisk: !get().showConvectionRisk }, undefined, 'toggleConvectionRisk'),
-
-        toggleTerrain3D: () =>
-          set({ terrain3D: !get().terrain3D }, undefined, 'toggleTerrain3D'),
       }),
       {
         name: 'meteomap-map-style',
@@ -191,7 +183,6 @@ export const useMapStyleStore = create<MapStyleState>()(
           showIGNOrtho: state.showIGNOrtho,
           showWaveCoast: state.showWaveCoast,
           showUpwelling: state.showUpwelling,
-          terrain3D: state.terrain3D,
         }),
       },
     ),

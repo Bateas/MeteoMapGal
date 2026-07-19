@@ -12,6 +12,7 @@
  */
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
+import { useElevationTerrain } from './useElevationTerrain';
 import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
 import { useAlertStore } from '../../store/alertStore';
@@ -154,6 +155,9 @@ async function sampleFogZonesLocal(
 function FogOverlayInner() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const { current: mapRef } = useMap();
+  // The map is flat 2D; terrain exists only to answer queryTerrainElevation.
+  // Without it every cell reads as water and the blobs over-paint onto hills.
+  useElevationTerrain(mapRef);
   // Steady-state fog opacity (constant). The old "breathing pulse" was a
   // perpetual ~20fps rAF + setState that re-rendered this component FOREVER
   // while fog was active — the dominant idle CPU churn in the v2.86.0 pan/perf

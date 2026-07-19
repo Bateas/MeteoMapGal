@@ -18,6 +18,7 @@
 
 import { memo, useEffect, useState, useCallback, useRef } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
+import { useElevationTerrain } from './useElevationTerrain';
 import type { Feature, FeatureCollection } from 'geojson';
 import { useWeatherStore } from '../../store/weatherStore';
 import {
@@ -90,6 +91,9 @@ function buildHaloGeoJSON(
 
 function AemetVisibilityHaloInner() {
   const { current: mapRef } = useMap();
+  // The map is flat 2D; terrain exists only to answer queryTerrainElevation.
+  // Without it the halo service fails safe to density 0 and nothing renders.
+  useElevationTerrain(mapRef);
   const visibilityReadings = useWeatherStore((s) => s.visibilityReadings);
 
   const [geojson, setGeojson] = useState<FeatureCollection | null>(null);
@@ -150,10 +154,13 @@ function AemetVisibilityHaloInner() {
       return () => clearTimeout(t);
     }
 
-    if (map.getTerrain && map.queryTerrainElevation) {
+    // CALL getTerrain() — checking the method reference is always truthy, so
+    // the old guard never waited and built halos with null elevations (which
+    // the service fails safe on → nothing rendered). Terrain is now enabled
+    // on demand by useElevationTerrain, so the wait actually matters.
+    if (map.getTerrain?.()) {
       buildHalo();
     } else {
-      // Wait for terrain to load
       map.once?.('terrain', buildHalo);
     }
   }, [fogStationsKey, buildHalo, mapRef, fogStations.length]);

@@ -47,7 +47,7 @@ export const SECTORS: Sector[] = [
       longitude: -8.72,
       latitude: 42.35,
       zoom: 10,
-      pitch: 40,
+      pitch: 0, // flat 2D — tilt/terrain removed (per-frame GPU cost, no info gain)
       bearing: 0,
     },
     meteoclimaticRegions: ['ESGAL36', 'ESGAL15'],  // Pontevedra + A Coruña (Barbanza/Ribeira)
@@ -77,7 +77,7 @@ export const SECTORS: Sector[] = [
       longitude: -8.1,
       latitude: 42.29,
       zoom: 11,
-      pitch: 50,
+      pitch: 0, // flat 2D — tilt/terrain removed (per-frame GPU cost, no info gain)
       bearing: -15,
     },
     meteoclimaticRegions: ['ESGAL32', 'ESGAL36'],
