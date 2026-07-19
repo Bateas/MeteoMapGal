@@ -133,9 +133,17 @@ async function postWebhook(payload: Record<string, unknown>): Promise<boolean> {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000),
     });
+    if (!res.ok) {
+      // A non-2xx means n8n took the request and refused it: workflow
+      // disabled, path renamed, Telegram node erroring. Every caller does
+      // `if (ok) { set cooldown; log }` with no else, so without this line a
+      // dead webhook is indistinguishable from "nothing to report" — EVERY
+      // alert, including the lightning danger one, goes silent forever.
+      log.warn(`Webhook rejected: HTTP ${res.status} (type=${payload.type ?? '?'}) — alert NOT delivered`);
+    }
     return res.ok;
   } catch (err) {
-    log.warn(`Webhook failed: ${(err as Error).message}`);
+    log.warn(`Webhook failed: ${(err as Error).message} (type=${payload.type ?? '?'}) — alert NOT delivered`);
     return false;
   }
 }

@@ -409,9 +409,10 @@ async function countRecentNearbyStrikes(): Promise<number> {
         AND lon BETWEEN -9.07 AND -8.53
     `);
     return parseInt(result.rows[0]?.count ?? '0', 10) || 0;
-  } catch {
-    // Silent fallback — magic window will fall back to 0 strikes which
-    // is just slightly less conservative.
+  } catch (err) {
+    // 0 strikes DISABLES the magic-window veto, so this failure opens a
+    // safety gate rather than closing it. Never let it be silent.
+    log.warn(`Magic window strike-veto query failed (veto disabled this cycle): ${(err as Error).message}`);
     return 0;
   }
 }

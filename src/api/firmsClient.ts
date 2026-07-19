@@ -67,8 +67,11 @@ export async function fetchFireAttribution(days = 3): Promise<Map<string, FireWi
     for (const f of body.fires ?? []) {
       if (f.strikeCount > 0) out.set(fireAttributionKey(f.lat, f.lon), f);
     }
-  } catch {
+  } catch (err) {
     // Attribution is a nice-to-have — the fires themselves come from the proxy.
+    // But a permanently broken endpoint drops the purple lightning ring with
+    // no other symptom (fires keep rendering), so say it out loud.
+    console.debug('[FIRMS] attribution unavailable:', err);
   }
   return out;
 }

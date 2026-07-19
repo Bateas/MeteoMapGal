@@ -16,7 +16,7 @@
  * complement, never overlap visually because each uses its own color.
  */
 
-import { memo, useEffect, useState, useCallback, useRef } from 'react';
+import { memo, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { useElevationTerrain } from './useElevationTerrain';
 import type { Feature, FeatureCollection } from 'geojson';
@@ -100,8 +100,12 @@ function AemetVisibilityHaloInner() {
   const [opacity, setOpacity] = useState(0);
   const lastRef = useRef<FeatureCollection | null>(null);
 
-  // Filter visibilityReadings → list of stations with vis<threshold
-  const fogStations = (() => {
+  // Filter visibilityReadings → list of stations with vis<threshold.
+  // MUST be memoized: a fresh array on every render made `buildHalo` fresh
+  // too, which is in the rebuild effect's deps, which calls setGeojson with a
+  // new object, which re-renders... forever. The loop only bites while fog is
+  // actually reported, so it hid until the halo could produce features.
+  const fogStations = useMemo(() => {
     const out: { id: string; name: string; lat: number; lon: number; vis: number }[] = [];
     for (const v of visibilityReadings.values()) {
       if (v.visibility < HALO_VIS_THRESHOLD_KM) {
@@ -109,7 +113,7 @@ function AemetVisibilityHaloInner() {
       }
     }
     return out;
-  })();
+  }, [visibilityReadings]);
 
   const buildHalo = useCallback(() => {
     const map = mapRef?.getMap();
