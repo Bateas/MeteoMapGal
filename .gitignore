@@ -52,3 +52,6 @@ docs/
 Fuentes/
 repo-filterclean/
 pitch-deck-*.html
+
+# TypeScript incremental build cache
+*.tsbuildinfo
