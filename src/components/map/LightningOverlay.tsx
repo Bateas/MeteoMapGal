@@ -71,7 +71,7 @@ function StrikeLayers({ idPrefix, sourceId }: { idPrefix: string; sourceId: stri
             0, 5,
             1, 4,
             2, 3,
-            2,
+            3,
           ],
           'circle-color': [
             'match',
@@ -79,11 +79,14 @@ function StrikeLayers({ idPrefix, sourceId }: { idPrefix: string; sourceId: stri
             0, '#fef08a', // yellow-200 (bright flash)
             1, '#fbbf24', // amber-400
             2, '#dc2626', // red-600
-            '#9ca3af',    // gray-400
+            // 6-24h: slate-blue — gray-400 at 0.3 was invisible on the light
+            // basemaps (IGN topo/gris, Positron) while MG's own site shows
+            // day-old strikes solid blue. Subtle on dark, readable on light.
+            '#64748b',
           ],
           'circle-opacity': [
             '*',
-            ['match', ['get', 'ageBucket'], 0, 1, 1, 0.85, 2, 0.6, 0.3],
+            ['match', ['get', 'ageBucket'], 0, 1, 1, 0.85, 2, 0.6, 0.55],
             // Reduce opacity for intra-cloud strikes
             ['match', ['get', 'cloudToCloud'], 1, 0.6, 1],
           ],
@@ -93,7 +96,7 @@ function StrikeLayers({ idPrefix, sourceId }: { idPrefix: string; sourceId: stri
             0, 2,
             1, 1.5,
             2, 1,
-            0.5,
+            1,
           ],
           'circle-stroke-color': [
             'match',
@@ -101,7 +104,7 @@ function StrikeLayers({ idPrefix, sourceId }: { idPrefix: string; sourceId: stri
             0, '#f59e0b',
             1, '#ea580c',
             2, '#991b1b',
-            '#6b7280',
+            '#334155',
           ],
           'circle-stroke-opacity': [
             'match',
@@ -109,7 +112,7 @@ function StrikeLayers({ idPrefix, sourceId }: { idPrefix: string; sourceId: stri
             0, 0.9,
             1, 0.6,
             2, 0.4,
-            0.2,
+            0.5,
           ],
         }}
       />
