@@ -53,7 +53,7 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
       {gradientInfo && !isMobile && (
         <div
           className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold tracking-wide
-            backdrop-blur-md bg-slate-900/70 border border-slate-700/50
+            bg-slate-900 border border-slate-700/50
             ${gradientColor} transition-opacity duration-300 whitespace-nowrap`}
         >
           {gradientInfo}
@@ -65,7 +65,7 @@ export const TemperatureToggle = memo(function TemperatureToggle() {
         onClick={toggleOverlay}
         className={`flex items-center justify-center
           rounded-lg font-bold tracking-wide
-          backdrop-blur-md transition-all duration-200 cursor-pointer
+          transition-all duration-200 cursor-pointer
           ${isMobile ? 'gap-1 min-w-[44px] min-h-[44px] px-2.5 py-2 text-base' : 'gap-1.5 px-3 py-1.5 text-[11px]'}
           ${btnClasses}`}
         title={

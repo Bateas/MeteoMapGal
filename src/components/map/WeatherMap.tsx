@@ -5,14 +5,15 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useSectorStore } from '../../store/sectorStore';
-import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useUIStore } from '../../store/uiStore';
 import { useMapStyleStore, getStyleDef } from '../../store/mapStyleStore';
-import { StationSymbolLayer, registerStationIcon } from './StationSymbolLayer';
-import { TempOnlyOverlay } from './TempOnlyMarker';
-import { StationPopup } from './StationPopup';
-import { WindFieldOverlay, registerWindArrowIcons } from './WindFieldOverlay';
+import { registerStationIcon } from './StationSymbolLayer';
+import { registerWindArrowIcons } from './WindFieldOverlay';
+// Station layers + selected-station popup subscribe to weatherStore THEMSELVES
+// (per-poll commit isolation): currentReadings/stations get a new reference on
+// every 60s poll — subscribing here would re-commit the whole map tree each poll.
+import { ReadingsLayers, SelectedStationPopup } from './ReadingsLayers';
 const ThermalZoneOverlay = lazy(() => import('./ThermalZoneOverlay').then(m => ({ default: m.ThermalZoneOverlay })));
 const ThermalFlowOverlay = lazy(() => import('./ThermalFlowOverlay').then(m => ({ default: m.ThermalFlowOverlay })));
 import { ThermalAlertMarkers } from './ThermalAlertMarker';
@@ -135,19 +136,13 @@ export function WeatherMap() {
   const sectorInitialView = useSectorStore((s) => s.activeSector.initialView);
   const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
   const mapStyle = useMemo(() => buildMapStyle(activeStyleId), [activeStyleId]);
-  const stations = useWeatherStore((s) => s.stations);
-  const currentReadings = useWeatherStore((s) => s.currentReadings);
+  // NOTE: WeatherMap intentionally does NOT subscribe to weatherStore
+  // stations/currentReadings — ReadingsLayers/SelectedStationPopup do (per-poll
+  // commit isolation, see ReadingsLayers.tsx).
   const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
   const selectStation = useWeatherSelectionStore((s) => s.selectStation);
   const isMobile = useUIStore((s) => s.isMobile);
   const simpleMode = useUIStore((s) => s.simpleMode);
-
-  // Audit S136+3 #9: memoize .find() calls — without this they re-run on EVERY
-  // re-render (and WeatherMap re-renders often due to many store subscriptions).
-  const selectedStation = useMemo(
-    () => stations.find((s) => s.id === selectedStationId),
-    [stations, selectedStationId],
-  );
 
   // Buoy data from shared store (populated by BuoyPanel in Rías Baixas sector)
   const buoys = useBuoyStore((s) => s.buoys);
@@ -505,26 +500,17 @@ export function WeatherMap() {
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
 
-        {/* Wind field arrows around stations + buoys (hidden in simpleMode) */}
-        {!simpleMode && (
-          <WindFieldOverlay stations={stations} readings={currentReadings} buoys={isCoastal ? buoys : undefined} compact={stations.length > 35} zoomLevel={zoomLevel} />
-        )}
-
-        {/* Temp-only station dots — GPU-accelerated. Kept visible in simpleMode
-            (small temp dots are informational without overwhelming). */}
-        <TempOnlyOverlay stations={stations} readings={currentReadings} />
-
-        {/* Station markers — GPU symbol layer. Hidden in simpleMode to keep the
-            map focused on spots, buoys and reactive overlays. */}
-        {!simpleMode && (
-          <StationSymbolLayer
-            stations={stations}
-            readings={currentReadings}
-            selectedStationId={selectedStationId}
-            onSelectStation={selectStation}
-            zoomLevel={zoomLevel}
-          />
-        )}
+        {/* Wind arrows + temp dots + station markers — wrapper subscribes to
+            weatherStore itself so the 60s poll only re-commits these layers,
+            not the whole map tree (per-poll commit isolation). Renders in the
+            exact same order the three layers had here before. */}
+        <ReadingsLayers
+          simpleMode={simpleMode}
+          buoys={isCoastal ? buoys : undefined}
+          zoomLevel={zoomLevel}
+          selectedStationId={selectedStationId}
+          onSelectStation={selectStation}
+        />
 
         {/* Marine buoy markers — GPU circle+symbol layer (coastal sectors only) */}
         {isCoastal && (
@@ -606,13 +592,9 @@ export function WeatherMap() {
         {/* Regatta/Event mode — zone + buoy markers */}
         <RegattaOverlay />
 
-        {/* Selected station popup */}
-        {selectedStation && (
-          <StationPopup
-            station={selectedStation}
-            reading={currentReadings.get(selectedStation.id)}
-          />
-        )}
+        {/* Selected station popup — reads stations/readings from the store
+            itself (per-poll commit isolation, see ReadingsLayers.tsx) */}
+        <SelectedStationPopup selectedStationId={selectedStationId} />
 
         {/* Selected buoy popup — coastal sectors only */}
         {isCoastal && selectedBuoy && (
@@ -692,7 +674,7 @@ export function WeatherMap() {
             {!simpleMode && <WeatherLayerSelector />}
             <button
               onClick={() => { setDistanceActive((v) => !v); setPlacingSpot(false); }}
-              className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}
+              className={`p-2 rounded-lg border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800 border-slate-600/30 text-slate-300 hover:text-white'}`}
               title="Medir distancia"
               aria-label="Medir distancia"
             >
@@ -700,7 +682,7 @@ export function WeatherMap() {
             </button>
             <button
               onClick={togglePlacingSpot}
-              className={`flex items-center gap-1 px-2.5 py-2 rounded-lg backdrop-blur-sm border transition-colors text-xs font-semibold ${placingSpot ? 'bg-violet-600/85 border-violet-400/60 text-white' : 'bg-slate-800/80 border-slate-600/30 text-violet-300 hover:text-white'}`}
+              className={`flex items-center gap-1 px-2.5 py-2 rounded-lg border transition-colors text-xs font-semibold ${placingSpot ? 'bg-violet-600/85 border-violet-400/60 text-white' : 'bg-slate-800 border-slate-600/30 text-violet-300 hover:text-white'}`}
               title="Crear un spot propio (sin calibrar)"
               aria-label="Crear spot"
             >
@@ -719,7 +701,7 @@ export function WeatherMap() {
             {!simpleMode && <WeatherLayerSelector />}
             <button
               onClick={() => { setDistanceActive((v) => !v); setPlacingSpot(false); }}
-              className={`p-2 rounded-lg backdrop-blur-sm border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800/80 border-slate-600/30 text-slate-300 hover:text-white'}`}
+              className={`p-2 rounded-lg border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800 border-slate-600/30 text-slate-300 hover:text-white'}`}
               title="Medir distancia (nm)"
               aria-label="Medir distancia"
             >
@@ -727,7 +709,7 @@ export function WeatherMap() {
             </button>
             <button
               onClick={togglePlacingSpot}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg backdrop-blur-sm border transition-colors text-xs font-semibold ${placingSpot ? 'bg-violet-600/85 border-violet-400/60 text-white' : 'bg-slate-800/80 border-slate-600/30 text-violet-300 hover:text-white'}`}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors text-xs font-semibold ${placingSpot ? 'bg-violet-600/85 border-violet-400/60 text-white' : 'bg-slate-800 border-slate-600/30 text-violet-300 hover:text-white'}`}
               title="Crear un spot propio (sin calibrar) — toca el mapa para colocarlo"
               aria-label="Crear spot"
             >

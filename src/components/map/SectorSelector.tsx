@@ -31,7 +31,7 @@ export const SectorSelector = memo(function SectorSelector() {
             title={sector.name}
             aria-label={`Cambiar a sector ${sector.name}`}
             className={`flex items-center justify-center rounded-lg font-semibold
-              backdrop-blur-sm border-2 transition-all shadow-lg
+              border-2 transition-all shadow-lg
               ${isMobile
                 ? 'gap-0 min-w-[44px] min-h-[44px] px-2.5 py-2 text-base'
                 : 'gap-1.5 min-h-[40px] px-4 py-2 text-[13px]'

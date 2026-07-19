@@ -74,7 +74,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
         title={`Mapa base: ${activeStyle.name}`}
         aria-label={`Cambiar mapa base (actual: ${activeStyle.name})`}
         className={`flex items-center gap-1.5 rounded-lg font-semibold
-          backdrop-blur-sm border transition-all shadow-md cursor-pointer
+          border transition-all shadow-md cursor-pointer
           ${isMobile ? 'min-w-[44px] min-h-[44px] px-2 py-2 justify-center' : 'px-2 py-1.5 text-[11px]'}
           ${open
             ? 'bg-blue-600/90 text-white border-blue-500/50'

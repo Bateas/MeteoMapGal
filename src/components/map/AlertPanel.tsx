@@ -270,9 +270,9 @@ export const AlertPanel = memo(function AlertPanel() {
       {/* Expanded panel: full alert list */}
       {panelExpanded && hasAlerts && (
         <div
-          className="w-full rounded-xl px-3 py-2.5 backdrop-blur-md space-y-1.5"
+          className="w-full rounded-xl px-3 py-2.5 space-y-1.5"
           style={{
-            background: 'rgba(15, 23, 42, 0.92)',
+            background: 'rgba(15, 23, 42, 0.97)',
             border: '1px solid rgba(100, 116, 139, 0.25)',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
           }}
