@@ -37,9 +37,10 @@ const AlertBadge = memo(function AlertBadge({ zoneId, lon, lat, alertLevel, maxS
           alertLevel === 'high' ? 'animate-pulse' : ''
         }`}
         style={{
-          background: `${color}20`,
+          // Opaque-ish dark base instead of backdrop blur — markers over the
+          // WebGL canvas must not force per-frame re-blurs during pan.
+          background: `linear-gradient(${color}20, ${color}20), rgba(15, 23, 42, 0.85)`,
           border: `1.5px solid ${color}60`,
-          backdropFilter: 'blur(4px)',
         }}
       >
         <div

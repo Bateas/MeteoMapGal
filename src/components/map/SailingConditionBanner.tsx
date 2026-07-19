@@ -115,7 +115,7 @@ export function SailingConditionBanner() {
       className={`${isMobile ? 'fixed z-30' : 'absolute z-30'} top-3 left-1/2 -translate-x-1/2 pointer-events-auto`}
     >
       <div
-        className={`flex items-center rounded-lg backdrop-blur-sm font-semibold shadow-lg ${
+        className={`flex items-center rounded-lg font-semibold shadow-lg ${
           isMobile ? 'gap-1.5 px-2.5 py-1 text-[11px]' : 'gap-2 px-3 py-1.5 text-xs'
         }`}
         style={{

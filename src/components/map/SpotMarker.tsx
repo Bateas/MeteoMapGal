@@ -438,8 +438,8 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
             transition: 'background 1s ease, border-color 1s ease, box-shadow 1s ease',
             borderRadius: 6,
             color: isLoading ? '#93c5fd' : colors.text,
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
+            // No backdrop blur: ~14 badges over the WebGL canvas forced a
+            // per-frame re-blur during pan; the 0.9 background reads the same.
           } as React.CSSProperties}
         >
           {isLoading ? <LoadingSpinner /> : badgeText}

@@ -44,7 +44,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   return (
     <div className="shrink-0" data-tour="layers">
       <div
-        className={`bg-slate-900/85 backdrop-blur-md border border-slate-700/50 rounded-xl
+        className={`bg-slate-900 border border-slate-700/50 rounded-xl
           transition-all duration-200 ${isActive ? 'shadow-lg shadow-black/30' : ''}`}
       >
         {/* Expanded controls — ABOVE buttons so panel grows upward */}
