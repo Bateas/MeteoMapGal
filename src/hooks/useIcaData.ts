@@ -18,7 +18,18 @@ export function useIcaData() {
 
   const fetch = useCallback(async () => {
     const data = await fetchIcaObservations();
-    if (data.length > 0) setReadings(data);
+    if (data.length > 0) {
+      setReadings(data);
+      return;
+    }
+
+    // Empty means the fetch failed or the source published nothing. Keep the
+    // last good readings while they are still recent — one transient failure
+    // should not blank the map — but drop them once they are too old to
+    // describe conditions now. This is the wall-clock backstop to the store's
+    // own expiry timer, which a suspended machine can delay past its deadline.
+    const ica = useIcaStore.getState();
+    if (!ica.isFresh()) ica.clear();
   }, [setReadings]);
 
   useVisibilityPolling(fetch, POLL_INTERVAL, true, 18_000); // 18s stagger

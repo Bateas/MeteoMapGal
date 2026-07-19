@@ -79,7 +79,10 @@ export function detectTendency(
 
   // Get current conditions (average across stations in zone)
   const current = averageReadings(currentReadings);
-  if (!current.temperature || !current.windDirection) {
+  // Test for ABSENCE, not falsiness: 0 is legitimate for both fields
+  // (0 deg = North, 0 C), and a falsy guard here blanked the whole signal
+  // on a due-north wind.
+  if (current.temperature == null || current.windDirection == null) {
     return emptySignal(zoneId, now);
   }
 
@@ -123,7 +126,7 @@ export function detectTendency(
     else humidityScore = 5;
   }
   // Also check absolute humidity is in sweet spot
-  if (current.humidity !== null) {
+  if (current.humidity != null) {
     if (current.humidity >= HR_OPTIMAL_LOW && current.humidity <= HR_OPTIMAL_HIGH) {
       humidityScore = Math.min(20, humidityScore + 5);
     } else if (current.humidity < HR_TOO_DRY || current.humidity > HR_TOO_WET) {
@@ -234,10 +237,12 @@ function averageReadings(readings: NormalizedReading[]): AveragedValues {
     return { temperature: null, humidity: null, windSpeed: null, windDirection: null };
   }
 
-  const temps = readings.map(r => r.temperature).filter((v): v is number => v !== null);
-  const hums = readings.map(r => r.humidity).filter((v): v is number => v !== null);
-  const speeds = readings.map(r => r.windSpeed).filter((v): v is number => v !== null);
-  const dirs = readings.map(r => r.windDirection).filter((v): v is number => v !== null);
+  // Number.isFinite keeps 0 (North / 0 C / calm) while rejecting null,
+  // undefined and NaN — a NaN slipping through would poison the average.
+  const temps = readings.map(r => r.temperature).filter((v): v is number => Number.isFinite(v));
+  const hums = readings.map(r => r.humidity).filter((v): v is number => Number.isFinite(v));
+  const speeds = readings.map(r => r.windSpeed).filter((v): v is number => Number.isFinite(v));
+  const dirs = readings.map(r => r.windDirection).filter((v): v is number => Number.isFinite(v));
 
   return {
     temperature: temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
@@ -389,7 +394,8 @@ function computeDirectionTrend(
   const latest = series[series.length - 1];
   const oldDir = getValueAtOffset(series, 'windDirection', 1);
 
-  if (!latest.windDirection || oldDir === null) return 'stable';
+  // Absence check, not falsiness — a 0 deg (North) reading is real data.
+  if (latest.windDirection == null || oldDir == null) return 'stable';
 
   // Distance to center of thermal sector (270° = W)
   const thermalCenter = 270;
