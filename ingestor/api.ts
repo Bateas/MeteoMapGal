@@ -207,8 +207,16 @@ async function handleReadings(
     try {
       const rows = await queryHourly(station_id, from, to, limit);
       json(res, { count: rows.length, interval: 'hourly', from, to, readings: rows }, 200, origin);
-    } catch {
-      // Fallback to raw if continuous aggregate fails (not refreshed, compressed chunks, etc.)
+    } catch (err) {
+      // Fallback to raw if the continuous aggregate fails (missing GRANT on the
+      // materialized view, aggregate not refreshed, compressed chunks...).
+      // The client still gets a usable 200, but the fallback silently truncates
+      // long ranges to 2000 raw rows — which looks like a normal short history
+      // rather than a broken aggregate. Log it so the cause is diagnosable
+      // instead of showing up as "the chart is missing old data".
+      log.warn(
+        `[API] hourly aggregate failed for ${station_id}, serving raw instead: ${(err as Error).message}`,
+      );
       const rows = await queryReadings(station_id, from, to, Math.min(limit, 2000));
       json(res, { count: rows.length, interval: 'raw', from, to, readings: rows }, 200, origin);
     }
