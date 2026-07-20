@@ -17,6 +17,7 @@ import {
   currentSpeedClass,
   isBuoyFresh,
   BUOY_STALE_MAX_MIN,
+  BUOY_WAVE_MAX_MIN,
 } from './buoyUtils';
 
 // ── waveHeightColor ──────────────────────────────────────────
@@ -228,6 +229,19 @@ describe('isBuoyFresh', () => {
   it('boundary: exactly at the cutoff is still fresh', () => {
     const t = new Date(NOW - BUOY_STALE_MAX_MIN * 60_000);
     expect(isBuoyFresh({ timestamp: t }, BUOY_STALE_MAX_MIN, NOW)).toBe(true);
+  });
+
+  it('the wave window survives the PORTUS publication lag that the wind gate rejects', () => {
+    // PORTUS buoys arrive 120-140min old by design. Cabo Silleiro is the only
+    // one carrying wave data, so on the strict gate it flickered in and out.
+    const portusLag = new Date(NOW - 135 * 60_000);
+    expect(isBuoyFresh({ timestamp: portusLag }, BUOY_STALE_MAX_MIN, NOW)).toBe(false);
+    expect(isBuoyFresh({ timestamp: portusLag }, BUOY_WAVE_MAX_MIN, NOW)).toBe(true);
+  });
+
+  it('the wave window still rejects a buoy that missed several publications', () => {
+    const reallyStale = new Date(NOW - 5 * 60 * 60_000); // 5h
+    expect(isBuoyFresh({ timestamp: reallyStale }, BUOY_WAVE_MAX_MIN, NOW)).toBe(false);
   });
 
   it('treats a missing timestamp as stale (excluded)', () => {
