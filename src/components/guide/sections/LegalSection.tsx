@@ -59,8 +59,7 @@ export function LegalSection() {
             <AttrRow name="IHM / Puertos del Estado" license="Datos públicos" desc="Predicciones de mareas" />
             <AttrRow name="ENAIRE" license="Datos públicos" desc="Espacio aéreo y NOTAMs" />
             <AttrRow name="Puertos del Estado (PORTUS)" license="Datos públicos" desc="Boyas marinas — oleaje, corrientes, nivel del mar" />
-            <AttrRow name="Observatorio Costeiro (Xunta)" license="Datos abiertos Xunta" desc="Boyas suplementarias — humedad, punto de rocío" />
-            <AttrRow name="RADAR ON RAIA (INTECMAR)" license="Datos abiertos" desc="Corrientes superficiales — radar HF costero" />
+            <AttrRow name="Observatorio Costeiro (Xunta)" license="Datos abiertos Xunta" desc="Boyas suplementarias — humedad, punto de rocío" />
             <AttrRow name="CMEMS / Copernicus Marine" license="Datos abiertos EU" desc="Temperatura superficial del mar (SST)" />
             <AttrRow name="EMODnet" license="Datos abiertos EU" desc="Batimetría marina" />
             <AttrRow name="OpenSeaMap" license="CC BY-SA" desc="Marcas y señales de navegación" />

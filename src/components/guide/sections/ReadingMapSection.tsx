@@ -32,7 +32,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="wind"
             title="Barra inferior — capas de datos"
-            text="Botones en la parte inferior del mapa para activar/desactivar capas: Viento (partículas), Humedad, Radar precipitación, Corrientes. Solo una activa a la vez. Tecla W para ciclar."
+            text="Botones en la parte inferior del mapa para activar/desactivar capas: Viento (partículas), Humedad, Radar precipitación. Solo una activa a la vez. Tecla W para ciclar."
           />
           <MiniExplainer
             iconId="map"
@@ -151,7 +151,6 @@ export function ReadingMapSection() {
         <h3 className="text-sm font-bold text-white">Capas interactivas (tecla W)</h3>
         <p className="text-[11px] text-slate-400 leading-relaxed">
           Cinco capas mutuamente excluyentes. Pulsa W para ciclar entre las 4 primeras.
-          Corrientes solo aparece en el sector Rías Baixas.
         </p>
         <div className="space-y-2">
           <LayerCard
@@ -175,14 +174,7 @@ export function ReadingMapSection() {
             description="RainViewer: radar animado (2h de historial). Colores indican intensidad: azul=débil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
             color="#06b6d4"
           />
-          <LayerCard
-            iconId="waves"
-            name="Corrientes superficiales"
-            shortcut="Solo Rías"
-            description="RADAR ON RAIA (INTECMAR): radar HF costero. Flechas muestran dirección y velocidad de corrientes superficiales en toda la costa gallega. Actualización horaria (~2h retardo). Escala: azul=0, verde=0.2, rojo=0.5+ m/s."
-            color="#14b8a6"
-          />
-        </div>
+          </div>
       </div>
 
       {/* Automatic overlays */}

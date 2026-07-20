@@ -139,12 +139,6 @@ export default defineConfig(({ mode }) => {
         // NOT a credential leak. Single shared Cesantes station, no per-user auth.
         headers: { 'X-Auth': process.env.SKYX_AUTH || 'a21bd737-a714-4a5c-9b08-e7d3d2693a51' },
       },
-      '/hfradar-api': {
-        target: 'https://opendap.intecmar.gal',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/hfradar-api/, '/thredds/wms/HFRADAR_Galicia_Aggr_NRT_v2.2_Totals'),
-        secure: true,
-      },
       '/noaa-api': {
         target: 'https://ftp.cpc.ncep.noaa.gov',
         changeOrigin: true,

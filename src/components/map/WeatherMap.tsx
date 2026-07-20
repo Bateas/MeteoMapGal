@@ -38,7 +38,6 @@ const WindParticleOverlay = lazy(() => import('./WindParticleOverlay').then(m =>
 const HumidityHeatmapOverlay = lazy(() => import('./HumidityHeatmapOverlay').then(m => ({ default: m.HumidityHeatmapOverlay })));
 const IcaOverlay = lazy(() => import('./IcaOverlay').then(m => ({ default: m.IcaOverlay })));
 const RadarOverlay = lazy(() => import('./RadarOverlay').then(m => ({ default: m.RadarOverlay })));
-const CurrentsOverlay = lazy(() => import('./CurrentsOverlay').then(m => ({ default: m.CurrentsOverlay })));
 const AirspaceOverlay = lazy(() => import('./AirspaceOverlay').then(m => ({ default: m.AirspaceOverlay })));
 import { TemperatureOverlay } from './TemperatureOverlay';
 import { TemperatureToggle } from './TemperatureToggle';
@@ -586,9 +585,6 @@ export function WeatherMap() {
 
         {/* AEMET Radar nacional — includes Cerceda/A Coruña */}
         <Suspense fallback={null}><RadarOverlay /></Suspense>
-
-        {/* RADAR ON RAIA — HF radar surface currents (Rías Baixas only) */}
-        <Suspense fallback={null}><CurrentsOverlay /></Suspense>
 
         {/* ENAIRE airspace zones + NOTAMs — only visible when Dron tab is active */}
         <Suspense fallback={null}><AirspaceOverlay /></Suspense>

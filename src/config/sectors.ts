@@ -26,7 +26,7 @@ export interface Sector {
   /** Extra points outside the main radius — stations within 8km of these are included */
   extraCoveragePoints?: { name: string; lon: number; lat: number }[];
   /**
-   * Coastal sector → enables marine features: buoys, tides, currents (HF radar),
+   * Coastal sector → enables marine features: buoys, tides,
    * SST, nearshore waves (SWAN), bathymetry, seamarks, nautical charts, upwelling,
    * advective fog, sea breeze. Inland sectors (false) get thermal features instead.
    * Drives all marine-vs-inland gating across the app (use isCoastalSector()).

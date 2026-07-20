@@ -15,7 +15,6 @@ const LAYER_BUTTONS: { id: WeatherLayerType; icon: IconId; label: string; coasta
   { id: 'wind-particles', icon: 'wind', label: 'Viento' },
   { id: 'humidity', icon: 'droplets', label: 'Humedad' },
   { id: 'radar', icon: 'radar', label: 'Radar' },
-  { id: 'currents', icon: 'waves', label: 'Corrientes', coastalOnly: true },
 ];
 
 // ── Component ──────────────────────────────────────────────
@@ -29,7 +28,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   const setActiveLayer = useWeatherLayerStore((s) => s.setActiveLayer);
   const setLayerOpacity = useWeatherLayerStore((s) => s.setLayerOpacity);
 
-  // Filter coastal-only buttons (e.g. 'currents' only in coastal sectors)
+  // Filter coastal-only buttons (kept for future marine-only layers)
   const buttons = useMemo(
     () => LAYER_BUTTONS.filter((b) => !b.coastalOnly || isCoastalSector(sectorId)),
     [sectorId],
@@ -79,7 +78,6 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
             {activeLayer === 'radar' && <RadarLegend />}
 
             {/* ── Currents info ── */}
-            {activeLayer === 'currents' && <CurrentsLegend />}
           </div>
         )}
 
@@ -279,34 +277,7 @@ function HumidityLegend() {
 
 /* ─── (SatelliteLegend removed — EUMETSAT non-commercial license incompatible) ─── */
 
-/* ─── Surface currents info panel ─── */
-function CurrentsLegend() {
-  return (
-    <div className="space-y-1">
-      <span className="text-[11px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="waves" size={10} /> RADAR ON RAIA — Corrientes superficiales</span>
-      <div className="text-[11px] text-slate-400">
-        Radar HF costero (INTECMAR). Flechas indican dirección y velocidad
-        de corrientes superficiales. Actualización horaria (~2h retardo).
-      </div>
-      <div className="flex items-center gap-0">
-        {[
-          { color: '#0000ff', label: '0' },
-          { color: '#00ccff', label: '0.1' },
-          { color: '#00ff00', label: '0.2' },
-          { color: '#ffff00', label: '0.3' },
-          { color: '#ff8800', label: '0.4' },
-          { color: '#ff0000', label: '0.5+' },
-        ].map((s, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center">
-            <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
-            <span className="text-[11px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
-          </div>
-        ))}
-      </div>
-      <div className="text-[11px] text-slate-500 text-center">m/s</div>
-    </div>
-  );
-}
+
 
 /* ─── Radar info panel ─── */
 function RadarLegend() {
