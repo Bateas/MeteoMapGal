@@ -64,8 +64,11 @@ interface WeatherState {
   // Actions
   setStations: (stations: NormalizedStation[]) => void;
   updateReadings: (readings: NormalizedReading[]) => void;
-  /** Replace regional visibility readings (full refresh, not merge). */
-  setVisibilityReadings: (readings: VisibilityReading[]) => void;
+  /** Merge one provider's visibility readings (keys under `prefix`) into the
+   *  regional map without touching other providers' entries. Replaces the old
+   *  full-refresh setter: with two independent writers (AEMET poll + METAR
+   *  poll) a wholesale set from either one would silently erase the other. */
+  mergeVisibilityReadings: (readings: VisibilityReading[], prefix: string) => void;
   appendHistory: (readings: NormalizedReading[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -222,18 +225,43 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
     scheduleCacheSnapshot(() => get().cacheSnapshot());
   },
 
-  setVisibilityReadings: (readings) => {
+  mergeVisibilityReadings: (readings, prefix) => {
+    const prev = get().visibilityReadings;
+
+    // Keep every entry from OTHER providers untouched; the incoming batch
+    // is authoritative only for its own prefix (its stale entries clear).
     const next = new Map<string, VisibilityReading>();
-    // Drop readings that are already stale on arrival (AEMET occasionally
+    for (const [id, r] of prev) {
+      if (!id.startsWith(prefix)) next.set(id, r);
+    }
+
+    // Drop readings that are already stale on arrival (a provider occasionally
     // serves an old batch). This does NOT replace the read-time gate in the
     // consumers — a batch stored fresh here goes stale in place with no
     // further store update to announce it.
     const now = Date.now();
     for (const r of readings) {
+      // A wrong-prefix entry would escape its writer's future refreshes and
+      // linger forever — refuse cross-provider contamination outright.
+      if (!r.stationId.startsWith(prefix)) continue;
       if (!isVisibilityFresh(r, now)) continue;
       next.set(r.stationId, r);
     }
-    set({ visibilityReadings: next }, undefined, 'setVisibilityReadings');
+
+    // Publish only on real change: consumers key off the Map reference, so a
+    // no-op set would needlessly re-run every halo/alert subscriber.
+    if (next.size === prev.size) {
+      let identical = true;
+      for (const [id, r] of next) {
+        const p = prev.get(id);
+        if (!p || p.visibility !== r.visibility || p.timestamp.getTime() !== r.timestamp.getTime()) {
+          identical = false;
+          break;
+        }
+      }
+      if (identical) return;
+    }
+    set({ visibilityReadings: next }, undefined, 'mergeVisibilityReadings');
   },
 
   // Append readings to history only (for model/interpolated data like Open-Meteo).

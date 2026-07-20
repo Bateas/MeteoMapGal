@@ -25,7 +25,7 @@ export function useWeatherData() {
   const setLoading = useWeatherStore((s) => s.setLoading);
   const setError = useWeatherStore((s) => s.setError);
   const updateSourceStatus = useWeatherStore((s) => s.updateSourceStatus);
-  const setVisibilityReadings = useWeatherStore((s) => s.setVisibilityReadings);
+  const mergeVisibilityReadings = useWeatherStore((s) => s.mergeVisibilityReadings);
   const addToast = useToastStore((s) => s.addToast);
   const toastedSourceErrors = useRef(new Set<string>());
   const cacheLoadedForSector = useRef<string | null>(null);
@@ -94,7 +94,9 @@ export function useWeatherData() {
               }
             }
             for (const v of latestVisByStation.values()) visReadings.push(v);
-            setVisibilityReadings(visReadings);
+            // Prefix-scoped merge: refreshes the aemet_ entries only, so the
+            // METAR poll (metar_ prefix, its own cadence) is never wiped out.
+            mergeVisibilityReadings(visReadings, 'aemet_');
             updateSourceStatus('aemet', true, readings.length);
             return readings;
           }).catch((err) => {

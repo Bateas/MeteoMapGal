@@ -25,6 +25,7 @@ import { useAviationData } from '../../hooks/useAviationData';
 import { useSurfMarineData } from '../../hooks/useSurfMarineData';
 import { useWebcamVisionData } from '../../hooks/useWebcamVisionData';
 import { useForecastTimeline } from '../../hooks/useForecastTimeline';
+import { useMetarVisibility } from '../../hooks/useMetarVisibility';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -47,6 +48,7 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useSurfMarineData();
   useWebcamVisionData();
   useForecastTimeline();
+  useMetarVisibility();
   // Convection risk overlay (CAPE × LI) is NO LONGER auto-activated
   // (audit — user feedback): the model-based prediction can
   // contradict live radar/lightning (green zones with active red strikes,
