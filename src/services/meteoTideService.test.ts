@@ -103,8 +103,17 @@ describe('computeMeteoTide', () => {
     expect(formatMeteoTide(t!)).toContain('por debajo');
   });
 
-  it('rejects a stale gauge reading — surge is about the sea right now', () => {
-    const old = new Date('2026-07-19T18:00:00'); // ~6h before `now`
+  it('accepts the PORTUS publication lag — the gauges arrive ~2h old by design', () => {
+    // 130min old: the normal REDMAR delivery. A 2h gate would silence this
+    // feature almost always, and not because the sea matched the table.
+    const lagged = new Date(now.getTime() - 130 * 60_000);
+    const t = computeMeteoTide(1.194, lagged, vigoSeries(), now);
+    expect(t).not.toBeNull();
+    expect(t!.ageMin).toBe(130);
+  });
+
+  it('still rejects a genuinely abandoned gauge', () => {
+    const old = new Date('2026-07-19T17:00:00'); // ~7h before `now`
     expect(computeMeteoTide(1.194, old, vigoSeries(), now)).toBeNull();
   });
 

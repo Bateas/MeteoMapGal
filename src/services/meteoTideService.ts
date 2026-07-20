@@ -116,7 +116,15 @@ export function computeMeteoTide(
   observedAt: Date,
   extremes: TideExtreme[],
   now: Date = new Date(),
-  maxAgeMin = 120,
+  // 4h, not the 2h used for fast fields. The raw sea level moves metres per
+  // hour, but this function does not report the level — it reports the
+  // residual, and it takes the astronomical height at the reading's OWN
+  // timestamp, so an older reading still yields a correct residual for that
+  // moment. Surge itself is driven by pressure and wind set-up and evolves
+  // over hours. The practical reason: the REDMAR gauges arrive 120-140min old
+  // by design, so a 2h gate would silence this almost always — not for lack
+  // of surge, but for the publication lag.
+  maxAgeMin = 240,
 ): MeteoTide | null {
   if (observedM == null || !Number.isFinite(observedM)) return null;
 

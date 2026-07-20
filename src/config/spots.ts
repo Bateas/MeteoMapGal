@@ -641,7 +641,9 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'critical',
     thermalDetection: false,
     hardGates: { maxWindKt: 25, maxWaveHeight: 4.0 },
-    tideStationId: '1', // Vigo
+    tideStationId: '29', // Vigo. Was '1', which is Pasajes (Guipuzcoa) — the
+    // comment said Vigo but the id pointed at the Bay of Biscay, so this spot
+    // had been showing the wrong coast's tide table.
     webcams: [
       { label: 'Waira Surf Patos', url: 'https://waira.com/webcam/', type: 'page', source: 'Waira Surf School', azimuth: 300 },
     ],
@@ -732,7 +734,8 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'critical',
     thermalDetection: false,
     hardGates: { maxWindKt: 25, maxWaveHeight: 5.0 },
-    tideStationId: '7', // Vilagarcía
+    tideStationId: '26', // Vilagarcia (Ria de Arousa). Was '7' = Aviles
+    // (Asturias) — same mislabelled-id bug as Patos.
     webcams: [
       { label: 'Corrubedo (MG)', url: 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia/Corrubedo/ultima.jpg', type: 'image', source: 'MeteoGalicia', azimuth: 270, refreshInterval: 300 },
     ],

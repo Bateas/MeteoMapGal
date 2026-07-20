@@ -2,10 +2,15 @@ import { useState, useEffect, useMemo } from 'react';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { fetchTidePredictions } from '../../api/tideClient';
 import type { TidePoint } from '../../api/tideClient';
+import { useMeteoTide } from '../../hooks/useMeteoTide';
+import { formatMeteoTide } from '../../services/meteoTideService';
 
 export function SpotTideSummary({ tideStationId, tidePreference }: { tideStationId: string; tidePreference?: string }) {
   const [tides, setTides] = useState<TidePoint[] | null>(null);
   const [loading, setLoading] = useState(true);
+  // How far the water actually is from the table above. Null unless a nearby
+  // gauge is reporting live and the difference is big enough to matter.
+  const meteoTide = useMeteoTide(tideStationId);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +87,17 @@ export function SpotTideSummary({ tideStationId, tidePreference }: { tideStation
           );
         })}
       </div>
+      {meteoTide && meteoTide.level !== 'none' && (
+        <div
+          className={`mt-1 flex items-center gap-1 text-[10px] ${
+            meteoTide.level === 'high' ? 'text-amber-400' : 'text-slate-400'
+          }`}
+          title="Nivel medido por el mareógrafo frente a la predicción oficial"
+        >
+          <WeatherIcon id="waves" size={10} className="shrink-0" />
+          {formatMeteoTide(meteoTide)}
+        </div>
+      )}
       {tideMismatch && (
         <div className="mt-1 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] flex items-center gap-1">
           <WeatherIcon id="alert-triangle" size={10} className="shrink-0" />
