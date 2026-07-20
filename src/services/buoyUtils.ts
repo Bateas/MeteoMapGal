@@ -122,6 +122,21 @@ export function currentSpeedClass(s: number): string {
  *  hold a stale wind verdict or fire a false SST-driven fog alert). */
 export const BUOY_STALE_MAX_MIN = 120;
 
+/** Max age (minutes) for WAVE data specifically.
+ *
+ *  Wind is a minutes-scale field, so the 2h gate above is right for it. Swell
+ *  is not: significant wave height and period evolve over hours, and a reading
+ *  from two or three hours ago still describes the sea you are looking at.
+ *
+ *  Measured cause for a wider window: the PORTUS buoys publish every 30-60min
+ *  and add 30-90min of lag, so they arrive 120-140min old — right on top of the
+ *  2h line. Cabo Silleiro is the ONLY buoy in the network carrying wave data,
+ *  so it was crossing the gate back and forth and silently taking the wave part
+ *  of the verdict with it. 4h clears that structural lag with margin while
+ *  still rejecting a buoy that has genuinely missed several publications (the
+ *  fetcher itself serves up to 6h). */
+export const BUOY_WAVE_MAX_MIN = 240;
+
 /** True if a buoy reading is recent enough to drive a current verdict/alert.
  *  A missing or unparseable timestamp is treated as stale (excluded). Shared by
  *  spotScoringEngine (wind/humidity/theta-V) and maritimeFogService (SST delta).

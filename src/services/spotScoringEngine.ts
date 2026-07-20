@@ -23,7 +23,7 @@ import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
-import { isBuoyFresh } from './buoyUtils';
+import { isBuoyFresh, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
 import { fastDistanceKm, computeBearing } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
@@ -183,10 +183,14 @@ function selectStationsForSpot(
 
 /**
  * Select buoy readings relevant to a spot.
+ *
+ * `maxAgeMin` defaults to the strict wind-scale gate. Callers that consume a
+ * slower-moving field (waves) pass a wider window — see BUOY_WAVE_MAX_MIN.
  */
 function selectBuoysForSpot(
   spot: SailingSpot,
   buoys: BuoyReading[],
+  maxAgeMin: number = BUOY_STALE_MAX_MIN,
 ): { buoy: BuoyReading; distKm: number; lat: number; lon: number }[] {
   const [spotLon, spotLat] = spot.center;
   const preferredSet = new Set(spot.preferredBuoys);
@@ -200,7 +204,7 @@ function selectBuoysForSpot(
     // 3-6h-old marine reading at the x1.5 over-water exposure boost could
     // otherwise dominate a sheltered spot's consensus and hold a stale
     // "good/strong" verdict against fresh, calm land stations (O3).
-    if (!isBuoyFresh(b)) continue;
+    if (!isBuoyFresh(b, maxAgeMin)) continue;
 
     const distKm = fastDistanceKm(coords.lat, coords.lon, spotLat, spotLon);
     const isPreferred = preferredSet.has(b.stationId);
@@ -1181,7 +1185,11 @@ export function scoreAllSpots(
     const buoyData = selectBuoysForSpot(spot, buoys);
 
     const wind = computeSpotWindConsensus(spot, stationData, buoyData);
-    const waves = extractWaveConditions(buoyData);
+    // Waves get their own, wider freshness window. Everything else on this
+    // list (wind, theta-v, humidity, bocana) stays on the strict wind-scale
+    // gate — swell is the only field here slow enough to survive the PORTUS
+    // publication lag without misleading anyone.
+    const waves = extractWaveConditions(selectBuoysForSpot(spot, buoys, BUOY_WAVE_MAX_MIN));
 
     // Water temp + dew point from nearest buoy.
     // SURF spots SKIP the buoy water temp: the closest buoy can sit in a totally
