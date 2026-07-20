@@ -43,6 +43,7 @@ import { assessBeachDay } from '../../services/beachDayService';
 import { waterTempLabel } from '../../services/buoyUtils';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
+import { SpotWarningNotice } from '../spot/SpotWarningNotice';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
 import { ScoringBreakdown, Cell } from '../spot/ScoringBreakdown';
 import { WebcamSection } from '../spot/WebcamSection';
@@ -342,6 +343,14 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   // Use surf verdict for display if available, otherwise fall back to wind verdict
   const displayVerdict = surfInfo ?? { label: vs.label, color: vs.color, bg: vs.bg, summary: '' };
 
+  // Spot-local wave for the sport-warning threshold: the cache entry already
+  // carries the coastal factor and swell alignment, so it describes THIS beach
+  // rather than the open sea. Map.get returns a stable reference, so this
+  // subscription only fires when the entry itself is replaced.
+  const surfSpotWave = useSpotStore((s) =>
+    spot.category === 'surf' ? s.surfWaveCache.get(spot.id)?.waveHeight : undefined,
+  );
+
   const popupContent = (
     <div className={`break-words ${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[260px] max-w-[350px] max-h-[70vh] overflow-y-auto overflow-x-hidden'}`}>
       {/* ── Header ── */}
@@ -443,6 +452,20 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           {displayVerdict.summary}
         </div>
       )}
+
+      {/* Sport-threshold reading of an active orange marine warning. Informs,
+          never authorises — all copy lives in sportWarningService, guarded by
+          the no-authorisation test. Wave is passed ONLY for surf spots, where
+          the cache value is already through the spot's own coastal factor; a
+          sailing spot gets null (its nearest wave buoy measures open water,
+          which never reaches an inner-ria spot — the service then shows the
+          wind and names the missing wave). Renders nothing without an active
+          orange/red marine warning. Demo: ?simorange=1|alta|sindato|rojo */}
+      <SpotWarningNotice
+        sectorId={sectorId}
+        waveHeightM={spot.category === 'surf' ? (surfSpotWave ?? null) : null}
+        windKt={score?.provisional ? null : (score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null)}
+      />
 
       {/* SWAN per-spot Hs cross-check (T5-3 S136+3+3) — only on surf spots,
           and only when CESGA actually responded with a value. Silent on
