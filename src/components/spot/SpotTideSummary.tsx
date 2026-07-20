@@ -89,7 +89,7 @@ export function SpotTideSummary({ tideStationId, tidePreference }: { tideStation
       </div>
       {meteoTide && meteoTide.level !== 'none' && (
         <div
-          className={`mt-1 flex items-center gap-1 text-[10px] ${
+          className={`mt-0.5 flex items-center gap-1 text-[10px] ${
             meteoTide.level === 'high' ? 'text-amber-400' : 'text-slate-400'
           }`}
           title="Nivel medido por el mareógrafo frente a la predicción oficial"
@@ -99,7 +99,7 @@ export function SpotTideSummary({ tideStationId, tidePreference }: { tideStation
         </div>
       )}
       {tideMismatch && (
-        <div className="mt-1 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] flex items-center gap-1">
+        <div className="mt-0.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] flex items-center gap-1">
           <WeatherIcon id="alert-triangle" size={10} className="shrink-0" />
           {tideMismatch}
         </div>

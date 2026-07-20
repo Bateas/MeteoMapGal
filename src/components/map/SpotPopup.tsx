@@ -354,7 +354,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const popupContent = (
     <div className={`break-words ${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[260px] max-w-[350px] max-h-[70vh] overflow-y-auto overflow-x-hidden'}`}>
       {/* ── Header ── */}
-      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700/60">
+      <div className="flex items-center gap-2 mb-1.5 pb-1.5 border-b border-slate-700/60">
         <div
           className={`${isMobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-full flex items-center justify-center shrink-0`}
           style={{ background: displayVerdict.bg, border: `2px solid ${displayVerdict.color}` }}
@@ -392,13 +392,15 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
               {spot.category === 'surf' ? 'SURF BETA' : 'BETA'}
             </span>
           </div>
-          <div className="text-[12px] text-slate-300 break-words">{spot.description}</div>
+          {/* Single-line description — full text on hover; prose costs vertical
+              space the popup cannot afford on mobile. */}
+          <div className="text-[11px] text-slate-300 truncate" title={spot.description}>{spot.description}</div>
         </div>
       </div>
 
       {/* ── Surf conditions reference (surf spots only) ── */}
       {spot.category === 'surf' && (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] mb-2 p-1.5 rounded bg-cyan-950/30 border border-cyan-800/30">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] mb-1.5 p-1 rounded bg-cyan-950/30 border border-cyan-800/30">
           {spot.beachOrientation != null && (
             <div><span className="text-slate-500">Playa</span> <span className="text-cyan-300 font-bold">{degreesToCardinal(spot.beachOrientation)}</span></div>
           )}
@@ -428,13 +430,13 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {score?.provisional ? (
         // Cold-load provisional score (same flag SpotMarker reads): never show
         // a firm verdict computed from a still-partial reading set.
-        <div className="mb-2 text-[12px] text-slate-400 italic">
+        <div className="mb-1.5 text-[12px] text-slate-400 italic">
           Calculando condiciones (esperando estaciones)…
         </div>
       ) : (
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-1.5">
           <span
-            className="px-2.5 py-1 rounded-full text-[13px] font-extrabold tracking-wide"
+            className="px-2.5 py-0.5 rounded-full text-[13px] font-extrabold tracking-wide"
             style={{ background: displayVerdict.bg, color: displayVerdict.color, border: `1px solid ${displayVerdict.color}40` }}
           >
             {displayVerdict.label}
@@ -448,7 +450,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       )}
       {/* Surf verdict summary — plain language */}
       {displayVerdict.summary && (
-        <div className="text-[11px] text-slate-300 mb-2 leading-tight break-words" style={{ color: displayVerdict.color }}>
+        <div className="text-[11px] text-slate-300 mb-1.5 leading-tight break-words" style={{ color: displayVerdict.color }}>
           {displayVerdict.summary}
         </div>
       )}
@@ -478,7 +480,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Wind consensus ── */}
       {score?.wind && (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-1.5">
           <div className="flex items-baseline gap-1">
             <span className="text-slate-500 text-[11px]">Viento</span>
             {useStrongPrediction && channelingPrediction?.predictedKt ? (
@@ -541,7 +543,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           : 'text-amber-400 bg-amber-500/10 border-amber-500/30';
         return (
           <div
-            className={`text-[11px] rounded px-2 py-1 mb-2 flex items-center gap-1.5 border ${styles}`}
+            className={`text-[11px] rounded px-2 py-0.5 mb-1.5 flex items-center gap-1.5 border ${styles}`}
             title={t.label}
           >
             <svg
@@ -566,7 +568,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Wave conditions (coastal spots — NOT surf, which uses marine forecast) ── */}
       {spot.category !== 'surf' && score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2 pt-1 border-t border-slate-700/40">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-1.5 pt-1 border-t border-slate-700/40">
           <Cell label="Oleaje" value={`${score.waves.waveHeight.toFixed(1)} m`} color={waveColor(score.waves.waveHeight)} />
           {score.waves.wavePeriod != null && (
             <Cell label="Período" value={`${score.waves.wavePeriod.toFixed(0)} s`} />
@@ -586,7 +588,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Humidity precursor signal (bruma pattern) ── */}
       {score?.humiditySignal && (
-        <div className="text-[11px] text-sky-400 bg-sky-500/10 rounded px-2 py-1 mb-2">
+        <div className="text-[11px] text-sky-400 bg-sky-500/10 rounded px-2 py-0.5 mb-1.5">
           {score.humiditySignal}
         </div>
       )}
@@ -611,7 +613,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             : 'bg-slate-700/30 border-slate-600/40 text-slate-300';
         return (
           <div
-            className={`text-[11px] font-semibold mb-2 px-2 py-1 rounded border flex items-center gap-1.5 ${tone}`}
+            className={`text-[11px] font-semibold mb-1.5 px-2 py-0.5 rounded border flex items-center gap-1.5 ${tone}`}
             title={precursor.eta ? `Ventana térmica ${precursor.eta} · ${precursor.confidence} confianza` : 'Estimación aproximada (±30 min)'}
           >
             <WeatherIcon id="wind" size={12} className="-mt-px" />
@@ -623,7 +625,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Viración (daily wind cycle phase) — Rías only, conservative emit ── */}
       {viracion && (
         <div
-          className={`text-[11px] mb-2 px-2 py-1 rounded border ${
+          className={`text-[11px] mb-1.5 px-2 py-0.5 rounded border ${
             viracion.confidence === 'high'
               ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
               : 'bg-slate-700/30 border-slate-600/40 text-slate-300'
@@ -638,7 +640,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Rain nowcast — "¿llueve? / lluvia próxima?" (obs estación + forecast) ── */}
       {rain && rain.status !== 'unknown' && rain.status !== 'dry' && (
         <div
-          className={`text-[11px] mb-2 px-2 py-1 rounded border flex items-center gap-1.5 ${
+          className={`text-[11px] mb-1.5 px-2 py-0.5 rounded border flex items-center gap-1.5 ${
             rain.status === 'raining'
               ? 'bg-blue-500/15 border-blue-500/40 text-blue-200'
               : 'bg-slate-700/30 border-slate-600/40 text-slate-300'
@@ -680,7 +682,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             : 'bg-slate-700/30 border-slate-600/40 text-slate-400';
         const dotColor = beach.verdict === 'great' ? '#34d399' : beach.verdict === 'ok' ? '#fbbf24' : '#f87171';
         return (
-          <div className={`text-[11px] mb-2 px-2 py-1.5 rounded border ${tone}`} title="Resumen casual de condiciones de playa">
+          <div className={`text-[11px] mb-1.5 px-2 py-1 rounded border ${tone}`} title="Resumen casual de condiciones de playa">
             <div className="font-semibold flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
               <span>¿Playa? {beach.summary}</span>
@@ -714,7 +716,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         const color = pred.severity === 'high' ? 'text-amber-400' : pred.severity === 'moderate' ? 'text-sky-400' : 'text-slate-300';
         const bg = pred.severity === 'high' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30';
         return (
-          <div className={`text-[11px] mb-2 px-2 py-1.5 rounded border ${bg} ${color}`}>
+          <div className={`text-[11px] mb-1.5 px-2 py-1 rounded border ${bg} ${color}`}>
             <div className="font-bold flex items-center gap-1">
               <WeatherIcon id="wind" size={12} className="inline -mt-px" />
               Predicción local: ~{pred.predictedKt}kt {pred.predictedDir != null ? degreesToCardinal(pred.predictedDir) : ''}
@@ -811,14 +813,14 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* ── Scoring confidence ── */}
       {score && score.scoringConfidence === 'low' && !simpleMode && (
-        <div className="text-[11px] text-amber-400/90 italic mb-1">
+        <div className="text-[10px] text-amber-400/90 italic mb-1">
           <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" /> Baja confianza: solo {score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)
         </div>
       )}
 
       {/* ── Summary (wind-based — hide for surf spots which have their own wave summary) ── */}
       {spot.category !== 'surf' && score?.summary && (
-        <div className="text-[11px] text-slate-400 leading-snug mt-1 pt-1 border-t border-slate-700/40">
+        <div className="text-[10px] text-slate-400 leading-snug mt-1 pt-1 border-t border-slate-700/40">
           {score.summary}
         </div>
       )}
@@ -895,7 +897,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {spot.category !== 'surf' && (
         <button
           onClick={() => useUIStore.getState().setForecastPanelOpen(true, spot.id)}
-          className="mt-1.5 w-full text-center text-[11px] text-sky-400 hover:text-sky-300 transition-colors py-1.5 rounded bg-sky-500/10 hover:bg-sky-500/15 font-medium"
+          className="mt-1 w-full text-center text-[11px] text-sky-400 hover:text-sky-300 transition-colors py-1 rounded bg-sky-500/10 hover:bg-sky-500/15 font-medium"
         >
           Ver prevision detallada 48h
         </button>
@@ -920,7 +922,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {spot.windPatterns.length > 0 && !simpleMode && <WindPatterns patterns={spot.windPatterns} />}
 
       {/* ── Share + Apoyar + Timestamp ── */}
-      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-700/30">
+      <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-700/30">
         <div className="flex items-center gap-1.5">
           <ShareButton spot={spot} score={score} verdict={verdict} vs={vs} />
           {/* Discreet support link — engagement surface (real spot with data),
@@ -937,7 +939,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           </a>
         </div>
         {score?.computedAt && (
-          <span className="text-[11px] text-slate-500">
+          <span className="text-[10px] text-slate-500">
             {timeAgoEs(score.computedAt)}
           </span>
         )}
@@ -952,11 +954,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         <div className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up">
           <div
             ref={sheetRef}
-            className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[60dvh] overflow-y-auto p-4"
+            className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[60dvh] overflow-y-auto p-3"
             style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
           >
             {/* Drag handle — swipe down to dismiss */}
-            <div className="flex justify-center mb-3" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+            <div className="flex justify-center mb-2" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
               <div className="w-10 h-1 rounded-full bg-slate-600" />
             </div>
             {/* Close button */}
@@ -1010,8 +1012,8 @@ function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
 
   if (windows.length === 0) {
     return (
-      <div className="mt-2 pt-1.5 border-t border-slate-700/40">
-        <div className="flex items-center gap-1 text-[11px] text-slate-500">
+      <div className="mt-1.5 pt-1 border-t border-slate-700/40">
+        <div className="flex items-center gap-1 text-[10px] text-slate-500">
           <WeatherIcon id="clock" size={11} className="text-slate-500" />
           <span>Sin ventanas de viento en 48h</span>
         </div>
@@ -1020,7 +1022,7 @@ function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
   }
 
   return (
-    <div className="mt-2 pt-1.5 border-t border-slate-700/40">
+    <div className="mt-1.5 pt-1 border-t border-slate-700/40">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
@@ -1075,7 +1077,7 @@ function ThermalPrecursorSection({ precursor }: { precursor: ThermalPrecursorRes
   const activeSignals = Object.entries(precursor.signals).filter(([, s]) => s.active);
 
   return (
-    <div className="mt-2 pt-2 border-t border-slate-700/40">
+    <div className="mt-1.5 pt-1 border-t border-slate-700/40">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between text-left group"
@@ -1099,7 +1101,7 @@ function ThermalPrecursorSection({ precursor }: { precursor: ThermalPrecursorRes
       </div>
 
       {/* Confidence badge */}
-      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
         <span>Probabilidad: <strong style={{ color: style.color }}>{precursor.probability}%</strong></span>
         <span>· Confianza: {precursor.confidence}</span>
         <span>· {activeSignals.length}/6 señales</span>
@@ -1175,8 +1177,8 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
   const visInfo = VIS_LABELS[w.visibility] ?? VIS_LABELS.good;
 
   return (
-    <div className="mt-2 pt-2 border-t border-slate-700/40 text-[11px]">
-      <div className="flex items-center gap-1.5 mb-1">
+    <div className="mt-1.5 pt-1 border-t border-slate-700/40 text-[11px]">
+      <div className="flex items-center gap-1.5 mb-0.5">
         <WeatherIcon id="camera" size={11} className="text-cyan-400" />
         <span className="text-slate-300 font-semibold">Visión IA</span>
         <span className="text-[11px] text-slate-600 ml-auto">{ago}</span>
@@ -1298,7 +1300,7 @@ function ThermalForecastBadge({ forecast }: { forecast: HourlyForecast[] }) {
   if (signals.length === 0) return null;
 
   return (
-    <div className="mb-2 space-y-1">
+    <div className="mb-1.5 space-y-0.5">
       {signals.map((s, i) => {
         const color = s.confidence === 'alta'
           ? 'text-green-400 bg-green-500/10'
@@ -1306,7 +1308,7 @@ function ThermalForecastBadge({ forecast }: { forecast: HourlyForecast[] }) {
             ? 'text-blue-400 bg-blue-500/10'
             : 'text-slate-400 bg-slate-500/10';
         return (
-          <div key={i} className={`text-[11px] ${color} rounded px-2 py-1 break-words`}>
+          <div key={i} className={`text-[11px] ${color} rounded px-2 py-0.5 break-words`}>
             <WeatherIcon id="sun" size={11} className="inline -mt-px mr-1" />
             {s.label}<span className="text-[10px] opacity-60 ml-0.5">BETA</span>
           </div>
@@ -1340,7 +1342,7 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
   const msToKt = (ms: number) => Math.round(ms * 1.94384);
 
   return (
-    <div className="mt-2 pt-1.5 border-t border-slate-700/40">
+    <div className="mt-1.5 pt-1 border-t border-slate-700/40">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
@@ -1411,7 +1413,7 @@ function WaveForecastMini({ lat, lon, coastalFactor }: { lat: number; lon: numbe
 
   if (loading) {
     return (
-      <div className="text-[10px] text-slate-500 py-1 mb-2 border-t border-slate-700/40 pt-1.5">
+      <div className="text-[10px] text-slate-500 py-1 mb-1.5 border-t border-slate-700/40 pt-1">
         Cargando prevision olas...
       </div>
     );
@@ -1451,7 +1453,7 @@ function WaveForecastMini({ lat, lon, coastalFactor }: { lat: number; lon: numbe
   const periodQuality = avgPeriod >= 10 ? 'largo (buena calidad)' : avgPeriod >= 7 ? 'medio' : 'corto (mar de viento)';
 
   return (
-    <div className="mb-2 pt-1.5 border-t border-slate-700/40">
+    <div className="mb-1.5 pt-1 border-t border-slate-700/40">
       <div className="flex items-center gap-1 mb-1">
         <WeatherIcon id="waves" size={11} className="text-cyan-400" />
         <span className="text-[11px] font-bold text-cyan-300">Olas 24h</span>
@@ -1524,8 +1526,8 @@ function TemperatureSection({ score, mohidSeaTemp, marineSST }: { score: SpotSco
   const waterLabel = score.waterTemp != null ? 'Agua' : mohidSeaTemp != null ? 'Agua (MOHID)' : 'Agua (modelo)';
 
   return (
-    <div className="mb-2 pt-1 border-t border-slate-700/40">
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+    <div className="mb-1.5 pt-1 border-t border-slate-700/40">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
         {score.airTemp != null && (
           <Cell label="Aire" value={`${score.airTemp.toFixed(1)}°C`} color={temperatureColor(score.airTemp)} />
         )}
@@ -1662,7 +1664,7 @@ function HistoricalBaselineBadge({ spot, currentKt, verdict }: { spot: SailingSp
 
   return (
     <div
-      className={`text-[11px] mb-2 px-2 py-1 rounded border ${severityToBadgeClass(insight.severity)}`}
+      className={`text-[11px] mb-1.5 px-2 py-0.5 rounded border ${severityToBadgeClass(insight.severity)}`}
       title={`Referencia: ${refStation} · p75 ${baseline.p75} kt · p90 ${baseline.p90} kt · ${baseline.hoursSampled} h muestreadas`}
     >
       <WeatherIcon id="info" size={11} className="inline -mt-px mr-1" />
