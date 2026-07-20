@@ -1226,6 +1226,55 @@ async function handleObsCosteiroProxy(
   }
 }
 
+// ── METAR proxy (aviationweather.gov) ──────────────────
+// Frontend calls /api/v1/metar with no parameters. The upstream URL is
+// pinned server-side (ids locked to the three Galician airports), so the
+// proxy takes zero client input and cannot be steered anywhere else.
+// No API key needed upstream; the proxy exists because aviationweather.gov
+// sends no CORS headers. METARs publish every ~30min — 5min cache keeps
+// N users at 1 upstream call per window, mirroring the other proxies.
+
+const METAR_URL = 'https://aviationweather.gov/api/data/metar?ids=LEVX,LEST,LECO&format=json';
+const METAR_CACHE_TTL = 5 * 60_000; // 5 minutes
+let metarCache: { data: Buffer; contentType: string; ts: number } | null = null;
+
+async function handleMetarProxy(
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  if (metarCache && Date.now() - metarCache.ts < METAR_CACHE_TTL) {
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': metarCache.contentType, 'X-Cache': 'HIT' });
+    res.end(metarCache.data);
+    return;
+  }
+
+  try {
+    const upstream = await fetch(METAR_URL, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const contentType = upstream.headers.get('content-type') || 'application/json';
+    const buf = Buffer.from(await upstream.arrayBuffer());
+
+    if (upstream.ok) {
+      metarCache = { data: buf, contentType, ts: Date.now() };
+    }
+
+    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
+    res.end(buf);
+  } catch (err) {
+    log.error('[METAR Proxy]', (err as Error).message);
+    // Stale-on-error: an old METAR still passes or fails the downstream
+    // freshness gate on its own timestamp, so serving it is always safe.
+    if (metarCache) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': metarCache.contentType, 'X-Cache': 'STALE' });
+      res.end(metarCache.data);
+      return;
+    }
+    error(res, 'METAR upstream error', 502, origin);
+  }
+}
+
 // ── Server ─────────────────────────────────────────────
 
 const server = http.createServer(async (req, res) => {
@@ -1286,6 +1335,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/firms') {
       await handleFirmsProxy(url.searchParams.get('days'), res, origin);
+      return;
+    }
+    if (pathname === '/api/v1/metar') {
+      await handleMetarProxy(res, origin);
       return;
     }
 
