@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { RIAS_TIDE_STATIONS, fetchTides48h } from '../api/tideClient';
+import { RIAS_TIDE_STATIONS, fetchTides48h, fetchTidePredictions } from '../api/tideClient';
 import type { BuoyReading } from '../api/buoyClient';
 import { useBuoyStore } from '../store/buoyStore';
 import { haversineDistance } from '../services/geoUtils';
@@ -17,7 +17,11 @@ import { computeMeteoTide, toExtremes } from '../services/meteoTideService';
 import type { MeteoTide, TideExtreme } from '../services/meteoTideService';
 
 /** Shared per-day promise cache — see the dedup note inside the effect. */
-const tidesByDay = new Map<string, Promise<{ today: import('../api/tideClient').TidePoint[]; tomorrow: import('../api/tideClient').TidePoint[] }>>();
+const tidesByDay = new Map<string, Promise<{
+  yesterday: import('../api/tideClient').TidePoint[];
+  today: import('../api/tideClient').TidePoint[];
+  tomorrow: import('../api/tideClient').TidePoint[];
+}>>();
 
 /** Test-only: the per-day cache outlives one test's mocks. */
 export function __clearTideCacheForTests(): void {
@@ -172,7 +176,18 @@ export function useMeteoTide(tideStationId: string | undefined): MeteoTide | nul
 
     let inFlight = tidesByDay.get(key);
     if (!inFlight) {
-      inFlight = fetchTides48h(gauge.ihmStationId);
+      const prevDay = new Date(today);
+      prevDay.setDate(prevDay.getDate() - 1);
+      // Yesterday matters more than it looks: on a day whose first extreme
+      // falls at, say, 06:00, every instant between midnight and 06:00 can
+      // only be bracketed by yesterday's LAST extreme — without it the line
+      // goes silent for hours each night, storm surge or not. A failure on
+      // the yesterday leg degrades to an empty list instead of killing the
+      // pair: worse coverage beats no line at all.
+      inFlight = Promise.all([
+        fetchTidePredictions(gauge.ihmStationId, prevDay).catch(() => []),
+        fetchTides48h(gauge.ihmStationId),
+      ]).then(([yesterday, both]) => ({ yesterday, ...both }));
       // A failed fetch must not poison the cache for the rest of the day.
       inFlight.catch(() => {
         if (tidesByDay.get(key) === inFlight) tidesByDay.delete(key);
@@ -181,15 +196,17 @@ export function useMeteoTide(tideStationId: string | undefined): MeteoTide | nul
     }
 
     inFlight
-      .then(({ today: todayPoints, tomorrow: tomorrowPoints }) => {
+      .then(({ yesterday: yesterdayPoints, today: todayPoints, tomorrow: tomorrowPoints }) => {
         if (cancelled) return;
+        const prevDay = new Date(today);
+        prevDay.setDate(prevDay.getDate() - 1);
         const nextDay = new Date(today);
         nextDay.setDate(nextDay.getDate() + 1);
-        // Tomorrow too, so an instant after today's last extreme is still
-        // bracketed instead of falling off the end. The mirror gap — before
-        // today's first extreme — is left alone on purpose: the service
-        // returns null there and the line simply stays quiet.
+        // Three consecutive days so any instant of today is bracketed:
+        // yesterday's last extreme covers the stretch before today's first,
+        // tomorrow's first covers the stretch after today's last.
         setExtremes([
+          ...toExtremes(yesterdayPoints, prevDay),
           ...toExtremes(todayPoints, today),
           ...toExtremes(tomorrowPoints, nextDay),
         ]);
