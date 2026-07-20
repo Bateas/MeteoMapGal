@@ -31,6 +31,20 @@ export interface SpotDef {
   sector: 'embalse' | 'rias';
   radiusKm: number;
   thermalDetection: boolean;
+  // Per-spot curation mirrored from frontend spots.ts (Telegram must converge
+  // to the map — spotScoringEngine is the authoritative scorer). All optional:
+  // callers/tests without them keep the pre-curation behavior exactly.
+  /** Station IDs vetted as best-representing this spot. They weigh 1.3x in the
+   *  consensus mean AND are included even beyond radiusKm (Limens case: Cabo
+   *  Udra reference at ~9km vs 6km radius). */
+  preferredStations?: string[];
+  /** Station IDs that misrepresent THIS spot (different microclimate) even if
+   *  within radius — removed before the wind consensus. */
+  excludeStations?: string[];
+  /** Calibration offset (kt) added to the consensus average before the verdict.
+   *  Sign = relative exposure: negative when the reference over-reads (exposed
+   *  cape vs sheltered beach), positive when land stations under-read. */
+  windCalibrationKt?: number;
 }
 
 export type Verdict = 'calm' | 'light' | 'sailing' | 'good' | 'strong' | 'unknown';
@@ -77,7 +91,8 @@ export interface SpotResult {
   stationCount: number;
   /** Inferred direction for spots without vane (e.g. Castrelo SkyX) */
   inferredDir?: string | null;
-  /** Raw measured wind average BEFORE detector overrides (for debug + accuracy tracking) */
+  /** Consensus wind average (incl. per-spot windCalibrationKt) BEFORE detector
+   *  overrides (for debug + accuracy tracking) */
   rawWindKt?: number;
   /** Detector that boosted the verdict, if any. 'cesantes-canalization' | 'bocana-terral' | null */
   boostedBy?: 'cesantes-canalization' | 'bocana-terral' | null;
@@ -311,17 +326,34 @@ function applyBocanaBoost(
  * Score a spot based on nearby station wind consensus.
  * Filters stations by distance to spot (radiusKm).
  * Matches frontend spotScoringEngine logic INCLUDING detector overrides
- * (Cesantes canalization + Bocana terral matinal — Phase B TIER 1 P0).
+ * (Cesantes canalization + Bocana terral matinal — Phase B TIER 1 P0) and
+ * per-spot curation (excludeStations / preferredStations 1.3x weight /
+ * windCalibrationKt) so a curated spot gets the SAME verdict on Telegram
+ * as on the map.
  *
  * NB: surf spots (`surf-*` IDs in frontend `spots.ts`) are NOT in the
  * ingestor SPOTS array — only sailing/thermal sailing spots get Telegram
  * verdicts (wind verdict is meaningless for waves). No skip-list needed.
  */
 export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWind[]): SpotResult {
-  const nearby = readings.filter(r =>
-    r.latitude !== 0 && r.longitude !== 0 &&
-    haversineDistance(spot.lat, spot.lon, r.latitude, r.longitude) <= spot.radiusKm
-  );
+  // ── Per-spot curation (mirror of frontend selectStationsForSpot) ──
+  //
+  // Exclusion is applied at the source so nothing downstream (wind mean, gust,
+  // direction) sees the station. Detector helpers (Cesantes/Bocana boosts)
+  // still read the unfiltered `readings` array on purpose: they consume
+  // REGIONAL signals (mouth humidity, solar gating), not this spot's consensus.
+  //
+  // Preferred stations bypass the radius gate — the curated reference can sit
+  // beyond a deliberately short radius (Limens: Cabo Udra ~9km vs 6km radius).
+  const excludeSet = new Set(spot.excludeStations ?? []);
+  const preferredSet = new Set(spot.preferredStations ?? []);
+
+  const nearby = readings.filter(r => {
+    if (r.latitude === 0 || r.longitude === 0) return false;
+    if (excludeSet.has(r.station_id)) return false;
+    if (preferredSet.has(r.station_id)) return true;
+    return haversineDistance(spot.lat, spot.lon, r.latitude, r.longitude) <= spot.radiusKm;
+  });
 
   const nearbyBuoys = buoyWinds.filter(b =>
     b.lat !== 0 && b.lon !== 0 && b.wind_speed > 0 &&
@@ -350,13 +382,22 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   const windReadings =
     unbiased.length + nearbyBuoys.length >= 2 ? unbiased : windCapable;
 
-  let windSum = 0, gustMax = 0, dirCount = 0, count = 0;
+  // Preferred stations were manually vetted as best-representing this spot —
+  // they count PREFERRED_WEIGHT (1.3x, matching PREFERRED_EXPOSURE_BOOST in
+  // spotScoringEngine.ts) in what is otherwise an unweighted mean. Buoys keep
+  // weight 1.0: the frontend's x1.5 over-water boost is NOT ported here on
+  // purpose — it would shift every legacy verdict, not just curated spots.
+  const PREFERRED_WEIGHT = 1.3;
+
+  let windSum = 0, weightSum = 0, gustMax = 0, dirCount = 0, count = 0;
   let sinSum = 0, cosSum = 0;
 
   for (const r of windReadings) {
     if (r.wind_speed != null) {
+      const w = preferredSet.has(r.station_id) ? PREFERRED_WEIGHT : 1;
       const kt = msToKnots(r.wind_speed);
-      windSum += kt;
+      windSum += kt * w;
+      weightSum += w;
       count++;
       if (r.wind_gust != null) {
         const gKt = msToKnots(r.wind_gust);
@@ -364,8 +405,10 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
       }
       if (r.wind_dir != null) {
         const rad = r.wind_dir * Math.PI / 180;
-        sinSum += Math.sin(rad);
-        cosSum += Math.cos(rad);
+        // Direction mean uses the same weight — a curated reference should
+        // steer the reported direction as much as it steers the speed.
+        sinSum += Math.sin(rad) * w;
+        cosSum += Math.cos(rad) * w;
         dirCount++;
       }
     }
@@ -374,6 +417,7 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   for (const b of nearbyBuoys) {
     const kt = msToKnots(b.wind_speed);
     windSum += kt;
+    weightSum += 1;
     count++;
     if (b.wind_dir != null) {
       const rad = b.wind_dir * Math.PI / 180;
@@ -387,9 +431,15 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
     return { spot, avgWindKt: 0, maxGustKt: 0, avgDir: null, verdict: 'unknown', stationCount: 0 };
   }
 
-  const rawWindKt = Math.round(windSum / count);
+  // windCalibrationKt is part of the consensus itself, not a detector override
+  // (mirror of the engine: avgSpeed = max(0, weightedMean + calibration)).
+  // Baking it into rawWindKt means detector gates below (predictedKt - rawKt
+  // >= 4) compare against the same calibrated base the frontend uses.
+  const calibration = spot.windCalibrationKt ?? 0;
+  const rawWindKt = Math.round(Math.max(0, windSum / weightSum + calibration));
+  // atan2 is scale-invariant, so weighting sin/cos sums needs no normalization.
   const avgDir = dirCount > 0
-    ? (Math.round(Math.atan2(sinSum / dirCount, cosSum / dirCount) * 180 / Math.PI) + 360) % 360
+    ? (Math.round(Math.atan2(sinSum, cosSum) * 180 / Math.PI) + 360) % 360
     : null;
 
   // ── Apply detector overrides ──

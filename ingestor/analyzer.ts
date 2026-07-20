@@ -61,6 +61,13 @@ const SPOTS: SpotDef[] = (['embalse', 'rias'] as const).flatMap((sector) =>
       sector,
       radiusKm: RADIUS_OVERRIDE[s.id] ?? s.radiusKm,
       thermalDetection: s.thermalDetection,
+      // Per-spot curation — previously dropped here, so a curated spot
+      // (Limens excludes Cangas MG, calibration -2kt) could get a different
+      // verdict on Telegram than on the map. The frontend engine is the
+      // authoritative scorer; these fields make the analyzer converge to it.
+      preferredStations: s.preferredStations,
+      excludeStations: s.excludeStations,
+      windCalibrationKt: s.windCalibrationKt,
     })),
 );
 

@@ -792,3 +792,144 @@ describe('scoreSpot — directional bias map (getStationBiasAt)', () => {
     expect(result.avgWindKt).toBe(12);
   });
 });
+
+// ── scoreSpot — per-spot curation parity (Telegram == map) ──────
+//
+// The analyzer used to DROP preferredStations / excludeStations /
+// windCalibrationKt when mapping frontend spots to SpotDef, so a curated spot
+// (Limens excludes Cangas MG + calibrates -2kt against Cabo Udra) could show
+// one verdict on the map and a different one on Telegram. These tests pin the
+// ported semantics — spotScoringEngine.ts is the mirror; Telegram converges
+// to the map. Spot base is Lourido (no detector override, no wall clock).
+
+describe('scoreSpot — per-spot curation (preferred/exclude/calibration)', () => {
+  // Station at the spot itself — equidistant by construction. Unknown IDs so
+  // neither the wind blacklist nor the directional bias map interferes.
+  const at = (over: Partial<StationReading>): StationReading =>
+    makeReading({ latitude: 42.365, longitude: -8.675, wind_dir: 270, ...over });
+
+  it('excludeStations removes the station from consensus (speed + gust) and the verdict changes', () => {
+    // good: 6 m/s = 11.7kt, gust 8 m/s = 15.6kt
+    // bad:  1 m/s =  1.9kt, gust 15 m/s = 29.2kt (broken sensor pattern)
+    const good = at({ station_id: 'mg_good', wind_speed: 6, wind_gust: 8 });
+    const bad = at({ station_id: 'mg_bad', wind_speed: 1, wind_gust: 15 });
+
+    // Control (no curation): bad drags the mean to (11.7+1.9)/2 = 6.8 → 'light'
+    const control = scoreSpot(lourido, [good, bad], []);
+    expect(control.avgWindKt).toBe(7);
+    expect(control.verdict).toBe('light');
+
+    // Curated: excluded at the source → speed AND gust ignored
+    const result = scoreSpot({ ...lourido, excludeStations: ['mg_bad'] }, [good, bad], []);
+    expect(result.stationCount).toBe(1);
+    expect(result.avgWindKt).toBe(12);
+    expect(result.verdict).toBe('good');
+    expect(result.maxGustKt).toBe(16); // good only — 29kt phantom gust gone
+  });
+
+  it('preferred station weighs 1.3x vs an equidistant non-preferred', () => {
+    // pref: 10 m/s = 19.44kt · other: 2 m/s = 3.89kt, both AT the spot
+    const pref = at({ station_id: 'mg_pref', wind_speed: 10 });
+    const other = at({ station_id: 'mg_other', wind_speed: 2 });
+
+    // Control: unweighted mean (19.44+3.89)/2 = 11.66 → 12
+    const control = scoreSpot(lourido, [pref, other], []);
+    expect(control.avgWindKt).toBe(12);
+
+    // Preferred: (19.44*1.3 + 3.89)/2.3 = 12.68 → 13 — pulled toward the
+    // vetted station, matching PREFERRED_EXPOSURE_BOOST in the engine
+    const result = scoreSpot({ ...lourido, preferredStations: ['mg_pref'] }, [pref, other], []);
+    expect(result.avgWindKt).toBe(13);
+    expect(result.avgWindKt).toBeGreaterThan(control.avgWindKt);
+    expect(result.stationCount).toBe(2); // weighting, not exclusion
+  });
+
+  it('positive windCalibrationKt raises the verdict (land stations under-read)', () => {
+    // 3 m/s = 5.83kt → 'light' raw; +3kt calibration → 8.83 → 9 → 'sailing'
+    const r = at({ station_id: 'mg_a', wind_speed: 3 });
+
+    const control = scoreSpot(lourido, [r], []);
+    expect(control.avgWindKt).toBe(6);
+    expect(control.verdict).toBe('light');
+
+    const result = scoreSpot({ ...lourido, windCalibrationKt: 3 }, [r], []);
+    expect(result.avgWindKt).toBe(9);
+    expect(result.verdict).toBe('sailing');
+    // Calibration is part of the consensus (mirror of engine avgSpeed),
+    // so rawWindKt carries it too — detector gates compare the same base.
+    expect(result.rawWindKt).toBe(9);
+  });
+
+  it('negative windCalibrationKt lowers the verdict (reference over-reads)', () => {
+    // 5 m/s = 9.72kt → 'sailing' raw; -3kt → 6.72 → 7 → 'light'
+    const r = at({ station_id: 'mg_a', wind_speed: 5 });
+
+    const control = scoreSpot(lourido, [r], []);
+    expect(control.avgWindKt).toBe(10);
+    expect(control.verdict).toBe('sailing');
+
+    const result = scoreSpot({ ...lourido, windCalibrationKt: -3 }, [r], []);
+    expect(result.avgWindKt).toBe(7);
+    expect(result.verdict).toBe('light');
+  });
+
+  it('calibration clamps at 0 kt (never negative wind)', () => {
+    // 2 m/s = 3.89kt with -10kt calibration → clamp to 0, not -6
+    const r = at({ station_id: 'mg_a', wind_speed: 2 });
+    const result = scoreSpot({ ...lourido, windCalibrationKt: -10 }, [r], []);
+    expect(result.avgWindKt).toBe(0);
+    expect(result.rawWindKt).toBe(0);
+    expect(result.verdict).toBe('calm');
+  });
+
+  it('preferred station outside radiusKm is still included (Limens/Cabo Udra case)', () => {
+    // Station ~8.3km north of the spot with radius cut to 6km
+    const far = makeReading({
+      station_id: 'mg_far',
+      latitude: 42.44, longitude: -8.675,
+      wind_speed: 5, wind_dir: 270,
+    });
+    const shortRadius = { ...lourido, radiusKm: 6 };
+
+    // Control: outside radius, no data → unknown
+    const control = scoreSpot(shortRadius, [far], []);
+    expect(control.verdict).toBe('unknown');
+
+    // Preferred bypasses the radius gate (mirror of selectStationsForSpot)
+    const result = scoreSpot({ ...shortRadius, preferredStations: ['mg_far'] }, [far], []);
+    expect(result.stationCount).toBe(1);
+    expect(result.avgWindKt).toBe(10);
+    expect(result.verdict).toBe('sailing');
+  });
+
+  it('exclusion wins when a station is both preferred and excluded', () => {
+    const r = at({ station_id: 'mg_x', wind_speed: 6 });
+    const result = scoreSpot(
+      { ...lourido, preferredStations: ['mg_x'], excludeStations: ['mg_x'] },
+      [r], [],
+    );
+    expect(result.stationCount).toBe(0);
+    expect(result.verdict).toBe('unknown');
+  });
+
+  it('spot without curation fields behaves exactly like empty curation (regression)', () => {
+    const r = at({ station_id: 'mg_a', wind_speed: 5, wind_gust: 7 });
+    const b = makeBuoy({ station_id: 9999, lat: 42.36, lon: -8.68, wind_speed: 7, wind_dir: 250 });
+
+    const plain = scoreSpot(lourido, [r], [b]);
+    const empty = scoreSpot(
+      { ...lourido, preferredStations: [], excludeStations: [], windCalibrationKt: 0 },
+      [r], [b],
+    );
+
+    expect(empty.avgWindKt).toBe(plain.avgWindKt);
+    expect(empty.verdict).toBe(plain.verdict);
+    expect(empty.stationCount).toBe(plain.stationCount);
+    expect(empty.maxGustKt).toBe(plain.maxGustKt);
+    expect(empty.avgDir).toBe(plain.avgDir);
+    // Pin the absolute values too so the baseline itself cannot drift:
+    // (9.7 + 13.6)/2 = 11.66 → 12 'good'
+    expect(plain.avgWindKt).toBe(12);
+    expect(plain.verdict).toBe('good');
+  });
+});
