@@ -705,6 +705,28 @@ CREATE INDEX IF NOT EXISTS idx_magic_windows_recent
 GRANT SELECT, INSERT ON magic_windows TO meteomap_app;
 GRANT SELECT, INSERT ON spot_scores TO meteomap_app;
 
+-- ── Web Push subscriptions (lightning-safety channel) ──
+-- One row per browser push subscription; spot_ids is the per-spot opt-in
+-- list and the dispatcher fans out with `WHERE $1 = ANY(spot_ids)`.
+-- Endpoint URLs are unguessable capability URLs minted by the browser push
+-- service — the row stores exactly what PushManager handed the frontend,
+-- nothing personal. Regular table (not a hypertable): tiny, mutable rows.
+--
+-- DELETE is granted on purpose: dead subscriptions (404/410 from the push
+-- service, fail_count above threshold, or an explicit unsubscribe) are
+-- pruned by the app itself.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint    TEXT PRIMARY KEY,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  spot_ids    TEXT[] NOT NULL DEFAULT '{}',
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  last_ok     TIMESTAMPTZ,
+  fail_count  INT DEFAULT 0
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON push_subscriptions TO meteomap_app;
+
 -- ── Retention (uncomment when ready) ─────────────────
 -- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
 -- SELECT add_retention_policy('alerts', INTERVAL '1 year', if_not_exists => TRUE);

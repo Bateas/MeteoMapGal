@@ -1,6 +1,6 @@
 {
   "name": "meteo-ingestor",
-  "version": "1.0.0",
+  "version": "2.105.0",
   "private": true,
   "type": "module",
   "description": "MeteoMapGal weather data ingestor → TimescaleDB",
@@ -11,13 +11,15 @@
     "api:dev": "node --import tsx --watch api.ts"
   },
   "dependencies": {
-    "pg": "^8.22.0",
     "dotenv": "^17.4.2",
-    "sharp": "^0.35.3"
+    "pg": "^8.22.0",
+    "sharp": "^0.35.3",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "tsx": "^4.22.4",
+    "@types/node": "^26.0.1",
     "@types/pg": "^8.20.0",
-    "@types/node": "^26.0.1"
+    "@types/web-push": "^3.6.4",
+    "tsx": "^4.22.4"
   }
 }

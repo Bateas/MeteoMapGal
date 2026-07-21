@@ -14,6 +14,7 @@ import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
 import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert } from './alertDispatcher.js';
+import { dispatchLightningPush, logPushStartup } from './pushDispatcher.js';
 import {
   assessSpotLightningRisk,
   formatRiskLine,
@@ -224,6 +225,10 @@ async function persistSpotScores(results: SpotResult[]): Promise<void> {
  * Run analysis cycle. Called from main poll loop every 5 minutes.
  */
 export async function runAnalysis(): Promise<void> {
+  // One-time push-channel heartbeat ("[Push] enabled, N subscriptions") in
+  // THIS process's log too — internally guarded, no-op after the first call.
+  void logPushStartup();
+
   const now = Date.now();
 
   // 1. Get latest readings from DB
@@ -360,6 +365,14 @@ async function checkLightningProximity(): Promise<void> {
     // judged the storm too far from every spot.
     log.info(`Lightning proximity quiet — ${strikes.length} strikes in window, none near a spot`);
     return;
+  }
+
+  // Web Push fan-out — PER SPOT (the whole point of the channel is "rayo a
+  // X km de TU spot", not a sector digest). Fire-and-forget: the dispatcher
+  // catches everything internally and push IO must never block the 5min
+  // polling loop (only sub-10s tasks may be awaited here).
+  for (const r of risks) {
+    void dispatchLightningPush(r.spotId, r.spotName, r.sector ?? 'rias', r);
   }
 
   const bySector = new Map<string, SpotLightningRisk[]>();
