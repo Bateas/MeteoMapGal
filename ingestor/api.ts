@@ -20,6 +20,8 @@
  *   GET /api/v1/analytics/air-quality-trend?days=&station=        → Daily AQ rollup
  *   GET /api/v1/analytics/convection-grid?hourOffset=             → Spatial CAPE/LI grid
  *   GET /api/v1/fires?days=                                       → Active fires + lightning attribution
+ *   GET /api/v1/push/vapid-key                                    → Web Push VAPID public key
+ *   POST /api/v1/push/{subscribe,unsubscribe,test}                → Lightning-safety push channel
  *
  * Usage:
  *   node --import tsx api.ts
@@ -53,6 +55,8 @@ import {
 import { getPool } from './db.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { FIRMS_PRODUCTS, mergeFirmsCsv } from '../src/services/fireService.js';
+import { getSpotsForSector } from '../src/config/spots.js';
+import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatcher.js';
 
 // ── Configuration ──────────────────────────────────────
 
@@ -727,6 +731,8 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/analytics/historical-baseline': handleAnalyticsHistoricalBaseline,
   // ── Magic Window (T2-2 S136+3+3) ──
   '/api/v1/magic-window/latest':          handleMagicWindowLatest,
+  // ── Web Push (lightning-safety channel) ──
+  '/api/v1/push/vapid-key':               handlePushVapidKey,
 };
 
 // ── Storm prediction POST handler ──────────────────────
@@ -842,6 +848,218 @@ async function handleStormPredictionPost(
   } catch (err) {
     log.error('Storm prediction insert error:', (err as Error).message);
     error(res, 'DB error', 500, origin);
+  }
+}
+
+// ── Web Push endpoints (lightning-safety channel) ──────
+// Subscribe / unsubscribe / self-test for the per-spot lightning push.
+// Same defense-in-depth as the storm-predictions POST (no real secret is
+// possible for an anonymous frontend): same-origin gate + per-IP rate limit
+// + body-size cap + strict value validation. VAPID keys live in .env only;
+// without them the whole feature degrades to 503, never a crash.
+
+const PUSH_POST_MAX = 30;                       // per IP per hour — subscription changes are rare
+const PUSH_POST_WINDOW_MS = 60 * 60_000;
+const PUSH_POST_MAX_BODY = 8 * 1024;            // 8 KB — a real PushSubscription is <1 KB
+const pushPostCounts = new Map<string, { count: number; resetAt: number }>();
+
+// Every opted-in id must be a real curated spot (embalse + rias) so the
+// table can never accumulate junk ids from a hand-crafted POST.
+// Set<string> on purpose: the ids to validate arrive as plain strings from
+// the wire; a Set<SpotId> would reject the .has(string) check at compile time.
+const VALID_PUSH_SPOT_IDS = new Set<string>(
+  (['embalse', 'rias'] as const).flatMap((s) => getSpotsForSector(s).map((x) => x.id)),
+);
+
+/**
+ * Shared gate + body reader for the push POST routes. Returns the parsed
+ * JSON body, or null when the response has already been written (403 origin,
+ * 429 rate limit, 413 too large, 400 bad JSON).
+ */
+async function readPushPostBody(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<Record<string, unknown> | null> {
+  // Same-origin gate: browsers always send Origin on cross-context fetch;
+  // requests without a whitelisted Origin (curl, scripts) are rejected.
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+    res.writeHead(403, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Forbidden' }));
+    return null;
+  }
+
+  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const bucket = pushPostCounts.get(ip);
+  if (bucket && now < bucket.resetAt) {
+    if (bucket.count >= PUSH_POST_MAX) {
+      res.writeHead(429, corsHeaders(origin));
+      res.end(JSON.stringify({ error: 'Rate limit exceeded' }));
+      return null;
+    }
+    bucket.count++;
+  } else {
+    pushPostCounts.set(ip, { count: 1, resetAt: now + PUSH_POST_WINDOW_MS });
+  }
+
+  const declaredLength = parseInt(req.headers['content-length'] || '0', 10);
+  if (declaredLength > PUSH_POST_MAX_BODY) {
+    res.writeHead(413, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Payload too large' }));
+    return null;
+  }
+
+  const chunks: Buffer[] = [];
+  let received = 0;
+  for await (const chunk of req) {
+    received += (chunk as Buffer).length;
+    if (received > PUSH_POST_MAX_BODY) {
+      res.writeHead(413, corsHeaders(origin));
+      res.end(JSON.stringify({ error: 'Payload too large' }));
+      return null;
+    }
+    chunks.push(chunk as Buffer);
+  }
+  try {
+    const parsed = JSON.parse(Buffer.concat(chunks).toString());
+    if (parsed == null || typeof parsed !== 'object') {
+      res.writeHead(400, corsHeaders(origin));
+      res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    res.writeHead(400, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Invalid JSON' }));
+    return null;
+  }
+}
+
+/** GET /api/v1/push/vapid-key → { publicKey } (503 when push is disabled). */
+async function handlePushVapidKey(
+  _params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const publicKey = getVapidPublicKey();
+  if (!publicKey) {
+    error(res, 'push disabled', 503, origin);
+    return;
+  }
+  json(res, { publicKey }, 200, origin);
+}
+
+function isValidPushEndpoint(endpoint: unknown): endpoint is string {
+  return typeof endpoint === 'string'
+    && endpoint.startsWith('https://')
+    && endpoint.length <= 1000;
+}
+
+/** POST /api/v1/push/subscribe → upsert { subscription, spotIds }. */
+async function handlePushSubscribe(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const body = await readPushPostBody(req, res, origin);
+  if (body == null) return;
+
+  const subscription = body.subscription as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } | undefined;
+  const endpoint = subscription?.endpoint;
+  const p256dh = subscription?.keys?.p256dh;
+  const auth = subscription?.keys?.auth;
+  const spotIds = body.spotIds;
+
+  const validKeys = typeof p256dh === 'string' && p256dh.length > 0 && p256dh.length <= 300
+    && typeof auth === 'string' && auth.length > 0 && auth.length <= 300;
+  const validSpots = Array.isArray(spotIds) && spotIds.length <= 20
+    && spotIds.every((id: unknown) => typeof id === 'string' && VALID_PUSH_SPOT_IDS.has(id));
+
+  if (!isValidPushEndpoint(endpoint) || !validKeys || !validSpots) {
+    error(res, 'Invalid payload', 400, origin);
+    return;
+  }
+
+  try {
+    // Re-subscribing (or editing the spot list) refreshes the crypto keys
+    // and resets the failure streak — the browser just proved it is alive.
+    await getPool().query(
+      `INSERT INTO push_subscriptions (endpoint, p256dh, auth, spot_ids)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (endpoint) DO UPDATE
+         SET p256dh = EXCLUDED.p256dh,
+             auth = EXCLUDED.auth,
+             spot_ids = EXCLUDED.spot_ids,
+             fail_count = 0`,
+      [endpoint, p256dh, auth, spotIds],
+    );
+    json(res, { ok: true }, 201, origin);
+  } catch (err) {
+    log.error('[Push] subscribe insert error:', (err as Error).message);
+    error(res, 'DB error', 500, origin);
+  }
+}
+
+/** POST /api/v1/push/unsubscribe → delete by endpoint (idempotent). */
+async function handlePushUnsubscribe(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const body = await readPushPostBody(req, res, origin);
+  if (body == null) return;
+
+  const endpoint = body.endpoint;
+  if (typeof endpoint !== 'string' || endpoint.length === 0 || endpoint.length > 1000) {
+    error(res, 'Invalid payload', 400, origin);
+    return;
+  }
+
+  try {
+    await getPool().query(
+      'DELETE FROM push_subscriptions WHERE endpoint = $1',
+      [endpoint],
+    );
+    json(res, { ok: true }, 200, origin);
+  } catch (err) {
+    log.error('[Push] unsubscribe error:', (err as Error).message);
+    error(res, 'DB error', 500, origin);
+  }
+}
+
+/** POST /api/v1/push/test → one self-test notification to an endpoint the
+ *  user already registered (guarded 1/min per endpoint inside the dispatcher). */
+async function handlePushTest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const body = await readPushPostBody(req, res, origin);
+  if (body == null) return;
+
+  const endpoint = body.endpoint;
+  if (typeof endpoint !== 'string' || endpoint.length === 0 || endpoint.length > 1000) {
+    error(res, 'Invalid payload', 400, origin);
+    return;
+  }
+
+  const result = await sendTestPush(endpoint);
+  switch (result) {
+    case 'sent':
+      json(res, { ok: true }, 200, origin);
+      break;
+    case 'disabled':
+      error(res, 'push disabled', 503, origin);
+      break;
+    case 'not-found':
+      error(res, 'Subscription not found', 404, origin);
+      break;
+    case 'rate-limited':
+      error(res, 'Rate limit exceeded (1/min)', 429, origin);
+      break;
+    default:
+      error(res, 'Delivery failed', 502, origin);
   }
 }
 
@@ -1295,6 +1513,12 @@ const server = http.createServer(async (req, res) => {
       await handleWebcamUpload(webcamMatch[1], req, res, origin);
     } else if (url.pathname === '/api/v1/storm-predictions') {
       await handleStormPredictionPost(req, res, origin);
+    } else if (url.pathname === '/api/v1/push/subscribe') {
+      await handlePushSubscribe(req, res, origin);
+    } else if (url.pathname === '/api/v1/push/unsubscribe') {
+      await handlePushUnsubscribe(req, res, origin);
+    } else if (url.pathname === '/api/v1/push/test') {
+      await handlePushTest(req, res, origin);
     } else {
       error(res, 'Method not allowed', 405, origin);
     }
@@ -1377,6 +1601,10 @@ async function start(): Promise<void> {
     process.exit(1);
   }
   log.ok('Connected to TimescaleDB');
+
+  // Push channel heartbeat: "[Push] enabled, N subscriptions" (the disabled
+  // case already warned once at module load). Never blocks startup.
+  void logPushStartup();
 
   // 2. Start HTTP server
   server.listen(PORT, HOST, () => {

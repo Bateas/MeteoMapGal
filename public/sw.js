@@ -136,3 +136,47 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 });
+
+// ── Web Push: lightning-safety notifications (AVISO/PELIGRO, per-spot opt-in) ──
+// Payload contract (built by the ingestor): { title, body, tag, url }.
+// Malformed or empty payloads show nothing — a wrong notification is worse
+// than a missed one for a safety channel.
+self.addEventListener('push', (event) => {
+  let payload = null;
+  try {
+    payload = event.data ? event.data.json() : null;
+  } catch {
+    payload = null;
+  }
+  if (!payload || typeof payload.title !== 'string' || payload.title.length === 0) return;
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: typeof payload.body === 'string' ? payload.body : '',
+      // tag collapses repeated alerts for the same spot/level into one card
+      tag: typeof payload.tag === 'string' ? payload.tag : 'meteomap-push',
+      data: { url: typeof payload.url === 'string' ? payload.url : '/' },
+      // Real PWA icons from public/ (see manifest.json)
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      const win = wins.find((w) => 'focus' in w);
+      if (win) {
+        // Reuse the open app: focus it and deep-link to the alerting spot
+        return win.focus().then(() =>
+          'navigate' in win ? win.navigate(url).catch(() => undefined) : undefined
+        );
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});

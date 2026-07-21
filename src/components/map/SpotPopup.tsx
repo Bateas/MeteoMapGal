@@ -44,6 +44,7 @@ import { waterTempLabel } from '../../services/buoyUtils';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotWarningNotice } from '../spot/SpotWarningNotice';
+import { SpotPushOptIn } from '../spot/SpotPushOptIn';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
 import { ScoringBreakdown, Cell } from '../spot/ScoringBreakdown';
 import { WebcamSection } from '../spot/WebcamSection';
@@ -468,6 +469,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
         waveHeightM={spot.category === 'surf' ? (surfSpotWave ?? null) : null}
         windKt={score?.provisional ? null : (score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null)}
       />
+
+      {/* Per-spot opt-in for the lightning safety pushes (AVISO/PELIGRO from
+          lightningProximityService — the only thing that ever pushes). Hides
+          itself when the browser lacks Web Push (iOS Safari not installed). */}
+      <SpotPushOptIn spot={spot} />
 
       {/* SWAN per-spot Hs cross-check (T5-3 S136+3+3) — only on surf spots,
           and only when CESGA actually responded with a value. Silent on
