@@ -23,9 +23,13 @@ import { useSectorStore } from '../../store/sectorStore';
 import { fireAttributionKey } from '../../api/firmsClient';
 import { selectFireClusters, isFireActive, type FireCluster } from '../../services/fireClustering';
 import { fireProximity, formatFireAge } from '../../services/fireService';
+import { describeFireLocation, fireDisclaimer } from '../../services/fireRegion';
+import { formatBurntArea } from '../../api/fireEventsClient';
 import { WeatherIcon } from '../icons/WeatherIcons';
 
 const SOURCE_ID = 'firms-fires';
+const EVENTS_SOURCE_ID = 'effis-events';
+const EVENTS_LAYER_ID = 'effis-events-ring';
 const CORE_LAYER_ID = 'firms-core';
 
 /** Age gates are hours wide, but nothing re-renders this between 30min polls. */
@@ -43,6 +47,7 @@ function lightningFor(cluster: FireCluster, attribution: Map<string, { hoursAfte
 
 function FireOverlayInner() {
   const fires = useFireStore((s) => s.fires);
+  const events = useFireStore((s) => s.events);
   const attribution = useFireStore((s) => s.attribution);
   const activeSector = useSectorStore((s) => s.activeSector);
   const { current: mapRef } = useMap();
@@ -89,6 +94,24 @@ function FireOverlayInner() {
     }),
   }), [clusters, attribution, now]);
 
+  // Only events with a name earn a label — an unnamed ring is just clutter.
+  const eventsGeojson = useMemo<FeatureCollection>(() => ({
+    type: 'FeatureCollection',
+    features: events.map((e) => {
+      const area = formatBurntArea(e.areaHa);
+      return {
+        type: 'Feature',
+        id: e.id,
+        properties: {
+          eventId: e.id,
+          areaHa: e.areaHa ?? 0,
+          label: e.commune ? (area ? `${e.commune} · ${area}` : e.commune) : '',
+        },
+        geometry: { type: 'Point', coordinates: [e.lon, e.lat] },
+      };
+    }),
+  }), [events]);
+
   const handleClick = useCallback((e: MapLayerMouseEvent) => {
     const id = e.features?.[0]?.properties?.clusterId;
     const hit = clusters.find((c) => c.id === id);
@@ -116,7 +139,10 @@ function FireOverlayInner() {
     if (selected && !clusters.some((c) => c.id === selected.id)) setSelected(null);
   }, [clusters, selected]);
 
-  if (clusters.length === 0) return null;
+  // Named events outlive their own hotspots by days, so the overlay must not
+  // bail out just because no pixel is hot right now — that is exactly when a
+  // named fire is the only thing left to show.
+  if (clusters.length === 0 && events.length === 0) return null;
 
   const near = selected ? fireProximity(selected, activeSector.center) : null;
 
@@ -202,6 +228,58 @@ function FireOverlayInner() {
         />
       </Source>
 
+      {/* Named events, from EFFIS. Deliberately a different visual language
+          from the hotspot dots: these are not "a hot pixel right now" but
+          "a fire that has a municipality and a measured burnt area", and the
+          label is the whole point — a reader gets Pazos de Borbén instead of
+          a red dot 15km away. Drawn as an outlined ring so a named event and
+          its own hotspots can sit on top of each other and still be told
+          apart. */}
+      {eventsGeojson.features.length > 0 && (
+        <Source id={EVENTS_SOURCE_ID} type="geojson" data={eventsGeojson}>
+          <Layer
+            id={EVENTS_LAYER_ID}
+            type="circle"
+            source={EVENTS_SOURCE_ID}
+            paint={{
+              // Size by burnt area, not by radiative power: this figure is
+              // cumulative ground truth, so it grows and never flickers.
+              'circle-radius': [
+                'interpolate', ['linear'], ['get', 'areaHa'],
+                0, 7,
+                10, 10,
+                100, 15,
+                1000, 22,
+              ],
+              'circle-color': 'transparent',
+              'circle-stroke-color': '#f97316',
+              'circle-stroke-width': 2,
+              'circle-stroke-opacity': 0.85,
+            }}
+          />
+          <Layer
+            id="effis-events-label"
+            type="symbol"
+            source={EVENTS_SOURCE_ID}
+            minzoom={7}
+            layout={{
+              'text-field': ['get', 'label'],
+              'text-font': ['Noto Sans Bold'],
+              'text-size': 11,
+              'text-offset': [0, 1.4],
+              'text-anchor': 'top',
+              'text-allow-overlap': false,
+              'text-optional': true,
+            }}
+            paint={{
+              'text-color': '#fdba74',
+              'text-halo-color': '#0f172a',
+              'text-halo-width': 1.4,
+            }}
+          />
+        </Source>
+      )}
+
       {selected && near && (
         <Popup
           longitude={selected.lon}
@@ -219,10 +297,10 @@ function FireOverlayInner() {
             </div>
 
             <div className="space-y-0.5 text-xs text-slate-400">
-              <div>
-                A{' '}
-                <span className="text-slate-200">{Math.round(near.distanceKm)} km</span>
-                {' '}al {near.bearing} de {activeSector.name}
+              {/* Place first, distance second. Measuring a Portuguese fire
+                  from a Galician reservoir was true and unhelpful. */}
+              <div className="text-slate-200">
+                {describeFireLocation(selected.lat, selected.lon, near.distanceKm, near.bearing)}
               </div>
               <div>
                 Última detección:{' '}
@@ -253,11 +331,12 @@ function FireOverlayInner() {
               )}
             </div>
 
-            {/* Honest about what a satellite hotspot is — in Galicia a great
-                many of them are authorised agricultural burns, not wildfires. */}
+            {/* Honest about what a satellite hotspot is. In Galicia many of
+                them are authorised agricultural burns — but only while the
+                radiative power makes that physically possible, so the wording
+                follows the number instead of contradicting it. */}
             <div className="mt-2 pt-1.5 border-t border-slate-700/60 text-[11px] leading-snug text-slate-500">
-              Detección por satélite. Puede ser un incendio, una quema autorizada
-              o un fuego agrícola.
+              {fireDisclaimer(selected.frpMw)}
             </div>
           </div>
         </Popup>
