@@ -329,6 +329,23 @@ CREATE INDEX IF NOT EXISTS idx_strikes_galicia ON lightning_strikes (is_galicia,
 -- call — the /api/v1/firms proxy only caches for the browser, it never writes).
 -- Keys include satellite + acq time so the same physical fire seen by S-NPP
 -- and NOAA-20 doesn't get deduped (we want both observations for accuracy).
+--
+-- RAW ARCHIVE (2026-07-27): the fetcher used to apply the display filter
+-- BEFORE inserting, so everything it rejected was lost forever. That filter is
+-- a heuristic that gets retuned as we learn — back then a flat
+-- `confidence != 'low' AND bright_ti4 >= 320K`, which on the live feed that
+-- day kept 88% of daytime detections but only 48% of night ones (night median
+-- bright_ti4 = 315.8K): a nocturnal blind spot, not the "industrial heat"
+-- discriminator it claimed to be. FIRMS also defines confidence='low' as sun
+-- glint / sub-15K anomaly, not "not a fire".
+--
+-- Every detection inside the bbox is now stored. `passes_display_filter`
+-- records whether the filter AS IT STOOD AT INGEST TIME accepted the row, so
+-- "what the user saw" stays reproducible while the rest survives. Because the
+-- heuristic is retuned over time this flag is a historical record, NOT a
+-- stable definition — recompute from the raw columns if you need one rule
+-- applied uniformly across the archive. Consumers wanting the conservative
+-- view must add `WHERE passes_display_filter` themselves.
 CREATE TABLE IF NOT EXISTS active_fires (
   time           TIMESTAMPTZ     NOT NULL,
   lat            DOUBLE PRECISION NOT NULL,
@@ -338,10 +355,90 @@ CREATE TABLE IF NOT EXISTS active_fires (
   frp            REAL,                        -- Fire Radiative Power, MW
   confidence     TEXT,                        -- 'low' | 'nominal' | 'high'
   daynight       CHAR(1),
+  -- Raw CSV context the display type drops. scan/track are the pixel ground
+  -- footprint in km (VIIRS is 375m at nadir, wider at swath edge) — the only
+  -- honest way to collapse "N contiguous pixels" into "1 fire" after the fact.
+  -- bright_ti5 is the 11um channel: the ti4-ti5 spread is the real fire vs
+  -- warm-ground discriminator and cannot be recomputed later. version is the
+  -- FIRMS collection tag ('2.0NRT') — NASA reprocesses NRT into standard
+  -- quality, so without it a historical row has no provenance.
+  -- confidence_raw is the untouched token: the shared parser only understands
+  -- the letters h/n/l and maps anything else to 'low', so a feed format change
+  -- would degrade `confidence` while this column stays truthful.
+  scan           REAL,
+  track          REAL,
+  bright_ti5     REAL,                        -- Kelvin, 11um channel
+  version        TEXT,
+  instrument     TEXT,                        -- 'VIIRS' today; MODIS possible later
+  confidence_raw TEXT,
+  passes_display_filter BOOLEAN,              -- NULL only on pre-migration rows
+  ingested_at    TIMESTAMPTZ DEFAULT NOW(),   -- lets us measure FIRMS NRT publish lag
   PRIMARY KEY (time, lat, lon, satellite)
 );
 SELECT create_hypertable('active_fires', 'time', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_fires_loc ON active_fires (lat, lon);
+
+-- Idempotent adds for already-deployed databases (CREATE TABLE IF NOT EXISTS
+-- skips new columns on an existing table — these ALTERs apply them).
+ALTER TABLE active_fires ADD COLUMN IF NOT EXISTS scan           REAL;
+ALTER TABLE active_fires ADD COLUMN IF NOT EXISTS track          REAL;
+ALTER TABLE active_fires ADD COLUMN IF NOT EXISTS bright_ti5     REAL;
+ALTER TABLE active_fires ADD COLUMN IF NOT EXISTS version        TEXT;
+ALTER TABLE active_fires ADD COLUMN IF NOT EXISTS instrument     TEXT;
+ALTER TABLE active_fires ADD COLUMN IF NOT EXISTS confidence_raw TEXT;
+ALTER TABLE active_fires ADD COLUMN IF NOT EXISTS passes_display_filter BOOLEAN;
+-- Added without a default on purpose: back-filling legacy rows with NOW()
+-- would invent an ingest time they never had. NULL = "we don't know".
+ALTER TABLE active_fires ADD COLUMN IF NOT EXISTS ingested_at    TIMESTAMPTZ;
+ALTER TABLE active_fires ALTER COLUMN ingested_at SET DEFAULT NOW();
+
+-- Fast "only what the map would have shown" scans over the raw archive.
+CREATE INDEX IF NOT EXISTS idx_fires_display
+  ON active_fires (passes_display_filter, time DESC);
+
+-- The fetcher upserts (DO UPDATE backfills the raw columns on legacy rows),
+-- which needs UPDATE on top of INSERT — with only `ar` the write fails and
+-- the error is swallowed by the fetcher's catch.
+GRANT SELECT, INSERT, UPDATE ON active_fires TO meteomap_app;
+
+-- ── EFFIS burnt-area events ────────────────────────────────
+-- Copernicus EFFIS (European Forest Fire Information System) perimeters.
+-- Complementary to `active_fires`, NOT a duplicate: FIRMS gives satellite
+-- HOTSPOTS (one row per 375m pixel per overpass — a single fire produces
+-- dozens), EFFIS gives the FIRE as an analysed event with an official name,
+-- province and burnt area in hectares. One row here can correspond to a
+-- hundred rows there, which is exactly why the fire count must never be
+-- derived from raw hotspots.
+--
+-- Regular table, not a hypertable: the natural key is the EFFIS event id and
+-- rows are MUTATED as the fire grows (area_ha and last_update change on every
+-- refresh while it burns), which is the opposite of the append-only
+-- time-series pattern the hypertables serve.
+CREATE TABLE IF NOT EXISTS effis_fires (
+  effis_id    TEXT PRIMARY KEY,
+  fire_date   TIMESTAMPTZ,                    -- first detection / ignition estimate
+  last_update TIMESTAMPTZ,                    -- EFFIS revision timestamp
+  country     TEXT,
+  province    TEXT,
+  commune     TEXT,
+  area_ha     REAL,                           -- burnt area, hectares
+  lat         DOUBLE PRECISION,
+  lon         DOUBLE PRECISION,
+  class       TEXT,                           -- EFFIS size class
+  pct_natura  REAL,                           -- % of burnt area inside Natura 2000
+  fetched_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Drives "what changed since the last poll" and the recency ordering.
+CREATE INDEX IF NOT EXISTS idx_effis_last_update
+  ON effis_fires (last_update DESC);
+-- Proximity lookups (nearest event to a sector/spot), same pattern as the
+-- other geo tables here.
+CREATE INDEX IF NOT EXISTS idx_effis_loc ON effis_fires (lat, lon);
+
+-- UPDATE for the upsert on refresh; DELETE so retired/merged EFFIS ids can be
+-- pruned by the app instead of lingering as phantom fires.
+GRANT SELECT, INSERT, UPDATE, DELETE ON effis_fires TO meteomap_app;
 
 -- ── Upper-air sounding (Phase 1b TIER 1 — sinóptica) ────────
 -- Wind + temperature at standard pressure levels (850/700/500 hPa) per

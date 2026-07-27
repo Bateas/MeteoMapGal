@@ -23,7 +23,12 @@ export interface FirmsFetchResult {
 
 /**
  * Fetch active fires for Galicia + buffer.
- * Returns filtered list (low-confidence + cool industrial signatures dropped).
+ *
+ * Returns individual HOTSPOT DETECTIONS, filtered for reliability (see
+ * `filterRealFires`). These are satellite pixels, not fires: one wildfire
+ * produces many rows across satellites, passes and adjacent pixels. Any
+ * surface that shows or counts fires must go through `selectFireClusters`
+ * (services/fireClustering) rather than reading this list directly.
  *
  * `days` is 1-5 — defaults to 1 (last 24h, real-time use case).
  */

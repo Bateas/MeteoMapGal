@@ -5,6 +5,11 @@
  * Why 30min cadence: VIIRS satellite passes Galicia ~4-6 times/day. The
  * ingestor proxy already caches 30min so a tighter interval would just hit
  * the same cached payload. Visibility-aware so background tabs idle.
+ *
+ * The store keeps raw hotspot detections. Grouping them into FIRES happens in
+ * `selectFireClusters`, which memoises on the stored array so every surface
+ * (ticker, map markers, smoke) works off one identical cluster list. Clustering
+ * per-surface instead would let them drift apart silently.
  */
 
 import { useCallback } from 'react';
