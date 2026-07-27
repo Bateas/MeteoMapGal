@@ -848,6 +848,12 @@ export async function queryFireAttribution(days: number): Promise<FireAttributio
       AND s.lat BETWEEN f.lat - 0.027 AND f.lat + 0.027
       AND s.lon BETWEEN f.lon - 0.037 AND f.lon + 0.037
      WHERE f.time > NOW() - make_interval(days => $1)
+       -- The archive stopped being pre-filtered, so without this the join
+       -- would silently widen to include low-confidence and cold nocturnal
+       -- detections. The published strike-to-fire attribution was validated
+       -- against the filtered population, so it keeps reading that same
+       -- population. Re-run that validation before loosening this.
+       AND f.passes_display_filter
      GROUP BY f.time, f.lat, f.lon, f.satellite, f.frp, f.confidence, f.daynight
      ORDER BY f.time DESC
      LIMIT 2000`,

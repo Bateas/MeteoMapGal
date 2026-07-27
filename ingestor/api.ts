@@ -20,6 +20,7 @@
  *   GET /api/v1/analytics/air-quality-trend?days=&station=        → Daily AQ rollup
  *   GET /api/v1/analytics/convection-grid?hourOffset=             → Spatial CAPE/LI grid
  *   GET /api/v1/fires?days=                                       → Active fires + lightning attribution
+ *   GET /api/v1/fires/events?days=&galicia=&province=             → EFFIS named fire events (commune + hectares)
  *   GET /api/v1/push/vapid-key                                    → Web Push VAPID public key
  *   POST /api/v1/push/{subscribe,unsubscribe,test}                → Lightning-safety push channel
  *
@@ -57,6 +58,7 @@ import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { FIRMS_PRODUCTS, mergeFirmsCsv } from '../src/services/fireService.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatcher.js';
+import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effisFetcher.js';
 
 // ── Configuration ──────────────────────────────────────
 
@@ -75,7 +77,11 @@ const FIRMS_API_KEY = process.env.FIRMS_API_KEY || '';
 const FIRMS_BASE = 'https://firms.modaps.eosdis.nasa.gov/api/area/csv';
 // Galicia + buffer (Asturias W + Norte Portugal — fires often cross borders).
 // Hardcoded server-side: prevents the proxy from being used as an open FIRMS gateway.
-const FIRMS_BBOX = '-10.0,41.5,-6.0,44.0';
+// Must match ingestor/firmsFetcher.ts — the browser proxy and the archive have
+// to agree about what exists, or a fire recorded in the database is invisible
+// on the map (and vice versa). See that file for the measured cost of the
+// southern edge.
+const FIRMS_BBOX = '-10.5,40.8,-6.0,44.5';
 
 // CORS: allow frontend origins
 const ALLOWED_ORIGINS = new Set([
@@ -694,6 +700,122 @@ async function handleFires(
   }
 }
 
+// ── EFFIS named fire events ────────────────────────────
+
+interface EffisEventRow {
+  effis_id: string;
+  fire_date: Date | null;
+  last_update: Date | null;
+  country: string | null;
+  province: string | null;
+  commune: string | null;
+  area_ha: string | number | null;
+  lat: string | number;
+  lon: string | number;
+  class: string | null;
+  pct_natura: string | number | null;
+}
+
+/** NUMERIC columns come back from the pg driver as strings. */
+function numOrNull(value: string | number | null): number | null {
+  if (value === null) return null;
+  const n = typeof value === 'number' ? value : parseFloat(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * GET /api/v1/fires/events?days=7[&galicia=1][&province=pontevedra]
+ *
+ * Grouped fire EVENTS from EFFIS — one row per fire, with commune, province
+ * and burnt hectares. This is the antidote to the hotspot count: `/api/v1/fires`
+ * returns satellite pixels (several per fire, several times a day), this
+ * returns the fires themselves.
+ *
+ * Filters:
+ *   days      1-365, default 7. Ordered by ignition, most recent first.
+ *   galicia   `1`/`true` keeps only the four Galician provinces.
+ *   province  free text, accent- and case-insensitive (`a coruna` == `A Coruña`).
+ *
+ * Province filtering happens in JS on purpose: matching accented names in SQL
+ * would need `unaccent`, and the day window already bounds the result to a
+ * handful of rows.
+ *
+ * Every response carries `attribution` — EFFIS is CC BY 4.0 and crediting the
+ * European Union is a licence obligation, not a courtesy.
+ */
+async function handleFireEvents(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const days = Math.min(Math.max(parseInt(params.days || '7', 10) || 7, 1), 365);
+  const galiciaOnly = params.galicia === '1' || params.galicia === 'true';
+  // Bounded before it ever reaches a comparison — no reason to accept an essay.
+  const provinceFilter = (params.province || '').slice(0, 60);
+  const provinceKey = normalizeProvince(provinceFilter);
+
+  try {
+    const db = getPool();
+    // COALESCE because fire_date is the only nullable date of the three:
+    // an event with an unreadable ignition time is still recent news.
+    const result = await db.query<EffisEventRow>(
+      `SELECT effis_id, fire_date, last_update, country, province, commune,
+              area_ha, lat, lon, "class", pct_natura
+         FROM effis_fires
+        WHERE COALESCE(fire_date, last_update, fetched_at) > NOW() - ($1 || ' days')::INTERVAL
+        ORDER BY COALESCE(fire_date, last_update, fetched_at) DESC
+        LIMIT 500`,
+      [String(days)],
+    );
+
+    let events = result.rows.map((r) => ({
+      id: r.effis_id,
+      fireDate: r.fire_date ? new Date(r.fire_date).toISOString() : null,
+      lastUpdate: r.last_update ? new Date(r.last_update).toISOString() : null,
+      country: r.country,
+      province: r.province,
+      commune: r.commune,
+      areaHa: numOrNull(r.area_ha),
+      lat: numOrNull(r.lat) ?? 0,
+      lon: numOrNull(r.lon) ?? 0,
+      class: r.class,
+      pctNatura: numOrNull(r.pct_natura),
+      galicia: isGalicianProvince(r.province),
+    }));
+
+    if (galiciaOnly) events = events.filter((e) => e.galicia);
+    if (provinceKey) events = events.filter((e) => normalizeProvince(e.province) === provinceKey);
+
+    json(res, {
+      days,
+      province: provinceKey || null,
+      galiciaOnly,
+      count: events.length,
+      galiciaCount: events.filter((e) => e.galicia).length,
+      attribution: EFFIS_ATTRIBUTION,
+      events,
+    }, 200, origin);
+  } catch (err) {
+    // The table is applied by hand on the DB host, so "not there yet" is an
+    // expected state rather than a fault: answer with an honest empty list so
+    // the frontend renders nothing instead of an error.
+    if ((err as { code?: string }).code === '42P01') {
+      log.warn('[handleFireEvents] table `effis_fires` does not exist yet — serving an empty list');
+      json(res, {
+        days,
+        province: provinceKey || null,
+        galiciaOnly,
+        count: 0,
+        galiciaCount: 0,
+        attribution: EFFIS_ATTRIBUTION,
+        events: [],
+      }, 200, origin);
+      return;
+    }
+    dbError(res, err, 'handleFireEvents', origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -721,8 +843,10 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/spots/scores': handleSpotScores,
   // Webcam vision latest results
   '/api/v1/webcam-vision': handleWebcamVision,
-  // Active fires + the lightning that may have started them
+  // Active fires + the lightning that may have started them (satellite hotspots)
   '/api/v1/fires': handleFires,
+  // Grouped fire events with commune + burnt hectares (EFFIS)
+  '/api/v1/fires/events': handleFireEvents,
   // ── Analytics (Phase 3) — pre-computed rollups from continuous aggregates ──
   '/api/v1/analytics/lightning-heatmap':  handleAnalyticsLightningHeatmap,
   '/api/v1/analytics/convection-trend':   handleAnalyticsConvectionTrend,

@@ -59,12 +59,14 @@ export function LegalSection() {
             <AttrRow name="IHM / Puertos del Estado" license="Datos públicos" desc="Predicciones de mareas" />
             <AttrRow name="ENAIRE" license="Datos públicos" desc="Espacio aéreo y NOTAMs" />
             <AttrRow name="Puertos del Estado (PORTUS)" license="Datos públicos" desc="Boyas marinas — oleaje, corrientes, nivel del mar" />
-            <AttrRow name="Observatorio Costeiro (Xunta)" license="Datos abiertos Xunta" desc="Boyas suplementarias — humedad, punto de rocío" />
+            <AttrRow name="Observatorio Costeiro (Xunta)" license="Datos abiertos Xunta" desc="Boyas suplementarias — humedad, punto de rocío" />
             <AttrRow name="CMEMS / Copernicus Marine" license="Datos abiertos EU" desc="Temperatura superficial del mar (SST)" />
             <AttrRow name="EMODnet" license="Datos abiertos EU" desc="Batimetría marina" />
             <AttrRow name="OpenSeaMap" license="CC BY-SA" desc="Marcas y señales de navegación" />
             <AttrRow name="IGN" license="CC BY 4.0" desc="Cartografía: ortofotos, sombreado, curvas de nivel" />
             <AttrRow name="NOAA" license="Dominio público" desc="Índices climáticos NAO/AO" />
+            <AttrRow name="NASA FIRMS" license="Datos abiertos NASA" desc="Detección de incendios por satélite (VIIRS)" />
+            <AttrRow name="EFFIS — Copernicus EMS" license="CC BY 4.0, © Unión Europea" desc="Incendios forestales: superficie quemada y concello" />
             <AttrRow name="SkyX" license="API privada" desc="Estación personal portátil con GPS" />
             <AttrRow name="OpenSky Network" license="CC BY-SA 4.0" desc="Posiciones de aeronaves en tiempo real" />
             <AttrRow name="Open-Meteo Marine" license="CC BY 4.0" desc="Previsión de oleaje y swell horario" />

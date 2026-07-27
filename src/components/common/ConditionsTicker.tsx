@@ -27,6 +27,8 @@ import { useAlertStore } from '../../store/alertStore';
 import { useIcaStore } from '../../store/icaStore';
 import { icaCategory } from '../../api/meteoGaliciaIcaClient';
 import { useFireStore } from '../../store/fireStore';
+import { selectFireClusters } from '../../services/fireClustering';
+import { aggregateFiresForSector, formatFireAge } from '../../services/fireService';
 import { getSpotsForSector, isBeachSpot } from '../../config/spots';
 import { assessBeachDay, type BeachDayResult } from '../../services/beachDayService';
 import { msToKnots } from '../../services/windUtils';
@@ -71,6 +73,11 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
   const stormPrediction = useStormPrediction();
   const mgWarnings = useWarningsStore((s) => s.sectorWarnings);
   const unifiedAlerts = useAlertStore((s) => s.alerts);
+  // Subscribed, not read through getState(): fires poll on their own 30min
+  // clock, so a snapshot read only surfaced them when some unrelated store
+  // happened to change — a new fire could sit invisible for a whole weather
+  // cycle. The rebuild is cheap at that cadence.
+  const fires = useFireStore((s) => s.fires);
   const isMobile = useUIStore((s) => s.isMobile);
 
   // Touch pause state
@@ -506,18 +513,31 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
     }
 
     // ── Active wildfires warning (NASA FIRMS, priority 6 — high) ──
-    const fires = useFireStore.getState().fires;
-    if (fires.length > 0) {
-      const maxFrp = fires.reduce((m, f) => Math.max(m, f.frp), 0);
-      const isLarge = maxFrp >= 100 || fires.length >= 5;
+    // Situate the fire, never count satellite pixels. The old copy said
+    // "N focos activos" straight off the hotspot rows, which multiplied one
+    // fire by every satellite, pass and pixel that saw it — and grew through
+    // the day while nothing new was burning. `aggregateFiresForSector` groups
+    // the rows into fires, drops the ones too old to still be called active,
+    // and stays silent about anything past the mention range: a fire 178km
+    // away in Zamora is not news for someone deciding whether to go out here.
+    const fireClusters = selectFireClusters(fires);
+    const fireAgg = aggregateFiresForSector(
+      fireClusters,
+      useSectorStore.getState().activeSector.center,
+    );
+    if (fireAgg.severity !== 'none' && fireAgg.nearest) {
+      const { distanceKm, bearing, cluster } = fireAgg.nearest;
+      const km = Math.round(distanceKm);
+      const age = formatFireAge(cluster.latestAt);
+      const isNear = fireAgg.severity === 'alerta';
       result.push({
         key: 'active-fires',
-        text: fires.length === 1
-          ? `🔥 1 foco activo${maxFrp >= 50 ? ` (${Math.round(maxFrp)}MW)` : ''}`
-          : `🔥 ${fires.length} focos activos${isLarge ? ` (max ${Math.round(maxFrp)}MW)` : ''}`,
-        color: isLarge ? 'text-red-400' : 'text-orange-400',
-        bg: isLarge ? 'bg-red-900/20' : 'bg-orange-900/20',
-        priority: isLarge ? 7 : 6,
+        text: fireAgg.fireCount === 1
+          ? `Incendio detectado a ${km} km al ${bearing} · ${age}`
+          : `${fireAgg.fireCount} incendios cerca · el más próximo a ${km} km al ${bearing} · ${age}`,
+        color: isNear ? 'text-red-400' : 'text-orange-400',
+        bg: isNear ? 'bg-red-900/20' : 'bg-orange-900/20',
+        priority: isNear ? 7 : 6,
         essential: true,
       });
     }
@@ -589,7 +609,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
 
     const cap = isMobile ? 6 : 9;
     return pool.length > cap ? pool.slice(0, cap) : pool;
-  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, isMobile, simple]);
+  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, fires, isMobile, simple]);
 
   // ── Official MG warnings — static strip above the marquee ─────
   // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).

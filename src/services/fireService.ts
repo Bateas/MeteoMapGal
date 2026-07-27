@@ -9,6 +9,7 @@
  */
 
 import type { ActiveFire, FireConfidence } from '../types/fire';
+import { isFireActive, type FireCluster } from './fireClustering';
 
 /**
  * VIIRS NRT products we poll, both at 375m.
@@ -47,12 +48,32 @@ export function mergeFirmsCsv(csvs: (string | null)[]): string {
   return rows.length ? `${header}\n${rows.join('\n')}` : header;
 }
 
-/** VIIRS confidence letter → enum */
-function parseConfidence(letter: string): FireConfidence {
-  const c = letter?.trim().toLowerCase();
-  if (c === 'h') return 'high';
-  if (c === 'n') return 'nominal';
-  return 'low';
+/**
+ * FIRMS confidence → enum, in every format NASA ships it.
+ *
+ * The Area-API returns letters (h/n/l); the bulk regional CSVs return whole
+ * words (high/nominal/low); MODIS products return a 0-100 percentage. Reading
+ * only letters meant that if NASA ever aligned the formats, every row would
+ * fall through to 'low' and the whole layer would switch off in silence.
+ *
+ * An unrecognised value is therefore treated as 'nominal', not 'low': an
+ * unknown format is our problem, and it must not be reported to the user as
+ * "no fires". 'low' has to be stated by the feed to be believed.
+ */
+export function parseConfidence(raw: string): FireConfidence {
+  const c = raw?.trim().toLowerCase();
+  if (!c) return 'nominal';
+  if (c === 'h' || c === 'high') return 'high';
+  if (c === 'n' || c === 'nominal') return 'nominal';
+  if (c === 'l' || c === 'low') return 'low';
+  // MODIS-style percentage
+  const pct = Number.parseFloat(c);
+  if (Number.isFinite(pct)) {
+    if (pct >= 80) return 'high';
+    if (pct >= 30) return 'nominal';
+    return 'low';
+  }
+  return 'nominal';
 }
 
 /**
@@ -107,65 +128,187 @@ export function parseFirmsCsv(csv: string): ActiveFire[] {
 }
 
 /**
- * Filter out low-confidence and likely-industrial hotspots.
- * VIIRS picks up gas flares, steel mills, etc. — those usually have:
- * - confidence='low' (algorithm itself is unsure), OR
- * - very low brightness (<320K) (industrial heat signatures are colder than wildfires)
+ * Brightness floor by day. VIIRS I-4 reads a fire against a sunlit background,
+ * so a genuine wildfire sits well above this: in the live European 24h feed the
+ * 5th percentile of daytime detections is 331K.
+ */
+export const FIRE_BRIGHTNESS_MIN_DAY = 320;
+
+/**
+ * Brightness floor by night — VIIRS's own nocturnal threshold.
+ *
+ * Against a cold night background the same fire reads ~30K cooler, so the
+ * daytime floor is a blindfold after dark: measured on the live European feed,
+ * 320K discards 61.8% of all night detections (median 313K, p10 300K) while
+ * discarding 0.4% by day. That is how a real hotspot inside Galicia was thrown
+ * away at 303.78K.
+ *
+ * 295K is not a number we invented: it is the nocturnal candidate threshold of
+ * the VIIRS 375m algorithm itself, and the feed proves it — of 2718 night rows,
+ * the coldest is exactly 295.00K. So after dark we defer to the instrument,
+ * which discriminates BETTER at night (cold background) and where, verified on
+ * the same feed, it never once returns a 'low' confidence row.
+ */
+export const FIRE_BRIGHTNESS_MIN_NIGHT = 295;
+
+/**
+ * Drop detections we should not show as fires.
+ *
+ * `confidence='low'` does NOT mean "too cool to be a fire" — the earlier
+ * comment here had the physics wrong. Per the FIRMS documentation, low marks
+ * sun glint and thermal anomalies below the ~15K contextual margin; in the live
+ * feed all 180 low rows are daytime (glint needs sun) and 63 of them carry an
+ * FRP of 20MW or more. They are dropped for being unreliable, not for being cold.
+ *
+ * Measured impact of the day/night split on the live European 24h feed: of 4078
+ * rows, 2218 survived before and 3898 now. All 1680 recovered rows are
+ * nocturnal — the daytime count is unchanged at 1180, because by day the
+ * brightness floor removed nothing the confidence gate had not already removed.
  */
 export function filterRealFires(fires: ActiveFire[]): ActiveFire[] {
   return fires.filter(
-    (f) => f.confidence !== 'low' && f.brightness >= 320,
+    (f) =>
+      f.confidence !== 'low' &&
+      f.brightness >=
+        (f.daynight === 'D' ? FIRE_BRIGHTNESS_MIN_DAY : FIRE_BRIGHTNESS_MIN_NIGHT),
   );
 }
 
-export type FireSeverity = 'none' | 'info' | 'aviso' | 'alerta';
+export type FireSeverity = 'none' | 'aviso' | 'alerta';
+
+/** Close enough that it bears on being here right now. */
+export const FIRE_NEAR_KM = 30;
+
+/**
+ * Beyond this we say nothing at all.
+ *
+ * A fire 178km away in Zamora is not news for someone deciding whether to sail
+ * in the Rías, and announcing it as if it were local is what turned this layer
+ * into noise. Between the two bands a fire is mentioned only WITH its distance
+ * and direction, never as a bare count.
+ */
+export const FIRE_MENTION_KM = 100;
+
+/** Where a fire is, relative to the sector the user is looking at. */
+export interface FireProximity {
+  cluster: FireCluster;
+  distanceKm: number;
+  /** Full Spanish compass word, e.g. "suroeste" — ready for UI copy */
+  bearing: string;
+}
 
 export interface FireAggregate {
   severity: FireSeverity;
-  /** Count after low-confidence filter */
-  total: number;
-  /** Highest FRP across all fires (MW) */
-  maxFrp: number;
-  /** True if any fire is within `criticalKm` of `[lon, lat]` */
-  nearSector: boolean;
-  /** Distance (km) from sector center to nearest fire, null if no fires */
-  nearestKm: number | null;
+  /** Distinct FIRES worth mentioning. Never a hotspot-pixel count. */
+  fireCount: number;
+  /** Detections behind those fires — transparency, not a headline number */
+  hotspotCount: number;
+  /** Strongest single fire front in range (MW) */
+  maxFrpMw: number;
+  nearest: FireProximity | null;
+  /** Within FIRE_MENTION_KM, nearest first */
+  relevant: FireProximity[];
+}
+
+const COMPASS_ES = [
+  'norte', 'noreste', 'este', 'sureste',
+  'sur', 'suroeste', 'oeste', 'noroeste',
+];
+
+/** 8-point compass word for a bearing in degrees. */
+function compassEs(bearingDeg: number): string {
+  const idx = Math.round(((bearingDeg % 360) + 360) % 360 / 45) % 8;
+  return COMPASS_ES[idx];
 }
 
 /**
- * Aggregate fires for a sector — used to classify dashboard alert severity.
- * Distance check uses simple equirectangular approx (good enough at <500km).
+ * Where one fire sits relative to a sector — distance and compass word.
+ * Shared by the aggregate and by the map popup so a fire can never be 54km
+ * "south" in one place and something else in the other.
+ */
+export function fireProximity(
+  cluster: FireCluster,
+  sectorCenter: [number, number], // [lon, lat]
+): FireProximity {
+  const [cLon, cLat] = sectorCenter;
+  // Equirectangular approximation — ~1° lat = 111km
+  const dLat = (cluster.lat - cLat) * 111;
+  const dLon = (cluster.lon - cLon) * 111 * Math.cos((cLat * Math.PI) / 180);
+  return {
+    cluster,
+    distanceKm: Math.hypot(dLat, dLon),
+    // Bearing from the sector toward the fire, 0 = north, clockwise
+    bearing: compassEs((Math.atan2(dLon, dLat) * 180) / Math.PI),
+  };
+}
+
+/**
+ * Aggregate ACTIVE fires around a sector.
+ *
+ * Takes clusters, never raw hotspots: the whole point is that the user hears
+ * about fires, not about satellite pixels. Stale clusters are excluded here —
+ * a detection from 20h ago cannot support the claim that something is burning
+ * now (the map still shows it, dimmed and dated).
+ *
+ * We deliberately do NOT name the place. Naming a municipality or a country
+ * needs an admin-boundary lookup we do not have client-side, and the border
+ * with Portugal runs right through the area we watch: distance and direction
+ * are always true, an invented place name is not.
+ *
+ * Distance uses the equirectangular approximation — fine under ~500km.
  */
 export function aggregateFiresForSector(
-  fires: ActiveFire[],
+  clusters: FireCluster[],
   sectorCenter: [number, number], // [lon, lat]
-  warnKm = 50,
-  criticalKm = 25,
+  nearKm = FIRE_NEAR_KM,
+  mentionKm = FIRE_MENTION_KM,
+  now = Date.now(),
 ): FireAggregate {
-  if (fires.length === 0) {
-    return { severity: 'none', total: 0, maxFrp: 0, nearSector: false, nearestKm: null };
+  const empty: FireAggregate = {
+    severity: 'none',
+    fireCount: 0,
+    hotspotCount: 0,
+    maxFrpMw: 0,
+    nearest: null,
+    relevant: [],
+  };
+  if (clusters.length === 0) return empty;
+
+  const relevant: FireProximity[] = [];
+
+  for (const cluster of clusters) {
+    if (!isFireActive(cluster, now)) continue;
+    const near = fireProximity(cluster, sectorCenter);
+    if (near.distanceKm > mentionKm) continue;
+    relevant.push(near);
   }
 
-  const [cLon, cLat] = sectorCenter;
-  let maxFrp = 0;
-  let nearestKm: number | null = null;
+  if (relevant.length === 0) return empty;
 
-  for (const f of fires) {
-    if (f.frp > maxFrp) maxFrp = f.frp;
-    // Equirectangular approximation — ~1° lat = 111km
-    const dLat = (f.lat - cLat) * 111;
-    const dLon = (f.lon - cLon) * 111 * Math.cos((cLat * Math.PI) / 180);
-    const dKm = Math.hypot(dLat, dLon);
-    if (nearestKm === null || dKm < nearestKm) nearestKm = dKm;
-  }
+  relevant.sort((a, b) => a.distanceKm - b.distanceKm);
+  const nearest = relevant[0];
 
-  const nearSector = nearestKm !== null && nearestKm <= warnKm;
-  let severity: FireSeverity = 'info';
-  if (nearestKm !== null && nearestKm <= criticalKm) severity = 'alerta';
-  else if (nearSector) severity = 'aviso';
+  return {
+    severity: nearest.distanceKm <= nearKm ? 'alerta' : 'aviso',
+    fireCount: relevant.length,
+    hotspotCount: relevant.reduce((s, r) => s + r.cluster.hotspotCount, 0),
+    maxFrpMw: relevant.reduce((m, r) => Math.max(m, r.cluster.frpMw), 0),
+    nearest,
+    relevant,
+  };
+}
 
-  // Big fires anywhere in bbox bump severity by one notch (regional smoke risk)
-  if (maxFrp >= 100 && severity === 'info') severity = 'aviso';
-
-  return { severity, total: fires.length, maxFrp, nearSector, nearestKm };
+/**
+ * How long ago the satellite last saw it, in plain Spanish.
+ * Freshness is always on screen: a red dot with no time behind it is the same
+ * silent claim that let 24h-old hotspots pass for active fires.
+ */
+export function formatFireAge(latestAt: Date, now = Date.now()): string {
+  const min = Math.max(0, Math.floor((now - latestAt.getTime()) / 60_000));
+  if (min < 1) return 'ahora mismo';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  const rest = min % 60;
+  if (h < 6 && rest >= 10) return `hace ${h} h ${rest} min`;
+  return `hace ${h} h`;
 }

@@ -21,6 +21,7 @@ import { runWebcamAnalysis } from './webcamAnalyzer.js';
 import { runLightningCycle } from './lightningFetcher.js';
 import { runSynopticCycle } from './synopticFetcher.js';
 import { runFirmsCycle } from './firmsFetcher.js';
+import { runEffisCycle } from './effisFetcher.js';
 import { runIcaCycle } from './icaFetcher.js';
 import { runConvectionGridCycle } from './convectionGridFetcher.js';
 import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
@@ -44,6 +45,7 @@ let discoverTimer: ReturnType<typeof setInterval> | null = null;
 let lightningTimer: ReturnType<typeof setInterval> | null = null;
 let synopticTimer: ReturnType<typeof setInterval> | null = null;
 let firmsTimer: ReturnType<typeof setInterval> | null = null;
+let effisTimer: ReturnType<typeof setInterval> | null = null;
 let icaTimer: ReturnType<typeof setInterval> | null = null;
 let convGridTimer: ReturnType<typeof setInterval> | null = null;
 let outcomesTimer: ReturnType<typeof setInterval> | null = null;
@@ -325,6 +327,27 @@ async function start(): Promise<void> {
     runFirmsCycle().catch((err) => log.error('[FIRMS Fetcher] timer err:', (err as Error).message));
   }, 60 * 60_000);
 
+  // EFFIS fetcher — grouped burnt-area EVENTS (the named-fire layer).
+  // Complements FIRMS rather than replacing it: FIRMS answers "is something
+  // burning right now", EFFIS answers "which fire is it, where, how big".
+  //
+  // 45min cadence: EFFIS re-delineates its polygons "at each acquisition
+  // cycle (up to 14 passes per day)", i.e. one revision every ~100min at best,
+  // so polling at roughly half that period sees every update without ever
+  // asking twice for the same one. That is ~32 requests/day against a single
+  // WFS GetFeature — negligible for the provider and for us.
+  //
+  // Fire-and-forget: runEffisCycle() is internally fail-soft (it warns and
+  // returns on every failure path, including a missing table) so it can never
+  // interfere with the polling loop.
+  // 480s stagger so it lands after the fire watch's first run.
+  setTimeout(() => {
+    runEffisCycle().catch((err) => log.warn('[EFFIS] init err: ' + (err as Error).message));
+  }, 480_000);
+  effisTimer = setInterval(() => {
+    runEffisCycle().catch((err) => log.warn('[EFFIS] timer err: ' + (err as Error).message));
+  }, 45 * 60_000);
+
   // ICA fetcher — Xunta air-quality persistence.
   // 60min cadence (bumped from 30min, S136+3+5 audit): Xunta publishes ICA
   // hourly, so the 30min poll produced ~50% duplicate inserts (ON CONFLICT
@@ -397,6 +420,7 @@ async function shutdown(signal: string): Promise<void> {
   if (lightningTimer) clearInterval(lightningTimer);
   if (synopticTimer) clearInterval(synopticTimer);
   if (firmsTimer) clearInterval(firmsTimer);
+  if (effisTimer) clearInterval(effisTimer);
   if (icaTimer) clearInterval(icaTimer);
   if (convGridTimer) clearInterval(convGridTimer);
   if (outcomesTimer) clearInterval(outcomesTimer);
