@@ -14,6 +14,9 @@ import {
   canDrawSmoke,
   FIRE_ACTIVE_MAX_MIN,
   FIRE_SMOKE_MAX_MIN,
+  fireDisplayRadiusKm,
+  FIRE_DISPLAY_DISABLE_ZOOM,
+  FIRE_CLUSTER_RADIUS_KM,
 } from './fireClustering';
 import type { ActiveFire } from '../types/fire';
 
@@ -227,5 +230,33 @@ describe('selectFireClusters — one list for every surface', () => {
     const second = selectFireClusters([hs({ id: 'one' }), hs({ id: 'two', lat: 43.5 })]);
     expect(first).not.toBe(second);
     expect(second).toHaveLength(2);
+  });
+});
+
+describe('fireDisplayRadiusKm — grouping for DRAWING, not for counting', () => {
+  it('keeps the physical radius close in, so the map shows every distinct fire', () => {
+    expect(fireDisplayRadiusKm(FIRE_DISPLAY_DISABLE_ZOOM)).toBe(FIRE_CLUSTER_RADIUS_KM);
+    expect(fireDisplayRadiusKm(14)).toBe(FIRE_CLUSTER_RADIUS_KM);
+  });
+
+  it('widens as the map zooms out', () => {
+    // Measured need: during a fire wave, 27 fires at 2km left 62 PAIRS within
+    // 10km of each other — a smear of overlapping circles at regional zoom.
+    expect(fireDisplayRadiusKm(9)).toBe(6);
+    expect(fireDisplayRadiusKm(7)).toBe(15);
+    expect(fireDisplayRadiusKm(5)).toBe(15);
+  });
+
+  it('never narrows below the physical radius', () => {
+    for (const z of [0, 3, 6, 8, 10, 12, 18]) {
+      expect(fireDisplayRadiusKm(z)).toBeGreaterThanOrEqual(FIRE_CLUSTER_RADIUS_KM);
+    }
+  });
+
+  it('is monotonic: zooming out never shows MORE markers', () => {
+    const radii = [14, 11, 10, 9, 8, 7, 5].map(fireDisplayRadiusKm);
+    for (let i = 1; i < radii.length; i++) {
+      expect(radii[i]).toBeGreaterThanOrEqual(radii[i - 1]);
+    }
   });
 });

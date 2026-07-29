@@ -21,10 +21,10 @@ import type { FeatureCollection } from 'geojson';
 import { useFireStore } from '../../store/fireStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { fireAttributionKey } from '../../api/firmsClient';
-import { selectFireClusters, isFireActive, type FireCluster } from '../../services/fireClustering';
+import { selectFireClusters, isFireActive, clusterFires, fireDisplayRadiusKm, type FireCluster } from '../../services/fireClustering';
 import { fireProximity, formatFireAge } from '../../services/fireService';
 import { describeFireLocation, fireDisclaimer } from '../../services/fireRegion';
-import { formatBurntArea } from '../../api/fireEventsClient';
+import { formatBurntArea, fireEventName, type FireEvent } from '../../api/fireEventsClient';
 import { WeatherIcon } from '../icons/WeatherIcons';
 
 const SOURCE_ID = 'firms-fires';
@@ -52,6 +52,18 @@ function FireOverlayInner() {
   const activeSector = useSectorStore((s) => s.activeSector);
   const { current: mapRef } = useMap();
   const [selected, setSelected] = useState<FireCluster | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<FireEvent | null>(null);
+  // Zoom drives how wide markers group for drawing — see fireDisplayRadiusKm.
+  const [zoom, setZoom] = useState(() => mapRef?.getMap()?.getZoom() ?? 10);
+
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+    const onZoom = () => setZoom(map.getZoom());
+    onZoom();
+    map.on('zoom', onZoom);
+    return () => { map.off('zoom', onZoom); };
+  }, [mapRef]);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -62,8 +74,15 @@ function FireOverlayInner() {
     return () => clearInterval(iv);
   }, []);
 
-  // THE shared cluster list — the ticker and the smoke layer read the same one.
-  const clusters = selectFireClusters(fires);
+  // THE shared 2km list — the ticker and the smoke layer read this one, so the
+  // fire COUNT never moves with the zoom.
+  const physical = selectFireClusters(fires);
+  // What gets drawn: same fires, grouped wider when zoomed out so 27 markers
+  // do not smear into each other. At close zoom this IS the physical list.
+  const clusters = useMemo(() => {
+    const r = fireDisplayRadiusKm(zoom);
+    return r <= 2 ? physical : clusterFires(fires, r);
+  }, [fires, physical, zoom]);
 
   const geojson = useMemo<FeatureCollection>(() => ({
     type: 'FeatureCollection',
@@ -118,6 +137,14 @@ function FireOverlayInner() {
     if (hit) setSelected(hit);
   }, [clusters]);
 
+  // The ring carried a name and a size and did nothing when tapped — the whole
+  // point of a named event is that you can ask it who it is.
+  const handleEventClick = useCallback((e: MapLayerMouseEvent) => {
+    const id = e.features?.[0]?.properties?.eventId;
+    const hit = events.find((ev) => ev.id === id);
+    if (hit) { setSelectedEvent(hit); setSelected(null); }
+  }, [events]);
+
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
@@ -127,12 +154,23 @@ function FireOverlayInner() {
     map.on('click', CORE_LAYER_ID, handleClick);
     map.on('mouseenter', CORE_LAYER_ID, onEnter);
     map.on('mouseleave', CORE_LAYER_ID, onLeave);
+    map.on('click', EVENTS_LAYER_ID, handleEventClick);
+    map.on('mouseenter', EVENTS_LAYER_ID, onEnter);
+    map.on('mouseleave', EVENTS_LAYER_ID, onLeave);
     return () => {
       map.off('click', CORE_LAYER_ID, handleClick);
       map.off('mouseenter', CORE_LAYER_ID, onEnter);
       map.off('mouseleave', CORE_LAYER_ID, onLeave);
+      map.off('click', EVENTS_LAYER_ID, handleEventClick);
+      map.off('mouseenter', EVENTS_LAYER_ID, onEnter);
+      map.off('mouseleave', EVENTS_LAYER_ID, onLeave);
     };
-  }, [mapRef, handleClick]);
+  }, [mapRef, handleClick, handleEventClick]);
+
+  // An event that drops out of the feed must not keep its popup open.
+  useEffect(() => {
+    if (selectedEvent && !events.some((e) => e.id === selectedEvent.id)) setSelectedEvent(null);
+  }, [events, selectedEvent]);
 
   // A selected fire that ages out of the list must not keep a popup open.
   useEffect(() => {
@@ -329,6 +367,17 @@ function FireOverlayInner() {
                   Sin pasada reciente del satélite: no podemos decir que siga activo.
                 </div>
               )}
+              {/* Decodes the purple ring drawn around this marker — until now
+                  the colour was on the map with nothing explaining it. */}
+              {lightningFor(selected, attribution) && (
+                <div className="text-purple-300">
+                  Origen: rayo caído
+                  {(() => {
+                    const h = lightningFor(selected, attribution)?.hoursAfterStrike;
+                    return h != null ? ` hace ${Math.round(h)} h` : ' en las horas previas';
+                  })()}
+                </div>
+              )}
             </div>
 
             {/* Honest about what a satellite hotspot is. In Galicia many of
@@ -337,6 +386,60 @@ function FireOverlayInner() {
                 follows the number instead of contradicting it. */}
             <div className="mt-2 pt-1.5 border-t border-slate-700/60 text-[11px] leading-snug text-slate-500">
               {fireDisclaimer(selected.frpMw)}
+            </div>
+          </div>
+        </Popup>
+      )}
+
+      {/* The named event. A different popup from the hotspot one because it
+          answers a different question: not "is something hot right now" but
+          "what burned here, where, and how much". No caveat about authorised
+          burns — this one has been delineated and measured, not inferred from
+          a warm pixel. */}
+      {selectedEvent && (
+        <Popup
+          longitude={selectedEvent.lon}
+          latitude={selectedEvent.lat}
+          closeOnClick={false}
+          onClose={() => setSelectedEvent(null)}
+          maxWidth="380px"
+          anchor="bottom"
+          className="fire-popup"
+        >
+          <div className="p-2 text-sm text-slate-200 min-w-[210px]">
+            <div className="flex items-center gap-1.5 font-semibold text-white mb-1">
+              <span className="text-orange-300 flex"><WeatherIcon id="flame" size={15} /></span>
+              Incendio en {fireEventName(selectedEvent)}
+            </div>
+
+            <div className="space-y-0.5 text-xs text-slate-400">
+              {formatBurntArea(selectedEvent.areaHa) && (
+                <div>
+                  Superficie quemada:{' '}
+                  <span className="text-slate-200">{formatBurntArea(selectedEvent.areaHa)}</span>
+                </div>
+              )}
+              {selectedEvent.fireDate && (
+                <div>
+                  Inicio:{' '}
+                  <span className="text-slate-200">
+                    {selectedEvent.fireDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                  </span>
+                </div>
+              )}
+              {selectedEvent.lastUpdate && (
+                <div>
+                  Última revisión:{' '}
+                  <span className="text-slate-200">
+                    {formatFireAge(selectedEvent.lastUpdate, now)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-2 pt-1.5 border-t border-slate-700/60 text-[11px] leading-snug text-slate-500">
+              Superficie delimitada por EFFIS (Copernicus, Unión Europea). Se
+              revisa mientras el incendio avanza.
             </div>
           </div>
         </Popup>
