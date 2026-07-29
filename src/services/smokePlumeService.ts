@@ -18,7 +18,6 @@ import type { ActiveFire } from '../types/fire';
 import { fastDistanceKm } from './idwInterpolation';
 
 const DEG_TO_RAD = Math.PI / 180;
-const RAD_TO_DEG = 180 / Math.PI;
 /** ~111 km per degree latitude */
 const KM_PER_DEG_LAT = 111;
 
