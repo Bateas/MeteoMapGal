@@ -124,6 +124,31 @@ export function canDrawSmoke(cluster: FireCluster, now = Date.now()): boolean {
  * @param fires    Filtered FIRMS detections (see `filterRealFires`)
  * @param radiusKm Grouping radius; the result is stable across 1-3 km
  */
+/**
+ * How wide to group fires for DRAWING, given the zoom.
+ *
+ * The physical radius above (2km) answers "how many fires are there" and must
+ * not move with the zoom — the ticker's count would jump about as the user
+ * pinched. This is the separate, purely visual question: at what radius do two
+ * markers stop overlapping on screen.
+ *
+ * It matters during a fire wave. Measured on a live night of the July 2026
+ * Iberian wave: 404 detections grouped to 27 fires at 2km, of which 62 PAIRS
+ * sat within 10km of each other — at regional zoom that is a smear of
+ * overlapping circles. The same night gives 13 markers at 6km and 11 at 15km.
+ *
+ * Same three-tier shape as spotClustering and stationClustering, so the map
+ * behaves consistently across marker types.
+ */
+export const FIRE_DISPLAY_DISABLE_ZOOM = 10;
+
+export function fireDisplayRadiusKm(zoom: number): number {
+  // Close in, the physical grouping is already the right one.
+  if (zoom >= FIRE_DISPLAY_DISABLE_ZOOM) return FIRE_CLUSTER_RADIUS_KM;
+  if (zoom >= 8) return 6;
+  return 15;
+}
+
 export function clusterFires(
   fires: ActiveFire[],
   radiusKm = FIRE_CLUSTER_RADIUS_KM,
