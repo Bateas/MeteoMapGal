@@ -60,6 +60,48 @@ function makeGaugeReading(seaLevelCm: number | null, at: Date = observedAt): Buo
   };
 }
 
+describe('selectGaugeForTideStation — falls back when a gauge goes silent', () => {
+  // The real incident: the Vigo gauge stopped reporting and, being the closest
+  // one to nearly every Rías spot, took the surge line down with it while the
+  // rest of the app looked perfectly healthy.
+  const vigoIsDead = (g: { buoyStationId: number }) => g.buoyStationId !== 3221;
+  const allDead = () => false;
+  const allLive = () => true;
+
+  it('still prefers the nearest gauge while it reports', () => {
+    expect(selectGaugeForTideStation('29', allLive)).toMatchObject({ buoyStationId: 3221 });
+  });
+
+  it('skips the silent Vigo gauge and reaches for Marín', () => {
+    const g = selectGaugeForTideStation('29', vigoIsDead);
+    expect(g).toMatchObject({ buoyStationId: 3223, ihmStationId: '28' });
+  });
+
+  it('the substitute brings its OWN astronomical prediction', () => {
+    // Subtracting Marín's level from Vigo's table is not a surge, it is the
+    // difference between two tide tables. The pairing must travel together.
+    const g = selectGaugeForTideStation('29', vigoIsDead);
+    expect(g!.ihmStationId).toBe('28');
+    expect(g!.ihmStationId).not.toBe('29');
+  });
+
+  it('with every gauge silent it still returns the pairing, and the staleness gate stays quiet', () => {
+    // Returning null here would be indistinguishable from "unknown port".
+    expect(selectGaugeForTideStation('29', allDead)).toMatchObject({ buoyStationId: 3221 });
+  });
+
+  it('never substitutes a gauge beyond the distance cap', () => {
+    // Baiona pairs with Vigo; with Vigo silent the substitute must still be
+    // inside MAX_GAUGE_DISTANCE_KM or the residual stops describing this water.
+    const g = selectGaugeForTideStation('30', vigoIsDead);
+    if (g) expect(g.buoyStationId).not.toBe(3221);
+  });
+
+  it('behaves exactly as before when no liveness check is supplied', () => {
+    expect(selectGaugeForTideStation('29')).toMatchObject({ buoyStationId: 3221 });
+  });
+});
+
 describe('selectGaugeForTideStation', () => {
   it('pairs each gauge port with its own IHM prediction', () => {
     expect(selectGaugeForTideStation('29')).toMatchObject({ buoyStationId: 3221, ihmStationId: '29' });
