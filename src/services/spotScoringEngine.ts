@@ -934,8 +934,23 @@ function scoreSpot(
   let bocanaSignal: string | null = null;
   if (spot.bocanaDetection && buoyData && !thermalBoosted) {
     const buoyReadings = buoyData.map(bd => bd.buoy);
-    // Get solar radiation from nearest station if available
-    const bocana = detectBocana(buoyReadings);
+    /**
+     * Solar radiation is the detector's DISCRIMINATOR, not an optional extra:
+     * it is what separates a real terral from a temperature difference that
+     * moves no air. Passing nothing is not neutral — `null` earns "+7, assume
+     * possible" instead of applying the veto that caps confidence at 30 on a
+     * cloudy morning after 8AM.
+     *
+     * The ingestor has always passed it (`analyzerLogic.ts`), so the map was
+     * boosting the wind on mornings when Telegram was not: same spot, same
+     * minute, two different kt. Nearest station with a solar reading — these
+     * spots all sit at the mouth of the ría, so it samples the same sky the
+     * ingestor samples from its fixed bocana anchor.
+     */
+    const solarRad = [...stationData ?? []]
+      .sort((a, b) => a.distKm - b.distKm)
+      .find(s => s.reading.solarRadiation != null)?.reading.solarRadiation ?? null;
+    const bocana = detectBocana(buoyReadings, solarRad);
     if (bocana.active) {
       effectiveSpd = Math.max(effectiveSpd, effectiveSpd + bocana.boostKt);
       thermalBoosted = true;

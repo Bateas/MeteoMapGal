@@ -36,6 +36,7 @@ import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixC
 import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
 import { useAirQualityStore } from '../../store/airQualityStore';
+import { useAlertStore } from '../../store/alertStore';
 import { computeSurfVerdict, swellAlignmentMultiplier } from '../spot/surfVerdictEngine';
 import { detectViracionPhase } from '../../services/viracionDetector';
 import { assessRainNowcast } from '../../services/rainNowcastService';
@@ -157,6 +158,21 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
   const precursor = spot.thermalDetection ? thermalPrecursors.get(spot.id) : undefined;
   const visionResult = webcamVision.get(spot.id);
+
+  /**
+   * Fog for the beach verdict comes from the GATED alert, never from a raw
+   * camera. One webcam calling fog is exactly the failure the rigour rule
+   * exists for — low sun reflecting off the water at dusk reads as fog to
+   * moondream — which is why `maritimeFogService` demands a second, independent
+   * unit of evidence before it emits anything. Reading `visionResult` here
+   * walked straight around that gate through the side door, and produced a
+   * contradiction the user could see: the ticker said "buen día de playa"
+   * while this popup said "mal día — niebla", for the same spot, same minute.
+   * The ticker was the one doing it right; this now reads the same source.
+   */
+  const fogAlertActive = useAlertStore((s) => s.alerts).some(
+    (a) => a.category === 'fog' && (a.severity === 'high' || a.severity === 'critical'),
+  );
 
   const verdict: SpotVerdict = score?.verdict ?? 'unknown';
   const vs = VERDICT_STYLE[verdict];
@@ -677,8 +693,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
           waterTempC: score?.waterTemp ?? mohidSeaTemp ?? marineSST ?? null,
           rainingNow: rain?.status === 'raining',
           rainSoon: rain?.status === 'rain-soon',
-          // Fog/visibility is the one thing webcam-IA reads reliably.
-          foggy: visionResult?.weather.fogVisible === true || visionResult?.weather.visibility === 'poor',
+          // The gated multi-evidence alert, not a single camera — see above.
+          foggy: fogAlertActive,
         });
         if (beach.verdict === 'unknown') return null;
         const tone = beach.verdict === 'great'
@@ -817,10 +833,18 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
 
       {/* Thermal boost indicator removed — redundant with "Térmica X% prob" already shown above */}
 
-      {/* ── Scoring confidence ── */}
-      {score && score.scoringConfidence === 'low' && !simpleMode && (
+      {/* ── Scoring confidence ──
+          Shown in BOTH modes on purpose. This used to be hidden in simpleMode,
+          which had it backwards: the casual user is the one with the fewest
+          tools to doubt the number, so hiding the caveat left the least
+          equipped reader with the most confident-looking screen. In simple mode
+          it just drops the source count and says the thing in plain words. */}
+      {score && score.scoringConfidence === 'low' && (
         <div className="text-[10px] text-amber-400/90 italic mb-1">
-          <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" /> Baja confianza: solo {score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)
+          <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" />{' '}
+          {simpleMode
+            ? 'Poco dato cerca de aquí: tómalo como orientativo'
+            : `Baja confianza: solo ${score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)`}
         </div>
       )}
 
