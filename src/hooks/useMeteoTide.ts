@@ -67,25 +67,44 @@ export const SEA_LEVEL_GAUGES: TideGauge[] = [
 ];
 
 /**
- * Nearest gauge to the port the spot already uses for its tide table. Surge is
- * a ría-wide signal, so a gauge a few km away still describes this water.
- * An unknown port returns null — better no line than a guess about which ría
- * the spot is in.
+ * Nearest gauge to the port the spot already uses for its tide table, among
+ * those that are ACTUALLY REPORTING.
+ *
+ * The liveness check is not defensive padding — it is the whole feature. The
+ * Vigo gauge went silent and, because it is the closest one to nearly every
+ * Rías spot, the surge line went dark exactly where it mattered while every
+ * other part of the app looked healthy. Falling back to the next gauge is
+ * physically sound in a way that most fallbacks are not: storm surge is a
+ * large-scale field driven by pressure and wind set-up, so the residual
+ * measured 18 km away describes the same water. What must NOT travel is the
+ * pairing — the substitute gauge brings its OWN astronomical prediction,
+ * because subtracting one port's level from another port's table is not
+ * surge, it is the difference between two tables.
+ *
+ * `isLive` is optional so callers that only need the pairing (tests, the
+ * unit that maps port to gauge) keep working unchanged.
  */
-export function selectGaugeForTideStation(tideStationId: string): TideGauge | null {
+export function selectGaugeForTideStation(
+  tideStationId: string,
+  isLive?: (gauge: TideGauge) => boolean,
+): TideGauge | null {
   const station = RIAS_TIDE_STATIONS.find((s) => s.id === tideStationId);
   if (!station) return null;
 
-  let best: TideGauge | null = null;
-  let bestKm = Infinity;
-  for (const gauge of SEA_LEVEL_GAUGES) {
-    const km = haversineDistance(station.lat, station.lon, gauge.lat, gauge.lon);
-    if (km < bestKm) {
-      bestKm = km;
-      best = gauge;
-    }
-  }
-  return bestKm <= MAX_GAUGE_DISTANCE_KM ? best : null;
+  const candidates = SEA_LEVEL_GAUGES
+    .map((gauge) => ({
+      gauge,
+      km: haversineDistance(station.lat, station.lon, gauge.lat, gauge.lon),
+    }))
+    .filter((c) => c.km <= MAX_GAUGE_DISTANCE_KM)
+    .sort((a, b) => a.km - b.km);
+
+  if (candidates.length === 0) return null;
+  if (!isLive) return candidates[0].gauge;
+
+  // Nearest that is reporting; if none is, the nearest one so the caller still
+  // gets a pairing and the usual staleness gate decides to stay quiet.
+  return candidates.find((c) => isLive(c.gauge))?.gauge ?? candidates[0].gauge;
 }
 
 /** What the gauge measured and when, already dug out of the store. */
@@ -139,8 +158,16 @@ export function useMeteoTide(tideStationId: string | undefined): MeteoTide | nul
   const buoys = useBuoyStore((s) => s.buoys);
 
   const gauge = useMemo(
-    () => (tideStationId ? selectGaugeForTideStation(tideStationId) : null),
-    [tideStationId],
+    () => (tideStationId
+      ? selectGaugeForTideStation(
+          tideStationId,
+          // "Live" means the gauge is present in the feed WITH a level. A gauge
+          // that has gone silent is simply skipped, which is why this is keyed
+          // on the reading rather than on a hardcoded list.
+          (g) => gaugeLevelFromReading(buoys.find((b) => b.stationId === g.buoyStationId)) != null,
+        )
+      : null),
+    [tideStationId, buoys],
   );
 
   const simSurgeCm = useMemo(readSimSurgeCm, []);
