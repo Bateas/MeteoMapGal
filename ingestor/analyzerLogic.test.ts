@@ -15,6 +15,8 @@ import {
   VERDICT_LABEL,
   ALERT_VERDICTS,
   LOW_VERDICTS,
+  canAlertOnResult,
+  MIN_SOURCES_FOR_ALERT,
   type SpotDef,
   type StationReading,
   type BuoyWind,
@@ -931,5 +933,39 @@ describe('scoreSpot — per-spot curation (preferred/exclude/calibration)', () =
     // (9.7 + 13.6)/2 = 11.66 → 12 'good'
     expect(plain.avgWindKt).toBe(12);
     expect(plain.verdict).toBe('good');
+  });
+});
+
+describe('canAlertOnResult - the alert channel needs corroboration too', () => {
+  const one = (over: Partial<StationReading>): StationReading => ({
+    station_id: 'mg_a',
+    latitude: 42.307, longitude: -8.619,
+    wind_speed: null, wind_gust: null, wind_dir: null,
+    temperature: null, humidity: null,
+    ...over,
+  });
+
+  it('refuses a single wind source', () => {
+    // One station can be a dirty anemometer, a sheltered garden, or a sensor
+    // frozen at a value. The map already declines to commit here.
+    expect(canAlertOnResult({ stationCount: 1 })).toBe(false);
+  });
+
+  it('allows two independent sources', () => {
+    expect(canAlertOnResult({ stationCount: MIN_SOURCES_FOR_ALERT })).toBe(true);
+  });
+
+  it('refuses a spot with no data at all', () => {
+    expect(canAlertOnResult({ stationCount: 0 })).toBe(false);
+  });
+
+  it('blocks the exact case the map already calls provisional', () => {
+    // A lone station reading ~12kt scores an alertable verdict by every other
+    // rule in the pipeline. The source count is the only thing standing between
+    // that and a notification in someone's pocket.
+    const lone = scoreSpot(cesantes, [one({ wind_speed: 6.2 })], []);
+    expect(ALERT_VERDICTS.has(lone.verdict)).toBe(true);
+    expect(lone.stationCount).toBe(1);
+    expect(canAlertOnResult(lone)).toBe(false);
   });
 });

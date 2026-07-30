@@ -141,6 +141,27 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
 export const ALERT_VERDICTS: Set<Verdict> = new Set(['sailing', 'good', 'strong']);
 export const LOW_VERDICTS: Set<Verdict> = new Set(['calm', 'light', 'unknown']);
 
+/**
+ * Minimum independent wind sources (stations + buoys) before a verdict is
+ * allowed to leave the building as a notification.
+ *
+ * This closes an inversion in the project's own rigour rule: the map refuses
+ * to commit to a verdict below this bar — it marks the score `provisional` and
+ * the marker says "calculando" — while the alert channel, the one that reaches
+ * a pocket and gets acted on, had no such check. The gate was strictest where
+ * a mistake is cheapest and absent where it is most expensive.
+ *
+ * One station can be a dirty anemometer, a sheltered garden, or a sensor that
+ * froze at a value. Two independent sources is the same floor the wind-trend
+ * alerts already demand before they escalate.
+ */
+export const MIN_SOURCES_FOR_ALERT = 2;
+
+/** True when a scored spot is solid enough to justify a push/Telegram alert. */
+export function canAlertOnResult(result: Pick<SpotResult, 'stationCount'>): boolean {
+  return result.stationCount >= MIN_SOURCES_FOR_ALERT;
+}
+
 // ── windVerdict ─────────────────────────────────────
 
 /**
@@ -243,11 +264,15 @@ function computeMouthHumidityFromRows(readings: StationReading[]): number | null
  *   - prediction.active && predictedKt !== null
  *   - prediction.confidence >= 70
  *   - (predictedKt - rawKt) >= 4
+ *   - same 7 arguments to the detector, including the wind-direction guard
+ *     (this claim was false for a while — see the note at the call below)
  */
 function applyCesantesBoost(
   rawKt: number,
   readings: StationReading[],
   buoys: BuoyWind[],
+  /** Consensus wind direction (deg) — the detector's own suppression guard. */
+  localWindDir: number | null,
 ): { effectiveKt: number; confidence: number; predictedDir: number | null } | null {
   // Compute mouth humidity from interior station readings
   const mouthHumidity = computeMouthHumidityFromRows(readings);
@@ -279,6 +304,13 @@ function applyCesantesBoost(
     airTempLocal,
     waterTemp,
     rawKt, // localStationKt — used in thermal-only mode as base
+    // The 7th argument is the detector's own suppression guard: with a real
+    // flow from outside the SW arc (N/NW), the islands and Monte da Vela block
+    // it from reaching the Cesantes shore, so the thermal canalization is not
+    // establishing and the prediction must be dropped. Omitting it meant the
+    // map suppressed the boost on a NW day and Telegram still sent it — while
+    // the comment above this function claimed the gates matched exactly.
+    localWindDir,
   );
 
   if (!prediction.active || prediction.predictedKt === null) return null;
@@ -448,7 +480,7 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   let boostConfidence: number | undefined;
 
   if (spot.id === 'cesantes') {
-    const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds);
+    const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds, avgDir);
     if (boost) {
       effectiveKt = boost.effectiveKt;
       boostedBy = 'cesantes-canalization';
