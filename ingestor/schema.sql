@@ -15,13 +15,25 @@ CREATE TABLE IF NOT EXISTS readings (
   dew_point   DOUBLE PRECISION,
   precip      DOUBLE PRECISION,
   solar_rad   DOUBLE PRECISION,
-  visibility  DOUBLE PRECISION  -- km, only ~8 AEMET airport stations report it
+  visibility  DOUBLE PRECISION,  -- km, only ~8 AEMET airport stations report it
+  -- QC archive (see ingestor/readingQuality.ts). Quality control MARKS, it
+  -- never destroys: wind_speed/wind_gust stay clean for every consumer, and
+  -- the value a check rejected is preserved here with the reason. Without this
+  -- the 45kt threshold can never be re-tuned (re-tuning needs the population
+  -- the threshold rejected) and a degrading anemometer is undetectable.
+  wind_gust_raw  DOUBLE PRECISION, -- original gust, ONLY when rejected
+  wind_speed_raw DOUBLE PRECISION, -- original speed, ONLY when rejected
+  qc_flag        SMALLINT          -- bitmask: 1 gust cap, 2 gust ratio, 4 speed cap.
+                                   -- 0 = checked and clean. NULL = row predates the check.
 );
 
 SELECT create_hypertable('readings', 'time', if_not_exists => TRUE);
 
 -- Idempotent column add for already-deployed databases (no-op if column exists)
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS visibility DOUBLE PRECISION;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS wind_gust_raw DOUBLE PRECISION;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS wind_speed_raw DOUBLE PRECISION;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS qc_flag SMALLINT;
 
 -- Unique constraint for dedup (ON CONFLICT DO NOTHING)
 CREATE UNIQUE INDEX IF NOT EXISTS readings_time_station_idx

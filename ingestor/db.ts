@@ -4,6 +4,7 @@
 
 import pg from 'pg';
 import type { NormalizedReading } from '../src/types/station.js';
+import { applyQualityControl } from './readingQuality.js';
 import { log } from './logger.js';
 
 const { Pool } = pg;
@@ -53,50 +54,38 @@ function sourceLabel(stationId: string): string {
 }
 
 /** Number of columns per reading row */
-const COLS = 13; // +visibility (AEMET airport stations only)
+const COLS = 16; // +visibility, +QC archive (raw gust/speed + flag)
 
 /**
  * Batch upsert readings into TimescaleDB.
  * Uses multi-row INSERT with ON CONFLICT DO NOTHING for dedup.
  * Batches of up to 100 rows per query to stay within PG parameter limits.
  */
-/** Sanitize readings before DB insert — reject physically implausible values */
-function sanitizeReading(r: NormalizedReading): NormalizedReading {
-  let gust = r.windGust;
-  const speed = r.windSpeed;
-  // Reject gusts >45kt (~23 m/s) or >3x average — sensor glitch (SkyX anomalous gusts)
-  if (gust !== null && (gust > 23 || (speed != null && speed > 0 && gust > speed * 3))) {
-    gust = null;
-  }
-  // Reject wind speed >50 m/s (~97kt) — physically implausible for Galicia
-  const ws = speed !== null && speed > 50 ? null : speed;
-  return gust !== r.windGust || ws !== r.windSpeed
-    ? { ...r, windGust: gust, windSpeed: ws }
-    : r;
-}
-
 export async function batchUpsert(
   readings: NormalizedReading[]
 ): Promise<{ inserted: number; skipped: number }> {
   if (readings.length === 0) return { inserted: 0, skipped: 0 };
 
-  // Sanitize before insert — filter anomalous sensor spikes
-  readings = readings.map(sanitizeReading);
+  // Quality control runs here and NOWHERE ELSE on the way in. It returns the
+  // reading exactly as every existing consumer expects it — implausible values
+  // nulled — plus what was rejected and why, so the archive keeps what the
+  // filter throws away. See readingQuality.ts for why that distinction matters.
+  const controlled = readings.map(applyQualityControl);
 
   const db = getPool();
   const BATCH_SIZE = 100;
   let totalInserted = 0;
 
   for (let i = 0; i < readings.length; i += BATCH_SIZE) {
-    const batch = readings.slice(i, i + BATCH_SIZE);
+    const batch = controlled.slice(i, i + BATCH_SIZE);
     const values: unknown[] = [];
     const placeholders: string[] = [];
 
     for (let j = 0; j < batch.length; j++) {
-      const r = batch[j];
+      const { reading: r, windGustRaw, windSpeedRaw, qcFlag } = batch[j];
       const offset = j * COLS;
       placeholders.push(
-        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13})`
+        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16})`
       );
       values.push(
         r.timestamp,           // time
@@ -112,11 +101,18 @@ export async function batchUpsert(
         r.precipitation,       // precip
         r.solarRadiation,      // solar_rad
         r.visibility ?? null,  // visibility  Phase 1b TIER 2 (only AEMET airport ~8 stations)
+        // QC archive. The raw columns stay null when nothing was rejected —
+        // the clean column already holds that value, so storing it twice buys
+        // nothing. qc_flag is 0 for a row we checked and found clean, which is
+        // deliberately NOT the same as the NULL older rows carry.
+        windGustRaw,           // wind_gust_raw
+        windSpeedRaw,          // wind_speed_raw
+        qcFlag,                // qc_flag
       );
     }
 
     const sql = `
-      INSERT INTO readings (time, station_id, source, temperature, humidity, wind_speed, wind_gust, wind_dir, pressure, dew_point, precip, solar_rad, visibility)
+      INSERT INTO readings (time, station_id, source, temperature, humidity, wind_speed, wind_gust, wind_dir, pressure, dew_point, precip, solar_rad, visibility, wind_gust_raw, wind_speed_raw, qc_flag)
       VALUES ${placeholders.join(', ')}
       ON CONFLICT (time, station_id) DO NOTHING
     `;
