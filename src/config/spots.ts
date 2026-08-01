@@ -766,8 +766,18 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'skyx_SKY100',  // SkyX at reservoir edge (~0km) — best source, NO direction
-      'aemet_1484C',  // Ribadavia (~5km) — has direction, closest AEMET
+      'skyx_SKY100',  // SkyX at reservoir edge (~3km) — best source, NO direction
+      // Ribadavia is 1701X, 1.7km away, and it is the very station the thermal
+      // engine was validated on (1,412 daily records). This slot used to hold
+      // 1484C under the comment "Ribadavia (~5km)" — but 1484C is Pontevedra
+      // Mourente, 44.5km away on the far side of the divide and in a coastal
+      // regime: it shows up in the Rías shelter audit correlating with the Vigo
+      // buoy. Preferred stations bypass the radius filter in BOTH engines, so
+      // the spot's 15km radius never caught it, and with SkyX silent since late
+      // July it was the reservoir's ONLY live reference. A valid id with a
+      // comment naming somewhere else — the same shape of bug as a surf spot
+      // pointing at a tide table from another coast.
+      'aemet_1701X',  // Ribadavia (~1.7km) — has direction, closest AEMET
       // aemet_1496 (Ourense 15km) REMOVED — different valley, penalizes scoring
     ],
     preferredBuoys: [], // No buoys in freshwater reservoir
