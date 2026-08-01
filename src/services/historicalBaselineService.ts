@@ -8,7 +8,13 @@
  * Bumped feature, not an alert — purely informational. Falls back gracefully
  * when the station has no historical data (early-life spots, just-discovered
  * stations).
+ *
+ * The API answers in stored units (m/s for wind); this module converts to the
+ * units the user reads before anything downstream compares them. See
+ * `toDisplayUnits`.
  */
+
+import { msToKnots } from './windUtils';
 
 export interface HistoricalBaseline {
   avg: number;
@@ -40,7 +46,36 @@ export async function fetchHistoricalBaseline(
   const url = `/api/v1/analytics/historical-baseline?${params}`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`baseline API ${res.status}`);
-  return res.json() as Promise<HistoricalBaselineResponse>;
+  const body = await res.json() as HistoricalBaselineResponse;
+  return { ...body, baseline: toDisplayUnits(body.baseline, metric) };
+}
+
+/**
+ * The API answers in the units the database stores — metres per second for
+ * wind — while every wind figure the user ever sees is in knots. Converting
+ * here, at the boundary, is what the rest of the app already does.
+ *
+ * This was a real bug, not a precaution: the badge handed a value in knots and
+ * a baseline in m/s to the same comparison, so the baseline read about half of
+ * what it should and today's wind looked above average almost every day. A
+ * "top 25%" that fires on an ordinary afternoon costs more trust than showing
+ * nothing at all.
+ *
+ * Temperature and humidity are already in display units, so they pass through.
+ */
+function toDisplayUnits(
+  baseline: HistoricalBaseline | null,
+  metric: 'wind' | 'gust' | 'temp' | 'humidity',
+): HistoricalBaseline | null {
+  if (!baseline || (metric !== 'wind' && metric !== 'gust')) return baseline;
+  return {
+    ...baseline,
+    avg: msToKnots(baseline.avg),
+    p50: msToKnots(baseline.p50),
+    p75: msToKnots(baseline.p75),
+    p90: msToKnots(baseline.p90),
+    maxGust: baseline.maxGust == null ? null : msToKnots(baseline.maxGust),
+  };
 }
 
 // ── Pure presentation helpers (testable) ─────────────────

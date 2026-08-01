@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { describeVsBaseline, severityToBadgeClass } from './historicalBaselineService';
+import { describeVsBaseline, severityToBadgeClass,
+  fetchHistoricalBaseline,
+} from './historicalBaselineService';
 
 describe('describeVsBaseline', () => {
   const baseline = {
@@ -77,5 +79,49 @@ describe('severityToBadgeClass', () => {
   });
   it('returns slate tint for typical', () => {
     expect(severityToBadgeClass('typical')).toContain('slate');
+  });
+});
+
+describe('fetchHistoricalBaseline - unidades en la frontera', () => {
+  const respuesta = (avg: number) => ({
+    ok: true,
+    json: async () => ({
+      stationId: 'mg_test', metric: 'wind', days: 30,
+      baseline: { avg, p50: avg, p75: avg * 1.5, p90: avg * 2, maxGust: avg * 3, hoursSampled: 500 },
+    }),
+  });
+
+  it('convierte el viento de m/s a nudos', async () => {
+    // La API responde en las unidades que guarda la base (m/s). Todo lo que
+    // el usuario lee esta en nudos. 5 m/s son 9,7 kt.
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => respuesta(5)) as unknown as typeof fetch;
+    try {
+      const r = await fetchHistoricalBaseline('mg_test', 'wind', 30);
+      expect(r.baseline!.avg).toBeCloseTo(9.72, 1);
+      expect(r.baseline!.p90).toBeCloseTo(19.44, 1);
+      expect(r.baseline!.maxGust).toBeCloseTo(29.16, 1);
+    } finally { globalThis.fetch = orig; }
+  });
+
+  it('el bug que motivo esto: 12 kt contra una media de 5 m/s NO es excepcional', async () => {
+    // Antes se comparaba 12 (nudos) contra 5 (m/s) y salia "top 10%" en una
+    // tarde del monton. Con la media real de 9,7 kt, 12 kt es normalito.
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => respuesta(5)) as unknown as typeof fetch;
+    try {
+      const r = await fetchHistoricalBaseline('mg_test', 'wind', 30);
+      const insight = describeVsBaseline(12, r.baseline, 'kt');
+      expect(insight?.severity).not.toBe('rare');
+    } finally { globalThis.fetch = orig; }
+  });
+
+  it('no toca la temperatura, que ya viene en grados', async () => {
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async () => respuesta(20)) as unknown as typeof fetch;
+    try {
+      const r = await fetchHistoricalBaseline('mg_test', 'temp', 30);
+      expect(r.baseline!.avg).toBe(20);
+    } finally { globalThis.fetch = orig; }
   });
 });
