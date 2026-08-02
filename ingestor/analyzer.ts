@@ -70,6 +70,7 @@ const SPOTS: SpotDef[] = (['embalse', 'rias'] as const).flatMap((sector) =>
       preferredStations: s.preferredStations,
       excludeStations: s.excludeStations,
       windCalibrationKt: s.windCalibrationKt,
+      preferredBuoys: s.preferredBuoys,
     })),
 );
 
@@ -112,6 +113,7 @@ async function getLatestReadings(): Promise<StationReading[]> {
     const result = await db.query<StationReading>(`
       SELECT DISTINCT ON (r.station_id)
         r.station_id,
+        r.time,
         r.wind_speed, r.wind_gust, r.wind_dir,
         r.temperature, r.humidity,
         r.dew_point, r.solar_rad, r.pressure,
@@ -159,6 +161,7 @@ async function getLatestBuoys(): Promise<BuoyWind[]> {
   try {
     const result = await db.query<{
       station_id: number;
+      time: Date;
       wind_speed: number | null;
       wind_dir: number | null;
       water_temp: number | null;
@@ -170,6 +173,7 @@ async function getLatestBuoys(): Promise<BuoyWind[]> {
     }>(`
       SELECT DISTINCT ON (station_id)
         station_id,
+        time,
         wind_speed, wind_dir,
         water_temp, air_temp, humidity,
         wave_height, wave_period, wave_dir
@@ -179,6 +183,7 @@ async function getLatestBuoys(): Promise<BuoyWind[]> {
     `);
     return result.rows.map(r => ({
       station_id: r.station_id,
+      time: r.time,
       wind_speed: r.wind_speed ?? 0,
       wind_dir: r.wind_dir,
       lat: BUOY_COORDS[r.station_id]?.lat ?? 0,
@@ -255,12 +260,17 @@ export async function runAnalysis(): Promise<void> {
       );
     }
 
+    // The FIRST time this process sees a spot there is no transition to
+    // report, only ignorance being filled in. Without this, every restart
+    // announced whatever the wind happened to be doing at that moment — and
+    // a restart is exactly when several spots report at once.
+    const seenBefore = previousVerdicts.has(spot.id);
     const prev = previousVerdicts.get(spot.id) ?? 'unknown';
 
     // Detect transition: low → good (skip marginal sailing <10kt — too noisy)
     const worthAlerting = result.verdict === 'good' || result.verdict === 'strong'
       || (result.verdict === 'sailing' && result.avgWindKt >= 10);
-    if (LOW_VERDICTS.has(prev) && ALERT_VERDICTS.has(result.verdict) && worthAlerting
+    if (seenBefore && LOW_VERDICTS.has(prev) && ALERT_VERDICTS.has(result.verdict) && worthAlerting
         && canAlertOnResult(result)) {
       const dir = result.avgDir != null ? degreesToCardinal(result.avgDir) : '';
       await dispatchSpotAlert(
@@ -276,6 +286,14 @@ export async function runAnalysis(): Promise<void> {
   // Detector summary log (cycle-level — once per 5min poll instead of per-spot)
   if (boostedSpots.length > 0) {
     log.info(`Detector boosts active: ${boostedSpots.join(', ')}`);
+  }
+
+  // Buoys now carry the x1.5 over-water weight, so a buoy feed that quietly
+  // goes stale takes real authority out of the consensus. Say so: the last
+  // blackout ran 40 days before anyone noticed.
+  const staleBuoys = scoreRows.reduce((n, r) => n + (r.staleBuoysDropped ?? 0), 0);
+  if (staleBuoys > 0) {
+    log.warn(`Buoy readings past the freshness gate this cycle: ${staleBuoys}`);
   }
 
   // 3. Persist spot scores to DB (for verification dashboard)
