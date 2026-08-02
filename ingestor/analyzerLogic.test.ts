@@ -726,9 +726,9 @@ describe('scoreSpot — wind blacklist (isWindBlacklisted)', () => {
 });
 
 describe('scoreSpot — directional bias map (getStationBiasAt)', () => {
-  it('bias-blind station excluded when >= 2 clean wind sources remain', () => {
+  it('bias-blind station is demoted, not excluded, and barely moves the consensus', () => {
     // Porto de Marín (mg_14005) underreads W 240-300° by ~50% (empirical-buoy).
-    // Reading W @ 2 m/s (3.9kt) while two clean stations read 6 m/s (11.7kt).
+    // Reading W @ 2 m/s (3.9kt) while two clean stations read 10 m/s (19.4kt).
     const blind = makeReading({
       station_id: 'mg_14005',
       latitude: 42.365, longitude: -8.675,
@@ -737,17 +737,33 @@ describe('scoreSpot — directional bias map (getStationBiasAt)', () => {
     const clean1 = makeReading({
       station_id: 'mg_clean1',
       latitude: 42.365, longitude: -8.675,
-      wind_speed: 6, wind_dir: 270,
+      wind_speed: 10, wind_dir: 270,
     });
     const clean2 = makeReading({
       station_id: 'wu_clean2',
       latitude: 42.365, longitude: -8.675,
-      wind_speed: 6, wind_dir: 270,
+      wind_speed: 10, wind_dir: 270,
     });
+    const cleanOnly = scoreSpot(lourido, [clean1, clean2], []);
     const result = scoreSpot(lourido, [blind, clean1, clean2], []);
-    expect(result.stationCount).toBe(2);
-    expect(result.avgWindKt).toBe(12);  // clean only (blended: 9 → wrong 'sailing')
-    expect(result.verdict).toBe('good');
+    // It still COUNTS as a source. The rule used to drop it outright, which
+    // then needed a "put it back when too few survive" escape hatch; the map
+    // demotes instead, and demoting can never empty the consensus.
+    expect(result.stationCount).toBe(3);
+    // x0.3 for the blind sector, then x0.3 again for landing under the
+    // low-outlier ratio: ~4% of a vote, which leaves the answer untouched.
+    expect(result.avgWindKt).toBe(cleanOnly.avgWindKt);
+
+    // The control that gives that equality its meaning: the SAME low reading
+    // from a station with no documented bias keeps a full vote and drags the
+    // consensus two knots down. That gap IS the bias map earning its keep.
+    const noBias = makeReading({
+      station_id: 'mg_nobias',
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 2, wind_dir: 270,
+    });
+    const control = scoreSpot(lourido, [noBias, clean1, clean2], []);
+    expect(control.avgWindKt).toBeLessThan(result.avgWindKt);
   });
 
   it('same station counts normally when reading OUTSIDE its blind sector', () => {
@@ -768,8 +784,9 @@ describe('scoreSpot — directional bias map (getStationBiasAt)', () => {
   });
 
   it('survival rule: single bias-blind station still produces a verdict', () => {
-    // Only source is Marín reading from its blind W sector. Excluding it
-    // would leave the spot without data — keep it (demoted beats unknown).
+    // Only source is Marín reading from its blind W sector. There is no
+    // special case for this any more: demotion scales every weight, so with a
+    // single source the weighted mean is that source whatever its weight.
     const blind = makeReading({
       station_id: 'mg_14005',
       latitude: 42.365, longitude: -8.675,
@@ -781,7 +798,7 @@ describe('scoreSpot — directional bias map (getStationBiasAt)', () => {
     expect(result.avgWindKt).toBe(12);
   });
 
-  it('bias-blind station excluded when 2 nearby buoys cover the consensus', () => {
+  it('bias-blind station is drowned out by two nearby buoys', () => {
     const blind = makeReading({
       station_id: 'mg_14005',
       latitude: 42.365, longitude: -8.675,
@@ -790,8 +807,9 @@ describe('scoreSpot — directional bias map (getStationBiasAt)', () => {
     const buoy1 = makeBuoy({ station_id: 3223, lat: 42.36, lon: -8.68, wind_speed: 6, wind_dir: 270 });
     const buoy2 = makeBuoy({ station_id: 4271, lat: 42.37, lon: -8.67, wind_speed: 6, wind_dir: 270 });
     const result = scoreSpot(lourido, [blind], [buoy1, buoy2]);
-    expect(result.stationCount).toBe(2);  // buoys only — blind station excluded
-    expect(result.avgWindKt).toBe(12);
+    expect(result.stationCount).toBe(3);  // counted, then demoted to ~5%
+    // Two buoys at 11.7kt over water against one demoted 3.9kt land reading.
+    expect(result.avgWindKt).toBe(11);
   });
 });
 
@@ -829,7 +847,7 @@ describe('scoreSpot — per-spot curation (preferred/exclude/calibration)', () =
     expect(result.maxGustKt).toBe(16); // good only — 29kt phantom gust gone
   });
 
-  it('preferred station weighs 1.3x vs an equidistant non-preferred', () => {
+  it('preferred station sitting on the spot dominates an equidistant non-preferred', () => {
     // pref: 10 m/s = 19.44kt · other: 2 m/s = 3.89kt, both AT the spot
     const pref = at({ station_id: 'mg_pref', wind_speed: 10 });
     const other = at({ station_id: 'mg_other', wind_speed: 2 });
@@ -838,10 +856,14 @@ describe('scoreSpot — per-spot curation (preferred/exclude/calibration)', () =
     const control = scoreSpot(lourido, [pref, other], []);
     expect(control.avgWindKt).toBe(12);
 
-    // Preferred: (19.44*1.3 + 3.89)/2.3 = 12.68 → 13 — pulled toward the
-    // vetted station, matching PREFERRED_EXPOSURE_BOOST in the engine
+    // Preferred AND right on top of the spot, so it earns both boosts the map
+    // gives it: x3.0 for sitting within 2km and x1.3 for being vetted, i.e.
+    // 3.9 votes against 1. (19.44*3.9 + 3.89)/4.9 = 16.3 → 16.
+    // A vetted station only dominates when it is also the closest one: at 9km
+    // (the Cabo Udra case) the proximity boost drops to 1.5 and the distance
+    // divisor to 10, which puts it BELOW a plain station 3km away.
     const result = scoreSpot({ ...lourido, preferredStations: ['mg_pref'] }, [pref, other], []);
-    expect(result.avgWindKt).toBe(13);
+    expect(result.avgWindKt).toBe(16);
     expect(result.avgWindKt).toBeGreaterThan(control.avgWindKt);
     expect(result.stationCount).toBe(2); // weighting, not exclusion
   });
@@ -969,3 +991,109 @@ describe('canAlertOnResult - the alert channel needs corroboration too', () => {
     expect(canAlertOnResult(lone)).toBe(false);
   });
 });
+
+// ── scoreSpot — weighted consensus (port of the map's engine) ───
+//
+// Until this port the analyzer averaged every source FLAT. The single exposed
+// buoy counted exactly as much as each of twenty sheltered land stations, so
+// open water in the Ría de Vigo scored like a valley: measured at 3.6-3.7kt
+// mean while the buoy sitting in it read close to 10. Telegram and the map
+// were answering the same question with different arithmetic.
+describe('scoreSpot — weighted wind consensus', () => {
+  const ria: SpotDef = {
+    id: 'ria-test', name: 'Ría', lat: 42.365, lon: -8.675,
+    sector: 'rias', radiusKm: 12, thermalDetection: false,
+  };
+  // Sheltered land stations ~5km inland, all reading a third of the real wind.
+  const sheltered = [1, 2, 3, 4, 5].map(i => makeReading({
+    station_id: `wu_land${i}`,
+    latitude: 42.40, longitude: -8.72,
+    wind_speed: 2.5, wind_dir: 30,
+  }));
+  const exposedBuoy: BuoyWind = {
+    station_id: 3221, wind_speed: 9, wind_dir: 30,
+    lat: 42.365, lon: -8.675,
+  };
+
+  it('one exposed buoy on the spot outweighs five sheltered land stations', () => {
+    const result = scoreSpot(ria, sheltered, [exposedBuoy]);
+    // Flat mean would be (4.9x5 + 17.5)/6 = 7kt → 'light': the bug. The buoy
+    // sits ON the spot over open water, so distance, the x1.5 exposure boost
+    // and the outlier penalty on the sheltered five leave it in charge.
+    expect(result.avgWindKt).toBeGreaterThanOrEqual(15);
+    expect(result.verdict).toBe('good');
+    // Every source still counted — this is weighting, never exclusion.
+    expect(result.stationCount).toBe(6);
+  });
+
+  it('a buoy past the staleness gate is dropped, not merely down-weighted', () => {
+    // The query behind this serves up to 6h. At x1.5 exposure a stale buoy
+    // would hold a verdict it stopped measuring hours ago, so it has to go.
+    const stale: BuoyWind = { ...exposedBuoy, time: new Date(Date.now() - 5 * 3600_000) };
+    const result = scoreSpot(ria, sheltered, [stale]);
+    expect(result.staleBuoysDropped).toBe(1);
+    expect(result.stationCount).toBe(5);          // land only
+    expect(result.avgWindKt).toBeLessThan(7);     // back to what land can see
+  });
+
+  it('a fresh buoy passes the same gate', () => {
+    const fresh: BuoyWind = { ...exposedBuoy, time: new Date(Date.now() - 20 * 60_000) };
+    const result = scoreSpot(ria, sheltered, [fresh]);
+    expect(result.staleBuoysDropped).toBe(0);
+    expect(result.stationCount).toBe(6);
+  });
+
+  it('a near station outweighs a far one reading the same network', () => {
+    // Distance used to be computed for the radius gate and then thrown away,
+    // which is exactly why every station ended up with the same vote.
+    const near = makeReading({
+      station_id: 'mg_near', latitude: 42.365, longitude: -8.675,
+      wind_speed: 10, wind_dir: 270,
+    });
+    const far = makeReading({
+      station_id: 'mg_far', latitude: 42.455, longitude: -8.675, // ~10km N
+      wind_speed: 4, wind_dir: 270,
+    });
+    const result = scoreSpot(ria, [near, far], []);
+    const flatMean = (msToKnotsLocal(10) + msToKnotsLocal(4)) / 2;
+    expect(result.avgWindKt).toBeGreaterThan(Math.round(flatMean));
+  });
+
+  it('measured calm reports calm, not unknown', () => {
+    // Readings below the floor carry no signal and leave the consensus, but
+    // "everything I can see is dead calm" is an answer. 'unknown' has to keep
+    // meaning "I cannot see this spot at all" or the daily summary lies.
+    const dead = [1, 2].map(i => makeReading({
+      station_id: `mg_dead${i}`,
+      latitude: 42.365, longitude: -8.675,
+      wind_speed: 0.2, wind_dir: 270,
+    }));
+    const calm = scoreSpot(ria, dead, []);
+    expect(calm.verdict).toBe('calm');
+    expect(calm.stationCount).toBe(2);
+
+    const blind = scoreSpot(ria, [], []);
+    expect(blind.verdict).toBe('unknown');
+    expect(blind.stationCount).toBe(0);
+  });
+
+  it('a distant gust does not inflate the spot', () => {
+    // Mirrors the map: gusts come from sources within 8km only, so a squall
+    // over a ridge ten kilometres away cannot put a number on this beach.
+    const local = makeReading({
+      station_id: 'mg_local', latitude: 42.365, longitude: -8.675,
+      wind_speed: 6, wind_gust: 8, wind_dir: 270,
+    });
+    const ridge = makeReading({
+      station_id: 'mg_ridge', latitude: 42.455, longitude: -8.675, // ~10km
+      wind_speed: 6, wind_gust: 15, wind_dir: 270,
+    });
+    const result = scoreSpot(ria, [local, ridge], []);
+    expect(result.maxGustKt).toBe(16); // the local 8 m/s, not the ridge's 15
+  });
+});
+
+/** m/s → kt, local copy so the expectation above is readable on its own. */
+function msToKnotsLocal(ms: number): number {
+  return ms * 1.94384;
+}

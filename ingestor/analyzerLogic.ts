@@ -12,7 +12,8 @@ import { haversineDistance } from '../src/services/geoUtils.js';
 import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
 import { predictCesantesCanalization } from '../src/services/cesantesCanalizationDetector.js';
 import { detectBocana } from '../src/services/bocanaDetector.js';
-import { isWindBlacklisted } from '../src/services/spotScoringEngine.js';
+import { isWindBlacklisted, getSourceQuality } from '../src/services/spotScoringEngine.js';
+import { isBuoyFresh, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
 
@@ -20,6 +21,64 @@ import type { BuoyReading } from '../src/api/buoyClient.js';
 // frontend spotScoringEngine.ts — single source of truth would be nicer
 // but the array values are static climatology, no drift risk).
 const RIA_VIGO_INTERIOR_SST_BY_MONTH = [13, 13, 13, 14, 16, 18, 20, 21, 20, 18, 16, 14];
+
+// ── Consensus weighting (mirror of spotScoringEngine.ts) ────
+//
+// These are the map's constants, ported so Telegram and the map answer the
+// same question with the same arithmetic. Before this, the analyzer averaged
+// every source FLAT: the single exposed buoy counted exactly as much as each
+// of ~20 sheltered land stations, so open water scored like a valley.
+const BUOY_EXPOSURE_BOOST = 1.5;        // over water, inherently unobstructed
+const PREFERRED_EXPOSURE_BOOST = 1.3;   // manually vetted as representative
+const BIAS_BLIND_PENALTY = 0.3;         // reading FROM a documented blind sector
+const CALM_FLOOR_KT = 1;                // below this a reading carries no signal
+const GUST_MAX_DIST_KM = 8;             // gusts only from sources this close
+const MAX_PLAUSIBLE_GUST_KT = 45;       // Galician coast ceiling (sensor glitch)
+const GUST_RATIO_CAP = 3;               // gust more than 3x the mean = glitch
+
+// Outlier suppression (step 4 of the engine). This is what actually stops a
+// sheltered or broken anemometer from dragging the consensus down: the bias
+// map only knows the stations we have already audited, this catches the rest.
+const OUTLIER_MIN_ENTRIES = 3;          // below this there is no majority to judge against
+const OUTLIER_MIN_MEDIAN_KT = 3;        // no point ranking outliers in dead calm
+const HIGH_OUTLIER_RATIO = 3.0;         // broken anemometer or gust spike
+const HIGH_OUTLIER_PENALTY = 0.5;
+const LOW_OUTLIER_THRESHOLD = 0.35;     // likely sheltered
+const LOW_OUTLIER_PENALTY = 0.3;
+const SEVERE_LOW_THRESHOLD = 0.15;      // near zero — certainly broken or blocked
+const SEVERE_LOW_PENALTY = 0.1;
+const CONSENSUS_BONUS_MIN_KT = 7;       // "real wind" for the agreement bonus
+const CONSENSUS_BONUS_SOURCES = 3;
+
+/** Weighted median — heavier (closer, better, more exposed) sources set the
+ *  reference the others are judged against. */
+function computeWeightedMedian(entries: { speedKt: number; weight: number }[]): number {
+  const sorted = [...entries].sort((a, b) => a.speedKt - b.speedKt);
+  const totalWeight = sorted.reduce((sum, e) => sum + e.weight, 0);
+  let cumWeight = 0;
+  for (const e of sorted) {
+    cumWeight += e.weight;
+    if (cumWeight >= totalWeight / 2) return e.speedKt;
+  }
+  return sorted[sorted.length - 1].speedKt;
+}
+
+/** Age weight for a station reading. No timestamp = full weight. */
+function stationFreshness(time: string | Date | undefined, now: number): number {
+  if (!time) return 1;
+  const ageMin = (now - new Date(time).getTime()) / 60_000;
+  if (!Number.isFinite(ageMin)) return 1;
+  return ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;
+}
+
+/** Age weight for a buoy. Wider steps than a station: PORTUS publishes every
+ *  30-60min with its own lag, so 20min old is normal there and stale here. */
+function buoyFreshness(time: string | Date | undefined, now: number): number {
+  if (!time) return 1;
+  const ageMin = (now - new Date(time).getTime()) / 60_000;
+  if (!Number.isFinite(ageMin)) return 1;
+  return ageMin <= 10 ? 1.0 : ageMin <= 30 ? 0.95 : ageMin <= 60 ? 0.85 : 0.7;
+}
 
 // ── Types ───────────────────────────────────────────
 
@@ -45,6 +104,9 @@ export interface SpotDef {
    *  Sign = relative exposure: negative when the reference over-reads (exposed
    *  cape vs sheltered beach), positive when land stations under-read. */
   windCalibrationKt?: number;
+  /** Buoy IDs vetted as representative. Mirrors spots.ts preferredBuoys: a
+   *  preferred buoy within 5km doubles its proximity weight. */
+  preferredBuoys?: number[];
 }
 
 export type Verdict = 'calm' | 'light' | 'sailing' | 'good' | 'strong' | 'unknown';
@@ -58,6 +120,10 @@ export interface StationReading {
   wind_dir: number | null;
   temperature: number | null;
   humidity: number | null;
+  /** Reading timestamp. Optional: when absent the freshness weight is 1.0,
+   *  which is what every fixture without a clock expects. Production always
+   *  supplies it. */
+  time?: string | Date;
   // Extended fields for detector connection (Phase A — TIER 1 P0)
   dew_point?: number | null;
   solar_rad?: number | null;
@@ -70,6 +136,9 @@ export interface BuoyWind {
   wind_dir: number | null;
   lat: number;
   lon: number;
+  /** Reading timestamp. Optional for the same reason as StationReading.time,
+   *  but here it also drives the staleness GATE — see scoreSpot. */
+  time?: string | Date;
   // Extended fields for detector connection (Phase A — TIER 1 P0)
   station_name?: string;
   water_temp?: number | null;
@@ -98,6 +167,9 @@ export interface SpotResult {
   boostedBy?: 'cesantes-canalization' | 'bocana-terral' | null;
   /** Detector confidence 0-100% (when boostedBy set) */
   boostConfidence?: number;
+  /** Buoys in range dropped for being older than the staleness gate. Surfaced
+   *  so a silently dying buoy feed shows up in the cycle log. */
+  staleBuoysDropped?: number;
 }
 
 // ── Adapter: ingestor BuoyWind → frontend BuoyReading ────────
@@ -380,87 +452,136 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   const excludeSet = new Set(spot.excludeStations ?? []);
   const preferredSet = new Set(spot.preferredStations ?? []);
 
-  const nearby = readings.filter(r => {
-    if (r.latitude === 0 || r.longitude === 0) return false;
-    if (excludeSet.has(r.station_id)) return false;
-    if (preferredSet.has(r.station_id)) return true;
-    return haversineDistance(spot.lat, spot.lon, r.latitude, r.longitude) <= spot.radiusKm;
-  });
+  const preferredBuoySet = new Set(spot.preferredBuoys ?? []);
 
-  const nearbyBuoys = buoyWinds.filter(b =>
-    b.lat !== 0 && b.lon !== 0 && b.wind_speed > 0 &&
-    haversineDistance(spot.lat, spot.lon, b.lat, b.lon) <= spot.radiusKm
-  );
+  // Distance is computed once per station and KEPT. It used to be thrown away
+  // the instant the radius gate passed, which is precisely why every station
+  // ended up with the same vote no matter how far away it sat.
+  const nearby: { r: StationReading; distKm: number }[] = [];
+  for (const r of readings) {
+    if (r.latitude === 0 || r.longitude === 0) continue;
+    if (excludeSet.has(r.station_id)) continue;
+    const distKm = haversineDistance(spot.lat, spot.lon, r.latitude, r.longitude);
+    if (!preferredSet.has(r.station_id) && distKm > spot.radiusKm) continue;
+    nearby.push({ r, distKm });
+  }
 
-  // ── Wind quality gates (mirror of frontend spotScoringEngine) ──
-  //
-  // 1. Wind blacklist: stations statistically confirmed sheltered/broken
-  //    for wind (avg ratio < 0.20 vs buoys) NEVER enter the wind consensus.
-  //    They remain valid for temperature/humidity — the detector helpers
-  //    (Cesantes/Bocana boosts) read the unfiltered `readings` array.
-  const windCapable = nearby.filter(
-    r => r.wind_speed != null && !isWindBlacklisted(r.station_id)
-  );
+  // Buoys carry the x1.5 over-water boost, so they need the map's staleness
+  // gate too: the query feeding this serves readings up to 6h old, and without
+  // the gate one stale buoy would hold a verdict it stopped measuring hours
+  // ago. A buoy with no timestamp at all is treated as fresh — production
+  // always supplies one, fixtures usually do not.
+  const nearbyBuoys: { b: BuoyWind; distKm: number }[] = [];
+  let staleBuoysDropped = 0;
+  for (const b of buoyWinds) {
+    if (b.lat === 0 || b.lon === 0 || b.wind_speed <= 0) continue;
+    const distKm = haversineDistance(spot.lat, spot.lon, b.lat, b.lon);
+    if (distKm > spot.radiusKm) continue;
+    if (b.time != null && !isBuoyFresh({ timestamp: b.time }, BUOY_STALE_MAX_MIN)) {
+      staleBuoysDropped++;
+      continue;
+    }
+    nearbyBuoys.push({ b, distKm });
+  }
 
-  // 2. Directional bias map (stationBiases.ts): a station reading FROM its
-  //    documented blind sector misreads speed. The frontend demotes its
-  //    weight x0.3; this consensus is an UNWEIGHTED mean, so the biased
-  //    reading is EXCLUDED instead — but only while >= 2 wind sources
-  //    (stations + buoys) survive the exclusion. With fewer, keep it:
-  //    a demoted reading beats an 'unknown' verdict.
-  const isBiasBlind = (r: StationReading): boolean =>
-    r.wind_dir != null && getStationBiasAt(r.station_id, r.wind_dir) !== null;
-  const unbiased = windCapable.filter(r => !isBiasBlind(r));
-  const windReadings =
-    unbiased.length + nearbyBuoys.length >= 2 ? unbiased : windCapable;
+  // ── Weighted consensus (port of computeSpotWindConsensus) ──
+  type WindEntry = { speedKt: number; weight: number; dir: number | null };
+  const entries: WindEntry[] = [];
+  let calmDiscarded = 0;
+  const now = Date.now();
 
-  // Preferred stations were manually vetted as best-representing this spot —
-  // they count PREFERRED_WEIGHT (1.3x, matching PREFERRED_EXPOSURE_BOOST in
-  // spotScoringEngine.ts) in what is otherwise an unweighted mean. Buoys keep
-  // weight 1.0: the frontend's x1.5 over-water boost is NOT ported here on
-  // purpose — it would shift every legacy verdict, not just curated spots.
-  const PREFERRED_WEIGHT = 1.3;
+  for (const { r, distKm } of nearby) {
+    if (r.wind_speed == null) continue;
+    // Blacklist: stations statistically confirmed sheltered or broken for wind
+    // (mean ratio < 0.20 against buoys) never enter the wind consensus. They
+    // stay valid for temperature and humidity — the detector helpers below
+    // read the unfiltered `readings` array on purpose.
+    if (isWindBlacklisted(r.station_id)) continue;
+    const speedKt = msToKnots(r.wind_speed);
+    if (speedKt < CALM_FLOOR_KT) { calmDiscarded++; continue; }
+    const isPreferred = preferredSet.has(r.station_id);
+    const proximityBoost = isPreferred ? (distKm <= 2 ? 3.0 : distKm <= 5 ? 2.0 : 1.5) : 1.0;
+    const distWeight = proximityBoost / (distKm + 1);
+    // Documented orographic bias (stationBiases.ts): a station reading FROM a
+    // sector it is known to misread gets DEMOTED, not dropped. The previous
+    // code excluded it outright, which then needed a "put it back if too few
+    // survive" escape hatch; demoting can never empty the consensus, so that
+    // whole branch is gone.
+    const biasMul = (r.wind_dir != null && getStationBiasAt(r.station_id, r.wind_dir))
+      ? BIAS_BLIND_PENALTY : 1;
+    let weight = distWeight * getSourceQuality(r.station_id)
+      * stationFreshness(r.time, now) * biasMul;
+    if (isPreferred) weight *= PREFERRED_EXPOSURE_BOOST;
+    entries.push({ speedKt, weight, dir: r.wind_dir });
+  }
 
-  let windSum = 0, weightSum = 0, gustMax = 0, dirCount = 0, count = 0;
-  let sinSum = 0, cosSum = 0;
+  for (const { b, distKm } of nearbyBuoys) {
+    const speedKt = msToKnots(b.wind_speed);
+    if (speedKt < CALM_FLOOR_KT) { calmDiscarded++; continue; }
+    const proximityBoost = (preferredBuoySet.has(b.station_id) && distKm <= 5) ? 2.0 : 1.0;
+    const weight = (proximityBoost / (distKm + 1))
+      * buoyFreshness(b.time, now) * BUOY_EXPOSURE_BOOST;
+    entries.push({ speedKt, weight, dir: b.wind_dir });
+  }
 
-  for (const r of windReadings) {
-    if (r.wind_speed != null) {
-      const w = preferredSet.has(r.station_id) ? PREFERRED_WEIGHT : 1;
-      const kt = msToKnots(r.wind_speed);
-      windSum += kt * w;
-      weightSum += w;
-      count++;
-      if (r.wind_gust != null) {
-        const gKt = msToKnots(r.wind_gust);
-        if (gKt > gustMax) gustMax = gKt;
-      }
-      if (r.wind_dir != null) {
-        const rad = r.wind_dir * Math.PI / 180;
-        // Direction mean uses the same weight — a curated reference should
-        // steer the reported direction as much as it steers the speed.
-        sinSum += Math.sin(rad) * w;
-        cosSum += Math.cos(rad) * w;
-        dirCount++;
+  // ── Outlier suppression (port of engine step 4) ──
+  // Without this the port would have LOOSENED the rules: the directional bias
+  // map used to EXCLUDE a station reading from its blind sector outright, and
+  // demoting it to 0.3 alone would let it back into the mean. Median plus
+  // demotion lands it at ~0.09, which is where exclusion effectively had it.
+  if (entries.length >= OUTLIER_MIN_ENTRIES) {
+    const median = computeWeightedMedian(entries);
+    if (median > OUTLIER_MIN_MEDIAN_KT) {
+      for (const e of entries) {
+        const ratio = e.speedKt / median;
+        if (ratio > HIGH_OUTLIER_RATIO) e.weight *= HIGH_OUTLIER_PENALTY;
+        else if (ratio < SEVERE_LOW_THRESHOLD) e.weight *= SEVERE_LOW_PENALTY;
+        else if (ratio < LOW_OUTLIER_THRESHOLD) e.weight *= LOW_OUTLIER_PENALTY;
       }
     }
   }
 
-  for (const b of nearbyBuoys) {
-    const kt = msToKnots(b.wind_speed);
-    windSum += kt;
-    weightSum += 1;
-    count++;
-    if (b.wind_dir != null) {
-      const rad = b.wind_dir * Math.PI / 180;
-      sinSum += Math.sin(rad);
-      cosSum += Math.cos(rad);
+  let windSum = 0, weightSum = 0, sinSum = 0, cosSum = 0, dirCount = 0;
+  for (const e of entries) {
+    windSum += e.speedKt * e.weight;
+    weightSum += e.weight;
+    if (e.dir != null) {
+      const rad = e.dir * Math.PI / 180;
+      // A curated reference should steer the reported direction exactly as
+      // much as it steers the speed, so direction uses the same weight.
+      sinSum += Math.sin(rad) * e.weight;
+      cosSum += Math.cos(rad) * e.weight;
       dirCount++;
     }
   }
+  const count = entries.length;
+
+  // Gusts come from the CLOSEST sources only, mirroring the map: a gust off a
+  // distant ridge must not inflate a sheltered spot's number. Deliberately NOT
+  // subject to the calm floor above — a gust on an otherwise calm station is
+  // still a gust, and this figure feeds safety messages.
+  let gustMax = 0;
+  for (const { r, distKm } of nearby) {
+    if (r.wind_gust == null || distKm > GUST_MAX_DIST_KM) continue;
+    if (isWindBlacklisted(r.station_id)) continue;
+    const gKt = msToKnots(r.wind_gust);
+    if (gKt > gustMax) gustMax = gKt;
+  }
 
   if (count === 0) {
-    return { spot, avgWindKt: 0, maxGustKt: 0, avgDir: null, verdict: 'unknown', stationCount: 0 };
+    // Sources were present but every one of them read below the calm floor.
+    // That is MEASURED calm, and it is not the same thing as having no data:
+    // 'unknown' has to keep meaning "we cannot see this spot".
+    const measuredCalm = calmDiscarded > 0;
+    return {
+      spot,
+      avgWindKt: 0,
+      maxGustKt: 0,
+      avgDir: null,
+      verdict: measuredCalm ? 'calm' : 'unknown',
+      stationCount: measuredCalm ? calmDiscarded : 0,
+      staleBuoysDropped,
+    };
   }
 
   // windCalibrationKt is part of the consensus itself, not a detector override
@@ -468,7 +589,18 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   // Baking it into rawWindKt means detector gates below (predictedKt - rawKt
   // >= 4) compare against the same calibrated base the frontend uses.
   const calibration = spot.windCalibrationKt ?? 0;
-  const rawWindKt = Math.round(Math.max(0, windSum / weightSum + calibration));
+  let avgKt = Math.max(0, windSum / weightSum + calibration);
+  // Consensus bonus, same as the map: when this many independent sources all
+  // see real wind, the weighted mean is understating it — the sheltered ones
+  // still in the mix pull it down.
+  if (entries.filter(e => e.speedKt >= CONSENSUS_BONUS_MIN_KT).length >= CONSENSUS_BONUS_SOURCES) {
+    avgKt += 1;
+  }
+  const rawWindKt = Math.round(avgKt);
+  // Sanity cap, same as the map: a gust above the Galician ceiling, or more
+  // than 3x this spot's own mean, is a sensor glitch rather than weather.
+  if (gustMax > MAX_PLAUSIBLE_GUST_KT
+    || (rawWindKt > 0 && gustMax > rawWindKt * GUST_RATIO_CAP)) gustMax = 0;
   // atan2 is scale-invariant, so weighting sin/cos sums needs no normalization.
   const avgDir = dirCount > 0
     ? (Math.round(Math.atan2(sinSum, cosSum) * 180 / Math.PI) + 360) % 360
@@ -513,5 +645,6 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
     rawWindKt,
     boostedBy,
     boostConfidence,
+    staleBuoysDropped,
   };
 }
