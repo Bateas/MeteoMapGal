@@ -37,6 +37,30 @@ function inAnySector(lat: number, lon: number): boolean {
   });
 }
 
+/** Galicia, con margen para no perder una estación justo en el borde.
+ *
+ *  Solo la usan las fuentes que llegan EN BLOQUE: AEMET devuelve todas las
+ *  estaciones de España en UNA llamada, y MeteoGalicia y Meteoclimatic
+ *  devuelven regiones enteras. Hasta ahora se descargaba Galicia completa y se
+ *  tiraba lo que caía fuera del radio de los sectores — unas dos terceras
+ *  partes. Abrir la puerta no cuesta ni una petición más.
+ *
+ *  Wunderground y Netatmo NO pasan por aquí: se piden por sector (una petición
+ *  por estación o por bbox), así que ampliarlas sí costaría tráfico real. Se
+ *  quedan en inAnySector.
+ *
+ *  Nada aguas abajo necesita una segunda puerta: cada spot filtra por su
+ *  propio radiusKm, el resumen diario por el bbox de su sector, la humedad de
+ *  bocana y la dirección de Castrelo llevan sus propias coordenadas. Una
+ *  estación de Lugo entra en el dataset y no toca nada más — que es justo lo
+ *  que se busca: el radio del spot ES la cuarentena. */
+const GALICIA = { latMin: 41.75, latMax: 43.85, lonMin: -9.35, lonMax: -6.70 };
+
+function inGalicia(lat: number, lon: number): boolean {
+  return lat >= GALICIA.latMin && lat <= GALICIA.latMax
+    && lon >= GALICIA.lonMin && lon <= GALICIA.lonMax;
+}
+
 // ── AEMET ─────────────────────────────────────────────
 
 /**
@@ -114,7 +138,7 @@ async function discoverAemet(): Promise<NormalizedStation[]> {
         // Strip the `aemet_` prefix to compare against AEMET native IDs
         const nativeId = s.id.replace(/^aemet_/, '');
         if (AEMET_REGIONAL_VIS_STATIONS.has(nativeId)) return true;
-        return inAnySector(s.lat, s.lon);
+        return inGalicia(s.lat, s.lon);
       });
 
     const visStations = stations.filter((s) =>
@@ -142,7 +166,7 @@ async function discoverMeteoGalicia(): Promise<NormalizedStation[]> {
 
     const stations = rawStations
       .map(normalizeMeteoGaliciaStation)
-      .filter((s) => inAnySector(s.lat, s.lon));
+      .filter((s) => inGalicia(s.lat, s.lon));
 
     log.info(`MeteoGalicia: ${stations.length} stations in range`);
     return stations;
@@ -157,7 +181,7 @@ async function discoverMeteoGalicia(): Promise<NormalizedStation[]> {
 function discoverMeteoclimatic(): NormalizedStation[] {
   // Coordinates are hardcoded — no API call needed for discovery
   const stations = METEOCLIMATIC_STATIONS
-    .filter((m) => inAnySector(m.lat, m.lon))
+    .filter((m) => inGalicia(m.lat, m.lon))
     .map((m): NormalizedStation => ({
       id: `mc_${m.id}`,
       source: 'meteoclimatic',
@@ -193,6 +217,8 @@ async function discoverWunderground(): Promise<NormalizedStation[]> {
       for (let i = 0; i < loc.stationId.length; i++) {
         const sLat = loc.latitude[i];
         const sLon = loc.longitude[i];
+        // Sector, no Galicia: WU cuesta una petición por estación.
+        // Sector, no Galicia: Netatmo se pide por bbox de sector.
         if (!inAnySector(sLat, sLon)) continue;
 
         const id = `wu_${loc.stationId[i]}`;
