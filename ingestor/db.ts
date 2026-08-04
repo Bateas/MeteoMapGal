@@ -234,7 +234,10 @@ export async function batchUpsertStations(
   if (entries.length === 0) return 0;
 
   const BATCH_SIZE = 100;
-  const COLS = 6;
+  // Must match BOTH the column list and the values pushed below. Getting this
+  // wrong misaligns every row's parameter indices and Postgres rejects the
+  // whole batch — which is how the province column shipped empty.
+  const COLS = 7;
   let total = 0;
 
   for (let i = 0; i < entries.length; i += BATCH_SIZE) {
@@ -246,7 +249,7 @@ export async function batchUpsertStations(
       const s = batch[j];
       const o = j * COLS;
       placeholders.push(
-        `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5},$${o+6})`
+        `($${o+1},$${o+2},$${o+3},$${o+4},$${o+5},$${o+6},$${o+7})`
       );
       values.push(
         s.id,
