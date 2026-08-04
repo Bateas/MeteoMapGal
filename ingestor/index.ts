@@ -10,7 +10,8 @@
  */
 
 import 'dotenv/config';
-import { initPool, pingDb, getPool, batchUpsert, batchUpsertBuoys, batchUpsertStations, closePool } from './db.js';
+import { initPool, pingDb, getPool, batchUpsert, batchUpsertBuoys, batchUpsertStations, closePool, setStuckAnemometers } from './db.js';
+import { findStuckAnemometers } from './queries.js';
 import { discoverAllStations } from './discover.js';
 import { fetchAllObservations } from './fetchers.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
@@ -152,6 +153,20 @@ async function runCycle(): Promise<void> {
   }
 
   try {
+    // 0. Which anemometers are stopped? A single reading cannot tell a stopped
+    // instrument from a calm day, so quality control is told before it runs.
+    // Failure here is deliberately non-fatal: the poll matters more than the
+    // refinement, and an empty set simply trusts every zero as it did before.
+    try {
+      const stuck = await findStuckAnemometers();
+      setStuckAnemometers(stuck);
+      if (stuck.size > 0) {
+        log.warn(`Stopped anemometers (24h at zero, their wind is dropped): ${[...stuck].join(', ')}`);
+      }
+    } catch (err) {
+      log.warn(`Stuck-anemometer check failed, trusting every zero this cycle: ${(err as Error).message}`);
+    }
+
     // 1. Fetch weather observations from all 5 sources (requires stations)
     if (stations.size > 0) {
       const readings = await fetchAllObservations(stations);

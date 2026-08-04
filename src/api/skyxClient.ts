@@ -33,6 +33,30 @@ function clean(v: number): number | null {
   return v === 9999 ? null : v;
 }
 
+/**
+ * True when the SKY-100's wind fields are an actual measurement.
+ *
+ * The unit has a sentinel for a dead sensor (9999) but none for "the cups are
+ * not turning": it sends a plain zero, which on a single reading is
+ * indistinguishable from real calm. Except in one respect. `wmax` is the PEAK
+ * of the reporting interval, and the peak of a real interval outdoors is never
+ * exactly zero — air always moves a little. Mean AND peak both at exactly 0.00
+ * is the unit sitting still: indoors, boxed, or with the anemometer unplugged.
+ *
+ * Measured on the reservoir unit 2026-08-04: 190 consecutive readings over
+ * seven days, every one of them wav=0 and wmax=0, while stations 5km away
+ * reported 4-12kt. Meanwhile it read a median 5.8 C WARMER than Prado, 1.5km
+ * from the water — the signature of a station indoors, not of a calm site.
+ *
+ * That zero was reaching the Castrelo consensus as a PREFERRED station, so it
+ * arrived with the x1.3 exposure boost on top, and it pulled the verdict toward
+ * calm on every cycle. The engine skips a null wind and weights a zero, so the
+ * fix has to be here, at the parse: a non-measurement must arrive as null.
+ */
+export function skyXWindIsMeasuring(wav: number, wmax: number): boolean {
+  return !(wav === 0 && wmax === 0);
+}
+
 /** Parse "lat,lon" string from extra.gps */
 function parseGps(gps: string): { lat: number; lon: number } | null {
   const parts = gps.split(',');
@@ -100,13 +124,14 @@ export async function fetchSkyXData(
       altitude: 0, // SKY-100 has no altimeter — use 0
     };
 
+    const measuring = skyXWindIsMeasuring(report.wav, report.wmax);
     const reading: NormalizedReading = {
       stationId: SKYX_STATION_ID,
       timestamp: new Date(report.ts),
       temperature: clean(report.t),
       humidity: clean(report.h),
-      windSpeed: clean(report.wav),
-      windGust: clean(report.wmax),
+      windSpeed: measuring ? clean(report.wav) : null,
+      windGust: measuring ? clean(report.wmax) : null,
       windDirection: null, // SKY-100 has no wind vane
       precipitation: null,
       pressure: clean(report.p),
@@ -148,13 +173,14 @@ export async function fetchSkyXReading(): Promise<NormalizedReading | null> {
     if (json.code !== 200 || !json.data || json.data.t === 9999) return null;
 
     const report = json.data;
+    const measuring = skyXWindIsMeasuring(report.wav, report.wmax);
     return {
       stationId: SKYX_STATION_ID,
       timestamp: new Date(report.ts),
       temperature: clean(report.t),
       humidity: clean(report.h),
-      windSpeed: clean(report.wav),
-      windGust: clean(report.wmax),
+      windSpeed: measuring ? clean(report.wav) : null,
+      windGust: measuring ? clean(report.wmax) : null,
       windDirection: null,
       precipitation: null,
       pressure: clean(report.p),

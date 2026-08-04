@@ -57,6 +57,21 @@ function sourceLabel(stationId: string): string {
 const COLS = 16; // +visibility, +QC archive (raw gust/speed + flag)
 
 /**
+ * Stations whose anemometer is stopped, refreshed once per cycle from 24h of
+ * history (findStuckAnemometers). Held here rather than passed down through
+ * every caller because quality control has exactly one entry point — batchUpsert
+ * — and this is the only fact it needs that a single reading cannot carry.
+ *
+ * Empty by default, so a cold start or a failed refresh trusts every zero: the
+ * failure mode is the behaviour we had before, never a wind silently discarded.
+ */
+let stuckAnemometers: ReadonlySet<string> = new Set();
+
+export function setStuckAnemometers(ids: ReadonlySet<string>): void {
+  stuckAnemometers = ids;
+}
+
+/**
  * Batch upsert readings into TimescaleDB.
  * Uses multi-row INSERT with ON CONFLICT DO NOTHING for dedup.
  * Batches of up to 100 rows per query to stay within PG parameter limits.
@@ -70,7 +85,7 @@ export async function batchUpsert(
   // reading exactly as every existing consumer expects it — implausible values
   // nulled — plus what was rejected and why, so the archive keeps what the
   // filter throws away. See readingQuality.ts for why that distinction matters.
-  const controlled = readings.map(applyQualityControl);
+  const controlled = readings.map((r) => applyQualityControl(r, stuckAnemometers));
 
   const db = getPool();
   const BATCH_SIZE = 100;
