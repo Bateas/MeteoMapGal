@@ -275,8 +275,16 @@ async function start(): Promise<void> {
   if (stations.size === 0) {
     log.warn('No stations found — will retry on next discovery cycle');
   } else {
-    await batchUpsertStations(stations);
-    log.ok(`${stations.size} station coords persisted to DB`);
+    // Report what the database accepted, not what we handed it. This line used
+    // to print `stations.size` and ignore the return value, so it said "OK 413
+    // persisted" while every batch was being rejected and the errors scrolled
+    // past one line above.
+    const upserted = await batchUpsertStations(stations);
+    if (upserted < stations.size) {
+      log.warn(`Station coords: ${upserted}/${stations.size} persisted — the rest were rejected, see the errors above`);
+    } else {
+      log.ok(`${upserted} station coords persisted to DB`);
+    }
   }
 
   // 3. First fetch cycle immediately
