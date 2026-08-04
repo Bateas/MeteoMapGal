@@ -50,6 +50,8 @@ export const QC_GUST_ABSOLUTE = 1;
 export const QC_GUST_RATIO = 2;
 /** Sustained wind above the absolute cap. */
 export const QC_SPEED_ABSOLUTE = 4;
+/** Zero from an anemometer that has not moved in a day — stopped, not calm. */
+export const QC_ANEMOMETER_STUCK = 8;
 
 export interface QualityControlled {
   /** The reading as every existing consumer expects it: rejections nulled. */
@@ -69,8 +71,18 @@ export interface QualityControlled {
 /**
  * Apply the plausibility checks, returning the clean reading plus what was
  * rejected and why. Pure — no clock, no database, no logging.
+ *
+ * `stuckAnemometers` is the one input this cannot derive for itself. A zero is
+ * a perfectly valid reading — Castrelo is genuinely dead calm most mornings —
+ * so a stopped instrument and a still day are indistinguishable in a single
+ * reading, which is all this function ever sees. The distinction only exists
+ * over time, so the caller measures it (findStuckAnemometers, 24h) and passes
+ * the answer in. Absent the set, nothing changes and every zero is trusted.
  */
-export function applyQualityControl(r: NormalizedReading): QualityControlled {
+export function applyQualityControl(
+  r: NormalizedReading,
+  stuckAnemometers?: ReadonlySet<string>,
+): QualityControlled {
   const speed = r.windSpeed;
   const gust = r.windGust;
 
@@ -97,6 +109,31 @@ export function applyQualityControl(r: NormalizedReading): QualityControlled {
     cleanSpeed = null;
   }
 
+  // A zero from an instrument that has not moved in 24 hours is not a
+  // measurement of calm, it is the absence of a measurement — and the scoring
+  // engines treat those two very differently. Both skip a null wind; both
+  // WEIGHT a zero, and a zero from a spot's preferred station arrives with an
+  // exposure boost on top, so it does not merely dilute the consensus, it
+  // dominates it toward calm. That is the shape of the bug this closes: the
+  // reservoir's SkyX fed 0.0 kt into Castrelo for at least a week while the
+  // water had 15-18 kt on it.
+  //
+  // Nulled, not dropped: the raw zero and the reason go to the archive, so the
+  // rule stays re-tunable and "which anemometer stopped, and when" remains an
+  // answerable question rather than a silence.
+  if (stuckAnemometers?.has(r.stationId)) {
+    if (cleanSpeed === 0) {
+      qcFlag |= QC_ANEMOMETER_STUCK;
+      windSpeedRaw = 0;
+      cleanSpeed = null;
+    }
+    if (cleanGust === 0) {
+      qcFlag |= QC_ANEMOMETER_STUCK;
+      windGustRaw = 0;
+      cleanGust = null;
+    }
+  }
+
   const reading = cleanGust !== r.windGust || cleanSpeed !== r.windSpeed
     ? { ...r, windGust: cleanGust, windSpeed: cleanSpeed }
     : r;
@@ -110,5 +147,6 @@ export function describeQcFlag(qcFlag: number): string[] {
   if (qcFlag & QC_GUST_ABSOLUTE) reasons.push('gust above absolute cap');
   if (qcFlag & QC_GUST_RATIO) reasons.push('gust above ratio to mean');
   if (qcFlag & QC_SPEED_ABSOLUTE) reasons.push('speed above absolute cap');
+  if (qcFlag & QC_ANEMOMETER_STUCK) reasons.push('zero from a stopped anemometer');
   return reasons;
 }

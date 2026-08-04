@@ -14,6 +14,7 @@ import {
   normalizeMeteoclimaticObservation,
 } from '../src/services/normalizer.js';
 import { parseMeteoclimaticXml } from './xml.js';
+import { skyXWindIsMeasuring } from '../src/api/skyxClient.js';
 import { getNetatmoToken, GALICIA_SWEEP_POINTS, GALICIA_SWEEP_RADIUS_KM } from './discover.js';
 
 /** The sectors are what someone is deciding on right now, so they keep the
@@ -518,13 +519,17 @@ async function fetchSkyX(
     }
 
     const report = json.data;
+    // Mean AND peak both exactly zero is the unit sitting still, not calm —
+    // see skyXWindIsMeasuring. Shared with the frontend client so the two
+    // paths into the same station cannot disagree about it.
+    const measuring = skyXWindIsMeasuring(report.wav, report.wmax);
     const reading: NormalizedReading = {
       stationId: SKYX_STATION_ID,
       timestamp: new Date(report.ts),
       temperature: cleanSkyX(report.t),
       humidity: cleanSkyX(report.h),
-      windSpeed: cleanSkyX(report.wav),
-      windGust: cleanSkyX(report.wmax),
+      windSpeed: measuring ? cleanSkyX(report.wav) : null,
+      windGust: measuring ? cleanSkyX(report.wmax) : null,
       windDirection: null, // SKY-100 has no wind vane
       precipitation: null,
       pressure: cleanSkyX(report.p),

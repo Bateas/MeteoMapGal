@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { skyXWindIsMeasuring } from '../src/api/skyxClient';
 import {
   applyQualityControl,
   describeQcFlag,
@@ -17,6 +18,7 @@ import {
   QC_GUST_ABSOLUTE,
   QC_GUST_RATIO,
   QC_SPEED_ABSOLUTE,
+  QC_ANEMOMETER_STUCK,
   MAX_PLAUSIBLE_GUST_MS,
 } from './readingQuality';
 import type { NormalizedReading } from '../src/types/station';
@@ -123,5 +125,67 @@ describe('applyQualityControl — what it rejects, it keeps', () => {
     const out = applyQualityControl(reading({ windSpeed: 10, windGust: 22 }));
     expect(out.reading.windGust).toBe(22);
     expect(out.qcFlag).toBe(QC_OK);
+  });
+});
+
+describe('applyQualityControl — a stopped anemometer is not a calm day', () => {
+  const STUCK = new Set(['skyx_SKY100']);
+
+  it('drops the zero of an instrument known to be stopped', () => {
+    const out = applyQualityControl(reading({ windSpeed: 0, windGust: 0, stationId: 'skyx_SKY100' }), STUCK);
+    expect(out.reading.windSpeed).toBeNull();
+    expect(out.reading.windGust).toBeNull();
+    expect(out.qcFlag & QC_ANEMOMETER_STUCK).toBeTruthy();
+  });
+
+  it('archives the zero rather than destroying it', () => {
+    // The reason the whole module exists: the rule will be re-tuned, and
+    // re-tuning needs the population the rule removed.
+    const out = applyQualityControl(reading({ windSpeed: 0, windGust: 0, stationId: 'skyx_SKY100' }), STUCK);
+    expect(out.windSpeedRaw).toBe(0);
+    expect(out.windGustRaw).toBe(0);
+    expect(describeQcFlag(out.qcFlag)).toContain('zero from a stopped anemometer');
+  });
+
+  it('KEEPS the zero of a station that is simply becalmed', () => {
+    // This is the test that matters. Castrelo is genuinely dead calm most
+    // mornings, and that zero is real information the verdict needs: drop
+    // every zero and the reservoir stops being able to say "no sailing today".
+    const out = applyQualityControl(reading({ windSpeed: 0, windGust: 0, stationId: 'aemet_1701X' }), STUCK);
+    expect(out.reading.windSpeed).toBe(0);
+    expect(out.qcFlag).toBe(QC_OK);
+  });
+
+  it('lets a stopped station through the moment it reports movement again', () => {
+    // Self-healing: nothing to un-flag by hand when the unit goes back outside.
+    // Only the exact zero is suppressed, never a real value.
+    const out = applyQualityControl(reading({ windSpeed: 3.2, windGust: 5.1, stationId: 'skyx_SKY100' }), STUCK);
+    expect(out.reading.windSpeed).toBe(3.2);
+    expect(out.reading.windGust).toBe(5.1);
+    expect(out.qcFlag).toBe(QC_OK);
+  });
+
+  it('changes nothing at all when no set is supplied', () => {
+    const out = applyQualityControl(reading({ windSpeed: 0, windGust: 0, stationId: 'skyx_SKY100' }));
+    expect(out.reading.windSpeed).toBe(0);
+    expect(out.qcFlag).toBe(QC_OK);
+  });
+});
+
+describe('skyXWindIsMeasuring — the SKY-100 has no sentinel for a still anemometer', () => {
+  it('rejects mean and peak both at exactly zero', () => {
+    // Measured live 2026-08-04: wav 0, wmax 0, while the unit read 33.4 C
+    // against 25 C at four neighbours. Indoors, not becalmed.
+    expect(skyXWindIsMeasuring(0, 0)).toBe(false);
+  });
+
+  it('accepts a real calm, which still has a non-zero peak', () => {
+    // The discriminator: the PEAK of a real reporting interval outdoors is
+    // never exactly zero, however still the mean looks.
+    expect(skyXWindIsMeasuring(0, 0.9)).toBe(true);
+  });
+
+  it('accepts ordinary wind', () => {
+    expect(skyXWindIsMeasuring(4.1, 7.3)).toBe(true);
   });
 });

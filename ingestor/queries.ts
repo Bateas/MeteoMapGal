@@ -876,3 +876,34 @@ export async function queryFireAttribution(days: number): Promise<FireAttributio
     maxStrikeKa: r.max_strike_ka == null ? null : Math.round(Number(r.max_strike_ka)),
   }));
 }
+
+/**
+ * Stations whose anemometer has not moved in a day.
+ *
+ * The problem this answers: a stopped anemometer reports 0.0, and 0.0 is also
+ * what a genuinely calm site reports. One reading cannot tell them apart. Over
+ * a full day it becomes easy — no exposed site in Galicia records EXACTLY zero
+ * sustained wind across a whole diurnal cycle, because the daytime heating
+ * alone moves the air. So the window deliberately spans at least 12 hours: a
+ * station that only reports at night, or that we have only just discovered,
+ * has not yet earned the accusation and is left alone.
+ *
+ * Reads COALESCE(wind_speed, wind_speed_raw) so the rule stays self-consistent
+ * once it starts nulling: yesterday's rejected zeros still count as "reported
+ * a zero", and it is a genuine non-zero reading — the anemometer turning again
+ * — that clears the station on the next cycle. Nothing to reset by hand.
+ */
+export async function findStuckAnemometers(): Promise<Set<string>> {
+  const db = getPool();
+  const result = await db.query(
+    `SELECT station_id
+       FROM readings
+      WHERE time > NOW() - INTERVAL '24 hours'
+        AND COALESCE(wind_speed, wind_speed_raw) IS NOT NULL
+      GROUP BY station_id
+     HAVING COUNT(*) >= 10
+        AND MAX(COALESCE(wind_speed, wind_speed_raw)) = 0
+        AND EXTRACT(EPOCH FROM (MAX(time) - MIN(time))) >= 12 * 3600`,
+  );
+  return new Set(result.rows.map((r) => r.station_id as string));
+}
