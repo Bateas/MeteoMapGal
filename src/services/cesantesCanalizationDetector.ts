@@ -65,6 +65,24 @@ const THERMAL_MIN_BASE_KT = 5;
 /** Humidity threshold in mouth of ría (indicates moisture inflow) */
 const HIGH_MOUTH_HUMIDITY = 85;
 
+/** W/m² below which the thermal engine is not running.
+ *
+ *  Every multiplier above the plain channelling base tells a THERMAL story:
+ *  sun heats the interior, an inland low forms, and humid marine air is drawn
+ *  up the ría. Mist at the mouth is read as that convergence loading up.
+ *
+ *  But mist and low cloud at the mouth are ALSO exactly what an approaching
+ *  front looks like — same symptom, different cause, and the boost assumed the
+ *  flattering one. Observed 4-ago at 12:38: overcast, a front arriving from the
+ *  same SW quarter, a measured 5kt, and the popup announcing 20kt at "high
+ *  confidence" while its own beach line said "sin apenas viento" and the
+ *  thermal engine said 0%.
+ *
+ *  Same floor maritimeFogService uses for "the sun is out". Below it, only the
+ *  geometric channelling survives: a valley accelerates whatever flows through
+ *  it, sun or no sun. */
+const MIN_SOLAR_FOR_CONVERGENCE = 250;
+
 /** Canalization boost factors */
 const BOOST_BASE = 1.4;       // SW wind alone → +40%
 const BOOST_HUMID = 1.7;      // SW + high humidity in mouth → +70%
@@ -97,6 +115,11 @@ export function predictCesantesCanalization(
    *  is NOT establishing — the islands + Monte da Vela block N/NW from reaching
    *  the Cesantes shore — so the thermal canalization prediction is suppressed. */
   localWindDir: number | null = null,
+  /** Solar radiation near the spot (W/m²). Without sun the thermal convergence
+   *  this detector multiplies by is not happening, whatever the mouth cameras
+   *  see. Unknown counts as no sun: the strongest multiplier in the ladder must
+   *  not be handed out on missing evidence. */
+  solarRadLocal: number | null = null,
 ): CesantesPrediction {
   const inactive: CesantesPrediction = {
     active: false,
@@ -185,7 +208,17 @@ export function predictCesantesCanalization(
   let confidence = 50;
   let severity: 'info' | 'moderate' | 'high' = 'info';
 
-  if (webcamFogInMouth) {
+  // The convergence and thermal multipliers below need the sun that drives
+  // them. Overcast leaves the plain channelling, which is geometry and holds.
+  const sunIsOut = solarRadLocal !== null && solarRadLocal >= MIN_SOLAR_FOR_CONVERGENCE;
+
+  if (!sunIsOut) {
+    signals.push(
+      solarRadLocal === null
+        ? 'Sin dato de radiación — solo canalización geométrica'
+        : `Cielo cubierto (${solarRadLocal.toFixed(0)} W/m²) — sin motor térmico, solo canalización`
+    );
+  } else if (webcamFogInMouth) {
     boostFactor = BOOST_FOG;
     confidence = 85;
     severity = 'high';
@@ -199,8 +232,9 @@ export function predictCesantesCanalization(
     signals.push('Canalización SW estándar (sin convergencia húmeda)');
   }
 
-  // Thermal breeze ENHANCES synoptic SW in afternoon (additive boost)
-  if (isThermalHour && isWarmAir && isThermalDelta) {
+  // Thermal breeze ENHANCES synoptic SW in afternoon (additive boost).
+  // Needs the sun for the same reason as the convergence boosts above.
+  if (sunIsOut && isThermalHour && isWarmAir && isThermalDelta) {
     boostFactor += 0.3;
     confidence += 10;
     signals.push(`+ Brisa térmica vespertina activa (aire ${airTempLocal!.toFixed(0)}°C ΔT +${deltaT!.toFixed(1)}°C)`);

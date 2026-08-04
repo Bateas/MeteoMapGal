@@ -197,7 +197,19 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       const airTempLocal = score?.airTemp ?? null;
       const waterTempLocal = score?.waterTemp ?? mohidSeaTemp ?? null;
       const localStationKt = score?.wind?.avgSpeedKt ?? null;
-      const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt, score?.wind?.dirDeg ?? null);
+      // Nearest station reporting radiation. Without sun the thermal
+      // convergence this detector multiplies by is not running, and mist in
+      // the mouth of the ría means a front rather than a loaded canalization.
+      const [spotLon, spotLat] = spot.center;
+      let solarRadLocal: number | null = null;
+      let bestSolarDist = Infinity;
+      for (const st of stations) {
+        const rd = readings.get(st.id);
+        if (rd?.solarRadiation == null) continue;
+        const d = Math.hypot(st.lat - spotLat, (st.lon - spotLon) * Math.cos((spotLat * Math.PI) / 180));
+        if (d < bestSolarDist) { bestSolarDist = d; solarRadLocal = rd.solarRadiation; }
+      }
+      const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt, score?.wind?.dirDeg ?? null, solarRadLocal);
       return pred.active ? pred : null;
     } catch (err) {
       console.warn('[CesantesPredictor] error:', err);

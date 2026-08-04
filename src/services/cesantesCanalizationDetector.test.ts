@@ -139,10 +139,12 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
     expect(r.active).toBe(false);
   });
 
-  it('promotes to BOOST_HUMID with mouthHumidity ≥85', () => {
+  it('promotes to BOOST_HUMID with mouthHumidity ≥85 AND sun', () => {
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
       88,
+      false, null, null, null, null,
+      600, // W/m² — the thermal engine these boosts describe is actually running
     );
     expect(r.active).toBe(true);
     expect(r.boostFactor).toBeCloseTo(1.7, 1);
@@ -151,11 +153,13 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
     expect(r.signals.some((s) => s.includes('HR'))).toBe(true);
   });
 
-  it('promotes to BOOST_FOG with webcamFogInMouth=true', () => {
+  it('promotes to BOOST_FOG with webcamFogInMouth=true AND sun', () => {
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
       90,
       true,
+      null, null, null, null,
+      600, // W/m² — without this the mist could be a front, see the tests below
     );
     expect(r.boostFactor).toBeCloseTo(2.0, 1);
     expect(r.confidence).toBe(85);
@@ -198,6 +202,63 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
       null,
     );
     expect(wsw.active).toBe(true);
+  });
+// ── The sun gate ───────────────────────────────────────────
+  //
+  // Observed in production 4-ago 12:38, and reported from the shore: overcast
+  // sky, a front arriving from the same SW quarter, 5kt measured — and the
+  // popup announcing 20kt "FUERTE" at high confidence, while its own beach
+  // line read "sin apenas viento" and the thermal engine read 0%.
+  //
+  // Every multiplier above the plain channelling tells a thermal story: sun
+  // heats the interior, an inland low forms, humid marine air is drawn up the
+  // ría, and mist in the mouth is that convergence loading. Mist in the mouth
+  // is ALSO what a front looks like. Same symptom, two causes, and the ladder
+  // assumed the flattering one.
+  describe('needs the sun the thermal story depends on', () => {
+    const sw = () => [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })];
+
+    it('refuses the fog boost under an overcast sky', () => {
+      const r = predictCesantesCanalization(sw(), 90, true, null, null, null, null, 80);
+      expect(r.boostFactor).toBeCloseTo(1.4, 1); // plain channelling, not 2.0
+      expect(r.signals.some((x) => x.includes('cubierto'))).toBe(true);
+    });
+
+    it('refuses the humidity boost under an overcast sky', () => {
+      const r = predictCesantesCanalization(sw(), 92, false, null, null, null, null, 80);
+      expect(r.boostFactor).toBeCloseTo(1.4, 1);
+    });
+
+    it('treats missing radiation as no sun rather than as permission', () => {
+      // The strongest multiplier in the ladder must not be handed out on
+      // absent evidence — that is the whole rigour rule.
+      const r = predictCesantesCanalization(sw(), 90, true);
+      expect(r.boostFactor).toBeCloseTo(1.4, 1);
+      expect(r.signals.some((x) => x.includes('Sin dato de radiación'))).toBe(true);
+    });
+
+    it('still channels geometrically without sun — a valley is a valley', () => {
+      const r = predictCesantesCanalization(sw(), 90, true, null, null, null, null, 80);
+      expect(r.active).toBe(true);
+      expect(r.predictedKt).toBeGreaterThan(6 * 1.944); // above the raw synoptic
+    });
+
+    it('keeps the full ladder when the sun is out', () => {
+      const r = predictCesantesCanalization(sw(), 90, true, null, null, null, null, 700);
+      expect(r.boostFactor).toBeCloseTo(2.0, 1);
+      expect(r.confidence).toBe(85);
+    });
+
+    it('reproduces the day it got it wrong', () => {
+      // 9kt SW at the mouth, mist on the cameras, overcast. The old ladder
+      // multiplied by 2.0 and reported ~18kt; channelling alone gives ~12.6.
+      const r = predictCesantesCanalization(
+        [buoy({ stationId: 2248, windSpeed: 4.63, windDir: 247, stationName: 'A Guarda' })],
+        90, true, 23, 20.2, 5, 247, 90,
+      );
+      expect(r.predictedKt!).toBeLessThan(15);
+      expect(r.confidence).toBeLessThan(70); // below the gate the callers apply
+    });
   });
 });
 
@@ -365,4 +426,7 @@ describe('computeMouthHumidity', () => {
     // 75th percentile of [70,80,90,95] → idx=floor(4*0.75)=3 → 95
     expect(computeMouthHumidity(stations, readings)).toBe(95);
   });
+
+
+
 });
