@@ -18,6 +18,29 @@ export function normalizeAemetStation(raw: AemetRawStation): NormalizedStation {
   };
 }
 
+/** Build a station from an AEMET OBSERVATION row.
+ *
+ *  The climatological inventory and the observation feed are not the same
+ *  population, and the inventory is the smaller one: measured 4-ago, 56 AEMET
+ *  stations were reporting inside Galicia and only 31 of them existed in the
+ *  inventory. The other 25 (11 of them with wind — Ribadeo, Burela, Carballo,
+ *  Vimianzo, Noia, Silleda, Lugo, Monforte...) were downloaded every five
+ *  minutes and dropped on the floor, because the fetcher keeps only the ids
+ *  discovery already knows.
+ *
+ *  Observations also carry lat/lon as plain decimals, so they skip the
+ *  degrees-minutes-seconds parsing the inventory needs. */
+export function normalizeAemetObservationStation(raw: AemetRawObservation): NormalizedStation {
+  return {
+    id: `aemet_${raw.idema}`,
+    source: 'aemet',
+    name: raw.ubi,
+    lat: raw.lat,
+    lon: raw.lon,
+    altitude: raw.alt,
+  };
+}
+
 /** Normalize an AEMET observation to our reading format */
 export function normalizeAemetObservation(raw: AemetRawObservation): NormalizedReading {
   // AEMET `vis` = visibility in km (SYNOP encoding 0-55). Sanity: accept 0-50,
