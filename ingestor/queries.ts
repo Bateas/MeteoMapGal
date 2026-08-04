@@ -907,3 +907,53 @@ export async function findStuckAnemometers(): Promise<Set<string>> {
   );
   return new Set(result.rows.map((r) => r.station_id as string));
 }
+
+export interface UpperAirLevelRow {
+  time: string;
+  pressureHpa: number;
+  windDirDeg: number | null;
+  windSpeedMs: number | null;
+  temperatureC: number | null;
+  geopotentialM: number | null;
+}
+
+/**
+ * The sounding above a sector: 850 / 700 / 500 hPa, hour by hour.
+ *
+ * `synopticFetcher` has been writing this table for months and nothing could
+ * read it — there was no route, and the app's atmospheric profile comes from
+ * the thermal path instead. It surfaced the day the question "what do the
+ * models say aloft?" could not be answered: our own copy was unreachable and
+ * the external free tier had spent its daily quota.
+ *
+ * It matters most for the Castrelo downslope work. What accelerates the flow
+ * over a ridge is a stable lid near crest height squeezing it, and 850 hPa is
+ * where that lid shows up — surface stations cannot see it by construction.
+ *
+ * Ascending by time so a caller can plot it directly, and bounded by hours
+ * rather than a row limit, because a truncated sounding silently answers a
+ * different question than the one asked.
+ */
+export async function queryUpperAir(
+  sector: string,
+  hours: number,
+): Promise<UpperAirLevelRow[]> {
+  const db = getPool();
+  const result = await db.query(
+    `SELECT time, pressure_hpa, wind_dir_deg, wind_speed_ms, temperature_c, geopotential_m
+       FROM upper_air_hourly
+      WHERE sector = $1
+        AND time > NOW() - ($2 || ' hours')::INTERVAL
+      ORDER BY time ASC, pressure_hpa DESC`,
+    [sector, String(hours)],
+  );
+
+  return result.rows.map((r) => ({
+    time: r.time,
+    pressureHpa: Number(r.pressure_hpa),
+    windDirDeg: r.wind_dir_deg == null ? null : Number(r.wind_dir_deg),
+    windSpeedMs: r.wind_speed_ms == null ? null : Number(r.wind_speed_ms),
+    temperatureC: r.temperature_c == null ? null : Number(r.temperature_c),
+    geopotentialM: r.geopotential_m == null ? null : Number(r.geopotential_m),
+  }));
+}

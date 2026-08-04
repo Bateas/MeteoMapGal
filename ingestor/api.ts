@@ -19,6 +19,7 @@
  *   GET /api/v1/analytics/convection-trend?sector=&days=          → Daily peak CAPE/LI
  *   GET /api/v1/analytics/air-quality-trend?days=&station=        → Daily AQ rollup
  *   GET /api/v1/analytics/convection-grid?hourOffset=             → Spatial CAPE/LI grid
+ *   GET /api/v1/analytics/upper-air?sector=&hours=                → Sounding 850/700/500 hPa
  *   GET /api/v1/fires?days=                                       → Active fires + lightning attribution
  *   GET /api/v1/fires/events?days=&galicia=&province=             → EFFIS named fire events (commune + hectares)
  *   GET /api/v1/push/vapid-key                                    → Web Push VAPID public key
@@ -52,6 +53,7 @@ import {
   queryConvectionGrid,
   queryHistoricalBaseline,
   queryFireAttribution,
+  queryUpperAir,
 } from './queries.js';
 import { getPool } from './db.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
@@ -541,6 +543,27 @@ async function handleAnalyticsConvectionTrend(
   }
 }
 
+async function handleAnalyticsUpperAir(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const sector = params.sector;
+  if (!sector || (sector !== 'embalse' && sector !== 'rias')) {
+    error(res, 'Missing or invalid parameter: sector (embalse or rias)', 400, origin); return;
+  }
+  // Hours, not a row cap: three pressure levels per hour means a row limit
+  // would silently return a partial sounding, which reads as a real one.
+  const hours = Math.min(168, Math.max(1, parseInt(params.hours || '48', 10) || 48));
+
+  try {
+    const levels = await queryUpperAir(sector, hours);
+    json(res, { sector, hours, count: levels.length, levels }, 200, origin);
+  } catch (err) {
+    dbError(res, err, 'handleAnalyticsUpperAir', origin);
+  }
+}
+
 async function handleAnalyticsAirQualityTrend(
   params: Record<string, string>,
   res: http.ServerResponse,
@@ -853,6 +876,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/analytics/air-quality-trend':  handleAnalyticsAirQualityTrend,
   '/api/v1/analytics/convection-grid':    handleAnalyticsConvectionGrid,
   '/api/v1/analytics/historical-baseline': handleAnalyticsHistoricalBaseline,
+  '/api/v1/analytics/upper-air':          handleAnalyticsUpperAir,
   // ── Magic Window (T2-2 S136+3+3) ──
   '/api/v1/magic-window/latest':          handleMagicWindowLatest,
   // ── Web Push (lightning-safety channel) ──
