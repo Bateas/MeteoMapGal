@@ -338,12 +338,13 @@ async function fetchNetatmo(
   // `getpublicdata` answers with the stations AND their readings, so one call
   // per box does both jobs — which is why the sweep can be this cheap.
   const sectors = (await import('../src/config/sectors.js')).SECTORS;
-  const areas: { id: string; lat: number; lon: number; radiusKm: number }[] =
+  const areas: { id: string; lat: number; lon: number; radiusKm: number; requiredData?: string }[] =
     sectors.map((sec) => ({
       id: sec.id,
       lat: sec.center[1],
       lon: sec.center[0],
       radiusKm: sec.radiusKm,
+      requiredData: 'wind',
     }));
 
   if (Date.now() - lastNetatmoSweep > NETATMO_SWEEP_INTERVAL_MS) {
@@ -376,7 +377,7 @@ async function fetchNetatmo(
           lat_sw: lat - latDelta,
           lon_ne: lon + lonDelta,
           lon_sw: lon - lonDelta,
-          required_data: 'wind',
+          ...(area.requiredData ? { required_data: area.requiredData } : {}),
           filter: false,
         }),
         signal: AbortSignal.timeout(TIMEOUT),

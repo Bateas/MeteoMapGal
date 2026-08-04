@@ -412,7 +412,12 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
   const allStations: NormalizedStation[] = [];
 
   /** Fetch Netatmo stations in a bbox around a point */
-  async function fetchNetatmoBbox(lat: number, lon: number, radiusKm: number, label: string): Promise<void> {
+  /** `requiredData` narrows the answer to stations carrying that sensor.
+   *  Asking for 'wind' is right inside a sector — the anemometer is what a
+   *  verdict needs — but it is also why Netatmo looked so thin everywhere
+   *  else: the wind module is a rare add-on, so the cities full of Netatmo
+   *  came back nearly empty. Pass nothing to get every public station. */
+  async function fetchNetatmoBbox(lat: number, lon: number, radiusKm: number, label: string, requiredData?: string): Promise<void> {
     const latDelta = (radiusKm / 111) * 1.1;
     const lonDelta = (radiusKm / 82) * 1.1;
 
@@ -428,7 +433,7 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
           lat_sw: lat - latDelta,
           lon_ne: lon + lonDelta,
           lon_sw: lon - lonDelta,
-          required_data: 'wind',
+          ...(requiredData ? { required_data: requiredData } : {}),
           filter: false,
         }),
         signal: AbortSignal.timeout(TIMEOUT),
@@ -466,13 +471,13 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
   for (const sector of SECTORS) {
     const [lon, lat] = sector.center;
     // Main sector bbox
-    await fetchNetatmoBbox(lat, lon, sector.radiusKm, sector.id);
+    await fetchNetatmoBbox(lat, lon, sector.radiusKm, sector.id, 'wind');
 
     // Extra coverage points — query Netatmo around each to cover distant areas
     // (Corrubedo, A Guarda, Muros, Cangas are outside main 30km bbox)
     if (sector.extraCoveragePoints?.length) {
       for (const p of sector.extraCoveragePoints) {
-        await fetchNetatmoBbox(p.lat, p.lon, 15, `${sector.id}/${p.name}`);
+        await fetchNetatmoBbox(p.lat, p.lon, 15, `${sector.id}/${p.name}`, 'wind');
       }
     }
   }
@@ -481,6 +486,10 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
   // ~25 calls an hour on top of the 13 above — comfortably inside Netatmo's
   // documented budget, and it is where the cities are.
   for (const p of GALICIA_SWEEP_POINTS) {
+    // No sensor filter here: outside the sectors we are building an archive,
+    // and a station with only temperature and humidity is exactly what the
+    // half of the fire-weather index that ignores wind runs on. They arrive
+    // flagged `tempOnly`, which the map already knows how to keep quiet.
     await fetchNetatmoBbox(p.lat, p.lon, GALICIA_SWEEP_RADIUS_KM, `galicia/${p.name}`);
   }
 
