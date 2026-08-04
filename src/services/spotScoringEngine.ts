@@ -1277,8 +1277,15 @@ export function scoreAllSpots(
       const summerLike = airTempLocal !== null && airTempLocal >= 20;
       const waterTempForDetector = waterTemp
         ?? (summerLike ? RIA_VIGO_INTERIOR_SST_BY_MONTH[new Date().getMonth()] : null);
+      // Nearest station that reports radiation. The detector needs it to tell
+      // a thermal convergence apart from a front arriving on the same bearing —
+      // both put mist in the mouth of the ría, only one comes with wind.
+      const solarRadLocal = [...stationData ?? []]
+        .sort((a, b) => a.distKm - b.distKm)
+        .find((s) => s.reading.solarRadiation != null)?.reading.solarRadiation ?? null;
       channelingPrediction = predictCesantesCanalization(
         buoys, mouthHum, false, airTempLocal, waterTempForDetector, localStationKt, wind?.dirDeg ?? null,
+        solarRadLocal,
       );
     }
 

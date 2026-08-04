@@ -357,6 +357,14 @@ function applyCesantesBoost(
     .sort((a, b) => a.d - b.d);
   const airTempLocal = stationsWithTemp[0]?.r.temperature ?? null;
 
+  // Nearest station reporting radiation. The detector needs it to tell a
+  // thermal convergence apart from a front arriving on the same bearing: both
+  // leave mist in the mouth of the ría, only one brings the wind with it.
+  const solarRadLocal = readings
+    .filter(r => r.solar_rad != null && r.latitude !== 0 && r.longitude !== 0)
+    .map(r => ({ r, d: haversineDistance(cesantesLat, cesantesLon, r.latitude, r.longitude) }))
+    .sort((a, b) => a.d - b.d)[0]?.r.solar_rad ?? null;
+
   // Find waterTemp from nearby buoy or climatology fallback
   // (matches frontend RIA_VIGO_INTERIOR_SST_BY_MONTH pattern)
   const nearbyBuoyWithSST = buoys.find(b =>
@@ -383,6 +391,7 @@ function applyCesantesBoost(
     // map suppressed the boost on a NW day and Telegram still sent it — while
     // the comment above this function claimed the gates matched exactly.
     localWindDir,
+    solarRadLocal,
   );
 
   if (!prediction.active || prediction.predictedKt === null) return null;

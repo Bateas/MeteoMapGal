@@ -482,6 +482,12 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
       wind_dir: 240,
       temperature: 14,
       humidity: 70,
+      // A sunny April morning, which is what this scenario always assumed
+      // without saying so. The humid-mouth boost describes a thermal
+      // convergence, and that needs the sun: under overcast the same mist can
+      // just as easily be a front arriving on the same bearing, which is how
+      // this detector announced 20kt on a 5kt afternoon.
+      solar_rad: 550,
     });
     // Station inside mouth bbox (lon < -8.78, lat 42.15-42.30) with humid air
     const moana = makeReading({
