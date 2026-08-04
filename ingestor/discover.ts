@@ -62,6 +62,30 @@ function inGalicia(lat: number, lon: number): boolean {
     && lon >= GALICIA.lonMin && lon <= GALICIA.lonMax;
 }
 
+/** Bbox centres covering Galicia, for the sources that are asked BY AREA.
+ *
+ *  Netatmo answers `getpublicdata` with every public station inside a box, so
+ *  one call buys both the stations and their readings. Until now it was only
+ *  ever asked about the two sectors, which left the densest part of the
+ *  network invisible: Netatmo lives in cities, and A Coruna, Santiago, Lugo,
+ *  Ourense and Ferrol had no box at all.
+ *
+ *  Spacing is 0.45 degrees of latitude (~50 km) against a 30 km radius, so the
+ *  boxes overlap and nothing falls between them. Points outside Galicia are
+ *  dropped by `inGalicia` on the way in, so the grid can stay a plain
+ *  rectangle without pretending the region is one. */
+export const GALICIA_SWEEP_RADIUS_KM = 30;
+
+export const GALICIA_SWEEP_POINTS: { name: string; lat: number; lon: number }[] = (() => {
+  const pts: { name: string; lat: number; lon: number }[] = [];
+  for (let lat = 41.95; lat <= 43.75; lat += 0.45) {
+    for (let lon = -9.15; lon <= -6.85; lon += 0.55) {
+      pts.push({ name: `${lat.toFixed(2)},${lon.toFixed(2)}`, lat, lon });
+    }
+  }
+  return pts;
+})();
+
 // ── AEMET ─────────────────────────────────────────────
 
 /**
@@ -254,8 +278,9 @@ async function discoverWunderground(): Promise<NormalizedStation[]> {
         const sLat = loc.latitude[i];
         const sLon = loc.longitude[i];
         // Sector, no Galicia: WU cuesta una petición por estación.
-        // Sector, no Galicia: Netatmo se pide por bbox de sector.
-        if (!inAnySector(sLat, sLon)) continue;
+        // Galicia entera: la rejilla de abajo pregunta fuera de los sectores a
+        // proposito, asi que filtrar por sector aqui tiraria justo lo nuevo.
+        if (!inGalicia(sLat, sLon)) continue;
 
         const id = `wu_${loc.stationId[i]}`;
         if (allStations.some((s) => s.id === id)) continue;
@@ -450,6 +475,13 @@ async function discoverNetatmo(): Promise<NormalizedStation[]> {
         await fetchNetatmoBbox(p.lat, p.lon, 15, `${sector.id}/${p.name}`);
       }
     }
+  }
+
+  // Everything else in Galicia. Discovery runs hourly, so this grid costs
+  // ~25 calls an hour on top of the 13 above — comfortably inside Netatmo's
+  // documented budget, and it is where the cities are.
+  for (const p of GALICIA_SWEEP_POINTS) {
+    await fetchNetatmoBbox(p.lat, p.lon, GALICIA_SWEEP_RADIUS_KM, `galicia/${p.name}`);
   }
 
   log.info(`Netatmo: ${allStations.length} stations (${allStations.filter(s => !s.tempOnly).length} with wind)`);
