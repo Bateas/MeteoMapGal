@@ -5,11 +5,12 @@
  */
 
 import type { NormalizedStation } from '../src/types/station.js';
-import type { AemetApiResponse, AemetRawStation } from '../src/types/aemet.js';
+import type { AemetApiResponse, AemetRawStation, AemetRawObservation } from '../src/types/aemet.js';
 import type { MeteoGaliciaStation } from '../src/types/meteogalicia.js';
 import { METEOCLIMATIC_STATIONS } from '../src/types/meteoclimatic.js';
 import { SECTORS } from '../src/config/sectors.js';
-import { normalizeAemetStation, normalizeMeteoGaliciaStation } from '../src/services/normalizer.js';
+import { normalizeAemetStation,
+  normalizeAemetObservationStation, normalizeMeteoGaliciaStation } from '../src/services/normalizer.js';
 import { isWithinRadius } from '../src/services/geoUtils.js';
 import { log } from './logger.js';
 import * as aemetBreaker from './aemetBreaker.js';
@@ -141,12 +142,47 @@ async function discoverAemet(): Promise<NormalizedStation[]> {
         return inGalicia(s.lat, s.lon);
       });
 
-    const visStations = stations.filter((s) =>
+    // Step 3: the inventory is NOT the whole picture. Measured 4-ago: 56 AEMET
+    // stations were reporting inside Galicia and only 31 existed in the
+    // climatological inventory, so 25 of them (11 with wind) were being
+    // downloaded every five minutes and discarded — the observation fetcher
+    // keeps only the ids discovery already knows. Union the two: the feed
+    // below is the same one the fetcher polls, and it carries plain decimal
+    // coordinates instead of the degrees-minutes-seconds the inventory uses.
+    const byId = new Map(stations.map((st) => [st.id, st]));
+    try {
+      const obsMeta = await fetch(
+        `${AEMET_BASE}/api/observacion/convencional/todas?api_key=${apiKey}`,
+        { signal: AbortSignal.timeout(TIMEOUT) }
+      );
+      const obsMetaJson: AemetApiResponse = await obsMeta.json();
+      if (obsMetaJson.estado === 200 && obsMetaJson.datos) {
+        const obsRes = await fetch(obsMetaJson.datos, { signal: AbortSignal.timeout(TIMEOUT) });
+        const obsBuf = await obsRes.arrayBuffer();
+        const obsCharset = obsRes.headers.get('content-type')?.match(/charset=([^\s;]+)/i)?.[1] ?? 'iso-8859-1';
+        const obsRaw = JSON.parse(new TextDecoder(obsCharset).decode(obsBuf));
+        if (Array.isArray(obsRaw)) {
+          for (const o of obsRaw as AemetRawObservation[]) {
+            if (typeof o.lat !== 'number' || typeof o.lon !== 'number') continue;
+            if (!inGalicia(o.lat, o.lon)) continue;
+            const st = normalizeAemetObservationStation(o);
+            // The inventory wins on name and province when it has the station.
+            if (!byId.has(st.id)) byId.set(st.id, st);
+          }
+        }
+      }
+    } catch (err) {
+      // Non-fatal: the inventory half already succeeded, so keep those.
+      log.warn('AEMET observation discovery failed:', (err as Error).message);
+    }
+
+    const merged = [...byId.values()];
+    const visStations = merged.filter((s) =>
       AEMET_REGIONAL_VIS_STATIONS.has(s.id.replace(/^aemet_/, ''))
     ).length;
     aemetBreaker.reportSuccess();
-    log.info(`AEMET: ${stations.length} stations in range (${visStations} regional vis)`);
-    return stations;
+    log.info(`AEMET: ${merged.length} stations in range (${stations.length} from inventory, ${visStations} regional vis)`);
+    return merged;
   } catch (err) {
     log.error('AEMET discovery failed:', (err as Error).message);
     return [];
