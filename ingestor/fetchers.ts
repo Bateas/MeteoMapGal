@@ -149,7 +149,10 @@ async function fetchMeteoclimatic(
 ): Promise<NormalizedReading[]> {
   if (stationIds.size === 0) return [];
 
-  const regions = ['ESGAL32', 'ESGAL36', 'ESGAL15'];
+  // The four Galician provinces. ESGAL27 (Lugo) was missing entirely, so no
+  // Meteoclimatic station in that province could ever be fetched, curated
+  // coordinates or not.
+  const regions = ['ESGAL32', 'ESGAL36', 'ESGAL15', 'ESGAL27'];
   const allRaw: MeteoclimaticRawStation[] = [];
 
   const results = await Promise.allSettled(
@@ -185,9 +188,35 @@ async function fetchMeteoclimatic(
     readings.push(normalizeMeteoclimaticObservation(raw));
   }
 
-  log.info(`Meteoclimatic: ${readings.length} readings`);
+  // Stations the feed is publishing that we cannot place. The XML carries no
+  // coordinates and Meteoclimatic exposes none in machine-readable form, so a
+  // station only becomes usable once someone adds its lat/lon to
+  // METEOCLIMATIC_STATIONS by hand. Rather than leave that as a chore nobody
+  // remembers, say out loud what is being left on the table — and keep saying
+  // it as the network grows, so a station added next year surfaces by itself.
+  //
+  // Guessing the coordinates instead would be worse than skipping them: a
+  // station dropped in the wrong place lands inside some spot's radius and
+  // quietly corrupts a verdict.
+  const placeable = new Set(METEOCLIMATIC_STATIONS.map((m) => m.id));
+  const unplaceable = [...new Set(allRaw.map((r) => r.id))].filter((id) => !placeable.has(id));
+  if (unplaceable.length > 0 && Date.now() - lastMcCandidateLog > MC_CANDIDATE_LOG_INTERVAL) {
+    lastMcCandidateLog = Date.now();
+    const named = unplaceable
+      .map((id) => `${id} (${allRaw.find((r) => r.id === id)?.location ?? '?'})`)
+      .join(', ');
+    log.info(`Meteoclimatic: ${unplaceable.length} stations publishing without coordinates on our side — add them to METEOCLIMATIC_STATIONS to use them: ${named}`);
+  }
+
+  log.info(`Meteoclimatic: ${readings.length} readings${unplaceable.length ? ` (+${unplaceable.length} unplaceable)` : ''}`);
   return readings;
 }
+
+/** The unplaceable-station notice is worth seeing, but not every five
+ *  minutes. Once an hour is enough to be noticed and ignored until someone
+ *  has time for it. */
+const MC_CANDIDATE_LOG_INTERVAL = 60 * 60 * 1000;
+let lastMcCandidateLog = 0;
 
 // ── Weather Underground observations ─────────────────
 
