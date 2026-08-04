@@ -4,6 +4,7 @@
  * Includes client-side search filter (G4 audit fix).
  */
 import { useState } from 'react';
+import { approxStationCount } from '../../../config/networkStats';
 import { WeatherIcon } from '../../icons/WeatherIcons';
 
 export function GlossarySection() {
@@ -447,7 +448,7 @@ export function GlossarySection() {
         <Term
           term="IDW (Inverse Distance Weighting)"
           definition="Técnica de interpolación que estima valores entre estaciones. Las estaciones más cercanas tienen más peso en la estimación."
-          example="Las capas de viento y humedad usan IDW para crear un mapa continuo a partir de 100+ estaciones discretas."
+          example={`Las capas de viento y humedad usan IDW para crear un mapa continuo a partir de ${approxStationCount()} estaciones discretas.`}
           color="#a855f7"
           search={q}
         />
