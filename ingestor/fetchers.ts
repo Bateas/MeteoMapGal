@@ -14,7 +14,14 @@ import {
   normalizeMeteoclimaticObservation,
 } from '../src/services/normalizer.js';
 import { parseMeteoclimaticXml } from './xml.js';
-import { getNetatmoToken } from './discover.js';
+import { getNetatmoToken, GALICIA_SWEEP_POINTS, GALICIA_SWEEP_RADIUS_KM } from './discover.js';
+
+/** The sectors are what someone is deciding on right now, so they keep the
+ *  five-minute cadence. The rest of Galicia is archive: half an hour is plenty
+ *  for a dataset, and it keeps the whole sweep far inside Netatmo's budget.
+ *  Together: ~24 sector calls an hour plus ~50 for the sweep. */
+const NETATMO_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
+let lastNetatmoSweep = 0;
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import * as aemetBreaker from './aemetBreaker.js';
@@ -327,11 +334,34 @@ async function fetchNetatmo(
 
   const readings: NormalizedReading[] = [];
 
-  // Fetch for each sector bbox
-  for (const sector of (await import('../src/config/sectors.js')).SECTORS) {
-    const [lon, lat] = sector.center;
-    const latDelta = (sector.radiusKm / 111) * 1.1;
-    const lonDelta = (sector.radiusKm / 82) * 1.1;
+  // The two sectors every cycle, plus the rest of Galicia on a slower turn.
+  // `getpublicdata` answers with the stations AND their readings, so one call
+  // per box does both jobs — which is why the sweep can be this cheap.
+  const sectors = (await import('../src/config/sectors.js')).SECTORS;
+  const areas: { id: string; lat: number; lon: number; radiusKm: number }[] =
+    sectors.map((sec) => ({
+      id: sec.id,
+      lat: sec.center[1],
+      lon: sec.center[0],
+      radiusKm: sec.radiusKm,
+    }));
+
+  if (Date.now() - lastNetatmoSweep > NETATMO_SWEEP_INTERVAL_MS) {
+    lastNetatmoSweep = Date.now();
+    for (const p of GALICIA_SWEEP_POINTS) {
+      areas.push({
+        id: `galicia/${p.name}`,
+        lat: p.lat,
+        lon: p.lon,
+        radiusKm: GALICIA_SWEEP_RADIUS_KM,
+      });
+    }
+  }
+
+  for (const area of areas) {
+    const { lat, lon } = area;
+    const latDelta = (area.radiusKm / 111) * 1.1;
+    const lonDelta = (area.radiusKm / 82) * 1.1;
 
     try {
       // Fetch wind stations
@@ -424,7 +454,7 @@ async function fetchNetatmo(
         });
       }
     } catch (err) {
-      log.error(`Netatmo fetch (${sector.id}) failed:`, (err as Error).message);
+      log.error(`Netatmo fetch (${area.id}) failed:`, (err as Error).message);
     }
   }
 
