@@ -238,9 +238,17 @@ describe('scoreSpot — buoy integration', () => {
     const b = makeBuoy({ wind_speed: 7 }); // 13.6 kt
     const result = scoreSpot(cesantes, [r], [b]);
     expect(result.stationCount).toBe(2);
-    // Average: (9.7+13.6)/2 ≈ 11.65 → rounds to 12
-    expect(result.avgWindKt).toBe(12);
-    expect(result.verdict).toBe('good');
+    // The comment that used to sit here read "(9.7+13.6)/2 ≈ 11.65 → 12" and
+    // described a FLAT mean, which stopped being true when the map's weights
+    // were ported. It kept passing by luck: the weighted answer also rounded
+    // to 12 while MeteoGalicia was stuck at the 0.7 default.
+    //
+    // Now the quality lookup works, so this station weighs 1.0. It also sits
+    // 2.2km from the spot against the buoy's 6.2km, so distance already
+    // favoured it — the two together pull the consensus down from 12 to 11.
+    // Alone the station reads 10 and the buoy 14, so 11 sits where it should.
+    expect(result.avgWindKt).toBe(11);
+    expect(result.verdict).toBe('sailing');
   });
 });
 

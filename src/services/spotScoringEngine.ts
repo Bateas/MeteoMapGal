@@ -346,9 +346,31 @@ const WIND_BLACKLIST = new Set([
   'wu_INOIA1',      // Noia: ratio 0.18
 ]);
 
-/** Source quality multiplier by network */
-export function getSourceQuality(stationId: string): number {
-  const source = stationId.split('_')[0];
+/** The codebase speaks two vocabularies for the same six networks: station ids
+ *  are prefixed `mg_`, `mc_`, `wu_`, `nt_`, while `NormalizedStation.source`
+ *  spells the name out. Both are legitimate; the table above uses the long one.
+ *
+ *  That mismatch is why this lookup silently did nothing for months: it was
+ *  handed an id, split off `mg`, found no key called `mg`, and returned the
+ *  0.7 default. So MeteoGalicia — meant to weigh 1.0 as a calibrated
+ *  professional instrument — counted the same as an unknown backyard station,
+ *  and Netatmo counted MORE than intended. Only `aemet` and `skyx` ever
+ *  matched, because for those two the prefix and the name happen to coincide. */
+const PREFIX_TO_SOURCE: Record<string, string> = {
+  aemet: 'aemet',
+  mg: 'meteogalicia',
+  mc: 'meteoclimatic',
+  wu: 'wunderground',
+  nt: 'netatmo',
+  skyx: 'skyx',
+};
+
+/** Source quality multiplier by network. Accepts either vocabulary — a station
+ *  id (`mg_10154`) or a source name (`meteogalicia`) — so passing the wrong one
+ *  can no longer degrade to the default without anyone noticing. */
+export function getSourceQuality(stationIdOrSource: string): number {
+  const head = stationIdOrSource.split('_')[0];
+  const source = PREFIX_TO_SOURCE[head] ?? head;
   return SOURCE_QUALITY[source] ?? 0.7;
 }
 
