@@ -16,7 +16,14 @@ const ENTITIES: Record<string, string> = {
 };
 
 function decodeEntities(text: string): string {
-  return text.replace(/&[a-zA-Z]+;/g, (match) => ENTITIES[match] ?? match);
+  return text
+    .replace(/&[a-zA-Z]+;/g, (match) => ENTITIES[match] ?? match)
+    // Meteoclimatic sends NUMERIC entities for accented characters, which the
+    // named table above cannot cover: "Aer&#243;dromo de Rozas", "Becerre&#225;
+    // - Ag&#252;eira". Without this half they travelled raw into logs and into
+    // any station name we show.
+    .replace(/&#(\d{1,6});/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-fA-F]{1,5});/g, (_, code) => String.fromCodePoint(parseInt(code, 16)));
 }
 
 /** Extract text content of an XML tag */
