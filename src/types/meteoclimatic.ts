@@ -19,6 +19,12 @@ export interface MeteoclimaticStationMeta {
   lat: number;
   lon: number;
   altitude: number;
+  /**
+   * Present only when the position came from the public profile page, which
+   * publishes degrees and minutes and nothing finer: roughly +-1.5 km. Absent
+   * means the entry was curated by hand and can be trusted at spot scale.
+   */
+  precision?: 'coarse';
 }
 
 /**
@@ -58,7 +64,44 @@ export const METEOCLIMATIC_STATIONS: MeteoclimaticStationMeta[] = [
   // --- A Coruña (ESGAL15) — Barbanza coast, Corrubedo area ---
   { id: 'ESGAL1500000015290A', lat: 42.802, lon: -9.026, altitude: 50 },    // Abelleira - Muros (coastal, near Corrubedo)
   { id: 'ESGAL1500000015211A', lat: 42.790, lon: -8.840, altitude: 100 },   // Roo - Noia (Ría Muros-Noia)
+
+  // ── Añadidas 2026-08-04, precision GRUESA ────────────────────────────
+  // El feed XML no lleva coordenadas y la ficha publica solo da grados y
+  // minutos, asi que estas salen de ahi: ±1,5 km. Ninguna otra via las afina
+  // — el campo `homepage` del feed esta vacio en las 15, comprobado.
+  //
+  // Por eso llevan `precision: 'coarse'`, y la regla que va con la marca:
+  // valen para cobertura y para el barrido de calibracion, NUNCA como
+  // `preferredStations` de un spot ni en trabajo sensible al relieve. Un
+  // error de 1,5 km en un valle cruza un monte — es exactamente lo que hace
+  // inutil a Remuino para el viento del embalse.
+  //
+  // Se afinan cuando haga falta y solo entonces: a 40 km del spot mas cercano
+  // el error no cambia ninguna decision. El metodo, cuando toque, es cruzar
+  // la caja de 1 minuto con la altitud publicada — en terreno abrupto quedan
+  // pocos puntos a esa cota, que es justo donde la precision importa.
+  // --- Ourense (ESGAL32) ---
+  { id: 'ESGAL3200000032870A', lat: 41.8833, lon: -8.0833, altitude: 487, precision: 'coarse' },   // Cimadevila - Lobios
+  // --- Pontevedra (ESGAL36) ---
+  { id: 'ESGAL3600000036419A', lat: 42.1500, lon: -8.6667, altitude: 412, precision: 'coarse' },   // Mos - O.C. British School
+  { id: 'ESGAL3600000036202A', lat: 42.2167, lon: -8.7167, altitude: 47, precision: 'coarse' },   // Vigo (O Castro)  [DUPLICA SITIO: a 1,0 km de wu_IVIGO51]
+  // --- A Coruna (ESGAL15) — norte, futuro sector ---
+  { id: 'ESGAL1500000015624A', lat: 43.4333, lon: -8.2667, altitude: 45, precision: 'coarse' },   // Ares-Pedragosa
+  { id: 'ESGAL1500000015142B', lat: 43.2833, lon: -8.5000, altitude: 65, precision: 'coarse' },   // Arteixo
+  { id: 'ESGAL1500000015004A', lat: 43.3667, lon: -8.4000, altitude: 17, precision: 'coarse' },   // La Coruña  [DUPLICA SITIO: a 1,7 km de aemet_1387]
+  { id: 'ESGAL1500000015121A', lat: 43.2500, lon: -8.5833, altitude: 215, precision: 'coarse' },   // Laracha
+  { id: 'ESGAL1500000015680A', lat: 43.0333, lon: -8.4167, altitude: 307, precision: 'coarse' },   // Montaos  [sin anemometro]
+  { id: 'ESGAL1500000015702A', lat: 42.8667, lon: -8.5333, altitude: 270, precision: 'coarse' },   // Santiago - Centro
+  { id: 'ESGAL1500000015630A', lat: 43.3667, lon: -8.1833, altitude: 105, precision: 'coarse' },   // Vilanova-Miño 
+  { id: 'ESGAL1500000015684A', lat: 43.1000, lon: -8.6000, altitude: 415, precision: 'coarse' },   // Vilar (Tordoia)
+  // --- Lugo (ESGAL27) — norte, futuro sector ---
+  { id: 'ESGAL2700000027821A', lat: 43.1000, lon: -7.4500, altitude: 443, precision: 'coarse' },   // Aeródromo de Rozas  [DUPLICA SITIO: a 1,4 km de aemet_1505]
+  { id: 'ESGAL2700000027678A', lat: 42.8333, lon: -7.1167, altitude: 610, precision: 'coarse' },   // Becerreá - Agüeira
+  { id: 'ESGAL2700000027002B', lat: 43.0000, lon: -7.5500, altitude: 481, precision: 'coarse' },   // Lugo - Ramón Ferreiro  [DUPLICA SITIO: a 0,3 km de aemet_1518A — MENOS que su propio error de posicion]
+  { id: 'ESGAL2700000027002A', lat: 43.0167, lon: -7.5000, altitude: 475, precision: 'coarse' },   // Lugo - San Roque  [sin anemometro]
 ];
 
 /** Meteoclimatic feed regions to fetch */
-export const METEOCLIMATIC_REGIONS = ['ESGAL32', 'ESGAL36', 'ESGAL15'] as const;
+// All four Galician provinces. Lugo (ESGAL27) was missing here long after the
+// ingestor had been fixed, so the frontend's own fetch could never see it.
+export const METEOCLIMATIC_REGIONS = ['ESGAL32', 'ESGAL36', 'ESGAL15', 'ESGAL27'] as const;
