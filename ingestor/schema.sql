@@ -476,6 +476,13 @@ CREATE TABLE IF NOT EXISTS upper_air_hourly (
 );
 SELECT create_hypertable('upper_air_hourly', 'time', if_not_exists => TRUE);
 
+-- ON CONFLICT DO UPDATE needs UPDATE as well as INSERT: Open-Meteo refines past
+-- hours as new model runs land, so these rows are rewritten, not appended.
+-- Without it the writes fail on a permission the fetcher's catch swallows, and
+-- the table looks merely empty rather than broken. Missing entirely until
+-- 2026-08-04, when exposing the sounding over the API made it worth checking.
+GRANT SELECT, INSERT, UPDATE ON upper_air_hourly TO meteomap_app;
+
 -- ── ICA air quality (Phase 1b TIER 2) ──────────────────────
 -- Official MeteoGalicia/Xunta network: ~30 stations reporting hourly.
 -- Persists raw ICA decimal value + dominant pollutant per station so we
