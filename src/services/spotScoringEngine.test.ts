@@ -3,7 +3,7 @@
  * Covers: windVerdict thresholds, scoreAllSpots integration, hard gates.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { scoreAllSpots, isWindBlacklisted, type SpotScore, type SpotVerdict } from './spotScoringEngine';
+import { scoreAllSpots, isWindBlacklisted, getSourceQuality, type SpotScore, type SpotVerdict } from './spotScoringEngine';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../types/buoy';
 import { RIAS_SPOTS, EMBALSE_SPOTS } from '../config/spots';
@@ -566,5 +566,48 @@ describe('provisional flag (cold-load readiness gate)', () => {
     expect(r.hardGateTriggered).not.toBeNull(); // 35kt > maxWindKt 30
     expect(r.verdict).toBe('strong');
     expect(r.provisional).toBe(false);
+  });
+});
+
+// ── getSourceQuality ─────────────────────────────────────
+//
+// This axis was inert for months. The table is keyed by network name
+// (`meteogalicia`) and the function was handed a station id (`mg_10154`), so
+// every lookup missed and fell through to the 0.7 default. Only `aemet` and
+// `skyx` worked, because for those two the id prefix and the network name
+// happen to be the same word — which is exactly why nobody spotted it.
+describe('getSourceQuality — reads both vocabularies', () => {
+  it('gives the official networks the weight the table says', () => {
+    expect(getSourceQuality('aemet_1701X')).toBe(1.0);
+    expect(getSourceQuality('mg_10154')).toBe(1.0);
+  });
+
+  it('places the curated amateur network between official and unknown', () => {
+    expect(getSourceQuality('mc_ESGAL3600000036202A')).toBe(0.85);
+  });
+
+  it('keeps consumer devices below', () => {
+    expect(getSourceQuality('wu_IREDON16')).toBe(0.7);
+    expect(getSourceQuality('nt_c3e8c6')).toBe(0.6);
+    expect(getSourceQuality('skyx_SKY100')).toBe(0.6);
+  });
+
+  it('accepts a source name as well as an id', () => {
+    // Passing station.source instead of station.id is an easy slip, and it
+    // used to degrade silently to the default rather than fail.
+    expect(getSourceQuality('meteogalicia')).toBe(1.0);
+    expect(getSourceQuality('netatmo')).toBe(0.6);
+  });
+
+  it('ranks the networks in the intended order', () => {
+    // The point of the axis: an official reading out-votes a backyard one.
+    // While the lookup was broken these were all equal, which is the whole bug.
+    expect(getSourceQuality('mg_10154')).toBeGreaterThan(getSourceQuality('mc_X'));
+    expect(getSourceQuality('mc_X')).toBeGreaterThan(getSourceQuality('wu_X'));
+    expect(getSourceQuality('wu_X')).toBeGreaterThan(getSourceQuality('nt_X'));
+  });
+
+  it('falls back to the default for something it does not know', () => {
+    expect(getSourceQuality('quienquiera_123')).toBe(0.7);
   });
 });
