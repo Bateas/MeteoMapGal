@@ -3,6 +3,7 @@
  * Concise, user-friendly. No architecture details exposed.
  */
 import { WeatherIcon } from '../../icons/WeatherIcons';
+import { SPOT_COUNT, SURF_SPOT_COUNT, SAILING_SPOT_COUNT, WEBCAM_COUNT, BUOY_COUNT, SOURCES, approxStationCount } from '../../../config/networkStats';
 import type { IconId } from '../../icons/WeatherIcons';
 import { useUIStore } from '../../../store/uiStore';
 
@@ -30,9 +31,9 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="database" title="Tab Histórico — Resumen sector" desc="El tab Historial ahora arranca con una vista 'Resumen sector' que muestra heatmap de tormentas y CAPE diarios, top 5 zonas con más rayos del periodo y evolución de la calidad del aire ICA, todo agregado por sector (Embalse o Rías). Toggle para volver al explorer detallado 'Por estación' cuando hace falta. Consume directamente las CAGGs (continuous aggregates) que ya estaban acumulando datos." status="done" />
         <TimelineMilestone iconId="zap" title="Storm tracker — vector estable con confianza" desc="Antes el vector de movimiento se calculaba como mediana entre pares de polls; con tormentas que aceleraban o cambiaban dirección quedaba sub-optimal. Ahora hace regresión lineal sobre la historia completa de centroides y reporta un tier de confianza (low/medium/high) según R² del fit. El visual modula automáticamente: vectores high-confidence bold + solid, low-confidence dashed + tenue — el ojo distingue 'storm va a sitio cierto' de 'storm está cambiando dirección'." status="done" />
         <TimelineMilestone iconId="info" title="Cesantes — viento coherente en toda la app" desc="Cuando el detector de canalización SW estima ~14kt locales pero la estación medio sheltered reportaba 7kt, antes el popup mostraba 14kt pero el marker del mapa, el banner móvil y el ticker seguían mostrando 7kt — incoherente. Ahora todos los puntos del UI leen el viento efectivo (post-detector boost). Si Cesantes está canalizando, todo el UI te dice 14kt SW BUENO." status="done" />
-        <TimelineMilestone iconId="sailboat" title="13 spots con veredicto automático" desc="10 de vela + 3 de surf. Scoring basado en 100+ estaciones y 13 boyas marinas." status="done" />
+        <TimelineMilestone iconId="sailboat" title={`${SPOT_COUNT} spots con veredicto automático`} desc={`${SAILING_SPOT_COUNT} de vela + ${SURF_SPOT_COUNT} de surf. Scoring basado en ${approxStationCount()} estaciones y ${BUOY_COUNT} boyas marinas.`} status="done" />
         <TimelineMilestone iconId="waves" title="Previsión de olas 24h" desc="Altura, período, tendencia y veredicto de surf (FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE)." status="done" />
-        <TimelineMilestone iconId="camera" title="22 webcams con visión IA" desc="19 cámaras MeteoGalicia + 2 cámaras DGT (Ribadavia, Fea-Arrabaldo) + webcam propia ESP32-CAM en Castrelo. Análisis automático: niebla, visibilidad y estado del cielo." status="done" />
+        <TimelineMilestone iconId="camera" title={`${WEBCAM_COUNT} webcams con visión IA`} desc="19 cámaras MeteoGalicia + 2 cámaras DGT (Ribadavia, Fea-Arrabaldo) + webcam propia ESP32-CAM en Castrelo. Análisis automático: niebla, visibilidad y estado del cielo." status="done" />
         <TimelineMilestone iconId="bell" title="Alertas inteligentes por Telegram" desc="Avisos de cambio de condiciones: viento, niebla, tormentas, olas. Silencio nocturno." status="done" />
         <TimelineMilestone iconId="sailboat" title="Modo Evento para regatas" desc="Zona de agua, panel de seguridad, balizas, mareas, aviación, previsión 6h." status="done" />
         <TimelineMilestone iconId="compass" title="Previsión horaria por spot" desc="Ventana de navegación 48h + mini-timeline 12h directamente en el popup." status="done" />
@@ -97,12 +98,19 @@ export function RoadmapSection() {
             <WeatherIcon id="database" size={13} /> Estaciones en tiempo real
           </h3>
           <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
-            <SourceRow letter="A" name="AEMET" desc="Agencia Estatal de Meteorologia — 20 estaciones" color="#ef4444" />
-            <SourceRow letter="M" name="MeteoGalicia" desc="Xunta de Galicia — 48 estaciones" color="#3b82f6" />
-            <SourceRow letter="C" name="Meteoclimatic" desc="Red ciudadana — 23 estaciones" color="#22c55e" />
-            <SourceRow letter="W" name="Weather Underground" desc="Estaciones personales — ~80 estaciones" color="#f59e0b" />
-            <SourceRow letter="N" name="Netatmo" desc="Red doméstica IoT — 31+ estaciones" color="#a855f7" />
-            <SourceRow letter="S" name="SkyX" desc="Estación personal portátil — auto-descubrimiento por GPS" color="#64748b" />
+            {SOURCES.map((src, i) => (
+              <SourceRow
+                key={src.key}
+                letter={src.name[0]}
+                name={src.name}
+                desc={src.what}
+                color={['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#64748b'][i]}
+              />
+            ))}
+            <p className="text-[11px] text-slate-500 pt-1">
+              {approxStationCount()} estaciones en toda Galicia. El reparto por red cambia cada semana,
+              así que no se fija aquí.
+            </p>
           </div>
         </div>
 
@@ -149,9 +157,8 @@ export function RoadmapSection() {
               <TechRow name="Recharts" license="MIT" />
             </div>
             <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
-              <span className="text-slate-500">100+ estaciones</span>
-              <span className="text-slate-500">22 webcams + IA</span>
-              <span className="text-slate-500">966 tests</span>
+              <span className="text-slate-500">{approxStationCount()} estaciones</span>
+              <span className="text-slate-500">{WEBCAM_COUNT} webcams + IA</span>
               <span className="text-slate-500">TimescaleDB 24/7</span>
             </div>
           </div>

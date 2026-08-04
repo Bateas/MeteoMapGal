@@ -1,12 +1,14 @@
 # MeteoMapGal
 
-[![Version](https://img.shields.io/badge/version-2.84.7-blue)](https://github.com/Bateas/MeteoMapGal/releases)
+<!-- La version y el estado de los tests se leen solos: los badges con el numero
+     escrito a mano decian 2.84.7 y "1414 passed" cuando el repo iba por 2.117.0
+     y 1829. Un badge que miente es peor que no tenerlo. -->
+[![Version](https://img.shields.io/github/package-json/v/Bateas/MeteoMapGal)](https://github.com/Bateas/MeteoMapGal/releases)
 [![CI](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml/badge.svg)](https://github.com/Bateas/MeteoMapGal/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1414%20passed-brightgreen)](src/test/)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
-**Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con 100+ estaciones, 13 boyas, 14 spots monitorizados, 22 webcams con IA y mapa 3D interactivo.
+**Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con mas de 400 estaciones en las cuatro provincias, 13 boyas, 14 spots monitorizados, 21 webcams con IA y mapa 3D interactivo.
 
 **Pruebalo**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) — Gratuito, sin registro. Funciona en movil y escritorio.
 
@@ -34,7 +36,7 @@
 
 | Zona | Ubicacion | Enfoque |
 |------|-----------|---------|
-| **Rias Baixas** | Pontevedra (costa) | Viento costero, olas, mareas, surf, 100+ estaciones + 13 boyas |
+| **Rias Baixas** | Pontevedra (costa) | Viento costero, olas, mareas, surf, ~185 estaciones + 13 boyas |
 | **Embalse de Castrelo** | Ourense (interior) | Viento termico para vela, agua plana, radio 35km |
 
 ---
@@ -235,7 +237,7 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # 1414 tests (Vitest)
+npm test                # Vitest en modo watch (1829 tests / 101 ficheros a 4-ago-2026)
 npm run knip            # Detector dead-code (informativo)
 ```
 
@@ -248,7 +250,7 @@ npm run knip            # Detector dead-code (informativo)
 - **Producción**: nginx reverse proxy en Proxmox LXC + smart deploy script (detecta diff, solo corre lo necesario), Cloudflare Tunnel
 - **Performance**: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle ~365KB (gzip ~121KB), FogOverlay chunked-async (yields cada 100 cells, 0 long tasks)
 - **Resilience**: Circuit breaker en TODOS los clientes API (4 capas: AEMET, Open-Meteo, lightning, ENAIRE), pre-classifier ahorra ~25min CPU/día en webcam vision, retention 2 años uniforme en hypertables críticas, convection grid query DISTINCT ON tolera cycles parciales
-- **Calidad**: knip dead-code detector como CI soft check (informativo), tests 1414/1414, 0 vulnerabilidades npm audit
+- **Calidad**: knip dead-code detector como CI soft check (informativo), suite completa en verde en cada push, 0 vulnerabilidades npm audit
 
 ---
 
@@ -266,7 +268,7 @@ npm run knip            # Detector dead-code (informativo)
 
 > MeteoMapGal nace nas Rias Baixas e no Embalse de Castrelo, de quen navega e coñece o mar galego.
 > As ferramentas globais non serven para os microclimas das nosas rias: termicas de val, virazons, bocanas matutinas.
-> Este proxecto cruza datos de 100+ estacions, boias e webcams para que o deportista saiba dunha ollada se paga a pena ir a auga.
+> Este proxecto cruza datos de mais de 400 estacions, boias e webcams para que o deportista saiba dunha ollada se paga a pena ir a auga.
 >
 > A capa base de datos e seguridade e sempre de balde. A seguridade dos deportistas non pode estar detras dun muro de pago.
 >
