@@ -59,6 +59,12 @@ CREATE TABLE IF NOT EXISTS stations (
   updated_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
+-- Which Galician province the station sits in. Stated by MeteoGalicia, AEMET
+-- and the Meteoclimatic id; inherited from the nearest known station for
+-- Wunderground and Netatmo, which carry no such field. For looking at
+-- coverage — nothing scores or alerts on it.
+ALTER TABLE stations ADD COLUMN IF NOT EXISTS province TEXT;
+
 CREATE INDEX IF NOT EXISTS stations_source_idx
   ON stations (source);
 

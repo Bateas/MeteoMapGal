@@ -4,6 +4,7 @@ import type { MeteoclimaticRawStation, MeteoclimaticStationMeta } from '../types
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MG_PARAMS } from '../types/meteogalicia';
 import { aemetDmsToDecimal } from './geoUtils';
+import { provinceFromMeteoclimaticId } from './provinceService';
 
 /** Normalize an AEMET station from inventory to our format */
 export function normalizeAemetStation(raw: AemetRawStation): NormalizedStation {
@@ -118,12 +119,10 @@ export function normalizeMeteoGaliciaObservation(
   };
 }
 
-/** Derive province from Meteoclimatic station ID prefix */
-function mcProvince(stationId: string): string {
-  if (stationId.startsWith('ESGAL36')) return 'PONTEVEDRA';
-  if (stationId.startsWith('ESGAL32')) return 'OURENSE';
-  return 'DESCONOCIDA';
-}
+// The Meteoclimatic id spells the province out; `provinceService` reads all
+// four INE codes. The version that lived here knew only 32 and 36 and called
+// everything else 'DESCONOCIDA' — harmless while those were the only two feeds
+// requested, wrong the moment A Coruna and Lugo were.
 
 /** Normalize a Meteoclimatic station (requires pre-known coordinates) */
 export function normalizeMeteoclimaticStation(
@@ -137,7 +136,7 @@ export function normalizeMeteoclimaticStation(
     lat: meta.lat,
     lon: meta.lon,
     altitude: meta.altitude,
-    province: mcProvince(raw.id),
+    province: provinceFromMeteoclimaticId(raw.id) ?? undefined,
   };
 }
 

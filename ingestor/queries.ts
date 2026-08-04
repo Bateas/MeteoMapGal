@@ -14,6 +14,7 @@ export interface StationInfo {
   reading_count: number;
   lat: number;
   lon: number;
+  province: string | null;
 }
 
 export interface ReadingRow {
@@ -81,10 +82,11 @@ export async function queryStations(): Promise<StationInfo[]> {
       MAX(r.time)::text AS last_reading,
       COUNT(*)::int AS reading_count,
       COALESCE(s.latitude, 0) AS lat,
-      COALESCE(s.longitude, 0) AS lon
+      COALESCE(s.longitude, 0) AS lon,
+      s.province
     FROM readings r
     LEFT JOIN stations s ON r.station_id = s.station_id
-    GROUP BY r.station_id, r.source, s.latitude, s.longitude
+    GROUP BY r.station_id, r.source, s.latitude, s.longitude, s.province
     ORDER BY r.source, r.station_id
   `);
   return result.rows;
