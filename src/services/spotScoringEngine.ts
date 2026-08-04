@@ -29,7 +29,7 @@ import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
 import { detectBocana } from './bocanaDetector';
-import { predictCesantesCanalization, computeMouthHumidity, type CesantesPrediction } from './cesantesCanalizationDetector';
+import { predictCesantesCanalization, computeInteriorSolar, computeMouthHumidity, type CesantesPrediction } from './cesantesCanalizationDetector';
 import { getStationBiasAt } from '../config/stationBiases';
 
 // ── Types ────────────────────────────────────────────────────
@@ -1277,15 +1277,17 @@ export function scoreAllSpots(
       const summerLike = airTempLocal !== null && airTempLocal >= 20;
       const waterTempForDetector = waterTemp
         ?? (summerLike ? RIA_VIGO_INTERIOR_SST_BY_MONTH[new Date().getMonth()] : null);
-      // Nearest station that reports radiation. The detector needs it to tell
-      // a thermal convergence apart from a front arriving on the same bearing —
-      // both put mist in the mouth of the ría, only one comes with wind.
-      const solarRadLocal = [...stationData ?? []]
-        .sort((a, b) => a.distKm - b.distKm)
-        .find((s) => s.reading.solarRadiation != null)?.reading.solarRadiation ?? null;
+      // Peak radiation INLAND, not over the spot. Cesantes can sit under mist
+      // and still blow — the engine pulling the air is the thermal low further
+      // in. What kills the boost is the interior being covered too, which is a
+      // front rather than a sea breeze.
+      const solarRadInterior = computeInteriorSolar(
+        (stationData ?? []).map((sd) => sd.station),
+        new Map((stationData ?? []).map((sd) => [sd.station.id, sd.reading])),
+      );
       channelingPrediction = predictCesantesCanalization(
         buoys, mouthHum, false, airTempLocal, waterTempForDetector, localStationKt, wind?.dirDeg ?? null,
-        solarRadLocal,
+        solarRadInterior,
       );
     }
 

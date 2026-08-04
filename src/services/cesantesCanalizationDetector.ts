@@ -67,21 +67,30 @@ const HIGH_MOUTH_HUMIDITY = 85;
 
 /** W/m² below which the thermal engine is not running.
  *
- *  Every multiplier above the plain channelling base tells a THERMAL story:
- *  sun heats the interior, an inland low forms, and humid marine air is drawn
- *  up the ría. Mist at the mouth is read as that convergence loading up.
+ *  Every multiplier above the plain channelling tells a THERMAL story: the sun
+ *  heats the land INLAND, a low forms there, and humid marine air is drawn up
+ *  the ría. Mist at the mouth is read as that convergence loading up.
  *
- *  But mist and low cloud at the mouth are ALSO exactly what an approaching
- *  front looks like — same symptom, different cause, and the boost assumed the
- *  flattering one. Observed 4-ago at 12:38: overcast, a front arriving from the
- *  same SW quarter, a measured 5kt, and the popup announcing 20kt at "high
- *  confidence" while its own beach line said "sin apenas viento" and the
- *  thermal engine said 0%.
+ *  But mist and low cloud are ALSO exactly what an approaching front looks
+ *  like — same symptom, different cause, and the boost assumed the flattering
+ *  one. Observed 4-ago 12:38: overcast, a front arriving from the same SW
+ *  quarter, 5kt measured, and the popup announcing 20kt at "high confidence"
+ *  while its own beach line said "sin apenas viento".
  *
- *  Same floor maritimeFogService uses for "the sun is out". Below it, only the
- *  geometric channelling survives: a valley accelerates whatever flows through
- *  it, sun or no sun. */
-const MIN_SOLAR_FOR_CONVERGENCE = 250;
+ *  The sun that matters is the one INLAND, not the one over the spot. Cesantes
+ *  itself can sit under mist and still blow, because the engine pulling the air
+ *  is somewhere else; what kills the boost is the whole interior being covered
+ *  too, which is a front rather than a sea breeze. Same reasoning, and same
+ *  350 W/m² floor, that detectFogBySolarSignature uses to prove there is real
+ *  sun somewhere rather than a station simply reading low.
+ *
+ *  Below it only the geometric channelling survives: a valley accelerates
+ *  whatever flows through it, sun or no sun. */
+const MIN_SOLAR_FOR_CONVERGENCE = 350;
+
+/** Inland of the ría, where the thermal low forms. East of Cesantes and up the
+ *  Miño valley — deliberately NOT the spot's own neighbourhood. */
+const INTERIOR_ZONE = { lonMin: -8.60, lonMax: -7.80, latMin: 42.10, latMax: 42.60 };
 
 /** Canalization boost factors */
 const BOOST_BASE = 1.4;       // SW wind alone → +40%
@@ -115,11 +124,11 @@ export function predictCesantesCanalization(
    *  is NOT establishing — the islands + Monte da Vela block N/NW from reaching
    *  the Cesantes shore — so the thermal canalization prediction is suppressed. */
   localWindDir: number | null = null,
-  /** Solar radiation near the spot (W/m²). Without sun the thermal convergence
-   *  this detector multiplies by is not happening, whatever the mouth cameras
-   *  see. Unknown counts as no sun: the strongest multiplier in the ladder must
-   *  not be handed out on missing evidence. */
-  solarRadLocal: number | null = null,
+  /** Peak solar radiation INLAND (W/m²) — see computeInteriorSolar. The spot
+   *  can be under mist and still blow; what has to be sunny is the interior
+   *  that forms the low. Unknown counts as no sun: the strongest multiplier in
+   *  the ladder must not be handed out on missing evidence. */
+  solarRadInterior: number | null = null,
 ): CesantesPrediction {
   const inactive: CesantesPrediction = {
     active: false,
@@ -210,13 +219,13 @@ export function predictCesantesCanalization(
 
   // The convergence and thermal multipliers below need the sun that drives
   // them. Overcast leaves the plain channelling, which is geometry and holds.
-  const sunIsOut = solarRadLocal !== null && solarRadLocal >= MIN_SOLAR_FOR_CONVERGENCE;
+  const sunIsOut = solarRadInterior !== null && solarRadInterior >= MIN_SOLAR_FOR_CONVERGENCE;
 
   if (!sunIsOut) {
     signals.push(
-      solarRadLocal === null
-        ? 'Sin dato de radiación — solo canalización geométrica'
-        : `Cielo cubierto (${solarRadLocal.toFixed(0)} W/m²) — sin motor térmico, solo canalización`
+      solarRadInterior === null
+        ? 'Sin dato de radiación en el interior — solo canalización geométrica'
+        : `Interior cubierto (${solarRadInterior.toFixed(0)} W/m²) — sin baja térmica que tire, solo canalización`
     );
   } else if (webcamFogInMouth) {
     boostFactor = BOOST_FOG;
@@ -262,6 +271,28 @@ export function predictCesantesCanalization(
  * Helper to compute mouth-of-ría humidity from station readings.
  * Mouth = stations near Vigo bay entrance (lon < -8.78, lat 42.15-42.30).
  */
+/** Peak solar radiation inland — the proof that the thermal low has an engine.
+ *
+ *  Takes the MAXIMUM rather than the nearest or the average on purpose: one
+ *  station clearly in the sun is enough to prove the interior is heating,
+ *  whereas an average is dragged down by whichever stations happen to sit
+ *  under a passing cloud. The failure this guards against is the whole
+ *  interior being covered, and that shows up as every station reading low. */
+export function computeInteriorSolar(
+  stations: NormalizedStation[],
+  readings: Map<string, NormalizedReading>,
+): number | null {
+  let peak: number | null = null;
+  for (const st of stations) {
+    if (st.lon < INTERIOR_ZONE.lonMin || st.lon > INTERIOR_ZONE.lonMax) continue;
+    if (st.lat < INTERIOR_ZONE.latMin || st.lat > INTERIOR_ZONE.latMax) continue;
+    const r = readings.get(st.id);
+    if (r?.solarRadiation == null) continue;
+    if (peak === null || r.solarRadiation > peak) peak = r.solarRadiation;
+  }
+  return peak;
+}
+
 export function computeMouthHumidity(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,

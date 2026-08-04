@@ -357,13 +357,18 @@ function applyCesantesBoost(
     .sort((a, b) => a.d - b.d);
   const airTempLocal = stationsWithTemp[0]?.r.temperature ?? null;
 
-  // Nearest station reporting radiation. The detector needs it to tell a
-  // thermal convergence apart from a front arriving on the same bearing: both
-  // leave mist in the mouth of the ría, only one brings the wind with it.
-  const solarRadLocal = readings
-    .filter(r => r.solar_rad != null && r.latitude !== 0 && r.longitude !== 0)
-    .map(r => ({ r, d: haversineDistance(cesantesLat, cesantesLon, r.latitude, r.longitude) }))
-    .sort((a, b) => a.d - b.d)[0]?.r.solar_rad ?? null;
+  // Peak radiation INLAND, mirroring computeInteriorSolar on the frontend.
+  // Cesantes can be under mist and still blow — the engine is the thermal low
+  // further in. What kills the boost is the interior being covered too.
+  // MAX rather than nearest: one station clearly in the sun proves the
+  // interior is heating; an average is dragged down by passing cloud.
+  let solarRadInterior: number | null = null;
+  for (const r of readings) {
+    if (r.solar_rad == null) continue;
+    if (r.longitude < -8.60 || r.longitude > -7.80) continue;
+    if (r.latitude < 42.10 || r.latitude > 42.60) continue;
+    if (solarRadInterior === null || r.solar_rad > solarRadInterior) solarRadInterior = r.solar_rad;
+  }
 
   // Find waterTemp from nearby buoy or climatology fallback
   // (matches frontend RIA_VIGO_INTERIOR_SST_BY_MONTH pattern)
@@ -391,7 +396,7 @@ function applyCesantesBoost(
     // map suppressed the boost on a NW day and Telegram still sent it — while
     // the comment above this function claimed the gates matched exactly.
     localWindDir,
-    solarRadLocal,
+    solarRadInterior,
   );
 
   if (!prediction.active || prediction.predictedKt === null) return null;

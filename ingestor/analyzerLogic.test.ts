@@ -482,12 +482,19 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
       wind_dir: 240,
       temperature: 14,
       humidity: 70,
-      // A sunny April morning, which is what this scenario always assumed
-      // without saying so. The humid-mouth boost describes a thermal
-      // convergence, and that needs the sun: under overcast the same mist can
-      // just as easily be a front arriving on the same bearing, which is how
-      // this detector announced 20kt on a 5kt afternoon.
-      solar_rad: 550,
+    });
+    // Sun INLAND, which is what this scenario always assumed without saying so.
+    // The humid-mouth boost describes a thermal convergence: the sun heats the
+    // interior, a low forms there, and marine air is drawn up the ría. Cesantes
+    // itself can sit under mist and still blow — what has to be sunny is the
+    // engine, not the spot. With the whole interior covered it is a front, and
+    // that is how this detector announced 20kt on a 5kt afternoon.
+    const interior = makeReading({
+      station_id: 'mg_ourense',
+      latitude: 42.34, longitude: -8.30, // inland, up the Miño valley
+      wind_speed: 1, wind_dir: 200,
+      temperature: 18, humidity: 55,
+      solar_rad: 620,
     });
     // Station inside mouth bbox (lon < -8.78, lat 42.15-42.30) with humid air
     const moana = makeReading({
@@ -502,9 +509,10 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
       wind_speed: 8, // 15.5kt — synoptic SW
       wind_dir: 220,
     });
-    const result = scoreSpot(cesantes, [localStation, moana], [silleiro]);
+    const result = scoreSpot(cesantes, [localStation, moana, interior], [silleiro]);
     // Raw avg: localStation (5kt) only — moana is 26km away, outside radiusKm=12
-    // and Silleiro buoy is ~30km away, also outside radius.
+    // and Silleiro buoy is ~30km away, also outside radius. The interior
+    // station is further still; it is here to supply radiation, not wind.
     expect(result.rawWindKt).toBe(5);
     expect(result.boostedBy).toBe('cesantes-canalization');
     expect(result.avgWindKt).toBeGreaterThanOrEqual(10);
