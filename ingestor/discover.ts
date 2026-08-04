@@ -9,6 +9,7 @@ import type { AemetApiResponse, AemetRawStation, AemetRawObservation } from '../
 import type { MeteoGaliciaStation } from '../src/types/meteogalicia.js';
 import { METEOCLIMATIC_STATIONS } from '../src/types/meteoclimatic.js';
 import { SECTORS } from '../src/config/sectors.js';
+import { fillMissingProvinces } from '../src/services/provinceService.js';
 import { normalizeAemetStation,
   normalizeAemetObservationStation, normalizeMeteoGaliciaStation } from '../src/services/normalizer.js';
 import { isWithinRadius } from '../src/services/geoUtils.js';
@@ -607,6 +608,28 @@ export async function discoverAllStations(): Promise<Map<string, NormalizedStati
     }
   }
 
-  log.ok(`Discovered ${stationMap.size} unique stations across all sources`);
+  // MeteoGalicia, AEMET and Meteoclimatic each state the province; Wunderground
+  // and Netatmo say nothing, and they are now most of the network. Those
+  // inherit it from the nearest station that does know — measured 96.8% right
+  // leaving one out across the 155 MeteoGalicia stations, against 87.7% for
+  // rectangles drawn by hand over a region whose borders are anything but.
+  //
+  // Nothing decides anything on this: no verdict, no alert, no scoring reads
+  // it. It exists so the coverage can be looked at province by province.
+  const stations = [...stationMap.values()];
+  const prov = fillMissingProvinces(stations);
+  log.ok(
+    `Discovered ${stationMap.size} unique stations across all sources ` +
+    `(provinces: ${prov.labelled} stated, ${prov.inferred} inherited, ${prov.unknown} unknown)`
+  );
+  const byProvince = new Map<string, number>();
+  for (const st of stations) {
+    const key = st.province ?? 'sin provincia';
+    byProvince.set(key, (byProvince.get(key) ?? 0) + 1);
+  }
+  log.info(
+    'Stations by province: ' +
+    [...byProvince.entries()].sort((a, b) => b[1] - a[1]).map(([p, n]) => `${p} ${n}`).join(' | ')
+  );
   return stationMap;
 }
