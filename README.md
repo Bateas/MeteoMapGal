@@ -262,6 +262,23 @@ npm run knip            # Detector dead-code (informativo)
 
 [MIT](LICENSE) — Codigo abierto. La capa base de datos y seguridad es siempre gratuita.
 
+### Que hay aqui y que no
+
+Todo el codigo esta en este repositorio: la aplicacion, el ingestor, los
+detectores y el metodo de calibracion de estaciones — como se mide el factor de
+abrigo de cada estacion comparandola contra una boya por sector de direccion
+esta escrito y comentado en `src/config/stationBiases.ts`.
+
+Lo que no esta, y no por opacidad: **las mediciones**. La tabla de factores
+calibrados y el historico de lecturas que la produce viven en la base de datos.
+No son configuracion que se pueda copiar y pegar, son el resultado de meses de
+observacion continua sobre la red gallega, y se rehacen solas cada mes.
+Quien clone esto tiene el metodo completo; las medidas se ganan midiendo.
+
+Dicho de otro modo: el algoritmo lo escribe cualquiera en una tarde. Lo que
+cuesta es saber que la estacion de Cangas lee al 0,23 con viento del norte, y
+eso solo lo dicen seis meses de boya.
+
 ---
 
 ## Sobre o proxecto
