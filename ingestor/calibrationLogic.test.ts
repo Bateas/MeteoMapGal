@@ -4,6 +4,8 @@ import {
   directionSector,
   summariseCalibration,
   MIN_HOURS_GLOBAL,
+  MIN_DAYS,
+  isUsableReference,
   MIN_HOURS_SECTOR,
   type PairedHour,
 } from './calibrationLogic';
@@ -17,9 +19,14 @@ const pairs = (
   opts: { buoyDirDeg?: number | null; stationFixedMs?: number; buoyId?: number } = {},
 ): PairedHour[] =>
   Array.from({ length: n }, (_, i) => {
-    const buoyMs = 3 + (i % 9);            // 3..11 m/s, real spread
+    // Nine hours a day, and the day-to-day level moves: the response test runs
+    // on daily means, so a fixture where every day is identical would have
+    // nothing to correlate.
+    const day = 1 + Math.floor(i / 9);
+    const buoyMs = 3 + (day % 9);
     return {
       stationId,
+      day: `2026-06-${String(day).padStart(2, '0')}`,
       buoyId: opts.buoyId ?? 3221,
       buoyMs,
       stationMs: opts.stationFixedMs ?? buoyMs * fraction,
@@ -55,8 +62,8 @@ describe('calibrateStations — the statistic', () => {
     // 10, and averaging quotients lets that single hour set the answer. Summing
     // both sides first makes it one small contribution among many.
     const rows = calibrateStations([
-      ...pairs('mg_x', 0.5, MIN_HOURS_GLOBAL),
-      { stationId: 'mg_x', buoyId: 3221, stationMs: 1.0, buoyMs: 0.1, buoyDirDeg: 225 },
+      ...pairs('mg_x', 0.5, 200),
+      { stationId: 'mg_x', day: '2026-06-01', buoyId: 3221, stationMs: 1.0, buoyMs: 0.1, buoyDirDeg: 225 },
     ]);
 
     // Mean of ratios would land near 0.55 or above; ratio of means stays put.
@@ -81,7 +88,7 @@ describe('calibrateStations — the statistic', () => {
     const rows = calibrateStations([
       ...pairs('mg_y', 0.5, 200),
       ...Array.from({ length: 20 }, () => ({
-        stationId: 'mg_y', buoyId: 3221, stationMs: 0, buoyMs: 0, buoyDirDeg: 225,
+        stationId: 'mg_y', day: '2026-06-01', buoyId: 3221, stationMs: 0, buoyMs: 0, buoyDirDeg: 225,
       })),
     ]);
     expect(rows[0].hours).toBe(200);
@@ -111,10 +118,11 @@ describe('calibrateStations — broken is not the same as sheltered', () => {
     // reading from somewhere else entirely.
     const noise = Array.from({ length: 300 }, (_, i) => ({
       stationId: 'wu_noise',
+      day: `2026-06-${String(1 + Math.floor(i / 9)).padStart(2, '0')}`,
       buoyId: 3221,
-      buoyMs: 3 + (i % 9),
+      buoyMs: 3 + (Math.floor(i / 9) % 9),
       // Deliberately anti-phase with the buoy so correlation collapses.
-      stationMs: 3 + ((i * 7) % 9) * 0.5,
+      stationMs: 3 + ((Math.floor(i / 9) * 7) % 9) * 0.5,
       buoyDirDeg: 225,
     }));
     const rows = calibrateStations(noise);
@@ -135,8 +143,8 @@ describe('calibrateStations — sectors', () => {
     // Same station, open to the south-west and blocked from the north. Binning
     // by the station's own vane would sort the hours by the distortion instead.
     const rows = calibrateStations([
-      ...pairs('mg_split', 0.85, 120, { buoyDirDeg: 225 }),
-      ...pairs('mg_split', 0.20, 120, { buoyDirDeg: 0 }),
+      ...pairs('mg_split', 0.85, 200, { buoyDirDeg: 225 }),
+      ...pairs('mg_split', 0.20, 200, { buoyDirDeg: 0 }),
     ]);
 
     const sw = rows[0].sectors.find((s) => s.sector === 5);
@@ -173,6 +181,24 @@ describe('calibrateStations — refusing to answer', () => {
     expect(rows[0].ratio).toBeNull();
   });
 
+  it('refuses when the hours are many but the days are few', () => {
+    // 180 hours spread over six days is plenty of readings and almost no
+    // weather: the response test correlates DAILY means, and six points
+    // cannot tell a working anemometer from a lucky one.
+    const packed = Array.from({ length: 180 }, (_, i) => ({
+      stationId: 'mg_packed',
+      day: `2026-06-0${1 + Math.floor(i / 30)}`,
+      buoyId: 3221,
+      buoyMs: 3 + (i % 9),
+      stationMs: (3 + (i % 9)) * 0.5,
+      buoyDirDeg: 225,
+    }));
+    const rows = calibrateStations(packed);
+    expect(rows[0].hours).toBeGreaterThanOrEqual(MIN_HOURS_GLOBAL);
+    expect(rows[0].days).toBeLessThan(MIN_DAYS);
+    expect(rows[0].status).toBe('insufficient');
+  });
+
   it('records which buoy the answer came from', () => {
     // The reference is part of the measurement: a dead buoy invalidates every
     // row that leaned on it, and without this we could not tell which.
@@ -202,5 +228,31 @@ describe('summariseCalibration', () => {
   it('does not claim a median when nothing qualified', () => {
     const rows = calibrateStations(pairs('mg_new', 0.5, 10));
     expect(summariseCalibration(rows)).toContain('no median yet');
+  });
+});
+
+describe('isUsableReference — the reference has to measure too', () => {
+  // Real ninety-day figures from the Galician buoys, first run of the cycle.
+  it('accepts the buoys that actually sample the free stream', () => {
+    expect(isUsableReference({ meanMs: 3.29, stdevMs: 1.82, hours: 22707 })).toBe(true);  // Vigo
+    expect(isUsableReference({ meanMs: 4.61, stdevMs: 2.76, hours: 6689 })).toBe(true);   // Silleiro
+    expect(isUsableReference({ meanMs: 2.93, stdevMs: 1.86, hours: 24223 })).toBe(true);  // Vilagarcia
+  });
+
+  it('rejects the harbour buoy that broke the first run', () => {
+    // 4271: mean 0.53 m/s, max 3.0 over ninety days. Every station measured
+    // against it came out "broken" with a ratio of 3 to 5. The stations were
+    // fine — the reference was as sheltered as they were.
+    expect(isUsableReference({ meanMs: 0.53, stdevMs: 0.46, hours: 12030 })).toBe(false);
+  });
+
+  it('rejects a buoy with two hours of data however fast the wind looked', () => {
+    expect(isUsableReference({ meanMs: 7.24, stdevMs: 0.44, hours: 2 })).toBe(false);
+  });
+
+  it('rejects a reference that does not vary, even at a healthy mean', () => {
+    // Same reasoning applied to the reference as to the stations: a constant
+    // series is an instrument at rest, not a calm sea.
+    expect(isUsableReference({ meanMs: 4.0, stdevMs: 0.2, hours: 10000 })).toBe(false);
   });
 });

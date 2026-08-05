@@ -42,6 +42,9 @@
 /** One hour where both the station and its reference buoy reported. */
 export interface PairedHour {
   stationId: string;
+  /** Calendar day (YYYY-MM-DD) of the pair. The response test runs on daily
+   *  means, so the day has to travel with the hour. */
+  day: string;
   /** Buoy used as the free-stream reference for this station. */
   buoyId: number;
   /** Mean station speed over the hour (m/s). */
@@ -80,8 +83,10 @@ export interface StationCalibration {
   /** Station mean over buoy mean, all directions. Null when insufficient. */
   ratio: number | null;
   hours: number;
-  /** Pearson correlation against the reference. The response test. */
+  /** Pearson correlation against the reference, on DAILY means. */
   correlation: number | null;
+  /** Days contributing to that correlation. */
+  days: number;
   stationMeanMs: number;
   buoyMeanMs: number;
   /** Per-sector ratios that cleared their own sample floor. May be empty even
@@ -100,8 +105,22 @@ export const MIN_HOURS_SECTOR = 30;
 /** Below this correlation the station is not following the free stream. Set
  *  low on purpose: real shelter degrades correlation a lot before it kills it,
  *  and the claim being made here — the instrument is broken — has to clear a
- *  bar that mere shelter cannot. */
+ *  bar that mere shelter cannot.
+ *
+ *  Measured on DAILY means, never hourly. The first version tested hour by
+ *  hour and had to be thrown away: Illas Cíes against the Vigo buoy, 707
+ *  paired hours, ten kilometres apart in the same ría, scored 0.068 — and
+ *  PostgreSQL agreed, so it was the test that was wrong, not the code. In the
+ *  afternoon each site answers to its own local circulation and they peak at
+ *  different times; hourly, they genuinely decouple. Averaged over a day that
+ *  timing noise cancels and what is left is the synoptic sequence both of them
+ *  really do share. */
 export const MIN_CORRELATION = 0.25;
+
+/** Days needed before the response test means anything. Ninety days of window
+ *  gives at most ninety points, and a correlation on a handful of them says
+ *  nothing either way. */
+export const MIN_DAYS = 20;
 
 /** Standard deviation (m/s) below which the station is not varying at all.
  *  Catches the frozen sensor that correlation cannot even score, because a
@@ -114,6 +133,38 @@ export const EXPOSED_RATIO = 0.9;
 /** Below this, correcting the reading multiplies its noise as much as its
  *  signal, so it is flagged even though it is alive. */
 export const VERY_SHELTERED_RATIO = 0.35;
+
+/**
+ * Is this buoy fit to be anyone's free stream?
+ *
+ * The first run measured 143 stations against whatever live buoy was nearest,
+ * and six of them came out "broken" with ratios of 3 to 5. They were fine: the
+ * REFERENCE was a harbour buoy averaging 0.53 m/s with a maximum of 3.0 over
+ * ninety days — a sensor every bit as sheltered as the stations it was being
+ * asked to judge. Dividing by it manufactured nonsense.
+ *
+ * Which is the same mistake this whole module exists to catch, made one level
+ * up: alive was checked, measuring was not.
+ */
+export interface ReferenceQuality { meanMs: number; stdevMs: number; hours: number }
+
+/** A reference averaging less than this is not sampling the free stream. The
+ *  live Galician buoys sit at 2.9 to 4.6 m/s; the one that had to go was at
+ *  0.53, so the gap is wide and the threshold is not delicate. */
+export const MIN_REFERENCE_MEAN_MS = 2.0;
+
+/** And it has to vary, for the same reason a station does. */
+export const MIN_REFERENCE_STDEV_MS = 0.8;
+
+/** Enough hours that the two figures above mean something. One buoy in the
+ *  network had exactly two. */
+export const MIN_REFERENCE_HOURS = 500;
+
+export function isUsableReference(q: ReferenceQuality): boolean {
+  return q.hours >= MIN_REFERENCE_HOURS
+    && q.meanMs >= MIN_REFERENCE_MEAN_MS
+    && q.stdevMs >= MIN_REFERENCE_STDEV_MS;
+}
 
 /** Which of the eight compass sectors a bearing falls in, N centred on 0. */
 export function directionSector(deg: number): number {
@@ -149,11 +200,12 @@ function stdev(xs: number[]): number {
 
 function classify(
   hours: number,
+  days: number,
   ratio: number,
   correlation: number | null,
   stationStdev: number,
 ): CalibrationStatus {
-  if (hours < MIN_HOURS_GLOBAL) return 'insufficient';
+  if (hours < MIN_HOURS_GLOBAL || days < MIN_DAYS) return 'insufficient';
 
   // Response first, magnitude second. A station pinned to one value is broken
   // however plausible that value looks, and a station that ignores the sea is
@@ -177,6 +229,9 @@ export function calibrateStations(pairs: PairedHour[]): StationCalibration[] {
     buoyId: number;
     st: number[];
     bu: number[];
+    /** Daily sums, for the response test. Hourly pairs answer to local timing
+     *  and decouple; a day of them does not. */
+    daily: Map<string, { st: number; bu: number; n: number }>;
     sectors: Map<number, { st: number; bu: number; n: number }>;
   }
   const byStation = new Map<string, Acc>();
@@ -189,11 +244,15 @@ export function calibrateStations(pairs: PairedHour[]): StationCalibration[] {
 
     let acc = byStation.get(p.stationId);
     if (!acc) {
-      acc = { buoyId: p.buoyId, st: [], bu: [], sectors: new Map() };
+      acc = { buoyId: p.buoyId, st: [], bu: [], daily: new Map(), sectors: new Map() };
       byStation.set(p.stationId, acc);
     }
     acc.st.push(p.stationMs);
     acc.bu.push(p.buoyMs);
+
+    const d = acc.daily.get(p.day) ?? { st: 0, bu: 0, n: 0 };
+    d.st += p.stationMs; d.bu += p.buoyMs; d.n += 1;
+    acc.daily.set(p.day, d);
 
     if (p.buoyDirDeg != null && Number.isFinite(p.buoyDirDeg)) {
       const s = directionSector(p.buoyDirDeg);
@@ -215,8 +274,13 @@ export function calibrateStations(pairs: PairedHour[]): StationCalibration[] {
     const buoyMeanMs = buoySum / hours;
     // Ratio of means. Equal counts on both sides make the sums sufficient.
     const ratio = buoySum > 0 ? stationSum / buoySum : 0;
-    const correlation = pearson(acc.st, acc.bu);
-    const status = classify(hours, ratio, correlation, stdev(acc.st));
+
+    // Response is judged day by day. See MIN_CORRELATION for the measurement
+    // that forced this: hourly, a station and a buoy in the same ría scored
+    // 0.068 over 707 hours, and the test was the thing at fault.
+    const days = [...acc.daily.values()];
+    const correlation = pearson(days.map((d) => d.st / d.n), days.map((d) => d.bu / d.n));
+    const status = classify(hours, days.length, ratio, correlation, stdev(acc.st));
 
     const sectors: SectorCalibration[] = [...acc.sectors.entries()]
       .filter(([, v]) => v.n >= MIN_HOURS_SECTOR && v.bu > 0)
@@ -230,6 +294,7 @@ export function calibrateStations(pairs: PairedHour[]): StationCalibration[] {
       ratio: status === 'insufficient' ? null : ratio,
       hours,
       correlation,
+      days: acc.daily.size,
       stationMeanMs,
       buoyMeanMs,
       // A station that is not measuring has no transfer function to publish;
