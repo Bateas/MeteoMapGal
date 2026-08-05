@@ -27,6 +27,7 @@ import { runIcaCycle } from './icaFetcher.js';
 import { runConvectionGridCycle } from './convectionGridFetcher.js';
 import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import { runFireWatchCycle } from './fireWatch.js';
+import { runCalibrationCycle, CALIBRATION_INTERVAL_MS } from './calibration.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
@@ -51,6 +52,7 @@ let icaTimer: ReturnType<typeof setInterval> | null = null;
 let convGridTimer: ReturnType<typeof setInterval> | null = null;
 let outcomesTimer: ReturnType<typeof setInterval> | null = null;
 let fireWatchTimer: ReturnType<typeof setInterval> | null = null;
+let calibrationTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -426,6 +428,20 @@ async function start(): Promise<void> {
     runFireWatchCycle().catch((err) => log.warn('[FireWatch] timer err: ' + (err as Error).message));
   }, 30 * 60_000);
 
+  // Station calibration — how much of the free stream each land station sees,
+  // measured against a live buoy over 90 days. Daily: the window is three
+  // months, so nothing it says changes between polls, and the query is heavy.
+  // Fire-and-forget and internally fail-soft, like the others: it is a
+  // refinement computed FROM the history, and the loop that gathers that
+  // history must never wait on it.
+  // 600s stagger so the first run lands after everything else has settled.
+  setTimeout(() => {
+    runCalibrationCycle().catch((err) => log.warn('[Calibration] init err: ' + (err as Error).message));
+  }, 600_000);
+  calibrationTimer = setInterval(() => {
+    runCalibrationCycle().catch((err) => log.warn('[Calibration] timer err: ' + (err as Error).message));
+  }, CALIBRATION_INTERVAL_MS);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -448,6 +464,7 @@ async function shutdown(signal: string): Promise<void> {
   if (convGridTimer) clearInterval(convGridTimer);
   if (outcomesTimer) clearInterval(outcomesTimer);
   if (fireWatchTimer) clearInterval(fireWatchTimer);
+  if (calibrationTimer) clearInterval(calibrationTimer);
 
   // Close database pool
   await closePool();

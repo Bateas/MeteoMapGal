@@ -855,3 +855,35 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON push_subscriptions TO meteomap_app;
 -- SELECT add_retention_policy('webcam_readings', INTERVAL '6 months', if_not_exists => TRUE);
 -- Lightning + fires + upper_air + convection kept FOREVER (foundation of
 -- historical pattern dataset — these tables are the substrate, not derived)
+
+-- ── Station calibration: the measured transfer function ────
+-- How much of the free stream each land station actually sees, measured hour
+-- by hour against a live buoy over a 90-day window, globally and per direction
+-- sector. See ingestor/calibrationLogic.ts for the statistics and for why
+-- "broken" and "sheltered" have to be told apart by response, not magnitude.
+--
+-- A snapshot per run rather than a mutable row: a station degrading over
+-- months is exactly the thing this should be able to show, and an UPDATE would
+-- erase it. Volume is trivial — a few hundred rows a day.
+--
+-- `buoy_id` is part of the measurement, not metadata. A reference that dies
+-- invalidates every row that leaned on it, and without this column we could
+-- not tell which ones those were.
+CREATE TABLE IF NOT EXISTS station_calibration (
+  computed_at     TIMESTAMPTZ      NOT NULL,
+  station_id      TEXT             NOT NULL,
+  buoy_id         INTEGER          NOT NULL,
+  status          TEXT             NOT NULL,  -- exposed|sheltered|very_sheltered|dead|insufficient
+  ratio           DOUBLE PRECISION,           -- station mean / buoy mean, all directions
+  hours           INTEGER          NOT NULL,
+  correlation     DOUBLE PRECISION,           -- Pearson vs the reference: the response test
+  station_mean_ms DOUBLE PRECISION,
+  buoy_mean_ms    DOUBLE PRECISION,
+  window_days     INTEGER          NOT NULL,
+  sectors         JSONB,                      -- [{sector,ratio,hours}] that cleared their floor
+  PRIMARY KEY (computed_at, station_id)
+);
+SELECT create_hypertable('station_calibration', 'computed_at', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_station_calibration_station
+  ON station_calibration (station_id, computed_at DESC);
+GRANT SELECT, INSERT ON station_calibration TO meteomap_app;
