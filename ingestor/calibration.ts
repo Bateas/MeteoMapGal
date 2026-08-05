@@ -35,6 +35,7 @@ import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import {
   calibrateStations,
   summariseCalibration,
+  isUsableReference,
   type PairedHour,
   type StationCalibration,
 } from './calibrationLogic.js';
@@ -63,19 +64,51 @@ function distanceKm(aLat: number, aLon: number, bLat: number, bLon: number): num
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-/** Buoys that actually reported wind inside the window. A buoy present in the
- *  config but silent is not a reference, and treating it as one is how the
- *  Vigo blackout produced months of calibration against nothing. */
+/**
+ * Buoys fit to serve as somebody's free stream.
+ *
+ * Alive is not enough, and the first run proved it. Every station within reach
+ * of buoy 4271 came out "broken" with ratios between 3 and 5 — but 4271 is a
+ * harbour mooring averaging 0.53 m/s with a maximum of 3.0 over ninety days.
+ * The stations were fine; the reference was as sheltered as they were, and
+ * dividing by it manufactured nonsense. Another buoy in the config had exactly
+ * two hours of wind in the window.
+ *
+ * So the reference is held to the same standard as the thing it measures: it
+ * has to report enough, read enough, and vary. See isUsableReference.
+ */
 async function liveReferenceBuoys(): Promise<Set<number>> {
   const db = getPool();
   const res = await db.query(
-    `SELECT DISTINCT station_id
+    `SELECT station_id,
+            count(*)          AS hours,
+            avg(wind_speed)   AS mean_ms,
+            stddev(wind_speed) AS stdev_ms
        FROM buoy_readings
       WHERE wind_speed IS NOT NULL AND wind_speed > 0
-        AND time > NOW() - ($1 || ' days')::INTERVAL`,
+        AND time > NOW() - ($1 || ' days')::INTERVAL
+      GROUP BY station_id`,
     [String(WINDOW_DAYS)],
   );
-  return new Set(res.rows.map((r) => Number(r.station_id)));
+
+  const usable = new Set<number>();
+  const rejected: string[] = [];
+  for (const r of res.rows) {
+    const q = {
+      hours: Number(r.hours),
+      meanMs: Number(r.mean_ms),
+      stdevMs: r.stdev_ms == null ? 0 : Number(r.stdev_ms),
+    };
+    if (isUsableReference(q)) usable.add(Number(r.station_id));
+    else rejected.push(`${r.station_id} (${q.hours}h, media ${q.meanMs.toFixed(2)} m/s)`);
+  }
+
+  // Named, because a buoy dropping out of the reference set silently would
+  // change every ratio that leaned on it without anyone noticing.
+  if (rejected.length > 0) {
+    log.info(`Calibration: buoys not usable as a reference — ${rejected.join(', ')}`);
+  }
+  return usable;
 }
 
 /** Assign every station its nearest live buoy, dropping those with none in
@@ -144,13 +177,16 @@ async function fetchPairedHours(buoyId: number, stationIds: string[]): Promise<P
           AND station_id = ANY($3)
         GROUP BY 1, 2
      )
-     SELECT s.station_id, s.ms AS station_ms, b.ms AS buoy_ms, b.dir AS buoy_dir
+     SELECT s.station_id,
+            to_char(s.h, 'YYYY-MM-DD') AS day,
+            s.ms AS station_ms, b.ms AS buoy_ms, b.dir AS buoy_dir
        FROM s JOIN b ON b.h = s.h`,
     [buoyId, String(WINDOW_DAYS), stationIds],
   );
 
   return res.rows.map((r) => ({
     stationId: r.station_id as string,
+    day: r.day as string,
     buoyId,
     stationMs: Number(r.station_ms),
     buoyMs: Number(r.buoy_ms),
@@ -161,17 +197,17 @@ async function fetchPairedHours(buoyId: number, stationIds: string[]): Promise<P
 async function persist(rows: StationCalibration[], computedAt: Date): Promise<number> {
   if (rows.length === 0) return 0;
   const db = getPool();
-  const COLS = 11;
+  const COLS = 12;
   const values: unknown[] = [];
   const placeholders: string[] = [];
 
   rows.forEach((r, i) => {
     const o = i * COLS;
     placeholders.push(
-      `($${o + 1}, $${o + 2}, $${o + 3}, $${o + 4}, $${o + 5}, $${o + 6}, $${o + 7}, $${o + 8}, $${o + 9}, $${o + 10}, $${o + 11})`,
+      `($${o + 1}, $${o + 2}, $${o + 3}, $${o + 4}, $${o + 5}, $${o + 6}, $${o + 7}, $${o + 8}, $${o + 9}, $${o + 10}, $${o + 11}, $${o + 12})`,
     );
     values.push(
-      computedAt, r.stationId, r.buoyId, r.status, r.ratio, r.hours,
+      computedAt, r.stationId, r.buoyId, r.status, r.ratio, r.hours, r.days,
       r.correlation, r.stationMeanMs, r.buoyMeanMs, WINDOW_DAYS,
       JSON.stringify(r.sectors),
     );
@@ -179,7 +215,7 @@ async function persist(rows: StationCalibration[], computedAt: Date): Promise<nu
 
   const res = await db.query(
     `INSERT INTO station_calibration
-       (computed_at, station_id, buoy_id, status, ratio, hours,
+       (computed_at, station_id, buoy_id, status, ratio, hours, days,
         correlation, station_mean_ms, buoy_mean_ms, window_days, sectors)
      VALUES ${placeholders.join(', ')}
      ON CONFLICT (computed_at, station_id) DO NOTHING`,
@@ -195,7 +231,7 @@ export async function runCalibrationCycle(): Promise<void> {
       // Not an error we can fix by trying harder, and not something to hide:
       // with no live buoy there is no free stream to measure against, and
       // every ratio this cycle would have produced would be against nothing.
-      log.warn('Calibration: no buoy reported wind in the window — skipping, nothing to measure against');
+      log.warn('Calibration: no buoy is fit to serve as a reference — skipping, nothing to measure against');
       return;
     }
 

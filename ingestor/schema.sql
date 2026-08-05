@@ -876,7 +876,8 @@ CREATE TABLE IF NOT EXISTS station_calibration (
   status          TEXT             NOT NULL,  -- exposed|sheltered|very_sheltered|dead|insufficient
   ratio           DOUBLE PRECISION,           -- station mean / buoy mean, all directions
   hours           INTEGER          NOT NULL,
-  correlation     DOUBLE PRECISION,           -- Pearson vs the reference: the response test
+  days            INTEGER          NOT NULL DEFAULT 0,  -- days behind the correlation
+  correlation     DOUBLE PRECISION,           -- Pearson vs the reference on DAILY means
   station_mean_ms DOUBLE PRECISION,
   buoy_mean_ms    DOUBLE PRECISION,
   window_days     INTEGER          NOT NULL,
