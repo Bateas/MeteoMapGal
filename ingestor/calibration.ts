@@ -36,6 +36,8 @@ import {
   calibrateStations,
   summariseCalibration,
   isUsableReference,
+  altitudeAllowsReference,
+  MAX_REFERENCE_ALTITUDE_M,
   type PairedHour,
   type StationCalibration,
 } from './calibrationLogic.js';
@@ -54,7 +56,7 @@ const WINDOW_DAYS = 90;
  *  pure waste. */
 export const CALIBRATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-interface StationRow { station_id: string; latitude: number; longitude: number }
+interface StationRow { station_id: string; latitude: number; longitude: number; altitude: number | null }
 
 function distanceKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const R = 6371, r = Math.PI / 180;
@@ -117,15 +119,23 @@ async function liveReferenceBuoys(): Promise<Set<number>> {
 async function groupStationsByReference(live: Set<number>): Promise<Map<number, string[]>> {
   const db = getPool();
   const res = await db.query<StationRow>(
-    `SELECT station_id, latitude, longitude
+    `SELECT station_id, latitude, longitude, altitude
        FROM stations
       WHERE latitude IS NOT NULL AND longitude IS NOT NULL`,
   );
 
   const buoys = RIAS_BUOY_STATIONS.filter((b) => live.has(b.id));
   const groups = new Map<number, string[]>();
+  let tooHigh = 0;
 
   for (const s of res.rows) {
+    // A summit is not in the layer the buoy samples. Filtering it here, on
+    // physics, beats discovering it afterwards through a correlation that
+    // cannot say whether the instrument or the pairing was at fault.
+    if (!altitudeAllowsReference(s.altitude == null ? null : Number(s.altitude))) {
+      tooHigh++;
+      continue;
+    }
     let best: { id: number; d: number } | null = null;
     for (const b of buoys) {
       const d = distanceKm(Number(s.latitude), Number(s.longitude), b.lat, b.lon);
@@ -137,6 +147,9 @@ async function groupStationsByReference(live: Set<number>): Promise<Map<number, 
     groups.set(best.id, list);
   }
 
+  if (tooHigh > 0) {
+    log.info(`Calibration: ${tooHigh} stations above ${MAX_REFERENCE_ALTITUDE_M}m skipped — a sea-level buoy cannot speak for a summit`);
+  }
   return groups;
 }
 

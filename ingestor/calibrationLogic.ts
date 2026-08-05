@@ -64,7 +64,14 @@ export type CalibrationStatus =
   /** Correctable in principle, but so little signal that the correction
    *  amplifies its noise as much as its wind. */
   | 'very_sheltered'
-  /** Does not respond to the weather. An instrument problem, not a site. */
+  /** Reads plenty of wind but nothing that tracks the reference. NOT broken:
+   *  the site simply has no comparable free stream within reach — a mountain
+   *  top, an ocean island — so we cannot calibrate it from the sea. Its
+   *  readings stay perfectly usable; what is missing is the correction factor,
+   *  and saying so is different from calling the instrument faulty. */
+  | 'unreferenced'
+  /** Does not respond to the weather AND barely reads any. An instrument
+   *  problem, not a site. */
   | 'dead'
   /** Not enough paired hours yet to say anything. */
   | 'insufficient';
@@ -160,6 +167,27 @@ export const MIN_REFERENCE_STDEV_MS = 0.8;
  *  network had exactly two. */
 export const MIN_REFERENCE_HOURS = 500;
 
+/**
+ * Can a buoy at sea level speak for a station at this height?
+ *
+ * Measured, not assumed: San Nomedio sits at 681 m and read 83% of the Vigo
+ * buoy with a daily correlation of 0.17. It is not broken and it is not
+ * sheltered — it is in a different part of the atmosphere. Above the shallow
+ * layer the sea breeze and the ría circulation occupy, a summit answers to the
+ * synoptic flow instead, and the two only agree by coincidence.
+ *
+ * The cut is deliberately generous. Coastal stations sit at 5 to 300 m and
+ * genuinely do share the buoy's layer; the ones this removes are summits.
+ */
+export const MAX_REFERENCE_ALTITUDE_M = 400;
+
+export function altitudeAllowsReference(stationAltitudeM: number | null): boolean {
+  // Unknown altitude is not evidence of a problem — most amateur stations
+  // never report one, and excluding them would gut the sample.
+  if (stationAltitudeM == null) return true;
+  return stationAltitudeM <= MAX_REFERENCE_ALTITUDE_M;
+}
+
 export function isUsableReference(q: ReferenceQuality): boolean {
   return q.hours >= MIN_REFERENCE_HOURS
     && q.meanMs >= MIN_REFERENCE_MEAN_MS
@@ -207,11 +235,27 @@ function classify(
 ): CalibrationStatus {
   if (hours < MIN_HOURS_GLOBAL || days < MIN_DAYS) return 'insufficient';
 
-  // Response first, magnitude second. A station pinned to one value is broken
-  // however plausible that value looks, and a station that ignores the sea is
-  // broken however much wind it claims.
+  // A series pinned to one value is broken whatever that value looks like.
+  // This one is unambiguous and comes first.
   if (stationStdev < MIN_STDEV_MS) return 'dead';
-  if (correlation === null || correlation < MIN_CORRELATION) return 'dead';
+
+  const responds = correlation !== null && correlation >= MIN_CORRELATION;
+
+  // Only now the response test — and crucially, NOT on its own. The first
+  // version called anything with a poor correlation broken, and the live run
+  // showed what that costs: Illas Cíes reading 78% of the free stream and San
+  // Nomedio, on a 681m summit, reading 83%, both branded "not measuring". An
+  // instrument that returns 3.7 m/s of real, varying wind is not faulty. What
+  // it lacks is a COMPARABLE reference: an ocean island and a mountain summit
+  // do not follow a tide gauge inside Vigo harbour, and no amount of averaging
+  // will make them.
+  //
+  // So low correlation on its own means unreferenced — we cannot calibrate it
+  // from here — and only low correlation TOGETHER with a reading that is
+  // nearly nothing means the instrument itself has stopped.
+  if (!responds) {
+    return ratio < VERY_SHELTERED_RATIO ? 'dead' : 'unreferenced';
+  }
 
   if (ratio >= EXPOSED_RATIO) return 'exposed';
   if (ratio >= VERY_SHELTERED_RATIO) return 'sheltered';
@@ -299,7 +343,10 @@ export function calibrateStations(pairs: PairedHour[]): StationCalibration[] {
       buoyMeanMs,
       // A station that is not measuring has no transfer function to publish;
       // shipping its per-sector numbers would invite someone to use them.
-      sectors: status === 'dead' || status === 'insufficient' ? [] : sectors,
+      // No sector table for an instrument that stopped, nor for a site whose
+      // reference cannot speak for it: in both cases the numbers would look
+      // like a transfer function and be nothing of the sort.
+      sectors: status === 'dead' || status === 'unreferenced' || status === 'insufficient' ? [] : sectors,
     });
   }
 
@@ -316,6 +363,7 @@ export function summariseCalibration(rows: StationCalibration[]): string {
     `${n('exposed')} exposed`,
     `${n('sheltered')} sheltered`,
     `${n('very_sheltered')} very sheltered`,
+    `${n('unreferenced')} without a comparable reference`,
     `${n('dead')} not measuring`,
     `${n('insufficient')} too few hours`,
     median != null ? `median ratio ${median.toFixed(3)}` : 'no median yet',
