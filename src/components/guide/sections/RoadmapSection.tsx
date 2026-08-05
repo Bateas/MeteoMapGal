@@ -3,6 +3,7 @@
  * Concise, user-friendly. No architecture details exposed.
  */
 import { WeatherIcon } from '../../icons/WeatherIcons';
+import { NetworkCoverage } from '../NetworkCoverage';
 import { SPOT_COUNT, SURF_SPOT_COUNT, SAILING_SPOT_COUNT, WEBCAM_COUNT, BUOY_COUNT, SOURCES, approxStationCount } from '../../../config/networkStats';
 import type { IconId } from '../../icons/WeatherIcons';
 import { useUIStore } from '../../../store/uiStore';
@@ -112,6 +113,13 @@ export function RoadmapSection() {
               así que no se fija aquí.
             </p>
           </div>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+            <WeatherIcon id="database" size={13} /> La red, ahora mismo
+          </h3>
+          <NetworkCoverage />
         </div>
 
         <div className="space-y-3">
