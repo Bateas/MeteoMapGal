@@ -758,11 +758,32 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
         season: 'Marzo–Octubre, 14-19h',
         description: 'El sol calienta el valle y entra viento del SW. Mejor con temperaturas altas, cielo despejado y sin norte. Viento constante 8-15kt, agua plana. Los mejores días del embalse.',
       },
+      // El norte no es un solo viento aqui, y meterlo todo en una entrada
+      // borraba la distincion que mas importa navegando. El embalse no tiene
+      // un eje sino dos: el tramo de abajo (Santa Cristina - Parque Nautico)
+      // corre WSW-ENE, y pasado Barral el agua se curva hacia el N-NE camino
+      // de A Groba. Una direccion que caiga en uno de esos dos pasillos entra
+      // limpia; la que no, tiene que cruzar el relieve de la orilla norte.
+      // Conocimiento de campo del usuario, coherente con la orografia del
+      // mapa. NO esta medido: cuando haya tardes suficientes se puede
+      // comprobar comparando la variabilidad de racha por sector.
       {
-        name: 'Norte (componente)',
+        name: 'Nordeste',
+        direction: 45,
+        season: 'Todo el año',
+        description: 'Entra alineado con el tramo medio del embalse, con recorrido largo sobre agua y poca orografia por delante. De las direcciones mas limpias y regulares aqui.',
+      },
+      {
+        name: 'Noroeste',
+        direction: 315,
+        season: 'Todo el año',
+        description: 'Baja por el brazo alto del embalse, que esta orientado N-S. Zona amplia y despejada: tambien entra bien y suele ser mas constante que el norte puro.',
+      },
+      {
+        name: 'Norte puro',
         direction: 0,
         season: 'Todo el año',
-        description: 'Viento de norte racheado e irregular. Si hay norte fuerte, el viento SW de tardes no se forma. Frio en invierno.',
+        description: 'El problematico. No sigue ninguno de los dos ejes del embalse y tiene que cruzar el relieve de la orilla norte, que a veces divide el flujo: por un lado acelera y por el otro deja estela. Resultado racheado e irregular, y con norte fuerte el SW de tardes no llega a formarse. Frio en invierno.',
       },
     ],
     preferredStations: [
