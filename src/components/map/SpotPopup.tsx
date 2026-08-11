@@ -573,20 +573,23 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
               <span className="text-[11px] text-slate-400 font-normal">{Math.round(score.wind.dirDeg)}°</span>
             </span>
           </div>
+          {/* Laid out by hand rather than through <Cell>, which takes only
+              label/value/color and silently drops anything passed as children —
+              and TypeScript does not complain, so the annotation would simply
+              never appear. Same markup Cell produces, plus the measured value. */}
           {effectiveGustKt != null && effectiveGustKt > effectiveKt && (
-            <Cell label="Racha" value={`${effectiveGustKt.toFixed(0)} kt`} color={windKtColor(effectiveGustKt)}>
-              <div className="flex items-baseline gap-1 whitespace-nowrap">
-                <span className="font-semibold" style={{ color: windKtColor(effectiveGustKt) }}>
-                  {effectiveGustKt.toFixed(0)} kt
-                </span>
-                {/* Same wording as the wind above it, because it is the same
-                    story: a figure carried from the station to the spot, with
-                    what the instrument actually read kept in view. */}
-                {gustIsBoosted && score.gustKt != null && (
-                  <span className="text-[9px] text-slate-500 italic">(medida: {score.gustKt.toFixed(0)})</span>
-                )}
-              </div>
-            </Cell>
+            <div className="flex items-baseline gap-1 whitespace-nowrap">
+              <span className="text-slate-500 text-[11px]">Racha</span>
+              <span className="font-bold" style={{ color: windKtColor(effectiveGustKt) }}>
+                {effectiveGustKt.toFixed(0)} kt
+              </span>
+              {/* Same wording as the wind above it, because it is the same
+                  story: a figure carried from the station to the spot, with
+                  what the instrument actually read kept in view. */}
+              {gustIsBoosted && score.gustKt != null && (
+                <span className="text-[9px] text-slate-500 italic">(medida: {score.gustKt.toFixed(0)})</span>
+              )}
+            </div>
           )}
           {score.wind.matchedPattern && (
             <div className="col-span-2 text-[11px] text-amber-400/80 italic">

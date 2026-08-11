@@ -284,17 +284,23 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
     const newHistory = new Map(readingHistory);
     let changed = false;
 
+    // New array per append, for the reason spelled out at length in
+    // updateReadings above. This function had the same in-place push and
+    // splice, seventy lines below that explanation — and it matters more here
+    // than there, because this is the path that loads history from the backend
+    // on startup. That is precisely the batch that would fill a sparkline
+    // immediately instead of making it wait a quarter of an hour for live
+    // polls; mutated in place, it arrived and nothing noticed.
     for (const reading of readings) {
-      const history = newHistory.get(reading.stationId) || [];
-      const exists = history.some(
+      const prev = newHistory.get(reading.stationId) ?? [];
+      const exists = prev.some(
         (h) => h.timestamp.getTime() === reading.timestamp.getTime()
       );
       if (!exists) {
-        history.push(reading);
-        if (history.length > MAX_HISTORY_ENTRIES) {
-          history.splice(0, history.length - MAX_HISTORY_ENTRIES);
-        }
-        newHistory.set(reading.stationId, history);
+        const next = prev.length >= MAX_HISTORY_ENTRIES
+          ? [...prev.slice(prev.length - MAX_HISTORY_ENTRIES + 1), reading]
+          : [...prev, reading];
+        newHistory.set(reading.stationId, next);
         changed = true;
       }
     }
