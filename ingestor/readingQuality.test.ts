@@ -23,6 +23,9 @@ import {
   QC_DEWPOINT_ABOVE_TEMP,
   QC_TEMP_IMPLAUSIBLE,
   MAX_PLAUSIBLE_GUST_MS,
+  MAX_NAMED_STATIONS,
+  summariseQualityControl,
+  describeQualityControl,
 } from './readingQuality';
 import type { NormalizedReading } from '../src/types/station';
 
@@ -283,5 +286,65 @@ describe('physical impossibilities — radiation, dew point and temperature', ()
     // is being rewritten by accident.
     const r = reading();
     expect(applyQualityControl(r).reading).toBe(r);
+  });
+});
+
+describe('the cycle summary — because a nulled column says nothing on its own', () => {
+  const controlledOf = (rs: NormalizedReading[]) => rs.map((r) => applyQualityControl(r));
+
+  it('stays silent on a clean cycle, which is most of them', () => {
+    const s = summariseQualityControl(controlledOf([reading(), reading({ stationId: 'b' })]));
+    expect(s.corrected).toBe(0);
+    expect(describeQualityControl(s)).toBeNull();
+  });
+
+  it('counts every reason and names the station behind a suspect instrument', () => {
+    const s = summariseQualityControl(controlledOf([
+      reading({ stationId: 'wu_bad', solarRadiation: 1500 }),
+      reading({ stationId: 'nt_wet', temperature: 20, dewPoint: 25 }),
+      reading({ stationId: 'ok' }),
+    ]));
+    expect(s.corrected).toBe(2);
+    expect(s.byReason['solar above what reaches this latitude']).toBe(1);
+    expect(s.byReason['dew point above air temperature']).toBe(1);
+    expect(s.suspectStations).toEqual(['wu_bad', 'nt_wet']);
+    expect(describeQualityControl(s)).toContain('check: wu_bad, nt_wet');
+  });
+
+  it('counts a rough gust without naming it, so the log does not drown', () => {
+    // Cup anemometers throw spurious peaks constantly; that is the filter doing
+    // its ordinary job, not an instrument to go and inspect. Naming these would
+    // bury the ones that matter under noise every single cycle.
+    const s = summariseQualityControl(controlledOf([
+      reading({ stationId: 'skyx_gusty', windGust: 40 }),
+    ]));
+    expect(s.corrected).toBe(1);
+    expect(s.suspectStations).toEqual([]);
+    expect(describeQualityControl(s)).not.toContain('check:');
+  });
+
+  it('lists a station once however many ways its reading was wrong', () => {
+    const s = summariseQualityControl(controlledOf([
+      reading({ stationId: 'broken', solarRadiation: 1500, temperature: 80 }),
+    ]));
+    expect(s.corrected).toBe(1);
+    expect(s.suspectStations).toEqual(['broken']);
+  });
+
+  it('caps the names so one broken source cannot flood the line', () => {
+    const many = Array.from({ length: 20 }, (_, i) =>
+      reading({ stationId: `st_${i}`, solarRadiation: 1500 }));
+    const s = summariseQualityControl(controlledOf(many));
+    expect(s.corrected).toBe(20);
+    expect(s.suspectStations).toHaveLength(MAX_NAMED_STATIONS);
+  });
+
+  it('puts the commonest reason first, which is what a tired eye reads', () => {
+    const s = summariseQualityControl(controlledOf([
+      reading({ stationId: 'a', temperature: 90 }),
+      reading({ stationId: 'b', temperature: 90 }),
+      reading({ stationId: 'c', solarRadiation: 1500 }),
+    ]));
+    expect(describeQualityControl(s)!).toMatch(/^QC corrected 3 readings: 2 temperature/);
   });
 });
