@@ -32,7 +32,7 @@ import { aggregateFiresForSector, formatFireAge } from '../../services/fireServi
 import { getSpotsForSector, isBeachSpot } from '../../config/spots';
 import { assessBeachDay, type BeachDayResult } from '../../services/beachDayService';
 import { msToKnots } from '../../services/windUtils';
-import { VERDICT_STYLE } from '../../config/verdictStyles';
+import { VERDICT_STYLE, displayVerdict } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { assessSeaBreezeRias } from '../../services/seaBreezeService';
 import { fetchTidePredictions, type TidePoint } from '../../api/tideClient';
@@ -134,8 +134,12 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
       }
 
       // Sailing spots: use wind score
-      if (!sc || sc.verdict === 'unknown') continue;
-      const v = VERDICT_STYLE[sc.verdict];
+      // A provisional score reads 'unknown' here and is therefore skipped: the
+      // ticker stays quiet about a spot rather than announcing a verdict that
+      // will change under it a cycle later.
+      const tickerVerdict = displayVerdict(sc);
+      if (!sc || tickerVerdict === 'unknown') continue;
+      const v = VERDICT_STYLE[tickerVerdict];
       // T3-1 fix S136+3+3: prefer effectiveWindKt (detector-boosted) over raw
       // avgSpeedKt — keeps ticker aligned with SpotMarker + popup verdict
       // when Cesantes canalization / Bocana terral are active.

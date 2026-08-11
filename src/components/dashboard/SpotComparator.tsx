@@ -10,7 +10,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
-import { VERDICT_STYLE, VERDICT_HEX } from '../../config/verdictStyles';
+import { VERDICT_STYLE, VERDICT_HEX, displayVerdict, displayWindKt, verdictLabel } from '../../config/verdictStyles';
 import { degreesToCardinal } from '../../services/windUtils';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
@@ -33,8 +33,11 @@ export const SpotComparator = memo(function SpotComparator() {
     return [...spots].sort((a, b) => {
       const sa = scores.get(a.id);
       const sb = scores.get(b.id);
-      return (VERDICT_ORDER[sb?.verdict ?? 'unknown'] || 0)
-        - (VERDICT_ORDER[sa?.verdict ?? 'unknown'] || 0);
+      // Sorted by the DISPLAYED verdict, or a spot still calculating would be
+      // ranked on a figure nobody can see. 'unknown' already has an entry in
+      // VERDICT_ORDER, so nothing sinks to the bottom by accident.
+      return (VERDICT_ORDER[displayVerdict(sb)] || 0)
+        - (VERDICT_ORDER[displayVerdict(sa)] || 0);
     });
   }, [spots, scores]);
 
@@ -69,11 +72,12 @@ export const SpotComparator = memo(function SpotComparator() {
       {/* Spot rows */}
       {sorted.map((spot) => {
         const score = scores.get(spot.id);
-        const verdict: SpotVerdict = score?.verdict ?? 'unknown';
+        const verdict: SpotVerdict = displayVerdict(score);
         const vs = VERDICT_STYLE[verdict];
-        // effectiveWindKt first — same calibrated value the popup and the
-        // marker show, so the comparison table never contradicts them.
-        const effKt = score?.effectiveWindKt ?? score?.wind?.avgSpeedKt;
+        // The calibrated value the popup and the marker show, so the table
+        // never contradicts them — and null while the score is provisional,
+        // which leaves the dash rather than a figure about to change.
+        const effKt = displayWindKt(score);
         const windKt = effKt != null ? Math.round(effKt) : null;
         const dir = score?.windDirDeg != null
           ? degreesToCardinal(score.windDirDeg)
@@ -108,7 +112,7 @@ export const SpotComparator = memo(function SpotComparator() {
                 border: `1px solid ${VERDICT_HEX[verdict]}40`,
               }}
             >
-              {vs.label}
+              {verdictLabel(score)}
             </span>
 
             {/* Wind speed */}

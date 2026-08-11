@@ -168,8 +168,13 @@ describe('buildShareText', () => {
     expect(text).toContain('olas 1.2m');
   });
 
+  // The gust lives on SpotScore.gustKt, NOT inside the wind consensus. This
+  // fixture used to set `wind.maxGustKt`, a field that does not exist: the
+  // `as SpotScore` cast silenced TypeScript, the builder read the same phantom
+  // name, and the two agreed on nothing — so the test passed while a shared
+  // card never showed a gust at all. Reading the real field is what caught it.
   it('includes gust line when gusts exceed wind by 5kt+', () => {
-    const score = { ...SCORE_BASE, effectiveWindKt: 12, wind: { ...SCORE_BASE.wind, avgSpeedKt: 12, maxGustKt: 22 } } as SpotScore;
+    const score = { ...SCORE_BASE, effectiveWindKt: 12, gustKt: 22, wind: { ...SCORE_BASE.wind, avgSpeedKt: 12 } } as SpotScore;
     const data = buildShareData(SPOT_CESANTES, score);
     const text = buildShareText(data);
     expect(text).toContain('rachas 22kt');

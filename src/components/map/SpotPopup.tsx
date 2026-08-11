@@ -424,7 +424,10 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
             >
               {favoriteSpotId === spot.id ? '\u2605' : '\u2606'}
             </button>
-            {score && (
+            {/* Hidden while provisional: a shared image outlives the correction.
+                The popup will settle in a cycle or two; a screenshot in someone
+                else's chat will not. */}
+            {score && !score.provisional && (
               <button
                 onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
                 className={`shrink-0 inline-flex items-center justify-center transition-colors text-slate-500 hover:text-sky-300 ${isMobile ? 'p-1' : ''}`}
@@ -542,7 +545,12 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
               shatter. */}
           <div className="flex items-baseline gap-1 whitespace-nowrap">
             <span className="text-slate-500 text-[11px]">Viento</span>
-            {useStrongPrediction && channelingPrediction?.predictedKt ? (
+            {/* While provisional the figure itself is the unsettled thing, so it
+                is the figure that is withheld — direction and station count stay,
+                and the count is the very reason the number is not ready yet. */}
+            {score.provisional ? (
+              <span className="text-[11px] text-slate-500 italic">calculando</span>
+            ) : useStrongPrediction && channelingPrediction?.predictedKt ? (
               <>
                 <span className="font-bold" style={{ color: windKtColor(channelingPrediction.predictedKt) }}>
                   ~{channelingPrediction.predictedKt} kt
@@ -577,7 +585,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
               label/value/color and silently drops anything passed as children —
               and TypeScript does not complain, so the annotation would simply
               never appear. Same markup Cell produces, plus the measured value. */}
-          {effectiveGustKt != null && effectiveGustKt > effectiveKt && (
+          {!score.provisional && effectiveGustKt != null && effectiveGustKt > effectiveKt && (
             <div className="flex items-baseline gap-1 whitespace-nowrap">
               <span className="text-slate-500 text-[11px]">Racha</span>
               <span className="font-bold" style={{ color: windKtColor(effectiveGustKt) }}>

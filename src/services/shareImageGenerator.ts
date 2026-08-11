@@ -19,7 +19,7 @@
 
 import type { SpotScore, SpotVerdict } from './spotScoringEngine';
 import type { SailingSpot } from '../config/spots';
-import { VERDICT_STYLE, VERDICT_HEX } from '../config/verdictStyles';
+import { VERDICT_HEX, displayVerdict, displayWindKt, verdictLabel } from '../config/verdictStyles';
 
 // ── Data shape ──────────────────────────────────────────────
 
@@ -68,12 +68,18 @@ export function buildShareData(
     waveSummary?: string | null;
   } = { sectorId: 'rias' },
 ): ShareCardData {
-  const verdict = score.verdict;
-  const verdictLabel = VERDICT_STYLE[verdict]?.label ?? '-';
+  // Defence in depth. The share button is gated too, but an image is the one
+  // artefact that OUTLIVES the correction: it leaves the phone and keeps
+  // circulating long after the app has settled on the right number. Worth
+  // checking twice.
+  const verdict = displayVerdict(score);
+  const label = verdictLabel(score);
   const verdictColor = VERDICT_HEX[verdict] ?? '#94a3b8';
-  const windKt = score.effectiveWindKt ?? score.wind?.avgSpeedKt ?? null;
+  const windKt = displayWindKt(score);
   const dir = degToCardinal(score.windDirDeg);
-  const gust = score.wind?.maxGustKt ?? null;
+  // gustKt lives on SpotScore, not on the wind consensus — `wind.maxGustKt`
+  // does not exist and silently read undefined, so the card never showed one.
+  const gust = score.gustKt ?? null;
 
   return {
     spotId: spot.id,
@@ -81,7 +87,7 @@ export function buildShareData(
     sectorId: extras.sectorId,
     sectorLabel: extras.sectorId === 'rias' ? 'Rias Baixas' : 'Embalse de Castrelo',
     verdict,
-    verdictLabel,
+    verdictLabel: label,
     verdictColor,
     windKt: windKt != null ? Math.round(windKt) : null,
     windDirCardinal: dir,

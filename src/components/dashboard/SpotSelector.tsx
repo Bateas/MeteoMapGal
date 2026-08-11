@@ -21,7 +21,7 @@ import { waterTempColor } from '../../services/buoyUtils';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 
 // Moved to config/verdictStyles.ts to fix bundle splitting — import + re-export
-import { VERDICT_STYLE } from '../../config/verdictStyles';
+import { VERDICT_STYLE, displayVerdict, displayWindKt, verdictLabel } from '../../config/verdictStyles';
 export { VERDICT_STYLE };
 
 // ── Main component ────────────────────────────────────────────────
@@ -45,7 +45,8 @@ export const SpotSelector = memo(function SpotSelector() {
   // Find active spot for this sector (fallback to first spot)
   const activeSpot = spots.find((s) => s.id === activeSpotId) ?? spots[0];
   const activeScore = activeSpot ? scores.get(activeSpot.id) : undefined;
-  const activeVerdict = activeScore?.verdict ?? 'unknown';
+  // Provisional collapses to neutral, and the label says so. See verdictStyles.
+  const activeVerdict = displayVerdict(activeScore);
   const v = VERDICT_STYLE[activeVerdict];
 
   // Animate verdict changes with a pop effect
@@ -63,8 +64,9 @@ export const SpotSelector = memo(function SpotSelector() {
 
   if (!activeSpot) return null;
 
-  // Wind info for header
-  const windKt = activeScore?.wind?.avgSpeedKt;
+  // Wind info for header. Calibrated, and null while the score is provisional
+  // so the badge shows only "Calculando…" with no figure beside it.
+  const windKt = displayWindKt(activeScore);
 
   return (
     <div className={`rounded-lg border ${v.border} ${v.bg} transition-all`}>
@@ -80,7 +82,7 @@ export const SpotSelector = memo(function SpotSelector() {
             {activeSpot.id === favoriteSpotId && <span className="text-amber-400 text-xs" title="Tu spot favorito">{'\u2605'}</span>}
             <span className="badge-beta">Beta</span>
             <span className={`${v.text} text-[11px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'good' ? 'badge-shimmer' : ''}`}>
-              {v.label}
+              {verdictLabel(activeScore)}
               {windKt != null && activeVerdict !== 'calm' ? ` ${windKt.toFixed(0)}kt` : ''}
             </span>
           </div>
@@ -168,9 +170,9 @@ function SpotCard({
   onSelect: () => void;
   onToggleFavorite: () => void;
 }) {
-  const verdict = score?.verdict ?? 'unknown';
+  const verdict = displayVerdict(score);
   const v = VERDICT_STYLE[verdict];
-  const windKt = score?.wind?.avgSpeedKt;
+  const windKt = displayWindKt(score);
 
   return (
     <button
@@ -201,7 +203,7 @@ function SpotCard({
         {/* Verdict badge with kt */}
         <span className={`flex items-center gap-1 text-[11px] font-bold ${v.text}`}>
           <span className={`w-2 h-2 rounded-full ${v.dot}`} />
-          {v.label}
+          {verdictLabel(score)}
           {windKt != null && verdict !== 'calm' && verdict !== 'unknown' ? ` ${windKt.toFixed(0)}kt` : ''}
         </span>
       </div>
