@@ -105,6 +105,30 @@ describe('readingHistory', () => {
     expect(useWeatherStore.getState().historyEpoch).toBe(after);
   });
 
+  it('appendHistory hands back a new array too — the same trap, one function down', () => {
+    // Found by audit after fixing updateReadings: the identical in-place push
+    // sat seventy lines below the comment explaining why it breaks. It matters
+    // more here, because this is the path that loads history from the backend
+    // at startup — the batch that fills a sparkline immediately rather than
+    // making it wait for live polls.
+    useWeatherStore.getState().appendHistory([reading(30)]);
+    const first = historyOf();
+
+    useWeatherStore.getState().appendHistory([reading(20)]);
+    expect(historyOf()).not.toBe(first);
+    expect(first).toHaveLength(1);
+    expect(historyOf()).toHaveLength(2);
+  });
+
+  it('appendHistory and updateReadings share one history without clobbering', () => {
+    // Backend backfill and live polling both write here. A reading already
+    // present from one path must not be duplicated by the other.
+    const r = reading(10);
+    useWeatherStore.getState().appendHistory([r]);
+    useWeatherStore.getState().updateReadings([{ ...r }]);
+    expect(historyOf()).toHaveLength(1);
+  });
+
   it('keeps stations apart', () => {
     useWeatherStore.getState().updateReadings([
       reading(10),
