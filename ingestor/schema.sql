@@ -23,8 +23,15 @@ CREATE TABLE IF NOT EXISTS readings (
   -- the threshold rejected) and a degrading anemometer is undetectable.
   wind_gust_raw  DOUBLE PRECISION, -- original gust, ONLY when rejected
   wind_speed_raw DOUBLE PRECISION, -- original speed, ONLY when rejected
-  qc_flag        SMALLINT          -- bitmask: 1 gust cap, 2 gust ratio, 4 speed cap.
+  qc_flag        SMALLINT          -- bitmask: 1 gust cap, 2 gust ratio, 4 speed cap,
+                                   -- 8 stopped anemometer, 16 solar above the
+                                   -- physical ceiling, 32 dew point over air
+                                   -- temperature, 64 temperature out of range.
                                    -- 0 = checked and clean. NULL = row predates the check.
+                                   -- Only wind archives its raw value: those caps are a
+                                   -- judgement and judgements get re-tuned. 16/32/64 are
+                                   -- physical impossibilities, so there is no threshold to
+                                   -- revisit and nothing the archive could add.
 );
 
 SELECT create_hypertable('readings', 'time', if_not_exists => TRUE);

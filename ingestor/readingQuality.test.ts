@@ -19,6 +19,9 @@ import {
   QC_GUST_RATIO,
   QC_SPEED_ABSOLUTE,
   QC_ANEMOMETER_STUCK,
+  QC_SOLAR_IMPOSSIBLE,
+  QC_DEWPOINT_ABOVE_TEMP,
+  QC_TEMP_IMPLAUSIBLE,
   MAX_PLAUSIBLE_GUST_MS,
 } from './readingQuality';
 import type { NormalizedReading } from '../src/types/station';
@@ -187,5 +190,98 @@ describe('skyXWindIsMeasuring — the SKY-100 has no sentinel for a still anemom
 
   it('accepts ordinary wind', () => {
     expect(skyXWindIsMeasuring(4.1, 7.3)).toBe(true);
+  });
+});
+
+describe('physical impossibilities — radiation, dew point and temperature', () => {
+  it('rejects the 1360 W/m2 measured on 8 Aug, and says why', () => {
+    // The reading that prompted this: one station at 1360 while the network
+    // median sat at 773. It matters because detectors read ABSOLUTE radiation
+    // thresholds — 250 decides "the sun is out" for the rain discriminator and
+    // for Cesantes channelling, 350 for the fog signature.
+    const out = applyQualityControl(reading({ solarRadiation: 1360.1 }));
+    expect(out.reading.solarRadiation).toBeNull();
+    expect(out.qcFlag & QC_SOLAR_IMPOSSIBLE).toBeTruthy();
+    expect(describeQcFlag(out.qcFlag)).toContain('solar above what reaches this latitude');
+  });
+
+  it('keeps cloud enhancement, which is real and beats a clear midday', () => {
+    // Light reflected off the edge of a cumulus genuinely pushes a pyranometer
+    // past the ~1000 W/m2 of clear sky. Rejecting that would be throwing away
+    // a measurement, so the cap sits at the physical ceiling and not at the
+    // typical maximum.
+    const out = applyQualityControl(reading({ solarRadiation: 1150 }));
+    expect(out.reading.solarRadiation).toBe(1150);
+    expect(out.qcFlag).toBe(QC_OK);
+  });
+
+  it('drops the dew point when it exceeds the air temperature, and keeps the temperature', () => {
+    // Air holding more water than it can hold is two sensors disagreeing, not
+    // weather. Dew point goes because it is usually the derived value, and by
+    // far the more widely read of the two.
+    const out = applyQualityControl(reading({ temperature: 24, dewPoint: 28 }));
+    expect(out.reading.dewPoint).toBeNull();
+    expect(out.reading.temperature).toBe(24);
+    expect(out.qcFlag & QC_DEWPOINT_ABOVE_TEMP).toBeTruthy();
+  });
+
+  it('allows saturation, which is fog weather and not a fault', () => {
+    // Equal values are exactly what a saturated morning looks like. Plus the
+    // tolerance, because sources publish to one decimal and some derive the
+    // dew point with their own rounding on top.
+    expect(applyQualityControl(reading({ temperature: 12, dewPoint: 12 })).qcFlag).toBe(QC_OK);
+    expect(applyQualityControl(reading({ temperature: 12, dewPoint: 12.4 })).qcFlag).toBe(QC_OK);
+  });
+
+  it('rejects the -35 C that once reached a daily summary', () => {
+    const out = applyQualityControl(reading({ temperature: -35 }));
+    expect(out.reading.temperature).toBeNull();
+    expect(out.qcFlag & QC_TEMP_IMPLAUSIBLE).toBeTruthy();
+  });
+
+  it('leaves a Galician heatwave alone', () => {
+    // 42 C happens inland in Ourense. The cap exists to catch broken sensors,
+    // not to referee records.
+    expect(applyQualityControl(reading({ temperature: 42 })).qcFlag).toBe(QC_OK);
+  });
+
+  it('does not blame the dew point when the temperature was itself rejected', () => {
+    // With the temperature gone there is nothing left to compare against, so
+    // the dew point has to survive on its own merits rather than inherit the
+    // other sensor's fault.
+    const out = applyQualityControl(reading({ temperature: -40, dewPoint: 8 }));
+    expect(out.reading.temperature).toBeNull();
+    expect(out.reading.dewPoint).toBe(8);
+    expect(out.qcFlag & QC_DEWPOINT_ABOVE_TEMP).toBeFalsy();
+  });
+
+  it('leaves the wind columns untouched, which every consumer depends on', () => {
+    // The whole reason these checks were safe to add: scoring, alerts and the
+    // aggregates read wind, and none of them should see a single value shift.
+    const out = applyQualityControl(reading({ solarRadiation: 1400, temperature: 60, windSpeed: 6, windGust: 9 }));
+    expect(out.reading.windSpeed).toBe(6);
+    expect(out.reading.windGust).toBe(9);
+    expect(out.windSpeedRaw).toBeNull();
+    expect(out.windGustRaw).toBeNull();
+  });
+
+  it('accumulates with the wind flags instead of replacing them', () => {
+    // One reading can be wrong in several ways at once, and the bitmask has to
+    // carry all of them so a per-station count stays honest. Four here, not
+    // three: a 30 m/s gust over a 5 m/s mean trips the absolute cap AND the
+    // ratio, which is the bitmask doing exactly what it is for.
+    const out = applyQualityControl(reading({ windGust: 30, solarRadiation: 1400, temperature: 70 }));
+    expect(out.qcFlag & QC_GUST_ABSOLUTE).toBeTruthy();
+    expect(out.qcFlag & QC_GUST_RATIO).toBeTruthy();
+    expect(out.qcFlag & QC_SOLAR_IMPOSSIBLE).toBeTruthy();
+    expect(out.qcFlag & QC_TEMP_IMPLAUSIBLE).toBeTruthy();
+    expect(describeQcFlag(out.qcFlag)).toHaveLength(4);
+  });
+
+  it('returns the very same object when nothing was wrong', () => {
+    // Cheap guarantee that the common path allocates nothing and that no field
+    // is being rewritten by accident.
+    const r = reading();
+    expect(applyQualityControl(r).reading).toBe(r);
   });
 });
