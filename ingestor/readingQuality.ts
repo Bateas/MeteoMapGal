@@ -40,6 +40,48 @@ export const MAX_GUST_RATIO = 3;
 export const MAX_PLAUSIBLE_SPEED_MS = 50;
 
 /**
+ * Above this, solar radiation did not happen — it was measured wrong.
+ *
+ * The solar constant is ~1361 W/m² at the top of the atmosphere, and what
+ * reaches a horizontal surface is that times the sine of the sun's elevation.
+ * At this latitude the sun never gets higher than about 71°, even at the
+ * solstice, so the absolute ceiling on a horizontal plane is 1361 × sin(71°) ≈
+ * 1290 W/m² — before the atmosphere takes its cut. Nothing on the ground can
+ * exceed what arrives above it.
+ *
+ * Deliberately well above the ~1000 W/m² of a clear midday, because cloud
+ * enhancement is real: light reflected off the edge of a cumulus can briefly
+ * push a pyranometer past the clear-sky maximum, and that is a genuine
+ * measurement worth keeping. This cap only rejects the impossible.
+ *
+ * Measured on 8 Aug 2026: one station reporting 1360 W/m² while the network
+ * median sat at 773. It matters because several detectors use ABSOLUTE
+ * radiation thresholds — 250 W/m² decides "the sun is out" for the rain
+ * discriminator and for Cesantes channelling, 350 for the fog signature — so an
+ * inflated reading certifies sunshine where there is none.
+ */
+export const MAX_PLAUSIBLE_SOLAR_WM2 = 1300;
+
+/**
+ * Dew point may equal the air temperature — that is saturation, fog weather —
+ * but it cannot exceed it. Air holding more water than it can hold is not a
+ * weather event, it is two sensors disagreeing.
+ *
+ * The tolerance absorbs rounding: sources publish to one decimal, and some
+ * derive dew point from temperature and humidity with their own rounding on
+ * top, so a genuinely saturated reading can land a tenth or two above.
+ */
+export const DEWPOINT_TOLERANCE_C = 0.5;
+
+/** Outside this, a temperature is an instrument fault, not weather. The record
+ *  low anywhere in Galicia is around -20°C in the mountains and the Spanish
+ *  record high is 47°C, so this is generous on both ends by design: it exists
+ *  to catch the -35°C that a broken station once fed into a daily summary, not
+ *  to referee heatwaves. */
+export const MIN_PLAUSIBLE_TEMP_C = -25;
+export const MAX_PLAUSIBLE_TEMP_C = 50;
+
+/**
  * Reasons a reading was corrected, as a bitmask so several can coexist and a
  * single column can be counted per station and per month later on.
  */
@@ -52,6 +94,12 @@ export const QC_GUST_RATIO = 2;
 export const QC_SPEED_ABSOLUTE = 4;
 /** Zero from an anemometer that has not moved in a day — stopped, not calm. */
 export const QC_ANEMOMETER_STUCK = 8;
+/** Solar radiation above what physically arrives at this latitude. */
+export const QC_SOLAR_IMPOSSIBLE = 16;
+/** Dew point above the air temperature: one of the two sensors is wrong. */
+export const QC_DEWPOINT_ABOVE_TEMP = 32;
+/** Temperature outside anything this region produces. */
+export const QC_TEMP_IMPLAUSIBLE = 64;
 
 export interface QualityControlled {
   /** The reading as every existing consumer expects it: rejections nulled. */
@@ -134,8 +182,61 @@ export function applyQualityControl(
     }
   }
 
-  const reading = cleanGust !== r.windGust || cleanSpeed !== r.windSpeed
-    ? { ...r, windGust: cleanGust, windSpeed: cleanSpeed }
+  // ── Physical impossibilities
+  //
+  // These three differ from the wind checks above in a way that decides how
+  // they behave: the wind caps are a JUDGEMENT (45kt is a choice, and choices
+  // get re-tuned, which is why the rejected gust is archived). What follows is
+  // not a choice. More radiation than the sun delivers, water vapour above
+  // saturation, and -35°C in Galicia are not extreme weather to be argued
+  // about later — they are instrument faults. There is no threshold to
+  // re-tune, so there is nothing the archive could tell us that the flag does
+  // not already say, and no new column is worth carrying for it.
+  //
+  // Everything else about them is the same: the reading is nulled, never
+  // dropped, and the reason is recorded so "which sensor drifts, and when"
+  // stays an answerable question.
+
+  let cleanSolar = r.solarRadiation;
+  if (cleanSolar !== null && cleanSolar > MAX_PLAUSIBLE_SOLAR_WM2) {
+    qcFlag |= QC_SOLAR_IMPOSSIBLE;
+    cleanSolar = null;
+  }
+
+  let cleanTemp = r.temperature;
+  if (cleanTemp !== null && (cleanTemp < MIN_PLAUSIBLE_TEMP_C || cleanTemp > MAX_PLAUSIBLE_TEMP_C)) {
+    qcFlag |= QC_TEMP_IMPLAUSIBLE;
+    cleanTemp = null;
+  }
+
+  // The dew point is the one that gets dropped, not the temperature. Both are
+  // suspect once they disagree and this cannot tell which, but temperature is
+  // usually measured directly while dew point is often derived from it and the
+  // humidity — so the derived value is the likelier fault and by far the more
+  // widely read. Note this compares against the CLEANED temperature: if the
+  // temperature was already rejected as impossible there is nothing left to
+  // compare against, and the dew point survives on its own merits.
+  let cleanDew = r.dewPoint;
+  if (cleanDew !== null && cleanTemp !== null && cleanDew > cleanTemp + DEWPOINT_TOLERANCE_C) {
+    qcFlag |= QC_DEWPOINT_ABOVE_TEMP;
+    cleanDew = null;
+  }
+
+  const touched = cleanGust !== r.windGust
+    || cleanSpeed !== r.windSpeed
+    || cleanSolar !== r.solarRadiation
+    || cleanTemp !== r.temperature
+    || cleanDew !== r.dewPoint;
+
+  const reading = touched
+    ? {
+        ...r,
+        windGust: cleanGust,
+        windSpeed: cleanSpeed,
+        solarRadiation: cleanSolar,
+        temperature: cleanTemp,
+        dewPoint: cleanDew,
+      }
     : r;
 
   return { reading, windGustRaw, windSpeedRaw, qcFlag };
@@ -148,5 +249,8 @@ export function describeQcFlag(qcFlag: number): string[] {
   if (qcFlag & QC_GUST_RATIO) reasons.push('gust above ratio to mean');
   if (qcFlag & QC_SPEED_ABSOLUTE) reasons.push('speed above absolute cap');
   if (qcFlag & QC_ANEMOMETER_STUCK) reasons.push('zero from a stopped anemometer');
+  if (qcFlag & QC_SOLAR_IMPOSSIBLE) reasons.push('solar above what reaches this latitude');
+  if (qcFlag & QC_DEWPOINT_ABOVE_TEMP) reasons.push('dew point above air temperature');
+  if (qcFlag & QC_TEMP_IMPLAUSIBLE) reasons.push('temperature outside the regional range');
   return reasons;
 }
