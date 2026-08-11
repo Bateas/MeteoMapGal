@@ -14,6 +14,11 @@ import type { WebcamVisionResult } from '../services/webcamVisionService';
 import type { HourlyForecast } from '../types/forecast';
 
 /** Historical wind speed entry for sparkline */
+/** Points older than this are dropped when rehydrating: the sparkline is
+ *  labelled "2h" and must not splice yesterday onto today. Matches MAX_HISTORY
+ *  (24 points at five-minute intervals) from the other end. */
+export const WIND_HISTORY_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
 export interface SpotWindSnapshot {
   ts: number;
   kt: number;
@@ -149,7 +154,44 @@ export const useSpotStore = create<SpotState & SpotActions>()(
       }),
       {
         name: 'spot-store',
-        partialize: (state) => ({ activeSpotId: state.activeSpotId, favoriteSpotId: state.favoriteSpotId }),
+        partialize: (state) => ({
+          activeSpotId: state.activeSpotId,
+          favoriteSpotId: state.favoriteSpotId,
+          // The wind history survives a reload, so the sparkline is there when
+          // the popup opens instead of forty minutes later.
+          //
+          // It is built at five-minute intervals and drawn only from three
+          // points up, so from a cold start it took roughly a quarter of an
+          // hour to appear — and a refresh sent it back to zero. That is the
+          // difference between a chart you rely on and one you never see.
+          //
+          // A Map does not survive JSON, so it goes out as pairs and comes back
+          // through `merge` below.
+          //
+          // Note the project's own rule against putting time series in local
+          // storage, which came from writing ninety days of CSV per station and
+          // reaching 190MB. This is three orders of magnitude away: fourteen
+          // spots, twenty-four points each, two numbers per point — about 15KB.
+          // The rule is about unbounded series, and this one is bounded twice
+          // over, by MAX_HISTORY and by the age cutoff on the way back in.
+          windHistory: [...state.windHistory.entries()],
+        }),
+        // Rehydrate the Map, dropping anything past the window the chart claims
+        // to show. Stale points are worse than none: the sparkline is labelled
+        // "2h" and would otherwise splice yesterday's evening onto this
+        // morning as though the two were continuous.
+        merge: (persisted, current) => {
+          const p = (persisted ?? {}) as Partial<SpotState> & {
+            windHistory?: [string, SpotWindSnapshot[]][];
+          };
+          const cutoff = Date.now() - WIND_HISTORY_MAX_AGE_MS;
+          const restored = new Map<string, SpotWindSnapshot[]>();
+          for (const [spotId, points] of p.windHistory ?? []) {
+            const fresh = (points ?? []).filter((pt) => pt?.ts > cutoff);
+            if (fresh.length > 0) restored.set(spotId, fresh);
+          }
+          return { ...current, ...p, windHistory: restored };
+        },
       },
     ),
     { name: 'SpotStore' },

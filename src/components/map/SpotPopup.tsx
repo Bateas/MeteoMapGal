@@ -507,7 +507,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
       {/* ── Wind consensus ── */}
       {score?.wind && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-1.5">
-          <div className="flex items-baseline gap-1">
+          {/* nowrap on the whole row: this is half of a two-column grid, and
+              without it the browser breaks words mid-letter to make things fit
+              — "Viento" came out as "Vie / nfo". Better to sit tight than to
+              shatter. */}
+          <div className="flex items-baseline gap-1 whitespace-nowrap">
             <span className="text-slate-500 text-[11px]">Viento</span>
             {useStrongPrediction && channelingPrediction?.predictedKt ? (
               <>
@@ -1270,8 +1274,14 @@ function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
 
 // ── Wind trend + sparkline for spots ─────────────────────────
 
-const SPARK_W = 80;
-const SPARK_H = 24;
+// Sized for where it actually lives: half of a two-column grid inside a 380px
+// popup, sharing that space with the label, the value and sometimes "(red: 5)".
+// It was 80 wide with a "2h" caption beside it, which overflowed and made the
+// flex row break "Viento" apart mid-word. The bug had been there all along and
+// was only ever invisible because the chart never had enough points to draw.
+// The window it covers is in the aria-label, where it does not cost width.
+const SPARK_W = 44;
+const SPARK_H = 14;
 
 function SpotWindSparkline({ spotId }: { spotId: string }) {
   const history = useSpotStore((s) => s.windHistory.get(spotId));
@@ -1293,12 +1303,14 @@ function SpotWindSparkline({ spotId }: { spotId: string }) {
   if (!path) return null;
 
   return (
-    <div className="flex items-center gap-1.5 ml-0.5">
-      <svg width={SPARK_W} height={SPARK_H} className="flex-shrink-0 opacity-70" aria-label="Viento últimas 2h">
-        <path fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
-      </svg>
-      <span className="text-[9px] text-slate-500">2h</span>
-    </div>
+    <svg
+      width={SPARK_W}
+      height={SPARK_H}
+      className="ml-1 shrink-0 opacity-70"
+      aria-label="Tendencia del viento, últimas 2 horas"
+    >
+      <path fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
+    </svg>
   );
 }
 
