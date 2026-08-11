@@ -3,7 +3,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useAlertStore } from '../../store/alertStore';
 import { getSpotsForSector } from '../../config/spots';
-import { VERDICT_STYLE } from '../../config/verdictStyles';
+import { VERDICT_STYLE, displayVerdict, displayWindKt, verdictLabel } from '../../config/verdictStyles';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { useUIStore } from '../../store/uiStore';
 
@@ -23,7 +23,8 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
   const activeSpot = spots.find((s) => s.id === activeSpotId) ?? spots[0];
   const activeScore = activeSpot ? scores.get(activeSpot.id) : undefined;
-  const verdict = activeScore?.verdict ?? 'unknown';
+  // Provisional scores collapse to the neutral render — see verdictStyles.
+  const verdict = displayVerdict(activeScore);
   const v = VERDICT_STYLE[verdict];
 
   // Hide when CriticalAlertBanner is active — critical alert takes priority
@@ -32,15 +33,17 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
   // Build concise info: "15kt SW"
   // T3-1 fix S136+3+3: prefer effectiveWindKt (detector-boosted) so Cesantes
   // with canalization shows 14kt not 5kt — aligns with SpotMarker + popup.
-  const windKt = activeScore?.effectiveWindKt ?? activeScore?.wind?.avgSpeedKt;
+  // Null while provisional, calibrated otherwise — both rules in one call.
+  const windKt = displayWindKt(activeScore);
   const windDir = activeScore?.wind?.dominantDir;
   const windInfo = windKt != null && verdict !== 'calm' && verdict !== 'unknown'
     ? `${windKt.toFixed(0)}kt ${windDir ?? ''}`
     : null;
+  const label = verdictLabel(activeScore);
 
   return (
     <button
-      aria-label={`Condiciones en ${activeSpot.shortName}: ${v.label}${windInfo ? `, ${windInfo}` : ''}`}
+      aria-label={`Condiciones en ${activeSpot.shortName}: ${label}${windInfo ? `, ${windInfo}` : ''}`}
       onClick={() => setSidebarOpen(true)}
       className={`
         fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-20
@@ -56,7 +59,7 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
       </span>
       <span className="text-slate-600 text-[11px]">&middot;</span>
       <span className={`text-[11px] font-bold ${v.text} whitespace-nowrap`}>
-        {v.label}
+        {label}
       </span>
       {windInfo && (
         <>

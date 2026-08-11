@@ -60,8 +60,10 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
     <>
       {mine.map((us) => {
         const score = scores.get(us.id);
-        const verdict: SpotVerdict = score?.verdict ?? 'unknown';
-        const windKt = score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null;
+        // Same gate as the official markers: a pin the user dropped himself
+        // must not claim a verdict the engine has not finished computing.
+        const verdict: SpotVerdict = displayVerdict(score);
+        const windKt = displayWindKt(score);
         const isActive = us.id === selectedId;
         const textColor = VERDICT_TEXT[verdict];
         const badge = windKt !== null && verdict !== 'calm' && verdict !== 'unknown'
