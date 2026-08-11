@@ -242,6 +242,68 @@ export function applyQualityControl(
   return { reading, windGustRaw, windSpeedRaw, qcFlag };
 }
 
+/**
+ * What a cycle's quality control actually did, for the log.
+ *
+ * Without this the checks are invisible. Nothing downstream changes when a
+ * value is rejected — the column simply arrives null, exactly as it does when a
+ * station never had that sensor — so a filter that silently stopped working and
+ * a filter with nothing to reject look identical from outside. This project has
+ * already paid for that twice: the fire display filter ran before the insert
+ * for years, and an anemometer sat at zero for a week while the map read 6kt
+ * against 15 on the water. Both were silent.
+ *
+ * Stations are named only for the physical impossibilities. The wind caps fire
+ * routinely — a cup anemometer throws spurious peaks and that is the ordinary
+ * business of the filter — so naming those would bury the log in noise every
+ * cycle. A dew point above the air temperature is not routine: it means an
+ * instrument needs looking at, and the log should say which.
+ */
+export interface QualityControlSummary {
+  /** Readings with at least one correction. */
+  corrected: number;
+  /** How many times each reason fired, keyed by its description. */
+  byReason: Record<string, number>;
+  /** Stations behind the physical impossibilities, deduplicated. */
+  suspectStations: string[];
+}
+
+/** Reasons worth naming a station for: an instrument fault, not a rough gust. */
+const NAMED_REASONS = QC_SOLAR_IMPOSSIBLE | QC_DEWPOINT_ABOVE_TEMP | QC_TEMP_IMPLAUSIBLE;
+
+/** Cap on named stations so one badly broken source cannot flood a log line. */
+export const MAX_NAMED_STATIONS = 8;
+
+export function summariseQualityControl(
+  controlled: readonly { reading: NormalizedReading; qcFlag: number }[],
+): QualityControlSummary {
+  const byReason: Record<string, number> = {};
+  const suspects = new Set<string>();
+  let corrected = 0;
+
+  for (const c of controlled) {
+    if (c.qcFlag === QC_OK) continue;
+    corrected++;
+    for (const reason of describeQcFlag(c.qcFlag)) {
+      byReason[reason] = (byReason[reason] ?? 0) + 1;
+    }
+    if (c.qcFlag & NAMED_REASONS) suspects.add(c.reading.stationId);
+  }
+
+  return { corrected, byReason, suspectStations: [...suspects].slice(0, MAX_NAMED_STATIONS) };
+}
+
+/** One line for the cycle log, or null when there was nothing to say. */
+export function describeQualityControl(s: QualityControlSummary): string | null {
+  if (s.corrected === 0) return null;
+  const reasons = Object.entries(s.byReason)
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, n]) => `${n} ${reason}`)
+    .join(' · ');
+  const named = s.suspectStations.length > 0 ? ` — check: ${s.suspectStations.join(', ')}` : '';
+  return `QC corrected ${s.corrected} readings: ${reasons}${named}`;
+}
+
 /** Human-readable reasons, for logs and for the eventual audit query. */
 export function describeQcFlag(qcFlag: number): string[] {
   const reasons: string[] = [];

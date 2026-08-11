@@ -4,7 +4,7 @@
 
 import pg from 'pg';
 import type { NormalizedReading } from '../src/types/station.js';
-import { applyQualityControl } from './readingQuality.js';
+import { applyQualityControl, summariseQualityControl, describeQualityControl } from './readingQuality.js';
 import { log } from './logger.js';
 
 const { Pool } = pg;
@@ -86,6 +86,13 @@ export async function batchUpsert(
   // nulled — plus what was rejected and why, so the archive keeps what the
   // filter throws away. See readingQuality.ts for why that distinction matters.
   const controlled = readings.map((r) => applyQualityControl(r, stuckAnemometers));
+
+  // Say what was rejected. A nulled column is indistinguishable from a sensor
+  // the station never had, so without this line the checks are invisible and a
+  // filter that quietly broke would look exactly like a filter with nothing to
+  // do. Silent on a clean cycle, which is most of them.
+  const qcLine = describeQualityControl(summariseQualityControl(controlled));
+  if (qcLine) log.info(qcLine);
 
   const db = getPool();
   const BATCH_SIZE = 100;
