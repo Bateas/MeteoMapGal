@@ -17,6 +17,7 @@ import { ShareSpotModal } from '../spot/ShareSpotModal';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
+import { MAX_PLAUSIBLE_GUST_KT as MAX_DISPLAY_GUST_KT } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
 import { isBeachSpot } from '../../config/spots';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
@@ -30,7 +31,7 @@ import { predictCesantesCanalization, computeMouthHumidity, computeInteriorSolar
 import { useBuoyStore } from '../../store/buoyStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWebcamStore } from '../../store/webcamStore';
-import { temperatureColor, degreesToCardinal } from '../../services/windUtils';
+import { temperatureColor, degreesToCardinal, scaleGustToSpot } from '../../services/windUtils';
 import { fetchMarineForecast, fetchMarineData, type MarineForecastHour } from '../../api/marineClient';
 import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
 import { useSectorStore } from '../../store/sectorStore';
@@ -218,6 +219,34 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const effectiveKt = score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? 0;
   const windIsBoosted = score?.effectiveWindKt != null && score?.wind != null
     && Math.round(score.effectiveWindKt) !== Math.round(score.wind.avgSpeedKt);
+
+  // The gust has to travel with the mean, or the card contradicts itself.
+  //
+  // It did: the headline showed the boosted wind while the gust stayed raw, so
+  // a spot reading 5kt at the station and boosted to 14 displayed "Racha 10kt"
+  // underneath — a gust BELOW the mean, which cannot happen and which anyone
+  // spots instantly. The guard made it worse by comparing the gust against the
+  // raw mean, so the impossible pair passed the check that existed to prevent
+  // exactly this.
+  //
+  // Scaling by the same factor is the defensible move rather than a guess: the
+  // gust factor was measured across four consecutive days at Castrelo and came
+  // out flat — x2.6, x2.7, x2.9, x2.8 on days that ranged from a dead afternoon
+  // to the best of the week. A ratio that stable is one that survives being
+  // carried from the station to the spot. And the alternative is worse: leaving
+  // the gust raw states two numbers from two different places as though they
+  // described the same water.
+  //
+  // The sanity cap still applies at the end. A large boost on an already gusty
+  // reading could otherwise print something no anemometer in Galicia has seen.
+  const effectiveGustKt = scaleGustToSpot(
+    score?.gustKt ?? null,
+    measuredKt,
+    effectiveKt,
+    MAX_DISPLAY_GUST_KT,
+  );
+  const gustIsBoosted = effectiveGustKt != null && score?.gustKt != null
+    && Math.round(effectiveGustKt) !== Math.round(score.gustKt);
 
   // ── Viración (daily wind cycle phase) — Rías sailing spots only ──
   // Cross-validates the spot's reference station against its preferred buoy
@@ -544,8 +573,20 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
               <span className="text-[11px] text-slate-400 font-normal">{Math.round(score.wind.dirDeg)}°</span>
             </span>
           </div>
-          {score.gustKt != null && score.gustKt > score.wind.avgSpeedKt && (
-            <Cell label="Racha" value={`${score.gustKt.toFixed(0)} kt`} color={windKtColor(score.gustKt)} />
+          {effectiveGustKt != null && effectiveGustKt > effectiveKt && (
+            <Cell label="Racha" value={`${effectiveGustKt.toFixed(0)} kt`} color={windKtColor(effectiveGustKt)}>
+              <div className="flex items-baseline gap-1 whitespace-nowrap">
+                <span className="font-semibold" style={{ color: windKtColor(effectiveGustKt) }}>
+                  {effectiveGustKt.toFixed(0)} kt
+                </span>
+                {/* Same wording as the wind above it, because it is the same
+                    story: a figure carried from the station to the spot, with
+                    what the instrument actually read kept in view. */}
+                {gustIsBoosted && score.gustKt != null && (
+                  <span className="text-[9px] text-slate-500 italic">(medida: {score.gustKt.toFixed(0)})</span>
+                )}
+              </div>
+            </Cell>
           )}
           {score.wind.matchedPattern && (
             <div className="col-span-2 text-[11px] text-amber-400/80 italic">
