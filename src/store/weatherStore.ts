@@ -196,18 +196,29 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
     for (const reading of readings) {
       newCurrent.set(reading.stationId, reading);
 
-      // Append to history, dedup by timestamp
-      const history = newHistory.get(reading.stationId) || [];
-      const exists = history.some(
+      // Append to history, dedup by timestamp.
+      //
+      // A NEW array every time, never a push into the existing one. Cloning the
+      // Map is not enough on its own: a component that selects one station's
+      // history gets the inner array back, and Zustand compares what the
+      // selector returned. Mutating in place leaves that reference identical
+      // forever, so the component never re-renders however many readings
+      // arrive — it keeps whatever it saw when it mounted.
+      //
+      // That is what kept the popup sparkline blank. It needs three points and
+      // renders nothing below that, so a popup opened on a fresh page load read
+      // an empty history and then never learned the history had filled. Closing
+      // and reopening the popup "fixed" it, which is the shape of a stale
+      // reference rather than of missing data.
+      const prev = newHistory.get(reading.stationId) ?? [];
+      const exists = prev.some(
         (h) => h.timestamp.getTime() === reading.timestamp.getTime()
       );
       if (!exists) {
-        history.push(reading);
-        // Cap at max entries, remove oldest
-        if (history.length > MAX_HISTORY_ENTRIES) {
-          history.splice(0, history.length - MAX_HISTORY_ENTRIES);
-        }
-        newHistory.set(reading.stationId, history);
+        const next = prev.length >= MAX_HISTORY_ENTRIES
+          ? [...prev.slice(prev.length - MAX_HISTORY_ENTRIES + 1), reading]
+          : [...prev, reading];
+        newHistory.set(reading.stationId, next);
         historyChanged = true;
       }
     }
