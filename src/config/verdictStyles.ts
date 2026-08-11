@@ -1,4 +1,7 @@
-import type { SpotVerdict } from '../types/station';
+// spotScoringEngine is where SpotVerdict is actually declared; types/station
+// never exported it, so every Record<SpotVerdict, T> here was keyed by `any`
+// and the comparator's order map silently accepted anything at all.
+import type { SpotVerdict } from '../services/spotScoringEngine';
 
 /** Verdict → Tailwind classes + label. Shared across SpotSelector, ConditionsTicker, MobileSailingBanner. */
 /**
