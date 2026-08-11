@@ -12,6 +12,7 @@ import { useUserSpotStore } from '../../store/userSpotStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import { displayVerdict, displayWindKt, verdictLabel } from '../../config/verdictStyles';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
 const VERDICT_LABEL: Record<SpotVerdict, string> = {
@@ -66,9 +67,13 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
         const windKt = displayWindKt(score);
         const isActive = us.id === selectedId;
         const textColor = VERDICT_TEXT[verdict];
+        // The local map renders 'unknown' as a dash, which reads as "no data"
+        // rather than "not finished yet" — so while the score is provisional the
+        // shared label speaks instead, the same wording every other surface uses.
+        const label = score?.provisional ? verdictLabel(score) : VERDICT_LABEL[verdict];
         const badge = windKt !== null && verdict !== 'calm' && verdict !== 'unknown'
-          ? `${VERDICT_LABEL[verdict]} ${windKt.toFixed(0)}kt`
-          : VERDICT_LABEL[verdict];
+          ? `${label} ${windKt.toFixed(0)}kt`
+          : label;
         const size = isActive ? 38 : 32;
 
         return (

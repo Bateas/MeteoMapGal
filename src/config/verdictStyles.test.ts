@@ -17,7 +17,7 @@ import {
   VERDICT_STYLE,
   VERDICT_HEX,
 } from './verdictStyles';
-import type { SpotVerdict } from '../types/station';
+import type { SpotVerdict } from '../services/spotScoringEngine';
 
 describe('displayVerdict', () => {
   it('collapses a provisional score to the neutral verdict', () => {
