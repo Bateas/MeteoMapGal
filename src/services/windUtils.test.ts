@@ -8,6 +8,7 @@ import {
   averageWindDirection,
   isDirectionInRange,
   windSpeedColor,
+  scaleGustToSpot,
 } from './windUtils';
 
 describe('degreesToCardinal', () => {
@@ -161,5 +162,50 @@ describe('windSpeedColor — simplified scale (0-6kt = one blue)', () => {
   });
   it('returns near-black for hurricane 50+kt', () => {
     expect(windSpeedColor(27)).toBe('#1e1b4b');
+  });
+});
+
+describe('scaleGustToSpot — the gust travels with the mean', () => {
+  const CAP = 45;
+
+  it('carries the gust by the same factor as the mean', () => {
+    // The measured case: station 5kt mean / 10kt gust, boosted to 14kt at the
+    // spot. Factor 2.8, so the gust lands at 28 instead of sitting below the
+    // headline at 10.
+    expect(scaleGustToSpot(10, 5, 14, CAP)).toBeCloseTo(28, 5);
+  });
+
+  it('never leaves a gust below the mean it accompanies — the bug this closes', () => {
+    // What the popup actually printed: "Viento ~14 kt" above "Racha 10 kt".
+    const scaled = scaleGustToSpot(10, 5, 14, CAP);
+    expect(scaled).toBeGreaterThan(14);
+  });
+
+  it('leaves the reading untouched when there is no boost', () => {
+    expect(scaleGustToSpot(12, 8, 8, CAP)).toBe(12);
+  });
+
+  it('refuses to shrink a gust when the spot reads calmer than its stations', () => {
+    // A factor below 1 would mean scaling a measured gust DOWN, which is
+    // inventing calm — the opposite of what the caps exist for.
+    expect(scaleGustToSpot(12, 10, 6, CAP)).toBe(12);
+  });
+
+  it('respects the ceiling, so a big boost cannot print an impossible gust', () => {
+    // 30kt gust with a x3 boost would be 90 — more than any station on this
+    // coast has recorded.
+    expect(scaleGustToSpot(30, 5, 15, CAP)).toBe(CAP);
+  });
+
+  it('passes null through, because no gust is not a gust of zero', () => {
+    expect(scaleGustToSpot(null, 5, 14, CAP)).toBeNull();
+  });
+
+  it('survives a zero or nonsense mean instead of dividing by it', () => {
+    // Dead calm at the stations with a gust recorded is unusual but real, and
+    // must not produce Infinity.
+    expect(scaleGustToSpot(9, 0, 14, CAP)).toBe(9);
+    expect(scaleGustToSpot(9, NaN, 14, CAP)).toBe(9);
+    expect(scaleGustToSpot(9, 5, NaN, CAP)).toBe(9);
   });
 });

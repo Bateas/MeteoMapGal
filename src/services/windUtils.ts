@@ -251,3 +251,43 @@ export function isDirectionInRange(
   // Wraparound range (e.g., 315 to 45 → through north)
   return dir >= from || dir <= to;
 }
+
+/**
+ * Carry a gust from the station that measured it to the spot being described.
+ *
+ * The engine boosts the mean wind when a spot's own terrain accelerates the
+ * flow — a sheltered valley station reading 5kt while the water has 14. The
+ * gust has to make the same journey or the card contradicts itself: for a while
+ * the popup showed a boosted headline above a raw gust, printing a gust BELOW
+ * the mean, which cannot happen and which anyone notices at a glance.
+ *
+ * The same multiplier is the defensible choice rather than a guess. The gust
+ * factor was measured across four consecutive days at Castrelo and came out
+ * flat — x2.6, x2.7, x2.9, x2.8 — on days ranging from a dead afternoon to the
+ * best of the week. A ratio that stable is one that survives being carried
+ * between two points in the same air. Leaving the gust raw is the worse option:
+ * it states two numbers from two different places as though they described the
+ * same water.
+ *
+ * @param gustKt     what the instrument read, or null when it has no gust
+ * @param measuredKt the mean the same instruments read
+ * @param effectiveKt the mean the verdict actually used, after any boost
+ * @param capKt      ceiling, so a large boost on an already gusty reading
+ *                   cannot print a number no station here has recorded
+ */
+export function scaleGustToSpot(
+  gustKt: number | null,
+  measuredKt: number,
+  effectiveKt: number,
+  capKt: number,
+): number | null {
+  if (gustKt === null || !Number.isFinite(gustKt)) return null;
+  // No boost in play, or no mean to scale against: the reading stands as it is.
+  if (measuredKt <= 0 || !Number.isFinite(measuredKt) || !Number.isFinite(effectiveKt)) return gustKt;
+  const factor = effectiveKt / measuredKt;
+  // Only ever carries a gust UP. A boost below 1 would mean the spot is calmer
+  // than its stations, and shrinking a measured gust to fit that is inventing
+  // calm — the opposite of what the caps elsewhere exist to prevent.
+  if (!(factor > 1)) return gustKt;
+  return Math.min(gustKt * factor, capKt);
+}

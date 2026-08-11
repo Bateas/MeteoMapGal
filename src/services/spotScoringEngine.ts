@@ -233,6 +233,18 @@ const SOURCE_QUALITY: Record<string, number> = {
   skyx: 0.6,            // single consumer device
 };
 
+/**
+ * The most a gust can plausibly reach on this coast. Above it, a cup
+ * anemometer is throwing a spike rather than measuring weather — the SkyX has
+ * produced peaks up to 97kt while its neighbours sat in single digits.
+ *
+ * Exported because the display side needs the same ceiling: when the popup
+ * scales a gust by the channelling boost, a large multiplier on an already
+ * gusty reading could otherwise print a number no station here has recorded.
+ * One constant, so the two can never drift apart.
+ */
+export const MAX_PLAUSIBLE_GUST_KT = 45;
+
 // ── Spatial wind coherence constants (#63) ────────────────────
 const BUOY_EXPOSURE_BOOST = 1.5;          // Buoys over water — inherently unobstructed
 const PREFERRED_EXPOSURE_BOOST = 1.3;     // Manually vetted preferred stations
@@ -1378,7 +1390,7 @@ export function scoreAllSpots(
     }
     // Sanity cap: reject gusts >45kt (Galician coast max realistic) or >3x average (sensor glitch)
     const avgKt = wind?.avgSpeedKt ?? 0;
-    if (gustKt !== null && (gustKt > 45 || (avgKt > 0 && gustKt > avgKt * 3))) gustKt = null;
+    if (gustKt !== null && (gustKt > MAX_PLAUSIBLE_GUST_KT || (avgKt > 0 && gustKt > avgKt * 3))) gustKt = null;
     if (gustKt !== null) gustKt = Math.round(gustKt * 10) / 10;
 
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
