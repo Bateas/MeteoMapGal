@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -12,28 +12,18 @@ import { HistorySection } from './sections/HistorySection';
 import { GlossarySection } from './sections/GlossarySection';
 import { RoadmapSection } from './sections/RoadmapSection';
 import { LegalSection } from './sections/LegalSection';
+import { DataSection } from './sections/DataSection';
+import {
+  GUIDE_SECTIONS,
+  GUIDE_PATH,
+  parseGuideTarget,
+  guideShareUrl,
+} from '../../config/guideRoute';
+import { approxStationCount } from '../../config/networkStats';
 
-// ── Section definitions per sector ─────────────────────────────
-
-interface GuideSection {
-  id: string;
-  label: string;
-  /** If set, section only shows in these sector IDs */
-  sectorOnly?: string[];
-}
-
-const ALL_SECTIONS: GuideSection[] = [
-  { id: 'intro', label: 'Introducción' },
-  { id: 'reading', label: 'Cómo leer el mapa' },
-  { id: 'spots', label: 'Spots de navegación' },
-  { id: 'thermal', label: 'El térmico de Castrelo', sectorOnly: ['embalse'] },
-  { id: 'rias-winds', label: 'Vientos de las Rías', sectorOnly: ['rias'] },
-  { id: 'panels', label: 'Paneles y alertas' },
-  { id: 'history', label: 'Historial' },
-  { id: 'glossary', label: 'Glosario' },
-  { id: 'roadmap', label: 'Roadmap y fuentes' },
-  { id: 'legal', label: 'Aviso legal' },
-];
+// Section list and URL shape both live in config/guideRoute so that the boot
+// path (useDeepLink) can read them without importing this lazy chunk.
+const ALL_SECTIONS = GUIDE_SECTIONS;
 
 /** Single generic title — sector details go in the intro content */
 const GUIDE_TITLE = 'Guía MeteoMapGal';
@@ -41,16 +31,10 @@ const GUIDE_TITLE = 'Guía MeteoMapGal';
 export const MeteoGuide = memo(function MeteoGuide() {
   const open = useUIStore((s) => s.guideOpen);
   const setOpen = useUIStore((s) => s.setGuideOpen);
-  // Deep-linking: read hash on open (e.g. #guia/glossary)
-  const initialSection = (() => {
-    const hash = window.location.hash;
-    if (hash.startsWith('#guia/')) {
-      const id = hash.slice(6);
-      if (ALL_SECTIONS.some(s => s.id === id)) return id;
-    }
-    return 'intro';
-  })();
-  const [activeSection, setActiveSection] = useState(initialSection);
+  // Deep-linking: /guia/<seccion> or the older #guia/<seccion>.
+  const [activeSection, setActiveSection] = useState(
+    () => parseGuideTarget(window.location.pathname, window.location.hash).section,
+  );
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const isMobile = useUIStore((s) => s.isMobile);
 
@@ -67,11 +51,28 @@ export const MeteoGuide = memo(function MeteoGuide() {
     }
   }, [sections, activeSection]);
 
-  // Update URL hash when section changes (deep-linking)
+  // Keep the URL in step with what is on screen, so whatever the reader is
+  // looking at can be copied and sent. Two shapes on purpose: arriving by
+  // /guia keeps a path (the shareable form), while opening with the G key from
+  // the map only appends a hash, which leaves the map's own URL untouched.
+  const wasOpenRef = useRef(false);
   useEffect(() => {
+    const onGuidePath = window.location.pathname.toLowerCase().startsWith(GUIDE_PATH);
+
     if (open) {
-      history.replaceState(null, '', `#guia/${activeSection}`);
+      wasOpenRef.current = true;
+      history.replaceState(null, '', onGuidePath
+        ? `${guideShareUrl(activeSection, '')}${window.location.search}`
+        : `${window.location.pathname}${window.location.search}#guia/${activeSection}`);
+      return;
     }
+
+    // Clean up only after a real close, never on first mount — at boot the URL
+    // still has to be readable by useDeepLink, which runs before this chunk
+    // has even finished loading.
+    if (!wasOpenRef.current) return;
+    wasOpenRef.current = false;
+    history.replaceState(null, '', `/${window.location.search}`);
   }, [open, activeSection]);
 
   // Listen for 'G' key (all platforms) + Escape to close
@@ -183,6 +184,7 @@ export const MeteoGuide = memo(function MeteoGuide() {
             {activeSection === 'intro' && (
               sectorId === 'embalse' ? <IntroSection /> : <RiasIntroSection />
             )}
+            {activeSection === 'datos' && <DataSection />}
             {activeSection === 'reading' && <ReadingMapSection />}
             {activeSection === 'spots' && <SpotScoringSection />}
             {activeSection === 'thermal' && <ThermalCastreloSection />}
@@ -218,7 +220,8 @@ function IntroSection() {
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             6 fuentes meteorológicas combinadas: AEMET, MeteoGalicia, Meteoclimatic,
-            Weather Underground, Netatmo y SkyX. Más de 100 estaciones en ambas zonas.
+            Weather Underground, Netatmo y SkyX, con {approxStationCount()} estaciones en toda
+            Galicia. El detalle por provincia y por red está en «Roadmap y fuentes».
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">

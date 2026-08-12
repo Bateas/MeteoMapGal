@@ -85,7 +85,14 @@ export function LegalSection() {
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800 space-y-2">
           <p className="text-xs text-slate-400 leading-relaxed">
-            MeteoMapGal <strong className="text-emerald-400">no recopila datos personales</strong>.
+            MeteoMapGal <strong className="text-emerald-400">no tiene registro de usuarios</strong>:
+            no se pide nombre, ni correo, ni ubicación, y no hay cuentas ni inicio de sesión.
+          </p>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            La única excepción, y es voluntaria: si activas los avisos de rayo, el navegador genera
+            un identificador anónimo de suscripción que se guarda en nuestro servidor junto con los
+            spots que elijas, únicamente para poder enviarte ese aviso. Se borra al desactivar las
+            notificaciones y no está asociado a ninguna identidad.
           </p>
           <ul className="space-y-1 text-[11px] text-slate-400">
             <li className="flex items-start gap-2">

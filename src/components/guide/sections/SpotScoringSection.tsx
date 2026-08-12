@@ -111,9 +111,9 @@ export function SpotScoringSection() {
         <h3 className="text-sm font-bold text-white">Datos avanzados por spot</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2 text-[11px] text-slate-400 leading-relaxed">
           <p>
-            <strong className="text-cyan-300">Prevision WRF 1km</strong> — Al abrir un spot, se consulta MeteoSIX v5
-            (MeteoGalicia) para la celda de grid de 1km exacta de ese punto. Modelo atmosferico de alta resolucion
-            con viento, temperatura, precipitacion, nubosidad y cota de nieve. Cache 30 minutos.
+            <strong className="text-cyan-300">Prevision WRF 1km</strong> (en integracion) — el modelo atmosferico
+            de 1km de MeteoGalicia, con viento, temperatura, precipitacion, nubosidad y cota de nieve, se consulta
+            hoy a nivel de SECTOR. La consulta de la celda exacta de cada spot esta pendiente de reactivar.
           </p>
           <p>
             <strong className="text-cyan-300">USWAN oleaje nearshore</strong> — Modelo de olas costero de MeteoGalicia.
@@ -129,12 +129,36 @@ export function SpotScoringSection() {
 
       {/* 5-level scoring scale */}
       <div className="space-y-2">
-        <h3 className="text-sm font-bold text-white">Escala de viento (10 niveles)</h3>
+        <h3 className="text-sm font-bold text-white">El veredicto del spot (5 niveles)</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2 text-[11px]">
           <p className="text-slate-400 leading-relaxed">
             El veredicto se basa en el <strong className="text-slate-300">viento real medido</strong> por
-            las estaciones cercanas al spot. El color del marcador en el mapa refleja directamente
-            la intensidad del viento:
+            las estaciones cercanas al spot, ya calibrado. Son cinco:
+          </p>
+          <div className="space-y-1.5 pt-1">
+            <VerdictRow color="#94a3b8" label="Calma"     wind="< 6kt"    desc="Sin viento util." />
+            <VerdictRow color="#38bdf8" label="Flojo"     wind="6-7kt"    desc="Viento ligero. SUP, paseo, esperar a que suba." />
+            <VerdictRow color="#22c55e" label="Navegable" wind="8-11kt"   desc="Viento justo, condiciones limitadas." />
+            <VerdictRow color="#eab308" label="Buen día"  wind="12-17kt"  desc="Viento estable, apto para todas las modalidades." />
+            <VerdictRow color="#f97316" label="Fuerte"    wind="18kt o más" desc="Requiere experiencia. Viento potente." />
+          </div>
+          <p className="text-slate-500 leading-relaxed pt-1">
+            Cíes-Ría usa umbrales oceánicos propios, porque en mar abierto 8 nudos no es lo mismo
+            que dentro de la ría: &lt;5 · 5-9 · 10-13 · 14-17 · ≥18 kt. Y por encima del límite de
+            seguridad de cada spot el veredicto se fuerza a Fuerte con aviso de peligro, sea cual
+            sea el resto del cálculo.
+          </p>
+        </div>
+      </div>
+
+      {/* Map colour ramp — a different thing from the verdict, hence its own block */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-bold text-white">Colores de viento en el mapa (10 tramos)</h3>
+        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2 text-[11px]">
+          <p className="text-slate-400 leading-relaxed">
+            Esto es otra cosa: la rampa de color con la que se pinta cualquier lectura de viento en
+            el mapa. Llega más arriba que el veredicto porque tiene que describir también un
+            temporal, que para un spot es sencillamente «Fuerte, no salgas».
           </p>
           <div className="space-y-1.5 pt-1">
             <VerdictRow color="#64748b" label="Calma"     wind="< 1kt"   desc="Sin viento detectable." />
@@ -170,7 +194,7 @@ export function SpotScoringSection() {
             <li><strong className="text-slate-300">Oleaje</strong> — crítico en Cíes-Ría, moderado en Centro Ría, ignorado en Cesantes.</li>
             <li><strong className="text-slate-300">Norte en Cesantes</strong> — penaliza: el norte mata la térmica.</li>
             <li><strong className="text-slate-300">Canalización térmica</strong> — bonus si en Cesantes hay térmica WSW activa (amplifica viento).</li>
-            <li><strong className="text-amber-400">Precursor humedad (bruma)</strong> — si la boya cercana detecta humedad &gt;65% + dirección WSW + horario diurno, el sistema anticipa viento probable. Correlación 96% en análisis histórico 3 años.</li>
+            <li><strong className="text-amber-400">Precursor humedad (bruma)</strong> — si la boya cercana detecta humedad &gt;65% + dirección WSW + horario diurno, el sistema anticipa viento probable. En el reanálisis 2023-2025, el 96% de los episodios de viento WSW en Cesantes venían precedidos de humedad &gt;65% tres horas antes: es una señal sensible —rara vez se pierde un episodio— pero no una garantía de que vaya a haberlo, porque en una ría gallega esa humedad es casi permanente. Pesa como indicio, nunca como veredicto.</li>
             <li><strong className="text-sky-400">Tendencia de viento</strong> — analiza los últimos 30 minutos. Si sube &gt;3kt marca "viento subiendo", si sube &gt;6kt marca "subida rápida" con alerta.</li>
             <li><strong className="text-emerald-400">Viento en costa</strong> — si una estación costera (aguas arriba) marca viento y el spot está en calma, indica viento frontal aproximándose.</li>
             <li><strong className="text-slate-500">Outlier automático</strong> — estaciones que reportan &lt;35% de la mediana ponderada se penalizan. Las que reportan &lt;15% prácticamente se ignoran.</li>
