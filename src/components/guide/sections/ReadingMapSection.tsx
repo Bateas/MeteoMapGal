@@ -188,8 +188,8 @@ export function ReadingMapSection() {
           />
           <MiniExplainer
             iconId="thermometer"
-            title="Prevision WRF 1km por spot"
-            text="Al abrir un spot, se consulta MeteoSIX v5 (MeteoGalicia) para la celda WRF de 1km exacta de ese punto. Datos mas precisos que el modelo generico del sector. Cache 30 minutos."
+            title="Prevision WRF 1km (en integracion)"
+            text="El modelo WRF de 1km de MeteoGalicia se consulta hoy a nivel de sector. La consulta de la celda exacta de cada spot esta pendiente de reactivar."
           />
         </div>
       </div>
