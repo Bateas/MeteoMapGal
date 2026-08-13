@@ -50,6 +50,11 @@ export interface WindContribution {
 export interface SpotWindConsensus {
   stationCount: number;
   avgSpeedKt: number;
+  /** The weighted mean BEFORE the per-spot calibration and the consensus bonus.
+   *  Only the sanity checks on the instruments should use this: whether a gust
+   *  looks like a broken anemometer is a fact about the sensor, and must not
+   *  depend on a constant written for the spot. */
+  rawAvgSpeedKt: number;
   dominantDir: string;
   /** Consensus wind direction in degrees (for arrow display) */
   dirDeg: number;
@@ -611,6 +616,7 @@ function computeSpotWindConsensus(
   return {
     stationCount: entries.length,
     avgSpeedKt: Math.round(avgSpeed * 10) / 10,
+    rawAvgSpeedKt: Math.round((weightedSpeed / totalWeight) * 10) / 10,
     dominantDir: degToCardinal8(avgDir),
     dirDeg: Math.round(avgDir),
     matchedPattern,
@@ -1388,8 +1394,12 @@ export function scoreAllSpots(
         if (gustKt === null || gKt > gustKt) gustKt = gKt;
       }
     }
-    // Sanity cap: reject gusts >45kt (Galician coast max realistic) or >3x average (sensor glitch)
-    const avgKt = wind?.avgSpeedKt ?? 0;
+    // Sanity cap: reject gusts >45kt (Galician coast max realistic) or >3x the
+    // mean (sensor glitch). Measured against the RAW mean on purpose: the
+    // calibrated one carries a per-spot constant and the consensus bonus, so a
+    // real gust used to survive or die depending on a number that says nothing
+    // about the anemometer that reported it.
+    const avgKt = wind?.rawAvgSpeedKt ?? 0;
     if (gustKt !== null && (gustKt > MAX_PLAUSIBLE_GUST_KT || (avgKt > 0 && gustKt > avgKt * 3))) gustKt = null;
     if (gustKt !== null) gustKt = Math.round(gustKt * 10) / 10;
 

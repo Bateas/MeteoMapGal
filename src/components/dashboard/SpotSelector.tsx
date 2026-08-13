@@ -211,7 +211,12 @@ function SpotCard({
       {/* Score detail row */}
       {score && (
         <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-slate-400">
-          {score.wind && (
+          {/* Only these three wait for the engine. Waves, water, air and humidity
+              below come straight off a buoy or a station and are not what is
+              unsettled during a cold load, so hiding the whole row would take
+              away good readings for no reason — and the hard-gate warning at the
+              end must never be hidden at all. */}
+          {score.wind && !score.provisional && (
             // T3-1 fix S136+3+3: prefer effectiveWindKt (post-detector boost,
             // e.g. Cesantes canalization can lift 5kt raw → 14kt effective).
             // Falls back to raw avgSpeedKt for spots without active boost.
@@ -219,10 +224,10 @@ function SpotCard({
               {score.wind.dominantDir} ~{(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt
             </span>
           )}
-          {score.gustKt != null && score.gustKt > (score.effectiveWindKt ?? score.wind?.avgSpeedKt ?? 0) + 3 && (
+          {!score.provisional && score.gustKt != null && score.gustKt > (score.effectiveWindKt ?? score.wind?.avgSpeedKt ?? 0) + 3 && (
             <span className="text-orange-400">Racha {score.gustKt.toFixed(0)}kt</span>
           )}
-          {score.wind?.matchedPattern && (
+          {!score.provisional && score.wind?.matchedPattern && (
             <span className={`${v.text} font-semibold`}>{score.wind.matchedPattern}</span>
           )}
           {score.waves?.waveHeight != null && (
