@@ -11,6 +11,7 @@
 
 import { log } from './logger.js';
 import type { HourlyForecast } from '../src/types/forecast.js';
+import { isDaylight } from '../src/services/solarUtils.js';
 
 // ── Config ──────────────────────────────────────────
 
@@ -65,10 +66,16 @@ const ATMO_VARIABLES = [
   'snow_level',
 ].join(',');
 
-const NIGHT_STATES = new Set([
-  'CLEAR_NIGHT', 'NIGHT_CLOUDS', 'NIGHT_CLOUDY',
-  'NIGHT_RAIN', 'NIGHT_SHOWERS', 'NIGHT_SNOW', 'NIGHT_STORMS',
-]);
+// The night used to be read off sky_state, looking for a CLEAR_NIGHT /
+// NIGHT_CLOUDS vocabulary that apiv5 NEVER emits: a whole day of forecast comes
+// back as SUNNY / PARTLY_CLOUDY / CLOUDY, midnight included. The set was
+// unreachable, so every hour scored as daylight and the app offered night hours
+// as sailable. The provider does mark the night, but only inside iconURL
+// ('/sky-state/night/'), a field this parser drops.
+//
+// Rather than start keeping that field, the sun is computed where it belongs:
+// solarUtils already does it from the coordinates, owes nothing to the upstream
+// vocabulary, and cannot drift if MeteoSIX renames a state tomorrow.
 
 // ── Helpers ──
 
@@ -86,12 +93,6 @@ function kmhToMs(kmh: number | null): number | null {
   return kmh != null ? kmh / 3.6 : null;
 }
 
-function isDayFromSkyState(skyState: string | number | null, date: Date): boolean {
-  if (typeof skyState === 'string' && NIGHT_STATES.has(skyState)) return false;
-  if (typeof skyState === 'string' && !NIGHT_STATES.has(skyState)) return true;
-  const h = date.getHours();
-  return h >= 7 && h < 21;
-}
 
 function parseFeatureToTimeMap(feature: MeteoSIXFeature): Map<string, Record<string, string | number | null>> {
   const timeMap = new Map<string, Record<string, string | number | null>>();
@@ -179,7 +180,8 @@ async function fetchWrfForecast(lat: number, lon: number): Promise<HourlyForecas
       visibility: null,
       snowLevel: parseNum(rec['snow_level']),
       skyState: typeof skyState === 'string' ? skyState : null,
-      isDay: isDayFromSkyState(skyState, time),
+      // Sun at THIS point, not a vocabulary the provider does not use.
+      isDay: isDaylight(time, [lon, lat]),
     });
   }
 

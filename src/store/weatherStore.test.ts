@@ -98,10 +98,16 @@ describe('readingHistory', () => {
   it('bumps historyEpoch only when the history actually grew', () => {
     // Consumers key off the epoch to avoid recomputing on every poll. A repeat
     // reading must not look like new data.
-    useWeatherStore.getState().updateReadings([reading(10)]);
+    //
+    // The reading is built ONCE and spread. Calling the factory twice stamps a
+    // fresh Date.now() each time, so the two "repeats" only landed on the same
+    // millisecond when the suite happened to be fast enough — the test passed by
+    // luck and failed the day another file changed the timing.
+    const repeated = reading(10);
+    useWeatherStore.getState().updateReadings([repeated]);
     const after = useWeatherStore.getState().historyEpoch;
 
-    useWeatherStore.getState().updateReadings([{ ...reading(10) }]);
+    useWeatherStore.getState().updateReadings([{ ...repeated }]);
     expect(useWeatherStore.getState().historyEpoch).toBe(after);
   });
 
