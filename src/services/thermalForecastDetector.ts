@@ -57,6 +57,27 @@ const WIND_CALM = 3;       // m/s — calm enough for thermal to develop
 const CLOUD_CLEAR = 30;    // % — clear enough for solar heating
 const CLOUD_OK = 50;       // % — partially clear, still possible
 
+/**
+ * Floor the model's own forecast has to clear before this badge is allowed to
+ * promise strong wind.
+ *
+ * The signal count below is built from temperature, humidity, cloud and calm
+ * hours — the INGREDIENTS of a thermal. None of them is wind. Without this
+ * gate the top tier said "viento fuerte" on days the same forecast array
+ * capped at 9kt, and it got there partly BECAUSE the model was calm: hours
+ * under WIND_CALM add a signal, which is right for whether a thermal can
+ * establish and exactly wrong as evidence that it will blow hard.
+ *
+ * 12kt is where `windVerdict()` in spotScoringEngine starts calling an
+ * interior spot 'good'. Its own 'strong' band is 18kt, which would be the
+ * literal reading of the word, but the 1km model is known to under-read local
+ * thermal acceleration — that under-read is the whole reason the calibration
+ * machinery exists. Asking the model to already show 'good' keeps the badge
+ * from contradicting the number next to it without demanding it predict the
+ * acceleration too. Move this if the two vocabularies ever drift apart.
+ */
+const WIND_STRONG_CLAIM_KT = 12;
+
 // ── Core Analysis ──────────────────────────────────
 
 /**
@@ -114,6 +135,7 @@ function analyzeWindow(
   let peakTemp = -999;
   let minHumidity = 999;
   let maxWindMs = 0;
+  let sawWind = false;
   let cloudSum = 0;
   let cloudCount = 0;
   let calmHours = 0;
@@ -124,7 +146,10 @@ function analyzeWindow(
     const hr = h.time.getHours();
     if (h.temperature !== null && h.temperature > peakTemp) peakTemp = h.temperature;
     if (h.humidity !== null && h.humidity < minHumidity) minHumidity = h.humidity;
-    if (h.windSpeed !== null && h.windSpeed > maxWindMs) maxWindMs = h.windSpeed;
+    if (h.windSpeed !== null) {
+      sawWind = true;
+      if (h.windSpeed > maxWindMs) maxWindMs = h.windSpeed;
+    }
     if (h.cloudCover !== null) { cloudSum += h.cloudCover; cloudCount++; }
 
     // Count calm hours (wind < 3 m/s = thermal can develop)
@@ -165,8 +190,14 @@ function analyzeWindow(
   // ── Build label ──────────────────────────────────
   const confidence = signals >= 5 ? 'alta' : signals >= 3 ? 'media' : 'baja';
 
+  // The ingredients can all line up and the model still show a flat afternoon.
+  // When they disagree the model wins the WORDING, because it is the only one
+  // of the two that is actually measuring wind. No forecast at all counts as
+  // "cannot claim it" too: absence of evidence is not evidence of strong wind.
+  const modelBacksStrongWind = sawWind && maxWindKt >= WIND_STRONG_CLAIM_KT;
+
   let label: string;
-  if (signals >= 5 && peakTemp >= TEMP_EPIC) {
+  if (signals >= 5 && peakTemp >= TEMP_EPIC && modelBacksStrongWind) {
     label = day === 'hoy'
       ? `Día épico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte ${startHour}-${endHour}h`
       : `Mañana dia epico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte previsto`;
