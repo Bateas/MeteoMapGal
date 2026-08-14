@@ -33,7 +33,8 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useWebcamStore } from '../../store/webcamStore';
 import { temperatureColor, degreesToCardinal, scaleGustToSpot } from '../../services/windUtils';
 import { fetchMarineForecast, fetchMarineData, type MarineForecastHour } from '../../api/marineClient';
-import { fetchMeteoSixForecast, fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
+import { fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
+import { fetchSpotForecast, isSpotForecastStale } from '../../services/spotForecastFetch';
 import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
 import { useAirQualityStore } from '../../store/airQualityStore';
@@ -92,34 +93,24 @@ export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps
   const spotForecast = cached?.data ?? [];
   // Initial loading = true when no fresh cache → UI shows "Cargando..." from first
   // render instead of flashing blank then loading → blank again.
-  const [spotFcLoading, setSpotFcLoading] = useState(
-    () => !cached || Date.now() - cached.fetchedAt > 30 * 60_000
-  );
+  const [spotFcLoading, setSpotFcLoading] = useState(() => isSpotForecastStale(cached));
   const [spotFcError, setSpotFcError] = useState(false);
 
   useEffect(() => {
-    const stale = !cached || Date.now() - cached.fetchedAt > 30 * 60_000;
-    if (!stale || spotFcLoading) return;
+    // `spotFcLoading` used to be part of this guard, and since it STARTS true
+    // whenever the cache is stale, both branches returned: stale meant loading,
+    // and not-stale meant nothing to do. The request had not gone out since
+    // 23 April. Dedup belongs in the fetcher, not in a render-state flag —
+    // the flag is for the spinner, and the spinner must not gate the fetch.
+    if (!isSpotForecastStale(cached)) return;
     setSpotFcLoading(true);
     setSpotFcError(false);
     const [lon, lat] = spot.center;
-    // Retry once after 3s on failure (MeteoSIX intermittent 502/503).
-    // EXCEPTION: if the meteoSix circuit breaker is already open, the retry
-    // would short-circuit instantly anyway — bail immediately to surface
-    // the error state to the user without the extra 3s wait.
-    const fetchWithRetry = () =>
-      fetchMeteoSixForecast(lat, lon).catch((err) => {
-        if ((err as Error)?.name === 'MeteoSixBreakerOpenError') throw err;
-        console.debug(`[SpotForecast] ${spot.id} attempt 1 failed:`, err);
-        return new Promise<Awaited<ReturnType<typeof fetchMeteoSixForecast>>>((resolve, reject) =>
-          setTimeout(() => fetchMeteoSixForecast(lat, lon).then(resolve).catch(reject), 3000)
-        );
-      });
-    fetchWithRetry()
+    fetchSpotForecast(spot.id, lat, lon)
       .then((data) => setSpotForecast(spot.id, data))
       .catch((err) => { console.debug(`[SpotForecast] ${spot.id} both attempts failed:`, err); setSpotFcError(true); })
       .finally(() => setSpotFcLoading(false));
-  }, [spot.id, spot.center, cached, spotFcLoading, setSpotForecast]);
+  }, [spot.id, spot.center, cached, setSpotForecast]);
   // MOHID sea temp (Rías only — fetch alongside spot forecast)
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const aqData = useAirQualityStore((s) => s.data);
