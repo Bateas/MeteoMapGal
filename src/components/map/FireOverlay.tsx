@@ -118,18 +118,25 @@ function FireOverlayInner() {
     type: 'FeatureCollection',
     features: events.map((e) => {
       const area = formatBurntArea(e.areaHa);
+      // EFFIS is a BURNT-AREA product, not a live feed: an event stays on the
+      // map for days after it stopped burning. Carrying its age lets the ring
+      // fade instead of shouting at the same volume as one from this morning —
+      // in a bad week a dozen of them pile up and drown the live hotspots,
+      // which are the ones that change what you do today.
+      const ageDays = e.fireDate ? Math.max(0, (now - e.fireDate.getTime()) / 86_400_000) : 7;
       return {
         type: 'Feature',
         id: e.id,
         properties: {
           eventId: e.id,
           areaHa: e.areaHa ?? 0,
+          ageDays,
           label: e.commune ? (area ? `${e.commune} · ${area}` : e.commune) : '',
         },
         geometry: { type: 'Point', coordinates: [e.lon, e.lat] },
       };
     }),
-  }), [events]);
+  }), [events, now]);
 
   const handleClick = useCallback((e: MapLayerMouseEvent) => {
     const id = e.features?.[0]?.properties?.clusterId;
@@ -291,8 +298,18 @@ function FireOverlayInner() {
               ],
               'circle-color': 'transparent',
               'circle-stroke-color': '#f97316',
-              'circle-stroke-width': 2,
-              'circle-stroke-opacity': 0.85,
+              // Thin, and thinner still once it is history.
+              'circle-stroke-width': ['interpolate', ['linear'], ['get', 'ageDays'], 0, 1.6, 3, 1],
+              // Was a flat 0.85 for every ring, however old. Past fires are
+              // context, not signal: they recede so the live hotspots read
+              // first. Never to zero — a burnt hillside still matters for what
+              // the wind picks up and for reading yesterday.
+              'circle-stroke-opacity': [
+                'interpolate', ['linear'], ['get', 'ageDays'],
+                0, 0.5,
+                2, 0.3,
+                7, 0.16,
+              ],
             }}
           />
           <Layer
@@ -313,6 +330,10 @@ function FireOverlayInner() {
               'text-color': '#fdba74',
               'text-halo-color': '#0f172a',
               'text-halo-width': 1.4,
+              // The name is what makes an EFFIS event worth drawing, so it
+              // fades far less than its ring — but it does fade, or a week of
+              // events leaves a wall of orange text over the map.
+              'text-opacity': ['interpolate', ['linear'], ['get', 'ageDays'], 0, 0.95, 7, 0.55],
             }}
           />
         </Source>
