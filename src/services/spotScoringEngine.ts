@@ -162,7 +162,6 @@ function selectStationsForSpot(
   const excludeSet = new Set(spot.excludeStations ?? []);
 
   const now = Date.now();
-  const MAX_READING_AGE_MS = STALE_THRESHOLD_MIN * 60_000;
 
   for (const s of stations) {
     if (excludeSet.has(s.id)) continue;
@@ -170,9 +169,12 @@ function selectStationsForSpot(
     if (!reading) continue;
     if (reading.windSpeed === null) continue; // Direction is optional (SkyX, some Netatmo)
 
-    // Skip stale readings — prevents offline stations from dragging consensus
-    const ageMs = now - reading.timestamp.getTime();
-    if (ageMs > MAX_READING_AGE_MS) continue;
+    // Skip stale readings — prevents offline stations from dragging consensus.
+    // The gate is PER SOURCE (see SOURCE_CADENCE_MIN): a flat 30min threshold
+    // silently excluded every AEMET station from every spot, forever, because
+    // an hourly network is never that fresh.
+    const ageMin = (now - reading.timestamp.getTime()) / 60_000;
+    if (ageMin > staleGateMinFor(s.id)) continue;
 
     const distKm = fastDistanceKm(s.lat, s.lon, spotLat, spotLon);
     const isPreferred = preferredSet.has(s.id);
@@ -237,6 +239,72 @@ const SOURCE_QUALITY: Record<string, number> = {
   netatmo: 0.6,         // consumer devices, often building-mounted
   skyx: 0.6,            // single consumer device
 };
+
+/**
+ * How often each network actually publishes, in minutes, with its own lag
+ * folded in. MEASURED against production on 20-Aug: Wunderground 4-6 min,
+ * Netatmo 5-6, MeteoGalicia 17, Meteoclimatic 18-28, AEMET 64-89 (hourly, and
+ * it can publish up to two hours behind).
+ *
+ * This exists because a single absolute age threshold asks every network the
+ * wrong question. A 25-minute-old Meteoclimatic reading is PUNCTUAL; a
+ * 25-minute-old Wunderground has missed five cycles and its station is
+ * probably offline. Judging both by the same stopwatch reads "late" off the
+ * publication schedule instead of off the sensor.
+ *
+ * The cost of getting this wrong was not a rounding error. With a flat 30-min
+ * gate, AEMET readings — which are never younger than that — were dropped from
+ * every spot consensus in both sectors, permanently. At Castrelo that meant
+ * `aemet_1701X`, 1.7km from the water, listed in `preferredStations`, and the
+ * station the thermal engine was validated on, never once contributed. Its
+ * PREFERRED_EXPOSURE_BOOST was dead code. On 19-Aug the app reported CALMA at
+ * 4-6kt for nine hours while that station measured a steady 8-12.2kt.
+ *
+ * `buoyFreshness` in the ingestor already reasoned exactly this way about
+ * PORTUS. The idea was right and was only ever applied to buoys.
+ */
+const SOURCE_CADENCE_MIN: Record<string, number> = {
+  aemet: 60,           // hourly, and published with up to 2h of lag
+  meteogalicia: 10,
+  meteoclimatic: 30,
+  wunderground: 5,
+  netatmo: 10,
+  skyx: 10,
+};
+
+const DEFAULT_CADENCE_MIN = 10;
+
+/** Beyond this many missed cycles a station is not late, it is gone. */
+const STALE_CYCLES = 3;
+
+/** How old a reading from this source may be before we stop believing it. */
+export function staleGateMinFor(stationIdOrSource: string): number {
+  const head = stationIdOrSource.split('_')[0];
+  const source = PREFIX_TO_SOURCE[head] ?? head;
+  const cadence = SOURCE_CADENCE_MIN[source] ?? DEFAULT_CADENCE_MIN;
+  // One cycle of slack on top, so a reading that arrives a little late is not
+  // thrown away for it. AEMET lands at 60*3 + 60 = 240min, which covers its
+  // hourly cycle plus the two hours of publication lag it is documented to
+  // have, and still drops a station that has genuinely stopped.
+  return cadence * STALE_CYCLES + cadence;
+}
+
+/**
+ * Weight decay by MISSED CYCLES rather than by minutes, so being hourly is not
+ * itself a penalty. A punctual AEMET reading still weighs less than a punctual
+ * Wunderground one at the same distance — an hour-old wind is an hour old
+ * whatever produced it — but it is no longer excluded outright.
+ */
+export function freshnessMulFor(stationIdOrSource: string, ageMin: number): number {
+  const head = stationIdOrSource.split('_')[0];
+  const source = PREFIX_TO_SOURCE[head] ?? head;
+  const cadence = SOURCE_CADENCE_MIN[source] ?? DEFAULT_CADENCE_MIN;
+  const cycles = Math.max(0, ageMin) / cadence;
+  if (cycles <= 1) return 1.0;
+  if (cycles <= 2) return 0.85;
+  if (cycles <= 3) return 0.7;
+  return 0.5;
+}
 
 /**
  * The most a gust can plausibly reach on this coast. Above it, a cup
@@ -423,7 +491,7 @@ function computeSpotWindConsensus(
     const distWeight = proximityBoost / (distKm + 1);
     const qualityMul = getSourceQuality(station.id);
     const ageMin = (Date.now() - reading.timestamp.getTime()) / 60_000;
-    const freshnessMul = ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;
+    const freshnessMul = freshnessMulFor(station.id, ageMin);
     // Documented orographic bias: when a station reads FROM a direction it's
     // known to misread (sheltered/channeled/accelerated — empirical buoy audits
     // + geography, see stationBiases.ts), demote its weight so its bad reading

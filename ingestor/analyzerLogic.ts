@@ -12,7 +12,7 @@ import { haversineDistance } from '../src/services/geoUtils.js';
 import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
 import { predictCesantesCanalization } from '../src/services/cesantesCanalizationDetector.js';
 import { detectBocana } from '../src/services/bocanaDetector.js';
-import { isWindBlacklisted, getSourceQuality } from '../src/services/spotScoringEngine.js';
+import { isWindBlacklisted, getSourceQuality, freshnessMulFor } from '../src/services/spotScoringEngine.js';
 import { isBuoyFresh, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
@@ -63,12 +63,26 @@ function computeWeightedMedian(entries: { speedKt: number; weight: number }[]): 
   return sorted[sorted.length - 1].speedKt;
 }
 
-/** Age weight for a station reading. No timestamp = full weight. */
-function stationFreshness(time: string | Date | undefined, now: number): number {
+/**
+ * Age weight for a station reading. No timestamp = full weight.
+ *
+ * Delegates to `freshnessMulFor`, which scales the decay to how often the
+ * network actually publishes. It used to be a flat ladder in minutes, which
+ * asked an hourly AEMET station and a five-minute Wunderground one the same
+ * question and marked the punctual one late. This is the same reasoning
+ * `buoyFreshness` below already applies to PORTUS — it was only ever missing
+ * for stations. Keeping both brains on one function is the point: the map and
+ * the Telegram alert must not disagree about whether a reading counts.
+ */
+function stationFreshness(
+  stationId: string,
+  time: string | Date | undefined,
+  now: number,
+): number {
   if (!time) return 1;
   const ageMin = (now - new Date(time).getTime()) / 60_000;
   if (!Number.isFinite(ageMin)) return 1;
-  return ageMin <= 5 ? 1.0 : ageMin <= 10 ? 0.95 : ageMin <= 20 ? 0.85 : 0.7;
+  return freshnessMulFor(stationId, ageMin);
 }
 
 /** Age weight for a buoy. Wider steps than a station: PORTUS publishes every
@@ -524,7 +538,7 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
     const biasMul = (r.wind_dir != null && getStationBiasAt(r.station_id, r.wind_dir))
       ? BIAS_BLIND_PENALTY : 1;
     let weight = distWeight * getSourceQuality(r.station_id)
-      * stationFreshness(r.time, now) * biasMul;
+      * stationFreshness(r.station_id, r.time, now) * biasMul;
     if (isPreferred) weight *= PREFERRED_EXPOSURE_BOOST;
     entries.push({ speedKt, weight, dir: r.wind_dir });
   }
