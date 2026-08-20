@@ -676,3 +676,23 @@ describe('AEMET is no longer excluded from the consensus for being hourly', () =
     expect(score.wind).toBeNull();
   });
 });
+
+describe('skyx_SKY100 — owner-reported fault, off until he says otherwise', () => {
+  // Not a shelter measurement like the rest of the blacklist: the owner reports
+  // the link dropping and the anemometer jammed. It is also INTERMITTENT — it
+  // wrote again on 19-Aug after six days quiet — and it sits first in Castrelo's
+  // preferredStations, so without this it would rejoin the consensus at 1.3x the
+  // moment it published, on the only spot with no other sensor over the water.
+  it('is excluded from the wind consensus', () => {
+    expect(isWindBlacklisted('skyx_SKY100')).toBe(true);
+  });
+
+  it('cannot reach the verdict even sitting on top of the spot', () => {
+    const castrelo = EMBALSE_SPOTS.find(s => s.id === 'castrelo')!;
+    const [lon, lat] = castrelo.center;
+    const st = makeStation('skyx_SKY100', lat, lon, 'skyx');
+    const rd = makeReading('skyx_SKY100', msFromKt(18), 250);
+    const score = scoreAllSpots([castrelo], [st], new Map([[st.id, rd]]), []).get('castrelo')!;
+    expect(score.wind).toBeNull();
+  });
+});
