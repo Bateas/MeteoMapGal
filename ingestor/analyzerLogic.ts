@@ -12,7 +12,7 @@ import { haversineDistance } from '../src/services/geoUtils.js';
 import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
 import { predictCesantesCanalization } from '../src/services/cesantesCanalizationDetector.js';
 import { detectBocana } from '../src/services/bocanaDetector.js';
-import { isWindBlacklisted, getSourceQuality, freshnessMulFor } from '../src/services/spotScoringEngine.js';
+import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor } from '../src/services/spotScoringEngine.js';
 import { isBuoyFresh, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
@@ -520,6 +520,14 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
 
   for (const { r, distKm } of nearby) {
     if (r.wind_speed == null) continue;
+    // Per-source staleness gate, the same one the map uses. The SQL window is
+    // deliberately wider than any gate so that this decision lives in one
+    // place: an hourly network is not stale for being hourly, and a five-minute
+    // one that has gone quiet for an hour is.
+    if (r.time != null) {
+      const ageMin = (now - new Date(r.time).getTime()) / 60_000;
+      if (Number.isFinite(ageMin) && ageMin > staleGateMinFor(r.station_id)) continue;
+    }
     // Blacklist: stations statistically confirmed sheltered or broken for wind
     // (mean ratio < 0.20 against buoys) never enter the wind consensus. They
     // stay valid for temperature and humidity — the detector helpers below

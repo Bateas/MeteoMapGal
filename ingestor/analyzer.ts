@@ -121,7 +121,12 @@ async function getLatestReadings(): Promise<StationReading[]> {
         COALESCE(s.longitude, 0.0) as longitude
       FROM readings r
       LEFT JOIN stations s ON s.station_id = r.station_id
-      WHERE r.time > NOW() - INTERVAL '30 minutes'
+      -- Four hours, not thirty minutes. AEMET publishes hourly and can run two
+      -- hours behind, so a 30min window never returned a single AEMET row and
+      -- the per-source gate downstream never got to see one. The gate, not this
+      -- query, is what decides whether a reading is too old to count — see
+      -- staleGateMinFor. This window only has to be wider than the slowest gate.
+      WHERE r.time > NOW() - INTERVAL '4 hours'
       ORDER BY r.station_id, r.time DESC
     `);
     return result.rows;
