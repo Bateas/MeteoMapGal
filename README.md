@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Prod](https://img.shields.io/badge/prod-meteomapgal.navia3d.com-blueviolet)](https://meteomapgal.navia3d.com)
 
-**Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con mas de 400 estaciones en las cuatro provincias, 13 boyas, 14 spots monitorizados, 21 webcams con IA y mapa 3D interactivo.
+**Meteorologia en tiempo real para deportes acuaticos en Galicia** — Viento, olas, mareas y alertas con mas de 400 estaciones en las cuatro provincias, 13 boyas, 14 spots monitorizados, 21 webcams con IA y mapa interactivo con relieve.
 
 **Pruebalo**: [meteomapgal.navia3d.com](https://meteomapgal.navia3d.com) — Gratuito, sin registro. Funciona en movil y escritorio.
 
@@ -66,9 +66,12 @@
 - Banner ambar persistente cuando esta activo, con un clic para volver al modo completo
 
 ### Mapa en tiempo real
-- Mapa 3D (MapLibre GL) con 6 estilos base + terreno
+- Mapa 2D (MapLibre GL) con 6 estilos base y relieve sombreado. El mapa no se
+  inclina: el 3D se retiro porque se recalculaba en cada fotograma al desplazar
+  y era el mayor coste de GPU de la aplicacion, sin aportar informacion. El
+  relieve se sigue viendo, plano
 - Flechas de viento coloreadas por intensidad en cada estacion
-- Capas: humedad, temperatura, radar, niebla (DEM terrain), webcams, corrientes, cartas nauticas
+- Capas: humedad, temperatura, radar, niebla, webcams, corrientes, cartas nauticas
 
 
 ### Scoring inteligente (14 spots)
