@@ -274,6 +274,15 @@ describe('scoreSpot — circular mean direction', () => {
 
 // ── scoreSpot — Castrelo direction inference ─────────
 
+/**
+ * A station that reports wind but no direction. This used to be skyx_SKY100,
+ * the real dir-less station at the reservoir, until its owner reported the
+ * anemometer jammed and it was blacklisted for wind — so it can no longer
+ * exercise this branch. The branch is not about SkyX: any dir-less station
+ * near a spot triggers it, which is exactly why the fixture is now generic.
+ */
+const DIRLESS_STATION = 'mg_19099';
+
 describe('scoreSpot — Castrelo direction inference (no vane)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -283,9 +292,9 @@ describe('scoreSpot — Castrelo direction inference (no vane)', () => {
   });
 
   it('triggers inferredDir when no station within radius reports dir', () => {
-    // Only SkyX inside radius, with no wind_dir → avgDir null → inference fires
+    // Only a dir-less station inside radius → avgDir null → inference fires
     const skyx = makeReading({
-      station_id: 'skyx_SKY100',
+      station_id: DIRLESS_STATION,
       latitude: 42.2991,
       longitude: -8.1087,
       wind_speed: 5, // 9.7 kt → ≥3, so inference fires
@@ -304,10 +313,10 @@ describe('scoreSpot — Castrelo direction inference (no vane)', () => {
     expect(result.inferredDir).toBeNull();
   });
 
-  it('inferredDir populated when a nearby station has dir but SkyX does not', () => {
-    // SkyX with no dir, but within scoreSpot radius
+  it('inferredDir populated when a nearby station has dir but the local one does not', () => {
+    // Dir-less station within scoreSpot radius
     const skyx = makeReading({
-      station_id: 'skyx_SKY100',
+      station_id: DIRLESS_STATION,
       latitude: 42.2991,
       longitude: -8.1087,
       wind_speed: 5,
@@ -325,7 +334,7 @@ describe('scoreSpot — Castrelo direction inference (no vane)', () => {
 
   it('does not infer when avgWindKt < 3 (calm — meaningless inference)', () => {
     const skyx = makeReading({
-      station_id: 'skyx_SKY100',
+      station_id: DIRLESS_STATION,
       latitude: 42.2991,
       longitude: -8.1087,
       wind_speed: 1, // 1.9 kt → rounds to 2 → < 3

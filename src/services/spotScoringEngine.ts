@@ -374,6 +374,21 @@ function computeWeightedMedian(entries: { speedKt: number; weight: number }[]): 
  * Re-evaluate monthly.
  */
 const WIND_BLACKLIST = new Set([
+  // Castrelo reservoir edge — OWNER-REPORTED FAULT, not a shelter measurement.
+  // The owner confirms the link keeps dropping and the anemometer is jammed, so
+  // whatever it publishes about wind is not a reading. It goes back in when HE
+  // says the hardware is fixed and not before: delete this line, nothing else.
+  //
+  // Why it needs an explicit line rather than being left to go quiet on its own:
+  // it is INTERMITTENT, not dead. It stopped on 13-Aug, wrote again on 19-Aug at
+  // 10:25, and stopped again. It is also listed first in Castrelo's
+  // preferredStations, so the moment it publishes anything it re-enters the
+  // consensus carrying PREFERRED_EXPOSURE_BOOST — a jammed vane voting at 1.3x
+  // on the one spot that has no other sensor over the water.
+  //
+  // Blacklisting is the right shape for this: it drops the station for WIND only
+  // and keeps its temperature and humidity, which are not what is broken.
+  'skyx_SKY100',
   // Vigo city — balcony/patio stations
   'wu_IVIGO51', 'wu_IVIGO54', 'wu_IVIGO48', 'wu_IVIGO73', 'wu_IVIGO61',
   'wu_IVIGO83', 'wu_IVIGO79', 'wu_IVIGO80', 'wu_IVIGO63',
