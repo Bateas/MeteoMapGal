@@ -611,3 +611,68 @@ describe('getSourceQuality — reads both vocabularies', () => {
     expect(getSourceQuality('quienquiera_123')).toBe(0.7);
   });
 });
+
+describe('AEMET is no longer excluded from the consensus for being hourly', () => {
+  // 19-Aug at Castrelo: the app reported CALMA at 4-6kt for nine hours while
+  // aemet_1701X — 1.7km from the water, listed in preferredStations, and the
+  // station the thermal engine was validated on — measured a steady 8-12.2kt.
+  // It was not down-weighted. A flat 30-minute gate dropped it outright, and
+  // an hourly network is never that fresh, so it had never contributed once.
+  const castrelo = EMBALSE_SPOTS.find(s => s.id === 'castrelo')!;
+  const [spotLon, spotLat] = castrelo.center;
+
+  /** Ribadavia's real position, and the age its readings actually arrive with. */
+  function ribadavia(ageMin: number, kt: number) {
+    const station = makeStation('aemet_1701X', 42.30, -8.1292, 'aemet');
+    const reading = makeReading('aemet_1701X', msFromKt(kt), 221);
+    reading.timestamp = new Date(Date.now() - ageMin * 60_000);
+    return { station, reading };
+  }
+
+  it('counts a 100-minute-old AEMET reading — punctual for an hourly network', () => {
+    const { station, reading } = ribadavia(100, 12);
+    const score = scoreAllSpots([castrelo], [station], new Map([[station.id, reading]]), []).get('castrelo')!;
+    expect(score.wind).not.toBeNull();
+    expect(score.wind!.stationCount).toBeGreaterThan(0);
+  });
+
+  it('lets it move the verdict off calm, which is the whole point', () => {
+    // Two neighbours reading the background flow, as on the 19th, plus
+    // Ribadavia in the valley reading the real thing.
+    const far = [
+      { s: makeStation('wu_A', spotLat + 0.09, spotLon + 0.09, 'wunderground'), kt: 4 },
+      { s: makeStation('wu_B', spotLat - 0.09, spotLon - 0.09, 'wunderground'), kt: 4 },
+    ];
+    const stations = far.map(f => f.s);
+    const readings = new Map(far.map(f => [f.s.id, makeReading(f.s.id, msFromKt(f.kt), 280)]));
+
+    const withoutRib = scoreAllSpots([castrelo], stations, readings, []).get('castrelo')!;
+
+    const { station, reading } = ribadavia(100, 12);
+    const withRib = scoreAllSpots(
+      [castrelo],
+      [...stations, station],
+      new Map([...readings, [station.id, reading]]),
+      [],
+    ).get('castrelo')!;
+
+    expect(withRib.wind!.stationCount).toBe(withoutRib.wind!.stationCount + 1);
+    expect(withRib.wind!.avgSpeedKt).toBeGreaterThan(withoutRib.wind!.avgSpeedKt);
+  });
+
+  it('still drops one that has genuinely stopped', () => {
+    const { station, reading } = ribadavia(8 * 60, 12);
+    const score = scoreAllSpots([castrelo], [station], new Map([[station.id, reading]]), []).get('castrelo')!;
+    // No survivors at all — the engine reports no wind rather than a zero.
+    expect(score.wind).toBeNull();
+  });
+
+  it('does NOT extend the same grace to a five-minute network', () => {
+    // 100 minutes is punctual for AEMET and twenty missed cycles for WU.
+    const st = makeStation('wu_C', spotLat + 0.01, spotLon + 0.01, 'wunderground');
+    const rd = makeReading(st.id, msFromKt(12), 221);
+    rd.timestamp = new Date(Date.now() - 100 * 60_000);
+    const score = scoreAllSpots([castrelo], [st], new Map([[st.id, rd]]), []).get('castrelo')!;
+    expect(score.wind).toBeNull();
+  });
+});
