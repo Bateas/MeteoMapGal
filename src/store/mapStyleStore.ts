@@ -31,46 +31,51 @@ export const MAP_STYLES: MapStyleDef[] = [
     maxzoom: 19,
     swatch: ['#aad3df', '#f2efe9'],
   },
+  // CARTO's key-free basemaps ended, and not with a 403 — they answer 200 with a
+  // perfectly valid PNG that has "API KEY REQUIRED / carto.com/basemaps/apikey"
+  // burned into the image. A status check can never catch that; the giveaway is
+  // the weight, 59KB against 9KB for the same tile elsewhere. Three of the six
+  // base maps were watermarked, the default among them, so every first visit
+  // landed on it.
+  //
+  // The ids stay exactly as they were: they are persisted in every user's
+  // localStorage, and renaming them would silently reset the map for people who
+  // had chosen one. Only the tiles behind them change, and each keeps its role —
+  // minimal light, minimal dark, colourful streets.
   {
     id: 'positron',
-    name: 'Positron (Claro)',
+    name: 'Claro',
     shortName: 'Claro',
     tiles: [
-      'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-      'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
-      'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+      'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
     ],
     tileSize: 256,
-    attribution: '&copy; CARTO &copy; OSM contributors',
-    maxzoom: 20,
+    attribution: 'Esri, HERE, Garmin, &copy; OSM contributors',
+    maxzoom: 16,
     swatch: ['#e6e5e3', '#ffffff'],
   },
   {
     id: 'dark',
-    name: 'Dark Matter',
+    name: 'Oscuro',
     shortName: 'Oscuro',
     tiles: [
-      'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-      'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-      'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+      'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
     ],
     tileSize: 256,
-    attribution: '&copy; CARTO &copy; OSM contributors',
-    maxzoom: 20,
+    attribution: 'Esri, HERE, Garmin, &copy; OSM contributors',
+    maxzoom: 16,
     swatch: ['#2b2b2b', '#1a1a2e'],
   },
   {
     id: 'voyager',
-    name: 'Voyager',
-    shortName: 'Voyager',
+    name: 'Callejero',
+    shortName: 'Calles',
     tiles: [
-      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-      'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-      'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+      'https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
     ],
     tileSize: 256,
-    attribution: '&copy; CARTO &copy; OSM contributors',
-    maxzoom: 20,
+    attribution: 'Esri, HERE, Garmin, &copy; OSM contributors',
+    maxzoom: 19,
     swatch: ['#d9e8e3', '#faf5ef'],
   },
   {
@@ -90,7 +95,10 @@ export const MAP_STYLES: MapStyleDef[] = [
     name: 'IGN Base Gris',
     shortName: 'Gris',
     tiles: [
-      'https://www.ign.es/wmts/ign-base?service=WMTS&request=GetTile&version=1.0.0&format=image/png&layer=IGNBaseGris&style=default&tilematrixset=GoogleMapsCompatible&tilematrix={z}&tilerow={y}&tilecol={x}',
+      // IGNBaseGris -> IGNBase-gris, and it serves jpeg now, not png. The old
+      // name returns 400 "LAYER IGNBaseGris is not known", which the map draws
+      // as nothing at all: a raster source has no error callback.
+      'https://www.ign.es/wmts/ign-base?service=WMTS&request=GetTile&version=1.0.0&format=image/jpeg&layer=IGNBase-gris&style=default&tilematrixset=GoogleMapsCompatible&tilematrix={z}&tilerow={y}&tilecol={x}',
     ],
     tileSize: 256,
     attribution: '&copy; IGN España',
