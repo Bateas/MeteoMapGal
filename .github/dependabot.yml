@@ -74,8 +74,6 @@ updates:
           - "typescript"
           - "@typescript-eslint/*"
           - "eslint*"
-    labels:
-      - "dependencies"
 
   # Ingestor dependencies (separate schedule — backend changes less)
   - package-ecosystem: "npm"
@@ -86,9 +84,6 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 3
-    labels:
-      - "dependencies"
-      - "ingestor"
 
   # GitHub Actions versions (also a supply-chain target — tj-actions
   # mar-2025 incident; cooldown applies here too).
@@ -107,5 +102,3 @@ updates:
     ignore:
       - dependency-name: "actions/*"
         update-types: ["version-update:semver-major"]
-    labels:
-      - "ci"
