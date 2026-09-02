@@ -29,6 +29,13 @@ import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import { runFireWatchCycle } from './fireWatch.js';
 import { runCalibrationCycle, CALIBRATION_INTERVAL_MS } from './calibration.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
+import {
+  countBySource,
+  formatHeartbeat,
+  findSilentSources,
+  describeSilence,
+  type PolledSource,
+} from './sourceHealth.js';
 import type { NormalizedStation } from '../src/types/station.js';
 
 // ── Configuration ────────────────────────────────────
@@ -141,6 +148,48 @@ function checkBuoyStationStaleness(stationIds: number[]): void {
   );
 }
 
+/** source -> epoch ms of the last cycle that brought anything from it. */
+const sourceLastSeen = new Map<PolledSource, number>();
+const sourceStaleWarnedAt = new Map<PolledSource, number>();
+const SOURCE_REWARN_MS = 6 * 60 * 60_000;
+
+/**
+ * Print what every source brought this cycle and shout about any that has
+ * gone quiet for longer than its own cadence allows.
+ *
+ * Runs on EVERY cycle including empty ones, same as the buoy check: a cycle
+ * that fetched nothing is still evidence that nothing reported. And the
+ * heartbeat names all six every time, so a fetcher that returns early and
+ * prints nothing shows up as `MG 0` instead of as a line that is not there.
+ * On 18 August that missing line cost two hours of scoring spots without
+ * MeteoGalicia, and reading the log gave no hint at all.
+ */
+function checkSourceHealth(readings: readonly { stationId: string }[]): void {
+  const now = Date.now();
+  const counts = countBySource(readings);
+
+  for (const [source, count] of counts) {
+    if (count > 0) sourceLastSeen.set(source, now);
+  }
+
+  log.info(`Sources: ${formatHeartbeat(counts)}`);
+
+  const silent = findSilentSources({
+    now,
+    lastSeen: sourceLastSeen,
+    lastWarnedAt: sourceStaleWarnedAt,
+    reWarnAfterMs: SOURCE_REWARN_MS,
+  });
+  if (silent.length === 0) return;
+
+  for (const s of silent) sourceStaleWarnedAt.set(s.source, now);
+  log.error(
+    `SILENT SOURCE: ${silent.map(describeSilence).join(', ')}. ` +
+      `The other sources are reporting, so the global counter will not catch this — ` +
+      `check that fetcher, it may be returning early rather than failing.`,
+  );
+}
+
 // ── Core cycle ───────────────────────────────────────
 
 async function runCycle(): Promise<void> {
@@ -172,6 +221,10 @@ async function runCycle(): Promise<void> {
     // 1. Fetch weather observations from all 5 sources (requires stations)
     if (stations.size > 0) {
       const readings = await fetchAllObservations(stations);
+
+      // Before the early return: a cycle that brought nothing is exactly the
+      // one whose per-source breakdown matters most.
+      checkSourceHealth(readings);
 
       if (readings.length === 0) {
         log.warn('No weather readings fetched this cycle');

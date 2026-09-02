@@ -279,8 +279,7 @@ const STALE_CYCLES = 3;
 
 /** How old a reading from this source may be before we stop believing it. */
 export function staleGateMinFor(stationIdOrSource: string): number {
-  const head = stationIdOrSource.split('_')[0];
-  const source = PREFIX_TO_SOURCE[head] ?? head;
+  const source = sourceOf(stationIdOrSource);
   const cadence = SOURCE_CADENCE_MIN[source] ?? DEFAULT_CADENCE_MIN;
   // One cycle of slack on top, so a reading that arrives a little late is not
   // thrown away for it. AEMET lands at 60*3 + 60 = 240min, which covers its
@@ -296,8 +295,7 @@ export function staleGateMinFor(stationIdOrSource: string): number {
  * whatever produced it — but it is no longer excluded outright.
  */
 export function freshnessMulFor(stationIdOrSource: string, ageMin: number): number {
-  const head = stationIdOrSource.split('_')[0];
-  const source = PREFIX_TO_SOURCE[head] ?? head;
+  const source = sourceOf(stationIdOrSource);
   const cadence = SOURCE_CADENCE_MIN[source] ?? DEFAULT_CADENCE_MIN;
   const cycles = Math.max(0, ageMin) / cadence;
   if (cycles <= 1) return 1.0;
@@ -465,12 +463,23 @@ const PREFIX_TO_SOURCE: Record<string, string> = {
   skyx: 'skyx',
 };
 
+/**
+ * The network a station belongs to, from either vocabulary: a station id
+ * (`mg_10154`) or a source name (`meteogalicia`). Exported because readings
+ * do NOT carry their source — `NormalizedReading` has only `stationId`, so
+ * anything that wants to group by network has to derive it here rather than
+ * keep a second copy of the prefix table.
+ */
+export function sourceOf(stationIdOrSource: string): string {
+  const head = stationIdOrSource.split('_')[0];
+  return PREFIX_TO_SOURCE[head] ?? head;
+}
+
 /** Source quality multiplier by network. Accepts either vocabulary — a station
  *  id (`mg_10154`) or a source name (`meteogalicia`) — so passing the wrong one
  *  can no longer degrade to the default without anyone noticing. */
 export function getSourceQuality(stationIdOrSource: string): number {
-  const head = stationIdOrSource.split('_')[0];
-  const source = PREFIX_TO_SOURCE[head] ?? head;
+  const source = sourceOf(stationIdOrSource);
   return SOURCE_QUALITY[source] ?? 0.7;
 }
 
