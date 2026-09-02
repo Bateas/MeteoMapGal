@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { detectThermalForecast } from './thermalForecastDetector';
 import type { HourlyForecast } from '../types/forecast';
 
@@ -43,6 +43,26 @@ function day(opts: {
     } as HourlyForecast;
   });
 }
+
+/**
+ * Freeze the clock in the MORNING. The detector only counts the hours of
+ * today that are still ahead of `new Date()`, and the fixture above builds
+ * 12-19h, so with a real clock every `today()` assertion here passed before
+ * lunch and failed after 19:00 — which is how these seven were first seen
+ * failing, in a run that had nothing to do with them.
+ *
+ * 07:00Z is 09:00 in Galicia and 07:00 on a UTC runner: in both zones the
+ * whole window is still in the future, so the test says the same thing on
+ * both machines. The fixture and the detector both use LOCAL hours, so the
+ * two stay consistent with each other whatever the zone.
+ */
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-14T07:00:00Z'));
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 /** The signal for today, or undefined if the detector stayed quiet. */
 function today(hours: HourlyForecast[]) {
