@@ -56,6 +56,7 @@ import {
   queryUpperAir,
 } from './queries.js';
 import { getPool } from './db.js';
+import { clientIpOf, clampInt, isAllowedPushEndpoint, pruneCache, memoAsync } from './requestGuards.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { FIRMS_PRODUCTS, mergeFirmsCsv } from '../src/services/fireService.js';
 import { getSpotsForSector } from '../src/config/spots.js';
@@ -182,12 +183,18 @@ function defaultTimeRange(
 
 // ── Route handlers ─────────────────────────────────────
 
+// Both of these aggregate the readings hypertable. Memoised with in-flight
+// sharing so the database sees at most one such query per TTL no matter how
+// hard a client polls: the same query shape OOM-killed the DB host once.
+const cachedStations = memoAsync(5 * 60_000, queryStations);
+const cachedHealth = memoAsync(60_000, queryHealth);
+
 async function handleHealth(
   _params: Record<string, string>,
   res: http.ServerResponse,
   origin?: string
 ): Promise<void> {
-  const health = await queryHealth();
+  const health = await cachedHealth();
   json(res, health, health.status === 'ok' ? 200 : 503, origin);
 }
 
@@ -196,7 +203,7 @@ async function handleStations(
   res: http.ServerResponse,
   origin?: string
 ): Promise<void> {
-  const stations = await queryStations();
+  const stations = await cachedStations();
   json(res, { count: stations.length, stations }, 200, origin);
 }
 
@@ -431,7 +438,7 @@ async function handleSpotScores(
   origin?: string
 ): Promise<void> {
   const spotId = params.spot_id;
-  const days = parseInt(params.days || '7', 10);
+  const days = clampInt(params.days, 1, 30, 7);
   const db = getPool();
 
   try {
@@ -459,7 +466,7 @@ async function handleWebcamVision(
   origin?: string
 ): Promise<void> {
   const db = getPool();
-  const hours = parseInt(params.hours || '3', 10);
+  const hours = clampInt(params.hours, 1, 48, 3);
 
   try {
     const result = await db.query(
@@ -912,7 +919,7 @@ async function handleStormPredictionPost(
   }
 
   // Per-IP rate limit (same pattern as webcam upload)
-  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const ip = clientIpOf(req.headers, req.socket.remoteAddress);
   const now = Date.now();
   const bucket = stormPostCounts.get(ip);
   if (bucket && now < bucket.resetAt) {
@@ -1037,7 +1044,7 @@ async function readPushPostBody(
     return null;
   }
 
-  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const ip = clientIpOf(req.headers, req.socket.remoteAddress);
   const now = Date.now();
   const bucket = pushPostCounts.get(ip);
   if (bucket && now < bucket.resetAt) {
@@ -1098,11 +1105,9 @@ async function handlePushVapidKey(
   json(res, { publicKey }, 200, origin);
 }
 
-function isValidPushEndpoint(endpoint: unknown): endpoint is string {
-  return typeof endpoint === 'string'
-    && endpoint.startsWith('https://')
-    && endpoint.length <= 1000;
-}
+/** Upper bound on stored subscriptions. Real subscribers are a few dozen;
+ *  the cap only exists so junk cannot grow the dispatch loop without limit. */
+const PUSH_SUBSCRIPTIONS_MAX = 5000;
 
 /** POST /api/v1/push/subscribe → upsert { subscription, spotIds }. */
 async function handlePushSubscribe(
@@ -1124,12 +1129,25 @@ async function handlePushSubscribe(
   const validSpots = Array.isArray(spotIds) && spotIds.length <= 20
     && spotIds.every((id: unknown) => typeof id === 'string' && VALID_PUSH_SPOT_IDS.has(id));
 
-  if (!isValidPushEndpoint(endpoint) || !validKeys || !validSpots) {
+  if (!isAllowedPushEndpoint(endpoint) || !validKeys || !validSpots) {
     error(res, 'Invalid payload', 400, origin);
     return;
   }
 
   try {
+    // A NEW endpoint only gets in while there is room; an existing one may
+    // always refresh itself, so a full table never locks out real browsers.
+    const room = await getPool().query<{ n: number; known: boolean }>(
+      `SELECT COUNT(*)::int AS n,
+              BOOL_OR(endpoint = $1) AS known
+       FROM push_subscriptions`,
+      [endpoint],
+    );
+    if (room.rows[0].n >= PUSH_SUBSCRIPTIONS_MAX && !room.rows[0].known) {
+      log.warn(`[Push] subscription store full (${room.rows[0].n}); refusing new endpoint`);
+      error(res, 'push capacity reached', 503, origin);
+      return;
+    }
     // Re-subscribing (or editing the spot list) refreshes the crypto keys
     // and resets the failure streak — the browser just proved it is alive.
     await getPool().query(
@@ -1225,7 +1243,7 @@ async function handleWebcamUpload(
   origin?: string
 ): Promise<void> {
   // Server-side rate limit per IP
-  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const ip = clientIpOf(req.headers, req.socket.remoteAddress);
   const now = Date.now();
   const bucket = webcamUploadCounts.get(ip);
   if (bucket && now < bucket.resetAt) {
@@ -1333,12 +1351,7 @@ async function handleAemetProxy(
     if (upstream.ok) {
       aemetCache.set(aemetPath, { data: buf, contentType, ts: Date.now() });
       // Prune old entries
-      if (aemetCache.size > 50) {
-        const now = Date.now();
-        for (const [k, v] of aemetCache) {
-          if (now - v.ts > AEMET_CACHE_TTL) aemetCache.delete(k);
-        }
-      }
+      pruneCache(aemetCache, AEMET_CACHE_TTL, 50);
     }
 
     res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
@@ -1513,10 +1526,7 @@ async function handleMeteoSixProxy(
 
     if (upstream.ok) {
       meteosixCache.set(cacheKey, { data: buf, contentType, ts: Date.now() });
-      if (meteosixCache.size > 100) {
-        const now = Date.now();
-        for (const [k, v] of meteosixCache) { if (now - v.ts > METEOSIX_CACHE_TTL) meteosixCache.delete(k); }
-      }
+      pruneCache(meteosixCache, METEOSIX_CACHE_TTL, 100);
     }
 
     res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
@@ -1573,10 +1583,7 @@ async function handleObsCosteiroProxy(
 
     if (upstream.ok) {
       obsCache.set(obsPath, { data: buf, contentType, ts: Date.now() });
-      if (obsCache.size > 50) {
-        const now = Date.now();
-        for (const [k, v] of obsCache) { if (now - v.ts > OBS_CACHE_TTL) obsCache.delete(k); }
-      }
+      pruneCache(obsCache, OBS_CACHE_TTL, 50);
     }
 
     res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });

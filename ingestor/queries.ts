@@ -224,10 +224,18 @@ export async function queryStats(
 export async function queryHealth(): Promise<HealthInfo> {
   const db = getPool();
   try {
+    // A health check must be CHEAP: it is public, unauthenticated, and it used
+    // to run COUNT(*) and GROUP BY source over the whole hypertable on every
+    // hit. The total is now the planner's estimate (exact to within a few
+    // hundred rows on a table this size) and the per-source figure is the
+    // last two hours, which is also the number that actually says whether a
+    // source is alive. Only MIN/MAX are index lookups and stay as they were.
     const [countRes, sourceRes, rangeRes] = await Promise.all([
-      db.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM readings'),
+      db.query<{ count: number }>("SELECT approximate_row_count('readings')::int AS count"),
       db.query<{ source: string; count: number }>(
-        'SELECT source, COUNT(*)::int AS count FROM readings GROUP BY source ORDER BY source'
+        `SELECT source, COUNT(*)::int AS count FROM readings
+         WHERE time > NOW() - INTERVAL '2 hours'
+         GROUP BY source ORDER BY source`
       ),
       db.query<{ first: string | null; last: string | null }>(
         'SELECT MIN(time)::text AS first, MAX(time)::text AS last FROM readings'
