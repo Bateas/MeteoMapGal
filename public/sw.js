@@ -105,8 +105,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for static assets (hashed filenames from Vite + public assets)
-  if (STATIC_EXTENSIONS.test(url.pathname) && (url.pathname.includes('/assets/') || url.pathname.startsWith('/'))) {
+  // Cache-first for OUR static assets (hashed filenames from Vite + public assets).
+  // Same-origin only. The old test was `pathname.startsWith('/')`, which is
+  // true of every URL there is, so any cross-origin .json/.png also landed
+  // here: RainViewer's weather-maps.json was served from cache for the whole
+  // app version and the radar froze until the next deploy, and radar tiles
+  // piled up in the versioned cache with no eviction. Third-party requests
+  // that are not tiles now go straight to the network.
+  if (url.origin === self.location.origin && STATIC_EXTENSIONS.test(url.pathname)) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
         if (cached) return cached;
