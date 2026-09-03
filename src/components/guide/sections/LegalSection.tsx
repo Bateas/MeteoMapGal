@@ -105,7 +105,9 @@ export function LegalSection() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
-              Sin envío de datos a terceros
+              No vendemos ni cedemos tus datos. Algunos mapas, modelos y webcams se cargan directamente
+              desde sus proveedores (Open-Meteo, RainViewer, IGN, OpenStreetMap, Copernicus, DGT, Cloudflare),
+              que ven tu dirección IP como cualquier web que visitas
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
