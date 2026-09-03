@@ -323,11 +323,21 @@ export function buildMessage(sectors: (SectorSummary | null)[], now: Date): stri
   return msg;
 }
 
+/** Content-Type plus the shared secret the automation backend checks when
+ *  N8N_WEBHOOK_SECRET is set (Header Auth on the webhook node). Without it the
+ *  hooks accept anything that can reach them. */
+function webhookHeaders(): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  const secret = process.env.N8N_WEBHOOK_SECRET;
+  if (secret) h['X-Webhook-Secret'] = secret;
+  return h;
+}
+
 async function sendToN8n(message: string): Promise<boolean> {
   try {
     const res = await fetch(N8N_WEBHOOK, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: webhookHeaders(),
       body: JSON.stringify({ text: message }),
       signal: AbortSignal.timeout(10_000),
     });
