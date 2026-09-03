@@ -71,7 +71,7 @@ async function fetchAemet(
     }
 
     // Step 2: actual data (ISO-8859-1 charset)
-    const dataRes = await fetch(meta.datos, { signal: AbortSignal.timeout(TIMEOUT) });
+    const dataRes = await fetchWithRetry(meta.datos, 'AEMET datos', 2, 3000);
     const buf = await dataRes.arrayBuffer();
     const charset = dataRes.headers.get('content-type')?.match(/charset=([^\s;]+)/i)?.[1] ?? 'iso-8859-1';
     const text = new TextDecoder(charset).decode(buf);
@@ -107,14 +107,19 @@ async function fetchAemet(
 
 // ── MeteoGalicia observations ────────────────────────
 
-/** Fetch with retry for transient MG server errors */
-async function fetchMGWithRetry(url: string, retries = 2): Promise<Response> {
+/** Fetch with retry for transient upstream 5xx. Used by MeteoGalicia since
+ *  the start; AEMET's second hop (the `datos` URL) gets the same treatment
+ *  because it answers 503 a couple of times an hour and each one used to
+ *  cost the whole cycle: the heartbeat showed `AEMET 0` twice an hour with
+ *  nothing actually wrong upstream a few seconds later. */
+async function fetchWithRetry(url: string, label: string, retries = 2, delayMs = 2000): Promise<Response> {
+  let last: Response | null = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
-    if (res.ok) return res;
-    if (attempt < retries) await new Promise((r) => setTimeout(r, 2000));
+    last = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
+    if (last.ok) return last;
+    if (attempt < retries) await new Promise((r) => setTimeout(r, delayMs));
   }
-  throw new Error('MG fetch failed after retries');
+  throw new Error(`${label} fetch failed after ${retries + 1} attempts (last HTTP ${last?.status ?? '?'})`);
 }
 
 async function fetchMeteoGalicia(
@@ -129,8 +134,9 @@ async function fetchMeteoGalicia(
   // undici reuse TCP connections across requests to the same host.
   const results = await allSettledLimit(mgStations, async (station) => {
     const numId = station.id.replace('mg_', '');
-    const res = await fetchMGWithRetry(
+    const res = await fetchWithRetry(
       `${MG_BASE}/mgrss/observacion/ultimos10minEstacionsMeteo.action?idEst=${numId}`,
+      'MG',
     );
     const data: MeteoGaliciaObsResponse = await res.json();
     const entries = data.listUltimos10min ?? [];
