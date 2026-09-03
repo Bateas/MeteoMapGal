@@ -167,6 +167,23 @@ export function warningLevelLabel(level: number): string {
   return level === 3 ? 'Rojo' : level === 2 ? 'Naranja' : level === 1 ? 'Amarillo' : 'Sin aviso';
 }
 
+/** Where the "Aviso oficial" link may point. The feed is fetched over https
+ *  through our proxy, but its <link> is rendered as an href, and an href is
+ *  the one place a `javascript:` URL still runs. Only an https link on the
+ *  agency's own domain is kept; anything else falls back to the front page. */
+export const MG_WARNINGS_HOME = 'https://www.meteogalicia.gal/';
+export function safeWarningLink(raw: string | null | undefined): string {
+  if (!raw) return MG_WARNINGS_HOME;
+  try {
+    const u = new URL(raw.trim());
+    const host = u.hostname.toLowerCase();
+    if (u.protocol === 'https:' && (host === 'meteogalicia.gal' || host.endsWith('.meteogalicia.gal'))) return u.toString();
+  } catch {
+    /* not a URL */
+  }
+  return MG_WARNINGS_HOME;
+}
+
 export function warningLevelColor(level: number): string {
   return level === 3 ? '#ef4444' : level === 2 ? '#f97316' : level === 1 ? '#eab308' : '#64748b';
 }
@@ -187,7 +204,7 @@ function parseWarningsXML(xml: string): MGWarning[] {
     const item = itemBlock.split('</item>')[0];
     if (!item) continue;
 
-    const link = extractTag(item, 'link') ?? '';
+    const link = safeWarningLink(extractTag(item, 'link'));
     const pubDateStr = extractTag(item, 'pubDate') ?? '';
     const publishedAt = pubDateStr ? new Date(pubDateStr) : new Date();
 
