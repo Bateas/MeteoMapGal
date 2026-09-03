@@ -1,8 +1,7 @@
 name: CI
 
 # Build + test on every push to master and on every PR.
-# Uses Node 24 (matches local dev). LXC 305 prod can be bumped to Node 24
-# in next deploy (Node 24 is current LTS; backwards compatible).
+# Uses Node 24 (matches local dev and the deploy host).
 
 on:
   push:
@@ -10,12 +9,29 @@ on:
   pull_request:
     branches: [master]
 
+# Read-only token for every job: none of them writes to the repository, so a
+# hijacked action gets nothing to write with.
+permissions:
+  contents: read
+
 concurrency:
   # Cancel in-progress runs when a new commit is pushed to the same branch/PR
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  secrets-scan:
+    # Second net behind the local pre-commit hook: the same scanner over every
+    # tracked file. A hit here means something already reached the public
+    # repository and must be treated as leaked, not merely fixed.
+    name: Secrets scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan tracked files
+        run: bash tools/security-scan.sh tree
+
   test:
     name: Test + Build
     runs-on: ubuntu-latest
