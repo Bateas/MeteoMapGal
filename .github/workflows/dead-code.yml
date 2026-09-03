@@ -29,25 +29,24 @@ jobs:
     continue-on-error: true
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup Node 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies (root)
-        # `npm install` (not `npm ci`) — same reason as CI workflow: Windows
-        # lockfile lacks Linux-only transitives like @emnapi/core.
+        # `npm ci`: exactly the lockfile, same as the CI workflow.
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm rebuild esbuild --foreground-scripts --ignore-scripts=false
 
       - name: Install dependencies (ingestor)
         # knip scans ingestor/ too, so we need its modules resolvable.
         run: |
-          cd ingestor && npm install --no-audit --no-fund
+          cd ingestor && npm ci --no-audit --no-fund
 
       - name: Run knip
         # Capture output for the summary and for PR comments. `|| true` keeps
@@ -64,7 +63,7 @@ jobs:
 
       - name: Upload knip report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: knip-report
           path: /tmp/knip.txt
