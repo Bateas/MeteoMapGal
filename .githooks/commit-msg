@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Blocks a commit message that names deployment infrastructure. The history
+# of this repository is public; say "the deploy host", not the real thing.
+exec bash "$(git rev-parse --show-toplevel)/tools/security-scan.sh" msg "$1"
