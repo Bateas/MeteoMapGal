@@ -19,7 +19,8 @@
 #
 # What it does NOT handle (manual on LXC 306 / nginx):
 #   - schema.sql changes      → run psql on DB LXC 306
-#   - nginx.conf changes      → cp + nginx -t + reload, manually
+#   - nginx.conf changes      → cp + nginx -t + RESTART, manually (reload
+#                               leaves the tunnel's keep-alive worker on the old config)
 # It WARNS at the end if either of those changed.
 
 set -euo pipefail
@@ -113,7 +114,10 @@ fi
 # Version bump matters because the badge in the UI is read from
 # package.json at BUILD-TIME via src/config/version.ts. Without rebuild
 # the user sees the old version.
-if [ "$FRONTEND_CHANGED" = true ] || [ "$VERSION_BUMPED" = true ]; then
+# A root dependency change is a frontend change too: tailwind/postcss/vite
+# are the build. Without this the bundle kept the OLD css toolchain after a
+# batch of dependency merges until an unrelated version bump forced a build.
+if [ "$FRONTEND_CHANGED" = true ] || [ "$VERSION_BUMPED" = true ] || [ "$ROOT_PKG_CHANGED" = true ]; then
     echo "🔨 Building frontend (Vite)..."
     rm -rf node_modules/.vite dist
     npm run build
@@ -154,7 +158,8 @@ fi
 if [ "$NGINX_CHANGED" = true ]; then
     echo "⚠️  nginx.conf cambió. Aplica manualmente:"
     echo "     sudo cp $REPO/nginx.conf /etc/nginx/sites-available/meteomapgal"
-    echo "     sudo nginx -t && sudo systemctl reload nginx"
+    echo "     sudo nginx -t && sudo systemctl restart nginx"
+    echo "   (restart, not reload: a reload keeps the tunnel's long-lived worker serving the OLD config)"
     echo
 fi
 
