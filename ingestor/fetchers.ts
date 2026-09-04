@@ -21,8 +21,16 @@ import { getNetatmoToken, GALICIA_SWEEP_POINTS, GALICIA_SWEEP_RADIUS_KM } from '
  *  five-minute cadence. The rest of Galicia is archive: half an hour is plenty
  *  for a dataset, and it keeps the whole sweep far inside Netatmo's budget.
  *  Together: ~24 sector calls an hour plus ~50 for the sweep. */
-const NETATMO_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
+export const NETATMO_SWEEP_INTERVAL_MS = 30 * 60 * 1000;
 let lastNetatmoSweep = 0;
+
+/** What the last sweep brought, for the heartbeat in index.ts. The sectors
+ *  keep `NT` alive on their own, so without this a dead sweep is invisible. */
+const netatmoSweep: SweepStatus = { firstAttemptAt: null, attemptedAt: null, productiveAt: null, readings: 0 };
+export function getNetatmoSweepStatus(): Readonly<SweepStatus> {
+  return { ...netatmoSweep };
+}
+import { describeSweep, type SweepStatus } from './sourceHealth.js';
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import * as aemetBreaker from './aemetBreaker.js';
@@ -354,7 +362,9 @@ async function fetchNetatmo(
       requiredData: 'wind',
     }));
 
-  if (Date.now() - lastNetatmoSweep > NETATMO_SWEEP_INTERVAL_MS) {
+  const sweeping = Date.now() - lastNetatmoSweep > NETATMO_SWEEP_INTERVAL_MS;
+  let sweepReadings = 0;
+  if (sweeping) {
     lastNetatmoSweep = Date.now();
     for (const p of GALICIA_SWEEP_POINTS) {
       areas.push({
@@ -390,6 +400,11 @@ async function fetchNetatmo(
         signal: AbortSignal.timeout(TIMEOUT),
       });
       const data = await res.json();
+      // Netatmo answers a refused token or a bad box with HTTP 200 and an
+      // `error` object, and no `body`. Read as `[]` that was a silent zero.
+      if (data.error) {
+        throw new Error(`HTTP ${res.status}: ${data.error.message ?? JSON.stringify(data.error)}`);
+      }
       const body: NetatmoRawStation[] = data.body ?? [];
 
       for (const raw of body) {
@@ -399,6 +414,7 @@ async function fetchNetatmo(
 
         // Already processed this station?
         if (readings.some((r) => r.stationId === station.id)) continue;
+        if (area.id.startsWith('galicia/')) sweepReadings++;
 
         // Extract measurements
         let temperature: number | null = null;
@@ -466,7 +482,19 @@ async function fetchNetatmo(
     }
   }
 
-  log.info(`Netatmo: ${readings.length} readings`);
+  // Say which kind of cycle this was: `NT 18` is healthy between sweeps and
+  // a symptom during one, and the count alone cannot tell the reader which.
+  if (sweeping) {
+    netatmoSweep.attemptedAt = Date.now();
+    netatmoSweep.firstAttemptAt ??= netatmoSweep.attemptedAt;
+    netatmoSweep.readings = sweepReadings;
+    if (sweepReadings > 0) netatmoSweep.productiveAt = netatmoSweep.attemptedAt;
+    log.info(
+      `Netatmo: ${readings.length} readings (sectors ${readings.length - sweepReadings} + Galicia sweep ${sweepReadings})`,
+    );
+  } else {
+    log.info(`Netatmo: ${readings.length} readings (sectors; ${describeSweep(netatmoSweep, Date.now())})`);
+  }
   return readings;
 }
 

@@ -119,3 +119,90 @@ export function findSilentSources(input: FindSilentSourcesInput): SilentSource[]
 export function describeSilence(s: SilentSource): string {
   return `${s.source} silent ${formatSilence(s.silentMs)} (expected within ${s.gateMin}min)`;
 }
+
+// ── The Netatmo sweep: the blind spot the six-source line cannot see ─────
+//
+// Netatmo is fetched two ways: the two sectors every cycle (~18 readings) and
+// the rest of Galicia every half hour (~78 more). If the sweep dies — token
+// refused, empty bodies, sweep points gone from discovery — the sector fetch
+// keeps `NT 18` on the heartbeat and `lastSeen` fresh, so `findSilentSources`
+// never fires. And `NT 18` is exactly what a HEALTHY cycle prints between
+// sweeps. The only way to tell "18 because it is not sweep time" from "18
+// because the sweep is dead" is to remember when the sweep last brought
+// anything, which is what the fetcher records in a `SweepStatus`.
+
+export interface SweepStatus {
+  /** Epoch ms of the first cycle that ever ran the sweep; null before it.
+   *  Needed because `attemptedAt` advances every half hour even when every
+   *  sweep is empty, so measured from it a sweep dead since boot would never
+   *  look silent for longer than one interval. */
+  firstAttemptAt: number | null;
+  /** Epoch ms of the last cycle that ran the sweep; null before the first. */
+  attemptedAt: number | null;
+  /** Epoch ms of the last sweep that brought at least one reading. */
+  productiveAt: number | null;
+  /** Readings the last sweep brought, beyond the sectors. */
+  readings: number;
+}
+
+/** Sweeps in a row allowed to bring nothing before it counts as dead. One
+ *  empty sweep is weather (a rate limit, a timeout); two in a row is not. */
+export const DEAD_SWEEP_INTERVALS = 2.5;
+
+export interface FindDeadSweepInput {
+  now: number;
+  status: SweepStatus;
+  /** How often the sweep is meant to run. */
+  intervalMs: number;
+  /** Epoch ms of the last warning, or null if never warned. */
+  lastWarnedAt: number | null;
+  reWarnAfterMs: number;
+}
+
+/**
+ * Silence measured from the last PRODUCTIVE sweep — or from the FIRST
+ * attempt, if none has ever produced — longer than `DEAD_SWEEP_INTERVALS`
+ * intervals. Null when there is nothing to say or the warning is not due.
+ * A sweep never attempted is not judged: the fetcher may not have run yet.
+ */
+export function findDeadSweep(input: FindDeadSweepInput): { silentMs: number } | null {
+  const { now, status, intervalMs, lastWarnedAt, reWarnAfterMs } = input;
+  if (status.firstAttemptAt === null) return null;
+  const since = status.productiveAt ?? status.firstAttemptAt;
+  const silentMs = now - since;
+  if (silentMs < intervalMs * DEAD_SWEEP_INTERVALS) return null;
+  if (lastWarnedAt !== null && now - lastWarnedAt < reWarnAfterMs) return null;
+  return { silentMs };
+}
+
+/** "12min", "1h35", "2d" — minutes matter here, the interval is half an hour. */
+export function formatMinutes(ms: number): string {
+  const min = Math.max(0, Math.round(ms / 60_000));
+  if (min < 60) return `${min}min`;
+  if (min < 48 * 60) return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
+  return `${Math.floor(min / (24 * 60))}d`;
+}
+
+/** `Netatmo Galicia sweep has brought nothing for 1h35 (it runs every 30min)`. */
+export function describeDeadSweep(silentMs: number, intervalMs: number): string {
+  return (
+    `Netatmo Galicia sweep has brought nothing for ${formatMinutes(silentMs)} ` +
+    `(it runs every ${formatMinutes(intervalMs)})`
+  );
+}
+
+/**
+ * What the per-cycle Netatmo line says about the sweep on a NON-sweep cycle,
+ * so a reader can tell `NT 18` apart from a dead sweep without waiting for
+ * the alarm: `last sweep 78 readings 12min ago`.
+ */
+export function describeSweep(status: SweepStatus, now: number): string {
+  if (status.attemptedAt === null) return 'no sweep yet';
+  const ago = formatMinutes(now - status.attemptedAt);
+  if (status.readings > 0) return `last sweep ${status.readings} readings ${ago} ago`;
+  const productive =
+    status.productiveAt === null
+      ? 'never productive'
+      : `last productive ${formatMinutes(now - status.productiveAt)} ago`;
+  return `last sweep brought nothing ${ago} ago, ${productive}`;
+}

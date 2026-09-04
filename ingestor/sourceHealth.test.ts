@@ -5,6 +5,11 @@ import {
   formatHeartbeat,
   findSilentSources,
   describeSilence,
+  findDeadSweep,
+  describeSweep,
+  describeDeadSweep,
+  formatMinutes,
+  type SweepStatus,
 } from './sourceHealth';
 
 const MIN = 60_000;
@@ -157,5 +162,80 @@ describe('describeSilence — the line says why this counts as silent', () => {
     expect(line).toContain('meteogalicia');
     expect(line).toContain('2h');
     expect(line).toContain('40min');
+  });
+});
+
+describe('findDeadSweep — NT 18 between sweeps is not NT 18 because the sweep died', () => {
+  const INTERVAL = 30 * MIN;
+  const judge = (status: SweepStatus, now: number, lastWarnedAt: number | null = null) =>
+    findDeadSweep({ now, status, intervalMs: INTERVAL, lastWarnedAt, reWarnAfterMs: 6 * 60 * MIN });
+
+  it('says nothing before the first sweep has been attempted', () => {
+    expect(judge({ firstAttemptAt: null, attemptedAt: null, productiveAt: null, readings: 0 }, 10 * 60 * MIN)).toBeNull();
+  });
+
+  it('tolerates one empty sweep — a rate limit or a timeout is weather', () => {
+    // Productive at t=0, empty at t=30; at t=35 we are still inside the grace.
+    const status = { firstAttemptAt: 0, attemptedAt: 30 * MIN, productiveAt: 0, readings: 0 };
+    expect(judge(status, 35 * MIN)).toBeNull();
+    expect(judge(status, 74 * MIN)).toBeNull();
+  });
+
+  it('fires once two sweeps in a row have brought nothing', () => {
+    // Productive at t=0, empty at t=30 and t=60; the check at t=80 fires.
+    const status = { firstAttemptAt: 0, attemptedAt: 60 * MIN, productiveAt: 0, readings: 0 };
+    const dead = judge(status, 80 * MIN);
+    expect(dead).not.toBeNull();
+    expect(dead!.silentMs).toBe(80 * MIN);
+  });
+
+  it('measures from the FIRST attempt when no sweep has ever produced', () => {
+    // The boot case: token accepted, every box empty since start. The last
+    // attempt keeps moving, so measured from it this could never fire.
+    const status = { firstAttemptAt: 0, attemptedAt: 60 * MIN, productiveAt: null, readings: 0 };
+    expect(judge(status, 60 * MIN)).toBeNull();
+    expect(judge(status, 80 * MIN)?.silentMs).toBe(80 * MIN);
+  });
+
+  it('is quiet while the last sweep was productive, whatever the cycle count says', () => {
+    // The whole point: between sweeps the heartbeat shows the sector count only.
+    const status = { firstAttemptAt: 0, attemptedAt: 100 * MIN, productiveAt: 100 * MIN, readings: 78 };
+    expect(judge(status, 125 * MIN)).toBeNull();
+  });
+
+  it('does not repeat the warning inside the re-warn window', () => {
+    const status = { firstAttemptAt: 0, attemptedAt: 60 * MIN, productiveAt: 0, readings: 0 };
+    expect(judge(status, 80 * MIN, 79 * MIN)).toBeNull();
+    expect(judge(status, 80 * MIN + 6 * 60 * MIN, 79 * MIN)).not.toBeNull();
+  });
+});
+
+describe('describeSweep / describeDeadSweep — the line tells a reader which kind of cycle this was', () => {
+  it('before any sweep', () => {
+    expect(describeSweep({ firstAttemptAt: null, attemptedAt: null, productiveAt: null, readings: 0 }, 0)).toBe('no sweep yet');
+  });
+
+  it('after a productive sweep, how much and how long ago', () => {
+    const line = describeSweep({ firstAttemptAt: 0, attemptedAt: 100 * MIN, productiveAt: 100 * MIN, readings: 78 }, 112 * MIN);
+    expect(line).toBe('last sweep 78 readings 12min ago');
+  });
+
+  it('after an empty sweep, when it last produced — or that it never did', () => {
+    expect(describeSweep({ firstAttemptAt: 0, attemptedAt: 60 * MIN, productiveAt: 0, readings: 0 }, 65 * MIN))
+      .toBe('last sweep brought nothing 5min ago, last productive 1h05 ago');
+    expect(describeSweep({ firstAttemptAt: 0, attemptedAt: 60 * MIN, productiveAt: null, readings: 0 }, 65 * MIN))
+      .toBe('last sweep brought nothing 5min ago, never productive');
+  });
+
+  it('the alarm names the silence in minutes and the cadence it broke', () => {
+    expect(describeDeadSweep(95 * MIN, 30 * MIN))
+      .toBe('Netatmo Galicia sweep has brought nothing for 1h35 (it runs every 30min)');
+  });
+
+  it('formatMinutes keeps minutes below two days', () => {
+    expect(formatMinutes(0)).toBe('0min');
+    expect(formatMinutes(59 * MIN)).toBe('59min');
+    expect(formatMinutes(60 * MIN)).toBe('1h00');
+    expect(formatMinutes(3 * 24 * 60 * MIN)).toBe('3d');
   });
 });
