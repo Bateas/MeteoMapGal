@@ -13,7 +13,7 @@ import 'dotenv/config';
 import { initPool, pingDb, getPool, batchUpsert, batchUpsertBuoys, batchUpsertStations, closePool, setStuckAnemometers } from './db.js';
 import { findStuckAnemometers } from './queries.js';
 import { discoverAllStations } from './discover.js';
-import { fetchAllObservations } from './fetchers.js';
+import { fetchAllObservations, getNetatmoSweepStatus, NETATMO_SWEEP_INTERVAL_MS } from './fetchers.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
 import { checkAndSendDailySummary } from './dailySummary.js';
@@ -34,6 +34,8 @@ import {
   formatHeartbeat,
   findSilentSources,
   describeSilence,
+  findDeadSweep,
+  describeDeadSweep,
   type PolledSource,
 } from './sourceHealth.js';
 import type { NormalizedStation } from '../src/types/station.js';
@@ -174,6 +176,8 @@ function checkSourceHealth(readings: readonly { stationId: string }[]): void {
 
   log.info(`Sources: ${formatHeartbeat(counts)}`);
 
+  checkNetatmoSweep(now);
+
   const silent = findSilentSources({
     now,
     lastSeen: sourceLastSeen,
@@ -187,6 +191,33 @@ function checkSourceHealth(readings: readonly { stationId: string }[]): void {
     `SILENT SOURCE: ${silent.map(describeSilence).join(', ')}. ` +
       `The other sources are reporting, so the global counter will not catch this — ` +
       `check that fetcher, it may be returning early rather than failing.`,
+  );
+}
+
+let sweepWarnedAt: number | null = null;
+
+/**
+ * The one Netatmo failure the check above cannot see: the sectors keep `NT`
+ * on the heartbeat every cycle, so the half-hourly Galicia sweep can die and
+ * every line still looks alive. `NT 18` is healthy between sweeps and a
+ * symptom during one; only the sweep's own clock tells them apart.
+ */
+function checkNetatmoSweep(now: number): void {
+  const dead = findDeadSweep({
+    now,
+    status: getNetatmoSweepStatus(),
+    intervalMs: NETATMO_SWEEP_INTERVAL_MS,
+    lastWarnedAt: sweepWarnedAt,
+    reWarnAfterMs: SOURCE_REWARN_MS,
+  });
+  if (!dead) return;
+
+  sweepWarnedAt = now;
+  log.error(
+    `SILENT SWEEP: ${describeDeadSweep(dead.silentMs, NETATMO_SWEEP_INTERVAL_MS)}. ` +
+      `The sectors keep NT on the heartbeat, so the silent-source check will not catch this — ` +
+      `look for "Netatmo fetch (galicia/...) failed" above (token, rate limit), ` +
+      `or check that discovery still knows the stations outside the sectors.`,
   );
 }
 
