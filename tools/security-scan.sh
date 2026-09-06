@@ -4,6 +4,7 @@
 #   tools/security-scan.sh staged        pre-commit hook: added lines in the index
 #   tools/security-scan.sh tree          CI: every tracked file
 #   tools/security-scan.sh msg <file>    commit-msg hook: infrastructure words
+#   tools/security-scan.sh log <range>   CI: the same, over the messages of a commit range
 #
 # Exit 1 on any hit, printing the offending line, so the gate actually BLOCKS.
 # A scan whose output is merely printed and never read is how "nginx" once
@@ -92,8 +93,26 @@ case "$MODE" in
     file="${2:?commit message file}"
     found=$(grep -vE '^#' "$file" | grep -nE "$MSG_WORDS" | sed 's/^/  message:/' || true)
     ;;
+  log)
+    # The commit-msg hook only guards clones that enabled .githooks. This is
+    # the same check over the messages of a commit RANGE, for CI: only the
+    # pushed commits, never the whole history (which carries a known, accepted
+    # debt of infrastructure words from before the gate existed).
+    range="${2:?commit range, e.g. abc123..def456}"
+    # Resolve the range BEFORE looping. `for c in $(git rev-list ...)` would
+    # swallow git's failure: zero iterations, nothing found, exit 0 — a gate
+    # that passes an unscanned push because of a typo in the range.
+    if ! shas=$(git rev-list "$range"); then
+      echo "security-scan (log): cannot resolve range '$range' - refusing to pass an unscanned push." >&2
+      exit 2
+    fi
+    for c in $shas; do
+      out=$(git log -1 --format=%B "$c" | grep -nE "$MSG_WORDS" | sed "s/^/  ${c:0:7}:/" || true)
+      [ -n "$out" ] && found="$found$out"$'\n'
+    done
+    ;;
   *)
-    echo "usage: $0 staged|tree|msg <file>" >&2
+    echo "usage: $0 staged|tree|msg <file>|log <range>" >&2
     exit 2
     ;;
 esac
