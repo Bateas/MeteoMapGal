@@ -29,8 +29,36 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The message scan below needs the pushed range, not just HEAD.
+          fetch-depth: 0
       - name: Scan tracked files
         run: bash tools/security-scan.sh tree
+      - name: Scan the messages of the commits since the gate
+        # The commit-msg hook only guards clones that enabled .githooks; this is
+        # the net for a push from anywhere else. The range is anchored at the
+        # commit that introduced the scanner, NOT at github.event.before: with
+        # cancel-in-progress above, two pushes in quick succession cancel the
+        # first run, and a per-push range would leave that push's messages
+        # judged by no completed run at all. Re-judging everything after the
+        # gate on every run is idempotent and costs milliseconds per commit.
+        # History before the gate carries a known, accepted debt and is never
+        # judged. If a history rewrite ever moves the gate, update GATE.
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          GATE=3ba2c1369be9d5bc5472c624997c898f49728a31
+          if [ -n "$PR_BASE" ] && git cat-file -e "$PR_BASE^{commit}" 2>/dev/null; then
+            range="$PR_BASE..HEAD"
+          elif git merge-base --is-ancestor "$GATE" HEAD 2>/dev/null; then
+            range="$GATE..HEAD"
+          elif [ "$(git rev-list --count HEAD)" -gt 5 ]; then
+            range="HEAD~5..HEAD"   # history rewritten past the gate: judge the last few
+          else
+            range="HEAD"
+          fi
+          echo "scanning commit messages in $range"
+          bash tools/security-scan.sh log "$range"
 
   test:
     name: Test + Build
