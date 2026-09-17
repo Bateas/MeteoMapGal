@@ -34,6 +34,7 @@ import { describeSweep, type SweepStatus } from './sourceHealth.js';
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import * as aemetBreaker from './aemetBreaker.js';
+import * as mgBreaker from './mgBreaker.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
 const MG_BASE = 'https://servizos.meteogalicia.gal';
@@ -136,6 +137,14 @@ async function fetchMeteoGalicia(
   const mgStations = stations.filter((s) => s.source === 'meteogalicia');
   if (mgStations.length === 0) return [];
 
+  // Skip the whole fan-out if a recent cycle already found the resolver/
+  // network to MeteoGalicia down — no point hammering it again this soon.
+  try {
+    mgBreaker.checkBreaker('observation poll');
+  } catch {
+    return [];
+  }
+
   // Cap parallelism at 8 — without this we'd fan out to ~50 simultaneous
   // fetches per cycle, hammering the LXC's DNS resolver and MeteoGalicia
   // with a thundering herd. 8 is plenty to finish a cycle in ~2s and lets
@@ -154,6 +163,9 @@ async function fetchMeteoGalicia(
     const entry = entries[0];
     return normalizeMeteoGaliciaObservation(parseInt(numId, 10), entry);
   }, 8);
+
+  const failedCount = results.filter((r) => r.status === 'rejected').length;
+  mgBreaker.reportCycleResult(mgStations.length, failedCount);
 
   const readings = results
     .filter((r): r is PromiseFulfilledResult<NormalizedReading | null> => r.status === 'fulfilled')
