@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import Map, { NavigationControl } from 'react-map-gl/maplibre';
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl/maplibre';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useSectorStore } from '../../store/sectorStore';
@@ -454,6 +454,8 @@ export function WeatherMap() {
       <Map
         ref={mapRef}
         mapLib={maplibregl}
+        pixelRatio={isMobile ? Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2) : undefined}
+        maxTileCacheSize={isMobile ? 50 : 100}
         initialViewState={sectorInitialView}
         style={{ width: '100%', height: '100%' }}
         mapStyle={mapStyle}

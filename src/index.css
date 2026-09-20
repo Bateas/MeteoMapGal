@@ -113,11 +113,21 @@
   box-sizing: border-box;
 }
 
+html, body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
+}
+
+/* Eliminate 300ms mobile tap delay on interactive controls */
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
 }
 
 /* ── Mobile viewport height fix ─────────────────────────
