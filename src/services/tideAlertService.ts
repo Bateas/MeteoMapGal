@@ -107,8 +107,12 @@ export function nextAmplitude(
   points: TidePoint[],
   from: Date = new Date(),
 ): number | null {
+  const fromMs = from.getTime();
   const hhmm = `${String(from.getHours()).padStart(2, '0')}:${String(from.getMinutes()).padStart(2, '0')}`;
-  const remaining = points.filter((p) => p.time > hhmm);
+  const remaining = points.filter((p) => {
+    if (p.epochMs && p.epochMs > 0) return p.epochMs > fromMs;
+    return p.time > hhmm;
+  });
   if (remaining.length < 2) return null;
   return Math.abs(remaining[0].height - remaining[1].height);
 }

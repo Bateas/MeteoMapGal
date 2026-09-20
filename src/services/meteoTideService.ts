@@ -65,9 +65,13 @@ export interface TideExtreme {
 export function toExtremes(points: TidePoint[], day: Date): TideExtreme[] {
   const out: TideExtreme[] = [];
   for (const p of points) {
+    if (!Number.isFinite(p.height)) continue;
+    if (p.epochMs != null && Number.isFinite(p.epochMs) && p.epochMs > 0) {
+      out.push({ at: new Date(p.epochMs), heightM: p.height });
+      continue;
+    }
     const [hh, mm] = p.time.split(':').map(Number);
     if (!Number.isFinite(hh) || !Number.isFinite(mm)) continue;
-    if (!Number.isFinite(p.height)) continue;
     const at = new Date(day);
     at.setHours(hh, mm, 0, 0);
     out.push({ at, heightM: p.height });

@@ -66,9 +66,16 @@ export const TidePanel = memo(function TidePanel() {
   const nextTide = useMemo(() => {
     if (!data) return null;
     const now = new Date();
+    const nowMs = now.getTime();
     const todayStr = now.toISOString().slice(0, 10);
 
     for (const point of data.today) {
+      if (point.epochMs && point.epochMs > 0) {
+        if (point.epochMs > nowMs) {
+          return { ...point, date: new Date(point.epochMs) };
+        }
+        continue;
+      }
       const parsed = parseTimeHHMM(point.time);
       if (!parsed) continue;
       const tideTime = new Date(todayStr);
@@ -83,12 +90,16 @@ export const TidePanel = memo(function TidePanel() {
       const tmrw = new Date(now);
       tmrw.setDate(tmrw.getDate() + 1);
       const tmrwStr = tmrw.toISOString().slice(0, 10);
-      const first = data.tomorrow[0];
-      const parsed = parseTimeHHMM(first.time);
-      if (parsed) {
-        const tideTime = new Date(tmrwStr);
-        tideTime.setHours(parsed[0], parsed[1], 0, 0);
-        return { ...first, date: tideTime };
+      for (const first of data.tomorrow) {
+        if (first.epochMs && first.epochMs > 0) {
+          return { ...first, date: new Date(first.epochMs) };
+        }
+        const parsed = parseTimeHHMM(first.time);
+        if (parsed) {
+          const tideTime = new Date(tmrwStr);
+          tideTime.setHours(parsed[0], parsed[1], 0, 0);
+          return { ...first, date: tideTime };
+        }
       }
     }
 
@@ -97,19 +108,28 @@ export const TidePanel = memo(function TidePanel() {
 
   // Current tide state (rising or falling)
   const tideState = useMemo(() => {
-    if (!data || data.today.length < 2) return null;
+    if (!data) return null;
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
     const nowMs = now.getTime();
+    const all = [...data.today, ...data.tomorrow];
+    if (all.length < 2) return null;
 
     let prev: { time: Date; type: 'high' | 'low' } | null = null;
     let next: { time: Date; type: 'high' | 'low' } | null = null;
 
-    for (const point of data.today) {
-      const parsed = parseTimeHHMM(point.time);
-      if (!parsed) continue;
-      const tideTime = new Date(todayStr);
-      tideTime.setHours(parsed[0], parsed[1], 0, 0);
+    for (const point of all) {
+      let tideTime: Date;
+      if (point.epochMs && point.epochMs > 0) {
+        tideTime = new Date(point.epochMs);
+      } else {
+        const parsed = parseTimeHHMM(point.time);
+        if (!parsed) continue;
+        const isTomorrow = data.tomorrow.includes(point);
+        const dayDate = new Date(now);
+        if (isTomorrow) dayDate.setDate(dayDate.getDate() + 1);
+        tideTime = new Date(dayDate.toISOString().slice(0, 10));
+        tideTime.setHours(parsed[0], parsed[1], 0, 0);
+      }
 
       if (tideTime.getTime() <= nowMs) {
         prev = { time: tideTime, type: point.type };
@@ -120,9 +140,12 @@ export const TidePanel = memo(function TidePanel() {
 
     if (!prev || !next) return null;
 
+    const diff = next.time.getTime() - prev.time.getTime();
+    if (diff <= 0) return null;
+
     return {
       rising: next.type === 'high',
-      progress: (nowMs - prev.time.getTime()) / (next.time.getTime() - prev.time.getTime()),
+      progress: Math.min(1, Math.max(0, (nowMs - prev.time.getTime()) / diff)),
     };
   }, [data]);
 
