@@ -87,14 +87,14 @@ const CACHE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour — stale beyond this
 
 // ── PERF: Throttle cacheSnapshot to avoid serializing 90+ station readings
 // on every updateReadings() call (~5 sources × 5min = 5 calls per cycle).
-// Instead, cache at most every 30s.
+// Instead, cache at most every 2s.
 let _cacheSnapshotTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleCacheSnapshot(fn: () => void): void {
   if (_cacheSnapshotTimer !== null) return; // already scheduled
   _cacheSnapshotTimer = setTimeout(() => {
     _cacheSnapshotTimer = null;
     fn();
-  }, 30_000); // 30 seconds
+  }, 2_000); // 2 seconds
 }
 
 interface CachedSnapshot {
@@ -148,7 +148,12 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
 
   setStations: (stations) => {
     if (stations.length === 0) {
-      // Sector switch: clear all stale data from previous sector
+      // Sector switch: flush any pending snapshot for the old sector before clearing
+      if (_cacheSnapshotTimer !== null) {
+        clearTimeout(_cacheSnapshotTimer);
+        _cacheSnapshotTimer = null;
+        get().cacheSnapshot();
+      }
       set({
         stations,
         currentReadings: new Map(),

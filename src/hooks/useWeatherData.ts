@@ -53,6 +53,16 @@ export function useWeatherData() {
     setLoading(true);
     setError(null);
 
+    // Helper: progressively hydrate readings as each source resolves
+    const onSourceReadings = (sourceReadings: NormalizedReading[]) => {
+      if (controller.signal.aborted || useSectorStore.getState().activeSector.id !== fetchSectorId) {
+        return;
+      }
+      if (sourceReadings.length > 0) {
+        updateReadings(sourceReadings);
+      }
+    };
+
     // Build fetch tasks for each source — run all in parallel
     const tasks: Promise<NormalizedReading[]>[] = [];
 
@@ -98,6 +108,7 @@ export function useWeatherData() {
             // METAR poll (metar_ prefix, its own cadence) is never wiped out.
             mergeVisibilityReadings(visReadings, 'aemet_');
             updateSourceStatus('aemet', true, readings.length);
+            onSourceReadings(readings);
             return readings;
           }).catch((err) => {
             // AEMET step-2 503 is a transient backend hiccup (their `datos` URL
@@ -117,43 +128,64 @@ export function useWeatherData() {
       }
     }
 
-    // MeteoGalicia
+    // MeteoGalicia — ingestor API first (TimescaleDB ~10ms), fallback to direct MeteoGalicia API
     const mgStations = stations.filter((s) => s.source === 'meteogalicia');
     if (mgStations.length > 0) {
+      const mgSet = new Set(mgStations.map((s) => s.id));
       tasks.push(
-        fetchLatestForStations(mgStations.map((s) => parseInt(s.id.replace('mg_', ''), 10))).then((mgResults) => {
-          const readings: NormalizedReading[] = [];
-          for (const [stationId, values] of mgResults) {
-            const reading = normalizeMeteoGaliciaObservation(stationId, values);
-            if (reading) readings.push(reading);
-          }
+        fetchLatestReadings(undefined, 'meteogalicia').then((rows) => {
+          const readings = historyToNormalized(rows).filter((r) => mgSet.has(r.stationId));
+          if (readings.length === 0) throw new Error('No MeteoGalicia data from ingestor');
           updateSourceStatus('meteogalicia', true, readings.length);
+          onSourceReadings(readings);
           return readings;
+        }).catch((ingestorErr) => {
+          console.warn('[WeatherData] MeteoGalicia ingestor failed, trying direct:', (ingestorErr as Error).message);
+          return fetchLatestForStations(mgStations.map((s) => parseInt(s.id.replace('mg_', ''), 10))).then((mgResults) => {
+            const readings: NormalizedReading[] = [];
+            for (const [stationId, values] of mgResults) {
+              const reading = normalizeMeteoGaliciaObservation(stationId, values);
+              if (reading) readings.push(reading);
+            }
+            updateSourceStatus('meteogalicia', true, readings.length);
+            onSourceReadings(readings);
+            return readings;
+          });
         }).catch((err) => {
-          console.error('[WeatherData] MeteoGalicia fetch error:', err);
+          console.error('[WeatherData] MeteoGalicia both sources failed:', err);
           updateSourceStatus('meteogalicia', false, 0, String(err));
           return [];
         })
       );
     }
 
-    // Meteoclimatic
+    // Meteoclimatic — ingestor API first, fallback to direct XML feed
     const mcStationIds = new Set(
       stations.filter((s) => s.source === 'meteoclimatic').map((s) => s.id)
     );
     if (mcStationIds.size > 0) {
       tasks.push(
-        fetchMeteoclimaticFeed(activeSector.meteoclimaticRegions).then((mcFeed) => {
-          const readings: NormalizedReading[] = [];
-          for (const raw of mcFeed) {
-            if (mcStationIds.has(`mc_${raw.id}`)) {
-              readings.push(normalizeMeteoclimaticObservation(raw));
-            }
-          }
+        fetchLatestReadings(undefined, 'meteoclimatic').then((rows) => {
+          const readings = historyToNormalized(rows).filter((r) => mcStationIds.has(r.stationId));
+          if (readings.length === 0) throw new Error('No Meteoclimatic data from ingestor');
           updateSourceStatus('meteoclimatic', true, readings.length);
+          onSourceReadings(readings);
           return readings;
+        }).catch((ingestorErr) => {
+          console.warn('[WeatherData] Meteoclimatic ingestor failed, trying direct:', (ingestorErr as Error).message);
+          return fetchMeteoclimaticFeed(activeSector.meteoclimaticRegions).then((mcFeed) => {
+            const readings: NormalizedReading[] = [];
+            for (const raw of mcFeed) {
+              if (mcStationIds.has(`mc_${raw.id}`)) {
+                readings.push(normalizeMeteoclimaticObservation(raw));
+              }
+            }
+            updateSourceStatus('meteoclimatic', true, readings.length);
+            onSourceReadings(readings);
+            return readings;
+          });
         }).catch((err) => {
-          console.error('[WeatherData] Meteoclimatic fetch error:', err);
+          console.error('[WeatherData] Meteoclimatic both sources failed:', err);
           updateSourceStatus('meteoclimatic', false, 0, String(err));
           return [];
         })
@@ -169,12 +201,14 @@ export function useWeatherData() {
           const readings = historyToNormalized(rows).filter((r) => wuSet.has(r.stationId));
           if (readings.length === 0) throw new Error('No WU data from ingestor');
           updateSourceStatus('wunderground', true, readings.length);
+          onSourceReadings(readings);
           return readings;
         }).catch((ingestorErr) => {
           // Fallback: direct WU API (dev or ingestor unavailable)
           console.warn('[WeatherData] WU ingestor failed, trying direct:', (ingestorErr as Error).message);
           return fetchWUObservations(wuStationIds).then((readings) => {
             updateSourceStatus('wunderground', true, readings.length);
+            onSourceReadings(readings);
             return readings;
           });
         }).catch((err) => {
@@ -195,12 +229,14 @@ export function useWeatherData() {
           const readings = historyToNormalized(rows).filter((r) => netatmoStationIds.has(r.stationId));
           if (readings.length === 0) throw new Error('No Netatmo data from ingestor');
           updateSourceStatus('netatmo', true, readings.length);
+          onSourceReadings(readings);
           return readings;
         }).catch((ingestorErr) => {
           console.warn('[WeatherData] Netatmo ingestor failed, trying direct:', (ingestorErr as Error).message);
           return fetchNetatmoObservations({ center: activeSector.center, radiusKm: activeSector.radiusKm }).then(({ readings }) => {
             const filtered = readings.filter((r) => netatmoStationIds.has(r.stationId));
             updateSourceStatus('netatmo', true, filtered.length);
+            onSourceReadings(filtered);
             return filtered;
           });
         }).catch((err) => {
@@ -218,6 +254,7 @@ export function useWeatherData() {
         fetchSkyXReading().then((reading) => {
           const readings = reading ? [reading] : [];
           updateSourceStatus('skyx', true, readings.length);
+          onSourceReadings(readings);
           return readings;
         }).catch((err) => {
           console.error('[WeatherData] SkyX fetch error:', err);
@@ -282,12 +319,33 @@ export function useWeatherData() {
     }
   }, [stations, appendHistory]);
 
-  // Reset fetch flags when sector changes (stations go to [] then back)
+  // Track sector changes explicitly — resets fetch state and immediately polls new sector
+  const lastSectorIdRef = useRef(activeSector.id);
   const hasFetchedRef = useRef(false);
+  const initialRefreshDone = useRef(false);
+
+  useEffect(() => {
+    if (lastSectorIdRef.current !== activeSector.id) {
+      lastSectorIdRef.current = activeSector.id;
+      hasFetchedRef.current = false;
+      hasLoadedHistoryRef.current = false;
+      initialRefreshDone.current = false;
+      abortRef.current?.abort();
+
+      // If stations are already available (e.g. from cached stations), refresh immediately
+      if (useWeatherStore.getState().stations.length > 0) {
+        hasFetchedRef.current = true;
+        forceRefresh();
+      }
+    }
+  }, [activeSector.id, forceRefresh]);
+
+  // Reset fetch flags when stations become empty
   useEffect(() => {
     if (stations.length === 0) {
       hasFetchedRef.current = false;
       hasLoadedHistoryRef.current = false;
+      initialRefreshDone.current = false;
       // Abort any in-flight fetch from the previous sector
       abortRef.current?.abort();
     }
@@ -307,8 +365,7 @@ export function useWeatherData() {
     }
   }, [stations.length, forceRefresh, loadHistory]);
 
-  // ── Auto-refresh 90s after initial discovery — catches late arrivals ──
-  const initialRefreshDone = useRef(false);
+  // ── Auto-refresh 15s after initial discovery — catches late arrivals ──
   useEffect(() => {
     if (stations.length === 0) {
       initialRefreshDone.current = false; // Reset on sector switch

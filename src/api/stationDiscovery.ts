@@ -38,19 +38,67 @@ async function retryAfterDelay<T>(fn: () => Promise<T>, delayMs: number): Promis
 // In-memory cache for discovered stations per sector (60min TTL)
 const SECTOR_STATIONS_CACHE = new Map<string, { stations: NormalizedStation[]; ts: number }>();
 const DISCOVERY_CACHE_TTL_MS = 60 * 60 * 1000;
+const DISCOVERY_STORAGE_KEY_PREFIX = 'meteo_discovered_stations_';
+
+/** Clear sector stations cache (both in-memory and sessionStorage) */
+export function clearSectorStationsCache(sectorId?: string): void {
+  if (sectorId) {
+    SECTOR_STATIONS_CACHE.delete(sectorId);
+    try {
+      sessionStorage.removeItem(`${DISCOVERY_STORAGE_KEY_PREFIX}${sectorId}`);
+    } catch {
+      // Ignore
+    }
+  } else {
+    SECTOR_STATIONS_CACHE.clear();
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key?.startsWith(DISCOVERY_STORAGE_KEY_PREFIX)) {
+          sessionStorage.removeItem(key);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+}
+
+/** Retrieve cached discovered stations for a sector (in-memory or sessionStorage) */
+export function getCachedSectorStations(sectorId: string): NormalizedStation[] | null {
+  // 1. In-memory fast path
+  const mem = SECTOR_STATIONS_CACHE.get(sectorId);
+  if (mem && Date.now() - mem.ts < DISCOVERY_CACHE_TTL_MS) {
+    return mem.stations;
+  }
+  // 2. SessionStorage fast path (survives tab navigation, zero latency)
+  try {
+    const raw = sessionStorage.getItem(`${DISCOVERY_STORAGE_KEY_PREFIX}${sectorId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Date.now() - parsed.ts < DISCOVERY_CACHE_TTL_MS && Array.isArray(parsed.stations) && parsed.stations.length > 0) {
+        SECTOR_STATIONS_CACHE.set(sectorId, { stations: parsed.stations, ts: parsed.ts });
+        return parsed.stations;
+      }
+    }
+  } catch {
+    // Quota exceeded or private browsing — fallback gracefully
+  }
+  return null;
+}
 
 /**
  * Discover all weather stations within the given sector params
  * from AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, and Netatmo.
- * Auto-retries failed critical sources (MeteoGalicia, Netatmo) after 5s.
+ * Non-blocking: returns available stations immediately without delaying user.
  */
 export async function discoverStations(params: DiscoveryParams): Promise<NormalizedStation[]> {
-  // Fast path: return in-memory cached stations for this sector if fresh
+  // Fast path: return in-memory or sessionStorage cached stations for this sector if fresh
   if (params.sectorId) {
-    const cached = SECTOR_STATIONS_CACHE.get(params.sectorId);
-    if (cached && Date.now() - cached.ts < DISCOVERY_CACHE_TTL_MS) {
-      console.debug(`[Discovery] Returning ${cached.stations.length} cached stations for sector '${params.sectorId}'`);
-      return cached.stations;
+    const cached = getCachedSectorStations(params.sectorId);
+    if (cached && cached.length > 0) {
+      console.debug(`[Discovery] Returning ${cached.length} cached stations for sector '${params.sectorId}'`);
+      return cached;
     }
   }
 
@@ -58,7 +106,7 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
   const radiusKm = params.radiusKm;
   const extraPoints = params.extraCoveragePoints;
 
-  let [aemetStations, mgStations, mcStations, wuStations, netatmoStations] =
+  const [aemetStations, mgStations, mcStations, wuStations, netatmoStations] =
     await Promise.allSettled([
       fetchStationInventory(),
       fetchStationList(),
@@ -66,28 +114,6 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
       fetchWUNearbyStations(params.center, radiusKm),
       fetchNetatmoStations(params.center, radiusKm, false),
     ]);
-
-  // Auto-retry failed critical sources (MeteoGalicia = ~38 stations, Netatmo = ~42 stations)
-  const retryTargets: Promise<void>[] = [];
-  if (mgStations.status === 'rejected') {
-    console.warn('[Discovery] MeteoGalicia failed — retrying in 5s...');
-    retryTargets.push(
-      retryAfterDelay(() => fetchStationList(), 5000)
-        .then((v) => { mgStations = { status: 'fulfilled', value: v }; })
-        .catch((e) => { console.error('[Discovery] MeteoGalicia retry failed:', e); })
-    );
-  }
-  if (netatmoStations.status === 'rejected') {
-    console.warn('[Discovery] Netatmo failed — retrying in 5s...');
-    retryTargets.push(
-      retryAfterDelay(() => fetchNetatmoStations(params.center, radiusKm, false), 5000)
-        .then((v) => { netatmoStations = { status: 'fulfilled', value: v }; })
-        .catch((e) => { console.error('[Discovery] Netatmo retry failed:', e); })
-    );
-  }
-  if (retryTargets.length > 0) {
-    await Promise.allSettled(retryTargets);
-  }
 
   const stations: NormalizedStation[] = [];
 
@@ -246,7 +272,13 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
   }
 
   if (params.sectorId && result.length > 0) {
-    SECTOR_STATIONS_CACHE.set(params.sectorId, { stations: result, ts: Date.now() });
+    const ts = Date.now();
+    SECTOR_STATIONS_CACHE.set(params.sectorId, { stations: result, ts });
+    try {
+      sessionStorage.setItem(`${DISCOVERY_STORAGE_KEY_PREFIX}${params.sectorId}`, JSON.stringify({ stations: result, ts }));
+    } catch {
+      // Ignore quota/private browsing errors
+    }
   }
 
   console.debug(`[Discovery] Total stations: ${result.length}`);
