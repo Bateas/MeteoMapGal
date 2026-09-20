@@ -207,35 +207,26 @@ export function AppShell() {
   // ── Map reveal crossfade — smooth transition as loading screen fades out ──
   const readingsCount = useWeatherStore((s) => s.currentReadings.size);
   const [mapRevealed, setMapRevealed] = useState(false);
-  // showLoading tracks whether LoadingScreen should be mounted —
-  // true on initial load AND on sector switch, false after data arrives + min time
+  // showLoading tracks whether LoadingScreen should be mounted on cold start
   const [showLoading, setShowLoading] = useState(true);
   const loadingStartRef = useRef(Date.now());
 
-  // Reset loading state on sector switch
-  useEffect(() => {
-    setShowLoading(true);
-    setMapRevealed(false);
-    loadingStartRef.current = Date.now();
-  }, [activeSectorId]);
-
-  // Reveal map immediately — tiles load fast, data overlays appear as they arrive.
+  // Reveal map immediately on cold start — tiles load fast, data overlays appear as they arrive.
   // This improves FCP/LCP: user sees the map base within ~400ms instead of waiting ~7s.
   useEffect(() => {
-    // Show map after 400ms regardless of data — tiles are already loading
     const t = setTimeout(() => setMapRevealed(true), 400);
     return () => clearTimeout(t);
-  }, [activeSectorId]);
+  }, []);
 
-  // Hide LoadingScreen after min display time OR data ready (whichever is later)
-  // activeSectorId in deps ensures timer resets on sector switch (prevents stale dismiss)
+  // Hide LoadingScreen after min display time OR data ready (whichever is later) on initial boot
   useEffect(() => {
+    if (!showLoading) return;
     const elapsed = Date.now() - loadingStartRef.current;
     // If data arrived, dismiss quickly (350ms min). If not, dismiss after 2s max (map visible underneath)
     const maxWait = readingsCount > 0 ? Math.max(0, 350 - elapsed) : 2000;
     const t = setTimeout(() => setShowLoading(false), maxWait);
     return () => clearTimeout(t);
-  }, [readingsCount > 0, activeSectorId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [readingsCount > 0, showLoading]);
 
   // Geolocation auto-sector removed (permission popup scared users)
 

@@ -35,12 +35,25 @@ async function retryAfterDelay<T>(fn: () => Promise<T>, delayMs: number): Promis
   return fn();
 }
 
+// In-memory cache for discovered stations per sector (60min TTL)
+const SECTOR_STATIONS_CACHE = new Map<string, { stations: NormalizedStation[]; ts: number }>();
+const DISCOVERY_CACHE_TTL_MS = 60 * 60 * 1000;
+
 /**
  * Discover all weather stations within the given sector params
  * from AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, and Netatmo.
  * Auto-retries failed critical sources (MeteoGalicia, Netatmo) after 5s.
  */
 export async function discoverStations(params: DiscoveryParams): Promise<NormalizedStation[]> {
+  // Fast path: return in-memory cached stations for this sector if fresh
+  if (params.sectorId) {
+    const cached = SECTOR_STATIONS_CACHE.get(params.sectorId);
+    if (cached && Date.now() - cached.ts < DISCOVERY_CACHE_TTL_MS) {
+      console.debug(`[Discovery] Returning ${cached.stations.length} cached stations for sector '${params.sectorId}'`);
+      return cached.stations;
+    }
+  }
+
   const [centerLon, centerLat] = params.center;
   const radiusKm = params.radiusKm;
   const extraPoints = params.extraCoveragePoints;
@@ -230,6 +243,10 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
     }
   } catch (err) {
     console.debug('[Discovery] SkyX fetch failed:', err);
+  }
+
+  if (params.sectorId && result.length > 0) {
+    SECTOR_STATIONS_CACHE.set(params.sectorId, { stations: result, ts: Date.now() });
   }
 
   console.debug(`[Discovery] Total stations: ${result.length}`);

@@ -86,15 +86,13 @@ export const SpotMarkers = memo(function SpotMarkers() {
     map.flyTo({ center: [cluster.lon, cluster.lat], zoom: CLUSTER_DISABLE_ZOOM + 0.5, duration: 800 });
   }, [mapRef]);
 
-  // Show spinner until scoring has run + 3s grace period.
-  // Spots mount under the loading screen (~10s), so we delay dismissal
-  // after first scoring to give a visible spinner during map reveal.
+  // Dismiss spinner immediately once scoring has completed
   const [showSpinner, setShowSpinner] = useState(true);
   useEffect(() => {
-    if (lastScored === 0) return; // not scored yet — keep spinner
-    const timer = setTimeout(() => setShowSpinner(false), 3_000);
-    return () => clearTimeout(timer);
-  }, [lastScored > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (lastScored > 0) {
+      setShowSpinner(false);
+    }
+  }, [lastScored]);
 
   return (
     <>
@@ -117,8 +115,8 @@ export const SpotMarkers = memo(function SpotMarkers() {
         const provisional = score?.provisional === true;
         const verdict: SpotVerdict = provisional ? 'unknown' : (score?.verdict ?? 'unknown');
         const isActive = spot.id === activeSpotId;
-        // Show spinner while global grace period, provisional data, or no data
-        const spotLoading = showSpinner || provisional || verdict === 'unknown';
+        // Show spinner while provisional data, or no data yet scored
+        const spotLoading = (showSpinner && verdict === 'unknown') || provisional || verdict === 'unknown';
         return (
           <SpotMarkerItem
             key={spot.id}

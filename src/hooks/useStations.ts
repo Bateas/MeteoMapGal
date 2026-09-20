@@ -64,13 +64,16 @@ export function useStations() {
     const sectorChanged = lastSectorId.current !== activeSector.id;
     if (sectorChanged) {
       lastSectorId.current = activeSector.id;
-      // Clear old stations so discovery runs fresh
-      setStations([]);
+      // Fast path: load cached snapshot for the new sector immediately
+      const loaded = useWeatherStore.getState().loadFromCache(activeSector.id);
+      if (!loaded) {
+        setStations([]);
+      }
       // Clear all selections to prevent cross-sector ghost popups
       import('../store/spotStore').then(m => m.useSpotStore.getState().selectSpot(''));
       import('../store/weatherSelectionStore').then(m => m.useWeatherSelectionStore.getState().selectStation(null));
       import('../store/buoyStore').then(m => m.useBuoyStore.getState().selectBuoy(null));
-      // Force discovery for new sector immediately (don't rely on second effect)
+      // Force discovery for new sector immediately (updates smoothly when ready)
       const signal = { cancelled: false };
       load(signal);
       return () => { signal.cancelled = true; };

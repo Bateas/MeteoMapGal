@@ -154,8 +154,15 @@ export function useThermalAnalysis() {
       openMeteoHistoryRef.current = historyMap;
     }
 
-    fetchHistory();
-    return () => { controller.abort(); };
+    // Defer 8s so daily context + atmospheric context + timeline can use the Open-Meteo queue first
+    const timer = setTimeout(() => {
+      fetchHistory();
+    }, 8_000);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [isEmbalse]);
 
   // ── Re-score + tendency detection on every data update — Embalse only ──

@@ -4,6 +4,7 @@ import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MAX_HISTORY_ENTRIES } from '../config/constants';
 import { isVisibilityFresh } from '../services/visibilityFreshness';
 import { useWeatherSelectionStore } from './weatherSelectionStore';
+import { useSectorStore } from './sectorStore';
 
 export type WeatherSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx';
 
@@ -344,8 +345,7 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
     const { stations, currentReadings } = get();
     if (stations.length === 0 || currentReadings.size === 0) return;
     try {
-      // Detect sector from station prefix patterns
-      const sectorId = stations[0]?.id?.startsWith('rias_') ? 'rias' : 'embalse';
+      const sectorId = useSectorStore.getState().activeSector?.id ?? 'embalse';
       const key = CACHE_KEY_PREFIX + sectorId;
       localStorage.setItem(key, serializeReadings(stations, currentReadings));
     } catch {
