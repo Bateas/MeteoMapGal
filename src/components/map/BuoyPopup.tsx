@@ -16,6 +16,7 @@ import { msToKnots, degreesToCardinal, windSpeedColor, temperatureColor } from '
 import { waveHeightColor, waterTempColor, currentSpeedColor, seaStateLabel } from '../../services/buoyUtils';
 import { classifyWaterMass } from '../../services/upwellingDetector';
 import { BuoyTrend48h } from './BuoyTrend48h';
+import { WeatherIcon } from '../icons/WeatherIcons';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 
 /** Lightweight relative-time in Spanish (avoids date-fns locale bundle) */
@@ -155,12 +156,20 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
           className="mt-2 p-1.5 rounded text-[11px] border flex items-start gap-1.5"
           style={{ background: waterMass.bg, borderColor: waterMass.borderColor }}
         >
-          <span className="font-semibold shrink-0" style={{ color: waterMass.color }}>
-            {waterMass.badgeText}
-          </span>
-          <span className="text-slate-300 text-[10px] leading-tight">
-            {waterMass.description}
-          </span>
+          <WeatherIcon
+            id={waterMass.type === 'acna' ? 'waves' : waterMass.type === 'fluvial' ? 'droplets' : 'thermometer'}
+            size={14}
+            className="shrink-0 mt-0.5"
+            style={{ color: waterMass.color }}
+          />
+          <div>
+            <div className="font-semibold" style={{ color: waterMass.color }}>
+              {waterMass.badgeText}
+            </div>
+            <div className="text-slate-300 text-[10px] leading-tight">
+              {waterMass.description}
+            </div>
+          </div>
         </div>
       )}
 

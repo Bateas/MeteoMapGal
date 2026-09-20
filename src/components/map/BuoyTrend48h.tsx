@@ -6,6 +6,7 @@
  */
 import { memo, useState, useEffect, useMemo } from 'react';
 import { fetchBuoyReadings, type BuoyHistoryReading } from '../../api/historyClient';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 interface BuoyTrend48hProps {
   stationId: number;
@@ -120,7 +121,7 @@ export const BuoyTrend48h = memo(function BuoyTrend48h({
         className="w-full flex items-center justify-between text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 py-1 transition-colors"
       >
         <span className="flex items-center gap-1.5">
-          <span>🌊</span>
+          <WeatherIcon id="waves" size={13} className="text-cyan-400" />
           <span>Evolución 48h (T agua & Salinidad)</span>
         </span>
         <span className="text-[10px] text-slate-400">{expanded ? '▲' : '▼'}</span>
@@ -159,8 +160,9 @@ export const BuoyTrend48h = memo(function BuoyTrend48h({
                       {stats.deltaT > 0 ? `+${stats.deltaT}` : stats.deltaT}°C
                     </span>
                     {stats.deltaT <= -1.5 && (
-                      <span className="text-[9px] px-1 py-0.2 bg-cyan-950/80 border border-cyan-500/30 rounded text-cyan-300">
-                        ❄️ Aflorando
+                      <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 bg-cyan-950/80 border border-cyan-500/30 rounded text-cyan-300">
+                        <WeatherIcon id="snowflake" size={10} className="text-cyan-300" />
+                        <span>Aflorando</span>
                       </span>
                     )}
                   </div>

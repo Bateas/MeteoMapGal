@@ -146,7 +146,7 @@ export const MapContextMenu = memo(function MapContextMenu({
           onClick={copyCoords}
           className="w-full px-3 py-1.5 text-left text-xs text-slate-300 hover:bg-slate-700/60 hover:text-white transition-colors flex items-center gap-2"
         >
-          <span className="text-sm">📋</span>
+          <WeatherIcon id="clipboard-list" size={14} className="text-slate-400 shrink-0" />
           Copiar coordenadas
         </button>
 

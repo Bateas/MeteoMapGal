@@ -108,8 +108,8 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
       {/* Station header */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/50">
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded">
-            ⚓
+          <span className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded flex items-center justify-center">
+            <WeatherIcon id="anchor" size={12} />
           </span>
           <span className="text-[11px] font-bold text-slate-200">{b.stationName}</span>
           {b.source === 'obscosteiro' && (
@@ -173,7 +173,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
           <DataCell
             label="T agua"
             value={`${b.waterTemp.toFixed(1)}°C`}
-            sub={b.waterTemp <= 14.5 ? '❄️ Aflorando' : undefined}
+            sub={b.waterTemp <= 14.5 ? 'Aflorando' : undefined}
             className={waterTempClass(b.waterTemp!)}
           />
         )}
@@ -202,7 +202,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
           <DataCell
             label="Salinidad"
             value={`${b.salinity.toFixed(1)} PSU`}
-            sub={b.salinity >= 35.0 ? '🌊 Fondo' : b.salinity < 33.0 ? '💧 Río' : undefined}
+            sub={b.salinity >= 35.0 ? 'Fondo ACNA' : b.salinity < 33.0 ? 'Río / Estuario' : undefined}
           />
         )}
         {b.seaLevel != null && (

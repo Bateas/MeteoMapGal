@@ -1259,7 +1259,7 @@ function LunarCalendarDropdown() {
         onClick={() => setOpen((p) => !p)}
         className="flex items-center gap-1.5 w-full text-left group"
       >
-        <span className="text-[11px]">📅</span>
+        <WeatherIcon id="calendar" size={13} className="text-violet-400 shrink-0" />
         <span className="text-[11px] text-violet-400 font-medium group-hover:text-violet-300">
           Calendario lunar 30 días
         </span>

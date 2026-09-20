@@ -81,9 +81,9 @@ describe('upwellingDetector', () => {
       expect(res.coldestBuoy?.temp).toBe(14.0);
       expect(res.thermalFront).not.toBeNull();
       expect(res.thermalFront?.deltaT).toBeCloseTo(3.6, 1);
-      expect(res.tickerMessage).toContain('Afloramiento (Upwelling)');
+      expect(res.tickerMessage).toContain('Afloramiento: agua a');
       expect(res.tickerMessage).toContain('Frente térmico');
-      expect(res.fishingAdvice).toContain('calamar');
+      expect(res.fishingAdvice?.toLowerCase()).toContain('calamar');
     });
 
     it('does not trigger upwelling when water is universally warm', () => {
