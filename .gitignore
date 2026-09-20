@@ -48,7 +48,8 @@ n8n-workflow-*.json
 
 # Non-app directories
 scripts/
-docs/
+docs/*
+!docs/LEARNINGS_AND_IMPROVEMENTS.md
 Fuentes/
 repo-filterclean/
 pitch-deck-*.html
