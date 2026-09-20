@@ -107,6 +107,23 @@
 
 ## 4. Registro Cronológico de Mejoras y Refactorizaciones
 
+### [v2.141.7] — Septiembre 2026: Actualización Crítica MapLibre GL v6 y Optimización de Rendimiento PWA Móvil
+* **Autor:** Bateas
+* **Cambios realizados:**
+  1. **Resolución de Vulnerabilidad Crítica Supply-Chain (GHSA-jrc7-96c5-q579):**
+     * Actualización de `maplibre-gl` de `^5.24.0` a `^6.10.0` (eliminando la vulnerabilidad XSS en `DOM.sanitize` de `Popup.setHTML`).
+     * Adaptado import ESM en `WeatherMap.tsx` a `import * as maplibregl from 'maplibre-gl'`.
+     * `npm audit` limpio con 0 vulnerabilidades.
+  2. **Optimización GPU/VRAM en Móviles con Pantallas de Alta Densidad (`WeatherMap.tsx`):**
+     * Capped `pixelRatio` a un máximo de 2.0x en dispositivos móviles (`isMobile`). En pantallas móviles OLED/Retina modernas con DPR 3x-3.5x, esto reduce la resolución del framebuffer WebGL de más de 3.2M a 1.4M de píxeles (>55% de ahorro en carga de fragment shaders, consumo de GPU y disipación térmica).
+     * Limitación de `maxTileCacheSize` a 50 teselas en móvil para evitar cierres forzados por el gestor de memoria de iOS Safari (jetsam kills).
+  3. **Eliminación de Rebote y Gesto Pull-to-Refresh en PWA (`src/index.css`):**
+     * Adición de `overscroll-behavior: none` y `-webkit-overflow-scrolling: touch` en `html, body` para impedir que el paneo o zoom del mapa desencadene el tirón de recarga accidental en Android Chrome o el rebote elástico en iOS WebKit.
+  4. **Respuesta Táctil Inmediata (`touch-action: manipulation`):**
+     * Eliminado el retardo de 300 ms del doble tap en todos los botones, enlaces y controles de la PWA.
+  5. **Modo Pantalla Completa en iOS PWA (`index.html`):**
+     * Añadida metaetiqueta `apple-mobile-web-app-capable` para ejecución sin barras de navegador en iOS Home Screen.
+
 ### [v2.141.6] — Septiembre 2026: Despliegue Instantáneo en Cambio de Sector e Hidratación Progresiva
 * **Autor:** Bateas
 * **Cambios realizados:**
