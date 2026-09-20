@@ -24,24 +24,41 @@ export function SpotTideSummary({ tideStationId, tidePreference }: { tideStation
   const { nextTide, tidePhase } = useMemo(() => {
     if (!tides || tides.length === 0) return { nextTide: null, tidePhase: null as string | null };
     const now = new Date();
+    const nowMs = now.getTime();
     const nowMins = now.getHours() * 60 + now.getMinutes();
     let next: TidePoint | null = null;
     let prevTide: TidePoint | null = null;
+
     for (const t of tides) {
-      const parts = t.time.split(':').map(Number);
-      if (parts.length < 2) continue;
-      const tideMins = parts[0] * 60 + parts[1];
-      if (tideMins > nowMins) { next = t; break; }
-      prevTide = t;
+      if (t.epochMs && t.epochMs > 0) {
+        if (t.epochMs > nowMs) { next = t; break; }
+        prevTide = t;
+      } else {
+        const parts = t.time.split(':').map(Number);
+        if (parts.length < 2) continue;
+        const tideMins = parts[0] * 60 + parts[1];
+        if (tideMins > nowMins) { next = t; break; }
+        prevTide = t;
+      }
     }
     if (!next) next = tides[0];
+
     let phase: string | null = null;
     if (next && prevTide) {
-      const nextMins = next.time.split(':').map(Number);
-      const prevMins = prevTide.time.split(':').map(Number);
-      const nextT = nextMins[0] * 60 + nextMins[1];
-      const prevT = prevMins[0] * 60 + prevMins[1];
-      const progress = (nowMins - prevT) / (nextT - prevT);
+      let progress = 0.5;
+      if (next.epochMs && prevTide.epochMs && next.epochMs > prevTide.epochMs) {
+        progress = (nowMs - prevTide.epochMs) / (next.epochMs - prevTide.epochMs);
+      } else {
+        const nextMins = next.time.split(':').map(Number);
+        const prevMins = prevTide.time.split(':').map(Number);
+        const nextT = nextMins[0] * 60 + nextMins[1];
+        const prevT = prevMins[0] * 60 + prevMins[1];
+        if (nextT > prevT) {
+          progress = (nowMins - prevT) / (nextT - prevT);
+        }
+      }
+      progress = Math.min(1, Math.max(0, progress));
+
       if (next.type === 'high') {
         phase = progress < 0.3 ? 'low' : progress < 0.7 ? 'mid' : 'high';
       } else {

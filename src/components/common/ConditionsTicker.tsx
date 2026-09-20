@@ -51,10 +51,16 @@ import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 /** Find the next tide point (high or low) relative to now */
 function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean } | null {
   const now = new Date();
+  const nowMs = now.getTime();
   const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   for (let i = 0; i < points.length; i++) {
-    if (points[i].time > hhmm) {
-      return { point: points[i], isRising: points[i].type === 'high' };
+    const pt = points[i];
+    if (pt.epochMs && pt.epochMs > 0) {
+      if (pt.epochMs > nowMs) {
+        return { point: pt, isRising: pt.type === 'high' };
+      }
+    } else if (pt.time > hhmm) {
+      return { point: pt, isRising: pt.type === 'high' };
     }
   }
   return null;

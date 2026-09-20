@@ -88,8 +88,10 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score: propScor
       .then((pts) => {
         if (cancelled || !pts || pts.length === 0) return;
         const now = new Date();
+        const nowMs = now.getTime();
         const nowMins = now.getHours() * 60 + now.getMinutes();
         const next = pts.find((t) => {
+          if (t.epochMs && t.epochMs > 0) return t.epochMs > nowMs;
           const p = t.time.split(':').map(Number);
           return p.length >= 2 && p[0] * 60 + p[1] > nowMins;
         }) ?? pts[0];
