@@ -240,7 +240,7 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # Vitest en modo watch (1829 tests / 101 ficheros a 4-ago-2026)
+npm test                # Vitest en modo watch (2066 tests / 118 ficheros a 20-sep-2026)
 npm run knip            # Detector dead-code (informativo)
 ```
 
@@ -251,7 +251,7 @@ npm run knip            # Detector dead-code (informativo)
 - **Backend**: Ingestor Node.js 24/7 → TimescaleDB (polling 6 fuentes cada 5min + MeteoSIX WRF/USWAN + Ollama vision IA)
 - **Modelos**: WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temperatura del mar), Open-Meteo (conveccion + grid CAPE/LI 10km)
 - **Producción**: nginx reverse proxy en Proxmox LXC + smart deploy script (detecta diff, solo corre lo necesario), Cloudflare Tunnel
-- **Performance**: DeferredHooks (9 hooks diferidos 3s), 12 overlays lazy, fonts self-hosted, main bundle ~365KB (gzip ~121KB), FogOverlay chunked-async (yields cada 100 cells, 0 long tasks)
+- **Performance**: DeferredHooks (18 hooks diferidos 3s), commit isolation en WeatherMap (scores y lecturas desacoplados del render raíz del mapa para evitar re-renders innecesarios), 12 overlays lazy, fonts self-hosted, main bundle ~381KB (gzip ~125KB), FogOverlay chunked-async (yields cada 100 cells, 0 long tasks)
 - **Resilience**: Circuit breaker en TODOS los clientes API (4 capas: AEMET, Open-Meteo, lightning, ENAIRE), pre-classifier ahorra ~25min CPU/día en webcam vision, retention 2 años uniforme en hypertables críticas, convection grid query DISTINCT ON tolera cycles parciales
 - **Calidad**: knip dead-code detector como CI soft check (informativo), suite completa en verde en cada push, 0 vulnerabilidades npm audit
 

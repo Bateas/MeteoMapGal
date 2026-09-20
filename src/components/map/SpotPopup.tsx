@@ -68,10 +68,12 @@ const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: str
 
 interface SpotPopupProps {
   spot: SailingSpot;
-  score: SpotScore | undefined;
+  score?: SpotScore | undefined;
 }
 
-export const SpotPopup = memo(function SpotPopup({ spot, score }: SpotPopupProps) {
+export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: SpotPopupProps) {
+  const storeScore = useSpotStore((s) => s.scores.get(spot.id));
+  const score = propScore !== undefined ? propScore : storeScore;
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const favoriteSpotId = useSpotStore((s) => s.favoriteSpotId);
   const toggleFavorite = useSpotStore((s) => s.toggleFavorite);

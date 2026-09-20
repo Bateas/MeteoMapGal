@@ -52,10 +52,12 @@ const VERDICT_COLOR: Record<SpotVerdict, string> = {
 
 interface Props {
   spot: UserSpot;
-  score: SpotScore | undefined;
+  score?: SpotScore | undefined;
 }
 
-export const UserSpotPopup = memo(function UserSpotPopup({ spot, score }: Props) {
+export const UserSpotPopup = memo(function UserSpotPopup({ spot, score: propScore }: Props) {
+  const storeScore = useUserSpotStore((s) => s.scores.get(spot.id));
+  const score = propScore !== undefined ? propScore : storeScore;
   const selectUserSpot = useUserSpotStore((s) => s.selectUserSpot);
   const removeUserSpot = useUserSpotStore((s) => s.removeUserSpot);
   const renameUserSpot = useUserSpotStore((s) => s.renameUserSpot);

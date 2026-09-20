@@ -156,17 +156,15 @@ export function WeatherMap() {
     [buoys, selectedBuoyId],
   );
 
-  // Spot state
+  // Spot state (scores intentionally read inside SpotPopup for commit isolation)
   const activeSpotId = useSpotStore((s) => s.activeSpotId);
   const activeSpot = useSpotStore((s) => s.activeSpot);
-  const spotScores = useSpotStore((s) => s.scores);
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const showSpotPopup = activeSpotId !== '';
 
-  // User-created "chincheta" spots (isolated from the official pipeline)
+  // User-created "chincheta" spots (scores intentionally read inside UserSpotPopup)
   const userSpots = useUserSpotStore((s) => s.userSpots);
   const selectedUserSpotId = useUserSpotStore((s) => s.selectedUserSpotId);
-  const userScores = useUserSpotStore((s) => s.scores);
   const selectUserSpot = useUserSpotStore((s) => s.selectUserSpot);
   const addUserSpot = useUserSpotStore((s) => s.addUserSpot);
   const selectedUserSpot = useMemo(
@@ -609,15 +607,15 @@ export function WeatherMap() {
           <WebcamPopup webcam={selectedWebcam} onClose={() => selectWebcam(null)} />
         )}
 
-        {/* Selected spot popup */}
+        {/* Selected spot popup — reads score internally (commit isolation) */}
         {showSpotPopup && activeSpot && Number.isFinite(activeSpot.center?.[0]) && (
-          <Suspense fallback={null}><SpotPopup spot={activeSpot} score={spotScores.get(activeSpotId)} /></Suspense>
+          <Suspense fallback={null}><SpotPopup spot={activeSpot} /></Suspense>
         )}
 
-        {/* Selected user-spot popup */}
+        {/* Selected user-spot popup — reads score internally (commit isolation) */}
         {selectedUserSpot && (
           <Suspense fallback={null}>
-            <UserSpotPopup spot={selectedUserSpot} score={userScores.get(selectedUserSpot.id)} />
+            <UserSpotPopup spot={selectedUserSpot} />
           </Suspense>
         )}
 

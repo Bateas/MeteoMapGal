@@ -47,6 +47,17 @@
 * **Regla Preventiva:**  
   Nunca hacer push sin haber validado el build sobre el árbol exacto que tendrá la rama `master`.
 
+### Incidente 003: Micro-congelaciones ("Pilladas") en UI por ruptura de Commit Isolation en WeatherMap (v2.140.1)
+* **Fecha:** Septiembre 2026
+* **Componente:** `src/components/map/WeatherMap.tsx`
+* **Severidad:** Media (Degradación de fluidez / caídas de frames en el mapa)
+* **Causa Raíz:**  
+  `WeatherMap` se suscribía al mapa completo de puntuaciones de Zustand (`const spotScores = useSpotStore((s) => s.scores)` y `userScores`). Dado que el motor `useSpotScoring` recalcula puntuaciones cada 5s durante el arranque inicial (primeros 90s) y cada 30s en régimen continuo, cada recálculo emitía una nueva referencia de `Map`. Esto provocaba que `WeatherMap` (735 líneas, instancia WebGL de MapLibre, 25 capas de overlays y listeners) se re-renderizara en su totalidad continuamente, incluso cuando ningún popup de spot estaba abierto en pantalla.
+* **Solución:**  
+  Se desacopló la suscripción de `WeatherMap`. Ahora `SpotPopup` y `UserSpotPopup` leen su propia puntuación de forma granular y bajo demanda (`useSpotStore((s) => s.scores.get(spot.id))`). Cuando ningún popup está abierto, ninguna suscripción al score individual está activa, eliminando al 100% los re-renders parásitos del mapa raíz.
+* **Regla Preventiva:**  
+  Respetar el principio de **Commit Isolation**: los componentes contenedores o pesados (como `WeatherMap`) nunca deben suscribirse a mapas o colecciones Zustand que cambian por polling periódico si el dato solo lo consume un popup o componente hijo puntual.
+
 ---
 
 ## 3. Catálogo de Anti-Patrones Prohibidos
@@ -56,12 +67,22 @@
 | `git add .` / `git add -A` | Puede commitear inadvertidamente `.env`, logs, dumps o claves de API en un repo público. | `git add <archivo1> <archivo2>` explícito. |
 | `fs.readFileSync` / `writeFileSync` en handlers | Congela el Event Loop de Node.js y eleva el p99 de latencia de la API. | `fs.promises.readFile` / `fs.promises.writeFile` con `await`. |
 | Push sin bump de versión | Rompe la trazabilidad SemVer y el mecanismo de detección de cambios de `meteomap-update`. | Incrementar `package.json` en CADA push (PATCH o MINOR) y sincronizar `package-lock.json`. |
-| Dependencias sin cooldown de 7 días | Riesgo de supply-chain poisoning por cuentas de maintainers vulneradas. | Mantener Dependabot con 7 días de cooldown en `.github/dependabot.yml`. |
+| Merge automático o a ciegas de ramas de Dependabot | Dependabot suele bifurcar ramas desde commits antiguos, provocando regresiones silenciosas (ej: revertir fixes en `spotScoringEngine`). | Tratar Dependabot de forma manual: auditar superficie de ataque real y aplicar parches localmente con tests. |
+| Suscribir componentes de mapa a colecciones mutables globales | Provoca re-renders del árbol completo de WebGL/canvas ("pilladas" en UI). | Selectores granulares en componentes hoja (Commit Isolation). |
 | `npm audit fix --force` a ciegas | Puede introducir breaking changes mayores que rompan mapas o servicios sin tests visuales. | Auditar cada vulnerabilidad individualmente y verificar suites de test. |
 
 ---
 
 ## 4. Registro Cronológico de Mejoras y Refactorizaciones
+
+### [v2.140.1] — Septiembre 2026: Rendimiento (Commit Isolation), Cero Vulnerabilidades en Ingestor y Actualización de Métricas
+* **Autor:** Bateas
+* **Cambios realizados:**
+  1. **Optimización de Rendimiento Frontend:** Eliminación de los re-renders innecesarios en `WeatherMap` desacoplando `spotScores` y `userScores` hacia los popups individuales. Fin de las micro-congelaciones ("pilladas") periódicas durante el paneo y zoom.
+  2. **Auditoría de Dependabot y Lockfile:** Resueltas las alertas de `brace-expansion` (High) y `esbuild` (Low) en `package-lock.json`. Ingestor auditado al 100% con 0 vulnerabilidades. Verificado que el CVE de `maplibre-gl` no afecta la superficie de ataque (no se usa `Popup.setHTML()`).
+  3. **Métricas de Calidad en Documentación:** Actualización de `README.md` reflejando 2066 tests y 118 ficheros en verde.
+* **Lección aprendida:**  
+  Las dependencias críticas con breaking change mayor (como MapLibre 5.x -> 6.x) no deben actualizarse a ciegas mediante merge de PRs de Dependabot, ya que pueden provocar regresiones de código y rotura de contratos WebGL.
 
 ### [v2.140.0] — Septiembre 2026: Memoria Técnica, Dependencias y Modularización
 * **Autor:** Bateas
