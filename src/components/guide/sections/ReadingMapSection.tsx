@@ -183,8 +183,8 @@ export function ReadingMapSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <MiniExplainer
             iconId="cloud"
-            title="Niebla (DEM terrain)"
-            text="Cuando se detecta niebla (dewpoint cercano a temperatura), se rellena el terreno bajo con una capa semitransparente. Embalse: valles <185m (niebla radiativa). Rias: costa <35m (niebla advectiva marina). Basado en modelo digital del terreno."
+            title="Niebla (terreno DEM)"
+            text="Cuando se detecta niebla (temperatura cercana al punto de rocío), se rellena el terreno bajo con una capa semitransparente. Embalse: valles <185m (niebla de fondo de valle). Rías: costa <35m (niebla marina / bruma costera). Basado en el modelo digital del terreno."
           />
           <MiniExplainer
             iconId="thermometer"
