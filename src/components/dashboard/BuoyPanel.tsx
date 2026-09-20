@@ -173,6 +173,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
           <DataCell
             label="T agua"
             value={`${b.waterTemp.toFixed(1)}°C`}
+            sub={b.waterTemp <= 14.5 ? '❄️ Aflorando' : undefined}
             className={waterTempClass(b.waterTemp!)}
           />
         )}
@@ -201,6 +202,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
           <DataCell
             label="Salinidad"
             value={`${b.salinity.toFixed(1)} PSU`}
+            sub={b.salinity >= 35.0 ? '🌊 Fondo' : b.salinity < 33.0 ? '💧 Río' : undefined}
           />
         )}
         {b.seaLevel != null && (

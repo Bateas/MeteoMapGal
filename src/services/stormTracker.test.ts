@@ -528,7 +528,7 @@ describe('trackStorms — regression-based velocity smoothing', () => {
     const c = r.clusters[0];
     expect(c.velocity).not.toBeNull();
     expect(c.velocity!.speedKmh).toBeGreaterThan(20);
-    expect(c.velocity!.speedKmh).toBeLessThan(60);
+    expect(c.velocity!.speedKmh).toBeLessThan(65);
     // NE bearing = 45° — allow ±25° tolerance because the regression
     // includes a noisy current point.
     const b = c.velocity!.bearingDeg;

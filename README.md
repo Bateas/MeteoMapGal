@@ -240,7 +240,7 @@ npm install
 cp .env.example .env    # Añadir claves API (AEMET + ObsCosteiro)
 npm run dev             # http://localhost:5173
 npm run build           # Produccion → dist/
-npm test                # Vitest en modo watch (2066 tests / 118 ficheros a 20-sep-2026)
+npm test                # Vitest en modo watch (2075 tests / 119 ficheros a 20-sep-2026)
 npm run knip            # Detector dead-code (informativo)
 ```
 

@@ -75,6 +75,16 @@
 
 ## 4. Registro Cronológico de Mejoras y Refactorizaciones
 
+### [v2.141.0] — Septiembre 2026: Detección de Afloramiento (Upwelling), Frentes Térmicos y Tendencias 48h en Balizas
+* **Autor:** Bateas
+* **Cambios realizados:**
+  1. **Inteligencia Oceanográfica (`upwellingDetector.ts`):** Clasificación automática de masas de agua según $T_{\text{agua}}$ y Salinidad (ACNA / Afloramiento profundo $\le 14.5\text{°C}$, Estuario/Fluvial $< 33\text{ PSU}$, Atlántica superficial $\ge 17\text{°C}$). Detección de frentes térmicos entre el exterior (Cabo Silleiro) y el interior (Rande).
+  2. **Aviso Náutico y de Pesca en Ticker (`ConditionsTicker.tsx`):** Alerta en tiempo real de afloramiento y frentes térmicos en el sector costero con consejos prácticos para pesca de calamar (luras) y pelágicos (caballas/xardas).
+  3. **Evolución 48h en Popup de Balizas (`BuoyPopup.tsx` & `BuoyTrend48h.tsx`):** Sección colapsable bajo demanda con consulta directa a TimescaleDB (`/api/v1/buoys/readings`). Visualiza $\Delta T$, $\Delta S$ y mini-gráfica sparkline SVG sin impacto en el bundle inicial.
+  4. **Contexto en BuoyPanel (`BuoyPanel.tsx`):** Etiquetas dinámicas de `❄️ Aflorando` y `🌊 Fondo` en las tarjetas de balizas.
+* **Lección aprendida:**  
+  Aprovechar la persistencia temporal de TimescaleDB para inferir dinámicas marinas complejas en el frontend enriquece drásticamente el valor de la app para marineros y pescadores con coste cero de computación adicional.
+
 ### [v2.140.1] — Septiembre 2026: Rendimiento (Commit Isolation), Cero Vulnerabilidades en Ingestor y Actualización de Métricas
 * **Autor:** Bateas
 * **Cambios realizados:**
