@@ -107,6 +107,16 @@
 
 ## 4. Registro Cronológico de Mejoras y Refactorizaciones
 
+### [v2.141.8] — Septiembre 2026: Corrección Visual de Calidad del Aire (ICA/PM10) y Supresión de Jerga Técnica
+* **Autor:** Bateas
+* **Cambios realizados:**
+  1. **Eliminación de Artefactos Circulares de 50 km en Calidad del Aire (`IcaOverlay.tsx`):**
+     * Sustituida la rasterización CPU por IDW rígida (que producía un corte artificial de 50 km y bordes pixelados en diente de sierra sobre rías y montañas) por plumas de dispersión atmosférica suaves con gradientes radiales continuos (`createRadialGradient`).
+     * Decaimiento suave (curva gaussiana/cuadrática) desde el centro de la estación hasta 0% de opacidad a 18 km (radio representativo de la cuenca urbana/valle en Galicia). Sin bordes duros ni escalones de opacidad.
+     * Incorporación de marcadores de estación con etiqueta legible (ej: `Ourense · PM10 Deficiente`) para contextualizar de inmediato el origen físico de la medición sin confundir al usuario.
+  2. **Eliminación de Jerga Técnica ("Niebla Advectiva"):**
+     * Sustitución de términos meteorológicos académicos incomprensibles por lenguaje natural y directo en la guía y alertas ("Niebla marina / bruma costera" en rías y "Niebla de fondo de valle" en interior).
+
 ### [v2.141.7] — Septiembre 2026: Actualización Crítica MapLibre GL v6 y Optimización de Rendimiento PWA Móvil
 * **Autor:** Bateas
 * **Cambios realizados:**

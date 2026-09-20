@@ -29,51 +29,24 @@
 import { useRef, useEffect, useCallback, useState, memo } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import { useIcaStore } from '../../store/icaStore';
-import { interpolateScalar } from '../../services/idwInterpolation';
-import type { StationScalarData } from '../../services/idwInterpolation';
 
-const GRID_SIZE = 14; // px per cell
-const DEBOUNCE_MS = 200;
-const MAX_RADIUS_KM = 50; // ~30 stations / Galicia → wider radius than humidity
+const PLUME_RADIUS_KM = 18; // 18km realistic airshed for Galician valley/urban basins
 const ACTIVATION_THRESHOLD = 3; // ICA ≥ 3 → deficiente+ → overlay activates
 
 /**
- * Color scale mapping decimal ICA (1-5) to RGBA. Continuous gradient
- * between bucket boundaries to avoid stripey banding.
+ * Plume color and intensity based on ICA level.
  */
-function icaColor(value: number): [number, number, number, number] {
-  // Clamp 1-5
-  const v = Math.max(1, Math.min(5, value));
-
-  if (v < 2) {
-    // 1-2: green → yellow  [22,163,74] → [253,224,71]
-    const t = v - 1;
-    return [22 + t * 231, 163 + t * 61, 74 - t * 3, 110 + t * 30];
+function getIcaPlumeColor(ica: number): { rgb: [number, number, number]; maxAlpha: number } {
+  if (ica >= 4.5) {
+    // Muy mala: purple
+    return { rgb: [124, 58, 237], maxAlpha: 0.45 };
   }
-  if (v < 3) {
-    // 2-3: yellow → orange  [253,224,71] → [249,115,22]
-    const t = v - 2;
-    return [253 - t * 4, 224 - t * 109, 71 - t * 49, 140 + t * 30];
+  if (ica >= 3.8) {
+    // Mala: red
+    return { rgb: [220, 38, 38], maxAlpha: 0.40 };
   }
-  if (v < 4) {
-    // 3-4: orange → red  [249,115,22] → [220,38,38]
-    const t = v - 3;
-    return [249 - t * 29, 115 - t * 77, 22 + t * 16, 170 + t * 25];
-  }
-  // 4-5: red → purple  [220,38,38] → [124,58,237]
-  const t = Math.min(v - 4, 1);
-  return [220 - t * 96, 38 + t * 20, 38 + t * 199, 195 + t * 30];
-}
-
-/** Build IDW input from ICA readings — straight mapping, no freshness decay
- *  (ICA cadence is hourly, all readings within 1h are equally fresh). */
-function buildIcaScalarData(readings: { lat: number; lon: number; ica: number }[]): StationScalarData[] {
-  return readings.map((r) => ({
-    lat: r.lat,
-    lon: r.lon,
-    value: r.ica,
-    freshness: 1.0,
-  }));
+  // Deficiente (PM10/PM2.5): warm amber/orange
+  return { rgb: [249, 115, 22], maxAlpha: 0.35 };
 }
 
 interface IcaOverlayProps {
@@ -83,19 +56,13 @@ interface IcaOverlayProps {
 export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tmpCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const readings = useIcaStore((s) => s.readings);
 
   // Session-wide dismiss: user can hide the overlay even when auto-active
-  // (S136+3+3 user feedback "no lo puedo desactivar"). Re-shows on a NEW
-  // reading set (e.g. air quality worsens further to a new max ICA).
   const [dismissedAtMaxIca, setDismissedAtMaxIca] = useState<number | null>(null);
 
   // Auto-activate: only when at least one station reports ICA ≥ 3.
-  // Debug override: ?icaDebug=1 forces the overlay on for visual QA when
-  // air is clean (galicia averages 1-2 most days). Read once at mount —
-  // no need to react to URL changes.
   const debugForce = typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('icaDebug') === '1';
   const maxIca = readings.length > 0
@@ -104,9 +71,7 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
   const shouldAutoActivate = debugForce
     ? readings.length >= 2
     : maxIca >= ACTIVATION_THRESHOLD;
-  // If dismissed at a given max-ICA, stay hidden until air quality WORSENS
-  // beyond that point. Prevents the overlay re-appearing on every refresh
-  // for the same event the user already acknowledged.
+
   const isActive = shouldAutoActivate
     && (dismissedAtMaxIca === null || maxIca > dismissedAtMaxIca + 0.3);
 
@@ -115,8 +80,10 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
     const map = mapRef.current?.getMap();
     if (!canvas || !map) return;
 
-    const data = buildIcaScalarData(readings);
-    if (data.length < 2) return;
+    // Filter stations that have elevated ICA (Deficiente or worse)
+    const affectedStations = debugForce
+      ? [...readings].sort((a, b) => b.ica - a.ica).slice(0, 2)
+      : readings.filter((r) => r.ica >= 2.8);
 
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
@@ -128,64 +95,101 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const cols = Math.ceil(w / GRID_SIZE);
-    const rows = Math.ceil(h / GRID_SIZE);
+    if (affectedStations.length === 0) return;
 
-    const imgData = ctx.createImageData(cols, rows);
-    const pixels = imgData.data;
+    ctx.save();
+    ctx.scale(dpr, dpr);
 
-    for (let row = 0; row < rows; row++) {
-      const screenY = (row + 0.5) * GRID_SIZE;
-      const leftGeo = map.unproject([0, screenY]);
-      const rightGeo = map.unproject([w, screenY]);
+    // 1. Draw smooth atmospheric plumes for each affected station
+    for (const r of affectedStations) {
+      if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) continue;
 
-      for (let col = 0; col < cols; col++) {
-        const tx = (col + 0.5) / cols;
-        const lng = leftGeo.lng + tx * (rightGeo.lng - leftGeo.lng);
-        const lat = leftGeo.lat + tx * (rightGeo.lat - leftGeo.lat);
+      const p0 = map.project([r.lon, r.lat]);
+      const kmPerDegreeLon = 111 * Math.cos((r.lat * Math.PI) / 180);
+      const pEdge = map.project([r.lon + PLUME_RADIUS_KM / kmPerDegreeLon, r.lat]);
+      const radiusPx = Math.max(30, Math.hypot(pEdge.x - p0.x, pEdge.y - p0.y));
 
-        const value = interpolateScalar(lat, lng, data, 2.5, MAX_RADIUS_KM);
-        // PAINT_THRESHOLD = only show cells where the interpolated value is
-        // at or above "aceptable+" (≥ 2.5). Below that the air is "good
-        // enough" and the overlay was effectively painting all of Galicia
-        // with a green/yellow gradient even when only ONE station had ICA≥3.
-        // Reactive-map philosophy (S136+3+3 user feedback): if it doesn't
-        // change my decision RIGHT NOW, don't show it.
-        const PAINT_THRESHOLD = 2.5;
-        if (value < PAINT_THRESHOLD) {
-          const idx = (row * cols + col) * 4;
-          pixels[idx + 3] = 0;
-          continue;
-        }
-
-        const [r, g, b, a] = icaColor(value);
-        const idx = (row * cols + col) * 4;
-        pixels[idx] = r;
-        pixels[idx + 1] = g;
-        pixels[idx + 2] = b;
-        // Dim 50% — much less intrusive than original 110-225 alpha.
-        // Combined with the threshold above, the overlay now ONLY highlights
-        // problematic zones (deficiente+) with a subtle tint instead of
-        // tinting the entire region.
-        pixels[idx + 3] = Math.round(a * 0.5);
+      // Skip if completely out of viewport bounds
+      if (p0.x + radiusPx < 0 || p0.x - radiusPx > w || p0.y + radiusPx < 0 || p0.y - radiusPx > h) {
+        continue;
       }
+
+      const { rgb, maxAlpha } = getIcaPlumeColor(r.ica);
+      const [cr, cg, cb] = rgb;
+
+      const grad = ctx.createRadialGradient(p0.x, p0.y, 0, p0.x, p0.y, radiusPx);
+      grad.addColorStop(0.0, `rgba(${cr}, ${cg}, ${cb}, ${maxAlpha})`);
+      grad.addColorStop(0.35, `rgba(${cr}, ${cg}, ${cb}, ${maxAlpha * 0.70})`);
+      grad.addColorStop(0.65, `rgba(${cr}, ${cg}, ${cb}, ${maxAlpha * 0.28})`);
+      grad.addColorStop(0.85, `rgba(${cr}, ${cg}, ${cb}, ${maxAlpha * 0.08})`);
+      grad.addColorStop(1.0, `rgba(${cr}, ${cg}, ${cb}, 0)`); // Completely transparent at edge
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p0.x, p0.y, radiusPx, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    if (!tmpCanvasRef.current) tmpCanvasRef.current = document.createElement('canvas');
-    const tmpCanvas = tmpCanvasRef.current;
-    tmpCanvas.width = cols;
-    tmpCanvas.height = rows;
-    const tmpCtx = tmpCanvas.getContext('2d')!;
-    tmpCtx.putImageData(imgData, 0, 0);
+    // 2. Draw station pins and informative tags on top
+    for (const r of affectedStations) {
+      if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) continue;
 
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(tmpCanvas, 0, 0, cols, rows, 0, 0, canvas.width, canvas.height);
-  }, [readings, mapRef]);
+      const p0 = map.project([r.lon, r.lat]);
+      if (p0.x < -50 || p0.x > w + 50 || p0.y < -50 || p0.y > h + 50) continue;
+
+      const { rgb } = getIcaPlumeColor(r.ica);
+      const [cr, cg, cb] = rgb;
+
+      // Outer halo
+      ctx.beginPath();
+      ctx.arc(p0.x, p0.y, 9, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${cr}, ${cg}, ${cb}, 0.6)`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Center dot
+      ctx.beginPath();
+      ctx.arc(p0.x, p0.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgb(${cr}, ${cg}, ${cb})`;
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Station pill tag: e.g. "Ourense · PM10 Deficiente"
+      const pollutant = r.dominantPollutant ? r.dominantPollutant.toUpperCase() : 'PM10';
+      const label = `${r.station} · ${pollutant} ${r.categoryEs || 'Deficiente'}`;
+      ctx.font = '600 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      const textW = ctx.measureText(label).width;
+      const pillW = textW + 14;
+      const pillH = 18;
+      const pillX = p0.x - pillW / 2;
+      const pillY = p0.y + 11;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.strokeStyle = `rgba(${cr}, ${cg}, ${cb}, 0.85)`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(pillX, pillY, pillW, pillH, 9);
+      } else {
+        ctx.rect(pillX, pillY, pillW, pillH);
+      }
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, p0.x, pillY + pillH / 2);
+    }
+
+    ctx.restore();
+  }, [readings, mapRef, debugForce]);
 
   const scheduleRedraw = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(drawHeatmap, DEBOUNCE_MS);
+    timerRef.current = setTimeout(drawHeatmap, 50);
   }, [drawHeatmap]);
 
   // Redraw on data change
