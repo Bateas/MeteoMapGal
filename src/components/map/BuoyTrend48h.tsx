@@ -24,8 +24,15 @@ export const BuoyTrend48h = memo(function BuoyTrend48h({
   const [data, setData] = useState<BuoyHistoryReading[] | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  // Reset state when clicking another buoy
   useEffect(() => {
-    if (!expanded || data !== null || loading) return;
+    setData(null);
+    setFetchError(null);
+    setLoading(false);
+  }, [stationId]);
+
+  useEffect(() => {
+    if (!expanded || data !== null) return;
 
     let cancelled = false;
     setLoading(true);
@@ -43,7 +50,7 @@ export const BuoyTrend48h = memo(function BuoyTrend48h({
       })
       .catch((err) => {
         if (!cancelled) {
-          setFetchError((err as Error).message || 'Error al cargar histórico');
+          setFetchError((err as Error).message || 'No se pudieron cargar los datos');
           setLoading(false);
         }
       });
@@ -51,14 +58,15 @@ export const BuoyTrend48h = memo(function BuoyTrend48h({
     return () => {
       cancelled = true;
     };
-  }, [expanded, stationId, data, loading]);
+  }, [expanded, stationId, data]);
 
   // Calculations
   const stats = useMemo(() => {
     if (!data || data.length === 0) return null;
 
-    const validTemps = data.filter((d) => d.water_temp != null);
-    const validSalinities = data.filter((d) => d.salinity != null);
+    // Filter out sensor glitches (< 5°C impossible in ocean buoys of Galicia)
+    const validTemps = data.filter((d) => d.water_temp != null && d.water_temp >= 5.0);
+    const validSalinities = data.filter((d) => d.salinity != null && d.salinity >= 10.0);
 
     let deltaT: number | null = null;
     let minT: number | null = null;
@@ -131,12 +139,12 @@ export const BuoyTrend48h = memo(function BuoyTrend48h({
         <div className="mt-1.5 p-2 rounded bg-slate-900/60 border border-slate-800 text-[11px]">
           {loading && (
             <div className="text-slate-400 text-[11px] py-2 text-center animate-pulse">
-              Consultando TimescaleDB...
+              Cargando datos...
             </div>
           )}
 
           {fetchError && (
-            <div className="text-rose-400 text-[10px] py-1">
+            <div className="text-rose-400 text-[10px] py-1 text-center">
               {fetchError}
             </div>
           )}
@@ -211,7 +219,7 @@ export const BuoyTrend48h = memo(function BuoyTrend48h({
 
               {!stats.hasData && (
                 <div className="text-slate-500 text-[10px] text-center py-1">
-                  Sin suficientes lecturas en las últimas 48h
+                  Sin registros suficientes en las últimas 48h
                 </div>
               )}
             </div>
