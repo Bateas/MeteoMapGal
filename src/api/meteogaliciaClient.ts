@@ -9,9 +9,9 @@ import { METEOGALICIA } from '../config/apiEndpoints';
 const BROKEN_STATIONS = new Set<number>();
 
 /** Retry helper for transient server errors (502/503/504) */
-async function fetchWithRetry(url: string, retries = 2, delayMs = 3000): Promise<Response> {
+async function fetchWithRetry(url: string, retries = 1, delayMs = 1500): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
     if (res.ok || (res.status < 500 && res.status !== 429)) return res;
     if (attempt < retries) {
       console.warn(`[MeteoGalicia] ${res.status} on attempt ${attempt + 1}, retry in ${delayMs}ms`);
