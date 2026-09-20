@@ -1289,11 +1289,11 @@ async function handleWebcamUpload(
   }
 
   try {
-    fs.mkdirSync(WEBCAM_DIR, { recursive: true });
+    await fs.promises.mkdir(WEBCAM_DIR, { recursive: true });
     const imgPath  = path.join(WEBCAM_DIR, `${spotId}.jpg`);
     const metaPath = path.join(WEBCAM_DIR, `${spotId}.json`);
-    fs.writeFileSync(imgPath, body);
-    fs.writeFileSync(metaPath, JSON.stringify({ ts: new Date().toISOString(), bytes: body.length }));
+    await fs.promises.writeFile(imgPath, body);
+    await fs.promises.writeFile(metaPath, JSON.stringify({ ts: new Date().toISOString(), bytes: body.length }));
     log.info(`[Webcam] ${spotId} ${(body.length / 1024).toFixed(0)}KB`);
     res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true }));
