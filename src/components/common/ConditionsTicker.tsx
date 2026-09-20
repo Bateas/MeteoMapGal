@@ -44,6 +44,7 @@ import {
   tideTickerLabel,
   shouldShowTideAlert,
 } from '../../services/tideAlertService';
+import { detectUpwellingSummary } from '../../services/upwellingDetector';
 
 /** Find the next tide point (high or low) relative to now */
 function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean } | null {
@@ -316,6 +317,32 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
             color: isExtreme ? 'text-cyan-200' : 'text-cyan-300',
             bg: isExtreme ? 'bg-cyan-800/30' : 'bg-cyan-900/25',
             priority: isExtreme ? 9 : 8,
+          });
+        }
+      }
+    }
+
+    // ── Upwelling & Thermal Front in coastal sector (priority 8) ──
+    if (isCoastalSector(sectorId) && buoyReadings.length > 0) {
+      const upwelling = detectUpwellingSummary(buoyReadings);
+      if (upwelling.hasUpwelling && upwelling.tickerMessage) {
+        result.push({
+          key: 'upwelling-event',
+          text: `🌊 ${upwelling.tickerMessage}`,
+          color: 'text-sky-300',
+          bg: 'bg-sky-950/40',
+          priority: 8,
+          essential: false,
+        });
+
+        if (upwelling.fishingAdvice) {
+          result.push({
+            key: 'upwelling-fishing',
+            text: `🎣 Pesca & Cefalópodos: ${upwelling.fishingAdvice}`,
+            color: 'text-cyan-300',
+            bg: 'bg-cyan-950/30',
+            priority: 7,
+            essential: false,
           });
         }
       }

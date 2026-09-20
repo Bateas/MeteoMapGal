@@ -5,7 +5,7 @@
  *
  * Cyan marine theme to match BuoyMarker.
  */
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
@@ -14,6 +14,8 @@ import { useUIStore } from '../../store/uiStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { msToKnots, degreesToCardinal, windSpeedColor, temperatureColor } from '../../services/windUtils';
 import { waveHeightColor, waterTempColor, currentSpeedColor, seaStateLabel } from '../../services/buoyUtils';
+import { classifyWaterMass } from '../../services/upwellingDetector';
+import { BuoyTrend48h } from './BuoyTrend48h';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 
 /** Lightweight relative-time in Spanish (avoids date-fns locale bundle) */
@@ -87,6 +89,11 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
   const hasTemp = reading.waterTemp != null || reading.airTemp != null;
   const hasCurrent = reading.currentSpeed != null;
 
+  const waterMass = useMemo(
+    () => classifyWaterMass(reading.waterTemp, reading.salinity),
+    [reading.waterTemp, reading.salinity]
+  );
+
   const popupContent = (
     <div className="min-w-[220px] font-sans">
       {/* Header */}
@@ -141,6 +148,28 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
         {reading.humidity != null && <DataCell label="Humedad" value={`${reading.humidity.toFixed(0)}%`} color={reading.humidity > 85 ? '#93c5fd' : undefined} />}
         {reading.dewPoint != null && <DataCell label="Punto de rocío" value={`${reading.dewPoint.toFixed(1)}°C`} />}
       </div>
+
+      {/* Water Mass / Upwelling Classification Badge */}
+      {waterMass.type !== 'unknown' && (
+        <div
+          className="mt-2 p-1.5 rounded text-[11px] border flex items-start gap-1.5"
+          style={{ background: waterMass.bg, borderColor: waterMass.borderColor }}
+        >
+          <span className="font-semibold shrink-0" style={{ color: waterMass.color }}>
+            {waterMass.badgeText}
+          </span>
+          <span className="text-slate-300 text-[10px] leading-tight">
+            {waterMass.description}
+          </span>
+        </div>
+      )}
+
+      {/* 48h Historical Trend & Sparkline */}
+      <BuoyTrend48h
+        stationId={reading.stationId}
+        currentTemp={reading.waterTemp}
+        currentSalinity={reading.salinity}
+      />
 
       {/* Timestamp */}
       <div className="text-[11px] text-slate-400 mt-2 pt-1.5 border-t border-slate-700">
