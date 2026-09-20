@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useWeatherStore } from '../store/weatherStore';
 import { useSectorStore } from '../store/sectorStore';
-import { discoverStations } from '../api/stationDiscovery';
+import { discoverStations, getCachedSectorStations } from '../api/stationDiscovery';
 import { useToastStore } from '../store/toastStore';
 
 const DISCOVERY_TIMEOUT_MS = 30_000; // 30s max for station discovery
@@ -64,10 +64,16 @@ export function useStations() {
     const sectorChanged = lastSectorId.current !== activeSector.id;
     if (sectorChanged) {
       lastSectorId.current = activeSector.id;
-      // Fast path: load cached snapshot for the new sector immediately
+      // Fast path 1: load cached snapshot (readings + stations) for the new sector immediately
       const loaded = useWeatherStore.getState().loadFromCache(activeSector.id);
       if (!loaded) {
-        setStations([]);
+        // Fast path 2: load discovered stations from session/memory cache so markers show immediately
+        const cachedStations = getCachedSectorStations(activeSector.id);
+        if (cachedStations && cachedStations.length > 0) {
+          setStations(cachedStations);
+        } else {
+          setStations([]);
+        }
       }
       // Clear all selections to prevent cross-sector ghost popups
       import('../store/spotStore').then(m => m.useSpotStore.getState().selectSpot(''));

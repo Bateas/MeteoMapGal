@@ -69,9 +69,24 @@
   2. Se añadió un efecto de reseteo explícito de `data`, `loading` y `fetchError` cuando cambia `stationId`.
   3. Se sustituyó la jerga técnica por texto natural ("Cargando datos...").
   4. Se añadió un filtro defensivo de valores físicos imposibles (`water_temp >= 5.0 °C`) para descartar glitches de sondas en bajamar (como los 0.75 °C observados en Cortegada).
+### Incidente 005: Latencia y bloqueo de estaciones interiores al cambiar de sector (v2.141.6)
+* **Fecha:** Septiembre 2026
+* **Componente:** `src/hooks/useWeatherData.ts`, `src/api/stationDiscovery.ts`, `src/hooks/useStations.ts`
+* **Severidad:** Alta (Demoras de 10-15s en visualización de estaciones de la zona interior / Embalse de Castrelo)
+* **Causa Raíz:**  
+  1. **Omisión del ingestor local:** Para MeteoGalicia (la fuente con mayor cobertura en Galicia y la única en estaciones clave del valle del Miño como Castrelo `mg_10144`, Leiro `mg_10145`, Remuíño `mg_10146`, Arnoia `mg_10148`), el frontend disparaba 20-30 peticiones HTTP individuales a `servizos.meteogalicia.gal`. Su proxy upstream arrojaba errores 110 (Connection timed out) de 5 a 15 segundos en nginx, a pesar de que TimescaleDB ya disponía de 1.521 estaciones actualizadas en local respondiendo en 5-10 ms.
+  2. **Monolito de promesas:** `fetchData` aguardaba un `await Promise.all(tasks)` monolítico antes de invocar `updateReadings(allReadings)`. Si MeteoGalicia o Netatmo se demoraban, ninguna estación (ni AEMET ni WU) se mostraba en pantalla.
+  3. **Reintento bloqueante síncrono:** `stationDiscovery.ts` esperaba con `retryAfterDelay(..., 5000)` si una fuente secundaria fallaba en el barrido inicial, retrasando el descubrimiento 5 segundos adicionales.
+  4. **Falta de persistencia en `sessionStorage`:** Las estaciones descubiertas solo vivían en la memoria de la sesión actual; el primer cambio de sector a Embalse vaciaba el mapa con `setStations([])`.
+  5. **Dependencia errónea en `useWeatherData`:** La reactividad del refresco dependía de que `stations.length` fuera 0 para reiniciar `hasFetchedRef.current`, impidiendo el refresco inmediato si se precargaban estaciones del nuevo sector.
+* **Solución:**  
+  1. **Ingestor primero:** MeteoGalicia y Meteoclimatic consultan `/api/v1/readings/latest?source=...` con fallback a API remota solo si el ingestor no retorna filas.
+  2. **Hidratación progresiva:** Cada fuente invoca `onSourceReadings(readings)` tan pronto resuelve su tarea (<10ms para MeteoGalicia local), pintando estaciones de inmediato en olas.
+  3. **Descubrimiento no bloqueante:** Eliminado el retardo de 5s en `stationDiscovery.ts`.
+  4. **Caché en `sessionStorage`:** Las estaciones descubiertas de cada sector se respaldan en `sessionStorage`, permitiendo un reingreso en 0 ms.
+  5. **Seguimiento explícito de sector:** `useWeatherData` detecta el cambio con `lastSectorIdRef.current !== activeSector.id` y dispara el refresco de lecturas de inmediato.
 * **Regla Preventiva:**  
-  1. **Nunca incluir el propio booleano `loading` que se muta dentro del efecto en su propio array de dependencias**, salvo que se gestione mediante una máquina de estados o `useRef`.
-  2. **Prohibido exponer nombres de motores de base de datos o APIs internas en la UI** ("TimescaleDB", "Postgres", etc.). El usuario debe ver siempre mensajes funcionales y amigables.
+  El frontend siempre debe consultar primero el ingestor local en TimescaleDB antes de efectuar abanicos concurrentes contra APIs externas de administraciones públicas, y aplicar hidratación progresiva en la UI para que las fuentes rápidas se muestren en milisegundos sin esperar a la más lenta.
 
 ---
 
@@ -85,38 +100,20 @@
 | Merge automático o a ciegas de ramas de Dependabot | Dependabot suele bifurcar ramas desde commits antiguos, provocando regresiones silenciosas (ej: revertir fixes en `spotScoringEngine`). | Tratar Dependabot de forma manual: auditar superficie de ataque real y aplicar parches localmente con tests. |
 | Suscribir componentes de mapa a colecciones mutables globales | Provoca re-renders del árbol completo de WebGL/canvas ("pilladas" en UI). | Selectores granulares en componentes hoja (Commit Isolation). |
 | `npm audit fix --force` a ciegas | Puede introducir breaking changes mayores que rompan mapas o servicios sin tests visuales. | Auditar cada vulnerabilidad individualmente y verificar suites de test. |
+| Abanico HTTP directo contra APIs públicas externas | Provoca timeouts de 10-15s e inestabilidad en red móvil/proxy. | Priorizar ingestor local de TimescaleDB con fallback a API remota. |
+| `Promise.all` monolítico en hidratación de mapas | Bloquea la visualización de datos rápidos esperando por la fuente más lenta. | Hidratación progresiva (`onSourceReadings`). |
 
 ---
 
 ## 4. Registro Cronológico de Mejoras y Refactorizaciones
 
-### [v2.141.0] — Septiembre 2026: Detección de Afloramiento (Upwelling), Frentes Térmicos y Tendencias 48h en Balizas
+### [v2.141.6] — Septiembre 2026: Despliegue Instantáneo en Cambio de Sector e Hidratación Progresiva
 * **Autor:** Bateas
 * **Cambios realizados:**
-  1. **Inteligencia Oceanográfica (`upwellingDetector.ts`):** Clasificación automática de masas de agua según $T_{\text{agua}}$ y Salinidad (ACNA / Afloramiento profundo $\le 14.5\text{°C}$, Estuario/Fluvial $< 33\text{ PSU}$, Atlántica superficial $\ge 17\text{°C}$). Detección de frentes térmicos entre el exterior (Cabo Silleiro) y el interior (Rande).
-  2. **Aviso Náutico y de Pesca en Ticker (`ConditionsTicker.tsx`):** Alerta en tiempo real de afloramiento y frentes térmicos en el sector costero con consejos prácticos para pesca de calamar (luras) y pelágicos (caballas/xardas).
-  3. **Evolución 48h en Popup de Balizas (`BuoyPopup.tsx` & `BuoyTrend48h.tsx`):** Sección colapsable bajo demanda con consulta directa a TimescaleDB (`/api/v1/buoys/readings`). Visualiza $\Delta T$, $\Delta S$ y mini-gráfica sparkline SVG sin impacto en el bundle inicial.
-  4. **Contexto en BuoyPanel (`BuoyPanel.tsx`):** Etiquetas dinámicas de `❄️ Aflorando` y `🌊 Fondo` en las tarjetas de balizas.
-* **Lección aprendida:**  
-  Aprovechar la persistencia temporal de TimescaleDB para inferir dinámicas marinas complejas en el frontend enriquece drásticamente el valor de la app para marineros y pescadores con coste cero de computación adicional.
-
-### [v2.140.1] — Septiembre 2026: Rendimiento (Commit Isolation), Cero Vulnerabilidades en Ingestor y Actualización de Métricas
-* **Autor:** Bateas
-* **Cambios realizados:**
-  1. **Optimización de Rendimiento Frontend:** Eliminación de los re-renders innecesarios en `WeatherMap` desacoplando `spotScores` y `userScores` hacia los popups individuales. Fin de las micro-congelaciones ("pilladas") periódicas durante el paneo y zoom.
-  2. **Auditoría de Dependabot y Lockfile:** Resueltas las alertas de `brace-expansion` (High) y `esbuild` (Low) en `package-lock.json`. Ingestor auditado al 100% con 0 vulnerabilidades. Verificado que el CVE de `maplibre-gl` no afecta la superficie de ataque (no se usa `Popup.setHTML()`).
-  3. **Métricas de Calidad en Documentación:** Actualización de `README.md` reflejando 2066 tests y 118 ficheros en verde.
-* **Lección aprendida:**  
-  Las dependencias críticas con breaking change mayor (como MapLibre 5.x -> 6.x) no deben actualizarse a ciegas mediante merge de PRs de Dependabot, ya que pueden provocar regresiones de código y rotura de contratos WebGL.
-
-### [v2.140.0] — Septiembre 2026: Memoria Técnica, Dependencias y Modularización
-* **Autor:** Bateas
-* **Cambios realizados:**
-  1. **Memoria Técnica Continua:** Creación de `docs/LEARNINGS_AND_IMPROVEMENTS.md` para evitar pérdida de contexto y documentar post-mortems y buenas prácticas.
-  2. **Seguridad de Dependencias:** Actualización de `sharp` a `>=0.35.4` en `ingestor/` resolviendo vulnerabilidad alta de `libheif` (GHSA-rgj7-g3m4-5g8c). Actualización de herramientas de desarrollo (`vitest`).
-  3. **Modularización de `ingestor/api.ts`:** Extracción de controladores especializados (`ingestor/routes/webcam.ts` y `ingestor/routes/proxies.ts`), reduciendo la complejidad del despachador monolítico.
-* **Lección aprendida:**  
-  Mantener la suite de tests en paridad con cada refactorización garantiza que la modularización del backend no rompa contratos de API existentes.
+  1. **Ingestor Local Primero para MeteoGalicia y Meteoclimatic (`useWeatherData.ts`):** Reducción del tiempo de respuesta para las estaciones interiores (Castrelo, Leiro, Remuíño, etc.) de 10-15s a 5-10ms.
+  2. **Hidratación Progresiva en Mapa (`onSourceReadings`):** Los marcadores de estaciones se pueblan conforme cada proveedor resuelve, eliminando pantallas en espera.
+  3. **Caché en `sessionStorage` y Descubrimiento Inmediato (`stationDiscovery.ts` & `useStations.ts`):** Transición entre Rías y Embalse en 0 ms. Eliminado el retardo bloqueante de 5 segundos.
+  4. **Throttle de Instantáneas Optimizado (`weatherStore.ts`):** Reducido de 30s a 2s con flush automático en cambio de sector.
 
 ### [v2.141.2] — Septiembre 2026: Corrección de Carga en Tendencia de Balizas y Supresión de Jerga Técnica
 * **Autor:** Bateas
