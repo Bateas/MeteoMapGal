@@ -1,7 +1,7 @@
 {
   "name": "meteomapgal",
   "private": true,
-  "version": "2.139.9",
+  "version": "2.140.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -43,6 +43,6 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.68.0",
     "vite": "^7.3.6",
-    "vitest": "4.1.10"
+    "vitest": "^4.1.11"
   }
 }
