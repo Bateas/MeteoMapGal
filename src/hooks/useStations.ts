@@ -86,13 +86,15 @@ export function useStations() {
     }
   }, [activeSector.id, setStations, load]);
 
+  const initialMountRan = useRef(false);
   useEffect(() => {
-    if (stations.length > 0) return; // Already loaded
+    if (initialMountRan.current && stations.length > 0) return;
+    initialMountRan.current = true;
 
     const signal = { cancelled: false };
     load(signal);
     return () => { signal.cancelled = true; };
-  }, [stations.length, load, retryCount]);
+  }, [load, retryCount]);
 
   const retry = useCallback(() => {
     setRetryCount((c) => c + 1);

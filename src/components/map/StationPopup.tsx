@@ -129,7 +129,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
     return () => { cancelled = true; };
   }, [hasHistory, station.id]);
 
-  const sourceColor = SOURCE_CONFIG[station.source].color;
+  const sourceColor = SOURCE_CONFIG[station.source]?.color ?? '#059669';
 
   // Gust factor
   const gustFactor = reading?.windGust != null && reading.windSpeed != null && reading.windSpeed > 0.5
@@ -150,7 +150,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
           className="text-[11px] font-bold px-1.5 py-px rounded text-white"
           style={{ background: sourceColor }}
         >
-          {SOURCE_CONFIG[station.source].fullName}
+          {SOURCE_CONFIG[station.source]?.fullName ?? station.source}
         </span>
         <strong className="text-[13px]">{station.name}</strong>
       </div>

@@ -15,6 +15,7 @@ import type { NormalizedStation, NormalizedReading } from '../types/station';
 import {
   normalizeIpmaStation,
   normalizeIpmaReading,
+  parseIpmaTimestamp,
   type IpmaFeature,
 } from '../services/normalizer';
 import { isWithinRadius } from '../services/geoUtils';
@@ -97,8 +98,8 @@ export async function fetchIpmaData(): Promise<{
       if (!current) {
         latestByStation.set(id, feat);
       } else {
-        const currentTime = new Date(current.properties.time).getTime();
-        const featTime = new Date(feat.properties.time).getTime();
+        const currentTime = parseIpmaTimestamp(current.properties.time).getTime();
+        const featTime = parseIpmaTimestamp(feat.properties.time).getTime();
         if (featTime > currentTime) {
           latestByStation.set(id, feat);
         }

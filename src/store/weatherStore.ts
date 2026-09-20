@@ -5,6 +5,7 @@ import { MAX_HISTORY_ENTRIES } from '../config/constants';
 import { isVisibilityFresh } from '../services/visibilityFreshness';
 import { useWeatherSelectionStore } from './weatherSelectionStore';
 import { useSectorStore } from './sectorStore';
+import { APP_VERSION } from '../config/version';
 
 export type WeatherSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx' | 'ipma';
 
@@ -82,8 +83,20 @@ interface WeatherState {
 }
 
 // ── Offline cache helpers ────────────────────────────────────
-const CACHE_KEY_PREFIX = 'meteomap-readings-';
+const CACHE_KEY_PREFIX = `meteomap-readings-v${APP_VERSION}-`;
 const CACHE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour — stale beyond this
+
+// Auto-purge offline cache from older app versions
+try {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('meteomap-readings-') && !key.startsWith(CACHE_KEY_PREFIX)) {
+      localStorage.removeItem(key);
+    }
+  }
+} catch {
+  // Ignore
+}
 
 // ── PERF: Throttle cacheSnapshot to avoid serializing 90+ station readings
 // on every updateReadings() call (~5 sources × 5min = 5 calls per cycle).
