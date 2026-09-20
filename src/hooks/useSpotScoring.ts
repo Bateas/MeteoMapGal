@@ -45,8 +45,11 @@ export function useSpotScoring() {
   const mountTimeRef = useRef(Date.now());
   const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
 
-  // Reset spot alert state on sector switch to avoid false transitions
-  useEffect(() => { resetSpotAlerts(); }, [sectorId]);
+  // Reset spot alert state and force immediate scoring on sector switch
+  useEffect(() => {
+    resetSpotAlerts();
+    lastScoredRef.current = 0;
+  }, [sectorId]);
 
   // Fetch NAO/AO once on mount (cached 6h in naoClient)
   useEffect(() => {
@@ -78,7 +81,7 @@ export function useSpotScoring() {
     const now = Date.now();
     const isStartup = (now - mountTimeRef.current) < STARTUP_WINDOW;
     const minInterval = isStartup ? STARTUP_INTERVAL : STEADY_INTERVAL;
-    if (now - lastScoredRef.current < minInterval) return;
+    if (lastScoredRef.current > 0 && (now - lastScoredRef.current) < minInterval) return;
 
     // Build thermal context if any spot in this sector uses thermalDetection
     const hasThermalSpots = spots.some((s) => s.thermalDetection);
