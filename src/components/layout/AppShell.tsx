@@ -220,10 +220,10 @@ export function AppShell() {
   }, [activeSectorId]);
 
   // Reveal map immediately — tiles load fast, data overlays appear as they arrive.
-  // This improves FCP: user sees the map base within ~2s instead of waiting ~12s.
+  // This improves FCP/LCP: user sees the map base within ~400ms instead of waiting ~7s.
   useEffect(() => {
-    // Show map after 1.5s regardless of data — tiles are already loading
-    const t = setTimeout(() => setMapRevealed(true), 1500);
+    // Show map after 400ms regardless of data — tiles are already loading
+    const t = setTimeout(() => setMapRevealed(true), 400);
     return () => clearTimeout(t);
   }, [activeSectorId]);
 
@@ -231,8 +231,8 @@ export function AppShell() {
   // activeSectorId in deps ensures timer resets on sector switch (prevents stale dismiss)
   useEffect(() => {
     const elapsed = Date.now() - loadingStartRef.current;
-    // If data arrived, dismiss quickly. If not, dismiss after 5s max (map visible underneath)
-    const maxWait = readingsCount > 0 ? Math.max(0, 2500 - elapsed) : 5000;
+    // If data arrived, dismiss quickly (350ms min). If not, dismiss after 2s max (map visible underneath)
+    const maxWait = readingsCount > 0 ? Math.max(0, 350 - elapsed) : 2000;
     const t = setTimeout(() => setShowLoading(false), maxWait);
     return () => clearTimeout(t);
   }, [readingsCount > 0, activeSectorId]); // eslint-disable-line react-hooks/exhaustive-deps

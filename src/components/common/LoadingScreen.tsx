@@ -28,11 +28,11 @@ interface LoadingScreenProps {
   onRetry: () => void;
 }
 
-/** Minimum time (ms) the loading screen stays visible — ensures smooth UX even with fast loads */
-const MIN_DISPLAY_MS = 2500;
+/** Minimum time (ms) the loading screen stays visible — smooth transition without blocking LCP */
+const MIN_DISPLAY_MS = 350;
 
 /** Minimum sources that must report before we transition to 'ready' */
-const MIN_SOURCES_FOR_READY = 3;
+const MIN_SOURCES_FOR_READY = 1;
 
 export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps) {
   const stations = useWeatherStore((s) => s.stations);
@@ -67,7 +67,7 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
       setPhase('connecting');
     } else if (stations.length > 0) {
       setPhase('connecting');
-    } else if (Date.now() - startTime.current > 800) {
+    } else if (Date.now() - startTime.current > 300) {
       setPhase('discovering');
     }
   }, [stations.length, activeSources.size, readingsCount]);
@@ -76,7 +76,7 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
   useEffect(() => {
     const t = setTimeout(() => {
       if (phase === 'init') setPhase('discovering');
-    }, 800);
+    }, 300);
     return () => clearTimeout(t);
   }, [phase]);
 
