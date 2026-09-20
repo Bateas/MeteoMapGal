@@ -280,9 +280,7 @@ async function discoverWunderground(): Promise<NormalizedStation[]> {
         const sLat = loc.latitude[i];
         const sLon = loc.longitude[i];
         // Sector, no Galicia: WU cuesta una petición por estación.
-        // Galicia entera: la rejilla de abajo pregunta fuera de los sectores a
-        // proposito, asi que filtrar por sector aqui tiraria justo lo nuevo.
-        if (!inGalicia(sLat, sLon)) continue;
+        if (!inGalicia(sLat, sLon) && !inAnySector(sLat, sLon)) continue;
 
         const id = `wu_${loc.stationId[i]}`;
         if (allStations.some((s) => s.id === id)) continue;

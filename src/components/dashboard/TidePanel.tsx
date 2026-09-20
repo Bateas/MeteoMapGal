@@ -18,6 +18,8 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 interface TideData {
   today: TidePoint[];
   tomorrow: TidePoint[];
+  yesterday?: TidePoint[];
+  all?: TidePoint[];
   station: TideStation;
   fetchedAt: Date;
 }
@@ -48,6 +50,8 @@ export const TidePanel = memo(function TidePanel() {
       setData({
         today: result.today,
         tomorrow: result.tomorrow,
+        yesterday: result.yesterday,
+        all: result.all,
         station,
         fetchedAt: new Date(),
       });
@@ -161,6 +165,61 @@ export const TidePanel = memo(function TidePanel() {
       : tideStrength?.category === 'vivas'
         ? { text: 'text-cyan-300', chip: 'bg-cyan-500/20 text-cyan-300', bar: 'linear-gradient(90deg, #06b6d4, #22d3ee)' }
         : { text: 'text-slate-300', chip: 'bg-slate-600/30 text-slate-300', bar: 'linear-gradient(90deg, #475569, #64748b)' };
+
+  // Full semi-diurnal cycle for the visual curve (at least 4 points to show the complete wave):
+  // When a day only has 3 events (because one shifted past midnight to tomorrow),
+  // or to keep the curve continuous through night hours, we include adjacent tide points.
+  const curveCyclePoints = useMemo(() => {
+    if (!data) return [];
+    const today = data.today;
+    const tomorrow = data.tomorrow;
+    const yesterday = data.yesterday ?? [];
+
+    if (today.length === 0) return [];
+
+    const nowMs = Date.now();
+    let pts = [...today];
+
+    // Prepend previous tide from yesterday if now is before today's first tide, or if pts < 4
+    if (yesterday.length > 0 && pts.length > 0) {
+      const firstTodayMs = pts[0].epochMs;
+      if (!firstTodayMs || nowMs < firstTodayMs || pts.length < 4) {
+        const lastYest = yesterday[yesterday.length - 1];
+        if (lastYest && (!firstTodayMs || !lastYest.epochMs || lastYest.epochMs < firstTodayMs)) {
+          if (!pts.some((p) => (p.epochMs && lastYest.epochMs ? p.epochMs === lastYest.epochMs : p.time === lastYest.time && p.date === lastYest.date))) {
+            pts = [lastYest, ...pts];
+          }
+        }
+      }
+    }
+
+    // Append next tide from tomorrow if now is after today's last tide, or if pts < 4
+    if (tomorrow.length > 0 && pts.length > 0) {
+      const lastPtMs = pts[pts.length - 1].epochMs;
+      const lastTodayMs = today[today.length - 1]?.epochMs;
+      if (pts.length < 4 || (lastTodayMs && nowMs > lastTodayMs) || !lastPtMs) {
+        const firstTmrw = tomorrow[0];
+        if (firstTmrw && (!lastPtMs || !firstTmrw.epochMs || firstTmrw.epochMs > lastPtMs)) {
+          if (!pts.some((p) => (p.epochMs && firstTmrw.epochMs ? p.epochMs === firstTmrw.epochMs : p.time === firstTmrw.time && p.date === firstTmrw.date))) {
+            pts.push(firstTmrw);
+          }
+        }
+      }
+    }
+
+    // If still < 4 points and tomorrow has another point, append it to complete the cycle
+    if (pts.length < 4 && tomorrow.length > 1) {
+      const secondTmrw = tomorrow[1];
+      const lastPtMs = pts[pts.length - 1].epochMs;
+      if (secondTmrw && (!lastPtMs || !secondTmrw.epochMs || secondTmrw.epochMs > lastPtMs)) {
+        if (!pts.some((p) => (p.epochMs && secondTmrw.epochMs ? p.epochMs === secondTmrw.epochMs : p.time === secondTmrw.time && p.date === secondTmrw.date))) {
+          pts.push(secondTmrw);
+        }
+      }
+    }
+
+    return pts.length >= 2 ? pts : today;
+  }, [data]);
 
   if (loading && !data) {
     return (
@@ -341,8 +400,8 @@ export const TidePanel = memo(function TidePanel() {
             </div>
           )}
 
-          {/* Mini tide curve SVG */}
-          <TideCurve points={data.today} label="Hoy" />
+          {/* Mini tide curve SVG — full semi-diurnal cycle */}
+          <TideCurve points={curveCyclePoints} label="Hoy" />
 
           {/* Today's tide table */}
           <TideTable points={data.today} label="Hoy" />
@@ -410,16 +469,42 @@ function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
   const H = 32;
   const PAD = 4;
 
-  // Parse times to fractional hours (skip malformed entries)
-  const parsed = points
-    .map((p) => {
-      const t = parseTimeHHMM(p.time);
-      if (!t) return null;
-      return { hour: t[0] + t[1] / 60, height: p.height, type: p.type };
-    })
-    .filter((p): p is NonNullable<typeof p> => p !== null);
+  // Reconstruct monotonic timestamps (using epochMs when present, with rollover fallback)
+  const parsed = useMemo(() => {
+    let prevMs = 0;
+    const now = new Date();
+    const result: Array<{ ms: number; time: string; height: number; type: 'high' | 'low' }> = [];
+
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      let ms = p.epochMs;
+      if (!ms || ms <= 0) {
+        const t = parseTimeHHMM(p.time);
+        if (!t) continue;
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), t[0], t[1], 0, 0);
+        ms = d.getTime();
+        // If sequential points cross midnight or roll backward, advance 24h
+        while (ms <= prevMs) {
+          ms += 24 * 60 * 60 * 1000;
+        }
+      }
+      prevMs = ms;
+      result.push({
+        ms,
+        time: p.time,
+        height: p.height,
+        type: p.type,
+      });
+    }
+    return result;
+  }, [points]);
 
   if (parsed.length < 2) return null;
+
+  const minMs = parsed[0].ms;
+  const maxMs = parsed[parsed.length - 1].ms;
+  const timeSpan = maxMs - minMs;
+  if (timeSpan <= 0) return null;
 
   const minH = Math.min(...parsed.map((p) => p.height));
   const maxH = Math.max(...parsed.map((p) => p.height));
@@ -431,17 +516,17 @@ function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
 
   for (let i = 0; i < steps; i++) {
     const t = i / (steps - 1);
-    const hour = parsed[0].hour + t * (parsed[parsed.length - 1].hour - parsed[0].hour);
+    const currMs = minMs + t * timeSpan;
 
     // Find surrounding tide points
     let prevIdx = 0;
     for (let j = 0; j < parsed.length - 1; j++) {
-      if (hour >= parsed[j].hour) prevIdx = j;
+      if (currMs >= parsed[j].ms) prevIdx = j;
     }
     const nextIdx = Math.min(prevIdx + 1, parsed.length - 1);
 
-    const segLen = parsed[nextIdx].hour - parsed[prevIdx].hour || 1;
-    const segT = (hour - parsed[prevIdx].hour) / segLen;
+    const segLen = parsed[nextIdx].ms - parsed[prevIdx].ms || 1;
+    const segT = Math.min(1, Math.max(0, (currMs - parsed[prevIdx].ms) / segLen));
     // Cosine interpolation for smooth tide curve
     const cosT = (1 - Math.cos(segT * Math.PI)) / 2;
     const height = parsed[prevIdx].height + cosT * (parsed[nextIdx].height - parsed[prevIdx].height);
@@ -452,26 +537,22 @@ function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
   }
 
   // Current time marker
-  const now = new Date();
-  const nowHour = now.getHours() + now.getMinutes() / 60;
-  const firstHour = parsed[0].hour;
-  const lastHour = parsed[parsed.length - 1].hour;
-  const hourSpan = lastHour - firstHour;
+  const nowMs = Date.now();
   let nowX: number | null = null;
   let nowY: number | null = null;
 
-  if (hourSpan > 0 && nowHour >= firstHour && nowHour <= lastHour) {
-    const t = (nowHour - firstHour) / hourSpan;
+  if (nowMs >= minMs && nowMs <= maxMs) {
+    const t = (nowMs - minMs) / timeSpan;
     nowX = PAD + t * (W - 2 * PAD);
 
     // Interpolate height at current time
     let prevIdx = 0;
     for (let j = 0; j < parsed.length - 1; j++) {
-      if (nowHour >= parsed[j].hour) prevIdx = j;
+      if (nowMs >= parsed[j].ms) prevIdx = j;
     }
     const nextIdx = Math.min(prevIdx + 1, parsed.length - 1);
-    const segLen = parsed[nextIdx].hour - parsed[prevIdx].hour || 1;
-    const segT = (nowHour - parsed[prevIdx].hour) / segLen;
+    const segLen = parsed[nextIdx].ms - parsed[prevIdx].ms || 1;
+    const segT = Math.min(1, Math.max(0, (nowMs - parsed[prevIdx].ms) / segLen));
     const cosT = (1 - Math.cos(segT * Math.PI)) / 2;
     const height = parsed[prevIdx].height + cosT * (parsed[nextIdx].height - parsed[prevIdx].height);
     nowY = H - PAD - ((height - minH) / range) * (H - 2 * PAD);
@@ -504,8 +585,8 @@ function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
       />
 
       {/* High/low markers */}
-      {hourSpan > 0 && parsed.map((p, i) => {
-        const t = (p.hour - firstHour) / hourSpan;
+      {parsed.map((p, i) => {
+        const t = (p.ms - minMs) / timeSpan;
         const x = PAD + t * (W - 2 * PAD);
         const y = H - PAD - ((p.height - minH) / range) * (H - 2 * PAD);
         return (

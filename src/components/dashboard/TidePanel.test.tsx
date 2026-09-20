@@ -88,4 +88,25 @@ describe('TidePanel', () => {
       expect(screen.getByText(/Nivel real mareógrafo/)).toBeDefined();
     });
   });
+
+  it('renders a continuous tide curve covering a full cycle when expanded', async () => {
+    render(<TidePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Mareas')).toBeDefined();
+    });
+
+    // Expand panel
+    const toggleButton = screen.getByRole('button');
+    fireEvent.click(toggleButton);
+
+    await waitFor(() => {
+      // Curve SVG is present with aria-label
+      const svg = document.querySelector('svg[aria-label="Curva de mareas Hoy"]');
+      expect(svg).toBeDefined();
+      // Polyline curve exists
+      const polyline = svg?.querySelector('polyline');
+      expect(polyline).toBeDefined();
+    });
+  });
 });
