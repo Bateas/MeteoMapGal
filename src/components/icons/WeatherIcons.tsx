@@ -39,6 +39,8 @@ import {
   X,
   ClipboardList,
   Anchor,
+  Fish,
+  Calendar,
   Database,
   Gauge,
   Check,
@@ -69,6 +71,7 @@ export type IconId =
   | 'map-pin' | 'drone' | 'waves' | 'flame' | 'hail' | 'thermal-wind'
   | 'mountain' | 'beach' | 'tag' | 'cloud-drizzle' | 'map'
   | 'leaf' | 'clock' | 'x' | 'clipboard-list' | 'anchor'
+  | 'fish' | 'calendar'
   | 'database' | 'gauge' | 'check' | 'sprout'
   | 'compass' | 'navigation' | 'layers' | 'eye' | 'eye-off' | 'camera'
   | 'thumbs-up' | 'thumbs-down' | 'bell' | 'bell-off'
@@ -219,6 +222,8 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'x': X,
   'clipboard-list': ClipboardList,
   'anchor': Anchor,
+  'fish': Fish,
+  'calendar': Calendar,
   'database': Database,
   'gauge': Gauge,
   'check': Check,

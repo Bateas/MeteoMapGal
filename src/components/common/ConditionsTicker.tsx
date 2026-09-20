@@ -45,6 +45,7 @@ import {
   shouldShowTideAlert,
 } from '../../services/tideAlertService';
 import { detectUpwellingSummary } from '../../services/upwellingDetector';
+import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 /** Find the next tide point (high or low) relative to now */
 function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean } | null {
@@ -108,7 +109,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
     // safety (storm, forecast storms/fog, fires) + the casual beach headline.
     // Conservative criterion: when in doubt, an item is informational (UV,
     // air quality, tide coef, gusts, thermal) and only shows in full mode.
-    const result: { key: string; text: string; color: string; bg: string; priority: number; essential?: boolean }[] = [];
+    const result: { key: string; text: string; color: string; bg: string; priority: number; essential?: boolean; icon?: IconId }[] = [];
     const sectorLabel = sectorId === 'rias' ? 'Rías' : 'Embalse';
 
     // ── Spot verdicts (priority 10 = highest for non-calm, 1 for calm) ──
@@ -328,21 +329,23 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
       if (upwelling.hasUpwelling && upwelling.tickerMessage) {
         result.push({
           key: 'upwelling-event',
-          text: `🌊 ${upwelling.tickerMessage}`,
+          text: upwelling.tickerMessage,
           color: 'text-sky-300',
           bg: 'bg-sky-950/40',
           priority: 8,
           essential: false,
+          icon: 'waves',
         });
 
         if (upwelling.fishingAdvice) {
           result.push({
             key: 'upwelling-fishing',
-            text: `🎣 Pesca & Cefalópodos: ${upwelling.fishingAdvice}`,
+            text: `Pesca en ría: ${upwelling.fishingAdvice}`,
             color: 'text-cyan-300',
             bg: 'bg-cyan-950/30',
             priority: 7,
             essential: false,
+            icon: 'fish',
           });
         }
       }
@@ -735,9 +738,13 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
           }}
         >
           {tickerContent.map((item, i) => (
-            <span key={`${item.key}-${i}`} className={`text-[11px] font-medium ${item.color} flex items-center gap-1 ${item.bg ? `${item.bg} px-2 py-0.5 rounded` : ''}`}>
-              <span className="w-1 h-1 rounded-full bg-current opacity-50" />
-              {item.text}
+            <span key={`${item.key}-${i}`} className={`text-[11px] font-medium ${item.color} flex items-center gap-1.5 ${item.bg ? `${item.bg} px-2 py-0.5 rounded` : ''}`}>
+              {item.icon ? (
+                <WeatherIcon id={item.icon} size={12} className="shrink-0 opacity-80" />
+              ) : (
+                <span className="w-1 h-1 rounded-full bg-current opacity-50" />
+              )}
+              <span>{item.text}</span>
             </span>
           ))}
         </div>

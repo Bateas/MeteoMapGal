@@ -52,7 +52,7 @@ export function classifyWaterMass(tempC: number | null, salinityPsu: number | nu
     return {
       type: 'acna',
       label: 'Agua Profunda ACNA',
-      badgeText: '🌊 Afloramiento ACNA',
+      badgeText: 'Afloramiento ACNA',
       description: `Agua fría profunda oceánica rica en nutrientes${salStr}. Afloramiento activo.`,
       color: '#38bdf8', // sky-400
       bg: 'rgba(14, 165, 233, 0.15)',
@@ -65,7 +65,7 @@ export function classifyWaterMass(tempC: number | null, salinityPsu: number | nu
     return {
       type: 'fluvial',
       label: 'Influencia Fluvial / Estuario',
-      badgeText: '💧 Agua de Estuario',
+      badgeText: 'Agua de Estuario',
       description: `Agua salobre con aporte de río (${salinityPsu.toFixed(1)} PSU). Capa superficial estuarina.`,
       color: '#a3e635', // lime-400
       bg: 'rgba(163, 230, 53, 0.12)',
@@ -78,7 +78,7 @@ export function classifyWaterMass(tempC: number | null, salinityPsu: number | nu
     return {
       type: 'surface_warm',
       label: 'Atlántica Superficial Templada',
-      badgeText: '☀️ Superficial Templada',
+      badgeText: 'Superficial Templada',
       description: `Agua superficial templada (${tempC.toFixed(1)}°C). Afloramiento inactivo o en reposo.`,
       color: '#fbbf24', // amber-400
       bg: 'rgba(251, 191, 36, 0.12)',
@@ -177,12 +177,12 @@ export function detectUpwellingSummary(buoys: BuoyReading[]): UpwellingSummary {
 
   if (hasUpwelling && coldest) {
     const frontSnippet = thermalFront
-      ? ` · Frente térmico Δ${thermalFront.deltaT}°C en bocana`
+      ? ` · Frente térmico en bocana (Δ${thermalFront.deltaT}°C)`
       : '';
-    tickerMessage = `Afloramiento (Upwelling): agua a ${coldest.temp.toFixed(1)}°C en ${coldest.name}${frontSnippet}`;
+    tickerMessage = `Afloramiento: agua a ${coldest.temp.toFixed(1)}°C en ${coldest.name}${frontSnippet}`;
     fishingAdvice = thermalFront
-      ? `Frente térmico activo (${innerTemp?.temp.toFixed(1)}°C ría vs ${outerTemp?.temp.toFixed(1)}°C exterior): pique óptimo de calamar al atardecer y caballas en bocana.`
-      : `Agua fría oxigenada (${coldest.temp.toFixed(1)}°C): calamar (lura) muy activo. Pescadores: buscar capas medias y zonas de corriente.`;
+      ? `Calamar (lura) activo en ría y caballa (xarda) en bocanas por frente térmico (Δ${thermalFront.deltaT}°C)`
+      : `Calamar (lura) muy activo en ría por agua fría y oxigenada (${coldest.temp.toFixed(1)}°C)`;
   }
 
   return {
