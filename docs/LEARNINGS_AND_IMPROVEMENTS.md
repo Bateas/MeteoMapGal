@@ -102,6 +102,35 @@
 * **Regla Preventiva:**  
   Nunca aplicar upgrades mayores (`major bump`) de dependencias de renderizado (`maplibre-gl`) sin validar la compatibilidad de sus wrappers reactivos (`react-map-gl`). Evaluar siempre si la vulnerabilidad es explotable en la superficie real de código del proyecto antes de introducir cambios de arquitectura incompatibles.
 
+### Incidente 007: Desfase de 2 Horas en Tablas de Mareas IHM por Interpretación de UTC como Hora Local (v2.142.2)
+* **Fecha:** Septiembre 2026
+* **Componente:** `src/api/tideClient.ts`, `src/components/dashboard/TidePanel.tsx`, `src/components/spot/SpotTideSummary.tsx`
+* **Severidad:** Alta (Discrepancia temporal crítica para navegación y marisqueo)
+* **Causa Raíz:**  
+  La API pública del Instituto Hidrográfico de la Marina (IHM) entrega las horas de marea en UTC estricto (huso 0 / GMT) sin sufijo de zona horaria (`"hora": "16:39"`). En España peninsular (horario de verano CEST, UTC+2), la bajamar ocurría a las 18:39 oficiales, pero la aplicación mostraba la hora UTC bruta (16:39). Adicionalmente, componentes interactivos comparaban la hora local del usuario (`now.getHours()`) con la cadena de texto UTC de la marea, concluyendo erróneamente que la marea de la tarde ya había pasado 2 horas antes y calculando al revés la tendencia de subida/bajada. Las mareas de última hora UTC (ej. 22:55 UTC) cruzaban la medianoche local a las 00:55 del día siguiente pero se asignaban incorrectamente al día anterior.
+* **Solución:**  
+  1. Adición de `formatToLocalHHMM` y `formatToLocalDate` con `Intl.DateTimeFormat` configurado para `Europe/Madrid`, convirtiendo cada evento UTC de forma automática (+2h en verano, +1h en invierno).
+  2. Inclusión de `epochMs` en `TidePoint` para comparaciones de tiempo absolutas y unificación de 48h (ayer, hoy y mañana) agrupando mareas por su fecha de calendario local real.
+  3. Soporte en `meteoTideService.ts` para interpolar la cota astronómica sobre timestamps exactos de los mareógrafos REDMAR.
+* **Regla Preventiva:**  
+  Toda API oficial gubernamental (IHM, IPMA, AEMET) debe auditarse explícitamente para determinar si su tiempo está en UTC o en hora local. Nunca comparar cadenas `"HH:MM"` sin haber garantizado previamente que ambos extremos operan en el mismo huso horario.
+
+### Incidente 008: Invisibilidad de Estaciones IPMA Portugal por Falta de Invalidación de Caché y Offset Horario (v2.142.1)
+* **Fecha:** Septiembre 2026
+* **Componente:** `src/api/stationDiscovery.ts`, `src/store/weatherStore.ts`, `src/config/sourceConfig.ts`, `src/components/map/StationSymbolLayer.tsx`
+* **Severidad:** Alta (0 estaciones portuguesas visibles tras despliegue de v2.142.0)
+* **Causa Raíz:**  
+  1. `stationDiscovery.ts` y `weatherStore.ts` almacenaban en `sessionStorage` y `localStorage` las estaciones y lecturas sin prefijo de versión de la aplicación. Los usuarios con sesiones abiertas cargaban la lista antigua (sin estaciones de IPMA) y la guarda `if (stations.length > 0) return;` en `useStations.ts` impedía que el descubrimiento se ejecutara al montar el mapa.
+  2. `SOURCE_CONFIG['ipma']` no estaba definido en `src/config/sourceConfig.ts`, provocando excepciones de tipo al intentar leer `SOURCE_CONFIG[station.source].color`.
+  3. IPMA entrega timestamps ISO sin `Z` (`2026-09-20T18:00:00`), interpretados como hora local y retrasando artificialmente las lecturas 2 horas. En `StationSymbolLayer.tsx`, la curva de opacidad atenuaba las estaciones de más de 2 horas al 0% (invisibles).
+* **Solución:**  
+  1. Versionado de claves de caché (`meteo_discovered_stations_v${APP_VERSION}_` y `meteomap-readings-v${APP_VERSION}-`) con purga automática al cargar el módulo.
+  2. Ejecución forzada en segundo plano de `discoverStations` en el primer montaje.
+  3. Registro completo de la fuente `ipma` con etiqueta `PT` y color `#059669`.
+  4. Parseo forzado en UTC (`parseIpmaTimestamp`) y elevación de la opacidad mínima de estaciones horarias al 35% para evitar marcadores ocultos.
+* **Regla Preventiva:**  
+  Toda caché persistente en cliente que condicione el catálogo de estaciones o datos debe estar prefijada con la versión de la aplicación y disponer de política de auto-limpieza ante cambios de versión.
+
 ---
 
 ## 3. Catálogo de Anti-Patrones Prohibidos
@@ -116,10 +145,33 @@
 | `npm audit fix --force` a ciegas | Puede introducir breaking changes mayores que rompan mapas o servicios sin tests visuales. | Auditar cada vulnerabilidad individualmente y verificar suites de test. |
 | Abanico HTTP directo contra APIs públicas externas | Provoca timeouts de 10-15s e inestabilidad en red móvil/proxy. | Priorizar ingestor local de TimescaleDB con fallback a API remota. |
 | `Promise.all` monolítico en hidratación de mapas | Bloquea la visualización de datos rápidos esperando por la fuente más lenta. | Hidratación progresiva (`onSourceReadings`). |
+| Asumir hora local en feeds de predicción mareal o meteo | Genera desfases de 1h o 2h respecto al reloj real en superficie (ej. IHM e IPMA emiten en UTC sin Z). | Parsear siempre como UTC forzado y proyectar a `Europe/Madrid`. |
 
 ---
 
 ## 4. Registro Cronológico de Mejoras y Refactorizaciones
+
+### [v2.142.2] — Septiembre 2026: Corrección de Horario de Mareas IHM (UTC a Hora Local Peninsular)
+* **Autor:** Bateas
+* **Cambios realizados:**
+  1. **Conversión UTC → Hora Oficial Española (`tideClient.ts`):** Adición de `formatToLocalHHMM` y `formatToLocalDate` con `Europe/Madrid` (+2h en verano, +1h en invierno).
+  2. **Partición Natural 48h (`fetchTides48h`):** Agrupación fiel de mareas en los días naturales de "Hoy" y "Mañana" resolviendo eventos que cruzan la medianoche.
+  3. **Timestamps Absolutos (`epochMs`):** Cálculo exacto de próxima marea, progreso de subida/bajada y resaca astronómica en `TidePanel`, `SpotTideSummary`, `UserSpotPopup`, `ConditionsTicker` y `meteoTideService`.
+
+### [v2.142.1] — Septiembre 2026: Corrección de Visibilidad IPMA Portugal, Invalidación de Caché y SOURCE_CONFIG
+* **Autor:** Bateas
+* **Cambios realizados:**
+  1. **Invalidación de Caché Versionada (`stationDiscovery.ts` & `weatherStore.ts`):** Purga automática de cachés previas a v2.142.0 en `sessionStorage` y `localStorage`.
+  2. **Registro de Fuente `ipma` (`sourceConfig.ts`):** Alta de la clave `ipma` con etiqueta `PT` y color `#059669`.
+  3. **Parseo UTC en IPMA (`normalizer.ts`):** Función `parseIpmaTimestamp` para evitar el falso envejecimiento de 2 horas.
+  4. **Ajuste de Frescura en Mapa (`StationSymbolLayer.tsx`):** Opacidad mínima fijada en 0.35 para estaciones con ciclo de reporte horario.
+
+### [v2.142.0] — Septiembre 2026: Integración de Red Oficial IPMA Portugal y Avisos Transfronterizos
+* **Autor:** Bateas
+* **Cambios realizados:**
+  1. **Estaciones de Superficie del Norte de Portugal (`ipmaClient.ts`):** Monção, Melgaço (Lamas de Mouro), V.N. de Cerveira y Viana do Castelo.
+  2. **Avisos Meteorológicos Adversos Transfronterizos (`ipmaWarningsClient.ts`):** Monitoreo de distritos de Viana do Castelo, Braga, Vila Real y Bragança integrados en `FieldDrawer.tsx`.
+  3. **Ingestor Backend:** Descubrimiento y almacenamiento de series históricas de IPMA en TimescaleDB.
 
 ### [v2.141.9] — Septiembre 2026: Restauración de Estabilidad MapLibre v5 y Proyección 1:1 Nativa
 * **Autor:** Bateas
