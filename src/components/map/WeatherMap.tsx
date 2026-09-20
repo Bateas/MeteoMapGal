@@ -1,8 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import Map, { NavigationControl } from 'react-map-gl/maplibre';
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl/maplibre';
-import * as maplibregl from 'maplibre-gl';
+import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+
+// Safeguard against GHSA-jrc7-96c5-q579 (DOM.sanitize live NamedNodeMap index skip)
+if (typeof window !== 'undefined' && maplibregl && (maplibregl as any).DOM && typeof (maplibregl as any).DOM.sanitize === 'function') {
+  const origSanitize = (maplibregl as any).DOM.sanitize;
+  (maplibregl as any).DOM.sanitize = function(str: string): string {
+    if (!str) return '';
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(str, 'text/html');
+      const body = doc.body || document.createElement('body');
+      const allElements = body.querySelectorAll('*');
+      for (let i = 0; i < allElements.length; i++) {
+        const el = allElements[i];
+        if (el.tagName.toLowerCase() === 'script') {
+          el.remove();
+          continue;
+        }
+        const attrs = Array.from(el.attributes);
+        for (const attr of attrs) {
+          const val = attr.value.replace(/\s+/g, '').toLowerCase();
+          if (attr.name.startsWith('on') || val.includes('javascript:') || val.includes('data:')) {
+            el.removeAttribute(attr.name);
+          }
+        }
+      }
+      return body.innerHTML;
+    } catch {
+      return origSanitize(str);
+    }
+  };
+}
 
 import { useSectorStore } from '../../store/sectorStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
@@ -454,8 +485,6 @@ export function WeatherMap() {
       <Map
         ref={mapRef}
         mapLib={maplibregl}
-        pixelRatio={isMobile ? Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2) : undefined}
-        maxTileCacheSize={isMobile ? 50 : 100}
         initialViewState={sectorInitialView}
         style={{ width: '100%', height: '100%' }}
         mapStyle={mapStyle}
