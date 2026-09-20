@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { getCachedSectorStations, discoverStations, clearSectorStationsCache } from './stationDiscovery';
+import {
+  getCachedSectorStations,
+  discoverStations,
+  clearSectorStationsCache,
+  DISCOVERY_STORAGE_KEY_PREFIX,
+} from './stationDiscovery';
 import type { NormalizedStation } from '../types/station';
 
 describe('stationDiscovery caching', () => {
@@ -29,7 +34,7 @@ describe('stationDiscovery caching', () => {
       stations: [dummyStation],
       ts: Date.now(),
     };
-    sessionStorage.setItem('meteo_discovered_stations_embalse_test', JSON.stringify(payload));
+    sessionStorage.setItem(`${DISCOVERY_STORAGE_KEY_PREFIX}embalse_test`, JSON.stringify(payload));
 
     const cached = getCachedSectorStations('embalse_test');
     expect(cached).toHaveLength(1);
@@ -42,7 +47,7 @@ describe('stationDiscovery caching', () => {
       stations: [dummyStation],
       ts: Date.now() - 61 * 60 * 1000,
     };
-    sessionStorage.setItem('meteo_discovered_stations_embalse_test', JSON.stringify(expiredPayload));
+    sessionStorage.setItem(`${DISCOVERY_STORAGE_KEY_PREFIX}embalse_test`, JSON.stringify(expiredPayload));
 
     expect(getCachedSectorStations('embalse_test')).toBeNull();
   });
@@ -52,7 +57,7 @@ describe('stationDiscovery caching', () => {
       stations: [dummyStation],
       ts: Date.now(),
     };
-    sessionStorage.setItem('meteo_discovered_stations_embalse_test', JSON.stringify(payload));
+    sessionStorage.setItem(`${DISCOVERY_STORAGE_KEY_PREFIX}embalse_test`, JSON.stringify(payload));
 
     const stations = await discoverStations({
       center: [-8.1, 42.29],

@@ -621,8 +621,8 @@ async function fetchIpma(
       if (!current) {
         latestByStation.set(id, feat);
       } else {
-        const currentTime = new Date(current.properties.time).getTime();
-        const featTime = new Date(feat.properties.time).getTime();
+        const currentTime = new Date(current.properties.time.endsWith('Z') ? current.properties.time : `${current.properties.time}Z`).getTime();
+        const featTime = new Date(feat.properties.time.endsWith('Z') ? feat.properties.time : `${feat.properties.time}Z`).getTime();
         if (featTime > currentTime) latestByStation.set(id, feat);
       }
     }

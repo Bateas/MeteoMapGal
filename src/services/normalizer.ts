@@ -168,7 +168,7 @@ export function normalizeMeteoclimaticObservation(
 
 export interface IpmaFeatureProperties {
   idEstacao: number;
-  localEstacao: string;
+  localEstacao?: string;
   time: string;
   temperatura?: number | null;
   humidade?: number | null;
@@ -235,6 +235,16 @@ export function normalizeIpmaStation(feature: IpmaFeature): NormalizedStation {
   };
 }
 
+export function parseIpmaTimestamp(timeStr: string): Date {
+  if (!timeStr) return new Date();
+  // IPMA reports in UTC (e.g. '2026-09-20T18:00:00'). Without 'Z',
+  // ECMAScript treats it as local time, shifting it 2h into the past in Spain.
+  if (!timeStr.endsWith('Z') && !timeStr.includes('+')) {
+    return new Date(`${timeStr}Z`);
+  }
+  return new Date(timeStr);
+}
+
 /** Normalize an IPMA surface observation */
 export function normalizeIpmaReading(props: IpmaFeatureProperties): NormalizedReading {
   const temp = sanitizeIpmaValue(props.temperatura);
@@ -266,7 +276,7 @@ export function normalizeIpmaReading(props: IpmaFeatureProperties): NormalizedRe
 
   return {
     stationId: `ipma_${props.idEstacao}`,
-    timestamp: new Date(props.time),
+    timestamp: parseIpmaTimestamp(props.time),
     windSpeed: finalWindSpeed,
     windGust: finalWindGust,
     windDirection: finalWindDir,

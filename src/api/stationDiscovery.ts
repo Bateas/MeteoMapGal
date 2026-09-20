@@ -36,10 +36,24 @@ async function retryAfterDelay<T>(fn: () => Promise<T>, delayMs: number): Promis
   return fn();
 }
 
+import { APP_VERSION } from '../config/version';
+
 // In-memory cache for discovered stations per sector (60min TTL)
 const SECTOR_STATIONS_CACHE = new Map<string, { stations: NormalizedStation[]; ts: number }>();
 const DISCOVERY_CACHE_TTL_MS = 60 * 60 * 1000;
-const DISCOVERY_STORAGE_KEY_PREFIX = 'meteo_discovered_stations_';
+export const DISCOVERY_STORAGE_KEY_PREFIX = `meteo_discovered_stations_v${APP_VERSION}_`;
+
+// Auto-purge discovery cache from older app versions
+try {
+  for (let i = sessionStorage.length - 1; i >= 0; i--) {
+    const key = sessionStorage.key(i);
+    if (key?.startsWith('meteo_discovered_stations_') && !key.startsWith(DISCOVERY_STORAGE_KEY_PREFIX)) {
+      sessionStorage.removeItem(key);
+    }
+  }
+} catch {
+  // Ignore
+}
 
 /** Clear sector stations cache (both in-memory and sessionStorage) */
 export function clearSectorStationsCache(sectorId?: string): void {
@@ -55,7 +69,7 @@ export function clearSectorStationsCache(sectorId?: string): void {
     try {
       for (let i = sessionStorage.length - 1; i >= 0; i--) {
         const key = sessionStorage.key(i);
-        if (key?.startsWith(DISCOVERY_STORAGE_KEY_PREFIX)) {
+        if (key?.startsWith('meteo_discovered_stations_')) {
           sessionStorage.removeItem(key);
         }
       }

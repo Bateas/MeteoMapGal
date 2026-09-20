@@ -166,7 +166,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
 
   // Memoize source badge style to avoid inline object re-creation
   const sourceBadgeStyle = useMemo(() => ({
-    background: SOURCE_CONFIG[station.source].color, color: 'white',
+    background: SOURCE_CONFIG[station.source]?.color ?? '#059669', color: 'white',
   }), [station.source]);
 
   // Memoize staleness badge style
@@ -180,7 +180,7 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
       tabIndex={0}
       role="button"
-      aria-label={`Estación ${station.name} (${SOURCE_CONFIG[station.source].label})`}
+      aria-label={`Estación ${station.name} (${SOURCE_CONFIG[station.source]?.label ?? station.source})`}
       className={`
         p-3 rounded-lg cursor-pointer transition-all
         ${isSelected
@@ -195,9 +195,9 @@ export const StationCard = memo(function StationCard({ station, reading }: Stati
           <span
             className="text-[11px] font-bold px-1.5 py-0.5 rounded"
             style={sourceBadgeStyle}
-            title={SOURCE_CONFIG[station.source].fullName}
+            title={SOURCE_CONFIG[station.source]?.fullName ?? station.source}
           >
-            {SOURCE_CONFIG[station.source].label}
+            {SOURCE_CONFIG[station.source]?.label ?? station.source.slice(0, 2).toUpperCase()}
           </span>
           <span className="text-[13px] font-semibold text-slate-200 truncate max-w-[140px]">
             {station.name}

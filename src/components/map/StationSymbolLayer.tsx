@@ -140,7 +140,7 @@ export function StationSymbolLayer({
           temperature: reading?.temperature ?? null,
           tempColor: tempBinColor(reading?.temperature ?? null),
           windColor: windSpeedColor(reading?.windSpeed ?? null),
-          freshness: age < 10 ? 1.0 : age < 30 ? 0.85 : age < 60 ? 0.6 : age < 120 ? 0.3 : 0.15,
+          freshness: age < 15 ? 1.0 : age < 45 ? 0.85 : age < 90 ? 0.7 : age < 180 ? 0.5 : 0.35,
           isSelected: isSelected ? 1 : 0,
         },
       });
@@ -234,22 +234,22 @@ export function StationSymbolLayer({
           // Always use source color for ring — no red/amber override
           'circle-stroke-color': ['get', 'sourceColor'],
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 12, 1.5],
-          // Stale stations: ring AND fill become nearly invisible
+          // Freshness opacity: hourly stations remain visible even when readings are 1-2h old
           'circle-opacity': [
             'step', ['get', 'freshness'],
-            0.0,           // <0.15 (>2h): hidden
-            0.15, 0.08,    // 0.15-0.3 (1-2h): barely visible
-            0.3, 0.2,      // 0.3-0.6 (30-60min): faded
-            0.6, 0.35,     // 0.6-0.85 (10-30min): slightly faded
-            0.85, 0.7,     // >=0.85 (<10min): normal
+            0.25,
+            0.35, 0.35,
+            0.5, 0.45,
+            0.7, 0.6,
+            0.85, 0.7,
           ],
           'circle-stroke-opacity': [
             'step', ['get', 'freshness'],
-            0.0,
-            0.15, 0.08,
-            0.3, 0.2,
-            0.6, 0.35,
-            0.85, 0.7,
+            0.3,
+            0.35, 0.4,
+            0.5, 0.55,
+            0.7, 0.7,
+            0.85, 0.85,
           ],
         }}
       />
@@ -264,7 +264,7 @@ export function StationSymbolLayer({
           'icon-size': iconSize,
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
-          // Source label always visible (A, MG, MC, WU, NT, SX)
+          // Source label always visible (A, MG, MC, WU, NT, SX, PT)
           'text-field': ['get', 'sourceLabel'],
           'text-font': ['Noto Sans Bold'],
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 7, 11, 9, 12, 11],
@@ -275,14 +275,14 @@ export function StationSymbolLayer({
         }}
         paint={{
           'icon-color': ['get', 'tempColor'],
-          // Stale stations fade out — hidden at >2h, nearly invisible at >1h
+          // Freshness opacity: minimum 0.35 so older readings are clearly identifiable
           'icon-opacity': [
             'step', ['get', 'freshness'],
-            0.0,           // <0.15 (>2h): hidden
-            0.15, 0.08,    // 0.15-0.3 (1-2h): barely visible
-            0.3, 0.25,     // 0.3-0.6 (30-60min): faded
-            0.6, 0.45,     // 0.6-0.85 (10-30min): slightly faded
-            0.85, 0.8,     // fresh: normal
+            0.35,
+            0.35, 0.45,
+            0.5, 0.6,
+            0.7, 0.75,
+            0.85, 0.85,
           ],
           'text-color': '#ffffff',
           'text-halo-color': 'rgba(0,0,0,0.5)',
@@ -290,10 +290,10 @@ export function StationSymbolLayer({
           // Source label fades with marker
           'text-opacity': [
             'step', ['get', 'freshness'],
-            0.0,           // <0.15 (>2h): hidden
-            0.15, 0.1,
-            0.3, 0.25,
-            0.6, 0.5,
+            0.45,
+            0.35, 0.6,
+            0.5, 0.75,
+            0.7, 0.9,
             0.85, 1.0,
           ],
         }}
@@ -320,10 +320,10 @@ export function StationSymbolLayer({
           // Stale station names fade with the marker
           'text-opacity': [
             'step', ['get', 'freshness'],
-            0.0,           // <0.15 (>2h): hidden
-            0.15, 0.1,
-            0.3, 0.25,
-            0.6, 0.5,
+            0.4,
+            0.35, 0.55,
+            0.5, 0.7,
+            0.7, 0.85,
             0.85, 1.0,
           ],
         }}
