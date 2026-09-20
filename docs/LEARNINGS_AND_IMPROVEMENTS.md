@@ -85,8 +85,22 @@
   3. **Descubrimiento no bloqueante:** Eliminado el retardo de 5s en `stationDiscovery.ts`.
   4. **Caché en `sessionStorage`:** Las estaciones descubiertas de cada sector se respaldan en `sessionStorage`, permitiendo un reingreso en 0 ms.
   5. **Seguimiento explícito de sector:** `useWeatherData` detecta el cambio con `lastSectorIdRef.current !== activeSector.id` y dispara el refresco de lecturas de inmediato.
+### Incidente 006: Crash en Zoom/Pan y Descuadre de Mapa por Incompatibilidad MapLibre v6 (v2.141.7 / v2.141.8)
+* **Fecha:** Septiembre 2026
+* **Componente:** `package.json`, `src/components/map/WeatherMap.tsx`
+* **Severidad:** Crítica (Crash total del mapa con `Cannot read properties of undefined (reading 'center')` y desajuste visual de coordenadas)
+* **Causa Raíz:**  
+  1. MapLibre GL JS v6 desacopló la lógica de cámara en una clase interna `Camera` (`map._camera.transform`).
+  2. La propiedad de compatibilidad `map.transform` dejó de existir en la instancia `Map`, y el listener de cámara `map.transformCameraUpdate` fue reemplazado.
+  3. La librería `react-map-gl/maplibre` (`@vis.gl/react-maplibre`) depende de `map.transform` y `map.transformCameraUpdate` en `_onCameraEvent`. Al no estar presentes, `_propsedCameraUpdate` es nulo y evalúa `transformToViewState(this._map.transform)`. Como `tr` es `undefined`, `tr.center` arroja `TypeError: Cannot read properties of undefined (reading 'center')`, disparando el ErrorBoundary de React y destruyendo el mapa en cuanto el usuario hace zoom o paneo.
+  4. La asignación experimental de `pixelRatio` sobre el componente `<Map>` en móvil forzó un escalado asimétrico del viewport WebGL frente al espacio CSS, provocando que los marcadores y superposiciones SVG/HTML quedaran desplazados de sus coordenadas geográficas reales ("descuadra todo").
+  5. La vulnerabilidad de seguridad GHSA-jrc7-96c5-q579 (Dependabot #42) en `DOM.sanitize()` solo afecta a `maplibregl.Popup.setHTML()`. En MeteoMapGal nunca se invoca `setHTML()`; todos los popups son componentes React puros sobre JSX portalizado.
+* **Solución:**  
+  1. Reversión inmediata de `maplibre-gl` a la versión `5.24.0`, totalmente estable, compatible y probada con `react-map-gl`.
+  2. Eliminación de las props `pixelRatio` y `maxTileCacheSize` en `<Map>` para restaurar la proyección 1:1 nativa de WebGL.
+  3. Adición de un parche defensivo en tiempo de ejecución para `(maplibregl as any).DOM.sanitize` en `WeatherMap.tsx`, garantizando que cualquier llamada a saneamiento use una instantánea estática de `Array.from(attributes)` que impida el salto de índice de la vulnerabilidad sin romper la compatibilidad con el motor de mapas.
 * **Regla Preventiva:**  
-  El frontend siempre debe consultar primero el ingestor local en TimescaleDB antes de efectuar abanicos concurrentes contra APIs externas de administraciones públicas, y aplicar hidratación progresiva en la UI para que las fuentes rápidas se muestren en milisegundos sin esperar a la más lenta.
+  Nunca aplicar upgrades mayores (`major bump`) de dependencias de renderizado (`maplibre-gl`) sin validar la compatibilidad de sus wrappers reactivos (`react-map-gl`). Evaluar siempre si la vulnerabilidad es explotable en la superficie real de código del proyecto antes de introducir cambios de arquitectura incompatibles.
 
 ---
 
@@ -106,6 +120,16 @@
 ---
 
 ## 4. Registro Cronológico de Mejoras y Refactorizaciones
+
+### [v2.141.9] — Septiembre 2026: Restauración de Estabilidad MapLibre v5 y Proyección 1:1 Nativa
+* **Autor:** Bateas
+* **Cambios realizados:**
+  1. **Reversión a MapLibre GL JS v5.24.0:**
+     * Solucionado el crash fatal en zoom y paneo (`Cannot read properties of undefined (reading 'center')`) originado por el desacople de cámara en MapLibre v6 (`map._camera.transform`) que rompía el listener `_onCameraEvent` de `react-map-gl/maplibre`.
+     * Retiradas las props `pixelRatio` y `maxTileCacheSize` de `<Map>`, resolviendo el desajuste de coordenadas y descuadre visual de marcadores y superposiciones HTML/SVG sobre la base cartográfica.
+  2. **Mitigación Defensiva en Runtime para GHSA-jrc7-96c5-q579:**
+     * Implementado monkeypatch seguro sobre `(maplibregl as any).DOM.sanitize` en `WeatherMap.tsx` que congela los atributos en un array estático (`Array.from(attributes)`) antes de eliminar `on*` y `javascript:`, neutralizando el vector de omisión sin requerir la versión 6.x que rompe React Map GL.
+     * Recordatorio: MeteoMapGal no usa `setHTML` en Popups (utiliza JSX de React portalizado), por lo que la aplicación está 100% protegida.
 
 ### [v2.141.8] — Septiembre 2026: Corrección Visual de Calidad del Aire (ICA/PM10) y Supresión de Jerga Técnica
 * **Autor:** Bateas
