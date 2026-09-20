@@ -12,6 +12,7 @@ import {
   normalizeAemetObservation,
   normalizeMeteoGaliciaObservation,
   normalizeMeteoclimaticObservation,
+  normalizeIpmaReading,
 } from '../src/services/normalizer.js';
 import { parseMeteoclimaticXml } from './xml.js';
 import { skyXWindIsMeasuring } from '../src/api/skyxClient.js';
@@ -591,10 +592,60 @@ async function fetchSkyX(
   }
 }
 
+// ── IPMA (Portugal) observations ──────────────────────
+
+async function fetchIpma(
+  stationList: NormalizedStation[]
+): Promise<NormalizedReading[]> {
+  const ipmaStations = stationList.filter((s) => s.source === 'ipma');
+  if (ipmaStations.length === 0) return [];
+  const ipmaIds = new Set(ipmaStations.map((s) => s.id));
+
+  try {
+    const res = await fetch('https://api.ipma.pt/open-data/observation/meteorology/stations/obs-surface.geojson', {
+      signal: AbortSignal.timeout(TIMEOUT),
+      headers: { Accept: 'application/json, text/plain, */*' },
+    });
+    if (!res.ok) {
+      log.warn(`IPMA HTTP error ${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    if (!data?.features || !Array.isArray(data.features)) return [];
+
+    const latestByStation = new Map<number, any>();
+    for (const feat of data.features) {
+      if (!feat?.properties?.idEstacao) continue;
+      const id = feat.properties.idEstacao;
+      const current = latestByStation.get(id);
+      if (!current) {
+        latestByStation.set(id, feat);
+      } else {
+        const currentTime = new Date(current.properties.time).getTime();
+        const featTime = new Date(feat.properties.time).getTime();
+        if (featTime > currentTime) latestByStation.set(id, feat);
+      }
+    }
+
+    const readings: NormalizedReading[] = [];
+    for (const feat of latestByStation.values()) {
+      const reading = normalizeIpmaReading(feat.properties);
+      if (ipmaIds.has(reading.stationId)) {
+        readings.push(reading);
+      }
+    }
+    log.info(`IPMA: ${readings.length} readings`);
+    return readings;
+  } catch (err) {
+    log.error('IPMA fetch failed:', (err as Error).message);
+    return [];
+  }
+}
+
 // ── Orchestrator ──────────────────────────────────────
 
 /**
- * Fetch observations from all 6 sources in parallel.
+ * Fetch observations from all sources in parallel.
  * Returns array of NormalizedReading ready for DB insert.
  */
 export async function fetchAllObservations(
@@ -613,10 +664,11 @@ export async function fetchAllObservations(
     fetchWunderground(stationList),
     fetchNetatmo(stationList),
     fetchSkyX(stationList),
+    fetchIpma(stationList),
   ]);
 
   const allReadings: NormalizedReading[] = [];
-  const sourceNames = ['AEMET', 'MeteoGalicia', 'Meteoclimatic', 'WU', 'Netatmo', 'SkyX'];
+  const sourceNames = ['AEMET', 'MeteoGalicia', 'Meteoclimatic', 'WU', 'Netatmo', 'SkyX', 'IPMA'];
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i];

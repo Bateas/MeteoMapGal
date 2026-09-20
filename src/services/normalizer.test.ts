@@ -4,6 +4,8 @@ import {
   normalizeAemetObservation,
   normalizeMeteoclimaticObservation,
   normalizeMeteoGaliciaObservation,
+  normalizeIpmaStation,
+  normalizeIpmaReading,
 } from './normalizer';
 import type { AemetRawStation, AemetRawObservation } from '../types/aemet';
 import type { MeteoclimaticRawStation } from '../types/meteoclimatic';
@@ -151,3 +153,78 @@ describe('normalizeMeteoGaliciaObservation', () => {
     expect(reading!.humidity).toBe(72);
   });
 });
+
+describe('normalizeIpmaStation', () => {
+  it('normalizes IPMA station with district and coordinates', () => {
+    const feat = {
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: [-8.83, 41.69] },
+      properties: {
+        idEstacao: 1200545,
+        localEstacao: 'Viana do Castelo (Chafé)',
+        time: '2026-09-20T18:00:00',
+        temperatura: 21.4,
+        humidade: 78,
+      },
+    };
+    const station = normalizeIpmaStation(feat);
+    expect(station.id).toBe('ipma_1200545');
+    expect(station.source).toBe('ipma');
+    expect(station.name).toBe('Viana do Castelo (Chafé)');
+    expect(station.lat).toBe(41.69);
+    expect(station.lon).toBe(-8.83);
+    expect(station.province).toBe('Viana do Castelo (Portugal)');
+  });
+});
+
+describe('normalizeIpmaReading', () => {
+  it('normalizes IPMA properties, converts km/h to m/s, maps wind direction and computes dew point', () => {
+    const props = {
+      idEstacao: 1200545,
+      time: '2026-09-20T18:00:00',
+      temperatura: 20.0,
+      humidade: 60,
+      ventoIntensidadeKm: 18.0, // 18 / 3.6 = 5.0 m/s
+      ventoRachamx: 36.0,       // 36 / 3.6 = 10.0 m/s
+      idVentoDir: 1,            // 1 = N = 0°
+      pressao: 1018.5,
+      precAcumulada: 1.2,
+      radTotal: 450,
+    };
+    const reading = normalizeIpmaReading(props);
+    expect(reading.stationId).toBe('ipma_1200545');
+    expect(reading.temperature).toBe(20.0);
+    expect(reading.humidity).toBe(60);
+    expect(reading.windSpeed).toBeCloseTo(5.0, 1);
+    expect(reading.windGust).toBeCloseTo(10.0, 1);
+    expect(reading.windDirection).toBe(0);
+    expect(reading.pressure).toBe(1018.5);
+    expect(reading.precipitation).toBe(1.2);
+    expect(reading.solarRadiation).toBe(450);
+    expect(reading.dewPoint).not.toBeNull();
+  });
+
+  it('filters -99 and -990 sentinel values', () => {
+    const props = {
+      idEstacao: 1200545,
+      time: '2026-09-20T18:00:00',
+      temperatura: -99.0,
+      humidade: -99.0,
+      ventoIntensidadeKm: -99.0,
+      ventoRachamx: -990.0,
+      idVentoDir: 0,
+      pressao: -990.0,
+      precAcumulada: -99.0,
+    };
+    const reading = normalizeIpmaReading(props);
+    expect(reading.temperature).toBeNull();
+    expect(reading.humidity).toBeNull();
+    expect(reading.windSpeed).toBeNull();
+    expect(reading.windGust).toBeNull();
+    expect(reading.windDirection).toBeNull();
+    expect(reading.pressure).toBeNull();
+    expect(reading.precipitation).toBeNull();
+    expect(reading.dewPoint).toBeNull();
+  });
+});
+

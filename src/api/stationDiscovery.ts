@@ -8,6 +8,7 @@ import { normalizeAemetStation, normalizeMeteoGaliciaStation, normalizeMeteoclim
 import { isWithinRadius } from '../services/geoUtils';
 import { METEOCLIMATIC_STATIONS } from '../types/meteoclimatic';
 import { fetchSkyXData } from './skyxClient';
+import { fetchIpmaNearby } from './ipmaClient';
 
 export interface DiscoveryParams {
   center: [number, number];        // [lon, lat]
@@ -106,13 +107,14 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
   const radiusKm = params.radiusKm;
   const extraPoints = params.extraCoveragePoints;
 
-  const [aemetStations, mgStations, mcStations, wuStations, netatmoStations] =
+  const [aemetStations, mgStations, mcStations, wuStations, netatmoStations, ipmaResult] =
     await Promise.allSettled([
       fetchStationInventory(),
       fetchStationList(),
       fetchMeteoclimaticFeed(params.meteoclimaticRegions),
       fetchWUNearbyStations(params.center, radiusKm),
       fetchNetatmoStations(params.center, radiusKm, false),
+      fetchIpmaNearby(params.center, radiusKm, extraPoints),
     ]);
 
   const stations: NormalizedStation[] = [];
@@ -243,6 +245,24 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
     console.debug(`[Discovery] Found ${windCount} Netatmo wind + ${tempOnlyCount} temp-only stations in radius`);
   } else {
     console.error('[Discovery] Netatmo station fetch failed:', netatmoStations.reason);
+  }
+
+  // Process IPMA stations (Portugal border)
+  if (ipmaResult.status === 'fulfilled') {
+    const ipmaCount = stations.length;
+    for (const station of ipmaResult.value.stations) {
+      const isDuplicate = stations.some(
+        (s) =>
+          Math.abs(s.lat - station.lat) < 0.005 &&
+          Math.abs(s.lon - station.lon) < 0.005
+      );
+      if (!isDuplicate) {
+        stations.push(station);
+      }
+    }
+    console.debug(`[Discovery] Found ${stations.length - ipmaCount} IPMA stations in radius`);
+  } else {
+    console.warn('[Discovery] IPMA station fetch failed:', ipmaResult.reason);
   }
 
   // Post-processing: exclusion zones + proximity dedup (Rías only)
@@ -403,7 +423,10 @@ function isInsidePolygon(lon: number, lat: number, polygon: [number, number][]):
 /** Remove interior mountain stations from Rías Baixas sector */
 function excludeRiasInterior(stations: NormalizedStation[]): NormalizedStation[] {
   const before = stations.length;
-  const filtered = stations.filter((s) => !isInsidePolygon(s.lon, s.lat, RIAS_INTERIOR_EXCLUSION));
+  // Never exclude IPMA (Portuguese border stations)
+  const filtered = stations.filter(
+    (s) => s.source === 'ipma' || !isInsidePolygon(s.lon, s.lat, RIAS_INTERIOR_EXCLUSION)
+  );
   if (filtered.length < before) {
     console.debug(
       `[Discovery] Rías interior exclusion: ${before} → ${filtered.length} ` +
@@ -418,6 +441,7 @@ function excludeRiasInterior(stations: NormalizedStation[]): NormalizedStation[]
 /** Source priority — higher value = keep over lower */
 const SOURCE_PRIORITY: Record<string, number> = {
   aemet: 50,          // official national agency, calibrated
+  ipma: 45,           // official national agency (Portugal), calibrated
   meteogalicia: 40,   // official regional agency, calibrated
   meteoclimatic: 30,  // curated amateur network, consistent
   wunderground: 20,   // personal weather stations, variable quality
@@ -432,8 +456,8 @@ const SOURCE_PRIORITY: Record<string, number> = {
 function dataRichnessScore(s: NormalizedStation): number {
   if (s.tempOnly) return 0;
   let score = 10; // has wind = base 10
-  // Source-specific data richness (AEMET/MG report more fields)
-  if (s.source === 'aemet' || s.source === 'meteogalicia') score += 5;
+  // Source-specific data richness (AEMET/MG/IPMA report more fields)
+  if (s.source === 'aemet' || s.source === 'meteogalicia' || s.source === 'ipma') score += 5;
   return score;
 }
 

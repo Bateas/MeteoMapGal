@@ -10,6 +10,7 @@ import { fetchLatestReadings, historyToNormalized } from '../api/historyClient';
 import { fetchWUObservations } from '../api/wundergroundClient';
 import { fetchNetatmoObservations } from '../api/netatmoClient';
 import { fetchSkyXReading } from '../api/skyxClient';
+import { fetchIpmaData } from '../api/ipmaClient';
 import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
 import { normalizeAemetObservation, normalizeMeteoGaliciaObservation, normalizeMeteoclimaticObservation } from '../services/normalizer';
 import type { NormalizedReading } from '../types/station';
@@ -264,6 +265,33 @@ export function useWeatherData() {
       );
     }
 
+    // IPMA (Portugal) — ingestor API first, fallback to direct IPMA API
+    const ipmaStations = stations.filter((s) => s.source === 'ipma');
+    if (ipmaStations.length > 0) {
+      const ipmaSet = new Set(ipmaStations.map((s) => s.id));
+      tasks.push(
+        fetchLatestReadings(undefined, 'ipma').then((rows) => {
+          const readings = historyToNormalized(rows).filter((r) => ipmaSet.has(r.stationId));
+          if (readings.length === 0) throw new Error('No IPMA data from ingestor');
+          updateSourceStatus('ipma', true, readings.length);
+          onSourceReadings(readings);
+          return readings;
+        }).catch((ingestorErr) => {
+          console.warn('[WeatherData] IPMA ingestor failed, trying direct:', (ingestorErr as Error).message);
+          return fetchIpmaData().then(({ readings }) => {
+            const filtered = readings.filter((r) => ipmaSet.has(r.stationId));
+            updateSourceStatus('ipma', true, filtered.length);
+            onSourceReadings(filtered);
+            return filtered;
+          });
+        }).catch((err) => {
+          console.error('[WeatherData] IPMA both sources failed:', err);
+          updateSourceStatus('ipma', false, 0, String(err));
+          return [];
+        })
+      );
+    }
+
     try {
       const results = await Promise.all(tasks);
 
@@ -281,7 +309,7 @@ export function useWeatherData() {
 
       // Toast for source errors (once per source)
       // Derive "ok" from timestamps — SourceStatus has no `.ok` property
-      const sourceNames: Record<string, string> = { aemet: 'AEMET', meteogalicia: 'MeteoGalicia', meteoclimatic: 'Meteoclimatic', wunderground: 'Weather Underground', netatmo: 'Netatmo', skyx: 'SkyX' };
+      const sourceNames: Record<string, string> = { aemet: 'AEMET', meteogalicia: 'MeteoGalicia', meteoclimatic: 'Meteoclimatic', wunderground: 'Weather Underground', netatmo: 'Netatmo', skyx: 'SkyX', ipma: 'IPMA' };
       for (const [src, name] of Object.entries(sourceNames)) {
         const status = useWeatherStore.getState().sourceFreshness.get(src);
         const isOk = status?.lastSuccess && (!status.lastError || status.lastSuccess > status.lastError);

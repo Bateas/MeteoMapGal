@@ -11,6 +11,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { fetchMGWarnings, getWarningsForSector, type MGWarning } from '../api/mgWarningsClient';
+import { fetchIpmaWarnings, getIpmaWarningsForSector, type IpmaWarning } from '../api/ipmaWarningsClient';
 import { useSectorStore } from '../store/sectorStore';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { useCallback } from 'react';
@@ -22,12 +23,14 @@ interface WarningsState {
   allWarnings: MGWarning[];
   /** Warnings filtered for current sector */
   sectorWarnings: MGWarning[];
+  /** IPMA transboundary warnings for current sector */
+  ipmaSectorWarnings: IpmaWarning[];
   /** Last successful fetch time */
   lastFetch: Date | null;
   /** Loading state */
   isLoading: boolean;
 
-  setWarnings: (all: MGWarning[], sector: MGWarning[]) => void;
+  setWarnings: (all: MGWarning[], sector: MGWarning[], ipmaSector?: IpmaWarning[]) => void;
   setLoading: (v: boolean) => void;
   setLastFetch: (d: Date) => void;
 }
@@ -37,10 +40,12 @@ export const useWarningsStore = create<WarningsState>()(
     (set) => ({
       allWarnings: [],
       sectorWarnings: [],
+      ipmaSectorWarnings: [],
       lastFetch: null,
       isLoading: false,
 
-      setWarnings: (allWarnings, sectorWarnings) => set({ allWarnings, sectorWarnings }),
+      setWarnings: (allWarnings, sectorWarnings, ipmaSectorWarnings = []) =>
+        set({ allWarnings, sectorWarnings, ipmaSectorWarnings }),
       setLoading: (isLoading) => set({ isLoading }),
       setLastFetch: (lastFetch) => set({ lastFetch }),
     }),
@@ -60,9 +65,18 @@ export function useWarnings() {
   const poll = useCallback(async () => {
     setLoading(true);
     try {
-      const all = await fetchMGWarnings();
+      const [mgResult, ipmaResult] = await Promise.allSettled([
+        fetchMGWarnings(),
+        fetchIpmaWarnings(),
+      ]);
+
+      const all = mgResult.status === 'fulfilled' ? mgResult.value : [];
       const sector = getWarningsForSector(all, sectorId as 'embalse' | 'rias');
-      setWarnings(all, sector);
+
+      const allIpma = ipmaResult.status === 'fulfilled' ? ipmaResult.value : [];
+      const ipmaSector = getIpmaWarningsForSector(allIpma, sectorId);
+
+      setWarnings(all, sector, ipmaSector);
       setLastFetch(new Date());
     } catch (err) {
       console.warn('[useWarnings] Poll failed:', err);
