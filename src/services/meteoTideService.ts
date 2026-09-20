@@ -46,6 +46,8 @@ export interface MeteoTide {
   level: SurgeLevel;
   /** Age of the gauge reading in minutes — surge is only meaningful live. */
   ageMin: number;
+  /** Name of the reporting REDMAR gauge station (e.g. 'Vigo', 'Marín', 'Vilagarcía') */
+  gaugeName?: string;
 }
 
 /** A tide extreme with an absolute timestamp, so day boundaries stop mattering. */

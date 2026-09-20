@@ -127,10 +127,33 @@ export function tideTickerLabel(
   coef: number,
   nextPoint: TidePoint,
   surgeM: number | null,
+  realSurgeM?: number | null,
+  portName?: string,
 ): string {
   const cat = coefCategory(coef);
   const catLabel = cat === 'extremas' ? 'Aguas vivas extremas' : 'Aguas vivas';
   const eventLabel = nextPoint.type === 'low' ? 'bajamar' : 'pleamar';
+
+  // 1. Measured real surge from REDMAR tide gauge takes precedence over theoretical estimate
+  if (realSurgeM != null && Math.abs(realSurgeM) >= 0.15) {
+    const cm = Math.round(realSurgeM * 100);
+    const sign = cm > 0 ? `+${cm}` : `${cm}`;
+    const port = portName ? ` (${portName})` : '';
+
+    if (realSurgeM >= 0.25 && nextPoint.type === 'high') {
+      const totalExpected = (nextPoint.height + realSurgeM).toFixed(1);
+      return `Alerta resaca${port}: ${sign}cm sobre tabla · pleamar ${nextPoint.time} (cota ${totalExpected}m, riesgo de rebose)`;
+    }
+
+    if (realSurgeM >= 0.15) {
+      return `Resaca en ría${port}: ${sign}cm sobre tabla · ${catLabel} (coef ${coef}) · ${eventLabel} ${nextPoint.time}`;
+    }
+
+    // Negative surge (anticyclonic depression: water lower than predicted)
+    return `Marea deprimida${port}: ${sign}cm bajo tabla · ${eventLabel} ${nextPoint.time} (rocas expuestas)`;
+  }
+
+  // 2. Fallback to theoretical pressure-based surge
   const surgeNote =
     surgeM != null && Math.abs(surgeM) >= SURGE_TICKER_THRESHOLD_M
       ? ` · marea +${surgeM.toFixed(1)}m por baja presión`
@@ -140,16 +163,20 @@ export function tideTickerLabel(
 
 /**
  * Single decision point: should the ticker surface a tide alert?
- * True when EITHER coef ≥ 95 (always notable) OR storm surge is
- * meaningful (≥ 0.2 m), regardless of coefficient.
+ * True when EITHER:
+ * - coef ≥ 95 (always notable spring tide)
+ * - measured real surge is notable (|realSurgeM| ≥ 0.15 m)
+ * - estimated barometric surge is meaningful (≥ 0.2 m)
  */
 export function shouldShowTideAlert(
   coef: number | null | undefined,
   surgeM: number | null | undefined,
+  realSurgeM?: number | null,
 ): boolean {
   const coefHigh = coef != null && coef >= COEF_TICKER_THRESHOLD;
   const surgeHigh = surgeM != null && surgeM >= SURGE_TICKER_THRESHOLD_M;
-  return coefHigh || surgeHigh;
+  const realSurgeHigh = realSurgeM != null && Math.abs(realSurgeM) >= 0.15;
+  return coefHigh || surgeHigh || realSurgeHigh;
 }
 
 // ── Casual strength translation (on-demand, for non-experts) ──

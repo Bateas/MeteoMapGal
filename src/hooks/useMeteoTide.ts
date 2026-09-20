@@ -122,11 +122,14 @@ export function meteoTideFromGauge(
   observed: GaugeLevel | null,
   extremes: TideExtreme[],
   now: Date = new Date(),
+  gaugeName?: string,
 ): MeteoTide | null {
   if (!observed || extremes.length === 0) return null;
   if (Number.isNaN(observed.at.getTime())) return null;
 
-  return computeMeteoTide(observed.cm / CM_PER_M, observed.at, extremes, now);
+  const result = computeMeteoTide(observed.cm / CM_PER_M, observed.at, extremes, now);
+  if (!result) return null;
+  return gaugeName ? { ...result, gaugeName } : result;
 }
 
 /** Pull the level out of a store reading, rejecting an unparseable stamp. */
@@ -253,7 +256,7 @@ export function useMeteoTide(tideStationId: string | undefined): MeteoTide | nul
   }, [hasReading]);
 
   return useMemo(
-    () => meteoTideFromGauge(observed, extremes, new Date(nowMs)),
-    [observed, extremes, nowMs],
+    () => meteoTideFromGauge(observed, extremes, new Date(nowMs), gauge?.name),
+    [observed, extremes, nowMs, gauge?.name],
   );
 }
