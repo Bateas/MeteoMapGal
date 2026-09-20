@@ -63,6 +63,9 @@ export const SECTORS: Sector[] = [
       { name: 'Cangas',     lon: -8.79, lat: 42.26 },  // ~12km — O Morrazo peninsula (Cangas, Bueu)
       { name: 'Sanxenxo',   lon: -8.81, lat: 42.40 },  // ~16km — Sanxenxo/Portonovo coast
       { name: 'O Grove',    lon: -8.86, lat: 42.49 },  // ~24km — O Grove/Cambados/Arousa inner ría
+      { name: 'V.N. Cerveira', lon: -8.6668, lat: 41.9667 }, // Miño frontera (IPMA Portugal)
+      { name: 'Monção',       lon: -8.3833, lat: 42.0667 }, // Miño medio frontera (IPMA Portugal)
+      { name: 'Viana do Castelo', lon: -8.8046, lat: 41.6489 }, // Costa norte portuguesa (IPMA)
     ],
   },
   {
@@ -81,8 +84,11 @@ export const SECTORS: Sector[] = [
       bearing: -15,
     },
     meteoclimaticRegions: ['ESGAL32', 'ESGAL36'],
-    // No extraCoveragePoints needed: 35km radius covers Ribadavia (17km), Ourense (20km),
-    // San Amaro (15km), Remuño (8km). Thermal wind is W/WSW (solar-driven, NOT river-channeled).
+    extraCoveragePoints: [
+      { name: 'Lamas de Mouro (Melgaço)', lon: -8.1833, lat: 42.0333 }, // 29km S — frontera lusa inmediata al embalse
+      { name: 'Monção', lon: -8.3833, lat: 42.0667 }, // 32km SW — cañón fluvial del Miño
+    ],
+    // 35km radius covers Ribadavia (17km), Ourense (20km), San Amaro (15km), Remuño (8km).
     // Altitude matters: embalse ~95m — stations >300m are different wind regimes.
   },
 ];

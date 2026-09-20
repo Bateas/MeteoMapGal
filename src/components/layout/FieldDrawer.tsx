@@ -332,11 +332,14 @@ function RainSection({ alerts }: { alerts: FieldAlerts }) {
 
 function MGWarningsSection() {
   const warnings = useWarningsStore((s) => s.sectorWarnings);
+  const ipmaWarnings = useWarningsStore((s) => s.ipmaSectorWarnings);
   const lastFetch = useWarningsStore((s) => s.lastFetch);
 
-  if (warnings.length === 0) return null;
+  if (warnings.length === 0 && ipmaWarnings.length === 0) return null;
 
-  const maxLevel = Math.max(...warnings.map((w) => w.maxLevel));
+  const mgMaxLevel = warnings.length > 0 ? Math.max(...warnings.map((w) => w.maxLevel)) : 0;
+  const ipmaMaxLevel = ipmaWarnings.length > 0 ? Math.max(...ipmaWarnings.map((w) => w.level)) : 0;
+  const maxLevel = Math.max(mgMaxLevel, ipmaMaxLevel);
   const alertLevel: AlertLevel = maxLevel >= 3 ? 'critico' : maxLevel >= 2 ? 'alto' : maxLevel >= 1 ? 'riesgo' : 'none';
 
   const iconMap: Record<string, string> = {
@@ -352,7 +355,7 @@ function MGWarningsSection() {
   return (
     <AlertSection
       icon={<WeatherIcon id="alert-triangle" size={14} />}
-      title="Avisos MeteoGalicia"
+      title="Avisos Meteorológicos"
       level={alertLevel}
     >
       <div className="space-y-2">
@@ -368,6 +371,7 @@ function MGWarningsSection() {
                 <span className="text-[11px] font-bold" style={{ color: levelColor }}>
                   {w.type} · {levelLabel}
                 </span>
+                <span className="text-[9px] px-1 rounded bg-slate-800 text-slate-400 font-mono ml-auto">MeteoGalicia</span>
               </div>
               {w.zones.map((z, zi) => {
                 const start = z.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -384,8 +388,37 @@ function MGWarningsSection() {
             </div>
           );
         })}
+
+        {/* IPMA transboundary warnings (Northern Portugal border) */}
+        {ipmaWarnings.map((iw, i) => {
+          const levelColor = iw.level === 3 ? '#ef4444' : iw.level === 2 ? '#f97316' : '#eab308';
+          const levelLabel = iw.level === 3 ? 'VERMELHO' : iw.level === 2 ? 'LARANJA' : 'AMARELO';
+          const start = iw.startTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+          const end = iw.endTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+          return (
+            <div key={`ipma-${i}`} className="rounded p-2" style={{ background: 'rgba(0,0,0,0.2)', border: `1px solid ${levelColor}33` }}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <WeatherIcon id="alert-triangle" size={12} />
+                <span className="text-[11px] font-bold" style={{ color: levelColor }}>
+                  {iw.type} · {levelLabel}
+                </span>
+                <span className="text-[9px] px-1 rounded bg-slate-800 text-emerald-400 font-mono ml-auto">IPMA PT</span>
+              </div>
+              <div className="text-[10px] text-slate-400 ml-3">
+                <span className="text-slate-300">{iw.districtName}</span>
+                <span className="mx-1">·</span>
+                <span className="font-mono">{start}–{end}</span>
+                {iw.description && <div className="mt-0.5 italic text-slate-500 line-clamp-2">{iw.description}</div>}
+              </div>
+            </div>
+          );
+        })}
+
         {ageMin != null && (
-          <p className="text-[10px] text-slate-600">Actualizado hace {ageMin}min · Fuente: MeteoGalicia</p>
+          <p className="text-[10px] text-slate-600">
+            Actualizado hace {ageMin}min · Fuentes: MeteoGalicia{ipmaWarnings.length > 0 ? ' + IPMA' : ''}
+          </p>
         )}
       </div>
     </AlertSection>

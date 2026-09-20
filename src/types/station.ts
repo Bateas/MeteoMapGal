@@ -1,6 +1,8 @@
+export type StationSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx' | 'ipma';
+
 export interface NormalizedStation {
   id: string;
-  source: 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx';
+  source: StationSource;
   name: string;
   lat: number;
   lon: number;

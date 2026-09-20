@@ -163,3 +163,119 @@ export function normalizeMeteoclimaticObservation(
     dewPoint: null, // Meteoclimatic XML doesn't include dew point
   };
 }
+
+// ── IPMA (Portugal) ──────────────────────────────────────────
+
+export interface IpmaFeatureProperties {
+  idEstacao: number;
+  localEstacao: string;
+  time: string;
+  temperatura?: number | null;
+  humidade?: number | null;
+  intensidadeVento?: number | null;   // m/s
+  intensidadeVentoKM?: number | null; // km/h
+  ventoIntensidadeKm?: number | null; // alias
+  ventoRachamx?: number | null;       // max gust km/h (if reported)
+  idDireccVento?: number | null;      // 0..9 (1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW, 9=N, 0=calm)
+  idVentoDir?: number | null;         // alias
+  precAcumulada?: number | null;
+  pressao?: number | null;
+  radiacao?: number | null;
+  radTotal?: number | null;           // alias
+}
+
+export interface IpmaFeature {
+  type: string;
+  geometry: {
+    type: string;
+    coordinates: [number, number]; // [lon, lat]
+  };
+  properties: IpmaFeatureProperties;
+}
+
+const IPMA_WIND_DIR_TO_DEGREES: Record<number, number | null> = {
+  0: null, // Sem rumo / calma
+  1: 0,    // N
+  2: 45,   // NE
+  3: 90,   // E
+  4: 135,  // SE
+  5: 180,  // S
+  6: 225,  // SW
+  7: 270,  // W
+  8: 315,  // NW
+  9: 360,  // N
+};
+
+function sanitizeIpmaValue(val: number | null | undefined): number | null {
+  if (val == null || val === -99 || val === -99.0 || val === -990 || val === -990.0) return null;
+  return val;
+}
+
+function inferPortugueseDistrict(lat: number, lon: number): string {
+  if (lat >= 41.6 && lon <= -8.2) return 'Viana do Castelo (Portugal)';
+  if (lat >= 41.4 && lat < 41.8 && lon > -8.6 && lon <= -8.0) return 'Braga (Portugal)';
+  if (lon > -8.0 && lon <= -7.2) return 'Vila Real (Portugal)';
+  if (lon > -7.2) return 'Bragança (Portugal)';
+  if (lat < 41.6 && lon <= -8.4) return 'Porto (Portugal)';
+  return 'Portugal Norte';
+}
+
+/** Normalize an IPMA weather station */
+export function normalizeIpmaStation(feature: IpmaFeature): NormalizedStation {
+  const [lon, lat] = feature.geometry.coordinates;
+  const props = feature.properties;
+  return {
+    id: `ipma_${props.idEstacao}`,
+    source: 'ipma',
+    name: props.localEstacao,
+    lat,
+    lon,
+    altitude: 0, // IPMA surface GeoJSON doesn't report elevation in properties
+    province: inferPortugueseDistrict(lat, lon),
+  };
+}
+
+/** Normalize an IPMA surface observation */
+export function normalizeIpmaReading(props: IpmaFeatureProperties): NormalizedReading {
+  const temp = sanitizeIpmaValue(props.temperatura);
+  const hum = sanitizeIpmaValue(props.humidade);
+  const wSpeed = sanitizeIpmaValue(props.intensidadeVento);
+  const wSpeedKm = sanitizeIpmaValue(props.intensidadeVentoKM ?? props.ventoIntensidadeKm);
+  const wGustKm = sanitizeIpmaValue(props.ventoRachamx);
+  const dirCode = props.idDireccVento ?? props.idVentoDir;
+
+  // Calculate dew point if temperature and relative humidity are available
+  let dewPoint: number | null = null;
+  if (temp !== null && hum !== null && hum > 0 && hum <= 100) {
+    const a = 17.27;
+    const b = 237.7;
+    const alpha = ((a * temp) / (b + temp)) + Math.log(hum / 100.0);
+    dewPoint = Math.round(((b * alpha) / (a - alpha)) * 10) / 10;
+  }
+
+  // Speed in m/s: prefer intensidadeVento, fallback to intensidadeVentoKM / 3.6
+  const finalWindSpeed = wSpeed !== null
+    ? wSpeed
+    : (wSpeedKm !== null ? Math.round((wSpeedKm / 3.6) * 10) / 10 : null);
+
+  const finalWindGust = wGustKm !== null ? Math.round((wGustKm / 3.6) * 10) / 10 : null;
+
+  const finalWindDir = dirCode != null && IPMA_WIND_DIR_TO_DEGREES[dirCode] !== undefined
+    ? IPMA_WIND_DIR_TO_DEGREES[dirCode]
+    : null;
+
+  return {
+    stationId: `ipma_${props.idEstacao}`,
+    timestamp: new Date(props.time),
+    windSpeed: finalWindSpeed,
+    windGust: finalWindGust,
+    windDirection: finalWindDir,
+    temperature: temp,
+    humidity: hum,
+    precipitation: sanitizeIpmaValue(props.precAcumulada),
+    solarRadiation: sanitizeIpmaValue(props.radiacao ?? props.radTotal),
+    pressure: sanitizeIpmaValue(props.pressao),
+    dewPoint,
+  };
+}
+

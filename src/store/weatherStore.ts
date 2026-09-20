@@ -6,7 +6,7 @@ import { isVisibilityFresh } from '../services/visibilityFreshness';
 import { useWeatherSelectionStore } from './weatherSelectionStore';
 import { useSectorStore } from './sectorStore';
 
-export type WeatherSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx';
+export type WeatherSource = 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx' | 'ipma';
 
 export interface SourceStatus {
   lastSuccess: Date | null;

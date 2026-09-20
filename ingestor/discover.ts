@@ -11,7 +11,8 @@ import { METEOCLIMATIC_STATIONS } from '../src/types/meteoclimatic.js';
 import { SECTORS } from '../src/config/sectors.js';
 import { fillMissingProvinces } from '../src/services/provinceService.js';
 import { normalizeAemetStation,
-  normalizeAemetObservationStation, normalizeMeteoGaliciaStation } from '../src/services/normalizer.js';
+  normalizeAemetObservationStation, normalizeMeteoGaliciaStation,
+  normalizeIpmaStation } from '../src/services/normalizer.js';
 import { isWithinRadius } from '../src/services/geoUtils.js';
 import { log } from './logger.js';
 import * as aemetBreaker from './aemetBreaker.js';
@@ -580,6 +581,43 @@ async function discoverSkyX(): Promise<NormalizedStation[]> {
   }
 }
 
+// ── IPMA (Portugal) discovery ─────────────────────────
+
+async function discoverIpma(): Promise<NormalizedStation[]> {
+  try {
+    const res = await fetch('https://api.ipma.pt/open-data/observation/meteorology/stations/obs-surface.geojson', {
+      signal: AbortSignal.timeout(TIMEOUT),
+      headers: { Accept: 'application/json, text/plain, */*' },
+    });
+    if (!res.ok) {
+      log.warn(`IPMA discovery HTTP error ${res.status}`);
+      return [];
+    }
+    const data = await res.json();
+    if (!data?.features || !Array.isArray(data.features)) return [];
+
+    const stations: NormalizedStation[] = [];
+    const seen = new Set<string>();
+
+    for (const feat of data.features) {
+      if (!feat?.geometry?.coordinates || !feat?.properties?.idEstacao) continue;
+      const [lon, lat] = feat.geometry.coordinates;
+      if (!inAnySector(lat, lon)) continue;
+
+      const station = normalizeIpmaStation(feat);
+      if (!seen.has(station.id)) {
+        seen.add(station.id);
+        stations.push(station);
+      }
+    }
+    log.info(`IPMA: discovered ${stations.length} stations in sector ranges`);
+    return stations;
+  } catch (err) {
+    log.error('IPMA discovery failed:', (err as Error).message);
+    return [];
+  }
+}
+
 // ── Orchestrator ──────────────────────────────────────
 
 /**
@@ -596,6 +634,7 @@ export async function discoverAllStations(): Promise<Map<string, NormalizedStati
     discoverWunderground(),
     discoverNetatmo(),
     discoverSkyX(),
+    discoverIpma(),
   ]);
 
   const stationMap = new Map<string, NormalizedStation>();
