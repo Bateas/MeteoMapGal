@@ -178,13 +178,20 @@ export async function fetchTidePredictions(
   return points;
 }
 
+export interface FetchTidesResult {
+  today: TidePoint[];
+  tomorrow: TidePoint[];
+  yesterday?: TidePoint[];
+  all?: TidePoint[];
+}
+
 /**
  * Fetch today + tomorrow tides for a station.
  * Returns combined data for a 48h view partitioned by local calendar days.
  */
 export async function fetchTides48h(
   stationId: string = DEFAULT_TIDE_STATION.id
-): Promise<{ today: TidePoint[]; tomorrow: TidePoint[] }> {
+): Promise<FetchTidesResult> {
   const now = new Date();
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -210,14 +217,18 @@ export async function fetchTides48h(
   }
   uniquePoints.sort((a, b) => (a.epochMs || 0) - (b.epochMs || 0));
 
+  const yesterdayStr = formatToLocalDate(yesterday);
   const todayStr = formatToLocalDate(now);
   const tomorrowStr = formatToLocalDate(tomorrow);
 
+  const yesterdayList = uniquePoints.filter((p) => p.date === yesterdayStr);
   const today = uniquePoints.filter((p) => p.date === todayStr);
   const tomorrowList = uniquePoints.filter((p) => p.date === tomorrowStr);
 
   return {
+    yesterday: yesterdayList.length > 0 ? yesterdayList : yesterdayPts,
     today: today.length > 0 ? today : todayPts,
     tomorrow: tomorrowList.length > 0 ? tomorrowList : tomorrowPts,
+    all: uniquePoints,
   };
 }

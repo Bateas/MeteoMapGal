@@ -164,6 +164,11 @@ describe('fetchTides48h', () => {
     expect(result.tomorrow[2].time).toBe('13:17');
     expect(result.tomorrow[3].time).toBe('19:49');
 
+    // Yesterday (Sept 19) and all combined points
+    expect(result.yesterday).toBeDefined();
+    expect(result.all).toBeDefined();
+    expect((result.all?.length ?? 0)).toBeGreaterThanOrEqual(7);
+
     vi.useRealTimers();
   });
 });
