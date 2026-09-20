@@ -12,6 +12,8 @@ import type { TidePoint, TideStation } from '../../api/tideClient';
 import { Anchor, ChevronDown, ChevronUp } from 'lucide-react';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { describeTideStrength, peakAmplitude } from '../../services/tideAlertService';
+import { useMeteoTide } from '../../hooks/useMeteoTide';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
 interface TideData {
   today: TidePoint[];
@@ -36,6 +38,7 @@ export const TidePanel = memo(function TidePanel() {
   const [error, setError] = useState<string | null>(null);
   const [station, setStation] = useState<TideStation>(DEFAULT_TIDE_STATION);
   const [expanded, setExpanded] = useState(false);
+  const meteoTide = useMeteoTide(station.id);
 
   const fetchData = useCallback(async () => {
     try {
@@ -177,6 +180,19 @@ export const TidePanel = memo(function TidePanel() {
                 {tideStrength.label}
               </span>
             )}
+            {meteoTide && meteoTide.level !== 'none' && (
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 flex items-center gap-1 ${
+                  meteoTide.level === 'high'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    : 'bg-cyan-500/20 text-cyan-300'
+                }`}
+                title={`Marea meteorológica medida en mareógrafo: ${meteoTide.residualM > 0 ? '+' : ''}${Math.round(meteoTide.residualM * 100)} cm sobre la tabla astronómica`}
+              >
+                <WeatherIcon id="waves" size={10} className="shrink-0" />
+                {meteoTide.residualM > 0 ? 'Resaca' : 'Vaciado'} {meteoTide.residualM > 0 ? '+' : ''}{Math.round(meteoTide.residualM * 100)}cm
+              </span>
+            )}
           </div>
           {nextTide && (
             <p className="text-[11px] text-slate-400 truncate mt-0.5">
@@ -242,6 +258,63 @@ export const TidePanel = memo(function TidePanel() {
                   }}
                 />
               </div>
+            </div>
+          )}
+
+          {/* Live tide gauge (REDMAR) vs Astronomical Table */}
+          {meteoTide && (
+            <div className="pt-2 border-t border-slate-700/40">
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <div className="flex items-center gap-1.5">
+                  <WeatherIcon id="waves" size={12} className="text-cyan-400" />
+                  <span className="font-semibold text-slate-300">
+                    Nivel real mareógrafo {meteoTide.gaugeName ? `(${meteoTide.gaugeName})` : ''}
+                  </span>
+                </div>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold ${
+                    meteoTide.level === 'high'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : meteoTide.level === 'notable'
+                        ? 'bg-cyan-500/20 text-cyan-300'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700/50'
+                  }`}
+                >
+                  {meteoTide.residualM >= 0.05 ? '+' : ''}{Math.round(meteoTide.residualM * 100)} cm
+                  {meteoTide.level === 'high' ? ' · Resaca alta' : meteoTide.level === 'notable' ? ' · Resaca' : ' · Normal'}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] bg-slate-900/60 rounded p-1.5 border border-slate-700/30">
+                <div>
+                  <span className="text-slate-500 block">Medido</span>
+                  <span className="font-mono font-bold text-cyan-300">{meteoTide.observedM.toFixed(2)} m</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Astronómico</span>
+                  <span className="font-mono text-slate-300">{meteoTide.astronomicalM.toFixed(2)} m</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Diferencia</span>
+                  <span
+                    className={`font-mono font-bold ${
+                      Math.abs(meteoTide.residualM) >= 0.25
+                        ? 'text-amber-400'
+                        : Math.abs(meteoTide.residualM) >= 0.15
+                          ? 'text-cyan-300'
+                          : 'text-slate-400'
+                    }`}
+                  >
+                    {meteoTide.residualM > 0 ? '+' : ''}{Math.round(meteoTide.residualM * 100)} cm
+                  </span>
+                </div>
+              </div>
+              {meteoTide.level !== 'none' && (
+                <p className="text-[10px] text-slate-400 mt-1 leading-snug">
+                  {meteoTide.residualM > 0
+                    ? `El nivel del agua se sitúa ${Math.round(meteoTide.residualM * 100)} cm por encima de la tabla astronómica por efecto de viento y presión.`
+                    : `El nivel del agua se sitúa ${Math.round(Math.abs(meteoTide.residualM) * 100)} cm por debajo de la tabla astronómica.`}
+                </p>
+              )}
             </div>
           )}
 

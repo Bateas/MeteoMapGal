@@ -44,6 +44,7 @@ import {
   tideTickerLabel,
   shouldShowTideAlert,
 } from '../../services/tideAlertService';
+import { useMeteoTide } from '../../hooks/useMeteoTide';
 import { detectUpwellingSummary } from '../../services/upwellingDetector';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
@@ -103,6 +104,9 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
     }, 60 * 60_000);
     return () => { cancelled = true; clearInterval(iv); };
   }, [sectorId]);
+
+  // Real measured storm surge from REDMAR tide gauge (Vigo port '29' as regional coastal reference)
+  const meteoTide = useMeteoTide(isCoastalSector(sectorId) ? '29' : undefined);
 
   const items = useMemo(() => {
     // `essential: true` marks items that survive the simpleMode filter:
@@ -310,14 +314,18 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
           }
         }
         const surge = estimateStormSurge(minPressure);
-        if (coef != null && shouldShowTideAlert(coef, surge)) {
-          const isExtreme = coef >= 100;
+        const realSurgeM = meteoTide?.residualM ?? null;
+        const portName = meteoTide?.gaugeName;
+        const effectiveCoef = coef ?? 70;
+        if (shouldShowTideAlert(coef, surge, realSurgeM)) {
+          const isExtreme = effectiveCoef >= 100 || (realSurgeM != null && Math.abs(realSurgeM) >= 0.25);
           result.push({
             key: 'tide-alert',
-            text: tideTickerLabel(coef, next.point, surge),
+            text: tideTickerLabel(effectiveCoef, next.point, surge, realSurgeM, portName),
             color: isExtreme ? 'text-cyan-200' : 'text-cyan-300',
             bg: isExtreme ? 'bg-cyan-800/30' : 'bg-cyan-900/25',
             priority: isExtreme ? 9 : 8,
+            icon: realSurgeM != null && Math.abs(realSurgeM) >= 0.15 ? 'waves' : 'anchor',
           });
         }
       }
@@ -643,7 +651,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
 
     const cap = isMobile ? 6 : 9;
     return pool.length > cap ? pool.slice(0, cap) : pool;
-  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, fires, isMobile, simple]);
+  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple]);
 
   // ── Official MG warnings — static strip above the marquee ─────
   // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).

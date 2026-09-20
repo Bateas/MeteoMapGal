@@ -183,6 +183,26 @@ describe('tideTickerLabel', () => {
     const label = tideTickerLabel(100, bajamar, 0.1);
     expect(label).not.toContain('baja presión');
   });
+
+  it('displays real measured high surge with overflow risk', () => {
+    const label = tideTickerLabel(80, pleamar, null, 0.32, 'Vigo');
+    expect(label).toContain('Alerta resaca (Vigo): +32cm sobre tabla');
+    expect(label).toContain('pleamar 14:20');
+    expect(label).toContain('cota 4.3m, riesgo de rebose');
+  });
+
+  it('displays real measured notable surge', () => {
+    const label = tideTickerLabel(96, bajamar, null, 0.18, 'Marín');
+    expect(label).toContain('Resaca en ría (Marín): +18cm sobre tabla');
+    expect(label).toContain('Aguas vivas (coef 96)');
+    expect(label).toContain('bajamar 06:34');
+  });
+
+  it('displays real negative surge (marea deprimida)', () => {
+    const label = tideTickerLabel(70, bajamar, null, -0.22, 'Vilagarcía');
+    expect(label).toContain('Marea deprimida (Vilagarcía): -22cm bajo tabla');
+    expect(label).toContain('rocas expuestas');
+  });
 });
 
 describe('thresholds — public constants', () => {

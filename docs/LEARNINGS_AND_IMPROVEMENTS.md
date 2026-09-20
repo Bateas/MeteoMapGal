@@ -58,6 +58,21 @@
 * **Regla Preventiva:**  
   Respetar el principio de **Commit Isolation**: los componentes contenedores o pesados (como `WeatherMap`) nunca deben suscribirse a mapas o colecciones Zustand que cambian por polling periódico si el dato solo lo consume un popup o componente hijo puntual.
 
+### Incidente 004: Bucle infinito ("Cargando eterno") en BuoyTrend48h por estado en deps de useEffect (v2.141.2)
+* **Fecha:** Septiembre 2026
+* **Componente:** `src/components/map/BuoyTrend48h.tsx`
+* **Severidad:** Media (Bloqueo de UI en tarjeta de balizas)
+* **Causa Raíz:**  
+  En el hook `useEffect` de carga bajo demanda, se incluyó la variable de estado `loading` dentro del array de dependencias `[expanded, stationId, data, loading]`. Al ejecutar `setLoading(true)`, React 19 re-renderizaba el componente y, al detectar que la dependencia `loading` había cambiado de `false` a `true`, ejecutaba la función de limpieza (*cleanup*) del efecto anterior (`cancelled = true`). Cuando la petición asíncrona de TimescaleDB retornaba con los datos, la condición `if (!cancelled)` evaluaba a `false`. Como resultado, `setData` y `setLoading(false)` nunca se ejecutaban y el spinner se quedaba en estado de carga permanente. Adicionalmente, el texto mostraba jerga técnica interna de infraestructura ("Consultando TimescaleDB...").
+* **Solución:**  
+  1. Se extrajo `loading` del array de dependencias de `useEffect`, ejecutando la carga únicamente si `expanded && data === null`.
+  2. Se añadió un efecto de reseteo explícito de `data`, `loading` y `fetchError` cuando cambia `stationId`.
+  3. Se sustituyó la jerga técnica por texto natural ("Cargando datos...").
+  4. Se añadió un filtro defensivo de valores físicos imposibles (`water_temp >= 5.0 °C`) para descartar glitches de sondas en bajamar (como los 0.75 °C observados en Cortegada).
+* **Regla Preventiva:**  
+  1. **Nunca incluir el propio booleano `loading` que se muta dentro del efecto en su propio array de dependencias**, salvo que se gestione mediante una máquina de estados o `useRef`.
+  2. **Prohibido exponer nombres de motores de base de datos o APIs internas en la UI** ("TimescaleDB", "Postgres", etc.). El usuario debe ver siempre mensajes funcionales y amigables.
+
 ---
 
 ## 3. Catálogo de Anti-Patrones Prohibidos
@@ -102,3 +117,44 @@
   3. **Modularización de `ingestor/api.ts`:** Extracción de controladores especializados (`ingestor/routes/webcam.ts` y `ingestor/routes/proxies.ts`), reduciendo la complejidad del despachador monolítico.
 * **Lección aprendida:**  
   Mantener la suite de tests en paridad con cada refactorización garantiza que la modularización del backend no rompa contratos de API existentes.
+
+### [v2.141.2] — Septiembre 2026: Corrección de Carga en Tendencia de Balizas y Supresión de Jerga Técnica
+* **Autor:** Bateas
+* **Cambios realizados:**
+  1. **Hotfix React 19 en `BuoyTrend48h.tsx`:** Eliminado el estado `loading` del array de dependencias para evitar la auto-cancelación prematura de la promesa asíncrona.
+  2. **Regla de Lenguaje Natural en UI:** Sustituido "Consultando TimescaleDB..." por "Cargando datos...".
+  3. **Filtro Físico contra Glitches:** Descartadas lecturas de temperatura de agua $< 5.0\text{ °C}$ causadas por sondas al aire en bajamares vivas.
+
+---
+
+## 5. Física y Dinámica Meteorológica de Galicia (Descubrimientos Empíricos)
+
+Este apartado documenta los patrones físicos propios de la mesoescala gallega descubiertos a partir del análisis de los datos reales históricos de TimescaleDB (>15.000 descargas eléctricas y series de balizas REDMAR):
+
+### 5.1 Los Tres Corredores de Tormentas de Galicia
+A partir de la agregación espacial de más de 15.000 descargas eléctricas de MeteoGalicia (`lightning_strikes`), se identificaron empíricamente los tres pasillos de máxima actividad convectiva:
+1. **La Dorsal Central (Curtis - Sobrado dos Monxes - Friol - Guitiriz - Palas de Rei, longitud `-7.94` a `-7.98` W):**
+   * Concentra 5 de las 12 celdas con mayor número de rayos de toda Galicia.
+   * **Mecanismo físico:** Línea de convergencia de brisas (*breeze convergence line*). La brisa marina fresca del Atlántico y del Cantábrico penetra hacia el interior y choca frontalmente con la masa recalentada de la cuenca de Lugo. Al no tener salida lateral, el aire converge y se dispara verticalmente a media tarde en verano, formando tormentas explosivas casi estacionarias.
+2. **El Borde Oriental (Ancares y O Courel, longitud `-6.91` a `-7.47` W):**
+   * Máxima severidad de impactos (descargas de hasta 99 kA).
+   * **Mecanismo físico:** Entrada de inestabilidad meseteña y leonesa que remonta la cuenca del Sil y choca contra los cordales de 1.800 - 2.000 m (Tres Bispos, Miravalles), forzando convección profunda continental.
+3. **La Muralla Prelitoral (Serra do Suído - Faro de Avión - O Deza, latitud `42.49` N, longitud `-8.06` W):**
+   * Nexo orográfico donde conecta la humedad directa de las Rías Baixas con el centro de Galicia.
+
+### 5.2 ¿Por qué una nube "explota" al chocar con la Serra do Suído?
+La Serra do Suído y el Faro de Avión (1.155 m) se alzan a apenas 25-30 km en línea recta del océano Atlántico y de las Rías Baixas.
+* **Mecanismo termodinámico:**
+  1. **Ascenso orográfico forzado:** La masa de aire marítimo cargada de humedad (humedad relativa 75-85% en superficie) es empujada por vientos de componente oeste o sur. Al toparse con la muralla montañosa, se ve forzada a ascender de 0 a 1.000 m en pocos minutos.
+  2. **Enfriamiento adiabático:** Por cada 100 m de ascenso el aire se enfría ~0.7 °C a 1.0 °C. Un ascenso de 1.000 m enfría la masa ~7 °C a 9 °C, alcanzando el nivel de condensación por elevación (LCL) a solo 400-600 m de cota.
+  3. **Liberación de calor latente (Lapse Rate Runaway):** La condensación masiva de vapor libera ~2.500 J por gramo de agua. Este calor calienta el núcleo de la nube por encima de la temperatura del aire circundante (aumenta el empuje de flotabilidad / CAPE local).
+  4. **Aceleración convectiva:** La nube se convierte en una chimenea térmica con corrientes ascendentes de 15 a 25 m/s, perforando la troposfera media hasta los 9.000 m en cuestión de minutos y desencadenando rayos y granizo. Por eso el refranero popular acierta: *"Cando o Suído pon o chapeu, tronada en terra"*.
+
+### 5.3 Marea Meteorológica Real (Storm Surge / Resaca) en las Rías
+La marea en Galicia nunca es puramente astronómica en situaciones de temporal o borrascas atlánticas:
+$$\text{Nivel Real del Mar} = \text{Marea Astronómica (IHM)} + \text{Resaca Meteorológica (Puertos del Estado)}$$
+* **Componentes de la Resaca:**
+  1. **Efecto barométrico inverso:** $1\text{ hPa}$ de caída por debajo de $1013\text{ hPa} \approx +1\text{ cm}$ de elevación del nivel del mar. Una borrasca profunda de $980\text{ hPa}$ eleva el mar $+33\text{ cm}$.
+  2. **Apilamiento por viento (*Wind setup*):** Temporales de SW empujan el agua hacia las rías. Debido a su forma de embudo que se estrecha hacia el fondo (Vigo $\to$ Rande $\to$ Arcade; Pontevedra $\to$ Combarro $\to$ Vilaboa), el agua se apila $+15\text{ a }+30\text{ cm}$ adicionales.
+* **Riesgo crítico de rebose:**
+  Una pleamar astronómica viva ($3.8\text{ m}$) combinada con $+40\text{ cm}$ de resaca alcanza $4.2\text{ m}$, inundando muelles, lonjas, bateas y paseos marítimos (Bouzas, Arcade, Vilagarcía, Moaña).
