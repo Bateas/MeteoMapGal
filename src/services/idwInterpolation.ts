@@ -268,7 +268,13 @@ export function extractWindData(
     const reading = readings.get(station.id);
     if (!reading || reading.windSpeed === null || reading.windDirection === null) continue;
     if (reading.windSpeed < 0.1) continue; // skip truly calm (< 0.1 m/s)
-    const ageMs = now - reading.timestamp.getTime();
+    const readingTime = reading.timestamp instanceof Date
+      ? reading.timestamp.getTime()
+      : typeof reading.timestamp === 'string'
+        ? new Date(reading.timestamp).getTime()
+        : 0;
+    if (readingTime <= 0) continue;
+    const ageMs = now - readingTime;
     if (ageMs > maxAgeMs) continue; // skip stale
     result.push({
       lat: station.lat,
@@ -300,18 +306,26 @@ export function extractBuoyWindData(buoys: BuoyReading[]): StationWindData[] {
 }
 
 /** Build StationScalarData[] for humidity IDW interpolation.
- *  Filters out stale readings and applies freshness decay. */
+ *  Filters out stale readings (>90 min) and applies freshness decay.
+ *  90-min window accommodates hourly stations (MeteoGalicia, AEMET, IPMA)
+ *  so they do not vanish between reporting cycles. */
 export function extractHumidityData(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
 ): StationScalarData[] {
   const result: StationScalarData[] = [];
-  const maxAgeMs = STALE_THRESHOLD_MIN * 60_000;
+  const maxAgeMs = 90 * 60_000;
   const now = Date.now();
   for (const station of stations) {
     const reading = readings.get(station.id);
-    if (!reading || reading.humidity === null) continue;
-    const ageMs = now - reading.timestamp.getTime();
+    if (!reading || reading.humidity === null || !Number.isFinite(reading.humidity)) continue;
+    const readingTime = reading.timestamp instanceof Date
+      ? reading.timestamp.getTime()
+      : typeof reading.timestamp === 'string'
+        ? new Date(reading.timestamp).getTime()
+        : 0;
+    if (readingTime <= 0) continue;
+    const ageMs = now - readingTime;
     if (ageMs > maxAgeMs) continue; // skip stale
     result.push({
       lat: station.lat,

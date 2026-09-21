@@ -5,6 +5,10 @@ import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import type { BuoyReading } from '../../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../../api/buoyClient';
 import { isWindBlacklisted } from '../../services/spotScoringEngine';
+import {
+  clusterStations,
+  type StationClusterPoint,
+} from '../../services/stationClustering';
 
 interface WindFieldOverlayProps {
   stations: NormalizedStation[];
@@ -230,21 +234,31 @@ export function buildWindFieldGeoJSON(
   const offsetScale = (compact ? 0.6 : 1.0) * zoomScale;
 
   // ── Station arrows ─────────────────────────────────
+  // Cluster stations identically to StationSymbolLayer so arrows only appear
+  // around visible standalone stations, never around clustered bubbles or empty spaces.
+  const eligible = stations.filter((s) => !s.tempOnly && !isWindBlacklisted(s.id));
+  const clusterItems = clusterStations(eligible, readings, zoom);
+  const standaloneStations = clusterItems
+    .filter((it): it is StationClusterPoint => it.type === 'station')
+    .map((it) => it.station);
+
   // Allow readings up to 90 min (matches StationSymbolLayer freshness decay
   // so hourly stations like MeteoGalicia/AEMET/IPMA don't lose arrows after 30 min)
   const maxAgeMs = 90 * 60_000;
   const now = Date.now();
 
-  for (const station of stations) {
-    if (station.tempOnly) continue;
-    // Skip blacklisted stations — sheltered/broken sensors contaminate wind field
-    if (isWindBlacklisted(station.id)) continue;
-
+  for (const station of standaloneStations) {
     const reading = readings.get(station.id);
     if (!reading || reading.windSpeed === null || !Number.isFinite(reading.windSpeed)) continue;
 
     // Skip stale stations (>90 min)
-    const ageMs = now - reading.timestamp.getTime();
+    const readingTime = reading.timestamp instanceof Date
+      ? reading.timestamp.getTime()
+      : typeof reading.timestamp === 'string'
+        ? new Date(reading.timestamp).getTime()
+        : 0;
+    if (readingTime <= 0) continue;
+    const ageMs = now - readingTime;
     if (ageMs > maxAgeMs) continue;
     const freshnessAlpha = ageMs < 45 * 60_000 ? 1.0 : 0.65;
 
@@ -341,9 +355,18 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
           'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],
           'icon-rotate': ['get', 'rotation'],
           // Grosor variable: calm=small, strong=large. Visual weight matches wind intensity.
+          // Scaled smoothly with zoom so arrows shrink proportionally with the station circle when zooming out.
           'icon-size': compact
-            ? ['interpolate', ['linear'], ['get', 'speed'], 0, 0.38, 3, 0.45, 6, 0.55, 10, 0.65]
-            : ['interpolate', ['linear'], ['get', 'speed'], 0, 0.55, 3, 0.7, 6, 0.9, 10, 1.1],
+            ? [
+                '*',
+                ['interpolate', ['linear'], ['get', 'speed'], 0, 0.38, 3, 0.45, 6, 0.55, 10, 0.65],
+                ['interpolate', ['linear'], ['zoom'], 8, 0.5, 9, 0.65, 11, 1.0, 14, 1.2],
+              ]
+            : [
+                '*',
+                ['interpolate', ['linear'], ['get', 'speed'], 0, 0.55, 3, 0.7, 6, 0.9, 10, 1.1],
+                ['interpolate', ['linear'], ['zoom'], 8, 0.5, 9, 0.65, 11, 1.0, 14, 1.2],
+              ],
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-rotation-alignment': 'map',

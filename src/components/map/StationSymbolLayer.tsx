@@ -211,14 +211,12 @@ export function StationSymbolLayer({
     12, 0.9,
   ];
 
-  // Relaxed filter — dashboard mode: show as much as possible
-  // Only hide zero-wind at very low zoom; show everything at zoom >= 10
+  // Synchronized filter: station markers are visible down to zoom 8+
+  // (matches WindFieldOverlay minzoom=8, preventing circles from vanishing before wind arrows)
   const filter: maplibregl.ExpressionSpecification = [
     'any',
-    ['>=', ['zoom'], 10],                                              // show ALL at zoom >= 10
-    ['all', ['>=', ['zoom'], 9], ['>=', ['get', 'windSpeed'], 1.03]],  // >= 2kt at zoom 9
-    ['all', ['>=', ['zoom'], 8], ['>=', ['get', 'windSpeed'], 2.06]],  // >= 4kt at zoom 8
-    ['==', ['get', 'isSelected'], 1],                                  // always show selected
+    ['>=', ['zoom'], 8],
+    ['==', ['get', 'isSelected'], 1],
   ];
 
   return (
@@ -229,11 +227,11 @@ export function StationSymbolLayer({
         type="circle"
         filter={filter}
         paint={{
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 7, 10, 9, 11, 12, 12, 15],
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5, 9, 7, 10, 9, 11, 12, 12, 15],
           'circle-color': 'transparent',
           // Always use source color for ring — no red/amber override
           'circle-stroke-color': ['get', 'sourceColor'],
-          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1, 12, 1.5],
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 9, 1, 12, 1.5],
           // Freshness opacity: hourly stations remain visible even when readings are 1-2h old
           'circle-opacity': [
             'step', ['get', 'freshness'],

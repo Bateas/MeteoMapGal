@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Source, Layer, useMap } from 'react-map-gl/maplibre';
+import { useRef, useEffect, useCallback, memo } from 'react';
+import { useMap } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
+import type maplibregl from 'maplibre-gl';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { extractHumidityData, interpolateScalar } from '../../services/idwInterpolation';
@@ -10,7 +11,10 @@ import { extractHumidityData, interpolateScalar } from '../../services/idwInterp
 const DEBOUNCE_MS = 250;
 const COLS = 120;
 const ROWS = 90;
-const BUFFER_RATIO = 0.25; // 25% padding around viewport so panning stays seamlessly textured
+const BUFFER_RATIO = 0.30; // 30% padding around viewport so panning stays seamlessly textured
+
+const SOURCE_ID = 'humidity-heatmap-source';
+const LAYER_ID = 'humidity-heatmap-layer';
 
 // ── Color scale: dry (orange/red) → moderate (yellow/green) → humid (blue/dark blue) ──
 
@@ -46,11 +50,6 @@ interface HumidityHeatmapOverlayProps {
   mapRef?: React.RefObject<MapRef | null>;
 }
 
-interface RasterData {
-  url: string;
-  coordinates: [[number, number], [number, number], [number, number], [number, number]];
-}
-
 export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ mapRef: propMapRef }: HumidityHeatmapOverlayProps) {
   const { current: contextMapRef } = useMap();
   const mapRef = propMapRef ?? { current: contextMapRef };
@@ -62,17 +61,29 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
 
   const isActive = activeLayer === 'humidity';
 
-  const [rasterData, setRasterData] = useState<RasterData | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const computeHeatmapRaster = useCallback(() => {
+  const cleanupLayers = useCallback(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
+    try {
+      if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID);
+      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
+    } catch {
+      // Map may be destroying or style not loaded
+    }
+  }, [mapRef]);
+
+  const computeHeatmapRaster = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !map.getStyle()) return;
 
     const humData = extractHumidityData(stations, readings);
     if (humData.length < 2) {
-      setRasterData(null);
+      if (map.getLayer(LAYER_ID)) {
+        try { map.setLayoutProperty(LAYER_ID, 'visibility', 'none'); } catch { /* ignore */ }
+      }
       return;
     }
 
@@ -130,11 +141,50 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
       [west, south], // bottom-left
     ];
 
-    setRasterData({
-      url: canvas.toDataURL('image/png'),
-      coordinates,
-    });
-  }, [stations, readings, mapRef]);
+    try {
+      const existingSource = map.getSource(SOURCE_ID) as maplibregl.CanvasSource | undefined;
+      if (existingSource) {
+        existingSource.setCoordinates(coordinates);
+        if (typeof existingSource.play === 'function' && typeof existingSource.pause === 'function') {
+          existingSource.play();
+          existingSource.pause();
+        }
+        if (map.getLayer(LAYER_ID)) {
+          map.setLayoutProperty(LAYER_ID, 'visibility', 'visible');
+          map.setPaintProperty(LAYER_ID, 'raster-opacity', opacity);
+        }
+        map.triggerRepaint();
+      } else {
+        // Add native canvas source directly bound to offscreen canvas — zero fetch(), zero CSP issues
+        map.addSource(SOURCE_ID, {
+          type: 'canvas',
+          canvas,
+          coordinates,
+          animate: false,
+        });
+
+        // Insert under station symbols and wind arrows
+        const candidateLayers = ['stations-source-ring', 'stations-icons', 'wind-field-arrows', 'spot-markers'];
+        const beforeId = candidateLayers.find((id) => map.getLayer(id));
+
+        map.addLayer(
+          {
+            id: LAYER_ID,
+            type: 'raster',
+            source: SOURCE_ID,
+            paint: {
+              'raster-opacity': opacity,
+              'raster-fade-duration': 0,
+              'raster-resampling': 'linear',
+            },
+          },
+          beforeId,
+        );
+      }
+    } catch (err) {
+      console.warn('[HumidityHeatmap] Error updating canvas source:', err);
+    }
+  }, [stations, readings, opacity, mapRef]);
 
   const scheduleUpdate = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -144,11 +194,21 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
   // Compute raster when active or when stations/readings change
   useEffect(() => {
     if (!isActive) {
-      setRasterData(null);
+      cleanupLayers();
       return;
     }
     computeHeatmapRaster();
-  }, [isActive, computeHeatmapRaster]);
+  }, [isActive, computeHeatmapRaster, cleanupLayers]);
+
+  // Fast opacity update without recomputing IDW
+  useEffect(() => {
+    if (!isActive) return;
+    const map = mapRef.current?.getMap();
+    if (!map || !map.getLayer(LAYER_ID)) return;
+    try {
+      map.setPaintProperty(LAYER_ID, 'raster-opacity', opacity);
+    } catch { /* ignore */ }
+  }, [isActive, opacity, mapRef]);
 
   // Recompute texture when map movement ends
   useEffect(() => {
@@ -164,24 +224,31 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
     };
   }, [isActive, mapRef, scheduleUpdate]);
 
-  if (!isActive || !rasterData) return null;
+  // Re-attach layer if map style reloads while overlay is active
+  useEffect(() => {
+    if (!isActive) return;
+    const map = mapRef.current?.getMap();
+    if (!map) return;
 
-  return (
-    <Source
-      id="humidity-heatmap"
-      type="image"
-      url={rasterData.url}
-      coordinates={rasterData.coordinates}
-    >
-      <Layer
-        id="humidity-heatmap-layer"
-        type="raster"
-        paint={{
-          'raster-opacity': opacity,
-          'raster-fade-duration': 250,
-          'raster-resampling': 'linear',
-        }}
-      />
-    </Source>
-  );
+    const handleStyleData = () => {
+      if (!map.getSource(SOURCE_ID)) {
+        computeHeatmapRaster();
+      }
+    };
+
+    map.on('styledata', handleStyleData);
+    return () => {
+      map.off('styledata', handleStyleData);
+    };
+  }, [isActive, mapRef, computeHeatmapRaster]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupLayers();
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [cleanupLayers]);
+
+  return null;
 });
