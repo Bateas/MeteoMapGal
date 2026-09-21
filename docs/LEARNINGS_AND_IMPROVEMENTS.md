@@ -14,8 +14,11 @@
    No se inventan visualizaciones ni capas complejas sobre datos no verificados. Los sensores físicos (boyas, estaciones oficiales AEMET/MeteoGalicia) y los consensos espaciales calibrados tienen máxima prioridad sobre inferencias de IA no validadas.
 3. **No-bloqueo del Event Loop (Backend Node.js):**  
    El ingestor y el servidor HTTP corren en procesos Node.js monohilo. Cualquier operación de disco o red DEBE ser 100% asíncrona (`node:fs/promises`, streaming, timeouts defensivos). Prohibido el uso de métodos síncronos (`*Sync`) en controladores de petición.
-4. **Frontera estricta Frontend / Backend:**  
-   El backend (`ingestor/`) nunca debe depender de rutas relativas frágiles hacia el código del frontend (`../src/...`). Tipos y contratos deben ser compartidos de forma desacoplada.
+4. **Frontera Frontend / Backend: compartir lógica pura, nunca duplicarla:**  
+   El ingestor importa de `src/` a propósito. La lógica que decide un veredicto vive en un solo sitio para que el mapa y el analizador 24/7 de Telegram no puedan discrepar (ej. `skyXWindIsMeasuring` y `predictCesantesCanalization` se comparten por eso). Duplicarla es lo que ya provocó divergencias frontend↔ingestor en el pasado.
+   * El ingestor solo puede importar de `src/services`, `src/config`, `src/types` y `src/api` (código puro, sin framework). Nunca de `src/components`, `src/hooks` ni `src/store`, y nunca un fichero `.tsx`.
+   * La frontera la hace cumplir `ingestor/srcBoundary.test.ts`: recorre recursivamente los imports de cada fichero del ingestor (también `import type`, los re-exports, los `import()` con ruta literal y los alias `paths` del `tsconfig` del ingestor, que el runtime resuelve igual que una ruta relativa) y, si alguno llega a código de UI, falla imprimiendo la cadena completa de imports. Cuenta también las dependencias solo de tipos: no se cargan en ejecución, pero el ingestor las compila.
+   * El coste del acoplamiento: un cambio en un módulo de `src/` que el ingestor alcanza cambia el comportamiento del ingestor aunque no se toque `ingestor/`. Ese cambio exige reiniciar el ingestor en el despliegue, y el script de despliegue ya lo hace solo: sigue los imports del ingestor y lo reinicia cuando cambia cualquier fichero de `src/` al que llegan (ver Incidente 009).
 5. **Seguridad en Repositorio Público y Supply-Chain:**  
    * Ningún secreto, credencial (`.env`), token o IP privada (`192.168.x.x`) se añade a Git.
    * `.npmrc` fuerza `ignore-scripts=true` para prevenir ataques de dependencias comprometidas en `install/postinstall`.
@@ -36,12 +39,12 @@
 * **Regla Preventiva:**  
   Prohibido usar métodos `fs.*Sync` en el backend. Añadir verificación estática o linter que bloquee métodos síncronos en `ingestor/`.
 
-### Incidente 002: Despliegue roto en LXC por WIP local no commiteado (v2.81.5)
+### Incidente 002: Despliegue roto en el servidor por WIP local no commiteado (v2.81.5)
 * **Fecha:** Julio 2026
 * **Componente:** Frontend Build & Deploy pipeline
 * **Severidad:** Crítica (Producción rota, hotfix v2.81.6)
 * **Causa Raíz:**  
-  Se ejecutó `npm run build` en la máquina de desarrollo con archivos sin commitear presentes en el working tree (ej. `profileFlags.ts`). El build pasó localmente porque los imports se resolvían en disco local, pero al hacer push e invocar `meteomap-update` en el LXC, Git solo trajo los archivos commiteados, provocando error *"Could not resolve"* en producción.
+  Se ejecutó `npm run build` en la máquina de desarrollo con archivos sin commitear presentes en el working tree (ej. `profileFlags.ts`). El build pasó localmente porque los imports se resolvían en disco local, pero al hacer push y desplegar en el servidor, Git solo trajo los archivos commiteados, provocando error *"Could not resolve"* en producción.
 * **Solución:**  
   Adopción del protocolo pre-push obligatorio con `git stash push -u --keep-index` para validar el build única y exclusivamente sobre los archivos preparados para el commit.
 * **Regla Preventiva:**  
@@ -69,12 +72,13 @@
   2. Se añadió un efecto de reseteo explícito de `data`, `loading` y `fetchError` cuando cambia `stationId`.
   3. Se sustituyó la jerga técnica por texto natural ("Cargando datos...").
   4. Se añadió un filtro defensivo de valores físicos imposibles (`water_temp >= 5.0 °C`) para descartar glitches de sondas en bajamar (como los 0.75 °C observados en Cortegada).
+
 ### Incidente 005: Latencia y bloqueo de estaciones interiores al cambiar de sector (v2.141.6)
 * **Fecha:** Septiembre 2026
 * **Componente:** `src/hooks/useWeatherData.ts`, `src/api/stationDiscovery.ts`, `src/hooks/useStations.ts`
 * **Severidad:** Alta (Demoras de 10-15s en visualización de estaciones de la zona interior / Embalse de Castrelo)
 * **Causa Raíz:**  
-  1. **Omisión del ingestor local:** Para MeteoGalicia (la fuente con mayor cobertura en Galicia y la única en estaciones clave del valle del Miño como Castrelo `mg_10144`, Leiro `mg_10145`, Remuíño `mg_10146`, Arnoia `mg_10148`), el frontend disparaba 20-30 peticiones HTTP individuales a `servizos.meteogalicia.gal`. Su proxy upstream arrojaba errores 110 (Connection timed out) de 5 a 15 segundos en nginx, a pesar de que TimescaleDB ya disponía de 1.521 estaciones actualizadas en local respondiendo en 5-10 ms.
+  1. **Omisión del ingestor local:** Para MeteoGalicia (la fuente con mayor cobertura en Galicia y la única en estaciones clave del valle del Miño como Castrelo `mg_10144`, Leiro `mg_10145`, Remuíño `mg_10146`, Arnoia `mg_10148`), el frontend disparaba 20-30 peticiones HTTP individuales a `servizos.meteogalicia.gal`. Su proxy upstream arrojaba errores 110 (Connection timed out) de 5 a 15 segundos en el proxy inverso, a pesar de que TimescaleDB ya disponía de 1.521 estaciones actualizadas en local respondiendo en 5-10 ms.
   2. **Monolito de promesas:** `fetchData` aguardaba un `await Promise.all(tasks)` monolítico antes de invocar `updateReadings(allReadings)`. Si MeteoGalicia o Netatmo se demoraban, ninguna estación (ni AEMET ni WU) se mostraba en pantalla.
   3. **Reintento bloqueante síncrono:** `stationDiscovery.ts` esperaba con `retryAfterDelay(..., 5000)` si una fuente secundaria fallaba en el barrido inicial, retrasando el descubrimiento 5 segundos adicionales.
   4. **Falta de persistencia en `sessionStorage`:** Las estaciones descubiertas solo vivían en la memoria de la sesión actual; el primer cambio de sector a Embalse vaciaba el mapa con `setStations([])`.
@@ -85,6 +89,7 @@
   3. **Descubrimiento no bloqueante:** Eliminado el retardo de 5s en `stationDiscovery.ts`.
   4. **Caché en `sessionStorage`:** Las estaciones descubiertas de cada sector se respaldan en `sessionStorage`, permitiendo un reingreso en 0 ms.
   5. **Seguimiento explícito de sector:** `useWeatherData` detecta el cambio con `lastSectorIdRef.current !== activeSector.id` y dispara el refresco de lecturas de inmediato.
+
 ### Incidente 006: Crash en Zoom/Pan y Descuadre de Mapa por Incompatibilidad MapLibre v6 (v2.141.7 / v2.141.8)
 * **Fecha:** Septiembre 2026
 * **Componente:** `package.json`, `src/components/map/WeatherMap.tsx`
@@ -131,6 +136,41 @@
 * **Regla Preventiva:**  
   Toda caché persistente en cliente que condicione el catálogo de estaciones o datos debe estar prefijada con la versión de la aplicación y disponer de política de auto-limpieza ante cambios de versión.
 
+### Incidente 009: Cambio en código compartido que no reinició el ingestor (v2.139.8)
+* **Fecha:** 19 de septiembre de 2026
+* **Componente:** `src/services/spotScoringEngine.ts` (compartido con `ingestor/analyzerLogic.ts`), script de despliegue en `tools/`
+* **Severidad:** Alta (el mapa y las alertas 24/7 aplicaban reglas distintas al mismo spot)
+* **Causa Raíz:**  
+  v2.139.8 sacó la estación SkyX del embalse de la lista de exclusión de viento (`WIND_BLACKLIST`, que el ingestor consulta vía `isWindBlacklisted`). El diff solo tocaba `src/`, y la detección de cambios del script de despliegue solo miraba `ingestor/` para decidir si reiniciaba el ingestor. Resultado: el frontend se recompiló con la regla nueva, pero el proceso del ingestor siguió corriendo con el módulo viejo cargado en memoria. El mapa ya contaba la estación y el analizador de Telegram no, hasta que el ingestor se reinició a mano ese mismo día.
+* **Solución:**  
+  El script de despliegue no decide por carpetas. En cada ejecución sigue, sobre el árbol recién descargado, los imports relativos del ingestor desde `ingestor/*.ts` (estáticos, dinámicos y solo de tipos) hasta `src/`, y reinicia sus servicios si cambió cualquiera de los ficheros de `src/` a los que llega. Incluir los imports solo de tipos sobreaproxima a propósito: cuesta como mucho un reinicio de más, mientras que un módulo omitido deja el analizador con código viejo. Al revés, un cambio en un fichero de `src/` que el ingestor no alcanza no lo reinicia; y si el rastreo no encuentra ningún fichero, el script trata cualquier cambio en `src/` como compartido y reinicia. El plan que imprime el script nombra el fichero que disparó el reinicio.
+* **Regla Preventiva:**  
+  El código compartido tiene dos consumidores y los dos hay que desplegarlos. Tras desplegar un cambio en un módulo de `src/` que el ingestor alcanza, comprobar que el ingestor arrancó de nuevo (su log de arranque), no solo que cambió el hash del bundle del frontend. La única lista de carpetas es la del test de frontera: importar desde una carpeta de `src/` nueva exige añadirla allí a propósito, mientras que el script no tiene lista que mantener porque la deduce de los imports. Esos imports tienen que ser relativos: el script solo sigue rutas `./` y `../`, así que un alias de `tsconfig` le escondería el módulo, y por eso el test de frontera falla si el ingestor usa uno.
+
+### Incidente 010: Racha multiplicada por el factor de corrección de la media (v2.142.9)
+* **Fecha:** Introducido el 11 de agosto de 2026 (v2.131.0), corregido el 21 de septiembre de 2026 (v2.142.9)
+* **Componente:** `src/services/windUtils.ts` (`scaleGustToSpot`), consumido por `SpotPopup.tsx`
+* **Severidad:** Alta (cifra de racha falsa en la tarjeta del spot; daña la confianza en el dato)
+* **Causa Raíz:**  
+  Para que la racha no quedara por debajo de la media corregida del spot ("Viento ~14 kt / Racha 10 kt"), `scaleGustToSpot` multiplicaba la racha medida por el mismo factor que el boost de la media (`effectiveKt / measuredKt`). Pero ese factor mide cuánto resguardo tiene la estación, no cómo racha el viento: con una estación muy abrigada el factor se dispara, y una racha de 13 kt × 2,8 se mostraba como **37 kt en un día de térmica suave**. El tope duro de 45 kt no lo evitaba: existe contra anemómetros rotos, no contra un error de escala.
+* **Solución:**  
+  La racha ya no hereda el multiplicador. Se garantiza que no quede por debajo de la media efectiva (mínimo 1,25× la media), se le suma la mitad del diferencial medido racha−media, y se acota con un techo marino de 1,4× la media además del tope duro.
+* **Corrección pendiente (en curso):**  
+  El techo marino se aplica también sobre la racha medida, así que con un boost pequeño la recorta: racha medida de 15 kt con media de 5 kt y media efectiva de 7 kt (dentro del filtro de rachas de 3× la media) se muestra como 10 kt. Encoger una racha medida es inventar calma, el error en la dirección insegura. La corrección pone la racha medida como suelo: la racha escalada nunca queda por debajo de la medida.
+* **Regla Preventiva:**  
+  Un factor de corrección solo se aplica a la magnitud para la que se midió. El boost de abrigo corrige la media; la racha se deriva de la media corregida con un factor de racha físico. Todo test de una función que escala viento debe incluir el caso de boost grande (estación muy abrigada), que es donde un multiplicador heredado se vuelve absurdo, y el caso de racha medida por encima del techo, que es donde un techo mal colocado la recorta. Un techo acota lo que la corrección añade, nunca lo que el instrumento midió.
+
+### Incidente 011: Hueco en la puerta de dirección de la rama de racha de Cesantes (v2.142.8)
+* **Fecha:** 21 de septiembre de 2026
+* **Componente:** `src/services/cesantesCanalizationDetector.ts` (compartido: lo usan el popup del spot y `ingestor/analyzerLogic.ts`)
+* **Severidad:** Alta (brisa navegable inventada con viento del norte; al ser código compartido, llega también a las alertas 24/7)
+* **Causa Raíz:**  
+  v2.142.8 añadió vías para dar por establecida la brisa térmica cuando la estación de referencia está resguardada y su media queda por debajo de 5 kt; una de ellas, con racha ≥10 kt y ΔT tierra-mar ≥5 °C. Su comentario decía «racha con dirección SW», pero la condición no miraba la dirección, y la puerta de dirección existente solo actúa con media ≥5 kt: justo por encima del caso que las vías nuevas existen para cubrir. Verificado con el detector real: media de 3 kt del norte (350°), racha de 11 kt, aire 31 °C / agua 20 °C → brisa activa de **13 kt del SW (230°)**. El control, el mismo norte con media de 6 kt, sale inactivo porque ahí sí actúa la puerta. El propio spot documenta que el NW queda tapado y no entra por la boca de la ría. Efecto secundario: el texto al usuario decía «Estaciones cercanas leen 5kt» con 3 kt medidos, porque imprimía el suelo sintético del cálculo en vez de la lectura.
+* **Solución (en curso):**  
+  Las vías de media baja exigen una dirección conocida y dentro del arco SW, además de una media medida; dirección desconocida no confirma SW. El texto muestra lo que midieron las estaciones, no el suelo del cálculo.
+* **Regla Preventiva:**  
+  Una vía de activación nueva en un detector hereda TODAS las puertas físicas de las vías existentes, y se prueba con el caso-control que esas puertas existen para descartar (aquí, viento del norte). Un comentario que describe una condición no la implementa: cada rama necesita su propio test. Es la regla de rigor del proyecto aplicada a una rama: la racha es una sola señal y no activa nada sin su discriminador físico (la dirección).
+
 ---
 
 ## 3. Catálogo de Anti-Patrones Prohibidos
@@ -139,13 +179,16 @@
 | :--- | :--- | :--- |
 | `git add .` / `git add -A` | Puede commitear inadvertidamente `.env`, logs, dumps o claves de API en un repo público. | `git add <archivo1> <archivo2>` explícito. |
 | `fs.readFileSync` / `writeFileSync` en handlers | Congela el Event Loop de Node.js y eleva el p99 de latencia de la API. | `fs.promises.readFile` / `fs.promises.writeFile` con `await`. |
-| Push sin bump de versión | Rompe la trazabilidad SemVer y el mecanismo de detección de cambios de `meteomap-update`. | Incrementar `package.json` en CADA push (PATCH o MINOR) y sincronizar `package-lock.json`. |
+| Push sin bump de versión | Rompe la trazabilidad SemVer y el mecanismo de detección de cambios del script de despliegue. | Incrementar `package.json` en CADA push (PATCH o MINOR) y sincronizar `package-lock.json`. |
 | Merge automático o a ciegas de ramas de Dependabot | Dependabot suele bifurcar ramas desde commits antiguos, provocando regresiones silenciosas (ej: revertir fixes en `spotScoringEngine`). | Tratar Dependabot de forma manual: auditar superficie de ataque real y aplicar parches localmente con tests. |
 | Suscribir componentes de mapa a colecciones mutables globales | Provoca re-renders del árbol completo de WebGL/canvas ("pilladas" en UI). | Selectores granulares en componentes hoja (Commit Isolation). |
 | `npm audit fix --force` a ciegas | Puede introducir breaking changes mayores que rompan mapas o servicios sin tests visuales. | Auditar cada vulnerabilidad individualmente y verificar suites de test. |
 | Abanico HTTP directo contra APIs públicas externas | Provoca timeouts de 10-15s e inestabilidad en red móvil/proxy. | Priorizar ingestor local de TimescaleDB con fallback a API remota. |
 | `Promise.all` monolítico en hidratación de mapas | Bloquea la visualización de datos rápidos esperando por la fuente más lenta. | Hidratación progresiva (`onSourceReadings`). |
 | Asumir hora local en feeds de predicción mareal o meteo | Genera desfases de 1h o 2h respecto al reloj real en superficie (ej. IHM e IPMA emiten en UTC sin Z). | Parsear siempre como UTC forzado y proyectar a `Europe/Madrid`. |
+| Duplicar en `ingestor/` lógica que ya vive en `src/` | Las dos copias divergen con el tiempo y el mapa y las alertas 24/7 acaban dando veredictos distintos para el mismo spot. | Importarla de `src/services`, `src/config`, `src/types` o `src/api` (Principio 4); `ingestor/srcBoundary.test.ts` vigila que nunca llegue a código de UI. |
+| Reabrir entera una carpeta ignorada (`!carpeta/`) para publicar un documento | Todo lo que ya había dentro, y siempre fue local, entra en el commit sin que nadie lo elija: así llegó al repo público un manual de operaciones. Sacarlo luego del árbol no lo borra del historial. | Reabrir solo ficheros concretos (`!carpeta/documento.md`) y revisar `git diff --cached --stat` antes de cada commit. |
+| Usar la salida del propio motor como verdad-terreno para entrenar un modelo | El modelo aprende a imitar al estimador (sus boosts, sus sesgos y sus bugs, como el del norte en Cesantes), no el viento. Validarlo contra esa misma salida mide copia, no acierto, y si las columnas del veredicto entran como features la respuesta se cuela por la puerta de atrás (fuga de target). | El target es viento MEDIDO (lecturas crudas de la estación o boya de referencia, observaciones de campo) y ninguna columna derivada del veredicto entra como feature. |
 
 ---
 
