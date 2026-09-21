@@ -153,4 +153,33 @@ describe('buildWindFieldGeoJSON', () => {
     const fc = buildWindFieldGeoJSON(stations, readings, undefined, false, 11);
     expect(fc.features.length).toBe(0);
   });
+
+  it('suppresses wind arrows for stations grouped into clusters below zoom 9.5', () => {
+    // Two stations very close to each other (<1km)
+    const stA = mockStation('st_close_a', -8.70, 42.20);
+    const stB = mockStation('st_close_b', -8.705, 42.205);
+    const stations = [stA, stB];
+    const readings = new Map([
+      ['st_close_a', mockReading('st_close_a', 5.0, 180)],
+      ['st_close_b', mockReading('st_close_b', 6.0, 190)],
+    ]);
+
+    // At zoom 11 (above 9.5 threshold): NO clustering, both stations emit 6 arrows each = 12
+    const fcZoom11 = buildWindFieldGeoJSON(stations, readings, undefined, false, 11);
+    expect(fcZoom11.features.length).toBe(12);
+
+    // At zoom 9.0 (below 9.5 threshold): clustered together, so 0 standalone arrows emitted
+    const fcZoom9 = buildWindFieldGeoJSON(stations, readings, undefined, false, 9.0);
+    expect(fcZoom9.features.length).toBe(0);
+  });
+
+  it('emits wind arrows for isolated standalone stations even at zoom 9', () => {
+    // Single isolated station (no neighbors within cluster radius)
+    const st = mockStation('st_isolated', -8.70, 42.20);
+    const stations = [st];
+    const readings = new Map([['st_isolated', mockReading('st_isolated', 3.5, 90)]]);
+
+    const fcZoom9 = buildWindFieldGeoJSON(stations, readings, undefined, false, 9.0);
+    expect(fcZoom9.features.length).toBe(6);
+  });
 });
