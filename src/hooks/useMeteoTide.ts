@@ -28,7 +28,10 @@ export function __clearTideCacheForTests(): void {
   tidesByDay.clear();
 }
 
-/** PORTUS publishes sea level in centimetres; the service works in metres. */
+/** Only for `?simsurge`, which is given in centimetres. PORTUS itself
+ *  publishes sea level in METRES (its payload says `"unidad":"m"`), and
+ *  treating it as centimetres once turned every reading into minus the
+ *  astronomical height. */
 const CM_PER_M = 100;
 
 /**
@@ -109,8 +112,8 @@ export function selectGaugeForTideStation(
 
 /** What the gauge measured and when, already dug out of the store. */
 export interface GaugeLevel {
-  /** Centimetres above chart datum, as PORTUS publishes it. */
-  cm: number;
+  /** Metres above the gauge datum, as PORTUS publishes it. */
+  m: number;
   at: Date;
 }
 
@@ -127,7 +130,7 @@ export function meteoTideFromGauge(
   if (!observed || extremes.length === 0) return null;
   if (Number.isNaN(observed.at.getTime())) return null;
 
-  const result = computeMeteoTide(observed.cm / CM_PER_M, observed.at, extremes, now);
+  const result = computeMeteoTide(observed.m, observed.at, extremes, now);
   if (!result) return null;
   return gaugeName ? { ...result, gaugeName } : result;
 }
@@ -136,7 +139,7 @@ export function meteoTideFromGauge(
 export function gaugeLevelFromReading(reading: BuoyReading | null | undefined): GaugeLevel | null {
   if (!reading || reading.seaLevel == null) return null;
   const at = new Date(reading.timestamp);
-  return Number.isNaN(at.getTime()) ? null : { cm: reading.seaLevel, at };
+  return Number.isNaN(at.getTime()) ? null : { m: reading.seaLevel, at };
 }
 
 /**
@@ -182,7 +185,7 @@ export function gaugeLevelNow(
   if (!level) return null;
   const age = now.getTime() - level.at.getTime();
   if (age > GAUGE_LEVEL_MAX_AGE_MS || age < -GAUGE_LEVEL_SKEW_MS) return null;
-  return { gaugeName: gauge.name, observedM: level.cm / CM_PER_M, at: level.at };
+  return { gaugeName: gauge.name, observedM: level.m, at: level.at };
 }
 
 export function useGaugeLevel(tideStationId: string | undefined): GaugeLevelNow | null {
@@ -216,7 +219,7 @@ export function useMeteoTide(tideStationId: string | undefined): MeteoTide | nul
     if (!gauge) return null;
     // A simulated surge is by definition happening now, so it carries its own
     // timestamp — otherwise a stale gauge would silence the debug aid too.
-    if (simSurgeCm != null) return { cm: simSurgeCm, at: new Date() };
+    if (simSurgeCm != null) return { m: simSurgeCm / CM_PER_M, at: new Date() };
     return gaugeLevelFromReading(buoys.find((b) => b.stationId === gauge.buoyStationId));
   }, [buoys, gauge, simSurgeCm]);
 
