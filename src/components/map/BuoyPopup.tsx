@@ -129,7 +129,14 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
         {/* Temperature */}
         {hasTemp && (
           <>
-            {reading.waterTemp != null && <DataCell label="T agua" value={`${reading.waterTemp.toFixed(1)}°C`} color={waterTempColor(reading.waterTemp)} large />}
+            {reading.waterTemp != null && (
+              <DataCell
+                label="T agua"
+                value={`${reading.waterTemp.toFixed(1)}°C${reading.waterTemp < 10.5 ? ' ⚠' : ''}`}
+                color={reading.waterTemp < 10.5 ? '#f59e0b' : waterTempColor(reading.waterTemp)}
+                large
+              />
+            )}
             {reading.airTemp != null && <DataCell label="T aire" value={`${reading.airTemp.toFixed(1)}°C`} color={temperatureColor(reading.airTemp)} />}
           </>
         )}
@@ -157,7 +164,15 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
           style={{ background: waterMass.bg, borderColor: waterMass.borderColor }}
         >
           <WeatherIcon
-            id={waterMass.type === 'acna' ? 'waves' : waterMass.type === 'fluvial' ? 'droplets' : 'thermometer'}
+            id={
+              waterMass.type === 'acna'
+                ? 'waves'
+                : waterMass.type === 'fluvial'
+                  ? 'droplets'
+                  : waterMass.type === 'anomaly'
+                    ? 'alert-triangle'
+                    : 'thermometer'
+            }
             size={14}
             className="shrink-0 mt-0.5"
             style={{ color: waterMass.color }}

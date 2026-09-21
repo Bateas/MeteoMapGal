@@ -14,7 +14,7 @@
  */
 import type { BuoyReading } from '../api/buoyClient';
 
-export type WaterMassType = 'acna' | 'fluvial' | 'surface_warm' | 'transitional' | 'unknown';
+export type WaterMassType = 'acna' | 'fluvial' | 'surface_warm' | 'transitional' | 'anomaly' | 'unknown';
 
 export interface WaterMassInfo {
   type: WaterMassType;
@@ -42,25 +42,22 @@ export function classifyWaterMass(tempC: number | null, salinityPsu: number | nu
     };
   }
 
-  // Pure ACNA (Upwelled deep North Atlantic Central Water):
-  // Typically <= 14.5°C, or <= 15.0°C when accompanied by high oceanic salinity (>= 35 PSU)
-  const isColdDeepWater = (tempC != null && tempC <= 14.5) ||
-    (tempC != null && tempC <= 15.0 && salinityPsu != null && salinityPsu >= 35.0);
-
-  if (isColdDeepWater) {
-    const salStr = salinityPsu != null ? ` (${salinityPsu.toFixed(1)} PSU)` : '';
+  // 1. Physical sensor anomaly / glitch
+  // In Galician coastal rías, sea temperature < 10.5°C or > 28°C is unphysical (sensor malfunction / in air)
+  if (tempC != null && (tempC < 10.5 || tempC > 28.0)) {
     return {
-      type: 'acna',
-      label: 'Agua Profunda ACNA',
-      badgeText: 'Afloramiento ACNA',
-      description: `Agua fría profunda oceánica rica en nutrientes${salStr}. Afloramiento activo.`,
-      color: '#38bdf8', // sky-400
-      bg: 'rgba(14, 165, 233, 0.15)',
-      borderColor: 'rgba(56, 189, 248, 0.4)',
+      type: 'anomaly',
+      label: 'Medición Anómala',
+      badgeText: 'Sensor en revisión',
+      description: `Temperatura fuera de rango físico de ría (${tempC.toFixed(1)}°C). Posible anomalía o mantenimiento de sonda.`,
+      color: '#f59e0b', // amber-500
+      bg: 'rgba(245, 158, 11, 0.12)',
+      borderColor: 'rgba(245, 158, 11, 0.35)',
     };
   }
 
-  // Estuarine / river runoff influence: low salinity (< 33 PSU)
+  // 2. Estuarine / river runoff influence: low salinity (< 33 PSU)
+  // Must be checked BEFORE ACNA: estuarine water can NEVER be deep oceanic ACNA
   if (salinityPsu != null && salinityPsu < 33.0) {
     return {
       type: 'fluvial',
@@ -73,7 +70,27 @@ export function classifyWaterMass(tempC: number | null, salinityPsu: number | nu
     };
   }
 
-  // Warm surface water (late summer / relaxed conditions without upwelling)
+  // 3. Pure ACNA (Upwelled deep Eastern North Atlantic Central Water):
+  // Typically 11.0–14.8°C with oceanic salinity (>= 34.5 PSU, typically 35.5–35.8 PSU).
+  // Salinity must NOT be estuarine (< 33 PSU), and temp must be >= 10.5°C (not a glitch).
+  const isAcna = tempC != null && tempC >= 10.5 && (
+    tempC <= 14.5 || (tempC <= 14.8 && salinityPsu != null && salinityPsu >= 34.5)
+  ) && (salinityPsu == null || salinityPsu >= 33.0);
+
+  if (isAcna) {
+    const salStr = salinityPsu != null ? ` (${salinityPsu.toFixed(1)} PSU)` : '';
+    return {
+      type: 'acna',
+      label: 'Agua Profunda ACNA',
+      badgeText: 'Afloramiento ACNA',
+      description: `Agua fría profunda oceánica rica en nutrientes${salStr}. Afloramiento activo.`,
+      color: '#38bdf8', // sky-400
+      bg: 'rgba(14, 165, 233, 0.15)',
+      borderColor: 'rgba(56, 189, 248, 0.4)',
+    };
+  }
+
+  // 4. Warm surface water (late summer / relaxed conditions without upwelling)
   if (tempC != null && tempC >= 17.0) {
     return {
       type: 'surface_warm',
@@ -86,7 +103,7 @@ export function classifyWaterMass(tempC: number | null, salinityPsu: number | nu
     };
   }
 
-  // Standard coastal mix (14.6 - 16.9°C)
+  // 5. Standard coastal mix (14.6 - 16.9°C)
   return {
     type: 'transitional',
     label: 'Agua Costera Mixta',
@@ -138,6 +155,10 @@ export function detectUpwellingSummary(buoys: BuoyReading[]): UpwellingSummary {
 
   for (const b of buoys) {
     if (b.waterTemp == null) continue;
+    // Exclude sensor glitches (< 10.5°C or > 28°C) and estuarine river plumes (< 33.0 PSU)
+    // from triggering coastal upwelling alerts or false thermal fronts
+    if (b.waterTemp < 10.5 || b.waterTemp > 28.0) continue;
+    if (b.salinity != null && b.salinity < 33.0) continue;
 
     if (!coldest || b.waterTemp < coldest.temp) {
       coldest = { stationId: b.stationId, name: b.stationName, temp: b.waterTemp };
