@@ -13,7 +13,7 @@ import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { msToKnots, degreesToCardinal, windSpeedColor, temperatureColor } from '../../services/windUtils';
-import { waveHeightColor, waterTempColor, currentSpeedColor, seaStateLabel } from '../../services/buoyUtils';
+import { waveHeightColor, waterTempColor, currentSpeedColor, seaStateLabel, isBuoyFresh, BUOY_WATER_MAX_MIN } from '../../services/buoyUtils';
 import { classifyWaterMass } from '../../services/upwellingDetector';
 import { BuoyTrend48h } from './BuoyTrend48h';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -82,18 +82,23 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
   const buoyChartId = `buoy_${reading.stationId}`;
   const isInChart = chartStations.includes(buoyChartId);
 
+  const waterMass = useMemo(
+    () => classifyWaterMass(reading.waterTemp, reading.salinity),
+    [reading.waterTemp, reading.salinity]
+  );
+
   if (!info) return null;
+
+  // A buoy that stopped publishing keeps serving its last reading. Its values
+  // stay visible, labelled as old, but the water-mass diagnosis is a statement
+  // about the water now, so it is withheld.
+  const isStale = !isBuoyFresh(reading, BUOY_WATER_MAX_MIN);
 
   const typeColor = TYPE_COLORS[info.type] ?? '#06b6d4';
   const hasWaves = reading.waveHeight != null;
   const hasWind = reading.windSpeed != null;
   const hasTemp = reading.waterTemp != null || reading.airTemp != null;
   const hasCurrent = reading.currentSpeed != null;
-
-  const waterMass = useMemo(
-    () => classifyWaterMass(reading.waterTemp, reading.salinity),
-    [reading.waterTemp, reading.salinity]
-  );
 
   const popupContent = (
     <div className="min-w-[220px] font-sans">
@@ -104,6 +109,12 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
         </span>
         <strong className="text-[13px] text-slate-200">{reading.stationName}</strong>
       </div>
+
+      {isStale && (
+        <div className="mb-2 px-1.5 py-1 rounded border border-amber-700/60 bg-amber-950/40 text-[11px] text-amber-300">
+          Sin datos nuevos: {reading.timestamp ? timeAgoEs(reading.timestamp).replace('Actualizado hace', 'último envío hace') : 'hora desconocida'}. Los valores son de entonces.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-x-3.5 gap-y-2 text-xs">
         {/* Waves */}
@@ -158,25 +169,25 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
       </div>
 
       {/* Water Mass / Upwelling Classification Badge */}
-      {waterMass.type !== 'unknown' && (
+      {waterMass.type !== 'unknown' && !isStale && (
         <div
           className="mt-2 p-1.5 rounded text-[11px] border flex items-start gap-1.5"
           style={{ background: waterMass.bg, borderColor: waterMass.borderColor }}
         >
-          <WeatherIcon
-            id={
-              waterMass.type === 'acna'
-                ? 'waves'
-                : waterMass.type === 'fluvial'
-                  ? 'droplets'
-                  : waterMass.type === 'anomaly'
-                    ? 'alert-triangle'
-                    : 'thermometer'
-            }
-            size={14}
-            className="shrink-0 mt-0.5"
-            style={{ color: waterMass.color }}
-          />
+          <span className="shrink-0 mt-0.5 flex" style={{ color: waterMass.color }}>
+            <WeatherIcon
+              id={
+                waterMass.type === 'acna'
+                  ? 'waves'
+                  : waterMass.type === 'fluvial'
+                    ? 'droplets'
+                    : waterMass.type === 'anomaly'
+                      ? 'alert-triangle'
+                      : 'thermometer'
+              }
+              size={14}
+            />
+          </span>
           <div>
             <div className="font-semibold" style={{ color: waterMass.color }}>
               {waterMass.badgeText}

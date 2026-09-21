@@ -137,6 +137,15 @@ export const BUOY_STALE_MAX_MIN = 120;
  *  fetcher itself serves up to 6h). */
 export const BUOY_WAVE_MAX_MIN = 240;
 
+/** Max age (minutes) for WATER temperature and salinity.
+ *
+ *  Like swell, the water mass changes over hours, not minutes, so the same 4h
+ *  window applies. What it guards against is not a slightly old reading but a
+ *  buoy that has stopped publishing: PORTUS keeps serving its last reading
+ *  indefinitely, so without this a buoy that went silent yesterday keeps
+ *  describing the water "now" in the popup and in the ticker. */
+export const BUOY_WATER_MAX_MIN = BUOY_WAVE_MAX_MIN;
+
 /** True if a buoy reading is recent enough to drive a current verdict/alert.
  *  A missing or unparseable timestamp is treated as stale (excluded). Shared by
  *  spotScoringEngine (wind/humidity/theta-V) and maritimeFogService (SST delta).

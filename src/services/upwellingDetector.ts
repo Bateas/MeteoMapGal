@@ -13,6 +13,7 @@
  *   creating convergence zones with high food density (xouba, squid, mackerel).
  */
 import type { BuoyReading } from '../api/buoyClient';
+import { isBuoyFresh, BUOY_WATER_MAX_MIN } from './buoyUtils';
 
 export type WaterMassType = 'acna' | 'fluvial' | 'surface_warm' | 'transitional' | 'anomaly' | 'unknown';
 
@@ -137,7 +138,7 @@ const INNER_STATION_IDS = new Set([1251, 1250, 1253]); // Rande, Cortegada, A Gu
 /**
  * Detect upwelling events and thermal fronts across coastal buoy readings.
  */
-export function detectUpwellingSummary(buoys: BuoyReading[]): UpwellingSummary {
+export function detectUpwellingSummary(buoys: BuoyReading[], now: number = Date.now()): UpwellingSummary {
   if (!buoys || buoys.length === 0) {
     return {
       hasUpwelling: false,
@@ -155,6 +156,9 @@ export function detectUpwellingSummary(buoys: BuoyReading[]): UpwellingSummary {
 
   for (const b of buoys) {
     if (b.waterTemp == null) continue;
+    // A buoy that stopped publishing keeps its last reading on the map; it
+    // cannot tell us about upwelling happening now.
+    if (!isBuoyFresh(b, BUOY_WATER_MAX_MIN, now)) continue;
     // Exclude sensor glitches (< 10.5°C or > 28°C) and estuarine river plumes (< 33.0 PSU)
     // from triggering coastal upwelling alerts or false thermal fronts
     if (b.waterTemp < 10.5 || b.waterTemp > 28.0) continue;
