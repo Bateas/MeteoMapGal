@@ -1,4 +1,5 @@
-import { useRef, useEffect, useCallback, memo } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import type { MapRef } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
@@ -6,11 +7,10 @@ import { extractHumidityData, interpolateScalar } from '../../services/idwInterp
 
 // ── Configuration ──────────────────────────────────────────
 
-const GRID_SIZE = 12; // px per cell — larger = faster, less detail
-// 400ms (was 200ms): humidity is a slow-changing variable, user notices
-// no difference between 200 and 400ms but the second one halves the rerender
-// rate during pan/zoom which is where IDW interpolation dominates the CPU.
-const DEBOUNCE_MS = 400;
+const DEBOUNCE_MS = 250;
+const COLS = 120;
+const ROWS = 90;
+const BUFFER_RATIO = 0.25; // 25% padding around viewport so panning stays seamlessly textured
 
 // ── Color scale: dry (orange/red) → moderate (yellow/green) → humid (blue/dark blue) ──
 
@@ -43,13 +43,17 @@ function humidityColor(humidity: number): [number, number, number, number] {
 // ── Component ──────────────────────────────────────────────
 
 interface HumidityHeatmapOverlayProps {
-  mapRef: React.RefObject<MapRef | null>;
+  mapRef?: React.RefObject<MapRef | null>;
 }
 
-export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ mapRef }: HumidityHeatmapOverlayProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tmpCanvasRef = useRef<HTMLCanvasElement | null>(null);
+interface RasterData {
+  url: string;
+  coordinates: [[number, number], [number, number], [number, number], [number, number]];
+}
+
+export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ mapRef: propMapRef }: HumidityHeatmapOverlayProps) {
+  const { current: contextMapRef } = useMap();
+  const mapRef = propMapRef ?? { current: contextMapRef };
 
   const activeLayer = useWeatherLayerStore((s) => s.activeLayer);
   const opacity = useWeatherLayerStore((s) => s.layerOpacity);
@@ -58,110 +62,126 @@ export const HumidityHeatmapOverlay = memo(function HumidityHeatmapOverlay({ map
 
   const isActive = activeLayer === 'humidity';
 
-  // Draw heatmap grid — per-row unproject for Mercator-accurate coords
-  const drawHeatmap = useCallback(() => {
-    const canvas = canvasRef.current;
+  const [rasterData, setRasterData] = useState<RasterData | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const computeHeatmapRaster = useCallback(() => {
     const map = mapRef.current?.getMap();
-    if (!canvas || !map) return;
+    if (!map) return;
 
     const humData = extractHumidityData(stations, readings);
-    if (humData.length < 2) return;
+    if (humData.length < 2) {
+      setRasterData(null);
+      return;
+    }
 
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
+    const b = map.getBounds();
+    const lonSpan = b.getEast() - b.getWest();
+    const latSpan = b.getNorth() - b.getSouth();
+    const padLon = lonSpan * BUFFER_RATIO;
+    const padLat = latSpan * BUFFER_RATIO;
+
+    const west = b.getWest() - padLon;
+    const east = b.getEast() + padLon;
+    const south = b.getSouth() - padLat;
+    const north = b.getNorth() + padLat;
+
+    if (!canvasRef.current) {
+      canvasRef.current = document.createElement('canvas');
+    }
+    const canvas = canvasRef.current;
+    canvas.width = COLS;
+    canvas.height = ROWS;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const cols = Math.ceil(w / GRID_SIZE);
-    const rows = Math.ceil(h / GRID_SIZE);
-
-    // Per-row unproject: 2 calls per row (~160 total) instead of 4 corners.
-    // Eliminates Mercator projection error at any zoom level.
-    const imgData = ctx.createImageData(cols, rows);
+    const imgData = ctx.createImageData(COLS, ROWS);
     const pixels = imgData.data;
 
-    for (let row = 0; row < rows; row++) {
-      const screenY = (row + 0.5) * GRID_SIZE;
-      const leftGeo = map.unproject([0, screenY]);
-      const rightGeo = map.unproject([w, screenY]);
+    const spanLon = east - west;
+    const spanLat = north - south;
 
-      for (let col = 0; col < cols; col++) {
-        const tx = (col + 0.5) / cols;
-        const lng = leftGeo.lng + tx * (rightGeo.lng - leftGeo.lng);
-        const lat = leftGeo.lat + tx * (rightGeo.lat - leftGeo.lat);
+    for (let row = 0; row < ROWS; row++) {
+      // row 0 is North (top of image), row (ROWS-1) is South
+      const lat = north - ((row + 0.5) / ROWS) * spanLat;
+      const rowOffset = row * COLS * 4;
 
-        const humidity = interpolateScalar(lat, lng, humData);
-
+      for (let col = 0; col < COLS; col++) {
+        const lon = west + ((col + 0.5) / COLS) * spanLon;
+        const humidity = interpolateScalar(lat, lon, humData);
         const [r, g, b, a] = humidityColor(humidity);
-        const idx = (row * cols + col) * 4;
+
+        const idx = rowOffset + col * 4;
         pixels[idx] = r;
         pixels[idx + 1] = g;
         pixels[idx + 2] = b;
-        pixels[idx + 3] = Math.round(a * opacity);
+        pixels[idx + 3] = a;
       }
     }
 
-    // Draw the small ImageData scaled up to full canvas (reuse canvas via ref)
-    if (!tmpCanvasRef.current) tmpCanvasRef.current = document.createElement('canvas');
-    const tmpCanvas = tmpCanvasRef.current;
-    tmpCanvas.width = cols;
-    tmpCanvas.height = rows;
-    const tmpCtx = tmpCanvas.getContext('2d')!;
-    tmpCtx.putImageData(imgData, 0, 0);
+    ctx.putImageData(imgData, 0, 0);
 
-    // Scale up with smoothing for gradient effect
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(tmpCanvas, 0, 0, cols, rows, 0, 0, canvas.width, canvas.height);
-  }, [stations, readings, opacity, mapRef]);
+    const coordinates: [[number, number], [number, number], [number, number], [number, number]] = [
+      [west, north], // top-left
+      [east, north], // top-right
+      [east, south], // bottom-right
+      [west, south], // bottom-left
+    ];
 
-  // Debounced redraw
-  const scheduleRedraw = useCallback(() => {
+    setRasterData({
+      url: canvas.toDataURL('image/png'),
+      coordinates,
+    });
+  }, [stations, readings, mapRef]);
+
+  const scheduleUpdate = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(drawHeatmap, DEBOUNCE_MS);
-  }, [drawHeatmap]);
+    timerRef.current = setTimeout(computeHeatmapRaster, DEBOUNCE_MS);
+  }, [computeHeatmapRaster]);
 
-  // Redraw on data change
+  // Compute raster when active or when stations/readings change
   useEffect(() => {
-    if (!isActive) return;
-    drawHeatmap();
-  }, [isActive, drawHeatmap]);
+    if (!isActive) {
+      setRasterData(null);
+      return;
+    }
+    computeHeatmapRaster();
+  }, [isActive, computeHeatmapRaster]);
 
-  // Redraw on map move/zoom (including during animation for smooth tracking)
+  // Recompute texture when map movement ends
   useEffect(() => {
     if (!isActive) return;
     const map = mapRef.current?.getMap();
     if (!map) return;
 
-    // Only redraw at end of movement — skip during pan to avoid
-    // 14,400 IDW interpolations per frame (160x90 grid at 12px cells)
-    map.on('moveend', drawHeatmap);
-    map.on('zoomend', drawHeatmap);
-
-    const resizeObs = new ResizeObserver(scheduleRedraw);
-    const canvas = canvasRef.current;
-    if (canvas) resizeObs.observe(canvas);
+    map.on('moveend', scheduleUpdate);
 
     return () => {
-      map.off('moveend', drawHeatmap);
-      map.off('zoomend', drawHeatmap);
-      resizeObs.disconnect();
+      map.off('moveend', scheduleUpdate);
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [isActive, mapRef, drawHeatmap]);
+  }, [isActive, mapRef, scheduleUpdate]);
 
-  if (!isActive) return null;
+  if (!isActive || !rasterData) return null;
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      style={{ zIndex: 14 }}
-    />
+    <Source
+      id="humidity-heatmap"
+      type="image"
+      url={rasterData.url}
+      coordinates={rasterData.coordinates}
+    >
+      <Layer
+        id="humidity-heatmap-layer"
+        type="raster"
+        paint={{
+          'raster-opacity': opacity,
+          'raster-fade-duration': 250,
+          'raster-resampling': 'linear',
+        }}
+      />
+    </Source>
   );
 });

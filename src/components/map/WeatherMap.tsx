@@ -535,6 +535,9 @@ export function WeatherMap() {
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
 
+        {/* Humidity heatmap overlay (native WebGL raster beneath stations and markers) */}
+        <Suspense fallback={null}><HumidityHeatmapOverlay mapRef={mapRef} /></Suspense>
+
         {/* Wind arrows + temp dots + station markers — wrapper subscribes to
             weatherStore itself so the 60s poll only re-commits these layers,
             not the whole map tree (per-poll commit isolation). Renders in the
@@ -656,7 +659,6 @@ export function WeatherMap() {
 
       {/* Canvas overlays on top of map (need project/unproject) */}
       <Suspense fallback={null}><WindParticleOverlay mapRef={mapRef} /></Suspense>
-      <Suspense fallback={null}><HumidityHeatmapOverlay mapRef={mapRef} /></Suspense>
       {/* Air-quality heatmap — auto-activates when any station reports ICA ≥ 3 */}
       <Suspense fallback={null}><IcaOverlay mapRef={mapRef} /></Suspense>
 
