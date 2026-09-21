@@ -1383,6 +1383,7 @@ export function scoreAllSpots(
       channelingPrediction = predictCesantesCanalization(
         buoys, mouthHum, false, airTempLocal, waterTempForDetector, localStationKt, wind?.dirDeg ?? null,
         solarRadInterior,
+        wind?.gustKt ?? null,
       );
     }
 
