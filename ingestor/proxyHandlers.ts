@@ -182,6 +182,8 @@ export async function handleAemetDataProxy(
 const meteosixCache = new Map<string, { data: Buffer; contentType: string; ts: number }>();
 const METEOSIX_CACHE_TTL = 3 * 60_000;
 
+const MS_ALLOWED_PATHS = new Set(['/getNumericForecastInfo', '/getTidesInfo']);
+
 export async function handleMeteoSixProxy(
   msPath: string,
   query: string,
@@ -193,7 +195,9 @@ export async function handleMeteoSixProxy(
     return;
   }
 
-  if (!msPath.startsWith('/getNumericForecastInfo')) {
+  // Exact operations only: the key is ours and must not sign arbitrary paths.
+  // getTidesInfo is the stand-in tide table for when the IHM is down.
+  if (!MS_ALLOWED_PATHS.has(msPath)) {
     error(res, 'Invalid MeteoSIX path', 400, origin);
     return;
   }
