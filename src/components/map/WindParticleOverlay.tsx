@@ -335,7 +335,12 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
     animFrameRef.current = requestAnimationFrame(animate);
 
     // Pause animation during pan/zoom for smoother map interaction
-    const handleMoveStart = () => { mapMovingRef.current = true; };
+    const handleMoveStart = () => {
+      mapMovingRef.current = true;
+      // Clear frozen trails during pan so stale streaks don't stay fixed on screen
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+    };
 
     // Re-spawn particles on map move (zoom/pan) to avoid stale positions.
     // perf: removed forced `windGridRef.current = null` — the boundsKey

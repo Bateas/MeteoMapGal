@@ -204,6 +204,7 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
     const map = mapRef.current?.getMap();
     if (!map) return;
 
+    map.on('move', drawHeatmap);
     map.on('moveend', drawHeatmap);
     map.on('zoomend', drawHeatmap);
 
@@ -212,6 +213,7 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
     if (canvas) resizeObs.observe(canvas);
 
     return () => {
+      map.off('move', drawHeatmap);
       map.off('moveend', drawHeatmap);
       map.off('zoomend', drawHeatmap);
       resizeObs.disconnect();

@@ -4,7 +4,6 @@ import type maplibregl from 'maplibre-gl';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import type { BuoyReading } from '../../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../../api/buoyClient';
-import { STALE_THRESHOLD_MIN } from '../../config/constants';
 import { isWindBlacklisted } from '../../services/spotScoringEngine';
 
 interface WindFieldOverlayProps {
@@ -12,15 +11,18 @@ interface WindFieldOverlayProps {
   readings: Map<string, NormalizedReading>;
   /** Optional buoy readings — generates hex-pattern arrows around buoys too */
   buoys?: BuoyReading[];
-  /** When true, uses smaller arrows and skips outer ring (for dense sectors). */
+  /** When true, uses smaller arrows and tighter ring (for dense sectors). */
   compact?: boolean;
-  /** Current map zoom level — used to filter low-wind arrows at low zoom */
+  /** Current map zoom level — used to scale arrow offsets dynamically */
   zoomLevel?: number;
 }
 
-/** Offset distance in degrees (~2km at lat 42°) */
-const OFFSET_LAT = 0.018;
-const OFFSET_LON = 0.024;
+/** Base offset distance in degrees at reference zoom 11 (~31px screen radius at lat 42°) */
+const BASE_OFFSET_LAT = 0.016;
+const BASE_OFFSET_LON = 0.022;
+
+/** Reference zoom where BASE_OFFSET matches target screen radius (~31px) */
+const REF_ZOOM = 11;
 
 /** Positions around each station (hex pattern) */
 const OFFSETS = [
@@ -39,59 +41,67 @@ const EMPTY_FC: GeoJSON.FeatureCollection = {
 
 /** Push hex-pattern arrow features for a single wind source (station or buoy).
  *
- * Restored in v2.81.49 after user feedback: "lo de quitar las flechas de las
- * estaciones pierde sentido". The single-arrow variant (S136+3 #3 audit) saved
- * GPU work but stripped the visual signature that users associated with the
- * station's wind reading.
- *
- * Cost: ~600 features (90 stations × 6 + 13 buoys × 6) per render. Mitigations
- * still in place: zoom-based hiding (<4kt at zoom <10, <2kt at zoom <11),
- * WindParticleOverlay 30fps throttle, StormCluster source consolidation.
+ * Restored in v2.81.49 and enhanced:
+ * - Dynamic zoomScale keeps the 6 arrows at a constant visual screen radius (~31px)
+ *   regardless of zoom level (preventing arrows from flying 280px away at high zooms).
+ * - Full support for calm wind (<0.5 m/s) and sensors without direction vane:
+ *   emits calm-level arrows (wind-arrow-0, slate) with radial outward orientation
+ *   so calm stations visibly communicate calm rather than vanishing.
  */
 function pushHexArrows(
   features: GeoJSON.Feature[],
   lon: number,
   lat: number,
   windSpeed: number,
-  windDir: number,
+  windDir: number | null,
   offsetScale: number,
   compact: boolean,
+  freshnessAlpha = 1.0,
 ): void {
-  const rotation = (windDir + 180) % 360;
+  const isCalm = windSpeed < 0.5;
   const level = speedToLevel(windSpeed);
 
   // Inner ring (6 arrows)
   for (let i = 0; i < OFFSETS.length; i++) {
     const [dx, dy] = OFFSETS[i];
+
+    // Direction calculation:
+    // If wind direction is available, arrows point towards where wind blows (meteorological + 180).
+    // If wind direction is null (calm vane / no vane), arrows point outward radially in hex direction.
+    let rotation: number;
+    if (windDir !== null && Number.isFinite(windDir)) {
+      rotation = (windDir + 180) % 360;
+    } else {
+      // Outward radial direction: N points N (0°), NE points NE (60°), etc.
+      rotation = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+    }
+
+    const baseOpacity = isCalm ? 0.45 : (compact ? 0.65 : 0.75);
+
     features.push({
       type: 'Feature',
       geometry: {
         type: 'Point',
         coordinates: [
-          lon + dx * OFFSET_LON * offsetScale,
-          lat + dy * OFFSET_LAT * offsetScale,
+          lon + dx * BASE_OFFSET_LON * offsetScale,
+          lat + dy * BASE_OFFSET_LAT * offsetScale,
         ],
       },
       properties: {
         rotation,
         speed: windSpeed,
         speedLevel: level,
-        opacity: compact ? 0.65 : 0.75,
+        opacity: baseOpacity * freshnessAlpha,
       },
     });
   }
-
-  // Outer ring disabled — 12 arrows per station too visually dense.
-  // 6-arrow inner ring provides clear wind direction without clutter.
 }
 
 /**
  * Speed-based color palette for wind arrows — matches windSpeedColor() in windUtils.ts.
  * Each level gets a unique icon registered on the map.
  */
-/** Simplified wind arrow colors — aligned with windSpeedColor() scale.
- * 0-6kt = one blue (less visual noise in calm conditions). */
-const SPEED_LEVELS = [
+export const SPEED_LEVELS = [
   { id: 'wind-arrow-0', color: '#64748b', maxSpeed: 0.5 },  // slate — calm (<1 kt)
   { id: 'wind-arrow-1', color: '#38bdf8', maxSpeed: 3.0 },  // sky-400 — flojo (1-6 kt, one blue)
   { id: 'wind-arrow-2', color: '#22c55e', maxSpeed: 4.5 },  // green-500 — gentle (6-9 kt)
@@ -102,8 +112,8 @@ const SPEED_LEVELS = [
   { id: 'wind-arrow-7', color: '#a855f7', maxSpeed: Infinity }, // violet — extreme (30+ kt)
 ] as const;
 
-/** Map wind speed (m/s) to a speed-level index 0-5 */
-function speedToLevel(speed: number): number {
+/** Map wind speed (m/s) to a speed-level index 0-7 */
+export function speedToLevel(speed: number): number {
   for (let i = 0; i < SPEED_LEVELS.length; i++) {
     if (speed < SPEED_LEVELS[i].maxSpeed) return i;
   }
@@ -198,22 +208,110 @@ export async function registerWindArrowIcons(
  * Uses a single GeoJSON source + symbol layer instead of 240+ DOM Markers.
  * All arrows are rendered on the GPU — zero JS overhead during pan/zoom.
  *
- * Each feature includes a `speedLevel` property (0-5) that selects the
- * matching icon color via a data-driven `icon-image` expression.
- *
- * NOTE: The wind-arrow-{0..5} icons must be registered on the map BEFORE
- * this component renders. This is done in WeatherMap's onLoad callback.
+ * Dynamic offset scaling:
+ * As the user zooms in or out, `zoomScale = 2^(11 - zoom)` scales geographic
+ * degree offsets so the 6 arrows maintain an optimal ~31px screen radius
+ * around the station marker at any zoom level (8 to 16).
  */
+/**
+ * Build GeoJSON FeatureCollection containing 6-arrow hex clusters for all eligible wind sources.
+ */
+export function buildWindFieldGeoJSON(
+  stations: NormalizedStation[],
+  readings: Map<string, NormalizedReading>,
+  buoys?: BuoyReading[],
+  compact = false,
+  zoom = REF_ZOOM,
+): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+
+  // Scale offset inversely with zoom so the screen distance stays ~31px
+  const zoomScale = Math.pow(2, REF_ZOOM - zoom);
+  const offsetScale = (compact ? 0.6 : 1.0) * zoomScale;
+
+  // ── Station arrows ─────────────────────────────────
+  // Allow readings up to 90 min (matches StationSymbolLayer freshness decay
+  // so hourly stations like MeteoGalicia/AEMET/IPMA don't lose arrows after 30 min)
+  const maxAgeMs = 90 * 60_000;
+  const now = Date.now();
+
+  for (const station of stations) {
+    if (station.tempOnly) continue;
+    // Skip blacklisted stations — sheltered/broken sensors contaminate wind field
+    if (isWindBlacklisted(station.id)) continue;
+
+    const reading = readings.get(station.id);
+    if (!reading || reading.windSpeed === null || !Number.isFinite(reading.windSpeed)) continue;
+
+    // Skip stale stations (>90 min)
+    const ageMs = now - reading.timestamp.getTime();
+    if (ageMs > maxAgeMs) continue;
+    const freshnessAlpha = ageMs < 45 * 60_000 ? 1.0 : 0.65;
+
+    pushHexArrows(
+      features,
+      station.lon,
+      station.lat,
+      reading.windSpeed,
+      reading.windDirection ?? null,
+      offsetScale,
+      compact,
+      freshnessAlpha,
+    );
+  }
+
+  // ── Buoy arrows ─────────────────────────────────────
+  if (buoys) {
+    for (const buoy of buoys) {
+      if (buoy.windSpeed == null || !Number.isFinite(buoy.windSpeed)) continue;
+      const coords = BUOY_COORDS_MAP.get(buoy.stationId);
+      if (!coords) continue;
+      pushHexArrows(
+        features,
+        coords.lon,
+        coords.lat,
+        buoy.windSpeed,
+        buoy.windDir ?? null,
+        offsetScale,
+        compact,
+      );
+    }
+  }
+
+  if (features.length === 0) return EMPTY_FC;
+
+  return {
+    type: 'FeatureCollection',
+    features,
+  };
+}
+
 export const WindFieldOverlay = memo(function WindFieldOverlay({
   stations,
   readings,
   buoys,
   compact = false,
-  zoomLevel: _zoomLevel = 12,
+  zoomLevel: propZoomLevel,
 }: WindFieldOverlayProps) {
-  // Wait until wind-arrow icons are registered on the map to avoid flash of default markers
   const { current: mapRef } = useMap();
   const [iconsReady, setIconsReady] = useState(false);
+
+  // Dynamic zoom tracking (stepped to 0.5 to avoid thrashing GeoJSON on tiny wheel ticks)
+  const [zoom, setZoom] = useState(() => mapRef?.getMap()?.getZoom() ?? propZoomLevel ?? REF_ZOOM);
+
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map) return;
+
+    const onZoom = () => {
+      const stepped = Math.round(map.getZoom() * 2) / 2;
+      setZoom((prev) => (prev === stepped ? prev : stepped));
+    };
+    map.on('zoom', onZoom);
+    return () => { map.off('zoom', onZoom); };
+  }, [mapRef]);
+
+  // Wait until wind-arrow icons are registered on the map
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
@@ -221,47 +319,14 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
       if (map.hasImage('wind-arrow-0')) setIconsReady(true);
     };
     check();
-    // Always register + cleanup to avoid memory leak
     map.on('styledata', check);
     return () => { map.off('styledata', check); };
   }, [mapRef]);
 
-  const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
-    const features: GeoJSON.Feature[] = [];
-    const offsetScale = compact ? 0.6 : 1;
-    const minWindMs = 0.1; // Filter is now handled by MapLibre expression on the layer
-
-    // ── Station arrows ─────────────────────────────────
-    const staleMs = STALE_THRESHOLD_MIN * 60_000;
-    const now = Date.now();
-    for (const station of stations) {
-      if (station.tempOnly) continue;
-      // Skip blacklisted stations — sheltered/broken sensors contaminate wind field
-      if (isWindBlacklisted(station.id)) continue;
-      const reading = readings.get(station.id);
-      if (!reading || reading.windDirection === null || reading.windSpeed === null || reading.windSpeed < minWindMs) continue;
-      // Skip stale stations — no wind arrows for offline data
-      if (now - reading.timestamp.getTime() > staleMs) continue;
-      pushHexArrows(features, station.lon, station.lat, reading.windSpeed, reading.windDirection, offsetScale, compact);
-    }
-
-    // ── Buoy arrows ─────────────────────────────────────
-    if (buoys) {
-      for (const buoy of buoys) {
-        if (buoy.windSpeed == null || buoy.windDir == null || buoy.windSpeed < 0.1) continue;
-        const coords = BUOY_COORDS_MAP.get(buoy.stationId);
-        if (!coords) continue;
-        pushHexArrows(features, coords.lon, coords.lat, buoy.windSpeed, buoy.windDir, offsetScale, compact);
-      }
-    }
-
-    if (features.length === 0) return EMPTY_FC;
-
-    return {
-      type: 'FeatureCollection',
-      features,
-    };
-  }, [stations, readings, buoys, compact]);
+  const geojson = useMemo<GeoJSON.FeatureCollection>(
+    () => buildWindFieldGeoJSON(stations, readings, buoys, compact, zoom),
+    [stations, readings, buoys, compact, zoom],
+  );
 
   // Don't render until arrow icons are registered — prevents flash of fallback markers
   if (!iconsReady) return null;
@@ -271,27 +336,23 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
       <Layer
         id="wind-field-arrows"
         type="symbol"
-        filter={[
-          'any',
-          ['>=', ['zoom'], 10],
-          ['all', ['>=', ['zoom'], 9], ['>=', ['get', 'speed'], 1.03]],
-          ['all', ['>=', ['zoom'], 8], ['>=', ['get', 'speed'], 2.06]],
-        ]}
+        minzoom={8}
         layout={{
           'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],
           'icon-rotate': ['get', 'rotation'],
           // Grosor variable: calm=small, strong=large. Visual weight matches wind intensity.
           'icon-size': compact
-            ? ['interpolate', ['linear'], ['get', 'speed'], 0, 0.35, 3, 0.45, 6, 0.55, 10, 0.65]
+            ? ['interpolate', ['linear'], ['get', 'speed'], 0, 0.38, 3, 0.45, 6, 0.55, 10, 0.65]
             : ['interpolate', ['linear'], ['get', 'speed'], 0, 0.55, 3, 0.7, 6, 0.9, 10, 1.1],
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-rotation-alignment': 'map',
         }}
         paint={{
-          'icon-opacity': ['interpolate', ['linear'], ['get', 'speed'],
-            0, 0.3,   // calm: very subtle
-            2, 0.5,   // light: visible
+          'icon-opacity': [
+            'interpolate', ['linear'], ['get', 'speed'],
+            0, 0.45,  // calm: subtle slate ring, clearly visible
+            2, 0.6,   // light: visible
             5, 0.75,  // moderate: clear
             10, 0.9,  // strong: prominent
           ],
