@@ -15,6 +15,7 @@
  */
 
 import type { BuoyReading } from './buoyClient';
+import { readObsCurrent, type ObsResponse } from './obsCosteiroParse';
 
 // ── Station mapping: Observatorio ID → canonical station ID ──────
 
@@ -40,26 +41,6 @@ const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
 // ObsCosteiro API key is injected server-side by the ingestor proxy.
 const API_BASE = '/api/v1/obscosteiro';
 const TIMEOUT = 15_000;
-const NO_DATA = -9999;
-
-// ── Types for raw API response ──────────────────────────────────
-
-interface ObsMedicion {
-  data: string;           // ISO timestamp
-  valor: number;          // Measurement value (-9999 = no data)
-  altura?: number;        // Negative = above water (meteo), positive = depth (ocean)
-  tipoIntervalo?: string; // '10Minutal', 'Horario', 'Diario' or 'Mensual'
-  validado: boolean;
-}
-
-interface ObsParametro {
-  codigoParametro: string; // VV, DV, TA, HR, TO, TAU, SAL, etc.
-  funcion: string;         // AVG, MAX, RACHA, etc.
-  medicions: ObsMedicion[];
-}
-
-// API returns ObsParametro[] directly (array, not wrapped object)
-type ObsResponse = ObsParametro[] | { parametros?: ObsParametro[] };
 
 // ── Fetch helpers ───────────────────────────────────────────────
 
@@ -86,59 +67,15 @@ async function obsFetch(boiaId: number, attempt = 0): Promise<ObsResponse | null
   }
 }
 
-// ── Parameter extraction ────────────────────────────────────────
-
-// The payload carries the 10-minute, hourly, daily and monthly series of
-// every parameter, in no fixed order. Only the 10-minute one is a current
-// reading: the first code/function match can be an hourly or daily mean,
-// or a monthly -9999.
-const CURRENT_INTERVAL = '10Minutal';
-
-function currentMedicion(p: ObsParametro): ObsMedicion | null {
-  const m = p.medicions?.[0];
-  if (!m || m.tipoIntervalo !== CURRENT_INTERVAL) return null;
-  if (typeof m.valor !== 'number' || m.valor === NO_DATA) return null;
-  return m;
-}
-
-// maxDepth selects an ocean sensor: the shallowest one at 0..maxDepth m.
-// A -9999 or another window's series does not end the search.
-function extractValue(params: ObsParametro[], code: string, func: string, maxDepth?: number): number | null {
-  let best: ObsMedicion | null = null;
-  for (const p of params) {
-    if (p.codigoParametro !== code || p.funcion !== func) continue;
-    const m = currentMedicion(p);
-    if (!m) continue;
-    if (maxDepth === undefined) return m.valor;
-    const depth = m.altura;
-    if (typeof depth !== 'number' || depth < 0 || depth > maxDepth) continue;
-    if (!best || depth < (best.altura as number)) best = m;
-  }
-  return best ? best.valor : null;
-}
-
-// Row time = time of the 10-minute readings it carries.
-function extractTimestamp(params: ObsParametro[]): string | null {
-  let newest: string | null = null;
-  let newestMs = 0;
-  for (const p of params) {
-    const m = currentMedicion(p);
-    if (!m?.data) continue;
-    const ms = new Date(m.data).getTime();
-    if (ms > newestMs) { newestMs = ms; newest = m.data; }
-  }
-  return newest;
-}
+// Field selection (10-minute window, sensor height, per-field time) lives in
+// obsCosteiroParse.ts, shared with the ingestor.
 
 // ── Convert API response to BuoyReading ─────────────────────────
 
 export function parseObsReading(station: ObsStation, data: ObsResponse): BuoyReading | null {
-  // API returns array directly, but handle wrapped format too
-  const params = Array.isArray(data) ? data : data?.parametros;
-  if (!params || params.length === 0) return null;
-
-  const timestamp = extractTimestamp(params);
-  if (!timestamp) return null;
+  const cur = readObsCurrent(data);
+  if (!cur) return null;
+  const timestamp = cur.time;
 
   // Check data freshness — skip if older than 2 hours
   const age = Date.now() - new Date(timestamp).getTime();
@@ -158,24 +95,24 @@ export function parseObsReading(station: ObsStation, data: ObsResponse): BuoyRea
     wavePeriodMean: null,
     waveDir: null,
     // Wind
-    windSpeed: extractValue(params, 'VV', 'AVG'),
-    windDir: extractValue(params, 'DV', 'AVG'),
-    windGust: extractValue(params, 'VV', 'RACHA') ?? extractValue(params, 'VV', 'MAX'),
-    // Temperature
-    waterTemp: extractValue(params, 'TAU', 'AVG', 2), // depth ≤ 2m
-    airTemp: extractValue(params, 'TA', 'AVG'),
+    windSpeed: cur.windSpeed,
+    windDir: cur.windDir,
+    windGust: cur.windGust,
+    // Temperature (water: shallowest sensor down to 2 m)
+    waterTemp: cur.waterTemp,
+    airTemp: cur.airTemp,
     // Pressure — not available from Observatorio
     airPressure: null,
     // Currents — not in this endpoint
     currentSpeed: null,
     currentDir: null,
     // Salinity
-    salinity: extractValue(params, 'SAL', 'AVG', 2), // depth ≤ 2m
+    salinity: cur.salinity,
     // Sea level
     seaLevel: null,
     // Observatorio-exclusive fields
-    humidity: extractValue(params, 'HR', 'AVG'),
-    dewPoint: extractValue(params, 'TO', 'AVG'),
+    humidity: cur.humidity,
+    dewPoint: cur.dewPoint,
     source: 'obscosteiro',
   };
 }
