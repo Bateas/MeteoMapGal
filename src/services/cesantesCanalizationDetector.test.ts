@@ -377,6 +377,105 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBe(17);
   });
+
+  // ── The low-mean branches need a known SW direction ──────────
+  //
+  // The out-of-arc guard only rejects a wind of 5kt or more, which is exactly
+  // NOT the case the two low-mean branches (strong ΔT, gust) exist for.
+  // Reproduced 21-sep: a 3kt NORTH wind with an 11kt gust on a hot afternoon
+  // came back as a 13kt SW canalization at 70% confidence. With N/NW the spot
+  // is sheltered and does not follow the entry pattern of the mouth. With a
+  // low mean, the direction is what tells a breeze filling in from a stray
+  // puff, so it has to be known and inside the arc.
+  describe('low-mean branches need a known SW direction', () => {
+    beforeEach(() => vi.setSystemTime(new Date('2026-09-21T15:00:00Z')));
+
+    it('does NOT fire on a north wind carried by the gust branch', () => {
+      const r = predictCesantesCanalization([], null, false, 31, 20, 3, 350, null, 11);
+      expect(r.active).toBe(false);
+      expect(r.predictedKt).toBeNull();
+    });
+
+    it('does NOT fire on a north wind carried by the strong-ΔT branch', () => {
+      const r = predictCesantesCanalization([], null, false, 24, 18, 4.5, 0);
+      expect(r.active).toBe(false);
+    });
+
+    it('does NOT fire with an unknown direction and a gust', () => {
+      const r = predictCesantesCanalization([], null, false, 31, 20, 3, null, null, 11);
+      expect(r.active).toBe(false);
+    });
+
+    it('does NOT fire with an unknown direction and a strong ΔT', () => {
+      const r = predictCesantesCanalization([], null, false, 24, 18, 4.5, null);
+      expect(r.active).toBe(false);
+    });
+
+    it('does NOT fire on a gust alone when there is no measured mean', () => {
+      // The gust branch rescues a LOW mean; with no mean at all there is
+      // nothing it is rescuing, only one reading and a temperature.
+      const r = predictCesantesCanalization([], null, false, 31, 20, null, 230, null, 11);
+      expect(r.active).toBe(false);
+    });
+
+    it('accepts both edges of the arc exactly', () => {
+      for (const dir of [160, 280]) {
+        expect(predictCesantesCanalization([], null, false, 31, 20, 3, dir, null, 11).active).toBe(true);
+        expect(predictCesantesCanalization([], null, false, 24, 18, 4.5, dir).active).toBe(true);
+      }
+    });
+
+    it('rejects a direction just outside either edge', () => {
+      for (const dir of [159, 281]) {
+        expect(predictCesantesCanalization([], null, false, 31, 20, 3, dir, null, 11).active).toBe(false);
+        expect(predictCesantesCanalization([], null, false, 24, 18, 4.5, dir).active).toBe(false);
+      }
+    });
+
+    it('still fires on the real 21-sep afternoon (SW 234, mean 4.8, gust 12)', () => {
+      const r = predictCesantesCanalization([], null, false, 31, 20, 4.8, 234, null, 12);
+      expect(r.active).toBe(true);
+      expect(r.predictedKt).toBe(13);
+      expect(r.predictedDir).toBe(230);
+    });
+  });
+
+  // ── The signal text says what the stations measured ──────────
+  //
+  // It used to print the synthetic 5kt floor the boost is built on, so a 3kt
+  // reading was reported to the user as "leen 5kt".
+  describe('signal text reports what the stations measured', () => {
+    beforeEach(() => vi.setSystemTime(new Date('2026-09-21T15:00:00Z')));
+
+    it('states the measured mean and the gust that confirmed the breeze', () => {
+      const r = predictCesantesCanalization([], null, false, 31, 20, 4.8, 234, null, 12);
+      const line = r.signals.find((s) => s.startsWith('Estaciones cercanas'))!;
+      expect(line).toContain('4.8kt de media');
+      expect(line).toContain('racha de 12kt');
+      expect(line).not.toContain('leen 5kt');
+    });
+
+    it('states a gust-confirmed mean even when it is far below the floor', () => {
+      const r = predictCesantesCanalization([], null, false, 31, 20, 3, 230, null, 11);
+      const line = r.signals.find((s) => s.startsWith('Estaciones cercanas'))!;
+      expect(line).toContain('3.0kt de media');
+      expect(line).toContain('racha de 11kt');
+    });
+
+    it('states the measured low mean when a strong ΔT confirmed it, without a gust', () => {
+      const r = predictCesantesCanalization([], null, false, 24, 18, 4.2, 230);
+      const line = r.signals.find((s) => s.startsWith('Estaciones cercanas'))!;
+      expect(line).toContain('4.2kt de media');
+      expect(line).not.toContain('racha');
+    });
+
+    it('states the measured mean on an ordinary breeze', () => {
+      const r = predictCesantesCanalization([], null, false, 18, 14, 6);
+      const line = r.signals.find((s) => s.startsWith('Estaciones cercanas'))!;
+      expect(line).toContain('leen 6kt de media');
+      expect(line).not.toContain('racha');
+    });
+  });
 });
 
 // ── Output shape ──────────────────────────────────────────────
