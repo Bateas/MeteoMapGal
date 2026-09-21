@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { parseObsResponse } from './buoyFetcher.js';
+import { parseObsReading } from '../src/api/observatorioCosteiro';
 import fixture from '../src/api/observatorioCosteiro.fixture.json';
 
 // Real /ultimo/recente payloads of 2026-09-21 (about 23:00 UTC), trimmed to
@@ -85,6 +86,58 @@ describe('parseObsResponse — 10-minute readings only', () => {
   it('Rande a day later: its 10-minute series stopped, so the row is stale and dropped', () => {
     at('2026-09-21T23:00:00Z');
     expect(parseObsResponse(RANDE, payload('15100'))).toBeNull();
+  });
+
+  it('a field whose 10-minute series lags the rest by an hour is not stored with the row time', () => {
+    at('2026-09-21T23:00:00Z');
+    type Entry = { codigoParametro: string; funcion: string; medicions: { tipoIntervalo: string; data: string }[] };
+    const ps = JSON.parse(JSON.stringify(fixture['15001'])) as Entry[];
+    const vv = ps.find((p) => p.codigoParametro === 'VV' && p.funcion === 'AVG' && p.medicions[0].tipoIntervalo === '10Minutal')!;
+    vv.medicions[0].data = '2026-09-21T21:50:00Z';
+    const r = parseObsResponse(CORTEGADA, ps as unknown as Payload)!;
+    expect(r.time).toBe('2026-09-21T22:50:00Z');
+    expect(r.windSpeed).toBeNull();
+    expect(r.windDir).toBe(60);
+  });
+
+  it('heights decide the layer: a sub-surface entry is not the wind, an above-surface one is not the water', () => {
+    at('2026-09-21T23:00:00Z');
+    const bogus = [
+      { codigoParametro: 'VV', funcion: 'AVG', medicions: [{ data: '2026-09-21T22:50:00Z', valor: 99, altura: 1, tipoIntervalo: '10Minutal' }] },
+      { codigoParametro: 'TAU', funcion: 'AVG', medicions: [{ data: '2026-09-21T22:50:00Z', valor: 30, altura: -5, tipoIntervalo: '10Minutal' }] },
+    ];
+    const r = parseObsResponse(CORTEGADA, [...bogus, ...(fixture['15001'] as unknown[])] as unknown as Payload)!;
+    expect(r.windSpeed).toBe(3.83);
+    expect(r.waterTemp).toBe(15.778);
+  });
+
+  it('a value the Xunta marks as bad is not stored (Cortegada 1 m sensor, 8.3 C with code 4)', () => {
+    at('2026-09-21T23:00:00Z');
+    type Entry = { codigoParametro: string; funcion: string; medicions: { tipoIntervalo: string; codigoValidacion?: number; valor: number; altura: number }[] };
+    const ps = JSON.parse(JSON.stringify(fixture['15001'])) as Entry[];
+    const tau1 = ps.find((p) => p.codigoParametro === 'TAU' && p.medicions[0].tipoIntervalo === '10Minutal' && p.medicions[0].altura === 1)!;
+    tau1.medicions[0].valor = 8.313;
+    tau1.medicions[0].codigoValidacion = 4;
+    const r = parseObsResponse(CORTEGADA, ps as unknown as Payload)!;
+    expect(r.waterTemp).toBeNull(); // the 3 m sensor is below the surface window
+    expect(r.windSpeed).toBe(3.83);
+  });
+
+  it('the ingestor row and the map reading agree field by field on every real payload', () => {
+    const cases = [
+      ['15001', CORTEGADA, '2026-09-21T23:00:00Z'],
+      ['15004', A_GUARDA, '2026-09-21T23:00:00Z'],
+      ['15005', RIBEIRA, '2026-09-21T23:00:00Z'],
+      ['15009', MUROS, '2026-09-21T23:00:00Z'],
+      ['15100', RANDE, '2026-09-20T19:50:00Z'],
+    ] as const;
+    for (const [id, st, now] of cases) {
+      at(now);
+      const row = parseObsResponse(st, payload(id))!;
+      const map = parseObsReading({ ...st, lat: 0, lon: 0 }, payload(id) as never)!;
+      expect([row.time, row.windSpeed, row.windDir, row.windGust, row.airTemp, row.humidity, row.dewPoint, row.waterTemp, row.salinity])
+        .toEqual([map.timestamp, map.windSpeed, map.windDir, map.windGust, map.airTemp, map.humidity, map.dewPoint, map.waterTemp, map.salinity]);
+    }
   });
 
   it('without a 10-minute gust there is no gust: an hourly or daily maximum is not a current gust', () => {

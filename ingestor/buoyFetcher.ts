@@ -11,6 +11,7 @@
 import type { BuoyReadingRow } from './db.js';
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
+import { readObsCurrent, type ObsResponse } from '../src/api/obsCosteiroParse.js';
 
 const PORTUS_BASE = 'https://portus.puertos.es/portussvr/api';
 const OBS_BASE = 'https://apis-ext.xunta.gal/mgplatpubapi/v1/api';
@@ -84,7 +85,6 @@ const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
   { obsId: 15009, canonicalId: 15009, name: 'Muros' },          // NEW — no PORTUS equivalent
 ];
 
-const NO_DATA = -9999;
 // 6 hours, not 2: PORTUS publishes oceanic-mooring buoys (REDEXT) and tide-
 // gauge meteorology (REDMAR) with cadences of 1-3 hours, not minutes. The
 // audit caught us silently rejecting 9 of 11 PORTUS stations every
@@ -245,67 +245,8 @@ function parsePortusResponse(
 
 // ── Observatorio Costeiro fetch ─────────────────────────
 
-interface ObsMedicion {
-  data: string;
-  valor: number;
-  // Sensor height in metres, on the measurement (the parameter has none):
-  // negative = above the surface (meteorology), positive = depth (ocean).
-  altura?: number;
-  // Aggregation window: '10Minutal', 'Horario', 'Diario' or 'Mensual'.
-  tipoIntervalo?: string;
-}
-interface ObsParametro {
-  codigoParametro: string;
-  funcion: string;
-  medicions: ObsMedicion[];
-}
-// API returns ObsParametro[] directly (array, not wrapped object)
-
-// The payload carries the 10-minute, hourly, daily and monthly series of
-// every parameter, in no fixed order. Only the 10-minute one is a current
-// reading: taking the first code/function match stored an hourly or daily
-// mean as the wind (Cortegada, A Guarda) and a monthly -9999 as "no data"
-// (Muros, Rande salinity).
-const OBS_CURRENT_INTERVAL = '10Minutal';
-
-function currentMedicion(p: ObsParametro): ObsMedicion | null {
-  const m = p.medicions?.[0];
-  if (!m || m.tipoIntervalo !== OBS_CURRENT_INTERVAL) return null;
-  if (typeof m.valor !== 'number' || m.valor === NO_DATA) return null;
-  return m;
-}
-
-// maxDepth selects an ocean sensor: the shallowest one at 0..maxDepth m
-// (Rande reports 1.5, 5.5 and 14 m). A -9999 or a series from another
-// window does not end the search, another entry may hold the reading.
-function extractObs(params: ObsParametro[], code: string, func: string, maxDepth?: number): number | null {
-  let best: ObsMedicion | null = null;
-  for (const p of params) {
-    if (p.codigoParametro !== code || p.funcion !== func) continue;
-    const m = currentMedicion(p);
-    if (!m) continue;
-    if (maxDepth === undefined) return m.valor;
-    const depth = m.altura;
-    if (typeof depth !== 'number' || depth < 0 || depth > maxDepth) continue;
-    if (!best || depth < (best.altura as number)) best = m;
-  }
-  return best ? best.valor : null;
-}
-
-// The row time is the time of the 10-minute readings it carries, so a
-// buoy whose 10-minute series stopped is judged stale even while its daily
-// and monthly aggregates keep being published.
-function extractObsTimestamp(params: ObsParametro[]): string | null {
-  let newest: string | null = null;
-  let newestMs = 0;
-  for (const p of params) {
-    const m = currentMedicion(p);
-    if (!m?.data) continue;
-    const ms = new Date(m.data).getTime();
-    if (ms > newestMs) { newestMs = ms; newest = m.data; }
-  }
-  return newest;
-}
+// Field selection (10-minute window, sensor height, per-field time) lives in
+// the pure parser shared with the frontend client: src/api/obsCosteiroParse.ts.
 
 async function fetchObsStation(station: ObsStation, apiKey: string): Promise<BuoyReadingRow | null> {
   try {
@@ -334,35 +275,31 @@ async function fetchObsStation(station: ObsStation, apiKey: string): Promise<Buo
   }
 }
 
-export function parseObsResponse(station: ObsStation, data: ObsParametro[] | { parametros?: ObsParametro[] }): BuoyReadingRow | null {
-  // API returns array directly, but handle wrapped format too
-  const params = Array.isArray(data) ? data : data?.parametros;
-  if (!params?.length) return null;
+export function parseObsResponse(station: ObsStation, data: ObsResponse): BuoyReadingRow | null {
+  const cur = readObsCurrent(data);
+  if (!cur) return null;
 
-  const timestamp = extractObsTimestamp(params);
-  if (!timestamp) return null;
-
-  const age = Date.now() - new Date(timestamp).getTime();
+  const age = Date.now() - new Date(cur.time).getTime();
   if (age > MAX_AGE_MS) return null;
 
   return {
-    time: timestamp,
+    time: cur.time,
     stationId: station.canonicalId,
     stationName: station.name,
     source: 'obscosteiro',
     waveHeight: null, waveHeightMax: null, wavePeriod: null,
     wavePeriodMean: null, waveDir: null,
-    windSpeed: extractObs(params, 'VV', 'AVG'),
-    windDir: extractObs(params, 'DV', 'AVG'),
-    windGust: extractObs(params, 'VV', 'RACHA') ?? extractObs(params, 'VV', 'MAX'),
-    waterTemp: extractObs(params, 'TAU', 'AVG', 2),
-    airTemp: extractObs(params, 'TA', 'AVG'),
+    windSpeed: cur.windSpeed,
+    windDir: cur.windDir,
+    windGust: cur.windGust,
+    waterTemp: cur.waterTemp,
+    airTemp: cur.airTemp,
     airPressure: null,
     currentSpeed: null, currentDir: null,
-    salinity: extractObs(params, 'SAL', 'AVG', 2),
+    salinity: cur.salinity,
     seaLevel: null,
-    humidity: extractObs(params, 'HR', 'AVG'),
-    dewPoint: extractObs(params, 'TO', 'AVG'),
+    humidity: cur.humidity,
+    dewPoint: cur.dewPoint,
   };
 }
 
