@@ -89,6 +89,44 @@ describe('TidePanel', () => {
     });
   });
 
+  it('degrades honestly when the IHM fails, and still shows the measured level', async () => {
+    vi.mocked(fetchTides48h).mockRejectedValue(new Error('IHM API error: 500'));
+    // Vigo gauge reported half an hour ago
+    const recent = { ...mockGaugeReading(250), timestamp: new Date('2026-07-19T09:30:00').toISOString() };
+    useBuoyStore.setState({ buoys: [recent] });
+    render(<TidePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Tabla del IHM no disponible')).toBeDefined();
+    });
+    expect(screen.queryByText(/Error cargando mareas/)).toBeNull();
+    expect(screen.getByText(/Nivel medido ahora/)).toBeDefined();
+    expect(screen.getByText('2.50 m')).toBeDefined();
+    expect(screen.getByText(/no se puede calcular la resaca/)).toBeDefined();
+  });
+
+  it('does not present a stale gauge reading as the level now', async () => {
+    vi.mocked(fetchTides48h).mockRejectedValue(new Error('IHM API error: 500'));
+    // Six hours old: beyond what "now" can mean for this gauge
+    const stale = { ...mockGaugeReading(250), timestamp: new Date('2026-07-19T04:00:00').toISOString() };
+    useBuoyStore.setState({ buoys: [stale] });
+    render(<TidePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Tabla del IHM no disponible')).toBeDefined();
+    });
+    expect(screen.queryByText(/Nivel medido ahora/)).toBeNull();
+  });
+
+  it('labels a table that came from the stored copy', async () => {
+    vi.mocked(fetchTides48h).mockResolvedValue({ today: TODAY_POINTS, tomorrow: TOMORROW_POINTS, fromCache: true });
+    render(<TidePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('tabla guardada')).toBeDefined();
+    });
+  });
+
   it('renders a continuous tide curve covering a full cycle when expanded', async () => {
     render(<TidePanel />);
 

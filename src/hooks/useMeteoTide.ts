@@ -153,6 +153,43 @@ function readSimSurgeCm(): number | null {
   return Number.isFinite(cm) ? cm : null;
 }
 
+/** A measured level older than this is not "now" any more. PORTUS runs ~2 h late. */
+const GAUGE_LEVEL_MAX_AGE_MS = 4 * 60 * 60_000;
+/** Tolerated clock skew for a reading stamped slightly in the future. */
+const GAUGE_LEVEL_SKEW_MS = 10 * 60_000;
+
+export interface GaugeLevelNow {
+  gaugeName: string;
+  observedM: number;
+  at: Date;
+}
+
+/**
+ * The measured level of the gauge paired with a tide port, WITHOUT the IHM
+ * prediction. It exists for the moment the IHM is down: the surge cannot be
+ * computed then, but what the water is doing can still be shown.
+ */
+export function gaugeLevelNow(
+  tideStationId: string | undefined,
+  buoys: readonly BuoyReading[],
+  now: Date = new Date(),
+): GaugeLevelNow | null {
+  if (!tideStationId) return null;
+  const readingOf = (g: TideGauge) => buoys.find((b) => b.stationId === g.buoyStationId);
+  const gauge = selectGaugeForTideStation(tideStationId, (g) => gaugeLevelFromReading(readingOf(g)) != null);
+  if (!gauge) return null;
+  const level = gaugeLevelFromReading(readingOf(gauge));
+  if (!level) return null;
+  const age = now.getTime() - level.at.getTime();
+  if (age > GAUGE_LEVEL_MAX_AGE_MS || age < -GAUGE_LEVEL_SKEW_MS) return null;
+  return { gaugeName: gauge.name, observedM: level.cm / CM_PER_M, at: level.at };
+}
+
+export function useGaugeLevel(tideStationId: string | undefined): GaugeLevelNow | null {
+  const buoys = useBuoyStore((s) => s.buoys);
+  return useMemo(() => gaugeLevelNow(tideStationId, buoys), [tideStationId, buoys]);
+}
+
 /**
  * Returns null whenever there is nothing trustworthy to say — no gauge nearby,
  * no level reported, a stale reading, or a residual small enough to be noise.

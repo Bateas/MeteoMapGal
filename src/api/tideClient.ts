@@ -101,13 +101,92 @@ export async function fetchTidePredictions(
   stationId: string = DEFAULT_TIDE_STATION.id,
   date?: Date
 ): Promise<TidePoint[]> {
+  const day = date ?? new Date();
+  const key = tideCacheKey(stationId, day);
+  try {
+    const points = await fetchTidePredictionsLive(stationId, day);
+    if (points.length > 0) writeTideCache(key, points);
+    servedFromCache.delete(key);
+    return points;
+  } catch (err) {
+    // A day's tide table is astronomical and never changes, so the last good
+    // copy of it is not stale data: it is the same answer. Serving it keeps
+    // every tide surface alive through an IHM outage instead of all of them
+    // failing at once.
+    const cached = readTideCache(key);
+    if (cached) {
+      servedFromCache.add(key);
+      return cached;
+    }
+    throw err;
+  }
+}
+
+// ── Last-good tide tables ──────────────────────────────────────────
+
+const TIDE_CACHE_PREFIX = 'ihm-tide:v1:';
+/** Tables older than this many days are pruned on write. */
+const TIDE_CACHE_KEEP_DAYS = 3;
+/** Keys whose last answer came from the cache rather than the IHM. */
+const servedFromCache = new Set<string>();
+
+function yyyymmdd(d: Date): string {
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function tideCacheKey(stationId: string, day: Date): string {
+  return `${TIDE_CACHE_PREFIX}${stationId}:${yyyymmdd(day)}`;
+}
+
+function readTideCache(key: string): TidePoint[] | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) && parsed.length > 0 ? (parsed as TidePoint[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeTideCache(key: string, points: TidePoint[]): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(points));
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - TIDE_CACHE_KEEP_DAYS);
+    const oldest = yyyymmdd(cutoff);
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(TIDE_CACHE_PREFIX)) continue;
+      const stamp = k.slice(k.lastIndexOf(':') + 1);
+      if (stamp < oldest) localStorage.removeItem(k);
+    }
+  } catch {
+    // Private mode, quota, or no storage at all: the table simply is not kept.
+  }
+}
+
+/** True when the last answer for that station and day came from the cache. */
+export function isTideFromCache(stationId: string, day: Date): boolean {
+  return servedFromCache.has(tideCacheKey(stationId, day));
+}
+
+/** Test-only: forget which answers came from the cache. */
+export function __clearTideTableCacheForTests(): void {
+  servedFromCache.clear();
+}
+
+async function fetchTidePredictionsLive(
+  stationId: string,
+  date: Date,
+): Promise<TidePoint[]> {
   const params = new URLSearchParams({
     request: 'gettide',
     id: stationId,
     format: 'json',
   });
 
-  const queryDate = date ?? new Date();
+  const queryDate = date;
   const yyyy = queryDate.getFullYear();
   const mm = String(queryDate.getMonth() + 1).padStart(2, '0');
   const dd = String(queryDate.getDate()).padStart(2, '0');
@@ -183,6 +262,8 @@ export interface FetchTidesResult {
   tomorrow: TidePoint[];
   yesterday?: TidePoint[];
   all?: TidePoint[];
+  /** True when today's or tomorrow's table came from the last-good cache. */
+  fromCache?: boolean;
 }
 
 /**
@@ -230,5 +311,6 @@ export async function fetchTides48h(
     today: today.length > 0 ? today : todayPts,
     tomorrow: tomorrowList.length > 0 ? tomorrowList : tomorrowPts,
     all: uniquePoints,
+    fromCache: isTideFromCache(stationId, now) || isTideFromCache(stationId, tomorrow),
   };
 }
