@@ -275,10 +275,15 @@ export function useMeteoTide(tideStationId: string | undefined): MeteoTide | nul
         // Three consecutive days so any instant of today is bracketed:
         // yesterday's last extreme covers the stretch before today's first,
         // tomorrow's first covers the stretch after today's last.
+        // The surge is gauge minus table, so it is only as good as the two
+        // sharing a datum. That was checked for the IHM table; MeteoGalicia's
+        // stand-in table has not been checked yet, so it is left out and the
+        // line stays quiet rather than reporting a datum difference as weather.
+        const ihmOnly = (pts: typeof todayPoints) => pts.filter((p) => p.source !== 'meteosix');
         setExtremes([
-          ...toExtremes(yesterdayPoints, prevDay),
-          ...toExtremes(todayPoints, today),
-          ...toExtremes(tomorrowPoints, nextDay),
+          ...toExtremes(ihmOnly(yesterdayPoints), prevDay),
+          ...toExtremes(ihmOnly(todayPoints), today),
+          ...toExtremes(ihmOnly(tomorrowPoints), nextDay),
         ]);
       })
       .catch(() => {

@@ -127,6 +127,16 @@ describe('TidePanel', () => {
     });
   });
 
+  it('names the MeteoGalicia port when its table stood in for the IHM', async () => {
+    vi.mocked(fetchTides48h).mockResolvedValue({ today: TODAY_POINTS, tomorrow: TOMORROW_POINTS, meteoSixPort: 'Vigo' });
+    render(<TidePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('tabla MeteoGalicia · Vigo')).toBeDefined();
+    });
+    expect(screen.queryByText('tabla guardada')).toBeNull();
+  });
+
   it('renders a continuous tide curve covering a full cycle when expanded', async () => {
     render(<TidePanel />);
 

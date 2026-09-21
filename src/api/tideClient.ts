@@ -20,6 +20,8 @@ export interface TidePoint {
   epochMs?: number;
   /** Original raw UTC time HH:MM from IHM */
   rawUtc?: string;
+  /** Who published the table. Absent means the IHM. */
+  source?: 'ihm' | 'meteosix';
 }
 
 export interface TideStation {
@@ -51,6 +53,7 @@ export const RIAS_TIDE_STATIONS: TideStation[] = [
 export const DEFAULT_TIDE_STATION = RIAS_TIDE_STATIONS[0]; // Vigo
 
 import { fetchWithRetry } from './fetchWithRetry';
+import { METEOSIX } from '../config/apiEndpoints';
 
 const IHM_BASE = '/ihm-api';
 
@@ -107,6 +110,7 @@ export async function fetchTidePredictions(
     const points = await fetchTidePredictionsLive(stationId, day);
     if (points.length > 0) writeTideCache(key, points);
     servedFromCache.delete(key);
+    servedFromMeteoSix.delete(key);
     return points;
   } catch (err) {
     // A day's tide table is astronomical and never changes, so the last good
@@ -118,8 +122,97 @@ export async function fetchTidePredictions(
       servedFromCache.add(key);
       return cached;
     }
+    // No stored copy: the day has never loaded here. MeteoGalicia publishes
+    // its own tide table for the Galician ports, so ask it for the same day.
+    const station = RIAS_TIDE_STATIONS.find((s) => s.id === stationId);
+    if (station) {
+      try {
+        const fallback = await fetchMeteoSixTideDay(station, day);
+        if (fallback.points.length > 0) {
+          servedFromMeteoSix.set(key, fallback.portName);
+          return fallback.points;
+        }
+      } catch {
+        // Both publishers down: report the original IHM failure.
+      }
+    }
     throw err;
   }
+}
+
+// ── MeteoGalicia fallback ─────────────────────────────────────────
+
+/** Port whose table MeteoSIX returned, keyed like the cache. */
+const servedFromMeteoSix = new Map<string, string | null>();
+
+/** "2026-09-22T04:32:00+02" → "+02:00": JS needs the colon in the offset. */
+function fixMeteoSixOffset(ts: string): string {
+  return ts.replace(/([+-]\d{2})$/, '$1:00').replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+}
+
+function localDayParam(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Parse a MeteoSIX /getTidesInfo answer into the extremes of one local day.
+ * MeteoSIX picks the Galician port nearest to the coordinates and says which
+ * one, so the name is returned for the label rather than assumed.
+ */
+export function parseMeteoSixTides(data: unknown, day: Date): { points: TidePoint[]; portName: string | null } {
+  const features = (data as { features?: unknown[] } | null)?.features;
+  const props = (Array.isArray(features) ? features[0] : null) as
+    | { properties?: { port?: { name?: string }; days?: unknown[] } }
+    | null;
+  const properties = props?.properties;
+  const portName = properties?.port?.name ?? null;
+  const wanted = formatToLocalDate(day);
+  const points: TidePoint[] = [];
+
+  for (const dayEntry of properties?.days ?? []) {
+    const variables = (dayEntry as { variables?: unknown[] }).variables ?? [];
+    for (const v of variables) {
+      const variable = v as { name?: string; summary?: unknown[] };
+      if (variable.name !== 'tides') continue;
+      for (const s of variable.summary ?? []) {
+        const e = s as { state?: string; timeInstant?: string; height?: number | string };
+        if (!e.timeInstant || e.height == null) continue;
+        const height = typeof e.height === 'number' ? e.height : parseFloat(e.height);
+        const when = new Date(fixMeteoSixOffset(e.timeInstant));
+        if (!Number.isFinite(height) || Number.isNaN(when.getTime())) continue;
+        const date = formatToLocalDate(when);
+        if (date !== wanted) continue;
+        points.push({
+          time: formatToLocalHHMM(when),
+          height,
+          type: /high/i.test(e.state ?? '') ? 'high' : 'low',
+          date,
+          epochMs: when.getTime(),
+          source: 'meteosix',
+        });
+      }
+    }
+  }
+
+  points.sort((a, b) => (a.epochMs ?? 0) - (b.epochMs ?? 0));
+  return { points, portName };
+}
+
+async function fetchMeteoSixTideDay(
+  station: TideStation,
+  day: Date,
+): Promise<{ points: TidePoint[]; portName: string | null }> {
+  const d = localDayParam(day);
+  const url = `${METEOSIX.tides(station.lon, station.lat)}&startTime=${d}T00:00:00&endTime=${d}T23:59:59`;
+  const response = await fetchWithRetry(url, { label: 'Tide MeteoSIX', timeout: 10_000, maxRetries: 1 });
+  if (!response.ok) throw new Error(`MeteoSIX tides error: ${response.status}`);
+  return parseMeteoSixTides(await response.json(), day);
+}
+
+/** The MeteoGalicia port whose table stood in for that day, if one did. */
+export function meteoSixTidePort(stationId: string, day: Date): string | null | undefined {
+  const key = tideCacheKey(stationId, day);
+  return servedFromMeteoSix.has(key) ? servedFromMeteoSix.get(key) : undefined;
 }
 
 // ── Last-good tide tables ──────────────────────────────────────────
@@ -174,6 +267,7 @@ export function isTideFromCache(stationId: string, day: Date): boolean {
 /** Test-only: forget which answers came from the cache. */
 export function __clearTideTableCacheForTests(): void {
   servedFromCache.clear();
+  servedFromMeteoSix.clear();
 }
 
 async function fetchTidePredictionsLive(
@@ -264,6 +358,8 @@ export interface FetchTidesResult {
   all?: TidePoint[];
   /** True when today's or tomorrow's table came from the last-good cache. */
   fromCache?: boolean;
+  /** Set when MeteoGalicia's table stood in for the IHM: the port it used. */
+  meteoSixPort?: string | null;
 }
 
 /**
@@ -312,5 +408,6 @@ export async function fetchTides48h(
     tomorrow: tomorrowList.length > 0 ? tomorrowList : tomorrowPts,
     all: uniquePoints,
     fromCache: isTideFromCache(stationId, now) || isTideFromCache(stationId, tomorrow),
+    meteoSixPort: meteoSixTidePort(stationId, now) ?? meteoSixTidePort(stationId, tomorrow),
   };
 }

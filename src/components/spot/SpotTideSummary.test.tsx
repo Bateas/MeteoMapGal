@@ -96,6 +96,20 @@ describe('SpotTideSummary — meteorological tide line', () => {
     expect(screen.queryByText(/tabla/)).toBeNull();
   });
 
+  it('stays quiet on the MeteoGalicia stand-in table, whose datum is unchecked', async () => {
+    const fromMeteoSix = (pts: TidePoint[]) => pts.map((p) => ({ ...p, source: 'meteosix' as const }));
+    vi.mocked(fetchTidePredictions).mockResolvedValue(fromMeteoSix(JUL19));
+    vi.mocked(fetchTides48h).mockResolvedValue({ today: fromMeteoSix(JUL19), tomorrow: fromMeteoSix(JUL20) });
+    useBuoyStore.setState({ buoys: [vigoGauge(2.31)] });
+    render(<SpotTideSummary tideStationId="29" />);
+
+    // The table itself still shows: only the surge line is withheld
+    expect(await screen.findByText(/06:22/)).toBeInTheDocument();
+    await waitFor(() => expect(fetchTides48h).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByText(/por encima de tabla/)).toBeNull();
+  });
+
   it('does not even ask for predictions when no gauge reports a level', async () => {
     useBuoyStore.setState({ buoys: [vigoGauge(null)] });
     render(<SpotTideSummary tideStationId="29" />);

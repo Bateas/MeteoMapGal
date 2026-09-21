@@ -18,6 +18,8 @@ import { WeatherIcon } from '../icons/WeatherIcons';
 interface TideData {
   /** The IHM was failing and this is the last table it gave for the day. */
   fromCache?: boolean;
+  /** The IHM was failing and MeteoGalicia's table for this port stood in. */
+  meteoSixPort?: string | null;
   today: TidePoint[];
   tomorrow: TidePoint[];
   yesterday?: TidePoint[];
@@ -56,6 +58,7 @@ export const TidePanel = memo(function TidePanel() {
         yesterday: result.yesterday,
         all: result.all,
         fromCache: result.fromCache ?? false,
+        meteoSixPort: result.meteoSixPort,
         station,
         fetchedAt: new Date(),
       });
@@ -282,6 +285,14 @@ export const TidePanel = memo(function TidePanel() {
                 title="El IHM no responde ahora: es la última tabla descargada para hoy, y una tabla de mareas no cambia."
               >
                 tabla guardada
+              </span>
+            )}
+            {data.meteoSixPort !== undefined && (
+              <span
+                className="text-[10px] text-amber-300/80 flex-shrink-0"
+                title={`El IHM no responde ahora: horas y alturas de la tabla de MeteoGalicia${data.meteoSixPort ? ` (puerto de ${data.meteoSixPort})` : ''}.`}
+              >
+                tabla MeteoGalicia{data.meteoSixPort ? ` · ${data.meteoSixPort}` : ''}
               </span>
             )}
             {tideStrength && (tideStrength.category === 'vivas' || tideStrength.category === 'extremas') && (
