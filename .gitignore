@@ -50,6 +50,8 @@ n8n-workflow-*.json
 scripts/
 docs/*
 !docs/LEARNINGS_AND_IMPROVEMENTS.md
+!docs/data-science/
+!docs/data-science/**
 Fuentes/
 repo-filterclean/
 pitch-deck-*.html

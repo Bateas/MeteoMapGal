@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CESGA Data Pipeline — MeteoMapGal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; max-width: 900px; margin: 0 auto; line-height: 1.6; }
+  h1 { color: #60a5fa; font-size: 1.8rem; margin-bottom: 0.5rem; }
+  h2 { color: #38bdf8; font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 1px solid #1e3a5f; padding-bottom: 0.3rem; }
+  h3 { color: #94a3b8; font-size: 1rem; margin: 1.2rem 0 0.5rem; }
+  p, li { color: #cbd5e1; margin-bottom: 0.5rem; }
+  code { background: #1e293b; color: #60a5fa; padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', 'Cascadia Code', monospace; font-size: 0.9em; }
+  pre { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 0.8rem 0; font-size: 0.85rem; }
+  pre code { background: none; padding: 0; }
+  a { color: #60a5fa; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .gold { background: #854d0e; color: #fbbf24; }
+  .green { background: #14532d; color: #4ade80; }
+  .blue { background: #1e3a5f; color: #60a5fa; }
+  .red { background: #7f1d1d; color: #f87171; }
+  .warn { background: #78350f; color: #fbbf24; padding: 0.8rem; border-radius: 8px; margin: 1rem 0; }
+  table { width: 100%; border-collapse: collapse; margin: 0.8rem 0; }
+  th { background: #1e293b; color: #94a3b8; text-align: left; padding: 0.5rem; font-size: 0.8rem; text-transform: uppercase; }
+  td { padding: 0.5rem; border-bottom: 1px solid #1e293b; font-size: 0.9rem; }
+  .step { background: #1e293b; border-left: 3px solid #60a5fa; padding: 1rem; border-radius: 0 8px 8px 0; margin: 0.8rem 0; }
+  .step-num { color: #60a5fa; font-weight: 700; font-size: 1.1rem; }
+  ol { padding-left: 1.5rem; }
+  ul { padding-left: 1.5rem; list-style: disc; }
+  .phase { background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; margin: 1rem 0; }
+</style>
+</head>
+<body>
+
+<h1>CESGA / MeteoGalicia Data Pipeline</h1>
+<p>Manual para descargar datos historicos WRF, SWAN, ROMS y cargarlos en TimescaleDB para MeteoMapGal.</p>
+<p><span class="badge blue">v1.0</span> <span class="badge green">S113 - Apr 2026</span></p>
+
+<div class="warn">
+  <strong>El THREDDS de MeteoGalicia cae frecuentemente (503).</strong> Es normal. Reintentar cada pocas horas. Los datos son publicos, no requieren cuenta.
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>URLs de descarga directa</h2>
+
+<table>
+  <tr><th>Dataset</th><th>Valor</th><th>URL THREDDS</th></tr>
+  <tr>
+    <td><strong>WRF 1km historico</strong></td>
+    <td><span class="badge gold">ORO</span></td>
+    <td><a href="https://mandeo.meteogalicia.es/thredds/catalog/modelos/WRF_ARW_1KM_HIST_Novo/catalog.html" target="_blank">WRF_ARW_1KM_HIST_Novo</a></td>
+  </tr>
+  <tr>
+    <td><strong>SWAN oleaje historico</strong></td>
+    <td><span class="badge gold">ORO</span></td>
+    <td><a href="https://mandeo.meteogalicia.es/thredds/catalog/modelos/SWAN_HIST/galicia/catalog.html" target="_blank">SWAN_HIST/galicia</a></td>
+  </tr>
+  <tr>
+    <td><strong>ROMS corrientes/SST</strong></td>
+    <td><span class="badge blue">UTIL</span></td>
+    <td><a href="https://mandeo.meteogalicia.es/thredds/catalog/modelos/roms/rawoutput/roms_raw/catalog.html" target="_blank">roms/rawoutput</a></td>
+  </tr>
+  <tr>
+    <td><strong>MOHID estuarios</strong></td>
+    <td><span class="badge blue">UTIL</span></td>
+    <td><a href="https://mandeo.meteogalicia.es/thredds/catalogos/MOHID/catalog.html" target="_blank">MOHID</a></td>
+  </tr>
+  <tr>
+    <td><strong>Atlas de Vento</strong></td>
+    <td><span class="badge blue">UTIL</span></td>
+    <td><a href="https://datos.gob.es/en/catalogo/a12002994-atlas-de-vento" target="_blank">datos.gob.es</a></td>
+  </tr>
+  <tr>
+    <td><strong>WRF historico d03 (4km)</strong></td>
+    <td><span class="badge blue">EXTRA</span></td>
+    <td><a href="https://mandeo.meteogalicia.es/thredds/catalog/modelos/WRF_HIST/d03/catalog.html" target="_blank">WRF_HIST/d03</a></td>
+  </tr>
+  <tr>
+    <td>CESGA BigData (cuenta)</td>
+    <td>Alternativa</td>
+    <td><a href="https://ccmmbigdata.cesga.es/datasets" target="_blank">ccmmbigdata.cesga.es</a></td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>FASE 0: Setup Python en W11 (una vez, 10min)</h2>
+
+<div class="phase">
+<div class="step">
+  <span class="step-num">0.1</span> Instalar Python
+  <pre><code>:: PowerShell como administrador
+winget install Python.Python.3.12
+:: Cerrar y reabrir PowerShell</code></pre>
+</div>
+
+<div class="step">
+  <span class="step-num">0.2</span> Crear entorno virtual
+  <pre><code>mkdir E:\ProyectosDES\MeteoMap-DataScience
+cd E:\ProyectosDES\MeteoMap-DataScience
+python -m venv venv
+.\venv\Scripts\activate</code></pre>
+</div>
+
+<div class="step">
+  <span class="step-num">0.3</span> Instalar librerias
+  <pre><code>pip install xarray netCDF4 dask h5py pandas numpy psycopg2-binary sqlalchemy</code></pre>
+</div>
+
+<div class="step">
+  <span class="step-num">0.4</span> Verificar
+  <pre><code>python -c "import xarray; print('OK:', xarray.__version__)"</code></pre>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>FASE 1: Descargar fichero de prueba</h2>
+
+<div class="phase">
+<div class="step">
+  <span class="step-num">1.1</span> Abrir catalogo THREDDS en navegador
+  <pre><code><a href="https://mandeo.meteogalicia.es/thredds/catalog.html" target="_blank">https://mandeo.meteogalicia.es/thredds/catalog.html</a></code></pre>
+  <p>Si da <span class="badge red">503</span> esperar y reintentar. Es normal.</p>
+</div>
+
+<div class="step">
+  <span class="step-num">1.2</span> Navegar: modelos &rarr; WRF_ARW_1KM_HIST_Novo &rarr; [fecha] &rarr; fichero .nc4
+</div>
+
+<div class="step">
+  <span class="step-num">1.3</span> Click en fichero &rarr; seleccionar <strong>HTTPServer</strong> &rarr; descarga directa (~200-500MB)
+</div>
+
+<div class="step">
+  <span class="step-num">1.4</span> Guardar en <code>E:\ProyectosDES\MeteoMap-DataScience\raw\</code>
+</div>
+
+<div class="step">
+  <span class="step-num">1.5</span> Inspeccionar el fichero
+  <pre><code>cd E:\ProyectosDES\MeteoMap-DataScience
+.\venv\Scripts\activate
+python -c "
+import xarray as xr
+ds = xr.open_dataset('raw/NOMBRE_FICHERO.nc4')
+print('=== VARIABLES ===')
+for var in ds.data_vars:
+    print(f'  {var}: {ds[var].dims}')
+print('=== COORDENADAS ===')
+for coord in ds.coords:
+    print(f'  {coord}: {ds[coord].values[:3]}...')
+print('=== DIMENSIONES ===')
+print(ds.dims)
+"</code></pre>
+  <p><strong>Copiar el output y darselo a Claude.</strong> El escribira el script ETL completo.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>FASE 2: Preparar TimescaleDB</h2>
+
+<div class="phase">
+<div class="step">
+  <span class="step-num">2.1</span> Ampliar disco LXC 306 en Proxmox
+  <p>Proxmox UI &rarr; LXC 306 &rarr; Hardware &rarr; Root Disk &rarr; Resize &rarr; <strong>+30GB</strong></p>
+  <p>No hace falta reiniciar.</p>
+</div>
+
+<div class="step">
+  <span class="step-num">2.2</span> Crear tablas
+  <pre><code>sudo -u postgres psql -d meteomapgal
+
+-- WRF hindcast (viento, temp, precip...)
+CREATE TABLE IF NOT EXISTS wrf_hindcast (
+    time TIMESTAMPTZ NOT NULL, spot_id TEXT NOT NULL,
+    lat REAL, lon REAL, wind_speed REAL, wind_dir REAL,
+    wind_gust REAL, temp REAL, humidity REAL, pressure REAL,
+    precip REAL, cloud_cover REAL, cape REAL, solar_rad REAL
+);
+SELECT create_hypertable('wrf_hindcast','time',if_not_exists=>TRUE);
+CREATE INDEX idx_wrf_spot ON wrf_hindcast(spot_id,time DESC);
+
+-- SWAN hindcast (oleaje)
+CREATE TABLE IF NOT EXISTS swan_hindcast (
+    time TIMESTAMPTZ NOT NULL, spot_id TEXT NOT NULL,
+    lat REAL, lon REAL, wave_height REAL, wave_period REAL,
+    wave_dir REAL, swell_height REAL, swell_period REAL, swell_dir REAL
+);
+SELECT create_hypertable('swan_hindcast','time',if_not_exists=>TRUE);
+CREATE INDEX idx_swan_spot ON swan_hindcast(spot_id,time DESC);
+
+-- ROMS hindcast (corrientes, SST)
+CREATE TABLE IF NOT EXISTS roms_hindcast (
+    time TIMESTAMPTZ NOT NULL, spot_id TEXT NOT NULL,
+    lat REAL, lon REAL, current_u REAL, current_v REAL,
+    sst REAL, salinity REAL
+);
+SELECT create_hypertable('roms_hindcast','time',if_not_exists=>TRUE);
+CREATE INDEX idx_roms_spot ON roms_hindcast(spot_id,time DESC);
+
+GRANT SELECT ON wrf_hindcast,swan_hindcast,roms_hindcast TO meteomap_app;</code></pre>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>FASE 3: ETL (Claude escribe el script)</h2>
+
+<div class="phase">
+<p>Con el output de FASE 1.5 + las tablas de FASE 2 creadas, pedirle a Claude:</p>
+<pre><code>"Tengo este fichero NetCDF4 con estas variables [pegar output].
+Escribe un script Python que extraiga los datos para mis 13 spots
+y los cargue en TimescaleDB (wrf_hindcast table)."</code></pre>
+<p>Claude escribira el script. Tu solo ejecutas:</p>
+<pre><code>.\venv\Scripts\activate
+python etl_wrf.py</code></pre>
+<p><strong>Tiempo estimado: 2-4h batch para varios anos.</strong> Xeon se puede apagar despues.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>FASE 4: Verificar</h2>
+
+<div class="phase">
+<pre><code>-- Climatologia viento Cesantes julio 14-18h
+SELECT EXTRACT(hour FROM time) AS hora,
+    ROUND(AVG(wind_speed * 1.94384)::numeric, 1) AS avg_kt
+FROM wrf_hindcast
+WHERE spot_id = 'cesantes'
+  AND EXTRACT(month FROM time) = 7
+  AND EXTRACT(hour FROM time) BETWEEN 14 AND 18
+GROUP BY hora ORDER BY hora;
+
+-- Dias con SW 12-15kt (F5 "Dias como hoy")
+SELECT DISTINCT DATE(time) AS dia,
+    ROUND(AVG(wind_speed * 1.94384)::numeric, 1) AS avg_kt
+FROM wrf_hindcast
+WHERE spot_id = 'cesantes'
+  AND wind_dir BETWEEN 200 AND 250
+  AND wind_speed * 1.94384 BETWEEN 12 AND 15
+  AND EXTRACT(hour FROM time) BETWEEN 12 AND 18
+GROUP BY dia HAVING COUNT(*) >= 3
+ORDER BY dia DESC LIMIT 20;</code></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2>Servidores recomendados</h2>
+
+<table>
+  <tr><th>Tarea</th><th>Servidor</th><th>Encendido</th></tr>
+  <tr><td>Descarga + ETL pesado</td><td><strong>Xeon 256GB</strong> (dask paralelo)</td><td>Batch 2-4h, apagar</td></tr>
+  <tr><td>ML / Deep Learning</td><td><strong>Ryzen + 5090</strong></td><td>Solo cuando entrenes</td></tr>
+  <tr><td>TimescaleDB (resultado)</td><td>LXC 306 (ya 24/7)</td><td>Siempre</td></tr>
+</table>
+
+<p style="margin-top: 2rem; color: #64748b; font-size: 0.8rem;">MeteoMapGal &mdash; CESGA Data Pipeline Manual &mdash; S113 Apr 2026</p>
+
+</body>
+</html>
