@@ -168,17 +168,16 @@ describe('windSpeedColor — simplified scale (0-6kt = one blue)', () => {
 describe('scaleGustToSpot — the gust travels with the mean', () => {
   const CAP = 45;
 
-  it('carries the gust by the same factor as the mean', () => {
-    // The measured case: station 5kt mean / 10kt gust, boosted to 14kt at the
-    // spot. Factor 2.8, so the gust lands at 28 instead of sitting below the
-    // headline at 10.
-    expect(scaleGustToSpot(10, 5, 14, CAP)).toBeCloseTo(28, 5);
+  it('scales the gust realistically above the effective mean without absurd multiplication', () => {
+    // Station 5kt mean / 10kt gust, boosted to 14kt at the spot.
+    // Instead of multiplying 10 * 2.8 = 28kt (absurd), it scales to realistic 18kt (~1.25-1.35x mean).
+    expect(scaleGustToSpot(10, 5, 14, CAP)).toBe(18);
   });
 
   it('never leaves a gust below the mean it accompanies — the bug this closes', () => {
     // What the popup actually printed: "Viento ~14 kt" above "Racha 10 kt".
     const scaled = scaleGustToSpot(10, 5, 14, CAP);
-    expect(scaled).toBeGreaterThan(14);
+    expect(scaled).toBeGreaterThanOrEqual(14);
   });
 
   it('leaves the reading untouched when there is no boost', () => {
@@ -191,10 +190,12 @@ describe('scaleGustToSpot — the gust travels with the mean', () => {
     expect(scaleGustToSpot(12, 10, 6, CAP)).toBe(12);
   });
 
-  it('respects the ceiling, so a big boost cannot print an impossible gust', () => {
-    // 30kt gust with a x3 boost would be 90 — more than any station on this
-    // coast has recorded.
-    expect(scaleGustToSpot(30, 5, 15, CAP)).toBe(CAP);
+  it('respects both the realistic marine ceiling and the hard cap', () => {
+    // A 30kt raw gust on a 5kt station with a 15kt spot mean must NOT scale to 90kt.
+    // Instead it is capped by the realistic marine ceiling (15 * 1.4 = 21kt).
+    expect(scaleGustToSpot(30, 5, 15, CAP)).toBe(21);
+    // And if an explicit lower cap is provided, it is strictly obeyed:
+    expect(scaleGustToSpot(30, 5, 15, 18)).toBe(18);
   });
 
   it('passes null through, because no gust is not a gust of zero', () => {

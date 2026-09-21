@@ -284,10 +284,21 @@ export function scaleGustToSpot(
   if (gustKt === null || !Number.isFinite(gustKt)) return null;
   // No boost in play, or no mean to scale against: the reading stands as it is.
   if (measuredKt <= 0 || !Number.isFinite(measuredKt) || !Number.isFinite(effectiveKt)) return gustKt;
-  const factor = effectiveKt / measuredKt;
-  // Only ever carries a gust UP. A boost below 1 would mean the spot is calmer
-  // than its stations, and shrinking a measured gust to fit that is inventing
-  // calm — the opposite of what the caps elsewhere exist to prevent.
-  if (!(factor > 1)) return gustKt;
-  return Math.min(gustKt * factor, capKt);
+  if (effectiveKt <= measuredKt) return gustKt;
+
+  // The gust must travel with the mean so that the gust is never below the effective mean
+  // (e.g. avoiding "Viento 13kt, Racha 10kt").
+  // However, it must NEVER multiply the measured gust by the mean's boost factor
+  // (e.g. 13kt gust * 2.8x boost = 37kt absurd hurricane gust on a 13kt thermal day!).
+  // Over open water (flat water in San Simón), the gust factor is typically 1.2-1.35x.
+  const minGust = Math.round(effectiveKt * 1.25);
+  // Additive spread from measured gust (dampened by half so sheltered delta doesn't over-inflate)
+  const measuredSpread = Math.max(0, gustKt - measuredKt);
+  const candidateGust = Math.max(gustKt, minGust, Math.round(effectiveKt + measuredSpread * 0.5));
+
+  // Marine ceiling: over water, gusts in canalized/thermal flow rarely exceed 1.4x the mean
+  const marineGustCeiling = Math.round(effectiveKt * 1.4);
+  const finalGust = Math.min(candidateGust, Math.max(minGust, marineGustCeiling), capKt);
+
+  return finalGust;
 }
