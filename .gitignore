@@ -51,7 +51,8 @@ scripts/
 docs/*
 !docs/LEARNINGS_AND_IMPROVEMENTS.md
 !docs/data-science/
-!docs/data-science/**
+docs/data-science/*
+!docs/data-science/HIPOTESIS_MODELO_PREDICTOR_CESANTES.md
 Fuentes/
 repo-filterclean/
 pitch-deck-*.html

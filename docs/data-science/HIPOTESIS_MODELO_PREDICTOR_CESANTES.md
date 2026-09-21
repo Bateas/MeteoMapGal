@@ -144,10 +144,12 @@ Para evitar el sobreajuste (*overfitting*) y fugas hacia el futuro (*lookahead b
 
 ## 7. Guía Práctica de Ejecución Paso a Paso
 
-### Paso 1: Volcar el Dataset Curado en el Servidor de Base de Datos (`meteomapdb`)
-Conéctate por SSH a `root@meteomapdb:~#` y ejecuta:
+### Paso 1: Volcar el Dataset Curado en el Servidor de Base de Datos
+> **Aviso:** la extraccion recorre millones de lecturas. Lanzala **troceada por meses y fuera de horas de uso**; de una sola vez puede dejar sin memoria al servidor de base de datos.
+
+En el servidor de base de datos, desde el directorio del repositorio:
 ```bash
-cd /opt/MeteoMapGal
+cd RUTA_DEL_REPO
 git pull origin master
 sudo -u postgres psql -d meteomapgal -f tools/export_cesantes_curated.sql -A -F ',' | gzip > /tmp/cesantes_curated_2026.csv.gz
 ls -lh /tmp/cesantes_curated_2026.csv.gz
@@ -157,7 +159,7 @@ ls -lh /tmp/cesantes_curated_2026.csv.gz
 ### Paso 2: Descargar el Archivo a tu PC Local con la 5090
 Desde una terminal PowerShell o Git Bash en tu PC local:
 ```powershell
-scp root@<IP_DEL_SERVIDOR_DB>:/tmp/cesantes_curated_2026.csv.gz "e:\test IA\Meteomapgal_gemini\"
+scp USUARIO@SERVIDOR_DB:/tmp/cesantes_curated_2026.csv.gz RUTA_LOCAL
 ```
 Y descomprímelo con 7-Zip, gzip o directamente en Python.
 
@@ -169,7 +171,7 @@ pip install polars lightgbm scikit-learn matplotlib pyarrow
 
 ### Paso 4: Lanzar el Entrenamiento en la RTX 5090
 ```bash
-cd "e:\test IA\Meteomapgal_gemini"
+cd RUTA_LOCAL
 python tools/train_cesantes_5090.py --data cesantes_curated_2026.csv
 ```
 

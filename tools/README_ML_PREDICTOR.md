@@ -7,9 +7,9 @@ Para la teoría física completa, diagramas termodinámicos y justificación de 
 
 ## Comandos Rápidos de Ejecución
 
-### 1. En el Servidor de Base de Datos (`meteomapdb`):
+### 1. En el Servidor de Base de Datos (troceado por meses, fuera de horas de uso):
 ```bash
-cd /opt/MeteoMapGal
+cd RUTA_DEL_REPO
 git pull origin master
 sudo -u postgres psql -d meteomapgal -f tools/export_cesantes_curated.sql -A -F ',' | gzip > /tmp/cesantes_curated_2026.csv.gz
 ```
@@ -17,7 +17,7 @@ sudo -u postgres psql -d meteomapgal -f tools/export_cesantes_curated.sql -A -F 
 ### 2. En tu PC Local (con la RTX 5090):
 Descarga el fichero:
 ```powershell
-scp root@<IP_DB_SERVER>:/tmp/cesantes_curated_2026.csv.gz "e:\test IA\Meteomapgal_gemini\"
+scp USUARIO@SERVIDOR_DB:/tmp/cesantes_curated_2026.csv.gz RUTA_LOCAL
 ```
 Descomprime el archivo `.gz` para obtener `cesantes_curated_2026.csv`.
 
