@@ -34,7 +34,7 @@ function vigoSeries() {
 }
 
 /** Real BuoyReading shape — every field, so a rename breaks the test loudly. */
-function makeGaugeReading(seaLevelCm: number | null, at: Date = observedAt): BuoyReading {
+function makeGaugeReading(seaLevelM: number | null, at: Date = observedAt): BuoyReading {
   return {
     stationId: 3221,
     stationName: 'Vigo (marea)',
@@ -53,7 +53,7 @@ function makeGaugeReading(seaLevelCm: number | null, at: Date = observedAt): Buo
     currentSpeed: null,
     currentDir: null,
     salinity: null,
-    seaLevel: seaLevelCm,
+    seaLevel: seaLevelM,
     humidity: null,
     dewPoint: null,
     source: 'portus',
@@ -129,10 +129,11 @@ describe('selectGaugeForTideStation', () => {
 });
 
 describe('gaugeLevelFromReading', () => {
-  it('reads the centimetres and the stamp off a real store reading', () => {
-    const level = gaugeLevelFromReading(makeGaugeReading(231));
+  it('reads the metres and the stamp off a real store reading', () => {
+    // 2.602 is a real Vigo value: PORTUS publishes metres, not centimetres
+    const level = gaugeLevelFromReading(makeGaugeReading(2.602));
     expect(level).not.toBeNull();
-    expect(level!.cm).toBe(231);
+    expect(level!.m).toBe(2.602);
     expect(level!.at.getTime()).toBe(observedAt.getTime());
   });
 
@@ -142,14 +143,14 @@ describe('gaugeLevelFromReading', () => {
   });
 
   it('refuses an unparseable timestamp rather than computing from NaN', () => {
-    expect(gaugeLevelFromReading({ ...makeGaugeReading(231), timestamp: 'not-a-date' })).toBeNull();
+    expect(gaugeLevelFromReading({ ...makeGaugeReading(2.31), timestamp: 'not-a-date' })).toBeNull();
   });
 });
 
 describe('meteoTideFromGauge', () => {
-  it('converts the gauge centimetres to metres before subtracting', () => {
-    // Astronomical at 15:00 sits near 1.81m; 231cm is roughly half a metre over.
-    const t = meteoTideFromGauge({ cm: 231, at: observedAt }, vigoSeries(), now);
+  it('subtracts the gauge metres directly, without rescaling them', () => {
+    // Astronomical at 15:00 sits near 1.81m; 2.31m is roughly half a metre over.
+    const t = meteoTideFromGauge({ m: 2.31, at: observedAt }, vigoSeries(), now);
     expect(t).not.toBeNull();
     expect(t!.residualM).toBeGreaterThan(0.4);
     expect(t!.residualM).toBeLessThan(0.6);
@@ -161,11 +162,11 @@ describe('meteoTideFromGauge', () => {
   });
 
   it('stays silent with no predictions to subtract', () => {
-    expect(meteoTideFromGauge({ cm: 231, at: observedAt }, [], now)).toBeNull();
+    expect(meteoTideFromGauge({ m: 2.31, at: observedAt }, [], now)).toBeNull();
   });
 
   it('reports the water sitting where the table says as level none', () => {
-    const t = meteoTideFromGauge({ cm: 181, at: observedAt }, vigoSeries(), now);
+    const t = meteoTideFromGauge({ m: 1.81, at: observedAt }, vigoSeries(), now);
     expect(t).not.toBeNull();
     expect(t!.level).toBe('none');
   });

@@ -86,7 +86,7 @@ export interface BuoyReading {
   // Salinity
   salinity: number | null;         // PSU
   // Sea level (tide gauges)
-  seaLevel: number | null;         // cm
+  seaLevel: number | null;         // m (PORTUS says "unidad":"m")
   // Observatorio Costeiro-exclusive fields
   humidity: number | null;         // % — only from Observatorio Costeiro
   dewPoint: number | null;         // °C — only from Observatorio Costeiro

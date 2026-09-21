@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS buoy_readings (
   -- Salinity
   salinity         DOUBLE PRECISION,  -- PSU
   -- Sea level
-  sea_level        DOUBLE PRECISION,  -- cm
+  sea_level        DOUBLE PRECISION,  -- m
   -- Observatorio Costeiro extras
   humidity         DOUBLE PRECISION,  -- %
   dew_point        DOUBLE PRECISION   -- °C

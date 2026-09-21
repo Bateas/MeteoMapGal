@@ -163,7 +163,7 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
         )}
 
         {reading.salinity != null && <DataCell label="Salinidad" value={`${reading.salinity.toFixed(1)} PSU`} />}
-        {reading.seaLevel != null && <DataCell label="Nivel del mar" value={`${reading.seaLevel.toFixed(0)} cm`} />}
+        {reading.seaLevel != null && <DataCell label="Nivel del mar" value={`${reading.seaLevel.toFixed(2)} m`} />}
         {reading.humidity != null && <DataCell label="Humedad" value={`${reading.humidity.toFixed(0)}%`} color={reading.humidity > 85 ? '#93c5fd' : undefined} />}
         {reading.dewPoint != null && <DataCell label="Punto de rocío" value={`${reading.dewPoint.toFixed(1)}°C`} />}
       </div>

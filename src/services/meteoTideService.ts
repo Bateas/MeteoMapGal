@@ -27,12 +27,18 @@ import type { TidePoint } from '../api/tideClient';
  *  certainly mean a datum mismatch or a broken gauge, not weather. */
 export const MAX_PLAUSIBLE_SURGE_M = 1.5;
 
-/** Below this the residual is prediction noise, not something to report. */
-export const SURGE_NOTABLE_M = 0.15;
+/** Below this the residual is not something to report.
+ *
+ *  It is NOT prediction noise alone: measured at Marin the gauge sits +6 to
+ *  +19 cm over the table all day on a calm day, and that offset drifts with
+ *  the season (+5 cm in May, +13 cm in August). The old 0.15 m line fired on
+ *  close to a third of flat-day readings. 0.25 m clears the measured baseline
+ *  with margin; lower it only after measuring each gauge's own baseline. */
+export const SURGE_NOTABLE_M = 0.25;
 
 /** A surge worth warning about: enough to cover a ramp or reach higher than
  *  the table suggests at high water. */
-export const SURGE_HIGH_M = 0.30;
+export const SURGE_HIGH_M = 0.40;
 
 export type SurgeLevel = 'none' | 'notable' | 'high';
 

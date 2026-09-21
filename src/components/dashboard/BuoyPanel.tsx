@@ -208,7 +208,7 @@ const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }
         {b.seaLevel != null && (
           <DataCell
             label="Nivel mar"
-            value={`${b.seaLevel.toFixed(0)} cm`}
+            value={`${b.seaLevel.toFixed(2)} m`}
           />
         )}
 

@@ -35,7 +35,7 @@ const JUL20: TidePoint[] = [
 ];
 
 /** Real BuoyReading shape for the Vigo tide gauge. */
-function vigoGauge(seaLevelCm: number | null): BuoyReading {
+function vigoGauge(seaLevelM: number | null): BuoyReading {
   return {
     stationId: 3221,
     stationName: 'Vigo (marea)',
@@ -54,7 +54,7 @@ function vigoGauge(seaLevelCm: number | null): BuoyReading {
     currentSpeed: null,
     currentDir: null,
     salinity: null,
-    seaLevel: seaLevelCm,
+    seaLevel: seaLevelM,
     humidity: null,
     dewPoint: null,
     source: 'portus',
@@ -78,15 +78,15 @@ describe('SpotTideSummary — meteorological tide line', () => {
   });
 
   it('says how far the water is from the table when the gap is real', async () => {
-    // Astronomical at 15:00 is near 1.81m — 231cm is roughly half a metre over
-    useBuoyStore.setState({ buoys: [vigoGauge(231)] });
+    // Astronomical at 15:00 is near 1.81m — 2.31m is roughly half a metre over
+    useBuoyStore.setState({ buoys: [vigoGauge(2.31)] });
     render(<SpotTideSummary tideStationId="29" />);
 
     expect(await screen.findByText(/por encima de tabla/)).toBeInTheDocument();
   });
 
   it('stays quiet when the water sits where the table says', async () => {
-    useBuoyStore.setState({ buoys: [vigoGauge(181)] });
+    useBuoyStore.setState({ buoys: [vigoGauge(1.81)] });
     render(<SpotTideSummary tideStationId="29" />);
 
     await screen.findByText(/Mareas hoy/);
@@ -114,7 +114,7 @@ describe('SpotTideSummary — meteorological tide line', () => {
   });
 
   it('leaves the tide table itself untouched', async () => {
-    useBuoyStore.setState({ buoys: [vigoGauge(231)] });
+    useBuoyStore.setState({ buoys: [vigoGauge(2.31)] });
     render(<SpotTideSummary tideStationId="29" />);
 
     expect(await screen.findByText(/06:22/)).toBeInTheDocument();

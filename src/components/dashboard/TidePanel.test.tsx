@@ -24,7 +24,7 @@ const TOMORROW_POINTS: TidePoint[] = [
   { time: '07:00', height: 3.1, type: 'high' },
 ];
 
-function mockGaugeReading(seaLevelCm: number | null): BuoyReading {
+function mockGaugeReading(seaLevelM: number | null): BuoyReading {
   return {
     stationId: 3221,
     stationName: 'Vigo (marea)',
@@ -43,7 +43,7 @@ function mockGaugeReading(seaLevelCm: number | null): BuoyReading {
     currentSpeed: null,
     currentDir: null,
     salinity: null,
-    seaLevel: seaLevelCm,
+    seaLevel: seaLevelM,
     humidity: null,
     dewPoint: null,
     source: 'portus',
@@ -72,8 +72,8 @@ describe('TidePanel', () => {
   });
 
   it('shows real storm surge when gauge reports notable residual', async () => {
-    // Vigo gauge with +25 cm surge
-    useBuoyStore.setState({ buoys: [mockGaugeReading(225)] });
+    // Vigo gauge well over the table at 14:50
+    useBuoyStore.setState({ buoys: [mockGaugeReading(2.60)] });
     render(<TidePanel />);
 
     await waitFor(() => {
@@ -92,7 +92,7 @@ describe('TidePanel', () => {
   it('degrades honestly when the IHM fails, and still shows the measured level', async () => {
     vi.mocked(fetchTides48h).mockRejectedValue(new Error('IHM API error: 500'));
     // Vigo gauge reported half an hour ago
-    const recent = { ...mockGaugeReading(250), timestamp: new Date('2026-07-19T09:30:00').toISOString() };
+    const recent = { ...mockGaugeReading(2.602), timestamp: new Date('2026-07-19T09:30:00').toISOString() };
     useBuoyStore.setState({ buoys: [recent] });
     render(<TidePanel />);
 
@@ -101,14 +101,14 @@ describe('TidePanel', () => {
     });
     expect(screen.queryByText(/Error cargando mareas/)).toBeNull();
     expect(screen.getByText(/Nivel medido ahora/)).toBeDefined();
-    expect(screen.getByText('2.50 m')).toBeDefined();
+    expect(screen.getByText('2.60 m')).toBeDefined();
     expect(screen.getByText(/no se puede calcular la resaca/)).toBeDefined();
   });
 
   it('does not present a stale gauge reading as the level now', async () => {
     vi.mocked(fetchTides48h).mockRejectedValue(new Error('IHM API error: 500'));
     // Six hours old: beyond what "now" can mean for this gauge
-    const stale = { ...mockGaugeReading(250), timestamp: new Date('2026-07-19T04:00:00').toISOString() };
+    const stale = { ...mockGaugeReading(2.602), timestamp: new Date('2026-07-19T04:00:00').toISOString() };
     useBuoyStore.setState({ buoys: [stale] });
     render(<TidePanel />);
 

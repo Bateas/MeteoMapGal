@@ -88,13 +88,14 @@ describe('computeMeteoTide', () => {
   const observedAt = new Date('2026-07-19T23:49:00');
   const now = new Date('2026-07-19T23:55:00');
 
-  it('reproduces the live Vigo check: 1.194 observed is a small positive surge', () => {
+  it('reproduces the live Vigo check: 1.194 observed sits inside the normal offset', () => {
     const t = computeMeteoTide(1.194, observedAt, vigoSeries(), now);
     expect(t).not.toBeNull();
     // The live comparison that validated the shared datum came out at +0.17m
     expect(t!.residualM).toBeGreaterThan(0.05);
     expect(t!.residualM).toBeLessThan(0.30);
-    expect(t!.level).toBe('notable');
+    // +0.17 is the size of the everyday gauge-over-table offset, not a surge
+    expect(t!.level).toBe('none');
   });
 
   it('reads a lower-than-predicted sea as a negative surge', () => {
@@ -151,8 +152,9 @@ describe('surgeLevel / formatMeteoTide', () => {
   });
 
   it('escalates by magnitude regardless of sign', () => {
-    expect(surgeLevel(0.20)).toBe('notable');
-    expect(surgeLevel(-0.20)).toBe('notable');
+    expect(surgeLevel(0.20)).toBe('none');
+    expect(surgeLevel(0.30)).toBe('notable');
+    expect(surgeLevel(-0.30)).toBe('notable');
     expect(surgeLevel(0.45)).toBe('high');
     expect(surgeLevel(-0.45)).toBe('high');
   });
