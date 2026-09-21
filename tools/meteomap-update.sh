@@ -1,15 +1,16 @@
 #!/bin/bash
 #
-# meteomap-update — smart deploy script for LXC 305 (App).
+# meteomap-update — smart deploy script for the app host.
 #
 # Detects which parts of the repo changed since last pull and only runs
 # the steps that are actually needed. Reduces typical deploy from
 # ~60-90s to ~5-15s when only the ingestor changed (no rebuild, no npm
 # install). Always safe — when in doubt it does the heavier path.
 #
-# Install (one-time, on LXC 305):
-#     sudo cp /opt/MeteoMapGal/scripts/meteomap-update.sh /usr/local/bin/meteomap-update
-#     sudo chmod +x /usr/local/bin/meteomap-update
+# Install (one-time, on the app host): SYMLINK this file from the repo
+# checkout into a directory on root's PATH, never copy it. git pull then
+# keeps it current (the pull swaps the file by atomic rename, so the run in
+# progress finishes on the old inode and the next deploy uses the new one).
 #
 # Usage:
 #     meteomap-update            # smart deploy: git pull + build only what changed
@@ -17,8 +18,8 @@
 #                                # git is already up to date (use after a manual
 #                                # pull left "nothing to deploy", or to re-push)
 #
-# What it does NOT handle (manual on LXC 306 / nginx):
-#   - schema.sql changes      → run psql on DB LXC 306
+# What it does NOT handle (manual, on the DB host / nginx):
+#   - schema.sql changes      → run psql on the DB host
 #   - nginx.conf changes      → cp + nginx -t + RESTART, manually (reload
 #                               leaves the tunnel's keep-alive worker on the old config)
 # It WARNS at the end if either of those changed.
@@ -70,28 +71,155 @@ echo "── Changed files ──"
 echo "$CHANGED" | sed 's/^/  /'
 echo
 
-has_change() { echo "$CHANGED" | grep -qE "$1"; }
+# Here-string, not `echo | grep -q`: under pipefail an early-exiting grep -q
+# can SIGPIPE the echo on a large diff and report a match as a miss.
+has_change() {
+    grep -qE "$1" <<< "$CHANGED"
+}
 
-ROOT_PKG_CHANGED=false;     has_change '^package\.json$|^package-lock\.json$' && ROOT_PKG_CHANGED=true
-INGESTOR_PKG_CHANGED=false; has_change '^ingestor/package\.json$|^ingestor/package-lock\.json$' && INGESTOR_PKG_CHANGED=true
-FRONTEND_CHANGED=false;     has_change '^src/|^public/|^index\.html$|^widget\.html$|^vite\.config|^tailwind|^tsconfig|^postcss' && FRONTEND_CHANGED=true
-INGESTOR_CHANGED=false;     has_change '^ingestor/' && INGESTOR_CHANGED=true
-SCHEMA_CHANGED=false;       has_change '^ingestor/schema\.sql$' && SCHEMA_CHANGED=true
-NGINX_CHANGED=false;        has_change '^nginx\.conf$' && NGINX_CHANGED=true
-VERSION_BUMPED=false;       [ "$OLD_VERSION" != "$NEW_VERSION" ] && VERSION_BUMPED=true
+# Collapse "a/./b/../c" to "a/c" into NORMALIZED (pure bash, no realpath;
+# results go through variables, not $(...), so tracing forks once per file,
+# not twice per import).
+normalize_path() {
+    local part
+    local -a parts out=()
+    IFS=/ read -r -a parts <<< "$1"
+    for part in "${parts[@]}"; do
+        case "$part" in
+            ''|.) ;;
+            ..) if [ ${#out[@]} -gt 0 ]; then unset "out[$(( ${#out[@]} - 1 ))]"; fi ;;
+            *) out+=("$part") ;;
+        esac
+    done
+    local IFS=/
+    NORMALIZED="${out[*]}"
+}
 
-# --force: rebuild + redeploy the frontend regardless of the git diff (covers
-# "a manual pull left nothing to deploy" + plain re-push of the current bundle).
-# Frontend-only: does NOT npm-install or restart services.
-if [ "$FORCE" = true ]; then FRONTEND_CHANGED=true; VERSION_BUMPED=true; fi
+# Repo file a relative import specifier points at, into RESOLVED, or empty
+# (bare package, unresolvable path). Mirrors how tsx resolves the ingestor's
+# ESM imports: "./x.js" is the TS source "./x.ts", and extensionless or
+# directory specifiers are accepted too.
+resolve_import() {
+    local dir base stem cand
+    RESOLVED=""
+    dir=${1%/*}
+    if [ "$dir" = "$1" ]; then dir=.; fi
+    normalize_path "$dir/$2"
+    base=$NORMALIZED
+    case "$base" in
+        *.js|*.jsx|*.mjs) stem=${base%.*} ;;
+        *) stem=$base ;;
+    esac
+    for cand in "$base" "$stem.ts" "$stem.tsx" "$base.ts" "$base.tsx" "$base/index.ts" "$base/index.tsx"; do
+        if [ -f "$cand" ]; then
+            RESOLVED=$cand
+            return 0
+        fi
+    done
+    return 0
+}
+
+# Every repo file OUTSIDE ingestor/ that the ingestor loads. It imports
+# modules from ../src/ (spot scoring, detectors, spots config, types...) and
+# node loads them ONCE at process start, so a deploy touching only those files
+# rebuilds the frontend but leaves the 24/7 analyzer on the OLD code until a
+# restart. Traced from the pulled tree on every run, never a hard-coded list:
+# follow every relative import (static, dynamic, type-only) transitively from
+# the ingestor's own .ts files. A directory rule such as ^src/services/ would
+# restart on the ~80% of those files the ingestor never imports, and would
+# silently miss the day a shared module starts importing from a new folder.
+# Over-approximating is deliberate: a type-only import costs at worst one
+# unneeded restart, a missed module is a stale analyzer.
+ingestor_shared_deps() {
+    local file spec dep seen="" queue=""
+    local nl=$'\n'
+    for file in ingestor/*.ts; do
+        case "$file" in *.test.ts) continue ;; esac
+        if [ -f "$file" ]; then
+            queue+="$file$nl"
+            seen+="$file$nl"
+        fi
+    done
+    while [ -n "$queue" ]; do
+        file=${queue%%"$nl"*}
+        queue=${queue#*"$nl"}
+        case "$file" in *.ts|*.tsx|*.js|*.mjs) ;; *) continue ;; esac
+        while IFS= read -r spec; do
+            if [ -z "$spec" ]; then continue; fi
+            resolve_import "$file" "$spec"
+            dep=$RESOLVED
+            if [ -z "$dep" ]; then continue; fi
+            case "$nl$seen" in *"$nl$dep$nl"*) continue ;; esac
+            seen+="$dep$nl"
+            queue+="$dep$nl"
+        done < <(grep -oE "(from|import)[[:space:]]*\(?[[:space:]]*['\"]\.\.?/[^'\"]+['\"]" "$file" 2>/dev/null \
+                   | sed -E "s/^.*['\"](\.[^'\"]+)['\"]$/\1/")
+    done
+    printf '%s' "$seen" | grep -v '^ingestor/' || true
+}
+
+# Sets every *_CHANGED flag, the restart decision and the files behind it from
+# CHANGED, FORCE and the two versions.
+classify_changes() {
+    local candidates deps
+    ROOT_PKG_CHANGED=false;     has_change '^package\.json$|^package-lock\.json$' && ROOT_PKG_CHANGED=true
+    INGESTOR_PKG_CHANGED=false; has_change '^ingestor/package\.json$|^ingestor/package-lock\.json$' && INGESTOR_PKG_CHANGED=true
+    FRONTEND_CHANGED=false;     has_change '^src/|^public/|^index\.html$|^widget\.html$|^vite\.config|^tailwind|^tsconfig|^postcss' && FRONTEND_CHANGED=true
+    SCHEMA_CHANGED=false;       has_change '^ingestor/schema\.sql$' && SCHEMA_CHANGED=true
+    NGINX_CHANGED=false;        has_change '^nginx\.conf$' && NGINX_CHANGED=true
+    VERSION_BUMPED=false
+    if [ "$OLD_VERSION" != "$NEW_VERSION" ]; then VERSION_BUMPED=true; fi
+
+    # Tests never run in production, so they never restart anything.
+    INGESTOR_TRIGGERS=$(grep -E '^ingestor/' <<< "$CHANGED" | grep -vE '\.test\.tsx?$' || true)
+    SHARED_TRIGGERS=""
+    candidates=$(grep -vE '^ingestor/' <<< "$CHANGED" | grep -vE '\.test\.tsx?$' | grep -v '^$' || true)
+    if [ -n "$candidates" ]; then
+        deps=$(ingestor_shared_deps)
+        if [ -n "$deps" ]; then
+            SHARED_TRIGGERS=$(grep -xF -f <(printf '%s\n' "$deps") <<< "$candidates" || true)
+        else
+            # Tracing found nothing although the ingestor does import src/:
+            # fail towards a needless restart, never towards a stale analyzer.
+            echo "⚠️  Could not trace the ingestor's imports into src/ — treating every src/ change as shared."
+            SHARED_TRIGGERS=$(grep -E '^src/' <<< "$candidates" || true)
+        fi
+    fi
+    INGESTOR_CHANGED=false;   if [ -n "$INGESTOR_TRIGGERS" ]; then INGESTOR_CHANGED=true; fi
+    SHARED_SRC_CHANGED=false; if [ -n "$SHARED_TRIGGERS" ]; then SHARED_SRC_CHANGED=true; fi
+    RESTART_INGESTOR=false
+    if [ "$INGESTOR_CHANGED" = true ] || [ "$INGESTOR_PKG_CHANGED" = true ] || [ "$SHARED_SRC_CHANGED" = true ]; then
+        RESTART_INGESTOR=true
+    fi
+
+    # --force: rebuild + redeploy the frontend regardless of the git diff (covers
+    # "a manual pull left nothing to deploy" + plain re-push of the current bundle).
+    # Frontend-only: does NOT npm-install or restart services.
+    if [ "$FORCE" = true ]; then FRONTEND_CHANGED=true; VERSION_BUMPED=true; fi
+    return 0
+}
+
+classify_changes
 
 echo "── Plan ──"
 echo "  ROOT_PKG_CHANGED      = $ROOT_PKG_CHANGED"
 echo "  INGESTOR_PKG_CHANGED  = $INGESTOR_PKG_CHANGED"
 echo "  FRONTEND_CHANGED      = $FRONTEND_CHANGED"
 echo "  INGESTOR_CHANGED      = $INGESTOR_CHANGED"
+echo "  SHARED_SRC_CHANGED    = $SHARED_SRC_CHANGED"
+echo "  RESTART_INGESTOR      = $RESTART_INGESTOR"
 echo "  VERSION_BUMPED        = $VERSION_BUMPED ($OLD_VERSION → $NEW_VERSION)"
 echo
+if [ "$RESTART_INGESTOR" = true ]; then
+    echo "── Ingestor restart triggered by ──"
+    if [ -n "$INGESTOR_TRIGGERS" ]; then
+        printf '%s\n' "$INGESTOR_TRIGGERS" | sed 's/^/  /'
+    fi
+    if [ -n "$SHARED_TRIGGERS" ]; then
+        printf '%s\n' "$SHARED_TRIGGERS" | sed 's/^/  /; s/$/   (shared src, loaded by the ingestor)/'
+    fi
+    echo
+fi
 
 # ── npm install (only if package.json changed) ────────
 # .npmrc enforces ignore-scripts=true (supply-chain hardening: a
@@ -142,7 +270,9 @@ if [ "$FRONTEND_CHANGED" = true ] || [ "$VERSION_BUMPED" = true ] || [ "$ROOT_PK
 fi
 
 # ── Restart services ──────────────────────────────────
-if [ "$INGESTOR_CHANGED" = true ] || [ "$INGESTOR_PKG_CHANGED" = true ]; then
+# Ingestor code, its dependencies, or shared src code it loads (the plan above
+# lists which files). Anything else leaves the running processes alone.
+if [ "$RESTART_INGESTOR" = true ]; then
     echo "🔄 Restarting meteo-ingestor + meteo-api..."
     sudo systemctl restart meteo-ingestor meteo-api
 fi
