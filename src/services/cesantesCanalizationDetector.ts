@@ -195,13 +195,25 @@ export function predictCesantesCanalization(
     // Distinguish real breeze in sheltered stations:
     // 1) Station mean >= 5kt
     // 2) Station mean >= 4kt with strong thermal setup (ΔT >= 4°C)
-    // 3) Gust >= 10kt with SW direction and ΔT >= 5°C (thermal momentum penetrating friction)
-    const hasEstablishedBreeze =
-      (localStationKt ?? 0) >= THERMAL_MIN_BASE_KT ||
-      ((localStationKt ?? 0) >= 4.0 && (deltaT ?? 0) >= 4.0) ||
-      ((localGustKt ?? 0) >= 10.0 && (deltaT ?? 0) >= 5.0);
+    // 3) Gust >= 10kt with ΔT >= 5°C (thermal momentum penetrating friction)
+    //
+    // Branches 2 and 3 accept a mean below the 5kt at which the out-of-arc
+    // guard above starts to apply, so they carry their own: a KNOWN direction
+    // inside the SW arc. With a low mean the direction is what separates a
+    // breeze filling in from a stray puff, and unknown cannot confirm SW.
+    // Without it a 3kt north wind with an 11kt gust came back as a 13kt SW
+    // canalization (21-sep). Both also need a measured mean: they exist to
+    // rescue a LOW one, and with no mean there is nothing to rescue.
+    const measuredKt = localStationKt;
+    const dirInSwArc = localWindDir != null
+      && localWindDir >= SW_DIR_MIN && localWindDir <= SW_DIR_MAX;
+    const lowMeanUsable = measuredKt != null && dirInSwArc;
+    const meanConfirms = (measuredKt ?? 0) >= THERMAL_MIN_BASE_KT;
+    const deltaTConfirms = lowMeanUsable && measuredKt >= 4.0 && deltaT >= 4.0;
+    const gustConfirms = lowMeanUsable && (localGustKt ?? 0) >= 10.0 && deltaT >= 5.0;
+    const hasEstablishedBreeze = meanConfirms || deltaTConfirms || gustConfirms;
 
-    if (!hasEstablishedBreeze) return inactive;
+    if (!hasEstablishedBreeze || measuredKt == null) return inactive;
 
     // Use local station wind (or effective base of 5kt if confirmed via gust/strong ΔT)
     const baseKt = Math.max(localStationKt ?? 5, ((localGustKt ?? 0) >= 10 ? 5 : (localStationKt ?? 5)));
@@ -209,6 +221,16 @@ export function predictCesantesCanalization(
     // Sanity cap: pure thermal breeze (Mode 2) capped at 17kt max so it NEVER over-boosts on normal days
     const predictedKt = Math.min(17, Math.round(baseKt + thermalBoostKt));
     if (predictedKt < 10) return inactive;
+
+    // Report what the stations MEASURED, not the 5kt floor the boost is built
+    // on. Below the floor keep the decimal: rounding 4.8 up to "5" would print
+    // the very number the reading failed to reach.
+    const meanText = meanConfirms ? measuredKt.toFixed(0) : measuredKt.toFixed(1);
+    const stationsLine = meanConfirms
+      ? `Estaciones cercanas leen ${meanText}kt de media — Cesantes acelerada por canalización local`
+      : gustConfirms
+        ? `Estaciones cercanas leen ${meanText}kt de media, racha de ${localGustKt!.toFixed(0)}kt — la racha confirma la brisa; Cesantes acelerada por canalización local`
+        : `Estaciones cercanas leen ${meanText}kt de media — brisa floja pero con ΔT fuerte; Cesantes acelerada por canalización local`;
     return {
       active: true,
       confidence: 70,
@@ -217,7 +239,7 @@ export function predictCesantesCanalization(
       boostFactor: predictedKt / Math.max(baseKt, 1),
       signals: [
         `Brisa térmica vespertina (${hour}h, aire ${airTempLocal!.toFixed(0)}°C, ΔT +${deltaT.toFixed(1)}°C)`,
-        `Estaciones cercanas leen ${baseKt.toFixed(0)}kt — Cesantes acelerada por canalización local`,
+        stationsLine,
       ],
       severity: predictedKt >= 15 ? 'high' : 'moderate',
     };
