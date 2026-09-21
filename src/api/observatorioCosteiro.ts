@@ -45,15 +45,16 @@ const NO_DATA = -9999;
 // ── Types for raw API response ──────────────────────────────────
 
 interface ObsMedicion {
-  data: string;       // ISO timestamp
-  valor: number;      // Measurement value (-9999 = no data)
+  data: string;           // ISO timestamp
+  valor: number;          // Measurement value (-9999 = no data)
+  altura?: number;        // Negative = above water (meteo), positive = depth (ocean)
+  tipoIntervalo?: string; // '10Minutal', 'Horario', 'Diario' or 'Mensual'
   validado: boolean;
 }
 
 interface ObsParametro {
   codigoParametro: string; // VV, DV, TA, HR, TO, TAU, SAL, etc.
   funcion: string;         // AVG, MAX, RACHA, etc.
-  altura: number;          // Negative = above water (meteo), positive = depth (ocean)
   medicions: ObsMedicion[];
 }
 
@@ -87,24 +88,41 @@ async function obsFetch(boiaId: number, attempt = 0): Promise<ObsResponse | null
 
 // ── Parameter extraction ────────────────────────────────────────
 
-function extractValue(params: ObsParametro[], code: string, func: string, maxDepth?: number): number | null {
-  for (const p of params) {
-    if (p.codigoParametro !== code) continue;
-    if (p.funcion !== func) continue;
-    // For ocean params: filter by depth (altura > 0 = depth, we want shallow ≤ 2m)
-    if (maxDepth !== undefined && p.altura > maxDepth) continue;
-    const m = p.medicions?.[0];
-    if (!m || m.valor === NO_DATA) return null;
-    return m.valor;
-  }
-  return null;
+// The payload carries the 10-minute, hourly, daily and monthly series of
+// every parameter, in no fixed order. Only the 10-minute one is a current
+// reading: the first code/function match can be an hourly or daily mean,
+// or a monthly -9999.
+const CURRENT_INTERVAL = '10Minutal';
+
+function currentMedicion(p: ObsParametro): ObsMedicion | null {
+  const m = p.medicions?.[0];
+  if (!m || m.tipoIntervalo !== CURRENT_INTERVAL) return null;
+  if (typeof m.valor !== 'number' || m.valor === NO_DATA) return null;
+  return m;
 }
 
+// maxDepth selects an ocean sensor: the shallowest one at 0..maxDepth m.
+// A -9999 or another window's series does not end the search.
+function extractValue(params: ObsParametro[], code: string, func: string, maxDepth?: number): number | null {
+  let best: ObsMedicion | null = null;
+  for (const p of params) {
+    if (p.codigoParametro !== code || p.funcion !== func) continue;
+    const m = currentMedicion(p);
+    if (!m) continue;
+    if (maxDepth === undefined) return m.valor;
+    const depth = m.altura;
+    if (typeof depth !== 'number' || depth < 0 || depth > maxDepth) continue;
+    if (!best || depth < (best.altura as number)) best = m;
+  }
+  return best ? best.valor : null;
+}
+
+// Row time = time of the 10-minute readings it carries.
 function extractTimestamp(params: ObsParametro[]): string | null {
   let newest: string | null = null;
   let newestMs = 0;
   for (const p of params) {
-    const m = p.medicions?.[0];
+    const m = currentMedicion(p);
     if (!m?.data) continue;
     const ms = new Date(m.data).getTime();
     if (ms > newestMs) { newestMs = ms; newest = m.data; }
@@ -114,7 +132,7 @@ function extractTimestamp(params: ObsParametro[]): string | null {
 
 // ── Convert API response to BuoyReading ─────────────────────────
 
-function parseObsReading(station: ObsStation, data: ObsResponse): BuoyReading | null {
+export function parseObsReading(station: ObsStation, data: ObsResponse): BuoyReading | null {
   // API returns array directly, but handle wrapped format too
   const params = Array.isArray(data) ? data : data?.parametros;
   if (!params || params.length === 0) return null;
