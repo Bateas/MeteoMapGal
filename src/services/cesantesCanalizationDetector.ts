@@ -129,6 +129,8 @@ export function predictCesantesCanalization(
    *  that forms the low. Unknown counts as no sun: the strongest multiplier in
    *  the ladder must not be handed out on missing evidence. */
   solarRadInterior: number | null = null,
+  /** Peak local station wind gust (kt) — distinguishes sheltered thermal lulls from dead calm */
+  localGustKt: number | null = null,
 ): CesantesPrediction {
   const inactive: CesantesPrediction = {
     active: false,
@@ -189,16 +191,28 @@ export function predictCesantesCanalization(
     // this, a glassy-calm evening (warm air over cool water = huge ΔT) maxed the
     // +8kt boost on top of 3kt measured → a phantom 11kt while the webcam showed a
     // mirror-flat ría (user-reported). Require a real measured breeze first.
-    if ((localStationKt ?? 0) < THERMAL_MIN_BASE_KT) return inactive;
-    // Use local station wind (or default 6kt if not provided) — thermal breeze adds local boost
-    const baseKt = localStationKt ?? 6;
+    //
+    // Distinguish real breeze in sheltered stations:
+    // 1) Station mean >= 5kt
+    // 2) Station mean >= 4kt with strong thermal setup (ΔT >= 4°C)
+    // 3) Gust >= 10kt with SW direction and ΔT >= 5°C (thermal momentum penetrating friction)
+    const hasEstablishedBreeze =
+      (localStationKt ?? 0) >= THERMAL_MIN_BASE_KT ||
+      ((localStationKt ?? 0) >= 4.0 && (deltaT ?? 0) >= 4.0) ||
+      ((localGustKt ?? 0) >= 10.0 && (deltaT ?? 0) >= 5.0);
+
+    if (!hasEstablishedBreeze) return inactive;
+
+    // Use local station wind (or effective base of 5kt if confirmed via gust/strong ΔT)
+    const baseKt = Math.max(localStationKt ?? 5, ((localGustKt ?? 0) >= 10 ? 5 : (localStationKt ?? 5)));
     const thermalBoostKt = Math.min(8, deltaT * 2); // +2kt per °C of land-sea ΔT, max +8kt
-    const predictedKt = baseKt + thermalBoostKt;
+    // Sanity cap: pure thermal breeze (Mode 2) capped at 17kt max so it NEVER over-boosts on normal days
+    const predictedKt = Math.min(17, Math.round(baseKt + thermalBoostKt));
     if (predictedKt < 10) return inactive;
     return {
       active: true,
       confidence: 70,
-      predictedKt: Math.round(predictedKt),
+      predictedKt,
       predictedDir: 230, // Typical SW thermal breeze
       boostFactor: predictedKt / Math.max(baseKt, 1),
       signals: [

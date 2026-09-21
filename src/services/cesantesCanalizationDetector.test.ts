@@ -353,11 +353,29 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     expect(r.severity).toBe('high');
   });
 
-  it('returns inactive when result <10kt', () => {
+  it('fires Mode 2 when mean is ~4kt but ΔT is strong (≥4°C)', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
-    // baseKt 2 + ΔT 2°C × 2 = +4 → 6kt < 10kt threshold
-    const r = predictCesantesCanalization([], null, false, 18, 16, 2);
-    expect(r.active).toBe(false);
+    // 4kt measured + ΔT 6°C (air 24, water 18) → established thermal setup
+    const r = predictCesantesCanalization([], null, false, 24, 18, 4.2, 230);
+    expect(r.active).toBe(true);
+    expect(r.predictedKt).toBeGreaterThanOrEqual(11);
+  });
+
+  it('fires Mode 2 when sheltered mean is <5kt BUT gust is active (≥10kt) with strong ΔT (today scenario)', () => {
+    vi.setSystemTime(new Date('2026-09-21T15:00:00Z'));
+    // Real-world late September case: air 31°C, water 20°C (ΔT=11°C), mean 4.8kt, gust 12kt
+    const r = predictCesantesCanalization([], null, false, 31, 20, 4.8, 234, null, 12);
+    expect(r.active).toBe(true);
+    expect(r.predictedKt).toBe(13); // 5 base + 8 capped boost = 13kt
+    expect(r.predictedDir).toBe(230);
+  });
+
+  it('strictly caps Mode 2 pure thermal breeze at 17kt max to avoid over-boosting on normal days', () => {
+    vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
+    // 10kt base + ΔT 8°C (*2 = +16) -> must cap at 17kt, never 26kt
+    const r = predictCesantesCanalization([], null, false, 28, 20, 10, 230);
+    expect(r.active).toBe(true);
+    expect(r.predictedKt).toBe(17);
   });
 });
 

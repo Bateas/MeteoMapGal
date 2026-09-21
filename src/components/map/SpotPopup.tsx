@@ -195,7 +195,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       // and still blow, but if the interior is covered too there is no thermal
       // low pulling and it is just a front.
       const solarRadInterior = computeInteriorSolar(stations, readings);
-      const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt, score?.wind?.dirDeg ?? null, solarRadInterior);
+      const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt, score?.wind?.dirDeg ?? null, solarRadInterior, score?.wind?.gustKt ?? null);
       return pred.active ? pred : null;
     } catch (err) {
       console.warn('[CesantesPredictor] error:', err);

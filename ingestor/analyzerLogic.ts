@@ -359,6 +359,8 @@ function applyCesantesBoost(
   buoys: BuoyWind[],
   /** Consensus wind direction (deg) — the detector's own suppression guard. */
   localWindDir: number | null,
+  /** Peak local station wind gust (kt) — distinguishes sheltered thermal lulls from dead calm */
+  localGustKt: number | null = null,
 ): { effectiveKt: number; confidence: number; predictedDir: number | null } | null {
   // Compute mouth humidity from interior station readings
   const mouthHumidity = computeMouthHumidityFromRows(readings);
@@ -411,6 +413,7 @@ function applyCesantesBoost(
     // the comment above this function claimed the gates matched exactly.
     localWindDir,
     solarRadInterior,
+    localGustKt,
   );
 
   if (!prediction.active || prediction.predictedKt === null) return null;
@@ -648,7 +651,7 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   let boostConfidence: number | undefined;
 
   if (spot.id === 'cesantes') {
-    const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds, avgDir);
+    const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds, avgDir, gustMax > 0 ? gustMax : null);
     if (boost) {
       effectiveKt = boost.effectiveKt;
       boostedBy = 'cesantes-canalization';
