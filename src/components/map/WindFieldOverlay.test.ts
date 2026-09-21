@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
+import { validateStyleMin } from '@maplibre/maplibre-gl-style-spec';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import {
   speedToLevel,
   buildWindFieldGeoJSON,
   SPEED_LEVELS,
+  WIND_ARROW_ICON_SIZE_REGULAR,
+  WIND_ARROW_ICON_SIZE_COMPACT,
 } from './WindFieldOverlay';
 
 function mockStation(id: string, lon = -8.7, lat = 42.2, over: Partial<NormalizedStation> = {}): NormalizedStation {
@@ -181,5 +184,52 @@ describe('buildWindFieldGeoJSON', () => {
 
     const fcZoom9 = buildWindFieldGeoJSON(stations, readings, undefined, false, 9.0);
     expect(fcZoom9.features.length).toBe(6);
+  });
+});
+
+describe('WindFieldOverlay MapLibre style spec validation', () => {
+  it('validates regular and compact icon-size expressions against style-spec without errors', () => {
+    for (const [name, iconSize] of [
+      ['regular', WIND_ARROW_ICON_SIZE_REGULAR],
+      ['compact', WIND_ARROW_ICON_SIZE_COMPACT],
+    ] as const) {
+      const dummyStyle = {
+        version: 8,
+        sources: {
+          'wind-field': {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
+          },
+        },
+        layers: [
+          {
+            id: `wind-field-arrows-${name}`,
+            type: 'symbol',
+            source: 'wind-field',
+            minzoom: 8,
+            layout: {
+              'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],
+              'icon-rotate': ['get', 'rotation'],
+              'icon-size': iconSize,
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'icon-rotation-alignment': 'map',
+            },
+            paint: {
+              'icon-opacity': [
+                'interpolate', ['linear'], ['get', 'speed'],
+                0, 0.45,
+                2, 0.6,
+                5, 0.75,
+                10, 0.9,
+              ],
+            },
+          },
+        ],
+      };
+
+      const errors = validateStyleMin(dummyStyle);
+      expect(errors, `Style spec validation failed for ${name}: ${errors.map(e => e.message).join('; ')}`).toHaveLength(0);
+    }
   });
 });

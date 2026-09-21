@@ -300,6 +300,20 @@ export function buildWindFieldGeoJSON(
   };
 }
 
+export const WIND_ARROW_ICON_SIZE_REGULAR: maplibregl.ExpressionSpecification = [
+  'interpolate', ['linear'], ['zoom'],
+  8, ['interpolate', ['linear'], ['get', 'speed'], 0, 0.28, 3, 0.35, 6, 0.45, 10, 0.55],
+  11, ['interpolate', ['linear'], ['get', 'speed'], 0, 0.55, 3, 0.7, 6, 0.9, 10, 1.1],
+  14, ['interpolate', ['linear'], ['get', 'speed'], 0, 0.66, 3, 0.84, 6, 1.08, 10, 1.32],
+];
+
+export const WIND_ARROW_ICON_SIZE_COMPACT: maplibregl.ExpressionSpecification = [
+  'interpolate', ['linear'], ['zoom'],
+  8, ['interpolate', ['linear'], ['get', 'speed'], 0, 0.19, 3, 0.23, 6, 0.28, 10, 0.33],
+  11, ['interpolate', ['linear'], ['get', 'speed'], 0, 0.38, 3, 0.45, 6, 0.55, 10, 0.65],
+  14, ['interpolate', ['linear'], ['get', 'speed'], 0, 0.46, 3, 0.54, 6, 0.66, 10, 0.78],
+];
+
 export const WindFieldOverlay = memo(function WindFieldOverlay({
   stations,
   readings,
@@ -354,19 +368,7 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
         layout={{
           'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],
           'icon-rotate': ['get', 'rotation'],
-          // Grosor variable: calm=small, strong=large. Visual weight matches wind intensity.
-          // Scaled smoothly with zoom so arrows shrink proportionally with the station circle when zooming out.
-          'icon-size': compact
-            ? [
-                '*',
-                ['interpolate', ['linear'], ['get', 'speed'], 0, 0.38, 3, 0.45, 6, 0.55, 10, 0.65],
-                ['interpolate', ['linear'], ['zoom'], 8, 0.5, 9, 0.65, 11, 1.0, 14, 1.2],
-              ]
-            : [
-                '*',
-                ['interpolate', ['linear'], ['get', 'speed'], 0, 0.55, 3, 0.7, 6, 0.9, 10, 1.1],
-                ['interpolate', ['linear'], ['zoom'], 8, 0.5, 9, 0.65, 11, 1.0, 14, 1.2],
-              ],
+          'icon-size': compact ? WIND_ARROW_ICON_SIZE_COMPACT : WIND_ARROW_ICON_SIZE_REGULAR,
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-rotation-alignment': 'map',
