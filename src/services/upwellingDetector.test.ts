@@ -127,6 +127,26 @@ describe('upwellingDetector', () => {
       expect(res.coldestBuoy?.name).toBe('Cabo Silleiro');
     });
 
+    it('ignores a buoy that stopped publishing, however cold its last reading', () => {
+      const now = Date.parse('2026-09-22T01:00:00Z');
+      const dayOld = { ...mockBuoy(1251, 'Rande (Ría Vigo)', 14.0, 35.2), timestamp: '2026-09-20T19:40:00Z' };
+      const fresh = { ...mockBuoy(2248, 'Cabo Silleiro', 17.6, 35.6), timestamp: '2026-09-22T00:30:00Z' };
+
+      const res = detectUpwellingSummary([dayOld, fresh], now);
+      expect(res.hasUpwelling).toBe(false);
+      expect(res.tickerMessage).toBeNull();
+      expect(res.coldestBuoy?.name).toBe('Cabo Silleiro');
+      expect(res.thermalFront).toBeNull();
+    });
+
+    it('still uses a reading a few hours old: the water mass changes slowly', () => {
+      const now = Date.parse('2026-09-22T01:00:00Z');
+      const threeHours = { ...mockBuoy(1251, 'Rande (Ría Vigo)', 14.0, 35.2), timestamp: '2026-09-21T22:00:00Z' };
+
+      const res = detectUpwellingSummary([threeHours], now);
+      expect(res.hasUpwelling).toBe(true);
+    });
+
     it('does not trigger upwelling when water is universally warm', () => {
       const buoys: BuoyReading[] = [
         mockBuoy(1251, 'Rande (Ría Vigo)', 18.5, 35.4),
