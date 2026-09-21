@@ -12,10 +12,12 @@ import type { TidePoint, TideStation } from '../../api/tideClient';
 import { Anchor, ChevronDown, ChevronUp } from 'lucide-react';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { describeTideStrength, peakAmplitude } from '../../services/tideAlertService';
-import { useMeteoTide } from '../../hooks/useMeteoTide';
+import { useMeteoTide, useGaugeLevel } from '../../hooks/useMeteoTide';
 import { WeatherIcon } from '../icons/WeatherIcons';
 
 interface TideData {
+  /** The IHM was failing and this is the last table it gave for the day. */
+  fromCache?: boolean;
   today: TidePoint[];
   tomorrow: TidePoint[];
   yesterday?: TidePoint[];
@@ -41,6 +43,7 @@ export const TidePanel = memo(function TidePanel() {
   const [station, setStation] = useState<TideStation>(DEFAULT_TIDE_STATION);
   const [expanded, setExpanded] = useState(false);
   const meteoTide = useMeteoTide(station.id);
+  const gaugeLevel = useGaugeLevel(station.id);
 
   const fetchData = useCallback(async () => {
     try {
@@ -52,12 +55,13 @@ export const TidePanel = memo(function TidePanel() {
         tomorrow: result.tomorrow,
         yesterday: result.yesterday,
         all: result.all,
+        fromCache: result.fromCache ?? false,
         station,
         fetchedAt: new Date(),
       });
     } catch (err) {
       console.error('[TidePanel] Fetch error:', err);
-      setError('Error cargando mareas');
+      setError('ihm-unavailable');
     } finally {
       setLoading(false);
     }
@@ -234,13 +238,28 @@ export const TidePanel = memo(function TidePanel() {
   }
 
   if (error || !data) {
+    // The IHM being down is not our failure and says nothing about the sea:
+    // say so plainly, and still show what the gauge measured, which does not
+    // depend on the IHM. The surge needs the table, so it is not guessed.
+    const ageMin = gaugeLevel ? Math.max(0, Math.round((Date.now() - gaugeLevel.at.getTime()) / 60_000)) : 0;
     return (
-      <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5">
+      <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5 space-y-1.5">
         <div className="flex items-center gap-2">
           <Anchor className="w-3.5 h-3.5 text-cyan-500" />
           <span className="text-[11px] font-bold text-slate-200">Mareas</span>
-          <span className="text-[11px] text-red-400 ml-auto">{error}</span>
+          <span className="text-[11px] text-slate-400 ml-auto">Tabla del IHM no disponible</span>
         </div>
+        <p className="text-[10px] text-slate-500 leading-snug">
+          El servicio de mareas del Instituto Hidrográfico no responde ahora mismo. Se vuelve a intentar solo.
+        </p>
+        {gaugeLevel && (
+          <div className="text-[11px] text-slate-300 bg-slate-900/60 rounded p-1.5 border border-slate-700/30">
+            <span>Nivel medido ahora ({gaugeLevel.gaugeName}): </span>
+            <span className="font-mono font-bold text-cyan-300">{gaugeLevel.observedM.toFixed(2)} m</span>
+            <span className="text-slate-500"> · {ageMin < 60 ? `hace ${ageMin} min` : `hace ${Math.round(ageMin / 60)} h`}</span>
+            <span className="block text-[10px] text-slate-500 mt-0.5">Sin la tabla no se puede calcular la resaca.</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -257,6 +276,14 @@ export const TidePanel = memo(function TidePanel() {
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-cyan-300">Mareas</span>
             <span className="text-[11px] text-slate-500 truncate">{data.station.name}</span>
+            {data.fromCache && (
+              <span
+                className="text-[10px] text-amber-300/80 flex-shrink-0"
+                title="El IHM no responde ahora: es la última tabla descargada para hoy, y una tabla de mareas no cambia."
+              >
+                tabla guardada
+              </span>
+            )}
             {tideStrength && (tideStrength.category === 'vivas' || tideStrength.category === 'extremas') && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 ${strengthTone.chip}`}>
                 {tideStrength.label}
