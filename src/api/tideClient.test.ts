@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   fetchTidePredictions,
   fetchTides48h,
   formatToLocalHHMM,
   formatToLocalDate,
+  __clearTideTableCacheForTests,
 } from './tideClient';
 
 describe('tideClient time formatting', () => {
@@ -32,6 +33,8 @@ describe('tideClient time formatting', () => {
 describe('fetchTidePredictions', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
+    __clearTideTableCacheForTests(); // each test is a fresh page load
   });
 
   it('parses IHM UTC tide predictions and converts them to local Spanish time', async () => {
@@ -50,7 +53,7 @@ describe('fetchTidePredictions', () => {
       },
     };
 
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => mockIhmResponse,
     });
@@ -84,7 +87,7 @@ describe('fetchTidePredictions', () => {
   });
 
   it('returns empty array when IHM response is empty or missing datos', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ mareas: {} }),
     });
@@ -97,6 +100,8 @@ describe('fetchTidePredictions', () => {
 describe('fetchTides48h', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    localStorage.clear();
+    __clearTideTableCacheForTests();
   });
 
   it('partitions 48h tides accurately by local calendar day', async () => {
@@ -142,7 +147,7 @@ describe('fetchTides48h', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-20T12:00:00+02:00'));
 
-    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
       if (url.includes('date=20260919')) return { ok: true, json: async () => r19 };
       if (url.includes('date=20260920')) return { ok: true, json: async () => r20 };
       if (url.includes('date=20260921')) return { ok: true, json: async () => r21 };
@@ -170,5 +175,39 @@ describe('fetchTides48h', () => {
     expect((result.all?.length ?? 0)).toBeGreaterThanOrEqual(7);
 
     vi.useRealTimers();
+  });
+});
+
+describe('tide requests on the wire when the IHM is down', () => {
+  // The production report: the same three dates every 3-4 s from one open
+  // page. This counts real HTTP requests through the real retry helper.
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+    __clearTideTableCacheForTests();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 22, 12, 0, 0));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('one page load costs three IHM requests with backoff, then none', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const onWire = (needle: string) => fetchMock.mock.calls.filter(([u]) => String(u).includes(needle)).length;
+
+    const all = Promise.allSettled([fetchTides48h('29'), fetchTidePredictions('29'), fetchTides48h('28')]);
+    await vi.runAllTimersAsync();
+    await all;
+    expect(onWire('/ihm-api/')).toBe(3); // 1 + retries at 2 s and 4 s
+    expect(onWire('getTidesInfo')).toBe(2); // 1 + one retry
+
+    // An hour later the panel and the ticker poll again
+    vi.setSystemTime(new Date(2026, 8, 22, 13, 0, 0));
+    const later = Promise.allSettled([fetchTides48h('29'), fetchTidePredictions('29')]);
+    await vi.runAllTimersAsync();
+    await later;
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 });

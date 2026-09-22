@@ -241,19 +241,21 @@ export const TidePanel = memo(function TidePanel() {
   }
 
   if (error || !data) {
-    // The IHM being down is not our failure and says nothing about the sea:
-    // say so plainly, and still show what the gauge measured, which does not
-    // depend on the IHM. The surge needs the table, so it is not guessed.
+    // Reached only when the IHM, the stored copy and MeteoGalicia all failed.
+    // Not our failure and says nothing about the sea: say so plainly, and
+    // still show what the gauge measured, which needs no table. The surge
+    // does, so it is not guessed. The client does not ask again until the
+    // page is reloaded, so the text must not promise a retry.
     const ageMin = gaugeLevel ? Math.max(0, Math.round((Date.now() - gaugeLevel.at.getTime()) / 60_000)) : 0;
     return (
       <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5 space-y-1.5">
         <div className="flex items-center gap-2">
           <Anchor className="w-3.5 h-3.5 text-cyan-500" />
           <span className="text-[11px] font-bold text-slate-200">Mareas</span>
-          <span className="text-[11px] text-slate-400 ml-auto">Tabla del IHM no disponible</span>
+          <span className="text-[11px] text-slate-400 ml-auto">Tabla de mareas no disponible</span>
         </div>
         <p className="text-[10px] text-slate-500 leading-snug">
-          El servicio de mareas del Instituto Hidrográfico no responde ahora mismo. Se vuelve a intentar solo.
+          Ni el Instituto Hidrográfico ni MeteoGalicia responden ahora mismo. Se vuelve a consultar al recargar la página.
         </p>
         {gaugeLevel && (
           <div className="text-[11px] text-slate-300 bg-slate-900/60 rounded p-1.5 border border-slate-700/30">

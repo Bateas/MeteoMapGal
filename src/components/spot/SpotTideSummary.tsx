@@ -8,6 +8,7 @@ import { formatMeteoTide } from '../../services/meteoTideService';
 export function SpotTideSummary({ tideStationId, tidePreference }: { tideStationId: string; tidePreference?: string }) {
   const [tides, setTides] = useState<TidePoint[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   // How far the water actually is from the table above. Null unless a nearby
   // gauge is reporting live and the difference is big enough to matter.
   const meteoTide = useMeteoTide(tideStationId);
@@ -15,8 +16,8 @@ export function SpotTideSummary({ tideStationId, tidePreference }: { tideStation
   useEffect(() => {
     let cancelled = false;
     fetchTidePredictions(tideStationId)
-      .then((pts) => { if (!cancelled) setTides(pts); })
-      .catch(() => { if (!cancelled) setTides(null); })
+      .then((pts) => { if (!cancelled) { setTides(pts); setFailed(false); } })
+      .catch(() => { if (!cancelled) { setTides(null); setFailed(true); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [tideStationId]);
@@ -79,6 +80,16 @@ export function SpotTideSummary({ tideStationId, tidePreference }: { tideStation
   }, [tidePreference, tidePhase]);
 
   if (loading) return null;
+  // No publisher answered: say it rather than drop the line, so the missing
+  // tides read as a known gap and not as a spot without tides.
+  if (failed) {
+    return (
+      <div className="text-[11px] mb-1.5 pt-1 border-t border-slate-700/40 flex items-center gap-1 text-slate-500">
+        <WeatherIcon id="anchor" size={10} className="text-slate-500" />
+        <span>Tabla de mareas no disponible ahora</span>
+      </div>
+    );
+  }
   if (!tides || tides.length === 0) return null;
 
   return (

@@ -184,6 +184,11 @@ const METEOSIX_CACHE_TTL = 3 * 60_000;
 
 const MS_ALLOWED_PATHS = new Set(['/getNumericForecastInfo', '/getTidesInfo']);
 
+/** True for MeteoSIX's error answer, a top-level `{"exception": ...}` object. */
+export function isMeteoSixErrorEnvelope(body: Buffer): boolean {
+  return /^\s*\{\s*"exception"\s*:/.test(body.subarray(0, 64).toString('utf8'));
+}
+
 export async function handleMeteoSixProxy(
   msPath: string,
   query: string,
@@ -217,7 +222,9 @@ export async function handleMeteoSixProxy(
     const contentType = upstream.headers.get('content-type') || 'application/json';
     const buf = Buffer.from(await upstream.arrayBuffer());
 
-    if (upstream.ok) {
+    // MeteoSIX reports its own failures as 200 + {"exception": ...}. Caching
+    // one would serve that error to every visitor for the whole TTL.
+    if (upstream.ok && !isMeteoSixErrorEnvelope(buf)) {
       meteosixCache.set(cacheKey, { data: buf, contentType, ts: Date.now() });
       pruneCache(meteosixCache, METEOSIX_CACHE_TTL, 100);
     }
