@@ -308,17 +308,23 @@ async function fetchMeteoSixTable(station: TideStation): Promise<unknown> {
   }
 }
 
-/** One MeteoSIX answer per port for the page load, failed or not. */
+/**
+ * One MeteoSIX answer per port and Madrid day, failed or not. Per day and not
+ * per page load: the answer covers five days from the day it was asked, so a
+ * tab left open longer through an IHM outage would otherwise lose its stand-in
+ * table without asking again. Still at most one request per port per day.
+ */
 const meteoSixTables = new Map<string, Promise<unknown>>();
 
 async function fetchMeteoSixTideDay(
   station: TideStation,
   day: Date,
 ): Promise<{ points: TidePoint[]; portName: string | null }> {
-  let table = meteoSixTables.get(station.id);
+  const key = `${station.id}:${yyyymmdd(new Date())}`;
+  let table = meteoSixTables.get(key);
   if (!table) {
     table = meteoSixGate.run(() => fetchMeteoSixTable(station));
-    meteoSixTables.set(station.id, table);
+    meteoSixTables.set(key, table);
   }
   return parseMeteoSixTides(await table, day);
 }
@@ -337,8 +343,15 @@ const TIDE_CACHE_KEEP_DAYS = 3;
 /** Keys whose last answer came from the cache rather than the IHM. */
 const servedFromCache = new Set<string>();
 
+/**
+ * The Madrid calendar day as YYYYMMDD. The tides are Galician, so the cache
+ * key, the IHM request and the MeteoSIX day filter all name the day THERE.
+ * With the browser's own date, a visitor in Portugal loading the page between
+ * 23:00 and midnight keyed Madrid's tomorrow as today and was shown
+ * tomorrow's tides as today's.
+ */
 function yyyymmdd(d: Date): string {
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  return formatToLocalDate(d).replace(/-/g, '');
 }
 
 function tideCacheKey(stationId: string, day: Date): string {
@@ -398,11 +411,9 @@ async function fetchTidePredictionsLive(
     format: 'json',
   });
 
-  const queryDate = date;
-  const yyyy = queryDate.getFullYear();
-  const mm = String(queryDate.getMonth() + 1).padStart(2, '0');
-  const dd = String(queryDate.getDate()).padStart(2, '0');
-  params.set('date', `${yyyy}${mm}${dd}`);
+  // The same Madrid day the cache key names (see yyyymmdd).
+  const madridDay = formatToLocalDate(date);
+  params.set('date', yyyymmdd(date));
 
   const url = `${IHM_BASE}/api-ihm/getmarea?${params}`;
 
@@ -426,7 +437,7 @@ async function fetchTidePredictionsLive(
     return [];
   }
 
-  const baseFecha = mareas.fecha || `${yyyy}-${mm}-${dd}`;
+  const baseFecha = mareas.fecha || madridDay;
 
   const points: TidePoint[] = [];
   const rawList = Array.isArray(mareas.datos.marea)
@@ -498,7 +509,9 @@ export async function fetchTides48h(
   const [yesterdayPts, todayPts, tomorrowPts] = await Promise.all([
     fetchTidePredictions(stationId, yesterday).catch(() => []),
     fetchTidePredictions(stationId, now),
-    fetchTidePredictions(stationId, tomorrow),
+    // Only today decides: a missing tomorrow must not hide today's table,
+    // and with failures kept for the page load it would hide it until reload.
+    fetchTidePredictions(stationId, tomorrow).catch(() => []),
   ]);
 
   const all = [...yesterdayPts, ...todayPts, ...tomorrowPts];

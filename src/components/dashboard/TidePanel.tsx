@@ -241,7 +241,8 @@ export const TidePanel = memo(function TidePanel() {
   }
 
   if (error || !data) {
-    // Reached only when the IHM, the stored copy and MeteoGalicia all failed.
+    // Reached only when the IHM, the stored copy and MeteoGalicia all failed
+    // for TODAY (a missing tomorrow only leaves the "Mañana" row empty).
     // Not our failure and says nothing about the sea: say so plainly, and
     // still show what the gauge measured, which needs no table. The surge
     // does, so it is not guessed. The client does not ask again until the
