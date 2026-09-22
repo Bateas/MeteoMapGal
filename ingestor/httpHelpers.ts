@@ -18,16 +18,26 @@ export function corsHeaders(origin: string | undefined): Record<string, string> 
   };
 }
 
+/**
+ * Default freshness. A handler that knows better sets its own Cache-Control
+ * with res.setHeader() before answering and it is respected: writeHead's own
+ * headers win over setHeader, so hardcoding it here silently overrode every
+ * per-route value (the historical baseline asked for 300 s and got 60).
+ */
+const DEFAULT_CACHE_CONTROL = 'public, max-age=60';
+
 export function json(
   res: http.ServerResponse,
   data: unknown,
   status = 200,
-  origin?: string
+  origin?: string,
+  cacheControl?: string
 ): void {
   const body = JSON.stringify(data);
+  const chosen = cacheControl ?? res.getHeader('Cache-Control') ?? DEFAULT_CACHE_CONTROL;
   const headers = {
     'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'public, max-age=60',
+    'Cache-Control': String(chosen),
     ...corsHeaders(origin),
   };
   res.writeHead(status, headers);
@@ -40,7 +50,9 @@ export function error(
   status = 400,
   origin?: string
 ): void {
-  json(res, { error: message }, status, origin);
+  // Never cacheable: a failure answered with the default minute would be
+  // served to everyone for that minute by any cache in front of us.
+  json(res, { error: message }, status, origin, 'no-store');
 }
 
 /**
