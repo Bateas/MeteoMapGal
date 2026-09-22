@@ -95,49 +95,133 @@ export function formatToLocalDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+// ── Once per page load ──────────────────────────────────────────────
+//
+// Six surfaces read the tide table (ticker, panel, spot popups, regatta,
+// gauge comparison), each for up to three days, each on its own timer. With
+// the IHM down every one of them used to retry on its own, and a single
+// open page sent the same three failing requests every few seconds. A day's
+// table is astronomical and never changes, so one answer per station and day
+// is kept for the whole page load, a failure included, and each publisher is
+// probed once: after an outage it is not asked again until the next reload.
+
+/** A request the publisher answered with a 4xx: our request, not its outage. */
+class TideHttpError extends Error {
+  readonly status: number;
+  constructor(publisher: string, status: number) {
+    super(`${publisher} error: ${status}`);
+    this.status = status;
+  }
+}
+
+/** Thrown instead of asking a publisher already found down this page load. */
+class TideUnavailableError extends Error {}
+
+/** The service answered, but with an error envelope instead of a table. */
+class TideAnswerError extends Error {}
+
+/**
+ * A 4xx or an error envelope is about one request: the service answered.
+ * Everything else (5xx, 429, network, timeout, non-JSON) is the service.
+ */
+function isOutage(err: unknown): boolean {
+  if (err instanceof TideAnswerError) return false;
+  if (!(err instanceof TideHttpError)) return true;
+  return err.status >= 500 || err.status === 429;
+}
+
+function sessionGate(name: string) {
+  let state: 'unknown' | 'up' | 'down' = 'unknown';
+  let probe: Promise<void> | null = null;
+  return {
+    get down() { return state === 'down'; },
+    async run<T>(fn: () => Promise<T>): Promise<T> {
+      // Until the publisher has answered once, one request at a time: when it
+      // is down, only the first caller pays for finding out.
+      while (state === 'unknown' && probe) await probe;
+      if (state === 'down') throw new TideUnavailableError(`${name} unavailable until reload`);
+      const attempt = (async () => {
+        try {
+          const value = await fn();
+          state = 'up';
+          return value;
+        } catch (err) {
+          if (isOutage(err)) state = 'down';
+          throw err;
+        }
+      })();
+      if (state === 'unknown') {
+        const settled = attempt.then(() => undefined, () => undefined);
+        probe = settled;
+        void settled.then(() => { if (probe === settled) probe = null; });
+      }
+      return attempt;
+    },
+    reset() { state = 'unknown'; probe = null; },
+  };
+}
+
+const ihmGate = sessionGate('IHM');
+const meteoSixGate = sessionGate('MeteoSIX');
+
+/** Every station-day asked for this page load, answered or failed. */
+const sessionTables = new Map<string, Promise<TidePoint[]>>();
+
 /**
  * Fetch tide predictions for a station and date.
  * Converts IHM UTC predictions to local Spanish time (CEST/CET) with absolute timestamps.
  * Returns high/low tide points with times and heights.
  */
-export async function fetchTidePredictions(
+export function fetchTidePredictions(
   stationId: string = DEFAULT_TIDE_STATION.id,
   date?: Date
 ): Promise<TidePoint[]> {
   const day = date ?? new Date();
   const key = tideCacheKey(stationId, day);
+  let table = sessionTables.get(key);
+  if (!table) {
+    table = resolveTideDay(stationId, day, key);
+    sessionTables.set(key, table);
+  }
+  return table;
+}
+
+async function resolveTideDay(stationId: string, day: Date, key: string): Promise<TidePoint[]> {
+  let ihmError: unknown;
   try {
-    const points = await fetchTidePredictionsLive(stationId, day);
+    const points = await ihmGate.run(() => fetchTidePredictionsLive(stationId, day));
     if (points.length > 0) writeTideCache(key, points);
     servedFromCache.delete(key);
     servedFromMeteoSix.delete(key);
     return points;
   } catch (err) {
-    // A day's tide table is astronomical and never changes, so the last good
-    // copy of it is not stale data: it is the same answer. Serving it keeps
-    // every tide surface alive through an IHM outage instead of all of them
-    // failing at once.
-    const cached = readTideCache(key);
-    if (cached) {
-      servedFromCache.add(key);
-      return cached;
-    }
-    // No stored copy: the day has never loaded here. MeteoGalicia publishes
-    // its own tide table for the Galician ports, so ask it for the same day.
-    const station = RIAS_TIDE_STATIONS.find((s) => s.id === stationId);
-    if (station) {
-      try {
-        const fallback = await fetchMeteoSixTideDay(station, day);
-        if (fallback.points.length > 0) {
-          servedFromMeteoSix.set(key, fallback.portName);
-          return fallback.points;
-        }
-      } catch {
-        // Both publishers down: report the original IHM failure.
-      }
-    }
-    throw err;
+    ihmError = err;
   }
+  // A day's tide table is astronomical and never changes, so the last good
+  // copy of it is not stale data: it is the same answer. Serving it keeps
+  // every tide surface alive through an IHM outage instead of all of them
+  // failing at once.
+  const cached = readTideCache(key);
+  if (cached) {
+    servedFromCache.add(key);
+    return cached;
+  }
+  // No stored copy: the day has never loaded here. MeteoGalicia publishes
+  // its own tide table for the Galician ports, so ask it for the same day.
+  // It only serves today onwards, so a past day is not worth a request.
+  const station = RIAS_TIDE_STATIONS.find((s) => s.id === stationId);
+  if (station && formatToLocalDate(day) >= formatToLocalDate(new Date())) {
+    try {
+      const fallback = await fetchMeteoSixTideDay(station, day);
+      if (fallback.points.length > 0) {
+        servedFromMeteoSix.set(key, fallback.portName);
+        return fallback.points;
+      }
+    } catch {
+      // Both publishers down: report the original IHM failure.
+    }
+  }
+  throw ihmError;
 }
 
 // ── MeteoGalicia fallback ─────────────────────────────────────────
@@ -148,10 +232,6 @@ const servedFromMeteoSix = new Map<string, string | null>();
 /** "2026-09-22T04:32:00+02" → "+02:00": JS needs the colon in the offset. */
 function fixMeteoSixOffset(ts: string): string {
   return ts.replace(/([+-]\d{2})$/, '$1:00').replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
-}
-
-function localDayParam(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /**
@@ -198,15 +278,49 @@ export function parseMeteoSixTides(data: unknown, day: Date): { points: TidePoin
   return { points, portName };
 }
 
+/** Wait before the one retry of an answer that came back as an error envelope. */
+const METEOSIX_ENVELOPE_RETRY_MS = 2_000;
+
+/** MeteoSIX's own error answer: HTTP 200 with `{"exception": {...}}`. */
+function meteoSixFailure(body: unknown): string | null {
+  const exception = (body as { exception?: { message?: string } } | null)?.exception;
+  return exception ? (exception.message ?? 'exception') : null;
+}
+
+/**
+ * The whole MeteoSIX answer for one port. Asked with no time range, it
+ * returns today and the next four days, which are all the days the app ever
+ * asks it for, so one request per port serves the page load. An explicit
+ * one-day range for tomorrow was seen to fail while the open one answered.
+ * MeteoSIX also answers 200 with an error envelope from time to time and the
+ * same request works a moment later: that gets exactly one more try.
+ */
+async function fetchMeteoSixTable(station: TideStation): Promise<unknown> {
+  const url = METEOSIX.tides(station.lon, station.lat);
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetchWithRetry(url, { label: 'Tide MeteoSIX', timeout: 10_000, maxRetries: 1 });
+    if (!response.ok) throw new TideHttpError('MeteoSIX tides', response.status);
+    const body: unknown = await response.json();
+    const failure = meteoSixFailure(body);
+    if (!failure) return body;
+    if (attempt >= 1) throw new TideAnswerError(`MeteoSIX tides: ${failure}`);
+    await new Promise((resolve) => setTimeout(resolve, METEOSIX_ENVELOPE_RETRY_MS));
+  }
+}
+
+/** One MeteoSIX answer per port for the page load, failed or not. */
+const meteoSixTables = new Map<string, Promise<unknown>>();
+
 async function fetchMeteoSixTideDay(
   station: TideStation,
   day: Date,
 ): Promise<{ points: TidePoint[]; portName: string | null }> {
-  const d = localDayParam(day);
-  const url = `${METEOSIX.tides(station.lon, station.lat)}&startTime=${d}T00:00:00&endTime=${d}T23:59:59`;
-  const response = await fetchWithRetry(url, { label: 'Tide MeteoSIX', timeout: 10_000, maxRetries: 1 });
-  if (!response.ok) throw new Error(`MeteoSIX tides error: ${response.status}`);
-  return parseMeteoSixTides(await response.json(), day);
+  let table = meteoSixTables.get(station.id);
+  if (!table) {
+    table = meteoSixGate.run(() => fetchMeteoSixTable(station));
+    meteoSixTables.set(station.id, table);
+  }
+  return parseMeteoSixTides(await table, day);
 }
 
 /** The MeteoGalicia port whose table stood in for that day, if one did. */
@@ -264,10 +378,14 @@ export function isTideFromCache(stationId: string, day: Date): boolean {
   return servedFromCache.has(tideCacheKey(stationId, day));
 }
 
-/** Test-only: forget which answers came from the cache. */
+/** Test-only: what a page reload does — forget every answer and every outage. */
 export function __clearTideTableCacheForTests(): void {
   servedFromCache.clear();
   servedFromMeteoSix.clear();
+  sessionTables.clear();
+  meteoSixTables.clear();
+  ihmGate.reset();
+  meteoSixGate.reset();
 }
 
 async function fetchTidePredictionsLive(
@@ -288,6 +406,8 @@ async function fetchTidePredictionsLive(
 
   const url = `${IHM_BASE}/api-ihm/getmarea?${params}`;
 
+  // Two retries with backoff (2 s, then 4 s) only while the IHM is being
+  // probed; after that the session gate decides, not the retry loop.
   const response = await fetchWithRetry(url, {
     label: 'Tide',
     timeout: 10_000,
@@ -295,7 +415,7 @@ async function fetchTidePredictionsLive(
   });
 
   if (!response.ok) {
-    throw new Error(`IHM API error: ${response.status}`);
+    throw new TideHttpError('IHM API', response.status);
   }
 
   const data = await response.json();

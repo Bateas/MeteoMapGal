@@ -97,9 +97,12 @@ describe('TidePanel', () => {
     render(<TidePanel />);
 
     await waitFor(() => {
-      expect(screen.getByText('Tabla del IHM no disponible')).toBeDefined();
+      expect(screen.getByText('Tabla de mareas no disponible')).toBeDefined();
     });
     expect(screen.queryByText(/Error cargando mareas/)).toBeNull();
+    // The client does not retry until reload: the text must not promise it does
+    expect(screen.queryByText(/Se vuelve a intentar solo/)).toBeNull();
+    expect(screen.getByText(/al recargar la página/)).toBeDefined();
     expect(screen.getByText(/Nivel medido ahora/)).toBeDefined();
     expect(screen.getByText('2.60 m')).toBeDefined();
     expect(screen.getByText(/no se puede calcular la resaca/)).toBeDefined();
@@ -113,7 +116,7 @@ describe('TidePanel', () => {
     render(<TidePanel />);
 
     await waitFor(() => {
-      expect(screen.getByText('Tabla del IHM no disponible')).toBeDefined();
+      expect(screen.getByText('Tabla de mareas no disponible')).toBeDefined();
     });
     expect(screen.queryByText(/Nivel medido ahora/)).toBeNull();
   });
