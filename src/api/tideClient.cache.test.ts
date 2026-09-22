@@ -360,6 +360,65 @@ describe('tideClient once per page load', () => {
     expect(calls('getTidesInfo')).toBe(3);
   });
 
+  it('a failed tomorrow does not hide today: the 48 h view keeps today and leaves tomorrow empty', async () => {
+    vi.mocked(fetchWithRetry).mockResolvedValueOnce(ihmPayload('2026-09-22'));
+    await fetchTidePredictions('29', DAY); // an earlier visit stored today
+    reload();
+    vi.mocked(fetchWithRetry).mockResolvedValue(failing); // IHM and MeteoGalicia down
+    const result = await fetchTides48h('29');
+    expect(result.today).toHaveLength(2);
+    expect(result.tomorrow).toEqual([]);
+    expect(result.fromCache).toBe(true);
+  });
+
+  it('keeps a 4xx failure for the page load too: the hourly polls do not ask again', async () => {
+    const notFound = { ok: false, status: 404, json: async () => ({}) } as unknown as Response;
+    vi.mocked(fetchWithRetry).mockImplementation(async (url: string) =>
+      String(url).includes('getTidesInfo') ? failing : notFound);
+    await expect(fetchTidePredictions('28', DAY)).rejects.toThrow(/404/);
+    await expect(fetchTidePredictions('28', DAY)).rejects.toThrow(/404/);
+    await expect(fetchTides48h('28')).rejects.toThrow(/404/);
+    // Today's kept failure rejects the 48 h view at once: let its other two
+    // days (the same kept promises) finish before counting.
+    await Promise.allSettled([
+      fetchTidePredictions('28', new Date(2026, 8, 21, 12)),
+      fetchTidePredictions('28', new Date(2026, 8, 23, 12)),
+    ]);
+    // One request per station-day (21, 22, 23), none repeated
+    expect(calls('/ihm-api/')).toBe(3);
+  });
+
+  it('a tab open for days asks MeteoGalicia again on a new day, once per port', async () => {
+    vi.mocked(fetchWithRetry).mockImplementation(async (url: string) =>
+      String(url).includes('getTidesInfo') ? meteoSixPayload() : failing);
+    expect(await fetchTidePredictions('29', DAY)).toHaveLength(3);
+    expect(calls('getTidesInfo')).toBe(1);
+
+    // Five days later the first answer (today + 4 days) no longer covers today
+    vi.setSystemTime(new Date(2026, 8, 27, 12));
+    await expect(fetchTidePredictions('29', new Date(2026, 8, 27, 12))).rejects.toThrow();
+    expect(calls('getTidesInfo')).toBe(2);
+    await expect(fetchTidePredictions('29', new Date(2026, 8, 28, 12))).rejects.toThrow();
+    expect(calls('getTidesInfo')).toBe(2);
+  });
+
+  it('names the Madrid day everywhere: key, IHM request and MeteoGalicia filter', async () => {
+    // 22:30 UTC on the 22nd is already the 23rd in Galicia. On a machine in
+    // Madrid the browser date agrees anyway; in UTC or Lisbon it did not.
+    const lateNight = new Date('2026-09-22T22:30:00Z');
+    vi.setSystemTime(lateNight);
+    vi.mocked(fetchWithRetry).mockResolvedValueOnce(ihmPayload('2026-09-23'));
+    await fetchTidePredictions('29', lateNight);
+    expect(String(vi.mocked(fetchWithRetry).mock.calls[0][0])).toContain('date=20260923');
+
+    reload();
+    localStorage.clear();
+    vi.mocked(fetchWithRetry).mockImplementation(async (url: string) =>
+      String(url).includes('getTidesInfo') ? meteoSixTwoDays() : failing);
+    const points = await fetchTidePredictions('29', lateNight);
+    expect(points.map((p) => p.date)).toEqual(['2026-09-23', '2026-09-23', '2026-09-23']);
+  });
+
   it('an IHM that fails mid-session stops being asked too', async () => {
     vi.mocked(fetchWithRetry).mockResolvedValueOnce(ihmPayload('2026-09-22')).mockResolvedValue(failing);
     expect(await fetchTidePredictions('29', DAY)).toHaveLength(2);
