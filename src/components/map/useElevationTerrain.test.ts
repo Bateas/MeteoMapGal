@@ -145,3 +145,29 @@ describe('useElevationTerrain', () => {
     expect(() => renderHook(() => useElevationTerrain(undefined))).not.toThrow();
   });
 });
+
+describe('useElevationTerrain — only while enabled', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // The two consumers are always mounted. Terrain on for every visitor meant
+  // a GPU readback on every pointer move (5 s of a 10 s pan trace, 24-Sep).
+  it('leaves terrain off while no consumer is enabled', () => {
+    const { map, ref } = makeMap();
+    renderHook(() => useElevationTerrain(ref as never, false));
+    expect(map.setTerrain).not.toHaveBeenCalled();
+  });
+
+  it('turns terrain on when enabled and off again when disabled', () => {
+    const { map, ref } = makeMap();
+    const { rerender } = renderHook(({ on }) => useElevationTerrain(ref as never, on), {
+      initialProps: { on: false },
+    });
+    expect((map.getTerrain as unknown as () => unknown)()).toBeNull();
+
+    rerender({ on: true });
+    expect((map.getTerrain as unknown as () => unknown)()).toEqual(expect.objectContaining({ source: 'terrainDEM' }));
+
+    rerender({ on: false });
+    expect((map.getTerrain as unknown as () => unknown)()).toBeNull();
+  });
+});

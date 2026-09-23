@@ -11,10 +11,15 @@
  *   - FogOverlay — a null cell elevation reads as water and is ALLOWED, so
  *     without terrain every cell passes and the blobs over-paint onto hills.
  *
- * Rendering terrain costs a full extra render pass, so we pay for it only
- * while a fog surface is actually mounted (fog is rare — these components are
- * lazy and only mount when fog is detected). Refcounted so both consumers can
- * ask at once and the last one to unmount turns it back off.
+ * Terrain is expensive even on a flat map: besides the extra render pass,
+ * MapLibre reads pixels back from the GPU (readPixels) on every pointer move
+ * while it is set — 5 s of a 10 s pan trace on 24-Sep. So it is on only while
+ * a consumer is `enabled`, i.e. while there is fog to draw. It used to be on
+ * for every visitor from the first render: this note assumed the two
+ * consumers only mount when fog is detected, but they are always mounted
+ * (lazy only delays loading the code), and the hook had no condition.
+ * Refcounted so both consumers can ask at once and the last one to stop
+ * asking turns it back off.
  *
  * Exaggeration stays at 1.2 — the same value the style used before the map
  * went flat — so the elevations the fog code sees are identical to the ones
@@ -29,8 +34,9 @@ const TERRAIN_SPEC = { source: 'terrainDEM', exaggeration: 1.2 } as const;
 /** Number of mounted consumers currently needing elevation queries. */
 let consumers = 0;
 
-export function useElevationTerrain(mapRef: MapRef | undefined): void {
+export function useElevationTerrain(mapRef: MapRef | undefined, enabled = true): void {
   useEffect(() => {
+    if (!enabled) return;
     const map = mapRef?.getMap();
     if (!map) return;
 
@@ -61,5 +67,5 @@ export function useElevationTerrain(mapRef: MapRef | undefined): void {
         try { map.setTerrain(null); } catch { /* map already torn down */ }
       }
     };
-  }, [mapRef]);
+  }, [mapRef, enabled]);
 }

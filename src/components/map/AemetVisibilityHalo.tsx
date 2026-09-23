@@ -95,14 +95,12 @@ function buildHaloGeoJSON(
 
 function AemetVisibilityHaloInner() {
   const { current: mapRef } = useMap();
-  // The map is flat 2D; terrain exists only to answer queryTerrainElevation.
-  // Without it the halo service fails safe to density 0 and nothing renders.
-  useElevationTerrain(mapRef);
   const visibilityReadings = useWeatherStore((s) => s.visibilityReadings);
 
   const [geojson, setGeojson] = useState<FeatureCollection | null>(null);
   const [opacity, setOpacity] = useState(0);
   const lastRef = useRef<FeatureCollection | null>(null);
+  const elevRetriesRef = useRef(0);
 
   // Age is time-dependent but the store only pushes on a successful AEMET
   // poll — while AEMET is down nothing re-renders this component, so a halo
@@ -138,6 +136,11 @@ function AemetVisibilityHaloInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibilityReadings, freshnessTick]);
 
+  // The map is flat 2D; terrain exists only to answer queryTerrainElevation.
+  // Without it the halo service fails safe to density 0 and nothing renders.
+  // On only while some station reports fog.
+  useElevationTerrain(mapRef, fogStations.length > 0);
+
   const buildHalo = useCallback(() => {
     const map = mapRef?.getMap();
     if (!map || fogStations.length === 0) {
@@ -155,13 +158,23 @@ function AemetVisibilityHaloInner() {
     if (data.features.length > 0) {
       setGeojson(data);
       lastRef.current = data;
+      elevRetriesRef.current = 0;
       // Trigger fade-in
       setTimeout(() => setOpacity(1), 16);
     } else {
-      // Terrain not loaded yet — defer (don't clear last frame)
+      // Terrain just turned on and its elevation tiles are not in yet, so
+      // every query answered null. Try again once the map has settled, a few
+      // times at most: a halo that really has nothing to paint must not keep
+      // retrying.
       setOpacity(0);
+      if (elevRetriesRef.current < 3) {
+        elevRetriesRef.current += 1;
+        map.once('idle', () => buildHaloRef.current());
+      }
     }
   }, [mapRef, fogStations]);
+  const buildHaloRef = useRef(buildHalo);
+  buildHaloRef.current = buildHalo;
 
   // Rebuild halos when readings change. Tied to length + visibility values
   // so we don't spam re-renders on no-op map prop changes.
@@ -175,6 +188,7 @@ function AemetVisibilityHaloInner() {
     if (!map) return;
 
     if (fogStations.length === 0) {
+      elevRetriesRef.current = 0;
       setOpacity(0);
       // Hold last frame during fade-out, then clear
       const t = setTimeout(() => { setGeojson(null); lastRef.current = null; }, FADE_OUT_MS);

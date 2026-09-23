@@ -155,9 +155,6 @@ async function sampleFogZonesLocal(
 function FogOverlayInner() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const { current: mapRef } = useMap();
-  // The map is flat 2D; terrain exists only to answer queryTerrainElevation.
-  // Without it every cell reads as water and the blobs over-paint onto hills.
-  useElevationTerrain(mapRef);
   // Steady-state fog opacity (constant). The old "breathing pulse" was a
   // perpetual ~20fps rAF + setState that re-rendered this component FOREVER
   // while fog was active — the dominant idle CPU churn in the v2.86.0 pan/perf
@@ -188,6 +185,12 @@ function FogOverlayInner() {
   const fogType = fogMeta?.type ?? (coastal ? 'advective' : 'radiative');
   const config = coastal ? FOG_CONFIG.rias : FOG_CONFIG.embalse;
   const hasFogAlert = fogAlert != null;
+
+  // The map is flat 2D; terrain exists only to answer queryTerrainElevation.
+  // Without it every cell reads as water and the blobs over-paint onto hills.
+  // On only while there is a fog alert: the first build waits 2 s (activation)
+  // + 3 s (build timer), enough for the elevation tiles of the view to load.
+  useElevationTerrain(mapRef, hasFogAlert);
 
   // Debounce activation: require fog alert for 2s before rendering overlay.
   // Prevents flash on page load from transient partial-data fog detection.
