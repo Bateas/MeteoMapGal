@@ -5,7 +5,7 @@
  * against a provider that has already warned us once about the volume.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { singleFlight, inFlightCount, __resetSingleFlightForTests } from './singleFlight';
+import { singleFlight, memoByKey, inFlightCount, __resetSingleFlightForTests } from './singleFlight';
 
 beforeEach(() => __resetSingleFlightForTests());
 
@@ -132,5 +132,68 @@ describe('el plazo maximo de un vuelo compartido', () => {
     const r = await singleFlight('k', async () => 'rapido', 15_000);
     expect(r.value).toBe('rapido');
     expect(inFlightCount()).toBe(0);
+  });
+});
+
+describe('memoByKey', () => {
+  it('runs the query once and serves the rest from what it remembers', async () => {
+    let t = 0;
+    const produce = vi.fn(async (dias: number) => `resultado ${dias}`);
+    const get = memoByKey(60_000, produce, (dias) => `k${dias}`, () => t);
+
+    expect(await get(30)).toBe('resultado 30');
+    t += 59_000;
+    expect(await get(30)).toBe('resultado 30');
+    expect(produce).toHaveBeenCalledTimes(1);
+  });
+
+  it('vuelve a preguntar cuando el plazo pasa', async () => {
+    let t = 0;
+    const produce = vi.fn(async () => 'v');
+    const get = memoByKey(60_000, produce, () => 'k', () => t);
+    await get();
+    t += 60_001;
+    await get();
+    expect(produce).toHaveBeenCalledTimes(2);
+  });
+
+  it('no mezcla parametros distintos', async () => {
+    const produce = vi.fn(async (sector: string) => `datos de ${sector}`);
+    const get = memoByKey(60_000, produce, (sector) => sector);
+    expect(await get('rias')).toBe('datos de rias');
+    expect(await get('embalse')).toBe('datos de embalse');
+    expect(await get('rias')).toBe('datos de rias');
+    expect(produce).toHaveBeenCalledTimes(2);
+  });
+
+  it('una multitud sobre una clave fria cuesta UNA consulta', async () => {
+    let resolver!: (v: string) => void;
+    const produce = vi.fn(() => new Promise<string>((r) => { resolver = r; }));
+    const get = memoByKey(60_000, produce, () => 'k');
+
+    const todos = Promise.all(Array.from({ length: 50 }, () => get()));
+    resolver('una sola vez');
+
+    expect(await todos).toEqual(Array(50).fill('una sola vez'));
+    expect(produce).toHaveBeenCalledTimes(1);
+  });
+
+  it('una consulta que falla no se guarda: la siguiente puede intentarlo', async () => {
+    const produce = vi.fn()
+      .mockRejectedValueOnce(new Error('la base de datos dijo que no'))
+      .mockResolvedValueOnce('ya va');
+    const get = memoByKey(60_000, produce as () => Promise<string>, () => 'k');
+
+    await expect(get()).rejects.toThrow('la base de datos dijo que no');
+    expect(await get()).toBe('ya va');
+  });
+
+  it('no crece sin fin aunque los parametros varien', async () => {
+    let t = 0;
+    const get = memoByKey(1_000, async (n: number) => n, (n) => `k${n}`, () => t);
+    for (let i = 0; i < 400; i++) { t += 10; await get(i); }
+    // 400 claves distintas, pero lo que recuerda esta acotado.
+    const repetida = await get(399);
+    expect(repetida).toBe(399);
   });
 });

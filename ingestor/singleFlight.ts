@@ -89,3 +89,48 @@ export function inFlightCount(): number {
 export function __resetSingleFlightForTests(): void {
   inFlight.clear();
 }
+
+/**
+ * Remembers an answer for a while, one key at a time.
+ *
+ * The analytics queries are the expensive ones — the lightning map alone
+ * sweeps thirty days of strikes — and until now every request ran its own.
+ * They are also the ones nobody notices going stale, because they describe
+ * the last month, so holding an answer for a few minutes costs nothing and
+ * saves the database from repeating a sweep that cannot have changed.
+ *
+ * Remembering and not-asking-twice are different jobs: the cache answers
+ * those who arrive after, `singleFlight` covers those who arrive DURING. A
+ * crowd landing on a cold key gets one query between them, and the ones after
+ * get the stored answer.
+ *
+ * A failed query stores nothing, so the next caller is free to try again.
+ */
+export function memoByKey<A extends unknown[], T>(
+  ttlMs: number,
+  produce: (...args: A) => Promise<T>,
+  keyOf: (...args: A) => string,
+  clock: () => number = Date.now,
+): (...args: A) => Promise<T> {
+  const stored = new Map<string, { value: T; storedAt: number }>();
+
+  return async (...args: A): Promise<T> => {
+    const key = keyOf(...args);
+    const hit = stored.get(key);
+    if (hit && clock() - hit.storedAt < ttlMs) return hit.value;
+
+    const { value } = await singleFlight(`memo:${key}`, () => produce(...args));
+    stored.set(key, { value, storedAt: clock() });
+
+    // The key carries request parameters, so it must not be allowed to grow
+    // without end. Expired entries go first; if they were all fresh, the
+    // oldest does.
+    if (stored.size > 200) {
+      const now = clock();
+      for (const [k, v] of stored) if (now - v.storedAt >= ttlMs) stored.delete(k);
+      while (stored.size > 200) stored.delete(stored.keys().next().value as string);
+    }
+
+    return value;
+  };
+}

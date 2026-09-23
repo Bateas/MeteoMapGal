@@ -94,6 +94,26 @@ async function fetchWithTimeout<T>(url: string): Promise<T> {
 
 // ── Endpoints ─────────────────────────────────────────
 
+const HOUR_MS = 3_600_000;
+
+/**
+ * The window for the lightning map, ending on a round hour.
+ *
+ * It used to end on the exact instant of the request, milliseconds included,
+ * which made every visitor ask for a url nobody had ever asked for: no cache
+ * could answer, and behind it sits the heaviest query we have — thirty days
+ * of strikes swept on a small database host, once per person opening the
+ * tab. Rounded to the hour everyone asking within the same hour shares one
+ * answer, and thirty days do not care about the minutes.
+ */
+export function heatmapWindow(nowMs: number, days: number): { from: string; to: string } {
+  const end = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
+  return {
+    from: new Date(end - days * 86_400_000).toISOString(),
+    to: new Date(end).toISOString(),
+  };
+}
+
 /**
  * Fetch lightning hotspot heatmap.
  *
@@ -106,8 +126,7 @@ export async function fetchLightningHeatmap(opts: {
 } = {}): Promise<LightningHeatmapResponse> {
   const days = opts.days ?? 30;
   const minStrikes = opts.minStrikes ?? 1;
-  const to = new Date().toISOString();
-  const from = new Date(Date.now() - days * 86_400_000).toISOString();
+  const { from, to } = heatmapWindow(Date.now(), days);
   const url = `${BASE}/lightning-heatmap?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&minStrikes=${minStrikes}`;
   return fetchWithTimeout<LightningHeatmapResponse>(url);
 }
