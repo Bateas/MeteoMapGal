@@ -1,5 +1,5 @@
 /**
- * Station discovery — fetches station lists from all 6 sources,
+ * Station discovery — fetches station lists from all 7 sources,
  * filters by sector radius, and deduplicates.
  * Runs once at startup and every ~1 hour to pick up new stations.
  */

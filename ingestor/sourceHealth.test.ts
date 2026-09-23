@@ -57,7 +57,7 @@ describe('countBySource — the source that brought nothing still appears', () =
 });
 
 describe('formatHeartbeat', () => {
-  it('always prints all six, so a missing one is visible as a zero', () => {
+  it('always prints every polled source, so a missing one is visible as a zero', () => {
     const line = formatHeartbeat(countBySource([{ stationId: 'aemet_1701X' }]));
     expect(line).toContain('MG 0');
     expect(line).toContain('AEMET 1');
@@ -153,6 +153,52 @@ describe('findSilentSources — each source judged on its own clock', () => {
       reWarnAfterMs: 24 * 60 * MIN,
     });
     expect(silent[0].source).toBe('meteogalicia');
+  });
+});
+
+// IPMA (Portugal) joined on 20-Sep without a place on the roster, so a dead
+// IPMA fetcher was exactly the MeteoGalicia case of 18-Aug again: no line,
+// no zero, no alarm.
+describe('IPMA is on the roster like every other polled network', () => {
+  const now = 10_000 * MIN;
+
+  it('counts IPMA readings instead of dropping them as an unknown prefix', () => {
+    const counts = countBySource([
+      { stationId: 'ipma_1200551' },
+      { stationId: 'ipma_1210604' },
+      { stationId: 'mg_10154' },
+    ]);
+    expect(counts.get('ipma')).toBe(2);
+    expect(counts.get('meteogalicia')).toBe(1);
+  });
+
+  it('prints IPMA on the heartbeat, with a zero when it brought nothing', () => {
+    expect(formatHeartbeat(countBySource([{ stationId: 'mg_10154' }]))).toContain('IPMA 0');
+    expect(formatHeartbeat(countBySource([{ stationId: 'ipma_1200551' }]))).toContain('IPMA 1');
+  });
+
+  it('reports a silent IPMA fetcher', () => {
+    const silent = findSilentSources({
+      now,
+      lastSeen: new Map([['ipma', now - 300 * MIN]]),
+      lastWarnedAt: new Map(),
+      reWarnAfterMs: 24 * 60 * MIN,
+    });
+    expect(silent.map((s) => s.source)).toEqual(['ipma']);
+  });
+
+  it('does not call IPMA silent for being hourly', () => {
+    // Measured 21-Sep: IPMA publishes the HH:00 observation around HH+1:31,
+    // so a healthy reading is 31-91 min old. lastSeen here is the last CYCLE
+    // that brought an IPMA reading, which on a healthy day is every cycle,
+    // but a late publication must not be read as a dead fetcher either.
+    const silent = findSilentSources({
+      now,
+      lastSeen: new Map([['ipma', now - 150 * MIN]]),
+      lastWarnedAt: new Map(),
+      reWarnAfterMs: 24 * 60 * MIN,
+    });
+    expect(silent).toEqual([]);
   });
 });
 

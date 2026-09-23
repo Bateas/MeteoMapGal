@@ -28,7 +28,7 @@ const STEPS: Step[] = [
   {
     icon: 'sailboat',
     title: 'Bienvenido a MeteoMapGal',
-    desc: 'Condiciones en tiempo real para Galicia. 6 fuentes de datos, 100+ estaciones y 13 boyas marinas actualizadas cada 5 minutos.',
+    desc: 'Condiciones en tiempo real para Galicia. 7 fuentes de datos, 100+ estaciones y 13 boyas marinas actualizadas cada 5 minutos.',
     tip: 'Cambia de zona (Embalse / Rías) con los botones superiores.',
     highlight: '[data-tour="sectors"]',
   },

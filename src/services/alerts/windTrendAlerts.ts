@@ -31,7 +31,7 @@ export function buildWindTrendAlerts(
   const corroborated = rapid.length >= 2;
 
   for (const { stationId, trend } of rapid) {
-    const stationName = stationId.replace(/^(aemet|mg|mc|wu|nt|skyx)_/, '');
+    const stationName = stationId.replace(/^(aemet|mg|mc|wu|nt|skyx|ipma)_/, '');
     alerts.push({
       id: `wind-trend-${stationId}`,
       category: 'wind-front',

@@ -21,6 +21,7 @@ const SOURCE_COLOR: Record<string, string> = {
   wunderground: '#f59e0b',
   netatmo: '#a855f7',
   skyx: '#64748b',
+  ipma: '#0891b2',
 };
 
 export function NetworkCoverage() {

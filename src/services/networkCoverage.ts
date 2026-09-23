@@ -66,6 +66,7 @@ const SOURCE_LABEL: Record<string, string> = {
   wunderground: 'Wunderground',
   netatmo: 'Netatmo',
   skyx: 'SkyX',
+  ipma: 'IPMA',
 };
 
 export function sourceLabel(source: string): string {

@@ -178,11 +178,22 @@ export interface IpmaFeatureProperties {
   ventoRachamx?: number | null;       // max gust km/h (if reported)
   idDireccVento?: number | null;      // 0..9 (1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW, 9=N, 0=calm)
   idVentoDir?: number | null;         // alias
-  precAcumulada?: number | null;
+  precAcumulada?: number | null;      // mm over the HOUR, not a day counter
   pressao?: number | null;
-  radiacao?: number | null;
+  radiacao?: number | null;           // kJ/m² over the hour, NOT W/m² (see below)
   radTotal?: number | null;           // alias
 }
+
+/**
+ * IPMA documents `radiacao` as "radiação solar (kJ/m2)": the solar ENERGY that
+ * fell during the hour, not a flux. Every consumer here reads W/m², so the
+ * hourly energy is turned into the mean irradiance of that hour:
+ * 1 kJ/m² per hour = 1000 J / 3600 s = 1/3.6 W/m². Stored raw it read 3.6x too
+ * high — 1898.7 "W/m²" on a clear 21-Sep afternoon, above the solar constant,
+ * so the ingestor quality check nulled every midday value and the morning
+ * ones went in inflated.
+ */
+const KJ_PER_HOUR_TO_WM2 = 1 / 3.6;
 
 export interface IpmaFeature {
   type: string;
@@ -227,7 +238,7 @@ export function normalizeIpmaStation(feature: IpmaFeature): NormalizedStation {
   return {
     id: `ipma_${props.idEstacao}`,
     source: 'ipma',
-    name: props.localEstacao,
+    name: props.localEstacao || `IPMA ${props.idEstacao}`,
     lat,
     lon,
     altitude: 0, // IPMA surface GeoJSON doesn't report elevation in properties
@@ -236,9 +247,13 @@ export function normalizeIpmaStation(feature: IpmaFeature): NormalizedStation {
 }
 
 export function parseIpmaTimestamp(timeStr: string): Date {
-  if (!timeStr) return new Date();
-  // IPMA reports in UTC (e.g. '2026-09-20T18:00:00'). Without 'Z',
-  // ECMAScript treats it as local time, shifting it 2h into the past in Spain.
+  // No time means unknown age, not "now": an invalid date is dropped by the
+  // ingestor's timestamp check, a fabricated one would pass every stale gate.
+  if (!timeStr) return new Date(NaN);
+  // IPMA reports in UTC (e.g. '2026-09-20T18:00:00'). Verified 21-Sep against
+  // the hourly solar curve, which only fits clear sky if the stamp is UTC.
+  // Without 'Z', ECMAScript treats it as local time, shifting it 2h into the
+  // past in Spain.
   if (!timeStr.endsWith('Z') && !timeStr.includes('+')) {
     return new Date(`${timeStr}Z`);
   }
@@ -253,6 +268,7 @@ export function normalizeIpmaReading(props: IpmaFeatureProperties): NormalizedRe
   const wSpeedKm = sanitizeIpmaValue(props.intensidadeVentoKM ?? props.ventoIntensidadeKm);
   const wGustKm = sanitizeIpmaValue(props.ventoRachamx);
   const dirCode = props.idDireccVento ?? props.idVentoDir;
+  const solarKj = sanitizeIpmaValue(props.radiacao ?? props.radTotal);
 
   // Calculate dew point if temperature and relative humidity are available
   let dewPoint: number | null = null;
@@ -283,7 +299,7 @@ export function normalizeIpmaReading(props: IpmaFeatureProperties): NormalizedRe
     temperature: temp,
     humidity: hum,
     precipitation: sanitizeIpmaValue(props.precAcumulada),
-    solarRadiation: sanitizeIpmaValue(props.radiacao ?? props.radTotal),
+    solarRadiation: solarKj !== null ? Math.round(solarKj * KJ_PER_HOUR_TO_WM2 * 10) / 10 : null,
     pressure: sanitizeIpmaValue(props.pressao),
     dewPoint,
   };

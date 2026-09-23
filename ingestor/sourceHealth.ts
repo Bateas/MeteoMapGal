@@ -13,8 +13,8 @@
  * not fail. It disappears. And a log with no errors in it looks exactly like
  * a log where everything ran.
  *
- * So the heartbeat below always names ALL six, including the ones that
- * brought nothing. `MG 0` is a sentence; a missing line is not.
+ * So the heartbeat below always names EVERY polled source, including the
+ * ones that brought nothing. `MG 0` is a sentence; a missing line is not.
  */
 
 import { staleGateMinFor, sourceOf } from '../src/services/spotScoringEngine.js';
@@ -30,11 +30,14 @@ export const POLLED_SOURCES = [
   'meteoclimatic',
   'aemet',
   'skyx',
+  // Portugal, from 20-Sep. It ran for its first two days off this roster, so
+  // a dead IPMA fetcher would have been the 18-Aug MeteoGalicia case again.
+  'ipma',
 ] as const;
 
 export type PolledSource = (typeof POLLED_SOURCES)[number];
 
-/** Short labels, so a six-source line still fits on one row of a terminal. */
+/** Short labels, so the whole roster still fits on one row of a terminal. */
 const SHORT: Record<PolledSource, string> = {
   meteogalicia: 'MG',
   wunderground: 'WU',
@@ -42,6 +45,7 @@ const SHORT: Record<PolledSource, string> = {
   meteoclimatic: 'MC',
   aemet: 'AEMET',
   skyx: 'SkyX',
+  ipma: 'IPMA',
 };
 
 /**
@@ -63,7 +67,7 @@ export function countBySource(
   return counts;
 }
 
-/** One line naming all six: `MG 154 · WU 79 · NT 87 · MC 32 · AEMET 23 · SkyX 0`. */
+/** One line naming them all: `MG 154 · WU 79 · NT 87 · MC 32 · AEMET 23 · SkyX 0 · IPMA 7`. */
 export function formatHeartbeat(counts: ReadonlyMap<PolledSource, number>): string {
   return POLLED_SOURCES.map((s) => `${SHORT[s]} ${counts.get(s) ?? 0}`).join(' · ');
 }
@@ -120,7 +124,7 @@ export function describeSilence(s: SilentSource): string {
   return `${s.source} silent ${formatSilence(s.silentMs)} (expected within ${s.gateMin}min)`;
 }
 
-// ── The Netatmo sweep: the blind spot the six-source line cannot see ─────
+// ── The Netatmo sweep: the blind spot the per-source line cannot see ─────
 //
 // Netatmo is fetched two ways: the two sectors every cycle (~18 readings) and
 // the rest of Galicia every half hour (~78 more). If the sweep dies — token

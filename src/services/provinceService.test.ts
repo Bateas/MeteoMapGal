@@ -129,6 +129,21 @@ describe('fillMissingProvinces', () => {
     expect(stations.every((s) => s.province === undefined)).toBe(true);
   });
 
+  it('does not file a Portuguese station under a Galician province', () => {
+    // IPMA states its own district. It is not one of the four, and inheriting
+    // the nearest Galician one filed V.N. Cerveira under Pontevedra.
+    const stations = [
+      { lat: 42.235, lon: -8.720, province: 'Pontevedra' },
+      { lat: 41.967, lon: -8.667, province: 'Viana do Castelo (Portugal)' },
+      { lat: 42.240, lon: -8.730 },
+    ];
+    const stats = fillMissingProvinces(stations);
+
+    expect(stations[1].province).toBe('Viana do Castelo (Portugal)');
+    expect(stations[2].province).toBe('Pontevedra'); // still inherits from a Galician one
+    expect(stats).toEqual({ labelled: 1, inferred: 1, unknown: 0 });
+  });
+
   it('does not let a coordinate-less station become a reference for others', () => {
     const stations = [
       { lat: 0, lon: 0, province: 'Lugo' },              // claims Lugo, sits nowhere

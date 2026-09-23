@@ -105,7 +105,7 @@ export function RoadmapSection() {
                 letter={src.name[0]}
                 name={src.name}
                 desc={src.what}
-                color={['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#64748b'][i]}
+                color={['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#64748b', '#0891b2'][i] ?? '#64748b'}
               />
             ))}
             <p className="text-[11px] text-slate-500 pt-1">
@@ -177,6 +177,12 @@ export function RoadmapSection() {
           <p className="text-[11px] text-slate-400">
             <strong className="text-slate-300">Atribuciones:</strong>{' '}
             © AEMET (CC BY 4.0) · © MeteoGalicia – Xunta de Galicia (CC BY 4.0) ·{' '}
+            Fuente: <a
+              href="https://www.ipma.pt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+            >IPMA — Instituto Português do Mar e da Atmosfera</a> (uso sin ánimo de lucro) ·{' '}
             Datos de Puertos del Estado · © Instituto Hidrográfico de la Marina ·{' '}
             E.U. Copernicus Marine Service (CMEMS) · © EMODnet Bathymetry (CC BY 4.0) ·{' '}
             Modelo SWAN — CESGA · INTECMAR / RADAR ON RAIA · ENAIRE / AESA ·{' '}

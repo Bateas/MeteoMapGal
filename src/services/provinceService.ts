@@ -91,7 +91,9 @@ export function inferProvinceFromNeighbours(
 }
 
 /** Fill in the province of every station that lacks one, using those that have
- *  it as the reference set. Mutates in place and reports what it managed.
+ *  it as the reference set. Mutates in place and reports what it managed. A
+ *  station that states a place outside the four keeps it and is not counted:
+ *  it is neither a Galician reference nor a guess.
  *
  *  Stations with no usable coordinates are left alone rather than guessed at:
  *  a (0,0) placeholder would otherwise inherit whatever province happens to
@@ -112,6 +114,11 @@ export function fillMissingProvinces(
   let unknown = 0;
   for (const s of stations) {
     if (normalizeProvinceName(s.province)) continue;
+    // A source that states a place we do not recognise is telling us the
+    // station is outside Galicia (IPMA names its Portuguese district), not
+    // that it lacks one. Inheriting the nearest Galician province filed the
+    // border stations under Pontevedra and Ourense.
+    if (s.province?.trim()) continue;
     if (!Number.isFinite(s.lat) || !Number.isFinite(s.lon) || s.lat === 0) {
       s.province = undefined;
       unknown++;

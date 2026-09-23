@@ -81,7 +81,7 @@ export function DataSection() {
           <VarGroup
             icon="thermometer"
             title="Estaciones en tierra"
-            source="AEMET · MeteoGalicia · Meteoclimatic · Weather Underground · Netatmo · SkyX"
+            source="AEMET · MeteoGalicia · Meteoclimatic · Weather Underground · Netatmo · SkyX · IPMA"
             vars={[
               'viento medio', 'racha', 'dirección', 'temperatura', 'humedad',
               'presión', 'punto de rocío', 'radiación solar', 'precipitación', 'visibilidad',

@@ -582,6 +582,12 @@ describe('getSourceQuality — reads both vocabularies', () => {
     expect(getSourceQuality('mg_10154')).toBe(1.0);
   });
 
+  it('weighs IPMA as the official national service it is, not as an unknown network', () => {
+    // It fell through to the 0.7 default — the level of a backyard station.
+    expect(getSourceQuality('ipma_1200551')).toBe(1.0);
+    expect(getSourceQuality('ipma')).toBe(getSourceQuality('aemet'));
+  });
+
   it('places the curated amateur network between official and unknown', () => {
     expect(getSourceQuality('mc_ESGAL3600000036202A')).toBe(0.85);
   });

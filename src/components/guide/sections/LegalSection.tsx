@@ -55,6 +55,7 @@ export function LegalSection() {
             <AttrRow name="Meteoclimatic" license="CC BY-NC-ND" desc="Red ciudadana — estaciones personales" />
             <AttrRow name="Weather Underground" license="Datos públicos vía web" desc="IBM — red de estaciones personales" />
             <AttrRow name="Netatmo" license="Datos públicos" desc="Weathermap público — estaciones personales" />
+            <AttrRow name="IPMA" license="Uso no lucrativo" desc="Instituto Português do Mar e da Atmosfera (ipma.pt) — estaciones y avisos del norte de Portugal" />
             <AttrRow name="Open-Meteo" license="CC BY 4.0" desc="Modelo numérico ECMWF/GFS" />
             <AttrRow name="IHM / Puertos del Estado" license="Datos públicos" desc="Predicciones de mareas" />
             <AttrRow name="ENAIRE" license="Datos públicos" desc="Espacio aéreo y NOTAMs" />

@@ -158,7 +158,7 @@ describe('normalizeIpmaStation', () => {
   it('normalizes IPMA station with district and coordinates', () => {
     const feat = {
       type: 'Feature' as const,
-      geometry: { type: 'Point' as const, coordinates: [-8.83, 41.69] },
+      geometry: { type: 'Point' as const, coordinates: [-8.83, 41.69] as [number, number] },
       properties: {
         idEstacao: 1200545,
         localEstacao: 'Viana do Castelo (Chafé)',
@@ -174,6 +174,17 @@ describe('normalizeIpmaStation', () => {
     expect(station.lat).toBe(41.69);
     expect(station.lon).toBe(-8.83);
     expect(station.province).toBe('Viana do Castelo (Portugal)');
+  });
+
+  it('never leaves a station without a name', () => {
+    // `localEstacao` is optional in the payload and a station popup, a history
+    // dropdown and a wind-trend alert all print the name.
+    const station = normalizeIpmaStation({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [-8.67, 41.97] },
+      properties: { idEstacao: 1210604, time: '2026-09-21T16:00:00' },
+    });
+    expect(station.name).toBe('IPMA 1210604');
   });
 });
 
@@ -200,8 +211,49 @@ describe('normalizeIpmaReading', () => {
     expect(reading.windDirection).toBe(0);
     expect(reading.pressure).toBe(1018.5);
     expect(reading.precipitation).toBe(1.2);
-    expect(reading.solarRadiation).toBe(450);
+    expect(reading.solarRadiation).toBe(125); // 450 kJ/m² over the hour
     expect(reading.dewPoint).not.toBeNull();
+  });
+
+  it('converts the hourly solar energy (kJ/m²) into the mean irradiance (W/m²) every consumer expects', () => {
+    // A real row, Viana do Castelo (Chafé) at 16:00 UTC on 21-Sep, clear sky.
+    // IPMA documents `radiacao` as "radiação solar (kJ/m2)": energy over the
+    // hour, not a flux. Stored raw it read 1898.7 "W/m²" — above the solar
+    // constant — so the quality check nulled every midday value and the
+    // morning ones went in 3.6 times too high.
+    const reading = normalizeIpmaReading({
+      intensidadeVentoKM: 12.6,
+      temperatura: 29.4,
+      idEstacao: 1200551,
+      pressao: 1022.8,
+      humidade: 36.0,
+      localEstacao: 'Viana Castelo, Chafé',
+      precAcumulada: 0.0,
+      idDireccVento: 8,
+      radiacao: 1898.7,
+      time: '2026-09-21T16:00:00',
+      intensidadeVento: 3.5,
+    });
+    expect(reading.solarRadiation).toBeCloseTo(527.4, 1);
+    // Clear-sky ballpark for 41.6°N three hours after solar noon at the
+    // equinox is ~500 W/m²; the converted value has to be physically possible.
+    expect(reading.solarRadiation!).toBeLessThan(1300);
+    expect(reading.windSpeed).toBe(3.5);
+    expect(reading.windDirection).toBe(315);
+    expect(reading.timestamp.toISOString()).toBe('2026-09-21T16:00:00.000Z');
+  });
+
+  it('never invents a timestamp for a row that has none', () => {
+    // Stamping it "now" would make a reading of unknown age look perfectly
+    // fresh to every staleness gate. An invalid date is dropped by the
+    // ingestor's timestamp check and by the client instead.
+    const reading = normalizeIpmaReading({ idEstacao: 1, time: '' });
+    expect(Number.isNaN(reading.timestamp.getTime())).toBe(true);
+  });
+
+  it('keeps a missing solar value missing rather than converting the sentinel', () => {
+    const reading = normalizeIpmaReading({ idEstacao: 1, time: '2026-09-21T02:00:00', radiacao: -99.0 });
+    expect(reading.solarRadiation).toBeNull();
   });
 
   it('filters -99 and -990 sentinel values', () => {

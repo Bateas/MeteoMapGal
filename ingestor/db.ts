@@ -42,14 +42,23 @@ export async function closePool(): Promise<void> {
   }
 }
 
-/** Map a source string from NormalizedStation format to DB source column */
-function sourceLabel(stationId: string): string {
+/**
+ * The DB `source` column for a station id.
+ *
+ * IPMA was added to the fetchers but not here, and for its first two days
+ * every Portuguese row was written as `unknown` — invisible to `?source=ipma`
+ * and to the per-network health count. db.test.ts now checks this against
+ * the heartbeat roster (POLLED_SOURCES), so a network cannot be polled
+ * without also being labelled.
+ */
+export function sourceLabel(stationId: string): string {
   if (stationId.startsWith('aemet_')) return 'aemet';
   if (stationId.startsWith('mg_')) return 'meteogalicia';
   if (stationId.startsWith('mc_')) return 'meteoclimatic';
   if (stationId.startsWith('wu_')) return 'wunderground';
   if (stationId.startsWith('nt_')) return 'netatmo';
   if (stationId.startsWith('skyx_')) return 'skyx';
+  if (stationId.startsWith('ipma_')) return 'ipma';
   return 'unknown';
 }
 
@@ -284,10 +293,14 @@ export async function batchUpsertStations(
       );
     }
 
+    // `source` is refreshed on conflict too, so a row first written with the
+    // wrong label (IPMA went in as unknown for two days) corrects itself on
+    // the next discovery instead of needing a manual UPDATE.
     const sql = `
       INSERT INTO stations (station_id, source, name, latitude, longitude, altitude, province)
       VALUES ${placeholders.join(', ')}
       ON CONFLICT (station_id) DO UPDATE SET
+        source = EXCLUDED.source,
         name = EXCLUDED.name,
         latitude = EXCLUDED.latitude,
         longitude = EXCLUDED.longitude,

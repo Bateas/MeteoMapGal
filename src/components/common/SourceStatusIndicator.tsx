@@ -9,9 +9,10 @@ const SOURCE_LABELS: Record<WeatherSource, string> = {
   wunderground: 'WU',
   netatmo: 'NT',
   skyx: 'SX',
+  ipma: 'PT', // same badge the station markers use (sourceConfig)
 };
 
-const SOURCE_ORDER: WeatherSource[] = ['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx'];
+const SOURCE_ORDER: WeatherSource[] = ['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx', 'ipma'];
 
 function formatAge(date: Date | null): string {
   if (!date) return 'Sin datos';
