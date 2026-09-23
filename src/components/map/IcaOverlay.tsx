@@ -24,6 +24,15 @@
  *
  * Pattern based on HumidityHeatmapOverlay: per-row unproject + small
  * ImageData scaled up for smooth gradient at 12px grid cells.
+ *
+ * Performance: the canvas is repainted only when the data, the size or the
+ * finished view changes — never per frame while the map is moving. It used
+ * to repaint on every `move` event (~60 per second while panning) and to
+ * re-assign canvas.width each time, which reallocates a full-screen backing
+ * store per frame: invisible on a big GPU, a stuttering pan on a modest
+ * laptop. While the map moves, the last painting is shifted and scaled with
+ * a CSS transform (composited, no repaint) so the plumes stay glued to the
+ * map, and it is repainted properly on moveend.
  */
 
 import { useRef, useEffect, useCallback, useState, memo } from 'react';
@@ -56,6 +65,11 @@ interface IcaOverlayProps {
 export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Where the current painting was made: the map centre, its pixel position,
+   *  zoom and bearing. The move handler maps the painting onto the live view
+   *  from these, without repainting. */
+  const paintedAtRef = useRef<{ lng: number; lat: number; x: number; y: number; zoom: number; bearing: number } | null>(null);
+  const moveFrameRef = useRef<number | null>(null);
 
   const readings = useIcaStore((s) => s.readings);
 
@@ -88,12 +102,25 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
-    canvas.width = w * dpr;
-    canvas.height = h * dpr;
+    // Assigning width/height reallocates the backing store (and clears it):
+    // only when the size really changed.
+    const bw = Math.round(w * dpr);
+    const bh = Math.round(h * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw;
+      canvas.height = bh;
+    }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // The painting now matches the live view exactly.
+    const c = map.getCenter();
+    const cp = map.project(c);
+    paintedAtRef.current = { lng: c.lng, lat: c.lat, x: cp.x, y: cp.y, zoom: map.getZoom(), bearing: map.getBearing() };
+    canvas.style.transform = '';
+    canvas.style.opacity = '';
 
     if (affectedStations.length === 0) return;
 
@@ -198,26 +225,47 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
     drawHeatmap();
   }, [isActive, drawHeatmap]);
 
-  // Redraw on map move/zoom
+  // While the map moves: shift and scale the last painting to follow it (one
+  // project() per frame, composited transform). Repaint only on moveend.
   useEffect(() => {
     if (!isActive) return;
     const map = mapRef.current?.getMap();
     if (!map) return;
 
-    map.on('move', drawHeatmap);
+    const followMap = () => {
+      moveFrameRef.current = null;
+      const canvas = canvasRef.current;
+      const at = paintedAtRef.current;
+      if (!canvas || !at) return;
+      if (Math.abs(map.getBearing() - at.bearing) > 0.01) {
+        // A rotation cannot be followed with this transform: hide until the
+        // repaint at moveend rather than show plumes in the wrong place.
+        canvas.style.opacity = '0';
+        return;
+      }
+      const p = map.project([at.lng, at.lat]);
+      const k = Math.pow(2, map.getZoom() - at.zoom);
+      canvas.style.transformOrigin = '0 0';
+      canvas.style.transform = `translate(${p.x - k * at.x}px, ${p.y - k * at.y}px) scale(${k})`;
+    };
+    const onMove = () => {
+      if (moveFrameRef.current === null) moveFrameRef.current = requestAnimationFrame(followMap);
+    };
+
+    map.on('move', onMove);
     map.on('moveend', drawHeatmap);
-    map.on('zoomend', drawHeatmap);
 
     const resizeObs = new ResizeObserver(scheduleRedraw);
     const canvas = canvasRef.current;
     if (canvas) resizeObs.observe(canvas);
 
     return () => {
-      map.off('move', drawHeatmap);
+      map.off('move', onMove);
       map.off('moveend', drawHeatmap);
-      map.off('zoomend', drawHeatmap);
       resizeObs.disconnect();
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (moveFrameRef.current !== null) cancelAnimationFrame(moveFrameRef.current);
+      moveFrameRef.current = null;
     };
   }, [isActive, mapRef, drawHeatmap, scheduleRedraw]);
 
