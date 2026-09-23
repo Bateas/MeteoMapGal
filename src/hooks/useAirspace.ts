@@ -4,10 +4,17 @@
  * Reads the active sector, fetches UAS zones (24h cache) and NOTAMs
  * (30min cache), evaluates airspace restrictions, and stores results
  * in airspaceStore. Returns the current AirspaceCheck.
+ *
+ * Only while alphaMode is on. Everything that shows this data — the drone
+ * tab, the airspace overlay, the drone alert — is alphaMode-only, but the
+ * fetch ran for every visitor: four ENAIRE queries and a NOTAM poll every
+ * 30 minutes for a tab almost nobody opens. Turning alphaMode on fetches at
+ * once; turning it off keeps what was fetched and stops polling.
  */
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useSectorStore } from '../store/sectorStore';
+import { useUIStore } from '../store/uiStore';
 import { useAirspaceStore } from '../store/airspaceStore';
 import { fetchUasZones, fetchActiveNotams, bboxFromCenter } from '../api/enaireClient';
 import { evaluateAirspace } from '../services/airspaceService';
@@ -26,6 +33,7 @@ const EMPTY_CHECK: AirspaceCheck = {
 };
 
 export function useAirspace(): AirspaceCheck {
+  const alphaMode = useUIStore((s) => s.alphaMode);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const sectorCenter = useSectorStore((s) => s.activeSector.center);
   const sectorRadiusKm = useSectorStore((s) => s.activeSector.radiusKm);
@@ -88,13 +96,14 @@ export function useAirspace(): AirspaceCheck {
     }
   }, [sectorCenter, sectorRadiusKm, lastZoneFetch, lastNotamFetch, check, setZones, setNotams, setCheck, setLoading, setError]);
 
-  // Initial fetch on sector change
+  // Initial fetch on sector change, and as soon as alphaMode turns on
   useEffect(() => {
+    if (!alphaMode) return;
     fetchAndEvaluate();
-  }, [fetchAndEvaluate]);
+  }, [fetchAndEvaluate, alphaMode]);
 
   // Visibility-aware NOTAM polling — pauses when tab is hidden
-  useVisibilityPolling(fetchAndEvaluate, NOTAM_POLL_INTERVAL, true, 10_000); // Stagger: 10s
+  useVisibilityPolling(fetchAndEvaluate, NOTAM_POLL_INTERVAL, alphaMode, 10_000); // Stagger: 10s
 
   return check ?? EMPTY_CHECK;
 }
