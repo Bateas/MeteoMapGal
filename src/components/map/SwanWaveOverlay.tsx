@@ -20,6 +20,7 @@ import { isCoastalSector } from '../../config/sectors';
 import { useMapStyleStore } from '../../store/mapStyleStore';
 import { useUIStore } from '../../store/uiStore';
 import { fetchMarineData } from '../../api/marineClient';
+import { useTileBreaker } from '../../hooks/useTileBreaker';
 
 // ── Open-Meteo Marine fallback — used when CESGA SWAN is down ──
 // 6 strategic sample points covering Rías Baixas. Drawn as colored dots so
@@ -79,7 +80,19 @@ function SwanWaveOverlayInner() {
   const isMobile = useUIStore((s) => s.isMobile);
 
   const [hourOffset, setHourOffset] = useState(0);
+  // What the tiles actually ask for. Every hour is a different url, so each
+  // step of the slider used to unmount the layer and ask for a whole new set
+  // of tiles: dragging across ten hours was ~500 requests in a few seconds,
+  // most of them refused. Now the slider moves at once and the tiles follow
+  // only when it stops.
+  const [appliedHour, setAppliedHour] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setAppliedHour(hourOffset), 400);
+    return () => clearTimeout(t);
+  }, [hourOffset]);
   const [serverUp, setServerUp] = useState(false);
+  // Tiles that keep failing take the layer down for a while (see the hook).
+  const tilesBlocked = useTileBreaker('swan-wave');
 
   // auto-activation removed. SWAN is now strictly opt-in via the
   // marine layers menu. Reasons:
@@ -120,11 +133,11 @@ function SwanWaveOverlayInner() {
     return () => clearInterval(interval);
   }, [wantsActive]);
 
-  const isActive = wantsActive && serverUp;
+  const isActive = wantsActive && serverUp && !tilesBlocked;
 
   // ── Open-Meteo Marine fallback when CESGA is down ──
   // Pull the 6 sample points lazily, cache via marineClient (10 min).
-  const fallbackActive = wantsActive && !serverUp;
+  const fallbackActive = wantsActive && (!serverUp || tilesBlocked);
   const [fallbackData, setFallbackData] = useState<Array<{ lat: number; lon: number; waveHeight: number; label: string }>>([]);
   useEffect(() => {
     if (!fallbackActive) { setFallbackData([]); return; }
@@ -154,9 +167,9 @@ function SwanWaveOverlayInner() {
 
   // Build tile URL with TIME parameter
   const tileUrl = useMemo(() => {
-    const time = timeForOffset(hourOffset);
+    const time = timeForOffset(appliedHour);
     return `${SWAN_WMS_BASE}&TIME=${time}`;
-  }, [hourOffset]);
+  }, [appliedHour]);
 
   const handleSlider = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setHourOffset(parseInt(e.target.value, 10));
@@ -169,7 +182,7 @@ function SwanWaveOverlayInner() {
       {/* WMS raster tiles — only when CESGA is up */}
       {isActive && (
         <Source
-          key={`swan-${hourOffset}`}
+          key={`swan-${appliedHour}`}
           id="swan-wave"
           type="raster"
           tiles={[tileUrl]}
