@@ -20,6 +20,77 @@ const FIRMS_BBOX = '-10.5,40.8,-6.0,44.5';
 const aemetCache = new Map<string, { data: Buffer; contentType: string; ts: number }>();
 const AEMET_CACHE_TTL = 5 * 60_000; // 5 minutes
 
+/**
+ * How long a copy is kept AFTER it stops being fresh, so it can still be
+ * served when the provider fails.
+ *
+ * These caches used to be pruned at their freshness TTL, and every successful
+ * answer triggers a prune — observations refresh every few minutes — so the
+ * "serve the last good copy if the provider fails" path almost never had a
+ * copy to serve. Freshness is still decided at read time by each TTL; this
+ * only decides when a copy is thrown away.
+ */
+const STALE_KEEP_MS = 48 * 3600_000;
+
+/** The station inventory barely changes: a long TTL costs nothing. */
+export const AEMET_INVENTORY_TTL = 12 * 3600_000;
+
+export function aemetTtlFor(path: string): number {
+  return path.includes('/inventarioestaciones/') ? AEMET_INVENTORY_TTL : AEMET_CACHE_TTL;
+}
+
+/**
+ * Whether an AEMET answer is a real answer. AEMET reports its own failures
+ * as HTTP 200 with a body like {"estado": 429, ...}; caching one of those
+ * would serve the failure to everyone for the whole TTL — twelve hours for
+ * the inventory. Data payloads are arrays, so only an object carrying an
+ * `estado` other than 200 is a failure. Reads the first bytes only: the
+ * observation payload is megabytes and is checked every five minutes.
+ */
+export function aemetAnswerOk(body: Buffer): boolean {
+  const head = body.subarray(0, 300).toString('latin1').trimStart();
+  if (!head.startsWith('{')) return true;
+  const m = /"estado"\s*:\s*(\d+)/.exec(head);
+  return !m || m[1] === '200';
+}
+
+/**
+ * The step-two paths an AEMET step-one answer points at, in the form the
+ * data route receives them (`/opendata/sh/<code>`).
+ */
+export function aemetDataPaths(body: Buffer): string[] {
+  try {
+    const j = JSON.parse(body.toString('utf8')) as Record<string, unknown>;
+    const out: string[] = [];
+    for (const k of ['datos', 'metadatos']) {
+      const v = j?.[k];
+      if (typeof v !== 'string') continue;
+      const u = new URL(v);
+      if (u.hostname === 'opendata.aemet.es') out.push(u.pathname);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Step two goes to a temporary url that changes on every step-one answer, so
+ * caching it by url stored nothing reusable: every copy was of a link nobody
+ * would ask for again. This remembers which step-one resource each temporary
+ * path belongs to, and the data is cached under THAT, one entry per resource,
+ * overwritten on each refresh.
+ */
+const aemetDataOrigin = new Map<string, string>();
+
+function rememberDataOrigin(stepOnePath: string, body: Buffer): void {
+  const paths = aemetDataPaths(body);
+  paths.forEach((p, i) => aemetDataOrigin.set(p, i === 0 ? stepOnePath : `${stepOnePath}#meta`));
+  while (aemetDataOrigin.size > 500) {
+    aemetDataOrigin.delete(aemetDataOrigin.keys().next().value as string);
+  }
+}
+
 export async function handleAemetProxy(
   aemetPath: string,
   res: http.ServerResponse,
@@ -37,8 +108,9 @@ export async function handleAemetProxy(
   }
 
   // Check in-memory cache
+  const ttl = aemetTtlFor(aemetPath);
   const cached = aemetCache.get(aemetPath);
-  if (cached && Date.now() - cached.ts < AEMET_CACHE_TTL) {
+  if (cached && Date.now() - cached.ts < ttl) {
     res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'HIT' });
     res.end(cached.data);
     return;
@@ -62,14 +134,24 @@ export async function handleAemetProxy(
       const contentType = upstream.headers.get('content-type') || 'application/json';
       const buf = Buffer.from(await upstream.arrayBuffer());
 
-      // Cache successful responses
-      if (upstream.ok) {
+      // Cache real answers only (see aemetAnswerOk)
+      const good = upstream.ok && aemetAnswerOk(buf);
+      if (good) {
         aemetCache.set(aemetPath, { data: buf, contentType, ts: Date.now() });
-        pruneCache(aemetCache, AEMET_CACHE_TTL, 50);
+        rememberDataOrigin(aemetPath, buf);
+        pruneCache(aemetCache, STALE_KEEP_MS, 50);
       }
 
-      return { status: upstream.status, contentType, buf };
+      return { status: upstream.status, contentType, buf, good };
     });
+
+    // AEMET answered, but with a failure: the last good copy beats passing
+    // the failure on to the visitor.
+    if (!value.good && cached) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'STALE' });
+      res.end(cached.data);
+      return;
+    }
 
     res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
     res.end(value.buf);
@@ -165,8 +247,12 @@ export async function handleAemetDataProxy(
   res: http.ServerResponse,
   origin?: string,
 ): Promise<void> {
-  const cached = aemetCache.get(`data:${dataPath}`);
-  if (cached && Date.now() - cached.ts < AEMET_CACHE_TTL) {
+  // Cached under the resource it belongs to, not under the temporary url.
+  const stepOne = aemetDataOrigin.get(dataPath);
+  const key = `data:${stepOne ?? dataPath}`;
+  const ttl = stepOne ? aemetTtlFor(stepOne) : AEMET_CACHE_TTL;
+  const cached = aemetCache.get(key);
+  if (cached && Date.now() - cached.ts < ttl) {
     res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'HIT' });
     res.end(cached.data);
     return;
@@ -179,12 +265,20 @@ export async function handleAemetDataProxy(
       const contentType = upstream.headers.get('content-type') || 'application/json';
       const buf = Buffer.from(await upstream.arrayBuffer());
 
-      if (upstream.ok) {
-        aemetCache.set(`data:${dataPath}`, { data: buf, contentType, ts: Date.now() });
+      const good = upstream.ok && aemetAnswerOk(buf);
+      if (good) {
+        aemetCache.set(key, { data: buf, contentType, ts: Date.now() });
+        pruneCache(aemetCache, STALE_KEEP_MS, 50);
       }
 
-      return { status: upstream.status, contentType, buf };
+      return { status: upstream.status, contentType, buf, good };
     });
+
+    if (!value.good && cached) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'STALE' });
+      res.end(cached.data);
+      return;
+    }
 
     res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
     res.end(value.buf);
@@ -246,13 +340,20 @@ export async function handleMeteoSixProxy(
 
       // MeteoSIX reports its own failures as 200 + {"exception": ...}. Caching
       // one would serve that error to every visitor for the whole TTL.
-      if (upstream.ok && !isMeteoSixErrorEnvelope(buf)) {
+      const good = upstream.ok && !isMeteoSixErrorEnvelope(buf);
+      if (good) {
         meteosixCache.set(cacheKey, { data: buf, contentType, ts: Date.now() });
-        pruneCache(meteosixCache, METEOSIX_CACHE_TTL, 100);
+        pruneCache(meteosixCache, STALE_KEEP_MS, 100);
       }
 
-      return { status: upstream.status, contentType, buf };
+      return { status: upstream.status, contentType, buf, good };
     });
+
+    if (!value.good && cached) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'STALE' });
+      res.end(cached.data);
+      return;
+    }
 
     res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
     res.end(value.buf);
@@ -303,13 +404,20 @@ export async function handleObsCosteiroProxy(
       const contentType = upstream.headers.get('content-type') || 'application/json';
       const buf = Buffer.from(await upstream.arrayBuffer());
 
-      if (upstream.ok) {
+      const good = upstream.ok;
+      if (good) {
         obsCache.set(obsPath, { data: buf, contentType, ts: Date.now() });
-        pruneCache(obsCache, OBS_CACHE_TTL, 50);
+        pruneCache(obsCache, STALE_KEEP_MS, 50);
       }
 
-      return { status: upstream.status, contentType, buf };
+      return { status: upstream.status, contentType, buf, good };
     });
+
+    if (!value.good && cached) {
+      res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'STALE' });
+      res.end(cached.data);
+      return;
+    }
 
     res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
     res.end(value.buf);
