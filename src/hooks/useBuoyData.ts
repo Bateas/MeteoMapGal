@@ -11,7 +11,7 @@
  * reporting failure here.
  */
 import { useCallback, useEffect, useRef } from 'react';
-import { fetchAllRiasBuoys, mergeBuoyReadings } from '../api/buoyClient';
+import { fetchAllRiasBuoys, fetchStoredBuoys, mergeBuoyReadings } from '../api/buoyClient';
 import { fetchAllObsReadings } from '../api/observatorioCosteiro';
 import { useBuoyStore } from '../store/buoyStore';
 import { useSectorStore } from '../store/sectorStore';
@@ -29,6 +29,8 @@ export function useBuoyData() {
   const errorRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isCoastal = isCoastalSector(sectorId);
+  /** Read inside the callback, which must not be rebuilt on a sector change. */
+  const isCoastalRef = useRef(isCoastal);
 
   const fetchBuoys = useCallback(async () => {
     // Clear any pending error retry
@@ -38,6 +40,24 @@ export function useBuoyData() {
     }
     setLoading(true);
     try {
+      // Our own service already polls both providers, merges them and stores
+      // the result: one request, and nothing from the visitor's browser to
+      // Puertos del Estado, who rate-limit by address and already warned us
+      // once. The direct path below stays as the fallback (and for running
+      // the app without our service, in development).
+      try {
+        const stored = await fetchStoredBuoys();
+        if (stored.length > 0) {
+          setBuoys(stored);
+          setError(null);
+          console.debug(`[useBuoyData] ${stored.length} buoys from our own API`);
+          return;
+        }
+        console.warn('[useBuoyData] own API returned no buoys, asking the providers');
+      } catch (apiErr) {
+        console.warn('[useBuoyData] own API failed, asking the providers:', (apiErr as Error).message);
+      }
+
       // Fetch PORTUS + Observatorio Costeiro in parallel — fail silently per source
       const [portusData, obsData] = await Promise.all([
         fetchAllRiasBuoys().catch((err) => {
@@ -67,19 +87,39 @@ export function useBuoyData() {
       const msg = (err as Error).message;
       setError(msg);
       console.warn('[useBuoyData] Fetch failed:', msg);
-      // Schedule a faster retry on error (5 min instead of 30 min)
-      errorRetryRef.current = setTimeout(() => {
-        fetchBuoys();
-      }, ERROR_RETRY_MS);
+      // Schedule a faster retry on error (5 min instead of 30 min), but only
+      // where it makes sense. This timer used to be scheduled unconditionally
+      // and cancelled by nobody: it survived the tab being hidden, the switch
+      // to an inland sector and the component going away, so a provider that
+      // was failing kept being asked for eleven stations every five minutes
+      // by a page nobody was looking at.
+      if (isCoastalRef.current && (typeof document === 'undefined' || document.visibilityState === 'visible')) {
+        errorRetryRef.current = setTimeout(() => {
+          fetchBuoys();
+        }, ERROR_RETRY_MS);
+      }
     }
   }, [setBuoys, setLoading, setError]);
 
   // Clear buoy data when leaving Rías — prevents stale maritime alerts in Embalse
   useEffect(() => {
+    isCoastalRef.current = isCoastal;
     if (!isCoastal) {
+      if (errorRetryRef.current) {
+        clearTimeout(errorRetryRef.current);
+        errorRetryRef.current = null;
+      }
       setBuoys([]);
     }
   }, [isCoastal, setBuoys]);
+
+  // Leaving the page must take the pending retry with it.
+  useEffect(() => () => {
+    if (errorRetryRef.current) {
+      clearTimeout(errorRetryRef.current);
+      errorRetryRef.current = null;
+    }
+  }, []);
 
   // Single polling loop — enabled only on Rías sector.
   // useVisibilityPolling fires callback immediately on start → no double fetch.

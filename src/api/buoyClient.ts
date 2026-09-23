@@ -30,6 +30,8 @@
  * No auth required. Hourly updates for buoys, 10-min for REMPOR.
  */
 
+import { fetchWithRetry } from './fetchWithRetry';
+
 const PORTUS_API = '/portus-api';  // proxied → portus.puertos.es/portussvr/api
 const TIMEOUT = 20_000;
 const MAX_RETRIES = 2;
@@ -306,6 +308,86 @@ export async function fetchBuoyLastReading(stationId: number, stationName?: stri
     console.warn(`[BuoyClient] lastData failed for station ${stationId}:`, (err as Error).message);
     return null;
   }
+}
+
+// ── Our own copy ──────────────────────────────────────────────
+
+/** A row of /api/v1/buoys/latest: the merged reading, as stored. */
+interface StoredBuoyRow {
+  time: string;
+  station_id: number;
+  station_name: string | null;
+  source: string | null;
+  wave_height: number | null;
+  wave_height_max: number | null;
+  wave_period: number | null;
+  wave_period_mean: number | null;
+  wave_dir: number | null;
+  wind_speed: number | null;
+  wind_dir: number | null;
+  wind_gust: number | null;
+  water_temp: number | null;
+  air_temp: number | null;
+  air_pressure: number | null;
+  current_speed: number | null;
+  current_dir: number | null;
+  salinity: number | null;
+  sea_level: number | null;
+  humidity: number | null;
+  dew_point: number | null;
+}
+
+/** "2026-09-23 08:40:00+02" → a timestamp every browser parses the same way. */
+function storedTimeToIso(time: string): string {
+  const withT = time.replace(' ', 'T');
+  const withOffset = withT.replace(/([+-]\d{2})$/, '$1:00');
+  const parsed = new Date(withOffset);
+  return Number.isNaN(parsed.getTime()) ? time : parsed.toISOString();
+}
+
+export function storedRowToReading(row: StoredBuoyRow): BuoyReading {
+  return {
+    stationId: row.station_id,
+    stationName: row.station_name ?? String(row.station_id),
+    timestamp: storedTimeToIso(row.time),
+    waveHeight: row.wave_height,
+    waveHeightMax: row.wave_height_max,
+    wavePeriod: row.wave_period,
+    wavePeriodMean: row.wave_period_mean,
+    waveDir: row.wave_dir,
+    windSpeed: row.wind_speed,
+    windDir: row.wind_dir,
+    windGust: row.wind_gust,
+    waterTemp: row.water_temp,
+    airTemp: row.air_temp,
+    airPressure: row.air_pressure,
+    currentSpeed: row.current_speed,
+    currentDir: row.current_dir,
+    salinity: row.salinity,
+    seaLevel: row.sea_level,
+    humidity: row.humidity,
+    dewPoint: row.dew_point,
+    source: row.source === 'obscosteiro' ? 'obscosteiro' : 'portus',
+  };
+}
+
+/**
+ * The buoys as our own service already stores them: one request instead of
+ * eleven, already merged with the coastal observatory, and no traffic to
+ * Puertos del Estado from the visitor's browser. They publish every 10 to 60
+ * minutes and rate-limit by address, so a busy day used to mean every open
+ * tab asking them for all eleven stations, from the same address the
+ * round-the-clock collection goes out by.
+ */
+export async function fetchStoredBuoys(): Promise<BuoyReading[]> {
+  const response = await fetchWithRetry('/api/v1/buoys/latest', {
+    label: 'Buoys (own API)',
+    timeout: 10_000,
+    maxRetries: 1,
+  });
+  if (!response.ok) throw new Error(`Buoys API error: ${response.status}`);
+  const data = (await response.json()) as { readings?: StoredBuoyRow[] };
+  return (data.readings ?? []).map(storedRowToReading);
 }
 
 /**
