@@ -188,6 +188,31 @@ function parseStrikes(
 
 // ── Public API ───────────────────────────────────────────────────
 
+/** The window ends on a round half minute, so that everyone asking within the
+ * same half minute asks for the SAME url. */
+const WINDOW_MS = 30_000;
+
+/**
+ * The url for the last 24 hours of strikes, ending on a round half minute.
+ *
+ * It used to end on `new Date()` with its milliseconds, which made every
+ * request a url nobody had ever asked for: neither our cache nor the edge
+ * could answer one, so every visitor, on every cycle, went to the provider.
+ * Rounding down costs at most half a minute of the newest strikes against a
+ * feed published with three to five minutes of delay, and it turns a crowd
+ * into one request per half minute.
+ */
+export function buildStrikesUrl(nowMs: number): string {
+  const end = new Date(Math.floor(nowMs / WINDOW_MS) * WINDOW_MS);
+  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+  // MeteoGalicia convention: fechaInicio = newer date, fechaFin = older date
+  const params = new URLSearchParams({
+    fechaInicio: end.toISOString(),
+    fechaFin: start.toISOString(),
+  });
+  return `${RAIOS_LENDA_URL}?${params}`;
+}
+
 /**
  * Fetch lightning strikes from the last 24 hours.
  * Uses MeteoGalicia's `raios/lenda` endpoint.
@@ -211,16 +236,7 @@ export async function fetchLightningStrikes(
     return cache ? recomputeAges(cache.data) : [];
   }
 
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-  // MeteoGalicia convention: fechaInicio = newer date, fechaFin = older date
-  const params = new URLSearchParams({
-    fechaInicio: now.toISOString(),
-    fechaFin: yesterday.toISOString(),
-  });
-
-  const url = `${RAIOS_LENDA_URL}?${params}`;
+  const url = buildStrikesUrl(Date.now());
 
   try {
     const res = await fetch(url, {
