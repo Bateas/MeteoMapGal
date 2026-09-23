@@ -2,6 +2,7 @@ import type http from 'node:http';
 import { log } from './logger.js';
 import { pruneCache } from './requestGuards.js';
 import { corsHeaders, error } from './httpHelpers.js';
+import { singleFlight } from './singleFlight.js';
 import { FIRMS_PRODUCTS, mergeFirmsCsv } from '../src/services/fireService.js';
 
 // ── Proxy Configuration ──────────────────────────────────
@@ -44,24 +45,34 @@ export async function handleAemetProxy(
   }
 
   try {
-    // Inject api_key server-side
-    const sep = aemetPath.includes('?') ? '&' : '?';
-    const url = `${AEMET_BASE}${aemetPath}${sep}api_key=${AEMET_API_KEY}`;
-    const upstream = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
+    // One ask per path at a time: a crowd on a cold cache costs AEMET one
+    // request, not one each.
+    const { value, joined } = await singleFlight(`aemet:${aemetPath}`, async () => {
+      // Inject api_key server-side
+      const sep = aemetPath.includes('?') ? '&' : '?';
+      const url = `${AEMET_BASE}${aemetPath}${sep}api_key=${AEMET_API_KEY}`;
+      // AEMET is the one that hangs rather than failing, and now that the
+      // answer is shared a hang without a deadline would hang everyone
+      // waiting on it instead of only the first.
+      const upstream = await fetch(url, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const buf = Buffer.from(await upstream.arrayBuffer());
+
+      // Cache successful responses
+      if (upstream.ok) {
+        aemetCache.set(aemetPath, { data: buf, contentType, ts: Date.now() });
+        pruneCache(aemetCache, AEMET_CACHE_TTL, 50);
+      }
+
+      return { status: upstream.status, contentType, buf };
     });
 
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const buf = Buffer.from(await upstream.arrayBuffer());
-
-    // Cache successful responses
-    if (upstream.ok) {
-      aemetCache.set(aemetPath, { data: buf, contentType, ts: Date.now() });
-      pruneCache(aemetCache, AEMET_CACHE_TTL, 50);
-    }
-
-    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
-    res.end(buf);
+    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.end(value.buf);
   } catch (err) {
     log.error('[AEMET Proxy]', (err as Error).message);
     // Serve stale cache on error
@@ -100,36 +111,42 @@ export async function handleFirmsProxy(
   }
 
   try {
-    const results = await Promise.all(
-      FIRMS_PRODUCTS.map(async (product) => {
-        try {
-          const url = `${FIRMS_BASE}/${FIRMS_API_KEY}/${product}/${FIRMS_BBOX}/${days}`;
-          const r = await fetch(url, { signal: AbortSignal.timeout(FIRMS_TIMEOUT_MS) });
-          if (!r.ok) {
-            log.warn(`[FIRMS Proxy] ${product} upstream ${r.status}`);
+    // Each ask here is three requests to NASA (one per platform), so sharing
+    // it matters three times over.
+    const { value: buf, joined } = await singleFlight(`firms:${days}`, async () => {
+      const results = await Promise.all(
+        FIRMS_PRODUCTS.map(async (product) => {
+          try {
+            const url = `${FIRMS_BASE}/${FIRMS_API_KEY}/${product}/${FIRMS_BBOX}/${days}`;
+            const r = await fetch(url, { signal: AbortSignal.timeout(FIRMS_TIMEOUT_MS) });
+            if (!r.ok) {
+              log.warn(`[FIRMS Proxy] ${product} upstream ${r.status}`);
+              return null;
+            }
+            return await r.text();
+          } catch (err) {
+            log.warn(`[FIRMS Proxy] ${product} failed: ${(err as Error).message}`);
             return null;
           }
-          return await r.text();
-        } catch (err) {
-          log.warn(`[FIRMS Proxy] ${product} failed: ${(err as Error).message}`);
-          return null;
+        }),
+      );
+
+      const merged = mergeFirmsCsv(results);
+      if (!merged) throw new Error('all FIRMS platforms failed');
+      const data = Buffer.from(merged, 'utf8');
+
+      firmsCache.set(days, { data, ts: Date.now() });
+      if (firmsCache.size > 10) {
+        const now = Date.now();
+        for (const [k, v] of firmsCache) {
+          if (now - v.ts > FIRMS_CACHE_TTL) firmsCache.delete(k);
         }
-      }),
-    );
-
-    const merged = mergeFirmsCsv(results);
-    if (!merged) throw new Error('all FIRMS platforms failed');
-    const buf = Buffer.from(merged, 'utf8');
-
-    firmsCache.set(days, { data: buf, ts: Date.now() });
-    if (firmsCache.size > 10) {
-      const now = Date.now();
-      for (const [k, v] of firmsCache) {
-        if (now - v.ts > FIRMS_CACHE_TTL) firmsCache.delete(k);
       }
-    }
 
-    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': 'text/csv', 'X-Cache': 'MISS' });
+      return data;
+    });
+
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': 'text/csv', 'X-Cache': joined ? 'JOINED' : 'MISS' });
     res.end(buf);
   } catch (err) {
     log.error('[FIRMS Proxy]', (err as Error).message);
@@ -156,17 +173,21 @@ export async function handleAemetDataProxy(
   }
 
   try {
-    const url = `https://opendata.aemet.es${dataPath}`;
-    const upstream = await fetch(url);
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const buf = Buffer.from(await upstream.arrayBuffer());
+    const { value, joined } = await singleFlight(`aemet-data:${dataPath}`, async () => {
+      const url = `https://opendata.aemet.es${dataPath}`;
+      const upstream = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const buf = Buffer.from(await upstream.arrayBuffer());
 
-    if (upstream.ok) {
-      aemetCache.set(`data:${dataPath}`, { data: buf, contentType, ts: Date.now() });
-    }
+      if (upstream.ok) {
+        aemetCache.set(`data:${dataPath}`, { data: buf, contentType, ts: Date.now() });
+      }
 
-    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
-    res.end(buf);
+      return { status: upstream.status, contentType, buf };
+    });
+
+    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.end(value.buf);
   } catch (err) {
     log.error('[AEMET Data Proxy]', (err as Error).message);
     if (cached) {
@@ -216,21 +237,25 @@ export async function handleMeteoSixProxy(
   }
 
   try {
-    const sep = query ? '&' : '';
-    const url = `${METEOSIX_BASE}${msPath}?${query}${sep}API_KEY=${METEOSIX_API_KEY}`;
-    const upstream = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const buf = Buffer.from(await upstream.arrayBuffer());
+    const { value, joined } = await singleFlight(`meteosix:${cacheKey}`, async () => {
+      const sep = query ? '&' : '';
+      const url = `${METEOSIX_BASE}${msPath}?${query}${sep}API_KEY=${METEOSIX_API_KEY}`;
+      const upstream = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
+      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const buf = Buffer.from(await upstream.arrayBuffer());
 
-    // MeteoSIX reports its own failures as 200 + {"exception": ...}. Caching
-    // one would serve that error to every visitor for the whole TTL.
-    if (upstream.ok && !isMeteoSixErrorEnvelope(buf)) {
-      meteosixCache.set(cacheKey, { data: buf, contentType, ts: Date.now() });
-      pruneCache(meteosixCache, METEOSIX_CACHE_TTL, 100);
-    }
+      // MeteoSIX reports its own failures as 200 + {"exception": ...}. Caching
+      // one would serve that error to every visitor for the whole TTL.
+      if (upstream.ok && !isMeteoSixErrorEnvelope(buf)) {
+        meteosixCache.set(cacheKey, { data: buf, contentType, ts: Date.now() });
+        pruneCache(meteosixCache, METEOSIX_CACHE_TTL, 100);
+      }
 
-    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
-    res.end(buf);
+      return { status: upstream.status, contentType, buf };
+    });
+
+    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.end(value.buf);
   } catch (err) {
     log.error('[MeteoSIX Proxy]', (err as Error).message);
     if (cached) {
@@ -269,21 +294,25 @@ export async function handleObsCosteiroProxy(
   }
 
   try {
-    const url = `${OBSCOSTEIRO_BASE}${obsPath}`;
-    const upstream = await fetch(url, {
-      headers: { apikey: OBSCOSTEIRO_API_KEY, Accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
+    const { value, joined } = await singleFlight(`obscosteiro:${obsPath}`, async () => {
+      const url = `${OBSCOSTEIRO_BASE}${obsPath}`;
+      const upstream = await fetch(url, {
+        headers: { apikey: OBSCOSTEIRO_API_KEY, Accept: 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+      });
+      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const buf = Buffer.from(await upstream.arrayBuffer());
+
+      if (upstream.ok) {
+        obsCache.set(obsPath, { data: buf, contentType, ts: Date.now() });
+        pruneCache(obsCache, OBS_CACHE_TTL, 50);
+      }
+
+      return { status: upstream.status, contentType, buf };
     });
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const buf = Buffer.from(await upstream.arrayBuffer());
 
-    if (upstream.ok) {
-      obsCache.set(obsPath, { data: buf, contentType, ts: Date.now() });
-      pruneCache(obsCache, OBS_CACHE_TTL, 50);
-    }
-
-    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
-    res.end(buf);
+    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.end(value.buf);
   } catch (err) {
     log.error('[ObsCosteiro Proxy]', (err as Error).message);
     if (cached) {
@@ -311,19 +340,23 @@ export async function handleMetarProxy(
   }
 
   try {
-    const upstream = await fetch(METAR_URL, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
+    const { value, joined } = await singleFlight('metar', async () => {
+      const upstream = await fetch(METAR_URL, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+      });
+      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const buf = Buffer.from(await upstream.arrayBuffer());
+
+      if (upstream.ok) {
+        metarCache = { data: buf, contentType, ts: Date.now() };
+      }
+
+      return { status: upstream.status, contentType, buf };
     });
-    const contentType = upstream.headers.get('content-type') || 'application/json';
-    const buf = Buffer.from(await upstream.arrayBuffer());
 
-    if (upstream.ok) {
-      metarCache = { data: buf, contentType, ts: Date.now() };
-    }
-
-    res.writeHead(upstream.status, { ...corsHeaders(origin), 'Content-Type': contentType, 'X-Cache': 'MISS' });
-    res.end(buf);
+    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.end(value.buf);
   } catch (err) {
     log.error('[METAR Proxy]', (err as Error).message);
     if (metarCache) {
