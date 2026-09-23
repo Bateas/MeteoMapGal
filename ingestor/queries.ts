@@ -4,6 +4,7 @@
  */
 
 import { getPool } from './db.js';
+import { memoByKey } from './singleFlight.js';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -482,7 +483,7 @@ export interface LightningHeatmapCell {
  *
  * Bounded: maxRows defaults to 5000 (≈ all of Galicia for a year of activity).
  */
-export async function queryLightningHeatmap(
+async function queryLightningHeatmapUncached(
   from: Date,
   to: Date,
   minStrikes = 1,
@@ -530,7 +531,7 @@ export interface ConvectionTrendDay {
  * Daily convection trend per sector. Hits `convection_daily_sector`.
  * Used for "did this week / month show unusual instability?" trend lines.
  */
-export async function queryConvectionTrend(
+async function queryConvectionTrendUncached(
   sector: string,
   days = 30,
 ): Promise<ConvectionTrendDay[]> {
@@ -576,7 +577,7 @@ export interface AirQualityTrendRow {
  * Daily AQ rollup per station. Hits `ica_daily_station`.
  * Optional `station` param filters; otherwise all stations.
  */
-export async function queryAirQualityTrend(
+async function queryAirQualityTrendUncached(
   days = 30,
   station?: string,
 ): Promise<AirQualityTrendRow[]> {
@@ -652,7 +653,7 @@ export interface ConvectionGridResult {
  * cells from the previous successful cycle (≤2 h ago) keep showing while
  * truly stale data is excluded.
  */
-export async function queryConvectionGrid(hourOffset = 0): Promise<ConvectionGridResult> {
+async function queryConvectionGridUncached(hourOffset = 0): Promise<ConvectionGridResult> {
   const db = (await import('./db.js')).getPool();
 
   // One query, latest-per-cell within freshness window.
@@ -752,7 +753,7 @@ export interface HistoricalBaselineResult {
  *
  * Days capped at 365 for query safety; default 30.
  */
-export async function queryHistoricalBaseline(
+async function queryHistoricalBaselineUncached(
   stationId: string,
   metric: 'wind' | 'gust' | 'temp' | 'humidity',
   days: number,
@@ -836,7 +837,7 @@ export interface FireAttribution {
  * meteo2api's `lenda` feed is cloud-to-ground only, so every strike we store is
  * the kind that starts fires — no cloud-to-cloud filtering needed.
  */
-export async function queryFireAttribution(days: number): Promise<FireAttribution[]> {
+async function queryFireAttributionUncached(days: number): Promise<FireAttribution[]> {
   const safeDays = Math.min(Math.max(days, 1), 30);
   const db = getPool();
   // ~3km box. Latitude is ~111km/deg; longitude at 42.5°N is ~82km/deg, so the
@@ -942,7 +943,7 @@ export interface UpperAirLevelRow {
  * rather than a row limit, because a truncated sounding silently answers a
  * different question than the one asked.
  */
-export async function queryUpperAir(
+async function queryUpperAirUncached(
   sector: string,
   hours: number,
 ): Promise<UpperAirLevelRow[]> {
@@ -965,3 +966,24 @@ export async function queryUpperAir(
     geopotentialM: r.geopotential_m == null ? null : Number(r.geopotential_m),
   }));
 }
+
+// ── Remembering the expensive ones ──────────────────────
+//
+// Everything below sweeps a long range: thirty days of strikes for the
+// lightning map, a month of daily aggregates for the trends. Until now every
+// request ran its own sweep, on a database host with two gigabytes of memory,
+// and nothing stopped a handful of people opening the same tab at the same
+// moment from running it once each.
+//
+// They all describe the last weeks, so nobody can tell that the answer is
+// five minutes old. What they do notice is the tab taking five seconds to
+// open — the first, cold lightning sweep measured exactly that.
+const ANALYTICS_TTL_MS = 5 * 60_000;
+
+export const queryLightningHeatmap = memoByKey(ANALYTICS_TTL_MS, queryLightningHeatmapUncached, (from, to, minStrikes = 1, maxRows = 5000) => `heatmap:${from.toISOString()}:${to.toISOString()}:${minStrikes}:${maxRows}`);
+export const queryConvectionTrend = memoByKey(ANALYTICS_TTL_MS, queryConvectionTrendUncached, (sector, days = 30) => `convection:${sector}:${days}`);
+export const queryAirQualityTrend = memoByKey(ANALYTICS_TTL_MS, queryAirQualityTrendUncached, (days = 30, station) => `air:${days}:${station ?? "todas"}`);
+export const queryConvectionGrid = memoByKey(ANALYTICS_TTL_MS, queryConvectionGridUncached, (hourOffset = 0) => `grid:${hourOffset}`);
+export const queryHistoricalBaseline = memoByKey(ANALYTICS_TTL_MS, queryHistoricalBaselineUncached, (stationId, metric, days) => `baseline:${stationId}:${metric}:${days}`);
+export const queryUpperAir = memoByKey(ANALYTICS_TTL_MS, queryUpperAirUncached, (sector, hours) => `upperair:${sector}:${hours}`);
+export const queryFireAttribution = memoByKey(ANALYTICS_TTL_MS, queryFireAttributionUncached, (days) => `fires:${days}`);
