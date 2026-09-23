@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { icaCategory } from './meteoGaliciaIcaClient';
+import { icaCategory, icaEndpoint } from './meteoGaliciaIcaClient';
 
 describe('icaCategory — ICA value bucketing', () => {
   it('returns unknown for NaN', () => {
@@ -52,5 +52,19 @@ describe('icaCategory — ICA value bucketing', () => {
     expect(icaCategory(1.7634)).toBe('aceptable');
     expect(icaCategory(1.83)).toBe('aceptable');
     expect(icaCategory(1.35)).toBe('buena');
+  });
+});
+
+describe('icaEndpoint', () => {
+  it('goes through our own path in the browser, so one request serves everyone', () => {
+    expect(icaEndpoint(true)).toBe('/ica-api/query');
+  });
+
+  it('keeps the provider url for the service that stores the readings', () => {
+    // ingestor/icaFetcher.ts imports this same function, and there a relative
+    // url does not even parse.
+    const server = icaEndpoint(false);
+    expect(server).toMatch(/^https:\/\/ideg\.xunta\.gal\//);
+    expect(server).toContain('Observacion_Predicion_Calidad_Aire');
   });
 });
