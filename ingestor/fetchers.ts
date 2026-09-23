@@ -1,5 +1,5 @@
 /**
- * Observation fetchers — server-side fetch of current readings from all 6 sources.
+ * Observation fetchers — server-side fetch of current readings from all 7 sources.
  * Calls APIs directly (no proxy), normalizes with shared normalizer functions.
  */
 
@@ -13,6 +13,7 @@ import {
   normalizeMeteoGaliciaObservation,
   normalizeMeteoclimaticObservation,
   normalizeIpmaReading,
+  parseIpmaTimestamp,
 } from '../src/services/normalizer.js';
 import { parseMeteoclimaticXml } from './xml.js';
 import { skyXWindIsMeasuring } from '../src/api/skyxClient.js';
@@ -621,8 +622,10 @@ async function fetchIpma(
       if (!current) {
         latestByStation.set(id, feat);
       } else {
-        const currentTime = new Date(current.properties.time.endsWith('Z') ? current.properties.time : `${current.properties.time}Z`).getTime();
-        const featTime = new Date(feat.properties.time.endsWith('Z') ? feat.properties.time : `${feat.properties.time}Z`).getTime();
+        // Same UTC parse as the normalizer, so "latest" here and the stored
+        // timestamp can never disagree.
+        const currentTime = parseIpmaTimestamp(current.properties.time).getTime();
+        const featTime = parseIpmaTimestamp(feat.properties.time).getTime();
         if (featTime > currentTime) latestByStation.set(id, feat);
       }
     }

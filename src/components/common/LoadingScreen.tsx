@@ -9,8 +9,13 @@ const SOURCE_META: Record<WeatherSource, { label: string; abbr: string; color: s
   wunderground: { label: 'Weather Underground', abbr: 'WU', color: '#8b5cf6' },
   netatmo: { label: 'Netatmo', abbr: 'NT', color: '#06b6d4' },
   skyx: { label: 'SkyX', abbr: 'SX', color: '#ec4899' },
+  ipma: { label: 'IPMA (Portugal)', abbr: 'PT', color: '#059669' },
 };
 
+/** The networks shown as chips while loading. SkyX (one device) and IPMA (a
+ *  handful of border stations) are left out: they are real sources, but a
+ *  chip each would advertise the two that cover least of either sector.
+ *  Their state is in the header indicator. */
 const SOURCES: WeatherSource[] = ['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo'];
 
 // ── Phase definitions ───────────────────────────────────────────
@@ -84,7 +89,9 @@ export function LoadingScreen({ sectorName, error, onRetry }: LoadingScreenProps
   useEffect(() => {
     const animate = () => {
       const elapsed = Date.now() - startTime.current;
-      const sourcePct = (activeSources.size / SOURCES.length) * 100;
+      // Only the listed networks count: SkyX and IPMA report too, and counting
+      // them pushed this past 100% with main networks still missing.
+      const sourcePct = (SOURCES.filter((s) => activeSources.has(s)).length / SOURCES.length) * 100;
 
       // Time-based component: smooth curve that slows down as it approaches 70%
       // Uses an ease-out curve: 1 - e^(-t/T) scaled to 70%

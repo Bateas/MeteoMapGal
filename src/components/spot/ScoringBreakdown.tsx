@@ -108,7 +108,7 @@ export function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: Sail
 
 const SOURCE_LABELS: Record<string, string> = {
   aemet: 'AEMET', meteogalicia: 'MG', meteoclimatic: 'MC',
-  wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX', buoy: 'Boya',
+  wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX', ipma: 'IPMA', buoy: 'Boya',
 };
 
 function WindSources({ contributions }: { contributions: WindContribution[] }) {

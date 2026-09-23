@@ -161,7 +161,7 @@ const SOURCE_REWARN_MS = 6 * 60 * 60_000;
  *
  * Runs on EVERY cycle including empty ones, same as the buoy check: a cycle
  * that fetched nothing is still evidence that nothing reported. And the
- * heartbeat names all six every time, so a fetcher that returns early and
+ * heartbeat names every polled source every time, so a fetcher that returns early and
  * prints nothing shows up as `MG 0` instead of as a line that is not there.
  * On 18 August that missing line cost two hours of scoring spots without
  * MeteoGalicia, and reading the log gave no hint at all.

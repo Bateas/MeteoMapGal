@@ -19,13 +19,14 @@ const SOURCE_NAMES: Record<WeatherSource, string> = {
   wunderground: 'Weather Underground',
   netatmo: 'Netatmo',
   skyx: 'SkyX',
+  ipma: 'IPMA (Portugal)',
 };
 
 /** Sources that trigger a visible banner when down */
 const CRITICAL_SOURCES: WeatherSource[] = ['aemet', 'meteogalicia'];
 
 /** All sources — shown as secondary info */
-const ALL_SOURCES: WeatherSource[] = ['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx'];
+const ALL_SOURCES: WeatherSource[] = ['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx', 'ipma'];
 
 /** Time threshold: source must be down for >5min before showing banner */
 const STALE_THRESHOLD_MS = 10 * 60 * 1000;

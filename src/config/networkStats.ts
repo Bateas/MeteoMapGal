@@ -33,15 +33,15 @@ export const BUOY_COUNT = RIAS_BUOY_STATIONS.length;
 
 /**
  * Stations reaching the ingestor. Cannot be derived here — discovery decides
- * it at runtime against six upstream networks — so it is a measurement with a
- * date attached rather than a claim.
+ * it at runtime against seven upstream networks — so it is a measurement with
+ * a date attached rather than a claim.
  *
  * Live figure any time: `/api/v1/stations`.
  */
 export const STATION_COUNT_MEASURED = 457;
 export const STATION_COUNT_MEASURED_ON = '2026-08-04';
 
-/** The six upstream networks, in the order the map credits them. Counts are
+/** The seven upstream networks, in the order the map credits them. Counts are
  *  deliberately absent: they move every week and a stale breakdown is worse
  *  than none. What each network IS does not move. */
 export const SOURCES = [
@@ -51,6 +51,7 @@ export const SOURCES = [
   { key: 'wunderground', name: 'Weather Underground', what: 'Estaciones personales' },
   { key: 'netatmo', name: 'Netatmo', what: 'Red doméstica IoT' },
   { key: 'skyx', name: 'SkyX', what: 'Estación portátil, auto-descubrimiento por GPS' },
+  { key: 'ipma', name: 'IPMA', what: 'Instituto Português do Mar e da Atmosfera — estaciones oficiales del norte de Portugal' },
 ] as const;
 
 /** "más de 400" ages better than "457", which is wrong the day after. */

@@ -35,6 +35,21 @@ describe('staleGateMinFor — the gate follows the network, not a stopwatch', ()
     expect(staleGateMinFor('aemet')).toBe(staleGateMinFor('aemet_1701X'));
   });
 
+  it('lets a punctual hourly IPMA reading through', () => {
+    // Measured on production 21-Sep: IPMA rows are exactly 60 min apart and
+    // the HH:00 observation is published around HH+1:31, so a healthy reading
+    // is 31-91 min old. Without its own cadence it fell to the default 40 min
+    // gate and was thrown away for most of every hour.
+    for (const ageMin of [31, 64, 91, 120]) {
+      expect(ageMin).toBeLessThanOrEqual(staleGateMinFor('ipma_1200551'));
+    }
+    expect(staleGateMinFor('ipma')).toBe(staleGateMinFor('ipma_1200551'));
+  });
+
+  it('still drops an IPMA station that has actually stopped', () => {
+    expect(staleGateMinFor('ipma_1200551')).toBeLessThan(6 * 60);
+  });
+
   it('falls back to a short gate for an unknown prefix', () => {
     // Unknown means unvetted. Being generous with a network we know nothing
     // about is how a dead sensor keeps voting.
@@ -47,6 +62,13 @@ describe('freshnessMulFor — being hourly is not itself a penalty', () => {
     // The old ladder gave this 0.7, the floor, every single cycle: an hourly
     // network could never reach any other bucket.
     expect(freshnessMulFor('aemet_1701X', 55)).toBe(1.0);
+    expect(freshnessMulFor('ipma_1200551', 45)).toBe(1.0);
+  });
+
+  it('judges IPMA on the same hourly clock as AEMET', () => {
+    for (const ageMin of [45, 75, 150, 240]) {
+      expect(freshnessMulFor('ipma_1200551', ageMin)).toBe(freshnessMulFor('aemet_1701X', ageMin));
+    }
   });
 
   it('still ranks a fresh reading above an old one at the same distance', () => {

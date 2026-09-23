@@ -112,7 +112,10 @@ export async function fetchIpmaData(): Promise<{
 
     for (const feat of latestByStation.values()) {
       stations.push(normalizeIpmaStation(feat));
-      readings.push(normalizeIpmaReading(feat.properties));
+      const reading = normalizeIpmaReading(feat.properties);
+      // A reading of unknown age would compare as fresh against every stale
+      // gate (NaN > gate is false), so it is dropped, as the ingestor does.
+      if (Number.isFinite(reading.timestamp.getTime())) readings.push(reading);
     }
 
     memoryCache = {

@@ -110,7 +110,7 @@ function getMetricValue(
 
 const SOURCE_LABELS: Record<string, string> = {
   aemet: 'AEMET', meteogalicia: 'MG', meteoclimatic: 'MC',
-  wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX',
+  wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX', ipma: 'IPMA',
   portus: 'PORTUS', obscosteiro: 'OBS',
 };
 

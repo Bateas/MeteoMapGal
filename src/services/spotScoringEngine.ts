@@ -39,7 +39,7 @@ export type SpotVerdict = 'calm' | 'light' | 'sailing' | 'good' | 'strong' | 'un
 /** Individual station/buoy contribution to wind consensus */
 export interface WindContribution {
   name: string;
-  source: 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx' | 'buoy';
+  source: 'aemet' | 'meteogalicia' | 'meteoclimatic' | 'wunderground' | 'netatmo' | 'skyx' | 'ipma' | 'buoy';
   speedKt: number;
   dir: string | null;
   distKm: number;
@@ -238,6 +238,12 @@ const SOURCE_QUALITY: Record<string, number> = {
   wunderground: 0.7,    // variable quality, placement unknown
   netatmo: 0.6,         // consumer devices, often building-mounted
   skyx: 0.6,            // single consumer device
+  // Portugal's national met service: WMO-standard stations, anemometer at
+  // 10m, the peer of AEMET across the border. What it lacks is resolution,
+  // not calibration: direction comes in 8 classes (45°) and there is no gust
+  // field. That is a reporting limit, so it does not buy a lower weight here;
+  // the hourly cadence already costs it weight through freshnessMulFor.
+  ipma: 1.0,
 };
 
 /**
@@ -262,6 +268,12 @@ const SOURCE_QUALITY: Record<string, number> = {
  *
  * `buoyFreshness` in the ingestor already reasoned exactly this way about
  * PORTUS. The idea was right and was only ever applied to buoys.
+ *
+ * IPMA, measured on 21-Sep: rows exactly 60 min apart for 22 hours in a row,
+ * and the HH:00 observation is published around HH+1:31 (feed Last-Modified),
+ * so a healthy reading is 31-91 min old when we read it. Without an entry it
+ * fell to the 10-min default and its 40-min gate threw it away for most of
+ * every hour.
  */
 const SOURCE_CADENCE_MIN: Record<string, number> = {
   aemet: 60,           // hourly, and published with up to 2h of lag
@@ -270,6 +282,7 @@ const SOURCE_CADENCE_MIN: Record<string, number> = {
   wunderground: 5,
   netatmo: 10,
   skyx: 10,
+  ipma: 60,            // hourly, published ~30 min after the next hour starts
 };
 
 const DEFAULT_CADENCE_MIN = 10;
@@ -284,7 +297,8 @@ export function staleGateMinFor(stationIdOrSource: string): number {
   // One cycle of slack on top, so a reading that arrives a little late is not
   // thrown away for it. AEMET lands at 60*3 + 60 = 240min, which covers its
   // hourly cycle plus the two hours of publication lag it is documented to
-  // have, and still drops a station that has genuinely stopped.
+  // have, and still drops a station that has genuinely stopped. IPMA lands on
+  // the same 240min.
   return cadence * STALE_CYCLES + cadence;
 }
 
@@ -429,7 +443,7 @@ const WIND_BLACKLIST = new Set([
   'wu_INOIA1',      // Noia: ratio 0.18
 ]);
 
-/** The codebase speaks two vocabularies for the same six networks: station ids
+/** The codebase speaks two vocabularies for the same seven networks: station ids
  *  are prefixed `mg_`, `mc_`, `wu_`, `nt_`, while `NormalizedStation.source`
  *  spells the name out. Both are legitimate; the table above uses the long one.
  *
@@ -438,7 +452,11 @@ const WIND_BLACKLIST = new Set([
  *  0.7 default. So MeteoGalicia — meant to weigh 1.0 as a calibrated
  *  professional instrument — counted the same as an unknown backyard station,
  *  and Netatmo counted MORE than intended. Only `aemet` and `skyx` ever
- *  matched, because for those two the prefix and the name happen to coincide. */
+ *  matched, because for those two the prefix and the name happen to coincide.
+ *
+ *  `ipma` coincides too, so the fallback below would find it anyway. It is
+ *  listed all the same: this table is the roster of prefixes the code knows,
+ *  and a network that works only by coincidence is the next one to break. */
 const PREFIX_TO_SOURCE: Record<string, string> = {
   aemet: 'aemet',
   mg: 'meteogalicia',
@@ -446,6 +464,7 @@ const PREFIX_TO_SOURCE: Record<string, string> = {
   wu: 'wunderground',
   nt: 'netatmo',
   skyx: 'skyx',
+  ipma: 'ipma',
 };
 
 /**

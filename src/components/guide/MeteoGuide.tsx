@@ -219,9 +219,10 @@ function IntroSection() {
             <WeatherIcon id="wind" size={16} /> Datos en tiempo real
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            6 fuentes meteorológicas combinadas: AEMET, MeteoGalicia, Meteoclimatic,
-            Weather Underground, Netatmo y SkyX, con {approxStationCount()} estaciones en toda
-            Galicia. El detalle por provincia y por red está en «Roadmap y fuentes».
+            7 fuentes meteorológicas combinadas: AEMET, MeteoGalicia, Meteoclimatic,
+            Weather Underground, Netatmo, SkyX e IPMA (Portugal), con {approxStationCount()} estaciones
+            en toda Galicia y la frontera del Miño. El detalle por provincia y por red está en
+            «Roadmap y fuentes».
           </p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
