@@ -14,6 +14,7 @@ import {
   reportSuccess as reportOpenMeteoSuccess,
   OpenMeteoBreakerError,
 } from './openMeteoBreaker.js';
+import { singleFlight } from './singleFlight.js';
 import type { HourlyForecast } from '../src/types/forecast.js';
 
 export type { HourlyForecast };
@@ -134,12 +135,28 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
  * from Open-Meteo into WRF data (WRF doesn't provide these).
  */
 export async function getForecast(sector: 'embalse' | 'rias'): Promise<HourlyForecast[]> {
-  const now = Date.now();
   const cached = cache.get(sector);
-
-  if (cached && (now - cached.fetchedAt) < CACHE_TTL_MS) {
+  if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
     return cached.data;
   }
+
+  // The API serves this to visitors. Once an hour the copy expires, and every
+  // visitor arriving while the refresh is in flight used to start one of their
+  // own: two provider calls each, one against Open-Meteo's daily quota. Now
+  // they all wait for the same one. Deadline above the worst case of the two
+  // calls in a row (30 s + 10 s); past it, the last good copy.
+  try {
+    const { value } = await singleFlight(`forecast:${sector}`, () => refreshForecast(sector), 45_000);
+    return value;
+  } catch (err) {
+    log.warn(`Forecast ${sector}: refresh abandoned: ${(err as Error).message}`);
+    return cached?.data ?? [];
+  }
+}
+
+async function refreshForecast(sector: 'embalse' | 'rias'): Promise<HourlyForecast[]> {
+  const now = Date.now();
+  const cached = cache.get(sector);
 
   const coords = FORECAST_COORDS.find(c => c.sector === sector);
   if (!coords) return [];
@@ -283,9 +300,23 @@ async function fetchMarine(lat: number, lon: number): Promise<MarineForecastHour
  * Uses 30min cache.
  */
 export async function getMarineForecast(spotId: string): Promise<MarineForecastHour[]> {
+  const cached = marineCache.get(spotId);
+  if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) return cached.data;
+
+  // Same as getForecast: one refresh per spot at a time. USWAN 15 s + the
+  // Open-Meteo fallback 10 s.
+  try {
+    const { value } = await singleFlight(`marine:${spotId}`, () => refreshMarine(spotId), 30_000);
+    return value;
+  } catch (err) {
+    log.warn(`Marine ${spotId}: refresh abandoned: ${(err as Error).message}`);
+    return cached?.data ?? [];
+  }
+}
+
+async function refreshMarine(spotId: string): Promise<MarineForecastHour[]> {
   const now = Date.now();
   const cached = marineCache.get(spotId);
-  if (cached && (now - cached.fetchedAt) < CACHE_TTL_MS) return cached.data;
 
   const coords = SURF_COORDS.find(c => c.id === spotId);
   if (!coords) return [];
