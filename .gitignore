@@ -59,3 +59,7 @@ pitch-deck-*.html
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Python caches
+__pycache__/
+*.pyc
