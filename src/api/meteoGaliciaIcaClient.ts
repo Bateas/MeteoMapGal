@@ -14,9 +14,30 @@
  * O3, NO2, PM10, PM25, SO2, CO, BEN.
  */
 
-const ENDPOINT =
+/** The layer at the provider, as the service that stores the readings asks for it. */
+const DIRECT_ENDPOINT =
   'https://ideg.xunta.gal/meteogalicia/rest/services/' +
   'METEO2_WS/Observacion_Predicion_Calidad_Aire/MapServer/1/query';
+
+/** The same layer through our own proxy, which caches it for everyone. */
+const PROXIED_ENDPOINT = '/ica-api/query';
+
+/**
+ * Where to ask, depending on who is asking.
+ *
+ * This module has two callers: the browser and the service that stores the
+ * readings. From the browser the absolute url went straight to the provider's
+ * domain, so every visitor paid their own request and nothing of ours could
+ * cache a single one; through our own path, a thousand visitors cost the
+ * Xunta one request every ten minutes. From the service there is no proxy to
+ * go through and a relative url does not even parse, so it keeps asking
+ * directly.
+ */
+export function icaEndpoint(inBrowser: boolean): string {
+  return inBrowser ? PROXIED_ENDPOINT : DIRECT_ENDPOINT;
+}
+
+const ENDPOINT = icaEndpoint(typeof window !== 'undefined');
 
 export type IcaCategory = 'buena' | 'aceptable' | 'deficiente' | 'mala' | 'muy_mala' | 'unknown';
 
