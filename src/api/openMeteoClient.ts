@@ -63,6 +63,35 @@ interface OpenMeteoHourlyResponse {
 }
 
 /**
+ * The model behind this history resolves about ten kilometres, so asking for
+ * a point every 1,1 km asked the same grid node over and over: the browser of
+ * a single visitor opened around 130 requests to the provider for Rias alone,
+ * one per 1,1 km cell of every station discovered, and none of them can pass
+ * through our own cache because they go straight to the provider's domain.
+ *
+ * Stations are now snapped to the NEAREST node of a 0,1 degree grid (about
+ * 11 km by 8 km at this latitude) and the request asks for THAT node, not for
+ * the coordinates of whichever station happened to be first in the cell. The
+ * number asked for is then honestly the node's, and two stations in the same
+ * cell really do share one request instead of pretending to.
+ */
+const GRID_STEP_DEG = 0.1;
+
+/** The nearest node of the model grid to a point. */
+export function gridNode(lat: number, lon: number): { lat: number; lon: number } {
+  return {
+    lat: Number((Math.round(lat / GRID_STEP_DEG) * GRID_STEP_DEG).toFixed(1)),
+    lon: Number((Math.round(lon / GRID_STEP_DEG) * GRID_STEP_DEG).toFixed(1)),
+  };
+}
+
+/** Same node and same span -> same key, so the answer is shared. */
+export function historyGridKey(lat: number, lon: number, pastHours: number): string {
+  const n = gridNode(lat, lon);
+  return `${n.lat}_${n.lon}_${pastHours}h`;
+}
+
+/**
  * Fetch 24h historical hourly data from Open-Meteo for a given location.
  * Open-Meteo is free, no API key, no CORS restrictions.
  * Returns model/reanalysis data (not station observations).
@@ -74,16 +103,17 @@ export async function fetchOpenMeteoHistory(
   stationId: string,
   pastHours = 24
 ): Promise<NormalizedReading[]> {
-  // Cache by grid cell (2 decimal ≈ 1.1km resolution) — stationId excluded so
-  // stations in the same grid cell share one API call via the grid-level cache.
-  const gridKey = `${lat.toFixed(2)}_${lon.toFixed(2)}_${pastHours}h`;
+  // Keyed by grid node, stationId excluded, so every station in the node
+  // shares one request.
+  const node = gridNode(lat, lon);
+  const gridKey = historyGridKey(lat, lon, pastHours);
   const cached = getCachedHistory(gridKey);
   if (cached) {
     // Re-stamp readings with the requesting stationId
     return cached.map((r) => ({ ...r, stationId }));
   }
 
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&past_hours=${pastHours}&forecast_hours=0&wind_speed_unit=ms`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${node.lat}&longitude=${node.lon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&past_hours=${pastHours}&forecast_hours=0&wind_speed_unit=ms`;
 
   const res = await openMeteoFetch(url, undefined, 15_000);
   if (!res.ok) {
@@ -127,15 +157,16 @@ export async function fetchOpenMeteoForStations(
   stations: { id: string; lat: number; lon: number }[],
   pastHours = 24
 ): Promise<NormalizedReading[]> {
-  // Group stations by grid cell (2 decimal places ≈ 1.1km)
+  // Group stations by grid node, and keep the NODE as the point to ask for.
   const gridMap = new Map<string, { lat: number; lon: number; stationIds: string[] }>();
   for (const s of stations) {
-    const key = `${s.lat.toFixed(2)}_${s.lon.toFixed(2)}`;
+    const node = gridNode(s.lat, s.lon);
+    const key = `${node.lat}_${node.lon}`;
     const existing = gridMap.get(key);
     if (existing) {
       existing.stationIds.push(s.id);
     } else {
-      gridMap.set(key, { lat: s.lat, lon: s.lon, stationIds: [s.id] });
+      gridMap.set(key, { lat: node.lat, lon: node.lon, stationIds: [s.id] });
     }
   }
 
