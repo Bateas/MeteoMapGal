@@ -15,9 +15,13 @@
  *   /guia            /guia/glossary      the shareable form
  *   #guia/glossary                       what older links already carry
  *
- * `/guia` works without touching the server: the SPA fallback already serves
- * index.html for unknown paths, and every API endpoint in the app is written
- * absolute (`/api/v1/...`), so nothing resolves relative to the new path.
+ * The server serves the page for `/guia` and `/guia/<section>` explicitly
+ * (see the fallback block at the end of nginx.conf) and answers 404 for any
+ * other unknown path, so scanners stop getting a 200 for every made-up url.
+ * **A new path-based route needs its own location there, or it 404s in
+ * production while working fine in development** (the dev server still
+ * falls back to the page for everything). Every API endpoint in the app is
+ * written absolute (`/api/v1/...`), so nothing resolves relative to the path.
  */
 
 export interface GuideSection {
