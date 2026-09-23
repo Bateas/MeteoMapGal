@@ -39,9 +39,21 @@ function kmhToMs(kmh: number): number {
   return kmh / 3.6;
 }
 
-/** Short station ID from MAC address: last 4 hex chars */
-function shortMac(mac: string): string {
-  return mac.replace(/:/g, '').slice(-6).toUpperCase();
+/**
+ * The station id for a Netatmo MAC, in the ONE spelling the whole project
+ * uses: `nt_` + the last six hex characters, lower case.
+ *
+ * This used to read `netatmo_` + upper case here and `nt_` + lower case in the
+ * service that stores the readings, so the two never matched. Two things broke
+ * quietly for it: the browser never recognised a single stored Netatmo reading
+ * and went to Netatmo itself on every cycle, and the list of five sheltered
+ * stations that must not vote (WIND_BLACKLIST, by `nt_` id) excluded nothing
+ * on the map while it did work in the alerts. Same spot, two answers.
+ *
+ * Mirrors ingestor/discover.ts (`nt_${mac.replace(/:/g,'').slice(-6).toLowerCase()}`).
+ */
+export function netatmoStationId(mac: string): string {
+  return `nt_${mac.replace(/:/g, '').slice(-6).toLowerCase()}`;
 }
 
 // ── Token management ─────────────────────────────────────
@@ -201,7 +213,7 @@ export async function fetchNetatmoStations(
     const cityName = raw.place.city || 'Desconocida';
 
     stations.push({
-      id: `netatmo_${shortMac(raw._id)}`,
+      id: netatmoStationId(raw._id),
       source: 'netatmo',
       name: cityName,
       lat,
@@ -271,7 +283,7 @@ export async function fetchNetatmoObservations(
       continue;
     }
 
-    const stationId = `netatmo_${shortMac(raw._id)}`;
+    const stationId = netatmoStationId(raw._id);
     const hasWind = Object.values(raw.module_types || {}).includes('NAModule2');
     const cityName = raw.place.city || 'Desconocida';
 
