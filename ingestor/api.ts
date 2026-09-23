@@ -76,7 +76,11 @@ const PORT = parseInt(process.env.API_PORT || '3001', 10);
 const HOST = process.env.API_HOST || '127.0.0.1';
 
 // ── Input validation ──────────────────────────────────
-const VALID_SOURCES = new Set(['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx']);
+// Every network the ingestor writes, plus ipma: the frontend already asks for
+// `?source=ipma` whenever it has discovered IPMA stations, and while ipma was
+// missing here each of those polls got a 400. Until the ingestor writes IPMA
+// rows the answer is empty and the map falls back as before.
+const VALID_SOURCES = new Set(['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx', 'ipma']);
 const STATION_ID_RE = /^[a-zA-Z0-9_-]{2,50}$/;
 
 function validateStationId(id: string | undefined): string | null {
