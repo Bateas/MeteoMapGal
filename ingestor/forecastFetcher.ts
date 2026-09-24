@@ -15,6 +15,7 @@ import {
   OpenMeteoBreakerError,
 } from './openMeteoBreaker.js';
 import { singleFlight } from './singleFlight.js';
+import { archiveForecast } from './forecastArchive.js';
 import type { HourlyForecast } from '../src/types/forecast.js';
 
 export type { HourlyForecast };
@@ -162,11 +163,14 @@ async function refreshForecast(sector: 'embalse' | 'rias'): Promise<HourlyForeca
   if (!coords) return [];
 
   let data: HourlyForecast[] = [];
+  let usedWrf = false;
+  let convectionMerged = false;
 
   // Try MeteoSIX WRF 1km first (primary — 1km resolution, best for Galicia)
   if (isMeteoSixConfigured()) {
     try {
       data = await getWrfForecast(sector);
+      usedWrf = data.length > 0;
     } catch (err) {
       log.warn(`WRF primary failed for ${sector}: ${(err as Error).message}`);
     }
@@ -193,6 +197,7 @@ async function refreshForecast(sector: 'embalse' | 'rias'): Promise<HourlyForeca
           h.temperature500hPa = om.temperature500hPa;
         }
       }
+      convectionMerged = true;
       log.info(`Forecast ${sector}: WRF primary + Open-Meteo convection merged`);
     } else if (data.length === 0) {
       // WRF failed or not configured — use Open-Meteo as fallback
@@ -207,6 +212,9 @@ async function refreshForecast(sector: 'embalse' | 'rias'): Promise<HourlyForeca
 
   if (data.length > 0) {
     cache.set(sector, { data, fetchedAt: now });
+    // Keep this issue for training models that must warn hours ahead. Only a
+    // FRESH forecast: the stale-cache returns above never reach this line.
+    archiveForecast(sector, usedWrf ? (convectionMerged ? 'wrf+om' : 'wrf') : 'om', new Date(now), data);
   }
 
   return data;

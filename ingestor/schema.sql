@@ -895,3 +895,42 @@ SELECT create_hypertable('station_calibration', 'computed_at', if_not_exists => 
 CREATE INDEX IF NOT EXISTS idx_station_calibration_station
   ON station_calibration (station_id, computed_at DESC);
 GRANT SELECT, INSERT ON station_calibration TO meteomap_app;
+
+-- ── Forecast archive ────────────────────────────────────────
+-- Every sector forecast the ingestor already downloads (MeteoGalicia WRF with
+-- the Open-Meteo convection fields merged in), kept with the hour it was
+-- ISSUED. The live cache overwrites each hour's forecast with the newest one,
+-- and convection_grid_hourly keeps a single row per hour written mostly AFTER
+-- that hour: neither can say what we knew in the morning about the afternoon.
+-- A model that should warn hours ahead has to learn from forecasts that
+-- existed hours ahead, or it learns from the answer.
+--
+-- No extra provider requests: rows are written from the refresh that already
+-- happens (about once an hour per sector). ~3,500 rows a day.
+CREATE TABLE IF NOT EXISTS forecast_archive (
+  issued_at    TIMESTAMPTZ NOT NULL,   -- hour the forecast was fetched (truncated)
+  valid_time   TIMESTAMPTZ NOT NULL,   -- hour the forecast is for
+  sector       TEXT        NOT NULL,
+  model        TEXT        NOT NULL,   -- 'wrf+om' (WRF + Open-Meteo convection) | 'wrf' (convection missing) | 'om'
+  wind_ms      REAL,
+  wind_dir     REAL,
+  gust_ms      REAL,
+  temp_c       REAL,
+  humidity     REAL,
+  precip_mm    REAL,
+  precip_prob  REAL,
+  cloud_pct    REAL,
+  pressure     REAL,
+  solar_wm2    REAL,
+  cape         REAL,
+  cin          REAL,
+  lifted_index REAL,
+  pbl_m        REAL,
+  t500_c       REAL,
+  sky_state    TEXT,
+  PRIMARY KEY (issued_at, sector, valid_time)
+);
+SELECT create_hypertable('forecast_archive', 'issued_at', if_not_exists => TRUE, chunk_time_interval => INTERVAL '30 days');
+CREATE INDEX IF NOT EXISTS idx_forecast_archive_valid
+  ON forecast_archive (sector, valid_time, issued_at DESC);
+GRANT SELECT, INSERT ON forecast_archive TO meteomap_app;
