@@ -127,3 +127,36 @@ describe('meteoSixClient circuit breaker', () => {
     expect(callCount).toBe(3);
   });
 });
+
+describe('meteoSixClient forecast parsing', () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => { originalFetch = globalThis.fetch; _resetMeteoSixBreakers(); });
+  afterEach(() => { globalThis.fetch = originalFetch; });
+
+  it('a day that arrives without variables is skipped, the rest of the forecast still loads', async () => {
+    const body = {
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [-8.62, 42.3] },
+        properties: {
+          days: [
+            { timePeriod: { begin: { timeInstant: '2026-09-24T23:55:00+02' }, end: { timeInstant: '2026-09-24T23:59:59+02' } } },
+            {
+              timePeriod: { begin: { timeInstant: '2026-09-25T00:00:00+02' }, end: { timeInstant: '2026-09-25T23:59:59+02' } },
+              variables: [
+                { name: 'temperature', values: [{ timeInstant: '2026-09-25T01:00:00+02', value: 16 }] },
+                { name: 'wind', values: [{ timeInstant: '2026-09-25T01:00:00+02', moduleValue: 18, directionValue: 250 }] },
+              ],
+            },
+          ],
+        },
+      }],
+    };
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof globalThis.fetch;
+    const hours = await fetchMeteoSixForecast(42.3, -8.62);
+    expect(hours).toHaveLength(1);
+    expect(hours[0].temperature).toBe(16);
+    expect(hours[0].windSpeed).toBeCloseTo(5, 5);          // 18 km/h -> 5 m/s
+  });
+});

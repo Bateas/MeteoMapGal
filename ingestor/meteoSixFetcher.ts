@@ -96,9 +96,11 @@ function kmhToMs(kmh: number | null): number | null {
 
 function parseFeatureToTimeMap(feature: MeteoSIXFeature): Map<string, Record<string, string | number | null>> {
   const timeMap = new Map<string, Record<string, string | number | null>>();
-  for (const day of feature.properties.days) {
-    for (const variable of day.variables) {
-      for (const val of variable.values) {
+  // A day can arrive without `variables` (seen in the last hour before midnight, when the
+  // current day has no hours left): skip it instead of failing the whole forecast.
+  for (const day of feature.properties.days ?? []) {
+    for (const variable of day.variables ?? []) {
+      for (const val of variable.values ?? []) {
         const key = val.timeInstant;
         if (!timeMap.has(key)) timeMap.set(key, {});
         const record = timeMap.get(key)!;
