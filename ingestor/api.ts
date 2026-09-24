@@ -24,6 +24,7 @@
  *   GET /api/v1/fires/events?days=&galicia=&province=             → EFFIS named fire events (commune + hectares)
  *   GET /api/v1/push/vapid-key                                    → Web Push VAPID public key
  *   POST /api/v1/push/{subscribe,unsubscribe,test}                → Lightning-safety push channel
+ *   POST /api/v1/reports                                          → Field reports (labels, never drawn)
  *
  * Usage:
  *   node --import tsx api.ts
@@ -55,6 +56,7 @@ import {
 } from './queries.js';
 import { getPool } from './db.js';
 import { clientIpOf, clampInt, isAllowedPushEndpoint, pruneCache, memoAsync } from './requestGuards.js';
+import { parseFieldReport } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatcher.js';
@@ -932,6 +934,108 @@ async function handleStormPredictionPost(
   }
 }
 
+// ── Field reports (people at the water: does the wind match?) ──
+// Labels for checking the app, never drawn on the map. Same defence as the other
+// anonymous POSTs: same-origin gate + per-IP limits + body cap + strict parse
+// (shared with the popup in services/fieldReport.ts). The IP is only held in memory
+// for the rate limit; nothing about the reporter is stored except an observer code
+// they chose to use from a personal link.
+
+const REPORT_MAX_PER_HOUR = 10;
+const REPORT_SPOT_GAP_MS = 10 * 60_000;             // one report per IP and spot every 10 min
+const REPORT_MAX_BODY = 2 * 1024;
+const reportCounts = new Map<string, { count: number; resetAt: number }>();
+const reportLastBySpot = new Map<string, number>();
+const VALID_REPORT_SPOT_IDS = new Set<string>(
+  (['embalse', 'rias'] as const).flatMap((s) => getSpotsForSector(s).filter((x) => x.category !== 'surf').map((x) => x.id)),
+);
+const REPORT_SPOT_SECTOR = new Map<string, string>(
+  (['embalse', 'rias'] as const).flatMap((s) => getSpotsForSector(s).map((x) => [x.id, s] as [string, string])),
+);
+
+async function handleFieldReportPost(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+    res.writeHead(403, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Forbidden' }));
+    return;
+  }
+  const ip = clientIpOf(req.headers, req.socket.remoteAddress);
+  const now = Date.now();
+  const bucket = reportCounts.get(ip);
+  if (bucket && now < bucket.resetAt) {
+    if (bucket.count >= REPORT_MAX_PER_HOUR) {
+      res.writeHead(429, corsHeaders(origin));
+      res.end(JSON.stringify({ error: 'Rate limit exceeded' }));
+      return;
+    }
+    bucket.count++;
+  } else {
+    reportCounts.set(ip, { count: 1, resetAt: now + 60 * 60_000 });
+    if (reportCounts.size > 5000) reportCounts.clear();          // bounded: a flood cannot grow it forever
+  }
+  if (parseInt(req.headers['content-length'] || '0', 10) > REPORT_MAX_BODY) {
+    res.writeHead(413, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Payload too large' }));
+    return;
+  }
+  const chunks: Buffer[] = [];
+  let received = 0;
+  for await (const chunk of req) {
+    received += (chunk as Buffer).length;
+    if (received > REPORT_MAX_BODY) {
+      res.writeHead(413, corsHeaders(origin));
+      res.end(JSON.stringify({ error: 'Payload too large' }));
+      return;
+    }
+    chunks.push(chunk as Buffer);
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(Buffer.concat(chunks).toString());
+  } catch {
+    res.writeHead(400, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Invalid JSON' }));
+    return;
+  }
+  const parsed = parseFieldReport(body, (id) => VALID_REPORT_SPOT_IDS.has(id));
+  if (!parsed.ok) {
+    res.writeHead(400, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Invalid payload' }));
+    return;
+  }
+  const r = parsed.report;
+  const spotKey = `${ip}|${r.spotId}`;
+  if (now - (reportLastBySpot.get(spotKey) ?? 0) < REPORT_SPOT_GAP_MS) {
+    res.writeHead(429, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Too soon for this spot' }));
+    return;
+  }
+  try {
+    const pool = getPool();
+    let observer: string | null = null;
+    if (r.observerCode) {
+      const o = await pool.query('SELECT code FROM field_observers WHERE code = $1 AND active', [r.observerCode]);
+      observer = o.rowCount ? r.observerCode : null;                // unknown code: kept as anonymous
+    }
+    await pool.query(
+      `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, whitecaps, app_verdict, app_wind_kt, app_version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [r.spotId, REPORT_SPOT_SECTOR.get(r.spotId) ?? null, observer, r.windVsApp, r.whitecaps, r.appVerdict, r.appWindKt, r.appVersion],
+    );
+    reportLastBySpot.set(spotKey, now);
+    if (reportLastBySpot.size > 5000) reportLastBySpot.clear();
+    res.writeHead(201, corsHeaders(origin));
+    res.end(JSON.stringify({ ok: true }));
+  } catch (err) {
+    log.error('Field report insert error:', (err as Error).message);
+    error(res, 'DB error', 500, origin);
+  }
+}
+
 // ── Web Push endpoints (lightning-safety channel) ──────
 // Subscribe / unsubscribe / self-test for the per-spot lightning push.
 // Same defense-in-depth as the storm-predictions POST (no real secret is
@@ -1175,6 +1279,8 @@ const server = http.createServer(async (req, res) => {
       await handleWebcamUpload(webcamMatch[1], req, res, origin);
     } else if (url.pathname === '/api/v1/storm-predictions') {
       await handleStormPredictionPost(req, res, origin);
+    } else if (url.pathname === '/api/v1/reports') {
+      await handleFieldReportPost(req, res, origin);
     } else if (url.pathname === '/api/v1/push/subscribe') {
       await handlePushSubscribe(req, res, origin);
     } else if (url.pathname === '/api/v1/push/unsubscribe') {
