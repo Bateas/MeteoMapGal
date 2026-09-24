@@ -42,6 +42,30 @@ export function normalizeAemetObservationStation(raw: AemetRawObservation): Norm
   };
 }
 
+/** Plausible sea-level pressure (hPa); anything else is a sensor or unit error. */
+const plausiblePressure = (p: number | null | undefined): number | null =>
+  p != null && Number.isFinite(p) && p >= 900 && p <= 1100 ? p : null;
+
+/**
+ * AEMET pressure reduced to sea level, like every other source we store (WU,
+ * Netatmo, Meteoclimatic): station-level values differ by altitude and would
+ * make absolute thresholds and maps meaningless.
+ *
+ * Always computed from the station's own `pres` when it comes, so a station never
+ * switches between two methods (that would show up as a jump in its tendency);
+ * AEMET's own `pres_nmar` only when `pres` is missing. Against `pres_nmar` on 2,035
+ * observations the standard reduction differs by 0.1 hPa at the median and under
+ * 1.5 hPa for 95% of them.
+ */
+function aemetSeaLevelPressure(raw: AemetRawObservation): number | null {
+  if (raw.pres != null && raw.alt != null) {
+    const t = raw.ta ?? 15;
+    const h = raw.alt;
+    return plausiblePressure(raw.pres * Math.pow(1 - (0.0065 * h) / (t + 0.0065 * h + 273.15), -5.257));
+  }
+  return plausiblePressure(raw.pres_nmar);
+}
+
 /** Normalize an AEMET observation to our reading format */
 export function normalizeAemetObservation(raw: AemetRawObservation): NormalizedReading {
   // AEMET `vis` = visibility in km (SYNOP encoding 0-55). Sanity: accept 0-50,
@@ -58,7 +82,7 @@ export function normalizeAemetObservation(raw: AemetRawObservation): NormalizedR
     humidity: raw.hr ?? null,
     precipitation: raw.prec ?? null,
     solarRadiation: null, // AEMET obs don't include solar in this endpoint
-    pressure: raw.plession ?? null,   // Station-level pressure (hPa)
+    pressure: aemetSeaLevelPressure(raw), // hPa, sea level (was reading a field AEMET never sends)
     dewPoint: raw.tpr ?? null,        // Dew point from AEMET
     visibility,                       // km — null for stations without sensor
   };
@@ -114,7 +138,7 @@ export function normalizeMeteoGaliciaObservation(
     humidity: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.HUMIDITY)),
     precipitation: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.PRECIPITATION)),
     solarRadiation: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.SOLAR_RADIATION)),
-    pressure: null, // MG doesn't report pressure in 10-min obs
+    pressure: plausiblePressure(sanitize(findMedida(entry.listaMedidas, MG_PARAMS.PRESSURE_SEA_LEVEL))),
     dewPoint: sanitize(findMedida(entry.listaMedidas, MG_PARAMS.DEW_POINT)),
   };
 }

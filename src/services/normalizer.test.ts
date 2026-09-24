@@ -71,6 +71,33 @@ describe('normalizeAemetObservation', () => {
     expect(reading.windDirection).toBeNull();
     expect(reading.temperature).toBeNull();
     expect(reading.humidity).toBeNull();
+    expect(reading.pressure).toBeNull();
+  });
+
+  // The field read for months was `plession`, which AEMET never sends: every
+  // AEMET reading was stored without pressure. AEMET sends `pres` (station level).
+  it('reduces station pressure to sea level, like every other source we store', () => {
+    // Real observation, Ourense (aemet_1690A, 143 m): AEMET's own pres_nmar was 1018.9
+    const reading = normalizeAemetObservation({
+      idema: '1690A', fint: '2026-09-24T17:00:00', alt: 143, ta: 24, pres: 1002.4,
+    } as unknown as AemetRawObservation);
+    expect(reading.pressure).not.toBeNull();
+    expect(reading.pressure!).toBeGreaterThan(1017);
+    expect(reading.pressure!).toBeLessThan(1021);
+  });
+
+  it('falls back to AEMET sea-level pressure only when station pressure is missing', () => {
+    const reading = normalizeAemetObservation({
+      idema: '1484C', fint: '2026-09-24T17:00:00', alt: 108, pres_nmar: 1021.3,
+    } as unknown as AemetRawObservation);
+    expect(reading.pressure).toBe(1021.3);
+  });
+
+  it('drops implausible pressure', () => {
+    const reading = normalizeAemetObservation({
+      idema: 'X', fint: '2026-09-24T17:00:00', alt: 0, pres_nmar: 13.2,
+    } as unknown as AemetRawObservation);
+    expect(reading.pressure).toBeNull();
   });
 });
 
@@ -122,7 +149,7 @@ describe('normalizeMeteoGaliciaObservation', () => {
     idEstacion: 10165,
     instanteLecturaUTC: '2026-04-01T07:00:00Z',
     listaMedidas: measures.map((m) => ({ ...m, unidade: '', codigoUnidade: '' })),
-  });
+  }) as unknown as Parameters<typeof normalizeMeteoGaliciaObservation>[1];
 
   it('filters -9999 sentinel values from all fields', () => {
     const reading = normalizeMeteoGaliciaObservation(10165, makeMG([
@@ -151,6 +178,23 @@ describe('normalizeMeteoGaliciaObservation', () => {
     expect(reading!.windSpeed).toBe(5.2);
     expect(reading!.temperature).toBe(18.5);
     expect(reading!.humidity).toBe(72);
+  });
+
+  // MeteoGalicia does send pressure (the old comment said it did not): PR_AVG_1.5m at
+  // station level and PRED_AVG_1.5m reduced to sea level. We store the sea-level one.
+  it('takes the sea-level pressure, not the station-level one', () => {
+    const reading = normalizeMeteoGaliciaObservation(10154, makeMG([
+      { codigoParametro: 'PR_AVG_1.5m', valor: 991.4 },
+      { codigoParametro: 'PRED_AVG_1.5m', valor: 1022 },
+    ]));
+    expect(reading!.pressure).toBe(1022);
+  });
+
+  it('filters the -9999 sentinel from pressure', () => {
+    const reading = normalizeMeteoGaliciaObservation(10154, makeMG([
+      { codigoParametro: 'PRED_AVG_1.5m', valor: -9999 },
+    ]));
+    expect(reading!.pressure).toBeNull();
   });
 });
 

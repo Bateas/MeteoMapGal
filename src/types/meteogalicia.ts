@@ -43,4 +43,5 @@ export const MG_PARAMS = {
   PRECIPITATION: 'PP_SUM_1.5m',
   SOLAR_RADIATION: 'RS_AVG_1.5m',   // W/m² — global solar radiation (pyranometer)
   DEW_POINT: 'TO_AVG_1.5m',         // °C — dew point temperature
+  PRESSURE_SEA_LEVEL: 'PRED_AVG_1.5m', // hPa — reduced to sea level (PR_AVG_1.5m is station level)
 } as const;

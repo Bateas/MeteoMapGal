@@ -16,7 +16,8 @@ export interface AemetRawObservation {
   fint: string;        // ISO 8601 timestamp
   prec: number;        // Precipitation (mm)
   pacutp: number;      // Accumulated precipitation
-  plession: number;    // Station pressure
+  pres?: number;       // Station-level pressure (hPa), about a third of the stations
+  pres_nmar?: number;  // Sea-level pressure (hPa), fewer stations than `pres`
   tamin: number;       // Min temperature
   ta: number;          // Current temperature (C)
   tamax: number;       // Max temperature
