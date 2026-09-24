@@ -103,6 +103,28 @@ export function getCachedSectorStations(sectorId: string): NormalizedStation[] |
 }
 
 /**
+ * One run of each at a time.
+ *
+ * On a cold load the page ran discovery three times at once: once for the
+ * default sector, then twice more when the link or the saved sector switched
+ * it (the sector effect and the mount effect both fire, and the first run's
+ * cache is not written yet). Every run fetched everything again: the AEMET
+ * inventory, the MeteoGalicia list and the IPMA feed three times each, every
+ * Wunderground lookup twice — 11 MB for a modest laptop to parse at startup.
+ * Now a run for a sector already in flight is joined, and the fetches that do
+ * not depend on the sector are shared between sectors.
+ */
+const inFlight = new Map<string, Promise<unknown>>();
+
+function shared<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const running = inFlight.get(key) as Promise<T> | undefined;
+  if (running) return running;
+  const p = work().finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
+
+/**
  * Discover all weather stations within the given sector params
  * from AEMET, MeteoGalicia, Meteoclimatic, Weather Underground, and Netatmo.
  * Non-blocking: returns available stations immediately without delaying user.
@@ -117,14 +139,19 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
     }
   }
 
+  const key = `sector:${params.sectorId ?? `${params.center.join(',')}:${params.radiusKm}`}`;
+  return shared(key, () => runDiscovery(params));
+}
+
+async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[]> {
   const [centerLon, centerLat] = params.center;
   const radiusKm = params.radiusKm;
   const extraPoints = params.extraCoveragePoints;
 
   const [aemetStations, mgStations, mcStations, wuStations, netatmoStations, ipmaResult] =
     await Promise.allSettled([
-      fetchStationInventory(),
-      fetchStationList(),
+      shared('aemet-inventory', fetchStationInventory),
+      shared('mg-station-list', fetchStationList),
       fetchMeteoclimaticFeed(params.meteoclimaticRegions),
       fetchWUNearbyStations(params.center, radiusKm),
       fetchNetatmoStations(params.center, radiusKm, false),

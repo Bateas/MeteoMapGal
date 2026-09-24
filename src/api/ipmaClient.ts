@@ -57,14 +57,23 @@ export function isInsideNorthPortugal(lat: number, lon: number): boolean {
  * Fetch and process IPMA surface observations.
  * Returns only the latest reading per station in Northern Portugal.
  */
-export async function fetchIpmaData(): Promise<{
-  stations: NormalizedStation[];
-  readings: NormalizedReading[];
-}> {
+type IpmaData = { stations: NormalizedStation[]; readings: NormalizedReading[] };
+
+/** The fetch already under way, shared by every caller that arrives meanwhile
+ *  (discovery of two sectors plus the readings fallback asked for the same
+ *  feed three times at once on a cold load). */
+let inFlight: Promise<IpmaData> | null = null;
+
+export async function fetchIpmaData(): Promise<IpmaData> {
   if (memoryCache && Date.now() - memoryCache.ts < CACHE_TTL_MS) {
     return { stations: memoryCache.stations, readings: memoryCache.readings };
   }
+  if (inFlight) return inFlight;
+  inFlight = fetchIpmaFresh().finally(() => { inFlight = null; });
+  return inFlight;
+}
 
+async function fetchIpmaFresh(): Promise<IpmaData> {
   try {
     const res = await fetch(IPMA_GEOJSON_URL, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
