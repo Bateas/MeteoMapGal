@@ -86,9 +86,33 @@ async function aemetTwoStepFetch<T>(endpoint: string): Promise<T> {
   throw new Error('AEMET: reintentos agotados');
 }
 
+/**
+ * A download of the observations is reused for a minute.
+ *
+ * It is one file for all of Spain (~3 MB of JSON) whatever the sector, and a
+ * cold load asked for it twice: once for the default sector's stations and
+ * again for the linked one's, each time parsing all of it. AEMET updates it
+ * hourly, so a minute of reuse changes nothing on screen. A failed download is
+ * not reused.
+ */
+const OBSERVATIONS_REUSE_MS = 60_000;
+let recentObservations: { at: number; value: Promise<AemetRawObservation[]> } | null = null;
+
 /** Fetch all conventional observations from all AEMET stations */
 export async function fetchAllObservations(): Promise<AemetRawObservation[]> {
-  return aemetTwoStepFetch<AemetRawObservation[]>(AEMET.allObservations());
+  if (recentObservations && Date.now() - recentObservations.at < OBSERVATIONS_REUSE_MS) {
+    return recentObservations.value;
+  }
+  const value = aemetTwoStepFetch<AemetRawObservation[]>(AEMET.allObservations());
+  const entry = { at: Date.now(), value };
+  recentObservations = entry;
+  value.catch(() => { if (recentObservations === entry) recentObservations = null; });
+  return value;
+}
+
+/** For tests: forget the reused download. */
+export function __resetObservationsReuseForTests(): void {
+  recentObservations = null;
 }
 
 /** Fetch AEMET station inventory */
