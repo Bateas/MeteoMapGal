@@ -20,6 +20,8 @@ import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import { MAX_PLAUSIBLE_GUST_KT as MAX_DISPLAY_GUST_KT } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
 import { isBeachSpot } from '../../config/spots';
+import { displayWindKt, displayVerdict as renderedVerdict } from '../../config/verdictStyles';
+import { SpotReportBox } from '../spot/SpotReportBox';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import { formatThermalCountdown } from '../../services/thermalPrecursorService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
@@ -1003,6 +1005,13 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
 
       {/* ── Wind patterns (collapsible) — power-user detail, hidden in simpleMode ── */}
       {spot.windPatterns.length > 0 && !simpleMode && <WindPatterns patterns={spot.windPatterns} />}
+
+      {/* ── Field report: people at the water say if the wind matches (labels for checking
+            the app, never drawn on the map). Wind spots only, and never while provisional:
+            there is no settled figure to compare against yet. ── */}
+      {spot.category !== 'surf' && score && !score.provisional && (
+        <SpotReportBox spotId={spot.id} shownWindKt={displayWindKt(score)} shownVerdict={renderedVerdict(score)} />
+      )}
 
       {/* ── Share + Apoyar + Timestamp ── */}
       <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-700/30">

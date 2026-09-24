@@ -934,3 +934,36 @@ SELECT create_hypertable('forecast_archive', 'issued_at', if_not_exists => TRUE,
 CREATE INDEX IF NOT EXISTS idx_forecast_archive_valid
   ON forecast_archive (sector, valid_time, issued_at DESC);
 GRANT SELECT, INSERT ON forecast_archive TO meteomap_app;
+
+-- ── Field reports ─────────────────────────────────────
+-- Someone at the water says whether the wind matches the figure the app showed
+-- (more / same / less) and how much whitecap there is. Labels for checking the
+-- app, never drawn on the map. Nothing about the reporter is stored except the
+-- code of a personal observer link, when they used one; anonymous reports have
+-- observer NULL. Observers are added by hand:
+--   INSERT INTO field_observers (code, name) VALUES ('codigoelegido', 'Nombre');
+CREATE TABLE IF NOT EXISTS field_observers (
+  code        TEXT        PRIMARY KEY,   -- 6-32 chars a-z0-9, goes in the link as ?obs=
+  name        TEXT        NOT NULL,
+  active      BOOLEAN     NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS field_reports (
+  time         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  spot_id      TEXT        NOT NULL,
+  sector       TEXT,
+  observer     TEXT,                   -- field_observers.code, or NULL (anonymous)
+  wind_vs_app  SMALLINT    NOT NULL CHECK (wind_vs_app BETWEEN -1 AND 1),   -- -1 less, 0 same, 1 more
+  whitecaps    SMALLINT    CHECK (whitecaps BETWEEN 0 AND 2),              -- 0 none, 1 some, 2 everywhere
+  app_verdict  TEXT,                   -- what the reporter's screen showed
+  app_wind_kt  REAL,
+  app_version  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_field_reports_time ON field_reports (time DESC);
+GRANT SELECT, INSERT ON field_reports TO meteomap_app;
+GRANT SELECT ON field_observers TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON field_reports, field_observers TO grafana_ro;
+  END IF;
+END $$;
