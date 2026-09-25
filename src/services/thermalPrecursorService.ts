@@ -655,7 +655,11 @@ function classifyStations(
     const dist = fastDistanceKm(spot.center[1], spot.center[0], s.lat, s.lon);
     if (dist > spot.radiusKm * 1.5) continue; // skip distant stations
 
-    if (s.lon < coastLon || (s.altitude != null && s.altitude < 30)) {
+    // Altitude 0 means unknown, not sea level: Wunderground and IPMA report none. Read as sea
+    // level it made every such station "coastal", and at the Embalse, which has no station
+    // below 30 m, the terral and humidity-gradient signals compared those stations with the
+    // rest (same rule as lapseRateService's MIN_VALID_ALTITUDE).
+    if (s.lon < coastLon || (s.altitude != null && s.altitude > 0 && s.altitude < 30)) {
       coastal.push(s);
     } else {
       inland.push(s);
