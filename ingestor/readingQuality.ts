@@ -36,6 +36,14 @@ export const MAX_PLAUSIBLE_GUST_MS = 23;
 /** A gust more than this multiple of the mean is treated as an artefact. */
 export const MAX_GUST_RATIO = 3;
 
+/**
+ * The ratio test only applies from this gust up. In light air real gusts routinely run four or
+ * five times the mean, and below this a gust cannot mislead anyone: over 22-25 Sep, 90% of the
+ * gusts the ratio discarded were under 4 m/s against a 0.3 m/s mean, and a gust rising under a
+ * flat mean is how a breeze announces itself (O Viso before the Cesantes breeze, 25 Sep).
+ */
+export const GUST_RATIO_MIN_MS = 8;
+
 /** Above this, a sustained wind is not physically plausible here (~97kt). */
 export const MAX_PLAUSIBLE_SPEED_MS = 50;
 
@@ -143,8 +151,11 @@ export function applyQualityControl(
   if (gust !== null) {
     if (gust > MAX_PLAUSIBLE_GUST_MS) qcFlag |= QC_GUST_ABSOLUTE;
     // The ratio test only means anything against a mean that is actually
-    // turning: at 0 m/s every gust is infinitely larger than the mean.
-    if (speed != null && speed > 0 && gust > speed * MAX_GUST_RATIO) qcFlag |= QC_GUST_RATIO;
+    // turning (at 0 m/s every gust is infinitely larger than the mean), and
+    // only for a gust big enough to matter (see GUST_RATIO_MIN_MS).
+    if (speed != null && speed > 0 && gust >= GUST_RATIO_MIN_MS && gust > speed * MAX_GUST_RATIO) {
+      qcFlag |= QC_GUST_RATIO;
+    }
     if (qcFlag !== QC_OK) {
       windGustRaw = gust;
       cleanGust = null;
