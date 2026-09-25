@@ -31,6 +31,7 @@ import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
 import { detectBocana } from './bocanaDetector';
 import { predictCesantesCanalization, computeInteriorSolar, computeMouthHumidity, type CesantesPrediction } from './cesantesCanalizationDetector';
 import { getStationBiasAt } from '../config/stationBiases';
+import { isDirVariable } from '../config/verdictStyles';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -58,6 +59,9 @@ export interface SpotWindConsensus {
   dominantDir: string;
   /** Consensus wind direction in degrees (for arrow display) */
   dirDeg: number;
+  /** How well the sources agree on the direction, 0-1 (length of the weighted mean vector).
+   *  Null when no source reports a direction. */
+  dirSteadiness?: number | null;
   /** Matched wind pattern name, if any */
   matchedPattern: string | null;
   /** Individual station/buoy contributions, sorted by weight descending */
@@ -674,15 +678,20 @@ function computeSpotWindConsensus(
 
   // Weighted circular mean for direction
   let avgDir = 0;
+  let dirSteadiness: number | null = null;
   const dirPoints = entries.filter(e => e.dir !== null) as (SourceEntry & { dir: number })[];
   if (dirPoints.length > 0) {
-    let sinSum = 0, cosSum = 0;
+    let sinSum = 0, cosSum = 0, dirWeight = 0;
     for (const dp of dirPoints) {
       const rad = (dp.dir * Math.PI) / 180;
       sinSum += Math.sin(rad) * dp.weight;
       cosSum += Math.cos(rad) * dp.weight;
+      dirWeight += dp.weight;
     }
     avgDir = ((Math.atan2(sinSum, cosSum) * 180) / Math.PI + 360) % 360;
+    // Length of the mean vector: 1 when every source points the same way, near 0 when they
+    // cancel out and the mean direction above is noise.
+    dirSteadiness = dirWeight > 0 ? Math.round((Math.hypot(sinSum, cosSum) / dirWeight) * 100) / 100 : null;
   }
 
   // Wind pattern match
@@ -715,6 +724,7 @@ function computeSpotWindConsensus(
     rawAvgSpeedKt: Math.round((weightedSpeed / totalWeight) * 10) / 10,
     dominantDir: degToCardinal8(avgDir),
     dirDeg: Math.round(avgDir),
+    dirSteadiness,
     matchedPattern,
     contributions,
   };
@@ -1212,15 +1222,20 @@ function buildSpotSummary(
   // When thermal/canalization boost overrides the consensus, the summary should
   // reflect the effective wind that drove the verdict (not the raw station read).
   const spd = effectiveSpd ?? wind.avgSpeedKt;
-  const dir = wind.dominantDir;
-  const pattern = wind.matchedPattern;
+  // Sources pointing every which way have no direction worth stating, and a named pattern
+  // ("Viento SW (tardes) activa") would claim one.
+  const variable = isDirVariable(wind);
+  const pattern = variable ? null : wind.matchedPattern;
+  const windText = variable
+    ? `${spd.toFixed(0)}kt, dirección variable`
+    : `${wind.dominantDir} ${spd.toFixed(0)}kt`;
 
   switch (verdict) {
     case 'good':
       if (pattern) {
         parts.push(`${pattern} activa.`);
       }
-      parts.push(`Buenas condiciones (${dir} ${spd.toFixed(0)}kt).`);
+      parts.push(`Buenas condiciones (${windText}).`);
       if (spd >= 15) {
         parts.push('Viento estable, apto para todas las modalidades.');
       } else {
@@ -1228,22 +1243,22 @@ function buildSpotSummary(
       }
       break;
     case 'strong':
-      parts.push(`Viento fuerte (${dir} ${spd.toFixed(0)}kt).`);
+      parts.push(`Viento fuerte (${windText}).`);
       parts.push('Requiere experiencia.');
       break;
     case 'sailing':
       if (pattern) {
         parts.push(`${pattern} débil.`);
       }
-      parts.push(`Navegable (${dir} ${spd.toFixed(0)}kt).`);
+      parts.push(`Navegable (${windText}).`);
       parts.push('Viento justo, condiciones limitadas.');
       break;
     case 'light':
-      parts.push(`Flojo (${dir} ${spd.toFixed(0)}kt). Insuficiente para navegar.`);
+      parts.push(`Flojo (${windText}). Insuficiente para navegar.`);
       break;
     case 'calm':
       if (spd >= 3) {
-        parts.push(`Calma (${dir} ${spd.toFixed(0)}kt). Sin condiciones.`);
+        parts.push(`Calma (${windText}). Sin condiciones.`);
       } else {
         parts.push('Sin viento. Sin condiciones.');
       }

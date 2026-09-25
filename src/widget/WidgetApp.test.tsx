@@ -8,7 +8,7 @@ const cesantes = RIAS_SPOTS.find((s) => s.id === 'cesantes')!;
 
 const score = (over: Partial<SpotScore>): SpotScore => ({
   spotId: 'cesantes', spotName: 'Cesantes', verdict: 'good', score: 70, summary: 'Buen viento del SW',
-  wind: { avgSpeedKt: 9, dirDeg: 230, stationCount: 4 } as SpotScore['wind'],
+  wind: { avgSpeedKt: 9, dirDeg: 230, dominantDir: 'SW', dirSteadiness: 0.9, stationCount: 4 } as SpotScore['wind'],
   waves: null, waterTemp: 19.4, airTemp: 24, humidity: 60, windChill: null, heatIndex: null,
   windDirDeg: 230, hardGateTriggered: null, thermal: null, hasStormAlert: false, thermalBoosted: false,
   effectiveWindKt: 13, scoringConfidence: 'high', provisional: false, windTrend: null, gustKt: 15,
@@ -24,6 +24,12 @@ describe('widget spot card', () => {
     expect(screen.getByText('Buen día')).toBeTruthy();
     expect(screen.getByText('SW')).toBeTruthy();
     expect(screen.getByText('15 kt')).toBeTruthy();       // gust
+  });
+
+  it('says the direction is variable when the sources disagree', () => {
+    render(<SpotCard spot={cesantes} score={score({ wind: { avgSpeedKt: 9, dirDeg: 230, dominantDir: 'SW', dirSteadiness: 0.3, stationCount: 4 } as SpotScore['wind'] })} />);
+    expect(screen.getByText('variable')).toBeTruthy();
+    expect(screen.queryByText('SW')).toBeNull();
   });
 
   it('says it is still calculating instead of a firm number while the score is provisional', () => {

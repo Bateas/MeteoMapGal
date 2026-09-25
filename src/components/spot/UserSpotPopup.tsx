@@ -17,6 +17,7 @@ import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { type UserSpot, MAX_NAME_CHARS, buildSpotSuggestion } from '../../config/userSpots';
 import { isCoastalSector } from '../../config/sectors';
+import { displayWindDir } from '../../config/verdictStyles';
 import { RIAS_TIDE_STATIONS, fetchTidePredictions } from '../../api/tideClient';
 import { fastDistanceKm } from '../../services/idwInterpolation';
 import { msToKnots, degToCardinal8 } from '../../services/windUtils';
@@ -121,7 +122,7 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score: propScor
       lat,
       lon,
       windKt: score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null,
-      windDir: score?.wind?.dominantDir ?? null,
+      windDir: displayWindDir(score)?.label ?? null,
       windSources: score?.wind?.stationCount,
       waveHeightM: score?.waves?.waveHeight ?? null,
       waterTempC: score?.waterTemp ?? null,
@@ -139,7 +140,7 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score: propScor
 
   const verdict: SpotVerdict = score?.verdict ?? 'unknown';
   const windKt = score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null;
-  const dir = score?.wind?.dominantDir ?? null;
+  const dir = displayWindDir(score)?.label ?? null;
   const contributions = score?.wind?.contributions ?? [];
   const waveHeight = score?.waves?.waveHeight ?? null;
   const waterTemp = score?.waterTemp ?? null;

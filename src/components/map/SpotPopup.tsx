@@ -20,7 +20,7 @@ import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import { MAX_PLAUSIBLE_GUST_KT as MAX_DISPLAY_GUST_KT } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
 import { isBeachSpot } from '../../config/spots';
-import { displayWindKt, displayVerdict as renderedVerdict } from '../../config/verdictStyles';
+import { displayWindKt, displayWindDir, displayVerdict as renderedVerdict } from '../../config/verdictStyles';
 import { SpotReportBox } from '../spot/SpotReportBox';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import { formatThermalCountdown } from '../../services/thermalPrecursorService';
@@ -212,6 +212,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   // boost). Display it so the popup never shows a different kt than the marker/
   // ticker/banner for the same spot (O3 coherence — popup-vs-engine asymmetry).
   const effectiveKt = score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? 0;
+  // "variable" with no arrow when the sources disagree on where the wind comes from.
+  const windDirView = displayWindDir(score);
   const windIsBoosted = score?.effectiveWindKt != null && score?.wind != null
     && Math.round(score.effectiveWindKt) !== Math.round(score.wind.avgSpeedKt);
 
@@ -567,14 +569,20 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
           </div>
           <div className="flex items-baseline gap-1">
             <span className="text-slate-500 text-[11px]">Dirección</span>
-            <span className="font-bold text-slate-200 flex items-center gap-1">
-              <span
-                className="inline-block text-sm leading-none"
-                style={{ transform: `rotate(${(score.wind.dirDeg + 180) % 360}deg)`, display: 'inline-block' }}
-              >↑</span>
-              {score.wind.dominantDir}
-              <span className="text-[11px] text-slate-400 font-normal">{Math.round(score.wind.dirDeg)}°</span>
-            </span>
+            {windDirView?.deg != null ? (
+              <span className="font-bold text-slate-200 flex items-center gap-1">
+                <span
+                  className="inline-block text-sm leading-none"
+                  style={{ transform: `rotate(${(windDirView.deg + 180) % 360}deg)`, display: 'inline-block' }}
+                >↑</span>
+                {windDirView.label}
+                <span className="text-[11px] text-slate-400 font-normal">{Math.round(windDirView.deg)}°</span>
+              </span>
+            ) : (
+              <span className="font-bold text-slate-200" title="Las estaciones cercanas no coinciden en la dirección">
+                Variable
+              </span>
+            )}
           </div>
           {/* Laid out by hand rather than through <Cell>, which takes only
               label/value/color and silently drops anything passed as children —
@@ -1688,7 +1696,7 @@ function ShareButton({ spot, score, verdict: _verdict, vs }: {
   const shareText = useMemo(() => {
     const parts = [`${spot.name}: ${vs.label}`];
     if (score?.wind) {
-      parts.push(`${(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt ${score.wind.dominantDir}`);
+      parts.push(`${(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt ${displayWindDir(score)?.label ?? ''}`.trim());
     }
     if (score?.airTemp != null) {
       parts.push(`${score.airTemp.toFixed(0)}°C`);

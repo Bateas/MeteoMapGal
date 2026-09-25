@@ -3,7 +3,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useAlertStore } from '../../store/alertStore';
 import { getSpotsForSector } from '../../config/spots';
-import { VERDICT_STYLE, displayVerdict, displayWindKt, verdictLabel } from '../../config/verdictStyles';
+import { VERDICT_STYLE, displayVerdict, displayWindKt, displayWindDir, verdictLabel } from '../../config/verdictStyles';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { useUIStore } from '../../store/uiStore';
 
@@ -35,7 +35,7 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
   // with canalization shows 14kt not 5kt — aligns with SpotMarker + popup.
   // Null while provisional, calibrated otherwise — both rules in one call.
   const windKt = displayWindKt(activeScore);
-  const windDir = activeScore?.wind?.dominantDir;
+  const windDir = displayWindDir(activeScore)?.label;
   const windInfo = windKt != null && verdict !== 'calm' && verdict !== 'unknown'
     ? `${windKt.toFixed(0)}kt ${windDir ?? ''}`
     : null;

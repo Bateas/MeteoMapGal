@@ -21,8 +21,8 @@ import { getSpotsForSector, ALL_SPOTS } from '../config/spots';
 import type { SpotId, SailingSpot } from '../config/spots';
 import type { SpotScore } from '../services/spotScoringEngine';
 import { scoreAllSpots, MAX_PLAUSIBLE_GUST_KT } from '../services/spotScoringEngine';
-import { degToCardinal8, scaleGustToSpot } from '../services/windUtils';
-import { displayVerdict, displayWindKt, verdictLabel, VERDICT_HEX } from '../config/verdictStyles';
+import { scaleGustToSpot } from '../services/windUtils';
+import { displayVerdict, displayWindDir, displayWindKt, verdictLabel, VERDICT_HEX } from '../config/verdictStyles';
 import { SECTORS, isCoastalSector } from '../config/sectors';
 import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 import { loadWidgetInputs } from './widgetData';
@@ -120,7 +120,9 @@ export function SpotCard({ spot, score }: { spot: SailingSpot; score: SpotScore 
   const gustKt = windKt != null && score?.gustKt != null
     ? scaleGustToSpot(score.gustKt, score.wind?.avgSpeedKt ?? 0, windKt, MAX_PLAUSIBLE_GUST_KT)
     : null;
-  const dirDeg = ready ? score.windDirDeg : null;
+  // "variable" with no arrow when the sources disagree, as on the map.
+  const dirView = ready ? displayWindDir(score) : null;
+  const dirDeg = dirView?.deg ?? null;
   const waveM = ready ? score.waves?.waveHeight ?? null : null;
   const temp = score?.airTemp ?? null;
 
@@ -153,7 +155,7 @@ export function SpotCard({ spot, score }: { spot: SailingSpot; score: SpotScore 
       {/* Data grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
         <DataCell label="Viento" value={windKt != null ? `${Math.round(windKt)} kt` : '—'} color={color} />
-        <DataCell label="Dirección" value={dirDeg != null ? degToCardinal8(dirDeg) : '—'} icon={dirDeg != null ? (
+        <DataCell label="Dirección" value={dirView?.label ?? '—'} icon={dirDeg != null ? (
           <span style={{
             display: 'inline-block',
             transform: `rotate(${dirDeg + 180}deg)`,
@@ -215,7 +217,7 @@ function CompactRow({ spots, scores }: { spots: SailingSpot[]; scores: Map<strin
         const score = scores.get(spot.id) ?? null;
         const color = VERDICT_HEX[displayVerdict(score)];
         const windKt = displayWindKt(score);
-        const dirDeg = score && !score.provisional ? score.windDirDeg : null;
+        const dirLabel = score && !score.provisional ? displayWindDir(score)?.label ?? null : null;
         return (
           <div key={spot.id} style={{
             display: 'flex',
@@ -231,7 +233,7 @@ function CompactRow({ spots, scores }: { spots: SailingSpot[]; scores: Map<strin
             <span style={{ fontSize: '11px', color, fontWeight: 700 }}>
               {windKt != null ? `${Math.round(windKt)}kt` : '—'}
             </span>
-            {dirDeg != null && <span style={{ fontSize: '10px', color: textSecondary }}>{degToCardinal8(dirDeg)}</span>}
+            {dirLabel && <span style={{ fontSize: '10px', color: textSecondary }}>{dirLabel}</span>}
           </div>
         );
       })}

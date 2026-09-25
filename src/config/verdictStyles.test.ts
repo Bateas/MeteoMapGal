@@ -16,6 +16,9 @@ import {
   PROVISIONAL_LABEL,
   VERDICT_STYLE,
   VERDICT_HEX,
+  displayWindDir,
+  isDirVariable,
+  DIR_VARIABLE_BELOW,
 } from './verdictStyles';
 import type { SpotVerdict } from '../services/spotScoringEngine';
 
@@ -102,5 +105,23 @@ describe('the styles stay complete', () => {
       expect(VERDICT_STYLE[v]?.label).toBeTruthy();
       expect(VERDICT_HEX[v]).toMatch(/^#[0-9a-f]{6}$/i);
     }
+  });
+});
+
+describe('displayWindDir', () => {
+  const wind = (dirSteadiness: number | null) => ({ wind: { dominantDir: 'N', dirDeg: 5, dirSteadiness } });
+
+  it('says variable, with no arrow, when the sources disagree', () => {
+    // 25-Sep 12h at Lourido: the app said N while its sources were split between NE and W.
+    expect(displayWindDir(wind(0.3))).toEqual({ label: 'variable', deg: null });
+    expect(isDirVariable(wind(DIR_VARIABLE_BELOW - 0.01).wind)).toBe(true);
+  });
+
+  it('states the direction when they agree, or when there is nothing to judge agreement by', () => {
+    expect(displayWindDir(wind(0.8))).toEqual({ label: 'N', deg: 5 });
+    expect(displayWindDir(wind(DIR_VARIABLE_BELOW))).toEqual({ label: 'N', deg: 5 });
+    expect(displayWindDir(wind(null))).toEqual({ label: 'N', deg: 5 });
+    expect(displayWindDir(undefined)).toBeNull();
+    expect(displayWindDir({ wind: null })).toBeNull();
   });
 });

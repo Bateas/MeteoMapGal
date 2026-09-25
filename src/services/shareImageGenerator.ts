@@ -19,7 +19,7 @@
 
 import type { SpotScore, SpotVerdict } from './spotScoringEngine';
 import type { SailingSpot } from '../config/spots';
-import { VERDICT_HEX, displayVerdict, displayWindKt, verdictLabel } from '../config/verdictStyles';
+import { VERDICT_HEX, displayVerdict, displayWindKt, isDirVariable, verdictLabel } from '../config/verdictStyles';
 
 // ── Data shape ──────────────────────────────────────────────
 
@@ -76,7 +76,7 @@ export function buildShareData(
   const label = verdictLabel(score);
   const verdictColor = VERDICT_HEX[verdict] ?? '#94a3b8';
   const windKt = displayWindKt(score);
-  const dir = degToCardinal(score.windDirDeg);
+  const dir = isDirVariable(score.wind) ? 'variable' : degToCardinal(score.windDirDeg);
   // gustKt lives on SpotScore, not on the wind consensus — `wind.maxGustKt`
   // does not exist and silently read undefined, so the card never showed one.
   const gust = score.gustKt ?? null;
