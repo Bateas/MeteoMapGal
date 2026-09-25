@@ -82,6 +82,13 @@
 
   /* Text: white → dark in light mode */
   --color-white: #1e293b;
+
+  /* Amber is only ever text here (text-amber-300/200, 44 uses). The pale
+     tones read 1.2-1.4:1 on the light panels: the "Avanzado" button and the
+     "Modo simple activo" banner every new visitor sees were near invisible.
+     amber-700/800 reach 4.5:1+ on white. */
+  --color-amber-300: oklch(55.5% 0.163 48.998);
+  --color-amber-200: oklch(47.3% 0.137 46.201);
 }
 
 /* Map + overlays stay dark in light mode */
@@ -98,6 +105,9 @@
   --color-slate-200: #e2e8f0;
   --color-slate-100: #f1f5f9;
   --color-slate-50: #f8fafc;
+  /* Map overlays stay dark, so amber goes back to Tailwind's pale tones */
+  --color-amber-300: oklch(87.9% 0.169 91.605);
+  --color-amber-200: oklch(92.4% 0.12 95.746);
 
   /* Surface vars must also stay dark (popups, overlays on map) */
   --color-surface-card: #1e293b;
