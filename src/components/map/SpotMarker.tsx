@@ -8,12 +8,14 @@
  * Sector-aware: renders spots for the active sector.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Marker, useMap } from 'react-map-gl/maplibre';
+import { Marker, useMap, type MarkerInstance } from 'react-map-gl/maplibre';
+import { makeMarkerButton } from './markerA11y';
 import { getSpotsForSector } from '../../config/spots';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
+import { VERDICT_STYLE } from '../../config/verdictStyles';
 import { clusterSpots, CLUSTER_DISABLE_ZOOM, type SpotClusterGroup } from '../../services/spotClustering';
 
 // ── Verdict colors — aligned with simplified windSpeedColor() scale ──
@@ -164,17 +166,27 @@ const SpotClusterMarker = memo(function SpotClusterMarker({
   const svgSize = size + 12;
   const svgHalf = svgSize / 2;
 
+  // The Marker wrapper is the keyboard button (see markerA11y); it carries the
+  // name the inner <button> used to have.
+  // Spoken name: Spanish, like the rest of the UI (the enum key is 'calm'/'sailing').
+  const label = `Grupo de ${cluster.count} spots; el peor, ${VERDICT_STYLE[cluster.worstVerdict].label.toLowerCase()}`;
+  const markerRef = useCallback(
+    (mk: MarkerInstance | null) => makeMarkerButton(mk, label, () => onClick(cluster)),
+    [label, onClick, cluster],
+  );
+
   return (
     // z-index 6: spots always paint above station clusters (z-index 1).
     // Hexagon (not a circle) so a clustered group still reads as "spots",
     // distinct from the round station/buoy context clusters.
-    <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 6 }}>
-      <button
+    <Marker ref={markerRef} longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 6 }}>
+      {/* div, not <button>: the wrapper is now the one button. A <button> inside
+          role="button" is nested-interactive and a second tab stop. */}
+      <div
         onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
         className="relative flex items-center justify-center transition-transform hover:scale-110 cursor-pointer bg-transparent border-0 p-0"
         style={{ width: svgSize, height: svgSize }}
         title={`${cluster.count} spots — click para acercar`}
-        aria-label={`Cluster de ${cluster.count} spots, peor estado ${cluster.worstVerdict}`}
       >
         <svg
           width={svgSize}
@@ -202,7 +214,7 @@ const SpotClusterMarker = memo(function SpotClusterMarker({
         >
           {cluster.count}
         </span>
-      </button>
+      </div>
     </Marker>
   );
 });
@@ -339,19 +351,27 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
       ? `${VERDICT_MAP_LABEL[verdict]} ${windKt.toFixed(0)}kt`
       : VERDICT_MAP_LABEL[verdict]);
 
+  // Same text the inner <svg> used to carry; it now names the wrapper, which is
+  // the element MapLibre exposes as role="button". Enter/Space select the spot
+  // exactly like a click does.
+  const ariaLabel = isProvisional ? `Spot ${shortName}: calculando condiciones` : `Spot ${shortName}: ${badgeText}`;
+  const markerRef = useCallback(
+    (mk: MarkerInstance | null) => makeMarkerButton(mk, ariaLabel, () => onSelect(spotId)),
+    [ariaLabel, onSelect, spotId],
+  );
+
   const svgSize = size + 24;
   const half = svgSize / 2;
 
   return (
     // z-index above station clusters (1); active spot floats above other spots.
-    <Marker longitude={lon} latitude={lat} anchor="center" onClick={handleClick} style={{ zIndex: isActive ? 8 : 6 }}>
+    <Marker ref={markerRef} longitude={lon} latitude={lat} anchor="center" onClick={handleClick} style={{ zIndex: isActive ? 8 : 6 }}>
       <div className="spot-marker relative cursor-pointer" title={isProvisional ? `${shortName} — calculando condiciones` : shortName} style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center' }}>
         <svg
           width={svgSize}
           height={svgSize}
           viewBox={`${-half} ${-half} ${svgSize} ${svgSize}`}
-          role="img"
-          aria-label={isProvisional ? `Spot ${shortName}: calculando condiciones` : `Spot ${shortName}: ${badgeText}`}
+          aria-hidden="true"
         >
           {/* Hit area */}
           <circle r={half} fill="transparent" />
