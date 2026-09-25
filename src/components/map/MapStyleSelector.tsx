@@ -136,7 +136,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
                 <span className={`text-[11px] font-semibold truncate ${isAuto ? 'text-blue-300' : ''}`}>
                   Auto
                 </span>
-                <span className="text-[11px] text-slate-500 truncate">Gris, según el tema</span>
+                <span className="text-[11px] text-slate-500 truncate">Claro u oscuro, según el tema</span>
               </div>
               {isAuto && (
                 <svg className="w-3.5 h-3.5 ml-auto text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
