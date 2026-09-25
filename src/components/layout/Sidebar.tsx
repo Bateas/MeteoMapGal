@@ -134,6 +134,7 @@ export function Sidebar() {
       <nav aria-label="Secciones de análisis">
       <div className="flex flex-wrap gap-0.5 border-b border-slate-700 px-1 py-0.5" role="tablist" aria-label="Paneles de datos">
         <button
+          id="tab-stations"
           role="tab"
           aria-selected={activeTab === 'stations'}
           aria-controls="tabpanel-stations"
@@ -144,6 +145,7 @@ export function Sidebar() {
         </button>
         {!simpleMode && (
           <button
+            id="tab-chart"
             role="tab"
             aria-selected={activeTab === 'chart'}
             aria-controls="tabpanel-chart"
@@ -155,6 +157,7 @@ export function Sidebar() {
         )}
         {!simpleMode && (
           <button
+            id="tab-compare"
             role="tab"
             aria-selected={activeTab === 'compare'}
             aria-controls="tabpanel-compare"
@@ -165,6 +168,7 @@ export function Sidebar() {
           </button>
         )}
         <button
+          id="tab-forecast"
           role="tab"
           aria-selected={activeTab === 'forecast'}
           aria-controls="tabpanel-forecast"
@@ -175,6 +179,7 @@ export function Sidebar() {
         </button>
         {isEmbalse && (
           <button
+            id="tab-thermal"
             role="tab"
             aria-selected={activeTab === 'thermal'}
             aria-controls="tabpanel-thermal"
@@ -186,6 +191,7 @@ export function Sidebar() {
         )}
         {!simpleMode && (
           <button
+            id="tab-rankings"
             role="tab"
             aria-selected={activeTab === 'rankings'}
             aria-controls="tabpanel-rankings"
@@ -197,6 +203,7 @@ export function Sidebar() {
         )}
         {!simpleMode && (
           <button
+            id="tab-history"
             role="tab"
             aria-selected={activeTab === 'history'}
             aria-controls="tabpanel-history"
@@ -209,7 +216,15 @@ export function Sidebar() {
       </div>
       </nav>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      {/* One container serves every tab, so its id follows activeTab: the
+          selected tab's aria-controls always points at a real element (the
+          unselected tabs' panels are not mounted, which ARIA allows). */}
+      <div
+        id={`tabpanel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`tab-${activeTab}`}
+        className="flex-1 overflow-y-auto p-3 space-y-3"
+      >
         <ErrorBanner />
         <Suspense fallback={<SkeletonLoader lines={4} title />}>
           {activeTab === 'stations' && (

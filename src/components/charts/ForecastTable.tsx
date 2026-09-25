@@ -381,12 +381,26 @@ export function ForecastTable({ data, expanded = false }: ForecastTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto scrollbar-thin" role="region" aria-label="Tabla de prevision meteorologica">
+    // tabIndex: the table has no focusable cells, so without it a keyboard user
+    // cannot reach the region to scroll it sideways with the arrow keys.
+    // Focus ring: the overflow-hidden parent would clip the global ring (drawn
+    // 2px outside), and an inset ring gets covered by the sticky first column.
+    // So it sits flush on the edge, in a 2px margin nothing in the scroller can
+    // paint over. Inline, because the unlayered global rules beat utilities.
+    <div
+      className="overflow-x-auto scrollbar-thin"
+      role="region"
+      aria-label="Tabla de prevision meteorologica"
+      tabIndex={0}
+      style={{ margin: '2px', outlineOffset: '0px' }}
+    >
       <table className={`${sz} border-collapse min-w-max`}>
         {/* Day header row */}
         <thead>
           <tr>
-            <th scope="col" className="sticky left-0 z-10 bg-slate-900 px-2 py-1 text-left text-slate-600 font-normal" />
+            {/* Top-left corner: it heads nothing ("Hora" below heads the first
+                column), so it is a plain cell, not an empty header. */}
+            <td className="sticky left-0 z-10 bg-slate-900 px-2 py-1 text-left text-slate-600 font-normal" />
             {dayGroups.map((g, i) => (
               <th
                 key={i}
