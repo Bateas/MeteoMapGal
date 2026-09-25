@@ -57,7 +57,7 @@ export const ReadingsLayers = memo(function ReadingsLayers({
       <TempOnlyOverlay stations={stations} readings={currentReadings} />
 
       {/* Station markers — GPU symbol layer. In simple mode they stay, without
-          the source initials. */}
+          the source initials and muted to grey, so the spots lead. */}
       <StationSymbolLayer
         stations={stations}
         readings={currentReadings}
@@ -65,6 +65,7 @@ export const ReadingsLayers = memo(function ReadingsLayers({
         onSelectStation={onSelectStation}
         zoomLevel={zoomLevel}
         hideSourceLabels={simpleMode}
+        muted={simpleMode}
       />
     </>
   );
