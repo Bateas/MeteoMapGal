@@ -11,7 +11,7 @@ vi.mock('./meteoSixFetcher.js', () => ({
   getUswanForecast: vi.fn(),
 }));
 
-import { getForecast } from './forecastFetcher';
+import { getForecast, isForecastFresh } from './forecastFetcher';
 
 const OM_BODY = {
   hourly: {
@@ -45,5 +45,24 @@ describe('getForecast', () => {
   it('serves the refreshed copy without asking again', async () => {
     await getForecast('rias');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('isForecastFresh', () => {
+  const at = (hhmm: string) => Date.UTC(2026, 8, 24, +hhmm.slice(0, 2), +hhmm.slice(3, 5));
+
+  it('expires at the next clock hour, not only after the TTL', () => {
+    expect(isForecastFresh(at('20:10'), at('20:50'))).toBe(true);
+    expect(isForecastFresh(at('20:59'), at('21:01'))).toBe(false);
+  });
+
+  it('gives every clock hour an issue when the caller asks every 30-35 minutes', () => {
+    // The analyzer asks every 30 min on a 5-min poll, so real calls land 30-35 min apart.
+    const issued = new Set<number>();
+    let fetchedAt = -Infinity;
+    for (let t = at('00:03'), i = 0; t < at('23:59'); t += (i++ % 2 ? 35 : 30) * 60_000) {
+      if (!isForecastFresh(fetchedAt, t)) { fetchedAt = t; issued.add(Math.floor(t / 3_600_000)); }
+    }
+    expect(issued.size).toBe(24);
   });
 });
