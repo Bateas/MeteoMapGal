@@ -389,17 +389,17 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
 
   it('marks severity=high when predictedKt ≥15', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
-    // baseKt 8 + ΔT 5°C × 2 = +8 (capped) → 16kt
-    const r = predictCesantesCanalization([], null, false, 20, 15, 8);
+    // baseKt 8 + ΔT 5°C × 2 = +8 (capped), breeze established (12kt gust) → 16kt
+    const r = predictCesantesCanalization([], null, false, 20, 15, 8, 230, null, 12);
     expect(r.severity).toBe('high');
   });
 
   it('fires Mode 2 when mean is ~4kt but ΔT is strong (≥4°C)', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
-    // 4kt measured + ΔT 6°C (air 24, water 18) → established thermal setup
+    // 4kt measured + ΔT 6°C (air 24, water 18), no gust known → three quarters of the boost
     const r = predictCesantesCanalization([], null, false, 24, 18, 4.2, 230);
     expect(r.active).toBe(true);
-    expect(r.predictedKt).toBeGreaterThanOrEqual(11);
+    expect(r.predictedKt).toBe(10);
   });
 
   it('fires Mode 2 when sheltered mean is <5kt BUT gust is active (≥10kt) with strong ΔT (today scenario)', () => {
@@ -414,7 +414,7 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
   it('strictly caps Mode 2 pure thermal breeze at 17kt max to avoid over-boosting on normal days', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
     // 10kt base + ΔT 8°C (*2 = +16) -> must cap at 17kt, never 26kt
-    const r = predictCesantesCanalization([], null, false, 28, 20, 10, 230);
+    const r = predictCesantesCanalization([], null, false, 28, 20, 10, 230, null, 14);
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBe(17);
   });
@@ -460,14 +460,14 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     });
 
     it('accepts both edges of the arc exactly', () => {
-      for (const dir of [160, 280]) {
+      for (const dir of [160, 315]) {
         expect(predictCesantesCanalization([], null, false, 31, 20, 3, dir, null, 11).active).toBe(true);
         expect(predictCesantesCanalization([], null, false, 24, 18, 4.5, dir).active).toBe(true);
       }
     });
 
     it('rejects a direction just outside either edge', () => {
-      for (const dir of [159, 281]) {
+      for (const dir of [159, 316]) {
         expect(predictCesantesCanalization([], null, false, 31, 20, 3, dir, null, 11).active).toBe(false);
         expect(predictCesantesCanalization([], null, false, 24, 18, 4.5, dir).active).toBe(false);
       }
@@ -587,4 +587,33 @@ describe('computeMouthHumidity', () => {
 
 
 
+});
+
+// ── Ground truth: 25-sep afternoon at Cesantes ──────────────────
+//
+// A sailor watched the tmkites webcam all afternoon and reported the wind on the water
+// (moored boats, wings and kites). Inputs are what the spot's stations read at that moment
+// (mean, nearest gust, consensus direction, air temperature; water 16.5). The rule: the figure
+// the app shows must sit within 3kt of what was on the water, on the way up and on the way
+// down. The old rule said calm until 16:47 with 10-12kt out there, then 15kt with 12.5.
+describe('Cesantes 25-sep: what the app shows vs what was on the water', () => {
+  afterEach(() => vi.useRealTimers());
+  const cases: { at: [number, number]; kt: number; gust: number | null; dir: number; air: number; water: number }[] = [
+    { at: [12, 53], kt: 2, gust: 5, dir: 320, air: 19.6, water: 2 },
+    { at: [13, 32], kt: 3, gust: 8, dir: 310, air: 20.9, water: 5 },
+    { at: [14, 8], kt: 4, gust: 8, dir: 290, air: 21.8, water: 7.5 },
+    { at: [15, 16], kt: 4, gust: 10, dir: 314, air: 23.5, water: 11 },
+    { at: [17, 22], kt: 4, gust: 11, dir: 255, air: 24.2, water: 14 },
+    { at: [18, 4], kt: 6, gust: 15, dir: 238, air: 23.8, water: 12.5 },
+    { at: [18, 11], kt: 4, gust: null, dir: 241, air: 23.8, water: 12.5 },
+  ];
+  for (const c of cases) {
+    it(`${c.at[0]}:${String(c.at[1]).padStart(2, '0')} — water ${c.water}kt`, () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 8, 25, c.at[0], c.at[1])); // local clock: the rule reads local hours
+      const r = predictCesantesCanalization([], null, false, c.air, 16.5, c.kt, c.dir, 700, c.gust);
+      const shown = r.active && r.predictedKt != null ? r.predictedKt : c.kt;
+      expect(Math.abs(shown - c.water)).toBeLessThanOrEqual(3);
+    });
+  }
 });

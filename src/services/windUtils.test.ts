@@ -170,8 +170,8 @@ describe('scaleGustToSpot — the gust travels with the mean', () => {
 
   it('scales the gust realistically above the effective mean without absurd multiplication', () => {
     // Station 5kt mean / 10kt gust, boosted to 14kt at the spot.
-    // Instead of multiplying 10 * 2.8 = 28kt (absurd), it scales to realistic 18kt (~1.25-1.35x mean).
-    expect(scaleGustToSpot(10, 5, 14, CAP)).toBe(18);
+    // Not 10 * 2.8 = 28kt: the measured 10kt sits below the boosted mean, so the floor (1.1x) wins.
+    expect(scaleGustToSpot(10, 5, 14, CAP)).toBe(15);
   });
 
   it('never leaves a gust below the mean it accompanies — the bug this closes', () => {
@@ -192,10 +192,15 @@ describe('scaleGustToSpot — the gust travels with the mean', () => {
 
   it('respects both the realistic marine ceiling and the hard cap', () => {
     // A 30kt raw gust on a 5kt station with a 15kt spot mean must NOT scale to 90kt.
-    // Instead it is capped by the realistic marine ceiling (15 * 1.4 = 21kt).
-    expect(scaleGustToSpot(30, 5, 15, CAP)).toBe(21);
+    // Instead it is capped by the marine ceiling (15 * 1.3 = 20kt).
+    expect(scaleGustToSpot(30, 5, 15, CAP)).toBe(20);
     // And if an explicit lower cap is provided, it is strictly obeyed:
     expect(scaleGustToSpot(30, 5, 15, 18)).toBe(18);
+  });
+
+  it('keeps the measured gust instead of inflating it over a boosted mean (25-sep 18:10, Cesantes)', () => {
+    // Measured 15, mean boosted to 13: the old rule printed 20; the water had gusts of 14.
+    expect(scaleGustToSpot(15, 7, 13, CAP)).toBe(15);
   });
 
   it('passes null through, because no gust is not a gust of zero', () => {
