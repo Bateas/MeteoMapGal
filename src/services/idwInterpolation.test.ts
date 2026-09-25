@@ -35,7 +35,9 @@ function mockReading(stationId: string, humidity: number | null, ageMin = 5): No
 describe('extractHumidityData', () => {
   it('extracts humidity and coordinates from fresh readings', () => {
     const st1 = mockStation('st1', 42.2, -8.7);
-    const r1 = mockReading('st1', 75, 10);
+    // 8 min, not 10: a reading built exactly on the 10-min band edge crossed it by
+    // the milliseconds a loaded test run takes, and freshness flipped to 0.85.
+    const r1 = mockReading('st1', 75, 8);
 
     const result = extractHumidityData([st1], new Map([['st1', r1]]));
     expect(result).toHaveLength(1);
