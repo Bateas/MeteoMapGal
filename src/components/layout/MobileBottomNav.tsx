@@ -3,7 +3,7 @@
  * Replaces hamburger menu with direct tab access.
  * Desktop: never rendered (gated by isMobile in AppShell).
  */
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useEffect } from 'react';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -42,6 +42,23 @@ function MobileBottomNavInner() {
 
   const [moreOpen, setMoreOpen] = useState(false);
 
+  // Escape closes the "Más" menu, same as tapping its backdrop. The items that
+  // open a modal (Guía, Feedback) close the menu first, so this never takes
+  // the Escape that belongs to a dialog.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMoreOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [moreOpen]);
+
+  // Highlighted tab. The open "Más" menu wins: it is an overlay, not a view, so
+  // it is kept out of activeBottomTab. That value says what is on screen and
+  // AppShell rewrites it whenever panels open or close (to 'map' when tapping
+  // Más closes the forecast), which would otherwise move the highlight to Mapa
+  // with the menu still open. Closing the menu hands it back to the real view.
+  const currentTab: BottomTab = moreOpen ? 'mas' : activeTab;
+
   // Primary bottom nav entries. 'simple' is a quick-action toggle in the
   // central slot — pressing it flips simpleMode without changing the view.
   // Icon + label reflect the current state.
@@ -70,6 +87,12 @@ function MobileBottomNavInner() {
       return;
     }
 
+    // The forecast overlay (z-50) covers everything except this bar: the
+    // sidebar (z-40), the FieldDrawer and the "Más" menu (z-[45]) all open
+    // UNDER it. Any destination other than Previsión closes it first, or the
+    // tap looks dead.
+    if (id !== 'prevision') setForecastPanelOpen(false);
+
     if (id === 'map') {
       // Close all panels — return to map
       setSidebarOpen(false);
@@ -97,11 +120,14 @@ function MobileBottomNavInner() {
     }
 
     if (id === 'mas') {
-      setMoreOpen((o) => !o);
-      setActiveTab('mas');
+      // Toggle from the rendered value: the setMoreOpen(false) above is already
+      // queued, so an updater (o => !o) always reopened the menu and a keyboard
+      // user (who cannot reach the backdrop) could not close it from here.
+      // No setActiveTab('mas'): the highlight comes from moreOpen (currentTab).
+      setMoreOpen(!moreOpen);
       return;
     }
-  }, [setSidebarOpen, setFieldDrawerOpen, setActiveTab, openSidebarTab, setForecastPanelOpen, toggleSimpleMode]);
+  }, [setSidebarOpen, setFieldDrawerOpen, setActiveTab, openSidebarTab, setForecastPanelOpen, toggleSimpleMode, moreOpen]);
 
   const menuItems: MenuItem[] = [
     { icon: 'book-open', label: 'Guía MeteoMapGal', action: () => { toggleGuide(); setMoreOpen(false); }, highlight: 'text-sky-400' },
@@ -177,7 +203,7 @@ function MobileBottomNavInner() {
           {TABS.map(({ id, label, icon }) => {
             // 'simple' is a toggle (highlighted when simpleMode active, amber);
             // other ids are tabs (highlighted when active, sky).
-            const isActive = id === 'simple' ? simpleMode : activeTab === id;
+            const isActive = id === 'simple' ? simpleMode : currentTab === id;
             const activeColor = id === 'simple' ? 'text-amber-300' : 'text-sky-400';
             return (
               <button
@@ -189,6 +215,10 @@ function MobileBottomNavInner() {
                 onClick={() => handleTab(id)}
                 aria-label={label}
                 aria-pressed={id === 'simple' ? simpleMode : undefined}
+                // Same rule as the highlight, so a screen reader hears what is
+                // shown. 'simple' is a switch (aria-pressed), never a page.
+                aria-current={id !== 'simple' && isActive ? 'page' : undefined}
+                aria-expanded={id === 'mas' ? moreOpen : undefined}
               >
                 <WeatherIcon id={icon} size={20} />
                 <span className="text-[10px] font-medium leading-none">{label}</span>

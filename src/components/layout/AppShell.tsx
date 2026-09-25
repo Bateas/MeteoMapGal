@@ -171,12 +171,18 @@ export function AppShell() {
     if (isMobile && sidebarOpen) setFieldDrawerOpen(false);
   }, [sidebarOpen, isMobile, setFieldDrawerOpen]);
 
-  // Sync bottom nav tab when panels close externally (station select, close button, etc.)
+  // Sync bottom nav tab with what is actually on screen: panels closed
+  // externally (station select, close button), the forecast opened from outside
+  // the bar (sidebar "Ampliar", spot popup, timeline) and closed by its own
+  // "Volver al mapa"/Escape. The tab drives aria-current, so it must not point
+  // at Mapa or Spots while the full-screen forecast covers them.
+  const forecastPanelOpen = useUIStore((s) => s.forecastPanelOpen);
   useEffect(() => {
-    if (isMobile && !sidebarOpen && !fieldDrawerOpen) {
-      useUIStore.getState().setActiveBottomTab('map');
-    }
-  }, [isMobile, sidebarOpen, fieldDrawerOpen]);
+    if (!isMobile) return;
+    const ui = useUIStore.getState();
+    if (forecastPanelOpen) ui.setActiveBottomTab('prevision');
+    else if (!sidebarOpen && !fieldDrawerOpen) ui.setActiveBottomTab('map');
+  }, [isMobile, sidebarOpen, fieldDrawerOpen, forecastPanelOpen]);
 
   // React to external tab switch requests (e.g. popup "Ver historial" button).
   // MUST live here (not in Sidebar) because Sidebar is not mounted when collapsed/closed.
