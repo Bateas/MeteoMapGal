@@ -100,6 +100,20 @@ const BOOST_FOG = 2.0;        // SW + fog confirmed → +100% (rare alignment)
 /** Max realistic boost cap (sanity) */
 const MAX_BOOST = 2.5;
 
+/** Do the stations near Cesantes show a SW flow actually arriving?
+ *  - a mean of 5kt or more, unless its direction is known and outside the SW arc;
+ *  - or 4kt with a known SW direction;
+ *  - or a gust of 10kt with a known SW direction (sheltered stations lag the water).
+ *  Unknown wind confirms nothing. */
+export function localFlowConfirmsSw(meanKt: number | null, dirDeg: number | null, gustKt: number | null): boolean {
+  if (meanKt == null) return false;
+  const known = dirDeg != null;
+  const inArc = known && dirDeg >= SW_DIR_MIN && dirDeg <= SW_DIR_MAX;
+  if (meanKt >= THERMAL_MIN_BASE_KT) return !known || inArc;
+  if (meanKt >= 4 && inArc) return true;
+  return (gustKt ?? 0) >= 10 && inArc;
+}
+
 // ── Detector ─────────────────────────────────────────────────
 
 /**
@@ -246,6 +260,14 @@ export function predictCesantesCanalization(
   }
 
   // ── MODE 1: Synoptic SW canalization (Atlantic wind) ──
+  // The same reality check Mode 2 already had: a SW buoy outside the ría only
+  // says what the Atlantic is doing, not that the flow is getting in. Without
+  // this, 25-sep 12:52 multiplied A Guarda's 8kt SW (an open-coast breeze at the
+  // Miño, 30 km south) by 1.7 and showed ~14kt while Cesantes read 2.5kt from the
+  // NW and the webcam showed a mirror. Canalization accelerates a flow that is
+  // already arriving; the nearby stations have to show it arriving, from the SW.
+  if (!localFlowConfirmsSw(localStationKt, localWindDir, localGustKt)) return inactive;
+
   const signals: string[] = [];
   signals.push(`SW sinóptico ${(synopticWindMs * 1.944).toFixed(0)}kt en ${sourceBuoy}`);
 
