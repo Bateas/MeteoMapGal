@@ -1275,6 +1275,33 @@ function buildSpotSummary(
   return parts.join(' ');
 }
 
+/** Peak gust from the CLOSEST sources only (stations <= 8 km, buoys <= 12 km), so a distant
+ *  mountain or ocean gust does not inflate a sheltered spot. Rejected as a sensor glitch above
+ *  45 kt or above 3x the RAW mean (the calibrated mean carries a per-spot constant that says
+ *  nothing about the anemometer). Exported so the Cesantes detector receives the same gust the
+ *  score shows: it used to get `wind.gustKt`, a field that does not exist, i.e. always null. */
+export function localGustKt(
+  stationData: { reading: NormalizedReading; distKm: number }[],
+  buoyData: { buoy: BuoyReading; distKm: number }[],
+  rawAvgKt: number,
+): number | null {
+  let gustKt: number | null = null;
+  for (const { reading, distKm } of stationData) {
+    if (reading.windGust != null && distKm <= 8) {
+      const gKt = msToKnots(reading.windGust);
+      if (gustKt === null || gKt > gustKt) gustKt = gKt;
+    }
+  }
+  for (const { buoy, distKm } of buoyData) {
+    if (buoy.windGust != null && distKm <= 12) {
+      const gKt = msToKnots(buoy.windGust);
+      if (gustKt === null || gKt > gustKt) gustKt = gKt;
+    }
+  }
+  if (gustKt !== null && (gustKt > MAX_PLAUSIBLE_GUST_KT || (rawAvgKt > 0 && gustKt > rawAvgKt * 3))) gustKt = null;
+  return gustKt === null ? null : Math.round(gustKt * 10) / 10;
+}
+
 // ── Public API ───────────────────────────────────────────────
 
 /**
@@ -1402,7 +1429,7 @@ export function scoreAllSpots(
       channelingPrediction = predictCesantesCanalization(
         buoys, mouthHum, false, airTempLocal, waterTempForDetector, localStationKt, wind?.dirDeg ?? null,
         solarRadInterior,
-        wind?.gustKt ?? null,
+        localGustKt(stationData, buoyData, wind?.rawAvgSpeedKt ?? 0),
       );
     }
 
@@ -1478,27 +1505,7 @@ export function scoreAllSpots(
 
     // Max gust from CLOSEST sources only (stations <=8km, buoys <=12km) —
     // avoids distant mountain/ocean gusts inflating sheltered spot readings.
-    let gustKt: number | null = null;
-    for (const { reading, distKm } of stationData) {
-      if (reading.windGust != null && distKm <= 8) {
-        const gKt = msToKnots(reading.windGust);
-        if (gustKt === null || gKt > gustKt) gustKt = gKt;
-      }
-    }
-    for (const { buoy, distKm } of buoyData) {
-      if (buoy.windGust != null && distKm <= 12) {
-        const gKt = msToKnots(buoy.windGust);
-        if (gustKt === null || gKt > gustKt) gustKt = gKt;
-      }
-    }
-    // Sanity cap: reject gusts >45kt (Galician coast max realistic) or >3x the
-    // mean (sensor glitch). Measured against the RAW mean on purpose: the
-    // calibrated one carries a per-spot constant and the consensus bonus, so a
-    // real gust used to survive or die depending on a number that says nothing
-    // about the anemometer that reported it.
-    const avgKt = wind?.rawAvgSpeedKt ?? 0;
-    if (gustKt !== null && (gustKt > MAX_PLAUSIBLE_GUST_KT || (avgKt > 0 && gustKt > avgKt * 3))) gustKt = null;
-    if (gustKt !== null) gustKt = Math.round(gustKt * 10) / 10;
+    const gustKt = localGustKt(stationData, buoyData, wind?.rawAvgSpeedKt ?? 0);
 
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
     let airTemp: number | null = null;
