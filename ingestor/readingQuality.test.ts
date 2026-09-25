@@ -65,6 +65,15 @@ describe('applyQualityControl — the clean columns do not move', () => {
     expect(out.reading.windGust).toBeNull();
   });
 
+  it('keeps light-air gusts that run several times the mean', () => {
+    // 22-25 Sep: nine in ten gusts the ratio threw away were calm-air gusts like these.
+    for (const [windSpeed, windGust] of [[0.3, 1.4], [1.2, 4.8], [1.5, 5]]) {
+      const out = applyQualityControl(reading({ windSpeed, windGust }));
+      expect(out.reading.windGust).toBe(windGust);
+      expect(out.qcFlag).toBe(QC_OK);
+    }
+  });
+
   it('still nulls an implausible sustained wind', () => {
     const out = applyQualityControl(reading({ windSpeed: 60, windGust: null }));
     expect(out.reading.windSpeed).toBeNull();
