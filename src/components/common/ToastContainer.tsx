@@ -20,7 +20,8 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 left-4 md:left-auto md:w-80 z-50 flex flex-col gap-2 pointer-events-none"
+    // Above the mobile bottom nav (48 px): at bottom-4 a toast sat on the nav and took its taps.
+    <div className="fixed bottom-16 md:bottom-4 right-4 left-4 md:left-auto md:w-80 z-50 flex flex-col gap-2 pointer-events-none"
          role="status"
          aria-live="polite"
          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>

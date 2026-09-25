@@ -460,11 +460,14 @@ export function AppShell() {
       {!isMobile && <KeyboardShortcutHelp />}
       <Suspense fallback={null}><OnboardingTour /></Suspense>
       <ToastContainer />
-      {/* Bottom notices share one slot and stack instead of covering each other. */}
-      <div className="fixed bottom-16 left-2 right-2 sm:left-auto sm:right-4 sm:bottom-4 sm:w-80 z-50 flex flex-col gap-2 pointer-events-none">
-        <NewVersionBanner />
-        <PwaInstallBanner />
-      </div>
+      {/* Bottom notices share one slot and stack instead of covering each other. On a phone they
+          live in the map's bottom column instead (WeatherMap), above the toolbar. */}
+      {!isMobile && (
+        <div className="fixed bottom-16 left-2 right-2 sm:left-auto sm:right-4 sm:bottom-4 sm:w-80 z-50 flex flex-col gap-2 pointer-events-none">
+          <NewVersionBanner />
+          <PwaInstallBanner />
+        </div>
+      )}
       {isMobile && <MobileBottomNav />}
     </div>
   );

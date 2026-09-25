@@ -110,6 +110,8 @@ import { WebcamSymbolLayer, registerWebcamIcon } from './WebcamSymbolLayer';
 import { WebcamPopup } from './WebcamPopup';
 import { useWebcamStore } from '../../store/webcamStore';
 import { getWebcamsForSector } from '../../config/webcams';
+import { PwaInstallBanner } from '../common/PwaInstallBanner';
+import { NewVersionBanner } from '../common/NewVersionBanner';
 
 /** Build a MapLibre StyleSpecification for the given base map style + 3D terrain */
 function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
@@ -699,16 +701,23 @@ export function WeatherMap() {
            (same pattern as MobileSailingBanner). */
         <div className="fixed z-40 left-0 right-0 px-2 flex flex-col items-center gap-2 pointer-events-none"
           style={{ bottom: isMobile ? 'calc(52px + env(safe-area-inset-bottom, 0px))' : '0.75rem', paddingBottom: isMobile ? undefined : 'env(safe-area-inset-bottom, 0px)' }}>
+          {/* Notices stack here on a phone, above the alerts and the toolbar. At a fixed offset of
+              their own they covered the toolbar, and above everything they covered an open spot
+              sheet; in this column an open sheet covers them instead. */}
+          <div className="w-full flex flex-col gap-2">
+            <NewVersionBanner />
+            <PwaInstallBanner />
+          </div>
           <div className="pointer-events-auto w-full flex justify-center">
             <Suspense fallback={null}><AlertPanel /></Suspense>
           </div>
-          <div className="flex items-center justify-center gap-1.5 max-w-full overflow-x-auto scrollbar-none pointer-events-auto">
+          <div className="flex items-center justify-center-safe gap-1.5 max-w-full overflow-x-auto scrollbar-none pointer-events-auto">
             <Suspense fallback={null}><StormIndicator /></Suspense>
             <TemperatureToggle />
             {!simpleMode && <WeatherLayerSelector />}
             <button
               onClick={() => { setDistanceActive((v) => !v); setPlacingSpot(false); }}
-              className={`p-2 rounded-lg border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800 border-slate-600/30 text-slate-300 hover:text-white'}`}
+              className={`p-2 min-h-11 min-w-11 flex items-center justify-center rounded-lg border transition-colors ${distanceActive ? 'bg-amber-600/80 border-amber-400/50 text-white' : 'bg-slate-800 border-slate-600/30 text-slate-300 hover:text-white'}`}
               title="Medir distancia"
               aria-label="Medir distancia"
             >
@@ -716,7 +725,7 @@ export function WeatherMap() {
             </button>
             <button
               onClick={togglePlacingSpot}
-              className={`flex items-center gap-1 px-2.5 py-2 rounded-lg border transition-colors text-xs font-semibold ${placingSpot ? 'bg-violet-600/85 border-violet-400/60 text-white' : 'bg-slate-800 border-slate-600/30 text-violet-300 hover:text-white'}`}
+              className={`flex items-center justify-center gap-1 px-2.5 py-2 min-h-11 min-w-16 rounded-lg border transition-colors text-xs font-semibold ${placingSpot ? 'bg-violet-600/85 border-violet-400/60 text-white' : 'bg-slate-800 border-slate-600/30 text-violet-300 hover:text-white'}`}
               title="Crear un spot propio (sin calibrar)"
               aria-label="Crear spot"
             >
