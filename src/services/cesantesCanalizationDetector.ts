@@ -45,6 +45,12 @@ const MOUTH_BUOY_IDS = new Set([2248, 1252, 1253]); // Cabo Silleiro, Cíes, A G
 /** SW direction range — broader: includes S-SSE (160°) through WSW (280°) */
 const SW_DIR_MIN = 160;
 const SW_DIR_MAX = 280;
+/** Upper edge of the arc for the LOCAL flow (stations near Cesantes), wider than the buoy
+ *  arc. The ria funnels and turns the flow: on 25-sep the WNW (Porto de Vigo 277-294, O Viso
+ *  293-315) fed a SW-WSW breeze at Cesantes coming in through Rande, 14kt with wings out, while
+ *  the 280 edge kept the detector off until O Viso veered at 16:47. What stays blocked is the
+ *  true northerly (N-NNW, past 315) that the islands and Monte da Vela stop. */
+const LOCAL_ARC_MAX = 315;
 
 /** Minimum synoptic wind to trigger canalization (m/s) */
 const MIN_SW_WIND_MS = 4.0; // ~8kt — lowered, A Guarda often reports 8-12kt SSE
@@ -108,7 +114,7 @@ const MAX_BOOST = 2.5;
 export function localFlowConfirmsSw(meanKt: number | null, dirDeg: number | null, gustKt: number | null): boolean {
   if (meanKt == null) return false;
   const known = dirDeg != null;
-  const inArc = known && dirDeg >= SW_DIR_MIN && dirDeg <= SW_DIR_MAX;
+  const inArc = known && dirDeg >= SW_DIR_MIN && dirDeg <= LOCAL_ARC_MAX;
   if (meanKt >= THERMAL_MIN_BASE_KT) return !known || inArc;
   if (meanKt >= 4 && inArc) return true;
   return (gustKt ?? 0) >= 10 && inArc;
@@ -196,7 +202,7 @@ export function predictCesantesCanalization(
     // predict an SW canalization boost on those days (user ground-truth: NW is
     // tapado, no sigue el patrón de entrada por la boca de la ría).
     if (localWindDir != null && (localStationKt ?? 0) >= 5
-        && (localWindDir < SW_DIR_MIN || localWindDir > SW_DIR_MAX)) {
+        && (localWindDir < SW_DIR_MIN || localWindDir > LOCAL_ARC_MAX)) {
       return inactive;
     }
     // Reality check: canalization AMPLIFIES an existing breeze, it does not create
@@ -220,7 +226,7 @@ export function predictCesantesCanalization(
     // rescue a LOW one, and with no mean there is nothing to rescue.
     const measuredKt = localStationKt;
     const dirInSwArc = localWindDir != null
-      && localWindDir >= SW_DIR_MIN && localWindDir <= SW_DIR_MAX;
+      && localWindDir >= SW_DIR_MIN && localWindDir <= LOCAL_ARC_MAX;
     const lowMeanUsable = measuredKt != null && dirInSwArc;
     const meanConfirms = (measuredKt ?? 0) >= THERMAL_MIN_BASE_KT;
     const deltaTConfirms = lowMeanUsable && measuredKt >= 4.0 && deltaT >= 4.0;
@@ -231,10 +237,18 @@ export function predictCesantesCanalization(
 
     // Use local station wind (or effective base of 5kt if confirmed via gust/strong ΔT)
     const baseKt = Math.max(localStationKt ?? 5, ((localGustKt ?? 0) >= 10 ? 5 : (localStationKt ?? 5)));
-    const thermalBoostKt = Math.min(8, deltaT * 2); // +2kt per °C of land-sea ΔT, max +8kt
+    // +2kt per °C of land-sea ΔT, max +8kt — scaled by how far the breeze has come in.
+    // The ΔT stays high all afternoon, so on its own it handed out the full +8kt while the
+    // breeze was only starting (25-sep 14:11: 12kt shown, 7.5 on the water) and again while it
+    // was dying (18:10: 15kt shown, 12.5 on the water). The nearby gust is what shows the
+    // breeze arriving at a sheltered station before its mean moves: 8kt gust = half the boost,
+    // 10kt or more = all of it. Unknown gust: three quarters, never the full amount on no evidence.
+    const established = localGustKt == null ? 0.75 : Math.min(1, Math.max(0.4, (localGustKt - 6) / 4));
+    const thermalBoostKt = Math.min(8, deltaT * 2) * established;
     // Sanity cap: pure thermal breeze (Mode 2) capped at 17kt max so it NEVER over-boosts on normal days
     const predictedKt = Math.min(17, Math.round(baseKt + thermalBoostKt));
-    if (predictedKt < 10) return inactive;
+    // 8, not 10: a graded boost reports the early breeze (8kt) instead of hiding it as calm.
+    if (predictedKt < 8) return inactive;
 
     // Report what the stations MEASURED, not the 5kt floor the boost is built
     // on. Below the floor keep the decimal: rounding 4.8 up to "5" would print

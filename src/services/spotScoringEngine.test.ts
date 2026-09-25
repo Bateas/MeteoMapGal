@@ -270,7 +270,9 @@ describe('Cesantes canalization override', () => {
     // physically valid; assert the BAND (>= 13 kt, the relevant outcome) not
     // an exact number so the test is timezone-stable.
     const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
-    const reading = makeReading('mg_test', msFromKt(6), 230, 25);
+    // Gust 12kt: the breeze has come in, so the thermal boost applies in full (the boost now
+    // scales with the nearby gust; with the default 7.8kt gust it would be under half).
+    const reading = { ...makeReading('mg_test', msFromKt(6), 230, 25), windGust: msFromKt(12) };
     const results = scoreAllSpots([cesantes], [station], new Map([['mg_test', reading]]), [randeBuoy]);
     const score = results.get('cesantes')!;
     expect(score.verdict).toBe('good');

@@ -261,13 +261,9 @@ export function isDirectionInRange(
  * the popup showed a boosted headline above a raw gust, printing a gust BELOW
  * the mean, which cannot happen and which anyone notices at a glance.
  *
- * The same multiplier is the defensible choice rather than a guess. The gust
- * factor was measured across four consecutive days at Castrelo and came out
- * flat — x2.6, x2.7, x2.9, x2.8 — on days ranging from a dead afternoon to the
- * best of the week. A ratio that stable is one that survives being carried
- * between two points in the same air. Leaving the gust raw is the worse option:
- * it states two numbers from two different places as though they described the
- * same water.
+ * It must not be scaled up with the mean, though: the boost says the WATER carries more
+ * wind than the sheltered station, not that the water is gustier. The measured gust is kept,
+ * floored at 1.1x the boosted mean and capped at 1.3x of it (see the body for the 25-sep case).
  *
  * @param gustKt     what the instrument read, or null when it has no gust
  * @param measuredKt the mean the same instruments read
@@ -286,19 +282,15 @@ export function scaleGustToSpot(
   if (measuredKt <= 0 || !Number.isFinite(measuredKt) || !Number.isFinite(effectiveKt)) return gustKt;
   if (effectiveKt <= measuredKt) return gustKt;
 
-  // The gust must travel with the mean so that the gust is never below the effective mean
-  // (e.g. avoiding "Viento 13kt, Racha 10kt").
-  // However, it must NEVER multiply the measured gust by the mean's boost factor
-  // (e.g. 13kt gust * 2.8x boost = 37kt absurd hurricane gust on a 13kt thermal day!).
-  // Over open water (flat water in San Simón), the gust factor is typically 1.2-1.35x.
-  const minGust = Math.round(effectiveKt * 1.25);
-  // Additive spread from measured gust (dampened by half so sheltered delta doesn't over-inflate)
-  const measuredSpread = Math.max(0, gustKt - measuredKt);
-  const candidateGust = Math.max(gustKt, minGust, Math.round(effectiveKt + measuredSpread * 0.5));
-
-  // Marine ceiling: over water, gusts in canalized/thermal flow rarely exceed 1.4x the mean
-  const marineGustCeiling = Math.round(effectiveKt * 1.4);
-  const finalGust = Math.min(candidateGust, Math.max(minGust, marineGustCeiling), capKt);
+  // The gust travels with the mean but is never invented on top of it. Over flat water in a
+  // thermal breeze the gust factor is small: 25-sep at Cesantes the water carried 12.5kt with
+  // gusts of 14 (x1.1), while the old floor of 1.25x an already boosted 15kt printed "Racha 20",
+  // above any gust a station recorded all day (Porto de Vigo peaked at 17.3). So:
+  //   - floor: 1.1x the mean, so the gust is never below the wind it accompanies;
+  //   - otherwise the gust actually measured nearby, up to 1.3x the mean — never scaled up.
+  const minGust = Math.round(effectiveKt * 1.1);
+  const ceiling = Math.round(effectiveKt * 1.3);
+  const finalGust = Math.min(Math.max(minGust, Math.min(gustKt, ceiling)), capKt);
 
   return finalGust;
 }
