@@ -8,7 +8,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('./aemetClient', () => ({ fetchStationInventory: vi.fn(async () => []) }));
 vi.mock('./meteogaliciaClient', () => ({ fetchStationList: vi.fn(async () => []) }));
 vi.mock('./meteoclimaticClient', () => ({ fetchMeteoclimaticFeed: vi.fn(async () => []) }));
-vi.mock('./wundergroundClient', () => ({ fetchWUNearbyStations: vi.fn(async () => []) }));
+vi.mock('./wundergroundClient', () => ({
+  fetchWUNearbyStations: vi.fn(async () => []),
+  // Our own list unavailable, so these runs take the direct WU path this test counts.
+  fetchWUStationsFromApi: vi.fn(async () => null),
+}));
 vi.mock('./netatmoClient', () => ({ fetchNetatmoStations: vi.fn(async () => []) }));
 vi.mock('./ipmaClient', () => ({ fetchIpmaNearby: vi.fn(async () => ({ stations: [], readings: [] })) }));
 vi.mock('./skyxClient', () => ({ fetchSkyXData: vi.fn(async () => ({ station: null, reading: null })) }));

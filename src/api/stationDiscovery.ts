@@ -2,7 +2,7 @@ import type { NormalizedStation } from '../types/station';
 import { fetchStationInventory } from './aemetClient';
 import { fetchStationList } from './meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from './meteoclimaticClient';
-import { fetchWUNearbyStations } from './wundergroundClient';
+import { fetchWUNearbyStations, fetchWUStationsFromApi } from './wundergroundClient';
 import { fetchNetatmoStations } from './netatmoClient';
 import { normalizeAemetStation, normalizeMeteoGaliciaStation, normalizeMeteoclimaticStation } from '../services/normalizer';
 import { isWithinRadius } from '../services/geoUtils';
@@ -143,6 +143,23 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
   return shared(key, () => runDiscovery(params));
 }
 
+/**
+ * Wunderground stations for a sector. First from the list our own server keeps (one request,
+ * shared by both sectors and at the edge); only if that cannot be read, straight from WU as
+ * before: the centre plus one lookup per extra coverage point, because WU's nearby search
+ * returns just the ten closest stations to each point. Both come back unfiltered — the radius
+ * and coverage checks below apply to either.
+ */
+async function discoverWU(params: DiscoveryParams): Promise<NormalizedStation[]> {
+  const listed = await shared('wu-list', fetchWUStationsFromApi);
+  if (listed) return listed;
+  const lookups = await Promise.allSettled([
+    fetchWUNearbyStations(params.center, params.radiusKm),
+    ...(params.extraCoveragePoints ?? []).map((p) => fetchWUNearbyStations([p.lon, p.lat], 10)),
+  ]);
+  return lookups.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+}
+
 async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[]> {
   const [centerLon, centerLat] = params.center;
   const radiusKm = params.radiusKm;
@@ -153,7 +170,7 @@ async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[
       shared('aemet-inventory', fetchStationInventory),
       shared('mg-station-list', fetchStationList),
       fetchMeteoclimaticFeed(params.meteoclimaticRegions),
-      fetchWUNearbyStations(params.center, radiusKm),
+      discoverWU(params),
       fetchNetatmoStations(params.center, radiusKm, false),
       fetchIpmaNearby(params.center, radiusKm, extraPoints),
     ]);
@@ -232,16 +249,6 @@ async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[
   if (wuStations.status === 'fulfilled') {
     const wuCount = stations.length;
     let allWU = [...wuStations.value];
-
-    // Also query WU from extra coverage points (WU API is geocode-based, needs multiple queries)
-    if (extraPoints?.length) {
-      const extraWU = await Promise.allSettled(
-        extraPoints.map((p) => fetchWUNearbyStations([p.lon, p.lat], 10))
-      );
-      for (const r of extraWU) {
-        if (r.status === 'fulfilled') allWU.push(...r.value);
-      }
-    }
 
     // Intra-WU dedup: cluster WU stations within 500m, keep closest to center
     allWU = deduplicateWUByProximity(allWU, centerLat, centerLon);
