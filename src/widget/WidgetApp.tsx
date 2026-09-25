@@ -11,29 +11,21 @@
  * Embed:
  *   <iframe src="https://meteomapgal.navia3d.com/widget.html?spot=cesantes"
  *     width="320" height="180" frameborder="0"></iframe>
+ *
+ * It scores spots with the map's own engine and shows them with the map's own rules
+ * (provisional verdicts say "Calculando…", the wind is the calibrated figure, the gust
+ * travels with it), so a club page never contradicts the app.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { getSpotsForSector, ALL_SPOTS } from '../config/spots';
 import type { SpotId, SailingSpot } from '../config/spots';
-import type { SpotScore, SpotVerdict } from '../services/spotScoringEngine';
-import { scoreAllSpots } from '../services/spotScoringEngine';
-import { degToCardinal8 } from '../services/windUtils';
-import { discoverStations } from '../api/stationDiscovery';
-import { fetchAllObservations } from '../api/aemetClient';
-import { fetchLatestForStations } from '../api/meteogaliciaClient';
-import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
-import { fetchWUObservations } from '../api/wundergroundClient';
-import { fetchNetatmoObservations } from '../api/netatmoClient';
-import { fetchSkyXReading } from '../api/skyxClient';
-import { fetchAllRiasBuoys, mergeBuoyReadings } from '../api/buoyClient';
-import { fetchAllObsReadings } from '../api/observatorioCosteiro';
-import {
-  normalizeAemetObservation,
-  normalizeMeteoGaliciaObservation,
-  normalizeMeteoclimaticObservation,
-} from '../services/normalizer';
-import type { NormalizedReading } from '../types/station';
-import { SECTORS } from '../config/sectors';
+import type { SpotScore } from '../services/spotScoringEngine';
+import { scoreAllSpots, MAX_PLAUSIBLE_GUST_KT } from '../services/spotScoringEngine';
+import { degToCardinal8, scaleGustToSpot } from '../services/windUtils';
+import { displayVerdict, displayWindKt, verdictLabel, VERDICT_HEX } from '../config/verdictStyles';
+import { SECTORS, isCoastalSector } from '../config/sectors';
+import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
+import { loadWidgetInputs } from './widgetData';
 
 // ── URL params ──────────────────────────────────────
 const params = new URLSearchParams(window.location.search);
@@ -42,15 +34,7 @@ const paramSector = params.get('sector') || 'rias';
 const paramTheme = params.get('theme') || 'dark';
 const paramCompact = params.get('compact') === 'true';
 
-// ── Verdict styling ─────────────────────────────────
-const VERDICT: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
-  calm:    { color: '#94a3b8', bg: 'rgba(100,116,139,0.2)', label: 'Calma' },
-  light:   { color: '#4ade80', bg: 'rgba(34,197,94,0.15)',  label: 'Flojo' },
-  sailing: { color: '#bef264', bg: 'rgba(163,230,53,0.15)', label: 'Navegable' },
-  good:    { color: '#facc15', bg: 'rgba(234,179,8,0.15)',  label: 'Buen día' },
-  strong:  { color: '#fb923c', bg: 'rgba(249,115,22,0.15)', label: 'Fuerte' },
-  unknown: { color: '#94a3b8', bg: 'rgba(100,116,139,0.2)', label: 'Sin datos' },
-};
+const REFRESH_MS = 5 * 60_000;
 
 const isDark = paramTheme === 'dark';
 const rootBg = isDark ? '#0f172a' : '#ffffff';
@@ -61,132 +45,42 @@ const textSecondary = isDark ? '#94a3b8' : '#64748b';
 const textMuted = isDark ? '#64748b' : '#94a3b8';
 const linkColor = isDark ? '#60a5fa' : '#2563eb';
 
+/**
+ * The spots this widget shows. Surf spots are judged by the waves in the app, never by the
+ * wind, so a wind verdict for one here would contradict the map: they are left out.
+ */
+export function widgetSpots(spotId: string | null, sectorId: string): SailingSpot[] {
+  const pool = spotId ? ALL_SPOTS.filter((s) => s.id === spotId) : getSpotsForSector(sectorId);
+  return pool.filter((s) => s.category !== 'surf');
+}
+
 export function WidgetApp() {
-  const [scores, setScores] = useState<Map<SpotId, SpotScore>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const [scores, setScores] = useState<Map<string, SpotScore> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const sector = SECTORS.find((s) => s.id === paramSector);
+  const spots = useMemo(() => widgetSpots(paramSpot, paramSector), []);
 
-  // Determine which spots to show
-  const spots: SailingSpot[] = paramSpot
-    ? ALL_SPOTS.filter((s) => s.id === paramSpot)
-    : getSpotsForSector(paramSector);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadData() {
-      try {
-        const sector = SECTORS.find((s) => s.id === paramSector);
-        if (!sector) { setError('Sector no válido'); setLoading(false); return; }
-
-        // 1. Discover stations
-        const stations = await discoverStations({
-          center: sector.center,
-          radiusKm: sector.radiusKm,
-          meteoclimaticRegions: sector.meteoclimaticRegions,
-          extraCoveragePoints: sector.extraCoveragePoints,
-          sectorId: sector.id,
-        });
-        if (cancelled) return;
-
-        // 2. Fetch observations in parallel
-        const readings = new Map<string, NormalizedReading>();
-        const aemetIds = stations.filter((s) => s.id.startsWith('aemet_')).map((s) => s.id.replace('aemet_', ''));
-        const mgIds = stations.filter((s) => s.id.startsWith('mg_')).map((s) => s.id.replace('mg_', ''));
-
-        const results = await Promise.allSettled([
-          aemetIds.length > 0 ? fetchAllObservations(aemetIds).catch(() => []) : Promise.resolve([]),
-          mgIds.length > 0 ? fetchLatestForStations(mgIds).catch(() => []) : Promise.resolve([]),
-          fetchMeteoclimaticFeed(sector.meteoclimaticRegions).catch(() => []),
-          fetchWUObservations(stations.filter((s) => s.id.startsWith('wu_'))).catch(() => []),
-          fetchNetatmoObservations(sector.center, sector.radiusKm).catch(() => []),
-          fetchSkyXReading().catch(() => null),
-        ]);
-        if (cancelled) return;
-
-        // Process AEMET
-        const aemetObs = results[0].status === 'fulfilled' ? results[0].value : [];
-        for (const obs of (aemetObs as Array<Record<string, unknown>>)) {
-          const r = normalizeAemetObservation(obs);
-          if (r) readings.set(r.stationId, r);
-        }
-        // Process MG
-        const mgObs = results[1].status === 'fulfilled' ? results[1].value : [];
-        for (const obs of (mgObs as Array<Record<string, unknown>>)) {
-          const r = normalizeMeteoGaliciaObservation(obs);
-          if (r) readings.set(r.stationId, r);
-        }
-        // Process MC
-        const mcObs = results[2].status === 'fulfilled' ? results[2].value : [];
-        for (const obs of (mcObs as Array<Record<string, unknown>>)) {
-          const r = normalizeMeteoclimaticObservation(obs);
-          if (r) readings.set(r.stationId, r);
-        }
-        // Process WU
-        const wuObs = results[3].status === 'fulfilled' ? results[3].value : [];
-        for (const r of (wuObs as NormalizedReading[])) {
-          readings.set(r.stationId, r);
-        }
-        // Process Netatmo
-        const ntObs = results[4].status === 'fulfilled' ? results[4].value : [];
-        for (const r of (ntObs as NormalizedReading[])) {
-          readings.set(r.stationId, r);
-        }
-        // Process SkyX
-        const skyxReading = results[5].status === 'fulfilled' ? results[5].value : null;
-        if (skyxReading) readings.set((skyxReading as NormalizedReading).stationId, skyxReading as NormalizedReading);
-
-        // 3. Fetch buoys (Rías only)
-        let buoys: import('../api/buoyClient').BuoyReading[] = [];
-        if (paramSector === 'rias') {
-          try {
-            const [portus, obs] = await Promise.allSettled([
-              fetchAllRiasBuoys(),
-              fetchAllObsReadings(),
-            ]);
-            const portusData = portus.status === 'fulfilled' ? portus.value : [];
-            const obsData = obs.status === 'fulfilled' ? obs.value : [];
-            buoys = mergeBuoyReadings(portusData, obsData);
-          } catch { /* buoys optional */ }
-        }
-        if (cancelled) return;
-
-        // 4. Score spots
-        const spotsToScore = paramSpot
-          ? ALL_SPOTS.filter((s) => s.id === paramSpot)
-          : getSpotsForSector(paramSector);
-        const scored = scoreAllSpots(spotsToScore, stations, readings, buoys);
-        setScores(scored);
-        setLoading(false);
-      } catch (err) {
-        if (!cancelled) {
-          console.error('[Widget] Error loading data:', err);
-          setError('Error cargando datos');
-          setLoading(false);
-        }
-      }
+  const load = useCallback(async () => {
+    if (!sector) return;
+    try {
+      const { stations, readings, buoys } = await loadWidgetInputs(isCoastalSector(sector.id));
+      setScores(scoreAllSpots(spots, stations, readings, buoys));
+      setError(null);
+    } catch (err) {
+      console.error('[Widget] Error loading data:', err);
+      setError('Error cargando datos');
     }
+  }, [sector, spots]);
 
-    loadData();
+  // Every five minutes while the page is visible. Coming back to the tab asks again only if
+  // the last answer is older than that; the old listener reloaded everything on every switch.
+  useVisibilityPolling(load, REFRESH_MS, sector !== undefined && spots.length > 0);
 
-    // Auto-refresh every 5 minutes — skip when document is hidden so the
-    // widget doesn't drain network/CPU when embedded in a tab the user is
-    // not currently viewing (audit S136+3 #13).
-    const refreshId = setInterval(() => {
-      if (document.hidden) return;
-      loadData();
-    }, 5 * 60_000);
-    // Refresh immediately when the user returns to the tab so they don't see
-    // a stale snapshot while waiting for the next 5min tick.
-    const onVisible = () => { if (!document.hidden) loadData(); };
-    document.addEventListener('visibilitychange', onVisible);
-
-    return () => {
-      cancelled = true;
-      clearInterval(refreshId);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, []);
+  // A failed refresh keeps the last good scores on screen: the error only shows with nothing else.
+  const problem = !sector ? 'Sector no válido'
+    : spots.length === 0 ? 'Spot no disponible'
+    : !scores ? error
+    : null;
 
   return (
     <div style={{
@@ -195,9 +89,9 @@ export function WidgetApp() {
       fontFamily: 'system-ui, -apple-system, sans-serif',
       minHeight: paramCompact ? 'auto' : '80px',
     }}>
-      {error ? (
-        <div style={{ color: '#f87171', fontSize: '12px', padding: '12px' }}>{error}</div>
-      ) : loading ? (
+      {problem ? (
+        <div style={{ color: '#f87171', fontSize: '12px', padding: '12px' }}>{problem}</div>
+      ) : !scores ? (
         <LoadingSkeleton />
       ) : paramCompact ? (
         <CompactRow spots={spots} scores={scores} />
@@ -218,12 +112,16 @@ export function WidgetApp() {
 }
 
 // ── Spot Card ───────────────────────────────────────
-function SpotCard({ spot, score }: { spot: SailingSpot; score: SpotScore | null }) {
-  const v = score ? VERDICT[score.verdict] : VERDICT.unknown;
-  const windKt = score?.wind?.avgKt ?? null;
-  const gustKt = score?.wind?.gustKt ?? null;
-  const dir = score?.windDirDeg != null ? degToCardinal8(score.windDirDeg) : null;
-  const waveM = score?.waves?.height ?? null;
+export function SpotCard({ spot, score }: { spot: SailingSpot; score: SpotScore | null }) {
+  const color = VERDICT_HEX[displayVerdict(score)];
+  const ready = score != null && !score.provisional;
+  const windKt = displayWindKt(score);
+  // The gust travels with the mean the card shows, as in the map's popup.
+  const gustKt = windKt != null && score?.gustKt != null
+    ? scaleGustToSpot(score.gustKt, score.wind?.avgSpeedKt ?? 0, windKt, MAX_PLAUSIBLE_GUST_KT)
+    : null;
+  const dirDeg = ready ? score.windDirDeg : null;
+  const waveM = ready ? score.waves?.waveHeight ?? null : null;
   const temp = score?.airTemp ?? null;
 
   return (
@@ -242,23 +140,23 @@ function SpotCard({ spot, score }: { spot: SailingSpot; score: SpotScore | null 
         <div style={{
           fontSize: '11px',
           fontWeight: 700,
-          color: v.color,
-          background: v.bg,
+          color,
+          background: `${color}26`,
           padding: '2px 8px',
           borderRadius: '6px',
           letterSpacing: '0.02em',
         }}>
-          {v.label}
+          {verdictLabel(score)}
         </div>
       </div>
 
       {/* Data grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
-        <DataCell label="Viento" value={windKt != null ? `${Math.round(windKt)} kt` : '—'} color={v.color} />
-        <DataCell label="Dirección" value={dir ?? '—'} icon={score?.windDirDeg != null ? (
+        <DataCell label="Viento" value={windKt != null ? `${Math.round(windKt)} kt` : '—'} color={color} />
+        <DataCell label="Dirección" value={dirDeg != null ? degToCardinal8(dirDeg) : '—'} icon={dirDeg != null ? (
           <span style={{
             display: 'inline-block',
-            transform: `rotate(${(score.windDirDeg ?? 0) + 180}deg)`,
+            transform: `rotate(${dirDeg + 180}deg)`,
             fontSize: '11px',
             marginRight: '3px',
           }}>↑</span>
@@ -278,7 +176,7 @@ function SpotCard({ spot, score }: { spot: SailingSpot; score: SpotScore | null 
       </div>
 
       {/* Summary */}
-      {score?.summary && (
+      {ready && score.summary && (
         <div style={{ fontSize: '10px', color: textMuted, marginTop: '6px', lineHeight: '1.4' }}>
           {score.summary}
         </div>
@@ -305,7 +203,7 @@ function DataCell({ label, value, color, icon }: {
 }
 
 // ── Compact Row (single-line mode) ──────────────────
-function CompactRow({ spots, scores }: { spots: SailingSpot[]; scores: Map<SpotId, SpotScore> }) {
+function CompactRow({ spots, scores }: { spots: SailingSpot[]; scores: Map<string, SpotScore> }) {
   return (
     <div style={{
       display: 'flex',
@@ -314,10 +212,10 @@ function CompactRow({ spots, scores }: { spots: SailingSpot[]; scores: Map<SpotI
       alignItems: 'center',
     }}>
       {spots.map((spot) => {
-        const score = scores.get(spot.id);
-        const v = score ? VERDICT[score.verdict] : VERDICT.unknown;
-        const windKt = score?.wind?.avgKt ?? null;
-        const dir = score?.windDirDeg != null ? degToCardinal8(score.windDirDeg) : '';
+        const score = scores.get(spot.id) ?? null;
+        const color = VERDICT_HEX[displayVerdict(score)];
+        const windKt = displayWindKt(score);
+        const dirDeg = score && !score.provisional ? score.windDirDeg : null;
         return (
           <div key={spot.id} style={{
             display: 'flex',
@@ -328,12 +226,12 @@ function CompactRow({ spots, scores }: { spots: SailingSpot[]; scores: Map<SpotI
             borderRadius: '8px',
             padding: '6px 10px',
           }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: v.color, flexShrink: 0 }} />
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
             <span style={{ fontSize: '12px', fontWeight: 600, color: textPrimary }}>{spot.shortName}</span>
-            <span style={{ fontSize: '11px', color: v.color, fontWeight: 700 }}>
+            <span style={{ fontSize: '11px', color, fontWeight: 700 }}>
               {windKt != null ? `${Math.round(windKt)}kt` : '—'}
             </span>
-            {dir && <span style={{ fontSize: '10px', color: textSecondary }}>{dir}</span>}
+            {dirDeg != null && <span style={{ fontSize: '10px', color: textSecondary }}>{degToCardinal8(dirDeg)}</span>}
           </div>
         );
       })}

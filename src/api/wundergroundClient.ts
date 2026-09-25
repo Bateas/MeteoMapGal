@@ -8,6 +8,7 @@
 
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { isWithinRadius } from '../services/geoUtils';
+import { fetchListedStations, LIST_SEEN_MAX_MIN } from './stationListClient';
 
 // WU public API key — PUBLIC, embedded by IBM in wunderground.com source code.
 // Used ONLY for station discovery (location/near). Observations go via ingestor.
@@ -104,55 +105,18 @@ export async function fetchWUNearbyStations(
   }
 }
 
-/** How long after our discovery last returned a station it still counts. Discovery runs
- *  hourly; three hours tolerates two missed runs before a station WU stopped listing drops. */
-export const WU_LIST_SEEN_MAX_MIN = 180;
-
-interface ListedStation {
-  station_id: string;
-  source: string;
-  name: string | null;
-  lat: number;
-  lon: number;
-  altitude: number | null;
-  seen_min_ago: number;
-}
+/** Kept for callers and tests that name the WU window; the rule lives in stationListClient. */
+export const WU_LIST_SEEN_MAX_MIN = LIST_SEEN_MAX_MIN;
 
 /**
  * The PWS list our own server keeps. It asks WU from the same points as the map, every hour,
  * so reading it costs a visitor one request to our API, shared at the edge, instead of one
  * per coverage point to api.weather.com (15 in the Rías) under a key every visitor shares.
- *
  * Null when the list cannot be read or holds nothing current: the caller then asks WU
- * directly, as it always did. The age comes from the server, so a phone with a wrong clock
- * cannot empty the list.
+ * directly, as it always did.
  */
-export async function fetchWUStationsFromApi(): Promise<NormalizedStation[] | null> {
-  try {
-    const res = await fetch('/api/v1/stations/list?source=wunderground', { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { stations?: ListedStation[] };
-    if (!Array.isArray(data?.stations)) return null;
-
-    const stations: NormalizedStation[] = [];
-    for (const s of data.stations) {
-      if (s.source !== 'wunderground' || typeof s.station_id !== 'string' || !s.station_id.startsWith('wu_')) continue;
-      if (!Number.isFinite(s.lat) || !Number.isFinite(s.lon) || !(s.seen_min_ago <= WU_LIST_SEEN_MAX_MIN)) continue;
-      stations.push({
-        id: s.station_id,
-        source: 'wunderground',
-        name: s.name || s.station_id.slice(3),
-        lat: s.lat,
-        lon: s.lon,
-        // WU's nearby search reports no elevation, so this is 0 here as it was when asked directly.
-        altitude: s.altitude ?? 0,
-      });
-    }
-    return stations.length > 0 ? stations : null;
-  } catch (err) {
-    console.debug('[WU] Station list from our API unavailable:', err);
-    return null;
-  }
+export function fetchWUStationsFromApi(): Promise<NormalizedStation[] | null> {
+  return fetchListedStations('wunderground');
 }
 
 // ── Current observations ─────────────────────────────────
