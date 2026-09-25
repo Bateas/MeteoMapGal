@@ -26,6 +26,8 @@ interface StationSymbolLayerProps {
   selectedStationId: string | null;
   onSelectStation: (id: string | null) => void;
   zoomLevel: number;
+  /** Simple mode: same markers, without the source initials (MG, WU, NT...). */
+  hideSourceLabels?: boolean;
 }
 
 /** Bin temperature into discrete color index for icon-color expression */
@@ -82,6 +84,7 @@ export function StationSymbolLayer({
   selectedStationId,
   onSelectStation,
   zoomLevel: _zoomLevel,
+  hideSourceLabels = false,
 }: StationSymbolLayerProps) {
   const { current: mapRef } = useMap();
 
@@ -263,7 +266,9 @@ export function StationSymbolLayer({
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           // Source label always visible (A, MG, MC, WU, NT, SX, PT)
-          'text-field': ['get', 'sourceLabel'],
+          // In simple mode the initials go: to a casual visitor "WU" or "MG" is
+          // jargon, while the temperature colour and the wind arrows still read.
+          'text-field': hideSourceLabels ? '' : ['get', 'sourceLabel'],
           'text-font': ['Noto Sans Bold'],
           'text-size': ['interpolate', ['linear'], ['zoom'], 9, 7, 11, 9, 12, 11],
           'text-offset': [0, 0],

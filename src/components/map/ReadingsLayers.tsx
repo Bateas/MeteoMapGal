@@ -21,7 +21,7 @@ import { StationPopup } from './StationPopup';
 import type { BuoyReading } from '../../api/buoyClient';
 
 interface ReadingsLayersProps {
-  /** Hide wind arrows + station markers in simple mode (temp dots stay). */
+  /** Simple mode keeps stations and their wind; it only drops the source initials. */
   simpleMode: boolean;
   /** Buoy readings for hex wind arrows — pass undefined for inland sectors. */
   buoys?: BuoyReading[];
@@ -42,32 +42,30 @@ export const ReadingsLayers = memo(function ReadingsLayers({
 
   return (
     <>
-      {/* Wind field arrows around stations + buoys (hidden in simpleMode) */}
-      {!simpleMode && (
-        <WindFieldOverlay
-          stations={stations}
-          readings={currentReadings}
-          buoys={buoys}
-          compact={stations.length > 35}
-          zoomLevel={zoomLevel}
-        />
-      )}
+      {/* Wind field arrows around stations + buoys. Shown in simple mode too:
+          a map with only the spots looked empty, and the arrows are the wind. */}
+      <WindFieldOverlay
+        stations={stations}
+        readings={currentReadings}
+        buoys={buoys}
+        compact={stations.length > 35}
+        zoomLevel={zoomLevel}
+      />
 
       {/* Temp-only station dots — GPU-accelerated. Kept visible in simpleMode
           (small temp dots are informational without overwhelming). */}
       <TempOnlyOverlay stations={stations} readings={currentReadings} />
 
-      {/* Station markers — GPU symbol layer. Hidden in simpleMode to keep the
-          map focused on spots, buoys and reactive overlays. */}
-      {!simpleMode && (
-        <StationSymbolLayer
-          stations={stations}
-          readings={currentReadings}
-          selectedStationId={selectedStationId}
-          onSelectStation={onSelectStation}
-          zoomLevel={zoomLevel}
-        />
-      )}
+      {/* Station markers — GPU symbol layer. In simple mode they stay, without
+          the source initials. */}
+      <StationSymbolLayer
+        stations={stations}
+        readings={currentReadings}
+        selectedStationId={selectedStationId}
+        onSelectStation={onSelectStation}
+        zoomLevel={zoomLevel}
+        hideSourceLabels={simpleMode}
+      />
     </>
   );
 });

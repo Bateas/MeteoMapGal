@@ -132,7 +132,13 @@ export const useUIStore = create<UIState>()(
       alphaMode: false,
       toggleAlphaMode: () => set((s) => ({ alphaMode: !s.alphaMode })),
       setAlphaMode: (v) => set({ alphaMode: v }),
-      simpleMode: false,
+      // A new visitor starts in simple mode: spots with their verdict, stations
+      // with their wind (without the source initials), the forecast and the
+      // important warnings. The layer bar, charts and rankings stay one tap
+      // away ("Avanzado"). Anyone who already has a
+      // saved preference keeps it: persist only fills the default when no
+      // value was ever stored.
+      simpleMode: true,
       toggleSimpleMode: () => set((s) => ({ simpleMode: !s.simpleMode })),
       setSimpleMode: (v) => set({ simpleMode: v }),
     }),

@@ -34,8 +34,8 @@ const STEPS: Step[] = [
   },
   {
     icon: 'eye-off',
-    title: '¿Demasiada información?',
-    desc: 'Si te abruma, pulsa el botón "Simple" en la cabecera (resaltado). Esconde detalles del mapa y panel y deja solo lo esencial: spots, previsión y avisos importantes. Puedes volver al modo completo cuando quieras.',
+    title: 'Empiezas en modo sencillo',
+    desc: 'Ves lo esencial: los spots con su veredicto, las estaciones con su viento, la previsión y los avisos importantes. Si quieres las capas (radar, humedad, webcams), las gráficas y los rankings, pulsa "Avanzado" (resaltado). Puedes volver cuando quieras.',
     tip: 'En móvil está en el centro de la barra inferior.',
     highlight: '[data-tour="simple-toggle"]',
   },
