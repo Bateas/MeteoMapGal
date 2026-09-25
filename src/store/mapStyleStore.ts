@@ -58,7 +58,7 @@ export const MAP_STYLES: MapStyleDef[] = [
   // minimal light, minimal dark, colourful streets.
   {
     id: 'positron',
-    name: 'Claro',
+    name: 'Gris claro, sin carreteras',
     shortName: 'Claro',
     tiles: [
       'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
@@ -73,7 +73,7 @@ export const MAP_STYLES: MapStyleDef[] = [
   },
   {
     id: 'dark',
-    name: 'Oscuro',
+    name: 'Gris oscuro, sin carreteras',
     shortName: 'Oscuro',
     tiles: [
       'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',

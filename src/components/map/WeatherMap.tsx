@@ -131,7 +131,9 @@ function buildMapStyle(styleId: MapStyleId): maplibregl.StyleSpecification {
             maxzoom: def.maxzoom,
           },
         },
-        layers: [{ id: 'base-labels', type: 'raster', source: 'base-labels' }],
+        // 0.65: town names are context. At full strength "Redondela" read
+        // louder than the spot "Cesantes" next to it.
+        layers: [{ id: 'base-labels', type: 'raster', source: 'base-labels', paint: { 'raster-opacity': 0.65 } }],
       }
     : { sources: {}, layers: [] };
   return {
@@ -170,7 +172,10 @@ function buildMapStyle(styleId: MapStyleId): maplibregl.StyleSpecification {
           'hillshade-shadow-color': isDark ? '#000000' : '#473B24',
           'hillshade-highlight-color': isDark ? '#333333' : '#FFFFFF',
           'hillshade-illumination-direction': 315,
-          'hillshade-exaggeration': isDark ? 0.35 : 0.55,
+          // The light grey canvas is flat, so full relief (0.55) read as
+          // crumpled paper and buried the grey calm spots. The coloured maps
+          // (streets, topo) keep it.
+          'hillshade-exaggeration': isDark ? 0.35 : styleId === 'positron' ? 0.3 : 0.55,
         },
       },
       ...labels.layers,
