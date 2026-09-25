@@ -33,6 +33,18 @@ const FORECAST_COORDS = [
 // (not reactive) — user looking at "wind tomorrow" doesn't notice 30 vs 60 min.
 const CACHE_TTL_MS = 60 * 60_000;
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
+const HOUR_MS = 3_600_000;
+
+/**
+ * A sector forecast is reused only while it is younger than the TTL AND was fetched in the
+ * current clock hour. The archive files each refresh under the hour it was issued, and with
+ * the TTL alone the refresh drifted: calls every 30-35 min put refreshes 60-70 min apart, so
+ * every few hours one hour got none (21 and 02 UTC on 24-25 Sep, both sectors). Refreshing on
+ * the first call of each hour keeps the same one refresh per hour and sector.
+ */
+export function isForecastFresh(fetchedAt: number, now = Date.now()): boolean {
+  return now - fetchedAt < CACHE_TTL_MS && Math.floor(now / HOUR_MS) === Math.floor(fetchedAt / HOUR_MS);
+}
 
 // ── Cache ───────────────────────────────────────────
 
@@ -137,7 +149,7 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
  */
 export async function getForecast(sector: 'embalse' | 'rias'): Promise<HourlyForecast[]> {
   const cached = cache.get(sector);
-  if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
+  if (cached && isForecastFresh(cached.fetchedAt)) {
     return cached.data;
   }
 
