@@ -76,6 +76,13 @@ describe('buildWindFieldGeoJSON', () => {
     }
   });
 
+  it('emits no arrows for a station with wind but no vane (a star would invent a direction)', () => {
+    const station = mockStation('barro');
+    const reading = mockReading('barro', 0.57, null); // 1.1 kt, Netatmo without vane
+    const fc = buildWindFieldGeoJSON([station], new Map([['barro', reading]]), undefined, false, 11);
+    expect(fc.features.length).toBe(0);
+  });
+
   it('emits 6 arrow features for a normal wind reading rotated meteorological + 180', () => {
     const station = mockStation('st2', -8.5, 42.4);
     const reading = mockReading('st2', 6.0, 90); // 90° East wind
