@@ -125,7 +125,10 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
             <span className="text-[11px] text-slate-500 font-medium truncate inline-flex items-center gap-1">
               <WeatherIcon id={activeSector.icon} size={12} /> {activeSector.name}
             </span>
-            {stationCount > 0 && (
+            {/* Readings/stations count and the source strip are for the advanced
+                view: in simple mode (a new visitor's first screen) they are jargon,
+                the same reason the map drops the MG/WU initials there. */}
+            {stationCount > 0 && !simpleMode && (
               <span className="bg-slate-800 text-slate-400 rounded text-[11px] px-1.5 py-0.5 flex-shrink-0">
                 {readingCount}/{stationCount}
               </span>
@@ -143,8 +146,9 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                   ? 'text-amber-300 border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 hover:border-amber-400/60 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
                   : 'text-slate-300 border-slate-600/60 bg-slate-800/60 hover:bg-slate-700/70 hover:text-white hover:border-slate-500/80'
               }`}
-              aria-pressed={simpleMode}
-              aria-label={simpleMode ? 'Volver a modo avanzado' : 'Activar modo simple'}
+              // An action, not a switch: no aria-pressed ("Avanzado, activado"
+              // contradicted the "Modo simple activo" banner, which holds the state).
+              aria-label={simpleMode ? 'Pasar a modo avanzado' : 'Pasar a modo simple'}
               title={simpleMode ? 'Modo simple ACTIVO — click para volver al avanzado' : 'Modo simple: oculta detalle del mapa y panel'}
             >
               <WeatherIcon id={simpleMode ? 'eye-off' : 'eye'} size={14} />
@@ -153,7 +157,7 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
           </>
         )}
         {/* Source status — hidden on narrow desktop, visible on lg+ */}
-        {!isMobile && <span className="hidden lg:inline-flex"><SourceStatusIndicator /></span>}
+        {!isMobile && !simpleMode && <span className="hidden lg:inline-flex"><SourceStatusIndicator /></span>}
         {/* Guide + Feedback — desktop only, text hidden on narrow screens */}
         {!isMobile && (
           <>

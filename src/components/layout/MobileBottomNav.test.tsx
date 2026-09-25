@@ -43,8 +43,8 @@ describe('MobileBottomNav', () => {
       expect(s.activeBottomTab).toBe('map');
       expect(tab('Mapa')).toHaveAttribute('aria-current', 'page');
       expect(tab('Previsión')).not.toHaveAttribute('aria-current');
-      // The Simple/Avanzado toggle is a switch, never a page.
-      expect(tab('Simple')).not.toHaveAttribute('aria-current');
+      // The Simple/Avanzado toggle is an action, never a page.
+      expect(tab('Pasar a modo simple')).not.toHaveAttribute('aria-current');
     });
 
     it('Spots closes the forecast so the sidebar does not open underneath it', () => {

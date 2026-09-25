@@ -34,8 +34,8 @@ const STEPS: Step[] = [
   },
   {
     icon: 'eye-off',
-    title: 'Empiezas en modo sencillo',
-    desc: 'Ves lo esencial: los spots con su veredicto, las estaciones con su viento, la previsión y los avisos importantes. Si quieres las capas (radar, humedad, webcams), las gráficas y los rankings, pulsa "Avanzado" (resaltado). Puedes volver cuando quieras.',
+    title: 'Empiezas en modo simple',
+    desc: 'Ves lo esencial: los spots con su estado (calma, navegable, bueno...), las estaciones con su viento, la previsión y los avisos importantes. Si quieres las capas (radar, humedad, webcams), las gráficas y los rankings, pulsa "Avanzado" (resaltado). Puedes volver cuando quieras.',
     tip: 'En móvil está en el centro de la barra inferior.',
     highlight: '[data-tour="simple-toggle"]',
   },

@@ -213,10 +213,13 @@ function MobileBottomNavInner() {
                   isActive ? activeColor : 'text-slate-400'
                 }`}
                 onClick={() => handleTab(id)}
-                aria-label={label}
-                aria-pressed={id === 'simple' ? simpleMode : undefined}
+                // 'simple' is an ACTION, not a state: its label says where it
+                // takes you ('Avanzado' while simple mode is on). An aria-pressed
+                // switch read "Avanzado, activado" right under the "Modo simple
+                // activo" banner; the banner carries the state.
+                aria-label={id === 'simple' ? (simpleMode ? 'Pasar a modo avanzado' : 'Pasar a modo simple') : label}
                 // Same rule as the highlight, so a screen reader hears what is
-                // shown. 'simple' is a switch (aria-pressed), never a page.
+                // shown. 'simple' is an action, never a page.
                 aria-current={id !== 'simple' && isActive ? 'page' : undefined}
                 aria-expanded={id === 'mas' ? moreOpen : undefined}
               >

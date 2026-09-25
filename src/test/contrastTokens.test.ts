@@ -130,3 +130,34 @@ describe('mobile Header station count', () => {
     expect(count.className).not.toContain('text-blue-200/60');
   });
 });
+
+// Light theme: the panels are white/near-white, where Tailwind's pale amber
+// (the "Avanzado" button and the "Modo simple activo" banner) read 1.2-1.4:1.
+describe('light theme amber remap', () => {
+  const block = (selector: string) => {
+    const at = css.indexOf(selector + ' {');
+    expect(at, `${selector} block`).toBeGreaterThanOrEqual(0);
+    return css.slice(at, css.indexOf('}', at));
+  };
+  const token = (body: string, name: string) => {
+    const m = body.match(new RegExp(`--color-${name}:\\s*oklch\\(([\\d.]+)%\\s+([\\d.]+)\\s+([\\d.]+)\\)`));
+    expect(m, `--color-${name}`).not.toBeNull();
+    return oklchToLinear(Number(m![1]), Number(m![2]), Number(m![3]));
+  };
+  const LIGHT_PANELS = ['#ffffff', '#f8fafc', '#fff5e6'];
+
+  it('amber-300 and amber-200 reach 4.5:1 on the light panels and the amber banner', () => {
+    const light = block('[data-theme="light"]');
+    for (const name of ['amber-300', 'amber-200']) {
+      for (const bg of LIGHT_PANELS) {
+        expect(contrast(token(light, name), hexToLinear(bg)), `${name} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('the map, which stays dark in the light theme, gets the pale amber back', () => {
+    const map = block('[data-theme="light"] .map-dark-scope');
+    // On the dark map panels the pale tone is what reads (>= 4.5:1 on slate-900).
+    expect(contrast(token(map, 'amber-300'), hexToLinear('#0f172b'))).toBeGreaterThanOrEqual(4.5);
+  });
+});
