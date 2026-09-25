@@ -110,7 +110,8 @@ export function currentSpeedClass(s: number): string {
   if (s < 0.1) return 'text-teal-400';
   if (s < 0.2) return 'text-cyan-400';
   if (s < 0.35) return 'text-sky-500';
-  return 'text-violet-500';
+  // violet-500 was 4.0:1 on the dark sidebar; violet-400 reaches 6.1:1.
+  return 'text-violet-400';
 }
 
 // ── Freshness gate ─────────────────────────────────────────

@@ -112,7 +112,9 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
                     <span>{sector.shortName}</span>
                   </span>
                   {isActive && stationCount > 0 && !simpleMode && (
-                    <span className="text-[11px] text-blue-200/60 font-normal leading-none">{readingCount}/{stationCount}</span>
+                    // blue-200/60 was 2.2:1 on the blue pill. blue-50 reaches 4.8:1; not text-white,
+                    // because the light theme remaps --color-white to a dark slate.
+                    <span className="text-[11px] text-blue-50 font-normal leading-none">{readingCount}/{stationCount}</span>
                   )}
                 </button>
               );
