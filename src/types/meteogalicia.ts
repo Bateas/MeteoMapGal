@@ -44,4 +44,9 @@ export const MG_PARAMS = {
   SOLAR_RADIATION: 'RS_AVG_1.5m',   // W/m² — global solar radiation (pyranometer)
   DEW_POINT: 'TO_AVG_1.5m',         // °C — dew point temperature
   PRESSURE_SEA_LEVEL: 'PRED_AVG_1.5m', // hPa — reduced to sea level (PR_AVG_1.5m is station level)
+  WIND_DIR_SD: 'DV_SD_10m',         // ° — std deviation of direction over the 10 min
+  WIND_SPEED_SD: 'VV_SD_10m',       // m/s — std deviation of speed over the 10 min
+  SUNSHINE: 'HSOL_SUM_1.5m',        // h of sun in the 10 min (0 to 0.1667)
+  TEMP_10CM: 'TA_AVG_0.1m',         // °C — air 10 cm above the ground
+  SOIL_TEMP: 'TS_AVG_-0.1m',        // °C — soil 10 cm deep
 } as const;

@@ -4,7 +4,7 @@
 
 import pg from 'pg';
 import type { NormalizedReading } from '../src/types/station.js';
-import { applyQualityControl, summariseQualityControl, describeQualityControl } from './readingQuality.js';
+import { applyQualityControl, summariseQualityControl, describeQualityControl, type QualityControlled } from './readingQuality.js';
 import { log } from './logger.js';
 
 const { Pool } = pg;
@@ -62,8 +62,45 @@ export function sourceLabel(stationId: string): string {
   return 'unknown';
 }
 
-/** Number of columns per reading row */
-const COLS = 16; // +visibility, +QC archive (raw gust/speed + flag)
+/** Column order of a readings row: the INSERT list, the placeholders and readingRow() all follow it. */
+export const READING_COLUMNS = [
+  'time', 'station_id', 'source', 'temperature', 'humidity', 'wind_speed', 'wind_gust', 'wind_dir',
+  'pressure', 'dew_point', 'precip', 'solar_rad', 'visibility', 'wind_gust_raw', 'wind_speed_raw', 'qc_flag',
+  'wind_dir_sd', 'wind_speed_sd', 'sun_frac', 'temp_10cm', 'soil_temp',
+] as const;
+const COLS = READING_COLUMNS.length;
+
+/** One readings row, in READING_COLUMNS order. Exported so a test can check the two stay the same length. */
+export function readingRow(q: QualityControlled): unknown[] {
+  const { reading: r, windGustRaw, windSpeedRaw, qcFlag } = q;
+  return [
+    r.timestamp,           // time
+    r.stationId,           // station_id
+    sourceLabel(r.stationId), // source
+    r.temperature,         // temperature
+    r.humidity,            // humidity
+    r.windSpeed,           // wind_speed
+    r.windGust,            // wind_gust
+    r.windDirection,       // wind_dir
+    r.pressure,            // pressure
+    r.dewPoint,            // dew_point
+    r.precipitation,       // precip
+    r.solarRadiation,      // solar_rad
+    r.visibility ?? null,  // visibility  Phase 1b TIER 2 (only AEMET airport ~8 stations)
+    // QC archive. The raw columns stay null when nothing was rejected —
+    // the clean column already holds that value, so storing it twice buys
+    // nothing. qc_flag is 0 for a row we checked and found clean, which is
+    // deliberately NOT the same as the NULL older rows carry.
+    windGustRaw,           // wind_gust_raw
+    windSpeedRaw,          // wind_speed_raw
+    qcFlag,                // qc_flag
+    r.windDirSd ?? null,   // wind_dir_sd   (MeteoGalicia + AEMET only)
+    r.windSpeedSd ?? null, // wind_speed_sd
+    r.sunFrac ?? null,     // sun_frac
+    r.temp10cm ?? null,    // temp_10cm     (MeteoGalicia only)
+    r.soilTemp ?? null,    // soil_temp     (MeteoGalicia only)
+  ];
+}
 
 /**
  * Stations whose anemometer is stopped, refreshed once per cycle from 24h of
@@ -113,37 +150,14 @@ export async function batchUpsert(
     const placeholders: string[] = [];
 
     for (let j = 0; j < batch.length; j++) {
-      const { reading: r, windGustRaw, windSpeedRaw, qcFlag } = batch[j];
       const offset = j * COLS;
-      placeholders.push(
-        `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16})`
-      );
-      values.push(
-        r.timestamp,           // time
-        r.stationId,           // station_id
-        sourceLabel(r.stationId), // source
-        r.temperature,         // temperature
-        r.humidity,            // humidity
-        r.windSpeed,           // wind_speed
-        r.windGust,            // wind_gust
-        r.windDirection,       // wind_dir
-        r.pressure,            // pressure
-        r.dewPoint,            // dew_point
-        r.precipitation,       // precip
-        r.solarRadiation,      // solar_rad
-        r.visibility ?? null,  // visibility  Phase 1b TIER 2 (only AEMET airport ~8 stations)
-        // QC archive. The raw columns stay null when nothing was rejected —
-        // the clean column already holds that value, so storing it twice buys
-        // nothing. qc_flag is 0 for a row we checked and found clean, which is
-        // deliberately NOT the same as the NULL older rows carry.
-        windGustRaw,           // wind_gust_raw
-        windSpeedRaw,          // wind_speed_raw
-        qcFlag,                // qc_flag
-      );
+      // Built from COLS so adding a column cannot leave the placeholder count behind.
+      placeholders.push(`(${Array.from({ length: COLS }, (_, k) => `$${offset + k + 1}`).join(', ')})`);
+      values.push(...readingRow(batch[j]));
     }
 
     const sql = `
-      INSERT INTO readings (time, station_id, source, temperature, humidity, wind_speed, wind_gust, wind_dir, pressure, dew_point, precip, solar_rad, visibility, wind_gust_raw, wind_speed_raw, qc_flag)
+      INSERT INTO readings (${READING_COLUMNS.join(', ')})
       VALUES ${placeholders.join(', ')}
       ON CONFLICT (time, station_id) DO NOTHING
     `;
