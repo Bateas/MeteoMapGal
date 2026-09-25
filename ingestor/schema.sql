@@ -322,6 +322,10 @@ CREATE TABLE IF NOT EXISTS spot_scores (
   raw_wind_kt      REAL,                        -- measured avg before any boost
   boosted_by       TEXT,                        -- 'cesantes-canalization' | 'bocana-terral' | NULL
   boost_confidence SMALLINT,                    -- 0-100 when boosted_by set
+  -- The map's engine run on the same rows (ingestor/engineShadow.ts), to measure where the
+  -- alert pipeline and the map disagree before switching alerts to the engine.
+  engine_verdict   TEXT,                        -- as the popup would show it ('unknown' while provisional)
+  engine_wind_kt   REAL,
   PRIMARY KEY (time, spot_id)
 );
 SELECT create_hypertable('spot_scores', 'time', if_not_exists => TRUE);
@@ -329,6 +333,8 @@ SELECT create_hypertable('spot_scores', 'time', if_not_exists => TRUE);
 ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS raw_wind_kt REAL;
 ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS boosted_by TEXT;
 ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS boost_confidence SMALLINT;
+ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS engine_verdict TEXT;
+ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS engine_wind_kt REAL;
 
 -- ── Lightning strikes (historical-data-vision Phase 1a) ────
 -- Individual strikes from MeteoGalicia meteo2api raios/lenda.
