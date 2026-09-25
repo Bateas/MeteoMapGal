@@ -1022,9 +1022,9 @@ async function handleFieldReportPost(
       observer = o.rowCount ? r.observerCode : null;                // unknown code: kept as anonymous
     }
     await pool.query(
-      `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, whitecaps, app_verdict, app_wind_kt, app_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [r.spotId, REPORT_SPOT_SECTOR.get(r.spotId) ?? null, observer, r.windVsApp, r.whitecaps, r.appVerdict, r.appWindKt, r.appVersion],
+      `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, water_state, dir_seen, app_verdict, app_wind_kt, app_version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [r.spotId, REPORT_SPOT_SECTOR.get(r.spotId) ?? null, observer, r.windVsApp, r.waterState, r.dirSeen, r.appVerdict, r.appWindKt, r.appVersion],
     );
     reportLastBySpot.set(spotKey, now);
     if (reportLastBySpot.size > 5000) reportLastBySpot.clear();

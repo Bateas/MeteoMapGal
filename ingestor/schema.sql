@@ -966,11 +966,17 @@ CREATE TABLE IF NOT EXISTS field_reports (
   sector       TEXT,
   observer     TEXT,                   -- field_observers.code, or NULL (anonymous)
   wind_vs_app  SMALLINT    NOT NULL CHECK (wind_vs_app BETWEEN -1 AND 1),   -- -1 less, 0 same, 1 more
-  whitecaps    SMALLINT    CHECK (whitecaps BETWEEN 0 AND 2),              -- 0 none, 1 some, 2 everywhere
+  whitecaps    SMALLINT    CHECK (whitecaps BETWEEN 0 AND 2),              -- LEGACY (v2.143, never filled): replaced by water_state
   app_verdict  TEXT,                   -- what the reporter's screen showed
   app_wind_kt  REAL,
-  app_version  TEXT
+  app_version  TEXT,
+  -- What the water looks like, which works on a sheltered spot too (whitecaps almost never
+  -- form at Cesantes): 0 mirror, 1 moved without foam, 2 some foam, 3 foam everywhere.
+  water_state  SMALLINT    CHECK (water_state BETWEEN 0 AND 3),
+  dir_seen     SMALLINT    CHECK (dir_seen BETWEEN 0 AND 315 AND dir_seen % 45 = 0)  -- where the wind comes FROM, 8 points
 );
+ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS water_state SMALLINT CHECK (water_state BETWEEN 0 AND 3);
+ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS dir_seen SMALLINT CHECK (dir_seen BETWEEN 0 AND 315 AND dir_seen % 45 = 0);
 CREATE INDEX IF NOT EXISTS idx_field_reports_time ON field_reports (time DESC);
 GRANT SELECT, INSERT ON field_reports TO meteomap_app;
 GRANT SELECT ON field_observers TO meteomap_app;
