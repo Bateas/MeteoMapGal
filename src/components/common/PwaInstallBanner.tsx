@@ -84,7 +84,7 @@ export function PwaInstallBanner() {
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-16 left-2 right-2 sm:left-auto sm:right-4 sm:bottom-4 sm:w-80 z-50 bg-slate-800 border border-slate-600 rounded-xl p-3 shadow-2xl animate-in slide-in-from-bottom-2">
+    <div className="pointer-events-auto bg-slate-800 border border-slate-600 rounded-xl p-3 shadow-2xl animate-in slide-in-from-bottom-2">
       <div className="flex items-start gap-3">
         <div className="shrink-0 w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
           <WeatherIcon id="wind" size={20} />

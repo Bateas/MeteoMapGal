@@ -29,6 +29,7 @@ const ForecastPanel = lazy(() => import('../charts/ForecastPanel').then(m => ({ 
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { MagicWindowBanner } from '../common/MagicWindowBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
+import { NewVersionBanner } from '../common/NewVersionBanner';
 import { useThemeStore } from '../../store/themeStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
@@ -459,7 +460,11 @@ export function AppShell() {
       {!isMobile && <KeyboardShortcutHelp />}
       <Suspense fallback={null}><OnboardingTour /></Suspense>
       <ToastContainer />
-      <PwaInstallBanner />
+      {/* Bottom notices share one slot and stack instead of covering each other. */}
+      <div className="fixed bottom-16 left-2 right-2 sm:left-auto sm:right-4 sm:bottom-4 sm:w-80 z-50 flex flex-col gap-2 pointer-events-none">
+        <NewVersionBanner />
+        <PwaInstallBanner />
+      </div>
       {isMobile && <MobileBottomNav />}
     </div>
   );
