@@ -8,8 +8,9 @@
  * All free, no API keys needed.
  */
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { MAP_STYLES, useMapStyleStore } from '../../store/mapStyleStore';
-import type { MapStyleId } from '../../store/mapStyleStore';
+import { MAP_STYLES, useMapStyleStore, resolveStyleId } from '../../store/mapStyleStore';
+import type { MapStyleChoice } from '../../store/mapStyleStore';
+import { useThemeStore } from '../../store/themeStore';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -18,6 +19,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
   const isMobile = useUIStore((s) => s.isMobile);
   const isCoastal = useSectorStore((s) => s.activeSector.coastal);
   const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
+  const theme = useThemeStore((s) => s.theme);
   const setStyle = useMapStyleStore((s) => s.setStyle);
   const showSeamarks = useMapStyleStore((s) => s.showSeamarks);
   const showNauticalChart = useMapStyleStore((s) => s.showNauticalChart);
@@ -56,12 +58,17 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
-  const handleSelect = useCallback((id: MapStyleId) => {
+  const handleSelect = useCallback((id: MapStyleChoice) => {
     setStyle(id);
     setOpen(false);
   }, [setStyle]);
 
-  const activeStyle = MAP_STYLES.find((s) => s.id === activeStyleId) ?? MAP_STYLES[0];
+  // What is actually drawn: 'auto' resolves to the grey canvas of the theme.
+  const isAuto = activeStyleId === 'auto';
+  const drawnId = resolveStyleId(activeStyleId, theme);
+  const activeStyle = MAP_STYLES.find((s) => s.id === drawnId) ?? MAP_STYLES[0];
+  const activeLabel = isAuto ? 'Automático' : activeStyle.name;
+  const activeShort = isAuto ? 'Auto' : activeStyle.shortName;
 
   return (
     <div
@@ -71,8 +78,8 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
       {/* Trigger button — swatch preview */}
       <button
         onClick={() => setOpen(!open)}
-        title={`Mapa base: ${activeStyle.name}`}
-        aria-label={`Cambiar mapa base (actual: ${activeStyle.name})`}
+        title={`Mapa base: ${activeLabel}`}
+        aria-label={`Cambiar mapa base (actual: ${activeLabel})`}
         className={`flex items-center gap-1.5 rounded-lg font-semibold
           border transition-all shadow-md cursor-pointer
           ${isMobile ? 'min-w-[44px] min-h-[44px] px-2 py-2 justify-center' : 'px-2 py-1.5 text-[11px]'}
@@ -91,7 +98,7 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
                 background: `linear-gradient(135deg, ${activeStyle.swatch[0]} 50%, ${activeStyle.swatch[1]} 50%)`,
               }}
             />
-            <span>{activeStyle.shortName}</span>
+            <span>{activeShort}</span>
           </>
         )}
         <svg
@@ -111,6 +118,32 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Mapa base</span>
           </div>
           <div className="py-1">
+            {/* Default: grey canvas with place names, light or dark with the theme */}
+            <button
+              onClick={() => handleSelect('auto')}
+              className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left transition-colors cursor-pointer
+                ${isMobile ? 'min-h-[40px]' : ''}
+                ${isAuto
+                  ? 'bg-blue-600/20 text-blue-300'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                }`}
+            >
+              <div
+                className={`w-5 h-5 rounded-md border shrink-0 ${isAuto ? 'border-blue-400' : 'border-slate-600'}`}
+                style={{ background: 'linear-gradient(135deg, #e6e5e3 50%, #2b2b2b 50%)' }}
+              />
+              <div className="flex flex-col min-w-0">
+                <span className={`text-[11px] font-semibold truncate ${isAuto ? 'text-blue-300' : ''}`}>
+                  Auto
+                </span>
+                <span className="text-[11px] text-slate-500 truncate">Gris, según el tema</span>
+              </div>
+              {isAuto && (
+                <svg className="w-3.5 h-3.5 ml-auto text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
             {MAP_STYLES.map((style) => {
               const isActive = style.id === activeStyleId;
               return (

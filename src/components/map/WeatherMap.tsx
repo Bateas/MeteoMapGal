@@ -38,7 +38,9 @@ if (typeof window !== 'undefined' && maplibregl && (maplibregl as any).DOM && ty
 import { useSectorStore } from '../../store/sectorStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useUIStore } from '../../store/uiStore';
-import { useMapStyleStore, getStyleDef } from '../../store/mapStyleStore';
+import { useMapStyleStore, getStyleDef, resolveStyleId } from '../../store/mapStyleStore';
+import type { MapStyleId } from '../../store/mapStyleStore';
+import { useThemeStore } from '../../store/themeStore';
 import { registerStationIcon } from './StationSymbolLayer';
 import { registerWindArrowIcons } from './WindFieldOverlay';
 // Station layers + selected-station popup subscribe to weatherStore THEMSELVES
@@ -114,9 +116,24 @@ import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { NewVersionBanner } from '../common/NewVersionBanner';
 
 /** Build a MapLibre StyleSpecification for the given base map style + 3D terrain */
-function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
-  const def = getStyleDef(styleId as any);
+function buildMapStyle(styleId: MapStyleId): maplibregl.StyleSpecification {
+  const def = getStyleDef(styleId);
   const isDark = styleId === 'dark';
+  // Place names go above the relief so the shading never dims them. The data
+  // overlays are added later, by react-map-gl, so they still sit above both.
+  const labels: Pick<maplibregl.StyleSpecification, 'sources' | 'layers'> = def.labelTiles
+    ? {
+        sources: {
+          'base-labels': {
+            type: 'raster',
+            tiles: def.labelTiles,
+            tileSize: def.tileSize,
+            maxzoom: def.maxzoom,
+          },
+        },
+        layers: [{ id: 'base-labels', type: 'raster', source: 'base-labels' }],
+      }
+    : { sources: {}, layers: [] };
   return {
     version: 8,
     glyphs: 'https://cdn.protomaps.com/fonts/pbf/{fontstack}/{range}.pbf',
@@ -128,6 +145,7 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
         attribution: def.attribution,
         maxzoom: def.maxzoom,
       },
+      ...labels.sources,
       terrainDEM: {
         type: 'raster-dem',
         tiles: [
@@ -155,6 +173,7 @@ function buildMapStyle(styleId: string): maplibregl.StyleSpecification {
           'hillshade-exaggeration': isDark ? 0.35 : 0.55,
         },
       },
+      ...labels.layers,
     ],
     // NO `terrain` and NO `sky` here on purpose: the map is flat 2D. The 3D
     // mesh plus the atmospheric haze rendered on every pan frame and were the
@@ -170,7 +189,9 @@ export function WeatherMap() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const isCoastal = useSectorStore((s) => s.activeSector.coastal);
   const sectorInitialView = useSectorStore((s) => s.activeSector.initialView);
-  const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
+  const styleChoice = useMapStyleStore((s) => s.activeStyleId);
+  const theme = useThemeStore((s) => s.theme);
+  const activeStyleId = resolveStyleId(styleChoice, theme);
   const mapStyle = useMemo(() => buildMapStyle(activeStyleId), [activeStyleId]);
   // NOTE: WeatherMap intentionally does NOT subscribe to weatherStore
   // stations/currentReadings — ReadingsLayers/SelectedStationPopup do (per-poll

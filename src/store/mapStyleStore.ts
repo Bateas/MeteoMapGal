@@ -5,6 +5,14 @@ import { devtools, persist } from 'zustand/middleware';
 
 export type MapStyleId = 'osm' | 'positron' | 'dark' | 'voyager' | 'ign-topo' | 'ign-grey';
 
+/**
+ * What the user has picked: one concrete base map, or 'auto', which follows
+ * the app theme (grey light canvas with the light theme, grey dark canvas with
+ * the dark one). 'auto' is the default: the street map, with its road shields
+ * and coloured motorways, competed with the wind data and is now an option.
+ */
+export type MapStyleChoice = MapStyleId | 'auto';
+
 export interface MapStyleDef {
   id: MapStyleId;
   name: string;
@@ -15,6 +23,12 @@ export interface MapStyleDef {
   maxzoom: number;
   /** Preview swatch colors for the selector UI */
   swatch: [string, string];
+  /**
+   * Labels-only tiles drawn above the relief. Esri's grey canvases keep place
+   * names in a separate "Reference" service: without it the base map shows the
+   * coast and the rías but not Cangas, Moaña or Vigo.
+   */
+  labelTiles?: string[];
 }
 
 export const MAP_STYLES: MapStyleDef[] = [
@@ -53,6 +67,9 @@ export const MAP_STYLES: MapStyleDef[] = [
     attribution: 'Esri, HERE, Garmin, &copy; OSM contributors',
     maxzoom: 16,
     swatch: ['#e6e5e3', '#ffffff'],
+    labelTiles: [
+      'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    ],
   },
   {
     id: 'dark',
@@ -65,6 +82,9 @@ export const MAP_STYLES: MapStyleDef[] = [
     attribution: 'Esri, HERE, Garmin, &copy; OSM contributors',
     maxzoom: 16,
     swatch: ['#2b2b2b', '#1a1a2e'],
+    labelTiles: [
+      'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    ],
   },
   {
     id: 'voyager',
@@ -110,7 +130,8 @@ export const MAP_STYLES: MapStyleDef[] = [
 // ── Store ─────────────────────────────────────────────────
 
 interface MapStyleState {
-  activeStyleId: MapStyleId;
+  /** The user's pick; resolve it with `resolveStyleId` before drawing. */
+  activeStyleId: MapStyleChoice;
   /** OpenSeaMap nautical overlay (buoys, lights, seamarks) */
   showSeamarks: boolean;
   /** IHM Electronic Navigational Chart overlay */
@@ -128,7 +149,7 @@ interface MapStyleState {
   /** Convection risk heatmap — spatial CAPE×-LI grid */
   showConvectionRisk: boolean;
 
-  setStyle: (id: MapStyleId) => void;
+  setStyle: (id: MapStyleChoice) => void;
   toggleSeamarks: () => void;
   toggleNauticalChart: () => void;
   toggleIGNHillshade: () => void;
@@ -143,7 +164,7 @@ export const useMapStyleStore = create<MapStyleState>()(
   devtools(
     persist(
       (set, get) => ({
-        activeStyleId: 'voyager' as MapStyleId,
+        activeStyleId: 'auto' as MapStyleChoice,
         showSeamarks: false,
         showNauticalChart: false,
         showIGNHillshade: false,
@@ -182,6 +203,8 @@ export const useMapStyleStore = create<MapStyleState>()(
       }),
       {
         name: 'meteomap-map-style',
+        version: 1,
+        migrate: migrateMapStyle,
         partialize: (state) => ({
           activeStyleId: state.activeStyleId,
           showSeamarks: state.showSeamarks,
@@ -201,4 +224,24 @@ export const useMapStyleStore = create<MapStyleState>()(
 /** Get the full style definition for the current active style */
 export function getStyleDef(id: MapStyleId): MapStyleDef {
   return MAP_STYLES.find((s) => s.id === id) ?? MAP_STYLES[0];
+}
+
+/** The base map to draw for a choice: 'auto' follows the app theme. */
+export function resolveStyleId(choice: MapStyleChoice, theme: 'dark' | 'light'): MapStyleId {
+  if (choice === 'auto') return theme === 'light' ? 'positron' : 'dark';
+  return choice;
+}
+
+/**
+ * v0 -> v1: the default used to be the street map ('voyager'). Everyone still
+ * on it moves to 'auto'. There is no way to tell a deliberate pick from the old
+ * default, so the few who chose the street map on purpose lose it once; any
+ * other pick is theirs and stays.
+ */
+export function migrateMapStyle(persisted: unknown, version: number): MapStyleState {
+  const state = (persisted ?? {}) as Partial<MapStyleState>;
+  if (version < 1 && state.activeStyleId === 'voyager') {
+    return { ...state, activeStyleId: 'auto' } as MapStyleState;
+  }
+  return state as MapStyleState;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MAP_STYLES } from './mapStyleStore';
+import { MAP_STYLES, useMapStyleStore, resolveStyleId, migrateMapStyle } from './mapStyleStore';
 
 /**
  * These exist because of how the CARTO basemaps stopped working: not with a
@@ -70,5 +70,58 @@ describe('MAP_STYLES — ids are a contract with localStorage', () => {
       expect(s.shortName.length).toBeGreaterThan(0);
       expect(s.swatch).toHaveLength(2);
     }
+  });
+});
+
+describe('base map default — clean, following the theme', () => {
+  it('a new visitor gets "auto", not the street map', () => {
+    // The street map (road shields, coloured motorways) competed with the wind
+    // data. It stays in the picker as an option.
+    expect(useMapStyleStore.getState().activeStyleId).toBe('auto');
+  });
+
+  it('"auto" draws the grey canvas of the current theme', () => {
+    expect(resolveStyleId('auto', 'dark')).toBe('dark');
+    expect(resolveStyleId('auto', 'light')).toBe('positron');
+  });
+
+  it('a concrete pick is drawn as picked, whatever the theme', () => {
+    expect(resolveStyleId('voyager', 'dark')).toBe('voyager');
+    expect(resolveStyleId('ign-topo', 'light')).toBe('ign-topo');
+  });
+
+  it('both grey canvases carry place names; the street map does not need them', () => {
+    // Esri keeps town names in a separate Reference service. Without it the
+    // grey base shows the rías but not Cangas, Moaña or Vigo.
+    for (const id of ['positron', 'dark'] as const) {
+      const s = MAP_STYLES.find((x) => x.id === id)!;
+      expect(s.labelTiles, id).toBeDefined();
+      for (const t of s.labelTiles!) {
+        expect(t.startsWith('https://')).toBe(true);
+        expect(t).toContain('Reference');
+        expect(t).toContain('{z}');
+        expect(t).toContain('{x}');
+        expect(t).toContain('{y}');
+      }
+    }
+    expect(MAP_STYLES.find((x) => x.id === 'voyager')!.labelTiles).toBeUndefined();
+  });
+});
+
+describe('migrateMapStyle — v0 to v1', () => {
+  it('moves anyone still on the old default (street map) to "auto"', () => {
+    const out = migrateMapStyle({ activeStyleId: 'voyager', showSeamarks: true }, 0);
+    expect(out.activeStyleId).toBe('auto');
+    // Everything else they had is kept.
+    expect(out.showSeamarks).toBe(true);
+  });
+
+  it('keeps any other pick: that one was a choice, not the default', () => {
+    expect(migrateMapStyle({ activeStyleId: 'ign-topo' }, 0).activeStyleId).toBe('ign-topo');
+    expect(migrateMapStyle({ activeStyleId: 'dark' }, 0).activeStyleId).toBe('dark');
+  });
+
+  it('does not touch a state already on v1', () => {
+    expect(migrateMapStyle({ activeStyleId: 'voyager' }, 1).activeStyleId).toBe('voyager');
   });
 });
