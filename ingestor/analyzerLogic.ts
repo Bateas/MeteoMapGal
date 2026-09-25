@@ -142,6 +142,10 @@ export interface StationReading {
   dew_point?: number | null;
   solar_rad?: number | null;
   pressure?: number | null;
+  // Station metadata, so the map's engine can be run on the same rows (engineShadow.ts)
+  name?: string | null;
+  source?: string | null;
+  altitude?: number | null;
 }
 
 export interface BuoyWind {
@@ -246,6 +250,12 @@ export const MIN_SOURCES_FOR_ALERT = 2;
 /** True when a scored spot is solid enough to justify a push/Telegram alert. */
 export function canAlertOnResult(result: Pick<SpotResult, 'stationCount'>): boolean {
   return result.stationCount >= MIN_SOURCES_FOR_ALERT;
+}
+
+/** Whether a verdict is worth announcing when a spot rises into it: good or strong, or
+ *  sailing from 10kt (marginal sailing below that flips too often to be worth a message). */
+export function isWorthAlerting(verdict: string, windKt: number | null): boolean {
+  return verdict === 'good' || verdict === 'strong' || (verdict === 'sailing' && (windKt ?? 0) >= 10);
 }
 
 // ── windVerdict ─────────────────────────────────────

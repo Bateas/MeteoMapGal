@@ -25,6 +25,8 @@ import {
 import { degreesToCardinal } from '../src/services/windUtils.js';
 import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import { getSpotsForSector } from '../src/config/spots.js';
+import type { SpotScore } from '../src/services/spotScoringEngine.js';
+import { scoreWithEngine, findDivergences, describeDivergences, engineView } from './engineShadow.js';
 import {
   scoreSpot,
   buoyWindToBuoyReading,
@@ -32,6 +34,7 @@ import {
   ALERT_VERDICTS,
   LOW_VERDICTS,
   canAlertOnResult,
+  isWorthAlerting,
   type SpotDef,
   type Verdict,
   type StationReading,
@@ -118,7 +121,8 @@ async function getLatestReadings(): Promise<StationReading[]> {
         r.temperature, r.humidity,
         r.dew_point, r.solar_rad, r.pressure,
         COALESCE(s.latitude, 0.0) as latitude,
-        COALESCE(s.longitude, 0.0) as longitude
+        COALESCE(s.longitude, 0.0) as longitude,
+        s.name, s.source, s.altitude
       FROM readings r
       LEFT JOIN stations s ON s.station_id = r.station_id
       -- Four hours, not thirty minutes. AEMET publishes hourly and can run two
@@ -212,21 +216,39 @@ async function getLatestBuoys(): Promise<BuoyWind[]> {
 /**
  * Persist spot scores to DB for verification and accuracy tracking.
  */
-async function persistSpotScores(results: SpotResult[]): Promise<void> {
+/** Whether spot_scores already has the engine columns. They are added in the database
+ *  separately, and writing them before they exist would reject every score row, not just the
+ *  new fields. A yes is kept; a no is asked again every 30 min, so adding the columns after a
+ *  deploy needs no restart. */
+let engineColumns: { ok: boolean; at: number } | null = null;
+async function hasEngineColumns(): Promise<boolean> {
+  if (engineColumns && (engineColumns.ok || Date.now() - engineColumns.at < 30 * 60_000)) return engineColumns.ok;
+  const ok = await getPool()
+    .query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'spot_scores' AND column_name = 'engine_wind_kt'`)
+    .then((r) => (r.rowCount ?? 0) > 0)
+    .catch(() => false);
+  engineColumns = { ok, at: Date.now() };
+  return ok;
+}
+
+async function persistSpotScores(results: SpotResult[], engine: Map<string, SpotScore> | null): Promise<void> {
   const db = getPool();
   const now = new Date();
+  const withEngine = engine !== null && await hasEngineColumns();
   for (const r of results) {
     if (r.verdict === 'unknown') continue;
+    const e = withEngine ? engineView(engine!.get(r.spot.id)) : null;
     await db.query(
       `INSERT INTO spot_scores
          (time, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, score,
-          station_count, inferred_dir, raw_wind_kt, boosted_by, boost_confidence)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          station_count, inferred_dir, raw_wind_kt, boosted_by, boost_confidence${withEngine ? ', engine_verdict, engine_wind_kt' : ''})
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13${withEngine ? ', $14, $15' : ''})
        ON CONFLICT (time, spot_id) DO NOTHING`,
       [
         now, r.spot.id, r.spot.sector, r.verdict, r.avgWindKt, r.maxGustKt, r.avgDir, 0,
         r.stationCount, r.inferredDir || null,
         r.rawWindKt ?? null, r.boostedBy ?? null, r.boostConfidence ?? null,
+        ...(withEngine ? [e?.verdict ?? null, e?.windKt ?? null] : []),
       ]
     );
   }
@@ -273,10 +295,8 @@ export async function runAnalysis(): Promise<void> {
     const prev = previousVerdicts.get(spot.id) ?? 'unknown';
 
     // Detect transition: low → good (skip marginal sailing <10kt — too noisy)
-    const worthAlerting = result.verdict === 'good' || result.verdict === 'strong'
-      || (result.verdict === 'sailing' && result.avgWindKt >= 10);
-    if (seenBefore && LOW_VERDICTS.has(prev) && ALERT_VERDICTS.has(result.verdict) && worthAlerting
-        && canAlertOnResult(result)) {
+    if (seenBefore && LOW_VERDICTS.has(prev) && ALERT_VERDICTS.has(result.verdict)
+        && isWorthAlerting(result.verdict, result.avgWindKt) && canAlertOnResult(result)) {
       const dir = result.avgDir != null ? degreesToCardinal(result.avgDir) : '';
       await dispatchSpotAlert(
         spot.id, spot.name, spot.sector === 'embalse' ? 'Embalse' : 'Rías Baixas',
@@ -301,8 +321,20 @@ export async function runAnalysis(): Promise<void> {
     log.warn(`Buoy readings past the freshness gate this cycle: ${staleBuoys}`);
   }
 
+  // Shadow run of the map's engine on the same rows (engineShadow.ts): measures where the
+  // alert pipeline and the map disagree. It never changes an alert, and a failure here only
+  // costs the comparison.
+  let engineScores: Map<string, SpotScore> | null = null;
+  try {
+    engineScores = scoreWithEngine(readings, buoys);
+    const line = describeDivergences(findDivergences(scoreRows, engineScores), scoreRows.length);
+    if (line) log.info(line);
+  } catch (err) {
+    log.warn(`Engine shadow failed: ${(err as Error).message}`);
+  }
+
   // 3. Persist spot scores to DB (for verification dashboard)
-  await persistSpotScores(scoreRows).catch(err =>
+  await persistSpotScores(scoreRows, engineScores).catch(err =>
     log.warn(`Score persist failed: ${(err as Error).message}`));
 
   // 3. Thermal forecast (every 30 min)
