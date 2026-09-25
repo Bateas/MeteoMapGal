@@ -24,7 +24,7 @@ export function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
             <div key={cam.url} className="bg-slate-800/40 rounded px-2 py-1.5">
               <div className="flex items-center gap-1.5 text-[11px] mb-1">
                 <span className="font-bold text-slate-200">{cam.label}</span>
-                <span className="text-slate-500 ml-auto">{azimuthLabel(cam.azimuth)}</span>
+                {cam.azimuth != null && <span className="text-slate-500 ml-auto">{azimuthLabel(cam.azimuth)}</span>}
               </div>
 
               {cam.type === 'image' ? (
@@ -53,7 +53,7 @@ export function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 text-[11px] text-sky-400 hover:text-sky-300 transition-colors"
                 >
-                  <span>\u25B6</span>
+                  <span>{'\u25B6'}</span>
                   <span>Ver stream en vivo</span>
                   <span className="text-slate-500 ml-auto">{cam.source}</span>
                 </a>
