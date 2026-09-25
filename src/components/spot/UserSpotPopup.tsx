@@ -104,6 +104,20 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score: propScor
 
   const close = useCallback(() => selectUserSpot(null), [selectUserSpot]);
 
+  // Escape closes the pin popup, same rules as SpotPopup (capture phase, an
+  // open aria-modal dialog owns the key). The rename field is skipped: there
+  // Escape only cancels the edit, and the popup must stay open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      close();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [close]);
+
   const startEdit = useCallback(() => {
     setNameInput(spot.name);
     setEditing(true);

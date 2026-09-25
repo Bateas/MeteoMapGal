@@ -32,9 +32,14 @@ export const KeyboardShortcutHelp = memo(function KeyboardShortcutHelp() {
   if (!open) return null;
 
   return (
+    // aria-modal also tells the map popups' Escape handlers to leave this key
+    // alone, so one Escape closes only this help and not the popup behind it.
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={() => setOpen(false)}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Atajos de teclado"
     >
       <div
         className="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-5 max-w-sm w-full mx-4"

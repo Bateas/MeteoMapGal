@@ -27,6 +27,20 @@ export const WebcamPopup = memo(function WebcamPopup({ webcam, onClose }: Webcam
     return () => clearInterval(iv);
   }, [webcam.refreshInterval]);
 
+  // Escape closes the webcam popup (mobile sheet and desktop popup). Same rules
+  // as SpotPopup: capture phase, an open aria-modal dialog owns the key, and a
+  // text field keeps its own Escape.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
   const dirLabel = degreesToLabel(webcam.azimuth);
 
   // Mobile: bottom sheet style
