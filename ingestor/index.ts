@@ -13,6 +13,7 @@ import 'dotenv/config';
 import { initPool, pingDb, getPool, batchUpsert, batchUpsertBuoys, batchUpsertStations, closePool, setStuckAnemometers } from './db.js';
 import { findStuckAnemometers } from './queries.js';
 import { discoverAllStations } from './discover.js';
+import { resolveMissingAltitudes } from './demAltitudes.js';
 import { fetchAllObservations, getNetatmoSweepStatus, NETATMO_SWEEP_INTERVAL_MS } from './fetchers.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
@@ -340,6 +341,8 @@ async function rediscover(): Promise<void> {
     // Persist station coordinates to DB for analyzer distance queries
     const upserted = await batchUpsertStations(stations);
     log.info(`Stations persisted: ${upserted} upserted to DB`);
+    // Ground altitude for any new station whose network gives none. Fire-and-forget.
+    void resolveMissingAltitudes();
 
     if (stations.size !== prevCount) {
       log.info(`Station count changed: ${prevCount} → ${stations.size}`);
@@ -386,6 +389,8 @@ async function start(): Promise<void> {
     } else {
       log.ok(`${upserted} station coords persisted to DB`);
     }
+    // Ground altitude for stations whose network gives none (one download on the first run).
+    void resolveMissingAltitudes();
   }
 
   // 3. First fetch cycle immediately

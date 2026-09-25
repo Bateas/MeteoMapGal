@@ -35,6 +35,25 @@ export function getPool(): pg.Pool {
   return pool;
 }
 
+/**
+ * Whether a column exists yet. Schema changes are applied to the database separately from the
+ * code that uses them, and a query naming a missing column fails whole, so code that reads or
+ * writes a new column asks first. A yes is kept; a no is asked again every 30 min, so adding
+ * the column after a deploy needs no restart.
+ */
+const columnChecks = new Map<string, { ok: boolean; at: number }>();
+export async function hasColumn(table: string, column: string): Promise<boolean> {
+  const key = `${table}.${column}`;
+  const known = columnChecks.get(key);
+  if (known && (known.ok || Date.now() - known.at < 30 * 60_000)) return known.ok;
+  const ok = await getPool()
+    .query(`SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2`, [table, column])
+    .then((r) => (r.rowCount ?? 0) > 0)
+    .catch(() => false);
+  columnChecks.set(key, { ok, at: Date.now() });
+  return ok;
+}
+
 export async function closePool(): Promise<void> {
   if (pool) {
     await pool.end();
