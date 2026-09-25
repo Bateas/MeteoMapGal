@@ -15,7 +15,7 @@ import type { ThermalPrecursorResult } from './thermalPrecursorService';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import type { HourlyForecast } from '../types/forecast';
-import { RIAS_SPOTS } from '../config/spots';
+import { RIAS_SPOTS, EMBALSE_SPOTS } from '../config/spots';
 
 const cesantes = RIAS_SPOTS.find(s => s.id === 'cesantes')!;
 
@@ -164,6 +164,37 @@ describe('computeThermalPrecursors — terral time gate', () => {
     const r = computeThermalPrecursors(cesantes, stations, readings, buoys, null, afternoon);
     expect(r.signals.terral.active).toBe(false);
     expect(r.signals.terral.value).toMatch(/matutina pasada/);
+  });
+});
+
+// ── Unknown altitude is not sea level ────────────────────
+
+describe('computeThermalPrecursors — stations without an altitude', () => {
+  it('does not treat them as coastal at the Embalse, which has no coast', () => {
+    // Wunderground reports no elevation, so its stations arrive at 0 m. Read as sea level they
+    // formed the whole "coastal" group at Castrelo, and a morning drainage wind from the E at
+    // one of them counted as a coastal terral.
+    const castrelo = EMBALSE_SPOTS.find((s) => s.id === 'castrelo')!;
+    const [lon, lat] = castrelo.center;
+    const stations: NormalizedStation[] = [
+      { ...station('wu_A', lat + 0.02, lon + 0.02, 0), source: 'wunderground' },
+      { ...station('wu_B', lat - 0.02, lon - 0.02, 0), source: 'wunderground' },
+      station('mg_valley', lat + 0.01, lon, 110),
+    ];
+    const readings = new Map<string, NormalizedReading>([
+      ['wu_A', reading('wu_A', { windSpeed: 2, windDirection: 80, humidity: 85, solarRadiation: 500 })],
+      ['wu_B', reading('wu_B', { windSpeed: 2, windDirection: 70, humidity: 85, solarRadiation: 500 })],
+      ['mg_valley', reading('mg_valley', { windSpeed: 1, windDirection: 90, humidity: 55, solarRadiation: 500 })],
+    ]);
+    const r = computeThermalPrecursors(castrelo, stations, readings, [], null, SUMMER_MORNING);
+    expect(r.signals.terral.active).toBe(false);
+    expect(r.signals.humidityGradient.active).toBe(false);
+  });
+
+  it('still counts a real low station with a known altitude', () => {
+    const { stations, readings, buoys } = favorableMorning();
+    const r = computeThermalPrecursors(cesantes, stations, readings, buoys, null, SUMMER_MORNING);
+    expect(r.signals.terral.active).toBe(true);
   });
 });
 
