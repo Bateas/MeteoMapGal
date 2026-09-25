@@ -6,13 +6,13 @@ import { render, cleanup } from '@testing-library/react';
  * visitor (who now starts in simple mode) landed on a map with nothing but the
  * spots. Both layers stay; simple mode only removes the source initials.
  */
-const seen = vi.hoisted(() => ({ wind: 0, stations: [] as Array<{ hideSourceLabels?: boolean }> }));
+const seen = vi.hoisted(() => ({ wind: 0, stations: [] as Array<{ hideSourceLabels?: boolean; muted?: boolean }> }));
 
 vi.mock('./WindFieldOverlay', () => ({
   WindFieldOverlay: () => { seen.wind++; return null; },
 }));
 vi.mock('./StationSymbolLayer', () => ({
-  StationSymbolLayer: (p: { hideSourceLabels?: boolean }) => { seen.stations.push(p); return null; },
+  StationSymbolLayer: (p: { hideSourceLabels?: boolean; muted?: boolean }) => { seen.stations.push(p); return null; },
 }));
 vi.mock('./TempOnlyMarker', () => ({ TempOnlyOverlay: () => null }));
 vi.mock('./StationPopup', () => ({ StationPopup: () => null }));
@@ -34,13 +34,15 @@ describe('ReadingsLayers — simple mode keeps stations and wind', () => {
     expect(seen.stations.length).toBeGreaterThan(0);
   });
 
-  it('simple mode hides only the source initials', () => {
+  it('simple mode drops the source initials and mutes the stations', () => {
     renderLayers(true);
     expect(seen.stations.at(-1)?.hideSourceLabels).toBe(true);
+    expect(seen.stations.at(-1)?.muted).toBe(true);
   });
 
-  it('advanced mode shows the initials', () => {
+  it('advanced mode shows the initials and the full colours', () => {
     renderLayers(false);
     expect(seen.stations.at(-1)?.hideSourceLabels).toBe(false);
+    expect(seen.stations.at(-1)?.muted).toBe(false);
   });
 });

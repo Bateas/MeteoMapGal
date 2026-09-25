@@ -28,7 +28,16 @@ interface StationSymbolLayerProps {
   zoomLevel: number;
   /** Simple mode: same markers, without the source initials (MG, WU, NT...). */
   hideSourceLabels?: boolean;
+  /**
+   * Simple mode: stations recede so the spots lead. Neutral grey instead of the
+   * temperature fill and the per-source ring (whose colours mean nothing without
+   * the initials, and whose orange read as a warning), smaller and fainter.
+   */
+  muted?: boolean;
 }
+
+/** Neutral grey for muted stations: context, not a reading to act on. */
+const MUTED_GREY = '#94a3b8';
 
 /** Bin temperature into discrete color index for icon-color expression */
 function tempBinColor(temp: number | null): string {
@@ -85,6 +94,7 @@ export function StationSymbolLayer({
   onSelectStation,
   zoomLevel: _zoomLevel,
   hideSourceLabels = false,
+  muted = false,
 }: StationSymbolLayerProps) {
   const { current: mapRef } = useMap();
 
@@ -205,14 +215,18 @@ export function StationSymbolLayer({
   }, [mapRef, handleClick]);
 
   // Zoom-based size scaling — visible from zoom 8+
+  const sizeScale = muted ? 0.7 : 1;
   const iconSize: maplibregl.ExpressionSpecification = [
     'interpolate', ['linear'], ['zoom'],
-    8, 0.25,
-    9, 0.35,
-    10, 0.5,
-    11, 0.7,
-    12, 0.9,
+    8, 0.25 * sizeScale,
+    9, 0.35 * sizeScale,
+    10, 0.5 * sizeScale,
+    11, 0.7 * sizeScale,
+    12, 0.9 * sizeScale,
   ];
+  // Muted stations keep their freshness fade, at a bit over half the strength.
+  const fade = (e: maplibregl.ExpressionSpecification): maplibregl.ExpressionSpecification =>
+    muted ? ['*', 0.55, e] : e;
 
   // Synchronized filter: station markers are visible down to zoom 8+
   // (matches WindFieldOverlay minzoom=8, preventing circles from vanishing before wind arrows)
@@ -230,10 +244,10 @@ export function StationSymbolLayer({
         type="circle"
         filter={filter}
         paint={{
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5, 9, 7, 10, 9, 11, 12, 12, 15],
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5 * sizeScale, 9, 7 * sizeScale, 10, 9 * sizeScale, 11, 12 * sizeScale, 12, 15 * sizeScale],
           'circle-color': 'transparent',
-          // Always use source color for ring — no red/amber override
-          'circle-stroke-color': ['get', 'sourceColor'],
+          // Source color for the ring (no red/amber override); grey when muted
+          'circle-stroke-color': muted ? MUTED_GREY : ['get', 'sourceColor'],
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 9, 1, 12, 1.5],
           // Freshness opacity: hourly stations remain visible even when readings are 1-2h old
           'circle-opacity': [
@@ -244,14 +258,14 @@ export function StationSymbolLayer({
             0.7, 0.6,
             0.85, 0.7,
           ],
-          'circle-stroke-opacity': [
+          'circle-stroke-opacity': fade([
             'step', ['get', 'freshness'],
             0.3,
             0.35, 0.4,
             0.5, 0.55,
             0.7, 0.7,
             0.85, 0.85,
-          ],
+          ]),
         }}
       />
 
@@ -277,16 +291,16 @@ export function StationSymbolLayer({
           'text-ignore-placement': true,
         }}
         paint={{
-          'icon-color': ['get', 'tempColor'],
+          'icon-color': muted ? MUTED_GREY : ['get', 'tempColor'],
           // Freshness opacity: minimum 0.35 so older readings are clearly identifiable
-          'icon-opacity': [
+          'icon-opacity': fade([
             'step', ['get', 'freshness'],
             0.35,
             0.35, 0.45,
             0.5, 0.6,
             0.7, 0.75,
             0.85, 0.85,
-          ],
+          ]),
           'text-color': '#ffffff',
           'text-halo-color': 'rgba(0,0,0,0.5)',
           'text-halo-width': 0.8,
