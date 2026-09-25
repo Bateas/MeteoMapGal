@@ -64,6 +64,13 @@ function pushHexArrows(
 ): void {
   const isCalm = windSpeed < 0.5;
   const level = speedToLevel(windSpeed);
+  const hasDir = windDir !== null && Number.isFinite(windDir);
+
+  // Wind but no vane (e.g. a Netatmo anemometer without direction): the outward
+  // star below reads as "wind blowing out of this station in every direction",
+  // which is false. The speed is still in the marker and the popup; the map only
+  // lacks a direction to show, so it shows none. The star stays for real calm.
+  if (!hasDir && !isCalm) return;
 
   // Inner ring (6 arrows)
   for (let i = 0; i < OFFSETS.length; i++) {
