@@ -71,7 +71,52 @@ export interface HealthInfo {
   time_range: { first: string | null; last: string | null };
 }
 
+/** A station as the discovery cycle keeps it, for clients that need the list and not its
+ *  history (see queryStationList). */
+export interface StationListItem {
+  station_id: string;
+  source: string;
+  name: string | null;
+  lat: number;
+  lon: number;
+  altitude: number | null;
+  province: string | null;
+  /** Minutes since discovery last returned this station. Discovery runs hourly, so a
+   *  station a network stopped listing ages out of any "current" filter on its own. */
+  seen_min_ago: number;
+  /** Most recent reading within the last 3 days, or null. */
+  last_reading: Date | null;
+}
+
 // ── Queries ────────────────────────────────────────────
+
+/**
+ * Every station discovery knows, from the stations table.
+ *
+ * queryStations below builds its list by aggregating the whole readings table (5.5 s measured
+ * when its memo expires), which is fine for the History tab and too slow for anything every
+ * visitor asks for. This one reads the ~550-row stations table and looks only three days
+ * back for the last reading: about 0.1 s.
+ */
+export async function queryStationList(): Promise<StationListItem[]> {
+  const db = getPool();
+  const result = await db.query<StationListItem>(`
+    SELECT
+      s.station_id, s.source, s.name, s.altitude,
+      s.latitude AS lat, s.longitude AS lon, s.province,
+      ROUND(EXTRACT(EPOCH FROM NOW() - s.updated_at) / 60)::int AS seen_min_ago,
+      lr.last_reading
+    FROM stations s
+    LEFT JOIN (
+      SELECT station_id, MAX(time) AS last_reading
+      FROM readings
+      WHERE time > NOW() - INTERVAL '3 days'
+      GROUP BY station_id
+    ) lr ON lr.station_id = s.station_id
+    ORDER BY s.source, s.station_id
+  `);
+  return result.rows;
+}
 
 /** List all stations with their last reading time, count, and coordinates */
 export async function queryStations(): Promise<StationInfo[]> {

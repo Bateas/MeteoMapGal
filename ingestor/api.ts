@@ -8,6 +8,7 @@
  * Endpoints:
  *   GET /api/v1/health           → DB status + row counts
  *   GET /api/v1/stations         → All weather stations with last reading
+ *   GET /api/v1/stations/list    → Station list from discovery (?source=), no history counts
  *   GET /api/v1/readings         → Weather time series (raw or hourly)
  *   GET /api/v1/readings/latest  → Latest weather reading per station
  *   GET /api/v1/readings/compare → Multi-station comparison
@@ -37,6 +38,7 @@ import { log } from './logger.js';
 import {
   queryHealth,
   queryStations,
+  queryStationList,
   queryReadings,
   queryHourly,
   queryLatest,
@@ -116,6 +118,9 @@ function defaultTimeRange(
 // hard a client polls: the same query shape OOM-killed the DB host once.
 const cachedStations = memoAsync(5 * 60_000, queryStations);
 const cachedHealth = memoAsync(60_000, queryHealth);
+// Reads the stations table, not readings, so it is cheap; memoised all the same because every
+// visitor's station discovery asks for it.
+const cachedStationList = memoAsync(5 * 60_000, queryStationList);
 
 async function handleHealth(
   _params: Record<string, string>,
@@ -133,6 +138,21 @@ async function handleStations(
 ): Promise<void> {
   const stations = await cachedStations();
   json(res, { count: stations.length, stations }, 200, origin);
+}
+
+/** The station list without the history counts, optionally for one source. The map's
+ *  discovery reads its Wunderground stations here instead of asking api.weather.com once per
+ *  coverage point. Five minutes at the edge: the list changes at most once an hour. */
+async function handleStationList(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const source = validateSource(params.source) ?? undefined;
+  if (params.source && !source) { error(res, 'Invalid source', 400, origin); return; }
+  const all = await cachedStationList();
+  const stations = source ? all.filter((s) => s.source === source) : all;
+  json(res, { count: stations.length, stations }, 200, origin, 'public, max-age=300');
 }
 
 async function handleReadings(
@@ -785,6 +805,7 @@ type RouteHandler = (
 const routes: Record<string, RouteHandler> = {
   '/api/v1/health': handleHealth,
   '/api/v1/stations': handleStations,
+  '/api/v1/stations/list': handleStationList,
   '/api/v1/readings': handleReadings,
   '/api/v1/readings/latest': handleLatest,
   '/api/v1/readings/compare': handleCompare,
