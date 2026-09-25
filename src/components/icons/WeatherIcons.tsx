@@ -342,6 +342,8 @@ const ICON_LABELS: Record<IconId, string> = {
   'message-square': 'Mensaje',
   'maximize': 'Ampliar',
   'share': 'Compartir',
+  'fish': 'Pesca',
+  'calendar': 'Calendario',
 };
 
 /** Get a text label for an icon ID (for non-React contexts) */
