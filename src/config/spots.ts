@@ -40,8 +40,9 @@ export interface SpotWebcam {
   type: 'image' | 'page';
   /** Provider name */
   source: string;
-  /** Compass direction the camera faces (degrees from north) */
-  azimuth: number;
+  /** Compass direction the camera faces (degrees from north). Omitted for a camera that
+   *  pans: one fixed figure would state a direction it only holds part of the time. */
+  azimuth?: number;
   /** Auto-refresh interval in seconds (only for type='image') */
   refreshInterval?: number;
 }
@@ -209,6 +210,14 @@ export const RIAS_SPOTS: SailingSpot[] = [
         source: 'G24',
         azimuth: 315, // Mirando NW (bocana → Cangas)
       },
+      {
+        // Live 180-degree view of the ria (Samil, O Vao, the bocana), panning. YouTube:
+        // shown as a link only, frames are not taken from it.
+        label: 'Ría de Vigo 180° (RiadeVigoCam, directo)',
+        url: 'https://www.youtube.com/watch?v=6wFjIFTyXTg',
+        type: 'page',
+        source: 'RiadeVigoCam (YouTube)',
+      },
     ],
   },
   {
@@ -268,6 +277,14 @@ export const RIAS_SPOTS: SailingSpot[] = [
         type: 'page',
         source: 'G24',
         azimuth: 315,
+      },
+      {
+        // Live 180-degree view of the ria (Samil, O Vao, the bocana), panning. YouTube:
+        // shown as a link only, frames are not taken from it.
+        label: 'Ría de Vigo 180° (RiadeVigoCam, directo)',
+        url: 'https://www.youtube.com/watch?v=6wFjIFTyXTg',
+        type: 'page',
+        source: 'RiadeVigoCam (YouTube)',
       },
     ],
   },
@@ -523,6 +540,14 @@ export const RIAS_SPOTS: SailingSpot[] = [
         type: 'page',
         source: 'HispaCams',
         azimuth: 225, // Mirando SW (playa + Toralla)
+      },
+      {
+        // Live 180-degree view of the ria (Samil, O Vao, the bocana), panning. YouTube:
+        // shown as a link only, frames are not taken from it.
+        label: 'Ría de Vigo 180° (RiadeVigoCam, directo)',
+        url: 'https://www.youtube.com/watch?v=6wFjIFTyXTg',
+        type: 'page',
+        source: 'RiadeVigoCam (YouTube)',
       },
     ],
   },

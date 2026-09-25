@@ -810,7 +810,7 @@ function DroneSection({ alerts, forecast }: { alerts: FieldAlerts; forecast?: Ho
           <ul className="text-[11px] text-slate-400 space-y-0.5">
             {d.reasons.map((r, i) => (
               <li key={i} className="flex items-start gap-1">
-                <span className="text-amber-400 mt-0.5">\u2022</span>
+                <span className="text-amber-400 mt-0.5">{'\u2022'}</span>
                 <span>{r}</span>
               </li>
             ))}

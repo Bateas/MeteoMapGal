@@ -87,7 +87,7 @@ export function WindRose({ data, title, stationName, size = 220, showLabels = tr
             {/* Speed-weighted overlay */}
             {showSpeed && (
               <Radar
-                name="Vel\u00B7Frec"
+                name={'Vel\u00B7Frec'}
                 dataKey="speedScore"
                 stroke="#ef4444"
                 fill="#ef4444"
@@ -116,7 +116,7 @@ export function WindRose({ data, title, stationName, size = 220, showLabels = tr
               <span className="w-2 h-0.5 bg-amber-500 inline-block rounded" /> Frecuencia
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2 h-0.5 bg-red-500 inline-block rounded" /> Vel\u00B7Frec
+              <span className="w-2 h-0.5 bg-red-500 inline-block rounded" /> {'Vel\u00B7Frec'}
             </span>
           </div>
         )}
