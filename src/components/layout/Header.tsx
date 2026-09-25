@@ -80,7 +80,12 @@ export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldA
   }, [forecastHourly, thermalRules]);
 
   return (
-    <header className="bg-slate-900 border-b border-slate-700 px-3 md:px-4 py-2 md:py-2 flex items-center justify-between gap-1.5 md:gap-2">
+    // The page runs edge to edge on iOS (viewport-fit=cover, translucent status bar), so the
+    // installed app put the header under the clock and the notch without this inset.
+    <header
+      className="bg-slate-900 border-b border-slate-700 px-3 md:px-4 py-2 md:py-2 flex items-center justify-between gap-1.5 md:gap-2"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
       <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
         <h1 className={`font-bold text-white tracking-tight flex-shrink-0 ${isMobile ? 'text-[13px]' : 'text-base'}`}>
           MeteoMap<span className="text-sky-400">Gal</span>

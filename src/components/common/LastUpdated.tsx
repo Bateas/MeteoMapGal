@@ -1,28 +1,7 @@
 import { useWeatherStore } from '../../store/weatherStore';
-import type { WeatherSource, SourceStatus } from '../../store/weatherStore';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Database } from 'lucide-react';
-
-const SOURCE_LABELS: Record<WeatherSource, string> = {
-  aemet: 'AEMET',
-  meteogalicia: 'MG',
-  meteoclimatic: 'MC',
-  wunderground: 'WU',
-  netatmo: 'NT',
-  skyx: 'SX',
-  ipma: 'IPMA',
-};
-
-const STALE_MS = 20 * 60 * 1000; // 20 min → stale
-
-function dotColor(status: SourceStatus | undefined): string {
-  if (!status || !status.lastSuccess) return '#6b7280'; // gray — never fetched
-  const age = Date.now() - status.lastSuccess.getTime();
-  if (status.lastError && status.lastError > status.lastSuccess) return '#ef4444'; // red — last attempt failed
-  if (age > STALE_MS) return '#eab308'; // yellow — stale
-  return '#22c55e'; // green — fresh
-}
 
 /** Compact time label for mobile: "1m", "5m", "12m" instead of "hace menos de un minuto" */
 function compactAge(date: Date): string {
@@ -35,14 +14,13 @@ function compactAge(date: Date): string {
 
 interface LastUpdatedProps {
   onRefresh: () => void;
-  /** When true, shows compact mobile layout (just dots + refresh icon) */
+  /** When true, shows the compact mobile layout (age + refresh icon) */
   compact?: boolean;
 }
 
 export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
   const lastFetchTime = useWeatherStore((s) => s.lastFetchTime);
   const isLoading = useWeatherStore((s) => s.isLoading);
-  const sourceFreshness = useWeatherStore((s) => s.sourceFreshness);
   const isUsingCachedData = useWeatherStore((s) => s.isUsingCachedData);
 
   if (compact) {
@@ -60,28 +38,14 @@ export function LastUpdated({ onRefresh, compact = false }: LastUpdatedProps) {
         ) : lastFetchTime ? (
           <span className="text-[11px] text-slate-500 font-mono">{compactAge(lastFetchTime)}</span>
         ) : null}
-        {/* Source dots */}
-        <div className="flex items-center gap-0.5">
-          {(Object.keys(SOURCE_LABELS) as WeatherSource[]).map((src) => {
-            const status = sourceFreshness.get(src);
-            const color = dotColor(status);
-            const count = status?.readingCount ?? 0;
-            const title = `${SOURCE_LABELS[src]}: ${count} est.`;
-            return (
-              <span
-                key={src}
-                title={title}
-                className="inline-block w-1.5 h-1.5 rounded-full"
-                style={{ backgroundColor: color }}
-              />
-            );
-          })}
-        </div>
+        {/* No per-source dots here: on a phone they can only be read by hovering, which touch
+            cannot do, and they cost the width the 44 px refresh target needs. A failing source
+            is announced by SourceStatusBanner instead. */}
         {/* Refresh button — icon only, 44px touch target */}
         <button
           onClick={onRefresh}
           disabled={isLoading}
-          className="p-2 -m-0.5 rounded-lg border border-slate-700/50 bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800/90 hover:shadow-[0_0_12px_rgba(148,163,184,0.15)] hover:border-slate-500/40 active:bg-slate-700 disabled:opacity-50 transition-all"
+          className="p-2 -m-0.5 min-h-11 min-w-11 flex items-center justify-center rounded-lg border border-slate-700/50 bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800/90 hover:shadow-[0_0_12px_rgba(148,163,184,0.15)] hover:border-slate-500/40 active:bg-slate-700 disabled:opacity-50 transition-all"
           aria-label={isLoading ? 'Actualizando datos...' : 'Refrescar datos'}
           aria-busy={isLoading}
         >

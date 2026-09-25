@@ -100,7 +100,7 @@ export function SpotPushOptIn({ spot }: SpotPushOptInProps) {
         onClick={handleEnable}
         disabled={status === 'requesting'}
         aria-pressed={false}
-        className="flex items-center gap-1 text-[11px] text-slate-300 hover:text-slate-100 disabled:opacity-60"
+        className="flex items-center gap-1 min-h-11 text-[11px] text-slate-300 hover:text-slate-100 disabled:opacity-60"
       >
         <span className="flex text-amber-400">
           <WeatherIcon id="bell" size={11} className="inline" />
