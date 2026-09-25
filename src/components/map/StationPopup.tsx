@@ -108,6 +108,20 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
   const isMobile = useUIStore((s) => s.isMobile);
   const dismiss = () => selectStation(null);
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
+
+  // Escape closes the station popup (mobile sheet and desktop popup). Same rules
+  // as SpotPopup: capture phase, an open aria-modal dialog owns the key, and a
+  // text field keeps its own Escape.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      selectStation(null);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [selectStation]);
   const windTrend = usePopupWindTrend(station.id, reading?.windSpeed ?? null);
 
   // Mini wind rose for AEMET stations with historical data (lazy-loaded)

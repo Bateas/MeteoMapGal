@@ -5,7 +5,7 @@
  *
  * Cyan marine theme to match BuoyMarker.
  */
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
@@ -79,6 +79,20 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
   const info = getBuoyInfo(reading.stationId);
   const dismiss = () => selectBuoy(null);
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
+
+  // Escape closes the buoy popup (mobile sheet and desktop popup). Same rules
+  // as SpotPopup. Must stay above the `if (!info) return null` below, or the
+  // hook count changes between renders.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      selectBuoy(null);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [selectBuoy]);
   const buoyChartId = `buoy_${reading.stationId}`;
   const isInChart = chartStations.includes(buoyChartId);
 

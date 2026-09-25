@@ -6,7 +6,7 @@
  * matched pattern, score, and summary text.
  * Themed per verdict color to match SpotMarker.
  */
-import { memo, useState, useMemo, useEffect } from 'react';
+import { memo, useState, useMemo, useEffect, useId } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
@@ -15,6 +15,7 @@ import { fetchSwanHsAt } from '../../api/swanGetFeatureInfo';
 import { ShareSpotModal } from '../spot/ShareSpotModal';
 
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import { MAX_PLAUSIBLE_GUST_KT as MAX_DISPLAY_GUST_KT } from '../../services/spotScoringEngine';
@@ -88,6 +89,27 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   const simpleMode = useUIStore((s) => s.simpleMode);
   const dismiss = () => selectSpot('');
   const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
+  // Mobile sheet a11y (same pattern as FieldDrawer): on open, focus moves to the
+  // first focusable element (the close button), Tab stays inside, and focus is
+  // handed back when the sheet unmounts. Inactive on desktop (MapLibre Popup).
+  const sheetDialogRef = useFocusTrap<HTMLDivElement>(isMobile);
+  const titleId = useId();
+
+  // Escape closes the spot, on the mobile sheet and on the desktop popup alike
+  // (MapLibre popups ignore Escape). Capture phase, so this runs before the
+  // Escape handlers of modals opened on top (share, forecast, shortcut help):
+  // while an aria-modal dialog is open the key belongs to it. A text field
+  // keeps its own Escape too.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      selectSpot('');
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [selectSpot]);
   const spotForecasts = useSpotStore((s) => s.spotForecasts);
   const setSpotForecast = useSpotStore((s) => s.setSpotForecast);
   const windowResult = sailingWindows.get(spot.id);
@@ -410,7 +432,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-1.5 flex-wrap">
-            <span className={`${isMobile ? 'text-base' : 'text-sm'} font-bold text-slate-100 leading-tight`}>{spot.name}</span>
+            <span id={titleId} className={`${isMobile ? 'text-base' : 'text-sm'} font-bold text-slate-100 leading-tight`}>{spot.name}</span>
             <button
               onClick={(e) => { e.stopPropagation(); toggleFavorite(spot.id); }}
               className={`shrink-0 transition-colors ${isMobile ? 'text-base' : 'text-sm'} ${
@@ -1058,7 +1080,14 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   if (isMobile) {
     return (
       <>
-        <div className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up">
+        {/* Non-modal on purpose (no aria-modal): tapping the map still closes
+            the sheet or picks another spot, like FieldDrawer. */}
+        <div
+          ref={sheetDialogRef}
+          role="dialog"
+          aria-labelledby={titleId}
+          className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up"
+        >
           <div
             ref={sheetRef}
             className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[60dvh] overflow-y-auto p-3"
