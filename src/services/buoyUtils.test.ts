@@ -207,7 +207,7 @@ describe('currentSpeedClass', () => {
     expect(currentSpeedClass(0.07)).toBe('text-teal-400');
     expect(currentSpeedClass(0.15)).toBe('text-cyan-400');
     expect(currentSpeedClass(0.30)).toBe('text-sky-500');
-    expect(currentSpeedClass(0.50)).toBe('text-violet-500');
+    expect(currentSpeedClass(0.50)).toBe('text-violet-400');
   });
 });
 

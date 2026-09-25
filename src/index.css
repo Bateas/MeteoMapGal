@@ -107,6 +107,19 @@
   --color-tooltip-border: #334155;
 }
 
+/* Dark theme: Tailwind's slate-500 (#62748e) only reaches 3.4-3.7:1 on the
+ * slate-900 panels, so the small secondary text failed WCAG AA (axe, 25-sep).
+ * Brighten it just enough for 4.5:1 while keeping it dimmer than slate-400,
+ * so the two secondary text levels stay apart. :not(light) instead of
+ * [data-theme="dark"] because only AppShell sets the attribute, and the
+ * loading screen renders before it. @layer base comes after Tailwind's
+ * @layer theme, so this wins over the default without touching the reset. */
+@layer base {
+  :root:not([data-theme="light"]) {
+    --color-slate-500: oklch(66% 0.042 257); /* ~#8294ac */
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -583,7 +596,9 @@ button, a, input, select, textarea, [role="button"] {
   padding: 1px 5px;
   border-radius: 3px;
   background: rgba(100, 116, 139, 0.15);
-  color: #64748b;
+  /* A fixed #64748b was 2.9:1 on the dark panels. The variable follows the
+   * theme: slate-400 in dark, and in light it resolves to the same #64748b. */
+  color: var(--color-slate-400, #94a3b8);
   border: 1px solid rgba(100, 116, 139, 0.25);
   line-height: 1.4;
   text-transform: uppercase;
