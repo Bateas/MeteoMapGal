@@ -10,7 +10,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
-import { VERDICT_STYLE, VERDICT_HEX, displayVerdict, displayWindKt, verdictLabel } from '../../config/verdictStyles';
+import { VERDICT_STYLE, VERDICT_HEX, displayVerdict, displayWindKt, isDirVariable, verdictLabel } from '../../config/verdictStyles';
 import { degreesToCardinal } from '../../services/windUtils';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
@@ -79,8 +79,8 @@ export const SpotComparator = memo(function SpotComparator() {
         // which leaves the dash rather than a figure about to change.
         const effKt = displayWindKt(score);
         const windKt = effKt != null ? Math.round(effKt) : null;
-        const dir = score?.windDirDeg != null
-          ? degreesToCardinal(score.windDirDeg)
+        const dir = isDirVariable(score?.wind) ? 'variable'
+          : score?.windDirDeg != null ? degreesToCardinal(score.windDirDeg)
           : null;
         const waveH = score?.waves?.waveHeight != null
           ? score.waves.waveHeight.toFixed(1)

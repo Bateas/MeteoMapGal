@@ -21,7 +21,7 @@ import { waterTempColor } from '../../services/buoyUtils';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 
 // Moved to config/verdictStyles.ts to fix bundle splitting — import + re-export
-import { VERDICT_STYLE, displayVerdict, displayWindKt, verdictLabel } from '../../config/verdictStyles';
+import { VERDICT_STYLE, displayVerdict, displayWindKt, displayWindDir, verdictLabel } from '../../config/verdictStyles';
 export { VERDICT_STYLE };
 
 // ── Main component ────────────────────────────────────────────────
@@ -221,7 +221,7 @@ function SpotCard({
             // e.g. Cesantes canalization can lift 5kt raw → 14kt effective).
             // Falls back to raw avgSpeedKt for spots without active boost.
             <span>
-              {score.wind.dominantDir} ~{(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt
+              {displayWindDir(score)?.label} ~{(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt
             </span>
           )}
           {!score.provisional && score.gustKt != null && score.gustKt > (score.effectiveWindKt ?? score.wind?.avgSpeedKt ?? 0) + 3 && (

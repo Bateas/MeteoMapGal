@@ -706,3 +706,26 @@ describe('skyx_SKY100 — back in the wind consensus', () => {
     expect(score.wind!.avgSpeedKt).toBeGreaterThan(10);
   });
 });
+
+// ── Direction agreement ─────────────────────────────────
+
+describe('direction agreement', () => {
+  const lourido = RIAS_SPOTS.find((s) => s.id === 'lourido')!;
+  const [lon, lat] = lourido.center;
+  const around = (dirs: number[]) => {
+    const stations = dirs.map((_, i) => makeStation('st' + i, lat + 0.01 * (i % 2 ? 1 : -1), lon + 0.01 * (i < 2 ? 1 : -1)));
+    const readings = new Map(dirs.map((d, i) => ['st' + i, makeReading('st' + i, msFromKt(9), d)] as const));
+    return scoreAllSpots([lourido], stations, readings, []).get('lourido')!;
+  };
+
+  it('measures how well the sources agree on the direction', () => {
+    expect(around([250, 255, 245, 250]).wind?.dirSteadiness).toBeGreaterThan(0.95);
+    expect(around([60, 240, 70, 250]).wind?.dirSteadiness).toBeLessThan(0.5);
+  });
+
+  it('writes "dirección variable" in the summary when they do not agree', () => {
+    // 25-Sep at midday the sources were split between the NE morning and the W afternoon.
+    expect(around([60, 240, 70, 250]).summary).toContain('dirección variable');
+    expect(around([250, 255, 245, 250]).summary).not.toContain('variable');
+  });
+});

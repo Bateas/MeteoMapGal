@@ -32,7 +32,7 @@ import { aggregateFiresForSector, formatFireAge } from '../../services/fireServi
 import { getSpotsForSector, isBeachSpot } from '../../config/spots';
 import { assessBeachDay, type BeachDayResult } from '../../services/beachDayService';
 import { msToKnots } from '../../services/windUtils';
-import { VERDICT_STYLE, displayVerdict } from '../../config/verdictStyles';
+import { VERDICT_STYLE, displayVerdict, displayWindDir } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { assessSeaBreezeRias } from '../../services/seaBreezeService';
 import { fetchTidePredictions, type TidePoint } from '../../api/tideClient';
@@ -156,7 +156,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
       // avgSpeedKt — keeps ticker aligned with SpotMarker + popup verdict
       // when Cesantes canalization / Bocana terral are active.
       const kt = sc.effectiveWindKt ?? sc.wind?.avgSpeedKt;
-      const dir = sc.wind?.dominantDir ?? '';
+      const dir = displayWindDir(sc)?.label ?? '';
       const pri = sc.verdict === 'calm' ? 1 : sc.verdict === 'light' ? 3 : sc.verdict === 'sailing' ? 7 : 10;
       result.push({
         key: `spot-${spot.id}`,

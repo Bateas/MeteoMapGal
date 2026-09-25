@@ -85,3 +85,35 @@ export function displayWindKt(score: VerdictSource | undefined | null): number |
   if (!score || score.provisional) return null;
   return score.effectiveWindKt ?? score.wind?.avgSpeedKt ?? null;
 }
+
+// ── Wind direction: "variable" when the sources disagree ────
+//
+// The consensus direction is a weighted mean, and a mean of directions pointing every which
+// way is a number with no meaning behind it: on 25-Sep the app said "N" at Lourido while its
+// sources were split between NE and W. The engine now reports how well they agree
+// (dirSteadiness, the length of the weighted mean vector), and below this threshold every
+// surface says "variable" and draws no arrow.
+
+/** Below this agreement the sources' mean direction is noise (angular spread over ~70°).
+ *  Replayed over 25-Sep it caught one spot-hour in nine, nearly all during the midday turn
+ *  from the NE morning to the W afternoon, when some stations had veered and others not. */
+export const DIR_VARIABLE_BELOW = 0.5;
+
+/** Minimal shape needed, structural like VerdictSource. */
+export interface DirSource {
+  wind?: { dominantDir?: string; dirDeg?: number; dirSteadiness?: number | null } | null;
+}
+
+/** True when the sources disagree too much to state a direction. */
+export function isDirVariable(wind: DirSource['wind']): boolean {
+  return wind?.dirSteadiness != null && wind.dirSteadiness < DIR_VARIABLE_BELOW;
+}
+
+/** The direction a surface should state: 'variable' with no arrow when the sources disagree,
+ *  otherwise the 8-point name and the degrees for the arrow. Null with no wind at all. */
+export function displayWindDir(score: DirSource | undefined | null): { label: string; deg: number | null } | null {
+  const w = score?.wind;
+  if (!w || w.dominantDir == null) return null;
+  if (isDirVariable(w)) return { label: 'variable', deg: null };
+  return { label: w.dominantDir, deg: w.dirDeg ?? null };
+}
