@@ -84,7 +84,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
     // N wind, not SW
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 8, windDir: 0, stationName: 'Cabo Silleiro' })],
-      null,
+      null, false, null, null, 6, 230,
     );
     expect(r.active).toBe(false);
   });
@@ -92,7 +92,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
   it('returns inactive when SW wind is too weak (<4 m/s)', () => {
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 3, windDir: 230, stationName: 'Cabo Silleiro' })],
-      null,
+      null, false, null, null, 6, 230,
     );
     expect(r.active).toBe(false);
   });
@@ -101,7 +101,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
     // 6 m/s × 1.4 boost = 8.4 m/s = 16.3kt → active
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      null,
+      null, false, null, null, 6, 230,
     );
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBeGreaterThanOrEqual(10);
@@ -116,7 +116,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
     vi.setSystemTime(new Date('2026-04-26T18:00:00Z'));
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      null,
+      null, false, null, null, 6, 230,
     );
     expect(r.active).toBe(false); // stale → Mode 1 skipped, no Mode 2 args supplied
   });
@@ -126,7 +126,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
     vi.setSystemTime(new Date('2026-04-26T15:30:00Z'));
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      null,
+      null, false, null, null, 6, 230,
     );
     expect(r.active).toBe(true);
   });
@@ -134,7 +134,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
   it('treats a missing buoy timestamp as stale (Mode 1 skipped)', () => {
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro', timestamp: undefined as unknown as string })],
-      null,
+      null, false, null, null, 6, 230,
     );
     expect(r.active).toBe(false);
   });
@@ -143,7 +143,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
     const r = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
       88,
-      false, null, null, null, null,
+      false, null, null, 6, 230,
       600, // W/m² — the thermal engine these boosts describe is actually running
     );
     expect(r.active).toBe(true);
@@ -158,7 +158,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
       90,
       true,
-      null, null, null, null,
+      null, null, 6, 230,
       600, // W/m² — without this the mist could be a front, see the tests below
     );
     expect(r.boostFactor).toBeCloseTo(2.0, 1);
@@ -176,6 +176,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
       true,
       18, // warm air
       14, // ΔT = 4°C
+      6, 230,
     );
     expect(r.boostFactor).toBeLessThanOrEqual(2.5);
   });
@@ -186,7 +187,7 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
         buoy({ stationId: 2248, windSpeed: 5, windDir: 220, stationName: 'Cabo Silleiro' }),
         buoy({ stationId: 1252, windSpeed: 9, windDir: 250, stationName: 'Cíes' }),
       ],
-      null,
+      null, false, null, null, 6, 230,
     );
     expect(r.signals[0]).toContain('Cíes');
   });
@@ -194,12 +195,12 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
   it('SW direction range includes S-SSE (160°) through WSW (280°)', () => {
     const broadSouth = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 165, stationName: 'Cabo Silleiro' })],
-      null,
+      null, false, null, null, 6, 230,
     );
     expect(broadSouth.active).toBe(true);
     const wsw = predictCesantesCanalization(
       [buoy({ stationId: 2248, windSpeed: 6, windDir: 275, stationName: 'Cabo Silleiro' })],
-      null,
+      null, false, null, null, 6, 230,
     );
     expect(wsw.active).toBe(true);
   });
@@ -219,32 +220,32 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
     const sw = () => [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })];
 
     it('refuses the fog boost under an overcast sky', () => {
-      const r = predictCesantesCanalization(sw(), 90, true, null, null, null, null, 80);
+      const r = predictCesantesCanalization(sw(), 90, true, null, null, 6, 230, 80);
       expect(r.boostFactor).toBeCloseTo(1.4, 1); // plain channelling, not 2.0
       expect(r.signals.some((x) => x.includes('cubierto'))).toBe(true);
     });
 
     it('refuses the humidity boost under an overcast sky', () => {
-      const r = predictCesantesCanalization(sw(), 92, false, null, null, null, null, 80);
+      const r = predictCesantesCanalization(sw(), 92, false, null, null, 6, 230, 80);
       expect(r.boostFactor).toBeCloseTo(1.4, 1);
     });
 
     it('treats missing radiation as no sun rather than as permission', () => {
       // The strongest multiplier in the ladder must not be handed out on
       // absent evidence — that is the whole rigour rule.
-      const r = predictCesantesCanalization(sw(), 90, true);
+      const r = predictCesantesCanalization(sw(), 90, true, null, null, 6, 230);
       expect(r.boostFactor).toBeCloseTo(1.4, 1);
       expect(r.signals.some((x) => x.includes('Sin dato de radiación'))).toBe(true);
     });
 
     it('still channels geometrically without sun — a valley is a valley', () => {
-      const r = predictCesantesCanalization(sw(), 90, true, null, null, null, null, 80);
+      const r = predictCesantesCanalization(sw(), 90, true, null, null, 6, 230, 80);
       expect(r.active).toBe(true);
       expect(r.predictedKt).toBeGreaterThan(6 * 1.944); // above the raw synoptic
     });
 
     it('keeps the full ladder when the sun is out', () => {
-      const r = predictCesantesCanalization(sw(), 90, true, null, null, null, null, 700);
+      const r = predictCesantesCanalization(sw(), 90, true, null, null, 6, 230, 700);
       expect(r.boostFactor).toBeCloseTo(2.0, 1);
       expect(r.confidence).toBe(85);
     });
@@ -259,6 +260,46 @@ describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
       expect(r.predictedKt!).toBeLessThan(15);
       expect(r.confidence).toBeLessThan(70); // below the gate the callers apply
     });
+  });
+});
+
+// ── Mode 1 needs the flow to be arriving at Cesantes ─────────
+//
+// 25-sep 12:52: A Guarda (Miño mouth, open coast) turned SW at 8kt, Cesantes read
+// 2.5kt from the NW with 5kt gusts, the webcam showed a mirror — and the popup
+// said ~14kt. A buoy outside the ría says what the Atlantic is doing, not that the
+// flow gets in.
+describe('predictCesantesCanalization — Mode 1 needs a local SW flow', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T14:30:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+  const guarda = () => [buoy({ stationId: 1253, windSpeed: 4.2, windDir: 259, stationName: 'A Guarda' })];
+
+  it('stays off on the 25-sep noon: SW at A Guarda, 2.5kt NW at Cesantes', () => {
+    const r = predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 2.5, 305, 700, 5);
+    expect(r.active).toBe(false);
+  });
+
+  it('stays off when the local wind is unknown', () => {
+    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, null, null, 700, null).active).toBe(false);
+  });
+
+  it('stays off on a meaningful local wind from outside the SW arc', () => {
+    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 7, 320, 700, 12).active).toBe(false);
+  });
+
+  it('fires once the SW flow reaches the nearby stations (6-ago: 7kt measured, 14 on the water)', () => {
+    const r = predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 7, 235, 700, 12);
+    expect(r.active).toBe(true);
+    expect(r.predictedKt!).toBeGreaterThanOrEqual(10);
+  });
+
+  it('accepts a low sheltered mean when its direction is SW and it is 4kt or a 10kt gust', () => {
+    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 4, 230, 700, 6).active).toBe(true);
+    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 3, 230, 700, 11).active).toBe(true);
+    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 4, null, 700, 11).active).toBe(false);
   });
 });
 
