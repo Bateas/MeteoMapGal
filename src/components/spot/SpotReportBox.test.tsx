@@ -19,11 +19,12 @@ describe('SpotReportBox', () => {
     const { unmount } = render(<SpotReportBox spotId="cesantes" shownWindKt={12.4} shownVerdict="good" />);
     fireEvent.click(screen.getByText(/Dinos si coincide/));
     fireEvent.click(screen.getByText('Más'));
-    fireEvent.click(screen.getByText('Mucha'));
+    fireEvent.click(screen.getByText('Mucha espuma'));
+    fireEvent.click(screen.getByText('SO'));
     fireEvent.click(screen.getByText('Enviar'));
     await waitFor(() => expect(screen.getByText(/Gracias/)).toBeTruthy());
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body).toMatchObject({ spotId: 'cesantes', windVsApp: 1, whitecaps: 2, appWindKt: 12.4, appVerdict: 'good' });
+    expect(body).toMatchObject({ spotId: 'cesantes', windVsApp: 1, waterState: 3, dirSeen: 225, appWindKt: 12.4, appVerdict: 'good' });
     unmount();
 
     render(<SpotReportBox spotId="cesantes" shownWindKt={12.4} shownVerdict="good" />);

@@ -1010,7 +1010,14 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
             the app, never drawn on the map). Wind spots only, and never while provisional:
             there is no settled figure to compare against yet. ── */}
       {spot.category !== 'surf' && score && !score.provisional && (
-        <SpotReportBox spotId={spot.id} shownWindKt={displayWindKt(score)} shownVerdict={renderedVerdict(score)} />
+        <SpotReportBox
+          spotId={spot.id}
+          // The figure the headline actually shows: the canalization prediction when it
+          // replaces the reading, otherwise the calibrated wind. Comparing against a number
+          // the reporter cannot see (25-sep: headline ~14, box "5") makes the answer useless.
+          shownWindKt={useStrongPrediction && channelingPrediction?.predictedKt ? channelingPrediction.predictedKt : displayWindKt(score)}
+          shownVerdict={renderedVerdict(score)}
+        />
       )}
 
       {/* ── Share + Apoyar + Timestamp ── */}
