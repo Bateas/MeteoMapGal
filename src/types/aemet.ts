@@ -22,7 +22,9 @@ export interface AemetRawObservation {
   ta: number;          // Current temperature (C)
   tamax: number;       // Max temperature
   tpr: number;         // Dew point
-  stddv: number;      // Wind direction std deviation
+  stddv?: number;     // Wind direction std deviation (°), ~16 of 56 Galician stations
+  stdvv?: number;     // Wind speed std deviation (m/s)
+  inso?: number;      // Minutes of sun in the hour (0-60), ~10 stations
   stddvx: number;     // Max wind direction std deviation
   dv: number;          // Wind direction (degrees)
   dmax: number;        // Max wind direction

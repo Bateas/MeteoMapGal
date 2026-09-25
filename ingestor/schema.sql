@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS readings (
   -- the threshold rejected) and a degrading anemometer is undetectable.
   wind_gust_raw  DOUBLE PRECISION, -- original gust, ONLY when rejected
   wind_speed_raw DOUBLE PRECISION, -- original speed, ONLY when rejected
-  qc_flag        SMALLINT          -- bitmask: 1 gust cap, 2 gust ratio, 4 speed cap,
+  qc_flag        SMALLINT,         -- bitmask: 1 gust cap, 2 gust ratio, 4 speed cap,
                                    -- 8 stopped anemometer, 16 solar above the
                                    -- physical ceiling, 32 dew point over air
                                    -- temperature, 64 temperature out of range.
@@ -32,6 +32,13 @@ CREATE TABLE IF NOT EXISTS readings (
                                    -- judgement and judgements get re-tuned. 16/32/64 are
                                    -- physical impossibilities, so there is no threshold to
                                    -- revisit and nothing the archive could add.
+  -- Sent by MeteoGalicia (10 min) and AEMET (1 h) only; NULL for every other source.
+  -- Kept for analysis (gustiness, steadiness of direction, cloud cover, frost).
+  wind_dir_sd    DOUBLE PRECISION, -- °, std deviation of direction over the period
+  wind_speed_sd  DOUBLE PRECISION, -- m/s, std deviation of speed over the period
+  sun_frac       DOUBLE PRECISION, -- 0..1, share of the period with sun
+  temp_10cm      DOUBLE PRECISION, -- °C, air 10 cm above ground (MeteoGalicia only)
+  soil_temp      DOUBLE PRECISION  -- °C, soil 10 cm deep (MeteoGalicia only)
 );
 
 SELECT create_hypertable('readings', 'time', if_not_exists => TRUE);
@@ -41,6 +48,11 @@ ALTER TABLE readings ADD COLUMN IF NOT EXISTS visibility DOUBLE PRECISION;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS wind_gust_raw DOUBLE PRECISION;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS wind_speed_raw DOUBLE PRECISION;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS qc_flag SMALLINT;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS wind_dir_sd DOUBLE PRECISION;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS wind_speed_sd DOUBLE PRECISION;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS sun_frac DOUBLE PRECISION;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS temp_10cm DOUBLE PRECISION;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS soil_temp DOUBLE PRECISION;
 
 -- Unique constraint for dedup (ON CONFLICT DO NOTHING)
 CREATE UNIQUE INDEX IF NOT EXISTS readings_time_station_idx

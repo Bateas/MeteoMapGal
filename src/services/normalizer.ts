@@ -46,6 +46,23 @@ export function normalizeAemetObservationStation(raw: AemetRawObservation): Norm
 const plausiblePressure = (p: number | null | undefined): number | null =>
   p != null && Number.isFinite(p) && p >= 900 && p <= 1100 ? p : null;
 
+/** Keep a value only inside [min, max]; outside is a sensor fault or the -9999 sentinel. */
+const within = (v: number | null | undefined, min: number, max: number): number | null =>
+  v != null && Number.isFinite(v) && v >= min && v <= max ? v : null;
+
+/** Standard deviation of direction: 0 (steady) to ~104° (Yamartino ceiling); 180 leaves slack. */
+const plausibleDirSd = (v: number | null | undefined) => within(v, 0, 180);
+/** Standard deviation of speed over 10 min or 1 h: above 20 m/s is not wind. */
+const plausibleSpeedSd = (v: number | null | undefined) => within(v, 0, 20);
+/** Share of the period with sun, from minutes of sun and the period length in minutes. */
+function sunFraction(minutes: number | null | undefined, periodMin: number): number | null {
+  const m = within(minutes, 0, periodMin * 1.05); // rounding in the source goes a hair over
+  return m == null ? null : Math.min(1, Math.round((m / periodMin) * 1000) / 1000);
+}
+const hoursToMin = (h: number | null): number | null => (h == null ? null : h * 60);
+/** Near-ground air and soil in Galicia: anything outside is a fault. */
+const plausibleGroundTemp = (v: number | null | undefined) => within(v, -30, 70);
+
 /**
  * AEMET pressure reduced to sea level, like every other source we store (WU,
  * Netatmo, Meteoclimatic): station-level values differ by altitude and would
@@ -85,6 +102,12 @@ export function normalizeAemetObservation(raw: AemetRawObservation): NormalizedR
     pressure: aemetSeaLevelPressure(raw), // hPa, sea level (was reading a field AEMET never sends)
     dewPoint: raw.tpr ?? null,        // Dew point from AEMET
     visibility,                       // km — null for stations without sensor
+    windDirSd: plausibleDirSd(raw.stddv),
+    windSpeedSd: plausibleSpeedSd(raw.stdvv),
+    sunFrac: sunFraction(raw.inso, 60), // `inso` = minutes of sun in the hour
+    // `ts` (ground surface) and `tss5cm`/`tss20cm` (soil) are left out on purpose:
+    // different depths from MeteoGalicia's -10 cm, and a surface sensor cools by
+    // radiation at night unlike air at 10 cm. One column, one physical quantity.
   };
 }
 
@@ -140,6 +163,12 @@ export function normalizeMeteoGaliciaObservation(
     solarRadiation: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.SOLAR_RADIATION)),
     pressure: plausiblePressure(sanitize(findMedida(entry.listaMedidas, MG_PARAMS.PRESSURE_SEA_LEVEL))),
     dewPoint: sanitize(findMedida(entry.listaMedidas, MG_PARAMS.DEW_POINT)),
+    windDirSd: plausibleDirSd(findMedida(entry.listaMedidas, MG_PARAMS.WIND_DIR_SD)),
+    windSpeedSd: plausibleSpeedSd(findMedida(entry.listaMedidas, MG_PARAMS.WIND_SPEED_SD)),
+    // HSOL_SUM comes in HOURS of sun within the 10 min, so 0.1667 is a full period.
+    sunFrac: sunFraction(hoursToMin(findMedida(entry.listaMedidas, MG_PARAMS.SUNSHINE)), 10),
+    temp10cm: plausibleGroundTemp(findMedida(entry.listaMedidas, MG_PARAMS.TEMP_10CM)),
+    soilTemp: plausibleGroundTemp(findMedida(entry.listaMedidas, MG_PARAMS.SOIL_TEMP)),
   };
 }
 

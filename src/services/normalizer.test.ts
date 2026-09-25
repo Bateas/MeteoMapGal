@@ -99,6 +99,27 @@ describe('normalizeAemetObservation', () => {
     } as unknown as AemetRawObservation);
     expect(reading.pressure).toBeNull();
   });
+
+  it('keeps the spread of wind and turns minutes of sun in the hour into a share', () => {
+    const reading = normalizeAemetObservation({
+      idema: '1393', fint: '2026-09-25T08:00:00', alt: 50, stddv: 8, stdvv: 0.6, inso: 34,
+    } as unknown as AemetRawObservation);
+    expect(reading.windDirSd).toBe(8);
+    expect(reading.windSpeedSd).toBe(0.6);
+    expect(reading.sunFrac).toBeCloseTo(0.567, 3);
+    // AEMET has no 10 cm air or 10 cm soil sensor; its surface and 5/20 cm readings stay out.
+    expect(reading.temp10cm ?? null).toBeNull();
+    expect(reading.soilTemp ?? null).toBeNull();
+  });
+
+  it('leaves the new fields null when a station does not send them', () => {
+    const reading = normalizeAemetObservation({
+      idema: '1387', fint: '2026-09-25T08:00:00', alt: 57,
+    } as unknown as AemetRawObservation);
+    expect(reading.windDirSd).toBeNull();
+    expect(reading.windSpeedSd).toBeNull();
+    expect(reading.sunFrac).toBeNull();
+  });
 });
 
 describe('normalizeMeteoclimaticObservation', () => {
@@ -195,6 +216,43 @@ describe('normalizeMeteoGaliciaObservation', () => {
       { codigoParametro: 'PRED_AVG_1.5m', valor: -9999 },
     ]));
     expect(reading!.pressure).toBeNull();
+  });
+
+  // Values copied from a live payload (Ons, 25-sep 09:10 UTC).
+  it('keeps the spread of wind, the sun, and the near-ground and soil temperatures', () => {
+    const reading = normalizeMeteoGaliciaObservation(10126, makeMG([
+      { codigoParametro: 'DV_SD_10m', valor: 15 },
+      { codigoParametro: 'VV_SD_10m', valor: 0.67 },
+      { codigoParametro: 'HSOL_SUM_1.5m', valor: 0.1667 },
+      { codigoParametro: 'TA_AVG_0.1m', valor: 18.77 },
+      { codigoParametro: 'TS_AVG_-0.1m', valor: 18.18 },
+    ]));
+    expect(reading!.windDirSd).toBe(15);
+    expect(reading!.windSpeedSd).toBe(0.67);
+    expect(reading!.sunFrac).toBe(1);          // 0.1667 h = the whole 10 minutes
+    expect(reading!.temp10cm).toBe(18.77);
+    expect(reading!.soilTemp).toBe(18.18);
+  });
+
+  it('reads sunshine in hours, so 0.1 h is 60% of the 10 minutes', () => {
+    const reading = normalizeMeteoGaliciaObservation(10126, makeMG([
+      { codigoParametro: 'HSOL_SUM_1.5m', valor: 0.1 },
+    ]));
+    expect(reading!.sunFrac).toBe(0.6);
+  });
+
+  it('drops the sentinel and impossible values from the new fields', () => {
+    const reading = normalizeMeteoGaliciaObservation(10126, makeMG([
+      { codigoParametro: 'DV_SD_10m', valor: -9999 },
+      { codigoParametro: 'VV_SD_10m', valor: 45 },
+      { codigoParametro: 'HSOL_SUM_1.5m', valor: -9999 },
+      { codigoParametro: 'TS_AVG_-0.1m', valor: -9999 },
+    ]));
+    expect(reading!.windDirSd).toBeNull();
+    expect(reading!.windSpeedSd).toBeNull();
+    expect(reading!.sunFrac).toBeNull();
+    expect(reading!.soilTemp).toBeNull();
+    expect(reading!.temp10cm).toBeNull();      // not sent at all
   });
 });
 
