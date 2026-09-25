@@ -8,6 +8,7 @@
  */
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Marker, useMap } from 'react-map-gl/maplibre';
+import { makeMarkerButton } from './markerA11y';
 import { useUserSpotStore } from '../../store/userSpotStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
@@ -79,6 +80,10 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
         return (
           <Marker
             key={us.id}
+            // Keyboard button with a real name (see markerA11y). Inline callback
+            // ref because hooks can't go in this loop; makeMarkerButton is
+            // idempotent, so re-applying it on each render never stacks listeners.
+            ref={(mk) => makeMarkerButton(mk, `${us.name} (sin calibrar): ${badge}`, () => handleSelect(us.id))}
             longitude={us.center[0]}
             latitude={us.center[1]}
             anchor="center"
