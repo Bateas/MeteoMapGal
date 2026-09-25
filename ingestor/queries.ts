@@ -3,7 +3,7 @@
  * All queries are read-only (SELECT) against TimescaleDB.
  */
 
-import { getPool } from './db.js';
+import { getPool, hasColumn } from './db.js';
 import { memoByKey } from './singleFlight.js';
 
 // ── Types ──────────────────────────────────────────────
@@ -100,9 +100,14 @@ export interface StationListItem {
  */
 export async function queryStationList(): Promise<StationListItem[]> {
   const db = getPool();
+  // The network's altitude when it gives one, else the terrain model's (demAltitudes.ts). The
+  // column is added in the database separately, so the plain one is used until it exists.
+  const altitude = (await hasColumn('stations', 'altitude_dem'))
+    ? 'COALESCE(NULLIF(s.altitude, 0), s.altitude_dem) AS altitude'
+    : 's.altitude';
   const result = await db.query<StationListItem>(`
     SELECT
-      s.station_id, s.source, s.name, s.altitude,
+      s.station_id, s.source, s.name, ${altitude},
       s.latitude AS lat, s.longitude AS lon, s.province,
       ROUND(EXTRACT(EPOCH FROM NOW() - s.updated_at) / 60)::int AS seen_min_ago,
       lr.last_reading

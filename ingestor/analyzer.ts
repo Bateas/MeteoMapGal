@@ -8,7 +8,7 @@
  * 24/7 operation — independent of frontend browser.
  */
 
-import { getPool } from './db.js';
+import { getPool, hasColumn } from './db.js';
 import { log } from './logger.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
@@ -216,25 +216,11 @@ async function getLatestBuoys(): Promise<BuoyWind[]> {
 /**
  * Persist spot scores to DB for verification and accuracy tracking.
  */
-/** Whether spot_scores already has the engine columns. They are added in the database
- *  separately, and writing them before they exist would reject every score row, not just the
- *  new fields. A yes is kept; a no is asked again every 30 min, so adding the columns after a
- *  deploy needs no restart. */
-let engineColumns: { ok: boolean; at: number } | null = null;
-async function hasEngineColumns(): Promise<boolean> {
-  if (engineColumns && (engineColumns.ok || Date.now() - engineColumns.at < 30 * 60_000)) return engineColumns.ok;
-  const ok = await getPool()
-    .query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'spot_scores' AND column_name = 'engine_wind_kt'`)
-    .then((r) => (r.rowCount ?? 0) > 0)
-    .catch(() => false);
-  engineColumns = { ok, at: Date.now() };
-  return ok;
-}
-
 async function persistSpotScores(results: SpotResult[], engine: Map<string, SpotScore> | null): Promise<void> {
   const db = getPool();
   const now = new Date();
-  const withEngine = engine !== null && await hasEngineColumns();
+  // Writing the engine columns before they exist would reject every score row, not just those fields.
+  const withEngine = engine !== null && await hasColumn('spot_scores', 'engine_wind_kt');
   for (const r of results) {
     if (r.verdict === 'unknown') continue;
     const e = withEngine ? engineView(engine!.get(r.spot.id)) : null;

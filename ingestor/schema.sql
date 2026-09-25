@@ -84,6 +84,11 @@ CREATE TABLE IF NOT EXISTS stations (
 -- coverage — nothing scores or alerts on it.
 ALTER TABLE stations ADD COLUMN IF NOT EXISTS province TEXT;
 
+-- Ground altitude from a terrain model, for stations whose network reports none (Wunderground,
+-- IPMA: their altitude column is 0, which means unknown). Filled by ingestor/demAltitudes.ts;
+-- the network's own altitude stays untouched and readers prefer it when it is set.
+ALTER TABLE stations ADD COLUMN IF NOT EXISTS altitude_dem DOUBLE PRECISION;
+
 CREATE INDEX IF NOT EXISTS stations_source_idx
   ON stations (source);
 
