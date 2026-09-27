@@ -94,6 +94,9 @@ const SAFETY_SPOTS = (['embalse', 'rias'] as const).flatMap((sector) =>
 const previousVerdicts = new Map<string, Verdict>();
 let lastForecastRun = 0;
 const FORECAST_INTERVAL_MS = 30 * 60_000; // 30 minutes
+/** Whether spot_scores has the engine shadow columns, as last seen by persistSpotScores.
+ *  null = not checked yet. Only a change is logged: a missing column warns once, not every cycle. */
+let engineColsState: boolean | null = null;
 
 // ── Shared helpers (imported from src/) ─────────────
 // distanceKm → haversineDistance (geoUtils)
@@ -221,6 +224,19 @@ async function persistSpotScores(results: SpotResult[], engine: Map<string, Spot
   const now = new Date();
   // Writing the engine columns before they exist would reject every score row, not just those fields.
   const withEngine = engine !== null && await hasColumn('spot_scores', 'engine_wind_kt');
+  // Without the columns the shadow is dropped silently, so say so once, and once more when
+  // they appear (hasColumn re-checks a missing column every 30 min, no restart needed).
+  if (engine !== null) {
+    if (!withEngine && engineColsState !== false) {
+      log.warn('[Analyzer] spot_scores sin columnas engine_verdict/engine_wind_kt: la sombra del motor no se guarda; aplicar el ALTER de schema.sql en la base de datos');
+      engineColsState = false;
+    } else if (withEngine && engineColsState === false) {
+      log.info('[Analyzer] columnas engine_* presentes: la sombra del motor ya se guarda');
+      engineColsState = true;
+    } else if (withEngine && engineColsState === null) {
+      engineColsState = true;
+    }
+  }
   for (const r of results) {
     if (r.verdict === 'unknown') continue;
     const e = withEngine ? engineView(engine!.get(r.spot.id)) : null;

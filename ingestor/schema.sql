@@ -193,6 +193,13 @@ CREATE INDEX IF NOT EXISTS buoy_readings_station_idx
 CREATE INDEX IF NOT EXISTS buoy_readings_source_idx
   ON buoy_readings (source, time DESC);
 
+-- First time the ingestor stored the reading: lets us measure the publication
+-- lag of each buoy (ingested_at - time). Same two steps as active_fires: added
+-- without a default, so older rows stay NULL ("we don't know") instead of
+-- getting an invented ingest time, then the default for every new row.
+ALTER TABLE buoy_readings ADD COLUMN IF NOT EXISTS ingested_at TIMESTAMPTZ;
+ALTER TABLE buoy_readings ALTER COLUMN ingested_at SET DEFAULT NOW();
+
 -- ── Buoy hourly continuous aggregate ───────────────────
 DO $$
 BEGIN
