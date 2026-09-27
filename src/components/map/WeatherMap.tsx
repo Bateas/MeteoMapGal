@@ -702,8 +702,9 @@ export function WeatherMap() {
       <SSTLegend />
       {/* SpotScoreLegend removed — verdict info visible on each spot badge. Revisit if needed for specific modes */}
       {sectorId === 'embalse' && <SailingConditionBanner />}
-      <CriticalAlertBanner />
-      <LightningProximityBanner />
+      {/* On a phone both live in AppShell's top-of-map column instead */}
+      {!isMobile && <CriticalAlertBanner />}
+      {!isMobile && <LightningProximityBanner />}
 
       {/* "Crear spot" placement-mode hint — transient, while choosing the spot */}
       {placingSpot && (

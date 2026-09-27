@@ -12,7 +12,9 @@ import { useUIStore } from '../../store/uiStore';
  * Compact floating pill above the map on mobile.
  * Shows: "Cesantes · Buen día · 15kt SW"
  * Tapping it opens the sidebar where the full SpotSelector is rendered.
- * Works for all sectors (Embalse + Rías).
+ * Works for all sectors (Embalse + Rías). AppShell places it, last in the
+ * top-of-map column under the safety banners; it carries no position of its
+ * own (a fixed offset from the top of the screen put it on the warnings).
  *
  * A surf spot shows its WAVE verdict, the one its marker, row and card show
  * ("Corrubedo · SURF OK · ~1,1 m"): the pill said «Corrubedo · Calma»
@@ -53,7 +55,7 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
         aria-label={`Condiciones en ${activeSpot.shortName}: ${surf.label}${wave ? `, ${wave} de ola (modelo)` : ''}`}
         onClick={() => setSidebarOpen(true)}
         className={`
-          fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-20
+          pointer-events-auto
           flex items-center gap-1.5 px-3 py-1.5 rounded-full
           border ${n.border} ${n.bg}
           shadow-lg shadow-black/30
@@ -99,7 +101,7 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
       aria-label={`Condiciones en ${activeSpot.shortName}: ${label}${windInfo ? `, ${windInfo}` : ''}`}
       onClick={() => setSidebarOpen(true)}
       className={`
-        fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-20
+        pointer-events-auto
         flex items-center gap-1.5 px-3 py-1.5 rounded-full
         border ${v.border} ${v.bg}
         shadow-lg shadow-black/30

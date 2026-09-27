@@ -4,8 +4,9 @@
  *
  * Auto-shows when observed cloud-to-ground strikes put a spot of the active
  * sector at risk (reactive overlay: observation-based, so auto-activation is
- * allowed). Sits in its own slot BELOW CriticalAlertBanner so both can show
- * during a severe storm without overlapping.
+ * allowed). Sits BELOW CriticalAlertBanner so both can show during a severe
+ * storm without overlapping: its own slot on desktop, the next place in
+ * AppShell's top-of-map column on a phone.
  *
  * Click selects the affected spot — the popup gives the full local picture.
  */
@@ -43,7 +44,8 @@ export const LightningProximityBanner = memo(function LightningProximityBanner()
 
   return (
     <div
-      className={`${isMobile ? 'fixed z-30 top-[7rem]' : 'absolute z-30 top-14'} left-1/2 -translate-x-1/2 pointer-events-auto`}
+      // Phone: placed by AppShell's top-of-map column, right under the critical banner.
+      className={`${isMobile ? 'max-w-full' : 'absolute z-30 top-14 left-1/2 -translate-x-1/2'} pointer-events-auto`}
       role="alert"
       aria-live="assertive"
     >
