@@ -65,7 +65,8 @@ export const CriticalAlertBanner = memo(function CriticalAlertBanner() {
 
   return (
     <div
-      className={`${isMobile ? 'fixed z-30 top-[4.25rem]' : 'absolute z-30 top-3'} left-1/2 -translate-x-1/2 pointer-events-auto`}
+      // Phone: placed by AppShell's top-of-map column, first in the stack.
+      className={`${isMobile ? 'max-w-full' : 'absolute z-30 top-3 left-1/2 -translate-x-1/2'} pointer-events-auto`}
       role="alert"
       aria-live="assertive"
     >

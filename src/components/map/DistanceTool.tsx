@@ -12,6 +12,7 @@ import { useState, useEffect, memo, useRef } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import { Source, Layer, Marker } from 'react-map-gl/maplibre';
 import type { LineLayerSpecification } from 'maplibre-gl';
+import { useUIStore } from '../../store/uiStore';
 
 interface DistanceToolProps {
   mapRef: React.RefObject<MapRef | null>;
@@ -63,6 +64,7 @@ const lineLayer: LineLayerSpecification = {
 };
 
 export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDeactivate }: DistanceToolProps) {
+  const isMobile = useUIStore((s) => s.isMobile);
   const [pointA, setPointA] = useState<Point | null>(null);
   const [pointB, setPointB] = useState<Point | null>(null);
   const clickPhaseRef = useRef<'A' | 'B' | 'done'>('A');
@@ -148,7 +150,13 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
     <>
       {/* Instruction banner */}
       {!hasLine && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 border border-amber-500/30 rounded-lg px-4 py-2 text-sm text-amber-300 shadow-lg backdrop-blur-sm flex items-center gap-3">
+        // Phone: under AppShell's top-of-map column (--map-top + its height),
+        // not at a fixed distance from the top of the screen, where it covered
+        // the official warnings.
+        <div
+          className={`fixed ${isMobile ? '' : 'top-16 '}left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 border border-amber-500/30 rounded-lg px-4 py-2 text-sm text-amber-300 shadow-lg backdrop-blur-sm flex items-center gap-3`}
+          style={isMobile ? { top: 'calc(var(--map-top, 4rem) + var(--map-stack-h, 0px) + 0.875rem)' } : undefined}
+        >
           <span>{clickPhaseRef.current === 'A' ? 'Toca el punto de inicio' : 'Toca el punto final'}</span>
           <button
             onClick={onDeactivate}

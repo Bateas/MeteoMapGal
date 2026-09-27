@@ -36,6 +36,9 @@ import { useUIStore } from '../../store/uiStore';
 import { useToastStore } from '../../store/toastStore';
 import { useAirspaceStore } from '../../store/airspaceStore';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
+import { CriticalAlertBanner } from '../map/CriticalAlertBanner';
+import { LightningProximityBanner } from '../map/LightningProximityBanner';
+import { useCssVarFromElement } from '../../hooks/useCssVarFromElement';
 import type { TeleconnectionIndex } from '../../api/naoClient';
 import { useUnifiedAlertPipeline } from '../../hooks/useUnifiedAlertPipeline';
 import { useDeepLink } from '../../hooks/useDeepLink';
@@ -143,6 +146,12 @@ export function AppShell() {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#ffffff' : '#0f172a');
   }, [theme]);
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  // Where the map really starts, and how tall the phone's top-of-map column
+  // is: fixed notices read them as --map-top / --map-stack-h.
+  const mainRef = useRef<HTMLElement>(null);
+  const mapTopStackRef = useRef<HTMLDivElement>(null);
+  useCssVarFromElement(mainRef, '--map-top', 'top');
+  useCssVarFromElement(mapTopStackRef, '--map-stack-h', 'height', isMobile);
   const setIsMobile = useUIStore((s) => s.setIsMobile);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const fieldDrawerOpen = useUIStore((s) => s.fieldDrawerOpen);
@@ -430,14 +439,26 @@ export function AppShell() {
           </>
         )}
 
-        <main id="main-map" className={`flex-1 relative isolate transition-opacity duration-1000 map-dark-scope ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
+        <main ref={mainRef} id="main-map" className={`flex-1 relative isolate transition-opacity duration-1000 map-dark-scope ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
           <ErrorBoundary section="Mapa">
             <WeatherMap />
           </ErrorBoundary>
 
-          {/* Mobile sailing banner: floating pill above the map (both sectors) */}
-          {isMobile && !sidebarOpen && (
-            <MobileSailingBanner />
+          {/* Phone: the notices at the top of the map share ONE column, pinned
+              where the map really starts (--map-top, measured) and stacked by
+              importance. Each used to sit at its own fixed distance from the top
+              of the SCREEN, so they landed on the official warnings and the
+              ticker above the map, and on each other. */}
+          {isMobile && (
+            <div
+              ref={mapTopStackRef}
+              className="fixed left-0 right-0 z-30 px-2 flex flex-col items-center gap-1.5 pointer-events-none"
+              style={{ top: 'calc(var(--map-top, 4.5rem) + 0.5rem)' }}
+            >
+              <CriticalAlertBanner />
+              <LightningProximityBanner />
+              {!sidebarOpen && <MobileSailingBanner />}
+            </div>
           )}
 
           {/* Campo (field alerts) drawer — lazy loaded */}
