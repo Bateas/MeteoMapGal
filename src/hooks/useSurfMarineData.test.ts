@@ -60,7 +60,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => 'visible');
   // 0.8 m of W swell: at A Lanzada (0.75, W beach) that is 0.6 m → PEQUE
-  // before wind, SURF OK with offshore NE, FLAT with onshore W.
+  // before wind, SURF OK with offshore NE, still PEQUE with onshore W.
   fetchMock = vi.fn(async () => ({ ok: true, json: async () => apiPayload(0.8) }));
   vi.stubGlobal('fetch', fetchMock);
   useSpotStore.setState({ scores: new Map(), surfWaveCache: new Map() });
@@ -122,7 +122,10 @@ describe('useSurfMarineData', () => {
     });
 
     const e = useSpotStore.getState().surfWaveCache.get('surf-lanzada')!;
-    expect(e.verdict?.label).toBe('FLAT'); // PEQUE − onshore W
+    // SURF OK (offshore NE) → PEQUE: the onshore W takes the bonus away and
+    // cannot go further, the wind never makes a 0.6 m sea FLAT.
+    expect(e.verdict?.label).toBe('PEQUE');
+    expect(e.verdict?.summary).toMatch(/onshore/);
     expect(fetchMock.mock.calls.length).toBe(calls);
   });
 

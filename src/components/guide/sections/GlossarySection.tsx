@@ -331,7 +331,7 @@ export function GlossarySection() {
         <Term
           term="Offshore / Onshore"
           definition="Offshore = viento de tierra al mar (limpia las olas). Onshore = viento del mar a tierra (destroza la superficie)."
-          example="Patos con viento S/SSW (offshore) = olas limpias y huecas. Con NW (onshore) = mar revuelto, no surfeable."
+          example="Patos con viento S/SSW (offshore) = olas limpias y huecas. Con NW (onshore) fresco = mar revuelto; con menos de 5 kt apenas se nota."
           color="#06b6d4"
           search={q}
         />

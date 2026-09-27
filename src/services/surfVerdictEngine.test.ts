@@ -280,9 +280,9 @@ describe('surf copy describes the sea, never who it suits', () => {
       expect(s).not.toMatch(/iniciarse|ideal|longboard|meterse|puedes|apto/i);
     }
   });
-  it('a FLAT reached through the onshore penalty does not say «Mar plano»', () => {
-    // 0.7 m is PEQUE by height; onshore takes it to level 0
-    const r = computeSurfVerdict(0.7, 8, false, true);
+  it('a FLAT reached through a wind sea does not say «Mar plano»', () => {
+    // 0.7 m is PEQUE by height; a 4 s period (wind chop) takes it to level 0
+    const r = computeSurfVerdict(0.7, 4, false, false);
     expect(r.label).toBe('FLAT');
     expect(r.summary).not.toMatch(/Mar plano|sin olas para surf/);
     expect(r.summary).toMatch(/^Sin olas surfeables/);
@@ -298,7 +298,7 @@ describe('deriveSurfNow — a direction nobody can state decides nothing', () =>
   function varWind(dirDeg: number, dirSteadiness: number): SurfWindSource {
     return {
       provisional: false,
-      wind: { stationCount: 3, avgSpeedKt: 3, rawAvgSpeedKt: 3, dominantDir: 'W', dirDeg, dirSteadiness, matchedPattern: null, contributions: [] },
+      wind: { stationCount: 3, avgSpeedKt: 7, rawAvgSpeedKt: 7, dominantDir: 'W', dirDeg, dirSteadiness, matchedPattern: null, contributions: [] },
     };
   }
   it('variable (steadiness 0.4) onshore W: no penalty, no «onshore» in the summary', () => {
@@ -311,6 +311,59 @@ describe('deriveSurfNow — a direction nobody can state decides nothing', () =>
     const r = deriveSurfNow(LANZADA, hours, varWind(270, 0.9), NOW)!;
     expect(r.verdict.label).toBe('PEQUE');
     expect(r.verdict.summary).toMatch(/onshore/);
+  });
+});
+
+// ── Field check, Patos 27-sep 17:30 ─────────────────────────────────
+//
+// Model 0.6 m at the beach, 9 s, NW (onshore) 4 kt gusting 7-8, high tide.
+// The card said FLAT; the webcam showed a surf school catching waves. The
+// wind changes how clean the waves are, not whether there are any.
+
+describe('the wind never erases waves that are there', () => {
+  // 1.33 m NW swell × 0.45 (Patos) × 1.0 aligned ≈ 0.6 m at the beach
+  const hours = [hour(1, { swellHeight: 1.33, swellPeriod: 9, swellDirection: 315 })];
+  function nw(kt: number): SurfWindSource {
+    return {
+      provisional: false,
+      wind: { stationCount: 6, avgSpeedKt: kt, rawAvgSpeedKt: kt, dominantDir: 'NW', dirDeg: 296, dirSteadiness: 0.9, matchedPattern: null, contributions: [] },
+    };
+  }
+  it('Patos with a 4 kt NW is PEQUE, and the breeze is not called onshore', () => {
+    const r = deriveSurfNow(PATOS, hours, nw(4), NOW)!;
+    expect(r.height).toBeCloseTo(0.6, 2);
+    expect(r.verdict.label).toBe('PEQUE');
+    expect(r.verdict.summary).not.toMatch(/onshore/);
+  });
+  it('with 5 kt the NW counts as onshore but still cannot make it FLAT', () => {
+    const r = deriveSurfNow(PATOS, hours, nw(5), NOW)!;
+    expect(r.verdict.label).toBe('PEQUE');
+    expect(r.verdict.summary).toMatch(/onshore/);
+  });
+  it('onshore on its own never takes a PEQUE sea to FLAT, at any speed', () => {
+    expect(computeSurfVerdict(0.35, 8, false, true).label).toBe('PEQUE');
+    expect(computeSurfVerdict(0.7, 9, false, true).label).toBe('PEQUE');
+  });
+  it('onshore plus a wind sea can', () => {
+    expect(computeSurfVerdict(0.7, 4, false, true).label).toBe('FLAT');
+  });
+  it('an offshore breeze under 5 kt does not lift the verdict either', () => {
+    // Lanzada: 0.8 × 0.75 = 0.6 m → PEQUE; NE 60° is its offshore
+    const lanzadaHours = [hour(1, { swellHeight: 0.8, swellPeriod: 8, swellDirection: 270 })];
+    const light: SurfWindSource = { provisional: false, wind: { ...nw(3).wind!, dirDeg: 60, dominantDir: 'NE' } };
+    const fresh: SurfWindSource = { provisional: false, wind: { ...nw(8).wind!, dirDeg: 60, dominantDir: 'NE' } };
+    expect(deriveSurfNow(LANZADA, lanzadaHours, light, NOW)!.verdict.label).toBe('PEQUE');
+    expect(deriveSurfNow(LANZADA, lanzadaHours, fresh, NOW)!.verdict.label).toBe('SURF OK');
+  });
+});
+
+describe('SURF OK needs 0.5 m at the beach', () => {
+  it('a bonus cannot lift 0.45 m to SURF OK', () => {
+    expect(computeSurfVerdict(0.45, 8, true, false).label).toBe('PEQUE');
+    expect(computeSurfVerdict(0.45, 12, false, false, true).label).toBe('PEQUE');
+  });
+  it('from 0.5 m it can', () => {
+    expect(computeSurfVerdict(0.5, 8, true, false).label).toBe('SURF OK');
   });
 });
 

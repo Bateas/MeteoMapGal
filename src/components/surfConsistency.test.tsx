@@ -200,7 +200,7 @@ describe('surf verdict: one answer on marker, list, ticker, popup and pill', () 
   });
 
   it('onshore wind from the consensus: all of them drop to PEQUE together', () => {
-    const entry = seed({ dirDeg: 315 }); // NW straight onto a NW beach
+    const entry = seed({ dirDeg: 315, kt: 8 }); // NW straight onto a NW beach (under 5 kt it would not count)
     expect(entry.verdict?.label).toBe('PEQUE');
     const h = formatSurfWave(entry.waveHeight!);
     const s = renderSurfaces();

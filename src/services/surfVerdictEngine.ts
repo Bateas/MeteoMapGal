@@ -6,11 +6,13 @@
  *
  * Modifiers (cap +1 total):
  *   - Offshore wind: +1 (olas limpias)
- *   - Onshore wind: -1 (mar revuelto)
+ *   - Onshore wind: -1 (mar revuelto), never down to FLAT
  *   - Swell period >=10s + aligned: +1 (swell de calidad)
  *   - Short period <5s: -1 (mar de viento)
+ *   Wind under SURF_WIND_MIN_KT counts neither way (see deriveSurfNow).
  *
  * Hard floors:
+ *   - SURF OK needs >= 0.5m effective waves
  *   - CLÁSICO needs >= 1.0m effective waves
  *   - GRANDE needs >= 1.8m effective waves
  *
@@ -76,6 +78,9 @@ export function swellAlignmentMultiplier(swellDir: number, beachOrientation: num
   return 0.3; // behind the beach — minimal exposure
 }
 
+/** Below this beach height a bonus cannot make «SURF OK»: it stays PEQUE. */
+export const SURF_OK_MIN_M = 0.5;
+
 export function computeSurfVerdict(
   waveHeight: number,
   period: number,
@@ -94,6 +99,7 @@ export function computeSurfVerdict(
   const baseLevel = level;
   const warnings: string[] = [];
   let bonus = 0;
+  let windSea = false; // short period: the waves themselves are wind chop
 
   // Wind quality (affects wave cleanliness, not size)
   if (isOffshore && level > 0) {
@@ -113,18 +119,26 @@ export function computeSurfVerdict(
     warnings.push(`periodo ${period.toFixed(0)}s (swell cruzado)`);
   } else if (period > 0 && period < 5 && level >= 1) {
     bonus -= 1;
+    windSea = true;
     warnings.push(`periodo ${period.toFixed(0)}s (mar de viento)`);
   }
 
   // Apply bonus but CAP at +1 from base
   level = Math.max(0, Math.min(4, baseLevel + Math.max(-2, Math.min(1, bonus))));
 
+  // Wind changes how clean the waves are, never whether there are any: only
+  // a wind sea (short period) can take real height down to FLAT. Patos,
+  // 27-sep 17:30: 0.6 m at 9 s with a NW (onshore) of 4-5 kt read FLAT on the
+  // card while its webcam showed a surf school catching waves.
+  if (level === 0 && baseLevel > 0 && !windSea) level = 1;
+
   // Hard floors: modifiers can't create size that isn't there
   if (level >= 3 && waveHeight < 1.0) level = 2; // CLÁSICO needs >= 1.0m
   if (level === 4 && waveHeight < 1.8) level = 3; // GRANDE needs >= 1.8m
+  if (level === 2 && waveHeight < SURF_OK_MIN_M) level = 1; // SURF OK needs >= 0.5m
 
   const result = { ...LEVELS[level] };
-  // Level 0 reached through the modifiers, not the sea: there ARE waves, just
+  // Level 0 reached through a wind sea, not a flat one: there ARE waves, just
   // not surfable ones, and «Mar plano» beside «~0,7 m» contradicted itself.
   if (level === 0 && baseLevel > 0) result.summary = 'Sin olas surfeables';
 
@@ -154,6 +168,11 @@ export type SurfWindSource = Pick<SpotScore, 'provisional' | 'wind'>;
 
 /** Used when a surf spot has no coastalFactor of its own. */
 export const DEFAULT_COASTAL_FACTOR = 0.85;
+
+/** Under this consensus wind the surface is glassy or close to it: neither
+ *  offshore nor onshore changes the verdict. Counting a 4 kt NW as onshore
+ *  called Patos FLAT (27-sep) with people surfing it. */
+export const SURF_WIND_MIN_KT = 5;
 
 /** A forecast hour further than this from now is not "now". Not a surf
  *  threshold: the sources are hourly, so a valid array always has an hour
@@ -295,8 +314,9 @@ export function deriveSurfNow(
   // A direction the card calls «variable» (the sources disagree, see
   // verdictStyles.DIR_VARIABLE_BELOW) is a mean with nothing behind it, so it
   // decides neither offshore nor onshore — the same rule the sailing engine
-  // follows for its pattern match.
-  const windDir = windPending || !score?.wind || isDirVariable(score.wind) ? null : score.wind.dirDeg;
+  // follows for its pattern match. Nor does a breeze under SURF_WIND_MIN_KT.
+  const wind = windPending ? null : score?.wind ?? null;
+  const windDir = !wind || isDirVariable(wind) || !(wind.avgSpeedKt >= SURF_WIND_MIN_KT) ? null : wind.dirDeg;
   const verdict = computeSurfVerdict(
     wave.height,
     wave.period,
