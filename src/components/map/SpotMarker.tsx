@@ -17,6 +17,7 @@ import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 import { VERDICT_STYLE } from '../../config/verdictStyles';
 import { clusterSpots, CLUSTER_DISABLE_ZOOM, type SpotClusterGroup } from '../../services/spotClustering';
+import { formatSurfWave, surfDisplayState, type SurfVerdictResult } from '../../services/surfVerdictEngine';
 
 // ── Verdict colors — aligned with simplified windSpeedColor() scale ──
 const VERDICT_COLORS: Record<SpotVerdict, { ring: string; text: string; glow: string }> = {
@@ -117,8 +118,19 @@ export const SpotMarkers = memo(function SpotMarkers() {
         const provisional = score?.provisional === true;
         const verdict: SpotVerdict = provisional ? 'unknown' : (score?.verdict ?? 'unknown');
         const isActive = spot.id === activeSpotId;
+        // Surf spots read THE surf verdict from the cache entry (built by
+        // useSurfMarineData with the consensus wind). Spinner until it exists
+        // with its wind; a dash when the forecast gave no usable hour. Over
+        // the engine's hard gate the spot shows the engine's own verdict, as
+        // any spot does: the wave verdict ignores wind SPEED.
+        const isSurf = spot.category === 'surf';
+        const surfEntry = isSurf ? surfWaveCache.get(spot.id) : undefined;
+        const surfState = isSurf ? surfDisplayState(surfEntry, score) : null;
+        const surfDanger = surfState === 'danger';
         // Show spinner while provisional data, or no data yet scored
-        const spotLoading = (showSpinner && verdict === 'unknown') || provisional || verdict === 'unknown';
+        const spotLoading = isSurf && !surfDanger
+          ? provisional || surfState === 'loading'
+          : (showSpinner && verdict === 'unknown') || provisional || verdict === 'unknown';
         return (
           <SpotMarkerItem
             key={spot.id}
@@ -129,16 +141,16 @@ export const SpotMarkers = memo(function SpotMarkers() {
             lat={spot.center[1]}
             verdict={verdict}
             windKt={provisional ? null : (score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null)}
-            waveHeight={spot.category === 'surf' ? (surfWaveCache.get(spot.id)?.waveHeight ?? null) : (score?.waves?.waveHeight ?? null)}
-            wavePeriod={spot.category === 'surf' ? (surfWaveCache.get(spot.id)?.period ?? null) : (score?.waves?.wavePeriod ?? null)}
+            waveHeight={isSurf ? (surfEntry?.waveHeight ?? null) : (score?.waves?.waveHeight ?? null)}
+            wavePeriod={isSurf ? (surfEntry?.period ?? null) : (score?.waves?.wavePeriod ?? null)}
             isActive={isActive}
             isLoading={spotLoading}
             isProvisional={provisional}
             onSelect={selectSpot}
             zoomScale={zoomScale}
-            isSurf={spot.category === 'surf'}
-            surfVerdictLabel={surfWaveCache.get(spot.id)?.verdictLabel}
-            surfVerdictColor={surfWaveCache.get(spot.id)?.verdictColor}
+            isSurf={isSurf}
+            surfDanger={surfDanger}
+            surfVerdict={surfState === 'ready' ? surfEntry?.verdict : null}
           />
         );
       })}
@@ -238,8 +250,11 @@ interface SpotMarkerItemProps {
   onSelect: (id: string) => void;
   zoomScale: number;
   isSurf?: boolean;
-  surfVerdictLabel?: string;
-  surfVerdictColor?: string;
+  /** Surf spot over the engine's hard gate: badge, colours and gauge follow the
+   *  wind verdict like any spot (the pentagon stays) */
+  surfDanger?: boolean;
+  /** THE surf verdict from the cache entry; null/undefined = no usable data */
+  surfVerdict?: SurfVerdictResult | null;
 }
 
 /** Hexagon path for sailing spots — 6 sides */
@@ -276,18 +291,25 @@ function gaugeArc(r: number, windKt: number | null): string {
   return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
 }
 
-/** Convert a hex color to ring/text/glow variants for marker rendering */
-function surfColorFromHex(hex: string): typeof VERDICT_COLORS['calm'] {
-  return { ring: hex, text: hex, glow: hex };
-}
-
-/** Simple surf verdict for map markers — fallback when cached verdict not available */
-function surfMarkerVerdict(wh: number | null): { label: string; colors: typeof VERDICT_COLORS['calm'] } {
-  if (wh === null || wh < 0.3) return { label: 'FLAT', colors: VERDICT_COLORS.calm };
-  if (wh < 0.8) return { label: 'PEQUE', colors: { ring: '#22d3ee', text: '#67e8f9', glow: '#0891b2' } };   // cyan
-  if (wh < 1.5) return { label: 'SURF OK', colors: { ring: '#3b82f6', text: '#93c5fd', glow: '#2563eb' } };  // blue
-  if (wh < 2.5) return { label: 'CLASICO', colors: { ring: '#22c55e', text: '#4ade80', glow: '#16a34a' } };  // green
-  return { label: 'GRANDE', colors: { ring: '#f97316', text: '#fdba74', glow: '#ea580c' } };                  // orange
+/**
+ * Whether a change of the badge's verdict is an upgrade worth a flash.
+ * Keys are `wind:<verdict>` or `surf:<level>` (empty level = no verdict).
+ * Wind: CALMA/FLOJO/— → NAVEG./BUENO/FUERTE, as before. Surf: the WAVE level
+ * entering SURF OK or CLÁSICO — a beach's wind verdict says nothing about its
+ * waves (an onshore wind building flashed the badge green while the surf got
+ * worse), and GRANDE is not an upgrade. A switch between the two kinds
+ * (hard gate on or off) is not one either.
+ */
+function isVerdictUpgrade(prev: string, next: string): boolean {
+  const [prevKind, prevValue] = prev.split(':');
+  const [nextKind, nextValue] = next.split(':');
+  if (prevKind !== nextKind) return false;
+  if (nextKind === 'wind') {
+    return ['calm', 'light', 'unknown'].includes(prevValue) && ['sailing', 'good', 'strong'].includes(nextValue);
+  }
+  const prevLevel = prevValue === '' ? -1 : Number(prevValue);
+  const nextLevel = nextValue === '' ? -1 : Number(nextValue);
+  return (nextLevel === 2 || nextLevel === 3) && prevLevel < 2;
 }
 
 const SpotMarkerItem = memo(function SpotMarkerItem({
@@ -306,35 +328,37 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   onSelect,
   zoomScale,
   isSurf,
-  surfVerdictLabel,
-  surfVerdictColor,
+  surfDanger,
+  surfVerdict,
 }: SpotMarkerItemProps) {
-  // Surf spots: use cached verdict from popup (includes period+wind modifiers).
-  // Falls back to wave-height-only verdict if popup hasn't been opened yet.
-  const surfV = isSurf
-    ? (surfVerdictLabel && surfVerdictColor
-        ? { label: surfVerdictLabel, colors: surfColorFromHex(surfVerdictColor) }
-        : surfMarkerVerdict(waveHeight))
-    : null;
-  const colors = surfV?.colors ?? VERDICT_COLORS[verdict];
+  // A surf spot shows its WAVE verdict — badge, colours, gauge — unless the
+  // engine's hard gate is on, where it reads the wind verdict like any spot.
+  // The pentagon stays either way: the shape says what kind of spot it is.
+  const surfWaveMode = !!isSurf && !surfDanger;
+  // Surf spots: THE verdict from the cache entry (same one list, popup and
+  // ticker read). No fallback of its own: without it the badge is a dash.
+  const surfV = surfWaveMode && surfVerdict ? surfVerdict : null;
+  const colors = surfV
+    ? { ring: surfV.color, text: surfV.text, glow: surfV.color }
+    : (surfWaveMode ? VERDICT_COLORS.unknown : VERDICT_COLORS[verdict]);
   const size = isActive ? 48 : 42;
   const iconSize = isActive ? 22 : 18;
   const gaugeR = size / 2 + 5;
 
-  // Verdict upgrade flash — detect CALMA→NAVEGABLE transitions
-  const prevVerdictRef = useRef(verdict);
+  // Verdict upgrade flash (see isVerdictUpgrade). The key changes only with
+  // the verdict the badge shows, so a sailing spot behaves exactly as before.
+  const flashKey = surfWaveMode ? `surf:${surfV?.level ?? ''}` : `wind:${verdict}`;
+  const prevFlashKeyRef = useRef(flashKey);
   const [upgradeFlash, setUpgradeFlash] = useState(false);
   useEffect(() => {
-    const prev = prevVerdictRef.current;
-    prevVerdictRef.current = verdict;
-    const low = ['calm', 'light', 'unknown'];
-    const high = ['sailing', 'good', 'strong'];
-    if (low.includes(prev) && high.includes(verdict)) {
+    const prev = prevFlashKeyRef.current;
+    prevFlashKeyRef.current = flashKey;
+    if (isVerdictUpgrade(prev, flashKey)) {
       setUpgradeFlash(true);
       const t = setTimeout(() => setUpgradeFlash(false), 3000);
       return () => clearTimeout(t);
     }
-  }, [verdict]);
+  }, [flashKey]);
 
   const handleClick = useCallback(
     (e: { originalEvent: MouseEvent }) => {
@@ -344,9 +368,12 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
     [onSelect, spotId],
   );
 
-  // Badge text: surf uses wave label + height, sailing uses wind label + kt
-  const badgeText = isSurf && surfV
-    ? (waveHeight !== null && waveHeight >= 0.3 ? `${surfV.label} ${waveHeight.toFixed(1)}m` : surfV.label)
+  // Badge text: surf uses wave label + height, sailing uses wind label + kt.
+  // The beach height is a model value, hence the «~».
+  const badgeText = surfWaveMode
+    ? (surfV
+      ? (waveHeight !== null && waveHeight >= 0.3 ? `${surfV.label} ${formatSurfWave(waveHeight)}` : surfV.label)
+      : VERDICT_MAP_LABEL.unknown)
     : (windKt !== null && verdict !== 'calm' && verdict !== 'unknown'
       ? `${VERDICT_MAP_LABEL[verdict]} ${windKt.toFixed(0)}kt`
       : VERDICT_MAP_LABEL[verdict]);
@@ -354,7 +381,17 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   // Same text the inner <svg> used to carry; it now names the wrapper, which is
   // the element MapLibre exposes as role="button". Enter/Space select the spot
   // exactly like a click does.
-  const ariaLabel = isProvisional ? `Spot ${shortName}: calculando condiciones` : `Spot ${shortName}: ${badgeText}`;
+  const calculating = isProvisional || (surfWaveMode && isLoading);
+  const ariaLabel = calculating
+    ? `Spot ${shortName}: calculando condiciones`
+    : surfWaveMode
+      ? (surfV ? `Spot ${shortName}: ${badgeText} (olas: modelo)` : `Spot ${shortName}: sin dato de olas`)
+      : `Spot ${shortName}: ${badgeText}`;
+  // The hover title says what the «~» means: the only surface where the word
+  // «modelo» does not fit on screen.
+  const title = calculating
+    ? `${shortName} — calculando condiciones`
+    : surfV ? `${shortName} — olas: modelo, nadie las mide en la playa` : shortName;
   const markerRef = useCallback(
     (mk: MarkerInstance | null) => makeMarkerButton(mk, ariaLabel, () => onSelect(spotId)),
     [ariaLabel, onSelect, spotId],
@@ -366,7 +403,7 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   return (
     // z-index above station clusters (1); active spot floats above other spots.
     <Marker ref={markerRef} longitude={lon} latitude={lat} anchor="center" onClick={handleClick} style={{ zIndex: isActive ? 8 : 6 }}>
-      <div className="spot-marker relative cursor-pointer" title={isProvisional ? `${shortName} — calculando condiciones` : shortName} style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center' }}>
+      <div className="spot-marker relative cursor-pointer" title={title} style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center' }}>
         <svg
           width={svgSize}
           height={svgSize}
@@ -403,9 +440,9 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
           />
 
           {/* Gauge arc — wind speed for sailing, wave height for surf */}
-          {(isSurf ? (waveHeight != null && waveHeight >= 0.3) : (windKt != null && windKt >= 1)) && (
+          {(surfWaveMode ? (surfV != null && waveHeight != null && waveHeight >= 0.3) : (windKt != null && windKt >= 1)) && (
             <path
-              d={isSurf ? gaugeArc(gaugeR, (waveHeight ?? 0) * 8) : gaugeArc(gaugeR, windKt)}
+              d={surfWaveMode ? gaugeArc(gaugeR, (waveHeight ?? 0) * 8) : gaugeArc(gaugeR, windKt)}
               fill="none"
               stroke={colors.ring}
               strokeWidth={isActive ? 4 : 3}

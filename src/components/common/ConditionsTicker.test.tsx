@@ -16,6 +16,9 @@ import { useWarningsStore } from '../../hooks/useWarnings';
 import { SECTORS } from '../../config/sectors';
 import type { MGWarning } from '../../api/mgWarningsClient';
 import type { SpotScore } from '../../services/spotScoringEngine';
+import { ALL_SPOTS } from '../../config/spots';
+import { buildSurfEntry, type SurfWaveEntry } from '../../services/surfVerdictEngine';
+import { useThemeStore } from '../../store/themeStore';
 
 /** Fully-typed MGWarning fixture (real interface from mgWarningsClient). */
 function makeWarning(maxLevel: number): MGWarning {
@@ -92,6 +95,7 @@ describe('ConditionsTicker', () => {
     });
     useSpotStore.setState({
       scores: new Map(),
+      surfWaveCache: new Map(),
     });
     useWarningsStore.setState({
       sectorWarnings: [],
@@ -104,6 +108,7 @@ describe('ConditionsTicker', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    useThemeStore.setState({ theme: 'dark' });
   });
 
   it('renders without crashing with empty stores', () => {
@@ -244,5 +249,168 @@ describe('ConditionsTicker', () => {
 
     render(<ConditionsTicker />);
     expect(screen.getAllByText(/Racha máx/).length).toBeGreaterThan(0);
+  });
+  // ── Surf (the cache entry every surface reads) ──────────────
+  // The best surf spot from SURF OK up is essential, so simple mode — the
+  // default for new visitors — shows it; the height is a model value and the
+  // text says so. Anything below SURF OK stays in full mode only. «The best»
+  // is CLÁSICO, then SURF OK, then GRANDE; never by night, never with a storm
+  // alert, never over the engine's hard gate.
+
+  interface SurfCase { h: number; dir: number; wind: number; kt?: number; hardGate?: string; storm?: boolean }
+
+  /** Clock at a LOCAL hour (the ticker reads getHours()), only Date faked. */
+  function atLocalHour(hour: number) {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 27, hour, 0, 0));
+  }
+
+  function surfSetup(entries: [string, SurfCase][], hour = 12) {
+    atLocalHour(hour);
+    useSectorStore.setState({
+      activeSectorId: 'rias',
+      activeSector: SECTORS.find((s) => s.id === 'rias')!,
+    });
+    const hourMs = 3_600_000;
+    const start = Math.floor(Date.now() / hourMs) * hourMs - hourMs;
+    const scores = new Map<string, SpotScore>();
+    const cache = new Map<string, SurfWaveEntry>();
+    for (const [id, { h, dir, wind, kt = 8, hardGate, storm = false }] of entries) {
+      const spot = ALL_SPOTS.find((s) => s.id === id)!;
+      const sc = makeScore({
+        spotId: id as SpotScore['spotId'],
+        verdict: hardGate ? 'strong' : 'calm',
+        hardGateTriggered: hardGate ?? null,
+        hasStormAlert: storm,
+        effectiveWindKt: kt,
+      });
+      sc.wind = { ...sc.wind!, dirDeg: wind, avgSpeedKt: kt };
+      scores.set(id, sc);
+      const hours = Array.from({ length: 6 }, (_, i) => ({
+        time: new Date(start + i * hourMs),
+        waveHeight: h, wavePeriod: 8, waveDirection: dir,
+        swellHeight: h, swellPeriod: 8, swellDirection: dir,
+      }));
+      cache.set(id, buildSurfEntry(spot, hours, sc, Date.now(), Date.now()));
+    }
+    useSpotStore.setState({ scores, surfWaveCache: cache });
+    return cache;
+  }
+
+  // Corrubedo 1.3 m NW × 0.88 = 1.14 m → SURF OK; wind NE 60 is neutral there.
+  const CORRUBEDO_OK: [string, SurfCase] = ['surf-corrubedo', { h: 1.3, dir: 315, wind: 60 }];
+
+  it('simple=true: the best surf spot from SURF OK up shows, marked as model', () => {
+    // Patos 0.9 m × 0.45 = 0.4 m → PEQUE, stays out of simple mode.
+    const cache = surfSetup([CORRUBEDO_OK, ['surf-patos', { h: 0.9, dir: 315, wind: 60 }]]);
+    expect(cache.get('surf-corrubedo')!.verdict?.label).toBe('SURF OK');
+    expect(cache.get('surf-patos')!.verdict?.label).toBe('PEQUE');
+
+    render(<ConditionsTicker simple />);
+    expect(screen.getAllByText('Corrubedo: SURF OK ~1,1 m (modelo)').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Patos:/)).toBeNull();
+  });
+
+  it('simple=true: only ONE surf spot is essential, the biggest of the best level', () => {
+    surfSetup([CORRUBEDO_OK, ['surf-lanzada', { h: 1.9, dir: 270, wind: 180 }]]);
+    // Lanzada 1.9 × 0.75 = 1.43 m SURF OK (wind S, neutral there) beats
+    // Corrubedo 1.14 m SURF OK
+    render(<ConditionsTicker simple />);
+    expect(screen.getAllByText(/Lanzada Surf: SURF OK/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Corrubedo:/)).toBeNull();
+  });
+
+  it('simple=true: CLÁSICO is «the best», not a bigger GRANDE', () => {
+    // Corrubedo 3.0 × 0.88 = 2.64 m → GRANDE; Lanzada 2.4 × 0.75 = 1.8 m → CLÁSICO
+    const cache = surfSetup([
+      ['surf-corrubedo', { h: 3.0, dir: 315, wind: 60 }],
+      ['surf-lanzada', { h: 2.4, dir: 270, wind: 180 }],
+    ]);
+    expect(cache.get('surf-corrubedo')!.verdict?.label).toBe('GRANDE');
+    expect(cache.get('surf-lanzada')!.verdict?.label).toBe('CLÁSICO');
+    render(<ConditionsTicker simple />);
+    expect(screen.getAllByText(/Lanzada Surf: CLÁSICO/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Corrubedo:/)).toBeNull();
+  });
+
+  it('simple=true: GRANDE still shows when it is the only one from SURF OK up', () => {
+    surfSetup([['surf-corrubedo', { h: 3.0, dir: 315, wind: 60 }]]);
+    render(<ConditionsTicker simple />);
+    expect(screen.getAllByText(/Corrubedo: GRANDE ~2,6 m \(modelo\)/).length).toBeGreaterThan(0);
+  });
+
+  it('a beach over the engine hard gate is never essential; full mode reads its wind verdict', () => {
+    const gated: [string, SurfCase] = ['surf-corrubedo', { h: 1.3, dir: 315, wind: 315, kt: 30, hardGate: 'Viento 30kt > 25kt' }];
+    surfSetup([gated]);
+    const { unmount } = render(<ConditionsTicker simple />);
+    expect(screen.queryByText(/Corrubedo:/)).toBeNull();
+    unmount();
+
+    surfSetup([gated]);
+    render(<ConditionsTicker />);
+    expect(screen.getAllByText(/Corrubedo: Fuerte/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Corrubedo: (SURF OK|PEQUE|FLAT|CLÁSICO|GRANDE)/)).toBeNull();
+  });
+
+  it('simple=true: no surf promotion with a storm alert on (full mode still lists it)', () => {
+    const stormy: [string, SurfCase] = ['surf-corrubedo', { h: 1.3, dir: 315, wind: 60, storm: true }];
+    surfSetup([stormy]);
+    const { unmount } = render(<ConditionsTicker simple />);
+    expect(screen.queryByText(/Corrubedo:/)).toBeNull();
+    unmount();
+    surfSetup([stormy]);
+    render(<ConditionsTicker />);
+    expect(screen.getAllByText(/Corrubedo: SURF OK/).length).toBeGreaterThan(0);
+  });
+
+  it('simple=true: no surf promotion at night (full mode still lists it)', () => {
+    surfSetup([CORRUBEDO_OK], 2);
+    const { unmount } = render(<ConditionsTicker simple />);
+    expect(screen.queryByText(/Corrubedo:/)).toBeNull();
+    unmount();
+    surfSetup([CORRUBEDO_OK], 2);
+    render(<ConditionsTicker />);
+    expect(screen.getAllByText(/Corrubedo: SURF OK/).length).toBeGreaterThan(0);
+  });
+
+  it('surf items take the level colour of the theme (the ticker is light in light mode)', () => {
+    const cache = surfSetup([CORRUBEDO_OK]);
+    const v = cache.get('surf-corrubedo')!.verdict!;
+    const hexToRgb = (hex: string) => {
+      const [r, g, b] = (hex.replace('#', '').match(/../g) ?? []).map((x) => parseInt(x, 16));
+      return `rgb(${r}, ${g}, ${b})`;
+    };
+    const { unmount } = render(<ConditionsTicker simple />);
+    expect(screen.getAllByText('Corrubedo: SURF OK ~1,1 m (modelo)')[0].parentElement!.style.color).toBe(hexToRgb(v.text));
+    unmount();
+    useThemeStore.setState({ theme: 'light' });
+    render(<ConditionsTicker simple />);
+    expect(screen.getAllByText('Corrubedo: SURF OK ~1,1 m (modelo)')[0].parentElement!.style.color).toBe(hexToRgb(v.lightText));
+  });
+
+  it('full mode: every surf spot shows, PEQUE included', () => {
+    surfSetup([CORRUBEDO_OK, ['surf-patos', { h: 0.9, dir: 315, wind: 60 }]]);
+    render(<ConditionsTicker />);
+    expect(screen.getAllByText(/Corrubedo: SURF OK/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Patos: PEQUE ~0,4 m (modelo)').length).toBeGreaterThan(0);
+  });
+
+  it('surf stays quiet while its wind is pending', () => {
+    useSectorStore.setState({
+      activeSectorId: 'rias',
+      activeSector: SECTORS.find((s) => s.id === 'rias')!,
+    });
+    const spot = ALL_SPOTS.find((s) => s.id === 'surf-corrubedo')!;
+    const t = Math.floor(Date.now() / 3_600_000) * 3_600_000;
+    const hours = [0, 1, 2].map((i) => ({
+      time: new Date(t + i * 3_600_000),
+      waveHeight: 1.3, wavePeriod: 8, waveDirection: 315, swellHeight: 1.3, swellPeriod: 8, swellDirection: 315,
+    }));
+    useSpotStore.setState({
+      scores: new Map(),
+      surfWaveCache: new Map([['surf-corrubedo', buildSurfEntry(spot, hours, undefined, Date.now(), Date.now())]]),
+    });
+    render(<ConditionsTicker />);
+    expect(screen.queryByText(/Corrubedo:/)).toBeNull();
   });
 });

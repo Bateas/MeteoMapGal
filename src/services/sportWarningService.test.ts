@@ -146,6 +146,14 @@ describe('buildSportWarningNotice — missing data', () => {
     expect(notice!.statusText).toContain('No hay dato de viento');
   });
 
+  it('a surf beach wave is a model value and the figure says so', () => {
+    const base = { warnings: [warning('Ondas', 2)], sectorId: 'rias', now: NOW, waveIsModel: true };
+    expect(buildSportWarningNotice({ ...base, waveHeightM: 1.1, windKt: 12 })!.currentText)
+      .toBe('Ahora mismo: ~1,1 m de ola (modelo) y 12 kt de viento.');
+    expect(buildSportWarningNotice({ ...base, waveHeightM: 1.1, windKt: null })!.currentText)
+      .toBe('Ahora mismo: ~1,1 m de ola (modelo).');
+  });
+
   it('ignores a negative or non-finite reading as missing', () => {
     const notice = build([warning('Ondas', 2)], Number.NaN, 18);
     expect(notice!.comparison).toBe('unknown');

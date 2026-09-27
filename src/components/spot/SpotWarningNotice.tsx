@@ -33,6 +33,8 @@ interface SpotWarningNoticeProps {
   sectorId: string;
   /** Current wave height at the spot (m). Null/undefined = no comparison shown */
   waveHeightM?: number | null;
+  /** The wave is a model value (surf beach): the figure says so */
+  waveIsModel?: boolean;
   /** Current wind at the spot (kt). Null/undefined = no comparison shown */
   windKt?: number | null;
   /** Override the sector warnings from the store (tests, previews) */
@@ -67,6 +69,7 @@ function readSimCase(): SportWarningSimCase | null {
 export function SpotWarningNotice({
   sectorId,
   waveHeightM,
+  waveIsModel,
   windKt,
   warnings,
   className,
@@ -86,6 +89,7 @@ export function SpotWarningNotice({
         warnings: sim.warnings,
         sectorId,
         waveHeightM: sim.waveHeightM,
+        waveIsModel,
         windKt: sim.windKt,
       });
     }
@@ -93,9 +97,10 @@ export function SpotWarningNotice({
       warnings: warnings ?? storeWarnings ?? [],
       sectorId,
       waveHeightM,
+      waveIsModel,
       windKt,
     });
-  }, [sectorId, waveHeightM, windKt, warnings, storeWarnings]);
+  }, [sectorId, waveHeightM, waveIsModel, windKt, warnings, storeWarnings]);
 
   if (!notice) return null;
 

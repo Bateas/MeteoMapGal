@@ -23,6 +23,15 @@ import { detectThermalForecast } from '../../services/thermalForecastDetector';
 // Moved to config/verdictStyles.ts to fix bundle splitting — import + re-export
 import { VERDICT_STYLE, displayVerdict, displayWindKt, displayWindDir, verdictLabel } from '../../config/verdictStyles';
 export { VERDICT_STYLE };
+import { useThemeStore } from '../../store/themeStore';
+// A surf spot reads THE surf verdict from the cache entry (the one the marker,
+// the popup and the ticker read) and the beach height, which is a model value
+// and says so. Never the wind verdict, and never the "Olas" of the sailing
+// engine's buoy: for a beach that was a tide gauge printing «Olas 0.0m» beside
+// a marker saying SURF OK. Over the engine's hard gate (`state: 'danger'`) the
+// row and the header read the wind verdict like any spot. The colour follows
+// the theme: the sidebar is light in the light theme, the marker never is.
+import { surfView, type SurfWaveEntry } from '../../services/surfVerdictEngine';
 
 // ── Main component ────────────────────────────────────────────────
 
@@ -38,6 +47,8 @@ export const SpotSelector = memo(function SpotSelector() {
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const isMobile = useUIStore((s) => s.isMobile);
   const sectorForecast = useSpotStore((s) => s.sectorForecast);
+  const surfWaveCache = useSpotStore((s) => s.surfWaveCache);
+  const theme = useThemeStore((s) => s.theme);
   const [expanded, setExpanded] = useState(false);
 
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
@@ -67,9 +78,19 @@ export const SpotSelector = memo(function SpotSelector() {
   // Wind info for header. Calibrated, and null while the score is provisional
   // so the badge shows only "Calculando…" with no figure beside it.
   const windKt = displayWindKt(activeScore);
+  // A surf spot's header says the same as its row and its marker.
+  const activeIsSurf = activeSpot.category === 'surf';
+  const activeSurfView = activeIsSurf ? surfView(surfWaveCache.get(activeSpot.id), activeScore, theme) : null;
+  // Over the engine's hard gate the header takes the wind path below, badge
+  // and summary («Viento excesivo (30kt). Peligroso.») included.
+  const activeSurf = activeSurfView && activeSurfView.state !== 'danger' ? activeSurfView : null;
+  // The box is tinted by the wind verdict; for a surf spot that is another
+  // pillar's colour, so it stays neutral.
+  const box = activeSurf ? VERDICT_STYLE.unknown : v;
+  const headerSummary = activeSurf ? activeSurf.summary : (activeScore?.summary ?? 'Esperando datos...');
 
   return (
-    <div className={`rounded-lg border ${v.border} ${v.bg} transition-all`}>
+    <div className={`rounded-lg border ${box.border} ${box.bg} transition-all`}>
       {/* ── Header: active spot + verdict ── */}
       <button
         onClick={() => setExpanded((p) => !p)}
@@ -81,15 +102,32 @@ export const SpotSelector = memo(function SpotSelector() {
             <span className="text-[13px] font-bold text-slate-200">{activeSpot.shortName}</span>
             {activeSpot.id === favoriteSpotId && <span className="text-amber-400 text-xs" title="Tu spot favorito">{'\u2605'}</span>}
             <span className="badge-beta">Beta</span>
-            <span className={`${v.text} text-[11px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'good' ? 'badge-shimmer' : ''}`}>
-              {verdictLabel(activeScore)}
-              {windKt != null && activeVerdict !== 'calm' ? ` ${windKt.toFixed(0)}kt` : ''}
-            </span>
+            {activeSurf ? (
+              <span
+                className={`${activeSurf.color ? '' : 'text-slate-400'} text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-slate-500/10`}
+                style={activeSurf.color ? { color: activeSurf.color } : undefined}
+              >
+                {activeSurf.label}
+                {activeSurf.wave ? ` ${activeSurf.wave}` : ''}
+              </span>
+            ) : (
+              <span className={`${v.text} text-[11px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'good' ? 'badge-shimmer' : ''}`}>
+                {verdictLabel(activeScore)}
+                {windKt != null && activeVerdict !== 'calm' ? ` ${windKt.toFixed(0)}kt` : ''}
+              </span>
+            )}
           </div>
-          <p className="text-[11px] text-slate-400 truncate mt-0.5">
-            {activeScore?.summary ?? 'Esperando datos...'}
-          </p>
-          <NextWindowSummary spotId={activeSpot.id} sailingWindows={sailingWindows} />
+          {/* Surf: the verdict's summary only once it is ready — a verdict
+              still waiting for its wind is exactly the one the badge hides, so
+              meanwhile the line says what it waits for. Nothing under «Sin dato
+              de olas»: nothing is on its way. */}
+          {headerSummary && (
+            <p className="text-[11px] text-slate-400 truncate mt-0.5">
+              {headerSummary}
+            </p>
+          )}
+          {/* Sailing windows: a sailing verdict, meaningless under a surf spot */}
+          {!activeIsSurf && <NextWindowSummary spotId={activeSpot.id} sailingWindows={sailingWindows} />}
         </div>
         <WeatherIcon
           id={expanded ? 'x' : 'info'}
@@ -115,6 +153,7 @@ export const SpotSelector = memo(function SpotSelector() {
                 isFavorite={spot.id === favoriteSpotId}
                 thermalDetection={spot.thermalDetection}
                 category={spot.category}
+                surfWave={spot.category === 'surf' ? surfWaveCache.get(spot.id) : undefined}
                 forecast={sectorForecast}
                 onSelect={() => {
                   selectSpot(spot.id);
@@ -153,6 +192,7 @@ function SpotCard({
   isFavorite,
   thermalDetection,
   category,
+  surfWave,
   forecast,
   onSelect,
   onToggleFavorite,
@@ -166,6 +206,8 @@ function SpotCard({
   isFavorite: boolean;
   thermalDetection: boolean;
   category?: 'sailing' | 'surf';
+  /** Surf spots: the cache entry every surface reads */
+  surfWave?: SurfWaveEntry;
   forecast: HourlyForecast[] | null;
   onSelect: () => void;
   onToggleFavorite: () => void;
@@ -173,13 +215,20 @@ function SpotCard({
   const verdict = displayVerdict(score);
   const v = VERDICT_STYLE[verdict];
   const windKt = displayWindKt(score);
+  const theme = useThemeStore((s) => s.theme);
+  const isSurfRow = category === 'surf';
+  const surfRow = isSurfRow ? surfView(surfWave, score, theme) : null;
+  // The surf badge, unless the engine's hard gate is on: then the wind badge
+  // («Fuerte 30kt»), as for any spot.
+  const surf = surfRow && surfRow.state !== 'danger' ? surfRow : null;
+  const box = surf ? VERDICT_STYLE.unknown : v;
 
   return (
     <button
       onClick={onSelect}
       className={`
         w-full text-left rounded-md px-2.5 py-2 transition-all
-        ${isActive ? `${v.bg} ring-1 ring-inset ${v.border.replace('border-', 'ring-')}` : 'hover:bg-slate-800/50'}
+        ${isActive ? `${box.bg} ring-1 ring-inset ${box.border.replace('border-', 'ring-')}` : 'hover:bg-slate-800/50'}
       `}
     >
       <div className="flex items-center gap-2">
@@ -200,23 +249,38 @@ function SpotCard({
         >
           {isFavorite ? '\u2605' : '\u2606'}
         </span>
-        {/* Verdict badge with kt */}
-        <span className={`flex items-center gap-1 text-[11px] font-bold ${v.text}`}>
-          <span className={`w-2 h-2 rounded-full ${v.dot}`} />
-          {verdictLabel(score)}
-          {windKt != null && verdict !== 'calm' && verdict !== 'unknown' ? ` ${windKt.toFixed(0)}kt` : ''}
-        </span>
+        {/* Verdict badge: kt for sailing; for surf, the surf verdict with its
+            colour inline so it matches the marker exactly */}
+        {surf ? (
+          <span
+            className={`flex items-center gap-1 text-[11px] font-bold ${surf.color ? '' : 'text-slate-400'}`}
+            style={surf.color ? { color: surf.color } : undefined}
+          >
+            <span className="w-2 h-2 rounded-full bg-current" />
+            {surf.label}
+          </span>
+        ) : (
+          <span className={`flex items-center gap-1 text-[11px] font-bold ${v.text}`}>
+            <span className={`w-2 h-2 rounded-full ${v.dot}`} />
+            {verdictLabel(score)}
+            {windKt != null && verdict !== 'calm' && verdict !== 'unknown' ? ` ${windKt.toFixed(0)}kt` : ''}
+          </span>
+        )}
       </div>
 
       {/* Score detail row */}
-      {score && (
+      {(score || surfRow?.wave) && (
         <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-slate-400">
+          {/* Surf: the beach wave first, it is what the verdict is about */}
+          {surfRow?.wave && (
+            <span className="text-slate-300">{surfRow.wave}</span>
+          )}
           {/* Only these three wait for the engine. Waves, water, air and humidity
               below come straight off a buoy or a station and are not what is
               unsettled during a cold load, so hiding the whole row would take
               away good readings for no reason — and the hard-gate warning at the
               end must never be hidden at all. */}
-          {score.wind && !score.provisional && (
+          {score?.wind && !score.provisional && (
             // T3-1 fix S136+3+3: prefer effectiveWindKt (post-detector boost,
             // e.g. Cesantes canalization can lift 5kt raw → 14kt effective).
             // Falls back to raw avgSpeedKt for spots without active boost.
@@ -224,25 +288,27 @@ function SpotCard({
               {displayWindDir(score)?.label} ~{(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt
             </span>
           )}
-          {!score.provisional && score.gustKt != null && score.gustKt > (score.effectiveWindKt ?? score.wind?.avgSpeedKt ?? 0) + 3 && (
+          {score && !score.provisional && score.gustKt != null && score.gustKt > (score.effectiveWindKt ?? score.wind?.avgSpeedKt ?? 0) + 3 && (
             <span className="text-orange-400">Racha {score.gustKt.toFixed(0)}kt</span>
           )}
-          {!score.provisional && score.wind?.matchedPattern && (
-            <span className={`${v.text} font-semibold`}>{score.wind.matchedPattern}</span>
+          {score && !score.provisional && score.wind?.matchedPattern && (
+            // On a surf row the wind verdict's colour would be another
+            // pillar's; the pattern is context there, in the neutral tone.
+            <span className={`${isSurfRow ? 'text-slate-400' : v.text} font-semibold`}>{score.wind.matchedPattern}</span>
           )}
-          {score.waves?.waveHeight != null && (
+          {!isSurfRow && score?.waves?.waveHeight != null && (
             <span>Olas {score.waves.waveHeight.toFixed(1)}m</span>
           )}
-          {score.waterTemp != null && (
+          {score?.waterTemp != null && (
             <span style={{ color: waterTempColor(score.waterTemp) }}>Agua {score.waterTemp.toFixed(0)}{'\u00b0'}</span>
           )}
-          {score.airTemp != null && (
+          {score?.airTemp != null && (
             <span>Aire {score.airTemp.toFixed(0)}{'\u00b0'}</span>
           )}
-          {score.humidity != null && (
+          {score?.humidity != null && (
             <span>HR {score.humidity.toFixed(0)}%</span>
           )}
-          {score.hardGateTriggered && (
+          {score?.hardGateTriggered && (
             <span className="text-red-400">{score.hardGateTriggered}</span>
           )}
         </div>

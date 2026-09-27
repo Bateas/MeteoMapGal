@@ -35,14 +35,14 @@ import { useBuoyStore } from '../../store/buoyStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWebcamStore } from '../../store/webcamStore';
 import { temperatureColor, degreesToCardinal, scaleGustToSpot } from '../../services/windUtils';
-import { fetchMarineForecast, fetchMarineData, type MarineForecastHour } from '../../api/marineClient';
+import { fetchMarineData } from '../../api/marineClient';
 import { fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
 import { fetchSpotForecast, isSpotForecastStale } from '../../services/spotForecastFetch';
 import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
 import { useAirQualityStore } from '../../store/airQualityStore';
 import { useAlertStore } from '../../store/alertStore';
-import { computeSurfVerdict, swellAlignmentMultiplier } from '../spot/surfVerdictEngine';
+import { beachWaveAt, formatSurfWave, surfDisplayState, type SurfSpotShape, type SurfWaveEntry } from '../../services/surfVerdictEngine';
 import { detectViracionPhase } from '../../services/viracionDetector';
 import { assessRainNowcast } from '../../services/rainNowcastService';
 import { assessBeachDay } from '../../services/beachDayService';
@@ -333,27 +333,20 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   })();
 
   // ── Surf verdict: wave-based, overrides wind verdict for surf spots ──
-  const [marineForecast, setMarineForecast] = useState<MarineForecastHour[]>([]);
-  useEffect(() => {
-    if (spot.category !== 'surf') return;
-    let cancelled = false;
-    fetchMarineForecast(spot.center[1], spot.center[0]).then((data) => {
-      if (!cancelled) {
-        setMarineForecast(data);
-        // Write current wave data to store so SpotMarker can read it
-        const now = data[0];
-        if (now) {
-          const wh = now.swellHeight ?? now.waveHeight ?? 0;
-          useSpotStore.getState().setSurfWave(spot.id, {
-            waveHeight: wh,
-            swellHeight: now.swellHeight,
-            period: now.swellPeriod ?? now.wavePeriod ?? 0,
-          });
-        }
-      }
-    });
-    return () => { cancelled = true; };
-  }, [spot.id, spot.category, spot.center]);
+  // READ from the cache entry useSurfMarineData builds — the same one the
+  // marker, the spot list and the ticker read. The popup used to download its
+  // own forecast, take its first hour and write it back raw (no coastal
+  // factor), so opening Patos turned its marker from «PEQUE 0.6m» into
+  // «SURF OK 1.4m» of open sea. It no longer computes or writes anything.
+  // Map.get returns a stable reference, so this only fires when the entry
+  // itself is replaced.
+  const surfEntry = useSpotStore((s) =>
+    spot.category === 'surf' ? s.surfWaveCache.get(spot.id) : undefined,
+  );
+  // 'danger' (the engine's hard gate) makes the card read the engine's own
+  // verdict and summary, as it does for any spot — see surfDisplayState.
+  const surfState = spot.category === 'surf' ? surfDisplayState(surfEntry, score) : null;
+  const surfInfo = surfState === 'ready' ? (surfEntry?.verdict ?? null) : null;
 
   // ── SWAN per-spot Hs (T5-3 S136+3+3): cross-check Open-Meteo with the
   // CESGA academic high-resolution model at the actual spot location.
@@ -372,53 +365,24 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   // Share modal (T3-5)
   const [shareOpen, setShareOpen] = useState(false);
 
-  const surfInfo = useMemo(() => {
-    if (spot.category !== 'surf' || marineForecast.length === 0) return null;
-    const now = marineForecast[0];
-    if (!now) return null;
-    // Per-spot coastal correction × swell direction alignment
-    const baseFactor = spot.coastalFactor ?? 0.85;
-    const swellDir = now.swellDirection ?? now.waveDirection ?? null;
-    const alignment = swellDir != null && spot.beachOrientation != null
-      ? swellAlignmentMultiplier(swellDir, spot.beachOrientation)
-      : 1.0; // no swell direction data → use base factor only
-    const factor = baseFactor * alignment;
-    const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
-    const wh = rawWh * factor;
-    const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
-    const windDir = score?.wind?.dirDeg ?? null;
-    const isOffshore = windDir != null && spot.offshoreWindDir
-      ? spot.offshoreWindDir.some((d) => Math.abs(((windDir - d + 540) % 360) - 180) < 45)
-      : false;
-    const isOnshore = windDir != null && spot.beachOrientation != null
-      ? Math.abs(((windDir - spot.beachOrientation + 540) % 360) - 180) < 50
-      : false;
-    // Swell direction alignment check for period bonus
-    const swellAligned = swellDir != null && spot.swellDirections
-      ? spot.swellDirections.some((d) => Math.abs(((swellDir - d + 540) % 360) - 180) < 45)
-      : true; // no swell data → assume aligned (conservative)
-    return computeSurfVerdict(wh, tp, isOffshore, isOnshore, swellAligned);
-  }, [marineForecast, score?.wind?.dirDeg, spot]);
+  // Surf spots show the surf verdict, never the wind one: while it is not
+  // ready the badge says so instead of falling back to «CALMA». The one
+  // exception is the engine's hard gate, where the card says what the engine
+  // says («FUERTE» — «Viento excesivo (30kt). Peligroso.»): the wave verdict
+  // ignores wind speed. `color` rings and borders; `textColor` is the lighter
+  // tone for text on the dark card (the ring blue read 4:1 as badge text).
+  const displayVerdict = surfInfo
+    ? { label: surfInfo.label, color: surfInfo.color, textColor: surfInfo.text, bg: surfInfo.bg, summary: surfInfo.summary }
+    : spot.category === 'surf' && surfState !== 'danger'
+      ? { label: 'SIN DATO DE OLAS', color: VERDICT_STYLE.unknown.color, textColor: VERDICT_STYLE.unknown.color, bg: VERDICT_STYLE.unknown.bg, summary: '' }
+      : { label: vs.label, color: vs.color, textColor: vs.color, bg: vs.bg, summary: surfState === 'danger' ? (score?.summary ?? '') : '' };
 
-  // Write surf verdict to store so SpotMarker reads the FINAL verdict (with all modifiers)
-  useEffect(() => {
-    if (!surfInfo || spot.category !== 'surf') return;
-    const cache = useSpotStore.getState().surfWaveCache.get(spot.id);
-    if (cache && (cache.verdictLabel !== surfInfo.label || cache.verdictColor !== surfInfo.color)) {
-      useSpotStore.getState().setSurfWave(spot.id, { ...cache, verdictLabel: surfInfo.label, verdictColor: surfInfo.color });
-    }
-  }, [surfInfo, spot.id, spot.category]);
-
-  // Use surf verdict for display if available, otherwise fall back to wind verdict
-  const displayVerdict = surfInfo ?? { label: vs.label, color: vs.color, bg: vs.bg, summary: '' };
-
-  // Spot-local wave for the sport-warning threshold: the cache entry already
-  // carries the coastal factor and swell alignment, so it describes THIS beach
-  // rather than the open sea. Map.get returns a stable reference, so this
-  // subscription only fires when the entry itself is replaced.
-  const surfSpotWave = useSpotStore((s) =>
-    spot.category === 'surf' ? s.surfWaveCache.get(spot.id)?.waveHeight : undefined,
-  );
+  // Spot-local wave for the sport-warning threshold: the cache entry carries
+  // the coastal factor and swell alignment, so it describes THIS beach rather
+  // than the open sea. The height does not depend on the wind, so it is passed
+  // while the wind is pending and over a hard gate too — the case where the
+  // 4 m comparison matters most.
+  const surfSpotWave = surfEntry?.waveHeight ?? undefined;
 
   const popupContent = (
     <div className={`break-words ${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[260px] max-w-[350px] max-h-[70vh] overflow-y-auto overflow-x-hidden'}`}>
@@ -445,8 +409,10 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
             </button>
             {/* Hidden while provisional: a shared image outlives the correction.
                 The popup will settle in a cycle or two; a screenshot in someone
-                else's chat will not. */}
-            {score && !score.provisional && (
+                else's chat will not. Hidden on surf spots too: the image is a
+                WIND card, and it said «CALMA 2 kt» for a beach whose card said
+                «CLÁSICO ~1,1 m». */}
+            {score && !score.provisional && spot.category !== 'surf' && (
               <button
                 onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
                 className={`shrink-0 inline-flex items-center justify-center transition-colors text-slate-500 hover:text-sky-300 ${isMobile ? 'p-1' : ''}`}
@@ -499,20 +465,31 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       )}
 
       {/* ── Verdict badge — surf uses wave-based verdict, sailing uses wind ── */}
-      {score?.provisional ? (
+      {score?.provisional || surfState === 'loading' ? (
         // Cold-load provisional score (same flag SpotMarker reads): never show
-        // a firm verdict computed from a still-partial reading set.
+        // a firm verdict computed from a still-partial reading set. Surf: same
+        // rule while the wave forecast or the spot's wind has not arrived.
         <div className="mb-1.5 text-[12px] text-slate-400 italic">
-          Calculando condiciones (esperando estaciones)…
+          {/* With the waves in, what is missing is the spot's wind. */}
+          {surfState === 'loading'
+            ? (surfEntry ? 'Calculando (esperando el viento de las estaciones)…' : 'Calculando olas…')
+            : 'Calculando condiciones (esperando estaciones)…'}
         </div>
       ) : (
         <div className="flex items-center gap-2 mb-1.5">
           <span
             className="px-2.5 py-0.5 rounded-full text-[13px] font-extrabold tracking-wide"
-            style={{ background: displayVerdict.bg, color: displayVerdict.color, border: `1px solid ${displayVerdict.color}40` }}
+            style={{ background: displayVerdict.bg, color: displayVerdict.textColor, border: `1px solid ${displayVerdict.color}40` }}
           >
             {displayVerdict.label}
           </span>
+          {/* Same height the marker, the list and the ticker print — a model
+              value, and it says so: nobody measures waves on this beach. */}
+          {surfInfo && surfEntry?.waveHeight != null && (
+            <span className="text-xs text-slate-300 tabular-nums">
+              {formatSurfWave(surfEntry.waveHeight)} (modelo)
+            </span>
+          )}
           {spot.category !== 'surf' && score && (
             <span className="text-xs text-slate-400 font-mono">
               {score.score}/100
@@ -522,7 +499,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       )}
       {/* Surf verdict summary — plain language */}
       {displayVerdict.summary && (
-        <div className="text-[11px] text-slate-300 mb-1.5 leading-tight break-words" style={{ color: displayVerdict.color }}>
+        <div className="text-[11px] text-slate-300 mb-1.5 leading-tight break-words" style={{ color: displayVerdict.textColor }}>
           {displayVerdict.summary}
         </div>
       )}
@@ -538,6 +515,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       <SpotWarningNotice
         sectorId={sectorId}
         waveHeightM={spot.category === 'surf' ? (surfSpotWave ?? null) : null}
+        waveIsModel={spot.category === 'surf'}
         windKt={score?.provisional ? null : (score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null)}
       />
 
@@ -685,7 +663,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
 
       {/* ── 24h Wave forecast (surf spots only) ── */}
       {spot.category === 'surf' && (
-        <WaveForecastMini lat={spot.center[1]} lon={spot.center[0]} coastalFactor={spot.coastalFactor ?? 0.85} />
+        <WaveForecastMini spot={spot} entry={surfEntry} />
       )}
 
       {/* ── Temperatures & conditions — primary always visible, secondary collapsible ── */}
@@ -1053,7 +1031,15 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       {/* ── Share + Apoyar + Timestamp ── */}
       <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-700/30">
         <div className="flex items-center gap-1.5">
-          <ShareButton spot={spot} score={score} verdict={verdict} vs={vs} />
+          <ShareButton
+            spot={spot}
+            score={score}
+            verdict={verdict}
+            vs={vs}
+            surf={spot.category === 'surf'
+              ? { label: surfState === 'danger' ? vs.label : (surfInfo?.label ?? null), waveM: surfEntry?.waveHeight ?? null }
+              : undefined}
+          />
           {/* Discreet support link — engagement surface (real spot with data),
               never on the user-spot "Sin datos" moment. */}
           <a
@@ -1538,62 +1524,55 @@ function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
 // ── 24h Wave Forecast Mini ───────────────────────────────────
 
 /** Compact 24h wave forecast bar chart for surf spots.
- * Fetches Open-Meteo Marine hourly and shows wave height + swell + period. */
-function WaveForecastMini({ lat, lon, coastalFactor }: { lat: number; lon: number; coastalFactor: number }) {
-  const [hours, setHours] = useState<MarineForecastHour[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetchMarineForecast(lat, lon).then((data) => {
-      if (!cancelled) {
-        setHours(data);
-        setLoading(false);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [lat, lon]);
-
-  if (loading) {
+ * Reads the hours useSurfMarineData already downloaded — the same entry the
+ * verdict comes from — so "ahora" here is the very figure printed beside the
+ * verdict, not a third download at another hour. Every height is the wave AT
+ * THE BEACH (coastal factor × swell alignment, as the verdict) and a model
+ * value. */
+function WaveForecastMini({ spot, entry }: { spot: SurfSpotShape; entry: SurfWaveEntry | undefined }) {
+  if (!entry) {
     return (
       <div className="text-[10px] text-slate-500 py-1 mb-1.5 border-t border-slate-700/40 pt-1">
-        Cargando prevision olas...
+        Cargando previsión de olas…
       </div>
     );
   }
 
+  // The own API serves 48h: the strip shows from an hour ago to +24h.
+  const now = new Date();
+  const nowMs = now.getTime();
+  const hours = entry.hours.filter((h) => {
+    const dt = h.time.getTime() - nowMs;
+    return dt >= -3_600_000 && dt <= 24 * 3_600_000 && (h.swellHeight ?? h.waveHeight) != null;
+  });
   if (hours.length < 6) return null;
 
-  const maxWave = Math.max(...hours.map((h) => h.waveHeight ?? 0), 0.5);
-  const now = new Date();
+  const beach = hours.map((h) => beachWaveAt(spot, h));
+  const maxWave = Math.max(...beach.map((b) => b.height), 0.5);
 
-  // Find best window: highest swell with good period
-  let bestIdx = 0;
-  let bestScore = 0;
+  // Peak of the coming hours at the beach — the hour "máx … a las" names.
+  let peakIdx = -1;
   for (let i = 0; i < hours.length; i++) {
-    const h = hours[i];
-    const s = (h.swellHeight ?? h.waveHeight ?? 0) * (h.swellPeriod ?? h.wavePeriod ?? 5) / 5;
-    if (s > bestScore) { bestScore = s; bestIdx = i; }
+    if (hours[i].time.getTime() < nowMs) continue;
+    if (peakIdx < 0 || beach[i].height > beach[peakIdx].height) peakIdx = i;
   }
 
-  // Summary text — apply the spot's coastalFactor so the displayed numbers match
-  // the (calibrated) verdict instead of showing the raw open-water model height.
-  // (Bars stay relative to raw maxWave, so the chart SHAPE is unchanged.)
-  // Use the forecast hour closest to NOW, not hours[0]: the marine sources start
-  // the array at varying hours, so hours[0] showed a wrong-hour wave and made the
-  // "actual" height + trend flicker between refreshes (matches useSurfMarineData).
-  const nowMs = now.getTime();
-  const currentHour = hours.reduce(
-    (best, h) => (Math.abs(h.time.getTime() - nowMs) < Math.abs(best.time.getTime() - nowMs) ? h : best),
-    hours[0],
-  );
-  const currentWave = (currentHour?.waveHeight ?? 0) * coastalFactor;
-  const maxForecast = Math.max(...hours.map((h) => (h.waveHeight ?? 0) * coastalFactor));
-  const trend = maxForecast > currentWave + 0.3 ? 'subiendo' : maxForecast < currentWave - 0.3 ? 'bajando' : 'estable';
-  const bestHour = hours[bestIdx];
-  const bestTime = bestHour?.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-  const avgPeriod = hours.reduce((sum, h) => sum + (h.swellPeriod ?? h.wavePeriod ?? 0), 0) / hours.length;
+  const currentWave = entry.waveHeight;
+  const maxForecast = peakIdx >= 0 ? beach[peakIdx].height : null;
+  const trend = currentWave == null || maxForecast == null
+    ? null
+    : maxForecast > currentWave + 0.3 ? 'subiendo' : maxForecast < currentWave - 0.3 ? 'bajando' : 'estables';
+  const peakTime = peakIdx >= 0
+    ? hours[peakIdx].time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+    : null;
+  // The strip reaches +24 h, so the peak can be tomorrow's: «a las 08:00» read
+  // at 13:00 was tomorrow morning and did not say so. And a peak that prints
+  // the same as now adds nothing («~0,6 m ahora → máx ~0,6 m»).
+  const peakPart = currentWave != null && maxForecast != null && peakTime
+    && formatSurfWave(maxForecast) !== formatSurfWave(currentWave)
+    ? ` → máx ${formatSurfWave(maxForecast)}${hours[peakIdx].time.toDateString() !== now.toDateString() ? ' mañana' : ''} a las ${peakTime}`
+    : '';
+  const avgPeriod = beach.reduce((sum, b) => sum + b.period, 0) / beach.length;
   const periodQuality = avgPeriod >= 10 ? 'largo (buena calidad)' : avgPeriod >= 7 ? 'medio' : 'corto (mar de viento)';
 
   return (
@@ -1601,17 +1580,16 @@ function WaveForecastMini({ lat, lon, coastalFactor }: { lat: number; lon: numbe
       <div className="flex items-center gap-1 mb-1">
         <WeatherIcon id="waves" size={11} className="text-cyan-400" />
         <span className="text-[11px] font-bold text-cyan-300">Olas 24h</span>
+        <span className="text-[10px] text-slate-500">(modelo)</span>
         <span className="text-[10px] text-slate-500 ml-auto">Periodo {periodQuality}</span>
       </div>
 
-      {/* Bar chart — total wave height bars + swell line overlay */}
-      <div className="flex items-end gap-px h-8 mb-1 relative" title="Altura de ola por hora">
+      {/* Bar chart — wave at the beach per hour, the quantity the verdict uses */}
+      <div className="flex items-end gap-px h-8 mb-1 relative" title="Altura de ola en la playa por hora (modelo)">
         {hours.map((h, i) => {
-          const wh = h.waveHeight ?? 0;
-          const sw = h.swellHeight ?? 0;
-          const pct = Math.max(4, (wh / maxWave) * 100);
-          const swPct = maxWave > 0 ? Math.max(0, (sw / maxWave) * 100) : 0;
-          const isBest = i === bestIdx;
+          const b = beach[i];
+          const pct = Math.max(4, (b.height / maxWave) * 100);
+          const isPeak = i === peakIdx;
           const hourLabel = h.time.getHours();
           const isPast = h.time < now;
           return (
@@ -1620,20 +1598,12 @@ function WaveForecastMini({ lat, lon, coastalFactor }: { lat: number; lon: numbe
               className="flex-1 rounded-t-sm relative"
               style={{
                 height: `${pct}%`,
-                backgroundColor: isPast ? 'rgba(100,116,139,0.3)' : waveBarColor(wh),
+                backgroundColor: isPast ? 'rgba(100,116,139,0.3)' : waveBarColor(b.height),
                 opacity: isPast ? 0.5 : 1,
-                border: isBest ? '1px solid #22d3ee' : 'none',
+                border: isPeak ? '1px solid #22d3ee' : 'none',
               }}
-              title={`${hourLabel}h: ${(wh * coastalFactor).toFixed(1)}m total${sw > 0 ? ` (swell ${(sw * coastalFactor).toFixed(1)}m)` : ''}${h.swellPeriod ? ` Tp ${h.swellPeriod.toFixed(0)}s` : ''}`}
-            >
-              {/* Swell portion indicator — darker bottom section */}
-              {sw > 0 && sw < wh && !isPast && (
-                <div
-                  className="absolute bottom-0 left-0 right-0 rounded-t-sm"
-                  style={{ height: `${Math.min(100, swPct / pct * 100)}%`, backgroundColor: 'rgba(14,165,233,0.4)' }}
-                />
-              )}
-            </div>
+              title={`${hourLabel}h: ${formatSurfWave(b.height)} en la playa${b.period > 0 ? ` · Tp ${b.period.toFixed(0)}s` : ''} (modelo)`}
+            />
           );
         })}
       </div>
@@ -1647,16 +1617,18 @@ function WaveForecastMini({ lat, lon, coastalFactor }: { lat: number; lon: numbe
 
       {/* Period indicator at key hours */}
       <div className="flex justify-between text-[8px] text-slate-600 mb-1">
-        {hours.filter((_, i) => i % 6 === 0).map((h, i) => {
-          const tp = h.swellPeriod ?? h.wavePeriod ?? 0;
+        {beach.filter((_, i) => i % 6 === 0).map((b, i) => {
+          const tp = b.period;
           return tp > 0 ? <span key={i} style={{ color: tp >= 10 ? '#22d3ee' : tp >= 7 ? '#94a3b8' : '#f97316' }}>{tp.toFixed(0)}s</span> : <span key={i} />;
         })}
       </div>
 
-      {/* Summary line */}
-      <div className="text-[10px] text-slate-400 leading-tight">
-        Olas {trend}: {currentWave.toFixed(1)}m ahora {'\u2192'} max {maxForecast.toFixed(1)}m a las {bestTime}
-      </div>
+      {/* Summary line — "ahora" is the verdict's own figure */}
+      {trend && currentWave != null && (
+        <div className="text-[10px] text-slate-400 leading-tight">
+          Olas {trend}: {formatSurfWave(currentWave)} ahora{peakPart}
+        </div>
+      )}
     </div>
   );
 }
@@ -1713,29 +1685,38 @@ function TemperatureSection({ score, mohidSeaTemp, marineSST }: { score: SpotSco
 
 // ── Share button — Web Share API with clipboard fallback ──────────
 
-function ShareButton({ spot, score, verdict: _verdict, vs }: {
+function ShareButton({ spot, score, verdict: _verdict, vs, surf }: {
   spot: SailingSpot;
   score?: SpotScore;
   verdict: SpotVerdict;
   vs: typeof VERDICT_STYLE[SpotVerdict];
+  /** Surf spots: the text says what the card says — the surf verdict (null =
+   *  not ready, no verdict stated) and the MODEL wave at the beach, never the
+   *  wind verdict with a tide gauge's «olas 0.0m». */
+  surf?: { label: string | null; waveM: number | null };
 }) {
   const [copied, setCopied] = useState(false);
   const sectorId = useSectorStore((s) => s.activeSector.id);
 
+  const isSurf = surf !== undefined;
+  const surfLabel = surf?.label ?? null;
+  const surfWaveM = surf?.waveM ?? null;
   const shareText = useMemo(() => {
-    const parts = [`${spot.name}: ${vs.label}`];
+    const parts = [isSurf ? (surfLabel ? `${spot.name}: ${surfLabel}` : spot.name) : `${spot.name}: ${vs.label}`];
     if (score?.wind) {
       parts.push(`${(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt ${displayWindDir(score)?.label ?? ''}`.trim());
     }
     if (score?.airTemp != null) {
       parts.push(`${score.airTemp.toFixed(0)}°C`);
     }
-    if (score?.waves?.waveHeight != null) {
+    if (isSurf) {
+      if (surfWaveM != null) parts.push(`olas ${formatSurfWave(surfWaveM)} (modelo)`);
+    } else if (score?.waves?.waveHeight != null) {
       parts.push(`olas ${score.waves.waveHeight.toFixed(1)}m`);
     }
     parts.push('— MeteoMapGal');
     return parts.join(' | ');
-  }, [spot.name, vs.label, score]);
+  }, [spot.name, vs.label, score, isSurf, surfLabel, surfWaveM]);
 
   const handleShare = async () => {
     // Deep-link: useDeepLink reabre este spot en este sector al recibir el enlace
