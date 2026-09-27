@@ -94,6 +94,25 @@ const HIGH_MOUTH_HUMIDITY = 85;
  *  whatever flows through it, sun or no sun. */
 const MIN_SOLAR_FOR_CONVERGENCE = 350;
 
+/** W/m² of INTERIOR sun below which the afternoon thermal breeze (Mode 2) is over.
+ *
+ *  Mode 2 is the thermal story too, but it never looked at the sun: it opens on the
+ *  hour (12-20, and hour 20 counts until 20:59) and on the air-water ΔT, and after
+ *  sunset the air cools slowly, so ΔT stays at 4-5°C. A 4kt residual flow was then
+ *  handed the full +8kt. 25-sep 20:23-20:45: interior 0 W/m², shown BUENO 13kt,
+ *  5.5kt on the water (webcam), the field report at 20:33 said "less". That one was
+ *  the map only: the alert channel stored calm 3-4kt. The alert channel did the same
+ *  on 22-sep 20:18-20:58 (good 12 over a 4kt mean): its interior value there was
+ *  109.5 W/m², the inland maximum set by an amateur radiometer that reads 109.5 day
+ *  and night (13-27 Sep); the official stations were 0-12.
+ *
+ *  Only a MEASURED low value switches it off. Unknown keeps the old behaviour, so a
+ *  radiometer that stops reporting cannot kill the breeze at 15h. 150 sits below the
+ *  sun of every boosted afternoon cycle of 12-25 Sep before 19:20 and above the dusk
+ *  values of both paths. Do NOT lower it to 110 or less: the alert channel would never
+ *  veto (at 100 it removes 0 of the 256 boosted rows of 13-27 Sep; at 150, 11). */
+const MIN_SOLAR_FOR_THERMAL_BREEZE = 150;
+
 /** Inland of the ría, where the thermal low forms. East of Cesantes and up the
  *  Miño valley — deliberately NOT the spot's own neighbourhood. */
 const INTERIOR_ZONE = { lonMin: -8.60, lonMax: -7.80, latMin: 42.10, latMax: 42.60 };
@@ -147,7 +166,8 @@ export function predictCesantesCanalization(
   /** Peak solar radiation INLAND (W/m²) — see computeInteriorSolar. The spot
    *  can be under mist and still blow; what has to be sunny is the interior
    *  that forms the low. Unknown counts as no sun: the strongest multiplier in
-   *  the ladder must not be handed out on missing evidence. */
+   *  the ladder must not be handed out on missing evidence. In Mode 2 only a
+   *  MEASURED value below MIN_SOLAR_FOR_THERMAL_BREEZE switches the breeze off. */
   solarRadInterior: number | null = null,
   /** Peak local station wind gust (kt) — distinguishes sheltered thermal lulls from dead calm */
   localGustKt: number | null = null,
@@ -194,6 +214,11 @@ export function predictCesantesCanalization(
   if (synopticWindMs === null) {
     // No synoptic SW found — try thermal breeze mode
     if (!isThermalHour || !isWarmAir || !isThermalDelta) {
+      return inactive;
+    }
+    // The interior has gone dark: no thermal low left to pull the breeze in, whatever
+    // the ΔT and the clock say. See MIN_SOLAR_FOR_THERMAL_BREEZE.
+    if (solarRadInterior != null && solarRadInterior < MIN_SOLAR_FOR_THERMAL_BREEZE) {
       return inactive;
     }
     // A meaningful measured wind (>=5kt) from OUTSIDE the SW arc (160-280°) means

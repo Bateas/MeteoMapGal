@@ -576,6 +576,26 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
     const result = scoreSpot(lourido, [localStation], []);
     expect(result.boostedBy).toBeNull();
   });
+
+  // MODE 2 needs the interior sun (Telegram path, same rule as the map).
+  // 25-sep 20:28: 4kt mean at 308°, 11kt gust, air 21 / water 16.9, interior dark.
+  const duskLocal = makeReading({ station_id: 'mg_cesantes', wind_speed: 2.06, wind_gust: 5.7, wind_dir: 308, temperature: 21, humidity: 70 });
+  const duskInterior = makeReading({ station_id: 'mg_interior', latitude: 42.30, longitude: -8.30, wind_speed: null, wind_gust: null, wind_dir: null, temperature: 20 });
+  const duskRande = makeBuoy({ station_id: 1251, lat: 42.29, lon: -8.66, wind_speed: 0, wind_dir: null, water_temp: 16.9 });
+
+  it('MODE 2 drops the boost at dusk once the interior radiation is gone', () => {
+    vi.setSystemTime(new Date('2026-09-25T20:28:00+02:00'));
+    const r = scoreSpot(cesantes, [duskLocal, { ...duskInterior, solar_rad: 0 }], [duskRande]);
+    expect(r.boostedBy).toBeNull();
+    expect(r.verdict).toBe('calm');
+  });
+
+  it('MODE 2 keeps it with the same inputs while the interior is still sunny', () => {
+    vi.setSystemTime(new Date('2026-09-25T20:28:00+02:00'));
+    const r = scoreSpot(cesantes, [duskLocal, { ...duskInterior, solar_rad: 400 }], [duskRande]);
+    expect(r.boostedBy).toBe('cesantes-canalization');
+    expect(r.avgWindKt).toBe(13);
+  });
 });
 
 // ── scoreSpot — Bocana terral matinal (Phase B TIER 1 P0) ────────
