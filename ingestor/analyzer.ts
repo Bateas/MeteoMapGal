@@ -27,8 +27,10 @@ import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import type { SpotScore } from '../src/services/spotScoringEngine.js';
 import { scoreWithEngine, findDivergences, describeDivergences, engineView } from './engineShadow.js';
+import type { PrecipSample } from '../src/services/precipSemantics.js';
 import {
   scoreSpot,
+  selectNearbyStations,
   buoyWindToBuoyReading,
   VERDICT_LABEL,
   ALERT_VERDICTS,
@@ -40,6 +42,7 @@ import {
   type StationReading,
   type BuoyWind,
   type SpotResult,
+  type ScoreContext,
 } from './analyzerLogic.js';
 
 // ── Spot definitions ────────────────────────────────
@@ -97,6 +100,8 @@ const FORECAST_INTERVAL_MS = 30 * 60_000; // 30 minutes
 /** Whether spot_scores has the engine shadow columns, as last seen by persistSpotScores.
  *  null = not checked yet. Only a change is logged: a missing column warns once, not every cycle. */
 let engineColsState: boolean | null = null;
+/** Cesantes rain veto as of the last cycle. Logged only when it changes. */
+let cesantesRainVetoed = false;
 
 // ── Shared helpers (imported from src/) ─────────────
 // distanceKm → haversineDistance (geoUtils)
@@ -113,8 +118,8 @@ async function getLatestReadings(): Promise<StationReading[]> {
   const db = getPool();
   try {
     // Phase A (TIER 1 P0): extended fields for detector connection
-    //   - dew_point, solar_rad, pressure feed Cesantes canalization mouth-humidity
-    //     and bocana solar gating
+    //   - dew_point, solar_rad, pressure feed the Cesantes interior-sun gate,
+    //     the magic window's mouth humidity and bocana solar gating
     //   - All optional in StationReading interface — older code keeps working
     const result = await db.query<StationReading>(`
       SELECT DISTINCT ON (r.station_id)
@@ -143,12 +148,46 @@ async function getLatestReadings(): Promise<StationReading[]> {
   }
 }
 
+/**
+ * Precipitation samples per station over the last `windowMin` minutes, for the Cesantes
+ * rain veto. 150 = the veto's 120-min window plus the 30 min a day-total counter
+ * (wu_, mc_) may reach back for the reading it measures growth from.
+ * Empty on error: no rain data means no veto, never a crash of the cycle.
+ */
+async function getRecentPrecip(ids: string[], windowMin = 150): Promise<Map<string, PrecipSample[]>> {
+  const out = new Map<string, PrecipSample[]>();
+  if (ids.length === 0) return out;
+  const db = getPool();
+  try {
+    const result = await db.query<{ station_id: string; time: Date; precip: number }>(
+      `SELECT station_id, time, precip FROM readings
+        WHERE time > NOW() - make_interval(mins => $1::int)
+          AND precip IS NOT NULL
+          AND station_id = ANY($2::text[])
+        ORDER BY station_id, time`,
+      [windowMin, ids],
+    );
+    for (const row of result.rows) {
+      const mm = Number(row.precip);
+      const t = new Date(row.time).getTime();
+      if (!Number.isFinite(mm) || !Number.isFinite(t)) continue;
+      const list = out.get(row.station_id) ?? [];
+      list.push({ t, mm });
+      out.set(row.station_id, list);
+    }
+  } catch (err) {
+    log.warn(`getRecentPrecip failed: ${(err as Error).message}`);
+    return new Map();
+  }
+  return out;
+}
+
 /** Buoy coords from shared frontend config */
 const BUOY_COORDS: Record<number, { lat: number; lon: number }> = Object.fromEntries(
   RIAS_BUOY_STATIONS.map(b => [b.id, { lat: b.lat, lon: b.lon }])
 );
 
-/** Buoy name lookup for canalization detector (which reports source buoy in signals) */
+/** Buoy name lookup (station_name on each buoy row) */
 const BUOY_NAMES: Record<number, string> = Object.fromEntries(
   RIAS_BUOY_STATIONS.map(b => [b.id, b.name])
 );
@@ -162,8 +201,8 @@ const BUOY_NAMES: Record<number, string> = Object.fromEntries(
  * "current state" — 6h-old buoy data is still meaningful for SW synoptic.
  *
  * Phase A (TIER 1 P0): includes water_temp, air_temp, humidity, wave_*
- * needed by bocana detector (Rande ΔT) + canalization (mouth buoys SW)
- * + surf verdict (wave_height/period).
+ * needed by bocana detector (Rande ΔT) + canalization (water temp near Cesantes)
+ * + magic window (mouth buoys SW) + surf verdict (wave_height/period).
  *
  * NB: removed `wind_speed > 0` filter — Rande (1251) has no anemometer
  * but still publishes water/air temp + humidity (key signal for bocana).
@@ -274,12 +313,28 @@ export async function runAnalysis(): Promise<void> {
     return; // No data, skip
   }
 
+  // Rain at the Cesantes stations, for the rain veto of its thermal breeze. ONE query, for
+  // exactly the stations the spot is scored on; the map's engine gets the same samples.
+  const cesantesDef = SPOTS.find((s) => s.id === 'cesantes');
+  const precipIds = cesantesDef ? selectNearbyStations(cesantesDef, readings).map((n) => n.r.station_id) : [];
+  const ctx: ScoreContext = { precip: await getRecentPrecip(precipIds), nowMs: now };
+
   // 2. Score each spot, detect transitions, and persist to DB
   const scoreRows: SpotResult[] = [];
   const boostedSpots: string[] = [];
   for (const spot of SPOTS) {
-    const result = scoreSpot(spot, readings, buoys);
+    const result = scoreSpot(spot, readings, buoys, ctx);
     scoreRows.push(result);
+
+    if (spot.id === 'cesantes') {
+      const vetoed = result.rainVeto != null;
+      if (vetoed !== cesantesRainVetoed) {
+        log.info(vetoed
+          ? `[Analyzer] Cesantes: veto de lluvia activo — ${result.rainVeto}`
+          : '[Analyzer] Cesantes: veto de lluvia levantado');
+        cesantesRainVetoed = vetoed;
+      }
+    }
 
     // Log boosts at cycle end (avoid noisy logs on single transitions).
     // The detector summary is more useful than per-spot WARN entries.
@@ -328,7 +383,7 @@ export async function runAnalysis(): Promise<void> {
   // costs the comparison.
   let engineScores: Map<string, SpotScore> | null = null;
   try {
-    engineScores = scoreWithEngine(readings, buoys);
+    engineScores = scoreWithEngine(readings, buoys, ctx.precip);
     const line = describeDivergences(findDivergences(scoreRows, engineScores), scoreRows.length);
     if (line) log.info(line);
   } catch (err) {
@@ -454,9 +509,9 @@ async function checkLightningProximity(): Promise<void> {
 // ── Magic Window helpers (T2-2 S136+3+3) ───────────────
 
 /**
- * Compute mouth-of-ría humidity from station readings — mirror of
- * `computeMouthHumidityFromRows` in analyzerLogic.ts. Mouth bbox: lon < -8.78,
- * lat 42.15-42.30. Uses 75th percentile to be robust to interior dry leaks.
+ * Compute mouth-of-ría humidity from station readings, for the magic window.
+ * Mouth bbox: lon < -8.78, lat 42.15-42.30. Uses 75th percentile to be robust
+ * to interior dry leaks.
  */
 function mouthHumidityFromRows(readings: StationReading[]): number | null {
   const vals: number[] = [];

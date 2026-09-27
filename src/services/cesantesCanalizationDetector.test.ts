@@ -2,318 +2,25 @@
  * Tests for cesantesCanalizationDetector — predicts local SW wind boost
  * in sheltered Cesantes valley (where preferred MG stations subvaloran).
  *
- * Two modes: synoptic SW canalization (Mode 1) and thermal breeze (Mode 2).
- * Used by SpotPopup to override wind display when prediction > measured by ≥4kt.
+ * One mode: the afternoon thermal breeze. The synoptic mode fed by the mouth buoys
+ * was deleted (it never decided a field-truth instant correctly). Rain at the nearby
+ * stations vetoes the breeze. The engine applies the prediction when it is ≥4kt
+ * over the measured wind.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { predictCesantesCanalization, computeMouthHumidity } from './cesantesCanalizationDetector';
-import type { BuoyReading } from '../api/buoyClient';
-import type { NormalizedStation, NormalizedReading } from '../types/station';
+import { predictCesantesCanalization } from './cesantesCanalizationDetector';
+import type { RainVeto } from './rainVeto';
 
-// ── Builder helpers ───────────────────────────────────────────
+// ── Thermal breeze (Apr-Oct, 12-20h, ΔT≥2°C, air≥16°C) ──
 
-function buoy(over: Partial<BuoyReading> & { stationId: number }): BuoyReading {
-  return {
-    stationName: 'Test Buoy',
-    timestamp: new Date('2026-04-26T14:00:00Z').toISOString(),
-    waveHeight: null,
-    waveHeightMax: null,
-    wavePeriod: null,
-    wavePeriodMean: null,
-    waveDir: null,
-    windSpeed: null,
-    windDir: null,
-    windGust: null,
-    waterTemp: null,
-    airTemp: null,
-    airPressure: null,
-    currentSpeed: null,
-    currentDir: null,
-    salinity: null,
-    seaLevel: null,
-    humidity: null,
-    dewPoint: null,
-    ...over,
-  } as BuoyReading;
-}
-
-function station(over: Partial<NormalizedStation> & { id: string; lat: number; lon: number }): NormalizedStation {
-  return {
-    source: 'meteogalicia',
-    name: over.id,
-    altitude: 10,
-    ...over,
-  };
-}
-
-function reading(over: Partial<NormalizedReading> & { stationId: string }): NormalizedReading {
-  return {
-    timestamp: new Date(),
-    windSpeed: null,
-    windGust: null,
-    windDirection: null,
-    temperature: null,
-    humidity: null,
-    precipitation: null,
-    solarRadiation: null,
-    pressure: null,
-    dewPoint: null,
-    ...over,
-  };
-}
-
-// ── Mode 1: Synoptic SW canalization ──────────────────────────
-
-describe('predictCesantesCanalization — Mode 1 synoptic SW', () => {
-  beforeEach(() => {
-    // Force NON-thermal hour so Mode 1 doesn't get bonus
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-26T08:00:00Z')); // 08h UTC, before thermal window
-  });
-  afterEach(() => vi.useRealTimers());
-
-  it('returns inactive when no buoys provided', () => {
-    const r = predictCesantesCanalization([], null);
-    expect(r.active).toBe(false);
-    expect(r.confidence).toBe(0);
-    expect(r.predictedKt).toBeNull();
-  });
-
-  it('returns inactive when mouth buoy has no SW wind', () => {
-    // N wind, not SW
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 8, windDir: 0, stationName: 'Cabo Silleiro' })],
-      null, false, null, null, 6, 230,
-    );
-    expect(r.active).toBe(false);
-  });
-
-  it('returns inactive when SW wind is too weak (<4 m/s)', () => {
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 3, windDir: 230, stationName: 'Cabo Silleiro' })],
-      null, false, null, null, 6, 230,
-    );
-    expect(r.active).toBe(false);
-  });
-
-  it('activates with mouth buoy SW ≥4 m/s', () => {
-    // 6 m/s × 1.4 boost = 8.4 m/s = 16.3kt → active
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      null, false, null, null, 6, 230,
-    );
-    expect(r.active).toBe(true);
-    expect(r.predictedKt).toBeGreaterThanOrEqual(10);
-    expect(r.boostFactor).toBeCloseTo(1.4, 1);
-    expect(r.predictedDir).toBe(230);
-    expect(r.signals[0]).toContain('SW sinóptico');
-    expect(r.signals[0]).toContain('Cabo Silleiro');
-  });
-
-  it('excludes a STALE mouth buoy (>2h) from Mode 1', () => {
-    // Default buoy timestamp is 14:00Z; advance the clock 4h so it is stale.
-    vi.setSystemTime(new Date('2026-04-26T18:00:00Z'));
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      null, false, null, null, 6, 230,
-    );
-    expect(r.active).toBe(false); // stale → Mode 1 skipped, no Mode 2 args supplied
-  });
-
-  it('keeps a FRESH mouth buoy near the 2h boundary', () => {
-    // Buoy 14:00Z, clock 15:30Z → 90min old → still fresh.
-    vi.setSystemTime(new Date('2026-04-26T15:30:00Z'));
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      null, false, null, null, 6, 230,
-    );
-    expect(r.active).toBe(true);
-  });
-
-  it('treats a missing buoy timestamp as stale (Mode 1 skipped)', () => {
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro', timestamp: undefined as unknown as string })],
-      null, false, null, null, 6, 230,
-    );
-    expect(r.active).toBe(false);
-  });
-
-  it('promotes to BOOST_HUMID with mouthHumidity ≥85 AND sun', () => {
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      88,
-      false, null, null, 6, 230,
-      600, // W/m² — the thermal engine these boosts describe is actually running
-    );
-    expect(r.active).toBe(true);
-    expect(r.boostFactor).toBeCloseTo(1.7, 1);
-    expect(r.confidence).toBe(70);
-    expect(r.severity).toBe('moderate');
-    expect(r.signals.some((s) => s.includes('HR'))).toBe(true);
-  });
-
-  it('promotes to BOOST_FOG with webcamFogInMouth=true AND sun', () => {
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      90,
-      true,
-      null, null, 6, 230,
-      600, // W/m² — without this the mist could be a front, see the tests below
-    );
-    expect(r.boostFactor).toBeCloseTo(2.0, 1);
-    expect(r.confidence).toBe(85);
-    expect(r.severity).toBe('high');
-    expect(r.signals.some((s) => s.includes('Niebla'))).toBe(true);
-  });
-
-  it('caps boost at MAX_BOOST=2.5', () => {
-    // Even with thermal+fog stack, cap kicks in
-    vi.setSystemTime(new Date('2026-04-26T15:00:00Z')); // thermal hour
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      90,
-      true,
-      18, // warm air
-      14, // ΔT = 4°C
-      6, 230,
-    );
-    expect(r.boostFactor).toBeLessThanOrEqual(2.5);
-  });
-
-  it('picks strongest of multiple mouth buoys', () => {
-    const r = predictCesantesCanalization(
-      [
-        buoy({ stationId: 2248, windSpeed: 5, windDir: 220, stationName: 'Cabo Silleiro' }),
-        buoy({ stationId: 1252, windSpeed: 9, windDir: 250, stationName: 'Cíes' }),
-      ],
-      null, false, null, null, 6, 230,
-    );
-    expect(r.signals[0]).toContain('Cíes');
-  });
-
-  it('SW direction range includes S-SSE (160°) through WSW (280°)', () => {
-    const broadSouth = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 165, stationName: 'Cabo Silleiro' })],
-      null, false, null, null, 6, 230,
-    );
-    expect(broadSouth.active).toBe(true);
-    const wsw = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 275, stationName: 'Cabo Silleiro' })],
-      null, false, null, null, 6, 230,
-    );
-    expect(wsw.active).toBe(true);
-  });
-// ── The sun gate ───────────────────────────────────────────
-  //
-  // Observed in production 4-ago 12:38, and reported from the shore: overcast
-  // sky, a front arriving from the same SW quarter, 5kt measured — and the
-  // popup announcing 20kt "FUERTE" at high confidence, while its own beach
-  // line read "sin apenas viento" and the thermal engine read 0%.
-  //
-  // Every multiplier above the plain channelling tells a thermal story: sun
-  // heats the interior, an inland low forms, humid marine air is drawn up the
-  // ría, and mist in the mouth is that convergence loading. Mist in the mouth
-  // is ALSO what a front looks like. Same symptom, two causes, and the ladder
-  // assumed the flattering one.
-  describe('needs the sun the thermal story depends on', () => {
-    const sw = () => [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })];
-
-    it('refuses the fog boost under an overcast sky', () => {
-      const r = predictCesantesCanalization(sw(), 90, true, null, null, 6, 230, 80);
-      expect(r.boostFactor).toBeCloseTo(1.4, 1); // plain channelling, not 2.0
-      expect(r.signals.some((x) => x.includes('cubierto'))).toBe(true);
-    });
-
-    it('refuses the humidity boost under an overcast sky', () => {
-      const r = predictCesantesCanalization(sw(), 92, false, null, null, 6, 230, 80);
-      expect(r.boostFactor).toBeCloseTo(1.4, 1);
-    });
-
-    it('treats missing radiation as no sun rather than as permission', () => {
-      // The strongest multiplier in the ladder must not be handed out on
-      // absent evidence — that is the whole rigour rule.
-      const r = predictCesantesCanalization(sw(), 90, true, null, null, 6, 230);
-      expect(r.boostFactor).toBeCloseTo(1.4, 1);
-      expect(r.signals.some((x) => x.includes('Sin dato de radiación'))).toBe(true);
-    });
-
-    it('still channels geometrically without sun — a valley is a valley', () => {
-      const r = predictCesantesCanalization(sw(), 90, true, null, null, 6, 230, 80);
-      expect(r.active).toBe(true);
-      expect(r.predictedKt).toBeGreaterThan(6 * 1.944); // above the raw synoptic
-    });
-
-    it('keeps the full ladder when the sun is out', () => {
-      const r = predictCesantesCanalization(sw(), 90, true, null, null, 6, 230, 700);
-      expect(r.boostFactor).toBeCloseTo(2.0, 1);
-      expect(r.confidence).toBe(85);
-    });
-
-    it('reproduces the day it got it wrong', () => {
-      // 9kt SW at the mouth, mist on the cameras, overcast. The old ladder
-      // multiplied by 2.0 and reported ~18kt; channelling alone gives ~12.6.
-      const r = predictCesantesCanalization(
-        [buoy({ stationId: 2248, windSpeed: 4.63, windDir: 247, stationName: 'A Guarda' })],
-        90, true, 23, 20.2, 5, 247, 90,
-      );
-      expect(r.predictedKt!).toBeLessThan(15);
-      expect(r.confidence).toBeLessThan(70); // below the gate the callers apply
-    });
-  });
-});
-
-// ── Mode 1 needs the flow to be arriving at Cesantes ─────────
-//
-// 25-sep 12:52: A Guarda (Miño mouth, open coast) turned SW at 8kt, Cesantes read
-// 2.5kt from the NW with 5kt gusts, the webcam showed a mirror — and the popup
-// said ~14kt. A buoy outside the ría says what the Atlantic is doing, not that the
-// flow gets in.
-describe('predictCesantesCanalization — Mode 1 needs a local SW flow', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-26T14:30:00Z'));
-  });
-  afterEach(() => vi.useRealTimers());
-  const guarda = () => [buoy({ stationId: 1253, windSpeed: 4.2, windDir: 259, stationName: 'A Guarda' })];
-
-  it('stays off on the 25-sep noon: SW at A Guarda, 2.5kt NW at Cesantes', () => {
-    const r = predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 2.5, 305, 700, 5);
-    expect(r.active).toBe(false);
-  });
-
-  it('stays off when the local wind is unknown', () => {
-    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, null, null, 700, null).active).toBe(false);
-  });
-
-  it('stays off on a meaningful local wind from outside the SW arc', () => {
-    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 7, 320, 700, 12).active).toBe(false);
-  });
-
-  it('fires once the SW flow reaches the nearby stations (6-ago: 7kt measured, 14 on the water)', () => {
-    const r = predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 7, 235, 700, 12);
-    expect(r.active).toBe(true);
-    expect(r.predictedKt!).toBeGreaterThanOrEqual(10);
-  });
-
-  it('accepts a low sheltered mean when its direction is SW and it is 4kt or a 10kt gust', () => {
-    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 4, 230, 700, 6).active).toBe(true);
-    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 3, 230, 700, 11).active).toBe(true);
-    expect(predictCesantesCanalization(guarda(), 60, false, 24, 16.7, 4, null, 700, 11).active).toBe(false);
-  });
-});
-
-// ── Mode 2: Thermal breeze (Apr-Oct, 12-20h, ΔT≥2°C, air≥16°C) ──
-
-describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
+describe('predictCesantesCanalization — thermal breeze', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
   it('fires in thermal window with required conditions', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z')); // 15h, in window
     const r = predictCesantesCanalization(
-      [], // no buoys → forces Mode 2 path
-      null, false,
       18, // airTempLocal warm enough
       14, // waterTemp → ΔT = 4°C
       6,  // localStationKt baseline
@@ -328,13 +35,13 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z')); // thermal hour
     // Conditions met, but the real wind is NW 320° at 8kt → SW thermal not
     // establishing (islands block N/NW from reaching Cesantes) → no boost.
-    const r = predictCesantesCanalization([], null, false, 18, 14, 8, 320);
+    const r = predictCesantesCanalization(18, 14, 8, 320);
     expect(r.active).toBe(false);
   });
 
   it('still fires when measured wind IS within the SW arc (230°)', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
-    const r = predictCesantesCanalization([], null, false, 18, 14, 8, 230);
+    const r = predictCesantesCanalization(18, 14, 8, 230);
     expect(r.active).toBe(true);
   });
 
@@ -343,31 +50,31 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     // Regression (user-reported): 3kt measured + a huge ΔT (air 28 / water 16.6)
     // must NOT yield a phantom ~11kt while the ría webcam is mirror-flat. A large
     // ΔT is only the setup; with no measured breeze there is nothing to canalize.
-    const r = predictCesantesCanalization([], null, false, 28, 16.6, 3, 230);
+    const r = predictCesantesCanalization(28, 16.6, 3, 230);
     expect(r.active).toBe(false);
   });
 
   it('does NOT fire outside thermal window (early morning)', () => {
     vi.setSystemTime(new Date('2026-04-26T07:00:00Z')); // 07h
-    const r = predictCesantesCanalization([], null, false, 18, 14, 6);
+    const r = predictCesantesCanalization(18, 14, 6);
     expect(r.active).toBe(false);
   });
 
   it('does NOT fire after thermal window (night)', () => {
     vi.setSystemTime(new Date('2026-04-26T22:00:00Z')); // 22h
-    const r = predictCesantesCanalization([], null, false, 18, 14, 6);
+    const r = predictCesantesCanalization(18, 14, 6);
     expect(r.active).toBe(false);
   });
 
   it('requires ΔT ≥2°C', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
-    const r = predictCesantesCanalization([], null, false, 18, 17, 6); // ΔT=1
+    const r = predictCesantesCanalization(18, 17, 6); // ΔT=1
     expect(r.active).toBe(false);
   });
 
   it('requires airTemp ≥16°C', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
-    const r = predictCesantesCanalization([], null, false, 14, 10, 6); // air<16
+    const r = predictCesantesCanalization(14, 10, 6); // air<16
     expect(r.active).toBe(false);
   });
 
@@ -375,14 +82,14 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
     // No localStationKt = no measured wind to confirm the breeze is blowing, so a
     // big ΔT alone must not conjure a prediction.
-    const r = predictCesantesCanalization([], null, false, 18, 14);
+    const r = predictCesantesCanalization(18, 14);
     expect(r.active).toBe(false);
   });
 
-  it('fires Mode 2 when a real breeze (>=5kt) is present with favourable ΔT', () => {
+  it('fires when a real breeze (>=5kt) is present with favourable ΔT', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
     // 6kt measured + ΔT 4°C → boost applies (breeze established, something to canalize).
-    const r = predictCesantesCanalization([], null, false, 18, 14, 6);
+    const r = predictCesantesCanalization(18, 14, 6);
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBeGreaterThanOrEqual(10);
   });
@@ -390,31 +97,31 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
   it('marks severity=high when predictedKt ≥15', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
     // baseKt 8 + ΔT 5°C × 2 = +8 (capped), breeze established (12kt gust) → 16kt
-    const r = predictCesantesCanalization([], null, false, 20, 15, 8, 230, null, 12);
+    const r = predictCesantesCanalization(20, 15, 8, 230, null, 12);
     expect(r.severity).toBe('high');
   });
 
-  it('fires Mode 2 when mean is ~4kt but ΔT is strong (≥4°C)', () => {
+  it('fires when mean is ~4kt but ΔT is strong (≥4°C)', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
     // 4kt measured + ΔT 6°C (air 24, water 18), no gust known → three quarters of the boost
-    const r = predictCesantesCanalization([], null, false, 24, 18, 4.2, 230);
+    const r = predictCesantesCanalization(24, 18, 4.2, 230);
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBe(10);
   });
 
-  it('fires Mode 2 when sheltered mean is <5kt BUT gust is active (≥10kt) with strong ΔT (today scenario)', () => {
+  it('fires when sheltered mean is <5kt BUT gust is active (≥10kt) with strong ΔT (today scenario)', () => {
     vi.setSystemTime(new Date('2026-09-21T15:00:00Z'));
     // Real-world late September case: air 31°C, water 20°C (ΔT=11°C), mean 4.8kt, gust 12kt
-    const r = predictCesantesCanalization([], null, false, 31, 20, 4.8, 234, null, 12);
+    const r = predictCesantesCanalization(31, 20, 4.8, 234, null, 12);
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBe(13); // 5 base + 8 capped boost = 13kt
     expect(r.predictedDir).toBe(230);
   });
 
-  it('strictly caps Mode 2 pure thermal breeze at 17kt max to avoid over-boosting on normal days', () => {
+  it('strictly caps the thermal breeze at 17kt max to avoid over-boosting on normal days', () => {
     vi.setSystemTime(new Date('2026-04-26T15:00:00Z'));
     // 10kt base + ΔT 8°C (*2 = +16) -> must cap at 17kt, never 26kt
-    const r = predictCesantesCanalization([], null, false, 28, 20, 10, 230, null, 14);
+    const r = predictCesantesCanalization(28, 20, 10, 230, null, 14);
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBe(17);
   });
@@ -432,49 +139,49 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     beforeEach(() => vi.setSystemTime(new Date('2026-09-21T15:00:00Z')));
 
     it('does NOT fire on a north wind carried by the gust branch', () => {
-      const r = predictCesantesCanalization([], null, false, 31, 20, 3, 350, null, 11);
+      const r = predictCesantesCanalization(31, 20, 3, 350, null, 11);
       expect(r.active).toBe(false);
       expect(r.predictedKt).toBeNull();
     });
 
     it('does NOT fire on a north wind carried by the strong-ΔT branch', () => {
-      const r = predictCesantesCanalization([], null, false, 24, 18, 4.5, 0);
+      const r = predictCesantesCanalization(24, 18, 4.5, 0);
       expect(r.active).toBe(false);
     });
 
     it('does NOT fire with an unknown direction and a gust', () => {
-      const r = predictCesantesCanalization([], null, false, 31, 20, 3, null, null, 11);
+      const r = predictCesantesCanalization(31, 20, 3, null, null, 11);
       expect(r.active).toBe(false);
     });
 
     it('does NOT fire with an unknown direction and a strong ΔT', () => {
-      const r = predictCesantesCanalization([], null, false, 24, 18, 4.5, null);
+      const r = predictCesantesCanalization(24, 18, 4.5, null);
       expect(r.active).toBe(false);
     });
 
     it('does NOT fire on a gust alone when there is no measured mean', () => {
       // The gust branch rescues a LOW mean; with no mean at all there is
       // nothing it is rescuing, only one reading and a temperature.
-      const r = predictCesantesCanalization([], null, false, 31, 20, null, 230, null, 11);
+      const r = predictCesantesCanalization(31, 20, null, 230, null, 11);
       expect(r.active).toBe(false);
     });
 
     it('accepts both edges of the arc exactly', () => {
       for (const dir of [160, 315]) {
-        expect(predictCesantesCanalization([], null, false, 31, 20, 3, dir, null, 11).active).toBe(true);
-        expect(predictCesantesCanalization([], null, false, 24, 18, 4.5, dir).active).toBe(true);
+        expect(predictCesantesCanalization(31, 20, 3, dir, null, 11).active).toBe(true);
+        expect(predictCesantesCanalization(24, 18, 4.5, dir).active).toBe(true);
       }
     });
 
     it('rejects a direction just outside either edge', () => {
       for (const dir of [159, 316]) {
-        expect(predictCesantesCanalization([], null, false, 31, 20, 3, dir, null, 11).active).toBe(false);
-        expect(predictCesantesCanalization([], null, false, 24, 18, 4.5, dir).active).toBe(false);
+        expect(predictCesantesCanalization(31, 20, 3, dir, null, 11).active).toBe(false);
+        expect(predictCesantesCanalization(24, 18, 4.5, dir).active).toBe(false);
       }
     });
 
     it('still fires on the real 21-sep afternoon (SW 234, mean 4.8, gust 12)', () => {
-      const r = predictCesantesCanalization([], null, false, 31, 20, 4.8, 234, null, 12);
+      const r = predictCesantesCanalization(31, 20, 4.8, 234, null, 12);
       expect(r.active).toBe(true);
       expect(r.predictedKt).toBe(13);
       expect(r.predictedDir).toBe(230);
@@ -489,7 +196,7 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     beforeEach(() => vi.setSystemTime(new Date('2026-09-21T15:00:00Z')));
 
     it('states the measured mean and the gust that confirmed the breeze', () => {
-      const r = predictCesantesCanalization([], null, false, 31, 20, 4.8, 234, null, 12);
+      const r = predictCesantesCanalization(31, 20, 4.8, 234, null, 12);
       const line = r.signals.find((s) => s.startsWith('Estaciones cercanas'))!;
       expect(line).toContain('4.8kt de media');
       expect(line).toContain('racha de 12kt');
@@ -497,21 +204,21 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
     });
 
     it('states a gust-confirmed mean even when it is far below the floor', () => {
-      const r = predictCesantesCanalization([], null, false, 31, 20, 3, 230, null, 11);
+      const r = predictCesantesCanalization(31, 20, 3, 230, null, 11);
       const line = r.signals.find((s) => s.startsWith('Estaciones cercanas'))!;
       expect(line).toContain('3.0kt de media');
       expect(line).toContain('racha de 11kt');
     });
 
     it('states the measured low mean when a strong ΔT confirmed it, without a gust', () => {
-      const r = predictCesantesCanalization([], null, false, 24, 18, 4.2, 230);
+      const r = predictCesantesCanalization(24, 18, 4.2, 230);
       const line = r.signals.find((s) => s.startsWith('Estaciones cercanas'))!;
       expect(line).toContain('4.2kt de media');
       expect(line).not.toContain('racha');
     });
 
     it('states the measured mean on an ordinary breeze', () => {
-      const r = predictCesantesCanalization([], null, false, 18, 14, 6);
+      const r = predictCesantesCanalization(18, 14, 6);
       const line = r.signals.find((s) => s.startsWith('Estaciones cercanas'))!;
       expect(line).toContain('leen 6kt de media');
       expect(line).not.toContain('racha');
@@ -522,13 +229,13 @@ describe('predictCesantesCanalization — Mode 2 thermal breeze', () => {
 // ── Output shape ──────────────────────────────────────────────
 
 describe('predictCesantesCanalization — output shape', () => {
-  it('returns full CesantesPrediction shape', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('returns the full CesantesPrediction shape on an active thermal breeze', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-04-26T08:00:00Z'));
-    const r = predictCesantesCanalization(
-      [buoy({ stationId: 2248, windSpeed: 6, windDir: 230, stationName: 'Cabo Silleiro' })],
-      null,
-    );
+    vi.setSystemTime(new Date(2026, 3, 26, 15, 0)); // local 15h
+    const r = predictCesantesCanalization(18, 14, 6);
+    expect(r.active).toBe(true);
     expect(r).toHaveProperty('active');
     expect(r).toHaveProperty('confidence');
     expect(r).toHaveProperty('predictedKt');
@@ -538,55 +245,15 @@ describe('predictCesantesCanalization — output shape', () => {
     expect(r).toHaveProperty('severity');
     expect(Array.isArray(r.signals)).toBe(true);
     expect(['info', 'moderate', 'high']).toContain(r.severity);
-    vi.useRealTimers();
-  });
-});
-
-// ── computeMouthHumidity helper ───────────────────────────────
-
-describe('computeMouthHumidity', () => {
-  it('returns null when no mouth stations', () => {
-    expect(computeMouthHumidity([], new Map())).toBeNull();
   });
 
-  it('returns null when no readings have humidity', () => {
-    const stations = [station({ id: 's1', lat: 42.20, lon: -8.85 })];
-    const readings = new Map([['s1', reading({ stationId: 's1', humidity: null })]]);
-    expect(computeMouthHumidity(stations, readings)).toBeNull();
+  it('returns the same shape, inactive, with no inputs at all', () => {
+    const r = predictCesantesCanalization();
+    expect(r).toEqual({
+      active: false, confidence: 0, predictedKt: null, predictedDir: null,
+      boostFactor: 1, signals: [], severity: 'info',
+    });
   });
-
-  it('filters out stations outside the mouth bbox', () => {
-    // Interior ría station (lon > -8.78) should be excluded
-    const stations = [
-      station({ id: 'interior', lat: 42.20, lon: -8.70 }), // too far east
-      station({ id: 'south', lat: 42.10, lon: -8.85 }),     // too far south
-    ];
-    const readings = new Map([
-      ['interior', reading({ stationId: 'interior', humidity: 90 })],
-      ['south', reading({ stationId: 'south', humidity: 90 })],
-    ]);
-    expect(computeMouthHumidity(stations, readings)).toBeNull();
-  });
-
-  it('returns 75th-percentile humidity from mouth stations', () => {
-    const stations = [
-      station({ id: 'a', lat: 42.20, lon: -8.85 }),
-      station({ id: 'b', lat: 42.22, lon: -8.86 }),
-      station({ id: 'c', lat: 42.18, lon: -8.84 }),
-      station({ id: 'd', lat: 42.25, lon: -8.83 }),
-    ];
-    const readings = new Map([
-      ['a', reading({ stationId: 'a', humidity: 70 })],
-      ['b', reading({ stationId: 'b', humidity: 80 })],
-      ['c', reading({ stationId: 'c', humidity: 90 })],
-      ['d', reading({ stationId: 'd', humidity: 95 })],
-    ]);
-    // 75th percentile of [70,80,90,95] → idx=floor(4*0.75)=3 → 95
-    expect(computeMouthHumidity(stations, readings)).toBe(95);
-  });
-
-
-
 });
 
 // ── Ground truth: 25-sep afternoon at Cesantes ──────────────────
@@ -613,59 +280,107 @@ describe('Cesantes 25-sep: what the app shows vs what was on the water', () => {
     it(`${c.at[0]}:${String(c.at[1]).padStart(2, '0')} — water ${c.water}kt`, () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date(2026, 8, 25, c.at[0], c.at[1])); // local clock: the rule reads local hours
-      const r = predictCesantesCanalization([], null, false, c.air, 16.5, c.kt, c.dir, c.sun ?? 700, c.gust);
+      const r = predictCesantesCanalization(c.air, 16.5, c.kt, c.dir, c.sun ?? 700, c.gust);
       const shown = r.active && r.predictedKt != null ? r.predictedKt : c.kt;
       expect(Math.abs(shown - c.water)).toBeLessThanOrEqual(3);
     });
   }
 });
 
-// ── Mode 2 stops when the interior sun is gone (25-sep dusk) ─────
+// ── The thermal breeze stops when the interior sun is gone (25-sep dusk) ─────
 //
 // After sunset the air cools slowly, so ΔT stays at 4-5°C, and hour 20 counts until 20:59.
 // A 4kt residual flow at the edge of the arc was handed the full +8kt: BUENO 13kt at 20:28
 // with 5.5kt on the water (webcam) and interior radiation at 0 W/m².
-describe('predictCesantesCanalization — Mode 2 needs the interior sun', () => {
+describe('predictCesantesCanalization — needs the interior sun', () => {
   afterEach(() => vi.useRealTimers());
   const at = (h: number, m: number) => { vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 8, 25, h, m)); };
 
   it('25-sep 20:28: 4kt at 308°, 11kt gust, ΔT 4.1, interior 0 W/m² gives no boost', () => {
     at(20, 28);
-    expect(predictCesantesCanalization([], null, false, 21, 16.9, 4.0, 308, 0, 11.1).active).toBe(false);
+    expect(predictCesantesCanalization(21, 16.9, 4.0, 308, 0, 11.1).active).toBe(false);
   });
 
   it('the same inputs with the interior still sunny keep the boost: the veto is the sun, not the hour', () => {
     at(20, 28);
-    const r = predictCesantesCanalization([], null, false, 21, 16.9, 4.0, 308, 400, 11.1);
+    const r = predictCesantesCanalization(21, 16.9, 4.0, 308, 400, 11.1);
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBe(13);
   });
 
   it('switches at the threshold: 150 W/m² keeps it, 149 does not', () => {
     at(19, 20);
-    expect(predictCesantesCanalization([], null, false, 23, 16.2, 5.0, 246, 150, 13).active).toBe(true);
-    expect(predictCesantesCanalization([], null, false, 23, 16.2, 5.0, 246, 149, 13).active).toBe(false);
+    expect(predictCesantesCanalization(23, 16.2, 5.0, 246, 150, 13).active).toBe(true);
+    expect(predictCesantesCanalization(23, 16.2, 5.0, 246, 149, 13).active).toBe(false);
   });
 
   it('unknown interior sun does not veto: a silent radiometer must not kill the 15h breeze', () => {
     at(15, 16);
-    const r = predictCesantesCanalization([], null, false, 26, 16.9, 3.8, 301, null, 11.1);
+    const r = predictCesantesCanalization(26, 16.9, 3.8, 301, null, 11.1);
     expect(r.active).toBe(true);
     expect(r.predictedKt).toBe(13);
   });
 
   it('keeps the 18:04 breeze (12.5kt on the water, interior 410 W/m²)', () => {
     at(18, 4);
-    const r = predictCesantesCanalization([], null, false, 25, 16.2, 5.2, 245, 410, 15);
+    const r = predictCesantesCanalization(25, 16.2, 5.2, 245, 410, 15);
     expect(r.active).toBe(true);
     expect(Math.abs((r.predictedKt ?? 0) - 12.5)).toBeLessThanOrEqual(3);
   });
+});
 
-  it('does not touch Mode 1: a fresh SW mouth buoy still channels geometrically in the dark', () => {
-    at(20, 28);
-    const silleiro = buoy({ stationId: 2248, windSpeed: 6, windDir: 230, timestamp: new Date().toISOString() });
-    const r = predictCesantesCanalization([silleiro], null, false, 21, 16.9, 5, 240, 0, 11.1);
+// ── Real instants, and the rain veto ─────────────────────────────
+//
+// Inputs are what the engine handed the detector at those instants (air, water, mean,
+// direction, interior sun, nearby gust). 4-ago 12:38 is the instant the deleted synoptic
+// mode got most wrong: 17kt announced with 2kt on the water.
+describe('predictCesantesCanalization — real instants and the rain veto', () => {
+  afterEach(() => vi.useRealTimers());
+  const at = (y: number, m: number, d: number, h: number, min: number) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(y, m, d, h, min)); // local clock
+  };
+  const rain: RainVeto = {
+    vetoed: true,
+    reason: 'Lluvia en 2 estaciones cercanas en las 2 últimas horas: sin brisa canalizada',
+    wetStations: [{ id: 'wu_IREDON36', mm: 0.51 }, { id: 'mg_10154', mm: 0.3 }],
+  };
+  const dry: RainVeto = { vetoed: false, reason: null, wetStations: [] };
+
+  it('26-ago 17:20: the thermal breeze alone says ~14kt', () => {
+    at(2026, 7, 26, 17, 20);
+    const r = predictCesantesCanalization(21, 18.31, 9, 204, 791, 17.1);
     expect(r.active).toBe(true);
-    expect(r.boostFactor).toBe(1.4);
+    expect(r.predictedKt).toBe(14);
+  });
+
+  it('26-ago 17:20 with rain at two nearby stations: inactive, and the signal says why', () => {
+    at(2026, 7, 26, 17, 20);
+    const r = predictCesantesCanalization(21, 18.31, 9, 204, 791, 17.1, rain);
+    expect(r.active).toBe(false);
+    expect(r.predictedKt).toBeNull();
+    expect(r.signals).toHaveLength(1);
+    expect(r.signals[0]).toContain('Lluvia');
+  });
+
+  it('25-sep 17:04: 13kt, and a veto that did not trip changes nothing', () => {
+    at(2026, 8, 25, 17, 4);
+    expect(predictCesantesCanalization(26, 16.572, 4, 261, 670, 11.08).predictedKt).toBe(13);
+    const r = predictCesantesCanalization(26, 16.572, 4, 261, 670, 11.08, dry);
+    expect(r.active).toBe(true);
+    expect(r.predictedKt).toBe(13);
+  });
+
+  it('25-jun 16:03: 15kt', () => {
+    at(2026, 5, 25, 16, 3);
+    const r = predictCesantesCanalization(23, 18.05, 7, 221, 1012.7, 19.05);
+    expect(r.active).toBe(true);
+    expect(r.predictedKt).toBe(15);
+  });
+
+  it('4-ago 12:38: inactive (4kt mean, weak ΔT, no gust to confirm a breeze)', () => {
+    at(2026, 7, 4, 12, 38);
+    const r = predictCesantesCanalization(23, 20.187, 4, 239, 473, null);
+    expect(r.active).toBe(false);
   });
 });

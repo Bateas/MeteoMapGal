@@ -29,7 +29,9 @@ import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
 import { detectBocana } from './bocanaDetector';
-import { predictCesantesCanalization, computeInteriorSolar, computeMouthHumidity, type CesantesPrediction } from './cesantesCanalizationDetector';
+import { predictCesantesCanalization, computeInteriorSolar, type CesantesPrediction } from './cesantesCanalizationDetector';
+import { assessRainVeto, type RainVeto } from './rainVeto';
+import { precipSamplesFromHistory, type PrecipSample } from './precipSemantics';
 import { getStationBiasAt } from '../config/stationBiases';
 import { isDirVariable } from '../config/verdictStyles';
 
@@ -143,6 +145,12 @@ export interface SpotScore {
   humiditySignal: string | null;
   /** Virtual potential temperature gradient: +K=land warmer (virazon), -K=land cooler (bocana) */
   thetaVGradient: number | null;
+  /** Rain at the spot's stations that vetoes the thermal breeze. Only computed for the
+   *  spots with a canalization detector (Cesantes); null elsewhere. */
+  rainVeto?: RainVeto | null;
+  /** The canalization detector's output as the engine computed it (Cesantes). The popup
+   *  reads it from here instead of running the detector a second time. */
+  channeling?: CesantesPrediction | null;
   computedAt: Date;
 }
 
@@ -991,6 +999,9 @@ function scoreSpot(
   buoyData?: { buoy: BuoyReading; distKm: number }[],
   stationData?: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
   channelingPrediction?: CesantesPrediction | null,
+  /** Rain at the spot's stations (Cesantes). Vetoed = no thermal low: neither the
+   *  generic thermal boost nor the humidity precursor may lift the wind. */
+  rainVeto?: RainVeto | null,
 ): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; effectiveWindKt: number | null; humiditySignal: string | null; thetaVGradient: number | null } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
@@ -1027,8 +1038,9 @@ function scoreSpot(
   // a thermal pattern, we apply an amplification factor to the consensus.
   let thermalBoosted = false;
   let effectiveSpd = spd;
+  const rainVetoed = rainVeto?.vetoed === true;
 
-  if (spot.thermalDetection && thermalData && thermalData.thermalProbability >= 40) {
+  if (!rainVetoed && spot.thermalDetection && thermalData && thermalData.thermalProbability >= 40) {
     // Check if current wind direction matches a thermal pattern
     const dirMatchesThermal = spot.windPatterns.some(
       (p) => angleDifference(wind.dirDeg, p.direction) <= 50,
@@ -1067,7 +1079,10 @@ function scoreSpot(
   // ── Humidity precursor boost (ría bruma pattern) ──────────
   // Historical analysis: 96% of Cesantes wind events preceded by humidity >65%
   // When buoy humidity is high + time is right + direction is WSW → boost score
-  const precursor = buoyData ? humidityPrecursorBoost(spot, buoyData, wind, stationData) : { boost: 0, humidity: null, signal: null, thetaVGradient: null };
+  // Rain-vetoed: the precursor describes a breeze that the rain says is not coming, so it
+  // neither lifts the wind nor the score, nor speaks. Theta-v stays: it is a measurement.
+  const precursorRaw = buoyData ? humidityPrecursorBoost(spot, buoyData, wind, stationData) : { boost: 0, humidity: null, signal: null, thetaVGradient: null };
+  const precursor = rainVetoed ? { ...precursorRaw, boost: 0, signal: null } : precursorRaw;
   if (precursor.boost > 0 && effectiveSpd >= 2) {
     // Additive boost: up to +3kt at max precursor signal
     effectiveSpd += precursor.boost * 3;
@@ -1332,6 +1347,9 @@ export function scoreAllSpots(
   thermalData?: SpotThermalContext,
   teleconnections?: TeleconnectionIndex[],
   readingHistory?: Map<string, NormalizedReading[]>,
+  /** Precipitation samples per station for the rain veto. The ingestor passes what it read
+   *  from the database; the browser omits it and the samples come from readingHistory. */
+  precipHistory?: Map<string, PrecipSample[]>,
 ): Map<string, SpotScore> {
   const results = new Map<string, SpotScore>();
   const computedAt = new Date();
@@ -1406,10 +1424,21 @@ export function scoreAllSpots(
 
     // Cesantes canalization prediction — feeds scoring override when stations
     // under-read by ≥4kt during thermal breeze hours. Detector is gated by
-    // physics (ΔT ≥2°C + hour 12-20 + airTemp ≥16°C), not always-on.
+    // physics (ΔT ≥2°C + hour 12-20 + airTemp ≥16°C), not always-on, and vetoed
+    // by rain at the spot's own stations (rainVeto.ts).
     let channelingPrediction: CesantesPrediction | null = null;
+    let rainVeto: RainVeto | null = null;
     if (spot.id === 'cesantes') {
-      const mouthHum = computeMouthHumidity(stations, readings);
+      // Each station's rain read with its own network's meaning (precipSemantics.ts).
+      rainVeto = assessRainVeto({
+        stationIds: stationData.map((sd) => sd.station.id),
+        precip: new Map(stationData.map((sd) => [
+          sd.station.id,
+          precipHistory?.get(sd.station.id)
+            ?? precipSamplesFromHistory(readingHistory?.get(sd.station.id), sd.reading),
+        ])),
+        nowMs: computedAt.getTime(),
+      });
       // Bug v2.81.31: stationData is not distance-sorted, so .find() may return
       // a far station with a low temp (e.g. interior 15°C) → ΔT goes negative
       // → detector inactive. Same logic as score.airTemp computed later in the
@@ -1442,13 +1471,14 @@ export function scoreAllSpots(
         new Map((stationData ?? []).map((sd) => [sd.station.id, sd.reading])),
       );
       channelingPrediction = predictCesantesCanalization(
-        buoys, mouthHum, false, airTempLocal, waterTempForDetector, localStationKt, wind?.dirDeg ?? null,
+        airTempLocal, waterTempForDetector, localStationKt, wind?.dirDeg ?? null,
         solarRadInterior,
         localGustKt(stationData, buoyData, wind?.rawAvgSpeedKt ?? 0),
+        rainVeto,
       );
     }
 
-    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction);
+    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction, rainVeto);
 
     // Scoring confidence based on source count and type
     const sourceCount = wind?.stationCount ?? 0;
@@ -1595,6 +1625,8 @@ export function scoreAllSpots(
       dewPoint,
       humiditySignal,
       thetaVGradient,
+      rainVeto,
+      channeling: channelingPrediction,
       computedAt,
     });
   }

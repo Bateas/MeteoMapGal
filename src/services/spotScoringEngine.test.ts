@@ -391,6 +391,98 @@ describe('Cesantes canalization override', () => {
   });
 });
 
+// ── Cesantes rain veto (engine) ───────────────────────────────────────
+// Rain at two of the spot's stations in the last two hours: no thermal low. The
+// canalization, the generic thermal boost and the humidity precursor all stand down and
+// the verdict is the stations' consensus. The ingestor hands the rain in (8th argument);
+// the browser reads it from the reading history.
+
+describe('Cesantes rain veto', () => {
+  const cesantes = RIAS_SPOTS.find(s => s.id === 'cesantes')!;
+  const MIN = 60_000;
+  // Rande: water 21, humidity 70 — the humidity precursor would fire at this hour.
+  const randeBuoy: BuoyReading = {
+    stationId: 1251, stationName: 'Rande', timestamp: new Date(),
+    waveHeight: null, wavePeriod: null, waveDirection: null,
+    waveHeightMax: null, wavePeriodMean: null,
+    windSpeed: null, windDir: null, windGust: null,
+    waterTemp: 21, airTemp: null, humidity: 70, dewPoint: 18,
+    airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
+    seaLevelHeight: null,
+  };
+  // Three stations reading the same 6kt SW with a 12kt gust, air 25: a breeze coming in.
+  const ids = ['mg_test', 'mg_g1', 'wu_g2'];
+  const stations = () => ids.map((id, i) => makeStation(id, cesantes.center[1] + (i - 1) * 0.01, cesantes.center[0]));
+  const readings = () => new Map(ids.map((id) => [id, { ...makeReading(id, msFromKt(6), 230, 25), windGust: msFromKt(12) }]));
+  // A thermal context that would give the generic thermal boost its full say.
+  const thermal = {
+    deltaT: 6, thermalProbability: 90, windWindow: null,
+    atmosphere: { cloudCover: 10, cape: null }, bestTendency: 'estable',
+    hasStormAlert: false, rainProbability: null,
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-25T15:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('control: without rain the breeze is canalized and boosted', () => {
+    const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal).get('cesantes')!;
+    expect(score.thermalBoosted).toBe(true);
+    expect(score.effectiveWindKt!).toBeGreaterThanOrEqual(12);
+    expect(score.channeling?.active).toBe(true);
+    expect(score.rainVeto?.vetoed).toBe(false);
+  });
+
+  it('with rain at two stations (ingestor path) the verdict is the consensus, unboosted', () => {
+    const now = Date.now();
+    const precip = new Map([
+      ['mg_g1', [{ t: now - 30 * MIN, mm: 0.5 }]],
+      ['wu_g2', [{ t: now - 100 * MIN, mm: 2.0 }, { t: now - 5 * MIN, mm: 2.6 }]],
+    ]);
+    const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal, undefined, undefined, precip).get('cesantes')!;
+    expect(score.thermalBoosted).toBe(false);
+    expect(score.effectiveWindKt).toBeCloseTo(score.wind!.avgSpeedKt, 1);
+    expect(score.verdict).toBe('light');
+    expect(score.rainVeto?.vetoed).toBe(true);
+    expect(score.channeling?.active).toBe(false);
+    expect(score.channeling?.signals[0]).toContain('Lluvia');
+    expect(score.humiditySignal).toBeNull();
+  });
+
+  it('with rain at two stations in the reading history (browser path) it is vetoed too', () => {
+    const now = Date.now();
+    const at = (id: string, minAgo: number, precipitation: number) =>
+      ({ ...makeReading(id, msFromKt(6), 230, 25), timestamp: new Date(now - minAgo * MIN), precipitation });
+    const current = readings();
+    current.set('mg_g1', { ...current.get('mg_g1')!, precipitation: 0 });
+    current.set('wu_g2', { ...current.get('wu_g2')!, precipitation: 2.6 });
+    const history = new Map([
+      ['mg_g1', [at('mg_g1', 40, 0.3), at('mg_g1', 20, 0)]],
+      ['wu_g2', [at('wu_g2', 100, 2.0)]],
+    ]);
+    const score = scoreAllSpots([cesantes], stations(), current, [randeBuoy], thermal, undefined, history).get('cesantes')!;
+    expect(score.rainVeto?.vetoed).toBe(true);
+    expect(score.thermalBoosted).toBe(false);
+    expect(score.effectiveWindKt).toBeCloseTo(score.wind!.avgSpeedKt, 1);
+  });
+
+  it('rain at one station alone vetoes nothing', () => {
+    const precip = new Map([['mg_g1', [{ t: Date.now() - 30 * MIN, mm: 0.5 }]]]);
+    const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal, undefined, undefined, precip).get('cesantes')!;
+    expect(score.rainVeto?.vetoed).toBe(false);
+    expect(score.thermalBoosted).toBe(true);
+  });
+
+  it('other spots carry no veto and no canalization', () => {
+    const bocana = RIAS_SPOTS.find(s => s.id === 'bocana')!;
+    const score = scoreAllSpots([bocana], stations(), readings(), [randeBuoy]).get('bocana')!;
+    expect(score.rainVeto).toBeNull();
+    expect(score.channeling).toBeNull();
+  });
+});
+
 describe('isWindBlacklisted — audited 2026-05-27', () => {
   it('blacklists Lourizán MG (mg_10064) — globally broken (0.13-0.18 all dirs)', () => {
     expect(isWindBlacklisted('mg_10064')).toBe(true);

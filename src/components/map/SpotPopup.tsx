@@ -30,10 +30,8 @@ import type { WebcamVisionResult } from '../../services/webcamVisionService';
 import type { HourlyForecast } from '../../types/forecast';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { getSunTimes, formatTime } from '../../services/solarUtils';
-import { predictCesantesCanalization, computeMouthHumidity, computeInteriorSolar } from '../../services/cesantesCanalizationDetector';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useWeatherStore } from '../../store/weatherStore';
-import { useWebcamStore } from '../../store/webcamStore';
 import { temperatureColor, degreesToCardinal, scaleGustToSpot } from '../../services/windUtils';
 import { fetchMarineData } from '../../api/marineClient';
 import { fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
@@ -195,41 +193,13 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   const verdict: SpotVerdict = score?.verdict ?? 'unknown';
   const vs = VERDICT_STYLE[verdict];
 
-  // ── Cesantes canalization predictor — memoized for use in wind display ──
-  const channelingPrediction = (() => {
-    if (spot.id !== 'cesantes') return null;
-    try {
-      const buoys = useBuoyStore.getState().buoys ?? [];
-      const stations = useWeatherStore.getState().stations ?? [];
-      const readings = useWeatherStore.getState().currentReadings ?? new Map();
-      const visionResults = useWebcamStore.getState().visionResults ?? new Map();
-      const mouthCams = ['mg-ciesfaro-norte', 'mg-ciesfaro-sur', 'mg-ciesrodas', 'mg-cangas', 'mg-aguete'];
-      let webcamFogInMouth = false;
-      for (const id of mouthCams) {
-        const r = visionResults.get?.(id);
-        if (r?.weather?.fogVisible && (Date.now() - r.analyzedAt.getTime()) < 30 * 60_000) {
-          webcamFogInMouth = true; break;
-        }
-      }
-      const mouthHum = computeMouthHumidity(stations, readings);
-      const airTempLocal = score?.airTemp ?? null;
-      const waterTempLocal = score?.waterTemp ?? mohidSeaTemp ?? null;
-      const localStationKt = score?.wind?.avgSpeedKt ?? null;
-      // Peak radiation INLAND, not over the spot: Cesantes can be under mist
-      // and still blow, but if the interior is covered too there is no thermal
-      // low pulling and it is just a front.
-      const solarRadInterior = computeInteriorSolar(stations, readings);
-      const pred = predictCesantesCanalization(buoys, mouthHum, webcamFogInMouth, airTempLocal, waterTempLocal, localStationKt, score?.wind?.dirDeg ?? null, solarRadInterior, score?.gustKt ?? null);
-      return pred.active ? pred : null;
-    } catch (err) {
-      console.warn('[CesantesPredictor] error:', err);
-      return null;
-    }
-  })();
-  // Predicción "fuerte": ≥4kt sobre la lectura → reemplaza wind display
+  // ── Cesantes canalization — read from the score, never recomputed here ──
+  // The engine runs the detector once, rain veto included, and the marker, this card and
+  // the alert pipeline all read that one answer. This card used to run its own copy, with
+  // other inputs (MOHID water, mouth cameras) and without the engine's confidence gate, so
+  // it could headline a figure the engine had refused.
+  const channelingPrediction = score?.channeling?.active ? score.channeling : null;
   const measuredKt = score?.wind?.avgSpeedKt ?? 0;
-  const useStrongPrediction = channelingPrediction !== null && channelingPrediction.predictedKt !== null
-    && (channelingPrediction.predictedKt - measuredKt) >= 4;
   // Effective wind = the speed that actually drove the verdict (thermal/bocana
   // boost). Display it so the popup never shows a different kt than the marker/
   // ticker/banner for the same spot (O3 coherence — popup-vs-engine asymmetry).
@@ -547,13 +517,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
                 and the count is the very reason the number is not ready yet. */}
             {score.provisional ? (
               <span className="text-[11px] text-slate-500 italic">calculando</span>
-            ) : useStrongPrediction && channelingPrediction?.predictedKt ? (
-              <>
-                <span className="font-bold" style={{ color: windKtColor(channelingPrediction.predictedKt) }}>
-                  ~{channelingPrediction.predictedKt} kt
-                </span>
-                <span className="text-[9px] text-slate-500 italic">(red: {score.wind.avgSpeedKt.toFixed(0)})</span>
-              </>
             ) : (
               <>
                 <span className="font-bold" style={{ color: windKtColor(effectiveKt) }}>
@@ -1020,10 +983,10 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       {spot.category !== 'surf' && score && !score.provisional && (
         <SpotReportBox
           spotId={spot.id}
-          // The figure the headline actually shows: the canalization prediction when it
-          // replaces the reading, otherwise the calibrated wind. Comparing against a number
-          // the reporter cannot see (25-sep: headline ~14, box "5") makes the answer useless.
-          shownWindKt={useStrongPrediction && channelingPrediction?.predictedKt ? channelingPrediction.predictedKt : displayWindKt(score)}
+          // The figure the headline actually shows: the wind the engine decided, canalization
+          // included. Comparing against a number the reporter cannot see (25-sep: headline ~14,
+          // box "5") makes the answer useless.
+          shownWindKt={displayWindKt(score)}
           shownVerdict={renderedVerdict(score)}
         />
       )}

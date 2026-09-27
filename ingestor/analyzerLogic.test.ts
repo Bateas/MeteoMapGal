@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   windVerdict,
   scoreSpot,
+  selectNearbyStations,
   inferCastreloDirection,
   VERDICT_LABEL,
   ALERT_VERDICTS,
@@ -436,7 +437,9 @@ describe('inferCastreloDirection', () => {
 // raw wind consensus only → Cesantes always read 5-10kt (sheltered behind Monte
 // Costa da Vela) → Telegram alerts never fired even on classic SW canalization
 // days. Now: if predictCesantesCanalization is active + confidence ≥70 + delta
-// ≥4kt, scoreSpot returns the boosted effectiveKt.
+// ≥4kt, scoreSpot returns the boosted effectiveKt. The detector's only mode is
+// the afternoon thermal breeze; the synoptic mode fed by the mouth buoys is gone,
+// and rain at the nearby stations vetoes the breeze.
 
 const bocana: SpotDef = {
   id: 'bocana',
@@ -452,9 +455,9 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('boosts MODE 2 thermal breeze (afternoon + warm air + ΔT)', () => {
-    // 14:00 (thermal hour), warm air station near Cesantes (22°C),
-    // mouth buoy with water 18°C (ΔT = +4) → MODE 2 fires
+  it('boosts the thermal breeze (afternoon + warm air + ΔT)', () => {
+    // 14:00 (thermal hour), warm air station near Cesantes (22°C), water 18°C
+    // (the June climatology: this buoy is beyond 15 km) → ΔT = +4 → the breeze fires
     vi.setSystemTime(new Date('2026-06-15T14:00:00+02:00'));
     const localStation = makeReading({
       station_id: 'mg_cesantes',
@@ -474,15 +477,16 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
     });
     const result = scoreSpot(cesantes, [localStation], [mouthBuoy]);
     expect(result.rawWindKt).toBe(6); // raw 5.8 rounds to 6
-    // MODE 2 thermal breeze adds boost — expect at least 'sailing' or better
+    // The thermal breeze adds boost — expect at least 'sailing' or better
     expect(result.boostedBy).toBe('cesantes-canalization');
     expect(result.avgWindKt).toBeGreaterThanOrEqual(10);
     expect(result.boostConfidence).toBeGreaterThanOrEqual(70);
   });
 
-  it('boosts MODE 1 synoptic SW + humid mouth (confidence 70 gate)', () => {
-    // Cabo Silleiro SW 8m/s + mouth station HR 90% → BOOST_HUMID (1.7×)
-    // confidence = 70% (gate). Predicted ~26kt vs raw 5kt → delta 21kt.
+  it('a SW mouth buoy and a humid mouth no longer boost anything (synoptic mode deleted)', () => {
+    // Cabo Silleiro SW 8m/s + mouth station HR 90% used to be BOOST_HUMID (1.7×),
+    // ~26kt announced over a raw 5kt. That mode never decided a field-truth instant
+    // correctly (4-ago: 17kt with 2kt on the water) and was deleted.
     vi.setSystemTime(new Date('2026-04-15T10:00:00+02:00'));
     const localStation = makeReading({
       station_id: 'mg_cesantes',
@@ -510,7 +514,7 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
       station_id: 'mg_moana',
       latitude: 42.28, longitude: -8.80, // mouth zone
       wind_speed: 4, wind_dir: 230,
-      temperature: 14, humidity: 90, // HR ≥85% → BOOST_HUMID
+      temperature: 14, humidity: 90, // HR ≥85%: the old BOOST_HUMID trigger
     });
     const silleiro = makeBuoy({
       station_id: 2248, // Cabo Silleiro REDEXT
@@ -523,28 +527,25 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
     // and Silleiro buoy is ~30km away, also outside radius. The interior
     // station is further still; it is here to supply radiation, not wind.
     expect(result.rawWindKt).toBe(5);
-    expect(result.boostedBy).toBe('cesantes-canalization');
-    expect(result.avgWindKt).toBeGreaterThanOrEqual(10);
+    expect(result.boostedBy).toBeNull();
+    expect(result.avgWindKt).toBe(result.rawWindKt);
   });
 
   it('does NOT boost when raw wind already strong (delta < 4kt)', () => {
-    // Even with synoptic SW, if raw matches prediction (within 4kt), no boost
-    // because the gate `predictedKt - rawKt >= 4` is not met.
-    vi.setSystemTime(new Date('2026-04-15T10:00:00+02:00'));
+    // A real thermal breeze, but the stations already read 14kt: the prediction
+    // (17kt cap) is within 4kt, so the gate `predictedKt - rawKt >= 4` is not met.
+    vi.setSystemTime(new Date('2026-06-15T15:00:00+02:00'));
     const localStation = makeReading({
       station_id: 'mg_cesantes',
       latitude: 42.307,
       longitude: -8.619,
-      wind_speed: 8, // ~15.5kt raw — already strong
+      wind_speed: 7.2, // ~14kt raw — already strong
       wind_dir: 240,
-      temperature: 14,
+      temperature: 24,
     });
-    const silleiro = makeBuoy({
-      station_id: 2248, lat: 42.12, lon: -9.43,
-      wind_speed: 5, // 9.7kt synoptic — prediction ~13kt, delta ~2kt
-      wind_dir: 220,
-    });
-    const result = scoreSpot(cesantes, [localStation], [silleiro]);
+    const rande = makeBuoy({ station_id: 1251, lat: 42.29, lon: -8.66, wind_speed: 0, wind_dir: null, water_temp: 20 });
+    const result = scoreSpot(cesantes, [localStation], [rande]);
+    expect(result.rawWindKt).toBe(14);
     expect(result.boostedBy).toBeNull();
     expect(result.avgWindKt).toBe(result.rawWindKt);
   });
@@ -577,7 +578,7 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
     expect(result.boostedBy).toBeNull();
   });
 
-  // MODE 2 needs the interior sun, on the alert path as on the map.
+  // The breeze needs the interior sun, on the alert path as on the map.
   // Inputs of the map's 25-sep 20:28 case: 4kt mean at 308°, 11kt gust, air 21 / water 16.9,
   // interior dark. The dusk boosts the alert path itself stored were on 22-sep 20:18-20:58
   // (good 12kt over a raw 4kt, after sunset).
@@ -585,18 +586,91 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
   const duskInterior = makeReading({ station_id: 'mg_interior', latitude: 42.30, longitude: -8.30, wind_speed: null, wind_gust: null, wind_dir: null, temperature: 20 });
   const duskRande = makeBuoy({ station_id: 1251, lat: 42.29, lon: -8.66, wind_speed: 0, wind_dir: null, water_temp: 16.9 });
 
-  it('MODE 2 drops the boost at dusk once the interior radiation is gone', () => {
+  it('drops the boost at dusk once the interior radiation is gone', () => {
     vi.setSystemTime(new Date('2026-09-25T20:28:00+02:00'));
     const r = scoreSpot(cesantes, [duskLocal, { ...duskInterior, solar_rad: 0 }], [duskRande]);
     expect(r.boostedBy).toBeNull();
     expect(r.verdict).toBe('calm');
   });
 
-  it('MODE 2 keeps it with the same inputs while the interior is still sunny', () => {
+  it('keeps it with the same inputs while the interior is still sunny', () => {
     vi.setSystemTime(new Date('2026-09-25T20:28:00+02:00'));
     const r = scoreSpot(cesantes, [duskLocal, { ...duskInterior, solar_rad: 400 }], [duskRande]);
     expect(r.boostedBy).toBe('cesantes-canalization');
     expect(r.avgWindKt).toBe(13);
+  });
+
+  // ── Rain veto ──────────────────────────────────────────────
+  // Rain at two of the spot's stations in the last two hours: no thermal low, no boost.
+  // Same breeze as the first test of this block, plus two rain gauges with no anemometer.
+  describe('rain veto', () => {
+    const breeze = () => makeReading({
+      station_id: 'mg_cesantes', latitude: 42.307, longitude: -8.619,
+      wind_speed: 3, wind_dir: 240, temperature: 22, humidity: 60,
+    });
+    const gauge = (station_id: string, dLat: number) => makeReading({
+      station_id, latitude: 42.307 + dLat, longitude: -8.619,
+      wind_speed: null, wind_gust: null, wind_dir: null, temperature: null, humidity: null,
+    });
+    const rows = () => [breeze(), gauge('mg_gauge1', 0.02), gauge('wu_gauge2', -0.02)];
+    const MIN = 60_000;
+    const wetCtx = () => {
+      const now = Date.now();
+      return {
+        nowMs: now,
+        precip: new Map([
+          ['mg_gauge1', [{ t: now - 40 * MIN, mm: 0.4 }]],                                 // interval
+          ['wu_gauge2', [{ t: now - 100 * MIN, mm: 1.0 }, { t: now - 10 * MIN, mm: 1.5 }]], // day counter
+        ]),
+      };
+    };
+    beforeEach(() => vi.setSystemTime(new Date('2026-06-15T14:00:00+02:00')));
+
+    it('keeps the boost without rain data, as before the veto existed', () => {
+      const r = scoreSpot(cesantes, rows(), []);
+      expect(r.boostedBy).toBe('cesantes-canalization');
+      expect(r.avgWindKt).toBeGreaterThan(r.rawWindKt!);
+      expect(r.rainVeto).toBeUndefined();
+    });
+
+    it('drops it when two nearby stations measured rain: the raw wind stands', () => {
+      const r = scoreSpot(cesantes, rows(), [], wetCtx());
+      expect(r.boostedBy).toBeNull();
+      expect(r.avgWindKt).toBe(r.rawWindKt);
+      expect(r.rainVeto).toContain('Lluvia en 2 estaciones');
+    });
+
+    it('keeps it with one wet station, and says the veto was assessed', () => {
+      const ctx = wetCtx();
+      ctx.precip.delete('wu_gauge2');
+      const r = scoreSpot(cesantes, rows(), [], ctx);
+      expect(r.boostedBy).toBe('cesantes-canalization');
+      expect(r.rainVeto).toBeNull();
+    });
+
+    it('ignores rain at stations outside the spot', () => {
+      const far = makeReading({ station_id: 'mg_far', latitude: 42.6, longitude: -8.619, wind_speed: null, wind_dir: null, temperature: null });
+      const ctx = wetCtx();
+      ctx.precip.set('mg_far', [{ t: ctx.nowMs - 10 * MIN, mm: 3 }]);
+      ctx.precip.delete('wu_gauge2');
+      const r = scoreSpot(cesantes, [...rows(), far], [], ctx);
+      expect(r.boostedBy).toBe('cesantes-canalization');
+    });
+  });
+});
+
+describe('selectNearbyStations', () => {
+  it('keeps stations within the radius and preferred ones beyond it, drops excluded ones', () => {
+    const spot: SpotDef = { ...cesantes, preferredStations: ['mg_pref'], excludeStations: ['mg_excl'] };
+    const rows = [
+      makeReading({ station_id: 'mg_in', latitude: 42.31, longitude: -8.62 }),
+      makeReading({ station_id: 'mg_excl', latitude: 42.31, longitude: -8.62 }),
+      makeReading({ station_id: 'mg_pref', latitude: 42.6, longitude: -8.62 }),
+      makeReading({ station_id: 'mg_far', latitude: 42.6, longitude: -8.62 }),
+      makeReading({ station_id: 'mg_nocoords', latitude: 0, longitude: 0 }),
+    ];
+    const ids = selectNearbyStations(spot, rows).map((n) => n.r.station_id);
+    expect(ids).toEqual(['mg_in', 'mg_pref']);
   });
 });
 
