@@ -577,8 +577,10 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
     expect(result.boostedBy).toBeNull();
   });
 
-  // MODE 2 needs the interior sun (Telegram path, same rule as the map).
-  // 25-sep 20:28: 4kt mean at 308°, 11kt gust, air 21 / water 16.9, interior dark.
+  // MODE 2 needs the interior sun, on the alert path as on the map.
+  // Inputs of the map's 25-sep 20:28 case: 4kt mean at 308°, 11kt gust, air 21 / water 16.9,
+  // interior dark. The dusk boosts the alert path itself stored were on 22-sep 20:18-20:58
+  // (good 12kt over a raw 4kt, after sunset).
   const duskLocal = makeReading({ station_id: 'mg_cesantes', wind_speed: 2.06, wind_gust: 5.7, wind_dir: 308, temperature: 21, humidity: 70 });
   const duskInterior = makeReading({ station_id: 'mg_interior', latitude: 42.30, longitude: -8.30, wind_speed: null, wind_gust: null, wind_dir: null, temperature: 20 });
   const duskRande = makeBuoy({ station_id: 1251, lat: 42.29, lon: -8.66, wind_speed: 0, wind_dir: null, water_temp: 16.9 });
