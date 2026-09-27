@@ -191,6 +191,8 @@ function buildMapStyle(styleId: MapStyleId): maplibregl.StyleSpecification {
 
 export function WeatherMap() {
   const mapRef = useRef<MapRef | null>(null);
+  /** A sector switch arrived before the map existed; applied on load. */
+  const pendingSectorViewRef = useRef(false);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const isCoastal = useSectorStore((s) => s.activeSector.coastal);
   const sectorInitialView = useSectorStore((s) => s.activeSector.initialView);
@@ -395,10 +397,18 @@ export function WeatherMap() {
    *  reset, a selection persists across sector switches and re-opens when
    *  the user returns to the original sector (audit — first
    *  reported as the Cesantes auto-open bug, extended to all map selections
-   *  because they share the same leakage pattern). */
+   *  because they share the same leakage pattern).
+   *
+   *  A switch that lands before the map exists — a shared `?sector=rias` link
+   *  opened by someone whose last sector was Embalse — is remembered and done
+   *  on load (`handleMapLoad`). Before, the effect returned and never ran
+   *  again: Rías data over a map left at Castrelo. */
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map) {
+      pendingSectorViewRef.current = true;
+      return;
+    }
     if (activeSpotId) selectSpot('');
     if (selectedStationId) selectStation(null);
     if (selectedBuoyId != null) selectBuoy(null);
@@ -489,6 +499,13 @@ export function WeatherMap() {
   const handleMapLoad = useCallback(() => {
     const map = mapRef.current?.getMap();
     if (!map) return;
+    if (pendingSectorViewRef.current) {
+      // The sector changed before the map existed: put the camera where the
+      // sector the app is in now wants it (see the sector effect above).
+      pendingSectorViewRef.current = false;
+      const { longitude, latitude, zoom, pitch, bearing } = useSectorStore.getState().activeSector.initialView;
+      map.jumpTo({ center: [longitude, latitude], zoom, pitch, bearing });
+    }
     registerAllIcons(map);
     // CRITICAL: `onLoad` fires ONCE. A base-map switch or sector change
     // rebuilds mapStyle → react-map-gl calls map.setStyle() → MapLibre
