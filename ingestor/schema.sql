@@ -54,6 +54,13 @@ ALTER TABLE readings ADD COLUMN IF NOT EXISTS sun_frac DOUBLE PRECISION;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS temp_10cm DOUBLE PRECISION;
 ALTER TABLE readings ADD COLUMN IF NOT EXISTS soil_temp DOUBLE PRECISION;
 
+-- First time the ingestor stored the reading: publication lag per source
+-- (ingested_at - time). Same two steps as buoy_readings, so older rows stay
+-- NULL ("we don't know") instead of getting an invented ingest time. The
+-- default works on the compressed hypertable (checked on the live database).
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS ingested_at TIMESTAMPTZ;
+ALTER TABLE readings ALTER COLUMN ingested_at SET DEFAULT NOW();
+
 -- Unique constraint for dedup (ON CONFLICT DO NOTHING)
 CREATE UNIQUE INDEX IF NOT EXISTS readings_time_station_idx
   ON readings (time, station_id);
