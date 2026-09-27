@@ -598,7 +598,7 @@ describe('computeMouthHumidity', () => {
 // down. The old rule said calm until 16:47 with 10-12kt out there, then 15kt with 12.5.
 describe('Cesantes 25-sep: what the app shows vs what was on the water', () => {
   afterEach(() => vi.useRealTimers());
-  const cases: { at: [number, number]; kt: number; gust: number | null; dir: number; air: number; water: number }[] = [
+  const cases: { at: [number, number]; kt: number; gust: number | null; dir: number; air: number; water: number; sun?: number }[] = [
     { at: [12, 53], kt: 2, gust: 5, dir: 320, air: 19.6, water: 2 },
     { at: [13, 32], kt: 3, gust: 8, dir: 310, air: 20.9, water: 5 },
     { at: [14, 8], kt: 4, gust: 8, dir: 290, air: 21.8, water: 7.5 },
@@ -606,14 +606,66 @@ describe('Cesantes 25-sep: what the app shows vs what was on the water', () => {
     { at: [17, 22], kt: 4, gust: 11, dir: 255, air: 24.2, water: 14 },
     { at: [18, 4], kt: 6, gust: 15, dir: 238, air: 23.8, water: 12.5 },
     { at: [18, 11], kt: 4, gust: null, dir: 241, air: 23.8, water: 12.5 },
+    // Dusk: the breeze had left the inner ria (5.5kt at 20:19) and the interior was dark.
+    { at: [20, 28], kt: 4, gust: 11, dir: 308, air: 21, water: 5.5, sun: 0 },
   ];
   for (const c of cases) {
     it(`${c.at[0]}:${String(c.at[1]).padStart(2, '0')} — water ${c.water}kt`, () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date(2026, 8, 25, c.at[0], c.at[1])); // local clock: the rule reads local hours
-      const r = predictCesantesCanalization([], null, false, c.air, 16.5, c.kt, c.dir, 700, c.gust);
+      const r = predictCesantesCanalization([], null, false, c.air, 16.5, c.kt, c.dir, c.sun ?? 700, c.gust);
       const shown = r.active && r.predictedKt != null ? r.predictedKt : c.kt;
       expect(Math.abs(shown - c.water)).toBeLessThanOrEqual(3);
     });
   }
+});
+
+// ── Mode 2 stops when the interior sun is gone (25-sep dusk) ─────
+//
+// After sunset the air cools slowly, so ΔT stays at 4-5°C, and hour 20 counts until 20:59.
+// A 4kt residual flow at the edge of the arc was handed the full +8kt: BUENO 13kt at 20:28
+// with 5.5kt on the water (webcam) and interior radiation at 0 W/m².
+describe('predictCesantesCanalization — Mode 2 needs the interior sun', () => {
+  afterEach(() => vi.useRealTimers());
+  const at = (h: number, m: number) => { vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 8, 25, h, m)); };
+
+  it('25-sep 20:28: 4kt at 308°, 11kt gust, ΔT 4.1, interior 0 W/m² gives no boost', () => {
+    at(20, 28);
+    expect(predictCesantesCanalization([], null, false, 21, 16.9, 4.0, 308, 0, 11.1).active).toBe(false);
+  });
+
+  it('the same inputs with the interior still sunny keep the boost: the veto is the sun, not the hour', () => {
+    at(20, 28);
+    const r = predictCesantesCanalization([], null, false, 21, 16.9, 4.0, 308, 400, 11.1);
+    expect(r.active).toBe(true);
+    expect(r.predictedKt).toBe(13);
+  });
+
+  it('switches at the threshold: 150 W/m² keeps it, 149 does not', () => {
+    at(19, 20);
+    expect(predictCesantesCanalization([], null, false, 23, 16.2, 5.0, 246, 150, 13).active).toBe(true);
+    expect(predictCesantesCanalization([], null, false, 23, 16.2, 5.0, 246, 149, 13).active).toBe(false);
+  });
+
+  it('unknown interior sun does not veto: a silent radiometer must not kill the 15h breeze', () => {
+    at(15, 16);
+    const r = predictCesantesCanalization([], null, false, 26, 16.9, 3.8, 301, null, 11.1);
+    expect(r.active).toBe(true);
+    expect(r.predictedKt).toBe(13);
+  });
+
+  it('keeps the 18:04 breeze (12.5kt on the water, interior 410 W/m²)', () => {
+    at(18, 4);
+    const r = predictCesantesCanalization([], null, false, 25, 16.2, 5.2, 245, 410, 15);
+    expect(r.active).toBe(true);
+    expect(Math.abs((r.predictedKt ?? 0) - 12.5)).toBeLessThanOrEqual(3);
+  });
+
+  it('does not touch Mode 1: a fresh SW mouth buoy still channels geometrically in the dark', () => {
+    at(20, 28);
+    const silleiro = buoy({ stationId: 2248, windSpeed: 6, windDir: 230, timestamp: new Date().toISOString() });
+    const r = predictCesantesCanalization([silleiro], null, false, 21, 16.9, 5, 240, 0, 11.1);
+    expect(r.active).toBe(true);
+    expect(r.boostFactor).toBe(1.4);
+  });
 });
