@@ -11,6 +11,8 @@
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
 import { predictCesantesCanalization } from '../src/services/cesantesCanalizationDetector.js';
+import { assessRainVeto, type RainVeto } from '../src/services/rainVeto.js';
+import type { PrecipSample } from '../src/services/precipSemantics.js';
 import { detectBocana } from '../src/services/bocanaDetector.js';
 import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor } from '../src/services/spotScoringEngine.js';
 import { isBuoyFresh, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
@@ -188,6 +190,17 @@ export interface SpotResult {
   /** Buoys in range dropped for being older than the staleness gate. Surfaced
    *  so a silently dying buoy feed shows up in the cycle log. */
   staleBuoysDropped?: number;
+  /** Cesantes rain veto: its reason when rain at the nearby stations vetoed the thermal
+   *  breeze, null when it was assessed and did not, absent when there was no rain data. */
+  rainVeto?: string | null;
+}
+
+/** Everything scoreSpot needs beyond the latest rows. */
+export interface ScoreContext {
+  /** Precipitation samples per station (the last ~150 min), for the Cesantes rain veto */
+  precip?: Map<string, PrecipSample[]>;
+  /** The instant the rain window ends at; defaults to now */
+  nowMs?: number;
 }
 
 // ── Adapter: ingestor BuoyWind → frontend BuoyReading ────────
@@ -331,27 +344,6 @@ export function inferCastreloDirection(readings: StationReading[]): string | nul
 // what SpotPopup does on the frontend (which is the authoritative scorer).
 
 /**
- * Compute mouth-of-ría humidity from station readings (mirror of
- * `computeMouthHumidity` in cesantesCanalizationDetector.ts but operating on
- * our DB row shape — frontend version needs NormalizedStation + Map).
- *
- * Mouth = stations near Vigo bay entrance (lon < -8.78, lat 42.15-42.30),
- * 75th percentile is used (robust to interior dry leaking in).
- */
-function computeMouthHumidityFromRows(readings: StationReading[]): number | null {
-  const mouth: number[] = [];
-  for (const r of readings) {
-    if (r.longitude > -8.78 || r.latitude < 42.15 || r.latitude > 42.30) continue;
-    if (r.humidity == null) continue;
-    mouth.push(r.humidity);
-  }
-  if (mouth.length === 0) return null;
-  const sorted = [...mouth].sort((a, b) => a - b);
-  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.75));
-  return sorted[idx];
-}
-
-/**
  * Apply Cesantes canalization override to a raw verdict.
  * Returns boosted wind kt + signal info, or null if not applicable.
  *
@@ -360,21 +352,22 @@ function computeMouthHumidityFromRows(readings: StationReading[]): number | null
  *   - prediction.active && predictedKt !== null
  *   - prediction.confidence >= 70
  *   - (predictedKt - rawKt) >= 4
- *   - same 7 arguments to the detector, including the wind-direction guard
+ *   - same arguments to the detector, including the wind-direction guard
  *     (this claim was false for a while — see the note at the call below)
+ *     and the rain veto
  */
 function applyCesantesBoost(
   rawKt: number,
   readings: StationReading[],
+  /** For the water temperature only (nearest buoy with SST) */
   buoys: BuoyWind[],
   /** Consensus wind direction (deg) — the detector's own suppression guard. */
   localWindDir: number | null,
   /** Peak local station wind gust (kt) — distinguishes sheltered thermal lulls from dead calm */
   localGustKt: number | null = null,
+  /** Rain at the nearby stations (assessRainVeto); vetoed = no boost */
+  rainVeto: RainVeto | null = null,
 ): { effectiveKt: number; confidence: number; predictedDir: number | null } | null {
-  // Compute mouth humidity from interior station readings
-  const mouthHumidity = computeMouthHumidityFromRows(readings);
-
   // Find airTemp near Cesantes (nearest station with temperature, sorted by distance)
   const cesantesLat = 42.307, cesantesLon = -8.619;
   const stationsWithTemp = readings
@@ -405,17 +398,11 @@ function applyCesantesBoost(
   const waterTemp = nearbyBuoyWithSST?.water_temp
     ?? (summerLike ? RIA_VIGO_INTERIOR_SST_BY_MONTH[new Date().getMonth()] : null);
 
-  // Convert ingestor buoys to frontend BuoyReading shape
-  const buoyReadings = buoys.map(buoyWindToBuoyReading);
-
   const prediction = predictCesantesCanalization(
-    buoyReadings,
-    mouthHumidity,
-    false, // no webcam vision in ingestor (frontend-only feature)
     airTempLocal,
     waterTemp,
-    rawKt, // localStationKt — used in thermal-only mode as base
-    // The 7th argument is the detector's own suppression guard: with a real
+    rawKt, // localStationKt — the breeze the boost amplifies
+    // The wind direction is the detector's own suppression guard: with a real
     // flow from outside the SW arc (N/NW), the islands and Monte da Vela block
     // it from reaching the Cesantes shore, so the thermal canalization is not
     // establishing and the prediction must be dropped. Omitting it meant the
@@ -424,6 +411,7 @@ function applyCesantesBoost(
     localWindDir,
     solarRadInterior,
     localGustKt,
+    rainVeto,
   );
 
   if (!prediction.active || prediction.predictedKt === null) return null;
@@ -468,6 +456,30 @@ function applyBocanaBoost(
 // ── scoreSpot ───────────────────────────────────────
 
 /**
+ * The stations that count for a spot (mirror of frontend selectStationsForSpot):
+ * within radiusKm, or curated as preferred at any distance, minus the excluded ones.
+ * Rows without coordinates are skipped. Distance is kept with each row.
+ *
+ * Exported so analyzer.ts asks the database for the rain of exactly these stations.
+ */
+export function selectNearbyStations(spot: SpotDef, readings: StationReading[]): { r: StationReading; distKm: number }[] {
+  const excludeSet = new Set(spot.excludeStations ?? []);
+  const preferredSet = new Set(spot.preferredStations ?? []);
+  // Distance is computed once per station and KEPT. It used to be thrown away
+  // the instant the radius gate passed, which is precisely why every station
+  // ended up with the same vote no matter how far away it sat.
+  const nearby: { r: StationReading; distKm: number }[] = [];
+  for (const r of readings) {
+    if (r.latitude === 0 || r.longitude === 0) continue;
+    if (excludeSet.has(r.station_id)) continue;
+    const distKm = haversineDistance(spot.lat, spot.lon, r.latitude, r.longitude);
+    if (!preferredSet.has(r.station_id) && distKm > spot.radiusKm) continue;
+    nearby.push({ r, distKm });
+  }
+  return nearby;
+}
+
+/**
  * Score a spot based on nearby station wind consensus.
  * Filters stations by distance to spot (radiusKm).
  * Matches frontend spotScoringEngine logic INCLUDING detector overrides
@@ -480,32 +492,20 @@ function applyBocanaBoost(
  * ingestor SPOTS array — only sailing/thermal sailing spots get Telegram
  * verdicts (wind verdict is meaningless for waves). No skip-list needed.
  */
-export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWind[]): SpotResult {
+export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: BuoyWind[], ctx?: ScoreContext): SpotResult {
   // ── Per-spot curation (mirror of frontend selectStationsForSpot) ──
   //
   // Exclusion is applied at the source so nothing downstream (wind mean, gust,
   // direction) sees the station. Detector helpers (Cesantes/Bocana boosts)
   // still read the unfiltered `readings` array on purpose: they consume
-  // REGIONAL signals (mouth humidity, solar gating), not this spot's consensus.
+  // REGIONAL signals (interior sun, solar gating), not this spot's consensus.
+  // The Cesantes rain veto is the exception: it asks THESE stations.
   //
   // Preferred stations bypass the radius gate — the curated reference can sit
   // beyond a deliberately short radius (Limens: Cabo Udra ~9km vs 6km radius).
-  const excludeSet = new Set(spot.excludeStations ?? []);
   const preferredSet = new Set(spot.preferredStations ?? []);
-
   const preferredBuoySet = new Set(spot.preferredBuoys ?? []);
-
-  // Distance is computed once per station and KEPT. It used to be thrown away
-  // the instant the radius gate passed, which is precisely why every station
-  // ended up with the same vote no matter how far away it sat.
-  const nearby: { r: StationReading; distKm: number }[] = [];
-  for (const r of readings) {
-    if (r.latitude === 0 || r.longitude === 0) continue;
-    if (excludeSet.has(r.station_id)) continue;
-    const distKm = haversineDistance(spot.lat, spot.lon, r.latitude, r.longitude);
-    if (!preferredSet.has(r.station_id) && distKm > spot.radiusKm) continue;
-    nearby.push({ r, distKm });
-  }
+  const nearby = selectNearbyStations(spot, readings);
 
   // Buoys carry the x1.5 over-water boost, so they need the map's staleness
   // gate too: the query feeding this serves readings up to 6h old, and without
@@ -659,9 +659,20 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   let effectiveKt = rawWindKt;
   let boostedBy: 'cesantes-canalization' | 'bocana-terral' | null = null;
   let boostConfidence: number | undefined;
+  let rainVetoReason: string | null | undefined;
 
   if (spot.id === 'cesantes') {
-    const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds, avgDir, gustMax > 0 ? gustMax : null);
+    // Rain at the spot's own stations, each read with its network's meaning. Without
+    // rain data (tests, a failed query) there is no veto, as before it existed.
+    const rainVeto = ctx?.precip
+      ? assessRainVeto({
+        stationIds: nearby.map((n) => n.r.station_id),
+        precip: ctx.precip,
+        nowMs: ctx.nowMs ?? Date.now(),
+      })
+      : null;
+    if (rainVeto) rainVetoReason = rainVeto.vetoed ? rainVeto.reason : null;
+    const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds, avgDir, gustMax > 0 ? gustMax : null, rainVeto);
     if (boost) {
       effectiveKt = boost.effectiveKt;
       boostedBy = 'cesantes-canalization';
@@ -695,5 +706,6 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
     boostedBy,
     boostConfidence,
     staleBuoysDropped,
+    ...(rainVetoReason !== undefined ? { rainVeto: rainVetoReason } : {}),
   };
 }

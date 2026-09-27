@@ -139,7 +139,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     ],
     // Closest stations to Cesantes (none truly local — valley uncovered).
     // Real wind in Cesantes valley predicted via cesantesCanalizationDetector
-    // when SW synoptic + mouth humidity/fog align (1.4-2.0x boost factor).
+    // from the afternoon thermal breeze (sun inland + air-water ΔT), vetoed by rain.
     preferredStations: [
       'mg_10154', // ~2.1km closest, but reads sheltered conditions
       'wu_IREDON16', // ~5.5km Redondela

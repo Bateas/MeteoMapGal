@@ -18,6 +18,7 @@ import { displayVerdict, displayWindKt } from '../src/config/verdictStyles.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import type { NormalizedReading, NormalizedStation, StationSource } from '../src/types/station.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
+import type { PrecipSample } from '../src/services/precipSemantics.js';
 import { buoyWindToBuoyReading, isWorthAlerting, type BuoyWind, type SpotResult, type StationReading } from './analyzerLogic.js';
 import { sourceLabel } from './db.js';
 
@@ -55,13 +56,14 @@ export function toEngineInputs(readings: StationReading[], buoys: BuoyWind[]): {
   return { stations, readingMap, buoyReadings };
 }
 
-/** The engine's scores for every non-surf spot of both sectors. */
-export function scoreWithEngine(readings: StationReading[], buoys: BuoyWind[]): Map<string, SpotScore> {
+/** The engine's scores for every non-surf spot of both sectors. `precipHistory` is the rain
+ *  the pipeline read for the Cesantes veto, so both answer with the same rain. */
+export function scoreWithEngine(readings: StationReading[], buoys: BuoyWind[], precipHistory?: Map<string, PrecipSample[]>): Map<string, SpotScore> {
   const { stations, readingMap, buoyReadings } = toEngineInputs(readings, buoys);
   const out = new Map<string, SpotScore>();
   for (const sector of ['embalse', 'rias'] as const) {
     const spots = getSpotsForSector(sector).filter((s) => s.category !== 'surf');
-    for (const [id, score] of scoreAllSpots(spots, stations, readingMap, buoyReadings)) out.set(id, score);
+    for (const [id, score] of scoreAllSpots(spots, stations, readingMap, buoyReadings, undefined, undefined, undefined, precipHistory)) out.set(id, score);
   }
   return out;
 }

@@ -44,7 +44,7 @@ describe('the engine passes the nearby gust to the Cesantes detector', () => {
     const [lon, lat] = cesantes.center;
     scoreAllSpots([cesantes], [station('near', lat + 0.01, lon)], new Map([['near', reading('near', 3.5, 9.5, 230)]]), []);
     expect(spy).toHaveBeenCalled();
-    const gustArg = spy.mock.calls[0][8];
+    const gustArg = spy.mock.calls[0][5];
     expect(gustArg).toBeCloseTo(9.5, 1);
   });
 });
