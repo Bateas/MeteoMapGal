@@ -8,8 +8,8 @@
  *
  * `simple` prop (simpleMode): the ticker ALWAYS mounts — official
  * MeteoGalicia warnings (static strip) plus a filtered marquee with only
- * critical/actionable items (beach headline + safety: storm prediction,
- * forecast storms/fog, active fires). A casual user in simple mode must
+ * critical/actionable items (beach headline, best surf spot from SURF OK
+ * up + safety: storm prediction, forecast storms/fog, active fires). A casual user in simple mode must
  * never miss an official NARANJA warning. With no critical items and no
  * warnings, it renders nothing (silence by default).
  */
@@ -46,6 +46,8 @@ import {
 } from '../../services/tideAlertService';
 import { useMeteoTide } from '../../hooks/useMeteoTide';
 import { detectUpwellingSummary } from '../../services/upwellingDetector';
+import { formatSurfWave, surfBestRank, surfDisplayState } from '../../services/surfVerdictEngine';
+import { useThemeStore } from '../../store/themeStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
 /** Find the next tide point (high or low) relative to now */
@@ -74,6 +76,13 @@ interface ConditionsTickerProps {
 
 export const ConditionsTicker = memo(function ConditionsTicker({ simple = false }: ConditionsTickerProps) {
   const scores = useSpot.use.scores();
+  // Subscribed, not read through getState(): the surf verdict is rebuilt on its
+  // own clock (forecast download, wind shift) and must reach the ticker then,
+  // not whenever some unrelated store happens to change.
+  const surfWaveCache = useSpot.use.surfWaveCache();
+  // Surf items carry their level colour inline, and the ticker is light in the
+  // light theme (it sits outside the map's dark scope).
+  const theme = useThemeStore((s) => s.theme);
   const readings = useWeather.use.currentReadings();
   const stations = useWeather.use.stations();
   const buoyReadings = useBuoy.use.buoys();
@@ -116,31 +125,55 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
 
   const items = useMemo(() => {
     // `essential: true` marks items that survive the simpleMode filter:
-    // safety (storm, forecast storms/fog, fires) + the casual beach headline.
+    // safety (storm, forecast storms/fog, fires) + the casual beach headline
+    // + the best surf spot from SURF OK up (model waves, and it says so).
     // Conservative criterion: when in doubt, an item is informational (UV,
     // air quality, tide coef, gusts, thermal) and only shows in full mode.
-    const result: { key: string; text: string; color: string; bg: string; priority: number; essential?: boolean; icon?: IconId }[] = [];
+    // `hex` (optional) is an inline text colour that wins over `color`.
+    const result: { key: string; text: string; color: string; hex?: string; bg: string; priority: number; essential?: boolean; icon?: IconId }[] = [];
     const sectorLabel = sectorId === 'rias' ? 'Rías' : 'Embalse';
+    // Daytime window, shared with the beach headline below: a verdict about
+    // going in the water is not what simple mode should lead with at 02:00.
+    const hourNow = new Date().getHours();
+    const daytime = hourNow >= 8 && hourNow < 21;
 
     // ── Spot verdicts (priority 10 = highest for non-calm, 1 for calm) ──
     const spots = getSpotsForSector(sectorId);
-    const surfCache = useSpotStore.getState().surfWaveCache;
+    // The best surf spot from SURF OK up becomes essential, so simple mode
+    // (the default for new visitors) finally tells a surfer something.
+    let bestSurf: { idx: number; rank: number; height: number } | null = null;
     for (const spot of spots) {
       const sc = scores.get(spot.id);
       const isSurf = spot.category === 'surf';
 
-      // Surf spots: use wave cache for label
-      if (isSurf) {
-        const sw = surfCache.get(spot.id);
-        if (sw) {
-          const pri = sw.verdictLabel === 'FLAT' ? 1 : sw.verdictLabel === 'PEQUE' ? 3 : 7;
-          result.push({
-            key: `spot-${spot.id}`,
-            text: `${spot.shortName}: ${sw.verdictLabel} ${sw.waveHeight.toFixed(1)}m`,
-            color: sw.verdictLabel === 'FLAT' ? 'text-slate-400' : sw.verdictLabel === 'PEQUE' ? 'text-cyan-400' : 'text-blue-400',
-            bg: sw.verdictLabel === 'FLAT' ? '' : 'bg-blue-900/25',
-            priority: pri,
-          });
+      // Surf spots: THE surf verdict from the cache entry (same one marker,
+      // list and popup read). Quiet until it is ready, like a provisional
+      // sailing verdict. The height is a model value and the text says so.
+      // Over the engine's hard gate the spot falls through to the wind
+      // branch below and reads «Fuerte …kt» like any spot: the wave verdict
+      // ignores wind speed and said SURF OK in a 30 kt blow.
+      const surfState = isSurf ? surfDisplayState(surfWaveCache.get(spot.id), sc) : null;
+      if (isSurf && surfState !== 'danger') {
+        const sw = surfWaveCache.get(spot.id);
+        if (surfState !== 'ready' || !sw?.verdict || sw.waveHeight == null) continue;
+        const v = sw.verdict;
+        const pri = v.level === 0 ? 1 : v.level === 1 ? 3 : 7;
+        result.push({
+          key: `spot-${spot.id}`,
+          text: `${spot.shortName}: ${v.label} ${formatSurfWave(sw.waveHeight)} (modelo)`,
+          // Same colour per level as the marker and the list, on a neutral
+          // chip: the old blue on a blue tint read 1.6:1 in the light theme.
+          color: '',
+          hex: theme === 'light' ? v.lightText : v.text,
+          bg: v.level === 0 ? '' : 'bg-slate-500/10',
+          priority: pri,
+        });
+        // «The best» is CLÁSICO, then SURF OK, then GRANDE (surfBestRank),
+        // never with a storm alert on and only by day.
+        const rank = surfBestRank(v.level);
+        if (rank > 0 && daytime && !sc?.hasStormAlert
+          && (!bestSurf || rank > bestSurf.rank || (rank === bestSurf.rank && sw.waveHeight > bestSurf.height))) {
+          bestSurf = { idx: result.length - 1, rank, height: sw.waveHeight };
         }
         continue;
       }
@@ -166,6 +199,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
         priority: pri,
       });
     }
+    if (bestSurf) result[bestSurf.idx].essential = true;
 
     // ── Beach-day casual headline (coastal sector, daytime) — EJE ALCANCE ──
     // Reframes conditions as a casual "¿buen día de playa?" for the visitor who
@@ -175,8 +209,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
     // own items) and would be winter-long noise, so it's suppressed. Daytime
     // only — a beach verdict at night is absurd.
     if (isCoastalSector(sectorId)) {
-      const beachHour = new Date().getHours();
-      if (beachHour >= 8 && beachHour < 21) {
+      if (daytime) {
         const nowMs = Date.now();
         // Cloud + rain context from the sector forecast WHEN available — scores
         // alone (wind/air/water) already give assessBeachDay enough to commit,
@@ -647,7 +680,8 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
     // afloramiento) still appear when nothing more urgent is happening, but
     // cede their place during busy conditions — no content type is removed,
     // it's prioritised by what matters NOW.
-    // Simple mode: only critical/actionable items survive — beach headline +
+    // Simple mode: only critical/actionable items survive — beach headline,
+    // best surf spot from SURF OK up +
     // safety (storm prediction, forecast storms/fog, active fires). All the
     // informational density (spot verdicts, gusts, waves, tide, forecast
     // summary, thermal, UV, air quality, sea breeze, station status) shows
@@ -657,7 +691,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
 
     const cap = isMobile ? 6 : 9;
     return pool.length > cap ? pool.slice(0, cap) : pool;
-  }, [scores, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple]);
+  }, [scores, surfWaveCache, theme, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple]);
 
   // ── Official MG warnings — static strip above the marquee ─────
   // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).
@@ -752,7 +786,11 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
           }}
         >
           {tickerContent.map((item, i) => (
-            <span key={`${item.key}-${i}`} className={`text-[11px] font-medium ${item.color} flex items-center gap-1.5 ${item.bg ? `${item.bg} px-2 py-0.5 rounded` : ''}`}>
+            <span
+              key={`${item.key}-${i}`}
+              className={`text-[11px] font-medium ${item.color} flex items-center gap-1.5 ${item.bg ? `${item.bg} px-2 py-0.5 rounded` : ''}`}
+              style={item.hex ? { color: item.hex } : undefined}
+            >
               {item.icon ? (
                 <WeatherIcon id={item.icon} size={12} className="shrink-0 opacity-80" />
               ) : (

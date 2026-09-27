@@ -111,6 +111,12 @@ export interface SportWarningParams {
    * measured outside would compare it against water that never reaches it.
    */
   waveHeightM?: number | null;
+  /**
+   * The wave is a MODEL value — a surf beach, where nobody measures waves.
+   * The figure then reads «~1,1 m de ola (modelo)», as on every other surface
+   * that prints it, instead of passing for a measurement.
+   */
+  waveIsModel?: boolean;
   windKt?: number | null;
   /** Injectable clock for tests */
   now?: Date;
@@ -234,6 +240,9 @@ export function buildSportWarningNotice(params: SportWarningParams): SportWarnin
 
   const wave = isUsable(params.waveHeightM) ? params.waveHeightM : null;
   const wind = isUsable(params.windKt) ? params.windKt : null;
+  const waveText = (v: number) => (params.waveIsModel
+    ? `~${formatMetres(v)} de ola (modelo)`
+    : `${formatMetres(v)} de ola`);
 
   // One magnitude missing: show the one we have and NAME the absent one.
   // Hiding both was considered and rejected — inside a ría there is rarely a
@@ -251,7 +260,7 @@ export function buildSportWarningNotice(params: SportWarningParams): SportWarnin
       wind !== null && wave === null
         ? `Ahora mismo: ${formatKnots(wind)} de viento.`
         : wave !== null && wind === null
-          ? `Ahora mismo: ${formatMetres(wave)} de ola.`
+          ? `Ahora mismo: ${waveText(wave)}.`
           : null;
     return {
       ...common,
@@ -293,7 +302,7 @@ export function buildSportWarningNotice(params: SportWarningParams): SportWarnin
     exceptionApplies: true,
     headline: `Aviso naranja por ${label}`,
     thresholdText,
-    currentText: `Ahora mismo: ${formatMetres(wave)} de ola y ${formatKnots(wind)} de viento.`,
+    currentText: `Ahora mismo: ${waveText(wave)} y ${formatKnots(wind)} de viento.`,
     // Below the threshold we add nothing. Any sentence here would read as a
     // verdict, and there is no verdict to give.
     statusText: above

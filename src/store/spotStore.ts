@@ -11,6 +11,7 @@ import type { SpotScore } from '../services/spotScoringEngine';
 import type { SpotWindowResult } from '../services/sailingWindowService';
 import type { ThermalPrecursorResult } from '../services/thermalPrecursorService';
 import type { WebcamVisionResult } from '../services/webcamVisionService';
+import type { SurfWaveEntry } from '../services/surfVerdictEngine';
 import type { HourlyForecast } from '../types/forecast';
 
 /** Historical wind speed entry for sparkline */
@@ -51,8 +52,9 @@ interface SpotState {
   webcamVision: Map<string, WebcamVisionResult>;
   /** Last webcam vision analysis timestamp */
   visionAnalyzedAt: number;
-  /** Per-surf-spot wave data + computed verdict from Open-Meteo Marine (keyed by spot.id) */
-  surfWaveCache: Map<string, { waveHeight: number; swellHeight: number | null; period: number; verdictLabel?: string; verdictColor?: string }>;
+  /** Per-surf-spot wave forecast + THE surf verdict (keyed by spot.id). Written
+   *  only by useSurfMarineData; marker, list, popup and ticker only read it. */
+  surfWaveCache: Map<string, SurfWaveEntry>;
   /** Per-spot WRF 1km forecast cache (keyed by spot.id, fetched on popup open) */
   spotForecasts: Map<string, { data: HourlyForecast[]; fetchedAt: number }>;
 }
@@ -65,7 +67,9 @@ interface SpotActions {
   setSectorForecast: (forecast: HourlyForecast[]) => void;
   setThermalPrecursors: (precursors: Map<string, ThermalPrecursorResult>) => void;
   setWebcamVision: (results: Map<string, WebcamVisionResult>) => void;
-  setSurfWave: (spotId: string, data: { waveHeight: number; swellHeight: number | null; period: number; verdictLabel?: string; verdictColor?: string }) => void;
+  setSurfWave: (spotId: string, data: SurfWaveEntry) => void;
+  /** Replace the whole cache in one update (a recompute touches every surf spot) */
+  setSurfWaves: (next: Map<string, SurfWaveEntry>) => void;
   setSpotForecast: (spotId: string, data: HourlyForecast[]) => void;
 }
 
@@ -146,6 +150,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
           next.set(spotId, data);
           set({ surfWaveCache: next }, undefined, 'setSurfWave');
         },
+        setSurfWaves: (next) => set({ surfWaveCache: next }, undefined, 'setSurfWaves'),
         setSpotForecast: (spotId, data) => {
           const next = new Map(useSpotStore.getState().spotForecasts);
           next.set(spotId, { data, fetchedAt: Date.now() });

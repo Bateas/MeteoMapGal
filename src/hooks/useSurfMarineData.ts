@@ -1,17 +1,33 @@
 /**
- * Auto-fetch marine wave data for all surf spots.
- * Populates spotStore.surfWaveCache so SpotMarker shows correct wave verdict.
+ * Marine wave forecast for the surf spots, and THE surf verdict.
  *
- * Fallback chain: ingestor API (/api/v1/marine) → Open-Meteo Marine direct.
- * Runs on mount + every 15 min. Only for Rías sector (surf spots are Rías-only).
+ * The only writer of spotStore.surfWaveCache. Marker, spot list, popup and
+ * ticker only read the entry this hook builds with `buildSurfEntry`, so they
+ * cannot disagree about a beach: one function, one forecast hour, one wind
+ * (the spot's consensus wind from the score, the same one the popup shows).
+ *
+ * The forecast HOURS are kept in the entry — they used to be downloaded and
+ * thrown away, which is why the popup ran a second download of its own at a
+ * different hour and ended up contradicting the marker.
+ *
+ * Fallback chain: ingestor API (/api/v1/marine) → MeteoSIX USWAN → Open-Meteo
+ * Marine direct. Polls every 15 min, only while the sector has surf spots
+ * (Rías today; Embalse has none and asks for nothing). The verdict is
+ * recomputed WITHOUT a new download whenever the scores change, so a wind
+ * shift reaches every surface on the next scoring cycle.
+ *
+ * A spot with no wind consensus waits («Calculando…») only while the sector's
+ * readings are still arriving; once they are in, the missing wind is real
+ * (calm, or its sources are down) and the verdict is decided without it.
  */
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSectorStore } from '../store/sectorStore';
 import { useSpotStore } from '../store/spotStore';
+import { useWeatherStore } from '../store/weatherStore';
 import { getSpotsForSector } from '../config/spots';
 import { fetchMarineForecast, type MarineForecastHour } from '../api/marineClient';
 import { fetchMeteoSixMarine } from '../api/meteoSixClient';
-import { swellAlignmentMultiplier } from '../components/spot/surfVerdictEngine';
+import { buildSurfEntry, isReadingSetPartial, sameSurfEntry, type SurfWaveEntry } from '../services/surfVerdictEngine';
 import { useVisibilityPolling } from './useVisibilityPolling';
 
 const INTERVAL = 15 * 60_000; // 15 min
@@ -47,35 +63,44 @@ async function fetchMarineForSpot(spotId: string, lat: number, lon: number): Pro
   return fetchMarineForecast(lat, lon);
 }
 
-/** Basic surf verdict from wave height + period (no wind modifier) */
-function basicSurfVerdict(wh: number, tp: number): { label: string; color: string } {
-  let level: number;
-  if (wh < 0.3) level = 0;
-  else if (wh < 0.8) level = 1;
-  else if (wh < 1.5) level = 2;
-  else if (wh < 2.5) level = 3;
-  else level = 4;
+function surfSpotsOf(sectorId: string) {
+  return getSpotsForSector(sectorId).filter((s) => s.category === 'surf');
+}
 
-  const baseLevel = level;
-  let bonus = 0;
-  if (tp >= 10 && level >= 1) bonus = 1;
-  else if (tp > 0 && tp < 5 && level >= 1) bonus = -1;
-  level = Math.max(0, Math.min(4, baseLevel + Math.max(-1, Math.min(1, bonus))));
-  if (level === 4 && wh < 2.0) level = 3;
+/** Whether the sector's readings are still arriving — the same inputs the
+ *  scoring engine gets (useSpotScoring passes these two from this store).
+ *  A surf spot with no wind consensus waits while this is true and decides
+ *  without wind once it is not (calm glassy morning, sources down). */
+function readingSetPartialNow(nowMs: number): boolean {
+  const { stations, currentReadings } = useWeatherStore.getState();
+  return isReadingSetPartial(stations.length, currentReadings.values(), nowMs);
+}
 
-  const LEVELS: { label: string; color: string }[] = [
-    { label: 'FLAT',    color: '#94a3b8' },
-    { label: 'PEQUE',   color: '#22d3ee' },
-    { label: 'SURF OK', color: '#3b82f6' },
-    { label: 'CLASICO', color: '#22c55e' },
-    { label: 'GRANDE',  color: '#f97316' },
-  ];
-  return LEVELS[Math.max(0, Math.min(4, level))];
+/**
+ * Re-derive every surf entry of the active sector from its stored hours and
+ * the current scores. Writes only when something a surface renders changed
+ * (label, summary, height to the cm, forecast hour, pending wind): scores are
+ * recomputed every poll and most of those passes change nothing here.
+ */
+export function recomputeSurfVerdicts(nowMs: number = Date.now()): void {
+  const st = useSpotStore.getState();
+  const sectorId = useSectorStore.getState().activeSector.id;
+  const partial = readingSetPartialNow(nowMs);
+  let next: Map<string, SurfWaveEntry> | null = null;
+  for (const spot of surfSpotsOf(sectorId)) {
+    const prev = st.surfWaveCache.get(spot.id);
+    if (!prev) continue; // nothing downloaded yet — the fetch will build it
+    const entry = buildSurfEntry(spot, prev.hours, st.scores.get(spot.id), nowMs, prev.fetchedAt, partial);
+    if (sameSurfEntry(prev, entry)) continue;
+    next ??= new Map(st.surfWaveCache);
+    next.set(spot.id, entry);
+  }
+  if (next) st.setSurfWaves(next);
 }
 
 export function useSurfMarineData() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
-  const setSurfWave = useSpotStore((s) => s.setSurfWave);
+  const hasSurf = useMemo(() => surfSpotsOf(sectorId).length > 0, [sectorId]);
 
   // Sector ref to drop stale fetches when the user switches sectors mid-loop
   // (3 surf spots × ~1-2s = up to 6s exposure window per cycle —
@@ -85,45 +110,51 @@ export function useSurfMarineData() {
 
   const fetchAll = useCallback(async () => {
     const fetchSectorId = sectorId;
-    const spots = getSpotsForSector(sectorId).filter((s) => s.category === 'surf');
-    if (spots.length === 0) return;
-    for (const spot of spots) {
+    for (const spot of surfSpotsOf(fetchSectorId)) {
       if (sectorIdRef.current !== fetchSectorId) return; // sector switched — drop remaining
+      let hours: MarineForecastHour[] = [];
       try {
-        const hours = await fetchMarineForSpot(spot.id, spot.center[1], spot.center[0]);
-        if (sectorIdRef.current !== fetchSectorId) return; // sector switched during fetch
-        // Pick the forecast hour closest to NOW. Sources (own API / USWAN /
-        // Open-Meteo) return arrays starting at different hours, so blindly
-        // taking hours[0] showed waves from the wrong hour and made the verdict
-        // flicker between refreshes (Patos SURF OK 1.0m ↔ PEQUE 0.4m).
-        const nowMs = Date.now();
-        const now = hours.reduce(
-          (best, h) =>
-            Math.abs(h.time.getTime() - nowMs) < Math.abs(best.time.getTime() - nowMs) ? h : best,
-          hours[0],
-        );
-        if (!now) continue;
-        // Per-spot coastal correction × swell direction alignment
-        const rawWh = now.swellHeight ?? now.waveHeight ?? 0;
-        const swDir = now.swellDirection ?? now.waveDirection ?? null;
-        const align = swDir != null && spot.beachOrientation != null
-          ? swellAlignmentMultiplier(swDir, spot.beachOrientation)
-          : 1.0;
-        const wh = rawWh * (spot.coastalFactor ?? 0.85) * align;
-        const tp = now.swellPeriod ?? now.wavePeriod ?? 0;
-        const v = basicSurfVerdict(wh, tp);
-        setSurfWave(spot.id, {
-          waveHeight: wh,
-          swellHeight: now.swellHeight,
-          period: tp,
-          verdictLabel: v.label,
-          verdictColor: v.color,
-        });
-      } catch { /* ignore — cached data will be used */ }
+        hours = await fetchMarineForSpot(spot.id, spot.center[1], spot.center[0]);
+      } catch { /* every source failed — keep what we had, below */ }
+      if (sectorIdRef.current !== fetchSectorId) return; // sector switched during fetch
+      const st = useSpotStore.getState();
+      const prev = st.surfWaveCache.get(spot.id);
+      // Stale-on-error: an empty answer keeps the previous download. The
+      // nearest-hour freshness limit inside buildSurfEntry decides whether
+      // those hours still describe "now"; if not, the entry says «sin dato».
+      const fresh = hours.length > 0;
+      const keptHours = fresh ? hours : (prev?.hours ?? []);
+      const nowMs = Date.now();
+      const fetchedAt = fresh ? nowMs : (prev?.fetchedAt ?? nowMs);
+      const entry = buildSurfEntry(spot, keptHours, st.scores.get(spot.id), nowMs, fetchedAt, readingSetPartialNow(nowMs));
+      if (!sameSurfEntry(prev, entry)) st.setSurfWave(spot.id, entry);
     }
-  }, [sectorId, setSurfWave]);
+  }, [sectorId]);
 
-  // switched from bespoke visibility-aware setInterval to shared hook.
-  // Pauses automatically when tab is hidden (saves bandwidth + Open-Meteo rate limit).
-  useVisibilityPolling(fetchAll, INTERVAL, true);
+  // A new score (wind shift, cold load settling) re-derives the verdict from
+  // the hours already downloaded. Subscribed to the store rather than through
+  // a selector so DeferredHooks does not re-render on every scoring pass; the
+  // callback only writes surfWaveCache, which it does not listen to — no loop.
+  useEffect(() => {
+    if (!hasSurf) return;
+    recomputeSurfVerdicts();
+    return useSpotStore.subscribe((s, p) => {
+      if (s.scores !== p.scores) recomputeSurfVerdicts();
+    });
+  }, [hasSurf]);
+
+  // Coming back to a sector re-derives its entries AT ONCE, inside
+  // switchSector itself, before anything renders. The entries kept from the
+  // last visit carry a verdict decided with an old wind, and the scores in
+  // the store still belong to the sector just left — so the rebuild marks them
+  // pending («Calculando…») instead of letting the markers show a stale
+  // verdict as firm until the first scoring pass of the new visit.
+  useEffect(() => useSectorStore.subscribe((s, p) => {
+    if (s.activeSector.id !== p.activeSector.id) recomputeSurfVerdicts();
+  }), []);
+
+  // `enabled` follows the sector: entering Rías flips it on and polls at once
+  // (before, a switch from Embalse left every surf marker on «FLAT» until the
+  // popup happened to download its own copy). Pauses when the tab is hidden.
+  useVisibilityPolling(fetchAll, INTERVAL, hasSurf);
 }
