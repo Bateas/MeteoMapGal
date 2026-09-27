@@ -77,7 +77,8 @@ export function SpotScoringSection() {
           </div>
           <p className="text-[11px] text-slate-500 leading-relaxed">
             Marcadores pentagonales. Scoring basado en oleaje (Open-Meteo Marine) con corrección costera.
-            Factores: altura ola, período swell, viento offshore/onshore. Previsión de olas 24h en cada popup.
+            Factores: altura ola, período swell, viento offshore/onshore desde 5 kt (el viento cambia lo limpias que están las olas, no si las hay). Previsión de olas 24h en cada popup.
+            La altura en la playa es de modelo: nadie la mide allí.
           </p>
           <SurfSpotRow name="Patos" desc="Playa NW en Nigrán. Beach break + reef. Marea media-alta, offshore S/SSW." />
           <SurfSpotRow name="A Lanzada (Surf)" desc="2.4km playa W abierta. Muy consistente. Offshore NE/E. Todas las mareas." />
@@ -95,8 +96,8 @@ export function SpotScoringSection() {
           <div className="pt-2 space-y-1">
             <div className="text-[11px] font-bold text-cyan-300">Escala de oleaje (5 niveles)</div>
             <VerdictRow color="#94a3b8" label="Flat"     wind="&lt; 0.3m" desc="Mar plano. Sin olas para surf." />
-            <VerdictRow color="#22d3ee" label="Peque"    wind="0.3-0.8m" desc="Olas pequeñas. Longboard o iniciarse." />
-            <VerdictRow color="#3b82f6" label="Surf OK"  wind="0.8-1.5m" desc="Olas surfeables. Buen día para meterse." />
+            <VerdictRow color="#22d3ee" label="Peque"    wind="0.3-0.8m" desc="Olas pequeñas." />
+            <VerdictRow color="#3b82f6" label="Surf OK"  wind="0.8-1.5m" desc="Olas surfeables. Desde 0,5 m si el viento o el período ayudan." />
             <VerdictRow color="#22c55e" label="Clásico"  wind="1.5-2.5m" desc="Olas limpias y consistentes." />
             <VerdictRow color="#f97316" label="Grande"   wind="&gt; 2.5m" desc="Mar grande. Solo con experiencia." />
             <p className="text-[10px] text-slate-600 italic pt-1">
