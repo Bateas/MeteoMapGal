@@ -12,6 +12,7 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { SECTORS } from '../../config/sectors';
+import { approxStationCount, BUOY_COUNT, SOURCES } from '../../config/networkStats';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 
@@ -28,7 +29,7 @@ const STEPS: Step[] = [
   {
     icon: 'sailboat',
     title: 'Bienvenido a MeteoMapGal',
-    desc: 'Condiciones en tiempo real para Galicia. 7 fuentes de datos, 100+ estaciones y 13 boyas marinas actualizadas cada 5 minutos.',
+    desc: `Condiciones en tiempo real para Galicia: ${approxStationCount()} estaciones de ${SOURCES.length} redes y ${BUOY_COUNT} boyas y mareógrafos, actualizadas cada 5 minutos.`,
     tip: 'Cambia de zona (Embalse / Rías) con los botones superiores.',
     highlight: '[data-tour="sectors"]',
   },
