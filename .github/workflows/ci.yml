@@ -60,6 +60,29 @@ jobs:
           echo "scanning commit messages in $range"
           bash tools/security-scan.sh log "$range"
 
+  typecheck:
+    # The build (esbuild) never typechecks. The gate fails on any error that
+    # crashes at runtime (a missing import, a missing module) and on any rise
+    # of the known type debt; the rules and the baseline live in the script.
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies (root)
+        # Types only: no install scripts are needed to typecheck.
+        run: npm ci --no-audit --no-fund
+
+      - name: tsc -b gate
+        run: bash tools/typecheck-gate.sh
+
   test:
     name: Test + Build
     runs-on: ubuntu-latest

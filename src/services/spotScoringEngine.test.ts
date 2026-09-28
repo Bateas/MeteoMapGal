@@ -3,9 +3,9 @@
  * Covers: windVerdict thresholds, scoreAllSpots integration, hard gates.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { scoreAllSpots, isWindBlacklisted, getSourceQuality, type SpotScore, type SpotVerdict } from './spotScoringEngine';
+import { scoreAllSpots, isWindBlacklisted, getSourceQuality } from './spotScoringEngine';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
-import type { BuoyReading } from '../types/buoy';
+import type { BuoyReading } from '../api/buoyClient';
 import { RIAS_SPOTS, EMBALSE_SPOTS } from '../config/spots';
 
 // ── Helpers ──────────────────────────────────────────────
@@ -105,12 +105,12 @@ describe('scoreAllSpots', () => {
     const reading = makeReading('test1', msFromKt(7), 330);
     // Cies needs buoy data (waveRelevance: 'critical')
     const buoy: BuoyReading = {
-      stationId: 2248, stationName: 'Silleiro', timestamp: new Date(),
-      waveHeight: 1.0, wavePeriod: 8, waveDirection: 300,
+      stationId: 2248, stationName: 'Silleiro', timestamp: new Date().toISOString(),
+      waveHeight: 1.0, wavePeriod: 8, waveDir: 300, waveHeightMax: null, wavePeriodMean: null,
       windSpeed: msFromKt(7), windDir: 330, windGust: null,
       waterTemp: 14, airTemp: 16, humidity: null, dewPoint: null,
-      pressure: null, salinity: null, currentSpeed: null, currentDir: null,
-      seaLevelHeight: null,
+      airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
+      seaLevel: null,
     };
     const results = scoreAllSpots([cies], [station], new Map([['test1', reading]]), [buoy]);
     // 7kt = light for ocean (needs 10+ for sailing)
@@ -120,19 +120,19 @@ describe('scoreAllSpots', () => {
   it('excludes stale buoys (>2h) from the wind verdict', () => {
     const cies = RIAS_SPOTS.find(s => s.id === 'cies-ria')!;
     const base: BuoyReading = {
-      stationId: 2248, stationName: 'Silleiro', timestamp: new Date(),
-      waveHeight: 1.0, wavePeriod: 8, waveDirection: 300,
+      stationId: 2248, stationName: 'Silleiro', timestamp: new Date().toISOString(),
+      waveHeight: 1.0, wavePeriod: 8, waveDir: 300, waveHeightMax: null, wavePeriodMean: null,
       windSpeed: msFromKt(20), windDir: 330, windGust: null,
       waterTemp: 14, airTemp: 16, humidity: null, dewPoint: null,
-      pressure: null, salinity: null, currentSpeed: null, currentDir: null,
-      seaLevelHeight: null,
+      airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
+      seaLevel: null,
     };
     // A fresh buoy drives a verdict (no land stations supplied)...
     const fresh = scoreAllSpots([cies], [], new Map(), [base]);
     expect(fresh.get('cies-ria')!.verdict).not.toBe('unknown');
     // ...but the same reading 3h old must be ignored → no usable wind data.
     const stale = scoreAllSpots([cies], [], new Map(), [
-      { ...base, timestamp: new Date(Date.now() - 3 * 60 * 60_000) },
+      { ...base, timestamp: new Date(Date.now() - 3 * 60 * 60_000).toISOString() },
     ]);
     expect(stale.get('cies-ria')!.verdict).toBe('unknown');
   });
@@ -188,12 +188,12 @@ describe('spatial wind coherence', () => {
     // Buoy at ~12km with 14kt vs land WU at 4km with 7kt — buoy should have more influence
     const land = makeStation('wu_land', 42.31, -8.62, 'wunderground');
     const buoy: BuoyReading = {
-      stationId: 3221, stationName: 'Vigo', timestamp: new Date(),
-      waveHeight: null, wavePeriod: null, waveDirection: null, waveHeightMax: null, wavePeriodMean: null,
+      stationId: 3221, stationName: 'Vigo', timestamp: new Date().toISOString(),
+      waveHeight: null, wavePeriod: null, waveDir: null, waveHeightMax: null, wavePeriodMean: null,
       windSpeed: msFromKt(14), windDir: 225, windGust: null,
       waterTemp: 14, airTemp: 16, humidity: null, dewPoint: null,
       airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
-      seaLevelHeight: null,
+      seaLevel: null,
     };
     const readings = new Map([['wu_land', makeReading('wu_land', msFromKt(7), 225)]]);
     const results = scoreAllSpots([cesantes], [land], readings, [buoy]);
@@ -205,13 +205,13 @@ describe('spatial wind coherence', () => {
   it('leaves out the PORTUS copy of a land anemometer: it is not over water (Cabo Udra, 28-sep)', () => {
     const land = makeStation('wu_land', 42.31, -8.62, 'wunderground');
     const udraCopy: BuoyReading = {
-      stationId: 4273, stationName: 'Cabo Udra', timestamp: new Date(),
-      waveHeight: null, wavePeriod: null, waveDirection: null, waveHeightMax: null, wavePeriodMean: null,
+      stationId: 4273, stationName: 'Cabo Udra', timestamp: new Date().toISOString(),
+      waveHeight: null, wavePeriod: null, waveDir: null, waveHeightMax: null, wavePeriodMean: null,
       windSpeed: msFromKt(14), windDir: 225, windGust: null,
       waterTemp: null, airTemp: null, humidity: null, dewPoint: null,
       airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
-      seaLevelHeight: null,
-    } as unknown as BuoyReading;
+      seaLevel: null,
+    };
     const readings = new Map([['wu_land', makeReading('wu_land', msFromKt(7), 225)]]);
     const withCopy = scoreAllSpots([cesantes], [land], readings, [udraCopy]).get('cesantes')!;
     const without = scoreAllSpots([cesantes], [land], readings, []).get('cesantes')!;
@@ -259,13 +259,13 @@ describe('Cesantes canalization override', () => {
 
   // Rande buoy 1251 with realistic water temp (ObsCosteiro has no wind, only T/HR)
   const randeBuoy: BuoyReading = {
-    stationId: 1251, stationName: 'Rande', timestamp: new Date(),
-    waveHeight: null, wavePeriod: null, waveDirection: null,
+    stationId: 1251, stationName: 'Rande', timestamp: new Date().toISOString(),
+    waveHeight: null, wavePeriod: null, waveDir: null,
     waveHeightMax: null, wavePeriodMean: null,
     windSpeed: null, windDir: null, windGust: null,
     waterTemp: 21, airTemp: null, humidity: 70, dewPoint: 18,
     airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
-    seaLevelHeight: null,
+    seaLevel: null,
   };
 
   beforeEach(() => {
@@ -418,13 +418,13 @@ describe('Cesantes rain veto', () => {
   const MIN = 60_000;
   // Rande: water 21, humidity 70 — the humidity precursor would fire at this hour.
   const randeBuoy: BuoyReading = {
-    stationId: 1251, stationName: 'Rande', timestamp: new Date(),
-    waveHeight: null, wavePeriod: null, waveDirection: null,
+    stationId: 1251, stationName: 'Rande', timestamp: new Date().toISOString(),
+    waveHeight: null, wavePeriod: null, waveDir: null,
     waveHeightMax: null, wavePeriodMean: null,
     windSpeed: null, windDir: null, windGust: null,
     waterTemp: 21, airTemp: null, humidity: 70, dewPoint: 18,
     airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
-    seaLevelHeight: null,
+    seaLevel: null,
   };
   // Three stations reading the same 6kt SW with a 12kt gust, air 25: a breeze coming in.
   const ids = ['mg_test', 'mg_g1', 'wu_g2'];
