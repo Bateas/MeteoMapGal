@@ -222,6 +222,12 @@ describe('scoreSpot — buoy integration', () => {
     expect(result.avgWindKt).toBe(12); // 6 m/s ≈ 11.7 kt → rounds to 12
   });
 
+  it('the PORTUS copy of a land anemometer does not count as a buoy (Ons, Cabo Udra)', () => {
+    expect(scoreSpot(cesantes, [], [makeBuoy({ station_id: 4273 })]).stationCount).toBe(0);
+    expect(scoreSpot(cesantes, [], [makeBuoy({ station_id: 4272 })]).stationCount).toBe(0);
+    expect(scoreSpot(cesantes, [], [makeBuoy({ station_id: 3221 })]).stationCount).toBe(1);
+  });
+
   it('buoys outside radius excluded', () => {
     const farBuoy = makeBuoy({ lat: 41.0, lon: -8.62 }); // ~144km south
     const result = scoreSpot(cesantes, [], [farBuoy]);

@@ -17,7 +17,7 @@ import type { ThermalVeto } from '../src/services/cesantesCanalizationDetector.j
 import type { PrecipSample } from '../src/services/precipSemantics.js';
 import { detectBocana } from '../src/services/bocanaDetector.js';
 import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor } from '../src/services/spotScoringEngine.js';
-import { isBuoyFresh, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
+import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
 
@@ -527,6 +527,8 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   let staleBuoysDropped = 0;
   for (const b of buoyWinds) {
     if (b.lat === 0 || b.lon === 0 || b.wind_speed <= 0) continue;
+    // Same rule as the map: a copy of a land station's anemometer is not over water.
+    if (isLandStationCopy(b.station_id)) continue;
     const distKm = haversineDistance(spot.lat, spot.lon, b.lat, b.lon);
     if (distKm > spot.radiusKm) continue;
     if (b.time != null && !isBuoyFresh({ timestamp: b.time }, BUOY_STALE_MAX_MIN)) {

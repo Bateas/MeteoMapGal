@@ -123,6 +123,27 @@ export function currentSpeedClass(s: number): string {
  *  hold a stale wind verdict or fire a false SST-driven fog alert). */
 export const BUOY_STALE_MAX_MIN = 120;
 
+/**
+ * PORTUS stations that are the SAME anemometer as a MeteoGalicia land station.
+ * Verified 28-sep over three days: same minute, correlation 1.000, same
+ * direction, 0.04 m/s of rounding. They are not over water — Ons is an island
+ * mast and Cabo Udra a cape — so in a wind consensus they would count that
+ * instrument twice, the second time with the x1.5 over-water boost the land
+ * original never gets. Their wind stays out of every consensus; the
+ * MeteoGalicia station speaks for the site wherever it is in range.
+ * (Hidden today by the PORTUS clock: their rows look two hours old. Replay of
+ * 14-28 sep with the clock fixed: they alone added +0.4 to +0.8 kt to the
+ * inner-ría spots.)
+ */
+export const LAND_STATION_BUOY_COPIES: ReadonlyMap<number, string> = new Map([
+  [4272, 'mg_10126'],   // Ons
+  [4273, 'mg_10905'],   // Cabo Udra
+]);
+
+export function isLandStationCopy(buoyId: number): boolean {
+  return LAND_STATION_BUOY_COPIES.has(buoyId);
+}
+
 /** Max age (minutes) for WAVE data specifically.
  *
  *  Wind is a minutes-scale field, so the 2h gate above is right for it. Swell

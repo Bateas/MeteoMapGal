@@ -202,6 +202,22 @@ describe('spatial wind coherence', () => {
     expect(results.get('cesantes')!.wind!.avgSpeedKt).toBeGreaterThan(8);
   });
 
+  it('leaves out the PORTUS copy of a land anemometer: it is not over water (Cabo Udra, 28-sep)', () => {
+    const land = makeStation('wu_land', 42.31, -8.62, 'wunderground');
+    const udraCopy: BuoyReading = {
+      stationId: 4273, stationName: 'Cabo Udra', timestamp: new Date(),
+      waveHeight: null, wavePeriod: null, waveDirection: null, waveHeightMax: null, wavePeriodMean: null,
+      windSpeed: msFromKt(14), windDir: 225, windGust: null,
+      waterTemp: null, airTemp: null, humidity: null, dewPoint: null,
+      airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
+      seaLevelHeight: null,
+    } as unknown as BuoyReading;
+    const readings = new Map([['wu_land', makeReading('wu_land', msFromKt(7), 225)]]);
+    const withCopy = scoreAllSpots([cesantes], [land], readings, [udraCopy]).get('cesantes')!;
+    const without = scoreAllSpots([cesantes], [land], readings, []).get('cesantes')!;
+    expect(withCopy.wind!.avgSpeedKt).toBe(without.wind!.avgSpeedKt);
+  });
+
   it('calm day: no false boost when all sources are calm', () => {
     const s1 = makeStation('mg_calm1', 42.31, -8.63, 'meteogalicia');
     const s2 = makeStation('mg_calm2', 42.30, -8.61, 'aemet');
