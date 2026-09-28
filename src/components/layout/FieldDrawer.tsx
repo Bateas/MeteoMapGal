@@ -793,7 +793,7 @@ function DroneSection({ alerts, forecast }: { alerts: FieldAlerts; forecast?: Ho
         {/* Battery temperature warning */}
         {temp !== null && temp < 5 && (
           <div className="text-[10px] text-amber-400 bg-amber-500/10 rounded px-2 py-1 border border-amber-500/20">
-            Temperatura baja ({temp.toFixed(0)}\u00b0C) — la bateria pierde hasta un 30% de autonomia. Precalienta antes de volar.
+            Temperatura baja ({temp.toFixed(0)}{'\u00b0'}C) — la bateria pierde hasta un 30% de autonomia. Precalienta antes de volar.
           </div>
         )}
 

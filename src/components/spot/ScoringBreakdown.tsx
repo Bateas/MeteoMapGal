@@ -96,7 +96,7 @@ export function ScoringBreakdown({ score, spot }: { score: SpotScore; spot: Sail
             </div>
           ))}
           <div className="text-[11px] text-slate-600 mt-1 italic">
-            Score: {score.score}/100 \u00b7 {score.wind?.stationCount ?? 0} fuentes
+            Score: {score.score}/100 {'\u00b7'} {score.wind?.stationCount ?? 0} fuentes
           </div>
           {score.wind?.contributions && <WindSources contributions={score.wind.contributions} />}
           <SpotVisionBadge spot={spot} />

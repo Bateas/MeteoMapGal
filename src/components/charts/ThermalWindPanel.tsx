@@ -848,7 +848,7 @@ function ZoneCard({
                   </div>
                   {reading?.windDirection != null && (
                     <div className="text-[11px] text-slate-500">
-                      {degreesToCardinal(reading.windDirection)} {Math.round(reading.windDirection)}\u00b0
+                      {degreesToCardinal(reading.windDirection)} {Math.round(reading.windDirection)}{'\u00b0'}
                     </div>
                   )}
                 </div>
