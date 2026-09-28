@@ -1,5 +1,5 @@
 /**
- * What the weather model said the day before, at the five buoys the wind model predicts.
+ * What the weather model said the day before, at the five buoys the wind model predicts and at every spot.
  *
  * Open-Meteo's Previous Runs API keeps, for every hour, "the value that was predicted 24 hours before
  * valid time" (`*_previous_day1`). That is a forecast which already existed when our wind model has to
@@ -11,9 +11,14 @@
  * better on 27 of 31 days and at all five buoys). With the forecast from TWO days before it still fell
  * to 1.93: the gain is the forecast's, not a leak.
  *
+ * The spots (28-sep): the same forecast at each spot, stored before the day it is for. It is the record
+ * to check the forecast against what the spot measured (a front, a breeze), and an input a per-spot
+ * model or the map engine can use later without leaking. Same request: one more coordinate per spot.
+ *
  * Pure: URL, parsing and the fetch window. The fetcher does the I/O.
  */
 import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
+import { ALL_SPOTS } from '../src/config/spots.js';
 
 export const PREVIOUS_RUNS_URL = 'https://previous-runs-api.open-meteo.com/v1/forecast';
 
@@ -31,7 +36,8 @@ export const NWP_BACKFILL_START = '2026-03-01';
  *  the same kind of value the backfill brings. */
 export const NWP_MAX_AHEAD_H = 18;
 
-export interface NwpPoint { id: string; buoyId: number; lat: number; lon: number }
+/** 'boya:<station_id>' (the ML pipeline reads only these) or 'spot:<spot_id>'. */
+export interface NwpPoint { id: string; lat: number; lon: number }
 
 export interface NwpPreviousRow {
   validTime: Date;
@@ -46,8 +52,17 @@ export function nwpPoints(): NwpPoint[] {
   return NWP_BUOYS.map((id) => {
     const b = RIAS_BUOY_STATIONS.find((s) => s.id === id);
     if (!b) throw new Error(`nwpPoints: la boya ${id} no esta en RIAS_BUOY_STATIONS`);
-    return { id: `boya:${id}`, buoyId: id, lat: b.lat, lon: b.lon };
+    return { id: `boya:${id}`, lat: b.lat, lon: b.lon };
   });
+}
+
+/** Every spot of both sectors, at the point its verdict is for (`center` is [lon, lat]). */
+export function nwpSpotPoints(): NwpPoint[] {
+  return ALL_SPOTS.map((sp) => ({ id: `spot:${sp.id}`, lat: sp.center[1], lon: sp.center[0] }));
+}
+
+export function nwpAllPoints(): NwpPoint[] {
+  return [...nwpPoints(), ...nwpSpotPoints()];
 }
 
 const VARS = ['wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m'] as const;
@@ -105,6 +120,24 @@ export function parsePreviousRuns(json: unknown, points: NwpPoint[], nowMs: numb
     });
   });
   return out;
+}
+
+export interface NwpRequest { points: NwpPoint[]; start: string; end: string; backfill: boolean }
+
+/**
+ * At most two requests per cycle: the points whose history is complete ask for the recent window, the
+ * ones that are new or do not reach the training start ask for the whole history. A spot added to the
+ * config gets its history on the next cycle without asking seven months again for the others.
+ */
+export function nwpFetchPlan(points: NwpPoint[], oldestByPoint: ReadonlyMap<string, number>, nowMs: number): NwpRequest[] {
+  const groups = new Map<boolean, NwpRequest>();
+  for (const p of points) {
+    const win = nwpFetchWindow(oldestByPoint.get(p.id) ?? null, nowMs);
+    let g = groups.get(win.backfill);
+    if (!g) groups.set(win.backfill, (g = { points: [], start: win.start, end: win.end, backfill: win.backfill }));
+    g.points.push(p);
+  }
+  return [groups.get(false), groups.get(true)].filter((g): g is NwpRequest => g != null);
 }
 
 function isoDate(ms: number): string {

@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildPreviousRunsUrl,
+  nwpAllPoints,
+  nwpFetchPlan,
   nwpFetchWindow,
   nwpPoints,
+  nwpSpotPoints,
   parsePreviousRuns,
   NWP_BUOYS,
   NWP_BACKFILL_START,
@@ -29,7 +32,25 @@ const payload = (kts: (number | null)[], start = '2026-09-28T00:00') => {
 describe('nwpPoints', () => {
   it('uses the five buoys the wind model predicts, with their coordinates', () => {
     expect(points.map((p) => p.id)).toEqual(NWP_BUOYS.map((id) => `boya:${id}`));
-    expect(points[0]).toMatchObject({ buoyId: 3221, lat: 42.24, lon: -8.73 });
+    expect(points[0]).toMatchObject({ id: 'boya:3221', lat: 42.24, lon: -8.73 });
+  });
+
+  it('adds every spot of both sectors, latitude and longitude the right way round', () => {
+    const spots = nwpSpotPoints();
+    expect(spots.length).toBeGreaterThanOrEqual(14);
+    expect(spots.find((p) => p.id === 'spot:cesantes')).toMatchObject({ lat: 42.307, lon: -8.619 });
+    expect(spots.find((p) => p.id === 'spot:castrelo')).toMatchObject({ lat: 42.2991, lon: -8.1087 });
+    // A swapped [lon, lat] would put every point in the Indian Ocean: all must fall in Galicia.
+    for (const p of spots) {
+      expect(p.lat).toBeGreaterThan(41.8); expect(p.lat).toBeLessThan(43.9);
+      expect(p.lon).toBeGreaterThan(-9.4); expect(p.lon).toBeLessThan(-6.7);
+    }
+  });
+
+  it('keeps the buoys first and every id unique', () => {
+    const all = nwpAllPoints();
+    expect(all.slice(0, 5).map((p) => p.id)).toEqual(NWP_BUOYS.map((id) => `boya:${id}`));
+    expect(new Set(all.map((p) => p.id)).size).toBe(all.length);
   });
 });
 
@@ -74,6 +95,36 @@ describe('parsePreviousRuns', () => {
 
   it('accepts the single-object reply Open-Meteo gives for one coordinate', () => {
     expect(parsePreviousRuns(payload([5]), [points[0]], now)).toHaveLength(1);
+  });
+});
+
+describe('nwpFetchPlan', () => {
+  const now = Date.parse('2026-09-28T12:00:00Z');
+  const all = nwpAllPoints();
+  const full = Date.parse('2026-03-01T00:00:00Z');
+
+  it('asks the recent window for the buoys and the whole history only for the new spots', () => {
+    const oldest = new Map(nwpPoints().map((p) => [p.id, full]));
+    const plan = nwpFetchPlan(all, oldest, now);
+    expect(plan).toHaveLength(2);
+    expect(plan[0]).toMatchObject({ backfill: false, start: '2026-09-26', end: '2026-09-29' });
+    expect(plan[0].points.map((p) => p.id)).toEqual(NWP_BUOYS.map((id) => `boya:${id}`));
+    expect(plan[1]).toMatchObject({ backfill: true, start: NWP_BACKFILL_START });
+    expect(plan[1].points.every((p) => p.id.startsWith('spot:'))).toBe(true);
+  });
+
+  it('is a single recent request once every point has its history', () => {
+    const oldest = new Map(all.map((p) => [p.id, full]));
+    const plan = nwpFetchPlan(all, oldest, now);
+    expect(plan).toHaveLength(1);
+    expect(plan[0].backfill).toBe(false);
+    expect(plan[0].points).toHaveLength(all.length);
+  });
+
+  it('is a single history request on an empty table', () => {
+    const plan = nwpFetchPlan(all, new Map(), now);
+    expect(plan).toHaveLength(1);
+    expect(plan[0].backfill).toBe(true);
   });
 });
 
