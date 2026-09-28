@@ -31,6 +31,7 @@
  */
 
 import { fetchWithRetry } from './fetchWithRetry';
+import { portusFechaToIso } from './portusTime';
 
 const PORTUS_API = '/portus-api';  // proxied → portus.puertos.es/portussvr/api
 const TIMEOUT = 20_000;
@@ -250,11 +251,15 @@ export async function fetchBuoyLastReading(stationId: number, stationName?: stri
     );
 
     if (!result?.datos?.length) return null;
+    // `fecha` is UTC without a zone; a browser reads the bare string as local
+    // time (2 h early in Spain in summer). Unreadable → no reading, never a guess.
+    const timestamp = portusFechaToIso(result.fecha);
+    if (!timestamp) return null;
 
     const reading: BuoyReading = {
       stationId,
       stationName: stationName ?? `Boya ${stationId}`,
-      timestamp: result.fecha,
+      timestamp,
       waveHeight: null,
       waveHeightMax: null,
       wavePeriod: null,
