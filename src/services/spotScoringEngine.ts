@@ -23,7 +23,7 @@ import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
-import { isBuoyFresh, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
+import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
 import { fastDistanceKm, computeBearing } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
@@ -550,6 +550,8 @@ function computeSpotWindConsensus(
 
   for (const { buoy, distKm } of buoyData) {
     if (buoy.windSpeed === null) continue;
+    // A copy of a land station's anemometer is not a sensor over water (LAND_STATION_BUOY_COPIES).
+    if (isLandStationCopy(buoy.stationId)) continue;
     const speedKt = msToKnots(buoy.windSpeed);
     if (speedKt < 1) continue;
     const isPreferred = spot.preferredBuoys.includes(buoy.stationId);
