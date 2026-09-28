@@ -42,7 +42,7 @@ export function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
                       onClick={() => setImgKey(Date.now())}
                       className="text-[11px] text-sky-400 hover:text-sky-300 transition-colors"
                     >
-                      \u21BB Actualizar
+                      {'\u21BB'} Actualizar
                     </button>
                   </div>
                 </>
