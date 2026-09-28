@@ -86,6 +86,11 @@ export interface StationListItem {
   seen_min_ago: number;
   /** Most recent reading within the last 3 days, or null. */
   last_reading: Date | null;
+  /** Whether any reading of the last 3 days carried wind: false for a Netatmo without its
+   *  anemometer module, null with no reading at all. Lets a client drop a network's own
+   *  discovery (which is how it learned the module) and still keep temperature-only stations
+   *  off the wind map. */
+  has_wind: boolean | null;
 }
 
 // ── Queries ────────────────────────────────────────────
@@ -110,10 +115,10 @@ export async function queryStationList(): Promise<StationListItem[]> {
       s.station_id, s.source, s.name, ${altitude},
       s.latitude AS lat, s.longitude AS lon, s.province,
       ROUND(EXTRACT(EPOCH FROM NOW() - s.updated_at) / 60)::int AS seen_min_ago,
-      lr.last_reading
+      lr.last_reading, lr.has_wind
     FROM stations s
     LEFT JOIN (
-      SELECT station_id, MAX(time) AS last_reading
+      SELECT station_id, MAX(time) AS last_reading, bool_or(wind_speed IS NOT NULL) AS has_wind
       FROM readings
       WHERE time > NOW() - INTERVAL '3 days'
       GROUP BY station_id

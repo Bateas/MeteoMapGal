@@ -24,6 +24,8 @@ interface ListedStation {
   lon: number;
   altitude: number | null;
   seen_min_ago: number;
+  /** Absent from servers older than v2.163.6; null when the station sent nothing in 3 days. */
+  has_wind?: boolean | null;
 }
 
 /**
@@ -45,14 +47,19 @@ export async function fetchListedStations(source?: StationSource): Promise<Norma
       if (!SOURCES.has(s.source) || (source && s.source !== source)) continue;
       if (typeof s.station_id !== 'string' || s.station_id.length === 0) continue;
       if (!Number.isFinite(s.lat) || !Number.isFinite(s.lon) || !(s.seen_min_ago <= LIST_SEEN_MAX_MIN)) continue;
-      stations.push({
+      const station: NormalizedStation = {
         id: s.station_id,
         source: s.source as StationSource,
         name: s.name || s.station_id,
         lat: s.lat,
         lon: s.lon,
         altitude: s.altitude ?? 0,
-      });
+      };
+      // Many Netatmo stations have no anemometer. Their own discovery says so; here the
+      // server says whether any recent reading carried wind, and a station that sent none
+      // stays off the wind map. Left unset when the server does not say (older server).
+      if (s.source === 'netatmo' && 'has_wind' in s) station.tempOnly = s.has_wind !== true;
+      stations.push(station);
     }
     return stations.length > 0 ? stations : null;
   } catch (err) {

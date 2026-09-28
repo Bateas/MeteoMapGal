@@ -13,7 +13,11 @@ vi.mock('./wundergroundClient', () => ({
   // Our own list unavailable, so these runs take the direct WU path this test counts.
   fetchWUStationsFromApi: vi.fn(async () => null),
 }));
-vi.mock('./netatmoClient', () => ({ fetchNetatmoStations: vi.fn(async () => []) }));
+vi.mock('./netatmoClient', () => ({
+  fetchNetatmoStations: vi.fn(async () => []),
+  netatmoStationsInRadius: vi.fn(() => null),
+  NETATMO_DIRECT: true,
+}));
 vi.mock('./ipmaClient', () => ({ fetchIpmaNearby: vi.fn(async () => ({ stations: [], readings: [] })) }));
 vi.mock('./skyxClient', () => ({ fetchSkyXData: vi.fn(async () => ({ station: null, reading: null })) }));
 

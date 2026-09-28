@@ -8,7 +8,7 @@ import { fetchLatestForStations } from '../api/meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
 import { fetchLatestReadings, historyToNormalized } from '../api/historyClient';
 import { fetchWUObservations } from '../api/wundergroundClient';
-import { fetchNetatmoObservations } from '../api/netatmoClient';
+import { fetchNetatmoObservations, NETATMO_DIRECT } from '../api/netatmoClient';
 import { fetchSkyXReading } from '../api/skyxClient';
 import { fetchIpmaData } from '../api/ipmaClient';
 import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
@@ -233,6 +233,9 @@ export function useWeatherData() {
           onSourceReadings(readings);
           return readings;
         }).catch((ingestorErr) => {
+          // Straight to Netatmo only in development: in production that is a token and an
+          // uncacheable POST per visitor, every cycle, exactly when our service is struggling.
+          if (!NETATMO_DIRECT) throw ingestorErr;
           console.warn('[WeatherData] Netatmo ingestor failed, trying direct:', (ingestorErr as Error).message);
           return fetchNetatmoObservations({ center: activeSector.center, radiusKm: activeSector.radiusKm }).then(({ readings }) => {
             const filtered = readings.filter((r) => netatmoStationIds.has(r.stationId));
