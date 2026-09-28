@@ -982,7 +982,7 @@ GRANT SELECT, INSERT ON forecast_archive TO meteomap_app;
 -- ~44k rows a year: a plain table.
 CREATE TABLE IF NOT EXISTS nwp_previous_hourly (
   valid_time  TIMESTAMPTZ NOT NULL,   -- hour the forecast is for (UTC)
-  point       TEXT        NOT NULL,   -- 'boya:<station_id>'
+  point       TEXT        NOT NULL,   -- 'boya:<station_id>' (read by MeteoMap-ml) or 'spot:<spot_id>'
   lead_days   SMALLINT    NOT NULL,   -- 1 = predicted 24 h before valid_time
   wind_kt     REAL,
   wind_dir    REAL,

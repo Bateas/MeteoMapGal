@@ -535,8 +535,8 @@ async function start(): Promise<void> {
     runCalibrationCycle().catch((err) => log.warn('[Calibration] timer err: ' + (err as Error).message));
   }, CALIBRATION_CHECK_INTERVAL_MS);
 
-  // Day-before forecast at the ML buoys (nwpPreviousFetcher.ts): every 6 h, 20 coordinate-calls a day.
-  // 200s stagger, after synoptic and FIRMS, to spread the Open-Meteo calls.
+  // Day-before forecast at the ML buoys and every spot (nwpPreviousFetcher.ts): every 6 h, ~76
+  // coordinate-calls a day. 200s stagger, after synoptic and FIRMS, before ConvGrid, to spread the calls.
   setTimeout(() => {
     runNwpPreviousCycle().catch((err) => log.warn('[NWP] init err: ' + (err as Error).message));
   }, 200_000);

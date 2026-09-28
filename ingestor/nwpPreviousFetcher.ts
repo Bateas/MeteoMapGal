@@ -1,10 +1,11 @@
 /**
- * Stores what the weather model said the day before at the five buoys of the wind model
- * (nwpPreviousLogic.ts has the why and the measured gain) in nwp_previous_hourly.
+ * Stores what the weather model said the day before at the five buoys of the wind model and at every
+ * spot (nwpPreviousLogic.ts has the why and the measured gain) in nwp_previous_hourly.
  *
- * Cost: one request for the five points every 6 h (20 coordinate-calls a day against the Open-Meteo
- * free tier), plus one request with the whole history the first time. Goes through the same breaker as
- * every other Open-Meteo call: the daily quota is shared with the forecast and the convection grid.
+ * Cost: one request for all the points every 6 h (5 buoys + 14 spots = 19 coordinates, ~76
+ * coordinate-calls a day against the Open-Meteo free tier), plus one request with the whole history for
+ * the points that do not have it yet (once). Goes through the same breaker as every other Open-Meteo
+ * call: the daily quota is shared with the forecast and the convection grid.
  */
 import { getPool } from './db.js';
 import { log } from './logger.js';
@@ -15,24 +16,26 @@ import {
 } from './openMeteoBreaker.js';
 import {
   buildPreviousRunsUrl,
-  nwpFetchWindow,
-  nwpPoints,
+  nwpAllPoints,
+  nwpFetchPlan,
   parsePreviousRuns,
   NWP_LEAD_DAYS,
   type NwpPreviousRow,
+  type NwpRequest,
 } from './nwpPreviousLogic.js';
 
 export const NWP_PREVIOUS_INTERVAL_MS = 6 * 60 * 60_000;
-const FETCH_TIMEOUT_MS = 30_000;       // the first request brings seven months
+const FETCH_TIMEOUT_MS = 30_000;
+const BACKFILL_TIMEOUT_MS = 90_000;    // seven months for every new point in one reply
 const CHUNK = 500;
 
-async function oldestStored(): Promise<number | null> {
-  const r = await getPool().query<{ oldest: Date | null }>(
-    'SELECT min(valid_time) AS oldest FROM nwp_previous_hourly WHERE lead_days = $1',
+/** Oldest stored hour per point: a point missing here has no history yet. */
+async function oldestByPoint(): Promise<Map<string, number>> {
+  const r = await getPool().query<{ point: string; oldest: Date }>(
+    'SELECT point, min(valid_time) AS oldest FROM nwp_previous_hourly WHERE lead_days = $1 GROUP BY point',
     [NWP_LEAD_DAYS],
   );
-  const v = r.rows[0]?.oldest;
-  return v ? new Date(v).getTime() : null;
+  return new Map(r.rows.map((row) => [row.point, new Date(row.oldest).getTime()]));
 }
 
 async function persist(rows: NwpPreviousRow[]): Promise<number> {
@@ -68,24 +71,34 @@ export async function runNwpPreviousCycle(): Promise<void> {
     return;
   }
   try {
-    const points = nwpPoints();
     const now = Date.now();
-    const win = nwpFetchWindow(await oldestStored(), now);
-    const res = await fetch(buildPreviousRunsUrl(points, win.start, win.end), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-    if (!res.ok) {
-      if (res.status === 429) reportOpenMeteoRateLimit('nwp-previous');
-      log.warn(`[NWP] Open-Meteo previous runs ${res.status}`);
-      return;
+    const plan = nwpFetchPlan(nwpAllPoints(), await oldestByPoint(), now);
+    for (const req of plan) {
+      if (!(await runRequest(req, now))) return;   // a 429 or an error: the next cycle retries
     }
-    reportOpenMeteoSuccess();
-    const rows = parsePreviousRuns(await res.json(), points, now);
-    const written = await persist(rows);
-    const last = rows.reduce((m, r) => Math.max(m, r.validTime.getTime()), 0);
-    // Heartbeat on every cycle: silence would read as "not running".
-    log.ok(`[NWP] prevision de la vispera: ${rows.length} horas recibidas, ${written} nuevas o cambiadas `
-      + `(${points.length} boyas, ${win.start} a ${last ? new Date(last).toISOString().slice(0, 13) + 'h' : '-'}${win.backfill ? ', historico completo' : ''})`);
   } catch (err) {
     // Never fatal: a missing forecast only means the wind model predicts without it.
     log.warn(`[NWP] ciclo fallido: ${(err as Error).message}`);
   }
+}
+
+async function runRequest(req: NwpRequest, now: number): Promise<boolean> {
+  const res = await fetch(buildPreviousRunsUrl(req.points, req.start, req.end), {
+    signal: AbortSignal.timeout(req.backfill ? BACKFILL_TIMEOUT_MS : FETCH_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    if (res.status === 429) reportOpenMeteoRateLimit('nwp-previous');
+    log.warn(`[NWP] Open-Meteo previous runs ${res.status}${req.backfill ? ' (historico)' : ''}`);
+    return false;
+  }
+  reportOpenMeteoSuccess();
+  const rows = parsePreviousRuns(await res.json(), req.points, now);
+  const written = await persist(rows);
+  const last = rows.reduce((m, r) => Math.max(m, r.validTime.getTime()), 0);
+  const buoys = req.points.filter((p) => p.id.startsWith('boya:')).length;
+  // Heartbeat on every request: silence would read as "not running".
+  log.ok(`[NWP] prevision de la vispera: ${rows.length} horas recibidas, ${written} nuevas o cambiadas `
+    + `(${buoys} boyas + ${req.points.length - buoys} spots, ${req.start} a `
+    + `${last ? new Date(last).toISOString().slice(0, 13) + 'h' : '-'}${req.backfill ? ', historico completo' : ''})`);
+  return true;
 }
