@@ -10,7 +10,7 @@
  * Intensidad: visibility 0.3km → halo denso y amplio (5km radio), visibility
  * 1.8km → halo tenue (2km radio). Cuadrática.
  *
- * Mar (queryTerrainElevation = null): permitido SOLO si la estación es
+ * Mar (cota del DEM <= 0, que llega como null): permitido SOLO si la estación es
  * costera (altitud ≤50m). Para estaciones interiores (Lavacolla 370m,
  * Lugo Rozas 444m) ignorar agua porque el valle interior no llega al mar.
  */
@@ -31,7 +31,7 @@ export interface VisibilityHaloInput {
   lat: number;
   lon: number;
   visibilityKm: number;
-  /** Ground elevation at the station from queryTerrainElevation, in meters */
+  /** Ground elevation at the station from the DEM tiles (api/demElevation), in meters */
   stationElevM: number | null;
 }
 

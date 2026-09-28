@@ -17,9 +17,9 @@
  */
 
 import { memo, useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Source, Layer, useMap } from 'react-map-gl/maplibre';
-import { useElevationTerrain } from './useElevationTerrain';
+import { Source, Layer } from 'react-map-gl/maplibre';
 import type { Feature, FeatureCollection } from 'geojson';
+import { loadElevationSampler, type ElevationAt } from '../../api/demElevation';
 import { useWeatherStore } from '../../store/weatherStore';
 import {
   haloRadiusKm,
@@ -37,18 +37,24 @@ const FADE_IN_MS = 2_000;
 const FADE_OUT_MS = 5_000;
 const GRID_RESOLUTION = 18; // cells per side (324 cells / station max)
 
-type ElevQuery = (lngLat: { lng: number; lat: number }) => number | null;
+type FogStation = { id: string; name: string; lat: number; lon: number; vis: number };
 
-function buildHaloGeoJSON(
-  queryElev: ElevQuery,
-  stations: { id: string; name: string; lat: number; lon: number; vis: number }[],
-): FeatureCollection {
+/**
+ * Ground altitude comes from the DEM tiles read directly (demElevation), never
+ * from MapLibre terrain (terrain made every pointer move and every marker read
+ * pixels back from the GPU). Sea reads as bathymetry: at or below 0 m it is
+ * handed to the service as water (null), so its "water only for coastal
+ * stations" rule applies — terrain never answered null, so it never did.
+ * A tile that could not be loaded is unknown and is not painted.
+ */
+export function buildHaloGeoJSON(elevAt: ElevationAt, stations: FogStation[]): FeatureCollection {
   const features: Feature[] = [];
   for (const s of stations) {
     const radius = haloRadiusKm(s.vis);
     if (radius <= 0) continue;
-    const stationElev = queryElev({ lng: s.lon, lat: s.lat });
-    if (stationElev === null || stationElev === undefined) continue;
+    const stationRaw = elevAt(s.lon, s.lat);
+    if (stationRaw === null) continue;
+    const stationElev = Math.max(0, stationRaw);
 
     const bbox = haloBbox(s.lat, s.lon, radius);
     const cellW = (bbox.east - bbox.west) / GRID_RESOLUTION;
@@ -65,7 +71,9 @@ function buildHaloGeoJSON(
         const dKm = Math.hypot(dLat, dLon);
         if (dKm > radius) continue;
 
-        const cellElev = queryElev({ lng, lat });
+        const cellRaw = elevAt(lng, lat);
+        if (cellRaw === null) continue;
+        const cellElev = cellRaw <= 0 ? null : cellRaw;
         const density = densityForCell(dKm, radius, cellElev, stationElev, s.vis);
         if (density === 0) continue;
 
@@ -94,13 +102,13 @@ function buildHaloGeoJSON(
 }
 
 function AemetVisibilityHaloInner() {
-  const { current: mapRef } = useMap();
   const visibilityReadings = useWeatherStore((s) => s.visibilityReadings);
 
   const [geojson, setGeojson] = useState<FeatureCollection | null>(null);
   const [opacity, setOpacity] = useState(0);
   const lastRef = useRef<FeatureCollection | null>(null);
-  const elevRetriesRef = useRef(0);
+  /** Build sequence: a slower older build must not overwrite a newer one. */
+  const buildSeqRef = useRef(0);
 
   // Age is time-dependent but the store only pushes on a successful AEMET
   // poll — while AEMET is down nothing re-renders this component, so a halo
@@ -123,7 +131,7 @@ function AemetVisibilityHaloInner() {
   // new object, which re-renders... forever. The loop only bites while fog is
   // actually reported, so it hid until the halo could produce features.
   const fogStations = useMemo(() => {
-    const out: { id: string; name: string; lat: number; lon: number; vis: number }[] = [];
+    const out: FogStation[] = [];
     const now = Date.now();
     for (const v of visibilityReadings.values()) {
       if (!isVisibilityFresh(v, now)) continue;
@@ -136,45 +144,30 @@ function AemetVisibilityHaloInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibilityReadings, freshnessTick]);
 
-  // The map is flat 2D; terrain exists only to answer queryTerrainElevation.
-  // Without it the halo service fails safe to density 0 and nothing renders.
-  // On only while some station reports fog.
-  useElevationTerrain(mapRef, fogStations.length > 0);
-
-  const buildHalo = useCallback(() => {
-    const map = mapRef?.getMap();
-    if (!map || fogStations.length === 0) {
+  const buildHalo = useCallback(async () => {
+    const seq = ++buildSeqRef.current;
+    if (fogStations.length === 0) {
       // Fade out when there's no data
       setOpacity(0);
       return;
     }
 
-    const queryElev: ElevQuery = (lngLat) => {
-      try { return map.queryTerrainElevation?.(lngLat) ?? null; }
-      catch { return null; }
-    };
+    // Only the DEM tiles around the reporting stations (cached across builds).
+    const elevAt = await loadElevationSampler(
+      fogStations.map((s) => haloBbox(s.lat, s.lon, haloRadiusKm(s.vis))),
+    );
+    if (seq !== buildSeqRef.current) return; // a newer build is on its way
 
-    const data = buildHaloGeoJSON(queryElev, fogStations);
+    const data = buildHaloGeoJSON(elevAt, fogStations);
     if (data.features.length > 0) {
       setGeojson(data);
       lastRef.current = data;
-      elevRetriesRef.current = 0;
       // Trigger fade-in
       setTimeout(() => setOpacity(1), 16);
     } else {
-      // Terrain just turned on and its elevation tiles are not in yet, so
-      // every query answered null. Try again once the map has settled, a few
-      // times at most: a halo that really has nothing to paint must not keep
-      // retrying.
       setOpacity(0);
-      if (elevRetriesRef.current < 3) {
-        elevRetriesRef.current += 1;
-        map.once('idle', () => buildHaloRef.current());
-      }
     }
-  }, [mapRef, fogStations]);
-  const buildHaloRef = useRef(buildHalo);
-  buildHaloRef.current = buildHalo;
+  }, [fogStations]);
 
   // Rebuild halos when readings change. Tied to length + visibility values
   // so we don't spam re-renders on no-op map prop changes.
@@ -184,27 +177,18 @@ function AemetVisibilityHaloInner() {
     .join('|');
 
   useEffect(() => {
-    const map = mapRef?.getMap();
-    if (!map) return;
-
     if (fogStations.length === 0) {
-      elevRetriesRef.current = 0;
+      buildSeqRef.current += 1; // drop any build still in flight
       setOpacity(0);
       // Hold last frame during fade-out, then clear
       const t = setTimeout(() => { setGeojson(null); lastRef.current = null; }, FADE_OUT_MS);
       return () => clearTimeout(t);
     }
 
-    // CALL getTerrain() — checking the method reference is always truthy, so
-    // the old guard never waited and built halos with null elevations (which
-    // the service fails safe on → nothing rendered). Terrain is now enabled
-    // on demand by useElevationTerrain, so the wait actually matters.
-    if (map.getTerrain?.()) {
-      buildHalo();
-    } else {
-      map.once?.('terrain', buildHalo);
-    }
-  }, [fogStationsKey, buildHalo, mapRef, fogStations.length]);
+    void buildHalo();
+    // fogStationsKey gates the rebuild; buildHalo carries the stations
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fogStationsKey]);
 
   if (!geojson || geojson.features.length === 0) return null;
 

@@ -114,14 +114,20 @@ export function BuoySymbolLayer({
     if (!map) return;
     const layerId = 'buoys-icons';
 
+    // Named handlers so cleanup removes the SAME functions: `map.off` with a
+    // fresh `() => {}` matched nothing, so every re-run (each buoy selection)
+    // left two more listeners behind — and each one queries the rendered
+    // features on EVERY mouse move.
+    const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onLeave = () => { map.getCanvas().style.cursor = ''; };
     map.on('click', layerId, handleClick);
-    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+    map.on('mouseenter', layerId, onEnter);
+    map.on('mouseleave', layerId, onLeave);
 
     return () => {
       map.off('click', layerId, handleClick);
-      map.off('mouseenter', layerId, () => {});
-      map.off('mouseleave', layerId, () => {});
+      map.off('mouseenter', layerId, onEnter);
+      map.off('mouseleave', layerId, onLeave);
     };
   }, [mapRef, handleClick]);
 
