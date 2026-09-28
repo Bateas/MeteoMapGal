@@ -114,6 +114,7 @@ import { useWebcamStore } from '../../store/webcamStore';
 import { getWebcamsForSector } from '../../config/webcams';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { NewVersionBanner } from '../common/NewVersionBanner';
+import { TERRARIUM_TILE_URL, DEM_ZOOM } from '../../api/demElevation';
 
 /** Build a MapLibre StyleSpecification for the given base map style + 3D terrain */
 function buildMapStyle(styleId: MapStyleId): maplibregl.StyleSpecification {
@@ -150,12 +151,11 @@ function buildMapStyle(styleId: MapStyleId): maplibregl.StyleSpecification {
       ...labels.sources,
       terrainDEM: {
         type: 'raster-dem',
-        tiles: [
-          'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
-        ],
+        // Same tiles the fog surfaces read for ground altitude (demElevation).
+        tiles: [TERRARIUM_TILE_URL],
         encoding: 'terrarium',
         tileSize: 256,
-        maxzoom: 11, // Limit DEM resolution — fewer tiles to fetch/render
+        maxzoom: DEM_ZOOM, // Limit DEM resolution — fewer tiles to fetch/render
       },
     },
     layers: [
@@ -183,9 +183,10 @@ function buildMapStyle(styleId: MapStyleId): maplibregl.StyleSpecification {
     // NO `terrain` and NO `sky` here on purpose: the map is flat 2D. The 3D
     // mesh plus the atmospheric haze rendered on every pan frame and were the
     // dominant GPU cost. Relief still reads through the `hillshade` layer
-    // above (shaded, flat, and hidden during pan). The terrainDEM source stays
-    // because hillshade needs it — and because fog surfaces switch terrain on
-    // briefly to query ground elevation (see useElevationTerrain).
+    // above (shaded, flat, and hidden during pan). The terrainDEM source is
+    // only for hillshade: terrain is never switched on. The fog surfaces read
+    // ground altitude from the same tiles themselves (api/demElevation) —
+    // terrain made every pointer move and marker read pixels back from the GPU.
   };
 }
 
