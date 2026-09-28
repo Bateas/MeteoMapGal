@@ -657,6 +657,35 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
       expect(r.boostedBy).toBe('cesantes-canalization');
     });
   });
+
+  // ── Front aloft (synopticRegime.ts) ────────────────────────
+  // 28-sep: 19 kt SSW at 850 hPa, the app said 17-18 kt, the water had 10 or less.
+  describe('front veto', () => {
+    const breeze = () => makeReading({
+      station_id: 'mg_cesantes', latitude: 42.307, longitude: -8.619,
+      wind_speed: 3, wind_dir: 240, temperature: 22, humidity: 60,
+    });
+    beforeEach(() => vi.setSystemTime(new Date('2026-06-15T14:00:00+02:00')));
+
+    it('drops the boost with a front aloft: the raw wind stands, and it says why', () => {
+      const r = scoreSpot(cesantes, [breeze()], [], { upperWind: { rias: { speedKt: 19, dirDeg: 209 } } });
+      expect(r.boostedBy).toBeNull();
+      expect(r.avgWindKt).toBe(r.rawWindKt);
+      expect(r.regimeVeto).toMatch(/frente/);
+    });
+
+    it('keeps it with a breeze regime aloft, and says the regime was assessed', () => {
+      const r = scoreSpot(cesantes, [breeze()], [], { upperWind: { rias: { speedKt: 9, dirDeg: 332 } } });
+      expect(r.boostedBy).toBe('cesantes-canalization');
+      expect(r.regimeVeto).toBeNull();
+    });
+
+    it('keeps it without upper-air data, as before the veto existed', () => {
+      const r = scoreSpot(cesantes, [breeze()], [], { upperWind: {} });
+      expect(r.boostedBy).toBe('cesantes-canalization');
+      expect(r.regimeVeto).toBeUndefined();
+    });
+  });
 });
 
 describe('selectNearbyStations', () => {

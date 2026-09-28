@@ -11,7 +11,9 @@
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
 import { predictCesantesCanalization } from '../src/services/cesantesCanalizationDetector.js';
-import { assessRainVeto, type RainVeto } from '../src/services/rainVeto.js';
+import { assessRainVeto } from '../src/services/rainVeto.js';
+import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
+import type { ThermalVeto } from '../src/services/cesantesCanalizationDetector.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
 import { detectBocana } from '../src/services/bocanaDetector.js';
 import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor } from '../src/services/spotScoringEngine.js';
@@ -193,7 +195,13 @@ export interface SpotResult {
   /** Cesantes rain veto: its reason when rain at the nearby stations vetoed the thermal
    *  breeze, null when it was assessed and did not, absent when there was no rain data. */
   rainVeto?: string | null;
+  /** Front aloft (850 hPa, synopticRegime.ts): its reason when it vetoed the Cesantes
+   *  breeze, null when assessed and it did not, absent when there was no upper-air data. */
+  regimeVeto?: string | null;
 }
+
+/** 850 hPa wind per sector, from upper_air_hourly (synopticRegime.ts). */
+export type UpperWindBySector = Partial<Record<'rias' | 'embalse', UpperWind | null>>;
 
 /** Everything scoreSpot needs beyond the latest rows. */
 export interface ScoreContext {
@@ -201,6 +209,8 @@ export interface ScoreContext {
   precip?: Map<string, PrecipSample[]>;
   /** The instant the rain window ends at; defaults to now */
   nowMs?: number;
+  /** 850 hPa wind now, per sector. A front aloft vetoes the Cesantes breeze like rain. */
+  upperWind?: UpperWindBySector;
 }
 
 // ── Adapter: ingestor BuoyWind → frontend BuoyReading ────────
@@ -365,8 +375,9 @@ function applyCesantesBoost(
   localWindDir: number | null,
   /** Peak local station wind gust (kt) — distinguishes sheltered thermal lulls from dead calm */
   localGustKt: number | null = null,
-  /** Rain at the nearby stations (assessRainVeto); vetoed = no boost */
-  rainVeto: RainVeto | null = null,
+  /** Rain at the nearby stations (assessRainVeto) or a front aloft
+   *  (assessSynopticRegime); vetoed = no boost */
+  veto: ThermalVeto | null = null,
 ): { effectiveKt: number; confidence: number; predictedDir: number | null } | null {
   // Find airTemp near Cesantes (nearest station with temperature, sorted by distance)
   const cesantesLat = 42.307, cesantesLon = -8.619;
@@ -411,7 +422,7 @@ function applyCesantesBoost(
     localWindDir,
     solarRadInterior,
     localGustKt,
-    rainVeto,
+    veto,
   );
 
   if (!prediction.active || prediction.predictedKt === null) return null;
@@ -660,6 +671,7 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   let boostedBy: 'cesantes-canalization' | 'bocana-terral' | null = null;
   let boostConfidence: number | undefined;
   let rainVetoReason: string | null | undefined;
+  let regimeVetoReason: string | null | undefined;
 
   if (spot.id === 'cesantes') {
     // Rain at the spot's own stations, each read with its network's meaning. Without
@@ -672,7 +684,12 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
       })
       : null;
     if (rainVeto) rainVetoReason = rainVeto.vetoed ? rainVeto.reason : null;
-    const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds, avgDir, gustMax > 0 ? gustMax : null, rainVeto);
+    // A front aloft: the SW at the surface is the front itself, no breeze to amplify.
+    // Cesantes is in the Rías; no upper-air data = no veto, as before.
+    const regime = assessSynopticRegime(ctx?.upperWind?.rias);
+    if (regime) regimeVetoReason = regime.vetoed ? regime.reason : null;
+    const veto = rainVeto?.vetoed ? rainVeto : regime;
+    const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds, avgDir, gustMax > 0 ? gustMax : null, veto);
     if (boost) {
       effectiveKt = boost.effectiveKt;
       boostedBy = 'cesantes-canalization';
@@ -707,5 +724,6 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
     boostConfidence,
     staleBuoysDropped,
     ...(rainVetoReason !== undefined ? { rainVeto: rainVetoReason } : {}),
+    ...(regimeVetoReason !== undefined ? { regimeVeto: regimeVetoReason } : {}),
   };
 }

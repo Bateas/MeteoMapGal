@@ -468,6 +468,51 @@ describe('Cesantes rain veto', () => {
     expect(score.effectiveWindKt).toBeCloseTo(score.wind!.avgSpeedKt, 1);
   });
 
+  // 850 hPa from the upper-air table (synopticRegime.ts). 28-sep: 19 kt SSW aloft, the
+  // app said 17-18 kt at Cesantes and 15 at Lourido, the water had 10 or less.
+  const front = { speedKt: 19, dirDeg: 209 };
+  const breezeAloft = { speedKt: 9, dirDeg: 332 }; // 25-sep, when the boost was right
+
+  it('a front aloft vetoes the boost: what the stations measure is what comes in', () => {
+    const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal,
+      undefined, undefined, undefined, front).get('cesantes')!;
+    expect(score.regimeVeto?.vetoed).toBe(true);
+    expect(score.channeling?.active).toBe(false);
+    expect(score.channeling?.signals[0]).toMatch(/frente/);
+    expect(score.thermalBoosted).toBe(false);
+    expect(score.effectiveWindKt).toBeCloseTo(score.wind!.avgSpeedKt, 1);
+    expect(score.humiditySignal).toBeNull();
+    expect(score.verdict).not.toBe('good');
+  });
+
+  it('a breeze afternoon aloft keeps the boost', () => {
+    const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal,
+      undefined, undefined, undefined, breezeAloft).get('cesantes')!;
+    expect(score.regimeVeto?.vetoed).toBe(false);
+    expect(score.channeling?.active).toBe(true);
+    expect(score.effectiveWindKt!).toBeGreaterThanOrEqual(12);
+  });
+
+  it('the humidity precursor no longer stacks on top of the canalization figure', () => {
+    const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal).get('cesantes')!;
+    expect(score.channeling?.active).toBe(true);
+    expect(score.effectiveWindKt).toBe(score.channeling!.predictedKt);
+  });
+
+  it('a front aloft also vetoes the generic thermal boost (Lourido)', () => {
+    const lourido = RIAS_SPOTS.find((sp) => sp.id === 'lourido')!;
+    const near = ids.map((id, i) => makeStation(id, lourido.center[1] + (i - 1) * 0.01, lourido.center[0]));
+    const tenKt = new Map(ids.map((id) => [id, makeReading(id, msFromKt(10), 230, 22)]));
+    const dry = { ...randeBuoy, humidity: 40 };
+    const open = scoreAllSpots([lourido], near, tenKt, [dry], thermal).get('lourido')!;
+    const frontal = scoreAllSpots([lourido], near, tenKt, [dry], thermal,
+      undefined, undefined, undefined, front).get('lourido')!;
+    expect(open.thermalBoosted).toBe(true);
+    expect(open.effectiveWindKt!).toBeGreaterThan(open.wind!.avgSpeedKt);
+    expect(frontal.thermalBoosted).toBe(false);
+    expect(frontal.effectiveWindKt).toBeCloseTo(frontal.wind!.avgSpeedKt, 1);
+  });
+
   it('rain at one station alone vetoes nothing', () => {
     const precip = new Map([['mg_g1', [{ t: Date.now() - 30 * MIN, mm: 0.5 }]]]);
     const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal, undefined, undefined, precip).get('cesantes')!;

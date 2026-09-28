@@ -141,6 +141,31 @@ describe('evaluateMagicWindow — inactive window', () => {
   });
 });
 
+// ── Front veto ────────────────────────────────────────
+
+describe('evaluateMagicWindow — front veto (synopticRegime)', () => {
+  const aligned = {
+    sector: 'rias' as const,
+    buoys: [makeBuoy({ windSpeed: 10, windDir: 225, waterTemp: 16 })],
+    mouthHumidity: 85,
+    airTempLocal: 22,
+    recentStrikesNearby: 0,
+    hour: 15,
+  };
+
+  it('VETOES the window with a front aloft, even with every signal aligned (27-sep)', () => {
+    const result = evaluateMagicWindow({ ...aligned, regime: { vetoed: true, reason: 'Entra viento de frente (19 kt SSW a 1.500 m)' } });
+    expect(result!.active).toBe(false);
+    expect(result!.score).toBe(0);
+    expect(result!.summary).toMatch(/[Vv]eto de frente.*19 kt SSW/);
+  });
+
+  it('a breeze regime aloft (or no data) leaves the window as it was', () => {
+    expect(evaluateMagicWindow({ ...aligned, regime: { vetoed: false, reason: null } })!.active).toBe(true);
+    expect(evaluateMagicWindow({ ...aligned, regime: null })!.active).toBe(true);
+  });
+});
+
 // ── Lightning veto ────────────────────────────────────
 
 describe('evaluateMagicWindow — lightning veto', () => {

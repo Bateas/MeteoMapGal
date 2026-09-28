@@ -6,7 +6,7 @@
  * For spots with thermalDetection, enriches scores with thermal context
  * (ΔT, thermal probability, wind window, atmosphere, tendency, alerts).
  */
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useWeatherStore } from '../store/weatherStore';
 import { useBuoyStore } from '../store/buoyStore';
@@ -21,6 +21,9 @@ import { checkSpotAlerts, resetSpotAlerts } from '../services/spotAlertService';
 import { getSpotsForSector } from '../config/spots';
 import { msToKnots, degToCardinal8 } from '../services/windUtils';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../api/naoClient';
+import { fetchUpperWindNow } from '../api/upperAirClient';
+import type { UpperWind } from '../services/synopticRegime';
+import { useVisibilityPolling } from './useVisibilityPolling';
 
 /**
  * Throttle intervals:
@@ -30,6 +33,8 @@ import { fetchTeleconnections, type TeleconnectionIndex } from '../api/naoClient
 const STARTUP_INTERVAL = 5_000;
 const STEADY_INTERVAL = 30_000;
 const STARTUP_WINDOW = 90_000; // 90s after first mount
+/** The model sounding is refreshed every couple of hours; 30 min is plenty. */
+const UPPER_WIND_POLL_MS = 30 * 60_000;
 
 export function useSpotScoring() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
@@ -44,6 +49,32 @@ export function useSpotScoring() {
   const lastScoredRef = useRef(0);
   const mountTimeRef = useRef(Date.now());
   const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
+
+  // 850 hPa wind for the sector: a front aloft vetoes the thermal boosts
+  // (synopticRegime.ts). No data = no veto.
+  const [upperWind, setUpperWind] = useState<UpperWind | null>(null);
+  const sectorIdRef = useRef(sectorId);
+  sectorIdRef.current = sectorId;
+  const loadUpperWind = useCallback(async () => {
+    const sector = sectorIdRef.current;
+    try {
+      const w = await fetchUpperWindNow(sector);
+      if (sectorIdRef.current === sector) setUpperWind(w);
+    } catch { /* no data = no veto */ }
+  }, []);
+  useVisibilityPolling(loadUpperWind, UPPER_WIND_POLL_MS);
+  const upperWindSectorRef = useRef(sectorId);
+  useEffect(() => {
+    // The poll only re-runs on its own clock: a sector switch must not keep the
+    // other sector's sounding until then.
+    if (upperWindSectorRef.current === sectorId) return;
+    upperWindSectorRef.current = sectorId;
+    setUpperWind(null);
+    void loadUpperWind();
+  }, [sectorId, loadUpperWind]);
+  // A new sounding re-scores at once instead of waiting out the steady throttle.
+  // Declared before the scoring effect so it runs first.
+  useEffect(() => { lastScoredRef.current = 0; }, [upperWind]);
 
   // Reset spot alert state and force immediate scoring on sector switch
   useEffect(() => {
@@ -95,7 +126,7 @@ export function useSpotScoring() {
     timerRef.current = setTimeout(() => {
       const { currentReadings, readingHistory } = useWeatherStore.getState();
       const tc = teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined;
-      const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc, readingHistory);
+      const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc, readingHistory, undefined, upperWind);
 
       setScores(scores);
       lastScoredRef.current = Date.now();
@@ -122,7 +153,7 @@ export function useSpotScoring() {
     }, 50);
 
     return () => clearTimeout(timerRef.current);
-  }, [sectorId, stations, readingsEpoch, buoys, setScores, setThermalPrecursors, sectorForecast, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast]);
+  }, [sectorId, stations, readingsEpoch, buoys, setScores, setThermalPrecursors, sectorForecast, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast, upperWind]);
 }
 
 /**
