@@ -3,7 +3,8 @@ import { fetchStationInventory } from './aemetClient';
 import { fetchStationList } from './meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from './meteoclimaticClient';
 import { fetchWUNearbyStations, fetchWUStationsFromApi } from './wundergroundClient';
-import { fetchNetatmoStations } from './netatmoClient';
+import { fetchNetatmoStations, netatmoStationsInRadius, NETATMO_DIRECT } from './netatmoClient';
+import { fetchListedStations } from './stationListClient';
 import { normalizeAemetStation, normalizeMeteoGaliciaStation, normalizeMeteoclimaticStation } from '../services/normalizer';
 import { isWithinRadius } from '../services/geoUtils';
 import { METEOCLIMATIC_STATIONS } from '../types/meteoclimatic';
@@ -160,6 +161,19 @@ async function discoverWU(params: DiscoveryParams): Promise<NormalizedStation[]>
   return lookups.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
 }
 
+/**
+ * Netatmo stations for a sector, from the list our server keeps: one request shared by both
+ * sectors instead of a token and a POST per visitor that no cache can share. Straight from
+ * Netatmo only when running without our service (development).
+ */
+async function discoverNetatmo(params: DiscoveryParams): Promise<NormalizedStation[]> {
+  const listed = await shared('netatmo-list', () => fetchListedStations('netatmo'));
+  const inRadius = netatmoStationsInRadius(listed, params.center, params.radiusKm);
+  if (inRadius) return inRadius;
+  if (!NETATMO_DIRECT) return [];
+  return fetchNetatmoStations(params.center, params.radiusKm, false);
+}
+
 async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[]> {
   const [centerLon, centerLat] = params.center;
   const radiusKm = params.radiusKm;
@@ -171,7 +185,7 @@ async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[
       shared('mg-station-list', fetchStationList),
       fetchMeteoclimaticFeed(params.meteoclimaticRegions),
       discoverWU(params),
-      fetchNetatmoStations(params.center, radiusKm, false),
+      discoverNetatmo(params),
       fetchIpmaNearby(params.center, radiusKm, extraPoints),
     ]);
 

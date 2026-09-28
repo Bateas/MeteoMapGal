@@ -29,6 +29,26 @@ function buildBbox(center: [number, number], radiusKm: number) {
   };
 }
 
+/** Ask Netatmo straight from the browser only when running without our service. In production
+ *  every new visitor would cost a token and a POST that no cache can share. */
+export const NETATMO_DIRECT = import.meta.env.DEV;
+
+/**
+ * Netatmo stations within `radiusKm` of `center`, from the list our server keeps (same circle
+ * as the direct discovery). Null when that list cannot say which stations have wind — it could
+ * not be read, or the server predates the flag — so the caller knows it has no usable answer.
+ */
+export function netatmoStationsInRadius(
+  listed: NormalizedStation[] | null,
+  center: [number, number],
+  radiusKm: number,
+): NormalizedStation[] | null {
+  if (!listed) return null;
+  if (listed.some((s) => s.tempOnly === undefined)) return null;
+  const [lon, lat] = center;
+  return listed.filter((s) => isWithinRadius(lat, lon, s.lat, s.lon, radiusKm));
+}
+
 /** Default params for observation fetches (legacy fallback) */
 const DEFAULT_PARAMS: NetatmoFetchParams = { center: MAP_CENTER, radiusKm: DISCOVERY_RADIUS_KM };
 
