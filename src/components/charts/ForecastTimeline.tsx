@@ -11,6 +11,7 @@ import { ForecastMeteogram } from './ForecastMeteogram';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
+import { sailingConclusionLine, SUMMARY_RAIN_HOURS, type SailingLineTone } from './sailingConclusionLine';
 import { FORECAST_MODELS } from '../../types/forecast';
 import type { HourlyForecast } from '../../types/forecast';
 import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
@@ -707,6 +708,15 @@ function DaySeparator({ date }: { date: Date }) {
 
 // ── Smart sailing conclusion ─────────────────────────────
 
+/** Same colours as before for the cases that already existed; strong in orange. */
+const HEADLINE_COLOR: Record<SailingLineTone, string> = {
+  strong: '#f97316',
+  good: '#22c55e',
+  mixed: '#facc15',
+  light: '#94a3b8',
+  calm: '#64748b',
+};
+
 function SailingConclusion({
   diagnosis,
   sailingSummary,
@@ -723,39 +733,15 @@ function SailingConclusion({
   const isEmbalse = sectorId === 'embalse';
   const lines: { text: string; color: string; icon: IconId }[] = [];
 
-  // ── Overall verdict ──
-  const bestKt = sailingSummary.bestKt;
-  const hasGoodWind = bestKt >= 8;
-  const hasWind = bestKt >= 4;
-  const hasRain = sailingSummary.rainHours >= 2;
-  const stableDir = diagnosis.directionConsistency >= 60;
+  // ── Overall verdict ── (sailingConclusionLine.ts: every wind/rain case has its own line)
   const strongPattern = diagnosis.patternScore >= 50;
-
-  if (hasGoodWind && stableDir && !hasRain) {
-    lines.push({
-      text: `Buen dia para navegar — viento hasta ${bestKt.toFixed(0)}kt${sailingSummary.bestTime ? ` sobre las ${formatTimeRef(sailingSummary.bestTime)}` : ''}, direccion estable.`,
-      color: '#22c55e',
-      icon: 'sailboat',
-    });
-  } else if (hasGoodWind && !stableDir) {
-    lines.push({
-      text: `Viento suficiente (${bestKt.toFixed(0)}kt${sailingSummary.bestTime ? `, ${formatTimeRef(sailingSummary.bestTime)}` : ''}) pero direccion inestable — cambios frecuentes.`,
-      color: '#facc15',
-      icon: 'wind',
-    });
-  } else if (hasWind && !hasGoodWind) {
-    lines.push({
-      text: `Viento flojo (max ${bestKt.toFixed(0)}kt) — navegable para veleros ligeros/foils, insuficiente para quillados.`,
-      color: '#94a3b8',
-      icon: 'wind',
-    });
-  } else {
-    lines.push({
-      text: 'Sin viento significativo previsto — dia de calma.',
-      color: '#64748b',
-      icon: 'wind',
-    });
-  }
+  const headline = sailingConclusionLine({
+    bestKt: sailingSummary.bestKt,
+    bestTimeLabel: sailingSummary.bestTime ? formatTimeRef(sailingSummary.bestTime) : null,
+    rainHours: sailingSummary.rainHours,
+    directionConsistency: diagnosis.directionConsistency,
+  });
+  lines.push({ text: headline.text, color: HEADLINE_COLOR[headline.tone], icon: headline.icon });
 
   // ── Thermal interpretation (Embalse) ──
   if (isEmbalse) {
@@ -799,7 +785,7 @@ function SailingConclusion({
   }
 
   // ── Rain ──
-  if (hasRain && diagnosis.rainAlert) {
+  if (sailingSummary.rainHours >= SUMMARY_RAIN_HOURS && diagnosis.rainAlert) {
     lines.push({
       text: `Lluvia prevista ${formatHour(diagnosis.rainAlert.start)}-${formatHour(diagnosis.rainAlert.end)} (${diagnosis.rainAlert.totalMm.toFixed(1)}mm)${diagnosis.rainAlert.totalMm >= 10 ? ' — lluvia significativa, mejor no salir.' : ' — lluvia ligera.'}`,
       color: '#38bdf8',
