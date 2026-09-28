@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseObsResponse } from './buoyFetcher.js';
+import { parseObsResponse, parsePortusResponse, mergeBuoyReadings } from './buoyFetcher.js';
+import type { BuoyReadingRow } from './db.js';
 import { parseObsReading } from '../src/api/observatorioCosteiro';
 import fixture from '../src/api/observatorioCosteiro.fixture.json';
 
@@ -146,3 +147,85 @@ describe('parseObsResponse — 10-minute readings only', () => {
     expect(parseObsResponse(CORTEGADA, noRacha)!.windGust).toBeNull(); // hourly MAX is 10.27
   });
 });
+
+// ── PORTUS clock: fecha is UTC without a zone ───────────────────────
+//
+// Live answer for 3221 at 16:28:05 UTC on 27-sep: fecha "2026-09-27 16:28:00.0".
+// Stored as-is, Postgres (session in Europe/Madrid) filed it at 14:28 UTC: every
+// PORTUS row landed 2 h early, and "PORTUS arrives 2 h late" was our own clock.
+
+const VIGO = { id: 3221, name: 'Vigo (marea)', type: 'REDMAR' };
+const live3221 = {
+  fecha: '2026-09-27 16:28:00.0',
+  datos: [
+    { paramEseoo: 'WindSpeed', valor: '23', factor: 10.0, averia: false, paramQC: false },
+    { paramEseoo: 'WindDir', valor: '274', factor: 1.0, averia: false, paramQC: false },
+  ],
+};
+
+describe('parsePortusResponse — PORTUS time is UTC', () => {
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('stores the real instant with its zone, not the bare string', () => {
+    at('2026-09-27T16:28:05Z');
+    const r = parsePortusResponse(VIGO, live3221)!;
+    expect(r.time).toBe('2026-09-27T16:28:00.000Z');
+    expect(r.windSpeed).toBe(2.3);
+    expect(r.windDir).toBe(274);
+  });
+  it('a reading seconds old is fresh (it used to look 2 h old)', () => {
+    at('2026-09-27T16:28:05Z');
+    expect(parsePortusResponse(VIGO, live3221)).not.toBeNull();
+  });
+  it('an unreadable fecha is dropped, never guessed', () => {
+    at('2026-09-27T16:28:05Z');
+    expect(parsePortusResponse(VIGO, { ...live3221, fecha: '27/09/2026 16:28' })).toBeNull();
+  });
+});
+
+function buoyRow(p: Partial<BuoyReadingRow> & Pick<BuoyReadingRow, 'time' | 'source'>): BuoyReadingRow {
+  return {
+    stationId: 1250, stationName: 'Cortegada (Arousa)',
+    waveHeight: null, waveHeightMax: null, wavePeriod: null, wavePeriodMean: null, waveDir: null,
+    windSpeed: null, windDir: null, windGust: null, waterTemp: null, airTemp: null, airPressure: null,
+    currentSpeed: null, currentDir: null, salinity: null, seaLevel: null, humidity: null, dewPoint: null,
+    ...p,
+  };
+}
+
+describe('mergeBuoyReadings — a platform both sources report', () => {
+  it('the Xunta row stays the base and borrows the fields only PORTUS has', () => {
+    const portus = buoyRow({ time: '2026-09-27T16:00:00.000Z', source: 'portus', seaLevel: 2.6, waveHeight: 0.4, windSpeed: 3 });
+    const obs = buoyRow({ time: '2026-09-27T16:10:00Z', source: 'obscosteiro', windSpeed: 3.8, humidity: 70, dewPoint: 11 });
+    const [m] = mergeBuoyReadings([portus], [obs]);
+    expect(m.source).toBe('obscosteiro');
+    expect(m.time).toBe('2026-09-27T16:10:00Z');
+    expect(m.windSpeed).toBe(3.8);
+    expect(m.seaLevel).toBe(2.6);
+    expect(m.waveHeight).toBe(0.4);
+    expect(m.humidity).toBe(70);
+  });
+  it('with true PORTUS times a slightly newer PORTUS row does not drop the Xunta humidity', () => {
+    const portus = buoyRow({ time: '2026-09-27T16:20:00.000Z', source: 'portus', seaLevel: 2.6 });
+    const obs = buoyRow({ time: '2026-09-27T16:10:00Z', source: 'obscosteiro', windSpeed: 3.8, humidity: 70 });
+    const [m] = mergeBuoyReadings([portus], [obs]);
+    expect(m.source).toBe('obscosteiro');
+    expect(m.humidity).toBe(70);
+    expect(m.seaLevel).toBe(2.6);
+  });
+  it('a clearly newer PORTUS row becomes the base and still keeps the Xunta fields', () => {
+    const portus = buoyRow({ time: '2026-09-27T17:00:00.000Z', source: 'portus', windSpeed: 5 });
+    const obs = buoyRow({ time: '2026-09-27T16:10:00Z', source: 'obscosteiro', windSpeed: 3.8, humidity: 70 });
+    const [m] = mergeBuoyReadings([portus], [obs]);
+    expect(m.source).toBe('portus');
+    expect(m.windSpeed).toBe(5);
+    expect(m.humidity).toBe(70);
+  });
+  it('a reading hours apart lends nothing: stale values are not painted as current', () => {
+    const portus = buoyRow({ time: '2026-09-27T12:00:00.000Z', source: 'portus', seaLevel: 2.6 });
+    const obs = buoyRow({ time: '2026-09-27T16:10:00Z', source: 'obscosteiro', humidity: 70 });
+    const [m] = mergeBuoyReadings([portus], [obs]);
+    expect(m.seaLevel).toBeNull();
+  });
+});
+

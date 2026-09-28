@@ -12,6 +12,7 @@ import type { BuoyReadingRow } from './db.js';
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import { readObsCurrent, type ObsResponse } from '../src/api/obsCosteiroParse.js';
+import { portusFechaToIso } from '../src/api/portusTime.js';
 
 const PORTUS_BASE = 'https://portus.puertos.es/portussvr/api';
 const OBS_BASE = 'https://apis-ext.xunta.gal/mgplatpubapi/v1/api';
@@ -85,12 +86,11 @@ const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
   { obsId: 15009, canonicalId: 15009, name: 'Muros' },          // NEW — no PORTUS equivalent
 ];
 
-// 6 hours, not 2: PORTUS publishes oceanic-mooring buoys (REDEXT) and tide-
-// gauge meteorology (REDMAR) with cadences of 1-3 hours, not minutes. The
-// audit caught us silently rejecting 9 of 11 PORTUS stations every
-// cycle because the "fecha" was 2.5-5 h old — by upstream design, not bug.
-// 6 h is generous enough to keep all working stations through, while still
-// catching genuinely stuck buoys (like Cíes in Dec 2025, gated separately).
+// 6 hours. The "fecha was 2.5-5 h old" that once justified it was OUR clock:
+// PORTUS sends UTC with no zone and we read it as Madrid time (see
+// portusTime.ts). The data is near real-time — REDMAR minutes, Silleiro
+// (REDEXT) hourly — so this only catches genuinely stuck buoys (like Cíes in
+// Dec 2025, gated separately) and could be tightened once the fix has run.
 const MAX_AGE_MS = 6 * 60 * 60_000;
 
 /**
@@ -178,7 +178,7 @@ async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow 
   }
 }
 
-function parsePortusResponse(
+export function parsePortusResponse(
   station: BuoyStation,
   data: { fecha?: string; datos?: any[] }
 ): BuoyReadingRow | null {
@@ -188,20 +188,23 @@ function parsePortusResponse(
   //   - parsed OK but no recognized parameters (rare)
   // Aggregating these in the cycle counter using synthetic status codes
   // outside the HTTP range (-1 = empty, -2 = stale, -3 = no params).
-  if (!data?.datos?.length || !data.fecha) {
+  // `fecha` is UTC without a zone: stored as-is, Postgres (session in
+  // Europe/Madrid) filed every reading 2 h early. Always go through the parser.
+  const fechaIso = portusFechaToIso(data?.fecha);
+  if (!data?.datos?.length || !fechaIso) {
     portusFailureCounters.set(-1, (portusFailureCounters.get(-1) ?? 0) + 1);
     return null;
   }
 
   // Check freshness
-  const age = Date.now() - new Date(data.fecha).getTime();
+  const age = Date.now() - Date.parse(fechaIso);
   if (age > MAX_AGE_MS) {
     portusFailureCounters.set(-2, (portusFailureCounters.get(-2) ?? 0) + 1);
     return null;
   }
 
   const row: BuoyReadingRow = {
-    time: data.fecha,
+    time: fechaIso,
     stationId: station.id,
     stationName: station.name,
     source: 'portus',
@@ -305,38 +308,54 @@ export function parseObsResponse(station: ObsStation, data: ObsResponse): BuoyRe
 
 // ── Merge logic ─────────────────────────────────────────
 
-function mergeBuoyReadings(portus: BuoyReadingRow[], obs: BuoyReadingRow[]): BuoyReadingRow[] {
+/** The Xunta row stays the base unless PORTUS is newer by more than this. */
+const OBS_BASE_WINDOW_MS = 20 * 60_000;
+/** A field is only borrowed from the other source within this of the base. */
+const MERGE_FILL_MAX_MS = 90 * 60_000;
+
+const MERGE_FIELDS = [
+  'waveHeight', 'waveHeightMax', 'wavePeriod', 'wavePeriodMean', 'waveDir',
+  'windSpeed', 'windDir', 'windGust', 'waterTemp', 'airTemp', 'airPressure',
+  'currentSpeed', 'currentDir', 'salinity', 'seaLevel', 'humidity', 'dewPoint',
+] as const satisfies readonly (keyof BuoyReadingRow)[];
+
+/**
+ * One row per platform that both PORTUS and the Xunta report (Cortegada,
+ * A Guarda, Ribeira, Rande). The Xunta row is the base — 10-minute values
+ * with validation codes, plus humidity and dew point — unless PORTUS is
+ * clearly newer; either way, every field the base lacks is filled from the
+ * other source when that reading is close in time, so neither side's data is
+ * lost. Until the PORTUS clock was fixed the PORTUS row always looked 2 h
+ * older, so the Xunta always won; with true times it may not, and the old
+ * one-way fill would have dropped the Xunta's humidity and flipped the
+ * row's source label.
+ */
+export function mergeBuoyReadings(portus: BuoyReadingRow[], obs: BuoyReadingRow[]): BuoyReadingRow[] {
   const map = new Map<number, BuoyReadingRow>();
 
   for (const r of portus) map.set(r.stationId, r);
 
   for (const obsR of obs) {
-    const existing = map.get(obsR.stationId);
+    const portusR = map.get(obsR.stationId);
 
-    if (!existing) {
+    if (!portusR) {
       // New station (Muros)
       map.set(obsR.stationId, obsR);
       continue;
     }
 
-    const existingTime = new Date(existing.time).getTime();
-    const obsTime = new Date(obsR.time).getTime();
-
-    if (obsTime > existingTime) {
-      // Observatorio is newer — use it, preserve PORTUS-exclusive fields
-      map.set(obsR.stationId, {
-        ...obsR,
-        waveHeight: obsR.waveHeight ?? existing.waveHeight,
-        waveHeightMax: obsR.waveHeightMax ?? existing.waveHeightMax,
-        wavePeriod: obsR.wavePeriod ?? existing.wavePeriod,
-        wavePeriodMean: obsR.wavePeriodMean ?? existing.wavePeriodMean,
-        waveDir: obsR.waveDir ?? existing.waveDir,
-        currentSpeed: obsR.currentSpeed ?? existing.currentSpeed,
-        currentDir: obsR.currentDir ?? existing.currentDir,
-        seaLevel: obsR.seaLevel ?? existing.seaLevel,
-        airPressure: obsR.airPressure ?? existing.airPressure,
-      });
+    const portusTime = Date.parse(portusR.time);
+    const obsTime = Date.parse(obsR.time);
+    const portusClearlyNewer = portusTime - obsTime > OBS_BASE_WINDOW_MS;
+    const base = portusClearlyNewer ? portusR : obsR;
+    const other = portusClearlyNewer ? obsR : portusR;
+    const merged: BuoyReadingRow = { ...base };
+    if (Math.abs(portusTime - obsTime) <= MERGE_FILL_MAX_MS) {
+      for (const k of MERGE_FIELDS) {
+        if (merged[k] == null && other[k] != null) merged[k] = other[k];
+      }
     }
+    map.set(obsR.stationId, merged);
   }
 
   return Array.from(map.values());
