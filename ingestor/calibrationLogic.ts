@@ -3,9 +3,11 @@
  *
  * A station on land almost never reads the wind that is on the water. The usual
  * remedy is a correction by local experience; this measures it instead. Pair a
- * station hour by hour with a live buoy, and the ratio of their mean speeds is
- * how much of the free stream that site actually sees. Across the Rías the
- * median came out at 0.40 — the typical land station shows less than half.
+ * station hour by hour with the free stream, and the ratio of their mean speeds
+ * is how much of it that site actually sees. Across the Rías the median came out
+ * at 0.40 — the typical land station shows less than half (measured against the
+ * buoys; see the combined reference at the end of this file for why that figure
+ * is being measured again).
  *
  * Two decisions carry the whole thing, and both are easy to get wrong:
  *
@@ -39,7 +41,11 @@
  * absent from the output rather than given a fabricated one.
  */
 
-/** One hour where both the station and its reference buoy reported. */
+/** One hour where both the station and its reference reported.
+ *
+ *  The fields keep their buoy names because the table does (buoy_id,
+ *  buoy_mean_ms). Against the combined reference, buoyId is
+ *  COMBINED_REFERENCE_ID and buoyMs / buoyDirDeg are that reference. */
 export interface PairedHour {
   stationId: string;
   /** Calendar day (YYYY-MM-DD) of the pair. The response test runs on daily
@@ -368,4 +374,305 @@ export function summariseCalibration(rows: StationCalibration[]): string {
     `${n('insufficient')} too few hours`,
     median != null ? `median ratio ${median.toFixed(3)}` : 'no median yet',
   ].join(', ');
+}
+
+// ── The combined reference (v2.160.0) ─────────────────────────────────────
+
+/**
+ * An exposed site that stands in for the free stream, and the directions it
+ * cannot see from where it is.
+ *
+ * Why not the buoys any more. On 27-sep the PORTUS buoys turned out to be
+ * stored two hours early (their UTC time read as Madrid time), and the Xunta
+ * buoys' wind before 22-sep came from the wrong series of the payload. Over a
+ * ninety-day window every buoy was comparing the afternoon at a station with a
+ * different hour, or with a different number. And the one most stations leaned
+ * on, 3221, is a harbour anemometer that reads the free stream only from the
+ * W, SW and NW.
+ *
+ * So the reference is the median of four MeteoGalicia sites on islands and
+ * capes, each dropped for the sector it is sheltered from (audit of 27-sep).
+ * Their clocks are right, they report every ten minutes, and no single one of
+ * them can set the answer. When the buoys are clean again (the PORTUS history
+ * corrected, sixty days of good Xunta wind) they can join this median; they are
+ * not coming back as the only reference.
+ */
+export interface ReferenceSite {
+  id: string;
+  name: string;
+  /** Arcs, in degrees the wind comes FROM, where the site reads sheltered. */
+  blind: ReadonlyArray<readonly [number, number]>;
+}
+
+export const COMBINED_REFERENCE_SITES: readonly ReferenceSite[] = [
+  { id: 'mg_10126', name: 'Ons', blind: [[292.5, 337.5]] },
+  { id: 'mg_10134', name: 'Sálvora', blind: [] },
+  { id: 'mg_10905', name: 'Cabo Udra', blind: [[247.5, 292.5], [22.5, 67.5]] },
+  { id: 'mg_19069', name: 'A Lanzada', blind: [] },
+];
+
+/** What station_calibration.buoy_id holds for a row measured against the
+ *  combined reference. No buoy has id 0. */
+export const COMBINED_REFERENCE_ID = 0;
+
+/** Sites that have to report, clear of their blind sector, before an hour
+ *  counts. One site alone is a station like any other, not a reference. */
+export const MIN_REFERENCE_SITES = 2;
+
+/** One reference site over one hour. */
+export interface SiteHour {
+  siteId: string;
+  /** Start of the hour, epoch seconds. */
+  t: number;
+  ms: number;
+  /** Circular mean direction the wind came FROM; null when it did not report one. */
+  dirDeg: number | null;
+}
+
+/** One station over one hour, to be measured against the reference. */
+export interface StationHour {
+  stationId: string;
+  /** Start of the hour, epoch seconds: the same key as SiteHour.t. */
+  t: number;
+  /** Calendar day (YYYY-MM-DD) of the hour, for the daily response test. */
+  day: string;
+  ms: number;
+}
+
+export interface ReferenceValue {
+  ms: number;
+  dirDeg: number;
+  /** Sites behind the value. */
+  sites: number;
+}
+
+function circularMeanDeg(degs: number[]): number {
+  let s = 0, c = 0;
+  for (const d of degs) { s += Math.sin(d * Math.PI / 180); c += Math.cos(d * Math.PI / 180); }
+  return ((Math.atan2(s, c) * 180 / Math.PI) + 360) % 360;
+}
+
+function medianOf(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+export function isBlindTo(site: ReferenceSite, dirDeg: number): boolean {
+  const d = ((dirDeg % 360) + 360) % 360;
+  return site.blind.some(([from, to]) => d >= from && d <= to);
+}
+
+/**
+ * The free stream over one hour, from the sites that reported it.
+ *
+ * Two passes. The direction everyone agrees on comes first, and only then is
+ * each site dropped if it is blind to THAT direction. Using a site's own vane
+ * to decide whether it is sheltered would ask the terrain that bends the vane
+ * to judge itself.
+ *
+ * `excludeSiteId` leaves one site out: a reference site measured against a
+ * median that contains itself would drift towards a ratio of 1 by construction.
+ */
+export function combinedReferenceAt(
+  rows: SiteHour[],
+  sites: readonly ReferenceSite[] = COMBINED_REFERENCE_SITES,
+  excludeSiteId?: string,
+): ReferenceValue | null {
+  const byId = new Map(sites.map((s) => [s.id, s]));
+  const reported = rows.filter((r) => r.siteId !== excludeSiteId && byId.has(r.siteId)
+    && r.ms > 0 && r.dirDeg != null && Number.isFinite(r.dirDeg));
+  if (reported.length < MIN_REFERENCE_SITES) return null;
+
+  const consensus = circularMeanDeg(reported.map((r) => r.dirDeg as number));
+  const clear = reported.filter((r) => !isBlindTo(byId.get(r.siteId) as ReferenceSite, consensus));
+  if (clear.length < MIN_REFERENCE_SITES) return null;
+
+  return {
+    ms: medianOf(clear.map((r) => r.ms)),
+    dirDeg: circularMeanDeg(clear.map((r) => r.dirDeg as number)),
+    sites: clear.length,
+  };
+}
+
+/**
+ * Pair every station hour with the combined reference of that hour, ready for
+ * calibrateStations. Hours without a reference are dropped, not guessed.
+ */
+export function pairWithCombinedReference(
+  stationHours: StationHour[],
+  siteHours: SiteHour[],
+  sites: readonly ReferenceSite[] = COMBINED_REFERENCE_SITES,
+): PairedHour[] {
+  const byHour = new Map<number, SiteHour[]>();
+  for (const r of siteHours) {
+    const list = byHour.get(r.t);
+    if (list) list.push(r); else byHour.set(r.t, [r]);
+  }
+  const siteIds = new Set(sites.map((s) => s.id));
+  // The reference of an hour is the same for every station but the sites
+  // themselves: compute it once per hour and per left-out site.
+  const cache = new Map<string, ReferenceValue | null>();
+  const out: PairedHour[] = [];
+
+  for (const h of stationHours) {
+    const exclude = siteIds.has(h.stationId) ? h.stationId : undefined;
+    const key = `${h.t}|${exclude ?? ''}`;
+    let ref = cache.get(key);
+    if (ref === undefined) {
+      ref = combinedReferenceAt(byHour.get(h.t) ?? [], sites, exclude);
+      cache.set(key, ref);
+    }
+    if (!ref) continue;
+    out.push({
+      stationId: h.stationId,
+      day: h.day,
+      buoyId: COMBINED_REFERENCE_ID,
+      stationMs: h.ms,
+      buoyMs: ref.ms,
+      buoyDirDeg: ref.dirDeg,
+    });
+  }
+  return out;
+}
+
+/** For the log: how many hours had a reference, and how often each site was
+ *  in it. A site that keeps dropping out is worth a look before its absence
+ *  quietly reshapes every ratio. */
+export function summariseReference(
+  siteHours: SiteHour[],
+  sites: readonly ReferenceSite[] = COMBINED_REFERENCE_SITES,
+): string {
+  const byHour = new Map<number, SiteHour[]>();
+  for (const r of siteHours) {
+    const list = byHour.get(r.t);
+    if (list) list.push(r); else byHour.set(r.t, [r]);
+  }
+  const used = new Map(sites.map((s) => [s.id, 0]));
+  let hours = 0;
+  for (const rows of byHour.values()) {
+    const ref = combinedReferenceAt(rows, sites);
+    if (!ref) continue;
+    hours++;
+    for (const r of rows) {
+      const site = sites.find((s) => s.id === r.siteId);
+      if (site && r.ms > 0 && r.dirDeg != null && !isBlindTo(site, ref.dirDeg)) {
+        used.set(site.id, (used.get(site.id) ?? 0) + 1);
+      }
+    }
+  }
+  const parts = sites.map((s) => `${s.name} ${used.get(s.id) ?? 0}`);
+  return `${hours} reference hours of ${byHour.size} (${parts.join(', ')})`;
+}
+
+// ── A second witness before calling an instrument dead ────────────────────
+
+/**
+ * The response test asks whether a station follows the reference. With the
+ * reference on the islands and capes, a station at the head of a ría can fail
+ * it while working perfectly: its afternoons belong to the local breeze, not
+ * to the open coast. The dry run of 28-sep called both Redondela stations
+ * dead — and each followed the AEMET station in Redondela day by day (0.77 and
+ * 0.67). Two instruments in one town failing together indicts the reference,
+ * not the instruments.
+ *
+ * So a station the reference would call dead is asked a second, independent
+ * question: does it move with a neighbour that itself responds to the
+ * reference? If it does, the anemometer is working and the site simply has no
+ * comparable free stream — unreferenced, which keeps its ratio and publishes no
+ * sector table. If it follows nobody, it stays dead. A frozen series has no
+ * correlation with anything, so this cannot rescue a stuck sensor.
+ */
+export const PEER_MIN_CORRELATION = 0.5;
+
+/** Neighbours further than this answer to a different local wind. */
+export const PEER_RADIUS_KM = 6;
+
+export function distanceKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const R = 6371, r = Math.PI / 180;
+  const dLat = (bLat - aLat) * r, dLon = (bLon - aLon) * r;
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+export interface PeerRescue { stationId: string; peerId: string; correlation: number; km: number }
+
+/**
+ * Re-examine every station called dead against its responding neighbours.
+ * Returns the rows (rescued ones turned unreferenced) and who vouched for whom,
+ * for the log.
+ */
+export function confirmDeadByPeers(
+  rows: StationCalibration[],
+  stationHours: StationHour[],
+  positions: Map<string, { lat: number; lon: number }>,
+): { rows: StationCalibration[]; rescued: PeerRescue[] } {
+  const dead = rows.filter((r) => r.status === 'dead');
+  if (dead.length === 0) return { rows, rescued: [] };
+
+  const responders = rows.filter((r) => r.status === 'exposed' || r.status === 'sheltered' || r.status === 'very_sheltered');
+  const wanted = new Set([...dead, ...responders].map((r) => r.stationId));
+  const daily = new Map<string, Map<string, { s: number; n: number }>>();
+  for (const h of stationHours) {
+    if (!wanted.has(h.stationId)) continue;
+    let m = daily.get(h.stationId);
+    if (!m) { m = new Map(); daily.set(h.stationId, m); }
+    const d = m.get(h.day) ?? { s: 0, n: 0 };
+    d.s += h.ms; d.n += 1;
+    m.set(h.day, d);
+  }
+  const dayCorrelation = (a: string, b: string): number | null => {
+    const da = daily.get(a), db = daily.get(b);
+    if (!da || !db) return null;
+    const xs: number[] = [], ys: number[] = [];
+    for (const [day, v] of da) {
+      const w = db.get(day);
+      if (w) { xs.push(v.s / v.n); ys.push(w.s / w.n); }
+    }
+    return xs.length >= MIN_DAYS ? pearson(xs, ys) : null;
+  };
+
+  const rescued: PeerRescue[] = [];
+  const out = rows.map((row) => {
+    if (row.status !== 'dead') return row;
+    const at = positions.get(row.stationId);
+    if (!at) return row;
+    let best: PeerRescue | null = null;
+    for (const peer of responders) {
+      const p = positions.get(peer.stationId);
+      if (!p) continue;
+      const km = distanceKm(at.lat, at.lon, p.lat, p.lon);
+      if (km > PEER_RADIUS_KM) continue;
+      const r = dayCorrelation(row.stationId, peer.stationId);
+      if (r != null && r >= PEER_MIN_CORRELATION && (!best || r > best.correlation)) {
+        best = { stationId: row.stationId, peerId: peer.stationId, correlation: r, km };
+      }
+    }
+    if (!best) return row;
+    rescued.push(best);
+    return { ...row, status: 'unreferenced' as const, sectors: [] };
+  });
+  return { rows: out, rescued };
+}
+
+// ── When to run ────────────────────────────────────────────────────────────
+
+/** The run reads ninety days from the database host, which has 2 GB of RAM:
+ *  it belongs in the small hours, not wherever the last restart left the
+ *  timer. [start, end) in local time. */
+export const CALIBRATION_SLOT: readonly [number, number] = [3, 6];
+
+/** A run inside the slot waits for this much since the previous one. */
+export const CALIBRATION_MIN_GAP_H = 20;
+
+/** Past this, the run goes whatever the hour: two missed nights (the host was
+ *  down at three in the morning) must not become a week without a table. */
+export const CALIBRATION_OVERDUE_H = 44;
+
+export function shouldRunCalibration(lastRunMs: number | null, nowMs: number, localHour: number): boolean {
+  if (lastRunMs == null) return true;
+  const ageH = (nowMs - lastRunMs) / 3_600_000;
+  if (ageH >= CALIBRATION_OVERDUE_H) return true;
+  return ageH >= CALIBRATION_MIN_GAP_H && localHour >= CALIBRATION_SLOT[0] && localHour < CALIBRATION_SLOT[1];
 }

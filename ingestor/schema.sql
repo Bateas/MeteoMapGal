@@ -916,9 +916,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON push_subscriptions TO meteomap_app;
 CREATE TABLE IF NOT EXISTS station_calibration (
   computed_at     TIMESTAMPTZ      NOT NULL,
   station_id      TEXT             NOT NULL,
-  buoy_id         INTEGER          NOT NULL,
-  status          TEXT             NOT NULL,  -- exposed|sheltered|very_sheltered|dead|insufficient
-  ratio           DOUBLE PRECISION,           -- station mean / buoy mean, all directions
+  buoy_id         INTEGER          NOT NULL,  -- reference: buoy station_id, or 0 = combined MeteoGalicia reference (Ons, Salvora, Cabo Udra, A Lanzada) since v2.160.0
+  status          TEXT             NOT NULL,  -- exposed|sheltered|very_sheltered|unreferenced|dead|insufficient
+  ratio           DOUBLE PRECISION,           -- station mean / reference mean, all directions
   hours           INTEGER          NOT NULL,
   days            INTEGER          NOT NULL DEFAULT 0,  -- days behind the correlation
   correlation     DOUBLE PRECISION,           -- Pearson vs the reference on DAILY means
