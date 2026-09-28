@@ -28,7 +28,7 @@ import { runIcaCycle } from './icaFetcher.js';
 import { runConvectionGridCycle } from './convectionGridFetcher.js';
 import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import { runFireWatchCycle } from './fireWatch.js';
-import { runCalibrationCycle, CALIBRATION_INTERVAL_MS } from './calibration.js';
+import { runCalibrationCycle, CALIBRATION_CHECK_INTERVAL_MS } from './calibration.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
   countBySource,
@@ -518,18 +518,20 @@ async function start(): Promise<void> {
   }, 30 * 60_000);
 
   // Station calibration — how much of the free stream each land station sees,
-  // measured against a live buoy over 90 days. Daily: the window is three
-  // months, so nothing it says changes between polls, and the query is heavy.
+  // measured against the combined reference over 90 days. The timer only asks
+  // whether a run is due: the run itself happens once a night in the small
+  // hours (shouldRunCalibration), not wherever the last restart left the clock
+  // — every midday deploy used to fire the ninety-day read at midday.
   // Fire-and-forget and internally fail-soft, like the others: it is a
   // refinement computed FROM the history, and the loop that gathers that
   // history must never wait on it.
-  // 600s stagger so the first run lands after everything else has settled.
+  // 600s stagger so the first check lands after everything else has settled.
   setTimeout(() => {
     runCalibrationCycle().catch((err) => log.warn('[Calibration] init err: ' + (err as Error).message));
   }, 600_000);
   calibrationTimer = setInterval(() => {
     runCalibrationCycle().catch((err) => log.warn('[Calibration] timer err: ' + (err as Error).message));
-  }, CALIBRATION_INTERVAL_MS);
+  }, CALIBRATION_CHECK_INTERVAL_MS);
 
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
