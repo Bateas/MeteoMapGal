@@ -972,6 +972,35 @@ CREATE INDEX IF NOT EXISTS idx_forecast_archive_valid
   ON forecast_archive (sector, valid_time, issued_at DESC);
 GRANT SELECT, INSERT ON forecast_archive TO meteomap_app;
 
+-- ── Day-before forecast at the ML buoys ─────────────────────
+-- What the weather model predicted 24 h before each hour (Open-Meteo previous
+-- runs, *_previous_day1) at the five buoys the ML wind model predicts. It
+-- already existed when the model has to speak about that hour, so it is a
+-- feature that does not leak the answer. Measured 28-sep: afternoon error of
+-- the wind model 2.46 -> 1.91 kt. Written by nwpPreviousFetcher.ts every 6 h;
+-- the first cycle brings the history from 1-mar in one request.
+-- ~44k rows a year: a plain table.
+CREATE TABLE IF NOT EXISTS nwp_previous_hourly (
+  valid_time  TIMESTAMPTZ NOT NULL,   -- hour the forecast is for (UTC)
+  point       TEXT        NOT NULL,   -- 'boya:<station_id>'
+  lead_days   SMALLINT    NOT NULL,   -- 1 = predicted 24 h before valid_time
+  wind_kt     REAL,
+  wind_dir    REAL,
+  gust_kt     REAL,
+  fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (valid_time, point, lead_days)
+);
+-- UPDATE too: the fetcher upserts (ON CONFLICT DO UPDATE needs it).
+GRANT SELECT, INSERT, UPDATE ON nwp_previous_hourly TO meteomap_app;
+DO $ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON nwp_previous_hourly TO grafana_ro;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ml_job') THEN
+    GRANT SELECT ON nwp_previous_hourly TO ml_job;
+  END IF;
+END $;
+
 -- ── Field reports ─────────────────────────────────────
 -- Someone at the water says whether the wind matches the figure the app showed
 -- (more / same / less) and how much whitecap there is. Labels for checking the

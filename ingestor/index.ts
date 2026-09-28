@@ -29,6 +29,7 @@ import { runConvectionGridCycle } from './convectionGridFetcher.js';
 import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import { runFireWatchCycle } from './fireWatch.js';
 import { runCalibrationCycle, CALIBRATION_CHECK_INTERVAL_MS } from './calibration.js';
+import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetcher.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
   countBySource,
@@ -63,6 +64,7 @@ let convGridTimer: ReturnType<typeof setInterval> | null = null;
 let outcomesTimer: ReturnType<typeof setInterval> | null = null;
 let fireWatchTimer: ReturnType<typeof setInterval> | null = null;
 let calibrationTimer: ReturnType<typeof setInterval> | null = null;
+let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -533,6 +535,15 @@ async function start(): Promise<void> {
     runCalibrationCycle().catch((err) => log.warn('[Calibration] timer err: ' + (err as Error).message));
   }, CALIBRATION_CHECK_INTERVAL_MS);
 
+  // Day-before forecast at the ML buoys (nwpPreviousFetcher.ts): every 6 h, 20 coordinate-calls a day.
+  // 200s stagger, after synoptic and FIRMS, to spread the Open-Meteo calls.
+  setTimeout(() => {
+    runNwpPreviousCycle().catch((err) => log.warn('[NWP] init err: ' + (err as Error).message));
+  }, 200_000);
+  nwpPreviousTimer = setInterval(() => {
+    runNwpPreviousCycle().catch((err) => log.warn('[NWP] timer err: ' + (err as Error).message));
+  }, NWP_PREVIOUS_INTERVAL_MS);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -556,6 +567,7 @@ async function shutdown(signal: string): Promise<void> {
   if (outcomesTimer) clearInterval(outcomesTimer);
   if (fireWatchTimer) clearInterval(fireWatchTimer);
   if (calibrationTimer) clearInterval(calibrationTimer);
+  if (nwpPreviousTimer) clearInterval(nwpPreviousTimer);
 
   // Close database pool
   await closePool();
