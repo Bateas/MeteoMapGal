@@ -1,15 +1,19 @@
 /**
- * Simple timestamped logger for the ingestor.
- * Prefixes all messages with ISO timestamp + level.
+ * Simple timestamped logger for the ingestor and the API.
+ * Prefixes all messages with the local date and time + level.
  */
 
+// Colour only on a terminal. In production the services append to a file, where the escape
+// codes are noise for grep and for anything that parses the lines.
+const USE_COLOR = process.stdout.isTTY === true;
+const c = (code: string) => (USE_COLOR ? code : '');
 const COLORS = {
-  reset: '\x1b[0m',
-  dim: '\x1b[2m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  red: '\x1b[31m',
-  cyan: '\x1b[36m',
+  reset: c('\x1b[0m'),
+  dim: c('\x1b[2m'),
+  green: c('\x1b[32m'),
+  yellow: c('\x1b[33m'),
+  red: c('\x1b[31m'),
+  cyan: c('\x1b[36m'),
 } as const;
 
 // Debug logs are off by default to keep journalctl quiet on routine
@@ -19,14 +23,12 @@ const COLORS = {
 const DEBUG_ENABLED = process.env.INGESTOR_DEBUG === 'true';
 
 function ts(): string {
-  // Local time HH:MM:SS — matches the host TZ (Europe/Madrid in prod).
-  // Avoids the UTC vs CEST mismatch when grepping logs against `date`.
+  // Local date and time, YYYY-MM-DD HH:MM:SS — matches the host TZ (Europe/Madrid in prod), so
+  // it greps against `date` without a UTC/CEST shift. The date matters: the files are kept for
+  // months, and a bare HH:MM:SS cannot tell one day from another.
   const d = new Date();
-  return [
-    String(d.getHours()).padStart(2, '0'),
-    String(d.getMinutes()).padStart(2, '0'),
-    String(d.getSeconds()).padStart(2, '0'),
-  ].join(':');
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 export const log = {
