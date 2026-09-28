@@ -4,7 +4,7 @@
  */
 import { WeatherIcon } from '../../icons/WeatherIcons';
 import { NetworkCoverage } from '../NetworkCoverage';
-import { SPOT_COUNT, SURF_SPOT_COUNT, SAILING_SPOT_COUNT, WEBCAM_COUNT, BUOY_COUNT, SOURCES, approxStationCount } from '../../../config/networkStats';
+import { SPOT_COUNT, SURF_SPOT_COUNT, SAILING_SPOT_COUNT, WEBCAM_COUNT, MG_WEBCAM_COUNT, DGT_WEBCAM_COUNT, BUOY_COUNT, SOURCES, approxStationCount } from '../../../config/networkStats';
 import type { IconId } from '../../icons/WeatherIcons';
 import { useUIStore } from '../../../store/uiStore';
 
@@ -34,7 +34,7 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="info" title="Cesantes — viento coherente en toda la app" desc="Cuando el detector de canalización SW estima ~14kt locales pero la estación medio sheltered reportaba 7kt, antes el popup mostraba 14kt pero el marker del mapa, el banner móvil y el ticker seguían mostrando 7kt — incoherente. Ahora todos los puntos del UI leen el viento efectivo (post-detector boost). Si Cesantes está canalizando, todo el UI te dice 14kt SW BUENO." status="done" />
         <TimelineMilestone iconId="sailboat" title={`${SPOT_COUNT} spots con veredicto automático`} desc={`${SAILING_SPOT_COUNT} de vela + ${SURF_SPOT_COUNT} de surf. Scoring basado en ${approxStationCount()} estaciones y ${BUOY_COUNT} boyas marinas.`} status="done" />
         <TimelineMilestone iconId="waves" title="Previsión de olas 24h" desc="Altura, período, tendencia y veredicto de surf (FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE)." status="done" />
-        <TimelineMilestone iconId="camera" title={`${WEBCAM_COUNT} webcams con visión IA`} desc="19 cámaras MeteoGalicia + 2 cámaras DGT (Ribadavia, Fea-Arrabaldo) + webcam propia ESP32-CAM en Castrelo. Análisis automático: niebla, visibilidad y estado del cielo." status="done" />
+        <TimelineMilestone iconId="camera" title={`${WEBCAM_COUNT} webcams con visión IA`} desc={`${MG_WEBCAM_COUNT} cámaras MeteoGalicia + ${DGT_WEBCAM_COUNT} cámaras DGT (Ribadavia, Barbantes) + webcam propia ESP32-CAM en Castrelo. Análisis automático: niebla, visibilidad y estado del cielo.`} status="done" />
         <TimelineMilestone iconId="bell" title="Alertas inteligentes por Telegram" desc="Avisos de cambio de condiciones: viento, niebla, tormentas, olas. Silencio nocturno." status="done" />
         <TimelineMilestone iconId="sailboat" title="Modo Evento para regatas" desc="Zona de agua, panel de seguridad, balizas, mareas, aviación, previsión 6h." status="done" />
         <TimelineMilestone iconId="compass" title="Previsión horaria por spot" desc="Ventana de navegación 48h + mini-timeline 12h directamente en el popup." status="done" />
@@ -50,7 +50,7 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="thermometer" title="MeteoSIX v5 — WRF 1km" desc="Prevision atmosferica a 1km de resolucion de MeteoGalicia, servida a nivel de sector. USWAN para oleaje nearshore y MOHID para temperatura del mar si estan operativos. La consulta por celda exacta de cada spot esta pendiente de reactivar." status="wip" />
         <TimelineMilestone iconId="cloud" title="Niebla localizada multi-evidencia" desc="Overlay que se activa por detector (radio 4km). Cruza: webcams con IA de vision, firma solar (HR>85% + radiacion bloqueada), visibilidad oficial AEMET de 8 aeropuertos/estaciones costeras (<1km = niebla confirmada). Fade asimetrico 2s aparicion / 5s disipacion que mimica niebla real." status="done" />
         <TimelineMilestone iconId="compass" title="Panel de prevision Windguru-style" desc="Vista fullscreen (tecla P) con tabla de colores por intensidad, dots de calidad, dimming nocturno, conclusion inteligente y meteograma SVG." status="done" />
-        <TimelineMilestone iconId="camera" title="Webcams DGT" desc="Camaras de trafico en Ribadavia y Fea-Arrabaldo para validar niebla en valles interiores." status="done" />
+        <TimelineMilestone iconId="camera" title="Webcams DGT" desc="Cámaras de tráfico en Ribadavia (N-120) y Barbantes (A-52) para validar niebla en valles interiores." status="done" />
         <TimelineMilestone iconId="wind" title="Predictor de canalizacion en Cesantes" desc="Cesantes tiene una ensenada abrigada donde las estaciones cercanas subestiman el viento real. Solo cuenta la brisa termica de tarde (sol en el interior y agua mas fria que el aire): con ella la ensenada recibe 1,4-1,6 veces lo que marca el puerto de Vigo. Si llueve en 2 o mas estaciones cercanas no se aplica, y tampoco con viento de frente en altura (15 kt o mas del S-SW-W a 1.500 m): ese dia entra lo que miden las estaciones. Estima el viento local cuando supera la medicion en +4kt." status="done" />
         <TimelineMilestone iconId="cloud" title="Detector de calima/Saharan dust" desc="Overlay que se activa solo cuando Open-Meteo reporta polvo del Sáhara. Tinte marrón-ocre sutil con 3 niveles (leve / moderada / fuerte) según concentración de polvo y opacidad atmosférica (AOD). Fade asimétrico 2s/5s." status="done" />
         <TimelineMilestone iconId="info" title="Respaldo automático cuando el SWAN cae" desc="El servidor académico CESGA falla varias veces al mes. Ahora cuando ese modelo no puede cargar, se dibujan automáticamente puntos de altura de ola en 6 ubicaciones estratégicas de las Rías (bocanas e interiores) tomados de Open-Meteo Marine. Pierdes resolución (de 250m a puntos discretos) pero no te quedas sin contexto espacial de oleaje." status="done" />
@@ -141,7 +141,7 @@ export function RoadmapSection() {
             <SourceRow letter="N" name="NOAA" desc="Índices NAO/AO — teleconexiones atlánticas" color="#059669" />
             <SourceRow letter="I" name="IGN" desc="Cartografía: ortofotos PNOA, sombreado MDT, curvas de nivel" color="#7c3aed" />
             <SourceRow letter="W" name="MeteoGalicia Webcams" desc="19 camaras costeras publicas (imagenes cada 5 min) + 2 DGT" color="#3b82f6" />
-            <SourceRow letter="D" name="DGT Webcams" desc="Camaras de trafico (Ribadavia, Fea-Arrabaldo) — validacion de niebla interior" color="#64748b" />
+            <SourceRow letter="D" name="DGT Webcams" desc="Cámaras de tráfico (Ribadavia, Barbantes) — validación de niebla interior" color="#64748b" />
             <SourceRow letter="O" name="Open-Meteo Marine" desc="Previsión horaria de oleaje y swell (48h)" color="#06b6d4" />
             <SourceRow letter="V" name="MeteoGalicia Avisos" desc="Avisos adversos oficiales — tormentas, oleaje, viento, lluvia (RSS)" color="#eab308" />
             <SourceRow letter="P" name="RainViewer" desc="Radar precipitación animado (2h pasadas, tiles libres)" color="#3b82f6" />

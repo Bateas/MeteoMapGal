@@ -32,9 +32,10 @@ export function LegalSection() {
             son estimaciones, no observaciones.
           </p>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Las <strong className="text-slate-300">webcams</strong> e imágenes proceden de fuentes de acceso
-            público (MeteoGalicia, Waira Surf School). MeteoMapGal enlaza a las imágenes públicas
-            sin almacenarlas ni redistribuirlas. La disponibilidad depende del proveedor original.
+            Las imágenes de <strong className="text-slate-300">webcams</strong> son de sus titulares
+            (MeteoGalicia y DGT) y se muestran tal como las publican, sin archivarlas. Algunas se analizan
+            de forma automática para detectar niebla; se guarda el resultado, no la imagen. Las de Waira Surf
+            School, tmkites y Ría de Vigo Cam solo se enlazan. La disponibilidad depende de cada titular.
           </p>
         </div>
       </div>
@@ -46,36 +47,55 @@ export function LegalSection() {
         </h3>
         <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800 space-y-2">
           <p className="text-xs text-slate-400 leading-relaxed">
-            Todos los datos provienen de <strong className="text-slate-300">fuentes públicas y abiertas</strong>.
-            Se citan conforme a sus respectivas licencias:
+            Los datos proceden de <strong className="text-slate-300">organismos públicos y de redes y servicios
+            de terceros</strong>. Cada fuente conserva sus derechos. Donde el titular publica una licencia, se
+            indica; «sus condiciones» quiere decir que el dato está sujeto a los términos de uso de ese servicio.
           </p>
+          <p className="text-[11px] font-bold text-slate-400 pt-1">Observación y avisos</p>
           <ul className="space-y-1.5 text-[11px] text-slate-400">
-            <AttrRow name="AEMET OpenData" license="CC BY 4.0" desc="Agencia Estatal de Meteorología — datos abiertos" />
-            <AttrRow name="MeteoGalicia" license="Datos abiertos Xunta" desc="Xunta de Galicia — red de estaciones" />
-            <AttrRow name="Meteoclimatic" license="CC BY-NC-ND" desc="Red ciudadana — estaciones personales" />
-            <AttrRow name="Weather Underground" license="Datos públicos vía web" desc="IBM — red de estaciones personales" />
-            <AttrRow name="Netatmo" license="Datos públicos" desc="Weathermap público — estaciones personales" />
-            <AttrRow name="IPMA" license="Uso no lucrativo" desc="Instituto Português do Mar e da Atmosfera (ipma.pt) — estaciones y avisos del norte de Portugal" />
-            <AttrRow name="Open-Meteo" license="CC BY 4.0" desc="Modelo numérico ECMWF/GFS" />
-            <AttrRow name="IHM / Puertos del Estado" license="Datos públicos" desc="Predicciones de mareas" />
-            <AttrRow name="ENAIRE" license="Datos públicos" desc="Espacio aéreo y NOTAMs" />
-            <AttrRow name="Puertos del Estado (PORTUS)" license="Datos públicos" desc="Boyas marinas — oleaje, corrientes, nivel del mar" />
-            <AttrRow name="Observatorio Costeiro (Xunta)" license="Datos abiertos Xunta" desc="Boyas suplementarias — humedad, punto de rocío" />
-            <AttrRow name="CMEMS / Copernicus Marine" license="Datos abiertos EU" desc="Temperatura superficial del mar (SST)" />
-            <AttrRow name="EMODnet" license="Datos abiertos EU" desc="Batimetría marina" />
-            <AttrRow name="OpenSeaMap" license="CC BY-SA" desc="Marcas y señales de navegación" />
-            <AttrRow name="IGN" license="CC BY 4.0" desc="Cartografía: ortofotos, sombreado, curvas de nivel" />
-            <AttrRow name="NOAA" license="Dominio público" desc="Índices climáticos NAO/AO" />
-            <AttrRow name="NASA FIRMS" license="Datos abiertos NASA" desc="Detección de incendios por satélite (VIIRS)" />
-            <AttrRow name="EFFIS — Copernicus EMS" license="CC BY 4.0, © Unión Europea" desc="Incendios forestales: superficie quemada y concello" />
-            <AttrRow name="SkyX" license="API privada" desc="Estación personal portátil con GPS" />
-            <AttrRow name="OpenSky Network" license="CC BY-SA 4.0" desc="Posiciones de aeronaves en tiempo real" />
-            <AttrRow name="Open-Meteo Marine" license="CC BY 4.0" desc="Previsión de oleaje y swell horario" />
-            <AttrRow name="MeteoGalicia Webcams" license="Datos abiertos Xunta" desc="Imágenes de cámaras costeras (análisis visual)" />
-            <AttrRow name="Waira Surf School" license="Enlace público" desc="Webcam en directo playa de Patos (enlace a waira.com)" />
-            <AttrRow name="ESP32-CAM Castrelo" license="Propia" desc="Webcam propia en el embalse de Castrelo de Miño" />
-            <AttrRow name="RainViewer" license="Free tier" desc="Animación de precipitación radar (2h pasadas)" />
+            <AttrRow name="AEMET OpenData" license="Cita de la fuente" desc="© AEMET. Estaciones, visibilidad y radar" />
+            <AttrRow name="MeteoGalicia" license="CC BY-SA 4.0" desc="© Xunta de Galicia. Estaciones, avisos, rayos, calidad del aire y webcams" />
+            <AttrRow name="Meteoclimatic" license="CC BY-NC-ND" desc="Red ciudadana de estaciones personales" />
+            <AttrRow name="Weather Underground" license="Sus condiciones" desc="© The Weather Company. Estaciones personales" />
+            <AttrRow name="Netatmo" license="Sus condiciones" desc="© Netatmo. Estaciones personales de su mapa público" />
+            <AttrRow name="IPMA" license="Uso no lucrativo" desc="Instituto Português do Mar e da Atmosfera. Estaciones y avisos del norte de Portugal" />
+            <AttrRow name="PORTUS" license="Sus condiciones" desc="© Puertos del Estado. Boyas y mareógrafos: viento, oleaje y nivel del mar" />
+            <AttrRow name="Observatorio Costeiro" license="Sus condiciones" desc="© Xunta de Galicia. Boyas de las rías" />
+            <AttrRow name="SkyX" license="Propia" desc="Estación portátil propia, mediante el servicio SkyX" />
           </ul>
+          <p className="text-[11px] font-bold text-slate-400 pt-1">Previsión y modelos</p>
+          <ul className="space-y-1.5 text-[11px] text-slate-400">
+            <AttrRow name="MeteoSIX" license="Sus condiciones" desc="MeteoGalicia. Previsión WRF, oleaje costero y temperatura del mar" />
+            <AttrRow name="Open-Meteo" license="CC BY 4.0" desc="Previsión de varios modelos, oleaje y previsión del día anterior" />
+            <AttrRow name="CESGA" license="Sus condiciones" desc="Modelo de oleaje SWAN (capa de olas)" />
+            <AttrRow name="IHM" license="Sus condiciones" desc="Instituto Hidrográfico de la Marina. Predicción de mareas" />
+            <AttrRow name="Copernicus Marine" license="Licencia Copernicus" desc="Temperatura superficial del mar" />
+            <AttrRow name="NOAA" license="Dominio público" desc="Índices climáticos NAO y AO" />
+            <AttrRow name="RainViewer" license="Sus condiciones" desc="Animación del radar de lluvia (2 h pasadas)" />
+          </ul>
+          <p className="text-[11px] font-bold text-slate-400 pt-1">Incendios, espacio aéreo y mapas</p>
+          <ul className="space-y-1.5 text-[11px] text-slate-400">
+            <AttrRow name="NASA FIRMS" license="Datos abiertos NASA" desc="Detección de incendios por satélite (VIIRS)" />
+            <AttrRow name="EFFIS" license="CC BY 4.0" desc="© Unión Europea, Copernicus EMS. Superficie quemada y concello" />
+            <AttrRow name="ENAIRE" license="Sus condiciones" desc="Espacio aéreo y NOTAM" />
+            <AttrRow name="OpenSky Network" license="Sus condiciones" desc="Posición de aeronaves" />
+            <AttrRow name="Esri" license="Sus condiciones" desc="Mapas base gris y callejero (con HERE y Garmin)" />
+            <AttrRow name="OpenStreetMap" license="ODbL" desc="© colaboradores de OpenStreetMap. Mapa base, y parte de los mapas de Esri" />
+            <AttrRow name="IGN" license="CC BY 4.0" desc="© Instituto Geográfico Nacional. Mapas, ortofoto, relieve y curvas de nivel" />
+            <AttrRow name="EMODnet" license="Datos abiertos UE" desc="Batimetría" />
+            <AttrRow name="OpenSeaMap" license="CC BY-SA" desc="Marcas y señales de navegación" />
+          </ul>
+          <p className="text-[11px] font-bold text-slate-400 pt-1">Webcams</p>
+          <ul className="space-y-1.5 text-[11px] text-slate-400">
+            <AttrRow name="MeteoGalicia" license="CC BY-SA 4.0" desc="Cámaras de la costa y del interior" />
+            <AttrRow name="DGT" license="Sus condiciones" desc="Cámaras de tráfico de Ribadavia (N-120) y Barbantes (A-52)" />
+            <AttrRow name="Enlaces" license="Enlace" desc="Waira Surf School (Patos), tmkites (Cesantes) y Ría de Vigo Cam (YouTube)" />
+            <AttrRow name="ESP32-CAM" license="Propia" desc="Webcam propia en el embalse de Castrelo de Miño" />
+          </ul>
+          <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+            Si eres titular de alguno de estos datos y quieres que cambiemos cómo se muestra o se cita,
+            escríbenos por el enlace de contacto de abajo.
+          </p>
         </div>
       </div>
 
@@ -107,7 +127,7 @@ export function LegalSection() {
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
               No vendemos ni cedemos tus datos. Algunos mapas, modelos y webcams se cargan directamente
-              desde sus proveedores (Open-Meteo, RainViewer, IGN, OpenStreetMap, Copernicus, DGT, Cloudflare),
+              desde sus proveedores (Esri, IGN, OpenStreetMap, Open-Meteo, RainViewer, Copernicus, IPMA, DGT, Cloudflare),
               que ven tu dirección IP como cualquier web que visitas
             </li>
             <li className="flex items-start gap-2">
@@ -163,12 +183,16 @@ export function LegalSection() {
 
 /* ─── Sub-components ──────────────────────────── */
 
+// On a phone the licence goes under the description: as a third column it ran into the edge.
 function AttrRow({ name, license, desc }: { name: string; license: string; desc: string }) {
   return (
     <li className="flex items-start gap-2">
-      <span className="text-slate-300 font-bold shrink-0 w-28">{name}</span>
-      <span className="text-slate-500 flex-1">{desc}</span>
-      <span className="text-slate-600 font-mono text-[11px] shrink-0">{license}</span>
+      <span className="text-slate-300 font-bold shrink-0 w-28 sm:w-40">{name}</span>
+      <span className="text-slate-500 flex-1 min-w-0">
+        {desc}
+        <span className="sm:hidden block text-slate-600 font-mono text-[11px]">{license}</span>
+      </span>
+      <span className="hidden sm:inline text-slate-600 font-mono text-[11px] shrink-0">{license}</span>
     </li>
   );
 }

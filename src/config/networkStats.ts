@@ -22,8 +22,11 @@ export const SPOT_COUNT = ALL_SPOTS.length;
 export const SURF_SPOT_COUNT = ALL_SPOTS.filter((s) => s.category === 'surf').length;
 export const SAILING_SPOT_COUNT = SPOT_COUNT - SURF_SPOT_COUNT;
 
-/** Webcams wired for vision analysis. */
+/** Webcams wired for vision analysis, and how many each owner provides (the guide said
+ *  "19 MeteoGalicia" when there were 20). */
 export const WEBCAM_COUNT = ALL_WEBCAMS.length;
+export const MG_WEBCAM_COUNT = ALL_WEBCAMS.filter((w) => w.source === 'meteogalicia').length;
+export const DGT_WEBCAM_COUNT = ALL_WEBCAMS.filter((w) => w.source === 'dgt').length;
 
 /** Marine buoys configured. `enabled: false` ones stay in the count because
  *  they are part of the network and their absence is the news, not a tidy-up:
