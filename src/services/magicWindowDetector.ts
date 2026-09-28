@@ -117,6 +117,9 @@ export function evaluateMagicWindow(opts: {
   recentStrikesNearby: number;
   /** Override "now" hour for testing (0-23). Defaults to current local hour. */
   hour?: number;
+  /** A front aloft (synopticRegime.ts). Vetoed = no window: the SW at the mouth is the
+   *  front itself, not a breeze to add to (27-sep: score 82 with Cesantes at 0). */
+  regime?: { vetoed: boolean; reason: string | null } | null;
 }): MagicWindowResult | null {
   // Magic window only applies to Rías — Embalse is a different beast
   if (opts.sector !== 'rias') return null;
@@ -166,6 +169,19 @@ export function evaluateMagicWindow(opts: {
       sector: opts.sector,
       signals,
       summary: `Veto eléctrico: ${opts.recentStrikesNearby} rayos cerca, sin ventana.`,
+      estimatedHours: 0,
+      detectedAt: new Date().toISOString(),
+    };
+  }
+
+  // ── Front veto: with a front coming in aloft there is no breeze to add to ──
+  if (opts.regime?.vetoed) {
+    return {
+      active: false,
+      score: 0,
+      sector: opts.sector,
+      signals,
+      summary: `Veto de frente: ${opts.regime.reason ?? 'flujo de frente arriba'}. Sin ventana.`,
       estimatedHours: 0,
       detectedAt: new Date().toISOString(),
     };

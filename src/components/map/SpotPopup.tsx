@@ -777,6 +777,13 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
         );
       })()}
 
+      {/* ── Front aloft: why there is no breeze boost today (synopticRegime.ts) ── */}
+      {spot.thermalDetection && score?.regimeVeto?.vetoed && score.regimeVeto.reason && (
+        <div className="text-[11px] mb-1 text-slate-400">
+          <WeatherIcon id="wind" size={12} className="inline -mt-px" /> {score.regimeVeto.reason}
+        </div>
+      )}
+
       {/* ── UV warning (subtle — only when UV >= 6) ── */}
       {aqData && aqData.uvIndex >= 6 && (
         <div className={`text-[11px] mb-1 ${aqData.uvIndex >= 8 ? 'text-red-400' : 'text-amber-400'}`}>

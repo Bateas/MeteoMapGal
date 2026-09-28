@@ -13,6 +13,7 @@ import { log } from './logger.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
+import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
 import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert } from './alertDispatcher.js';
 import { dispatchLightningPush, logPushStartup } from './pushDispatcher.js';
 import {
@@ -43,6 +44,7 @@ import {
   type BuoyWind,
   type SpotResult,
   type ScoreContext,
+  type UpperWindBySector,
 } from './analyzerLogic.js';
 
 // ── Spot definitions ────────────────────────────────
@@ -147,6 +149,36 @@ async function getLatestReadings(): Promise<StationReading[]> {
     return [];
   }
 }
+
+/**
+ * 850 hPa wind at the model hour nearest to now (within 3 h), per sector, from the
+ * upper-air table. A front aloft vetoes the thermal boosts (synopticRegime.ts).
+ * Missing on error or without data: no veto, never a crash of the cycle.
+ */
+async function getUpperWindNow(): Promise<UpperWindBySector> {
+  const out: UpperWindBySector = {};
+  try {
+    const result = await getPool().query<{ sector: string; wind_speed_ms: number; wind_dir_deg: number }>(
+      `SELECT DISTINCT ON (sector) sector, wind_speed_ms, wind_dir_deg
+         FROM upper_air_hourly
+        WHERE pressure_hpa = 850
+          AND time BETWEEN NOW() - INTERVAL '3 hours' AND NOW() + INTERVAL '3 hours'
+          AND wind_speed_ms IS NOT NULL AND wind_dir_deg IS NOT NULL
+        ORDER BY sector, abs(extract(epoch FROM time - NOW()))`,
+    );
+    for (const r of result.rows) {
+      if (r.sector !== 'rias' && r.sector !== 'embalse') continue;
+      const w: UpperWind = { speedKt: Number(r.wind_speed_ms) * 1.94384, dirDeg: Number(r.wind_dir_deg) };
+      if (Number.isFinite(w.speedKt) && Number.isFinite(w.dirDeg)) out[r.sector] = w;
+    }
+  } catch (err) {
+    log.warn(`getUpperWindNow failed: ${(err as Error).message}`);
+  }
+  return out;
+}
+
+/** Last regime line logged, so the log says when it changes, not every cycle. */
+let lastRegimeLine = '';
 
 /**
  * Precipitation samples per station over the last `windowMin` minutes, for the Cesantes
@@ -317,7 +349,16 @@ export async function runAnalysis(): Promise<void> {
   // exactly the stations the spot is scored on; the map's engine gets the same samples.
   const cesantesDef = SPOTS.find((s) => s.id === 'cesantes');
   const precipIds = cesantesDef ? selectNearbyStations(cesantesDef, readings).map((n) => n.r.station_id) : [];
-  const ctx: ScoreContext = { precip: await getRecentPrecip(precipIds), nowMs: now };
+  const upperWind = await getUpperWindNow();
+  const ctx: ScoreContext = { precip: await getRecentPrecip(precipIds), nowMs: now, upperWind };
+  const riasRegime = assessSynopticRegime(upperWind.rias);
+  const regimeLine = !riasRegime ? 'sin dato de altura (sin veto)'
+    : riasRegime.vetoed ? `frente en Rías — ${riasRegime.reason}`
+    : `brisa posible en Rías (${Math.round(upperWind.rias!.speedKt)} kt ${degreesToCardinal(upperWind.rias!.dirDeg)} a 850 hPa)`;
+  if (regimeLine !== lastRegimeLine) {
+    log.info(`[Analyzer] Régimen: ${regimeLine}`);
+    lastRegimeLine = regimeLine;
+  }
 
   // 2. Score each spot, detect transitions, and persist to DB
   const scoreRows: SpotResult[] = [];
@@ -383,7 +424,7 @@ export async function runAnalysis(): Promise<void> {
   // costs the comparison.
   let engineScores: Map<string, SpotScore> | null = null;
   try {
-    engineScores = scoreWithEngine(readings, buoys, ctx.precip);
+    engineScores = scoreWithEngine(readings, buoys, ctx.precip, ctx.upperWind);
     const line = describeDivergences(findDivergences(scoreRows, engineScores), scoreRows.length);
     if (line) log.info(line);
   } catch (err) {
@@ -426,7 +467,7 @@ export async function runAnalysis(): Promise<void> {
   // Evaluated every cycle but with a 6h cooldown so the alert won't spam
   // during a sustained window where the score oscillates around threshold.
   try {
-    await evaluateAndDispatchMagicWindow(readings, buoys);
+    await evaluateAndDispatchMagicWindow(readings, buoys, ctx.upperWind?.rias ?? null);
   } catch (err) {
     log.warn(`Magic window evaluation failed: ${(err as Error).message}`);
   }
@@ -577,6 +618,8 @@ async function persistMagicWindow(score: number, summary: string, estimatedHours
 async function evaluateAndDispatchMagicWindow(
   readings: StationReading[],
   buoys: BuoyWind[],
+  /** 850 hPa over the Rías: a front aloft vetoes the window (synopticRegime.ts) */
+  upperWindRias: UpperWind | null,
 ): Promise<void> {
   const buoyReadings = buoys.map(buoyWindToBuoyReading);
   const mouthHum = mouthHumidityFromRows(readings);
@@ -600,6 +643,7 @@ async function evaluateAndDispatchMagicWindow(
     mouthHumidity: mouthHum,
     airTempLocal: airTemp,
     recentStrikesNearby: recentStrikes,
+    regime: assessSynopticRegime(upperWindRias),
   });
 
   if (!result) return; // Sector not applicable

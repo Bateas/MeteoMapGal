@@ -15,13 +15,21 @@
  * field-truth instant we have, it never decided one correctly: on 4-ago it gave 17kt
  * with 2kt on the water, and Silleiro fed 30kt phantoms into Telegram. A buoy outside
  * the ría says what the Atlantic is doing, not what gets into San Simón. Only the
- * thermal breeze below remains, and rain at the nearby stations vetoes it (rainVeto.ts).
+ * thermal breeze below remains, and two things veto it: rain at the nearby stations
+ * (rainVeto.ts) and a front coming in aloft (synopticRegime.ts) — with 15+ kt S-SW-W
+ * at 850 hPa the SW at the surface is the front itself and there is no breeze to
+ * amplify (28-sep: app 17-18 kt, water <= 10).
  *
  * Returns prediction for SAILORS to plan sessions: "Cesantes likely 14kt SW now"
  */
 
 import type { NormalizedStation, NormalizedReading } from '../types/station';
-import type { RainVeto } from './rainVeto';
+
+/** Why the thermal breeze cannot be there: rain (RainVeto) or a front (RegimeVeto). */
+export interface ThermalVeto {
+  vetoed: boolean;
+  reason: string | null;
+}
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -113,9 +121,10 @@ export function predictCesantesCanalization(
   solarRadInterior: number | null = null,
   /** Peak local station wind gust (kt) — distinguishes sheltered thermal lulls from dead calm */
   localGustKt: number | null = null,
-  /** Rain at the nearby stations (see assessRainVeto). Vetoed = no thermal low
-   *  pulling, whatever the ΔT and the clock say. */
-  rainVeto: RainVeto | null = null,
+  /** Rain at the nearby stations (assessRainVeto) or a front aloft
+   *  (assessSynopticRegime). Vetoed = no thermal low pulling, whatever the ΔT
+   *  and the clock say. */
+  veto: ThermalVeto | null = null,
 ): CesantesPrediction {
   const inactive: CesantesPrediction = {
     active: false,
@@ -126,7 +135,7 @@ export function predictCesantesCanalization(
     signals: [],
     severity: 'info',
   };
-  if (rainVeto?.vetoed) return { ...inactive, signals: [rainVeto.reason!] };
+  if (veto?.vetoed) return { ...inactive, signals: veto.reason ? [veto.reason] : [] };
 
   // ── Thermal breeze (afternoon SW pattern) ──
   // Classic Cesantes pattern Apr-Oct: sun heats land → low pressure inland → SW marine breeze.
