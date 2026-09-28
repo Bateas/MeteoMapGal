@@ -6,6 +6,8 @@
  * Uses useVisibilityPolling(enabled=isCoastal) — polling pauses on inland
  * sectors and when the browser tab is hidden.
  *
+ * Reads our own API. The direct PORTUS + ObsCosteiro path is development-only.
+ *
  * Error recovery: on failure, retries after 5 min instead of waiting 30 min.
  * buoyClient.ts already retries 5xx errors 2x with exponential backoff before
  * reporting failure here.
@@ -20,6 +22,8 @@ import { useVisibilityPolling } from './useVisibilityPolling';
 
 const REFRESH_INTERVAL = 10 * 60_000; // 10 min (Observatorio Costeiro cadence)
 const ERROR_RETRY_MS = 5 * 60_000;    // 5 min retry on error
+/** Ask the providers straight from the browser only when running without our service. */
+const DIRECT_FALLBACK = import.meta.env.DEV;
 
 export function useBuoyData() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
@@ -56,6 +60,14 @@ export function useBuoyData() {
         console.warn('[useBuoyData] own API returned no buoys, asking the providers');
       } catch (apiErr) {
         console.warn('[useBuoyData] own API failed, asking the providers:', (apiErr as Error).message);
+      }
+
+      // Only in development. In production a failing API would otherwise send
+      // every visitor to the providers at once: eleven POSTs each to PORTUS,
+      // which no cache can share and which limits by address. The map keeps
+      // the buoys it already has and asks our API again on the retry below.
+      if (!DIRECT_FALLBACK) {
+        throw new Error('Sin datos de boyas de nuestro servicio');
       }
 
       // Fetch PORTUS + Observatorio Costeiro in parallel — fail silently per source
