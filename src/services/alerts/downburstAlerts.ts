@@ -3,7 +3,7 @@
  *
  * Reads current station readings (gust ratios) + the nearest forecast hour
  * (mid-tropo + convection state) and forwards an alert when 3 of 4 signals
- * align. Pure computation — uses data the rest of the pipeline already
+ * align AND the gust is measured (a real gust at >= 1 station; 'high' needs 2). Pure computation — uses data the rest of the pipeline already
  * subscribed to.
  *
  * See `downburstRiskService.ts` for the physics and thresholds.

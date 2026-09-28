@@ -53,6 +53,11 @@ function forecastHour(overrides: Partial<HourlyForecast>): HourlyForecast {
   };
 }
 
+/** Two stations measuring a real gust (x2.2 and x2.18, 21 and 23 kt). */
+function gusty(): Map<string, NormalizedReading> {
+  return new Map([['s1', reading('s1', 5, 11)], ['s2', reading('s2', 5.5, 12)]]);
+}
+
 // ── Tests ───────────────────────────────────────────────────
 
 describe('buildDownburstAlerts', () => {
@@ -81,7 +86,7 @@ describe('buildDownburstAlerts', () => {
   });
 
   it('emits high severity when all 4 signals align', () => {
-    const readings = new Map([['s1', reading('s1', 4, 9)]]); // ratio 2.25
+    const readings = gusty(); // ratio 2.25
     const forecast = [forecastHour({
       temperature500hPa: -18, // sig 2
       cape: 1200, liftedIndex: -3, // sig 3
@@ -97,7 +102,7 @@ describe('buildDownburstAlerts', () => {
   });
 
   it('emits moderate severity when 3 of 4 signals align', () => {
-    const readings = new Map([['s1', reading('s1', 4, 9)]]); // ratio 2.25 ✓
+    const readings = gusty(); // ratio 2.25 ✓
     const forecast = [forecastHour({
       temperature500hPa: -18,                                // ✓
       cape: 1200, liftedIndex: -3,                           // ✓
@@ -110,8 +115,17 @@ describe('buildDownburstAlerts', () => {
     expect(alerts[0].category).toBe('downburst');
   });
 
+  it('the forecast setup with light gusts only is not a warning (no measured gust)', () => {
+    const readings = new Map([['s1', reading('s1', 4, 9)]]); // x2.25 but 17.5 kt: under the floor
+    const forecast = [forecastHour({
+      temperature500hPa: -18, cape: 1200, liftedIndex: -3,
+      cloudCover: 85, precipitation: 0.2,
+    })];
+    expect(buildDownburstAlerts(readings, forecast)).toEqual([]);
+  });
+
   it('picks nearest forecast hour to NOW (not just first)', () => {
-    const readings = new Map([['s1', reading('s1', 4, 9)]]);
+    const readings = gusty();
     const now = Date.now();
     const distantPast = new Date(now - 6 * 3600 * 1000);
     const closerNow = new Date(now);
@@ -129,7 +143,7 @@ describe('buildDownburstAlerts', () => {
   });
 
   it('includes confidence number in the alert', () => {
-    const readings = new Map([['s1', reading('s1', 4, 9)]]);
+    const readings = gusty();
     const forecast = [forecastHour({
       temperature500hPa: -18, cape: 1200, liftedIndex: -3,
       cloudCover: 85, precipitation: 0.2,

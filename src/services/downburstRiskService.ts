@@ -21,6 +21,13 @@
  * When all 4 align → 'high' severity. With 3 of 4 → 'moderate'.
  * Below 3 → null (not actionable).
  *
+ * Measured gust REQUIRED (28-sep): signals 2-4 all come from the same forecast model, so until then
+ * "3 of 4" could raise a warning without a single observation — the model's setup alone is not a
+ * hazard in progress. Now there is no severity without signal 1, signal 1 needs a real gust (at least
+ * GUST_MIN_KT, so a 3 m/s gust over 1.2 m/s of wind no longer counts as "x2.5"), and 'high' needs the
+ * gust measured at two stations: one anemometer alone never raises the top level (same rule as the
+ * sudden-wind alert).
+ *
  * Pure function, no I/O. Called from AppShell alert pipeline + ingestor
  * analyzer (future phase) to surface in ticker + Telegram.
  */
@@ -53,11 +60,18 @@ export interface DownburstRisk {
   signals: DownburstSignals;
   /** How many of the 4 signals are firing */
   alignedCount: number;
+  /** Stations measuring a qualifying gust (ratio and absolute floor) */
+  gustStations: number;
 }
 
 // ── Thresholds (calibrated for Galician downbursts) ─────────
 
 const GUST_RATIO_THRESHOLD = 2.0;
+/** A downburst gust worth a warning, not the ratio noise of a light breeze. */
+export const GUST_MIN_KT = 20;
+const GUST_MIN_MS = GUST_MIN_KT / 1.94384;
+/** Stations measuring the gust for the top level. */
+export const HIGH_MIN_GUST_STATIONS = 2;
 const T500_COLD_THRESHOLD = -15; // °C
 const CAPE_MIN = 800; // J/kg
 const LI_MAX = -2; // °C, more negative = more unstable
@@ -93,6 +107,7 @@ export function evaluateDownburstRisk(opts: {
   // ── Signal 1: surface gust ratio ──
   let maxGustRatio: number | null = null;
   let gustSourceStation: string | null = null;
+  let gustStations = 0;
   for (const s of opts.stations) {
     if (s.windSpeed <= 0.5 || s.windGust <= 0) continue;
     const ratio = s.windGust / s.windSpeed;
@@ -100,12 +115,13 @@ export function evaluateDownburstRisk(opts: {
       maxGustRatio = ratio;
       gustSourceStation = s.stationId;
     }
+    if (ratio >= GUST_RATIO_THRESHOLD && s.windGust >= GUST_MIN_MS) gustStations++;
   }
 
   // ── Signals 2-4: pull from atmosphere ──
   const { temperature500hPa, cape, liftedIndex, cloudCover, precipMmH } = opts.atmosphere;
 
-  const sig1_gustElevated = maxGustRatio !== null && maxGustRatio >= GUST_RATIO_THRESHOLD;
+  const sig1_gustElevated = gustStations > 0;
   const sig2_t500Cold = temperature500hPa !== null && temperature500hPa <= T500_COLD_THRESHOLD;
   const sig3_unstable = (cape !== null && cape >= CAPE_MIN) && (liftedIndex !== null && liftedIndex <= LI_MAX);
   const sig4_dryProfile = (cloudCover !== null && cloudCover >= CLOUD_HIGH_THRESHOLD)
@@ -124,24 +140,30 @@ export function evaluateDownburstRisk(opts: {
     precipMmH,
   };
 
-  if (alignedCount < 3) {
+  if (alignedCount < 3 || !sig1_gustElevated) {
     return {
       severity: null,
       confidence: alignedCount * 25,
       summary: alignedCount === 0
         ? 'Sin condiciones de downburst.'
-        : `Setup incompleto (${alignedCount}/4 señales).`,
+        : !sig1_gustElevated
+          ? `Ambiente propicio según la previsión (${alignedCount}/4), sin rachas medidas.`
+          : `Setup incompleto (${alignedCount}/4 señales).`,
       signals,
       alignedCount,
+      gustStations,
     };
   }
 
-  const severity: 'moderate' | 'high' = alignedCount === 4 ? 'high' : 'moderate';
-  const confidence = alignedCount === 4 ? 90 : 65;
+  const severity: 'moderate' | 'high' =
+    alignedCount === 4 && gustStations >= HIGH_MIN_GUST_STATIONS ? 'high' : 'moderate';
+  const confidence = severity === 'high' ? 90 : 65;
 
   const reasons: string[] = [];
   if (sig1_gustElevated && maxGustRatio !== null) {
-    reasons.push(`rachas ×${maxGustRatio.toFixed(1)} en ${gustSourceStation ?? 'estación'}`);
+    reasons.push(gustStations >= 2
+      ? `rachas ×${maxGustRatio.toFixed(1)} medidas en ${gustStations} estaciones`
+      : `rachas ×${maxGustRatio.toFixed(1)} en ${gustSourceStation ?? 'estación'}`);
   }
   if (sig2_t500Cold && temperature500hPa !== null) {
     reasons.push(`aire frío ${temperature500hPa.toFixed(0)}°C en altura`);
@@ -162,5 +184,6 @@ export function evaluateDownburstRisk(opts: {
     summary,
     signals,
     alignedCount,
+    gustStations,
   };
 }
