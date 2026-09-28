@@ -22,7 +22,7 @@ vi.mock('./buoyClient', async (importOriginal) => {
 
 beforeEach(() => {
   mockPortusPost.mockReset();
-  vi.spyOn(global, 'fetch').mockImplementation(async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
     // Should never be called when guard works
     mockPortusPost();
     return new Response('{}', { status: 200 });
