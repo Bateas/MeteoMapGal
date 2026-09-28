@@ -11,7 +11,7 @@
     "api:dev": "node --import tsx --watch api.ts"
   },
   "dependencies": {
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.1",
     "pg": "^8.23.0",
     "sharp": "^0.35.4",
     "web-push": "^3.6.7"
