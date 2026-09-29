@@ -9,7 +9,55 @@
 
 import { createHash } from 'crypto';
 import { log } from './logger.js';
-import { batchUpsertWebcamReadings } from './db.js';
+import { batchUpsertWebcamReadings, getPool } from './db.js';
+import { fogCorroborated, FOG_NEAR_KM, type NearbyWeather } from './fogAlertGate.js';
+import { rainInWindowMm, type PrecipSample } from '../src/services/precipSemantics.js';
+import { haversineDistance } from '../src/services/geoUtils.js';
+import { isWindBlacklisted } from '../src/services/spotScoringEngine.js';
+
+/**
+ * The stations within FOG_NEAR_KM of a camera over the last 90 minutes: latest mean wind and
+ * temperature/dew-point spread, and the rain of the last hour with each network's semantics.
+ * Empty on error: then no fog alert is sent (fogCorroborated needs someone to check against).
+ */
+async function nearbyWeather(lat: number, lon: number): Promise<NearbyWeather[]> {
+  try {
+    const { rows } = await getPool().query<{
+      station_id: string; latitude: number; longitude: number; time: Date;
+      wind_speed: number | null; temperature: number | null; dew_point: number | null; precip: number | null;
+    }>(
+      `SELECT r.station_id, s.latitude, s.longitude, r.time, r.wind_speed, r.temperature, r.dew_point, r.precip
+         FROM readings r JOIN stations s USING (station_id)
+        WHERE r.time > NOW() - INTERVAL '90 minutes'
+          AND s.latitude BETWEEN $1::float8 - 0.1 AND $1::float8 + 0.1
+          AND s.longitude BETWEEN $2::float8 - 0.14 AND $2::float8 + 0.14
+        ORDER BY r.station_id, r.time`,
+      [lat, lon],
+    );
+    const now = Date.now();
+    const by = new Map<string, typeof rows>();
+    for (const row of rows) (by.get(row.station_id) ?? by.set(row.station_id, []).get(row.station_id)!).push(row);
+    const out: NearbyWeather[] = [];
+    for (const [id, list] of by) {
+      const last = list[list.length - 1];
+      const distKm = haversineDistance(lat, lon, Number(last.latitude), Number(last.longitude));
+      if (distKm > FOG_NEAR_KM) continue;
+      const samples: PrecipSample[] = list
+        .filter((x) => x.precip != null)
+        .map((x) => ({ t: new Date(x.time).getTime(), mm: Number(x.precip) }));
+      out.push({
+        distKm,
+        windKt: last.wind_speed == null || isWindBlacklisted(id) ? null : Number(last.wind_speed) * 1.94384,
+        spreadC: last.temperature == null || last.dew_point == null ? null : Number(last.temperature) - Number(last.dew_point),
+        rainMm60: samples.length > 0 ? rainInWindowMm(id, samples, now, 60) : null,
+      });
+    }
+    return out;
+  } catch (err) {
+    log.warn(`[Webcam] nearby stations for the fog check failed: ${(err as Error).message}`);
+    return [];
+  }
+}
 import { dispatchVisibilityAlert } from './alertDispatcher.js';
 import { RIAS_WEBCAMS, type WebcamStation } from '../src/config/webcams.js';
 
@@ -576,11 +624,19 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
     log.info(`[Webcam] Persisted ${persisted} readings to DB`);
   }
 
-  // Check fog alerts — only real fog (not haze), and only poor visibility
+  // Check fog alerts — only real fog (not haze), only poor visibility, and only when the
+  // stations around the camera agree it is fog (fogAlertGate.ts): the camera alone never sends.
   for (const r of results) {
     if (r.fog && r.visibility === 'poor' && r.spotId) {
       const cam = RIAS_WEBCAMS.find(w => w.id === r.webcamId);
       const camName = cam?.name ?? r.webcamId;
+      const gate = cam
+        ? fogCorroborated(await nearbyWeather(cam.lat, cam.lon))
+        : { ok: false, reason: 'camara sin coordenadas' };
+      if (!gate.ok) {
+        log.info(`[Webcam] ${camName}: niebla de la camara no enviada — ${gate.reason}`);
+        continue;
+      }
       await dispatchVisibilityAlert(r.webcamId, r.spotId, r.description, camName).catch(err =>
         log.warn(`[Webcam] Fog alert failed: ${(err as Error).message}`));
     }
