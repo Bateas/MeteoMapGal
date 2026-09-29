@@ -29,6 +29,7 @@
  */
 
 import type { NormalizedReading } from '../src/types/station.js';
+import { gustComparableToMean } from '../src/services/gustSemantics.js';
 
 /**
  * Above this, a gust is treated as a sensor artefact (~90kt). It was 23 m/s (~45kt) until
@@ -162,7 +163,8 @@ export function applyQualityControl(
     // The ratio test only means anything against a mean that is actually
     // turning (at 0 m/s every gust is infinitely larger than the mean), and
     // only for a gust big enough to matter (see GUST_RATIO_MIN_MS).
-    if (speed != null && speed > 0 && gust >= GUST_RATIO_MIN_MS && gust > speed * MAX_GUST_RATIO) {
+    // Not for AEMET: its gust is the hour's strongest, its mean the last ten minutes (gustSemantics).
+    if (speed != null && speed > 0 && gust >= GUST_RATIO_MIN_MS && gust > speed * MAX_GUST_RATIO && gustComparableToMean(r.stationId)) {
       qcFlag |= QC_GUST_RATIO;
     }
     if (qcFlag !== QC_OK) {
