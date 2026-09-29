@@ -153,3 +153,28 @@ describe('precipSamplesFromHistory', () => {
     expect(precipSamplesFromHistory([r('2026-08-26T15:10:00Z', null)], undefined)).toEqual([]);
   });
 });
+
+describe('rainInWindowMm — a broken gauge is not rain (29-sep)', () => {
+  const NOW = Date.UTC(2026, 8, 29, 12, 0);
+  const every5 = (mm0: number, step: number, n: number) => Array.from({ length: n }, (_, i) => ({ t: NOW - (n - 1 - i) * 5 * 60_000, mm: mm0 + i * step }));
+
+  it('wu_INIGRN10: a day counter rising 12 mm every 5 min (144 mm/h) is unknown, not heavy rain', () => {
+    expect(rainInWindowMm('wu_INIGRN10', every5(294, 12, 14), NOW, 60)).toBeNull();
+    expect(rainInWindowMm('wu_INIGRN10', every5(294, 12, 26), NOW, 120)).toBeNull();
+  });
+
+  it('the real maximum of the day (25.8 mm in an hour at an interval station) is kept', () => {
+    const s = Array.from({ length: 6 }, (_, i) => ({ t: NOW - (5 - i) * 10 * 60_000, mm: 4.3 }));
+    expect(rainInWindowMm('mg_10169', s, NOW, 60)).toBeCloseTo(25.8, 1);
+  });
+
+  it('a short intense burst over a 30-minute window is not thrown away (the hour is the base)', () => {
+    const s = [{ t: NOW - 20 * 60_000, mm: 12 }, { t: NOW - 10 * 60_000, mm: 18 }, { t: NOW, mm: 10 }];
+    expect(rainInWindowMm('mg_10169', s, NOW, 30)).toBe(40);
+  });
+
+  it('a Netatmo last-hour value above the ceiling is unknown', () => {
+    expect(rainInWindowMm('nt_abc', [{ t: NOW - 5 * 60_000, mm: 150 }], NOW, 60)).toBeNull();
+  });
+});
+
