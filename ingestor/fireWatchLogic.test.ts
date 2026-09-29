@@ -3,8 +3,9 @@
  *
  * The DB query + dispatch paths (fireWatch.ts) are integration-only, same
  * pattern as the other ingestor cycles. Here we lock the rigor rules:
- * land filter, accumulated-delta dryness (the day-accumulator gotcha),
- * conservative "no station = not dry", clustering and watch thresholds.
+ * land filter, rain read with each network's meaning (per interval, day
+ * counter, last hour), who may call a strike dry, conservative "no station =
+ * not dry", clustering and watch thresholds.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -15,7 +16,7 @@ import {
   clusterDryStrikes,
   computeFireWatch,
   zoneKey,
-  RAIN_DELTA_MM,
+  WET_RAIN_MM,
   HIGH_CURRENT_KA,
   type FireWatchStrike,
   type RainReading,
@@ -86,70 +87,106 @@ describe('isLikelyLand', () => {
 
 // ── classifyStrikeDryness ────────────────────────────
 
+/** Readings of one gauge every `step` minutes from `from` to `to` (minutes from T0). */
+function every(
+  stationId: string,
+  from: number,
+  to: number,
+  step: number,
+  mm: (m: number) => number,
+  coords: { lat?: number; lon?: number } = {},
+): RainReading[] {
+  const out: RainReading[] = [];
+  for (let m = from; m <= to; m += step) out.push(mkRain(stationId, m, mm(m), coords));
+  return out;
+}
+
+/** Long after the strike: every reading has arrived, the window is over. */
+const LATER = T0.getTime() + 6 * 60 * 60_000;
+
 describe('classifyStrikeDryness', () => {
-  it('flat day-accumulated counter = DRY (rained at dawn, not around the strike)', () => {
-    // The gotcha this feature exists for: precip 8.0 all afternoon means the
-    // 8mm fell hours ago. Raw-value logic would call this "wet"; delta says dry.
-    const series = groupRainReadings([
-      mkRain('mg_1', -60, 8.0),
-      mkRain('mg_1', 30, 8.0),
-      mkRain('mg_1', 90, 8.0),
-    ]);
-    expect(classifyStrikeDryness(mkStrike(), series)).toBe('dry');
+  it('steady rain at a MeteoGalicia gauge = WET (read as a day counter it looked flat, 0.4 - 0.4 = 0)', () => {
+    // The bug fixed on 30-sep: MG gives the rain of each 10-minute interval, so a
+    // steady 0.4 every reading is 0.4 mm every 10 min, not a counter standing still.
+    const series = groupRainReadings(every('mg_1', -60, 180, 10, () => 0.4));
+    expect(classifyStrikeDryness(mkStrike(), series, LATER)).toBe('wet');
   });
 
-  it('accumulated delta above threshold around the strike = WET', () => {
-    const series = groupRainReadings([
-      mkRain('mg_1', -30, 3.0),
-      mkRain('mg_1', 30, 4.2),
-      mkRain('mg_1', 90, 5.1),  // delta 2.1mm > 0.5mm
-    ]);
-    expect(classifyStrikeDryness(mkStrike(), series)).toBe('wet');
+  it('an official gauge with nothing in the window = DRY on its own', () => {
+    const series = groupRainReadings(every('mg_1', -60, 180, 10, () => 0));
+    expect(classifyStrikeDryness(mkStrike(), series, LATER)).toBe('dry');
   });
 
-  it('drizzle below the relevance threshold still counts as DRY', () => {
-    const series = groupRainReadings([
-      mkRain('mg_1', -30, 3.0),
-      mkRain('mg_1', 60, 3.0 + RAIN_DELTA_MM - 0.2),  // +0.3mm — irrelevant
-    ]);
-    expect(classifyStrikeDryness(mkStrike(), series)).toBe('dry');
+  it('drizzle below WET_RAIN_MM in the window still counts as DRY', () => {
+    const series = groupRainReadings(every('mg_1', -60, 180, 10, (m) => (m === 40 ? WET_RAIN_MM - 0.2 : 0)));
+    expect(classifyStrikeDryness(mkStrike(), series, LATER)).toBe('dry');
+  });
+
+  it('rain just before the strike wets the fuel too: 1 mm 20 min before = WET', () => {
+    const series = groupRainReadings(every('mg_1', -60, 180, 10, (m) => (m === -20 ? 1 : 0)));
+    expect(classifyStrikeDryness(mkStrike(), series, LATER)).toBe('wet');
+  });
+
+  it('a day counter at 8.0 all afternoon (it rained at dawn) says dry, but a home gauge needs a second one', () => {
+    const wu1 = every('wu_1', -60, 180, 5, () => 8.0);
+    expect(classifyStrikeDryness(mkStrike(), groupRainReadings(wu1), LATER)).toBe('unknown');
+    const wu2 = every('wu_2', -60, 180, 5, () => 2.0, { lat: 42.37 });
+    expect(classifyStrikeDryness(mkStrike(), groupRainReadings([...wu1, ...wu2]), LATER)).toBe('dry');
+  });
+
+  it('a home gauge that measured rain is enough for WET', () => {
+    const series = groupRainReadings(every('wu_1', -60, 180, 5, (m) => (m < 30 ? 3.0 : 4.2)));
+    expect(classifyStrikeDryness(mkStrike(), series, LATER)).toBe('wet');
+  });
+
+  it('a lone 0 in a Meteoclimatic counter is not rain (21.1, 0, 21.1)', () => {
+    const mc = every('mc_1', -60, 180, 15, (m) => (m === 30 ? 0 : 21.1));
+    const wu = every('wu_2', -60, 180, 5, () => 2.0, { lat: 42.37 });
+    expect(classifyStrikeDryness(mkStrike(), groupRainReadings([...mc, ...wu]), LATER)).toBe('dry');
+  });
+
+  it('an hourly AEMET gauge vouches for the window: the reading after its end closes it (Ibias, 5-sep)', () => {
+    // Strike at 17:50 UTC; readings at the hour. The one at 20:00 closes a window that ends at 19:50.
+    const strike = mkStrike({ time: new Date('2026-09-05T17:50:00Z') });
+    const aemet = ['16:00', '17:00', '18:00', '19:00', '20:00', '21:00'].map((hh) => ({
+      stationId: 'aemet_1309C', lat: 42.34, lon: -7.86, time: new Date(`2026-09-05T${hh}:00Z`), precip: 0,
+    }));
+    expect(classifyStrikeDryness(strike, groupRainReadings(aemet), Date.parse('2026-09-05T23:00:00Z'))).toBe('dry');
+  });
+
+  it('a hole in an interval gauge hides rain: it cannot say dry', () => {
+    const series = groupRainReadings(every('mg_1', -60, 180, 10, () => 0).filter((r) => {
+      const m = (r.time.getTime() - T0.getTime()) / 60_000;
+      return m < 20 || m > 80;
+    }));
+    expect(classifyStrikeDryness(mkStrike(), series, LATER)).toBe('unknown');
+  });
+
+  it('pending until the window is over; rain decides at once', () => {
+    const dry = groupRainReadings(every('mg_1', -60, 60, 10, () => 0));
+    expect(classifyStrikeDryness(mkStrike(), dry, T0.getTime() + 60 * 60_000)).toBe('pending');
+    const wet = groupRainReadings(every('mg_1', -60, 60, 10, (m) => (m === 30 ? 1.5 : 0)));
+    expect(classifyStrikeDryness(mkStrike(), wet, T0.getTime() + 60 * 60_000)).toBe('wet');
   });
 
   it('no station within 15km = UNKNOWN (conservative, never dry)', () => {
     // Station ~22km north of the strike — outside MAX_STATION_KM.
-    const series = groupRainReadings([
-      mkRain('mg_far', -30, 0.0, { lat: 42.54 }),
-      mkRain('mg_far', 60, 0.0, { lat: 42.54 }),
-    ]);
-    expect(classifyStrikeDryness(mkStrike(), series)).toBe('unknown');
+    const series = groupRainReadings(every('mg_far', -60, 180, 10, () => 0, { lat: 42.54 }));
+    expect(classifyStrikeDryness(mkStrike(), series, LATER)).toBe('unknown');
   });
 
-  it('station with no reading AFTER the strike = UNKNOWN', () => {
-    const series = groupRainReadings([
-      mkRain('mg_1', -120, 1.0),
-      mkRain('mg_1', -30, 1.0),
-    ]);
-    expect(classifyStrikeDryness(mkStrike(), series)).toBe('unknown');
+  it('a network whose rain field we do not understand never votes', () => {
+    const series = groupRainReadings(every('skyx_SKY100', -60, 180, 10, () => 0));
+    expect(classifyStrikeDryness(mkStrike(), series, LATER)).toBe('unknown');
   });
 
-  it('negative delta (midnight counter reset) = UNKNOWN, never dry', () => {
-    const series = groupRainReadings([
-      mkRain('mg_1', -30, 12.0),
-      mkRain('mg_1', 30, 0.2),  // counter reset — window untrustworthy
-    ]);
-    expect(classifyStrikeDryness(mkStrike(), series)).toBe('unknown');
-  });
-
-  it('uses the NEAREST classifiable station when several are in range', () => {
-    const series = groupRainReadings([
-      // ~5.5km away, says WET
-      mkRain('mg_near', -30, 0.0, { lat: 42.39 }),
-      mkRain('mg_near', 30, 2.0, { lat: 42.39 }),
-      // ~11km away, says dry — must lose to the nearer one
-      mkRain('mg_far', -30, 0.0, { lat: 42.44 }),
-      mkRain('mg_far', 30, 0.0, { lat: 42.44 }),
-    ]);
-    expect(classifyStrikeDryness(mkStrike(), series)).toBe('wet');
+  it('the NEAREST gauge that can say decides', () => {
+    const nearWet = every('mg_near', -60, 180, 10, (m) => (m === 30 ? 2 : 0), { lat: 42.39 }); // ~5.5 km
+    const farDry = every('mg_far', -60, 180, 10, () => 0, { lat: 42.44 }); // ~11 km
+    expect(classifyStrikeDryness(mkStrike(), groupRainReadings([...nearWet, ...farDry]), LATER)).toBe('wet');
+    const nearDry = every('mg_near', -60, 180, 10, () => 0, { lat: 42.39 });
+    const farWet = every('mg_far', -60, 180, 10, (m) => (m === 30 ? 2 : 0), { lat: 42.44 });
+    expect(classifyStrikeDryness(mkStrike(), groupRainReadings([...nearDry, ...farWet]), LATER)).toBe('dry');
   });
 });
 
@@ -218,20 +255,19 @@ describe('computeFireWatch', () => {
       mkStrike({ lat: 42.88, lon: -8.54, peakCurrent: 20 }), // land, wet (Santiago)
     ];
     const rain = [
-      // Ourense station: flat accumulator → dry
-      mkRain('mg_our', -60, 5.0),
-      mkRain('mg_our', 60, 5.0),
-      // Santiago station: fresh rain → wet
-      mkRain('mg_sdc', -60, 0.0, { lat: 42.88, lon: -8.54 }),
-      mkRain('mg_sdc', 60, 3.0, { lat: 42.88, lon: -8.54 }),
+      // Ourense gauge: nothing in any interval → dry
+      ...every('mg_our', -60, 180, 10, () => 0),
+      // Santiago gauge: rain right after the strike → wet
+      ...every('mg_sdc', -60, 180, 10, (m) => (m === 20 ? 3.0 : 0), { lat: 42.88, lon: -8.54 }),
     ];
 
-    const result = computeFireWatch(strikes, rain);
+    const result = computeFireWatch(strikes, rain, LATER);
     expect(result.totalStrikes).toBe(4);
     expect(result.landStrikes).toBe(3);
     expect(result.dryStrikes).toBe(2);
     expect(result.wetStrikes).toBe(1);
     expect(result.unknownStrikes).toBe(0);
+    expect(result.pendingStrikes).toBe(0);
     expect(result.zones).toHaveLength(1);
     expect(result.watchZones).toHaveLength(1);
     expect(result.watchZones[0].strikeCount).toBe(2);
@@ -241,10 +277,17 @@ describe('computeFireWatch', () => {
     const result = computeFireWatch(
       [mkStrike(), mkStrike({ lat: 42.35 })],
       [],  // no rain context at all
+      LATER,
     );
     expect(result.landStrikes).toBe(2);
     expect(result.dryStrikes).toBe(0);
     expect(result.unknownStrikes).toBe(2);
     expect(result.watchZones).toHaveLength(0);
+  });
+
+  it('a strike whose window is still open is pending, not watched yet', () => {
+    const result = computeFireWatch([mkStrike()], every('mg_our', -60, 30, 10, () => 0), T0.getTime() + 30 * 60_000);
+    expect(result.pendingStrikes).toBe(1);
+    expect(result.dryStrikes).toBe(0);
   });
 });

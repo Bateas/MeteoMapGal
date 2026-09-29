@@ -11,28 +11,56 @@
  *  (a) the strike hit LAND — crude geographic filter, conservatively biased
  *      so coastal-fringe strikes are dropped rather than ever watching the
  *      open sea (see isLikelyLand), and
- *  (b) NO relevant rain around the strike, measured as the DELTA of the
- *      day-accumulated precipitation counter of the nearest station
- *      (<= 15 km). The delta sidesteps the classic trap: `readings.precip`
- *      is usually the running total since midnight, so a flat 8.0 mm all
- *      afternoon means it rained at dawn, NOT that it is raining now.
+ *  (b) NO relevant rain around the strike: the rain the gauges <= 15 km
+ *      measured from RAIN_BEFORE_MIN before the strike to RAIN_AFTER_MIN
+ *      after it, read with the meaning of each network (precipSemantics.ts).
+ *      Until 30-sep every gauge was read as a day counter (after - before),
+ *      which is right for Wunderground and Meteoclimatic but not for
+ *      MeteoGalicia, AEMET or IPMA, whose value is the rain of the last
+ *      interval: steady rain gave a difference of zero and the strike went
+ *      down as dry.
  *
- * If no station <= 15 km can classify the strike, it is NOT counted as dry
- * (conservative: never put a zone under watch blindly).
+ * Who may call a strike dry: an official gauge (rain per interval, kept by
+ * MeteoGalicia/AEMET/IPMA) on its own; a home gauge only with a second one
+ * agreeing, because a home station without a gauge reports 0 forever. Any
+ * gauge that measured rain makes the strike wet. And only once its readings
+ * cover the whole window: a strike is "pending" until then. If no gauge
+ * <= 15 km can say, it is NOT counted as dry (never watch a zone blindly).
  */
 
 import { haversineDistance } from '../src/services/geoUtils.js';
+import { precipKindFor, rainInWindowMm, type PrecipSample } from '../src/services/precipSemantics.js';
 
 // ── Tunables ─────────────────────────────────────────
 
 /** Max distance strike -> rain station for the dryness check. */
 export const MAX_STATION_KM = 15;
-/** Accumulated-delta above this (mm) around the strike = relevant rain. */
-export const RAIN_DELTA_MM = 0.5;
-/** How far AFTER the strike we look for rain (the storm's own rain). */
-export const AFTER_WINDOW_MS = 2 * 60 * 60_000;
-/** How far BEFORE the strike the baseline reading may be. */
-export const BEFORE_WINDOW_MS = 3 * 60 * 60_000;
+/** Rain in the window at or above this (mm) = the strike fell with rain. */
+export const WET_RAIN_MM = 0.5;
+/** The window starts this long before the strike (rain just before wets the fuel too)... */
+export const RAIN_BEFORE_MIN = 30;
+/** ...and ends this long after it (the storm's own rain). */
+export const RAIN_AFTER_MIN = 120;
+/**
+ * How far apart a gauge's readings may be, in minutes, for it to vouch for a
+ * window: its reporting interval plus some slack. Measured 28-sep: MeteoGalicia
+ * every 10 min, Wunderground 5, Meteoclimatic 15, Netatmo 30 (with the rain of
+ * the last hour), AEMET and IPMA every hour (with the rain of that hour). It
+ * bounds the gaps inside the window (except for day counters, which keep what
+ * fell during a gap) and how late the reading that closes the window may come.
+ * Null for a network we do not know: that gauge can only ever say wet.
+ */
+export function maxGapMinFor(stationId: string): number | null {
+  if (stationId.startsWith('mg_')) return 30;
+  if (stationId.startsWith('wu_')) return 30;
+  if (stationId.startsWith('mc_')) return 45;
+  if (stationId.startsWith('nt_')) return 60;
+  if (stationId.startsWith('aemet_') || stationId.startsWith('ipma_')) return 90;
+  return null;
+}
+/** A strike stays "pending" (not unknown) this long past its window: an hourly
+ *  gauge closes it up to 90 min late and AEMET delivers ~35 min after that. */
+export const PENDING_MARGIN_MIN = 150;
 /** Greedy cluster radius for grouping dry strikes into zones. */
 export const CLUSTER_RADIUS_KM = 10;
 /** A zone enters watch with this many dry strikes... */
@@ -55,7 +83,7 @@ export interface RainReading {
   lat: number;
   lon: number;
   time: Date;
-  /** Station precipitation reading (mm) — usually the DAY-ACCUMULATED counter. */
+  /** Station precipitation reading (mm), with its network's meaning (precipSemantics.ts). */
   precip: number;
 }
 
@@ -67,7 +95,9 @@ export interface RainStationSeries {
   readings: { time: number; precip: number }[];
 }
 
-export type DryVerdict = 'dry' | 'wet' | 'unknown';
+/** `pending`: the window around the strike is not over (plus the time the
+ *  readings take to arrive), so a gauge may still report its rain. */
+export type DryVerdict = 'dry' | 'wet' | 'unknown' | 'pending';
 
 export interface FireWatchZone {
   /** Centroid of the grouped dry strikes. */
@@ -87,6 +117,8 @@ export interface FireWatchResult {
   wetStrikes: number;
   /** Land strikes with no usable station <= 15 km — NOT watched (conservative). */
   unknownStrikes: number;
+  /** Land strikes whose window is not over yet — judged on a later cycle. */
+  pendingStrikes: number;
   zones: FireWatchZone[];
   watchZones: FireWatchZone[];
 }
@@ -146,20 +178,73 @@ export function groupRainReadings(readings: RainReading[]): RainStationSeries[] 
   return Array.from(map.values());
 }
 
+const MIN_MS = 60_000;
+
+/** What one gauge says about the window of a strike. */
+export interface GaugeVote {
+  /** Rain measured in the window so far (mm). */
+  mm: number;
+  /** Its readings cover the whole window, so a small `mm` really means dry. */
+  canSayDry: boolean;
+  /** A gauge of MeteoGalicia, AEMET or IPMA (rain per interval). */
+  official: boolean;
+}
+
 /**
- * Classify one land strike as dry / wet / unknown.
- *
- * Uses the NEAREST station (<= MAX_STATION_KM) that can actually classify:
- * it needs a baseline reading within BEFORE_WINDOW_MS before the strike AND
- * at least one reading within AFTER_WINDOW_MS after it. The verdict comes
- * from the accumulated-counter DELTA between those two, never from the raw
- * value (day-accumulated gotcha, see module header). A negative delta means
- * the counter reset (midnight) or a non-monotonic sensor — that station
- * cannot be trusted for this window, so we fall through to the next one.
+ * What one gauge says about the window of a strike at `t`, with the readings
+ * delivered by `nowMs`. The window runs from RAIN_BEFORE_MIN before the strike
+ * to the first reading at or after RAIN_AFTER_MIN after it (an hourly gauge
+ * closes it up to an hour late; its rain is part of the answer). Null when the
+ * gauge cannot say: unknown network, no reading in the window, or a day counter
+ * without two readings to measure.
+ */
+export function gaugeVote(s: RainStationSeries, t: number, nowMs: number): GaugeVote | null {
+  const kind = precipKindFor(s.stationId);
+  if (kind === null) return null;
+  const start = t - RAIN_BEFORE_MIN * MIN_MS;
+  const nominalEnd = t + RAIN_AFTER_MIN * MIN_MS;
+  const gapMin = maxGapMinFor(s.stationId);
+  const horizon = Math.min(nowMs, nominalEnd + (gapMin ?? 0) * MIN_MS);
+  const samples: PrecipSample[] = [];
+  for (const r of s.readings) if (r.time <= horizon) samples.push({ t: r.time, mm: r.precip });
+  const closing = samples.find((x) => x.t >= nominalEnd);
+  const end = closing ? closing.t : Math.min(horizon, nominalEnd);
+  if (end <= start) return null;
+  const mm = rainInWindowMm(s.stationId, samples, end, (end - start) / MIN_MS);
+  if (mm == null) return null;
+
+  let canSayDry = gapMin != null && closing != null;
+  // A day counter keeps what fell during a gap; a gauge per interval or per last
+  // hour loses it, so it cannot vouch for a window with a hole in it.
+  if (canSayDry && kind !== 'dayTotal') {
+    let prev = start;
+    for (const x of samples) {
+      if (x.t <= start) continue;
+      if (x.t > end) break;
+      if (x.t - prev > gapMin! * MIN_MS) {
+        canSayDry = false;
+        break;
+      }
+      prev = x.t;
+    }
+  }
+  return { mm, canSayDry, official: kind === 'interval' };
+}
+
+/**
+ * Classify one land strike as dry / wet / pending / unknown, walking the
+ * gauges <= MAX_STATION_KM from the nearest out:
+ *  - a gauge that measured WET_RAIN_MM or more in the window: wet;
+ *  - an official gauge that covers the window and measured less: dry;
+ *  - a home gauge that covers the window and measured less counts half:
+ *    dry needs a second one (a station without a gauge reports 0 forever).
+ * Without a verdict: pending while the window (plus PENDING_MARGIN_MIN for
+ * the readings to arrive) is not over, unknown after — never dry by default.
  */
 export function classifyStrikeDryness(
   strike: FireWatchStrike,
   series: RainStationSeries[],
+  nowMs: number,
 ): DryVerdict {
   const t = strike.time.getTime();
 
@@ -168,24 +253,16 @@ export function classifyStrikeDryness(
     .filter((c) => c.km <= MAX_STATION_KM)
     .sort((a, b) => a.km - b.km);
 
+  let homeDry = 0;
   for (const { s } of candidates) {
-    let before: number | null = null;
-    let after: number | null = null;
-    for (const r of s.readings) {
-      if (r.time > t + AFTER_WINDOW_MS) break; // sorted — nothing more to see
-      if (r.time <= t) {
-        if (r.time >= t - BEFORE_WINDOW_MS) before = r.precip; // latest wins
-      } else {
-        after = after == null ? r.precip : Math.max(after, r.precip);
-      }
-    }
-    if (before == null || after == null) continue; // this station can't classify
-
-    const delta = after - before;
-    if (delta < -0.01) continue; // counter reset mid-window — untrustworthy
-    return delta > RAIN_DELTA_MM ? 'wet' : 'dry';
+    const vote = gaugeVote(s, t, nowMs);
+    if (!vote) continue;
+    if (vote.mm >= WET_RAIN_MM) return 'wet';
+    if (!vote.canSayDry) continue;
+    if (vote.official) return 'dry';
+    if (++homeDry >= 2) return 'dry';
   }
-  return 'unknown';
+  return nowMs < t + (RAIN_AFTER_MIN + PENDING_MARGIN_MIN) * MIN_MS ? 'pending' : 'unknown';
 }
 
 // ── Zone clustering ──────────────────────────────────
@@ -244,6 +321,7 @@ export function zoneKey(zone: Pick<FireWatchZone, 'lat' | 'lon'>): string {
 export function computeFireWatch(
   strikes: FireWatchStrike[],
   rainReadings: RainReading[],
+  nowMs: number,
 ): FireWatchResult {
   const land = strikes.filter((s) => isLikelyLand(s.lat, s.lon));
   const series = groupRainReadings(rainReadings);
@@ -251,10 +329,12 @@ export function computeFireWatch(
   const dry: FireWatchStrike[] = [];
   let wet = 0;
   let unknown = 0;
+  let pending = 0;
   for (const s of land) {
-    const verdict = classifyStrikeDryness(s, series);
+    const verdict = classifyStrikeDryness(s, series, nowMs);
     if (verdict === 'dry') dry.push(s);
     else if (verdict === 'wet') wet++;
+    else if (verdict === 'pending') pending++;
     else unknown++;
   }
 
@@ -265,6 +345,7 @@ export function computeFireWatch(
     dryStrikes: dry.length,
     wetStrikes: wet,
     unknownStrikes: unknown,
+    pendingStrikes: pending,
     zones,
     watchZones: zones.filter((z) => z.inWatch),
   };

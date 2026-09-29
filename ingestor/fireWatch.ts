@@ -30,8 +30,8 @@ import {
 /** Strike lookback. Matches the ignition physics: a zone stays interesting
  *  for hours after the storm passed, but beyond ~12h FIRMS takes over. */
 const STRIKE_WINDOW_HOURS = 12;
-/** Rain lookback = strike window + the 3h "before" baseline the classifier
- *  needs for the oldest strike in the window. */
+/** Rain lookback = strike window + the 30 min the rain window starts before
+ *  the strike + the reading a day counter measures from, with margin. */
 const RAIN_WINDOW_HOURS = 15;
 /** Forget zones not seen in watch for this long (bounds the state Map). */
 const ZONE_STATE_TTL_MS = 24 * 60 * 60_000;
@@ -148,10 +148,10 @@ export async function runFireWatchCycle(): Promise<void> {
     }
 
     const { rain, stationMeta } = await queryRainContext();
-    const result = computeFireWatch(strikes, rain);
+    const now = Date.now();
+    const result = computeFireWatch(strikes, rain, now);
 
     // Prune stale zone state so the Map stays bounded.
-    const now = Date.now();
     for (const [key, ts] of zoneWatchState) {
       if (now - ts > ZONE_STATE_TTL_MS) zoneWatchState.delete(key);
     }
@@ -180,7 +180,8 @@ export async function runFireWatchCycle(): Promise<void> {
     // is unambiguous in the log.
     log.info(
       `[FireWatch] fire watch: ${result.totalStrikes} strikes (${result.landStrikes} tierra), ` +
-        `${result.dryStrikes} secos (${result.wetStrikes} lluvia, ${result.unknownStrikes} sin dato), ` +
+        `${result.dryStrikes} secos (${result.wetStrikes} lluvia, ${result.unknownStrikes} sin dato, ` +
+        `${result.pendingStrikes} pendientes), ` +
         `${result.watchZones.length}/${result.zones.length} zonas en vigilancia` +
         (newZones > 0 ? ` (${newZones} nuevas)` : ''),
     );
