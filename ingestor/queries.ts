@@ -5,6 +5,7 @@
 
 import { getPool, hasColumn } from './db.js';
 import { memoByKey } from './singleFlight.js';
+import { withPublicLocation } from './publicLocation.js';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -125,7 +126,8 @@ export async function queryStationList(): Promise<StationListItem[]> {
     ) lr ON lr.station_id = s.station_id
     ORDER BY s.source, s.station_id
   `);
-  return result.rows;
+  // Served by the public API: private stations' positions rounded (publicLocation.ts).
+  return withPublicLocation(result.rows);
 }
 
 /** List all stations with their last reading time, count, and coordinates */
@@ -145,7 +147,8 @@ export async function queryStations(): Promise<StationInfo[]> {
     GROUP BY r.station_id, r.source, s.latitude, s.longitude, s.province
     ORDER BY r.source, r.station_id
   `);
-  return result.rows;
+  // Served by the public API: private stations' positions rounded (publicLocation.ts).
+  return withPublicLocation(result.rows);
 }
 
 /** Get raw readings for a station within a time range */
