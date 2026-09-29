@@ -134,7 +134,8 @@ function buildUrl(lon: number, lat: number): string {
   return `${BASE_URL}/getNumericForecastInfo?coords=${lon},${lat}&variables=${ATMO_VARIABLES}&models=${models}&grids=${grids}&lang=es&format=application/json&API_KEY=${METEOSIX_KEY}`;
 }
 
-async function fetchWrfForecast(lat: number, lon: number): Promise<HourlyForecast[]> {
+/** WRF 1 km at one point, uncached (wrfPointArchive.ts archives it at the buoys and spots). */
+export async function fetchWrfForecast(lat: number, lon: number): Promise<HourlyForecast[]> {
   if (!METEOSIX_KEY) {
     log.warn('MeteoSIX: METEOSIX_API_KEY not set — skipping WRF fetch');
     return [];
