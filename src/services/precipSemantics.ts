@@ -74,6 +74,24 @@ export function precipSamplesFromHistory(
  *     the first reading inside the window. A negative step is a reset, not negative rain.
  */
 export function rainInWindowMm(id: string, s: PrecipSample[], nowMs: number, windowMin: number): number | null {
+  return plausibleRain(rawRainInWindowMm(id, s, nowMs, windowMin), windowMin);
+}
+
+/**
+ * Above this a gauge is broken, not measuring rain: null, i.e. "cannot be told". On 29-sep a
+ * Wunderground counter in Nigrán rose 10-50 mm every five minutes for hours (more than 120 mm/h)
+ * while its neighbours measured 4-9 mm all afternoon; read as rain it vetoed the Cesantes
+ * detector and blocked the fog check of the cameras around it. The day's real maximum was
+ * 25.8 mm/h. The hour is the minimum base, so a short intense burst is never thrown away.
+ */
+export const MAX_RAIN_RATE_MM_H = 100;
+
+function plausibleRain(mm: number | null, windowMin: number): number | null {
+  if (mm == null) return null;
+  return mm > MAX_RAIN_RATE_MM_H * Math.max(windowMin, 60) / 60 ? null : mm;
+}
+
+function rawRainInWindowMm(id: string, s: PrecipSample[], nowMs: number, windowMin: number): number | null {
   const kind = precipKindFor(id);
   if (kind === null) return null;
   const sorted = s
