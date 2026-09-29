@@ -38,9 +38,10 @@
 import { useRef, useEffect, useCallback, useState, memo } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import { useIcaStore } from '../../store/icaStore';
+import { ICA_ACTIVATION_THRESHOLD, stationsToPaint } from '../../services/icaPaint';
 
 const PLUME_RADIUS_KM = 18; // 18km realistic airshed for Galician valley/urban basins
-const ACTIVATION_THRESHOLD = 3; // ICA ≥ 3 → deficiente+ → overlay activates
+const ACTIVATION_THRESHOLD = ICA_ACTIVATION_THRESHOLD; // ICA ≥ 3 → deficiente+ → overlay activates
 
 /**
  * Plume color and intensity based on ICA level.
@@ -94,10 +95,10 @@ export const IcaOverlay = memo(function IcaOverlay({ mapRef }: IcaOverlayProps) 
     const map = mapRef.current?.getMap();
     if (!canvas || !map) return;
 
-    // Filter stations that have elevated ICA (Deficiente or worse)
+    // Only the stations that turned the overlay on (Deficiente or worse): icaPaint.ts
     const affectedStations = debugForce
       ? [...readings].sort((a, b) => b.ica - a.ica).slice(0, 2)
-      : readings.filter((r) => r.ica >= 2.8);
+      : stationsToPaint(readings);
 
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
