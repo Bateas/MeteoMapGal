@@ -22,6 +22,7 @@ import {
   QC_SOLAR_IMPOSSIBLE,
   QC_DEWPOINT_ABOVE_TEMP,
   QC_TEMP_IMPLAUSIBLE,
+  QC_PRESSURE_IMPLAUSIBLE,
   MAX_PLAUSIBLE_GUST_MS,
   MAX_NAMED_STATIONS,
   summariseQualityControl,
@@ -286,6 +287,17 @@ describe('physical impossibilities — radiation, dew point and temperature', ()
     const out = applyQualityControl(reading({ temperature: -35 }));
     expect(out.reading.temperature).toBeNull();
     expect(out.qcFlag & QC_TEMP_IMPLAUSIBLE).toBeTruthy();
+  });
+
+  it('rejects the 0.34 hPa that wu_IVILAG10 sent all day on 28-sep, and names the station', () => {
+    const out = applyQualityControl(reading({ stationId: 'wu_IVILAG10', pressure: 0.34 }));
+    expect(out.reading.pressure).toBeNull();
+    expect(out.qcFlag & QC_PRESSURE_IMPLAUSIBLE).toBeTruthy();
+    expect(summariseQualityControl([out]).suspectStations).toEqual(['wu_IVILAG10']);
+  });
+
+  it('keeps a valley station that reports its own level, 17 hPa under sea level', () => {
+    expect(applyQualityControl(reading({ pressure: 998 })).qcFlag).toBe(QC_OK);
   });
 
   it('leaves a Galician heatwave alone', () => {

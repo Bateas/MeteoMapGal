@@ -8,6 +8,7 @@
 
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { isWithinRadius } from '../services/geoUtils';
+import { plausiblePressure } from '../services/normalizer';
 import { fetchListedStations, LIST_SEEN_MAX_MIN } from './stationListClient';
 
 // WU public API key — PUBLIC, embedded by IBM in wunderground.com source code.
@@ -174,7 +175,7 @@ export async function fetchWUObservations(
       humidity: obs.humidity,
       precipitation: m.precipTotal,     // mm total today
       solarRadiation: obs.solarRadiation, // W/m² from PWS sensor
-      pressure: m.pressure ?? null,        // hPa from PWS barometer
+      pressure: plausiblePressure(m.pressure), // hPa from PWS barometer (wu_IVILAG10 sends 0.34)
       dewPoint: m.dewpt ?? null,           // °C from PWS sensor
     });
   }

@@ -43,7 +43,7 @@ export function normalizeAemetObservationStation(raw: AemetRawObservation): Norm
 }
 
 /** Plausible sea-level pressure (hPa); anything else is a sensor or unit error. */
-const plausiblePressure = (p: number | null | undefined): number | null =>
+export const plausiblePressure = (p: number | null | undefined): number | null =>
   p != null && Number.isFinite(p) && p >= 900 && p <= 1100 ? p : null;
 
 /** Keep a value only inside [min, max]; outside is a sensor fault or the -9999 sentinel. */
@@ -212,7 +212,7 @@ export function normalizeMeteoclimaticObservation(
     humidity: raw.humidity,
     precipitation: raw.rain,
     solarRadiation: null, // Meteoclimatic PWS don't report solar
-    pressure: raw.pressure,
+    pressure: plausiblePressure(raw.pressure),
     dewPoint: null, // Meteoclimatic XML doesn't include dew point
   };
 }
