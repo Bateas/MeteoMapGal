@@ -34,6 +34,21 @@ export interface WindPattern {
   description: string;
 }
 
+/**
+ * Hours of the day (Galicia, [from, to)) in which a pattern named for a time of day can be
+ * recognised. The name is a promise to whoever reads the card: on 29-sep at 16:00, in a gale,
+ * Patos said «Offshore S/SSW (mañanas)», and a matched pattern also adds +15 to the spot's score.
+ * The windows are wide on purpose, so a real breeze that lasts until dusk keeps its pattern:
+ * the season texts say 12-18h, 13-19h, 14-19h for the afternoons and 6-11h, 7-12h for the mornings.
+ */
+export const PATTERN_HOURS = { mañanas: [6, 13], tardes: [12, 21] } as const;
+
+export function patternHours(name: string): readonly [number, number] | null {
+  if (/\(mañanas\)/i.test(name)) return PATTERN_HOURS.mañanas;
+  if (/\(tardes\)/i.test(name)) return PATTERN_HOURS.tardes;
+  return null;
+}
+
 export interface SpotWebcam {
   /** Display label */
   label: string;

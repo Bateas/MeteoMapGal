@@ -43,6 +43,7 @@
 import type { SpotId } from '../config/spots';
 import type { NormalizedReading } from '../types/station';
 import { isStationBlindAt } from '../config/stationBiases';
+import { madridHour } from './localTime';
 
 /** Daily phase of the wind cycle. */
 export type ViracionPhase =
@@ -194,19 +195,6 @@ function getPattern(spotId: SpotId): ViracionPattern | null {
   return VIRACION_PATTERNS.find((p) => p.appliesTo.includes(spotId)) ?? null;
 }
 
-function localHour(d: Date): number {
-  // Europe/Madrid offset varies (CET/CEST), so use formatToParts for robustness.
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/Madrid',
-    hour: 'numeric',
-    hour12: false,
-  }).formatToParts(d);
-  const h = parts.find((p) => p.type === 'hour')?.value ?? '0';
-  // "24" can be returned for midnight in some Node versions — normalize.
-  const num = parseInt(h, 10);
-  return num === 24 ? 0 : num;
-}
-
 function isThermalSeason(d: Date): boolean {
   const month = d.getUTCMonth() + 1;
   return month >= 4 && month <= 9;
@@ -285,7 +273,7 @@ export function detectViracionPhase(
     };
   }
 
-  const hour = localHour(now);
+  const hour = madridHour(now);
   const obsDir = reading.windDirection;
   const obsKt = reading.windSpeed != null ? reading.windSpeed * 1.94384 : null;
 
