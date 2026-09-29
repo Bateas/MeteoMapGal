@@ -411,6 +411,9 @@ const WIND_BLACKLIST = new Set([
   'wu_IVILAB5',     // Vilaboa 4km from Cesantes, avg 1.0kt = sheltered
   // Near Lourido — sheltered
   'wu_IMARN6',      // Marín 4km from Lourido, avg 1.4kt = sheltered
+  'wu_IMARN3',      // Marín: broken anemometer. 30 days to 29-sep: mean exactly 0 in ~85% of
+                    // readings with gusts up to 45kt; on the frontal morning 0/37, 0/41 and 39/41
+                    // while the Marín port station and buoy read 6-10kt. Its zeros drag the consensus.
   // Pontevedra area
   'wu_IPONTE198',   // avg 0.4kt
   // Netatmo sheltered
