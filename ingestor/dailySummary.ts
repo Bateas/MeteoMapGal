@@ -19,6 +19,7 @@
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
+import { logSent } from './alertDispatcher.js';
 import { msToKnots, degreesToCardinal, angleDifference } from '../src/services/windUtils.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
@@ -341,6 +342,7 @@ async function sendToN8n(message: string): Promise<boolean> {
       body: JSON.stringify({ text: message }),
       signal: AbortSignal.timeout(10_000),
     });
+    if (res.ok) logSent('daily-summary', message);
     return res.ok;
   } catch (err) {
     log.error('n8n webhook failed:', (err as Error).message);

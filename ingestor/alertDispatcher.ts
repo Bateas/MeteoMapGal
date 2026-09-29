@@ -135,6 +135,16 @@ function webhookHeaders(): Record<string, string> {
   return h;
 }
 
+/**
+ * The full text of every message that reached the webhook, one line each, so what went out
+ * can be judged afterwards against the readings. On 29-sep the only trace of a spot alert was
+ * «Alert: Cies NAVEGABLE 11kt S», and of the daily summary, that it had been sent.
+ * Service logs are kept a year.
+ */
+export function logSent(type: string, text: unknown): void {
+  log.info(`Telegram enviado [${type}]: ${JSON.stringify(typeof text === 'string' ? text : '')}`);
+}
+
 async function postWebhook(payload: Record<string, unknown>): Promise<boolean> {
   try {
     const res = await fetch(N8N_ALERT_WEBHOOK, {
@@ -150,6 +160,8 @@ async function postWebhook(payload: Record<string, unknown>): Promise<boolean> {
       // dead webhook is indistinguishable from "nothing to report" — EVERY
       // alert, including the lightning danger one, goes silent forever.
       log.warn(`Webhook rejected: HTTP ${res.status} (type=${payload.type ?? '?'}) — alert NOT delivered`);
+    } else {
+      logSent(String(payload.type ?? '?'), payload.message ?? payload.text);
     }
     return res.ok;
   } catch (err) {
