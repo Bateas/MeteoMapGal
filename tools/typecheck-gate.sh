@@ -14,7 +14,7 @@
 #     commit fixes some, lower BASELINE in that same commit.
 set -u
 
-BASELINE=107
+BASELINE=106
 CRASH_CODES='TS2304|TS2552|TS2307|TS2305|TS2724|TS2448'
 
 log=$(mktemp)

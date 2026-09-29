@@ -16,6 +16,10 @@ import type { UnifiedAlert } from './types';
 const LOOKAHEAD_HOURS = 6;
 const MIN_PROB = 60;          // % — minimum probability to trigger
 const MIN_PRECIP_MM = 0.5;    // mm/h — minimum precipitation to trigger
+/** AEMET intensity scale, mm/h: moderada from 2, fuerte from 15 (the yellow warning), muy fuerte from 30. */
+const RAIN_MODERATE_MM = 2;
+const RAIN_HEAVY_MM = 15;
+const RAIN_VERY_HEAVY_MM = 30;
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -104,43 +108,32 @@ export function buildRainAlerts(forecast?: HourlyForecast[]): UnifiedAlert[] {
   if (!event) return [];
 
   // ── Determine severity ──
-  let severity: 'info' | 'moderate' | 'high' | 'critical';
-  if (event.maxPrecipMm > 5) {
-    severity = 'critical';
-  } else if (event.maxPrecipMm > 2 || event.maxProb > 80) {
-    severity = 'high';
-  } else {
-    severity = 'info';
-  }
+  // AEMET's intensity scale (moderada 2-15, fuerte 15-30, muy fuerte >30 mm/h). The yellow
+  // warning for rain starts at 15 mm/h; this used to say PELIGRO above 5 mm/h, and on 29-sep a
+  // red banner announced a 14.8 mm three-hour rain on the card of a ría spot during a gale, when
+  // the danger was the wind. A forecast of rain is not a danger to someone on the water, and the
+  // probability says how sure the model is, not how hard it rains: it no longer raises the level.
+  const p = event.maxPrecipMm;
+  const band = p >= RAIN_VERY_HEAVY_MM ? { severity: 'critical' as const, base: 85 + Math.min(5, (p - RAIN_VERY_HEAVY_MM) / 6), max: 90 }
+    : p >= RAIN_HEAVY_MM ? { severity: 'high' as const, base: 55 + Math.min(25, (p - RAIN_HEAVY_MM) * 1.6), max: 84 }
+    : p >= RAIN_MODERATE_MM ? { severity: 'moderate' as const, base: 40 + Math.min(14, (p - RAIN_MODERATE_MM) * 1.1), max: 54 }
+    : { severity: 'info' as const, base: 30 + Math.min(10, (p - MIN_PRECIP_MM) * 6.6), max: 44 };
+  const severity = band.severity;
 
-  // ── Score: 30-90 range ──
-  // Base from precipitation intensity
-  let score: number;
-  if (event.maxPrecipMm > 5) {
-    score = 75 + Math.min(15, (event.maxPrecipMm - 5) * 3); // 75-90
-  } else if (event.maxPrecipMm > 2) {
-    score = 50 + Math.min(25, (event.maxPrecipMm - 2) * 8); // 50-74
-  } else {
-    score = 30 + Math.min(20, (event.maxPrecipMm - 0.5) * 13); // 30-50
-  }
-
-  // Urgency boost: rain within 1h
+  // ── Score: inside the band of its severity (riskEngine thresholds 25/55/85) ──
+  let score = band.base;
   const isImminent = event.etaHours < 1;
-  if (isImminent) score = Math.min(90, score + 10);
-
-  // Probability boost
-  if (event.maxProb >= 90) score = Math.min(90, score + 5);
-
-  score = Math.round(score);
+  if (isImminent) score += 10;
+  if (event.maxProb >= 90) score += 5;
+  score = Math.round(Math.min(band.max, score));
 
   // ── Title ──
   const eta = etaLabel(event.etaHours);
   const intensityLabel =
-    event.maxPrecipMm > 5
-      ? 'Lluvia intensa prevista'
-      : event.maxPrecipMm > 2
-        ? 'Lluvia moderada prevista'
-        : 'Lluvia prevista';
+    p >= RAIN_VERY_HEAVY_MM ? 'Lluvia muy fuerte prevista'
+      : p >= RAIN_HEAVY_MM ? 'Lluvia fuerte prevista'
+        : p >= RAIN_MODERATE_MM ? 'Lluvia moderada prevista'
+          : 'Lluvia prevista';
   const title = `${intensityLabel} ${eta}`;
 
   // ── Detail ──
@@ -161,7 +154,7 @@ export function buildRainAlerts(forecast?: HourlyForecast[]): UnifiedAlert[] {
     icon: 'cloud-rain',
     title,
     detail: parts.join(' · '),
-    urgent: isImminent && severity !== 'moderate',
+    urgent: isImminent && (severity === 'high' || severity === 'critical'),
     updatedAt: new Date(),
     confidence: Math.min(100, event.maxProb),
   }];
