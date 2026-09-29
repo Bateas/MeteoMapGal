@@ -16,7 +16,7 @@ import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRe
 import type { ThermalVeto } from '../src/services/cesantesCanalizationDetector.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
 import { detectBocana } from '../src/services/bocanaDetector.js';
-import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor, gustIsPlausible, peakPlausibleGustKt } from '../src/services/spotScoringEngine.js';
+import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor, gustIsPlausible, peakPlausibleGustKt, gustIsCurrent } from '../src/services/spotScoringEngine.js';
 import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
@@ -672,14 +672,17 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
   // sources whose gust agrees with their OWN mean (gustIsPlausible), instead of the highest raw
   // gust dropped whole when it exceeded 3x the spot's mean. gustMax above stays what it was,
   // because it is the Cesantes detector's input and that detector was validated with it.
+  // Only gusts of the last hour (gustIsCurrent, the same rule as the map): a maximum weighs
+  // nothing, so an hours-old gust would be shown and sent as the current one.
   const reportedGusts: number[] = [];
   for (const { r, distKm } of nearby) {
     if (r.wind_gust == null || distKm > GUST_MAX_DIST_KM || isWindBlacklisted(r.station_id)) continue;
+    if (!gustIsCurrent(r.time)) continue;
     const g = msToKnots(r.wind_gust);
     if (gustIsPlausible(r.wind_speed == null ? null : msToKnots(r.wind_speed), g)) reportedGusts.push(g);
   }
   for (const { b, distKm } of nearbyBuoys) {
-    if (b.wind_gust == null || distKm > 12) continue;
+    if (b.wind_gust == null || distKm > 12 || !gustIsCurrent(b.time)) continue;
     const g = msToKnots(b.wind_gust);
     if (gustIsPlausible(msToKnots(b.wind_speed), g)) reportedGusts.push(g);
   }
