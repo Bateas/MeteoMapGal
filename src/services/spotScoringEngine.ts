@@ -521,6 +521,7 @@ function computeSpotWindConsensus(
   spot: SailingSpot,
   stationData: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
   buoyData: { buoy: BuoyReading; distKm: number }[],
+  regimeVeto: RegimeVeto | null = null,
 ): SpotWindConsensus | null {
   // Collect speed, direction, and metadata for each contributing source
   type SourceEntry = {
@@ -720,6 +721,9 @@ function computeSpotWindConsensus(
   let matchedPattern: string | null = null;
   if (avgSpeed >= patternThreshold) {
     for (const pattern of spot.windPatterns) {
+      // A breeze pattern is not named with a front aloft: the wind comes from the same side but
+      // it is the front, and the card would call it «Brisa SW (tardes) activa».
+      if (pattern.thermal && regimeVeto?.vetoed) continue;
       if (angleDifference(avgDir, pattern.direction) <= 45) {
         matchedPattern = pattern.name;
         break;
@@ -1466,7 +1470,7 @@ export function scoreAllSpots(
     const stationData = selectStationsForSpot(spot, stations, readings);
     const buoyData = selectBuoysForSpot(spot, buoys);
 
-    const wind = computeSpotWindConsensus(spot, stationData, buoyData);
+    const wind = computeSpotWindConsensus(spot, stationData, buoyData, regimeVeto);
     // Waves get their own, wider freshness window. Everything else on this
     // list (wind, theta-v, humidity, bocana) stays on the strict wind-scale
     // gate — swell is the only field here slow enough to survive the PORTUS

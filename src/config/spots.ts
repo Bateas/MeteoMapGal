@@ -23,6 +23,9 @@ export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourid
 
 export interface WindPattern {
   name: string;
+  /** An afternoon sea breeze. Not named (nor scored) while a front aloft vetoes the breeze
+   *  (synopticRegime.ts): on 29-sep a card said «Brisa SW (tardes) activa» under «Entra viento de frente». */
+  thermal?: boolean;
   /** Typical direction (degrees from north) */
   direction: number;
   /** Season/timing description */
@@ -126,6 +129,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     windPatterns: [
       {
         name: 'Viento SW (tardes)',
+        thermal: true,
         direction: 250,
         season: 'Marzo–Octubre, 12-18h',
         description: 'El sol calienta la tierra y entra brisa del SW por la ría. Mejor en días despejados sin norte. Viento estable 8-15kt, agua plana. La mejor sesión del spot.',
@@ -231,6 +235,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     windPatterns: [
       {
         name: 'Brisa SW (tardes)',
+        thermal: true,
         direction: 225,
         season: 'Abril–Septiembre, 12-18h',
         description: 'Brisa marina que entra del SW cuando el sol calienta. Días despejados de primavera y verano. Viento estable 8-15kt. Se potencia hacia el interior (Cesantes).',
@@ -409,6 +414,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     windPatterns: [
       {
         name: 'Brisa SW (tardes)',
+        thermal: true,
         direction: 225,
         season: 'Abril–Octubre, 13-19h',
         description: 'Brisa marina que entra del SW por la ría. Días de sol y calor. Viento estable 10-18kt, ideal para kite y windsurf. La boya de Marín confirma el viento real.',
@@ -516,6 +522,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     windPatterns: [
       {
         name: 'Brisa SW (tardes)',
+        thermal: true,
         direction: 225,
         season: 'Abril–Octubre, 13-19h',
         description: 'Brisa marina SW que entra por la boca de la ría. Parcialmente protegida por las Islas Cíes. Viento 8-14kt.',
@@ -604,6 +611,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     windPatterns: [
       {
         name: 'Brisa SW (tardes)',
+        thermal: true,
         direction: 225,
         season: 'Abril–Octubre, 13-19h',
         description: 'Brisa marina que entra por la ría. Agua plana protegida por la isla. Ideal para principiantes y windsurf.',
@@ -703,6 +711,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
       {
         name: 'Brisa onshore W (tardes)',
+        thermal: true,
         direction: 270,
         season: 'Verano, 14-19h',
         description: 'Brisa térmica de W/SW entra por la tarde. Olas se desordenan. La sesión es por la mañana.',
@@ -785,6 +794,7 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     windPatterns: [
       {
         name: 'Viento SW (tardes)',
+        thermal: true,
         direction: 250,
         season: 'Marzo–Octubre, 14-19h',
         description: 'El sol calienta el valle y entra viento del SW. Mejor con temperaturas altas, cielo despejado y sin norte. Viento constante 8-15kt, agua plana. Los mejores días del embalse.',
