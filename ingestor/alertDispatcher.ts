@@ -145,7 +145,26 @@ export function logSent(type: string, text: unknown): void {
   log.info(`Telegram enviado [${type}]: ${JSON.stringify(typeof text === 'string' ? text : '')}`);
 }
 
-async function postWebhook(payload: Record<string, unknown>): Promise<boolean> {
+/** One accepted send, as stored (sentAlerts.ts). `key` is the cooldown identity, e.g.
+ *  `spot:cies-ria`, `wind:rias`; `level` the alert level where it has one, else its severity. */
+export interface SentRecord { key: string; type: string; level: string; title: string; message: string; sector: string | null }
+
+let recorder: ((r: SentRecord) => Promise<void>) | null = null;
+
+/** Where accepted sends are stored. Set once at startup; without it nothing is stored. */
+export function setSendRecorder(fn: ((r: SentRecord) => Promise<void>) | null): void {
+  recorder = fn;
+}
+
+/** Log and store one accepted send. Storing never blocks nor fails the send. */
+export function noteSent(r: SentRecord): void {
+  logSent(r.type, r.message);
+  if (recorder) {
+    recorder(r).catch((err) => log.warn(`Send not stored (${r.key}): ${(err as Error).message}`));
+  }
+}
+
+async function postWebhook(payload: Record<string, unknown>, key: string): Promise<boolean> {
   try {
     const res = await fetch(N8N_ALERT_WEBHOOK, {
       method: 'POST',
@@ -161,7 +180,15 @@ async function postWebhook(payload: Record<string, unknown>): Promise<boolean> {
       // alert, including the lightning danger one, goes silent forever.
       log.warn(`Webhook rejected: HTTP ${res.status} (type=${payload.type ?? '?'}) — alert NOT delivered`);
     } else {
-      logSent(String(payload.type ?? '?'), payload.message ?? payload.text);
+      const text = payload.message ?? payload.text;
+      noteSent({
+        key,
+        type: String(payload.type ?? '?'),
+        level: String(payload.level ?? payload.severity ?? ''),
+        title: String(payload.title ?? ''),
+        message: typeof text === 'string' ? text : '',
+        sector: typeof payload.sector === 'string' ? payload.sector : null,
+      });
     }
     return res.ok;
   } catch (err) {
@@ -215,7 +242,7 @@ export async function dispatchSpotAlert(
     severity: verdict === 'FUERTE' ? 'high' : 'moderate',
     title: `${short}: ${verdict}`,
     message: msg.trim(),
-  });
+  }, `spot:${spotId}`);
 
   if (ok) {
     lastSpotAlert.set(spotId, Date.now());
@@ -241,7 +268,7 @@ export async function dispatchForecastAlert(
     severity: 'info',
     title: `Prevision ${sector}`,
     message: label,
-  });
+  }, `forecast:${sector}`);
 
   if (ok) {
     lastForecastAlert.set(sector, Date.now());
@@ -277,7 +304,7 @@ export async function dispatchVisibilityAlert(
     severity: 'moderate',
     title: `Niebla detectada — ${camLabel}`,
     message: `Webcam ${camLabel}: niebla real detectada por Vision IA — visibilidad pobre.`,
-  });
+  }, `visibility:${webcamId}`);
 
   if (ok) {
     lastVisibilityAlert.set(webcamId, Date.now());
@@ -322,7 +349,7 @@ export async function dispatchMagicWindowAlert(
     title,
     message: text,
     severity: score >= 90 ? 'high' : 'moderate',
-  });
+  }, `magic:${sector}`);
 
   if (ok) {
     lastMagicWindowAlert.set(sector, Date.now());
@@ -379,7 +406,7 @@ export async function dispatchLightningAlert(
     severity: level === 'peligro' ? 'high' : 'moderate',
     title,
     message: msg,
-  });
+  }, `lightning:${sector}`);
 
   if (ok) {
     lastLightningAlert.set(sector, { at: Date.now(), level });
@@ -411,7 +438,7 @@ export async function dispatchWindSafetyAlert(
     severity: level === 'peligro' ? 'high' : 'moderate',
     title,
     message,
-  });
+  }, `wind:${sector}`);
   if (ok) log.ok(`Wind safety alert: ${sector} ${level.toUpperCase()}`);
   return ok;
 }
@@ -466,7 +493,7 @@ export async function dispatchFireWatchAlert(
     severity: 'moderate',
     title: `Vigilancia incendio — ${nearestTown ?? zoneId}`,
     message: msg,
-  });
+  }, `fire:${zoneId}`);
 
   if (ok) {
     lastFireWatchAlert.set(zoneId, Date.now());
@@ -485,4 +512,32 @@ export function resetCooldowns(): void {
   lastMagicWindowAlert.clear();
   lastLightningAlert.clear();
   lastFireWatchAlert.clear();
+}
+
+/** A stored send: its cooldown key, when it went out and its level (sentAlerts.ts). */
+export interface PastSend { key: string; atMs: number; level: string }
+
+/**
+ * Restore the cooldowns from the sends actually made, at startup. They live in memory, so every
+ * restart used to forget them: on 29-sep three deploys in forty minutes resent the same thermal
+ * forecast three times. Returns how many cooldowns were restored.
+ */
+export function seedCooldowns(sends: PastSend[]): number {
+  let n = 0;
+  for (const s of sends) {
+    const i = s.key.indexOf(':');
+    if (i < 0) continue;
+    const kind = s.key.slice(0, i), id = s.key.slice(i + 1);
+    const later = (m: Map<string, number>) => { if ((m.get(id) ?? 0) < s.atMs) { m.set(id, s.atMs); n++; } };
+    if (kind === 'spot') later(lastSpotAlert);
+    else if (kind === 'forecast') later(lastForecastAlert);
+    else if (kind === 'visibility') later(lastVisibilityAlert);
+    else if (kind === 'magic') later(lastMagicWindowAlert);
+    else if (kind === 'fire') later(lastFireWatchAlert);
+    else if (kind === 'lightning' && (s.level === 'aviso' || s.level === 'peligro')) {
+      const cur = lastLightningAlert.get(id);
+      if (!cur || cur.at < s.atMs) { lastLightningAlert.set(id, { at: s.atMs, level: s.level }); n++; }
+    }
+  }
+  return n;
 }

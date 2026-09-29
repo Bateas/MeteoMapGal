@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  assessStrongWind, windAlertDue, formatWindSafetyMessage,
+  assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends,
   WIND_EPISODE_GAP_MS, type SafetySpot,
 } from './windSafetyLogic';
 import type { BuoyWind, StationReading } from './analyzerLogic';
@@ -125,5 +125,18 @@ describe('assessStrongWind — names the most exposed spots first (first live al
       station('A Lanzada', 42.45, -8.88, 31, 44),      // at A Lanzada
     ], [], NOW).find((x) => x.sector === 'rias')!;
     expect(a.spots).toEqual(['A Lanzada', 'Bocana']);
+  });
+});
+
+describe('episodesFromSends — a restart in the middle of a gale does not announce it again', () => {
+  it('reopens the episode of a recent send, ignores old ones and other alerts', () => {
+    const eps = episodesFromSends([
+      { key: 'wind:rias', atMs: NOW - 20 * 60_000, level: 'peligro' },
+      { key: 'wind:embalse', atMs: NOW - WIND_EPISODE_GAP_MS - 60_000, level: 'aviso' },
+      { key: 'spot:cies-ria', atMs: NOW - 5 * 60_000, level: 'moderate' },
+    ], NOW);
+    expect([...eps.keys()]).toEqual(['rias']);
+    expect(windAlertDue(eps.get('rias'), 'peligro', NOW).due).toBe(false);
+    expect(windAlertDue(eps.get('embalse'), 'aviso', NOW).due).toBe(true);
   });
 });

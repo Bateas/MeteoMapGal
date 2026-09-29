@@ -140,6 +140,20 @@ export function windAlertDue(prev: WindEpisode | undefined, level: WindSafetyLev
   return { due, episode };
 }
 
+/** Episodes still open after a restart, from the stored sends (`wind:<sector>` keys). A send older
+ *  than the episode gap closed its episode already, and a new one is announced as usual. */
+export function episodesFromSends(sends: { key: string; atMs: number; level: string }[], nowMs: number): Map<string, WindEpisode> {
+  const out = new Map<string, WindEpisode>();
+  for (const s of sends) {
+    if (!s.key.startsWith('wind:') || (s.level !== 'aviso' && s.level !== 'peligro')) continue;
+    if (nowMs - s.atMs > WIND_EPISODE_GAP_MS) continue;
+    const sector = s.key.slice(5);
+    const cur = out.get(sector);
+    if (!cur || cur.lastActiveMs < s.atMs) out.set(sector, { sentLevel: s.level, lastActiveMs: s.atMs });
+  }
+  return out;
+}
+
 const SECTOR_LABEL: Record<WindSector, string> = { rias: 'Rías Baixas', embalse: 'Embalse' };
 
 export function formatWindSafetyMessage(a: WindSafetyAssessment): { title: string; message: string } {

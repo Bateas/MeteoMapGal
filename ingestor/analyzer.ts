@@ -14,8 +14,8 @@ import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
-import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert, dispatchWindSafetyAlert } from './alertDispatcher.js';
-import { assessStrongWind, windAlertDue, formatWindSafetyMessage, type WindEpisode, type SafetySpot } from './windSafetyLogic.js';
+import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert, dispatchWindSafetyAlert, type PastSend } from './alertDispatcher.js';
+import { assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, type WindEpisode, type SafetySpot } from './windSafetyLogic.js';
 import { dispatchLightningPush, logPushStartup } from './pushDispatcher.js';
 import {
   assessSpotLightningRisk,
@@ -506,6 +506,13 @@ export async function runAnalysis(): Promise<void> {
 // ── Strong wind (SAFETY) ──────────────────────────────
 
 const windEpisodes = new Map<string, WindEpisode>();
+
+/** Restore the strong-wind episodes from the sends actually made (sentAlerts.ts), so a restart in
+ *  the middle of a gale does not announce it again. A send older than the episode gap ended its
+ *  episode already, and a new one is announced as usual. */
+export function seedWindEpisodes(sends: PastSend[], nowMs = Date.now()): void {
+  for (const [sector, ep] of episodesFromSends(sends, nowMs)) windEpisodes.set(sector, ep);
+}
 /** Last evidence line logged per sector: the log says when it changes, not every cycle. */
 const lastWindLine = new Map<string, string>();
 
