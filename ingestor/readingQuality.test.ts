@@ -87,6 +87,21 @@ describe('applyQualityControl — the clean columns do not move', () => {
     expect(out.qcFlag).toBe(QC_OK);
   });
 
+  it('keeps the real gusts of a gale (29-sep: A Gándara 72 kt over a 42 kt mean, Ons 47 over 31)', () => {
+    const kt = (x: number) => x / 1.94384;
+    for (const [mean, gust] of [[42, 72], [31, 47], [33, 53]]) {
+      const out = applyQualityControl(reading({ windSpeed: kt(mean), windGust: kt(gust) }));
+      expect(out.qcFlag).toBe(QC_OK);
+      expect(out.reading.windGust).toBeCloseTo(kt(gust));
+    }
+  });
+
+  it('still rejects a spike among a low mean (the SkyX 97 kt case)', () => {
+    const out = applyQualityControl(reading({ windSpeed: 3, windGust: 50 }));
+    expect(out.reading.windGust).toBeNull();
+    expect(out.qcFlag).not.toBe(QC_OK);
+  });
+
   it('accepts a gust exactly at the cap', () => {
     const out = applyQualityControl(reading({ windSpeed: 20, windGust: MAX_PLAUSIBLE_GUST_MS }));
     expect(out.reading.windGust).toBe(MAX_PLAUSIBLE_GUST_MS);
@@ -110,7 +125,7 @@ describe('applyQualityControl — what it rejects, it keeps', () => {
   });
 
   it('records both reasons when a gust trips the cap and the ratio', () => {
-    const out = applyQualityControl(reading({ windSpeed: 5, windGust: 40 }));
+    const out = applyQualityControl(reading({ windSpeed: 5, windGust: 50 }));
     expect(out.qcFlag & QC_GUST_ABSOLUTE).toBeTruthy();
     expect(out.qcFlag & QC_GUST_RATIO).toBeTruthy();
     expect(describeQcFlag(out.qcFlag)).toHaveLength(2);
@@ -280,9 +295,9 @@ describe('physical impossibilities — radiation, dew point and temperature', ()
   it('accumulates with the wind flags instead of replacing them', () => {
     // One reading can be wrong in several ways at once, and the bitmask has to
     // carry all of them so a per-station count stays honest. Four here, not
-    // three: a 30 m/s gust over a 5 m/s mean trips the absolute cap AND the
+    // three: a 50 m/s gust over a 5 m/s mean trips the absolute cap AND the
     // ratio, which is the bitmask doing exactly what it is for.
-    const out = applyQualityControl(reading({ windGust: 30, solarRadiation: 1400, temperature: 70 }));
+    const out = applyQualityControl(reading({ windGust: 50, solarRadiation: 1400, temperature: 70 }));
     expect(out.qcFlag & QC_GUST_ABSOLUTE).toBeTruthy();
     expect(out.qcFlag & QC_GUST_RATIO).toBeTruthy();
     expect(out.qcFlag & QC_SOLAR_IMPOSSIBLE).toBeTruthy();

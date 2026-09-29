@@ -37,7 +37,7 @@ const PREFERRED_EXPOSURE_BOOST = 1.3;   // manually vetted as representative
 const BIAS_BLIND_PENALTY = 0.3;         // reading FROM a documented blind sector
 const CALM_FLOOR_KT = 1;                // below this a reading carries no signal
 const GUST_MAX_DIST_KM = 8;             // gusts only from sources this close
-const MAX_PLAUSIBLE_GUST_KT = 45;       // Galician coast ceiling (sensor glitch)
+const MAX_PLAUSIBLE_GUST_KT = 90;       // Galician coast ceiling (was 45: dropped real frontal gusts, 29-sep)
 const GUST_RATIO_CAP = 3;               // gust more than 3x the mean = glitch
 
 // Outlier suppression (step 4 of the engine). This is what actually stops a

@@ -891,7 +891,8 @@ describe('gustIsPlausible / peakPlausibleGustKt — the gust shown for a spot (2
     expect(gustIsPlausible(10, 21)).toBe(true);    // Limens: real, even with the spot mean sunk
     expect(gustIsPlausible(3, 11)).toBe(true);     // gusty light breeze
     expect(gustIsPlausible(29, 44)).toBe(true);    // Ons in the front
-    expect(gustIsPlausible(40, 50)).toBe(false);   // above the Galician ceiling
+    expect(gustIsPlausible(40, 95)).toBe(false);   // above the Galician ceiling (90)
+    expect(gustIsPlausible(42, 72)).toBe(true);    // A Gándara in the 29-sep front
     expect(gustIsPlausible(null, 20)).toBe(false); // no mean, nothing to check it against
   });
 

@@ -31,7 +31,7 @@ export const WIND_NEAR_SPOT_KM = 10;
 /** A gust that strong inside a weaker mean is a spike, not a gale. */
 export const WIND_MIN_MEAN_KT = 12;
 export const WIND_MAX_GUST_RATIO = 3;
-export const WIND_MAX_GUST_KT = 70;
+export const WIND_MAX_GUST_KT = 90; // the same ceiling as the engines (MAX_PLAUSIBLE_GUST_KT)
 export const WIND_MAX_AGE_MIN = 90;
 /** Above this a station measures the mountain, not the water. Unknown altitude: left out. */
 export const WIND_MAX_ALTITUDE_M: Record<WindSector, number> = { rias: 150, embalse: 250 };

@@ -343,8 +343,12 @@ export function freshnessMulFor(stationIdOrSource: string, ageMin: number): numb
  * scales a gust by the channelling boost, a large multiplier on an already
  * gusty reading could otherwise print a number no station here has recorded.
  * One constant, so the two can never drift apart.
+ *
+ * 90, not 45 (29-sep): a front brought real gusts of 47-72 kt at Ons, Fisterra and the capes,
+ * with gust factors of 1.3-1.8 over their own means, and 45 threw every one of them away. The
+ * spike case is left to the per-source ratio (gustIsPlausible, and the ingestion QC).
  */
-export const MAX_PLAUSIBLE_GUST_KT = 45;
+export const MAX_PLAUSIBLE_GUST_KT = 90;
 
 // ── Spatial wind coherence constants (#63) ────────────────────
 const BUOY_EXPOSURE_BOOST = 1.5;          // Buoys over water — inherently unobstructed
