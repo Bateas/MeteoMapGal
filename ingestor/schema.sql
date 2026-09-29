@@ -1039,3 +1039,30 @@ DO $$ BEGIN
     GRANT SELECT ON field_reports, field_observers TO grafana_ro;
   END IF;
 END $$;
+
+-- ── Station health ─────────────────────────────────────
+-- A sensor failure seen by the nightly detectors (stationHealthJob.ts): one row per day, station,
+-- variable and rule. The rule that takes a variable out (failures on 3 distinct days in 30, back
+-- after 14 clean days) lives in src/services/stationHealth.ts. The readings are never touched:
+-- this decides who uses them, not what is kept.
+CREATE TABLE IF NOT EXISTS station_health_strikes (
+  day         DATE        NOT NULL,   -- local day (Galicia)
+  station_id  TEXT        NOT NULL,
+  variable    TEXT        NOT NULL,   -- wind|temperature|humidity|precipitation|solar|pressure
+  rule        TEXT        NOT NULL,   -- the detector that saw it
+  detail      TEXT,                   -- the numbers behind it
+  PRIMARY KEY (day, station_id, variable, rule)
+);
+-- One row per day the detectors ran: a day without failures is not a day nobody checked.
+CREATE TABLE IF NOT EXISTS station_health_days (
+  day          DATE        PRIMARY KEY,
+  computed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  stations     INTEGER     NOT NULL,
+  strikes      INTEGER     NOT NULL
+);
+GRANT SELECT, INSERT ON station_health_strikes, station_health_days TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON station_health_strikes, station_health_days TO grafana_ro;
+  END IF;
+END $$;

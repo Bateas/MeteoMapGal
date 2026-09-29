@@ -24,6 +24,28 @@ interface SunTimes {
  * @param date — target day (defaults to today)
  * @param center — [lon, lat] for the calculation (defaults to MAP_CENTER)
  */
+/**
+ * Height of the sun above the horizon (degrees; negative below it) at an instant and place.
+ * NOAA's general solar position formulas (a fraction of a degree, plenty to tell night, dawn and
+ * midday). Thresholds on solar radiation should be relative to this, not absolute: on the eclipse
+ * of 12-ago every fixed W/m2 threshold mistook the evening for a storm shadow.
+ */
+export function solarElevationDeg(ms: number, lat: number, lon: number): number {
+  const d = new Date(ms);
+  const startOfYear = Date.UTC(d.getUTCFullYear(), 0, 1);
+  const dayOfYear = Math.floor((ms - startOfYear) / 86_400_000) + 1;
+  const hour = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+  const g = ((2 * Math.PI) / 365) * (dayOfYear - 1 + (hour - 12) / 24);
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g)
+    + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const eqTimeMin = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g)
+    - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const solarTimeMin = hour * 60 + eqTimeMin + 4 * lon;
+  const hourAngle = (solarTimeMin / 4 - 180) * DEG;
+  const cosZenith = Math.sin(lat * DEG) * Math.sin(decl) + Math.cos(lat * DEG) * Math.cos(decl) * Math.cos(hourAngle);
+  return 90 - Math.acos(Math.max(-1, Math.min(1, cosZenith))) / DEG;
+}
+
 export function getSunTimes(date: Date = new Date(), center?: [number, number]): SunTimes {
   const [LON, LAT] = center ?? DEFAULT_CENTER;
   const year = date.getFullYear();

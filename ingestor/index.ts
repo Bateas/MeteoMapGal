@@ -32,6 +32,7 @@ import { runConvectionGridCycle } from './convectionGridFetcher.js';
 import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import { runFireWatchCycle } from './fireWatch.js';
 import { runCalibrationCycle, CALIBRATION_CHECK_INTERVAL_MS } from './calibration.js';
+import { runStationHealthCycle, loadStationHealth, HEALTH_CHECK_INTERVAL_MS } from './stationHealthJob.js';
 import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetcher.js';
 import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
@@ -70,6 +71,7 @@ let convGridTimer: ReturnType<typeof setInterval> | null = null;
 let outcomesTimer: ReturnType<typeof setInterval> | null = null;
 let fireWatchTimer: ReturnType<typeof setInterval> | null = null;
 let calibrationTimer: ReturnType<typeof setInterval> | null = null;
+let stationHealthTimer: ReturnType<typeof setInterval> | null = null;
 let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
 let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
@@ -561,6 +563,12 @@ async function start(): Promise<void> {
     runCalibrationCycle().catch((err) => log.warn('[Calibration] timer err: ' + (err as Error).message));
   }, CALIBRATION_CHECK_INTERVAL_MS);
 
+  // Station health, IN SHADOW (stationHealthJob.ts): at 01-03 h the detectors judge the previous
+  // day's sensors and the log says which variables would be out. Nothing is removed yet. The
+  // hourly timer only asks whether it is the hour; fail-soft like the others.
+  void loadStationHealth();
+  stationHealthTimer = setInterval(() => { void runStationHealthCycle(); }, HEALTH_CHECK_INTERVAL_MS);
+
   // Day-before forecast at the ML buoys and every spot (nwpPreviousFetcher.ts): every 6 h, ~76
   // coordinate-calls a day. 200s stagger, after synoptic and FIRMS, before ConvGrid, to spread the calls.
   setTimeout(() => {
@@ -598,6 +606,7 @@ async function shutdown(signal: string): Promise<void> {
   if (outcomesTimer) clearInterval(outcomesTimer);
   if (fireWatchTimer) clearInterval(fireWatchTimer);
   if (calibrationTimer) clearInterval(calibrationTimer);
+  if (stationHealthTimer) clearInterval(stationHealthTimer);
   if (nwpPreviousTimer) clearInterval(nwpPreviousTimer);
   if (wrfPointTimer) clearInterval(wrfPointTimer);
 
