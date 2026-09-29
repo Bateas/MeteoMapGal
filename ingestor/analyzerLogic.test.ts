@@ -215,6 +215,16 @@ describe('scoreSpot — single station within radius', () => {
     // 12 m/s ≈ 23.3 kt
     expect(result.maxGustKt).toBe(23);
   });
+
+  it('a gust inside a zero mean is dropped, a real gust over a sunk spot mean is kept', () => {
+    const broken = makeReading({ wind_speed: 0, wind_gust: 19, station_id: 'wu_BROKEN' });  // 0/37 kt
+    const real1 = makeReading({ wind_speed: 5, wind_gust: 10.8, station_id: 'mg_a' });       // 10/21 kt
+    const real2 = makeReading({ wind_speed: 4.5, wind_gust: 9.5, station_id: 'mg_b' });      // 9/18.5 kt
+    const calm = makeReading({ wind_speed: 0.5, wind_gust: 1, station_id: 'mg_c' });
+    const result = scoreSpot(cesantes, [broken, real1, real2, calm], []);
+    // Before: the broken 37 kt was the max, more than 3x the spot's mean, so the gust became 0.
+    expect(result.maxGustKt).toBe(21);
+  });
 });
 
 // ── scoreSpot — buoys ────────────────────────────────

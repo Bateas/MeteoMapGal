@@ -1326,6 +1326,48 @@ function buildSpotSummary(
   return parts.join(' ');
 }
 
+/**
+ * Whether one source's gust is consistent with its OWN mean: at least the mean, and at most
+ * three times it (or the mean + 12 kt in light wind, where a gusty 3/11 is real). Judged per
+ * source, not against the spot's mean: on 29-sep a real 21 kt gust at Limens was dropped because
+ * the spot's mean had sunk, while a broken anemometer's 37 kt gust inside a 0 kt mean was not.
+ */
+export function gustIsPlausible(meanKt: number | null, gustKt: number): boolean {
+  if (meanKt == null || !(gustKt > 0) || gustKt > MAX_PLAUSIBLE_GUST_KT) return false;
+  return gustKt >= meanKt && gustKt <= Math.max(3 * meanKt, meanKt + 12);
+}
+
+/** The gust SHOWN and SENT for a spot: the highest of the gusts that passed gustIsPlausible.
+ *  Not "the second highest, so two sources agree": replayed on 29-sep that took Cies from 35 kt
+ *  to 14 and A Lanzada from 36-39 to 14-23, because there the one exposed station is the one
+ *  telling the truth. */
+export function peakPlausibleGustKt(gusts: number[]): number | null {
+  if (gusts.length === 0) return null;
+  return Math.round(Math.max(...gusts) * 10) / 10;
+}
+
+/** The spot gust the map shows (peakPlausibleGustKt), from the same closest sources as
+ *  localGustKt. localGustKt stays as it was for the Cesantes detector, which was validated with it. */
+export function reportedGustKt(
+  stationData: { reading: NormalizedReading; distKm: number }[],
+  buoyData: { buoy: BuoyReading; distKm: number }[],
+): number | null {
+  const gusts: number[] = [];
+  for (const { reading, distKm } of stationData) {
+    if (reading.windGust == null || distKm > 8 || isWindBlacklisted(reading.stationId)) continue;
+    const mean = reading.windSpeed == null ? null : msToKnots(reading.windSpeed);
+    const g = msToKnots(reading.windGust);
+    if (gustIsPlausible(mean, g)) gusts.push(g);
+  }
+  for (const { buoy, distKm } of buoyData) {
+    if (buoy.windGust == null || distKm > 12) continue;
+    const mean = buoy.windSpeed == null ? null : msToKnots(buoy.windSpeed);
+    const g = msToKnots(buoy.windGust);
+    if (gustIsPlausible(mean, g)) gusts.push(g);
+  }
+  return peakPlausibleGustKt(gusts);
+}
+
 /** Peak gust from the CLOSEST sources only (stations <= 8 km, buoys <= 12 km), so a distant
  *  mountain or ocean gust does not inflate a sheltered spot. Rejected as a sensor glitch above
  *  45 kt or above 3x the RAW mean (the calibrated mean carries a per-spot constant that says
@@ -1573,9 +1615,9 @@ export function scoreAllSpots(
       if (windTrend.label) summary += ` · ${windTrend.label}`;
     }
 
-    // Max gust from CLOSEST sources only (stations <=8km, buoys <=12km) —
-    // avoids distant mountain/ocean gusts inflating sheltered spot readings.
-    const gustKt = localGustKt(stationData, buoyData, wind?.rawAvgSpeedKt ?? 0);
+    // Gust from the CLOSEST sources only (stations <=8km, buoys <=12km), each checked against
+    // its own mean, and one that at least two of them reach (reportedGustKt).
+    const gustKt = reportedGustKt(stationData, buoyData);
 
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
     let airTemp: number | null = null;

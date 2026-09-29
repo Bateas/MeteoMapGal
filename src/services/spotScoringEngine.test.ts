@@ -3,7 +3,7 @@
  * Covers: windVerdict thresholds, scoreAllSpots integration, hard gates.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { scoreAllSpots, isWindBlacklisted, getSourceQuality } from './spotScoringEngine';
+import { scoreAllSpots, isWindBlacklisted, getSourceQuality, gustIsPlausible, peakPlausibleGustKt } from './spotScoringEngine';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import { RIAS_SPOTS, EMBALSE_SPOTS } from '../config/spots';
@@ -880,5 +880,24 @@ describe('direction agreement', () => {
     // 25-Sep at midday the sources were split between the NE morning and the W afternoon.
     expect(around([60, 240, 70, 250]).summary).toContain('dirección variable');
     expect(around([250, 255, 245, 250]).summary).not.toContain('variable');
+  });
+});
+
+describe('gustIsPlausible / peakPlausibleGustKt — the gust shown for a spot (29-sep)', () => {
+  it('judges each gust against its own mean', () => {
+    expect(gustIsPlausible(0, 37)).toBe(false);    // wu_IMARN3: gusts inside a dead mean
+    expect(gustIsPlausible(3.9, 39)).toBe(false);  // same station, earlier
+    expect(gustIsPlausible(36.9, 25.3)).toBe(false); // a mean above its own gust
+    expect(gustIsPlausible(10, 21)).toBe(true);    // Limens: real, even with the spot mean sunk
+    expect(gustIsPlausible(3, 11)).toBe(true);     // gusty light breeze
+    expect(gustIsPlausible(29, 44)).toBe(true);    // Ons in the front
+    expect(gustIsPlausible(40, 50)).toBe(false);   // above the Galician ceiling
+    expect(gustIsPlausible(null, 20)).toBe(false); // no mean, nothing to check it against
+  });
+
+  it('reports the highest plausible gust: the exposed station is often the one telling the truth', () => {
+    expect(peakPlausibleGustKt([36, 14, 12])).toBe(36); // Cies: the island, not the sheltered shore
+    expect(peakPlausibleGustKt([22])).toBe(22);
+    expect(peakPlausibleGustKt([])).toBeNull();
   });
 });
