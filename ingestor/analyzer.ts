@@ -15,7 +15,10 @@ import { detectThermalForecast } from '../src/services/thermalForecastDetector.j
 import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
 import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert, dispatchWindSafetyAlert, type PastSend } from './alertDispatcher.js';
-import { assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, windLogState, windLogDue, type WindEpisode, type SafetySpot } from './windSafetyLogic.js';
+import {
+  assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, reopenFromHistory, windLogState, windLogDue,
+  WIND_EPISODE_GAP_MS, WIND_REOPEN_MAX_MS, WIND_MAX_AGE_MIN, WIND_MAX_ALTITUDE_M, type WindEpisode, type SafetySpot,
+} from './windSafetyLogic.js';
 import { dispatchLightningPush, logPushStartup } from './pushDispatcher.js';
 import {
   assessSpotLightningRisk,
@@ -514,6 +517,45 @@ export function seedWindEpisodes(sends: PastSend[], nowMs = Date.now()): number 
   let n = 0;
   for (const [sector, ep] of episodesFromSends(sends, nowMs)) { windEpisodes.set(sector, ep); n++; }
   return n;
+}
+
+/** Second half of the restore: an episode whose last send is older than the gap but whose gale
+ *  the readings show still blowing stays open (reopenFromHistory). Reads the last gap plus the
+ *  freshness window, only when some sector needs it. Returns how many episodes were reopened. */
+export async function reopenWindEpisodesFromHistory(sends: PastSend[], nowMs = Date.now()): Promise<number> {
+  const needed = sends.some((s) => s.key.startsWith('wind:') && !windEpisodes.has(s.key.slice(5))
+    && nowMs - s.atMs > WIND_EPISODE_GAP_MS && nowMs - s.atMs <= WIND_REOPEN_MAX_MS);
+  if (!needed) return 0;
+  const minutes = Math.round(WIND_EPISODE_GAP_MS / 60_000) + WIND_MAX_AGE_MIN;
+  try {
+    const db = getPool();
+    const [st, bu] = await Promise.all([
+      db.query<StationReading>(`
+        SELECT r.station_id, r.time, r.wind_speed, r.wind_gust, r.wind_dir,
+               s.latitude, s.longitude, s.name, s.source, s.altitude,
+               NULL::float8 AS temperature, NULL::float8 AS humidity
+          FROM readings r JOIN stations s ON s.station_id = r.station_id
+         WHERE r.time > NOW() - ($1::int * INTERVAL '1 minute')
+           AND r.wind_gust IS NOT NULL AND s.altitude <= $2`,
+        [minutes, Math.max(...Object.values(WIND_MAX_ALTITUDE_M))]),
+      db.query<{ station_id: number; time: Date; wind_speed: number | null; wind_dir: number | null; wind_gust: number }>(`
+        SELECT station_id, time, wind_speed, wind_dir, wind_gust
+          FROM buoy_readings
+         WHERE time > NOW() - ($1::int * INTERVAL '1 minute') AND wind_gust IS NOT NULL`,
+        [minutes]),
+    ]);
+    const buoys: BuoyWind[] = bu.rows.map((r) => ({
+      station_id: r.station_id, time: r.time, wind_speed: r.wind_speed ?? 0, wind_dir: r.wind_dir, wind_gust: r.wind_gust,
+      lat: BUOY_COORDS[r.station_id]?.lat ?? 0, lon: BUOY_COORDS[r.station_id]?.lon ?? 0,
+      station_name: BUOY_NAMES[r.station_id] ?? `Boya ${r.station_id}`,
+    }));
+    const reopened = reopenFromHistory(sends, new Set(windEpisodes.keys()), SAFETY_SPOTS as SafetySpot[], st.rows, buoys, nowMs);
+    for (const [sector, ep] of reopened) windEpisodes.set(sector, ep);
+    return reopened.size;
+  } catch (err) {
+    log.warn(`Strong wind episode replay failed: ${(err as Error).message}`);
+    return 0;
+  }
 }
 /** Last state logged per sector (windLogDue): the log says when it changes, plus an hourly heartbeat. */
 const lastWindLog = new Map<string, { state: string; atMs: number }>();

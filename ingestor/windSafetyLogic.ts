@@ -154,6 +154,67 @@ export function episodesFromSends(sends: { key: string; atMs: number; level: str
   return out;
 }
 
+/** How far back a send can still belong to an episode that the readings show never ended. */
+export const WIND_REOPEN_MAX_MS = 24 * 60 * 60_000;
+/** Step of the replay over past readings in reopenFromHistory. */
+export const WIND_REPLAY_STEP_MS = 10 * 60_000;
+
+function timeMs(t: string | Date | undefined): number {
+  return t == null ? NaN : new Date(t).getTime();
+}
+
+/** The latest row of each station/buoy at or before `atMs`, from rows spanning some hours. */
+function latestAt<T extends { time?: string | Date }>(rows: T[], idOf: (r: T) => string | number, atMs: number): T[] {
+  const best = new Map<string | number, T>();
+  for (const r of rows) {
+    const t = timeMs(r.time);
+    if (!(t <= atMs)) continue;
+    const cur = best.get(idOf(r));
+    if (!cur || timeMs(cur.time) < t) best.set(idOf(r), r);
+  }
+  return [...best.values()];
+}
+
+/**
+ * Reopen, after a restart, a strong-wind episode whose last SEND is older than the gap but that
+ * the readings show still going. episodesFromSends alone closed it: on 29-sep the gale was
+ * announced at 12:06 and blew on all afternoon, so the deploy of 16:41 found a send four hours
+ * old and would announce the same gale again. The episode is really closed only when the wind
+ * stopped for the whole gap, and that is in the readings: the check is replayed every
+ * WIND_REPLAY_STEP_MS over the last gap, newest first, with the same rules as the live one.
+ * `sends` are the stored sends; `readings`/`buoys` every row of the last gap plus the freshness
+ * window (the replay picks, at each step, the latest row of each source at or before it).
+ */
+export function reopenFromHistory(
+  sends: { key: string; atMs: number; level: string }[],
+  already: ReadonlySet<string>,
+  spots: SafetySpot[],
+  readings: StationReading[],
+  buoys: BuoyWind[],
+  nowMs: number,
+): Map<string, WindEpisode> {
+  const out = new Map<string, WindEpisode>();
+  const lastSent = new Map<string, { atMs: number; level: WindSafetyLevel }>();
+  for (const s of sends) {
+    if (!s.key.startsWith('wind:') || (s.level !== 'aviso' && s.level !== 'peligro')) continue;
+    if (nowMs - s.atMs > WIND_REOPEN_MAX_MS) continue;
+    const sector = s.key.slice(5);
+    if (already.has(sector)) continue;
+    const cur = lastSent.get(sector);
+    if (!cur || cur.atMs < s.atMs) lastSent.set(sector, { atMs: s.atMs, level: s.level });
+  }
+  if (lastSent.size === 0) return out;
+  for (let t = nowMs; t >= nowMs - WIND_EPISODE_GAP_MS && out.size < lastSent.size; t -= WIND_REPLAY_STEP_MS) {
+    const assessed = assessStrongWind(spots, latestAt(readings, (r) => r.station_id, t), latestAt(buoys, (b) => b.station_id, t), t);
+    for (const a of assessed) {
+      const sent = lastSent.get(a.sector);
+      if (!sent || out.has(a.sector) || !a.level || t < sent.atMs) continue;
+      out.set(a.sector, { sentLevel: sent.level, lastActiveMs: t });
+    }
+  }
+  return out;
+}
+
 /** How often the state line is repeated while nothing changes, as a heartbeat. */
 export const WIND_LOG_HEARTBEAT_MS = 60 * 60_000;
 

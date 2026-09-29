@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, windLogDue, windLogState, WIND_LOG_HEARTBEAT_MS,
+  assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, reopenFromHistory, windLogDue, windLogState, WIND_LOG_HEARTBEAT_MS,
   WIND_EPISODE_GAP_MS, type SafetySpot,
 } from './windSafetyLogic';
 import type { BuoyWind, StationReading } from './analyzerLogic';
@@ -138,6 +138,45 @@ describe('episodesFromSends — a restart in the middle of a gale does not annou
     expect([...eps.keys()]).toEqual(['rias']);
     expect(windAlertDue(eps.get('rias'), 'peligro', NOW).due).toBe(false);
     expect(windAlertDue(eps.get('embalse'), 'aviso', NOW).due).toBe(true);
+  });
+});
+
+describe('reopenFromHistory — a gale announced hours ago that is still blowing is not announced again', () => {
+  const H = 60 * 60_000;
+  const at = (ms: number) => new Date(ms);
+  const sends = [{ key: 'wind:rias', atMs: NOW - 4.5 * H, level: 'peligro' }];
+  const gale = (t: number) => [
+    station('Ons', 42.38, -8.93, 30, 46, { time: at(t) }),
+    station('Cabo Udra', 42.34, -8.83, 33, 42, { time: at(t) }),
+  ];
+  const calm = (t: number) => [
+    station('Ons', 42.38, -8.93, 12, 18, { time: at(t) }),
+    station('Cabo Udra', 42.34, -8.83, 10, 16, { time: at(t) }),
+  ];
+
+  it('29-sep: announced at 12:06, still 44-49 kt at the 16:41 restart → the episode stays open, no resend', () => {
+    const eps = reopenFromHistory(sends, new Set(), SPOTS, [...gale(NOW - 3 * H), ...gale(NOW - 10 * 60_000)], [], NOW);
+    expect(eps.get('rias')?.sentLevel).toBe('peligro');
+    expect(windAlertDue(eps.get('rias'), 'peligro', NOW).due).toBe(false);
+  });
+
+  it('the wind stopped for the whole gap → no episode, a new gale is announced', () => {
+    const eps = reopenFromHistory(sends, new Set(), SPOTS, [...gale(NOW - 4 * H), ...calm(NOW - 150 * 60_000), ...calm(NOW - 10 * 60_000)], [], NOW);
+    expect(eps.size).toBe(0);
+    expect(windAlertDue(eps.get('rias'), 'peligro', NOW).due).toBe(true);
+  });
+
+  it('the episode ends at the last step the replay saw the gale, with the latest row of each source', () => {
+    const eps = reopenFromHistory(sends, new Set(), SPOTS, [...gale(NOW - 95 * 60_000), ...calm(NOW - 25 * 60_000)], [], NOW);
+    const ep = eps.get('rias')!;
+    expect(NOW - ep.lastActiveMs).toBe(30 * 60_000);   // steps of 10 min: the calm rows take over at -25 min
+  });
+
+  it('leaves alone a sector already reopened, other alerts and sends older than a day', () => {
+    const readings = gale(NOW - 10 * 60_000);
+    expect(reopenFromHistory(sends, new Set(['rias']), SPOTS, readings, [], NOW).size).toBe(0);
+    expect(reopenFromHistory([{ key: 'spot:cies-ria', atMs: NOW - 3 * H, level: 'moderate' }], new Set(), SPOTS, readings, [], NOW).size).toBe(0);
+    expect(reopenFromHistory([{ key: 'wind:rias', atMs: NOW - 25 * H, level: 'peligro' }], new Set(), SPOTS, readings, [], NOW).size).toBe(0);
   });
 });
 

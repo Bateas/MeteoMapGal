@@ -18,7 +18,7 @@ import { fetchAllObservations, getNetatmoSweepStatus, NETATMO_SWEEP_INTERVAL_MS 
 import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
 import { checkAndSendDailySummary, seedDailySummary } from './dailySummary.js';
-import { runAnalysis, seedWindEpisodes } from './analyzer.js';
+import { runAnalysis, seedWindEpisodes, reopenWindEpisodesFromHistory } from './analyzer.js';
 import { setSendRecorder, seedCooldowns } from './alertDispatcher.js';
 import { recordSent, loadRecentSends } from './sentAlerts.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
@@ -383,7 +383,8 @@ async function start(): Promise<void> {
   setSendRecorder(recordSent);
   const recentSends = await loadRecentSends();
   const restored = seedCooldowns(recentSends);
-  const windEpisodesOpen = seedWindEpisodes(recentSends);
+  // A gale announced more than the episode gap ago can still be blowing: the readings decide.
+  const windEpisodesOpen = seedWindEpisodes(recentSends) + await reopenWindEpisodesFromHistory(recentSends);
   seedDailySummary(recentSends);
   log.info(`Alert cooldowns: ${restored} restored, ${windEpisodesOpen} strong-wind episode(s) still open, from ${recentSends.length} sends in the last 24 h`);
 
