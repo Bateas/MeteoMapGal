@@ -91,7 +91,8 @@ function plausibleRain(mm: number | null, windowMin: number): number | null {
   return mm > MAX_RAIN_RATE_MM_H * Math.max(windowMin, 60) / 60 ? null : mm;
 }
 
-function rawRainInWindowMm(id: string, s: PrecipSample[], nowMs: number, windowMin: number): number | null {
+/** The rain in the window as the gauge reports it, before the plausibility ceiling (for the health detectors). */
+export function rawRainInWindowMm(id: string, s: PrecipSample[], nowMs: number, windowMin: number): number | null {
   const kind = precipKindFor(id);
   if (kind === null) return null;
   const sorted = s
