@@ -55,10 +55,12 @@ import {
 // which is not the verdict that matters on a beach break.
 
 /** The analyzer historically searched wider radii than the frontend scoring
- *  engine uses per spot. Preserved so verdict behavior does not change. */
+ *  engine uses per spot. Preserved so verdict behavior does not change.
+ *  Cíes-ría left the list on purpose: its radius was re-curated in spots.ts and both
+ *  engines must search the same circle. */
 const RADIUS_OVERRIDE: Record<string, number> = {
   castrelo: 15, cesantes: 12, lourido: 12, bocana: 12, 'centro-ria': 12,
-  'cies-ria': 12, castineiras: 10, vao: 8, lanzada: 10, 'illa-arousa': 8,
+  castineiras: 10, vao: 8, lanzada: 10, 'illa-arousa': 8,
 };
 
 const SPOTS: SpotDef[] = (['embalse', 'rias'] as const).flatMap((sector) =>

@@ -294,7 +294,10 @@ export const RIAS_SPOTS: SailingSpot[] = [
     shortName: 'Cíes-Ría',
     icon: 'sailboat',
     center: [-8.8648, 42.1849],
-    radiusKm: 12,
+    // 6 km, not 12: at 12 the sheltered amateur stations of Nigrán, Baiona and Vigo set the
+    // consensus. Replayed on five regimes (front S, SW breeze x2, nortada x2): 6 km plus the
+    // island station tracks what the island measures; with nortada it does not inflate.
+    radiusKm: 6,
     description: 'Entrada de la Ría de Vigo, entre Baiona y las Islas Cíes. Condiciones oceánicas, olas y viento atlántico.',
     windPatterns: [
       {
@@ -311,12 +314,15 @@ export const RIAS_SPOTS: SailingSpot[] = [
       },
     ],
     preferredStations: [
-      'mc_ESGAL3600000036350C', // Baiona (~8km)
+      // Illas Cíes (MeteoGalicia), on the island itself. Measured against the buoys it reads
+      // 0,96-0,98 of the free wind from S and SW; the previous choice, Meteoclimatic Baiona,
+      // 0,39-0,57. With NW the island is in its own lee (0,54): calibration's job, not this one.
+      'mg_10125',
     ],
     preferredBuoys: [
       2248, // Cabo Silleiro REDEXT (referencia oceánica, 55km W)
       1253, // A Guarda CETMAR (sur)
-      1252, // Islas Cíes CETMAR (bocana directa)
+      // 1252 Islas Cíes CETMAR: offline since Dec 2025 (enabled: false in buoyClient)
     ],
     waveRelevance: 'critical',
     thermalDetection: false,
