@@ -17,6 +17,7 @@
  */
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { isWindBlacklisted } from '../src/services/spotScoringEngine.js';
+import { getSpotsForSector } from '../src/config/spots.js';
 import type { BuoyWind, StationReading } from './analyzerLogic.js';
 
 export type WindSafetyLevel = 'aviso' | 'peligro';
@@ -41,6 +42,17 @@ export const WIND_EPISODE_GAP_MS = 2 * 60 * 60_000;
 const MS_TO_KT = 1.94384;
 
 export interface SafetySpot { id: string; name: string; lat: number; lon: number; sector: WindSector }
+
+/** Every spot of both sectors, surf included: a surfer in the water cares about a gale or a strike
+ *  more than anyone. The wind and lightning safety alerts both use this list (analyzer.ts), and so
+ *  does the exam day of 29-sep (exams/). */
+export function safetySpots(): SafetySpot[] {
+  return (['embalse', 'rias'] as const).flatMap((sector) =>
+    getSpotsForSector(sector).map((s) => ({
+      id: s.id, name: s.shortName, lat: s.center[1], lon: s.center[0], sector,
+    })),
+  );
+}
 
 export interface WindEvidence { name: string; meanKt: number; gustKt: number; lat: number; lon: number }
 
@@ -164,7 +176,7 @@ function timeMs(t: string | Date | undefined): number {
 }
 
 /** The latest row of each station/buoy at or before `atMs`, from rows spanning some hours. */
-function latestAt<T extends { time?: string | Date }>(rows: T[], idOf: (r: T) => string | number, atMs: number): T[] {
+export function latestAt<T extends { time?: string | Date }>(rows: T[], idOf: (r: T) => string | number, atMs: number): T[] {
   const best = new Map<string | number, T>();
   for (const r of rows) {
     const t = timeMs(r.time);

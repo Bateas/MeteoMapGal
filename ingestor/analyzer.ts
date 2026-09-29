@@ -16,8 +16,8 @@ import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
 import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert, dispatchWindSafetyAlert, type PastSend } from './alertDispatcher.js';
 import {
-  assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, reopenFromHistory, windLogState, windLogDue,
-  WIND_EPISODE_GAP_MS, WIND_REOPEN_MAX_MS, WIND_MAX_AGE_MIN, WIND_MAX_ALTITUDE_M, type WindEpisode, type SafetySpot,
+  assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, reopenFromHistory, windLogState, windLogDue, safetySpots,
+  WIND_EPISODE_GAP_MS, WIND_REOPEN_MAX_MS, WIND_MAX_AGE_MIN, WIND_MAX_ALTITUDE_M, type WindEpisode,
 } from './windSafetyLogic.js';
 import { dispatchLightningPush, logPushStartup } from './pushDispatcher.js';
 import {
@@ -89,14 +89,9 @@ const SPOTS: SpotDef[] = (['embalse', 'rias'] as const).flatMap((sector) =>
     })),
 );
 
-/** Lightning safety covers EVERY spot, surf included — a surfer in the water
- *  cares about a strike more than anyone. The wind-verdict SPOTS list above
- *  excludes surf on purpose; this one must not. */
-const SAFETY_SPOTS = (['embalse', 'rias'] as const).flatMap((sector) =>
-  getSpotsForSector(sector).map((s) => ({
-    id: s.id, name: s.shortName, lat: s.center[1], lon: s.center[0], sector,
-  })),
-);
+/** Lightning and wind safety cover EVERY spot, surf included (safetySpots). The wind-verdict
+ *  SPOTS list above excludes surf on purpose; this one must not. */
+const SAFETY_SPOTS = safetySpots();
 
 // ── Verdict thresholds + scoring imported from analyzerLogic ──────────
 // (windVerdict, scoreSpot, inferCastreloDirection — pure functions, tested separately)
@@ -549,7 +544,7 @@ export async function reopenWindEpisodesFromHistory(sends: PastSend[], nowMs = D
       lat: BUOY_COORDS[r.station_id]?.lat ?? 0, lon: BUOY_COORDS[r.station_id]?.lon ?? 0,
       station_name: BUOY_NAMES[r.station_id] ?? `Boya ${r.station_id}`,
     }));
-    const reopened = reopenFromHistory(sends, new Set(windEpisodes.keys()), SAFETY_SPOTS as SafetySpot[], st.rows, buoys, nowMs);
+    const reopened = reopenFromHistory(sends, new Set(windEpisodes.keys()), SAFETY_SPOTS, st.rows, buoys, nowMs);
     for (const [sector, ep] of reopened) windEpisodes.set(sector, ep);
     return reopened.size;
   } catch (err) {
@@ -561,7 +556,7 @@ export async function reopenWindEpisodesFromHistory(sends: PastSend[], nowMs = D
 const lastWindLog = new Map<string, { state: string; atMs: number }>();
 
 async function checkStrongWind(readings: StationReading[], buoys: BuoyWind[], nowMs: number): Promise<void> {
-  for (const a of assessStrongWind(SAFETY_SPOTS as SafetySpot[], readings, buoys, nowMs)) {
+  for (const a of assessStrongWind(SAFETY_SPOTS, readings, buoys, nowMs)) {
     const state = windLogState(a);
     if (windLogDue(lastWindLog.get(a.sector), state, nowMs)) {
       const detail = a.evidence.map((e) => `${e.name} ${Math.round(e.gustKt)}/${Math.round(e.meanKt)}`).join(', ');
