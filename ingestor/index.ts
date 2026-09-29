@@ -32,6 +32,7 @@ import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import { runFireWatchCycle } from './fireWatch.js';
 import { runCalibrationCycle, CALIBRATION_CHECK_INTERVAL_MS } from './calibration.js';
 import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetcher.js';
+import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
   countBySource,
@@ -67,6 +68,7 @@ let outcomesTimer: ReturnType<typeof setInterval> | null = null;
 let fireWatchTimer: ReturnType<typeof setInterval> | null = null;
 let calibrationTimer: ReturnType<typeof setInterval> | null = null;
 let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
+let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -556,6 +558,11 @@ async function start(): Promise<void> {
     runNwpPreviousCycle().catch((err) => log.warn('[NWP] timer err: ' + (err as Error).message));
   }, NWP_PREVIOUS_INTERVAL_MS);
 
+  // MeteoGalicia's WRF at the buoys and spots (wrfPointArchive.ts): the API keeps no past runs, so it is
+  // stored as issued. Checked hourly; the table says whether 12 h have passed. 260s stagger, after NWP.
+  setTimeout(() => { void runWrfPointArchive(); }, 260_000);
+  wrfPointTimer = setInterval(() => { void runWrfPointArchive(); }, WRF_POINT_CHECK_MS);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -580,6 +587,7 @@ async function shutdown(signal: string): Promise<void> {
   if (fireWatchTimer) clearInterval(fireWatchTimer);
   if (calibrationTimer) clearInterval(calibrationTimer);
   if (nwpPreviousTimer) clearInterval(nwpPreviousTimer);
+  if (wrfPointTimer) clearInterval(wrfPointTimer);
 
   // Close database pool
   await closePool();
