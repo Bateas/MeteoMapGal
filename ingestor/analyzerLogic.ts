@@ -156,6 +156,8 @@ export interface BuoyWind {
   station_id: number;
   wind_speed: number;
   wind_dir: number | null;
+  /** m/s. Only the strong-wind safety alert reads it (windSafetyLogic.ts). */
+  wind_gust?: number | null;
   lat: number;
   lon: number;
   /** Reading timestamp. Optional for the same reason as StationReading.time,
