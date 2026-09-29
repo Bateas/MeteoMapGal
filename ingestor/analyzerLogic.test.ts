@@ -18,6 +18,7 @@ import {
   LOW_VERDICTS,
   canAlertOnResult,
   MIN_SOURCES_FOR_ALERT,
+  opportunityAlertAllowed,
   type SpotDef,
   type StationReading,
   type BuoyWind,
@@ -1259,3 +1260,27 @@ describe('scoreSpot — weighted wind consensus', () => {
 function msToKnotsLocal(ms: number): number {
   return ms * 1.94384;
 }
+
+describe('opportunityAlertAllowed — no invitation to sail while a front is on (29-sep)', () => {
+  // 29-sep 07:14 and 07:29: «Cies NAVEGABLE 11kt» and «Limens BUENO 15kt» went out with the
+  // front in (850 hPa 49 kt from 197) and 28-29 kt, gusts 37-41, measured around them.
+  it('holds the alert back with the front of that morning aloft', () => {
+    expect(opportunityAlertAllowed('rias', { rias: { speedKt: 49, dirDeg: 197 } })).toBe(false);
+  });
+
+  it('lets it through on a normal day: light wind aloft, or strong but from the north', () => {
+    expect(opportunityAlertAllowed('rias', { rias: { speedKt: 10, dirDeg: 200 } })).toBe(true);
+    expect(opportunityAlertAllowed('rias', { rias: { speedKt: 30, dirDeg: 330 } })).toBe(true);
+  });
+
+  it('without upper-air data it does not hold anything back', () => {
+    expect(opportunityAlertAllowed('rias', undefined)).toBe(true);
+    expect(opportunityAlertAllowed('rias', {})).toBe(true);
+  });
+
+  it('judges each sector by its own upper wind', () => {
+    const w = { rias: { speedKt: 49, dirDeg: 197 }, embalse: { speedKt: 8, dirDeg: 200 } };
+    expect(opportunityAlertAllowed('rias', w)).toBe(false);
+    expect(opportunityAlertAllowed('embalse', w)).toBe(true);
+  });
+});

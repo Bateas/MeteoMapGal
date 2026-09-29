@@ -35,6 +35,7 @@ import {
   buoyWindToBuoyReading,
   VERDICT_LABEL,
   ALERT_VERDICTS,
+  opportunityAlertAllowed,
   LOW_VERDICTS,
   canAlertOnResult,
   isWorthAlerting,
@@ -393,8 +394,11 @@ export async function runAnalysis(): Promise<void> {
     const prev = previousVerdicts.get(spot.id) ?? 'unknown';
 
     // Detect transition: low → good (skip marginal sailing <10kt — too noisy)
-    if (seenBefore && LOW_VERDICTS.has(prev) && ALERT_VERDICTS.has(result.verdict)
-        && isWorthAlerting(result.verdict, result.avgWindKt) && canAlertOnResult(result)) {
+    const rises = seenBefore && LOW_VERDICTS.has(prev) && ALERT_VERDICTS.has(result.verdict)
+      && isWorthAlerting(result.verdict, result.avgWindKt) && canAlertOnResult(result);
+    if (rises && !opportunityAlertAllowed(spot.sector, upperWind)) {
+      log.info(`[Analyzer] ${spot.name} ${VERDICT_LABEL[result.verdict]} ${Math.round(result.avgWindKt)}kt: aviso no enviado, hay frente (veto 850 hPa)`);
+    } else if (rises) {
       const dir = result.avgDir != null ? degreesToCardinal(result.avgDir) : '';
       await dispatchSpotAlert(
         spot.id, spot.name, spot.sector === 'embalse' ? 'Embalse' : 'Rías Baixas',
