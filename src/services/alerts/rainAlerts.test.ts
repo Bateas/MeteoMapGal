@@ -98,32 +98,49 @@ describe('buildRainAlerts — severity classification', () => {
     expect(alerts[0].severity).toBe('info');
   });
 
-  it('emits high severity for moderate rain (2-5mm/h)', () => {
+  it('emits moderate severity for moderate rain (2-15 mm/h, AEMET «moderada»)', () => {
     const fc = [hour({ offsetH: 2, precipProbability: 70, precipitation: 3.5 })];
-    expect(buildRainAlerts(fc)[0].severity).toBe('high');
+    expect(buildRainAlerts(fc)[0].severity).toBe('moderate');
   });
 
-  it('emits high severity for high probability even with light rain', () => {
-    // maxProb > 80 escalates to high
+  it('probability does not raise the level: 90 % of light rain stays info', () => {
     const fc = [hour({ offsetH: 2, precipProbability: 90, precipitation: 1.5 })];
-    expect(buildRainAlerts(fc)[0].severity).toBe('high');
+    expect(buildRainAlerts(fc)[0].severity).toBe('info');
   });
 
-  it('emits critical severity for intense rain (>5mm/h)', () => {
-    const fc = [hour({ offsetH: 2, precipProbability: 70, precipitation: 8 })];
-    expect(buildRainAlerts(fc)[0].severity).toBe('critical');
+  it('29-sep: 5-8 mm/h over three hours (14.8 mm) is NOT PELIGRO', () => {
+    const fc = [
+      hour({ offsetH: 0.5, precipProbability: 95, precipitation: 5.2 }),
+      hour({ offsetH: 1.5, precipProbability: 95, precipitation: 6.4 }),
+      hour({ offsetH: 2.5, precipProbability: 90, precipitation: 3.2 }),
+    ];
+    const a = buildRainAlerts(fc)[0];
+    expect(a.severity).toBe('moderate');
+    expect(a.score).toBeLessThan(55);
+    expect(a.urgent).toBe(false);
+  });
+
+  it('emits high from 15 mm/h (AEMET yellow warning) and critical from 30 mm/h', () => {
+    expect(buildRainAlerts([hour({ offsetH: 2, precipProbability: 70, precipitation: 18 })])[0].severity).toBe('high');
+    expect(buildRainAlerts([hour({ offsetH: 2, precipProbability: 70, precipitation: 35 })])[0].severity).toBe('critical');
   });
 });
 
 // ── Score computation ───────────────────────────────────────
 
 describe('buildRainAlerts — score boost rules', () => {
-  it('imminent rain (<1h) boosts score +10', () => {
-    const fc = [hour({ offsetH: 0.5, precipProbability: 70, precipitation: 1.5 })];
+  it('imminent heavy rain (<1h) boosts score +10 and is urgent', () => {
+    const fc = [hour({ offsetH: 0.5, precipProbability: 70, precipitation: 18 })];
     const alerts = buildRainAlerts(fc);
-    // base score for 1.5mm: 30 + (1.5-0.5)*13 = 43, +10 imminent = 53
-    expect(alerts[0].score).toBeGreaterThanOrEqual(50);
-    expect(alerts[0].urgent).toBe(true); // imminent + not moderate severity
+    // base for 18 mm/h: 55 + (18-15)*1.6 = 59.8, +10 imminent = 69.8
+    expect(alerts[0].score).toBe(70);
+    expect(alerts[0].urgent).toBe(true);
+  });
+
+  it('imminent light rain is not urgent, and its score stays inside its band', () => {
+    const a = buildRainAlerts([hour({ offsetH: 0.5, precipProbability: 95, precipitation: 1.9 })])[0];
+    expect(a.urgent).toBe(false);
+    expect(a.score).toBeLessThanOrEqual(44);
   });
 
   it('high probability (≥90%) boosts score +5', () => {
@@ -147,12 +164,13 @@ describe('buildRainAlerts — score boost rules', () => {
 // ── Title content ───────────────────────────────────────────
 
 describe('buildRainAlerts — title formatting', () => {
-  it('"Lluvia intensa prevista" for >5mm/h', () => {
-    const fc = [hour({ offsetH: 2, precipProbability: 70, precipitation: 8 })];
-    expect(buildRainAlerts(fc)[0].title).toContain('intensa');
+  it('titles follow the AEMET scale: fuerte from 15, muy fuerte from 30', () => {
+    expect(buildRainAlerts([hour({ offsetH: 2, precipProbability: 70, precipitation: 18 })])[0].title).toMatch(/^Lluvia fuerte prevista/);
+    expect(buildRainAlerts([hour({ offsetH: 2, precipProbability: 70, precipitation: 35 })])[0].title).toMatch(/^Lluvia muy fuerte prevista/);
+    expect(buildRainAlerts([hour({ offsetH: 2, precipProbability: 70, precipitation: 8 })])[0].title).toMatch(/^Lluvia moderada prevista/);
   });
 
-  it('"Lluvia moderada prevista" for 2-5mm/h', () => {
+  it('"Lluvia moderada prevista" for 2-15mm/h', () => {
     const fc = [hour({ offsetH: 2, precipProbability: 70, precipitation: 3 })];
     expect(buildRainAlerts(fc)[0].title).toContain('moderada');
   });
