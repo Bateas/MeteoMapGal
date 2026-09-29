@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends,
+  assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, windLogDue, windLogState, WIND_LOG_HEARTBEAT_MS,
   WIND_EPISODE_GAP_MS, type SafetySpot,
 } from './windSafetyLogic';
 import type { BuoyWind, StationReading } from './analyzerLogic';
@@ -138,5 +138,28 @@ describe('episodesFromSends — a restart in the middle of a gale does not annou
     expect([...eps.keys()]).toEqual(['rias']);
     expect(windAlertDue(eps.get('rias'), 'peligro', NOW).due).toBe(false);
     expect(windAlertDue(eps.get('embalse'), 'aviso', NOW).due).toBe(true);
+  });
+});
+
+describe('windLogDue — the state line is written when it changes, not every cycle (29-sep)', () => {
+  it('writes on a change of level, then only the hourly heartbeat while it holds', () => {
+    const t0 = NOW;
+    expect(windLogDue(undefined, 'peligro', t0)).toBe(true);
+    const prev = { state: 'peligro', atMs: t0 };
+    expect(windLogDue(prev, 'peligro', t0 + 5 * 60_000)).toBe(false);   // figures moved, same level
+    expect(windLogDue(prev, 'aviso', t0 + 10 * 60_000)).toBe(true);
+    expect(windLogDue(prev, 'peligro', t0 + WIND_LOG_HEARTBEAT_MS)).toBe(true);
+  });
+
+  it('says nothing on a calm start, and says once that it went calm', () => {
+    expect(windLogDue(undefined, 'sin rachas fuertes', NOW)).toBe(false);
+    expect(windLogDue({ state: 'aviso', atMs: NOW }, 'sin rachas fuertes', NOW + 5 * 60_000)).toBe(true);
+    expect(windLogDue({ state: 'sin rachas fuertes', atMs: NOW }, 'sin rachas fuertes', NOW + 2 * WIND_LOG_HEARTBEAT_MS)).toBe(false);
+  });
+
+  it('the state is the level, or whether there is anything uncorroborated', () => {
+    expect(windLogState({ level: 'peligro', evidence: [] })).toBe('peligro');
+    expect(windLogState({ level: null, evidence: [{ name: 'Ons', meanKt: 30, gustKt: 45, lat: 0, lon: 0 }] })).toBe('sin corroborar');
+    expect(windLogState({ level: null, evidence: [] })).toBe('sin rachas fuertes');
   });
 });

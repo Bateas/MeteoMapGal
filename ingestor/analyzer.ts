@@ -15,7 +15,7 @@ import { detectThermalForecast } from '../src/services/thermalForecastDetector.j
 import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
 import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert, dispatchWindSafetyAlert, type PastSend } from './alertDispatcher.js';
-import { assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, type WindEpisode, type SafetySpot } from './windSafetyLogic.js';
+import { assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, windLogState, windLogDue, type WindEpisode, type SafetySpot } from './windSafetyLogic.js';
 import { dispatchLightningPush, logPushStartup } from './pushDispatcher.js';
 import {
   assessSpotLightningRisk,
@@ -510,20 +510,21 @@ const windEpisodes = new Map<string, WindEpisode>();
 /** Restore the strong-wind episodes from the sends actually made (sentAlerts.ts), so a restart in
  *  the middle of a gale does not announce it again. A send older than the episode gap ended its
  *  episode already, and a new one is announced as usual. */
-export function seedWindEpisodes(sends: PastSend[], nowMs = Date.now()): void {
-  for (const [sector, ep] of episodesFromSends(sends, nowMs)) windEpisodes.set(sector, ep);
+export function seedWindEpisodes(sends: PastSend[], nowMs = Date.now()): number {
+  let n = 0;
+  for (const [sector, ep] of episodesFromSends(sends, nowMs)) { windEpisodes.set(sector, ep); n++; }
+  return n;
 }
-/** Last evidence line logged per sector: the log says when it changes, not every cycle. */
-const lastWindLine = new Map<string, string>();
+/** Last state logged per sector (windLogDue): the log says when it changes, plus an hourly heartbeat. */
+const lastWindLog = new Map<string, { state: string; atMs: number }>();
 
 async function checkStrongWind(readings: StationReading[], buoys: BuoyWind[], nowMs: number): Promise<void> {
   for (const a of assessStrongWind(SAFETY_SPOTS as SafetySpot[], readings, buoys, nowMs)) {
-    const line = a.evidence.length === 0 ? 'sin rachas fuertes'
-      : `${a.level ?? 'sin corroborar'} — ${a.evidence.map((e) => `${e.name} ${Math.round(e.gustKt)}/${Math.round(e.meanKt)}`).join(', ')}`;
-    if (line !== lastWindLine.get(a.sector)) {
-      // First cycle after a restart stays quiet when there is nothing: only changes are news.
-      if (lastWindLine.has(a.sector) || a.evidence.length > 0) log.info(`[Viento fuerte] ${a.sector}: ${line}`);
-      lastWindLine.set(a.sector, line);
+    const state = windLogState(a);
+    if (windLogDue(lastWindLog.get(a.sector), state, nowMs)) {
+      const detail = a.evidence.map((e) => `${e.name} ${Math.round(e.gustKt)}/${Math.round(e.meanKt)}`).join(', ');
+      log.info(`[Viento fuerte] ${a.sector}: ${state}${detail ? ` — ${detail}` : ''}`);
+      lastWindLog.set(a.sector, { state, atMs: nowMs });
     }
     const { due, episode } = windAlertDue(windEpisodes.get(a.sector), a.level, nowMs);
     if (episode) windEpisodes.set(a.sector, episode); else windEpisodes.delete(a.sector);
