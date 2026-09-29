@@ -288,6 +288,31 @@ export function opportunityAlertAllowed(sector: 'rias' | 'embalse', upperWind: U
   return !assessSynopticRegime(upperWind?.[sector])?.vetoed;
 }
 
+/**
+ * Cycles a rise must hold before it is announced (5 min each). Measured on 14 days of stored
+ * pipeline verdicts to 29-sep, 11 spots: announcing on the first cycle sent 50 alerts and 29 of
+ * them were back to calm or light within 30 min; holding 4 cycles sends 20, 4 of them bounce,
+ * and the same 8 of 10 real wind episodes (60+ min) are still announced, 15 min later.
+ * Asking for a calm spell before the rise as well lost real episodes, so it is not done.
+ */
+export const OPPORTUNITY_CONFIRM_CYCLES = 4;
+
+export interface RiseState { armed: boolean; pending: number }
+
+/**
+ * One cycle of the opportunity alert: a spot has to be seen calm or light (that arms it) and
+ * then worth announcing for OPPORTUNITY_CONFIRM_CYCLES cycles in a row. Anything in between that
+ * is not worth announcing disarms it. 'unknown' does not arm: after a restart, or a data gap,
+ * filling in ignorance is not a rise. `ok` = sailable verdict, worth alerting, enough sources.
+ */
+export function stepOpportunityRise(prev: RiseState | undefined, verdict: Verdict, ok: boolean): { state: RiseState; confirmed: boolean } {
+  if (verdict === 'calm' || verdict === 'light') return { state: { armed: true, pending: 0 }, confirmed: false };
+  if (!ok || !prev?.armed) return { state: { armed: false, pending: 0 }, confirmed: false };
+  const pending = prev.pending + 1;
+  if (pending >= OPPORTUNITY_CONFIRM_CYCLES) return { state: { armed: false, pending: 0 }, confirmed: true };
+  return { state: { armed: true, pending }, confirmed: false };
+}
+
 /** Whether a verdict is worth announcing when a spot rises into it: good or strong, or
  *  sailing from 10kt (marginal sailing below that flips too often to be worth a message). */
 export function isWorthAlerting(verdict: string, windKt: number | null): boolean {
