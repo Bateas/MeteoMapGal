@@ -43,11 +43,20 @@ describe('assessBeachDay — hard "mal día" gates', () => {
     expect(r.reasons[0]).toMatch(/[Ff]río/);
   });
 
-  it('strong gusts (≥25kt) → poor even with a moderate mean (29-sep Cesantes: 12 kt, gusts 32)', () => {
-    const r = assessBeachDay(opts({ cloudCoverPct: 10, airTempC: 25, windKt: 12, gustKt: 32, waterTempC: 18 }));
+  it('overcast and gusty is a bad day by the sum (29-sep Cesantes: 12 kt, gusts 32, front)', () => {
+    const r = assessBeachDay(opts({ cloudCoverPct: 100, airTempC: 25, windKt: 12, gustKt: 32, waterTempC: 18 }));
     expect(r.verdict).toBe('poor');
-    expect(r.reasons[0]).toBe('Rachas de 32 kt');
-    expect(assessBeachDay(opts({ cloudCoverPct: 10, airTempC: 25, windKt: 12, gustKt: 18, waterTempC: 18 })).verdict).not.toBe('poor');
+    expect(r.summary).toBe('Mal día de playa');
+    expect(r.reasons).toContain('Rachas de 32 kt');
+    expect(r.reasons).not.toContain('Brisa suave');
+  });
+
+  it('a windy beach with sun and heat stays a good day: gusts subtract, they do not veto', () => {
+    const r = assessBeachDay(opts({ cloudCoverPct: 10, airTempC: 27, windKt: 16, gustKt: 26, waterTempC: 18 }));
+    expect(r.verdict).toBe('ok');
+    expect(r.reasons).toContain('Rachas de 26 kt');
+    // the same day without gusts would be better, never worse
+    expect(assessBeachDay(opts({ cloudCoverPct: 10, airTempC: 27, windKt: 16, waterTempC: 18 })).score).toBeGreaterThan(r.score);
   });
 
   it('very strong wind (≥25kt) → poor', () => {
