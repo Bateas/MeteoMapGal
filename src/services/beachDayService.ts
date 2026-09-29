@@ -23,6 +23,8 @@ export interface BeachDayInputs {
   cloudCoverPct: number | null;
   /** Live wind speed (kt) */
   windKt: number | null;
+  /** Live gust (kt), the one the spot shows. Optional: callers without it keep the old behaviour. */
+  gustKt?: number | null;
   /** Air temperature (°C) */
   airTempC: number | null;
   /** Sea-surface temperature (°C) */
@@ -49,6 +51,10 @@ export interface BeachDayResult {
 const COLD_AIR_GATE = 20;
 /** Wind at/above this (kt) is "too windy" for the beach (sand flying). */
 const STRONG_WIND_GATE = 25;
+/** A gust at/above this (kt) is a bad beach day whatever the mean says: umbrellas and sand fly.
+ *  On 29-sep, with a front in, Cesantes read 12 kt of mean and 32 of gust and the spot said
+ *  «Día de playa ideal · Brisa suave». */
+const GUST_GATE = 25;
 /** Score needed to call it an "ideal" (vs merely good) beach day. */
 const IDEAL_SCORE = 70;
 
@@ -73,6 +79,9 @@ export function assessBeachDay(i: BeachDayInputs): BeachDayResult {
   }
   if (i.windKt != null && i.windKt >= STRONG_WIND_GATE) {
     return bad('Demasiado viento');
+  }
+  if (i.gustKt != null && i.gustKt >= GUST_GATE) {
+    return bad(`Rachas de ${Math.round(i.gustKt)} kt`);
   }
 
   // ── Not a bad day → score ideal vs "buen día" ──

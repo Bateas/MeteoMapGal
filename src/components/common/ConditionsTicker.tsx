@@ -252,6 +252,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
           const res = assessBeachDay({
             cloudCoverPct,
             windKt: sc.effectiveWindKt ?? sc.wind?.avgSpeedKt ?? null,
+            gustKt: sc.gustKt ?? null,
             airTempC: sc.airTemp ?? null,
             waterTempC: sc.waterTemp ?? null,
             rainingNow,
