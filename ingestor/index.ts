@@ -13,6 +13,7 @@ import 'dotenv/config';
 import { initPool, pingDb, getPool, batchUpsert, batchUpsertBuoys, batchUpsertStations, closePool, setStuckAnemometers } from './db.js';
 import { findStuckAnemometers } from './queries.js';
 import { discoverAllStations } from './discover.js';
+import { carryOverEmptySources } from './discoveryCarry.js';
 import { resolveMissingAltitudes } from './demAltitudes.js';
 import { fetchAllObservations, getNetatmoSweepStatus, NETATMO_SWEEP_INTERVAL_MS } from './fetchers.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
@@ -56,6 +57,8 @@ const DISCOVER_MS = DISCOVER_INTERVAL_MIN * 60_000;
 // ── State ────────────────────────────────────────────
 
 let stations = new Map<string, NormalizedStation>();
+/** Last discovery in which each source answered with stations (discoveryCarry.ts). */
+let discoveryGoodAt = new Map<string, number>();
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let discoverTimer: ReturnType<typeof setInterval> | null = null;
 let lightningTimer: ReturnType<typeof setInterval> | null = null;
@@ -340,12 +343,20 @@ async function rediscover(): Promise<void> {
   if (isShuttingDown) return;
 
   try {
-    const newStations = await discoverAllStations();
+    const discovered = await discoverAllStations();
     const prevCount = stations.size;
-    stations = newStations;
+    // A source whose discovery failed comes back empty: keep the stations it had, or it goes
+    // unpolled for an hour (29-sep 04:04 -> 05:04, MeteoGalicia and three more).
+    const merge = carryOverEmptySources(stations, discovered, discoveryGoodAt, Date.now());
+    discoveryGoodAt = merge.lastGoodAt;
+    for (const c of merge.carried) {
+      log.warn(`Descubrimiento: ${c.source} vino vacio, se mantienen sus ${c.count} estaciones del ultimo descubrimiento bueno`);
+    }
+    stations = merge.stations;
 
-    // Persist station coordinates to DB for analyzer distance queries
-    const upserted = await batchUpsertStations(stations);
+    // Persist station coordinates to DB for analyzer distance queries. Only what this discovery
+    // really listed: stations.updated_at is the mark of "discovery still sees it".
+    const upserted = await batchUpsertStations(discovered);
     log.info(`Stations persisted: ${upserted} upserted to DB`);
     // Ground altitude for any new station whose network gives none. Fire-and-forget.
     void resolveMissingAltitudes();
@@ -392,6 +403,7 @@ async function start(): Promise<void> {
 
   // 2. Initial station discovery + persist coords
   stations = await discoverAllStations();
+  discoveryGoodAt = carryOverEmptySources(new Map(), stations, new Map(), Date.now()).lastGoodAt;
   if (stations.size === 0) {
     log.warn('No stations found — will retry on next discovery cycle');
   } else {
