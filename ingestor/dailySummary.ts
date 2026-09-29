@@ -19,7 +19,7 @@
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
-import { logSent } from './alertDispatcher.js';
+import { noteSent, type PastSend } from './alertDispatcher.js';
 import { msToKnots, degreesToCardinal, angleDifference } from '../src/services/windUtils.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
@@ -54,6 +54,12 @@ const STORM_CIN_MAX = 200;
 // ── State ───────────────────────────────────────────
 
 let lastSummaryDate = '';
+
+/** A restart between 9 and 10 used to send the summary again. Restore today's send, if any (sentAlerts.ts). */
+export function seedDailySummary(sends: PastSend[], now = new Date()): void {
+  const today = now.toDateString();
+  if (sends.some((s) => s.key === 'summary:daily' && new Date(s.atMs).toDateString() === today)) lastSummaryDate = today;
+}
 
 // ── Types ───────────────────────────────────────────
 
@@ -342,7 +348,7 @@ async function sendToN8n(message: string): Promise<boolean> {
       body: JSON.stringify({ text: message }),
       signal: AbortSignal.timeout(10_000),
     });
-    if (res.ok) logSent('daily-summary', message);
+    if (res.ok) noteSent({ key: 'summary:daily', type: 'daily-summary', level: '', title: 'Resumen diario', message, sector: null });
     return res.ok;
   } catch (err) {
     log.error('n8n webhook failed:', (err as Error).message);

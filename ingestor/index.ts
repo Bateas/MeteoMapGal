@@ -17,8 +17,10 @@ import { resolveMissingAltitudes } from './demAltitudes.js';
 import { fetchAllObservations, getNetatmoSweepStatus, NETATMO_SWEEP_INTERVAL_MS } from './fetchers.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
-import { checkAndSendDailySummary } from './dailySummary.js';
-import { runAnalysis } from './analyzer.js';
+import { checkAndSendDailySummary, seedDailySummary } from './dailySummary.js';
+import { runAnalysis, seedWindEpisodes } from './analyzer.js';
+import { setSendRecorder, seedCooldowns } from './alertDispatcher.js';
+import { recordSent, loadRecentSends } from './sentAlerts.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
 import { runLightningCycle } from './lightningFetcher.js';
 import { runSynopticCycle } from './synopticFetcher.js';
@@ -375,6 +377,15 @@ async function start(): Promise<void> {
   // Must run before the first cycle so a station that died before this
   // process started is already on the roster and can be flagged.
   await seedBuoyLastSeen();
+
+  // Alert cooldowns live in memory. Store every send and restore them from what was actually
+  // sent, or each restart announces again what already went out (sentAlerts.ts).
+  setSendRecorder(recordSent);
+  const recentSends = await loadRecentSends();
+  const restored = seedCooldowns(recentSends);
+  seedWindEpisodes(recentSends);
+  seedDailySummary(recentSends);
+  log.info(`Alert cooldowns: ${restored} restored from ${recentSends.length} sends in the last 24 h`);
 
   // 2. Initial station discovery + persist coords
   stations = await discoverAllStations();

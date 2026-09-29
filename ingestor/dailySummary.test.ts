@@ -3,8 +3,9 @@
  * Focus: forecast-driven day outlook, spot-favouring by primary windPattern,
  * the inland-reservoir marine-obs bug fix, and the no-regional-averages cut.
  */
-import { describe, it, expect } from 'vitest';
-import {
+import { describe, it, expect, vi } from 'vitest';
+import { log } from './logger';
+import { checkAndSendDailySummary, seedDailySummary,
   summarizeDayOutlook, spotsFavoredByDir, formatOutlook,
   summarizeDayHazard, formatHazard,
   buildSectorBlock, buildMessage,
@@ -193,5 +194,18 @@ describe('buildMessage', () => {
     expect(msg).toMatch(/Embalse de Castrelo/);
     expect(msg).not.toMatch(/Temp:/);
     expect(msg).not.toMatch(/Humedad:/);
+  });
+});
+
+describe('daily summary — a restart between 9 and 10 does not send it twice (29-sep)', () => {
+  it('skips the summary when today\'s was already sent', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 29, 9, 30));
+    const info = vi.spyOn(log, 'info').mockImplementation(() => {});
+    seedDailySummary([{ key: 'summary:daily', atMs: new Date(2026, 8, 29, 9, 4).getTime(), level: '' }], new Date());
+    await checkAndSendDailySummary();
+    expect(info).not.toHaveBeenCalledWith('Generating daily summary...');
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 });
