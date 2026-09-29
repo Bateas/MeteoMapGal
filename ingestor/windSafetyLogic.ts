@@ -104,9 +104,17 @@ export function assessStrongWind(
     const level: WindSafetyLevel | null = strong >= WIND_MIN_SOURCES ? 'peligro'
       : evidence.length >= WIND_MIN_SOURCES ? 'aviso' : null;
 
+    // Spots ordered by the strongest gust measured near them, so the message names the most
+    // exposed first. In config order, the first alert on 29-sep listed five spots of the inner
+    // ría and cut A Lanzada and Cíes, where the 44-46 kt gusts were.
+    const ranked = sectorSpots
+      .map((s) => ({ s, peak: Math.max(0, ...evidence
+        .filter((e) => haversineDistance(s.lat, s.lon, e.lat, e.lon) <= WIND_NEAR_SPOT_KM)
+        .map((e) => e.gustKt)) }))
+      .filter((x) => x.peak > 0)
+      .sort((a, b) => b.peak - a.peak);
     const named: SafetySpot[] = [];
-    for (const s of sectorSpots) {
-      if (!evidence.some((e) => haversineDistance(s.lat, s.lon, e.lat, e.lon) <= WIND_NEAR_SPOT_KM)) continue;
+    for (const { s } of ranked) {
       if (named.some((n) => haversineDistance(n.lat, n.lon, s.lat, s.lon) <= 2)) continue; // A Lanzada and its surf twin
       named.push(s);
     }
