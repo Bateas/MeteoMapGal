@@ -31,6 +31,8 @@ import {
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 const FETCH_TIMEOUT_MS = 12_000;
+/** Hours ahead each cycle stores (the request's forecast_hours). */
+const FORECAST_HOURS = 12;
 
 // Sector centers — same as forecastFetcher.ts to keep correlations clean
 const SECTOR_COORDS = [
@@ -161,7 +163,7 @@ async function fetchSector(lat: number, lon: number): Promise<OpenMeteoResponse 
     longitude: lon.toString(),
     hourly: [...upperVars, ...convectionVars].join(','),
     past_hours: '6',
-    forecast_hours: '12',
+    forecast_hours: String(FORECAST_HOURS),
     wind_speed_unit: 'ms',
     timezone: 'UTC',
   });
@@ -256,6 +258,25 @@ async function batchInsertConvection(rows: ConvectionRow[]): Promise<number> {
  * ±6h around the present so we capture the model's most recent re-analysis
  * of recent past hours (where the data is most accurate).
  */
+/**
+ * Roughly when the last synoptic cycle ran, for the first run after a start
+ * (startupSchedule.ts): each cycle stores the next FORECAST_HOURS hours, so the
+ * furthest stored hour minus that span. Read a little early on purpose (the
+ * first stored hour is the current one), which only brings the run forward.
+ * Null with nothing ahead stored, or on error.
+ */
+export async function lastSynopticRunMs(): Promise<number | null> {
+  try {
+    const r = await getPool().query<{ ms: string | null }>(
+      'SELECT (extract(epoch FROM max(time)) * 1000)::bigint AS ms FROM upper_air_hourly WHERE time > NOW()',
+    );
+    const ms = r.rows[0]?.ms;
+    return ms == null ? null : Number(ms) - FORECAST_HOURS * 60 * 60_000;
+  } catch {
+    return null;
+  }
+}
+
 export async function runSynopticCycle(): Promise<void> {
   if (isOpenMeteoBreakerOpen()) {
     log.warn(
