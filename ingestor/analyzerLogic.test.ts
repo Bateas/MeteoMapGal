@@ -19,6 +19,10 @@ import {
   canAlertOnResult,
   MIN_SOURCES_FOR_ALERT,
   opportunityAlertAllowed,
+  stepOpportunityRise,
+  OPPORTUNITY_CONFIRM_CYCLES,
+  type RiseState,
+  type Verdict,
   type SpotDef,
   type StationReading,
   type BuoyWind,
@@ -1282,5 +1286,36 @@ describe('opportunityAlertAllowed — no invitation to sail while a front is on 
     const w = { rias: { speedKt: 49, dirDeg: 197 }, embalse: { speedKt: 8, dirDeg: 200 } };
     expect(opportunityAlertAllowed('rias', w)).toBe(false);
     expect(opportunityAlertAllowed('embalse', w)).toBe(true);
+  });
+});
+
+describe('stepOpportunityRise — a rise is announced only once it has held (29-sep)', () => {
+  // Drive a sequence of [verdict, ok] and return the cycle indices that confirmed.
+  const run = (seq: [Verdict, boolean][]) => {
+    let s: RiseState | undefined; const fired: number[] = [];
+    seq.forEach(([v, ok], i) => { const r = stepOpportunityRise(s, v, ok); s = r.state; if (r.confirmed) fired.push(i); });
+    return fired;
+  };
+  const good: [Verdict, boolean] = ['good', true];
+
+  it(`fires on the ${OPPORTUNITY_CONFIRM_CYCLES}th cycle of a rise from calm, and only once`, () => {
+    expect(run([['calm', false], good, good, good, good, good, good])).toEqual([OPPORTUNITY_CONFIRM_CYCLES]);
+  });
+
+  it('a flicker (the Limens morning: calm, good, calm, good...) never fires', () => {
+    expect(run([['calm', false], good, ['calm', false], good, good, ['light', false], good])).toEqual([]);
+  });
+
+  it('after a restart, a spot already in wind is not announced: it was never seen calm', () => {
+    expect(run([good, good, good, good, good])).toEqual([]);
+    expect(run([['unknown', false], good, good, good, good, good])).toEqual([]);
+  });
+
+  it('a cycle not worth announcing in between disarms it (sailing under 10 kt)', () => {
+    expect(run([['calm', false], good, ['sailing', false], good, good, good, good])).toEqual([]);
+  });
+
+  it('a new rise after the wind dropped away again is announced again', () => {
+    expect(run([['calm', false], good, good, good, good, ['light', false], good, good, good, good])).toEqual([4, 9]);
   });
 });

@@ -37,11 +37,11 @@ import {
   VERDICT_LABEL,
   ALERT_VERDICTS,
   opportunityAlertAllowed,
-  LOW_VERDICTS,
+  stepOpportunityRise,
   canAlertOnResult,
   isWorthAlerting,
   type SpotDef,
-  type Verdict,
+  type RiseState,
   type StationReading,
   type BuoyWind,
   type SpotResult,
@@ -100,7 +100,8 @@ const SAFETY_SPOTS = (['embalse', 'rias'] as const).flatMap((sector) =>
 
 // ── State ───────────────────────────────────────────
 
-const previousVerdicts = new Map<string, Verdict>();
+/** Per spot: armed by a calm/light verdict, counting the cycles a rise has held (stepOpportunityRise). */
+const riseStates = new Map<string, RiseState>();
 let lastForecastRun = 0;
 const FORECAST_INTERVAL_MS = 30 * 60_000; // 30 minutes
 /** Whether spot_scores has the engine shadow columns, as last seen by persistSpotScores.
@@ -391,16 +392,14 @@ export async function runAnalysis(): Promise<void> {
       );
     }
 
-    // The FIRST time this process sees a spot there is no transition to
-    // report, only ignorance being filled in. Without this, every restart
-    // announced whatever the wind happened to be doing at that moment — and
-    // a restart is exactly when several spots report at once.
-    const seenBefore = previousVerdicts.has(spot.id);
-    const prev = previousVerdicts.get(spot.id) ?? 'unknown';
-
-    // Detect transition: low → good (skip marginal sailing <10kt — too noisy)
-    const rises = seenBefore && LOW_VERDICTS.has(prev) && ALERT_VERDICTS.has(result.verdict)
+    // A rise from calm/light into a sailable verdict, held for OPPORTUNITY_CONFIRM_CYCLES
+    // cycles (stepOpportunityRise). A spot is only armed once it has been SEEN calm or light,
+    // so a restart never announces whatever the wind happened to be doing at that moment.
+    const ok = ALERT_VERDICTS.has(result.verdict)
       && isWorthAlerting(result.verdict, result.avgWindKt) && canAlertOnResult(result);
+    const step = stepOpportunityRise(riseStates.get(spot.id), result.verdict, ok);
+    riseStates.set(spot.id, step.state);
+    const rises = step.confirmed;
     if (rises && !opportunityAlertAllowed(spot.sector, upperWind)) {
       log.info(`[Analyzer] ${spot.name} ${VERDICT_LABEL[result.verdict]} ${Math.round(result.avgWindKt)}kt: aviso no enviado, hay frente (veto 850 hPa)`);
     } else if (rises) {
@@ -411,8 +410,6 @@ export async function runAnalysis(): Promise<void> {
         { gustKt: result.maxGustKt > 0 ? result.maxGustKt : undefined },
       );
     }
-
-    previousVerdicts.set(spot.id, result.verdict);
   }
 
   // Detector summary log (cycle-level — once per 5min poll instead of per-spot)
