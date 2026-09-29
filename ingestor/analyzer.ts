@@ -456,6 +456,14 @@ export async function runAnalysis(): Promise<void> {
         if (!hasThermalSpots) continue;
 
         const signals = detectThermalForecast(hourly as any);
+        // A thermal-wind forecast is an invitation too. On 29-sep it announced «Viento probable
+        // 12-19h» for the reservoir with 47-54 kt from the SSW at 850 hPa over it: a front, not a
+        // thermal. Same veto as the spot alert and the breeze boosts.
+        if (signals.length > 0 && (sector === 'rias' || sector === 'embalse')
+            && !opportunityAlertAllowed(sector, upperWind)) {
+          log.info(`[Analyzer] Previsión térmica ${sector}: aviso no enviado, hay frente (veto 850 hPa)`);
+          continue;
+        }
         for (const signal of signals) {
           await dispatchForecastAlert(
             sector === 'embalse' ? 'Embalse' : 'Rías Baixas',

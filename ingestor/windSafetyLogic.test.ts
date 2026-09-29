@@ -113,3 +113,17 @@ describe('formatWindSafetyMessage', () => {
     expect(`${message} ${aviso.message}`).not.toMatch(/puedes|permitido|apto|v[ií]a libre|sal a navegar/i);
   });
 });
+
+describe('assessStrongWind — names the most exposed spots first (first live alert, 29-sep)', () => {
+  it('orders the spots by the strongest gust near them, not by config order', () => {
+    const spots: SafetySpot[] = [
+      { id: 'bocana', name: 'Bocana', lat: 42.265, lon: -8.7, sector: 'rias' },
+      { id: 'lanzada', name: 'A Lanzada', lat: 42.4493, lon: -8.8795, sector: 'rias' },
+    ];
+    const a = assessStrongWind(spots, [
+      station('Cangas-Porto', 42.26, -8.78, 21, 36),   // near Bocana
+      station('A Lanzada', 42.45, -8.88, 31, 44),      // at A Lanzada
+    ], [], NOW).find((x) => x.sector === 'rias')!;
+    expect(a.spots).toEqual(['A Lanzada', 'Bocana']);
+  });
+});
