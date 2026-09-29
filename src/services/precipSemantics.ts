@@ -30,6 +30,12 @@ const MIN_MS = 60_000;
 /** A dayTotal counter needs a reading before the window to measure growth from; one
  *  older than this says too little about where the counter stood when the window opened. */
 const DAY_TOTAL_BASELINE_MAX_MIN = 30;
+/** A drop of a dayTotal counter that comes back to where it was within this many readings
+ *  and this many minutes is a bad reading, not a reset (withoutCounterDips). */
+const DIP_MAX_READINGS = 2;
+const DIP_MAX_MIN = 120;
+/** Drops smaller than this are rounding of the counter, neither a dip nor a reset. */
+const DIP_TOL_MM = 0.05;
 
 /** The meaning of the precipitation field for a station id, by its source prefix.
  *  Null when the network's meaning is unknown: better no number than a wrong one. */
@@ -71,7 +77,9 @@ export function precipSamplesFromHistory(
  *     over-state (the reading covers a full hour).
  *   - dayTotal: sum of the positive steps of the counter, starting from the last reading
  *     at or before the window start (at most 30 min before it) or, if there is none, from
- *     the first reading inside the window. A negative step is a reset, not negative rain.
+ *     the first reading inside the window. A negative step is a reset, not negative rain,
+ *     unless the counter comes back to where it was right after: then it was a bad reading
+ *     and it is dropped (withoutCounterDips).
  */
 export function rainInWindowMm(id: string, s: PrecipSample[], nowMs: number, windowMin: number): number | null {
   return plausibleRain(rawRainInWindowMm(id, s, nowMs, windowMin), windowMin);
@@ -114,16 +122,52 @@ export function rawRainInWindowMm(id: string, s: PrecipSample[], nowMs: number, 
   }
 
   // dayTotal
+  const counter = withoutCounterDips(sorted);
   let from = -1;
-  for (let i = 0; i < sorted.length; i++) {
-    const t = sorted[i].t;
+  for (let i = 0; i < counter.length; i++) {
+    const t = counter[i].t;
     if (t <= start && t >= start - DAY_TOTAL_BASELINE_MAX_MIN * MIN_MS) from = i;
   }
-  if (from < 0) from = sorted.findIndex((x) => x.t > start);
-  if (from < 0 || sorted.length - from < 2) return null;
+  if (from < 0) from = counter.findIndex((x) => x.t > start);
+  if (from < 0 || counter.length - from < 2) return null;
   let sum = 0;
-  for (let i = from + 1; i < sorted.length; i++) sum += Math.max(0, sorted[i].mm - sorted[i - 1].mm);
+  for (let i = from + 1; i < counter.length; i++) sum += Math.max(0, counter[i].mm - counter[i - 1].mm);
   return round2(sum);
+}
+
+/**
+ * The readings of a dayTotal counter (sorted by time) without its lone dips. Meteoclimatic
+ * sometimes serves a single 0 between two equal day totals: mc_ESGAL1500000015211A on 28-ago
+ * read 21.1 at 10:02, 0 at 10:10 and 21.1 again at 10:19, and counting the way back up as
+ * rain turned a 24 mm day into 45. A drop is a reset only if it lasts: when the counter comes
+ * back to where it was within the next DIP_MAX_READINGS readings and DIP_MAX_MIN minutes, the
+ * low readings are dropped. A real reset followed at once by more rain than the day had before
+ * it would be read short by that day's total; at midnight that is a few tenths at most.
+ */
+export function withoutCounterDips(sorted: PrecipSample[]): PrecipSample[] {
+  const out: PrecipSample[] = [];
+  let i = 0;
+  while (i < sorted.length) {
+    const prev = out[out.length - 1];
+    const cur = sorted[i];
+    if (prev && cur.mm < prev.mm - DIP_TOL_MM) {
+      let back = -1;
+      for (let j = i + 1; j <= i + DIP_MAX_READINGS && j < sorted.length; j++) {
+        if (sorted[j].t - cur.t > DIP_MAX_MIN * MIN_MS) break;
+        if (sorted[j].mm >= prev.mm - DIP_TOL_MM) {
+          back = j;
+          break;
+        }
+      }
+      if (back >= 0) {
+        i = back;
+        continue;
+      }
+    }
+    out.push(cur);
+    i++;
+  }
+  return out;
 }
 
 /** Hundredths of a mm: gauges resolve 0.1-0.25 mm, and float noise (4.52 - 4.32 =
