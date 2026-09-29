@@ -10,10 +10,7 @@
 import { createHash } from 'crypto';
 import { log } from './logger.js';
 import { batchUpsertWebcamReadings, getPool } from './db.js';
-import { fogCorroborated, FOG_NEAR_KM, type NearbyWeather } from './fogAlertGate.js';
-import { rainInWindowMm, type PrecipSample } from '../src/services/precipSemantics.js';
-import { haversineDistance } from '../src/services/geoUtils.js';
-import { isWindBlacklisted } from '../src/services/spotScoringEngine.js';
+import { fogCorroborated, nearbyFromRows, type NearbyRow, type NearbyWeather } from './fogAlertGate.js';
 
 /**
  * The stations within FOG_NEAR_KM of a camera over the last 90 minutes: latest mean wind and
@@ -22,10 +19,7 @@ import { isWindBlacklisted } from '../src/services/spotScoringEngine.js';
  */
 async function nearbyWeather(lat: number, lon: number): Promise<NearbyWeather[]> {
   try {
-    const { rows } = await getPool().query<{
-      station_id: string; latitude: number; longitude: number; time: Date;
-      wind_speed: number | null; temperature: number | null; dew_point: number | null; precip: number | null;
-    }>(
+    const { rows } = await getPool().query<NearbyRow>(
       `SELECT r.station_id, s.latitude, s.longitude, r.time, r.wind_speed, r.temperature, r.dew_point, r.precip
          FROM readings r JOIN stations s USING (station_id)
         WHERE r.time > NOW() - INTERVAL '90 minutes'
@@ -34,25 +28,7 @@ async function nearbyWeather(lat: number, lon: number): Promise<NearbyWeather[]>
         ORDER BY r.station_id, r.time`,
       [lat, lon],
     );
-    const now = Date.now();
-    const by = new Map<string, typeof rows>();
-    for (const row of rows) (by.get(row.station_id) ?? by.set(row.station_id, []).get(row.station_id)!).push(row);
-    const out: NearbyWeather[] = [];
-    for (const [id, list] of by) {
-      const last = list[list.length - 1];
-      const distKm = haversineDistance(lat, lon, Number(last.latitude), Number(last.longitude));
-      if (distKm > FOG_NEAR_KM) continue;
-      const samples: PrecipSample[] = list
-        .filter((x) => x.precip != null)
-        .map((x) => ({ t: new Date(x.time).getTime(), mm: Number(x.precip) }));
-      out.push({
-        distKm,
-        windKt: last.wind_speed == null || isWindBlacklisted(id) ? null : Number(last.wind_speed) * 1.94384,
-        spreadC: last.temperature == null || last.dew_point == null ? null : Number(last.temperature) - Number(last.dew_point),
-        rainMm60: samples.length > 0 ? rainInWindowMm(id, samples, now, 60) : null,
-      });
-    }
-    return out;
+    return nearbyFromRows(rows, lat, lon, Date.now());
   } catch (err) {
     log.warn(`[Webcam] nearby stations for the fog check failed: ${(err as Error).message}`);
     return [];
