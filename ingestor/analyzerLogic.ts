@@ -275,6 +275,17 @@ export function canAlertOnResult(result: Pick<SpotResult, 'stationCount'>): bool
   return result.stationCount >= MIN_SOURCES_FOR_ALERT;
 }
 
+/**
+ * Whether a spot's rise into a sailable verdict may be announced at all. That alert invites
+ * people out, so it stays quiet while a front is on — the same 850 hPa veto that already
+ * switches off the breeze boosts. On 29-sep, with the front in, it announced «Cies NAVEGABLE
+ * 11kt» and «Limens BUENO 15kt» while buoys and stations around them measured 28-29 kt with
+ * 37-41 kt gusts. A front is a safety matter, not an opportunity. No upper-air data: no veto.
+ */
+export function opportunityAlertAllowed(sector: 'rias' | 'embalse', upperWind: UpperWindBySector | undefined): boolean {
+  return !assessSynopticRegime(upperWind?.[sector])?.vetoed;
+}
+
 /** Whether a verdict is worth announcing when a spot rises into it: good or strong, or
  *  sailing from 10kt (marginal sailing below that flips too often to be worth a message). */
 export function isWorthAlerting(verdict: string, windKt: number | null): boolean {
