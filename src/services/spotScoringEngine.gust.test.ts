@@ -57,9 +57,11 @@ describe('localGustKt', () => {
     expect(localGustKt([st(2, 4, 9), st(6, 4, 11), st(10, 4, 20)], [], 4)).toBeCloseTo(11, 1);
   });
 
-  it('drops a gust above 3x the raw mean or above 45 kt as a sensor glitch', () => {
+  it('drops a gust above 3x the raw mean or above the 90 kt ceiling as a sensor glitch', () => {
     expect(localGustKt([st(2, 3, 12)], [], 3)).toBeNull();
-    expect(localGustKt([st(2, 20, 50)], [], 20)).toBeNull();
+    expect(localGustKt([st(2, 40, 95)], [], 40)).toBeNull();
+    // a real frontal gust is kept (29-sep: the old 45 kt ceiling threw these away)
+    expect(localGustKt([st(2, 30, 47)], [], 30)).toBe(47);
   });
 
   it('is null when nothing nearby reports a gust', () => {

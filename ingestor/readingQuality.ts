@@ -30,8 +30,17 @@
 
 import type { NormalizedReading } from '../src/types/station.js';
 
-/** Above this, a gust is treated as a sensor artefact (~45kt). */
-export const MAX_PLAUSIBLE_GUST_MS = 23;
+/**
+ * Above this, a gust is treated as a sensor artefact (~90kt). It was 23 m/s (~45kt) until
+ * 29-sep, when a front took 441 real gusts from 25 stations out of the clean column in one
+ * morning: A Gándara 72 kt, O Xistral and Penedo do Galo 64, Punta Langosteira 60, Fisterra 53,
+ * Ons 47, all with gust factors of 1.3-1.8 over their own means. The clean column is what the
+ * map, the alerts and the model read, so at the peak of a gale the most exposed stations were
+ * the ones dropping out. Galician capes do reach 80-90 kt in the big storms. A spike like the
+ * SkyX's 97 kt among single-digit neighbours is caught by the ratio test below (its own mean is
+ * low), and by this ceiling when its mean is zero.
+ */
+export const MAX_PLAUSIBLE_GUST_MS = 46;
 
 /** A gust more than this multiple of the mean is treated as an artefact. */
 export const MAX_GUST_RATIO = 3;
