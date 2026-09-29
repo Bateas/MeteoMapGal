@@ -39,8 +39,14 @@ export const MAX_STATION_KM = 15;
 export const WET_RAIN_MM = 0.5;
 /** The window starts this long before the strike (rain just before wets the fuel too)... */
 export const RAIN_BEFORE_MIN = 30;
-/** ...and ends this long after it (the storm's own rain). */
-export const RAIN_AFTER_MIN = 120;
+/**
+ * ...and ends this long after it (the storm's own rain). Replayed on 5-sep, a
+ * second hour changed the verdict of 1 % of the strikes and delayed every
+ * message by an hour: the fire of 6-sep at Ibias would have gone into the night
+ * silence and out at 07:00, after the satellite saw it at 03:45; with one hour
+ * it goes at 22:00 the evening before.
+ */
+export const RAIN_AFTER_MIN = 60;
 /**
  * How far apart a gauge's readings may be, in minutes, for it to vouch for a
  * window: its reporting interval plus some slack. Measured 28-sep: MeteoGalicia

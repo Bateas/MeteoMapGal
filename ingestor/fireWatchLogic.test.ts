@@ -163,10 +163,13 @@ describe('classifyStrikeDryness', () => {
   });
 
   it('pending until the window is over; rain decides at once', () => {
-    const dry = groupRainReadings(every('mg_1', -60, 60, 10, () => 0));
-    expect(classifyStrikeDryness(mkStrike(), dry, T0.getTime() + 60 * 60_000)).toBe('pending');
-    const wet = groupRainReadings(every('mg_1', -60, 60, 10, (m) => (m === 30 ? 1.5 : 0)));
-    expect(classifyStrikeDryness(mkStrike(), wet, T0.getTime() + 60 * 60_000)).toBe('wet');
+    const dry = groupRainReadings(every('mg_1', -60, 40, 10, () => 0));
+    expect(classifyStrikeDryness(mkStrike(), dry, T0.getTime() + 40 * 60_000)).toBe('pending');
+    const wet = groupRainReadings(every('mg_1', -60, 40, 10, (m) => (m === 30 ? 1.5 : 0)));
+    expect(classifyStrikeDryness(mkStrike(), wet, T0.getTime() + 40 * 60_000)).toBe('wet');
+    // Once the reading that closes the window has arrived, the same dry gauge decides.
+    const closed = groupRainReadings(every('mg_1', -60, 60, 10, () => 0));
+    expect(classifyStrikeDryness(mkStrike(), closed, T0.getTime() + 70 * 60_000)).toBe('dry');
   });
 
   it('no station within 15km = UNKNOWN (conservative, never dry)', () => {
