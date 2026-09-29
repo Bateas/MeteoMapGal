@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { precipKindFor, precipSamplesFromHistory, rainInWindowMm, type PrecipSample } from './precipSemantics';
+import { precipKindFor, precipSamplesFromHistory, rainInWindowMm, withoutCounterDips, type PrecipSample } from './precipSemantics';
 import type { NormalizedReading } from '../types/station';
 
 const T = (iso: string) => Date.parse(iso);
@@ -91,6 +91,45 @@ describe('rainInWindowMm — dayTotal (wu_, mc_)', () => {
 
   it('is null with a single reading: growth needs two', () => {
     expect(rainInWindowMm('wu_X', [{ t: NOW - 10 * MIN, mm: 2 }], NOW, 120)).toBeNull();
+  });
+
+  // mc_ESGAL1500000015211A, 28-ago (local time +2): 0 all morning, 21.1 mm between 09:40 and
+  // 09:56, a single 0 at 10:10, 21.1 again at 10:19; the day ended at 24.3.
+  const mc28: PrecipSample[] = [
+    { t: T('2026-08-28T07:25:49Z'), mm: 0 },
+    { t: T('2026-08-28T07:40:49Z'), mm: 0 },
+    { t: T('2026-08-28T07:56:35Z'), mm: 21.1 },
+    { t: T('2026-08-28T08:02:25Z'), mm: 21.1 },
+    { t: T('2026-08-28T08:10:49Z'), mm: 0 },
+    { t: T('2026-08-28T08:19:57Z'), mm: 21.1 },
+    { t: T('2026-08-28T08:25:49Z'), mm: 21.1 },
+    { t: T('2026-08-28T08:40:48Z'), mm: 21.1 },
+    { t: T('2026-08-28T08:55:49Z'), mm: 21.1 },
+  ];
+
+  it('a lone 0 between two equal day totals is a bad reading, not a reset (28-ago: 21.1, not 42.2)', () => {
+    expect(rainInWindowMm('mc_ESGAL1500000015211A', mc28, T('2026-08-28T08:40:48Z'), 120)).toBeCloseTo(21.1, 5);
+  });
+
+  it('the bad reading cannot be the baseline either: 10:10-10:55 local is dry, not 21.1 mm', () => {
+    expect(rainInWindowMm('mc_ESGAL1500000015211A', mc28, T('2026-08-28T08:55:49Z'), 45)).toBe(0);
+  });
+
+  it('a dip of two readings is dropped too; one of three is a reset', () => {
+    const dip2 = [21.1, 0, 0, 21.1, 21.1].map((mm, k) => ({ t: NOW - (50 - 10 * k) * MIN, mm }));
+    expect(rainInWindowMm('mc_X', dip2, NOW, 60)).toBe(0);
+    const reset = [21.1, 0, 0, 0, 0.2].map((mm, k) => ({ t: NOW - (50 - 10 * k) * MIN, mm }));
+    expect(rainInWindowMm('mc_X', reset, NOW, 60)).toBeCloseTo(0.2, 5);
+  });
+
+  it('withoutCounterDips keeps rounding wiggles and real resets, drops lone dips', () => {
+    const s = (mms: number[]) => mms.map((mm, k) => ({ t: NOW + k * 10 * MIN, mm }));
+    expect(withoutCounterDips(s([4.83, 4.8, 4.83])).map((x) => x.mm)).toEqual([4.83, 4.8, 4.83]);
+    expect(withoutCounterDips(s([5, 0, 0.3, 0.3])).map((x) => x.mm)).toEqual([5, 0, 0.3, 0.3]);
+    expect(withoutCounterDips(s([21.1, 0, 21.1, 22])).map((x) => x.mm)).toEqual([21.1, 21.1, 22]);
+    // Back only after more than two hours: a reset.
+    const late = [{ t: NOW, mm: 21.1 }, { t: NOW + 10 * MIN, mm: 0 }, { t: NOW + 140 * MIN, mm: 21.1 }];
+    expect(withoutCounterDips(late)).toHaveLength(3);
   });
 
   it('measures from a reading up to 30 min before the window, not older', () => {
