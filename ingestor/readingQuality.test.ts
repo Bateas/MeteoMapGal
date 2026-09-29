@@ -87,6 +87,28 @@ describe('applyQualityControl — the clean columns do not move', () => {
     expect(out.qcFlag).toBe(QC_OK);
   });
 
+  it('keeps AEMET gusts: the strongest of the hour, next to the mean of its last ten minutes (29-sep)', () => {
+    const kt = (x: number) => x / 1.94384;
+    // Fisterra 19:00 16/62 kt, Noia 20:00 18/58, Vilagarcía 20:00 9/38: all matched by MeteoGalicia within 25 km.
+    for (const [id, mean, gust] of [['aemet_1400', 16, 62], ['aemet_1437P', 18, 58], ['aemet_1477V', 9, 38]] as const) {
+      const out = applyQualityControl(reading({ stationId: id, windSpeed: kt(mean), windGust: kt(gust) }));
+      expect(out.qcFlag).toBe(QC_OK);
+      expect(out.reading.windGust).toBeCloseTo(kt(gust));
+    }
+  });
+
+  it('the same numbers from a ten-minute network are still a broken sensor', () => {
+    const kt = (x: number) => x / 1.94384;
+    const out = applyQualityControl(reading({ stationId: 'mg_10087', windSpeed: kt(9), windGust: kt(38) }));
+    expect(out.qcFlag & QC_GUST_RATIO).toBeTruthy();
+    expect(out.reading.windGust).toBeNull();
+  });
+
+  it('the absolute ceiling still applies to AEMET', () => {
+    const out = applyQualityControl(reading({ stationId: 'aemet_1400', windSpeed: 20, windGust: 50 }));
+    expect(out.qcFlag & QC_GUST_ABSOLUTE).toBeTruthy();
+  });
+
   it('keeps the real gusts of a gale (29-sep: A Gándara 72 kt over a 42 kt mean, Ons 47 over 31)', () => {
     const kt = (x: number) => x / 1.94384;
     for (const [mean, gust] of [[42, 72], [31, 47], [33, 53]]) {
