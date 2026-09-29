@@ -185,3 +185,24 @@ describe('assessRainNowcast — degenerate', () => {
     expect(r.summary).toMatch(/[Ss]in lluvia próxima/);
   });
 });
+
+describe('assessRainNowcast — day counters (wu_, mc_) say nothing about NOW (29-sep)', () => {
+  it('a broken WU counter (955 mm) does not become «lluvia fuerte»: the interval station decides', () => {
+    const stations = [station('wu_INIGRN10', 42.31, -8.61), station('mg_10169', 42.30, -8.62)];
+    const readings = new Map([['wu_INIGRN10', reading('wu_INIGRN10', 955.8)], ['mg_10169', reading('mg_10169', 1.0)]]);
+    const r = assessRainNowcast(opts({ stations, readings, forecast: [fcHour(0, 0.8, 80)] }));
+    expect(r.rainingNow).toBe(true);
+    expect(r.stationName).toBe('mg_10169');
+    expect(r.intensityMm).toBeCloseTo(1.0, 1);
+    expect(r.intensityLabel).toBe('lluvia débil');
+  });
+
+  it('a day total alone (rained at dawn) is not «raining now» attributed to that station', () => {
+    const stations = [station('mc_ESGAL36', 42.31, -8.61), station('wu_IX', 42.30, -8.62)];
+    const readings = new Map([['mc_ESGAL36', reading('mc_ESGAL36', 12.0)], ['wu_IX', reading('wu_IX', 8.0)]]);
+    const r = assessRainNowcast(opts({ stations, readings }));
+    expect(r.rainingNow).toBe(false);
+    expect(r.stationName).toBeNull();
+  });
+});
+

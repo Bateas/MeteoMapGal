@@ -14,6 +14,7 @@
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { HourlyForecast } from '../types/forecast';
 import { fastDistanceKm } from './idwInterpolation';
+import { precipKindFor } from './precipSemantics';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -94,6 +95,10 @@ export function assessRainNowcast(opts: {
       maxSolar = r.solarRadiation;
     }
     if (r.precipitation == null) continue;
+    // A day counter (wu_, mc_: precipSemantics.ts) says how much fell since its reset, not whether
+    // it rains NOW. Read raw it won «wettest» every time, and on 29-sep a broken one (955 mm, rising
+    // 10-50 mm every 5 min) put «lluvia fuerte (Nigrán)» on the card of the ría centre.
+    if (precipKindFor(s.id) === 'dayTotal') continue;
     anyStationData = true;
     if (r.precipitation >= RAIN_THRESHOLD_MM) wetStationCount++;
     if (r.precipitation > wettestMm) {
