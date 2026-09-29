@@ -43,6 +43,13 @@ describe('assessBeachDay — hard "mal día" gates', () => {
     expect(r.reasons[0]).toMatch(/[Ff]río/);
   });
 
+  it('strong gusts (≥25kt) → poor even with a moderate mean (29-sep Cesantes: 12 kt, gusts 32)', () => {
+    const r = assessBeachDay(opts({ cloudCoverPct: 10, airTempC: 25, windKt: 12, gustKt: 32, waterTempC: 18 }));
+    expect(r.verdict).toBe('poor');
+    expect(r.reasons[0]).toBe('Rachas de 32 kt');
+    expect(assessBeachDay(opts({ cloudCoverPct: 10, airTempC: 25, windKt: 12, gustKt: 18, waterTempC: 18 })).verdict).not.toBe('poor');
+  });
+
   it('very strong wind (≥25kt) → poor', () => {
     const r = assessBeachDay(opts({ cloudCoverPct: 0, airTempC: 26, windKt: 27, waterTempC: 19 }));
     expect(r.verdict).toBe('poor');

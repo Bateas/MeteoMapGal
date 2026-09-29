@@ -712,9 +712,16 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
         const nowBeach = new Date();
         const sun = getSunTimes(nowBeach, spot.center);
         if (nowBeach < sun.sunrise || nowBeach >= sun.sunset) return null;
+        // The forecast hour NEAREST to now, like the ticker: arrays start at different hours, and
+        // the first one gave «Sol» under the overcast front of 29-sep.
+        const nowHour = spotForecast.reduce<(typeof spotForecast)[number] | null>(
+          (best, h) => (!best || Math.abs(h.time.getTime() - nowBeach.getTime()) < Math.abs(best.time.getTime() - nowBeach.getTime()) ? h : best),
+          null,
+        );
         const beach = assessBeachDay({
-          cloudCoverPct: spotForecast[0]?.cloudCover ?? null,
+          cloudCoverPct: nowHour && Math.abs(nowHour.time.getTime() - nowBeach.getTime()) <= 90 * 60_000 ? (nowHour.cloudCover ?? null) : null,
           windKt: score?.wind?.avgSpeedKt ?? null,
+          gustKt: score?.gustKt ?? null,
           airTempC: score?.airTemp ?? null,
           waterTempC: score?.waterTemp ?? mohidSeaTemp ?? marineSST ?? null,
           rainingNow: rain?.status === 'raining',
