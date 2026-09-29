@@ -14,7 +14,8 @@ import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
-import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert } from './alertDispatcher.js';
+import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert, dispatchWindSafetyAlert } from './alertDispatcher.js';
+import { assessStrongWind, windAlertDue, formatWindSafetyMessage, type WindEpisode, type SafetySpot } from './windSafetyLogic.js';
 import { dispatchLightningPush, logPushStartup } from './pushDispatcher.js';
 import {
   assessSpotLightningRisk,
@@ -250,6 +251,7 @@ async function getLatestBuoys(): Promise<BuoyWind[]> {
       time: Date;
       wind_speed: number | null;
       wind_dir: number | null;
+      wind_gust: number | null;
       water_temp: number | null;
       air_temp: number | null;
       humidity: number | null;
@@ -260,7 +262,7 @@ async function getLatestBuoys(): Promise<BuoyWind[]> {
       SELECT DISTINCT ON (station_id)
         station_id,
         time,
-        wind_speed, wind_dir,
+        wind_speed, wind_dir, wind_gust,
         water_temp, air_temp, humidity,
         wave_height, wave_period, wave_dir
       FROM buoy_readings
@@ -272,6 +274,7 @@ async function getLatestBuoys(): Promise<BuoyWind[]> {
       time: r.time,
       wind_speed: r.wind_speed ?? 0,
       wind_dir: r.wind_dir,
+      wind_gust: r.wind_gust,
       lat: BUOY_COORDS[r.station_id]?.lat ?? 0,
       lon: BUOY_COORDS[r.station_id]?.lon ?? 0,
       station_name: BUOY_NAMES[r.station_id] ?? `Boya ${r.station_id}`,
@@ -485,6 +488,36 @@ export async function runAnalysis(): Promise<void> {
     await checkLightningProximity();
   } catch (err) {
     log.warn(`Lightning proximity check failed: ${(err as Error).message}`);
+  }
+
+  // 6. Strong-wind SAFETY alert (windSafetyLogic.ts): measured gusts, two sources near a spot.
+  try {
+    await checkStrongWind(readings, buoys, now);
+  } catch (err) {
+    log.warn(`Strong wind check failed: ${(err as Error).message}`);
+  }
+}
+
+// ── Strong wind (SAFETY) ──────────────────────────────
+
+const windEpisodes = new Map<string, WindEpisode>();
+/** Last evidence line logged per sector: the log says when it changes, not every cycle. */
+const lastWindLine = new Map<string, string>();
+
+async function checkStrongWind(readings: StationReading[], buoys: BuoyWind[], nowMs: number): Promise<void> {
+  for (const a of assessStrongWind(SAFETY_SPOTS as SafetySpot[], readings, buoys, nowMs)) {
+    const line = a.evidence.length === 0 ? 'sin rachas fuertes'
+      : `${a.level ?? 'sin corroborar'} — ${a.evidence.map((e) => `${e.name} ${Math.round(e.gustKt)}/${Math.round(e.meanKt)}`).join(', ')}`;
+    if (line !== lastWindLine.get(a.sector)) {
+      // First cycle after a restart stays quiet when there is nothing: only changes are news.
+      if (lastWindLine.has(a.sector) || a.evidence.length > 0) log.info(`[Viento fuerte] ${a.sector}: ${line}`);
+      lastWindLine.set(a.sector, line);
+    }
+    const { due, episode } = windAlertDue(windEpisodes.get(a.sector), a.level, nowMs);
+    if (episode) windEpisodes.set(a.sector, episode); else windEpisodes.delete(a.sector);
+    if (!due || !a.level || !episode) continue;
+    const { title, message } = formatWindSafetyMessage(a);
+    if (await dispatchWindSafetyAlert(a.sector, a.level, title, message)) episode.sentLevel = a.level;
   }
 }
 

@@ -387,6 +387,35 @@ export async function dispatchLightningAlert(
   }
 }
 
+// ── Strong wind alerts (SAFETY, measured gusts) ───────
+
+/**
+ * Dispatch a strong-wind safety alert for a sector (windSafetyLogic.ts decides when).
+ * Night silence applies to both levels: nobody is launching at 3 AM, and the caller re-invokes
+ * every cycle, so an episode still going on at 7 AM is announced then.
+ *
+ * @returns true if the webhook was actually delivered.
+ */
+export async function dispatchWindSafetyAlert(
+  sector: string,
+  level: 'aviso' | 'peligro',
+  title: string,
+  message: string,
+): Promise<boolean> {
+  if (isNightTime()) return false;
+  const ok = await postWebhook({
+    type: 'wind-safety',
+    sector,
+    level,
+    text: message,
+    severity: level === 'peligro' ? 'high' : 'moderate',
+    title,
+    message,
+  });
+  if (ok) log.ok(`Wind safety alert: ${sector} ${level.toUpperCase()}`);
+  return ok;
+}
+
 // ── Fire watch alerts (dry lightning vigilance) ───────
 
 /** 12h per zone — matches the 7-18h ignition window. One heads-up per zone
