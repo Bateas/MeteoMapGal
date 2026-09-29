@@ -99,6 +99,13 @@ export const DEWPOINT_TOLERANCE_C = 0.5;
 export const MIN_PLAUSIBLE_TEMP_C = -25;
 export const MAX_PLAUSIBLE_TEMP_C = 50;
 
+/** Outside this, a pressure is a sensor or unit fault: the same range the normalizer
+ *  already applied to MeteoGalicia and AEMET. Wunderground and Meteoclimatic came in
+ *  unchecked, and wu_IVILAG10 stored 0.34 hPa all day on 28-sep. A station that reports
+ *  its own level instead of sea level (15-20 hPa low in the valleys) is still inside. */
+export const MIN_PLAUSIBLE_PRESSURE_HPA = 900;
+export const MAX_PLAUSIBLE_PRESSURE_HPA = 1100;
+
 /**
  * Reasons a reading was corrected, as a bitmask so several can coexist and a
  * single column can be counted per station and per month later on.
@@ -118,6 +125,8 @@ export const QC_SOLAR_IMPOSSIBLE = 16;
 export const QC_DEWPOINT_ABOVE_TEMP = 32;
 /** Temperature outside anything this region produces. */
 export const QC_TEMP_IMPLAUSIBLE = 64;
+/** Pressure outside anything the atmosphere produces at sea level. */
+export const QC_PRESSURE_IMPLAUSIBLE = 128;
 
 export interface QualityControlled {
   /** The reading as every existing consumer expects it: rejections nulled. */
@@ -244,11 +253,19 @@ export function applyQualityControl(
     cleanDew = null;
   }
 
+  let cleanPressure = r.pressure;
+  if (cleanPressure != null && (!Number.isFinite(cleanPressure)
+    || cleanPressure < MIN_PLAUSIBLE_PRESSURE_HPA || cleanPressure > MAX_PLAUSIBLE_PRESSURE_HPA)) {
+    qcFlag |= QC_PRESSURE_IMPLAUSIBLE;
+    cleanPressure = null;
+  }
+
   const touched = cleanGust !== r.windGust
     || cleanSpeed !== r.windSpeed
     || cleanSolar !== r.solarRadiation
     || cleanTemp !== r.temperature
-    || cleanDew !== r.dewPoint;
+    || cleanDew !== r.dewPoint
+    || cleanPressure !== r.pressure;
 
   const reading = touched
     ? {
@@ -258,6 +275,7 @@ export function applyQualityControl(
         solarRadiation: cleanSolar,
         temperature: cleanTemp,
         dewPoint: cleanDew,
+        pressure: cleanPressure,
       }
     : r;
 
@@ -291,7 +309,7 @@ export interface QualityControlSummary {
 }
 
 /** Reasons worth naming a station for: an instrument fault, not a rough gust. */
-const NAMED_REASONS = QC_SOLAR_IMPOSSIBLE | QC_DEWPOINT_ABOVE_TEMP | QC_TEMP_IMPLAUSIBLE;
+const NAMED_REASONS = QC_SOLAR_IMPOSSIBLE | QC_DEWPOINT_ABOVE_TEMP | QC_TEMP_IMPLAUSIBLE | QC_PRESSURE_IMPLAUSIBLE;
 
 /** Cap on named stations so one badly broken source cannot flood a log line. */
 export const MAX_NAMED_STATIONS = 8;
@@ -336,5 +354,6 @@ export function describeQcFlag(qcFlag: number): string[] {
   if (qcFlag & QC_SOLAR_IMPOSSIBLE) reasons.push('solar above what reaches this latitude');
   if (qcFlag & QC_DEWPOINT_ABOVE_TEMP) reasons.push('dew point above air temperature');
   if (qcFlag & QC_TEMP_IMPLAUSIBLE) reasons.push('temperature outside the regional range');
+  if (qcFlag & QC_PRESSURE_IMPLAUSIBLE) reasons.push('pressure outside 900-1100 hPa');
   return reasons;
 }

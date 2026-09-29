@@ -9,6 +9,7 @@
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { MAP_CENTER, DISCOVERY_RADIUS_KM } from '../config/constants';
 import { isWithinRadius } from '../services/geoUtils';
+import { plausiblePressure } from '../services/normalizer';
 
 export interface NetatmoFetchParams {
   center: [number, number];   // [lon, lat]
@@ -343,7 +344,7 @@ export async function fetchNetatmoObservations(
           if (humIdx !== -1) humidity = values[humIdx] ?? null;
 
           const pressIdx = measure.type.indexOf('pressure');
-          if (pressIdx !== -1) pressure = values[pressIdx] ?? null;
+          if (pressIdx !== -1) pressure = plausiblePressure(values[pressIdx]);
         }
       }
 
