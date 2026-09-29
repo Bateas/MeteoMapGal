@@ -1329,3 +1329,22 @@ describe('stepOpportunityRise — a rise is announced only once it has held (29-
     expect(run([['calm', false], good, good, good, good, ['light', false], good, good, good, good])).toEqual([4, 9]);
   });
 });
+
+describe('scoreSpot — the gust shown and sent is from the last hour (29-sep)', () => {
+  it('a 73-min-old AEMET gust of the front is not the spot gust after it passed', () => {
+    const now = Date.now();
+    const oldFront = makeReading({ station_id: 'aemet_1495', wind_speed: 9.8, wind_gust: 21.1, time: new Date(now - 73 * 60_000) }); // 19/41 kt
+    const fresh = makeReading({ station_id: 'mg_10154', wind_speed: 4.6, wind_gust: 9.3, time: new Date(now - 5 * 60_000) });       // 9/18 kt
+    const result = scoreSpot(cesantes, [oldFront, fresh], []);
+    expect(result.maxGustKt).toBe(18);
+  });
+
+  it('an old buoy gust is not sent either', () => {
+    const now = Date.now();
+    const buoy = makeBuoy({ wind_speed: 15, wind_gust: 23, time: new Date(now - 90 * 60_000) });
+    const fresh = makeReading({ wind_speed: 4.6, wind_gust: 9.3, time: new Date(now - 5 * 60_000) });
+    const result = scoreSpot(cesantes, [fresh], [buoy]);
+    expect(result.maxGustKt).toBe(18);
+  });
+});
+

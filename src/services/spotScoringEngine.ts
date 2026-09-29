@@ -1354,21 +1354,40 @@ export function peakPlausibleGustKt(gusts: number[]): number | null {
   return Math.round(Math.max(...gusts) * 10) / 10;
 }
 
+/**
+ * A gust is a moment: older than this it does not describe now, whatever the source's cadence.
+ * The stale gates let an AEMET reading count for 4 h (hourly, published late), and that is right
+ * for the mean, which weighs an old reading less. The shown gust is a MAXIMUM and weighs nothing:
+ * on 29-sep at 21:13 Cesantes and the Bocana showed «racha 41» with 8-10 kt, from Vigo airport's
+ * reading of 20:00, the gust of the front that had already passed. Readings without a time
+ * (fixtures) still count.
+ */
+export const GUST_SHOWN_MAX_AGE_MIN = 60;
+
+export function gustIsCurrent(time: Date | string | null | undefined, nowMs = Date.now()): boolean {
+  if (time == null) return true;
+  const t = new Date(time).getTime();
+  return !Number.isFinite(t) || nowMs - t <= GUST_SHOWN_MAX_AGE_MIN * 60_000;
+}
+
 /** The spot gust the map shows (peakPlausibleGustKt), from the same closest sources as
- *  localGustKt. localGustKt stays as it was for the Cesantes detector, which was validated with it. */
+ *  localGustKt, and only gusts measured in the last hour (gustIsCurrent). localGustKt stays as it
+ *  was for the Cesantes detector, which was validated with it. */
 export function reportedGustKt(
   stationData: { reading: NormalizedReading; distKm: number }[],
   buoyData: { buoy: BuoyReading; distKm: number }[],
+  nowMs = Date.now(),
 ): number | null {
   const gusts: number[] = [];
   for (const { reading, distKm } of stationData) {
     if (reading.windGust == null || distKm > 8 || isWindBlacklisted(reading.stationId)) continue;
+    if (!gustIsCurrent(reading.timestamp, nowMs)) continue;
     const mean = reading.windSpeed == null ? null : msToKnots(reading.windSpeed);
     const g = msToKnots(reading.windGust);
     if (gustIsPlausible(mean, g)) gusts.push(g);
   }
   for (const { buoy, distKm } of buoyData) {
-    if (buoy.windGust == null || distKm > 12) continue;
+    if (buoy.windGust == null || distKm > 12 || !gustIsCurrent(buoy.timestamp, nowMs)) continue;
     const mean = buoy.windSpeed == null ? null : msToKnots(buoy.windSpeed);
     const g = msToKnots(buoy.windGust);
     if (gustIsPlausible(mean, g)) gusts.push(g);
