@@ -24,11 +24,12 @@ import { setSendRecorder, seedCooldowns } from './alertDispatcher.js';
 import { recordSent, loadRecentSends } from './sentAlerts.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
 import { runLightningCycle } from './lightningFetcher.js';
-import { runSynopticCycle } from './synopticFetcher.js';
+import { runSynopticCycle, lastSynopticRunMs } from './synopticFetcher.js';
 import { runFirmsCycle } from './firmsFetcher.js';
 import { runEffisCycle } from './effisFetcher.js';
 import { runIcaCycle } from './icaFetcher.js';
-import { runConvectionGridCycle } from './convectionGridFetcher.js';
+import { runConvectionGridCycle, lastConvectionGridRunMs } from './convectionGridFetcher.js';
+import { firstRunDelayMs } from './startupSchedule.js';
 import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import { runFireWatchCycle } from './fireWatch.js';
 import { runCalibrationCycle, CALIBRATION_CHECK_INTERVAL_MS } from './calibration.js';
@@ -451,12 +452,19 @@ async function start(): Promise<void> {
   // Real upper-air radiosonde launches happen twice/day (00 UTC + 12 UTC) — 2h
   // refresh from the model is already overkill. Halves the synoptic share of
   // the daily quota with zero operational loss.
-  setTimeout(() => {
-    runSynopticCycle().catch((err) => log.error('[Synoptic] init err:', (err as Error).message));
-  }, 90_000);
-  synopticTimer = setInterval(() => {
-    runSynopticCycle().catch((err) => log.error('[Synoptic] timer err:', (err as Error).message));
-  }, 2 * 60 * 60_000);
+  // The first run waits for its turn after the last stored one (startupSchedule.ts):
+  // a deploy does not spend the Open-Meteo quota again.
+  const SYNOPTIC_INTERVAL_MS = 2 * 60 * 60_000;
+  void lastSynopticRunMs().then((last) => {
+    const delay = firstRunDelayMs(last, SYNOPTIC_INTERVAL_MS, 90_000, Date.now());
+    if (delay > 90_000) log.info(`[Synoptic] sondeo guardado reciente: el primero tras el arranque va en ${Math.round(delay / 60_000)} min`);
+    setTimeout(() => {
+      runSynopticCycle().catch((err) => log.error('[Synoptic] init err:', (err as Error).message));
+      synopticTimer = setInterval(() => {
+        runSynopticCycle().catch((err) => log.error('[Synoptic] timer err:', (err as Error).message));
+      }, SYNOPTIC_INTERVAL_MS);
+    }, delay);
+  });
 
   // FIRMS fetcher — wildfire hotspots persistence.
   // 60min cadence (bumped from 30min, S136+3+5 audit): FIRMS NRT latency is
@@ -513,13 +521,20 @@ async function start(): Promise<void> {
   // alongside forecast+synoptic), 120min=~7,200/day (comfortable headroom).
   // Operationally fine: CAPE ramps gradually, 120min refresh is plenty for
   // "where do storms form this afternoon" — it's a predictive overlay, not live.
-  // 270s stagger so it lands after ICA to spread Open-Meteo load.
-  setTimeout(() => {
-    runConvectionGridCycle().catch((err) => log.error('[ConvGrid] init err:', (err as Error).message));
-  }, 270_000);
-  convGridTimer = setInterval(() => {
-    runConvectionGridCycle().catch((err) => log.error('[ConvGrid] timer err:', (err as Error).message));
-  }, 120 * 60_000);
+  // 270s stagger so it lands after ICA to spread Open-Meteo load; and never before its
+  // turn after the last stored grid (startupSchedule.ts): seven deploys on 29-sep asked
+  // for the 600 points seven times and ran out the daily quota.
+  const CONV_GRID_INTERVAL_MS = 120 * 60_000;
+  void lastConvectionGridRunMs().then((last) => {
+    const delay = firstRunDelayMs(last, CONV_GRID_INTERVAL_MS, 270_000, Date.now());
+    if (delay > 270_000) log.info(`[ConvGrid] rejilla guardada reciente: la primera tras el arranque va en ${Math.round(delay / 60_000)} min`);
+    setTimeout(() => {
+      runConvectionGridCycle().catch((err) => log.error('[ConvGrid] init err:', (err as Error).message));
+      convGridTimer = setInterval(() => {
+        runConvectionGridCycle().catch((err) => log.error('[ConvGrid] timer err:', (err as Error).message));
+      }, CONV_GRID_INTERVAL_MS);
+    }, delay);
+  });
 
   // Outcome evaluator — nightly job that evaluates each storm_prediction
   // against real lightning + rain (Open-Meteo grid + station pluviometers).

@@ -394,6 +394,23 @@ async function batchInsertRows(rows: ConvectionGridRow[]): Promise<number> {
  *   3. Parse per-cell responses into rows
  *   4. Bulk insert with ON CONFLICT DO UPDATE
  */
+/**
+ * When the last grid cycle wrote, for the first run after a start
+ * (startupSchedule.ts). Bounded by forecast time so it reads recent chunks
+ * only. Null with nothing recent stored, or on error.
+ */
+export async function lastConvectionGridRunMs(): Promise<number | null> {
+  try {
+    const r = await getPool().query<{ ms: string | null }>(
+      "SELECT (extract(epoch FROM max(fetched_at)) * 1000)::bigint AS ms FROM convection_grid_hourly WHERE time > NOW() - INTERVAL '12 hours'",
+    );
+    const ms = r.rows[0]?.ms;
+    return ms == null ? null : Number(ms);
+  } catch {
+    return null;
+  }
+}
+
 export async function runConvectionGridCycle(): Promise<void> {
   if (isOpenMeteoBreakerOpen()) {
     log.warn(
