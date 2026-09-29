@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   dispatchMagicWindowAlert, dispatchWindSafetyAlert, dispatchForecastAlert, dispatchSpotAlert, dispatchLightningAlert,
+  dispatchFireWatchDigest, fireWatchAlertedZones,
   resetCooldowns, seedCooldowns, setSendRecorder, type SentRecord,
 } from './alertDispatcher';
 import { log } from './logger';
@@ -73,5 +74,66 @@ describe('alertDispatcher — sends are stored and cooldowns survive a restart (
     expect(fetch).not.toHaveBeenCalled();
     await dispatchLightningAlert('Embalse', 'aviso', ['Castrelo: rayo a 14 km']);
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('alertDispatcher — fire watch: one message per storm, not one per zone (30-sep)', () => {
+  const zones = [
+    { lat: 42.34, lon: -7.86, strikeCount: 3, maxAbsKa: 12, near: 'Ribadavia' },
+    { lat: 43.09, lon: -6.84, strikeCount: 2, maxAbsKa: 11 },
+  ];
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 5, 20, 0)); // 20:00 local, outside the night silence
+    resetCooldowns();
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    vi.spyOn(log, 'ok').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    setSendRecorder(null);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('several zones go out in ONE message, stored under every zone key', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    const stored: SentRecord[] = [];
+    setSendRecorder(async (r) => { stored.push(r); });
+    expect(await dispatchFireWatchDigest(zones)).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(stored[0].key).toBe('fire:42.34,-7.86;43.09,-6.84');
+    expect(stored[0].message).toContain('en 2 zonas');
+    expect(fireWatchAlertedZones().map((z) => [z.lat, z.lon])).toEqual([[42.34, -7.86], [43.09, -6.84]]);
+  });
+
+  it('at most one message an hour: new zones wait for the next one', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    await dispatchFireWatchDigest([zones[0]]);
+    vi.setSystemTime(new Date(2026, 8, 5, 20, 30));
+    expect(await dispatchFireWatchDigest([zones[1]])).toBe(false);
+    vi.setSystemTime(new Date(2026, 8, 5, 21, 0));
+    expect(await dispatchFireWatchDigest([zones[1]])).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('nothing at night; nothing is marked as announced when the send fails', async () => {
+    vi.setSystemTime(new Date(2026, 8, 6, 2, 0));
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 500 }));
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+    expect(await dispatchFireWatchDigest(zones)).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+    vi.setSystemTime(new Date(2026, 8, 6, 7, 30));
+    expect(await dispatchFireWatchDigest(zones)).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fireWatchAlertedZones()).toEqual([]);
+  });
+
+  it('after a restart every zone of a stored message is remembered, and the old one-zone keys too', () => {
+    const now = Date.now();
+    expect(seedCooldowns([
+      { key: 'fire:42.34,-7.86;43.09,-6.84', atMs: now - 60 * 60_000, level: 'moderate' },
+      { key: 'fire:42.4,-7.6', atMs: now - 2 * 60 * 60_000, level: 'moderate' },
+    ])).toBe(3);
+    expect(fireWatchAlertedZones()).toHaveLength(3);
   });
 });

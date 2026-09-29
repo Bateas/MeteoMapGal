@@ -312,13 +312,100 @@ export function clusterDryStrikes(
   return zones;
 }
 
+// ── One message per storm, not one per zone ──────────
+
 /**
- * Stable zone key for cooldown maps: centroid snapped to a 0.1 degree grid
- * (~11 x 8 km — same order as CLUSTER_RADIUS_KM), so the key survives small
- * centroid drift as new strikes join the episode.
+ * Until 30-sep every zone was its own message, keyed by a 0.1 degree cell: a
+ * storm crossing Ourense and Lugo on 5-sep sent 61 in the evening and 38 the
+ * next morning (20 at once at 07:24, the queue of the night silence). Now a
+ * zone within ALERT_DEDUPE_KM of one announced in the last ALERT_COOLDOWN_MS
+ * is the same episode, the new ones go out together, and at most one message
+ * every DIGEST_MIN_GAP_MS. Replayed on 5-sep: 7 messages instead of 97.
  */
-export function zoneKey(zone: Pick<FireWatchZone, 'lat' | 'lon'>): string {
-  return `${zone.lat.toFixed(1)},${zone.lon.toFixed(1)}`;
+export const ALERT_DEDUPE_KM = 15;
+export const ALERT_COOLDOWN_MS = 12 * 60 * 60_000;
+export const DIGEST_MIN_GAP_MS = 60 * 60_000;
+/** Zones named in one message; the rest are counted. */
+export const DIGEST_MAX_LISTED = 5;
+
+/** A zone already announced, and when. */
+export interface AlertedZone {
+  lat: number;
+  lon: number;
+  atMs: number;
+}
+
+/** The zones in watch that no recent message has covered. */
+export function freshZones(watch: FireWatchZone[], alerted: AlertedZone[], nowMs: number): FireWatchZone[] {
+  return watch.filter((z) => !alerted.some((a) =>
+    nowMs - a.atMs < ALERT_COOLDOWN_MS && haversineDistance(a.lat, a.lon, z.lat, z.lon) <= ALERT_DEDUPE_KM));
+}
+
+/** Key of an announced zone: its centroid to 0.01 degree, readable back after a restart. */
+export function alertedZoneKey(zone: Pick<FireWatchZone, 'lat' | 'lon'>): string {
+  return `${zone.lat.toFixed(2)},${zone.lon.toFixed(2)}`;
+}
+
+/** The centroid of a key (also the 0.1 degree keys stored before 30-sep); null if it is not one. */
+export function parseAlertedZoneKey(key: string): { lat: number; lon: number } | null {
+  const m = /^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(key.trim());
+  if (!m) return null;
+  const lat = Number(m[1]), lon = Number(m[2]);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+}
+
+/** A zone as it goes into a message. */
+export interface DigestZone {
+  lat: number;
+  lon: number;
+  strikeCount: number;
+  maxAbsKa: number;
+  /** Nearest named station, for "cerca de X". */
+  near?: string;
+}
+
+const SMALL_WORDS = new Set(['de', 'do', 'da', 'dos', 'das', 'del', 'la', 'las', 'los', 'el', 'e', 'y']);
+
+/** A station name as a place: single spaces, and AEMET's capitals in title case
+ *  ("IBIAS  SAN ANTOLIN" -> "Ibias San Antolin", "FOLGOSO DO COUREL" -> "Folgoso do Courel"). */
+export function placeName(raw: string): string {
+  const s = raw.replace(/\s+/g, ' ').trim();
+  if (s !== s.toUpperCase() || !/\p{Lu}/u.test(s)) return s;
+  return s.toLowerCase().split(' ')
+    .map((w, i) => (i > 0 && SMALL_WORDS.has(w) ? w : w.replace(/(^|-)(\p{L})/gu, (_m, p: string, c: string) => p + c.toUpperCase())))
+    .join(' ');
+}
+
+/**
+ * The text of one message. Zones next to the same place are one place (a storm
+ * leaves several clusters around the same village); the places with most dry
+ * strikes go first, at most DIGEST_MAX_LISTED by name.
+ */
+export function fireWatchDigestText(zones: DigestZone[]): string {
+  const byPlace = new Map<string, DigestZone>();
+  const unnamed: DigestZone[] = [];
+  for (const z of zones) {
+    if (!z.near) { unnamed.push(z); continue; }
+    const same = byPlace.get(z.near);
+    if (same) {
+      same.strikeCount += z.strikeCount;
+      same.maxAbsKa = Math.max(same.maxAbsKa, z.maxAbsKa);
+    } else {
+      byPlace.set(z.near, { ...z });
+    }
+  }
+  const sorted = [...byPlace.values(), ...unnamed].sort((a, b) => b.strikeCount - a.strikeCount || b.maxAbsKa - a.maxAbsKa);
+  const listed = sorted.slice(0, DIGEST_MAX_LISTED).map((z) => {
+    const where = z.near ? `cerca de ${z.near}` : `zona ${z.lat.toFixed(2)},${z.lon.toFixed(2)}`;
+    const rayos = z.strikeCount === 1 ? '1 rayo' : `${z.strikeCount} rayos`;
+    const ka = z.maxAbsKa >= HIGH_CURRENT_KA ? `, hasta ${Math.round(z.maxAbsKa)} kA` : '';
+    return `${where} (${rayos}${ka})`;
+  });
+  const rest = sorted.length - listed.length;
+  const what = sorted.length === 1
+    ? `Rayos a tierra sin lluvia ${listed[0]}`
+    : `Rayos a tierra sin lluvia en ${sorted.length} zonas: ${listed.join('; ')}${rest > 0 ? `; y ${rest} más` : ''}`;
+  return `Vigilancia de incendio. ${what}. Los incendios por rayo suelen aparecer entre 7 y 18 horas después.`;
 }
 
 // ── Orchestration ────────────────────────────────────

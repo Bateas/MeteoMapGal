@@ -3,23 +3,24 @@
  *
  * Every 30 min (wired in index.ts, fire-and-forget) this queries the last
  * 12h of cloud-to-ground strikes plus the precipitation context around them,
- * runs the pure classifier (fireWatchLogic.ts), and dispatches one alert per
- * NEW zone under watch. The point is to warn 7-18h BEFORE FIRMS confirms a
- * hotspot — today we only learn about a fire when the satellite sees it.
+ * runs the pure classifier (fireWatchLogic.ts), and sends ONE message with the
+ * zones under watch that no recent message covered. The point is to warn
+ * 7-18h BEFORE FIRMS confirms a hotspot — otherwise we only learn about a
+ * fire when the satellite sees it.
  *
- * No new tables: state is in-memory (zoneKey → last-seen ts). A restart just
- * means the dispatcher cooldown re-arms; the 12h strike window re-derives
- * the zones on the next cycle, so nothing is lost beyond a possible repeat
- * alert (bounded by the webhook side anyway).
+ * No new tables: which zones went out lives in the dispatcher, restored after
+ * a restart from the stored sends; the 12h strike window re-derives the
+ * zones on the next cycle.
  */
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
 import { haversineDistance } from '../src/services/geoUtils.js';
-import { dispatchFireWatchAlert } from './alertDispatcher.js';
+import { dispatchFireWatchDigest, fireWatchAlertedZones } from './alertDispatcher.js';
 import {
   computeFireWatch,
-  zoneKey,
+  freshZones,
+  placeName,
   type FireWatchStrike,
   type FireWatchZone,
   type RainReading,
@@ -33,14 +34,8 @@ const STRIKE_WINDOW_HOURS = 12;
 /** Rain lookback = strike window + the 30 min the rain window starts before
  *  the strike + the reading a day counter measures from, with margin. */
 const RAIN_WINDOW_HOURS = 15;
-/** Forget zones not seen in watch for this long (bounds the state Map). */
-const ZONE_STATE_TTL_MS = 24 * 60 * 60_000;
 /** Max distance zone centroid → named station for the "cerca de X" label. */
 const NEAREST_NAME_KM = 25;
-
-// ── State (in-memory — no DB schema access in prod) ─
-
-const zoneWatchState = new Map<string, number>(); // zoneKey → last seen in watch
 
 // ── Queries (parameterized — never interpolate) ─────
 
@@ -115,19 +110,23 @@ async function queryRainContext(): Promise<RainContext> {
 
 // ── Helpers ─────────────────────────────────────────
 
-/** Nearest named station to the zone centroid (approximate town label). */
+/**
+ * Nearest official station to the zone centroid, as a place name ("cerca de X").
+ * Official only: MeteoGalicia, AEMET and IPMA name their stations after the
+ * place; home stations carry an id or their owner's label.
+ */
 function nearestStationName(
   zone: FireWatchZone,
   stationMeta: Map<string, StationMeta>,
 ): string | undefined {
   let bestName: string | undefined;
   let bestKm = NEAREST_NAME_KM;
-  for (const meta of stationMeta.values()) {
-    if (!meta.name) continue;
+  for (const [id, meta] of stationMeta) {
+    if (!meta.name || !/^(mg|aemet|ipma)_/.test(id)) continue;
     const km = haversineDistance(zone.lat, zone.lon, meta.lat, meta.lon);
     if (km < bestKm) {
       bestKm = km;
-      bestName = meta.name;
+      bestName = placeName(meta.name);
     }
   }
   return bestName;
@@ -151,30 +150,21 @@ export async function runFireWatchCycle(): Promise<void> {
     const now = Date.now();
     const result = computeFireWatch(strikes, rain, now);
 
-    // Prune stale zone state so the Map stays bounded.
-    for (const [key, ts] of zoneWatchState) {
-      if (now - ts > ZONE_STATE_TTL_MS) zoneWatchState.delete(key);
-    }
-
-    let newZones = 0;
-    for (const zone of result.watchZones) {
-      const key = zoneKey(zone);
-      if (!zoneWatchState.has(key)) newZones++;
-      zoneWatchState.set(key, now);
-
-      // Dispatch every cycle for every zone in watch: the dispatcher owns the
-      // 12h cooldown AND the night silence, and only arms the cooldown after
-      // a successful send — so a zone detected at 3 AM alerts at 7 AM without
-      // any extra bookkeeping here.
-      await dispatchFireWatchAlert(
-        key,
-        zone.lat,
-        zone.lon,
-        zone.strikeCount,
-        zone.maxAbsKa,
-        nearestStationName(zone, stationMeta),
-      );
-    }
+    // The zones no recent message covered go out together. The dispatcher owns
+    // the night silence and the gap between messages, and marks them announced
+    // only after a successful send: the ones held back are offered again next
+    // cycle (a zone found at 3 AM goes out at 7 AM).
+    const fresh = freshZones(result.watchZones, fireWatchAlertedZones(now), now);
+    const sent = fresh.length > 0 && await dispatchFireWatchDigest(
+      fresh.map((z) => ({
+        lat: z.lat,
+        lon: z.lon,
+        strikeCount: z.strikeCount,
+        maxAbsKa: z.maxAbsKa,
+        near: nearestStationName(z, stationMeta),
+      })),
+      now,
+    );
 
     // Heartbeat — one line per cycle with activity, so "silence = no strikes"
     // is unambiguous in the log.
@@ -183,7 +173,7 @@ export async function runFireWatchCycle(): Promise<void> {
         `${result.dryStrikes} secos (${result.wetStrikes} lluvia, ${result.unknownStrikes} sin dato, ` +
         `${result.pendingStrikes} pendientes), ` +
         `${result.watchZones.length}/${result.zones.length} zonas en vigilancia` +
-        (newZones > 0 ? ` (${newZones} nuevas)` : ''),
+        (fresh.length > 0 ? (sent ? ` (${fresh.length} avisadas ahora)` : ` (${fresh.length} por avisar)`) : ''),
     );
   } catch (err) {
     log.warn(`[FireWatch] cycle failed: ${(err as Error).message}`);
