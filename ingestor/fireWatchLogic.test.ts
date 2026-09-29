@@ -15,9 +15,14 @@ import {
   classifyStrikeDryness,
   clusterDryStrikes,
   computeFireWatch,
-  zoneKey,
+  freshZones,
+  alertedZoneKey,
+  parseAlertedZoneKey,
+  fireWatchDigestText,
+  placeName,
   WET_RAIN_MM,
   HIGH_CURRENT_KA,
+  DIGEST_MAX_LISTED,
   type FireWatchStrike,
   type RainReading,
 } from './fireWatchLogic';
@@ -238,12 +243,67 @@ describe('clusterDryStrikes', () => {
   });
 });
 
-// ── zoneKey ──────────────────────────────────────────
+// ── One message per storm ────────────────────────────
 
-describe('zoneKey', () => {
-  it('is stable under small centroid drift (0.1 degree snap)', () => {
-    expect(zoneKey({ lat: 42.31, lon: -7.88 })).toBe(zoneKey({ lat: 42.33, lon: -7.92 }));
-    expect(zoneKey({ lat: 42.31, lon: -7.88 })).not.toBe(zoneKey({ lat: 42.71, lon: -7.88 }));
+describe('freshZones / fireWatchDigestText', () => {
+  const zone = (lat: number, lon: number, strikeCount = 2, maxAbsKa = 12) =>
+    ({ lat, lon, strikeCount, maxAbsKa, inWatch: true });
+  const NOW = T0.getTime();
+
+  it('a zone within 15 km of one announced in the last 12 h is the same episode', () => {
+    const alerted = [{ lat: 42.34, lon: -7.86, atMs: NOW - 2 * 60 * 60_000 }];
+    const near = zone(42.40, -7.86);   // ~6.7 km: same storm drifting
+    const far = zone(42.60, -7.86);    // ~29 km: a new area
+    expect(freshZones([near, far], alerted, NOW)).toEqual([far]);
+  });
+
+  it('after 12 h the same area is announced again', () => {
+    const alerted = [{ lat: 42.34, lon: -7.86, atMs: NOW - 13 * 60 * 60_000 }];
+    expect(freshZones([zone(42.34, -7.86)], alerted, NOW)).toHaveLength(1);
+  });
+
+  it('the key of an announced zone reads back, also the 0.1 degree keys stored before', () => {
+    expect(alertedZoneKey({ lat: 42.3456, lon: -7.8612 })).toBe('42.35,-7.86');
+    expect(parseAlertedZoneKey('42.35,-7.86')).toEqual({ lat: 42.35, lon: -7.86 });
+    expect(parseAlertedZoneKey('42.4,-7.6')).toEqual({ lat: 42.4, lon: -7.6 });
+    expect(parseAlertedZoneKey('rias')).toBeNull();
+  });
+
+  it('one zone reads as one; several are listed with the strongest first', () => {
+    expect(fireWatchDigestText([{ lat: 42.34, lon: -7.86, strikeCount: 1, maxAbsKa: 35, near: 'Ribadavia' }]))
+      .toBe('Vigilancia de incendio. Rayos a tierra sin lluvia cerca de Ribadavia (1 rayo, hasta 35 kA). '
+        + 'Los incendios por rayo suelen aparecer entre 7 y 18 horas después.');
+    const text = fireWatchDigestText([
+      { lat: 42.3, lon: -7.9, strikeCount: 2, maxAbsKa: 12, near: 'A' },
+      { lat: 43.0, lon: -7.4, strikeCount: 9, maxAbsKa: 53 },
+    ]);
+    expect(text).toBe('Vigilancia de incendio. Rayos a tierra sin lluvia en 2 zonas: zona 43.00,-7.40 (9 rayos, hasta 53 kA); '
+      + 'cerca de A (2 rayos). Los incendios por rayo suelen aparecer entre 7 y 18 horas después.');
+  });
+
+  it('zones next to the same place are one place (5-sep: three clusters around Ancares)', () => {
+    const text = fireWatchDigestText([
+      { lat: 42.80, lon: -6.90, strikeCount: 81, maxAbsKa: 73, near: 'Ancares' },
+      { lat: 42.85, lon: -6.85, strikeCount: 61, maxAbsKa: 39, near: 'Ancares' },
+    ]);
+    expect(text).toBe('Vigilancia de incendio. Rayos a tierra sin lluvia cerca de Ancares (142 rayos, hasta 73 kA). '
+      + 'Los incendios por rayo suelen aparecer entre 7 y 18 horas después.');
+  });
+
+  it('station names read as places', () => {
+    expect(placeName('IBIAS  SAN ANTOLIN')).toBe('Ibias San Antolin');
+    expect(placeName('FOLGOSO DO COUREL')).toBe('Folgoso do Courel');
+    expect(placeName('A GUDIÑA')).toBe('A Gudiña');
+    expect(placeName('OURENSE-ESTACIÓNS')).toBe('Ourense-Estacións');
+    expect(placeName('Ponte Boga')).toBe('Ponte Boga');
+  });
+
+  it(`names at most ${DIGEST_MAX_LISTED} zones and counts the rest`, () => {
+    const zones = Array.from({ length: 8 }, (_, k) => ({ lat: 42 + k * 0.2, lon: -7.5, strikeCount: 10 - k, maxAbsKa: 5 }));
+    const text = fireWatchDigestText(zones);
+    expect(text).toContain('en 8 zonas');
+    expect(text).toContain('; y 3 más. ');
+    expect(text.match(/rayos\)/g)).toHaveLength(DIGEST_MAX_LISTED);
   });
 });
 

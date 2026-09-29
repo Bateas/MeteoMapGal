@@ -7,6 +7,10 @@
  */
 
 import { log } from './logger.js';
+import {
+  alertedZoneKey, parseAlertedZoneKey, fireWatchDigestText, ALERT_COOLDOWN_MS, DIGEST_MIN_GAP_MS,
+  type AlertedZone, type DigestZone,
+} from './fireWatchLogic.js';
 
 // ── Config ──────────────────────────────────────────
 
@@ -445,59 +449,58 @@ export async function dispatchWindSafetyAlert(
 
 // ── Fire watch alerts (dry lightning vigilance) ───────
 
-/** 12h per zone — matches the 7-18h ignition window. One heads-up per zone
- *  per episode is enough; once a hotspot is confirmed, FIRMS takes over. */
-const FIRE_WATCH_COOLDOWN_MS = 12 * 60 * 60_000;
+/** When each announced zone (alertedZoneKey) last went out. One message covers
+ *  several zones and is stored as `fire:<key>;<key>...`; seedCooldowns restores each. */
 const lastFireWatchAlert = new Map<string, number>();
 
+/** The zones announced in the last ALERT_COOLDOWN_MS (the input of freshZones). */
+export function fireWatchAlertedZones(nowMs = Date.now()): AlertedZone[] {
+  const out: AlertedZone[] = [];
+  for (const [key, atMs] of lastFireWatchAlert) {
+    if (nowMs - atMs >= ALERT_COOLDOWN_MS) continue;
+    const c = parseAlertedZoneKey(key);
+    if (c) out.push({ lat: c.lat, lon: c.lon, atMs });
+  }
+  return out;
+}
+
 /**
- * Dispatch a dry-lightning fire-watch alert for a zone.
+ * Dispatch ONE dry-lightning fire-watch message with the zones not announced yet.
  *
- * This is NOT immediate personal safety (the storm already passed) — it can
- * wait until 7 AM, so normal night silence applies. The caller re-invokes
- * every cycle for zones still in watch; the cooldown here only arms after a
- * successful send, so a zone detected overnight alerts on the first morning
- * cycle without extra bookkeeping upstream.
+ * Not immediate personal safety (the storm already passed): it waits for the
+ * end of the night silence, and goes out at most once every DIGEST_MIN_GAP_MS.
+ * The caller offers the new zones every cycle; they are marked as announced
+ * only after a successful send, so the ones held back go in the next message.
  *
  * @returns true if the webhook was actually delivered.
  */
-export async function dispatchFireWatchAlert(
-  zoneId: string,
-  lat: number,
-  lon: number,
-  strikeCount: number,
-  maxKa: number,
-  nearestTown?: string,
-): Promise<boolean> {
-  if (isNightTime()) return false;
-  if (isInCooldown(lastFireWatchAlert, zoneId, FIRE_WATCH_COOLDOWN_MS)) return false;
+export async function dispatchFireWatchDigest(zones: DigestZone[], nowMs = Date.now()): Promise<boolean> {
+  if (zones.length === 0 || isNightTime()) return false;
+  let last = 0;
+  for (const at of lastFireWatchAlert.values()) last = Math.max(last, at);
+  if (nowMs - last < DIGEST_MIN_GAP_MS) return false;
 
-  const where = nearestTown
-    ? `cerca de ${nearestTown}`
-    : `zona aproximada ${lat.toFixed(2)},${lon.toFixed(2)}`;
-  const rayos = strikeCount === 1
-    ? '1 rayo a tierra sin lluvia'
-    : `${strikeCount} rayos a tierra sin lluvia`;
-  let msg = `Vigilancia incendio — ${rayos} (${where}).`;
-  if (maxKa >= 30) msg += ` Corriente alta ${Math.round(maxKa)}kA.`;
-  msg += ' Ventana tipica 7-18h.';
-
+  const keys = zones.map((z) => alertedZoneKey(z));
+  const top = [...zones].sort((a, b) => b.strikeCount - a.strikeCount)[0];
+  const text = fireWatchDigestText(zones);
+  const strikes = zones.reduce((sum, z) => sum + z.strikeCount, 0);
+  const maxKa = zones.reduce((m, z) => Math.max(m, z.maxAbsKa), 0);
   const ok = await postWebhook({
     type: 'fire-watch',
-    zone: zoneId,
-    lat,
-    lon,
-    strikeCount,
+    zone: keys.join(';'),
+    lat: top.lat,
+    lon: top.lon,
+    strikeCount: strikes,
     maxKa: Math.round(maxKa),
-    text: msg,
+    text,
     severity: 'moderate',
-    title: `Vigilancia incendio — ${nearestTown ?? zoneId}`,
-    message: msg,
-  }, `fire:${zoneId}`);
+    title: zones.length === 1 ? `Vigilancia incendio — ${top.near ?? keys[0]}` : `Vigilancia incendio — ${zones.length} zonas`,
+    message: text,
+  }, `fire:${keys.join(';')}`);
 
   if (ok) {
-    lastFireWatchAlert.set(zoneId, Date.now());
-    log.ok(`Fire watch alert: ${zoneId} — ${strikeCount} dry strike(s), max ${Math.round(maxKa)}kA`);
+    for (const k of keys) lastFireWatchAlert.set(k, nowMs);
+    log.ok(`Fire watch alert: ${zones.length} zone(s), ${strikes} dry strike(s), max ${Math.round(maxKa)}kA — ${keys.join(' ')}`);
   }
   return ok;
 }
@@ -528,12 +531,12 @@ export function seedCooldowns(sends: PastSend[]): number {
     const i = s.key.indexOf(':');
     if (i < 0) continue;
     const kind = s.key.slice(0, i), id = s.key.slice(i + 1);
-    const later = (m: Map<string, number>) => { if ((m.get(id) ?? 0) < s.atMs) { m.set(id, s.atMs); n++; } };
+    const later = (m: Map<string, number>, k = id) => { if ((m.get(k) ?? 0) < s.atMs) { m.set(k, s.atMs); n++; } };
     if (kind === 'spot') later(lastSpotAlert);
     else if (kind === 'forecast') later(lastForecastAlert);
     else if (kind === 'visibility') later(lastVisibilityAlert);
     else if (kind === 'magic') later(lastMagicWindowAlert);
-    else if (kind === 'fire') later(lastFireWatchAlert);
+    else if (kind === 'fire') for (const zone of id.split(';')) later(lastFireWatchAlert, zone);
     else if (kind === 'lightning' && (s.level === 'aviso' || s.level === 'peligro')) {
       const cur = lastLightningAlert.get(id);
       if (!cur || cur.at < s.atMs) { lastLightningAlert.set(id, { at: s.atMs, level: s.level }); n++; }
