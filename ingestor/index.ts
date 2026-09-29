@@ -383,9 +383,9 @@ async function start(): Promise<void> {
   setSendRecorder(recordSent);
   const recentSends = await loadRecentSends();
   const restored = seedCooldowns(recentSends);
-  seedWindEpisodes(recentSends);
+  const windEpisodesOpen = seedWindEpisodes(recentSends);
   seedDailySummary(recentSends);
-  log.info(`Alert cooldowns: ${restored} restored from ${recentSends.length} sends in the last 24 h`);
+  log.info(`Alert cooldowns: ${restored} restored, ${windEpisodesOpen} strong-wind episode(s) still open, from ${recentSends.length} sends in the last 24 h`);
 
   // 2. Initial station discovery + persist coords
   stations = await discoverAllStations();

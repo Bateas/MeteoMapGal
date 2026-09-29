@@ -154,6 +154,24 @@ export function episodesFromSends(sends: { key: string; atMs: number; level: str
   return out;
 }
 
+/** How often the state line is repeated while nothing changes, as a heartbeat. */
+export const WIND_LOG_HEARTBEAT_MS = 60 * 60_000;
+
+/** The state that decides whether the log line is news: the level, or whether there is anything
+ *  at all. The figures move every cycle, so logging on any change wrote the same line every five
+ *  minutes through the whole front of 29-sep. */
+export function windLogState(a: Pick<WindSafetyAssessment, 'level' | 'evidence'>): string {
+  return a.level ?? (a.evidence.length > 0 ? 'sin corroborar' : 'sin rachas fuertes');
+}
+
+/** Log when the state changes, and once an hour while it holds with something to report. The
+ *  first cycle after a start stays quiet when there is nothing: only changes are news. */
+export function windLogDue(prev: { state: string; atMs: number } | undefined, state: string, nowMs: number): boolean {
+  if (!prev) return state !== 'sin rachas fuertes';
+  if (prev.state !== state) return true;
+  return state !== 'sin rachas fuertes' && nowMs - prev.atMs >= WIND_LOG_HEARTBEAT_MS;
+}
+
 const SECTOR_LABEL: Record<WindSector, string> = { rias: 'Rías Baixas', embalse: 'Embalse' };
 
 export function formatWindSafetyMessage(a: WindSafetyAssessment): { title: string; message: string } {
