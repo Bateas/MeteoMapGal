@@ -22,6 +22,8 @@ import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
+import { patternHours } from '../config/spots';
+import { madridHour } from './localTime';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
 import { fastDistanceKm, computeBearing } from './idwInterpolation';
@@ -720,10 +722,14 @@ function computeSpotWindConsensus(
   const patternThreshold = spot.thermalDetection ? 5 : 8;
   let matchedPattern: string | null = null;
   if (avgSpeed >= patternThreshold) {
+    const hour = madridHour(Date.now());
     for (const pattern of spot.windPatterns) {
       // A breeze pattern is not named with a front aloft: the wind comes from the same side but
       // it is the front, and the card would call it «Brisa SW (tardes) activa».
       if (pattern.thermal && regimeVeto?.vetoed) continue;
+      // Nor outside the hours its name promises (spots.ts, patternHours).
+      const hours = patternHours(pattern.name);
+      if (hours && !(hour >= hours[0] && hour < hours[1])) continue;
       if (angleDifference(avgDir, pattern.direction) <= 45) {
         matchedPattern = pattern.name;
         break;
