@@ -618,6 +618,8 @@ export function buildMaritimeFogAlerts(
   fogSources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[],
   regionalVisibility?: Map<string, { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }>,
   webcamCriticalVisibilityCount?: number,
+  /** Cameras analysed in the last 30 min that saw no fog. */
+  webcamClearCount?: number,
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
 
@@ -715,17 +717,23 @@ export function buildMaritimeFogAlerts(
 
   if (risk.level === 'none') return [];
 
-  // Webcam fog confirmation modifies severity:
-  // - webcam confirms fog → upgrade to critico (was capped at alto)
-  // - webcam sees NO fog → downgrade to riesgo (parameters say fog but webcam disagrees)
-  // - no webcam data → keep current level (alto max)
-  if (webcamFogDetected === true && risk.level === 'alto') {
-    risk.level = 'critico' as AlertLevel;
-    risk.hypothesis += ' · Niebla confirmada por webcam';
-  } else if (webcamFogDetected === false && risk.level === 'alto') {
+  // What the cameras say about the physics. A camera only gets here uncorroborated: two cameras,
+  // or one plus a non-camera signal, already fired the evidence alert above. So a camera that sees
+  // fog here is ONE camera on its own, and one camera never confirms. It used to raise this alert
+  // to PELIGRO: on 30-sep a misted lens at Ons Praia, with the other eleven cameras clear, turned
+  // «probable» into «NIEBLA MARÍTIMA INMINENTE». Over the previous 30 days that camera read fog in
+  // 11 % of its images, 57 of 129 times with every other camera clear, mostly at sunrise and
+  // sunset. Cameras that looked and saw no fog bring the alert down; a lone camera that sees fog
+  // neither raises it nor outweighs them.
+  const clearCams = webcamClearCount ?? 0;
+  const camerasContradict = webcamFogDetected === false || (webcamFogDetected === true && clearCams > 0);
+  if (camerasContradict && risk.level === 'alto') {
     risk.level = 'riesgo' as AlertLevel;
     risk.hypothesis += ' · Webcam no detecta niebla — rebajado';
   }
+  // Once cameras that looked saw no fog, the physics score is no longer a probability of fog:
+  // the detail says what the cameras saw instead of printing it.
+  const camerasSawNone = camerasContradict && clearCams > 0;
 
   const levelToScore: Record<AlertLevel, number> = {
     none: 0, riesgo: 35, alto: 60, critico: 85,
@@ -751,17 +759,19 @@ export function buildMaritimeFogAlerts(
       `${deltaStr}${buoyStr}`,
       risk.humidity !== null ? `HR ${risk.humidity.toFixed(0)}%` : '',
       risk.isOnshore ? 'viento onshore' : risk.windDir !== null ? 'viento offshore' : '',
-      `${risk.confidence}% confianza`,
+      camerasSawNone
+        ? `${clearCams} ${clearCams === 1 ? 'cámara no la ve' : 'cámaras no la ven'}`
+        : `${risk.confidence}% confianza`,
     ].filter(Boolean).join(' · '),
     urgent: risk.level === 'critico',
     updatedAt: new Date(),
-    confidence: risk.confidence,
+    confidence: camerasSawNone ? undefined : risk.confidence,
     fogMeta: {
       type: 'advective',
       windDir: risk.windDir ?? null,
       windSpeed: risk.windSpeed ?? null,
       spread: null,
-      webcamConfirmed: webcamFogDetected === true,
+      webcamConfirmed: false,
       sources: fogSources,
     },
   }];

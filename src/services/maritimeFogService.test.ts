@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { detectNorthWindConsensus, detectFogBySolarSignature, buildMaritimeFogAlerts } from './maritimeFogService';
 import type { NormalizedReading } from '../types/station';
+import type { BuoyReading } from '../api/buoyClient';
 
 function reading(over: Partial<NormalizedReading>): NormalizedReading {
   return {
@@ -209,5 +210,72 @@ describe('buildMaritimeFogAlerts — firing gate (varias variables, no a la lige
     const fog = fogAlert(alerts);
     expect(fog).toBeDefined();
     expect(fog!.severity).toBe('high');
+  });
+});
+
+describe('buildMaritimeFogAlerts — cameras against the physics (30-sep, Ons Praia)', () => {
+  // 18:30 UTC: 20:30 in Madrid, 18:30 on a UTC runner. The level is 'alto' under both
+  // (confidence 85 or 90), so the tests assert levels and wording, never the exact number.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-30T18:30:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Ribeira at dusk on 30-sep: air 1.1 °C above the water, 88 % humidity, a light onshore breeze.
+  // The buoy carries its own air temperature, humidity and wind, so no station is needed.
+  const ribeira = (): BuoyReading => ({
+    stationId: 1255, stationName: 'Ribeira', timestamp: new Date().toISOString(),
+    waveHeight: null, waveHeightMax: null, wavePeriod: null, wavePeriodMean: null, waveDir: null,
+    windSpeed: 3, windDir: 250, windGust: null,
+    waterTemp: 16, airTemp: 17.1, airPressure: null,
+    currentSpeed: null, currentDir: null, salinity: null, seaLevel: null,
+    humidity: 88, dewPoint: null, source: 'obscosteiro',
+  });
+  const physics = (a: ReturnType<typeof buildMaritimeFogAlerts>) => a.find((x) => x.id === 'maritime-fog');
+  const build = (fog: boolean | undefined, fogCount: number, clear?: number) =>
+    buildMaritimeFogAlerts([ribeira()], new Map(), [], fog, fogCount, fog ? ['mg-ons-praia'] : [],
+      undefined, undefined, 0, clear);
+
+  it('without cameras the physics alone stays at «probable», never PELIGRO', () => {
+    const a = physics(build(undefined, 0));
+    expect(a?.title).toBe('Niebla marítima probable');
+    expect(a?.severity).not.toBe('critical');
+    expect(a?.urgent).toBe(false);
+  });
+
+  it('ONE camera seeing fog while eleven see none does not raise it to PELIGRO: it comes down', () => {
+    const a = physics(build(true, 1, 11));
+    expect(a).toBeDefined();
+    expect(a!.title).not.toMatch(/INMINENTE/);
+    expect(a!.severity).not.toBe('critical');
+    expect(a!.urgent).toBe(false);
+    expect(a!.title).toBe('Riesgo de niebla marítima');
+    expect(a!.detail).toMatch(/11 cámaras no la ven/);
+    expect(a!.detail).not.toMatch(/confianza/);
+    expect(a!.confidence).toBeUndefined();
+    expect(a!.fogMeta?.webcamConfirmed).toBe(false);
+  });
+
+  it('a lone camera with no other camera to contradict it neither raises nor lowers the alert', () => {
+    const a = physics(build(true, 1, 0));
+    expect(a?.title).toBe('Niebla marítima probable');
+    expect(a?.urgent).toBe(false);
+    expect(a?.detail).toMatch(/confianza/);
+  });
+
+  it('cameras that looked and saw no fog bring it down and say so', () => {
+    const a = physics(build(false, 0, 1));
+    expect(a?.title).toBe('Riesgo de niebla marítima');
+    expect(a?.detail).toMatch(/1 cámara no la ve/);
+    expect(a?.confidence).toBeUndefined();
+  });
+
+  it('two cameras still fire the corroborated alert, not the physics one', () => {
+    const alerts = buildMaritimeFogAlerts([ribeira()], new Map(), [], true, 2, ['mg-ons-praia', 'mg-ons-porto'],
+      undefined, undefined, 0, 10);
+    expect(alerts.map((x) => x.id)).toEqual(['maritime-fog-webcam']);
   });
 });
