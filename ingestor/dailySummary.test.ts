@@ -8,7 +8,7 @@ import { log } from './logger';
 import { checkAndSendDailySummary, seedDailySummary,
   summarizeDayOutlook, spotsFavoredByDir, formatOutlook,
   summarizeDayHazard, formatHazard,
-  buildSectorBlock, buildMessage,
+  buildSectorBlock, buildMessage, withSynopticRegime,
 } from './dailySummary';
 import type { HourlyForecast } from '../src/types/forecast';
 
@@ -207,5 +207,42 @@ describe('daily summary — a restart between 9 and 10 does not send it twice (2
     expect(info).not.toHaveBeenCalledWith('Generating daily summary...');
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+});
+
+describe('withSynopticRegime — a SW under the frontal flow aloft is not a breeze (30-sep)', () => {
+  const day = new Date('2026-09-30T09:00:00');
+  // The outlook the summary sent on 30-sep for the Rías: 13-16 h, up to 11 kt WSW.
+  const outlook = { startHour: 13, endHour: 16, peakKt: 11, dirDeg: 245, dir: 'WSW', pattern: 'térmico' as const, strong: false };
+  const level = (hour: number, kt: number, dir: number) => {
+    const t = new Date(day);
+    t.setHours(hour, 0, 0, 0);
+    return { time: t, pressureHpa: 850, windSpeedMs: kt / 1.94384, windDirDeg: dir };
+  };
+  // 850 hPa stored that morning for the Rías, 13-16 h.
+  const frontal = [level(13, 23, 237), level(14, 21, 242), level(15, 21, 242), level(16, 20, 250)];
+
+  it('30-sep: SW 20-23 kt at 1.500 m all window long -> "de frente", and the summary no longer says térmico', () => {
+    const o = withSynopticRegime(outlook, frontal, day);
+    expect(o.pattern).toBe('de frente');
+    expect(formatOutlook(o)).toBe('Navegable 13-16h · hasta 11kt WSW (de frente)');
+  });
+
+  it('light NW aloft (the breeze afternoons: 6-ago, 25-sep) keeps "térmico"', () => {
+    const breeze = [13, 14, 15, 16].map((h) => level(h, 6, 320));
+    expect(withSynopticRegime(outlook, breeze, day).pattern).toBe('térmico');
+  });
+
+  it('frontal in half the window is enough; in less than half it is not', () => {
+    const half = [level(13, 23, 237), level(14, 21, 242), level(15, 6, 320), level(16, 6, 320)];
+    expect(withSynopticRegime(outlook, half, day).pattern).toBe('de frente');
+    const one = [level(13, 23, 237), level(14, 6, 320), level(15, 6, 320), level(16, 6, 320)];
+    expect(withSynopticRegime(outlook, one, day).pattern).toBe('térmico');
+  });
+
+  it('without upper-air rows for those hours nothing changes; a nortada is never touched', () => {
+    expect(withSynopticRegime(outlook, [], day)).toBe(outlook);
+    const nortada = { ...outlook, dirDeg: 340, dir: 'NNW', pattern: 'nortada' as const };
+    expect(withSynopticRegime(nortada, frontal, day)).toBe(nortada);
   });
 });
