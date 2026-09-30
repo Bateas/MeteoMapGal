@@ -8,7 +8,7 @@
  * 24/7 operation — independent of frontend browser.
  */
 
-import { getPool, hasColumn } from './db.js';
+import { getPool, hasColumn, stationAltitudeSql } from './db.js';
 import { log } from './logger.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
@@ -126,6 +126,7 @@ async function getLatestReadings(): Promise<StationReading[]> {
     //   - dew_point, solar_rad, pressure feed the Cesantes interior-sun gate,
     //     the magic window's mouth humidity and bocana solar gating
     //   - All optional in StationReading interface — older code keeps working
+    const altitude = await stationAltitudeSql();
     const result = await db.query<StationReading>(`
       SELECT DISTINCT ON (r.station_id)
         r.station_id,
@@ -135,7 +136,7 @@ async function getLatestReadings(): Promise<StationReading[]> {
         r.dew_point, r.solar_rad, r.pressure,
         COALESCE(s.latitude, 0.0) as latitude,
         COALESCE(s.longitude, 0.0) as longitude,
-        s.name, s.source, s.altitude
+        s.name, s.source, ${altitude} AS altitude
       FROM readings r
       LEFT JOIN stations s ON s.station_id = r.station_id
       -- Four hours, not thirty minutes. AEMET publishes hourly and can run two
@@ -524,14 +525,15 @@ export async function reopenWindEpisodesFromHistory(sends: PastSend[], nowMs = D
   const minutes = Math.round(WIND_EPISODE_GAP_MS / 60_000) + WIND_MAX_AGE_MIN;
   try {
     const db = getPool();
+    const altitude = await stationAltitudeSql();
     const [st, bu] = await Promise.all([
       db.query<StationReading>(`
         SELECT r.station_id, r.time, r.wind_speed, r.wind_gust, r.wind_dir,
-               s.latitude, s.longitude, s.name, s.source, s.altitude,
+               s.latitude, s.longitude, s.name, s.source, ${altitude} AS altitude,
                NULL::float8 AS temperature, NULL::float8 AS humidity
           FROM readings r JOIN stations s ON s.station_id = r.station_id
          WHERE r.time > NOW() - ($1::int * INTERVAL '1 minute')
-           AND r.wind_gust IS NOT NULL AND s.altitude <= $2`,
+           AND r.wind_gust IS NOT NULL AND ${altitude} <= $2`,
         [minutes, Math.max(...Object.values(WIND_MAX_ALTITUDE_M))]),
       db.query<{ station_id: number; time: Date; wind_speed: number | null; wind_dir: number | null; wind_gust: number }>(`
         SELECT station_id, time, wind_speed, wind_dir, wind_gust
