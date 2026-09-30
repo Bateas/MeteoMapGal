@@ -1376,29 +1376,57 @@ export function gustIsCurrent(time: Date | string | null | undefined, nowMs = Da
   return !Number.isFinite(t) || nowMs - t <= GUST_SHOWN_MAX_AGE_MIN * 60_000;
 }
 
-/** The spot gust the map shows (peakPlausibleGustKt), from the same closest sources as
- *  localGustKt, and only gusts measured in the last hour (gustIsCurrent). localGustKt stays as it
- *  was for the Cesantes detector, which was validated with it. */
+/** The spot gust only comes from sources this close, buoys included. */
+export const SPOT_GUST_MAX_DIST_KM = 8;
+
+export interface GustSource {
+  gustKt: number | null;
+  /** The same source's mean, to judge its gust (gustIsPlausible). */
+  meanKt: number | null;
+  distKm: number;
+  time?: Date | string | null;
+  blacklisted?: boolean;
+}
+
+/**
+ * The gust SHOWN and SENT for a spot, one rule for the map and the server: the highest plausible
+ * gust of the last hour (peakPlausibleGustKt, gustIsCurrent) among the sources within 8 km,
+ * buoys included. Buoys used to count up to 12 km: on 30-sep at 17:23 Cesantes showed
+ * «racha 19-22» from the Vigo tide gauge, 12 km away, during a burst that stayed on the south
+ * shore of Vigo while Cesantes had 6 kt.
+ */
+export function spotGustKt(sources: GustSource[], nowMs = Date.now()): number | null {
+  const gusts: number[] = [];
+  for (const s of sources) {
+    if (s.gustKt == null || s.blacklisted || s.distKm > SPOT_GUST_MAX_DIST_KM) continue;
+    if (!gustIsCurrent(s.time, nowMs)) continue;
+    if (gustIsPlausible(s.meanKt, s.gustKt)) gusts.push(s.gustKt);
+  }
+  return peakPlausibleGustKt(gusts);
+}
+
+/** The map's side of spotGustKt. localGustKt stays as it was for the Cesantes detector, which
+ *  was validated with it. */
 export function reportedGustKt(
   stationData: { reading: NormalizedReading; distKm: number }[],
   buoyData: { buoy: BuoyReading; distKm: number }[],
   nowMs = Date.now(),
 ): number | null {
-  const gusts: number[] = [];
-  for (const { reading, distKm } of stationData) {
-    if (reading.windGust == null || distKm > 8 || isWindBlacklisted(reading.stationId)) continue;
-    if (!gustIsCurrent(reading.timestamp, nowMs)) continue;
-    const mean = reading.windSpeed == null ? null : msToKnots(reading.windSpeed);
-    const g = msToKnots(reading.windGust);
-    if (gustIsPlausible(mean, g)) gusts.push(g);
-  }
-  for (const { buoy, distKm } of buoyData) {
-    if (buoy.windGust == null || distKm > 12 || !gustIsCurrent(buoy.timestamp, nowMs)) continue;
-    const mean = buoy.windSpeed == null ? null : msToKnots(buoy.windSpeed);
-    const g = msToKnots(buoy.windGust);
-    if (gustIsPlausible(mean, g)) gusts.push(g);
-  }
-  return peakPlausibleGustKt(gusts);
+  return spotGustKt([
+    ...stationData.map(({ reading, distKm }) => ({
+      gustKt: reading.windGust == null ? null : msToKnots(reading.windGust),
+      meanKt: reading.windSpeed == null ? null : msToKnots(reading.windSpeed),
+      distKm,
+      time: reading.timestamp,
+      blacklisted: isWindBlacklisted(reading.stationId),
+    })),
+    ...buoyData.map(({ buoy, distKm }) => ({
+      gustKt: buoy.windGust == null ? null : msToKnots(buoy.windGust),
+      meanKt: buoy.windSpeed == null ? null : msToKnots(buoy.windSpeed),
+      distKm,
+      time: buoy.timestamp,
+    })),
+  ], nowMs);
 }
 
 /** Peak gust from the CLOSEST sources only (stations <= 8 km, buoys <= 12 km), so a distant
@@ -1648,8 +1676,8 @@ export function scoreAllSpots(
       if (windTrend.label) summary += ` · ${windTrend.label}`;
     }
 
-    // Gust from the CLOSEST sources only (stations <=8km, buoys <=12km), each checked against
-    // its own mean, and one that at least two of them reach (reportedGustKt).
+    // Gust from sources within 8 km, buoys included, each checked against its own mean
+    // (spotGustKt, the same rule as the server).
     const gustKt = reportedGustKt(stationData, buoyData);
 
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
