@@ -56,18 +56,6 @@ export default defineConfig(({ mode }) => {
   },
   server: {
     proxy: {
-      '/aemet-api': {
-        target: 'https://opendata.aemet.es/opendata',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/aemet-api/, ''),
-        secure: true,
-      },
-      '/aemet-data': {
-        target: 'https://opendata.aemet.es',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/aemet-data/, ''),
-        secure: true,
-      },
       '/meteogalicia-api': {
         target: 'https://servizos.meteogalicia.gal',
         changeOrigin: true,
@@ -126,12 +114,6 @@ export default defineConfig(({ mode }) => {
         target: 'https://portus.puertos.es/portussvr/api',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/portus-api/, ''),
-        secure: true,
-      },
-      '/obscosteiro-api': {
-        target: 'https://apis-ext.xunta.gal',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/obscosteiro-api/, '/mgplatpubapi/v1/api'),
         secure: true,
       },
       '/skyx-api': {

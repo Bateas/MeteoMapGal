@@ -4,17 +4,19 @@
 User-agent: *
 
 # API proxy routes (not crawlable content)
-Disallow: /aemet-api/
-Disallow: /aemet-data/
 Disallow: /meteogalicia-api/
 Disallow: /meteoclimatic-api/
 Disallow: /netatmo-api/
 Disallow: /netatmo-auth/
 Disallow: /meteo2api/
-Disallow: /ideg-api/
-Disallow: /eumetsat-api/
+Disallow: /ica-api/
 Disallow: /enaire-api/
 Disallow: /ihm-api/
+Disallow: /portus-api/
+Disallow: /skyx-api/
+Disallow: /noaa-api/
+Disallow: /opensky-api/
+Disallow: /swan-api/
 Disallow: /api/
 
 # Allow app assets and entry point
