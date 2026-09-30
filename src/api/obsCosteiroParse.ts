@@ -155,6 +155,15 @@ export function readObsCurrent(data: ObsResponse | null | undefined): ObsCurrent
     humidity: v('HR', 'AVG', AIR),
     dewPoint: v('TO', 'AVG', AIR),
   };
+  // Every buoy read here with an anemometer publishes a 10-minute gust with its wind: from
+  // 22-sep to 30-sep, over 4,700 readings, not one without, except Muros's broken records. Those
+  // come in runs of two to four with no gust and a wind that makes no sense: 28-sep 08:00,
+  // 53.9 kt from 29 degrees after 5.4 kt; 30-sep 14:40, 38.7 kt from 340 while Ribeira read
+  // 13 kt from 183, then a direction with no speed. A record without its gust has no wind.
+  if (cur.windGust === null) {
+    cur.windSpeed = null;
+    cur.windDir = null;
+  }
   // A row with nothing in it says nothing, and merged over a PORTUS row it
   // would blank the fields that one does have.
   const hasAny = [cur.windSpeed, cur.windDir, cur.windGust, cur.waterTemp, cur.airTemp,

@@ -242,3 +242,27 @@ describe('readObsCurrent — payload shape', () => {
     expect(readObsCurrent(null)).toBeNull();
   });
 });
+
+describe('readObsCurrent — a wind without its gust (Muros, 28 and 30-sep)', () => {
+  const gust = (ps: ObsParametro[]) => find(ps, 'VV', 'RACHA');
+
+  it('a record whose gust is missing has no wind; the rest of the row stands', () => {
+    const ps = real('15009');
+    const before = readObsCurrent(real('15009'))!;
+    gust(ps).medicions[0].valor = -9999;
+    const r = readObsCurrent(ps)!;
+    expect([r.windSpeed, r.windDir, r.windGust]).toEqual([null, null, null]);
+    expect(r.airTemp).toBe(before.airTemp);
+    expect(r.waterTemp).toBe(before.waterTemp);
+  });
+
+  it('the same when the gust is rejected by the platform', () => {
+    const ps = real('15009');
+    gust(ps).medicions[0].codigoValidacion = 4;
+    expect(readObsCurrent(ps)!.windSpeed).toBeNull();
+  });
+
+  it('a record with its gust keeps its wind', () => {
+    expect([readObsCurrent(real('15009'))!.windSpeed, readObsCurrent(real('15009'))!.windGust]).toEqual([1.86, 2.71]);
+  });
+});
