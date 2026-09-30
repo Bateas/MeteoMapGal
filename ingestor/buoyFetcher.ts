@@ -13,6 +13,7 @@ import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import { readObsCurrent, type ObsResponse } from '../src/api/obsCosteiroParse.js';
 import { portusFechaToIso } from '../src/api/portusTime.js';
+import { shouldAskPortus, isBackingOff, nextPortusBackoff, type PortusBackoff } from './portusBackoff.js';
 
 const PORTUS_BASE = 'https://portus.puertos.es/portussvr/api';
 const OBS_BASE = 'https://apis-ext.xunta.gal/mgplatpubapi/v1/api';
@@ -116,6 +117,26 @@ const portusFailureCounters = new Map<number, number>();
  */
 const buoyLastSeen = new Map<number, number>();
 
+/** PORTUS stations that keep failing: asked once an hour (portusBackoff.ts). */
+const portusBackoff = new Map<number, PortusBackoff>();
+
+function madridHhmm(ms: number): string {
+  return new Date(ms).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+}
+
+/** Records whether a PORTUS request failed and logs only when a station enters or leaves the pause. */
+function notePortusAnswer(station: BuoyStation, failed: boolean, nowMs = Date.now()): void {
+  const before = portusBackoff.get(station.id);
+  const after = nextPortusBackoff(before, failed, nowMs);
+  if (after) portusBackoff.set(station.id, after);
+  else portusBackoff.delete(station.id);
+  if (!isBackingOff(before) && isBackingOff(after)) {
+    log.warn(`PORTUS ${station.name} (${station.id}) falla en ${after!.fails} ciclos seguidos desde las ${madridHhmm(after!.since)}: se le pregunta una vez por hora hasta que responda`);
+  } else if (isBackingOff(before) && !after) {
+    log.info(`PORTUS ${station.name} (${station.id}) vuelve a responder: se le pregunta cada ciclo`);
+  }
+}
+
 // ── PORTUS fetch ────────────────────────────────────────
 
 async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow | null> {
@@ -150,7 +171,8 @@ async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow 
       // 11 separate warn lines per cycle but still actionable.
       // (See logCycleSummary() at the end of fetchBuoyObservations.)
       portusFailureCounters.set(res.status, (portusFailureCounters.get(res.status) ?? 0) + 1);
-      if (res.status >= 500 || res.status === 429) {
+      // A station already known to be failing gets no retry: its hourly probe is enough.
+      if ((res.status >= 500 || res.status === 429) && !isBackingOff(portusBackoff.get(station.id))) {
         // Retry on 5xx or 429 with longer backoff (PORTUS rate-limit window
         // appears to be ~30-60s based on observed behaviour).
         await new Promise((r) => setTimeout(r, 5000));
@@ -162,17 +184,22 @@ async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow 
         });
         if (!retry.ok) {
           portusFailureCounters.set(retry.status, (portusFailureCounters.get(retry.status) ?? 0) + 1);
+          notePortusAnswer(station, true);
           return null;
         }
+        notePortusAnswer(station, false);
         const retryData = await retry.json();
         return parsePortusResponse(station, retryData);
       }
+      notePortusAnswer(station, true);
       return null;
     }
 
+    notePortusAnswer(station, false);
     const data = await res.json();
     return parsePortusResponse(station, data);
   } catch (err) {
+    notePortusAnswer(station, true);
     log.warn(`PORTUS ${station.name} (${station.id}): ${(err as Error).message}`);
     return null;
   }
@@ -386,13 +413,17 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
 
   const portusStations = RIAS_BUOY_STATIONS.filter((s) => s.enabled !== false);
   const obsStations = OBS_STATIONS.filter((s) => s.enabled !== false);
+  // Stations failing for three cycles in a row wait for their hourly probe (portusBackoff.ts).
+  const cycleNow = Date.now();
+  const portusAsked = portusStations.filter((s) => shouldAskPortus(portusBackoff.get(s.id), cycleNow));
+  const portusWaiting = portusStations.filter((s) => !portusAsked.includes(s));
 
   // Reset the per-cycle failure counter before we start fetching.
   portusFailureCounters.clear();
 
   // Fetch both sources in parallel
   const [portusResults, obsResults] = await Promise.all([
-    allSettledLimit(portusStations, fetchPortusStation, PORTUS_CONCURRENCY),
+    allSettledLimit(portusAsked, fetchPortusStation, PORTUS_CONCURRENCY),
     obsApiKey
       ? allSettledLimit(obsStations, (s) => fetchObsStation(s, obsApiKey), OBS_CONCURRENCY)
       : Promise.resolve([] as PromiseSettledResult<BuoyReadingRow | null>[]),
@@ -414,7 +445,10 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   const obsCount = obs.length;
   const portusEnabled = portusStations.length;
   const obsEnabled = obsStations.length;
-  log.info(`Buoys: PORTUS ${portusCount}/${portusEnabled}, ObsCosteiro ${obsCount}/${obsEnabled} → ${merged.length} merged`);
+  const waitingNote = portusWaiting.length > 0
+    ? ` · en espera (1/h): ${portusWaiting.map((s) => `${s.name} ${s.id}`).join(', ')}`
+    : '';
+  log.info(`Buoys: PORTUS ${portusCount}/${portusEnabled}, ObsCosteiro ${obsCount}/${obsEnabled} → ${merged.length} merged${waitingNote}`);
 
   // Diagnostic: when PORTUS gives < total back, surface WHY. Distinguishes:
   //   HTTP 429/403/5xx — upstream rejecting at network layer
