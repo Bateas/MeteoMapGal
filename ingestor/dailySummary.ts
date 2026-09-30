@@ -23,6 +23,7 @@ import { noteSent, type PastSend } from './alertDispatcher.js';
 import { msToKnots, degreesToCardinal, angleDifference } from '../src/services/windUtils.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
+import { assessSynopticRegime, upperWindAt, type UpperAirLevel } from '../src/services/synopticRegime.js';
 import type { HourlyForecast } from '../src/types/forecast.js';
 
 // ── Config ──────────────────────────────────────────
@@ -69,7 +70,9 @@ interface DayOutlook {
   peakKt: number;
   dirDeg: number;                       // dominant direction (degrees)
   dir: string;                          // cardinal
-  pattern: 'térmico' | 'nortada' | '';  // recognised Galician pattern
+  /** Recognised Galician pattern. 'de frente': SW at the surface with the frontal flow
+   *  aloft (synopticRegime.ts), which is not a breeze even though it blows from the SW. */
+  pattern: 'térmico' | 'nortada' | 'de frente' | '';
   strong: boolean;
 }
 
@@ -133,6 +136,29 @@ export function summarizeDayOutlook(hourly: HourlyForecast[], now: Date): DayOut
     pattern,
     strong: peakKt >= STRONG_KT,
   };
+}
+
+/**
+ * The outlook with the synoptic regime of its hours. The direction alone called the SW
+ * "térmico", but a SW under a strong S-W flow at 850 hPa is the front brought down, not a
+ * breeze: on 30-sep the summary said "hasta 11kt WSW (térmico)" and named Cesantes while the
+ * map said "Entra viento de frente (24 kt SW a 1.500 m)" and Cesantes read 6 kt from the S
+ * (checked on the webcam). The same rule as the map (assessSynopticRegime), taken over the
+ * window hours: frontal in at least half of them turns 'térmico' into 'de frente'. Without
+ * upper-air rows for those hours, the outlook stays as it was. Pure.
+ */
+export function withSynopticRegime(o: DayOutlook, levels: UpperAirLevel[], day: Date): DayOutlook {
+  if (o.pattern !== 'térmico') return o;
+  let frontal = 0, judged = 0;
+  for (let h = o.startHour; h <= o.endHour; h++) {
+    const at = new Date(day);
+    at.setHours(h, 0, 0, 0);
+    const regime = assessSynopticRegime(upperWindAt(levels, at.getTime()));
+    if (!regime) continue;
+    judged++;
+    if (regime.vetoed) frontal++;
+  }
+  return judged > 0 && frontal * 2 >= judged ? { ...o, pattern: 'de frente' } : o;
 }
 
 /**
@@ -214,6 +240,21 @@ export function formatHazard(h: DayHazard): string {
 
 // ── DB queries ──────────────────────────────────────
 
+/** Today's 850 hPa rows for a sector (the synoptic fetcher stores the next 12 h). Empty on error. */
+async function queryUpperAir850(sectorId: string, now: Date): Promise<UpperAirLevel[]> {
+  try {
+    const res = await getPool().query<{ time: Date; wind_speed_ms: number | null; wind_dir_deg: number | null }>(
+      `SELECT time, wind_speed_ms, wind_dir_deg FROM upper_air_hourly
+        WHERE sector = $1 AND pressure_hpa = 850 AND time BETWEEN $2 AND $3`,
+      [sectorId, new Date(now.getTime() - 60 * 60_000), new Date(now.getTime() + 14 * 60 * 60_000)],
+    );
+    return res.rows.map((r) => ({ time: r.time, pressureHpa: 850, windSpeedMs: r.wind_speed_ms, windDirDeg: r.wind_dir_deg }));
+  } catch (err) {
+    log.warn(`Summary: 850 hPa not read for ${sectorId} (${(err as Error).message}), outlook without regime`);
+    return [];
+  }
+}
+
 async function querySectorSummary(
   sectorId: string,
   hourly: HourlyForecast[],
@@ -239,8 +280,11 @@ async function querySectorSummary(
     ]);
     const stationCount = Number(countRes.rows[0]?.n ?? 0);
 
-    const outlook = summarizeDayOutlook(hourly, now);
-    const favoredSpots = outlook ? spotsFavoredByDir(sectorId, outlook.dirDeg) : [];
+    const rawOutlook = summarizeDayOutlook(hourly, now);
+    const outlook = rawOutlook ? withSynopticRegime(rawOutlook, await queryUpperAir850(sectorId, now), now) : null;
+    // The spots a SW favours are the afternoon-breeze ones (their primary pattern is
+    // "Brisa/Viento SW (tardes)"); with the front aloft there is no breeze to name them for.
+    const favoredSpots = outlook && outlook.pattern !== 'de frente' ? spotsFavoredByDir(sectorId, outlook.dirDeg) : [];
     const hazard = summarizeDayHazard(hourly, now);
 
     // Marine obs ONLY for coastal sectors. Embalse is an inland reservoir with
