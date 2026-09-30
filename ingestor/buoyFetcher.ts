@@ -42,11 +42,12 @@ const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
   // Ría de Vigo
   { id: 1252, name: 'Islas Cíes', type: 'CETMAR', enabled: false },  // OFFLINE since Dec 2025 (same as ObsCosteiro 15002)
   // Rande has NO anemometer (documented gotcha) — only humidity/temp/dewpoint.
-  // Not asked to PORTUS any more: since 20-sep PORTUS answers HTTP 500 whenever
-  // AIR_PRESSURE is requested for it, and without that category it only returns
-  // air temperature (water temperature comes null). Its water, air and humidity
-  // arrive through ObsCosteiro (same buoy, same id). If it is ever re-enabled,
-  // do not ask for AIR_PRESSURE.
+  // Not asked to PORTUS any more: PORTUS answers HTTP 500 whenever AIR_PRESSURE is
+  // requested for it, and that category was in this list from v2.80.0 (May) until
+  // v2.163.46, so every request failed for almost five months. Without it PORTUS
+  // only returns air temperature (water temperature comes null). Its water, air and
+  // humidity arrive through ObsCosteiro (same buoy, same id). If it is ever
+  // re-enabled, do not ask for AIR_PRESSURE.
   { id: 1251, name: 'Rande (Ría Vigo)', type: 'CETMAR', enabled: false,
     categories: ['WATER_TEMP', 'AIR_TEMP'] },
   { id: 3221, name: 'Vigo (marea)', type: 'REDMAR' },
