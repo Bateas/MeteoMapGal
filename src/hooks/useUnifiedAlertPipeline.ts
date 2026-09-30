@@ -189,6 +189,7 @@ export function useUnifiedAlertPipeline({
       let webcamFogDetected: boolean | undefined;
       let webcamFogCount = 0;
       let webcamCriticalVisibilityCount = 0;
+      let webcamClearCount = 0;
       const webcamFogIds: string[] = [];
       const fogSources: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[] = [];
       if (visionResults.size > 0) {
@@ -225,6 +226,8 @@ export function useUnifiedAlertPipeline({
             if (result.weather.visibility === 'poor') webcamCriticalVisibilityCount++;
             const c = webcamCoords.get(id);
             if (c) fogSources.push({ lat: c.lat, lon: c.lon, type: 'webcam', id });
+          } else {
+            webcamClearCount++;
           }
         }
       }
@@ -296,6 +299,7 @@ export function useUnifiedAlertPipeline({
         webcamFogCount,
         webcamFogIds,
         webcamCriticalVisibilityCount,
+        webcamClearCount,
         fogSources: fogSources.length > 0 ? fogSources : undefined,
         regionalVisibility: relevantVisibility.size > 0 ? relevantVisibility : undefined,
       });

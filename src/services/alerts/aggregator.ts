@@ -137,6 +137,8 @@ export function aggregateAllAlerts(sources: {
   regionalVisibility?: Map<string, { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }>;
   /** Webcams reporting visibility 'poor' (<1km from vision IA). Counts as 2 evidence units. */
   webcamCriticalVisibilityCount?: number;
+  /** Webcams analysed in the last 30min that saw no fog */
+  webcamClearCount?: number;
 }): { alerts: UnifiedAlert[]; risk: CompositeRisk } {
   // Extract NAO/AO for context enrichment
   const nao = sources.teleconnections?.find((t) => t.name === 'NAO');
@@ -158,7 +160,7 @@ export function aggregateAllAlerts(sources: {
     // (applicable even to Embalse — Ourense AEMET 1690A is within 27km and reports visibility)
     ...(sources.currentReadings && sources.stationsGeo &&
         (sources.buoys || sources.regionalVisibility || sources.webcamFogDetected)
-      ? buildMaritimeFogAlerts(sources.buoys ?? [], sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected, sources.webcamFogCount, sources.webcamFogIds, sources.fogSources, sources.regionalVisibility, sources.webcamCriticalVisibilityCount) : []),
+      ? buildMaritimeFogAlerts(sources.buoys ?? [], sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected, sources.webcamFogCount, sources.webcamFogIds, sources.fogSources, sources.regionalVisibility, sources.webcamCriticalVisibilityCount, sources.webcamClearCount) : []),
     ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),
     // Upwelling alerts removed. The detector required a >=3h SST history buffer
     // that only lived in session memory, so it never fired in production. The
