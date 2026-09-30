@@ -3,7 +3,7 @@
  * the Bocana showed «racha 41» with 8-10 kt, from Vigo airport's reading of 20:00).
  */
 import { describe, it, expect } from 'vitest';
-import { reportedGustKt, gustIsCurrent, GUST_SHOWN_MAX_AGE_MIN } from './spotScoringEngine';
+import { reportedGustKt, gustIsCurrent, GUST_SHOWN_MAX_AGE_MIN, spotGustKt, type GustSource } from './spotScoringEngine';
 import type { NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 
@@ -41,5 +41,25 @@ describe('reportedGustKt — only gusts of the last hour', () => {
     expect(gustIsCurrent(undefined, NOW)).toBe(true);
     expect(gustIsCurrent(new Date(NOW - 59 * 60_000), NOW)).toBe(true);
     expect(gustIsCurrent(new Date(NOW - 61 * 60_000), NOW)).toBe(false);
+  });
+});
+
+describe('spotGustKt — sources within 8 km, buoys included (30-sep, 17:23)', () => {
+  const src = (distKm: number, meanKt: number, gustKt: number): GustSource =>
+    ({ distKm, meanKt, gustKt, time: new Date(NOW - 5 * 60_000) });
+
+  it('the burst at the Vigo tide gauge, 12 km away, is not a Cesantes gust', () => {
+    expect(spotGustKt([src(11.8, 18.5, 22), src(1.7, 3.9, 5.8)], NOW)).toBeCloseTo(5.8, 1);
+  });
+
+  it('a buoy within 8 km still counts, and a blacklisted station does not', () => {
+    expect(spotGustKt([src(7.5, 12, 18)], NOW)).toBeCloseTo(18, 1);
+    expect(spotGustKt([{ ...src(2, 10, 16), blacklisted: true }], NOW)).toBeNull();
+  });
+
+  it('the map gives buoys the same 8 km', () => {
+    const buoy = { stationId: 3221, timestamp: new Date(NOW - 5 * 60_000).toISOString(), windSpeed: kt(18.5), windGust: kt(22) } as unknown as BuoyReading;
+    expect(reportedGustKt([], [{ buoy, distKm: 11.8 }], NOW)).toBeNull();
+    expect(reportedGustKt([], [{ buoy, distKm: 7.9 }], NOW)).toBeCloseTo(22, 0);
   });
 });

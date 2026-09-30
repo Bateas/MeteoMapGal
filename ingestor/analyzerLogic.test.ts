@@ -1348,3 +1348,12 @@ describe('scoreSpot — the gust shown and sent is from the last hour (29-sep)',
   });
 });
 
+
+describe('scoreSpot — the gust comes from within 8 km, buoys included (30-sep)', () => {
+  it('the Vigo tide gauge 12 km away does not give Cesantes its gust (17:23)', () => {
+    const gauge = makeBuoy({ station_id: 3221, lat: 42.24, lon: -8.73, wind_speed: 9.5, wind_gust: 11.3 }); // 18.5/22 kt
+    const shore = makeReading({ station_id: 'wu_shore', latitude: 42.292, longitude: -8.619, wind_speed: 2.0, wind_gust: 3.0 }); // 3.9/5.8 kt
+    const result = scoreSpot(cesantes, [shore], [gauge]);
+    expect(result.maxGustKt).toBe(6);
+  });
+});
