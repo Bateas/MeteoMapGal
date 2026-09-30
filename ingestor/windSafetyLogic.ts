@@ -16,7 +16,7 @@
  * 35 kt on 3 days, 40 kt only on the front of 29-sep.
  */
 import { haversineDistance } from '../src/services/geoUtils.js';
-import { isWindBlacklisted } from '../src/services/spotScoringEngine.js';
+import { isWindBlacklisted, WATER_LEVEL_MAX_ALTITUDE_M } from '../src/services/spotScoringEngine.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import type { BuoyWind, StationReading } from './analyzerLogic.js';
 
@@ -34,8 +34,9 @@ export const WIND_MIN_MEAN_KT = 12;
 export const WIND_MAX_GUST_RATIO = 3;
 export const WIND_MAX_GUST_KT = 90; // the same ceiling as the engines (MAX_PLAUSIBLE_GUST_KT)
 export const WIND_MAX_AGE_MIN = 90;
-/** Above this a station measures the mountain, not the water. Unknown altitude: left out. */
-export const WIND_MAX_ALTITUDE_M: Record<WindSector, number> = { rias: 150, embalse: 250 };
+/** Above this a station measures the mountain, not the water. Unknown altitude: left out. The
+ *  same limits as the spot gust (spotScoringEngine), defined there once. */
+export const WIND_MAX_ALTITUDE_M: Record<WindSector, number> = WATER_LEVEL_MAX_ALTITUDE_M;
 /** Without a qualifying reading for this long, the episode is over and a new one alerts again. */
 export const WIND_EPISODE_GAP_MS = 2 * 60 * 60_000;
 

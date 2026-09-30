@@ -902,3 +902,31 @@ describe('gustIsPlausible / peakPlausibleGustKt — the gust shown for a spot (2
     expect(peakPlausibleGustKt([])).toBeNull();
   });
 });
+
+describe('scoreAllSpots — the spot gust comes from the height of the water', () => {
+  const cesantes = RIAS_SPOTS.find((s) => s.id === 'cesantes')!;
+  const castrelo = EMBALSE_SPOTS.find((s) => s.id === 'castrelo')!;
+  const at = (id: string, spot: typeof cesantes, altitude: number, dLat: number): NormalizedStation =>
+    ({ ...makeStation(id, spot.center[1] + dLat, spot.center[0]), altitude });
+  const gusty = (id: string, meanKt: number, gustKt: number): NormalizedReading =>
+    ({ ...makeReading(id, msFromKt(meanKt), 225), windGust: msFromKt(gustKt) });
+
+  it('Cesantes: a hill station 2 km away does not set the gust, a shore one does', () => {
+    const results = scoreAllSpots([cesantes],
+      [at('test_hill', cesantes, 260, 0.018), at('test_shore', cesantes, 19, -0.015)],
+      new Map([['test_hill', gusty('test_hill', 9, 17)], ['test_shore', gusty('test_shore', 8, 11)]]), []);
+    expect(results.get('cesantes')!.gustKt).toBeCloseTo(11, 0);
+  });
+
+  it('Cesantes with only the hill station: no gust', () => {
+    const results = scoreAllSpots([cesantes], [at('test_hill', cesantes, 260, 0.018)],
+      new Map([['test_hill', gusty('test_hill', 9, 17)]]), []);
+    expect(results.get('cesantes')!.gustKt).toBeNull();
+  });
+
+  it('Castrelo keeps a station at 200 m: its limit is 250', () => {
+    const results = scoreAllSpots([castrelo], [at('test_slope', castrelo, 200, 0.018)],
+      new Map([['test_slope', gusty('test_slope', 9, 15)]]), []);
+    expect(results.get('castrelo')!.gustKt).toBeCloseTo(15, 0);
+  });
+});

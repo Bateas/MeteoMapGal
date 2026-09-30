@@ -1357,3 +1357,21 @@ describe('scoreSpot — the gust comes from within 8 km, buoys included (30-sep)
     expect(result.maxGustKt).toBe(6);
   });
 });
+
+describe('scoreSpot — the gust comes from the height of the water (30-sep)', () => {
+  it('the hill station does not set the Cesantes gust; the shore station does (15:40)', () => {
+    const oViso = makeReading({ station_id: 'mg_10154', latitude: 42.326, longitude: -8.619, altitude: 260, wind_speed: 4.8, wind_gust: 8.95 }); // 9.3/17.4 kt
+    const shore = makeReading({ station_id: 'wu_shore', latitude: 42.292, longitude: -8.619, altitude: 19, wind_speed: 2.0, wind_gust: 3.0 }); // 3.9/5.8 kt
+    expect(scoreSpot(cesantes, [oViso, shore], []).maxGustKt).toBe(6);
+  });
+
+  it('only hill stations: no gust is sent', () => {
+    const oViso = makeReading({ station_id: 'mg_10154', latitude: 42.326, longitude: -8.619, altitude: 260, wind_speed: 4.8, wind_gust: 8.95 });
+    expect(scoreSpot(cesantes, [oViso], []).maxGustKt).toBe(0);
+  });
+
+  it('Castrelo keeps a station at 200 m (its limit is 250)', () => {
+    const slope = makeReading({ station_id: 'wu_slope', latitude: 42.316, longitude: -8.1087, altitude: 200, wind_speed: 4.6, wind_gust: 7.7 }); // 9/15 kt
+    expect(scoreSpot(castrelo, [slope], []).maxGustKt).toBe(15);
+  });
+});
