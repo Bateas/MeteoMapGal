@@ -19,8 +19,17 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    # Every push bumps the version inside package-lock.json, so an open PR whose
+    # lockfile change sits near it conflicts on every push, and Dependabot
+    # rebased it each time (20+ rebases and CI runs on 29-sep). Rebase on
+    # demand instead: comment "@dependabot rebase" on the PR before merging.
+    rebase-strategy: "disabled"
     # Hold majors that require migration work we haven't done yet
     ignore:
+      # maplibre-gl 6 fails typecheck and build (PR #108, Sep 2026): the map
+      # needs a migration session, not a passive bump.
+      - dependency-name: "maplibre-gl"
+        update-types: ["version-update:semver-major"]
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
       # @eslint/js v10 requires eslint v10 (linked versions). Bumping
@@ -84,6 +93,14 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 3
+    rebase-strategy: "disabled"
+    ignore:
+      # dotenv 18 (Sep 2026) removes preloading and its env options and moves
+      # to dist/. Both services load their secrets with 'dotenv/config', which
+      # still exists, but the major brings nothing we use: bump it only in a
+      # session that starts both services and checks they read their .env.
+      - dependency-name: "dotenv"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions versions (also a supply-chain target — tj-actions
   # mar-2025 incident; cooldown applies here too).
