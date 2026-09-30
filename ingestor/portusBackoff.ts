@@ -1,9 +1,10 @@
 /**
  * A PORTUS station that answers every request with an error is asked once an hour instead of
- * every cycle. Case: Rande (1251) has answered HTTP 500 since 20-sep. Asked every 5 min plus
- * the retry, that was about 570 failed requests a day to a provider that once warned us about
- * a block over bad requests, for data that reaches us through the Xunta anyway. A station that
- * answers again goes back to every cycle at once.
+ * every cycle. The case that prompted it: Rande (1251) answered HTTP 500 from 20-sep, because
+ * we kept asking for a category it no longer publishes. Asked every 5 min plus the retry, that
+ * was about 570 failed requests a day to a provider that once warned us about a block over bad
+ * requests, and nobody noticed for ten days. A station that answers again goes back to every
+ * cycle at once.
  *
  * Only a real failure counts (an HTTP error or no answer). A 200 with an empty or old payload
  * is a working station that has not published yet, and keeps being asked every cycle.
