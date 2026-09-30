@@ -158,7 +158,9 @@ describe('Vigo / Cesantes pattern (mg_14001 reference)', () => {
     expect(r.phase).toBe('viracion');
     expect(r.isOnPattern).toBe(true);
     expect(r.confidence).toBe('high');
-    expect(r.description).toContain('kt');
+    expect(r.description).toMatch(/^Viración activa/);
+    // The station's own knots never reach the card (they contradicted the spot's wind).
+    expect(r.description).not.toMatch(/\d/);
   });
 
   it('17h afternoon BUT direction is NE 60° → off-pattern, low confidence', () => {

@@ -357,7 +357,10 @@ export function detectViracionPhase(
       break;
     case 'viracion':
       if (isOnPattern && obsKt != null && obsKt >= pattern.expectedAfternoonKt * 0.5) {
-        description = `Viración activa — ${Math.round(obsKt)} kt`;
+        // No knots here: obsKt is the reference station's raw reading (O Viso, 260 m, for
+        // Cesantes), not the spot's wind. On 30-sep the card said «Viración activa — 7 kt»
+        // right next to «Viento 9 kt». The card already shows the spot's wind.
+        description = 'Viración activa';
       } else if (isOnPattern) {
         description = 'Viración entrando suave';
       } else {

@@ -631,7 +631,10 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
     // front arrow is Phase B.
     if (isCoastalSector(sectorId)) {
       const breeze = assessSeaBreezeRias(readings, stations);
-      if (breeze.active && breeze.phase !== 'building') {
+      // Frontal flow aloft (the same veto every spot score carries): a coast-interior
+      // contrast is not a breeze then, and the ticker must not announce one.
+      const frontalAloft = [...useSpotStore.getState().scores.values()].some((s) => s.regimeVeto?.vetoed);
+      if (breeze.active && breeze.phase !== 'building' && !frontalAloft) {
         // Only surface once the breeze has actually filled in (active/mature) —
         // 'building' is too speculative for the ticker.
         result.push({

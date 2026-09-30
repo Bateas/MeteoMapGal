@@ -10,7 +10,7 @@
  * returns the literal local hour on any CI timezone.
  */
 import { describe, it, expect } from 'vitest';
-import { computeThermalPrecursors, formatThermalCountdown } from './thermalPrecursorService';
+import { computeThermalPrecursors, formatThermalCountdown, withRegimeVeto } from './thermalPrecursorService';
 import type { ThermalPrecursorResult } from './thermalPrecursorService';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
@@ -306,5 +306,30 @@ describe('formatThermalCountdown', () => {
   it('omits the time phrase gracefully when etaMinutes is null', () => {
     const c = formatThermalCountdown(mk('probable', null))!;
     expect(c.text).toBe('Térmico probable');
+  });
+});
+
+describe('withRegimeVeto', () => {
+  const watch = {
+    spotId: 'cesantes', probability: 62, confidence: 'high', eta: '13-17h', etaMinutes: 40,
+    summary: 'Vigilancia térmica — 2 precursores débiles', level: 'watch',
+  } as ThermalPrecursorResult;
+
+  it('leaves the warning alone without a frontal veto', () => {
+    expect(withRegimeVeto(watch, false)).toBe(watch);
+  });
+
+  it('withdraws it under frontal flow aloft, so no surface shows it (30-sep)', () => {
+    const r = withRegimeVeto(watch, true);
+    expect(r.level).toBe('none');
+    expect(r.eta).toBeNull();
+    expect(formatThermalCountdown(r)).toBeNull();
+    expect(r.summary).toMatch(/frente/);
+    expect(r.probability).toBe(62); // kept for inspection
+  });
+
+  it('does not touch a result that already says there is no thermal', () => {
+    const none = { ...watch, level: 'none' } as ThermalPrecursorResult;
+    expect(withRegimeVeto(none, true)).toBe(none);
   });
 });

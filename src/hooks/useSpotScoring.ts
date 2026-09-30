@@ -16,7 +16,7 @@ import { useThermalStore } from '../store/thermalStore';
 import { useLightningStore } from './useLightningData';
 import { useForecastStore } from './useForecastTimeline';
 import { scoreAllSpots, type SpotThermalContext } from '../services/spotScoringEngine';
-import { computeThermalPrecursors } from '../services/thermalPrecursorService';
+import { computeThermalPrecursors, withRegimeVeto } from '../services/thermalPrecursorService';
 import { checkSpotAlerts, resetSpotAlerts } from '../services/spotAlertService';
 import { getSpotsForSector } from '../config/spots';
 import { msToKnots, degToCardinal8 } from '../services/windUtils';
@@ -146,7 +146,8 @@ export function useSpotScoring() {
             sp, stations, currentReadings, currentBuoys,
             fcst.length > 0 ? fcst : null,
           );
-          precursors.set(sp.id, result);
+          // Frontal flow aloft: the same veto the score already applies to the breeze boosts.
+          precursors.set(sp.id, withRegimeVeto(result, scores.get(sp.id)?.regimeVeto?.vetoed === true));
         }
         setThermalPrecursors(precursors);
       }
