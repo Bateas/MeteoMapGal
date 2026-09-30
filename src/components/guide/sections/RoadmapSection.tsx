@@ -39,7 +39,7 @@ export function RoadmapSection() {
         <TimelineMilestone iconId="sailboat" title="Modo Evento para regatas" desc="Zona de agua, panel de seguridad, balizas, mareas, aviación, previsión 6h." status="done" />
         <TimelineMilestone iconId="compass" title="Previsión horaria por spot" desc="Ventana de navegación 48h + mini-timeline 12h directamente en el popup." status="done" />
         <TimelineMilestone iconId="map-pin" title="Compartir, favoritos y comparador" desc="Comparte condiciones por WhatsApp/Telegram. Compara todos los spots en una tabla." status="done" />
-        <TimelineMilestone iconId="layers" title="Radar, corrientes y cartas náuticas" desc="Capas de datos: radar precipitación, batimetría, corrientes HF, señalización marítima, carta IHM." status="done" />
+        <TimelineMilestone iconId="layers" title="Radar y cartas náuticas" desc="Capas de datos: radar precipitación, batimetría, señalización marítima, carta IHM." status="done" />
         <TimelineMilestone iconId="zap" title="Predictor de tormentas con 9 senales" desc="Cruza CAPE, CIN, lluvia, nubosidad, rayos, avance, sombra solar, rachas, avisos oficiales MeteoGalicia y sky_state WRF. Probabilidad 0-100% con ETA y accion recomendada." status="done" />
         <TimelineMilestone iconId="wind" title="Detector de viración por spot (Rías)" desc="Identifica la fase del ciclo diario de viento en cada spot: terral matutino (NE/E), transición ~12h, viración tarde (SW/W) y decay nocturno. Patrón empírico calibrado contra el archivo propio (auditoría marzo-mayo 2026, del orden de 30 días térmicos por spot), con validación cruzada contra la boya local cuando la hay. Aparece como una línea informativa en el popup del spot durante temporada activa abr-sep, con confianza alta (boya confirma) o media (sólo estación)." status="done" />
         <TimelineMilestone iconId="info" title="Mapa empírico de sesgos por estación" desc="Cada estación 'oficial' tiene sectores donde mide mal por orografía. El detector las cruza con boyas reales (Vigo REDMAR, Marín REDMAR, Cabo Silleiro REDEXT) y documenta empíricamente qué direcciones son fiables y cuáles no por estación. Cangas: N apantallada, SW limpia. Vigo Porto: oro estándar excepto E-SE. Lourizán: subvalora todo, no usable como referencia primaria." status="done" />
@@ -135,7 +135,6 @@ export function RoadmapSection() {
             <SourceRow letter="T" name="IHM / Puertos del Estado" desc="Predicciones de mareas (5 puertos)" color="#14b8a6" />
             <SourceRow letter="B" name="Puertos del Estado (PORTUS) + Obs. Costeiro" desc="13 boyas marinas — oleaje, viento, corrientes, mareas" color="#06b6d4" />
             <SourceRow letter="X" name="Observatorio Costeiro (Xunta)" desc="Boyas suplementarias — humedad, punto de rocío, 10min (6 plataformas)" color="#14b8a6" />
-            <SourceRow letter="H" name="RADAR ON RAIA (INTECMAR)" desc="Corrientes superficiales — radar HF costero, actualización horaria" color="#0ea5e9" />
             <SourceRow letter="C" name="CMEMS / Copernicus Marine" desc="Temperatura superficial del mar (SST) — WMTS tiles" color="#0d9488" />
             <SourceRow letter="D" name="EMODnet" desc="Batimetría — profundidades marinas WMS" color="#475569" />
             <SourceRow letter="N" name="NOAA" desc="Índices NAO/AO — teleconexiones atlánticas" color="#059669" />
@@ -176,7 +175,7 @@ export function RoadmapSection() {
         <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50 space-y-2">
           <p className="text-[11px] text-slate-400">
             <strong className="text-slate-300">Atribuciones:</strong>{' '}
-            © AEMET (CC BY 4.0) · © MeteoGalicia – Xunta de Galicia (CC BY 4.0) ·{' '}
+            © AEMET · © MeteoGalicia – Xunta de Galicia (CC BY-SA 4.0) ·{' '}
             Fuente: <a
               href="https://www.ipma.pt"
               target="_blank"
@@ -185,7 +184,7 @@ export function RoadmapSection() {
             >IPMA — Instituto Português do Mar e da Atmosfera</a> (uso sin ánimo de lucro) ·{' '}
             Datos de Puertos del Estado · © Instituto Hidrográfico de la Marina ·{' '}
             E.U. Copernicus Marine Service (CMEMS) · © EMODnet Bathymetry (CC BY 4.0) ·{' '}
-            Modelo SWAN — CESGA · INTECMAR / RADAR ON RAIA · ENAIRE / AESA ·{' '}
+            Modelo SWAN — CESGA · ENAIRE / AESA ·{' '}
             © Meteoclimatic · Powered by Weather Underground® · Powered by Netatmo ·{' '}
             Open-Meteo.com (CC BY 4.0) · RainViewer.com · meteo2api ·{' '}
             © OpenStreetMap contributors · © CARTO · © IGN España (CC BY 4.0) ·{' '}
