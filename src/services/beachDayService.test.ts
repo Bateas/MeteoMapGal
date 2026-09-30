@@ -122,3 +122,22 @@ describe('assessBeachDay — output hygiene', () => {
     expect(hi.score).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('assessBeachDay — wind wording follows Beaufort', () => {
+  const chip = (windKt: number) =>
+    assessBeachDay(opts({ cloudCoverPct: 10, airTempC: 24, windKt, waterTempC: 18 })).reasons;
+
+  it('9 kt is a breeze you feel, not «sin apenas viento» (30-sep Cesantes)', () => {
+    expect(chip(9)).toContain('Brisa suave');
+    expect(chip(9)).not.toContain('Sin apenas viento');
+  });
+
+  it('under 7 kt there is hardly any wind', () => {
+    expect(chip(5)).toContain('Sin apenas viento');
+  });
+
+  it('the wording does not move the score: 5 and 9 kt score the same', () => {
+    const s = (w: number) => assessBeachDay(opts({ cloudCoverPct: 10, airTempC: 24, windKt: w, waterTempC: 18 })).score;
+    expect(s(9)).toBe(s(5));
+  });
+});

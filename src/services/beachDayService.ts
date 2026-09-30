@@ -120,7 +120,10 @@ export function assessBeachDay(i: BeachDayInputs): BeachDayResult {
     if (w < 10) score += 20;
     else if (w < 16) score += 12;
     else score += 5; // 16-25
-    if (penalty === 0) reasons.push(w < 10 ? 'Sin apenas viento' : w < 16 ? 'Brisa suave' : 'Algo de viento');
+    // Wording by Beaufort, not by the comfort score above: under 7 kt (force 0-2) there is
+    // hardly any wind on a beach; 7-10 (force 3) is a breeze you feel and that lifts fine sand.
+    // On 30-sep Cesantes read «Sin apenas viento» with 9 kt.
+    if (penalty === 0) reasons.push(w < 7 ? 'Sin apenas viento' : w < 16 ? 'Brisa suave' : 'Algo de viento');
   }
   if (penalty > 0) {
     score -= penalty;
