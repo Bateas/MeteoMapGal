@@ -244,6 +244,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   // overlays — just one informative line near the wind display.
   const viracion = (() => {
     if (!isCoastalSector(sectorId) || spot.category === 'surf') return null;
+    // Frontal flow aloft: the wind is not the breeze, whatever the clock says (the card
+    // already shows the veto's own line).
+    if (score?.regimeVeto?.vetoed) return null;
     try {
       const readingsMap = useWeatherStore.getState().currentReadings ?? new Map();
       const buoys = useBuoyStore.getState().buoys ?? [];

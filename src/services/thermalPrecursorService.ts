@@ -96,6 +96,18 @@ export interface ThermalCountdown {
 }
 
 /**
+ * Frontal flow aloft (the synopticRegime veto): the thermal does not drive the wind, so its early
+ * warning is withdrawn on every surface that reads it (card countdown, card detail, ticker), all
+ * of which hide a 'none' level. On 30-sep the card said «Vigilancia térmica», confidence high,
+ * right under the veto's own line («Viento de frente»). Signals and probability are kept, so the
+ * raw result can still be inspected.
+ */
+export function withRegimeVeto(p: ThermalPrecursorResult, vetoed: boolean): ThermalPrecursorResult {
+  if (!vetoed || p.level === 'none') return p;
+  return { ...p, level: 'none', eta: null, etaMinutes: null, summary: 'Viento de frente: la térmica no manda hoy' };
+}
+
+/**
  * Friendly, deliberately-fuzzy thermal-onset countdown for UI display.
  *
  * The ETA is uncertain (±~30 min), so we bucket the time into "~Xh" / "ya" /
