@@ -54,6 +54,18 @@ export async function hasColumn(table: string, column: string): Promise<boolean>
   return ok;
 }
 
+/**
+ * SQL for a station's altitude over `stations s`: the network's when it gives one, else the
+ * terrain model's (demAltitudes.ts). A network altitude of 0 is read as none — Wunderground,
+ * IPMA and SkyX send nothing and are stored as 0, so reading `s.altitude` alone put every
+ * Wunderground station at sea level, 26 of them really above 150 m.
+ */
+export async function stationAltitudeSql(): Promise<string> {
+  return (await hasColumn('stations', 'altitude_dem'))
+    ? 'COALESCE(NULLIF(s.altitude, 0), s.altitude_dem)'
+    : 's.altitude';
+}
+
 export async function closePool(): Promise<void> {
   if (pool) {
     await pool.end();
