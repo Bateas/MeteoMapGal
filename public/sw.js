@@ -16,11 +16,10 @@ const STATIC_EXTENSIONS = /\.(js|css|woff2?|ttf|svg|png|jpg|webp|ico|json)$/;
 
 // API proxy paths — always network, never cache
 const API_PATHS = [
-  '/aemet-api', '/aemet-data',
   '/meteogalicia-api', '/meteoclimatic-api',
   '/netatmo-api', '/netatmo-auth',
-  '/meteo2api', '/ideg-api',
-  '/enaire-api', '/ihm-api', '/portus-api', '/obscosteiro-api', '/hfradar-api', '/skyx-api',
+  '/meteo2api', '/ica-api',
+  '/enaire-api', '/ihm-api', '/portus-api', '/skyx-api',
   '/noaa-api', '/opensky-api', '/swan-api', '/api/webhook', '/api/v1',
 ];
 
