@@ -16,7 +16,7 @@ import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRe
 import type { ThermalVeto } from '../src/services/cesantesCanalizationDetector.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
 import { detectBocana } from '../src/services/bocanaDetector.js';
-import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor, spotGustKt } from '../src/services/spotScoringEngine.js';
+import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor, spotGustKt, WATER_LEVEL_MAX_ALTITUDE_M } from '../src/services/spotScoringEngine.js';
 import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
@@ -677,6 +677,7 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
       meanKt: r.wind_speed == null ? null : msToKnots(r.wind_speed),
       distKm,
       time: r.time,
+      altitudeM: r.altitude ?? null,
       blacklisted: isWindBlacklisted(r.station_id),
     })),
     ...nearbyBuoys.map(({ b, distKm }) => ({
@@ -684,8 +685,9 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
       meanKt: msToKnots(b.wind_speed),
       distKm,
       time: b.time,
+      altitudeM: 0,
     })),
-  ]);
+  ], Date.now(), WATER_LEVEL_MAX_ALTITUDE_M[spot.sector]);
 
   if (count === 0) {
     // Sources were present but every one of them read below the calm floor.

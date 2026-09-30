@@ -22,7 +22,7 @@ import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
-import { patternHours } from '../config/spots';
+import { patternHours, getSpotsForSector } from '../config/spots';
 import { madridHour } from './localTime';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
@@ -1379,26 +1379,48 @@ export function gustIsCurrent(time: Date | string | null | undefined, nowMs = Da
 /** The spot gust only comes from sources this close, buoys included. */
 export const SPOT_GUST_MAX_DIST_KM = 8;
 
+/** Above this a station measures the mountain, not the water. The same limits as the server's
+ *  wind-safety alert (windSafetyLogic reads them from here); Castrelo's water sits near 95 m. */
+export const WATER_LEVEL_MAX_ALTITUDE_M = { rias: 150, embalse: 250 } as const;
+
+/** The altitude limit of a spot's sector. A spot of no sector (a user's pin) takes the Rias one. */
+export function waterLevelMaxAltitudeM(spotId: string): number {
+  return getSpotsForSector('embalse').some((s) => s.id === spotId)
+    ? WATER_LEVEL_MAX_ALTITUDE_M.embalse
+    : WATER_LEVEL_MAX_ALTITUDE_M.rias;
+}
+
 export interface GustSource {
   gustKt: number | null;
   /** The same source's mean, to judge its gust (gustIsPlausible). */
   meanKt: number | null;
   distKm: number;
   time?: Date | string | null;
+  /** Metres. Unknown counts: the map cannot tell it from sea level, and with the terrain model
+   *  filling the stations that send none, almost none is unknown. Buoys: 0. */
+  altitudeM?: number | null;
   blacklisted?: boolean;
 }
 
 /**
  * The gust SHOWN and SENT for a spot, one rule for the map and the server: the highest plausible
  * gust of the last hour (peakPlausibleGustKt, gustIsCurrent) among the sources within 8 km,
- * buoys included. Buoys used to count up to 12 km: on 30-sep at 17:23 Cesantes showed
- * «racha 19-22» from the Vigo tide gauge, 12 km away, during a burst that stayed on the south
- * shore of Vigo while Cesantes had 6 kt.
+ * buoys included, that sit at the height of the water (maxAltitudeM, per sector). On 30-sep
+ * Cesantes showed «racha 14-15» at 15:34 with 8-10 kt and no gusts on its water, set by O Viso
+ * (260 m, gusts of 15-17 between 15:30 and 15:40), and «racha 19-22» at 17:23 from the Vigo tide
+ * gauge, 12 km away, during a burst that stayed on the south shore of Vigo while Cesantes had
+ * 6 kt. A spot with no source at water level shows no gust: none is better than one measured
+ * on a hill (Cesantes, whose one shore station is blacklisted for wind, is such a spot).
  */
-export function spotGustKt(sources: GustSource[], nowMs = Date.now()): number | null {
+export function spotGustKt(
+  sources: GustSource[],
+  nowMs = Date.now(),
+  maxAltitudeM: number = WATER_LEVEL_MAX_ALTITUDE_M.rias,
+): number | null {
   const gusts: number[] = [];
   for (const s of sources) {
     if (s.gustKt == null || s.blacklisted || s.distKm > SPOT_GUST_MAX_DIST_KM) continue;
+    if (s.altitudeM != null && s.altitudeM > maxAltitudeM) continue;
     if (!gustIsCurrent(s.time, nowMs)) continue;
     if (gustIsPlausible(s.meanKt, s.gustKt)) gusts.push(s.gustKt);
   }
@@ -1408,16 +1430,18 @@ export function spotGustKt(sources: GustSource[], nowMs = Date.now()): number | 
 /** The map's side of spotGustKt. localGustKt stays as it was for the Cesantes detector, which
  *  was validated with it. */
 export function reportedGustKt(
-  stationData: { reading: NormalizedReading; distKm: number }[],
+  stationData: { reading: NormalizedReading; distKm: number; station?: { altitude?: number | null } }[],
   buoyData: { buoy: BuoyReading; distKm: number }[],
   nowMs = Date.now(),
+  maxAltitudeM: number = WATER_LEVEL_MAX_ALTITUDE_M.rias,
 ): number | null {
   return spotGustKt([
-    ...stationData.map(({ reading, distKm }) => ({
+    ...stationData.map(({ reading, distKm, station }) => ({
       gustKt: reading.windGust == null ? null : msToKnots(reading.windGust),
       meanKt: reading.windSpeed == null ? null : msToKnots(reading.windSpeed),
       distKm,
       time: reading.timestamp,
+      altitudeM: station?.altitude ?? null,
       blacklisted: isWindBlacklisted(reading.stationId),
     })),
     ...buoyData.map(({ buoy, distKm }) => ({
@@ -1425,8 +1449,9 @@ export function reportedGustKt(
       meanKt: buoy.windSpeed == null ? null : msToKnots(buoy.windSpeed),
       distKm,
       time: buoy.timestamp,
+      altitudeM: 0,
     })),
-  ], nowMs);
+  ], nowMs, maxAltitudeM);
 }
 
 /** Peak gust from the CLOSEST sources only (stations <= 8 km, buoys <= 12 km), so a distant
@@ -1676,9 +1701,9 @@ export function scoreAllSpots(
       if (windTrend.label) summary += ` · ${windTrend.label}`;
     }
 
-    // Gust from sources within 8 km, buoys included, each checked against its own mean
-    // (spotGustKt, the same rule as the server).
-    const gustKt = reportedGustKt(stationData, buoyData);
+    // Gust from sources within 8 km at the height of the water, buoys included, each checked
+    // against its own mean (spotGustKt, the same rule as the server).
+    const gustKt = reportedGustKt(stationData, buoyData, Date.now(), waterLevelMaxAltitudeM(spot.id));
 
     // Air temp & humidity from nearest station with valid data (IDW-weighted by distance)
     let airTemp: number | null = null;
