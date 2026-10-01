@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toEngineInputs, scoreWithEngine, findDivergences, describeDivergences } from './engineShadow';
+import { toEngineInputs, scoreWithEngine, findDivergences, describeDivergences, alertResult } from './engineShadow';
 import { isWorthAlerting, type SpotResult, type StationReading, type BuoyWind } from './analyzerLogic';
 import type { SpotScore } from '../src/services/spotScoringEngine';
 import { RIAS_SPOTS } from '../src/config/spots';
@@ -67,6 +67,40 @@ describe('findDivergences', () => {
   it('flags a small gap when only one side would announce the spot', () => {
     const d = findDivergences([result('lanzada', 'sailing', 9)], new Map([['lanzada', score('sailing', 10.5)]]));
     expect(d.map((x) => x.spotId)).toEqual(['lanzada']);
+  });
+});
+
+describe('alertResult', () => {
+  // 1-oct 17:33, north wind: the port said Limens calm 4kt, the map 9 with 13-16kt around it.
+  const pipeline = {
+    spot: { id: 'limens' }, verdict: 'calm', avgWindKt: 4, maxGustKt: 21, avgDir: 339, stationCount: 6,
+    rawWindKt: 4, boostedBy: null, staleBuoysDropped: 1, rainVeto: null,
+  } as unknown as SpotResult;
+  const engine = (over: Record<string, unknown> = {}) => ({
+    verdict: 'sailing', effectiveWindKt: 9.04, provisional: false, channeling: null,
+    wind: { avgSpeedKt: 11.04, dirDeg: 344, stationCount: 9 }, ...over,
+  } as unknown as SpotScore);
+
+  it('takes the verdict, whole knots, direction and station count from the engine', () => {
+    const r = alertResult(pipeline, engine());
+    expect(r).toMatchObject({ verdict: 'sailing', avgWindKt: 9, avgDir: 344, stationCount: 9, rawWindKt: 11 });
+  });
+
+  it('keeps the gust and the stale-buoy count of the pipeline', () => {
+    const r = alertResult(pipeline, engine());
+    expect(r.maxGustKt).toBe(21);
+    expect(r.staleBuoysDropped).toBe(1);
+  });
+
+  it('falls back to the pipeline when the engine is provisional or missing', () => {
+    expect(alertResult(pipeline, engine({ provisional: true }))).toBe(pipeline);
+    expect(alertResult(pipeline, undefined)).toBe(pipeline);
+  });
+
+  it('reports the engine canalization as the boost, and none otherwise', () => {
+    const boosted = alertResult(pipeline, engine({ channeling: { active: true, confidence: 70 } }));
+    expect(boosted).toMatchObject({ boostedBy: 'cesantes-canalization', boostConfidence: 70 });
+    expect(alertResult({ ...pipeline, boostedBy: 'bocana-terral' } as SpotResult, engine()).boostedBy).toBeNull();
   });
 });
 

@@ -31,7 +31,7 @@ import { degreesToCardinal } from '../src/services/windUtils.js';
 import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import type { SpotScore } from '../src/services/spotScoringEngine.js';
-import { scoreWithEngine, findDivergences, describeDivergences, engineView } from './engineShadow.js';
+import { scoreWithEngine, findDivergences, describeDivergences, engineView, alertResult } from './engineShadow.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
 import {
   scoreSpot,
@@ -183,6 +183,9 @@ async function getUpperWindNow(): Promise<UpperWindBySector> {
 
 /** Last regime line logged, so the log says when it changes, not every cycle. */
 let lastRegimeLine = '';
+/** Alerts from the map's engine (default) or from the port in scoreSpot (ANALYZER_WIND=pipeline). */
+const ALERTS_FROM_ENGINE = process.env.ANALYZER_WIND !== 'pipeline';
+let lastAlertModeLine = '';
 
 /**
  * Precipitation samples per station over the last `windowMin` minutes, for the Cesantes
@@ -366,11 +369,30 @@ export async function runAnalysis(): Promise<void> {
     lastRegimeLine = regimeLine;
   }
 
+  // The map's engine on the same rows (engineShadow.ts). Since 1-oct the alerts are built from
+  // it (alertResult) so Telegram says what the map says; ANALYZER_WIND=pipeline goes back to the
+  // port. A failure here only costs that: every spot falls back to the port's result.
+  let engineScores: Map<string, SpotScore> | null = null;
+  try {
+    engineScores = scoreWithEngine(readings, buoys, ctx.precip, ctx.upperWind);
+  } catch (err) {
+    log.warn(`Engine failed, alerts use the pipeline this cycle: ${(err as Error).message}`);
+  }
+  const alertsFromEngine = ALERTS_FROM_ENGINE && engineScores !== null;
+  const modeLine = alertsFromEngine ? 'motor del mapa' : ALERTS_FROM_ENGINE ? 'calculo propio (el motor fallo)' : 'calculo propio (ANALYZER_WIND=pipeline)';
+  if (modeLine !== lastAlertModeLine) {
+    log.info(`[Analyzer] Avisos con el viento del ${modeLine}`);
+    lastAlertModeLine = modeLine;
+  }
+
   // 2. Score each spot, detect transitions, and persist to DB
   const scoreRows: SpotResult[] = [];
+  const pipelineRows: SpotResult[] = [];
   const boostedSpots: string[] = [];
   for (const spot of SPOTS) {
-    const result = scoreSpot(spot, readings, buoys, ctx);
+    const pipelineResult = scoreSpot(spot, readings, buoys, ctx);
+    pipelineRows.push(pipelineResult);
+    const result = alertsFromEngine ? alertResult(pipelineResult, engineScores!.get(spot.id)) : pipelineResult;
     scoreRows.push(result);
 
     if (spot.id === 'cesantes') {
@@ -424,16 +446,11 @@ export async function runAnalysis(): Promise<void> {
     log.warn(`Buoy readings past the freshness gate this cycle: ${staleBuoys}`);
   }
 
-  // Shadow run of the map's engine on the same rows (engineShadow.ts): measures where the
-  // alert pipeline and the map disagree. It never changes an alert, and a failure here only
-  // costs the comparison.
-  let engineScores: Map<string, SpotScore> | null = null;
-  try {
-    engineScores = scoreWithEngine(readings, buoys, ctx.precip, ctx.upperWind);
-    const line = describeDivergences(findDivergences(scoreRows, engineScores), scoreRows.length);
+  // Where the old port would have said something else (pipelineRows, never sent while the
+  // alerts come from the engine): kept in the log for the first days of the switch.
+  if (engineScores) {
+    const line = describeDivergences(findDivergences(pipelineRows, engineScores), pipelineRows.length);
     if (line) log.info(line);
-  } catch (err) {
-    log.warn(`Engine shadow failed: ${(err as Error).message}`);
   }
 
   // 3. Persist spot scores to DB (for verification dashboard)

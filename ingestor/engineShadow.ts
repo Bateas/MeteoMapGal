@@ -5,9 +5,9 @@
  * The two are meant to answer the same question with the same arithmetic, but they are two
  * implementations and they drift: on 25-sep the map said 10kt at Lourido while the pipeline
  * (the one behind Telegram) said 5-6, and at Cesantes they applied different confidence gates.
- * This is step one of retiring the port: measure where and by how much they disagree, without
- * touching a single alert. Step two switches the alerts to the engine once the numbers say it
- * is safe.
+ * Step one measured where and by how much they disagree (engine_verdict / engine_wind_kt in
+ * spot_scores since 27-sep). Step two (1-oct) builds the alerts from the engine (alertResult);
+ * ANALYZER_WIND=pipeline in the ingestor's environment goes back to the port without a deploy.
  *
  * Differences that exist ON PURPOSE and will show up here: the engine receives no thermal
  * context, reading history or NAO/AO (the server does not build them yet), and it sees each
@@ -19,7 +19,7 @@ import { getSpotsForSector } from '../src/config/spots.js';
 import type { NormalizedReading, NormalizedStation, StationSource } from '../src/types/station.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
-import { buoyWindToBuoyReading, isWorthAlerting, type BuoyWind, type SpotResult, type StationReading, type UpperWindBySector } from './analyzerLogic.js';
+import { buoyWindToBuoyReading, isWorthAlerting, type BuoyWind, type SpotResult, type StationReading, type UpperWindBySector, type Verdict } from './analyzerLogic.js';
 import { sourceLabel } from './db.js';
 
 const SOURCES = new Set<StationSource>(['aemet', 'meteogalicia', 'meteoclimatic', 'wunderground', 'netatmo', 'skyx', 'ipma']);
@@ -81,6 +81,32 @@ export function engineView(score: SpotScore | undefined): EngineView | null {
   if (!score) return null;
   const kt = displayWindKt(score);
   return { verdict: displayVerdict(score), windKt: kt == null ? null : Math.round(kt * 10) / 10 };
+}
+
+/**
+ * The result the alerts are built from: the engine's verdict, wind, direction and station count
+ * whenever it has a firm score, so Telegram says what the map says. The port in scoreSpot lacks
+ * the engine's spatial corroboration and only sees the buoys inside the spot's radius: on 1-oct,
+ * with north wind, it called Limens calm 4kt (the WU next door at 2-4kt set its median and the
+ * outlier rule halved the two MeteoGalicia stations at 14-16kt) while the map said 9-10. Against
+ * the field truths since August the engine is as good or better, and closer on windy days.
+ * Kept from the pipeline: the gust (the same spotGustKt), the rain veto and the stale-buoy count.
+ * A provisional or missing engine score falls back to the pipeline, never to silence.
+ */
+export function alertResult(pipeline: SpotResult, score: SpotScore | undefined): SpotResult {
+  const e = engineView(score);
+  if (!score || !e || e.verdict === 'unknown' || e.windKt == null) return pipeline;
+  const channeling = score.channeling?.active ? score.channeling : null;
+  return {
+    ...pipeline,
+    verdict: e.verdict as Verdict,
+    avgWindKt: Math.round(e.windKt), // the map shows whole knots, and the alert prints this figure
+    avgDir: score.wind?.dirDeg ?? pipeline.avgDir,
+    stationCount: score.wind?.stationCount ?? pipeline.stationCount,
+    rawWindKt: score.wind ? Math.round(score.wind.avgSpeedKt * 10) / 10 : undefined,
+    boostedBy: channeling ? 'cesantes-canalization' : null,
+    boostConfidence: channeling ? channeling.confidence : undefined,
+  };
 }
 
 export interface Divergence { spotId: string; pipeline: { verdict: string; windKt: number }; engine: EngineView }
