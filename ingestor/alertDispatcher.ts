@@ -25,7 +25,10 @@ const NIGHT_END = 7;
 interface SpotContext {
   /** Short name for messages */
   short: string;
-  /** Wind direction notes — what matters locally */
+  /** Which wind it is, read from its direction alone. Nothing about the sea (wave, swell, chop)
+   *  and no «ideal»: neither is measured here. On 1-oct «Nortada — oleaje fuerte» went out with
+   *  10 kt at Cies. The thermal and sea-breeze notes cannot reach a frontal day: a front aloft
+   *  already holds these alerts back (opportunityAlertAllowed). */
   dirNotes: Record<string, string>;
   /** Default note when no special direction context */
   defaultNote: string;
@@ -59,8 +62,8 @@ const SPOT_CONTEXT: Record<string, SpotContext> = {
   lourido: {
     short: 'Lourido',
     dirNotes: {
-      SW: 'Condiciones ideales kite/windsurf',
-      WSW: 'Condiciones ideales kite/windsurf',
+      SW: 'Virazon',
+      WSW: 'Virazon',
       NE: 'Componente norte',
       N: 'Componente norte',
       E: 'Viento de tierra',
@@ -70,8 +73,8 @@ const SPOT_CONTEXT: Record<string, SpotContext> = {
   bocana: {
     short: 'Bocana',
     dirNotes: {
-      NE: 'Bocana matutina — centro de la ria',
-      E: 'Bocana matutina — centro de la ria',
+      NE: 'Bocana — viento del interior',
+      E: 'Bocana — viento del interior',
       SW: 'Entrada atlantica',
     },
     defaultNote: '',
@@ -81,16 +84,14 @@ const SPOT_CONTEXT: Record<string, SpotContext> = {
     dirNotes: {
       SW: 'Virazon entrando por la ria',
       NE: 'Viento de tierra',
-      N: 'Nortada — mar revuelta fuera',
+      N: 'Nortada',
     },
     defaultNote: '',
   },
   'cies-ria': {
     short: 'Cies',
     dirNotes: {
-      N: 'Nortada — oleaje fuerte',
-      NW: 'Mar de fondo atlantico',
-      SW: 'Protegida de SW por las islas',
+      N: 'Nortada',
     },
     defaultNote: '',
   },
