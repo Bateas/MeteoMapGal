@@ -71,7 +71,7 @@ export function LegalSection() {
             <AttrRow name="IHM" license="Sus condiciones" desc="Instituto Hidrográfico de la Marina. Predicción de mareas" />
             <AttrRow name="Copernicus Marine" license="Licencia Copernicus" desc="Temperatura superficial del mar" />
             <AttrRow name="NOAA" license="Dominio público" desc="Índices climáticos NAO y AO" />
-            <AttrRow name="RainViewer" license="Sus condiciones" desc="Animación del radar de lluvia (2 h pasadas)" />
+            <AttrRow name="RainViewer" license="Sus condiciones" desc="Radar de lluvia: animación de las 2 h pasadas y zona de «Lluvia ahora», leída en tu navegador" />
           </ul>
           <p className="text-[11px] font-bold text-slate-400 pt-1">Incendios, espacio aéreo y mapas</p>
           <ul className="space-y-1.5 text-[11px] text-slate-400">
