@@ -2,7 +2,10 @@
  * Server-side buoy data fetcher for the ingestor.
  *
  * Fetches from two sources:
- * - Puertos del Estado (PORTUS) — 12 stations, hourly/10min
+ * - Puertos del Estado — 7 stations (exterior buoy, tide gauges, port weather
+ *   stations). Through POEM when POEM_TOKEN is set (poemClient.ts, poemLogic.ts);
+ *   without it, still through PORTUSSRV lastData, which Puertos del Estado asked
+ *   us on 1-oct-2026 to stop using (POEM is the access for third parties).
  * - Observatorio Costeiro da Xunta — 6 platforms, 10min, humidity+dewPoint
  *
  * Returns merged BuoyReadingRow[] ready for DB insert.
@@ -14,6 +17,11 @@ import { allSettledLimit } from './concurrency.js';
 import { readObsCurrent, type ObsResponse } from '../src/api/obsCosteiroParse.js';
 import { portusFechaToIso } from '../src/api/portusTime.js';
 import { shouldAskPortus, isBackingOff, nextPortusBackoff, type PortusBackoff } from './portusBackoff.js';
+import { poemGet, poemToken, PoemHttpError } from './poemClient.js';
+import {
+  buildStationPlan, planRequestColumns, poemRowToReading, poemRows, poemIsoUtc, jwtExpiryMs,
+  type EstacionParamRow, type ParamInfo, type PoemStationPlan,
+} from './poemLogic.js';
 
 const PORTUS_BASE = 'https://portus.puertos.es/portussvr/api';
 const OBS_BASE = 'https://apis-ext.xunta.gal/mgplatpubapi/v1/api';
@@ -35,10 +43,14 @@ interface BuoyStation {
   categories?: string[];
 }
 
+// The CETMAR moorings (A Guarda, Cíes, Rande, Cortegada, Ribeira) are not asked to
+// Puertos del Estado: the same buoys reach us from the Xunta (OBS_STATIONS), and in
+// the 7 days to 1-oct-2026 every stored row of theirs came from the Xunta with
+// nothing added by PORTUS (no waves, pressure, currents or sea level).
 const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
   // Exterior
   { id: 2248, name: 'Cabo Silleiro', type: 'REDEXT' },
-  { id: 1253, name: 'A Guarda', type: 'CETMAR' },
+  { id: 1253, name: 'A Guarda', type: 'CETMAR', enabled: false },
   // Ría de Vigo
   { id: 1252, name: 'Islas Cíes', type: 'CETMAR', enabled: false },  // OFFLINE since Dec 2025 (same as ObsCosteiro 15002)
   // Rande has NO anemometer (documented gotcha) — only humidity/temp/dewpoint.
@@ -57,8 +69,8 @@ const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
   { id: 4271, name: 'Lourizán', type: 'REMPOR' },
   { id: 3223, name: 'Marín (marea)', type: 'REDMAR' },
   // Ría de Arousa
-  { id: 1250, name: 'Cortegada (Arousa)', type: 'CETMAR' },
-  { id: 1255, name: 'Ribeira', type: 'CETMAR' },
+  { id: 1250, name: 'Cortegada (Arousa)', type: 'CETMAR', enabled: false },
+  { id: 1255, name: 'Ribeira', type: 'CETMAR', enabled: false },
   { id: 3220, name: 'Vilagarcía (marea)', type: 'REDMAR' },
 ];
 
@@ -277,6 +289,172 @@ export function parsePortusResponse(
   return row;
 }
 
+// ── POEM (Puertos del Estado's API for third parties) ───
+
+/** Plans per station: table, columns, factors, units (poemLogic.ts). Re-read daily. */
+let poemPlans = new Map<number, PoemStationPlan>();
+let poemPlansAt = 0;
+let poemPlansTriedAt = 0;
+const POEM_PLAN_TTL_MS = 24 * 60 * 60_000;
+/** A station still without a plan is looked up again at most this often. */
+const POEM_PLAN_RETRY_MS = 60 * 60_000;
+/** A rejected token is logged at most this often. */
+const POEM_AUTH_LOG_MS = 60 * 60_000;
+let poemAuthLoggedAt = 0;
+let poemExpiryNotedDay = '';
+let lastDataNotedAt = 0;
+const LAST_DATA_NOTE_MS = 6 * 60 * 60_000;
+
+function madridDay(ms: number): string {
+  return new Date(ms).toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
+}
+
+function madridDateTime(ms: number): string {
+  return new Date(ms).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', dateStyle: 'short', timeStyle: 'short' });
+}
+
+function noteRejectedToken(status: number, what: string): void {
+  if (Date.now() - poemAuthLoggedAt < POEM_AUTH_LOG_MS) return;
+  poemAuthLoggedAt = Date.now();
+  log.error(`POEM rechaza la peticion (${what}, HTTP ${status}): token caducado o sin permiso. Renovar POEM_TOKEN en ingestor/.env y reiniciar el ingestor; mientras, no hay boyas de Puertos del Estado.`);
+}
+
+/** Once a day: when the token stops working, as its own expiry says. */
+function noteTokenExpiry(token: string, nowMs: number): void {
+  const day = madridDay(nowMs);
+  if (poemExpiryNotedDay === day) return;
+  poemExpiryNotedDay = day;
+  const exp = jwtExpiryMs(token);
+  if (exp == null) {
+    log.info('POEM: el token no dice cuando caduca');
+    return;
+  }
+  const days = Math.floor((exp - nowMs) / 86_400_000);
+  const text = `POEM: el token caduca el ${madridDateTime(exp)}`;
+  if (exp <= nowMs) log.error(`${text} (YA CADUCADO). Renovar POEM_TOKEN en ingestor/.env`);
+  else if (days < 7) log.warn(`${text} (en ${days} dias). Renovarlo antes`);
+  else log.info(`${text} (en ${days} dias)`);
+}
+
+/**
+ * Which table, columns, factors and units hold each station: one request per
+ * station to doris/doris/estacion_param and one for all the units. The default
+ * Limit of POEM is 10 rows, so it is always raised.
+ */
+export async function discoverPoemPlans(
+  stations: readonly BuoyStation[],
+  token: string,
+): Promise<Map<number, PoemStationPlan>> {
+  const rowsByStation = new Map<number, EstacionParamRow[]>();
+  for (const s of stations) {
+    const data = await poemGet('/doris/doris/estacion_param', {
+      estacion: String(s.id),
+      Columns: 'param,factor,db_column,db_table',
+      Limit: '500',
+    }, token);
+    rowsByStation.set(s.id, poemRows(data) as EstacionParamRow[]);
+  }
+  const paramIds = [...new Set([...rowsByStation.values()].flat()
+    .map((r) => r.param).filter((p): p is number => typeof p === 'number'))];
+  const params = new Map<number, ParamInfo>();
+  if (paramIds.length > 0) {
+    const data = await poemGet('/doris/doris/param', {
+      id_param: paramIds.join('|'),
+      Columns: 'id_param,descripcion,unidad',
+      Limit: '1000',
+    }, token);
+    for (const p of poemRows(data) as ParamInfo[]) {
+      if (typeof p.id_param === 'number') params.set(p.id_param, p);
+    }
+  }
+  const plans = new Map<number, PoemStationPlan>();
+  for (const s of stations) {
+    const plan = buildStationPlan(s.id, rowsByStation.get(s.id) ?? [], params);
+    if (plan) plans.set(s.id, plan);
+  }
+  return plans;
+}
+
+function describePlan(name: string, plan: PoemStationPlan): string {
+  const cols = plan.columns.map((c) => `${c.column}${c.unit ? ` ${c.unit}` : ''} /${c.factor}`).join(', ');
+  return `${name} ${plan.stationId} → ${plan.table}: ${cols}`;
+}
+
+async function ensurePoemPlans(stations: readonly BuoyStation[], token: string, nowMs: number): Promise<void> {
+  const expired = nowMs - poemPlansAt > POEM_PLAN_TTL_MS;
+  const missing = stations.some((s) => !poemPlans.has(s.id));
+  if (!expired && !missing) return;
+  // A failed or partial lookup is retried hourly (every 15 min while there is no plan at all), never every cycle.
+  const retryEvery = poemPlans.size === 0 ? 15 * 60_000 : POEM_PLAN_RETRY_MS;
+  if (poemPlansTriedAt > 0 && nowMs - poemPlansTriedAt < retryEvery) return;
+  poemPlansTriedAt = nowMs;
+  try {
+    const plans = await discoverPoemPlans(stations, token);
+    poemPlans = plans;
+    poemPlansAt = nowMs;
+    for (const s of stations) {
+      const plan = plans.get(s.id);
+      if (plan) log.info(`POEM plan: ${describePlan(s.name, plan)}`);
+      else log.warn(`POEM: ${s.name} (${s.id}) sin tabla de tiempo real con columnas que usemos; no se pide`);
+    }
+  } catch (err) {
+    if (err instanceof PoemHttpError && (err.status === 401 || err.status === 403)) {
+      noteRejectedToken(err.status, 'metadatos');
+    } else {
+      log.warn(`POEM: no se pudieron leer los metadatos: ${(err as Error).message}`);
+    }
+  }
+}
+
+/**
+ * The latest row of each Puertos del Estado station through POEM. Asks one
+ * station at a time; a rejected token or a rate limit stops the cycle there, so
+ * a bad token costs one request per cycle, not one per station.
+ */
+async function fetchPdeViaPoem(
+  stations: readonly BuoyStation[],
+  allStations: readonly BuoyStation[],
+  token: string,
+  notes: Map<string, number>,
+): Promise<BuoyReadingRow[]> {
+  const nowMs = Date.now();
+  const bump = (k: string) => notes.set(k, (notes.get(k) ?? 0) + 1);
+  noteTokenExpiry(token, nowMs);
+  // Plans for every station, including those waiting out a failure pause.
+  await ensurePoemPlans(allStations, token, nowMs);
+
+  const rows: BuoyReadingRow[] = [];
+  for (const station of stations) {
+    const plan = poemPlans.get(station.id);
+    if (!plan) { bump('sin plan'); continue; }
+    try {
+      const data = await poemGet(`/doris/${plan.table}`, {
+        codigo: String(station.id),
+        'fecha.ge': poemIsoUtc(nowMs - MAX_AGE_MS),
+        OrderBy: 'fecha.desc',
+        Limit: '1',
+        Columns: planRequestColumns(plan).join(','),
+      }, token);
+      notePortusAnswer(station, false);
+      const result = poemRowToReading(plan, station.name, poemRows(data)[0], Date.now(), MAX_AGE_MS);
+      for (const d of result.dropped) bump(d);
+      if (result.reading) rows.push(result.reading);
+      else bump(result.skip ?? 'empty');
+    } catch (err) {
+      if (err instanceof PoemHttpError) {
+        bump(`HTTP ${err.status}`);
+        if (err.status === 401) { noteRejectedToken(401, station.name); break; }
+        if (err.status === 403) { noteRejectedToken(403, `${station.name}, ${plan.table}`); continue; }
+        if (err.status === 429) break;
+      } else {
+        bump('sin respuesta');
+      }
+      notePortusAnswer(station, true);
+    }
+  }
+  return rows;
+}
+
 // ── Observatorio Costeiro fetch ─────────────────────────
 
 // Field selection (10-minute window, sensor height, per-field time) lives in
@@ -425,18 +603,30 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   // Reset the per-cycle failure counter before we start fetching.
   portusFailureCounters.clear();
 
+  // With a POEM token, Puertos del Estado is read ONLY through POEM: a failing
+  // POEM never falls back to PORTUSSRV. Without one, the old path, with a reminder.
+  const token = poemToken();
+  if (!token && cycleNow - lastDataNotedAt >= LAST_DATA_NOTE_MS) {
+    lastDataNotedAt = cycleNow;
+    log.warn('PORTUS se sigue leyendo por PORTUSSRV (lastData), que Puertos del Estado pidio el 1-oct dejar de usar: falta POEM_TOKEN en ingestor/.env');
+  }
+  const poemNotes = new Map<string, number>();
+  const readPde = async (): Promise<BuoyReadingRow[]> => {
+    if (token) return fetchPdeViaPoem(portusAsked, portusStations, token, poemNotes);
+    const settled = await allSettledLimit(portusAsked, fetchPortusStation, PORTUS_CONCURRENCY);
+    return (settled as PromiseSettledResult<BuoyReadingRow | null>[])
+      .filter((r): r is PromiseFulfilledResult<BuoyReadingRow | null> => r.status === 'fulfilled')
+      .map((r) => r.value)
+      .filter((r): r is BuoyReadingRow => r != null);
+  };
+
   // Fetch both sources in parallel
-  const [portusResults, obsResults] = await Promise.all([
-    allSettledLimit(portusAsked, fetchPortusStation, PORTUS_CONCURRENCY),
+  const [portus, obsResults] = await Promise.all([
+    readPde(),
     obsApiKey
       ? allSettledLimit(obsStations, (s) => fetchObsStation(s, obsApiKey), OBS_CONCURRENCY)
       : Promise.resolve([] as PromiseSettledResult<BuoyReadingRow | null>[]),
   ]);
-
-  const portus = (portusResults as PromiseSettledResult<BuoyReadingRow | null>[])
-    .filter((r): r is PromiseFulfilledResult<BuoyReadingRow | null> => r.status === 'fulfilled')
-    .map((r) => r.value)
-    .filter((r): r is BuoyReadingRow => r != null);
 
   const obs = (obsResults as PromiseSettledResult<BuoyReadingRow | null>[])
     .filter((r): r is PromiseFulfilledResult<BuoyReadingRow | null> => r.status === 'fulfilled')
@@ -452,7 +642,18 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   const waitingNote = portusWaiting.length > 0
     ? ` · en espera (1/h): ${portusWaiting.map((s) => `${s.name} ${s.id}`).join(', ')}`
     : '';
-  log.info(`Buoys: PORTUS ${portusCount}/${portusEnabled}, ObsCosteiro ${obsCount}/${obsEnabled} → ${merged.length} merged${waitingNote}`);
+  const via = token ? ' via POEM' : '';
+  log.info(`Buoys: PORTUS ${portusCount}/${portusEnabled}${via}, ObsCosteiro ${obsCount}/${obsEnabled} → ${merged.length} merged${waitingNote}`);
+
+  // POEM: what kept a station or a value out this cycle (stale, a quality flag,
+  // a unit or bound that did not fit, an HTTP error). Silent when all went in.
+  if (poemNotes.size > 0) {
+    const breakdown = [...poemNotes.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .map(([what, count]) => `${count}× ${what}`)
+      .join(', ');
+    log.warn(`POEM este ciclo: ${breakdown}`);
+  }
 
   // Diagnostic: when PORTUS gives < total back, surface WHY. Distinguishes:
   //   HTTP 429/403/5xx — upstream rejecting at network layer

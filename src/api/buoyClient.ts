@@ -115,12 +115,13 @@ export const RIAS_BUOY_STATIONS: {
   /** Where its readings come from (the ingestor merges both when a platform is in both). */
   providers: BuoyProvider[];
 }[] = [
+  // The CETMAR moorings are not asked to Puertos del Estado (ingestor/buoyFetcher.ts):
+  // the same buoys arrive from the Xunta, and only from the Xunta.
   // ── Exterior / Atlántico ──
   { id: 2248, name: 'Cabo Silleiro',      lat: 42.12, lon: -9.43, type: 'REDEXT', providers: ['pde'] },
-  { id: 1253, name: 'A Guarda',           lat: 41.90, lon: -8.90, type: 'CETMAR', providers: ['pde', 'xunta'] },
+  { id: 1253, name: 'A Guarda',           lat: 41.90, lon: -8.90, type: 'CETMAR', providers: ['xunta'] },
   // ── Ría de Vigo ──
-  { id: 1252, name: 'Islas Cíes',         lat: 42.17, lon: -8.91, type: 'CETMAR', enabled: false, providers: ['pde', 'xunta'] }, // OFFLINE since Dec 2025 (same physical station as ObsCosteiro 15002)
-  // Puertos del Estado is no longer asked for Rande (ingestor/buoyFetcher.ts): its data arrive from the Xunta only.
+  { id: 1252, name: 'Islas Cíes',         lat: 42.17, lon: -8.91, type: 'CETMAR', enabled: false, providers: ['xunta'] }, // OFFLINE since Dec 2025 (same physical station as ObsCosteiro 15002)
   { id: 1251, name: 'Rande (Ría Vigo)',   lat: 42.29, lon: -8.66, type: 'CETMAR', providers: ['xunta'] },
   { id: 3221, name: 'Vigo (marea)',       lat: 42.24, lon: -8.73, type: 'REDMAR', providers: ['pde'] },
   // ── Ría de Pontevedra ──
@@ -129,8 +130,8 @@ export const RIAS_BUOY_STATIONS: {
   { id: 4271, name: 'Lourizán',           lat: 42.41, lon: -8.66, type: 'REMPOR', providers: ['pde'] },
   { id: 3223, name: 'Marín (marea)',      lat: 42.41, lon: -8.69, type: 'REDMAR', providers: ['pde'] },
   // ── Ría de Arousa ──
-  { id: 1250, name: 'Cortegada (Arousa)', lat: 42.63, lon: -8.78, type: 'CETMAR', providers: ['pde', 'xunta'] },
-  { id: 1255, name: 'Ribeira',            lat: 42.55, lon: -8.95, type: 'CETMAR', providers: ['pde', 'xunta'] },
+  { id: 1250, name: 'Cortegada (Arousa)', lat: 42.63, lon: -8.78, type: 'CETMAR', providers: ['xunta'] },
+  { id: 1255, name: 'Ribeira',            lat: 42.55, lon: -8.95, type: 'CETMAR', providers: ['xunta'] },
   { id: 3220, name: 'Vilagarcía (marea)', lat: 42.60, lon: -8.77, type: 'REDMAR', providers: ['pde'] },
   // ── Ría de Muros-Noia (Observatorio Costeiro only) ──
   { id: 15009, name: 'Muros',             lat: 42.7195, lon: -9.0153, type: 'OBSCOSTEIRO', providers: ['xunta'] },
