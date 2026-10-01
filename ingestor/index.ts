@@ -36,6 +36,7 @@ import { runCalibrationCycle, CALIBRATION_CHECK_INTERVAL_MS } from './calibratio
 import { runStationHealthCycle, loadStationHealth, HEALTH_CHECK_INTERVAL_MS } from './stationHealthJob.js';
 import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetcher.js';
 import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
+import { runMetarArchive, METAR_ARCHIVE_INTERVAL_MS } from './metarArchive.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
   countBySource,
@@ -75,6 +76,7 @@ let calibrationTimer: ReturnType<typeof setInterval> | null = null;
 let stationHealthTimer: ReturnType<typeof setInterval> | null = null;
 let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
 let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
+let metarTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -598,6 +600,11 @@ async function start(): Promise<void> {
   setTimeout(() => { void runWrfPointArchive(); }, 260_000);
   wrfPointTimer = setInterval(() => { void runWrfPointArchive(); }, WRF_POINT_CHECK_MS);
 
+  // Airport reports (metarArchive.ts): the measured fog label. The first pass fills the ~3 days the
+  // API still holds; then every 30 min. 280s stagger, after the WRF points.
+  setTimeout(() => { void runMetarArchive(); }, 280_000);
+  metarTimer = setInterval(() => { void runMetarArchive(); }, METAR_ARCHIVE_INTERVAL_MS);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -624,6 +631,7 @@ async function shutdown(signal: string): Promise<void> {
   if (stationHealthTimer) clearInterval(stationHealthTimer);
   if (nwpPreviousTimer) clearInterval(nwpPreviousTimer);
   if (wrfPointTimer) clearInterval(wrfPointTimer);
+  if (metarTimer) clearInterval(metarTimer);
 
   // Close database pool
   await closePool();
