@@ -110,12 +110,8 @@ export default defineConfig(({ mode }) => {
         secure: true,
       },
       // EUMETSAT proxy removed — non-commercial license incompatible
-      '/portus-api': {
-        target: 'https://portus.puertos.es/portussvr/api',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/portus-api/, ''),
-        secure: true,
-      },
+      // PORTUSSRV proxy removed (1-oct-2026): Puertos del Estado asked third parties to use
+      // POEM, which only our service reads, with its token (ingestor/poemClient.ts).
       '/skyx-api': {
         target: 'https://api.skyxglobal.com',
         changeOrigin: true,

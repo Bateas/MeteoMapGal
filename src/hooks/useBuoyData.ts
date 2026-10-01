@@ -1,19 +1,18 @@
 /**
- * Hook to fetch and refresh marine buoy data from Puertos del Estado.
+ * Hook to fetch and refresh the marine buoys (Puertos del Estado and the Xunta).
  * Mounted in AppShell so data loads regardless of sidebar visibility.
  * Only active in coastal sectors. Clears selection on sector switch.
  *
  * Uses useVisibilityPolling(enabled=isCoastal) — polling pauses on inland
  * sectors and when the browser tab is hidden.
  *
- * Reads our own API. The direct PORTUS + ObsCosteiro path is development-only.
+ * Reads our own API. The fallback to the Xunta buoys (through our proxy) is
+ * development-only; Puertos del Estado is never asked from the browser.
  *
  * Error recovery: on failure, retries after 5 min instead of waiting 30 min.
- * buoyClient.ts already retries 5xx errors 2x with exponential backoff before
- * reporting failure here.
  */
 import { useCallback, useEffect, useRef } from 'react';
-import { fetchAllRiasBuoys, fetchStoredBuoys, mergeBuoyReadings } from '../api/buoyClient';
+import { fetchStoredBuoys } from '../api/buoyClient';
 import { fetchAllObsReadings } from '../api/observatorioCosteiro';
 import { useBuoyStore } from '../store/buoyStore';
 import { useSectorStore } from '../store/sectorStore';
@@ -46,9 +45,7 @@ export function useBuoyData() {
     try {
       // Our own service already polls both providers, merges them and stores
       // the result: one request, and nothing from the visitor's browser to
-      // Puertos del Estado, who rate-limit by address and already warned us
-      // once. The direct path below stays as the fallback (and for running
-      // the app without our service, in development).
+      // the providers.
       try {
         const stored = await fetchStoredBuoys();
         if (stored.length > 0) {
@@ -63,38 +60,24 @@ export function useBuoyData() {
       }
 
       // Only in development. In production a failing API would otherwise send
-      // every visitor to the providers at once: eleven POSTs each to PORTUS,
-      // which no cache can share and which limits by address. The map keeps
-      // the buoys it already has and asks our API again on the retry below.
+      // every visitor to the provider at once. The map keeps the buoys it
+      // already has and asks our API again on the retry below.
       if (!DIRECT_FALLBACK) {
         throw new Error('Sin datos de boyas de nuestro servicio');
       }
 
-      // Fetch PORTUS + Observatorio Costeiro in parallel — fail silently per source
-      const [portusData, obsData] = await Promise.all([
-        fetchAllRiasBuoys().catch((err) => {
-          console.warn('[useBuoyData] PORTUS fetch failed:', (err as Error).message);
-          return [];
-        }),
-        fetchAllObsReadings().catch((err) => {
-          console.warn('[useBuoyData] ObsCosteiro fetch failed:', (err as Error).message);
-          return [];
-        }),
-      ]);
-
-      // Merge — prefer newest timestamp, preserve PORTUS-exclusive fields
-      const merged = mergeBuoyReadings(portusData, obsData);
-
-      if (merged.length === 0) {
-        throw new Error('Sin datos de boyas (PORTUS + Observatorio Costeiro fallaron)');
+      // Puertos del Estado is never asked from the browser: our service reads it
+      // through POEM, the access they set for third parties (1-oct-2026). Here,
+      // only the Xunta buoys, through our own proxy.
+      const obsData = await fetchAllObsReadings().catch((err) => {
+        console.warn('[useBuoyData] ObsCosteiro fetch failed:', (err as Error).message);
+        return [];
+      });
+      if (obsData.length === 0) {
+        throw new Error('Sin datos de boyas (Observatorio Costeiro falló)');
       }
-
-      setBuoys(merged);
+      setBuoys(obsData);
       setError(null);
-
-      if (obsData.length > 0) {
-        console.debug(`[useBuoyData] Merged: ${portusData.length} PORTUS + ${obsData.length} ObsCosteiro → ${merged.length} total`);
-      }
     } catch (err) {
       const msg = (err as Error).message;
       setError(msg);

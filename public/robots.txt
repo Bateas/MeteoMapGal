@@ -12,7 +12,6 @@ Disallow: /meteo2api/
 Disallow: /ica-api/
 Disallow: /enaire-api/
 Disallow: /ihm-api/
-Disallow: /portus-api/
 Disallow: /skyx-api/
 Disallow: /noaa-api/
 Disallow: /opensky-api/
