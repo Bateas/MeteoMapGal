@@ -1,37 +1,45 @@
 /**
- * Adaptive scheduler for webcam vision analysis (Layer 2).
+ * When each webcam is looked at by the vision model (Layer 2).
  *
  * Pure helpers extracted from webcamAnalyzer so tests can run without
  * triggering the dynamic `sharp` import that the analyzer needs at runtime
  * for image preprocessing.
+ *
+ * The model is only trusted for coarse fog and visibility, so fog is what sets the pace. Its
+ * Beaufort estimate used to: a reading of 4 or more re-ran that camera every 5 minutes, on a
+ * number the app does not show because it is not reliable. And the model only runs when the
+ * stations around the camera leave room for fog (fogAlertGate): a week of September had 372
+ * calls a day at ~29 s of CPU each, and half of them, plus 75
+ * of the 166 «fog» answers, came with the air nowhere near saturation.
  */
 
 export interface WebcamScheduleState {
-  lastResult: { beaufort: number } | null;
-  beaufortHistory: number[];          // last 5 readings, newest first
+  /** What the model said the last time it ran, or null. */
+  lastResult: { fog: boolean } | null;
+  /** Ingestor cycles (5 min) since the camera was last looked at, counted before deciding. */
   cyclesSinceLastAnalysis: number;
+  /** The last look found no room for fog at the stations around it, so the model did not run. */
+  gateClosed?: boolean;
 }
 
-// Adaptive schedule thresholds (cycles, where 1 cycle = 5 min ingestor poll)
-export const SCHEDULE_CYCLES_STABLE_CALM = 4; // 20min when 5 readings ≤ 1
-export const SCHEDULE_CYCLES_DEFAULT = 3;     // 15min normal cadence
-// Beaufort >= 4 → every cycle (5min) — encoded inline below
+/** Cycles of 5 min between looks. */
+export const SCHEDULE_CYCLES_DEFAULT = 4; // 20 min
+/** The camera saw fog: confirm it or clear it soon. */
+export const SCHEDULE_CYCLES_FOG = 2; // 10 min
+/** No room for fog last time: only the stations are read, which costs a query, not the model. */
+export const SCHEDULE_CYCLES_GATE = 2; // 10 min
 
 /**
- * Decide if a webcam is due for analysis on this cycle.
- *
- * - First time (no state) → always due
- * - Last reading Beaufort >= 4 → every cycle (active event)
- * - Last 5 readings all ≤ 1 → every 4 cycles (stable calm)
- * - Else → every 3 cycles (default cadence, ~15min)
+ * Whether a camera is due this cycle. The caller adds one to `cyclesSinceLastAnalysis` at the
+ * start of every daytime cycle and sets it to 0 when it looks, so the camera is looked at every
+ * `required` cycles.
  */
 export function shouldAnalyzeCam(state: WebcamScheduleState | undefined): boolean {
   if (!state) return true;
-  if (state.lastResult && state.lastResult.beaufort >= 4) return true;
-
-  const recent = state.beaufortHistory;
-  const stableCalm =
-    recent.length >= 5 && recent.every((b) => b >= 0 && b <= 1);
-  const required = stableCalm ? SCHEDULE_CYCLES_STABLE_CALM : SCHEDULE_CYCLES_DEFAULT;
+  const required = state.gateClosed
+    ? SCHEDULE_CYCLES_GATE
+    : state.lastResult?.fog
+      ? SCHEDULE_CYCLES_FOG
+      : SCHEDULE_CYCLES_DEFAULT;
   return state.cyclesSinceLastAnalysis >= required;
 }

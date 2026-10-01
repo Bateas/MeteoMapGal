@@ -1,5 +1,5 @@
 /**
- * Tests for the adaptive-schedule heuristic.
+ * Tests for the webcam schedule.
  * Pure function in webcamScheduler.ts — no DB / network / sharp.
  */
 import { describe, it, expect } from 'vitest';
@@ -7,84 +7,35 @@ import { shouldAnalyzeCam, type WebcamScheduleState } from './webcamScheduler';
 
 function state(over: Partial<WebcamScheduleState> = {}): WebcamScheduleState {
   return {
-    lastResult: null,
-    beaufortHistory: [],
+    lastResult: { fog: false },
     cyclesSinceLastAnalysis: 0,
     ...over,
   };
 }
 
-describe('shouldAnalyzeCam — adaptive schedule (Layer 2)', () => {
+describe('shouldAnalyzeCam — fog sets the pace', () => {
   it('first time (no state) — always due', () => {
     expect(shouldAnalyzeCam(undefined)).toBe(true);
   });
 
-  it('beaufort >= 4 in last reading — every cycle (active event)', () => {
-    const s = state({ lastResult: { beaufort: 5 }, cyclesSinceLastAnalysis: 0 });
-    expect(shouldAnalyzeCam(s)).toBe(true);
+  it('nothing seen: every 4 cycles (20 min)', () => {
+    expect(shouldAnalyzeCam(state({ cyclesSinceLastAnalysis: 3 }))).toBe(false);
+    expect(shouldAnalyzeCam(state({ cyclesSinceLastAnalysis: 4 }))).toBe(true);
   });
 
-  it('beaufort 4 with 0 cycles since — still due (event override)', () => {
-    const s = state({ lastResult: { beaufort: 4 }, cyclesSinceLastAnalysis: 0 });
-    expect(shouldAnalyzeCam(s)).toBe(true);
+  it('the camera saw fog: every 2 cycles (10 min), to confirm or clear it', () => {
+    expect(shouldAnalyzeCam(state({ lastResult: { fog: true }, cyclesSinceLastAnalysis: 1 }))).toBe(false);
+    expect(shouldAnalyzeCam(state({ lastResult: { fog: true }, cyclesSinceLastAnalysis: 2 }))).toBe(true);
   });
 
-  it('stable calm (5 readings ≤ 1) waits 4 cycles', () => {
-    const calm = state({
-      lastResult: { beaufort: 0 },
-      beaufortHistory: [0, 1, 0, 1, 0],
-      cyclesSinceLastAnalysis: 3,
-    });
-    expect(shouldAnalyzeCam(calm)).toBe(false);
-
-    const due = state({
-      lastResult: { beaufort: 0 },
-      beaufortHistory: [0, 1, 0, 1, 0],
-      cyclesSinceLastAnalysis: 4,
-    });
-    expect(shouldAnalyzeCam(due)).toBe(true);
+  it('no room for fog last time: the stations are read again after 2 cycles, whatever it saw before', () => {
+    const closed = state({ lastResult: { fog: true }, gateClosed: true });
+    expect(shouldAnalyzeCam({ ...closed, cyclesSinceLastAnalysis: 1 })).toBe(false);
+    expect(shouldAnalyzeCam({ ...closed, cyclesSinceLastAnalysis: 2 })).toBe(true);
   });
 
-  it('default cadence: any non-stable, non-event state waits 3 cycles', () => {
-    const fresh = state({
-      lastResult: { beaufort: 2 },
-      beaufortHistory: [2, 2],
-      cyclesSinceLastAnalysis: 2,
-    });
-    expect(shouldAnalyzeCam(fresh)).toBe(false);
-
-    const due = state({
-      lastResult: { beaufort: 2 },
-      beaufortHistory: [2, 2],
-      cyclesSinceLastAnalysis: 3,
-    });
-    expect(shouldAnalyzeCam(due)).toBe(true);
-  });
-
-  it('history with one above-threshold reading breaks "stable calm" — falls back to 3 cycles', () => {
-    const s = state({
-      lastResult: { beaufort: 1 },
-      beaufortHistory: [1, 0, 2, 0, 1], // one "2" — not stable calm
-      cyclesSinceLastAnalysis: 3,
-    });
-    expect(shouldAnalyzeCam(s)).toBe(true);
-  });
-
-  it('history of 4 readings (not yet 5) — not stable calm yet, default cadence', () => {
-    const s = state({
-      lastResult: { beaufort: 0 },
-      beaufortHistory: [0, 0, 0, 0],
-      cyclesSinceLastAnalysis: 3,
-    });
-    expect(shouldAnalyzeCam(s)).toBe(true);
-  });
-
-  it('beaufort -1 (no water visible) — does not trigger event branch', () => {
-    const s = state({
-      lastResult: { beaufort: -1 },
-      beaufortHistory: [-1, -1],
-      cyclesSinceLastAnalysis: 2,
-    });
-    expect(shouldAnalyzeCam(s)).toBe(false); // 3 cycles needed
+  it('a camera that never produced a result waits the default cadence', () => {
+    expect(shouldAnalyzeCam(state({ lastResult: null, cyclesSinceLastAnalysis: 3 }))).toBe(false);
+    expect(shouldAnalyzeCam(state({ lastResult: null, cyclesSinceLastAnalysis: 4 }))).toBe(true);
   });
 });

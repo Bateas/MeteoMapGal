@@ -4,7 +4,8 @@
  * Fetches webcam images from MeteoGalicia, sends to Ollama (moondream/smolvlm2),
  * parses Beaufort estimation + weather conditions, persists to DB.
  *
- * Runs every 3 ingestor cycles (~15min). No browser APIs — pure Node.js.
+ * Called every ingestor cycle; each camera is looked at on its own schedule (webcamScheduler.ts),
+ * and only when the stations around it leave room for fog. No browser APIs — pure Node.js.
  */
 
 import { createHash } from 'crypto';
@@ -41,7 +42,6 @@ import { RIAS_WEBCAMS, type WebcamStation } from '../src/config/webcams.js';
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'moondream';
-const WEBCAM_ANALYSIS_INTERVAL = 3; // Run every N ingestor cycles (3 × 5min = 15min)
 const IMAGE_MAX_SIZE = 512; // Resize images to max 512px for LLM
 const API_TIMEOUT_MS = 60_000; // 60s timeout for Ollama (CPU inference is slow)
 
@@ -62,8 +62,8 @@ let visionDisabledLogged = false;
 //
 // Layer 1 (pre-classifier) needs the last result to reuse when the image is
 // trivial (calm water / uniform sky) and Beaufort was already 0-1. Layer 2
-// (adaptive schedule, see webcamScheduler.ts) needs the last few Beaufort
-// readings to decide if a camera is "stable calm" or has an "active event".
+// (schedule, see webcamScheduler.ts) needs whether it saw fog and whether the
+// stations around it left room for fog last time.
 import { shouldAnalyzeCam } from './webcamScheduler.js';
 import type { WebcamScheduleState } from './webcamScheduler.js';
 
@@ -432,7 +432,9 @@ function reuseLastResult(
   return {
     ...prev,
     confidence: 'low',
-    provider: `${prev.provider}-${reason}`,
+    // From the model's own name: appending to prev.provider stacked a suffix per reuse
+    // ("moondream-trivial-trivial-trivial…") in the stored rows.
+    provider: `${prev.provider.replace(/(-(frozen|trivial))+$/, '')}-${reason}`,
     latencyMs: 0,
     analyzedAt: new Date(),
   };
@@ -495,11 +497,7 @@ async function analyzeWebcam(webcam: WebcamStation): Promise<WebcamAnalysisResul
 // ── Batch analysis (all Rías webcams) ────────────────
 
 export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisResult[]> {
-  // Originally the function ran every WEBCAM_ANALYSIS_INTERVAL cycles for ALL
-  // cameras at once. Now scheduling is per-cam (see shouldAnalyzeCam), so
-  // this is called every cycle but most cams skip cheaply. The constant is
-  // kept as the *default* cadence inside shouldAnalyzeCam (3 cycles).
-  void WEBCAM_ANALYSIS_INTERVAL;
+  // Called every cycle; scheduling is per camera (shouldAnalyzeCam), so most cameras skip cheaply.
 
   // Periodic cleanup of stale image tracking maps (prevent unbounded growth)
   if (Date.now() - lastMapCleanup > MAP_CLEANUP_INTERVAL_MS) {
@@ -531,24 +529,24 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
     return [];
   }
 
-  // Decide which cams are due this cycle (Layer 2 — adaptive schedule)
+  // Decide which cams are due this cycle (Layer 2 — schedule). Every camera counts the cycle
+  // first, so a camera is looked at every `required` cycles (webcamScheduler.ts).
   const dueCams: WebcamStation[] = [];
   for (const webcam of RIAS_WEBCAMS) {
     const state = webcamStates.get(webcam.id);
-    if (shouldAnalyzeCam(state)) {
-      dueCams.push(webcam);
-    } else if (state) {
-      state.cyclesSinceLastAnalysis++;
-    }
+    if (state) state.cyclesSinceLastAnalysis++;
+    if (shouldAnalyzeCam(state)) dueCams.push(webcam);
   }
 
   if (dueCams.length === 0) {
-    log.info(`[Webcam] All ${RIAS_WEBCAMS.length} cameras within their adaptive interval — skipping cycle`);
+    log.info(`[Webcam] All ${RIAS_WEBCAMS.length} cameras within their interval — skipping cycle`);
     return [];
   }
 
   log.info(`[Webcam] Starting vision analysis (${dueCams.length}/${RIAS_WEBCAMS.length} due this cycle)...`);
   const results: WebcamAnalysisResult[] = [];
+  const gates = new Map<string, ReturnType<typeof fogCorroborated>>();
+  const noRoom: string[] = [];
   const GLOBAL_TIMEOUT_MS = 120_000; // 120s max — never block longer than this
   const startTime = Date.now();
 
@@ -559,27 +557,33 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
       log.warn(`[Webcam] Global timeout (${GLOBAL_TIMEOUT_MS / 1000}s) — ${results.length}/${dueCams.length} cameras processed, skipping rest`);
       break;
     }
+    const state: WebcamState = webcamStates.get(webcam.id) ?? { lastResult: null, cyclesSinceLastAnalysis: 0 };
+    webcamStates.set(webcam.id, state);
+    // The model only earns its ~30 s of CPU when the stations around the camera
+    // leave room for fog: the same check a camera's fog must pass to reach Telegram.
+    const gate = fogCorroborated(await nearbyWeather(webcam.lat, webcam.lon));
+    gates.set(webcam.id, gate);
+    state.cyclesSinceLastAnalysis = 0;
+    state.gateClosed = !gate.ok;
+    if (!gate.ok) {
+      noRoom.push(webcam.name);
+      continue;
+    }
     try {
       const result = await analyzeWebcam(webcam);
       if (result) {
         results.push(result);
-        // Update per-cam state (cache + history) for next cycle's scheduler
-        const state = webcamStates.get(webcam.id) ?? {
-          lastResult: null,
-          beaufortHistory: [],
-          cyclesSinceLastAnalysis: 0,
-        };
         state.lastResult = result;
-        state.beaufortHistory = [result.beaufort, ...state.beaufortHistory].slice(0, 5);
-        state.cyclesSinceLastAnalysis = 0;
-        webcamStates.set(webcam.id, state);
       }
     } catch (err) {
       log.warn(`[Webcam] ${webcam.name} failed: ${(err as Error).message}`);
     }
   }
 
-  log.info(`[Webcam] Analysis complete: ${results.length}/${dueCams.length} cameras processed (${((Date.now() - startTime) / 1000).toFixed(1)}s)`);
+  if (noRoom.length > 0) {
+    log.info(`[Webcam] Sin modelo en ${noRoom.length}: las estaciones no dejan sitio a la niebla (${noRoom.join(', ')})`);
+  }
+  log.info(`[Webcam] Analysis complete: ${results.length}/${dueCams.length - noRoom.length} cameras processed (${((Date.now() - startTime) / 1000).toFixed(1)}s)`);
 
   // Persist to DB
   if (results.length > 0) {
@@ -602,13 +606,12 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
 
   // Check fog alerts — only real fog (not haze), only poor visibility, and only when the
   // stations around the camera agree it is fog (fogAlertGate.ts): the camera alone never sends.
+  // The check was made just before the model ran.
   for (const r of results) {
     if (r.fog && r.visibility === 'poor' && r.spotId) {
       const cam = RIAS_WEBCAMS.find(w => w.id === r.webcamId);
       const camName = cam?.name ?? r.webcamId;
-      const gate = cam
-        ? fogCorroborated(await nearbyWeather(cam.lat, cam.lon))
-        : { ok: false, reason: 'camara sin coordenadas' };
+      const gate = gates.get(r.webcamId) ?? { ok: false, reason: 'sin comprobar las estaciones' };
       if (!gate.ok) {
         log.info(`[Webcam] ${camName}: niebla de la camara no enviada — ${gate.reason}`);
         continue;
