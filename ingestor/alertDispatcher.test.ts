@@ -33,6 +33,46 @@ describe('alertDispatcher — every message that goes out leaves its full text i
   });
 });
 
+describe('alertDispatcher — spot alerts say which wind it is, never the sea (1-oct)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 1, 17, 0));
+    resetCooldowns();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const sentText = async (spot: string, dir: string, kt = 10) => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    vi.spyOn(log, 'ok').mockImplementation(() => {});
+    resetCooldowns();
+    await dispatchSpotAlert(spot, spot, 'Rías Baixas', 'NAVEGABLE', kt, dir, { gustKt: 17 });
+    const body = fetch.mock.calls.at(-1)?.[1]?.body;
+    fetch.mockRestore();
+    return body ? (JSON.parse(String(body)) as { text: string }).text : '';
+  };
+
+  it('the 1-oct Cies alert no longer promises heavy seas', async () => {
+    const text = await sentText('cies-ria', 'N');
+    expect(text).toContain('N 10kt (rachas 17kt)');
+    expect(text).toContain('Nortada');
+    expect(text).not.toMatch(/oleaje/i);
+  });
+
+  it('no spot and no direction claims sea state, swell or ideal conditions', async () => {
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    for (const spot of ['castrelo', 'cesantes', 'lourido', 'bocana', 'centro-ria', 'cies-ria']) {
+      for (const dir of dirs) {
+        const text = await sentText(spot, dir);
+        expect(text, `${spot} ${dir}`).not.toMatch(/oleaje|mar de fondo|revuelta|ideal|protegida/i);
+      }
+    }
+  });
+});
+
 describe('alertDispatcher — sends are stored and cooldowns survive a restart (29-sep)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
