@@ -118,3 +118,39 @@ describe('detectStrikes — the failures of this network', () => {
     expect(rulesFor(strikes, 'mg_dry')).toEqual([]);
   });
 });
+
+describe('detectStrikes — a module that measures the house (warm nights)', () => {
+  /** Readings 01-05 h local are rows 6..35 of the fixture day. */
+  const night = (temperature: number, humidity: number) => day((i) => (i >= 6 && i <= 35 ? { temperature, humidity } : {}));
+  const atAlt = (id: string, dLatKm: number, alt: number | null, rows = day()): HealthStation => ({ ...at(id, dLatKm, rows), alt });
+  const neighbours = () => [atAlt('mg_1', 3, 20), atAlt('wu_1', -4, 40), atAlt('nt_1', 6, 30)];
+  const RULE = ['humidity:calor de noche', 'temperature:calor de noche'];
+
+  it('6 C above every neighbour and 22 points drier at sea level: temperature and humidity out', () => {
+    const strikes = detectStrikes([atAlt('nt_house', 0, 19, night(21, 58)), ...neighbours()], DAY, END);
+    expect(rulesFor(strikes, 'nt_house')).toEqual(RULE);
+    expect(strikes.find((s) => s.stationId === 'nt_house')?.detail).toContain('frente a 3 vecinas');
+  });
+
+  it('warmer but MOISTER is air off the sea, not a house', () => {
+    const strikes = detectStrikes([atAlt('nt_shore', 0, 2, night(20, 92)), ...neighbours()], DAY, END);
+    expect(rulesFor(strikes, 'nt_shore')).toEqual([]);
+  });
+
+  it('a hill station well above its neighbours is warm at night for real (above the inversion)', () => {
+    const strikes = detectStrikes([atAlt('mg_hill', 0, 600, night(21, 58)), ...neighbours()], DAY, END);
+    expect(rulesFor(strikes, 'mg_hill')).toEqual([]);
+  });
+
+  it('one neighbour as warm: not warmer than all, so it can be the weather', () => {
+    const warmToo = atAlt('mg_warm', 5, 25, night(21.5, 60));
+    const strikes = detectStrikes([atAlt('nt_a', 0, 19, night(21, 58)), ...neighbours(), warmToo], DAY, END);
+    expect(rulesFor(strikes, 'nt_a')).toEqual([]);
+  });
+
+  it('silent without its altitude or with fewer than three neighbours', () => {
+    expect(rulesFor(detectStrikes([atAlt('nt_noalt', 0, null, night(21, 58)), ...neighbours()], DAY, END), 'nt_noalt')).toEqual([]);
+    const two = neighbours().slice(0, 2);
+    expect(rulesFor(detectStrikes([atAlt('nt_few', 0, 19, night(21, 58)), ...two], DAY, END), 'nt_few')).toEqual([]);
+  });
+});

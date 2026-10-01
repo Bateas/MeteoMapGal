@@ -23,10 +23,16 @@
  *  · a barometer grossly off its neighbours. Every network stores sea-level pressure, and most home
  *    stations sit 5-10 hPa off because their owner typed a wrong altitude: that leaves the trend,
  *    which is what the app uses, intact, so only an offset beyond PRESSURE_OFFSET_HPA counts
- *    (a Netatmo 107 hPa low on 26-sep; on the dry run a 5 hPa limit flagged ~65 stations a day).
+ *    (a Netatmo 107 hPa low on 26-sep; on the dry run a 5 hPa limit flagged ~65 stations a day);
+ *  · an outdoor module that measures the house: against a wall, under the eaves or indoors. In the
+ *    small hours it reads 4-7 C above every neighbour and 15-35 points drier (the same air, warmed),
+ *    while in the afternoon it is near them. On the dry run over 14 nights (1-oct) it singled out
+ *    six Netatmo modules at sea level and no official station; the one at Vao is the nearest
+ *    thermometer to that spot.
  */
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { solarElevationDeg } from '../src/services/solarUtils.js';
+import { madridHour } from '../src/services/localTime.js';
 import { rawRainInWindowMm, rainInWindowMm, MAX_RAIN_RATE_MM_H, type PrecipSample } from '../src/services/precipSemantics.js';
 import type { HealthStrike, HealthVariable } from '../src/services/stationHealth.js';
 
@@ -45,6 +51,8 @@ export interface HealthStation {
   id: string;
   lat: number;
   lon: number;
+  /** Ground altitude in metres; unknown leaves the warm-night rule silent for this station. */
+  alt?: number | null;
   /** Readings of the day, sorted by time. */
   rows: DayRow[];
 }
@@ -77,6 +85,14 @@ export const SOLAR_DARK_RATIO = 0.3;
 export const WIND_ZERO_SHARE = 0.8;
 export const WIND_ZERO_MIN_GUSTS = 5;
 export const PRESSURE_OFFSET_HPA = 15;
+/** Local hours of the warm-night rule (both included): the sun has been gone for hours. */
+export const NIGHT_HOURS: readonly [number, number] = [1, 5];
+export const NIGHT_MIN_READINGS = 4;
+export const NIGHT_MIN_NEIGHBOURS = 3;
+export const NIGHT_WARM_C = 4;
+export const NIGHT_DRY_PCT = 10;
+/** A station this far above its neighbours can be warm at night for real: above the inversion. */
+export const NIGHT_MAX_ABOVE_M = 50;
 
 const HOUR = 3_600_000;
 
@@ -243,15 +259,67 @@ function pressureOffset(st: HealthStation, near: { st: HealthStation; km: number
   return [{ day, stationId: st.id, variable: 'pressure', rule: 'presion desfasada', detail: `${round(off)} hPa frente a ${theirs.length} vecinas` }];
 }
 
+interface NightMean { t: number; rh: number }
+
+/** Mean temperature and humidity of each station over the local NIGHT_HOURS, null with too few
+ *  readings. The local hour is looked up once per UTC hour (Madrid's offset is whole hours). */
+function nightMeans(stations: HealthStation[]): Map<string, NightMean | null> {
+  const hourOf = new Map<number, number>();
+  const localHour = (t: number) => {
+    const k = Math.floor(t / HOUR);
+    let h = hourOf.get(k);
+    if (h === undefined) {
+      h = madridHour(k * HOUR);
+      hourOf.set(k, h);
+    }
+    return h;
+  };
+  const out = new Map<string, NightMean | null>();
+  for (const st of stations) {
+    const rows = st.rows.filter((r) => r.temperature != null && r.humidity != null
+      && localHour(r.t) >= NIGHT_HOURS[0] && localHour(r.t) <= NIGHT_HOURS[1]);
+    out.set(st.id, rows.length < NIGHT_MIN_READINGS ? null : {
+      t: rows.reduce((a, r) => a + (r.temperature as number), 0) / rows.length,
+      rh: rows.reduce((a, r) => a + (r.humidity as number), 0) / rows.length,
+    });
+  }
+  return out;
+}
+
+/** Warmer than every neighbour in the small hours and drier: the same air, warmed by a house.
+ *  Air off the sea would be warmer and MOISTER, and a station well above its neighbours can be
+ *  warm for real above the night inversion (the MeteoGalicia hill stations are, most nights), so
+ *  both stay out. Temperature and humidity go together: the humidity is relative to the warm air. */
+function warmNight(
+  st: HealthStation, near: { st: HealthStation; km: number }[], day: string, means: Map<string, NightMean | null>,
+): DetectedStrike[] {
+  const mine = means.get(st.id);
+  if (!mine || st.alt == null || !Number.isFinite(st.alt)) return [];
+  const theirs = near
+    .filter((n) => n.km <= NEIGHBOUR_KM)
+    .map((n) => ({ m: means.get(n.st.id), alt: n.st.alt }))
+    .filter((n): n is { m: NightMean; alt: number | null | undefined } => n.m != null);
+  if (theirs.length < NIGHT_MIN_NEIGHBOURS) return [];
+  const alts = theirs.map((n) => n.alt).filter((a): a is number => a != null && Number.isFinite(a));
+  if (alts.length === 0 || st.alt > median(alts) + NIGHT_MAX_ABOVE_M) return [];
+  const temps = theirs.map((n) => n.m.t);
+  const dT = mine.t - median(temps);
+  const dRh = mine.rh - median(theirs.map((n) => n.m.rh));
+  if (dT <= NIGHT_WARM_C || mine.t <= Math.max(...temps) || dRh >= -NIGHT_DRY_PCT) return [];
+  const detail = `+${round(dT)} C y ${Math.round(dRh)} % de humedad frente a ${theirs.length} vecinas (${NIGHT_HOURS[0]}-${NIGHT_HOURS[1]} h)`;
+  return (['temperature', 'humidity'] as const).map((variable) => ({ day, stationId: st.id, variable, rule: 'calor de noche', detail }));
+}
+
 /** Every failure of the day. `dayEndMs` = end of the local day. */
 export function detectStrikes(stations: HealthStation[], day: string, dayEndMs: number): DetectedStrike[] {
   const near = neighboursOf(stations);
+  const night = nightMeans(stations);
   const out: DetectedStrike[] = [];
   for (const st of stations) {
     const n = near.get(st.id) ?? [];
     out.push(
       ...frozen(st, n, day), ...spikes(st, day), ...humidityStuck(st, n, day), ...rain(st, n, day, dayEndMs),
-      ...solar(st, n, day), ...windWithoutMean(st, day), ...pressureOffset(st, n, day),
+      ...solar(st, n, day), ...windWithoutMean(st, day), ...pressureOffset(st, n, day), ...warmNight(st, n, day, night),
     );
   }
   return out;

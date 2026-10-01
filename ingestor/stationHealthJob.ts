@@ -10,7 +10,7 @@
  * The first nights fill in the 30-day window, MAX_DAYS_PER_RUN days a night, oldest first; each
  * day is one query bounded to that day (the database host has 2 GB).
  */
-import { getPool } from './db.js';
+import { getPool, stationAltitudeSql } from './db.js';
 import { log } from './logger.js';
 import { madridHour } from '../src/services/localTime.js';
 import { judgeHealth, outKeys, HEALTH_WINDOW_DAYS, type HealthVariable, type HealthVerdict } from '../src/services/stationHealth.js';
@@ -64,6 +64,7 @@ async function doneDays(): Promise<Set<string>> {
 
 async function loadDay(day: string): Promise<{ stations: HealthStation[]; endMs: number }> {
   const db = getPool();
+  const altitude = await stationAltitudeSql();
   const [rows, meta, end] = await Promise.all([
     db.query<{
       station_id: string; t: string; temperature: number | null; humidity: number | null; wind_speed: number | null;
@@ -75,8 +76,8 @@ async function loadDay(day: string): Promise<{ stations: HealthStation[]; endMs:
        WHERE time >= ($1::date)::timestamp AT TIME ZONE 'Europe/Madrid'
          AND time <  ($1::date + 1)::timestamp AT TIME ZONE 'Europe/Madrid'
        ORDER BY station_id, time`, [day]),
-    db.query<{ station_id: string; latitude: number; longitude: number }>(
-      'SELECT station_id, latitude, longitude FROM stations'),
+    db.query<{ station_id: string; latitude: number; longitude: number; altitude: number | null }>(
+      `SELECT s.station_id, s.latitude, s.longitude, ${altitude} AS altitude FROM stations s`),
     db.query<{ end_ms: string }>(
       `SELECT (extract(epoch FROM ($1::date + 1)::timestamp AT TIME ZONE 'Europe/Madrid') * 1000)::bigint AS end_ms`, [day]),
   ]);
@@ -87,7 +88,8 @@ async function loadDay(day: string): Promise<{ stations: HealthStation[]; endMs:
     if (!m || !Number.isFinite(Number(m.latitude)) || !Number.isFinite(Number(m.longitude))) continue;
     let st = byId.get(r.station_id);
     if (!st) {
-      st = { id: r.station_id, lat: Number(m.latitude), lon: Number(m.longitude), rows: [] };
+      const alt = m.altitude == null ? null : Number(m.altitude);
+      st = { id: r.station_id, lat: Number(m.latitude), lon: Number(m.longitude), alt: Number.isFinite(alt) ? alt : null, rows: [] };
       byId.set(r.station_id, st);
     }
     st.rows.push({
