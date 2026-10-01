@@ -59,7 +59,7 @@ export function LegalSection() {
             <AttrRow name="Weather Underground" license="Sus condiciones" desc="© The Weather Company. Estaciones personales" />
             <AttrRow name="Netatmo" license="Sus condiciones" desc="© Netatmo. Estaciones personales de su mapa público" />
             <AttrRow name="IPMA" license="Uso no lucrativo" desc="Instituto Português do Mar e da Atmosfera. Estaciones y avisos del norte de Portugal" />
-            <AttrRow name="PORTUS" license="Sus condiciones" desc="© Puertos del Estado. Boyas y mareógrafos: viento, oleaje y nivel del mar" />
+            <AttrRow name="Puertos del Estado" license="Cita de la fuente" desc="Boyas y mareógrafos de PORTUS: viento, oleaje y nivel del mar" href="https://portus.puertos.es/" />
             <AttrRow name="Observatorio Costeiro" license="Sus condiciones" desc="© Xunta de Galicia. Boyas de las rías" />
             <AttrRow name="SkyX" license="Propia" desc="Estación portátil propia, mediante el servicio SkyX" />
           </ul>
@@ -184,12 +184,21 @@ export function LegalSection() {
 /* ─── Sub-components ──────────────────────────── */
 
 // On a phone the licence goes under the description: as a third column it ran into the edge.
-function AttrRow({ name, license, desc }: { name: string; license: string; desc: string }) {
+/** `href`, when the provider asks for its address next to its name, is shown as text. */
+function AttrRow({ name, license, desc, href }: { name: string; license: string; desc: string; href?: string }) {
   return (
     <li className="flex items-start gap-2">
       <span className="text-slate-300 font-bold shrink-0 w-28 sm:w-40">{name}</span>
       <span className="text-slate-500 flex-1 min-w-0">
         {desc}
+        {href && (
+          <>
+            {'. '}
+            <a href={href} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted hover:text-slate-300">
+              {href.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+            </a>
+          </>
+        )}
         <span className="sm:hidden block text-slate-600 font-mono text-[11px]">{license}</span>
       </span>
       <span className="hidden sm:inline text-slate-600 font-mono text-[11px] shrink-0">{license}</span>

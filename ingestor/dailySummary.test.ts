@@ -195,6 +195,20 @@ describe('buildMessage', () => {
     expect(msg).not.toMatch(/Temp:/);
     expect(msg).not.toMatch(/Humedad:/);
   });
+
+  it('names Puertos del Estado and its portal when it shows buoy data (1-oct)', () => {
+    const msg = buildMessage([sector({ maxWaveHeight: 1.2, maxWaveStation: 'Cabo Silleiro', waterTemp: 17 })], NOW);
+    expect(msg).toContain('Puertos del Estado (portus.puertos.es)');
+    expect(msg.indexOf('Puertos del Estado')).toBeLessThan(msg.indexOf('meteomapgal.navia3d.com'));
+  });
+
+  it('no buoy credit when no buoy data is shown', () => {
+    const msg = buildMessage([
+      sector({ maxWaveHeight: null, waterTemp: null }),
+      sector({ name: 'Embalse de Castrelo', coastal: false, maxWaveHeight: 0.2, waterTemp: 16 }),
+    ], NOW);
+    expect(msg).not.toContain('Puertos del Estado');
+  });
 });
 
 describe('daily summary — a restart between 9 and 10 does not send it twice (29-sep)', () => {
