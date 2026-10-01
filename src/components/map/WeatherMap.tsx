@@ -71,6 +71,8 @@ const WindParticleOverlay = lazy(() => import('./WindParticleOverlay').then(m =>
 const HumidityHeatmapOverlay = lazy(() => import('./HumidityHeatmapOverlay').then(m => ({ default: m.HumidityHeatmapOverlay })));
 const IcaOverlay = lazy(() => import('./IcaOverlay').then(m => ({ default: m.IcaOverlay })));
 const RadarOverlay = lazy(() => import('./RadarOverlay').then(m => ({ default: m.RadarOverlay })));
+const RainNowOverlay = lazy(() => import('./RainNowOverlay').then(m => ({ default: m.RainNowOverlay })));
+const RainNowChip = lazy(() => import('./RainNowChip').then(m => ({ default: m.RainNowChip })));
 const AirspaceOverlay = lazy(() => import('./AirspaceOverlay').then(m => ({ default: m.AirspaceOverlay })));
 import { TemperatureOverlay } from './TemperatureOverlay';
 import { TemperatureToggle } from './TemperatureToggle';
@@ -631,6 +633,9 @@ export function WeatherMap() {
         {/* Fog overlay — terrain-based valley fill when fog detected */}
         <Suspense fallback={null}><FogOverlay /></Suspense>
 
+        {/* Rain now: radar rain the gauges did not deny + gauges that measured it. Wakes only on measured rain */}
+        <Suspense fallback={null}><RainNowOverlay /></Suspense>
+
         {/* Official AEMET visibility halo — pale glow at airports/coastal stations
             reporting vis<2km. DEM-aware: only paints valley/coast, not hilltops. */}
         <Suspense fallback={null}><AemetVisibilityHalo /></Suspense>
@@ -758,6 +763,7 @@ export function WeatherMap() {
           </div>
           <div className="flex items-center justify-center-safe gap-1.5 max-w-full overflow-x-auto scrollbar-none pointer-events-auto">
             <Suspense fallback={null}><StormIndicator /></Suspense>
+            <Suspense fallback={null}><RainNowChip /></Suspense>
             <TemperatureToggle />
             {!simpleMode && <WeatherLayerSelector />}
             <button
@@ -785,6 +791,7 @@ export function WeatherMap() {
           {/* Toolbar: shrinks to fit, never overlapped */}
           <div className="flex items-end gap-2 shrink-0">
             <Suspense fallback={null}><StormIndicator /></Suspense>
+            <Suspense fallback={null}><RainNowChip /></Suspense>
             <TemperatureToggle />
             {!simpleMode && <WeatherLayerSelector />}
             <button
