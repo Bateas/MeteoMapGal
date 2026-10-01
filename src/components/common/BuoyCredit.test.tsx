@@ -13,13 +13,13 @@ describe('buoyProviders', () => {
     expect(buoyProviders([2248])).toEqual(['pde']);
   });
 
-  it('Muros and Rande come from the Xunta only', () => {
+  it('Muros and the CETMAR moorings come from the Xunta only (not asked to Puertos del Estado)', () => {
     expect(buoyProviders([15009])).toEqual(['xunta']);
     expect(buoyProviders([1251])).toEqual(['xunta']);
+    expect(buoyProviders([1250, 1253, 1255])).toEqual(['xunta']);
   });
 
-  it('a platform both publish names both, Puertos del Estado first', () => {
-    expect(buoyProviders([1250])).toEqual(['pde', 'xunta']);
+  it('a list with both names both, Puertos del Estado first', () => {
     expect(buoyProviders([15009, 3221])).toEqual(['pde', 'xunta']);
   });
 
