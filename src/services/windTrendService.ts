@@ -24,6 +24,10 @@ export interface WindTrend {
   currentKt: number;
   /** Speed at the start of the window (kt) */
   startKt: number;
+  /** Minutes the change was measured over (shown as is: never stretched to a fixed window) */
+  minutes: number;
+  /** Stations behind it (1 for a single station; for a spot, those moving together) */
+  stations: number;
   /** Direction trend: 'stable', 'veering' (clockwise), 'backing' (counter-clockwise) */
   dirTrend: 'stable' | 'veering' | 'backing';
   /** Human-readable summary */
@@ -108,31 +112,85 @@ export function analyzeWindTrend(
     label = `Viento bajando ${deltaKt.toFixed(0)}kt`;
   }
 
-  return { deltaKt, rateKtPerHour, currentKt, startKt, dirTrend, label, signal };
+  const minutes = Math.round(durationHours * 60);
+  return { deltaKt, rateKtPerHour, currentKt, startKt, minutes, stations: 1, dirTrend, label, signal };
+}
+
+/** A station the spot is scored with, for the spot's trend. */
+export interface TrendStation {
+  id: string;
+  distKm: number;
+  /** One of the spot's own stations (`preferredStations`): counts at any distance. */
+  preferred: boolean;
+}
+
+/** Stations moving the same way, at least, for a spot to show a trend. */
+export const SPOT_TREND_MIN_STATIONS = 2;
+
+function medianOf(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  const n = s.length;
+  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
 }
 
 /**
- * Analyze trends for all stations near a spot.
- * Returns the strongest trend signal from any station.
+ * The trend of a spot: what its NEAR stations do together. Only stations within
+ * `nearKm` (or the spot's own preferred ones) count, never one whose wind is excluded,
+ * and at least two must move the same way; the figure is their median, measured over
+ * their own window, never a rate stretched to 30 min.
+ *
+ * Before (1-oct, Cesantes at 12:03): the strongest trend of ANY station in its 12 km
+ * circle won. Two Wunderground stations at the edge — Moaña and Marín, the latter in
+ * the Ría de Pontevedra — went 1.9 → 5.8 kt, and the card read «Viento 4 kt» next to
+ * «+7kt/30min subiendo» while the water was a mirror and every station within 6 km
+ * read 0-2 kt.
  */
 export function analyzeSpotWindTrend(
-  stationIds: string[],
+  stations: readonly TrendStation[],
   readingHistory: Map<string, NormalizedReading[]>,
   currentReadings: Map<string, NormalizedReading>,
+  nearKm: number,
+  isExcluded: (stationId: string) => boolean = () => false,
 ): WindTrend | null {
-  let strongest: WindTrend | null = null;
-
-  for (const id of stationIds) {
-    const history = readingHistory.get(id);
+  const ups: WindTrend[] = [];
+  const downs: WindTrend[] = [];
+  for (const st of stations) {
+    if (isExcluded(st.id)) continue;
+    if (!st.preferred && st.distKm > nearKm) continue;
+    const history = readingHistory.get(st.id);
     if (!history) continue;
-    const current = currentReadings.get(id);
-    const trend = analyzeWindTrend(history, current);
+    const trend = analyzeWindTrend(history, currentReadings.get(st.id));
     if (!trend || trend.signal === 'none') continue;
-
-    if (!strongest || Math.abs(trend.deltaKt) > Math.abs(strongest.deltaKt)) {
-      strongest = trend;
-    }
+    (trend.signal === 'dropping' ? downs : ups).push(trend);
   }
 
-  return strongest;
+  const group = ups.length >= SPOT_TREND_MIN_STATIONS && ups.length > downs.length ? ups
+    : downs.length >= SPOT_TREND_MIN_STATIONS && downs.length > ups.length ? downs
+    : null;
+  if (!group) return null;
+
+  const deltaKt = medianOf(group.map((t) => t.deltaKt));
+  const minutes = Math.max(1, Math.round(medianOf(group.map((t) => t.minutes))));
+  const signal: WindTrend['signal'] = deltaKt >= RAPID_THRESHOLD_KT ? 'rapid'
+    : deltaKt >= BUILDING_THRESHOLD_KT ? 'building'
+    : deltaKt <= -BUILDING_THRESHOLD_KT ? 'dropping'
+    : 'none';
+  if (signal === 'none') return null;
+  // The station closest to the median speaks for the direction trend.
+  const typical = [...group].sort((a, b) => Math.abs(a.deltaKt - deltaKt) - Math.abs(b.deltaKt - deltaKt))[0];
+  const kt = Math.round(Math.abs(deltaKt));
+  const label = signal === 'dropping'
+    ? `Viento bajando ${kt}kt en ${minutes} min`
+    : `${signal === 'rapid' ? 'Subida rápida' : 'Viento subiendo'} +${kt}kt en ${minutes} min`;
+  return {
+    deltaKt,
+    rateKtPerHour: medianOf(group.map((t) => t.rateKtPerHour)),
+    currentKt: medianOf(group.map((t) => t.currentKt)),
+    startKt: medianOf(group.map((t) => t.startKt)),
+    minutes,
+    stations: group.length,
+    dirTrend: typical.dirTrend,
+    label,
+    signal,
+  };
 }

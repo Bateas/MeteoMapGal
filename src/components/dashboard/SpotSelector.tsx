@@ -322,7 +322,7 @@ function SpotCard({
       )}
 
       {/* Wind trend indicator */}
-      {score?.windTrend && score.windTrend.signal !== 'stable' && (
+      {score?.windTrend && score.windTrend.signal !== 'none' && (
         <div className={`text-[11px] mt-0.5 ${score.windTrend.signal === 'building' || score.windTrend.signal === 'rapid' ? 'text-green-400' : 'text-orange-400'}`}>
           {score.windTrend.signal === 'building' ? 'Viento subiendo' : score.windTrend.signal === 'rapid' ? 'Subida rapida' : 'Viento bajando'}
           {score.windTrend.deltaKt != null ? ` (${score.windTrend.deltaKt > 0 ? '+' : ''}${score.windTrend.deltaKt.toFixed(0)}kt)` : ''}

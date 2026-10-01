@@ -1696,8 +1696,15 @@ export function scoreAllSpots(
     }
 
     // ── Wind trend detection (30min window) ──────────────
-    const stationIds = stationData.map((s) => s.station.id);
-    const windTrend = readingHistory ? analyzeSpotWindTrend(stationIds, readingHistory, readings) : null;
+    // Near stations only (half the radius, at least 6 km) or the spot's own, never an
+    // excluded anemometer, and two moving together (windTrendService).
+    const preferredIds = new Set(spot.preferredStations);
+    const windTrend = readingHistory
+      ? analyzeSpotWindTrend(
+        stationData.map((s) => ({ id: s.station.id, distKm: s.distKm, preferred: preferredIds.has(s.station.id) })),
+        readingHistory, readings, Math.max(6, spot.radiusKm / 2), isWindBlacklisted,
+      )
+      : null;
 
     // Wind building → score bonus (early signal for user)
     if (windTrend && verdict !== 'unknown') {

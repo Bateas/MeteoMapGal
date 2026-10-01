@@ -577,12 +577,13 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
         </div>
       )}
 
-      {/* ── Wind trend (30min ramp detection) — flecha animada + rate compacto ── */}
+      {/* ── Wind trend (30min ramp detection) — flecha animada + lo medido ── */}
       {score?.windTrend && score.windTrend.signal !== 'none' && (() => {
         const t = score.windTrend;
-        // Rate per 30 min — easier to grok than per hour for sailing decisions
-        const ratePer30Min = Math.round(t.rateKtPerHour / 2);
-        const sign = ratePer30Min > 0 ? '+' : '';
+        // What the near stations actually did, over the minutes it took. A rate stretched
+        // to 30 min turned +4 kt in 17 min into «+7kt/30min».
+        const deltaKt = Math.round(t.deltaKt);
+        const sign = deltaKt > 0 ? '+' : '';
         // Arrow rotation by signal — ramp (↗ 45°), rapid (↑ 0°), drop (↘ 135°)
         const arrowDeg =
           t.signal === 'rapid' ? -90
@@ -608,7 +609,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
               <path d="M5 12h14M13 5l7 7-7 7" />
             </svg>
             <span className="tabular-nums">
-              {sign}{ratePer30Min}kt/30min
+              {sign}{deltaKt} kt en {t.minutes} min
             </span>
             <span className="text-current/70">
               {t.signal === 'rapid' ? 'subida rápida' : t.signal === 'building' ? 'subiendo' : 'bajando'}
