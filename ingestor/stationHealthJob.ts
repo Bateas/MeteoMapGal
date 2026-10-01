@@ -9,12 +9,17 @@
  *
  * The first nights fill in the 30-day window, MAX_DAYS_PER_RUN days a night, oldest first; each
  * day is one query bounded to that day.
+ *
+ * Besides the one-day rules, each judged day runs «cambio brusco» (changePointLogic.ts): the
+ * night against the station's own 30 previous nights, read from the hourly aggregate (~130 ms).
+ * Every strike of it gets its own log line, so a sensor that breaks shows the same night.
  */
 import { getPool, stationAltitudeSql } from './db.js';
 import { log } from './logger.js';
 import { madridHour } from '../src/services/localTime.js';
 import { judgeHealth, outKeys, HEALTH_WINDOW_DAYS, type HealthVariable, type HealthVerdict } from '../src/services/stationHealth.js';
 import { detectStrikes, type DetectedStrike, type HealthStation } from './healthDetectors.js';
+import { changePointStrikes, CP_BASE_NIGHTS, type NightMean } from './changePointLogic.js';
 
 export const HEALTH_CHECK_INTERVAL_MS = 60 * 60_000;
 /** Local hours to run in: the previous day is complete, and the calibration comes at 03-06 h. */
@@ -100,6 +105,45 @@ async function loadDay(day: string): Promise<{ stations: HealthStation[]; endMs:
   return { stations: [...byId.values()], endMs: Number(end.rows[0].end_ms) };
 }
 
+/**
+ * Night means (00-06 h, Madrid) of every station for the night of `day` and the nights before,
+ * from the hourly aggregate: one light query (~15.000 rows), not the raw readings.
+ * A night counts with 4 hours or more.
+ */
+async function loadNightMeans(day: string): Promise<NightMean[]> {
+  const r = await getPool().query<{ station_id: string; night: string; wind: number | null; temp: number | null }>(`
+    SELECT station_id, to_char((bucket AT TIME ZONE 'Europe/Madrid')::date, 'YYYY-MM-DD') AS night,
+           avg(avg_wind) AS wind, avg(avg_temp) AS temp
+      FROM readings_hourly
+     WHERE bucket >= (($1::date - $2::int)::timestamp AT TIME ZONE 'Europe/Madrid')
+       AND bucket <  (($1::date)::timestamp + interval '6 hours') AT TIME ZONE 'Europe/Madrid'
+       AND extract(hour FROM bucket AT TIME ZONE 'Europe/Madrid') < 6
+     GROUP BY 1, 2
+    HAVING count(*) >= 4`, [day, CP_BASE_NIGHTS + 2]);
+  return r.rows.map((x) => ({
+    stationId: x.station_id,
+    night: x.night,
+    wind: x.wind == null ? null : Number(x.wind),
+    temp: x.temp == null ? null : Number(x.temp),
+  }));
+}
+
+/** «Cambio brusco» for the night of `day`; a failure here never stops the other rules. */
+async function changePointsFor(day: string, stations: HealthStation[]): Promise<DetectedStrike[]> {
+  try {
+    const strikes = changePointStrikes(
+      stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon, alt: s.alt ?? null })),
+      await loadNightMeans(day),
+      day,
+    );
+    for (const s of strikes) log.info(`[Salud] cambio brusco ${day}: ${s.stationId} (${s.variable}) — ${s.detail}`);
+    return strikes;
+  } catch (err) {
+    log.warn(`[Salud] cambio brusco ${day}: no se pudo calcular (${(err as Error).message})`);
+    return [];
+  }
+}
+
 async function saveDay(day: string, strikes: DetectedStrike[], stations: number): Promise<void> {
   const db = getPool();
   for (let i = 0; i < strikes.length; i += INSERT_CHUNK) {
@@ -173,7 +217,7 @@ export async function runStationHealthCycle(nowMs = Date.now()): Promise<void> {
     const pending = daysToJudge(await doneDays(), madridDay(nowMs));
     for (const day of pending.slice(0, MAX_DAYS_PER_RUN)) {
       const { stations, endMs } = await loadDay(day);
-      const strikes = detectStrikes(stations, day, endMs);
+      const strikes = [...detectStrikes(stations, day, endMs), ...(await changePointsFor(day, stations))];
       await saveDay(day, strikes, stations.length);
       log.info(`[Salud] ${day}: ${strikes.length} fallos en ${new Set(strikes.map((s) => s.stationId)).size} de ${stations.length} estaciones`);
       await new Promise((r) => setTimeout(r, PAUSE_MS));
