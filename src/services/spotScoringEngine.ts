@@ -470,8 +470,8 @@ const WIND_BLACKLIST = new Set([
   //    calm night nothing stops a broken anemometer from carrying a spot ──
   'nt_1c4a68',      // Sanxenxo 108 m: like its neighbours to 27-sep (2 kt), from 28-sep 9-12 kt of daily
                     // mean. 1-oct 03:00: 17 kt from 160-167° with gusts of 19 while every station
-                    // within 10 km read 0-6 kt and the Castrove hill (515 m) 5 kt. Lourido, 8 km away
-                    // and inside its radius, went from 4 to 7 kt («light») on the server that night.
+                    // within 10 km read 0-6 kt and the Castrove hill (515 m) 5 kt, and the real wind on
+                    // the water was the opposite way: the Marín buoy 3 km from Lourido read 8 kt from NE.
 ]);
 
 /** The codebase speaks two vocabularies for the same seven networks: station ids

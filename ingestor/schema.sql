@@ -1066,3 +1066,32 @@ DO $$ BEGIN
     GRANT SELECT ON station_health_strikes, station_health_days TO grafana_ro;
   END IF;
 END $$;
+
+-- ── METAR archive (metarArchive.ts) ───────────────────────
+-- The reports of the Galician airports (LEVX Vigo, LEST Santiago, LECO A Coruña) as published,
+-- every 30 min. The map read them live and nothing kept them; stored, present weather (FG, BR,
+-- BCFG) plus visibility is the measured fog label the Rías lacked. Raw text kept so any field
+-- can be re-read later. ~150 rows a day: no hypertable.
+CREATE TABLE IF NOT EXISTS metar_reports (
+  obs_time      TIMESTAMPTZ NOT NULL,
+  icao          TEXT        NOT NULL,
+  visibility_km REAL,                  -- 10 = «10 km or more» (CAVOK, 9999)
+  wx            TEXT,                  -- present weather as reported; NULL = none
+  temp_c        REAL,
+  dewpoint_c    REAL,
+  wind_dir      REAL,                  -- NULL when variable (VRB)
+  wind_kt       REAL,
+  gust_kt       REAL,
+  pressure_hpa  REAL,
+  cover         TEXT,
+  clouds        TEXT,                  -- layers as in the report, e.g. "FEW008 BKN020"
+  raw_ob        TEXT        NOT NULL,
+  fetched_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (icao, obs_time)
+);
+GRANT SELECT, INSERT ON metar_reports TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON metar_reports TO grafana_ro;
+  END IF;
+END $$;
