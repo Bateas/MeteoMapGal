@@ -9,6 +9,16 @@ import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { BUOY_COORDS_MAP, type BuoyReading } from '../../api/buoyClient';
 import { temperatureColor } from '../../services/windUtils';
 
+/**
+ * In the map's credits while the buoys are drawn. Puertos del Estado asks for its
+ * name and the address of its portal wherever its data are used (1-oct-2026).
+ * Short, because the credits line shares the bottom edge with the toolbar: here
+ * the name links to the portal; the popup, the panel and the legal page print
+ * the address in full. Constant: MapLibre reads it when the source is created.
+ */
+const BUOY_ATTRIBUTION =
+  'Boyas: <a href="https://portus.puertos.es/" target="_blank" rel="noopener noreferrer">Puertos del Estado</a> y Xunta';
+
 interface BuoySymbolLayerProps {
   buoys: BuoyReading[];
   selectedBuoyId: number | null;
@@ -140,7 +150,7 @@ export function BuoySymbolLayer({
   ];
 
   return (
-    <Source id="buoys-geo" type="geojson" data={geojson}>
+    <Source id="buoys-geo" type="geojson" data={geojson} attribution={BUOY_ATTRIBUTION}>
       {/* Diamond icon — colored by water temperature, no outer ring */}
       <Layer
         id="buoys-icons"

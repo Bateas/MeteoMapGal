@@ -17,6 +17,7 @@ import { waveHeightColor, waterTempColor, currentSpeedColor, seaStateLabel, isBu
 import { classifyWaterMass } from '../../services/upwellingDetector';
 import { BuoyTrend48h } from './BuoyTrend48h';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import { BuoyCredit } from '../common/BuoyCredit';
 import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 
 /** Lightweight relative-time in Spanish (avoids date-fns locale bundle) */
@@ -220,10 +221,11 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
         currentSalinity={reading.salinity}
       />
 
-      {/* Timestamp */}
+      {/* Timestamp + who the data come from */}
       <div className="text-[11px] text-slate-400 mt-2 pt-1.5 border-t border-slate-700">
         {reading.timestamp ? timeAgoEs(reading.timestamp) : 'Hora desconocida'}
       </div>
+      <BuoyCredit providers={info.providers} className="block text-[11px] text-slate-500 mt-0.5" />
 
       {/* Action buttons */}
       <div className="mt-2 flex flex-col gap-1">

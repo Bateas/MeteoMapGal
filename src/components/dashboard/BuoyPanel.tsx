@@ -6,9 +6,10 @@
  * Only visible in Rías Baixas sector.
  */
 
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import type { BuoyReading } from '../../api/buoyClient';
+import { BuoyCredit } from '../common/BuoyCredit';
+import { buoyProviders, type BuoyReading } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { msToKnots, windSpeedClass } from '../../services/windUtils';
 import { waveHeightClass, waterTempClass, currentSpeedClass, seaStateLabel } from '../../services/buoyUtils';
@@ -38,8 +39,9 @@ export const BuoyPanel = memo(function BuoyPanel() {
   const loading = useBuoyStore((s) => s.loading);
   const error = useBuoyStore((s) => s.error);
   const lastFetch = useBuoyStore((s) => s.lastFetch);
-  // Hook MUST be before any early returns (React hooks rules)
+  // Hooks MUST be before any early returns (React hooks rules)
   const [expanded, setExpanded] = useState(true);
+  const providers = useMemo(() => buoyProviders(buoys.map((b) => b.stationId)), [buoys]);
 
   if (loading || lastFetch === 0) {
     return (
@@ -93,6 +95,7 @@ export const BuoyPanel = memo(function BuoyPanel() {
       {expanded && buoys.map((b) => (
         <BuoyCard key={b.stationId} reading={b} />
       ))}
+      {expanded && <BuoyCredit providers={providers} className="block text-[11px] text-slate-500 leading-snug" />}
     </section>
   );
 });

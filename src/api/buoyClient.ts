@@ -97,27 +97,53 @@ export interface BuoyReading {
   source?: 'portus' | 'obscosteiro';
 }
 
+/**
+ * Who publishes a buoy's data. Each provider asks to be named wherever its data
+ * are shown; Puertos del Estado, in writing on 1-oct-2026, with the address of
+ * its portal.
+ */
+export type BuoyProvider = 'pde' | 'xunta';
+
+export const BUOY_PROVIDERS: Record<BuoyProvider, { name: string; url?: string; urlLabel?: string }> = {
+  pde: { name: 'Puertos del Estado', url: 'https://portus.puertos.es/', urlLabel: 'portus.puertos.es' },
+  xunta: { name: 'Observatorio Costeiro da Xunta' },
+};
+
 /** Predefined stations for Rías Baixas sector — all 3 Rías covered */
-export const RIAS_BUOY_STATIONS: { id: number; name: string; lat: number; lon: number; type: string; enabled?: boolean }[] = [
+export const RIAS_BUOY_STATIONS: {
+  id: number; name: string; lat: number; lon: number; type: string; enabled?: boolean;
+  /** Where its readings come from (the ingestor merges both when a platform is in both). */
+  providers: BuoyProvider[];
+}[] = [
   // ── Exterior / Atlántico ──
-  { id: 2248, name: 'Cabo Silleiro',      lat: 42.12, lon: -9.43, type: 'REDEXT' },
-  { id: 1253, name: 'A Guarda',           lat: 41.90, lon: -8.90, type: 'CETMAR' },
+  { id: 2248, name: 'Cabo Silleiro',      lat: 42.12, lon: -9.43, type: 'REDEXT', providers: ['pde'] },
+  { id: 1253, name: 'A Guarda',           lat: 41.90, lon: -8.90, type: 'CETMAR', providers: ['pde', 'xunta'] },
   // ── Ría de Vigo ──
-  { id: 1252, name: 'Islas Cíes',         lat: 42.17, lon: -8.91, type: 'CETMAR', enabled: false }, // OFFLINE since Dec 2025 (same physical station as ObsCosteiro 15002)
-  { id: 1251, name: 'Rande (Ría Vigo)',   lat: 42.29, lon: -8.66, type: 'CETMAR' },
-  { id: 3221, name: 'Vigo (marea)',       lat: 42.24, lon: -8.73, type: 'REDMAR' },
+  { id: 1252, name: 'Islas Cíes',         lat: 42.17, lon: -8.91, type: 'CETMAR', enabled: false, providers: ['pde', 'xunta'] }, // OFFLINE since Dec 2025 (same physical station as ObsCosteiro 15002)
+  // Puertos del Estado is no longer asked for Rande (ingestor/buoyFetcher.ts): its data arrive from the Xunta only.
+  { id: 1251, name: 'Rande (Ría Vigo)',   lat: 42.29, lon: -8.66, type: 'CETMAR', providers: ['xunta'] },
+  { id: 3221, name: 'Vigo (marea)',       lat: 42.24, lon: -8.73, type: 'REDMAR', providers: ['pde'] },
   // ── Ría de Pontevedra ──
-  { id: 4272, name: 'Ons',                lat: 42.38, lon: -8.94, type: 'REMPOR' },
-  { id: 4273, name: 'Cabo Udra',          lat: 42.34, lon: -8.83, type: 'REMPOR' },
-  { id: 4271, name: 'Lourizán',           lat: 42.41, lon: -8.66, type: 'REMPOR' },
-  { id: 3223, name: 'Marín (marea)',      lat: 42.41, lon: -8.69, type: 'REDMAR' },
+  { id: 4272, name: 'Ons',                lat: 42.38, lon: -8.94, type: 'REMPOR', providers: ['pde'] },
+  { id: 4273, name: 'Cabo Udra',          lat: 42.34, lon: -8.83, type: 'REMPOR', providers: ['pde'] },
+  { id: 4271, name: 'Lourizán',           lat: 42.41, lon: -8.66, type: 'REMPOR', providers: ['pde'] },
+  { id: 3223, name: 'Marín (marea)',      lat: 42.41, lon: -8.69, type: 'REDMAR', providers: ['pde'] },
   // ── Ría de Arousa ──
-  { id: 1250, name: 'Cortegada (Arousa)', lat: 42.63, lon: -8.78, type: 'CETMAR' },
-  { id: 1255, name: 'Ribeira',            lat: 42.55, lon: -8.95, type: 'CETMAR' },
-  { id: 3220, name: 'Vilagarcía (marea)', lat: 42.60, lon: -8.77, type: 'REDMAR' },
+  { id: 1250, name: 'Cortegada (Arousa)', lat: 42.63, lon: -8.78, type: 'CETMAR', providers: ['pde', 'xunta'] },
+  { id: 1255, name: 'Ribeira',            lat: 42.55, lon: -8.95, type: 'CETMAR', providers: ['pde', 'xunta'] },
+  { id: 3220, name: 'Vilagarcía (marea)', lat: 42.60, lon: -8.77, type: 'REDMAR', providers: ['pde'] },
   // ── Ría de Muros-Noia (Observatorio Costeiro only) ──
-  { id: 15009, name: 'Muros',             lat: 42.7195, lon: -9.0153, type: 'OBSCOSTEIRO' },
+  { id: 15009, name: 'Muros',             lat: 42.7195, lon: -9.0153, type: 'OBSCOSTEIRO', providers: ['xunta'] },
 ];
+
+/** The providers behind these buoys, Puertos del Estado first; unknown ids add nothing. */
+export function buoyProviders(stationIds: Iterable<number>): BuoyProvider[] {
+  const found = new Set<BuoyProvider>();
+  for (const id of stationIds) {
+    for (const p of RIAS_BUOY_STATIONS.find((s) => s.id === id)?.providers ?? []) found.add(p);
+  }
+  return (['pde', 'xunta'] as const).filter((p) => found.has(p));
+}
 
 /** Pre-built coordinates lookup for all buoy stations (shared across components) */
 export const BUOY_COORDS_MAP = new Map(
