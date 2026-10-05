@@ -32,15 +32,20 @@ export type PoemField =
 /**
  * Column → field, by the column names of the real-time tables. The mareógrafo
  * tables have two gust candidates (`vv_mx`, `vv_ra`): `vv_mx` wins and `vv_ra`
- * is only used where a station has no `vv_mx`.
+ * is only used where a station has no `vv_mx`. The REDEXT buoys have two water
+ * sensor pairs (`ts1`/`sa1`, `ts2`/`sa2`): the first wins, the second is read
+ * where it is the only one (Cabo Silleiro on 5-oct-2026).
  */
 export const POEM_COLUMN_FIELD: Readonly<Record<string, PoemField>> = {
   hm0: 'waveHeight', hmax: 'waveHeightMax', tp: 'wavePeriod', tm02: 'wavePeriodMean', dmd: 'waveDir',
   vv_md: 'windSpeed', dv_md: 'windDir', vv_mx: 'windGust', vv_ra: 'windGust',
-  ts1: 'waterTemp', ts: 'waterTemp', ta: 'airTemp', ps: 'airPressure',
-  vc_md: 'currentSpeed', dc_md: 'currentDir', sa1: 'salinity', sa: 'salinity',
+  ts1: 'waterTemp', ts: 'waterTemp', ts2: 'waterTemp', ta: 'airTemp', ps: 'airPressure',
+  vc_md: 'currentSpeed', dc_md: 'currentDir', sa1: 'salinity', sa: 'salinity', sa2: 'salinity',
   nivel: 'seaLevel', hr: 'humidity',
 };
+
+/** When a station declares two columns for one field, the lower rank wins. Unlisted = 0. */
+const COLUMN_RANK: Readonly<Record<string, number>> = { vv_ra: 1, ts2: 1, sa2: 1 };
 
 /**
  * The real-time tables we read, under /doris/, with their columns as the public
@@ -158,11 +163,12 @@ export function buildStationPlan(
   const [table, columns] = [...byTable.entries()].sort(
     ([ta, a], [tb, b]) => usefulFields(b) - usefulFields(a) || TABLE_ORDER.indexOf(ta) - TABLE_ORDER.indexOf(tb),
   )[0];
-  // One column per field. The gust: vv_mx over vv_ra.
+  // One column per field: vv_mx over vv_ra, the first water sensor over the second.
+  const rank = (c: PoemColumnPlan) => COLUMN_RANK[c.column] ?? 0;
   const chosen = new Map<PoemField, PoemColumnPlan>();
   for (const c of columns) {
     const prev = chosen.get(c.field);
-    if (!prev || (c.field === 'windGust' && c.column === 'vv_mx')) chosen.set(c.field, c);
+    if (!prev || rank(c) < rank(prev)) chosen.set(c.field, c);
   }
   return { stationId, table, columns: [...chosen.values()] };
 }
@@ -219,7 +225,8 @@ export function toInternalUnit(field: PoemField, value: number, unit: string | n
       return ['°', 'grados', 'grado', 'deg', 'degrees', 'grad', '°n', 'gradosn'].includes(u) ? value : null;
     case 'waterTemp':
     case 'airTemp':
-      return ['°c', 'c', '°', 'celsius', 'gradoscelsius', 'gradoscentígrados', 'gradoscentigrados'].includes(u) ? value : null;
+      // POEM declares ta and ts2 in plain «grados» (5-oct-2026); for a temperature that is °C, and the bounds catch a wrong factor.
+      return ['°c', 'c', '°', 'celsius', 'grados', 'grado', 'gradoscelsius', 'gradoscentígrados', 'gradoscentigrados'].includes(u) ? value : null;
     case 'airPressure':
       if (['hpa', 'mb', 'mbar', 'milibares', 'milibar'].includes(u)) return value;
       if (u === 'pa') return value / 100;

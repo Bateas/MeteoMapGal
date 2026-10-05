@@ -141,6 +141,51 @@ describe('quality, units and bounds — fail closed', () => {
   });
 });
 
+describe('Cabo Silleiro (redext_tr), as POEM declared it on 5-oct-2026', () => {
+  // Factors and units copied from doris/doris/estacion_param + doris/doris/param for 2248.
+  // The buoy only has the second sensor pair (ts2, sa2) and declares temperatures in «grados».
+  const rows: EstacionParamRow[] = [
+    { param: 1, factor: 100, db_column: 'ta', db_table: 'boyas.redext_tr' },
+    { param: 2, factor: 100, db_column: 'ts2', db_table: 'boyas.redext_tr' },
+    { param: 3, factor: 100, db_column: 'sa2', db_table: 'boyas.redext_tr' },
+    { param: 4, factor: 100, db_column: 'hr', db_table: 'boyas.redext_tr' },
+    { param: 5, factor: 10, db_column: 'ps', db_table: 'boyas.redext_tr' },
+    { param: 6, factor: 100, db_column: 'hm0', db_table: 'boyas.redext_tr' },
+  ];
+  const units = params([
+    [1, 'Temperatura del Aire', 'grados'], [2, 'Temperatura del Agua', 'grados'], [3, 'Salinidad del agua', 'psu'],
+    [4, 'Humedad Relativa del Aire', '%'], [5, 'Presión Atmosférica', 'mb'], [6, 'Altura significante', 'm'],
+  ]);
+  const now = Date.UTC(2026, 9, 5, 21, 0);
+  const row = { codigo: 2248, fecha: now / 1000 - 3600, ta: 2070, ts2: 2055, sa2: 3592, hr: 8500, ps: 10180, hm0: 117,
+    qc_ta: 1, qc_ts2: 1, qc_sa2: 1, qc_hr: 1, qc_ps: 1, qc_e: 1 };
+
+  it('air and water temperature in «grados», salinity of the second sensor: all kept', () => {
+    const plan = buildStationPlan(2248, rows, units)!;
+    const { reading, dropped } = poemRowToReading(plan, 'Cabo Silleiro', row, now, 6 * HOUR);
+    expect(dropped).toEqual([]);
+    expect(reading).toMatchObject({ airTemp: 20.7, waterTemp: 20.55, salinity: 35.92, humidity: 85, airPressure: 1018, waveHeight: 1.17 });
+  });
+
+  it('«grados» is a temperature only within the bounds: a wrong factor is still dropped', () => {
+    const plan = buildStationPlan(2248, rows, units)!;
+    const { reading, dropped } = poemRowToReading(plan, 'Cabo Silleiro', { ...row, ts2: 205500 }, now, 6 * HOUR);
+    expect(reading!.waterTemp).toBeNull();
+    expect(dropped).toContain('ts2:range');
+  });
+
+  it('with both sensor pairs the first one (ts1, sa1) is read, whatever the order of the metadata', () => {
+    const plan = buildStationPlan(2248, [
+      { param: 2, factor: 100, db_column: 'ts2', db_table: 'boyas.redext_tr' },
+      { param: 3, factor: 100, db_column: 'sa2', db_table: 'boyas.redext_tr' },
+      { param: 2, factor: 100, db_column: 'ts1', db_table: 'boyas.redext_tr' },
+      { param: 3, factor: 100, db_column: 'sa1', db_table: 'boyas.redext_tr' },
+    ], units)!;
+    expect(plan.columns.find((c) => c.field === 'waterTemp')!.column).toBe('ts1');
+    expect(plan.columns.find((c) => c.field === 'salinity')!.column).toBe('sa1');
+  });
+});
+
 describe('which table, which gust', () => {
   it('the table with more columns of ours wins', () => {
     const plan = buildStationPlan(3221, [
