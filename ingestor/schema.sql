@@ -978,18 +978,26 @@ GRANT SELECT, INSERT ON forecast_archive TO meteomap_app;
 -- already existed when the model has to speak about that hour, so it is a
 -- feature that does not leak the answer. Measured 28-sep: afternoon error of
 -- the wind model 2.46 -> 1.91 kt. Written by nwpPreviousFetcher.ts every 6 h;
--- the first cycle brings the history from 1-mar in one request.
--- ~44k rows a year: a plain table.
+-- a point without history gets it once, in chunks.
+-- Since 6-oct also three other models at the buoys ('<model>@boya:<id>': never
+-- starts with 'boya', the ML pipeline reads point LIKE 'boya%') and the 47
+-- stations of the overnight-minimum model ('est:<station_id>'), with
+-- temperature and cloud. ~700k rows a year: still a plain table.
 CREATE TABLE IF NOT EXISTS nwp_previous_hourly (
   valid_time  TIMESTAMPTZ NOT NULL,   -- hour the forecast is for (UTC)
-  point       TEXT        NOT NULL,   -- 'boya:<station_id>' (read by the ML pipeline) or 'spot:<spot_id>'
+  point       TEXT        NOT NULL,   -- 'boya:<id>' (ML pipeline), 'spot:<spot_id>', '<ecmwf|gfs|ukmo>@boya:<id>', 'est:<station_id>'
   lead_days   SMALLINT    NOT NULL,   -- 1 = predicted 24 h before valid_time
   wind_kt     REAL,
   wind_dir    REAL,
   gust_kt     REAL,
+  temp_c      REAL,                   -- 2 m temperature (6-oct)
+  cloud_pct   REAL,                   -- total cloud cover, % (6-oct)
   fetched_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (valid_time, point, lead_days)
 );
+-- 6-oct: the table already existed in production without these two.
+ALTER TABLE nwp_previous_hourly ADD COLUMN IF NOT EXISTS temp_c REAL;
+ALTER TABLE nwp_previous_hourly ADD COLUMN IF NOT EXISTS cloud_pct REAL;
 -- UPDATE too: the fetcher upserts (ON CONFLICT DO UPDATE needs it).
 GRANT SELECT, INSERT, UPDATE ON nwp_previous_hourly TO meteomap_app;
 DO $ BEGIN
