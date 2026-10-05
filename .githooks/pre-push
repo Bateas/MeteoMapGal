@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Last gate before anything becomes PUBLIC: every commit about to be pushed is
+# scanned (added lines, messages, author emails) with the generic patterns AND
+# the private word list. The commit hooks only see one commit at a time and
+# only in clones that enabled them; this one sees exactly what leaves.
+# Enable once per clone:  git config core.hooksPath .githooks
+set -u
+root="$(git rev-parse --show-toplevel)"
+words="${METEOMAP_LEAK_WORDS:-$HOME/.config/meteomap/leak-words.txt}"
+if [ ! -r "$words" ] && [ "${METEOMAP_ALLOW_NO_WORDLIST:-}" != "1" ]; then
+  echo "pre-push: private word list not found ($words)." >&2
+  echo "Without it our own machine and folder names are not checked. Create it, or" >&2
+  echo "push with METEOMAP_ALLOW_NO_WORDLIST=1 if this machine never had them." >&2
+  exit 1
+fi
+remote="$1"
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue            # deleting a ref publishes nothing
+  if [ "$remote_sha" = "$zero" ]; then
+    # New branch, or a brand-new repository: everything not already on the remote.
+    bash "$root/tools/security-scan.sh" push "$local_sha" --not --remotes="$remote" || status=1
+  else
+    bash "$root/tools/security-scan.sh" push "$remote_sha..$local_sha" || status=1
+  fi
+done
+[ "$status" -eq 0 ] || echo "pre-push: blocked. Nothing was sent." >&2
+exit "$status"

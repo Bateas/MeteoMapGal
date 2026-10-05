@@ -1,65 +1,56 @@
-# Environment
+# This repository is PUBLIC, so this file is an ALLOWLIST: everything at the
+# top level is ignored unless it is named below. A file nobody planned for
+# (notes, exports, documents, an assistant's scratch work) stays out by
+# default instead of being published by one careless `git add`. Adding a path
+# here is a deliberate change that shows up in review. Documentation and
+# private notes live in folders OUTSIDE this one.
+/*
+!/.env.example
+!/.githooks/
+!/.github/
+!/.gitignore
+!/.npmrc
+!/LICENSE
+!/README.md
+!/assets/
+!/eslint.config.js
+!/hero.jpg
+!/index.html
+!/ingestor/
+!/knip.json
+!/nginx.conf
+!/package-lock.json
+!/package.json
+!/public/
+!/src/
+!/tools/
+!/tsconfig.app.json
+!/tsconfig.json
+!/tsconfig.node.json
+!/vite.config.ts
+!/widget.html
+
+# tools/: only the scripts the deploy and the gates run.
+/tools/*
+!/tools/meteomap-update.sh
+!/tools/security-scan.sh
+!/tools/typecheck-gate.sh
+
+# Inside the allowed folders, still never:
 .env
 .env.*
+!.env.example
 *.local
-
-# Logs
-logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# Build artifacts
 node_modules/
 dist/
 dist-ssr/
-
-# Editor / OS
-.vscode/*
-!.vscode/extensions.json
-.idea/
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-nul
-
-# Local-only working files
-.claude/
-CLAUDE.md
-plan.md
-review-*.png
-loading-*.jpeg
-.playwright-mcp/
-
-# Operational / deploy (not app code)
-deploy.env
-deploy.env.*
-deploy.sh
-deploy.ps1
-server-setup.sh
-n8n/
-n8n-workflow-*.json
-
-# Non-app directories
-scripts/
-docs/*
-!docs/LEARNINGS_AND_IMPROVEMENTS.md
-!docs/data-science/
-docs/data-science/*
-!docs/data-science/HIPOTESIS_MODELO_PREDICTOR_CESANTES.md
-Fuentes/
-local-tmp/
-pitch-deck-*.html
-
-# TypeScript incremental build cache
 *.tsbuildinfo
-
-# Python caches
 __pycache__/
 *.pyc
+.DS_Store
+# notes and documents: only the README is published
+*.md
+!/README.md
+CLAUDE.md
+.claude/
