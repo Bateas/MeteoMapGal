@@ -50,13 +50,15 @@ async function loadFrame(host: string, path: string, t: number): Promise<RadarMo
 }
 
 /**
- * The latest frames over Galicia, oldest first, with how old the newest one is. Frames that fail
- * are skipped; null when RainViewer answers nothing usable.
+ * The latest `count` frames over Galicia, oldest first, with how old the newest one is. Frames
+ * that fail are skipped; null when RainViewer answers nothing usable. `count` 1 is the cheap look
+ * the rain layer takes on a dry day (~5 KB a look, one look every 5 min, measured on the night of 1-oct); the
+ * history is fetched only when there is rain to follow.
  */
-export async function fetchRadarFrames(signal?: AbortSignal): Promise<{ frames: RadarMosaic[]; newestAgeMin: number } | null> {
+export async function fetchRadarFrames(signal?: AbortSignal, count = FRAMES_WANTED): Promise<{ frames: RadarMosaic[]; newestAgeMin: number } | null> {
   const meta = await fetchRainViewerFrames();
   if (!meta || meta.past.length === 0) return null;
-  const want = meta.past.slice(-FRAMES_WANTED);
+  const want = meta.past.slice(-count);
   const frames: RadarMosaic[] = [];
   for (const f of want) {
     if (signal?.aborted) return null;

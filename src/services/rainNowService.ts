@@ -28,7 +28,7 @@
 import type { NormalizedReading, NormalizedStation } from '../types/station';
 import { precipKindFor, precipSamplesFromHistory, rainInWindowMm } from './precipSemantics';
 import { NO_ECHO, kmPerPx, lonLatToPx, maxDbzNear, pxToLonLat, type RadarMosaic } from './radarDecode';
-import type { RadarMotion } from './radarMotion';
+import type { CellTrack } from './radarTracking';
 
 // ── Thresholds (see the header for where each comes from) ────────────────
 
@@ -247,16 +247,35 @@ export function groundTruth(cells: RainCell[], labels: Int32Array, m: RadarMosai
 export const MIN_UNCONFIRMED_CELL_PX = 30;
 /** Rain drawn only this far from the sector centre: a 40 px, 30 dBZ fixed echo sat over Braga. */
 export const DRAW_MAX_KM = 80;
+/** ...except rain that moves steadily towards the sector, drawn from this far out (still inside
+ *  the radar picture of Galicia, which reaches ~200 km west of the Rías). */
+export const DRAW_FAR_KM = 160;
+
+/** The echo checks of drawableCells, without the distance. */
+function echoWorthDrawing(c: RainCell): boolean {
+  if (c.ground === 'dry' && c.maxDbz < 30) return false;
+  if (c.ground !== 'confirmed' && c.pixels < MIN_UNCONFIRMED_CELL_PX) return false;
+  return true;
+}
 
 /**
  * Cells worth drawing: not weak echo the gauges under it deny (virga, clutter), not a small patch
- * nobody confirms, and not far from the sector.
+ * nobody confirms, not echo that has stayed in the same place for half an hour with no gauge
+ * confirming it (`tracks`: that is how the radar's fixed echoes look), and not far from the
+ * sector unless it is coming (`coming`, see approachingCells), which is drawn out to DRAW_FAR_KM.
  */
-export function drawableCells(cells: RainCell[], centre?: { lon: number; lat: number }): Set<number> {
+export function drawableCells(
+  cells: RainCell[],
+  centre?: { lon: number; lat: number },
+  opts: { coming?: Set<number>; tracks?: Map<number, CellTrack> | null } = {},
+): Set<number> {
   return new Set(cells.filter((c) => {
-    if (c.ground === 'dry' && c.maxDbz < 30) return false;
-    if (c.ground !== 'confirmed' && c.pixels < MIN_UNCONFIRMED_CELL_PX) return false;
-    if (centre && distKm(c.lat, c.lon, centre.lat, centre.lon) > DRAW_MAX_KM) return false;
+    if (!echoWorthDrawing(c)) return false;
+    if (c.ground !== 'confirmed' && opts.tracks?.get(c.id)?.kind === 'static') return false;
+    if (centre) {
+      const d = distKm(c.lat, c.lon, centre.lat, centre.lon);
+      if (d > (opts.coming?.has(c.id) ? DRAW_FAR_KM : DRAW_MAX_KM)) return false;
+    }
     return true;
   }).map((c) => c.id));
 }
@@ -266,7 +285,10 @@ export function drawableCells(cells: RainCell[], centre?: { lon: number; lat: nu
 /** Echo strong enough to announce: ~1.3 mm/h. */
 const ETA_MIN_DBZ = 25;
 const ETA_CORRIDOR_KM = 3;
-export const ETA_MAX_MIN = 60;
+/** Furthest arrival announced at a spot. Beyond the hour it is said coarsely (to 10 min). */
+export const ARRIVAL_MAX_MIN = 90;
+/** Furthest rain announced as coming towards the sector. */
+export const APPROACH_MAX_MIN = 120;
 
 export interface RainArrival {
   /** 0 = raining there now */
@@ -275,17 +297,52 @@ export interface RainArrival {
   maxDbz: number;
 }
 
+/** A track that may carry an arrival: moving, with a heading that repeated. */
+const carries = (t: CellTrack | undefined): t is CellTrack => !!t && t.kind === 'moving' && t.steady;
+
 /**
- * When the rain reaches a point, carried by a STABLE motion: the first drawable echo >= 25 dBZ
- * whose path passes within 3 km of the point, within the hour. Null when none, or when the
- * motion is not stable (no arrival is announced from a guess).
+ * An arrival is announced only from a sizeable rain area (~200 km² at 42° N). Replayed on 1-oct
+ * against what the radar showed afterwards: on a front over Germany and the Low Countries 77 % of
+ * the announcements came (79 % from patches this size, which kept 198 of 218), within 10 min of
+ * the time said for 3 in 5; on scattered showers over Portugal in weak wind, only 4 of 10 came.
+ * A shower lives 30-60 min and its heading does not hold; storms have the lightning tracker.
+ */
+export const MIN_ANNOUNCE_PX = 250;
+
+/** The tracks an arrival may be announced from: steady and big enough (see MIN_ANNOUNCE_PX). */
+export function announcingTracks(cells: RainCell[], tracks: Map<number, CellTrack> | null): Map<number, CellTrack> | null {
+  if (!tracks) return null;
+  const out = new Map<number, CellTrack>();
+  for (const c of cells) {
+    const t = tracks.get(c.id);
+    if (carries(t) && c.pixels >= MIN_ANNOUNCE_PX) out.set(c.id, t);
+  }
+  return out;
+}
+
+/** Minutes rounded as they are said: to 5 within the hour, to 10 beyond. */
+export function roundEta(min: number): number {
+  return min <= 60 ? Math.max(5, Math.round(min / 5) * 5) : Math.round(min / 10) * 10;
+}
+
+/** «~25 min», «~1 h», «~1 h 30». */
+export function formatEta(min: number): string {
+  if (min < 60) return `~${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  return m === 0 ? `~${h} h` : `~${h} h ${m}`;
+}
+
+/**
+ * When the rain reaches a point: the first drawable echo >= 25 dBZ whose OWN steady track
+ * (radarTracking) passes within 3 km of the point, within ARRIVAL_MAX_MIN. Echo that stays still,
+ * was born just now or wanders is never announced as coming. Null when nothing comes.
  */
 export function rainArrivalAt(
   point: { lon: number; lat: number },
   m: RadarMosaic,
   labels: Int32Array,
   drawable: Set<number>,
-  motion: RadarMotion | null,
+  tracks: Map<number, CellTrack> | null,
 ): RainArrival | null {
   const [cx, cy] = lonLatToPx(m, point.lon, point.lat);
   const kpp = kmPerPx(m, point.lat);
@@ -299,28 +356,107 @@ export function rainArrivalAt(
     }
   }
   if (nowMax >= ETA_MIN_DBZ) return { etaMin: 0, distanceKm: 0, maxDbz: nowMax };
-  if (!motion?.stable) return null;
+  if (!tracks) return null;
 
-  const speedPx = Math.hypot(motion.pxPerMinX, motion.pxPerMinY);
-  const ux = motion.pxPerMinX / speedPx, uy = motion.pxPerMinY / speedPx;
-  const reach = speedPx * ETA_MAX_MIN;
+  let fastest = 0;
+  for (const id of drawable) {
+    const t = tracks.get(id);
+    if (carries(t)) fastest = Math.max(fastest, Math.hypot(t.vx, t.vy));
+  }
+  if (fastest === 0) return null;
+  const reach = fastest * ARRIVAL_MAX_MIN;
   const corridor = ETA_CORRIDOR_KM / kpp;
   let best: RainArrival | null = null;
   for (let y = Math.max(0, Math.floor(cy - reach)); y <= Math.min(m.h - 1, Math.ceil(cy + reach)); y++) {
     for (let x = Math.max(0, Math.floor(cx - reach)); x <= Math.min(m.w - 1, Math.ceil(cx + reach)); x++) {
       const i = y * m.w + x;
       if (m.dbz[i] < ETA_MIN_DBZ || !drawable.has(labels[i])) continue;
+      const t = tracks.get(labels[i]);
+      if (!carries(t)) continue;
+      const speed = Math.hypot(t.vx, t.vy);
+      const ux = t.vx / speed, uy = t.vy / speed;
       const vx = cx - x, vy = cy - y;                 // from the echo to the point
       const along = vx * ux + vy * uy;
       if (along <= 0) continue;                        // moving away from the point
       if (Math.abs(vx * uy - vy * ux) > corridor) continue;
-      const eta = along / speedPx;
-      if (eta > ETA_MAX_MIN) continue;
+      const eta = along / speed;
+      if (eta > ARRIVAL_MAX_MIN) continue;
       if (!best || eta < best.etaMin) best = { etaMin: eta, distanceKm: along * kpp, maxDbz: m.dbz[i] };
     }
   }
   if (!best) return null;
-  return { ...best, etaMin: Math.max(5, Math.round(best.etaMin / 5) * 5), distanceKm: Math.round(best.distanceKm) };
+  return { ...best, etaMin: roundEta(best.etaMin), distanceKm: Math.round(best.distanceKm) };
+}
+
+export interface RainApproach {
+  cellId: number;
+  lon: number;
+  lat: number;
+  /** Along its track, from the cell's leading edge to the sector circle, km: the same distance
+   *  etaMin is computed over, so «a X km a Y km/h» and the ETA agree for whoever reads them. */
+  distanceKm: number;
+  /** Bearing from the sector centre to the cell, degrees (where it comes FROM) */
+  fromDeg: number;
+  kmh: number;
+  /** Heading it moves towards */
+  toDeg: number;
+  /** Until its leading edge reaches the sector circle, rounded as said */
+  etaMin: number;
+  maxDbz: number;
+  areaKm2: number;
+}
+
+/**
+ * Rain outside the sector that is heading into it: a cell with a steady track (moving, heading
+ * repeated over two half-hours), echo >= 25 dBZ and the size checks of drawableCells, whose
+ * leading edge reaches the sector circle within APPROACH_MAX_MIN. Soonest first.
+ */
+export function approachingCells(
+  cells: RainCell[],
+  tracks: Map<number, CellTrack> | null,
+  m: RadarMosaic,
+  centre: { lon: number; lat: number },
+  radiusKm: number,
+): RainApproach[] {
+  if (!tracks) return [];
+  const out: RainApproach[] = [];
+  for (const c of cells) {
+    const t = tracks.get(c.id);
+    if (!carries(t) || c.maxDbz < ETA_MIN_DBZ || c.pixels < MIN_ANNOUNCE_PX || !echoWorthDrawing(c)) continue;
+    const dist = distKm(c.lat, c.lon, centre.lat, centre.lon);
+    if (dist <= radiusKm || dist > DRAW_FAR_KM) continue;
+    const pxSpeed = Math.hypot(t.vx, t.vy);
+    const speed = pxSpeed * kmPerPx(m, c.lat);                       // km per minute
+    const ux = t.vx / pxSpeed, uy = -t.vy / pxSpeed;                 // east, north
+    const dx = (centre.lon - c.lon) * 111.32 * Math.cos(((c.lat + centre.lat) / 2) * Math.PI / 180);
+    const dy = (centre.lat - c.lat) * 111.32;
+    const along = dx * ux + dy * uy;
+    if (along <= 0) continue;                                        // moving away
+    const perp = Math.abs(dx * uy - dy * ux);
+    const reachR = radiusKm + Math.sqrt(c.areaKm2 / Math.PI);        // circle plus the cell's own size
+    if (perp > reachR) continue;                                     // passes by
+    // The centre of a 40 km band sits ~10 km behind its leading edge: measuring the distance to the
+    // centre and the time to the edge printed «a 30 km a 35 km/h, entraria en ~35 min».
+    const entryKm = Math.max(0, along - Math.sqrt(reachR * reachR - perp * perp));
+    const eta = entryKm / speed;
+    if (eta > APPROACH_MAX_MIN) continue;
+    out.push({
+      cellId: c.id, lon: c.lon, lat: c.lat, distanceKm: Math.round(entryKm),
+      fromDeg: (Math.atan2(-dx, -dy) * 180 / Math.PI + 360) % 360,
+      kmh: t.kmh, toDeg: t.toDeg, etaMin: roundEta(eta), maxDbz: c.maxDbz, areaKm2: c.areaKm2,
+    });
+  }
+  return out.sort((a, b) => a.etaMin - b.etaMin);
+}
+
+/**
+ * The cheap look on a dry day: is there echo in the newest frame that could become an
+ * announcement (>= 25 dBZ, big enough to draw unconfirmed, within DRAW_FAR_KM)? Only then is the
+ * last hour and a half of radar fetched to follow it.
+ */
+export function echoWorthFollowing(m: RadarMosaic, centre: { lon: number; lat: number }): boolean {
+  return findRainCells(m).cells.some((c) => c.maxDbz >= ETA_MIN_DBZ && c.pixels >= MIN_UNCONFIRMED_CELL_PX
+    && distKm(c.lat, c.lon, centre.lat, centre.lon) <= DRAW_FAR_KM);
 }
 
 // ── Picture ──────────────────────────────────────────────

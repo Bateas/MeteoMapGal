@@ -2,9 +2,24 @@ import { memo, useState } from 'react';
 import { useRainNowStore } from '../../store/rainNowStore';
 import { useUIStore } from '../../store/uiStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import { formatEta } from '../../services/rainNowService';
+import type { ArrivalCheck } from '../../services/rainArrivalChecks';
 
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
 const toCompass = (deg: number) => COMPASS[Math.round(deg / 45) % 8];
+const clock = (ms: number) => new Date(ms).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+const roundKmh = (kmh: number) => Math.max(5, Math.round(kmh / 5) * 5);
+
+/** One line per checked announcement: what was said and what the gauges measured. */
+function checkLine(c: ArrivalCheck): string {
+  const said = `En ${c.spotName} se avisó para las ${clock(c.dueAt)}`;
+  if (c.status === 'arrived') {
+    const mm = c.gaugeMm != null ? `, ${c.gaugeMm.toFixed(1).replace('.', ',')} mm` : '';
+    return `${said} y llegó a las ${clock(c.seenAt!)} (pluviómetro de ${c.gaugeName}${mm}).`;
+  }
+  if (c.status === 'arrived-radar') return `${said}; el radar la vio llegar a las ${clock(c.seenAt!)} (no hay pluviómetro cerca).`;
+  return `${said} y no llegó.`;
+}
 
 /**
  * Toolbar chip of the rain layer: only while it is on. One line for the person in a hurry
@@ -12,15 +27,18 @@ const toCompass = (deg: number) => COMPASS[Math.round(deg / 45) % 8];
  */
 export const RainNowChip = memo(function RainNowChip() {
   const summary = useRainNowStore((s) => s.summary);
+  const checks = useRainNowStore((s) => s.checks);
   const dismissToday = useRainNowStore((s) => s.dismissToday);
   const isMobile = useUIStore((s) => s.isMobile);
   const [open, setOpen] = useState(false);
   if (!summary) return null;
 
-  const first = summary.arrivals[0];
-  const label = first ? (first.etaMin === 0 ? 'LLUEVE' : `~${first.etaMin} min`) : 'LLUVIA';
   const here = summary.arrivals.filter((a) => a.etaMin === 0);
   const coming = summary.arrivals.filter((a) => a.etaMin > 0).slice(0, 3);
+  const approaching = summary.approaching.slice(0, 2);
+  const soonest = coming[0]?.etaMin ?? approaching[0]?.etaMin;
+  const label = here.length ? 'LLUEVE' : soonest != null ? formatEta(soonest) : 'LLUVIA';
+  const checked = checks.filter((c) => c.status !== 'pending').slice(-3).reverse();
 
   return (
     <div className="relative shrink-0">
@@ -38,11 +56,24 @@ export const RainNowChip = memo(function RainNowChip() {
             <p className="text-[12px] leading-snug">Está lloviendo en <b>{here.map((a) => a.spotName).join(', ')}</b>.</p>
           )}
           {coming.map((a) => (
-            <p key={a.spotId} className="text-[12px] leading-snug">Llega a <b>{a.spotName}</b> en unos {a.etaMin} min <span className="text-slate-400">(a {a.distanceKm} km)</span>.</p>
+            <p key={a.spotId} className="text-[12px] leading-snug">Llega a <b>{a.spotName}</b> en {formatEta(a.etaMin)} <span className="text-slate-400">(a {a.distanceKm} km)</span>.</p>
           ))}
-          {summary.motion
-            ? <p className="text-[11px] text-slate-300">Se mueve hacia el {toCompass(summary.motion.toDeg)} a unos {Math.round(summary.motion.kmh / 5) * 5} km/h.</p>
-            : <p className="text-[11px] text-slate-400">Sin un rumbo claro: no se anuncia a qué hora llega.</p>}
+          {approaching.map((a, i) => (
+            <p key={i} className="text-[12px] leading-snug">
+              Lluvia a {a.distanceKm} km al {toCompass(a.fromDeg)}: viene hacia aquí a unos {roundKmh(a.kmh)} km/h y entraría en {formatEta(a.etaMin)}.
+            </p>
+          ))}
+          {coming.length === 0 && approaching.length === 0 && (summary.motion
+            ? <p className="text-[11px] text-slate-300">Se mueve hacia el {toCompass(summary.motion.toDeg)} a unos {roundKmh(summary.motion.kmh)} km/h.</p>
+            : <p className="text-[11px] text-slate-400">Sin un rumbo claro: no se anuncia a qué hora llega.</p>)}
+          {checked.length > 0 && (
+            <div className="flex flex-col gap-0.5 pt-1 border-t border-slate-700/50">
+              <span className="text-[10px] uppercase tracking-wide text-slate-500">Comprobado con los pluviómetros</span>
+              {checked.map((c) => (
+                <p key={c.spotId + c.issuedAt} className={`text-[11px] leading-snug ${c.status === 'missed' ? 'text-amber-300' : 'text-slate-300'}`}>{checkLine(c)}</p>
+              ))}
+            </div>
+          )}
 
           <div className="flex flex-col gap-1 pt-1 border-t border-slate-700/50">
             <div className="flex items-center gap-3 text-[11px] text-slate-300">
@@ -64,7 +95,7 @@ export const RainNowChip = memo(function RainNowChip() {
 
           <p className="text-[10px] text-slate-500 leading-snug">
             Zona: radar de <a href="https://www.rainviewer.com/" target="_blank" rel="noopener noreferrer" className="underline">RainViewer</a>{summary.radarAgeMin != null ? `, hace ${summary.radarAgeMin} min` : ' (sin radar ahora: solo pluviómetros)'}.
-            Se borra el eco que los pluviómetros de debajo no confirman. El radar no ve bien la llovizna baja; los pluviómetros sí.
+            Se borra el eco que los pluviómetros de debajo no confirman y el que no se mueve (ecos fijos del radar). Solo se avisa de la lluvia que lleva un rumbo constante. El radar no ve bien la llovizna baja; los pluviómetros sí.
           </p>
           <button onClick={() => { setOpen(false); dismissToday(); }}
             className="self-start text-[11px] text-slate-400 hover:text-white underline underline-offset-2">

@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import type { NormalizedReading, NormalizedStation } from '../types/station';
 import { assembleMosaic, lonLatToPx, type RadarMosaic } from './radarDecode';
 import {
-  RAIN_GAUGE_BLACKLIST, classifyGauges, drawableCells, findRainCells, gaugeIntensity, groundTruth,
-  rainArrivalAt, renderRain,
+  RAIN_GAUGE_BLACKLIST, announcingTracks, approachingCells, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, formatEta,
+  gaugeIntensity, groundTruth, rainArrivalAt, renderRain, roundEta,
 } from './rainNowService';
-import type { RadarMotion } from './radarMotion';
+import type { CellTrack } from './radarTracking';
 
 // 15:00 and 06:00 in Madrid (CEST) on 1-oct-2026
 const AFTERNOON = Date.parse('2026-10-01T15:00:00+02:00');
@@ -150,29 +150,153 @@ describe('drawableCells: fixed echoes (dry night of 1-oct)', () => {
   });
 });
 
-describe('rainArrivalAt', () => {
+// A cell's track, as radarTracking would give it (~0.905 km per pixel at 42.3° N, zoom 7).
+const KPP = 0.905;
+function track(kind: CellTrack['kind'], kmh = 0, toDeg = 90, steady = true): CellTrack {
+  const r = (toDeg * Math.PI) / 180;
+  const pxMin = kmh / 60 / KPP;
+  return { kind, vx: Math.sin(r) * pxMin, vy: -Math.cos(r) * pxMin, kmh, toDeg, steady, growthDbz: 0, fit: 0.9 };
+}
+const tracksFor = (cells: { id: number }[], t: CellTrack) => new Map(cells.map((c) => [c.id, t]));
+
+describe('rainArrivalAt: each cell with its own track', () => {
   const m = mosaicWith([{ ...east(-15), r: 4, dbz: 32 }]);
   const { cells, labels } = findRainCells(m);
   const draw = drawableCells(cells);
-  // 30 km/h towards the east, in pixels per minute (~0.9 km per pixel)
-  const kpp = 0.903;
-  const motion = (stable: boolean, to: 'east' | 'west' = 'east'): RadarMotion =>
-    ({ pxPerMinX: (to === 'east' ? 1 : -1) * 30 / 60 / kpp, pxPerMinY: 0, kmh: 30, toDeg: to === 'east' ? 90 : 270, pairs: 3, stable });
 
-  it('times a band moving towards the point', () => {
-    const a = rainArrivalAt(BASE, m, labels, draw, motion(true))!;
+  it('times a cell moving steadily towards the point', () => {
+    const a = rainArrivalAt(BASE, m, labels, draw, tracksFor(cells, track('moving', 30, 90)))!;
     // the near edge is ~11 km away at 30 km/h
     expect(a.etaMin).toBeGreaterThanOrEqual(20);
     expect(a.etaMin).toBeLessThanOrEqual(25);
     expect(a.maxDbz).toBe(32);
   });
 
-  it('announces nothing when the band moves away or the motion is not stable', () => {
-    expect(rainArrivalAt(BASE, m, labels, draw, motion(true, 'west'))).toBeNull();
-    expect(rainArrivalAt(BASE, m, labels, draw, motion(false))).toBeNull();
+  it('announces nothing from echo that moves away, wanders, stays or was just born', () => {
+    expect(rainArrivalAt(BASE, m, labels, draw, tracksFor(cells, track('moving', 30, 270)))).toBeNull();
+    expect(rainArrivalAt(BASE, m, labels, draw, tracksFor(cells, track('moving', 30, 90, false)))).toBeNull();
+    expect(rainArrivalAt(BASE, m, labels, draw, tracksFor(cells, track('static')))).toBeNull();
+    expect(rainArrivalAt(BASE, m, labels, draw, tracksFor(cells, track('new')))).toBeNull();
+    expect(rainArrivalAt(BASE, m, labels, draw, null)).toBeNull();
+  });
+
+  it('uses each cell its own heading: of two cells, only the one coming is announced', () => {
+    const two = mosaicWith([{ ...east(-15), r: 4, dbz: 32 }, { ...east(15), r: 4, dbz: 40 }]);
+    const found = findRainCells(two);
+    const west = found.cells.find((c) => c.lon < BASE.lon)!, eastCell = found.cells.find((c) => c.lon > BASE.lon)!;
+    const tracks = new Map([[west.id, track('moving', 30, 90)], [eastCell.id, track('moving', 30, 90)]]);
+    const a = rainArrivalAt(BASE, two, found.labels, drawableCells(found.cells), tracks)!;
+    expect(a.maxDbz).toBe(32);                               // the eastern one moves away, east
+  });
+
+  it('reaches 90 min, said to 10 min beyond the hour', () => {
+    const far = mosaicWith([{ ...east(-40), r: 4, dbz: 32 }]);     // ~36 km of road at 30 km/h
+    const f = findRainCells(far);
+    const a = rainArrivalAt(BASE, far, f.labels, drawableCells(f.cells), tracksFor(f.cells, track('moving', 30, 90)))!;
+    expect(a.etaMin).toBeGreaterThan(60);
+    expect(a.etaMin % 10).toBe(0);
+    expect(rainArrivalAt(BASE, far, f.labels, drawableCells(f.cells), tracksFor(f.cells, track('moving', 15, 90)))).toBeNull();
   });
 
   it('says it is raining there now when the point is under the echo', () => {
     expect(rainArrivalAt(east(-15), m, labels, draw, null)).toEqual({ etaMin: 0, distanceKm: 0, maxDbz: 32 });
+  });
+});
+
+describe('drawableCells with tracks', () => {
+  it('drops echo that stays put unless a gauge under it measured rain', () => {
+    const m = mosaicWith([{ ...BASE, r: 6, dbz: 28 }]);
+    const { cells, labels } = findRainCells(m);
+    const still = tracksFor(cells, track('static'));
+    expect(drawableCells(groundTruth(cells, labels, m, []), BASE, { tracks: still }).size).toBe(0);
+    expect(drawableCells(groundTruth(cells, labels, m, [gauge('mg_wet', BASE, 'rain')]), BASE, { tracks: still }).size).toBe(1);
+  });
+
+  it('draws rain that is coming from as far as 160 km, and nothing else beyond 80', () => {
+    const m = mosaicWith([{ ...east(-120), r: 6, dbz: 34 }]);
+    const { cells } = findRainCells(m);
+    expect(drawableCells(cells, BASE).size).toBe(0);
+    expect(drawableCells(cells, BASE, { coming: new Set([cells[0].id]) }).size).toBe(1);
+  });
+});
+
+describe('approachingCells: rain seen before it arrives', () => {
+  const m = mosaicWith([{ ...east(-90), r: 10, dbz: 34 }]);   // ~310 px, ~255 km²
+  const { cells } = findRainCells(m);
+
+  it('announces rain 90 km out heading for the sector, with the time it enters it', () => {
+    const [a] = approachingCells(cells, tracksFor(cells, track('moving', 40, 90)), m, BASE, 40);
+    expect(a).toBeDefined();
+    // ~50 km from the circle to its centre minus its own radius (~9 km): the leading edge
+    expect(a.distanceKm).toBeGreaterThanOrEqual(38);
+    expect(a.distanceKm).toBeLessThanOrEqual(44);
+    expect(Math.round(a.fromDeg)).toBeGreaterThanOrEqual(265);    // it comes from the west
+    expect(Math.round(a.fromDeg)).toBeLessThanOrEqual(275);
+    // at 40 km/h: about an hour
+    expect(a.etaMin).toBeGreaterThanOrEqual(55);
+    expect(a.etaMin).toBeLessThanOrEqual(75);
+  });
+
+  it('gives a distance and a time that agree with the speed it prints', () => {
+    // Measuring to the centre and timing to the edge read «a 30 km a 35 km/h, entraria en ~35 min».
+    const [a] = approachingCells(cells, tracksFor(cells, track('moving', 40, 90)), m, BASE, 40);
+    const minutesAtSpeed = (a.distanceKm / 40) * 60;
+    expect(Math.abs(minutesAtSpeed - a.etaMin)).toBeLessThanOrEqual(10);   // the ETA is rounded
+  });
+
+  it('ignores rain moving away, passing by, wandering, standing still or already inside', () => {
+    expect(approachingCells(cells, tracksFor(cells, track('moving', 40, 270)), m, BASE, 40)).toEqual([]);
+    expect(approachingCells(cells, tracksFor(cells, track('moving', 40, 0)), m, BASE, 40)).toEqual([]);
+    expect(approachingCells(cells, tracksFor(cells, track('moving', 40, 90, false)), m, BASE, 40)).toEqual([]);
+    expect(approachingCells(cells, tracksFor(cells, track('static')), m, BASE, 40)).toEqual([]);
+    const inside = mosaicWith([{ ...east(-20), r: 10, dbz: 34 }]);
+    const ins = findRainCells(inside);
+    expect(approachingCells(ins.cells, tracksFor(ins.cells, track('moving', 40, 90)), inside, BASE, 40)).toEqual([]);
+  });
+
+  it('ignores what would take more than two hours, and patches too small or too weak', () => {
+    expect(approachingCells(cells, tracksFor(cells, track('moving', 15, 90)), m, BASE, 40)).toEqual([]);
+    const shower = mosaicWith([{ ...east(-90), r: 6, dbz: 40 }]);                // ~110 px: a shower
+    const sh = findRainCells(shower);
+    expect(approachingCells(sh.cells, tracksFor(sh.cells, track('moving', 40, 90)), shower, BASE, 40)).toEqual([]);
+    const weak = mosaicWith([{ ...east(-90), r: 10, dbz: 22 }]);
+    const w = findRainCells(weak);
+    expect(approachingCells(w.cells, tracksFor(w.cells, track('moving', 40, 90)), weak, BASE, 40)).toEqual([]);
+    const small = mosaicWith([{ ...east(-90), r: 2.5, dbz: 34 }]);
+    const sm = findRainCells(small);
+    expect(approachingCells(sm.cells, tracksFor(sm.cells, track('moving', 40, 90)), small, BASE, 40)).toEqual([]);
+  });
+});
+
+describe('announcingTracks', () => {
+  it('keeps the steady tracks of rain areas only, not of showers or of wandering echo', () => {
+    const m = mosaicWith([{ ...east(-60), r: 10, dbz: 34 }, { ...east(60), r: 6, dbz: 40 }]);
+    const { cells } = findRainCells(m);
+    const big = cells.find((c) => c.lon < BASE.lon)!, small = cells.find((c) => c.lon > BASE.lon)!;
+    const steady = tracksFor(cells, track('moving', 40, 90));
+    expect([...announcingTracks(cells, steady)!.keys()]).toEqual([big.id]);
+    expect(announcingTracks(cells, tracksFor(cells, track('moving', 40, 90, false)))!.size).toBe(0);
+    expect(announcingTracks(cells, null)).toBeNull();
+    expect(small.pixels).toBeLessThan(250);
+  });
+});
+
+describe('echoWorthFollowing: the cheap look on a dry day', () => {
+  it('asks for the history only with echo that could become an announcement', () => {
+    expect(echoWorthFollowing(mosaicWith([]), BASE)).toBe(false);
+    expect(echoWorthFollowing(mosaicWith([{ ...east(-90), r: 6, dbz: 34 }]), BASE)).toBe(true);
+    expect(echoWorthFollowing(mosaicWith([{ ...east(-90), r: 6, dbz: 22 }]), BASE)).toBe(false);   // weak
+    expect(echoWorthFollowing(mosaicWith([{ ...east(-90), r: 2.5, dbz: 34 }]), BASE)).toBe(false); // speckle-sized
+  });
+});
+
+describe('roundEta / formatEta', () => {
+  it('says minutes to 5 within the hour and to 10 beyond', () => {
+    expect(roundEta(2)).toBe(5);
+    expect(roundEta(23)).toBe(25);
+    expect(roundEta(74)).toBe(70);
+    expect(formatEta(25)).toBe('~25 min');
+    expect(formatEta(60)).toBe('~1 h');
+    expect(formatEta(90)).toBe('~1 h 30');
   });
 });
