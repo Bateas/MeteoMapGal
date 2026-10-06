@@ -696,17 +696,17 @@ function mouthHumidityFromRows(readings: StationReading[]): number | null {
  * Used as a veto signal for the magic window (electrical activity
  * contradicts "magic"). Conservative 30km radius.
  */
-async function countRecentNearbyStrikes(): Promise<number> {
+async function countRecentNearbyStrikes(minutes = 15): Promise<number> {
   const db = getPool();
   try {
     // Rías sector center ~ (42.23, -8.80). 30km ≈ 0.27° latitude.
     const result = await db.query<{ count: string }>(`
       SELECT COUNT(*)::text AS count
       FROM lightning_strikes
-      WHERE time > NOW() - INTERVAL '15 minutes'
+      WHERE time > NOW() - make_interval(mins => $1)
         AND lat BETWEEN 41.96 AND 42.50
         AND lon BETWEEN -9.07 AND -8.53
-    `);
+    `, [minutes]);
     return parseInt(result.rows[0]?.count ?? '0', 10) || 0;
   } catch (err) {
     // 0 strikes DISABLES the magic-window veto, so this failure opens a
@@ -760,6 +760,7 @@ async function evaluateAndDispatchMagicWindow(
   const airTemp = closestTempStation?.temperature ?? null;
 
   const recentStrikes = await countRecentNearbyStrikes();
+  const stormDayStrikes = await countRecentNearbyStrikes(360);
 
   const result = evaluateMagicWindow({
     sector: 'rias',
@@ -767,6 +768,7 @@ async function evaluateAndDispatchMagicWindow(
     mouthHumidity: mouthHum,
     airTempLocal: airTemp,
     recentStrikesNearby: recentStrikes,
+    stormDayStrikes,
     regime: assessSynopticRegime(upperWindRias),
   });
 

@@ -270,3 +270,27 @@ describe('evaluateMagicWindow — estimatedHours', () => {
     expect(at12!.estimatedHours).toBeGreaterThan(at18!.estimatedHours);
   });
 });
+
+// ── Storm-day veto ────────────────────────────────────
+
+describe('evaluateMagicWindow — storm-day veto (6-oct)', () => {
+  const aligned = {
+    sector: 'rias' as const,
+    buoys: [makeBuoy({ windSpeed: 10, windDir: 225, waterTemp: 16 })],
+    mouthHumidity: 85,
+    airTempLocal: 22,
+    recentStrikesNearby: 0,
+    hour: 15,
+  };
+
+  it('no window hours after a storm crossed the sector, even with every signal aligned', () => {
+    const result = evaluateMagicWindow({ ...aligned, stormDayStrikes: 263 });
+    expect(result!.active).toBe(false);
+    expect(result!.summary).toMatch(/Día de tormenta: 263 rayos/);
+  });
+
+  it('a few stray strikes, or no count at all, do not veto', () => {
+    expect(evaluateMagicWindow({ ...aligned, stormDayStrikes: 4 })!.active).toBe(true);
+    expect(evaluateMagicWindow(aligned)!.active).toBe(true);
+  });
+});

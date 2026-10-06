@@ -94,6 +94,9 @@ export const MAGIC_WINDOW_THRESHOLD = 75;
 /** If lightning ≥3 strikes in last 15min within 30km → SUPPRESS window
  *  (electrical activity contradicts "magic" — user should NOT plan a session) */
 const LIGHTNING_VETO_COUNT = 3;
+/** Strikes over the sector in the last 6 h that make it a storm day: the SW at the mouth after a
+ *  storm is its outflow, not a breeze (6-oct: storm at the mouth until 13:39, «window» sent 17:04). */
+const STORM_DAY_VETO_COUNT = 10;
 
 // ── Detector ─────────────────────────────────────────────────
 
@@ -115,6 +118,8 @@ export function evaluateMagicWindow(opts: {
   mouthHumidity: number | null;
   airTempLocal: number | null;
   recentStrikesNearby: number;
+  /** Strikes over the sector in the last 6 h (storm-day veto). Missing = no veto. */
+  stormDayStrikes?: number;
   /** Override "now" hour for testing (0-23). Defaults to current local hour. */
   hour?: number;
   /** A front aloft (synopticRegime.ts). Vetoed = no window: the SW at the mouth is the
@@ -169,6 +174,19 @@ export function evaluateMagicWindow(opts: {
       sector: opts.sector,
       signals,
       summary: `Veto eléctrico: ${opts.recentStrikesNearby} rayos cerca, sin ventana.`,
+      estimatedHours: 0,
+      detectedAt: new Date().toISOString(),
+    };
+  }
+
+  // ── Storm-day veto: a storm crossed the sector in the last 6 h ──
+  if ((opts.stormDayStrikes ?? 0) >= STORM_DAY_VETO_COUNT) {
+    return {
+      active: false,
+      score: 0,
+      sector: opts.sector,
+      signals,
+      summary: `Día de tormenta: ${opts.stormDayStrikes} rayos en la zona en 6 h, sin ventana.`,
       estimatedHours: 0,
       detectedAt: new Date().toISOString(),
     };

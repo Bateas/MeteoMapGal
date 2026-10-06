@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { ForecastPartG, ForecastHoursG } from './ForecastPartG';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useThermalStore } from '../../store/thermalStore';
 import { useSectorStore } from '../../store/sectorStore';
@@ -7,11 +8,9 @@ import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { scoreForecastThermal, thermalColor, thermalBg } from '../../services/forecastScoringUtils';
 import type { ThermalScore } from '../../services/forecastScoringUtils';
 import { ForecastTable } from './ForecastTable';
-import { ForecastMeteogram } from './ForecastMeteogram';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
-import { sailingConclusionLine, SUMMARY_RAIN_HOURS, type SailingLineTone } from './sailingConclusionLine';
 import { FORECAST_MODELS } from '../../types/forecast';
 import type { HourlyForecast } from '../../types/forecast';
 import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
@@ -38,15 +37,6 @@ function formatHour(d: Date): string {
 
 function formatDay(d: Date): string {
   return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' });
-}
-
-/** Format time with day prefix when NOT today — "17:00" vs "sáb 17h" */
-function formatTimeRef(d: Date): string {
-  const now = new Date();
-  const isToday = d.getDate() === now.getDate() && d.getMonth() === now.getMonth();
-  if (isToday) return formatHour(d);
-  const days = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
-  return `${days[d.getDay()]} ${d.getHours()}h`;
 }
 
 /** Map MeteoSIX sky_state to our weather icons (when available) */
@@ -706,121 +696,6 @@ function DaySeparator({ date }: { date: Date }) {
   );
 }
 
-// ── Smart sailing conclusion ─────────────────────────────
-
-/** Same colours as before for the cases that already existed; strong in orange. */
-const HEADLINE_COLOR: Record<SailingLineTone, string> = {
-  strong: '#f97316',
-  good: '#22c55e',
-  mixed: '#facc15',
-  light: '#94a3b8',
-  calm: '#64748b',
-};
-
-function SailingConclusion({
-  diagnosis,
-  sailingSummary,
-  thermalWindows,
-  deltaT,
-  sectorId,
-}: {
-  diagnosis: DayDiagnosis;
-  sailingSummary: { bestKt: number; bestTime: Date | null; rainHours: number; totalHours: number };
-  thermalWindows: ThermalWindow[];
-  deltaT: number | null;
-  sectorId: string;
-}) {
-  const isEmbalse = sectorId === 'embalse';
-  const lines: { text: string; color: string; icon: IconId }[] = [];
-
-  // ── Overall verdict ── (sailingConclusionLine.ts: every wind/rain case has its own line)
-  const strongPattern = diagnosis.patternScore >= 50;
-  const headline = sailingConclusionLine({
-    bestKt: sailingSummary.bestKt,
-    bestTimeLabel: sailingSummary.bestTime ? formatTimeRef(sailingSummary.bestTime) : null,
-    rainHours: sailingSummary.rainHours,
-    directionConsistency: diagnosis.directionConsistency,
-  });
-  lines.push({ text: headline.text, color: HEADLINE_COLOR[headline.tone], icon: headline.icon });
-
-  // ── Thermal interpretation (Embalse) ──
-  if (isEmbalse) {
-    if (thermalWindows.length > 0) {
-      const best = thermalWindows[0];
-      lines.push({
-        text: `Termica prevista ${formatHour(best.startTime)}-${formatHour(best.endTime)} (${best.peakScore}%) — viento SW de valle al calentarse el aire.`,
-        color: thermalColor(best.peakScore),
-        icon: 'flame',
-      });
-    } else if (deltaT !== null && deltaT >= 12) {
-      lines.push({
-        text: `ΔT ${deltaT.toFixed(0)}°C — hay diferencial termico pero sin ventana clara. Posible brisa debil por la tarde.`,
-        color: '#f59e0b',
-        icon: 'thermometer',
-      });
-    }
-  }
-
-  // ── Pattern score interpretation ──
-  if (strongPattern) {
-    const pct = diagnosis.patternScore;
-    lines.push({
-      text: pct >= 70
-        ? `Patron historico ${pct}% — condiciones similares a los mejores dias termicos de verano.`
-        : `Patron historico ${pct}% — se parece a dias con termica moderada. Monitorizar por la tarde.`,
-      color: pct >= 60 ? '#22c55e' : '#f59e0b',
-      icon: 'database',
-    });
-  }
-
-  // ── CAPE / convection ──
-  if (diagnosis.maxCape !== null && diagnosis.maxCape >= 500) {
-    lines.push({
-      text: diagnosis.maxCape >= 1000
-        ? `CAPE ${diagnosis.maxCape.toFixed(0)} J/kg — energia tormentosa alta. Vigilar desarrollo de cumulonimbos por la tarde.`
-        : `CAPE ${diagnosis.maxCape.toFixed(0)} J/kg — conveccion activa, posibles chubascos aislados.`,
-      color: diagnosis.maxCape >= 1000 ? '#ef4444' : '#f59e0b',
-      icon: 'zap',
-    });
-  }
-
-  // ── Rain ──
-  if (sailingSummary.rainHours >= SUMMARY_RAIN_HOURS && diagnosis.rainAlert) {
-    lines.push({
-      text: `Lluvia prevista ${formatHour(diagnosis.rainAlert.start)}-${formatHour(diagnosis.rainAlert.end)} (${diagnosis.rainAlert.totalMm.toFixed(1)}mm)${diagnosis.rainAlert.totalMm >= 10 ? ' — lluvia significativa, mejor no salir.' : ' — lluvia ligera.'}`,
-      color: '#38bdf8',
-      icon: 'cloud-rain',
-    });
-  }
-
-  // ── Pressure trend ──
-  if (diagnosis.pressureTrend === 'falling' && Math.abs(diagnosis.pressureChange) >= 3) {
-    lines.push({
-      text: `Presion bajando (${diagnosis.pressureChange.toFixed(1)} hPa en 6h) — indica paso de frente. Esperar cambios de viento.`,
-      color: '#ef4444',
-      icon: 'alert-triangle',
-    });
-  }
-
-  if (lines.length === 0) return null;
-
-  return (
-    <div className="mb-2 rounded border border-slate-700/50 bg-slate-800/30 p-2.5 space-y-1.5">
-      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-        Resumen para navegantes
-      </div>
-      {lines.map((line, i) => (
-        <div key={i} className="flex items-start gap-2 text-xs leading-relaxed">
-          <span className="shrink-0 mt-0.5" style={{ color: line.color, display: 'flex' }}>
-            <WeatherIcon id={line.icon} size={14} />
-          </span>
-          <span style={{ color: line.color }}>{line.text}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────
 
 export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: boolean; spotCoords?: { lat: number; lon: number } } = {}) {
@@ -848,8 +723,8 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
   const isLoading = spotCoords ? spotLoading : storeLoading;
   const error = spotCoords ? null : storeError;
 
-  const [range, setRange] = useState(expanded ? 48 : 24);
-  const [viewMode, setViewMode] = useState<'chart' | 'table'>(expanded ? 'table' : 'chart');
+  const [range, setRange] = useState(24);
+  const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
 
   const rules = useThermalStore((s) => s.rules);
   const dailyContext = useThermalStore((s) => s.dailyContext);
@@ -959,19 +834,27 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
     );
   }
 
+  const partSource = `${activeModel === 'meteosix_wrf' ? 'Modelo WRF de MeteoGalicia a 1 km' : 'Open-Meteo (ICON y GFS)'}${forecastRef ? ` en ${forecastRef}` : ''}${fetchedAt ? `, descargado a las ${fetchedAt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : ''}`;
+
+  // The panel (V3 style): the parte and the hour-by-hour table, nothing else. The sidebar keeps
+  // the compact view below.
+  if (expanded) {
+    return (
+      <div className="flex flex-col">
+        <ForecastPartG hourly={hourly} source={partSource} />
+        <ForecastHoursG hourly={hourly} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-2 gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <h3 className={`font-semibold text-slate-200 truncate ${expanded ? 'text-base' : 'text-sm'}`}>
+          <h3 className="font-semibold text-slate-200 truncate text-sm">
             Previsión {sectorName}
           </h3>
-          {expanded && (
-            <span className="text-[11px] text-slate-500 truncate hidden sm:inline" title={forecastRef}>
-              {forecastRef}
-            </span>
-          )}
           {isLoading && (
             <LoadingSpinner size={12} />
           )}
@@ -1021,18 +904,16 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
             ))}
           </div>
 
-          {/* Expand button (sidebar only — prominent) */}
-          {!expanded && (
-            <button
-              onClick={() => useUIStore.getState().setForecastPanelOpen(true)}
-              className="flex items-center gap-1 px-2 py-1 rounded-md bg-sky-600/20 border border-sky-500/30 text-sky-400 hover:bg-sky-600/30 hover:text-sky-300 transition-colors text-[11px] font-semibold"
-              title="Ampliar previsión a pantalla completa (P)"
-              aria-label="Ampliar previsión"
-            >
-              <WeatherIcon id="maximize" size={12} />
-              <span className="hidden sm:inline">Ampliar</span>
-            </button>
-          )}
+          {/* Expand button (prominent) */}
+          <button
+            onClick={() => useUIStore.getState().setForecastPanelOpen(true)}
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-sky-600/20 border border-sky-500/30 text-sky-400 hover:bg-sky-600/30 hover:text-sky-300 transition-colors text-[11px] font-semibold"
+            title="Ampliar previsión a pantalla completa (P)"
+            aria-label="Ampliar previsión"
+          >
+            <WeatherIcon id="maximize" size={12} />
+            <span className="hidden sm:inline">Ampliar</span>
+          </button>
         </div>
       </div>
 
@@ -1054,79 +935,8 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
         ))}
       </div>
 
-      {/* ── Summary section — compact in expanded, full in sidebar ── */}
-      {expanded ? (
-        <>
-        {/* Expanded: single compact strip with key metrics */}
-        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-2 py-1.5 bg-slate-800/40 rounded text-[11px] text-slate-300 border border-slate-700/50">
-          {/* Best wind */}
-          {sailingSummary && sailingSummary.bestKt > 0 && (
-            <span className="flex items-center gap-1">
-              <WeatherIcon id="sailboat" size={12} className="text-sky-400" />
-              Mejor: <span className="text-white font-semibold">{sailingSummary.bestKt.toFixed(0)} kt</span>
-              {sailingSummary.bestTime && <span className="text-slate-500">({formatTimeRef(sailingSummary.bestTime)})</span>}
-            </span>
-          )}
-          {/* Rain hours */}
-          {sailingSummary && sailingSummary.rainHours > 0 && (
-            <span className="flex items-center gap-1 text-sky-400">
-              <WeatherIcon id="cloud-rain" size={12} /> {sailingSummary.rainHours}h lluvia
-            </span>
-          )}
-          {/* Thermal windows (inline) */}
-          {thermalWindows.length > 0 && thermalWindows.slice(0, 2).map((w, i) => (
-            <span key={i} className="flex items-center gap-1" style={{ color: thermalColor(w.peakScore) }}>
-              <WeatherIcon id="flame" size={12} />
-              {formatHour(w.startTime)}-{formatHour(w.endTime)} <span className="font-bold">{w.peakScore}%</span>
-            </span>
-          ))}
-          {/* Pressure */}
-          {diagnosis && diagnosis.currentPressure && (
-            <span className="text-slate-500">
-              {diagnosis.pressureTrend === 'rising' ? '\u2197' : diagnosis.pressureTrend === 'falling' ? '\u2198' : '\u2192'}{' '}
-              {diagnosis.currentPressure.toFixed(0)} hPa
-            </span>
-          )}
-          {/* DeltaT */}
-          {deltaT !== null && (
-            <span className={deltaT >= 16 ? 'text-amber-400' : deltaT < 8 ? 'text-blue-400' : 'text-slate-500'}>
-              ΔT {deltaT.toFixed(1)}°C
-            </span>
-          )}
-          {/* Direction consistency */}
-          {diagnosis && diagnosis.directionConsistency > 0 && (
-            <span className={diagnosis.directionConsistency >= 70 ? 'text-green-400' : diagnosis.directionConsistency >= 40 ? 'text-yellow-400' : 'text-red-400'}>
-              Dir {diagnosis.directionConsistency >= 70 ? 'estable' : diagnosis.directionConsistency >= 40 ? 'variable' : 'caotico'}
-            </span>
-          )}
-          {/* CAPE — human-readable */}
-          {diagnosis && diagnosis.maxCape !== null && diagnosis.maxCape >= 100 && (
-            <span className={diagnosis.maxCape >= 500 ? 'text-orange-400' : 'text-slate-400'}>
-              {diagnosis.maxCape >= 1000 ? 'Tormentas probables' : diagnosis.maxCape >= 500 ? 'Conveccion activa' : 'Conveccion leve'}
-            </span>
-          )}
-          {/* Pattern match score */}
-          {diagnosis && diagnosis.patternScore >= 35 && (
-            <span className={diagnosis.patternScore >= 60 ? 'text-green-400' : 'text-amber-400'}>
-              Patron {diagnosis.patternScore}%
-            </span>
-          )}
-        </div>
-
-        {/* ── Smart sailing conclusion — interprets all metrics ── */}
-        {diagnosis && sailingSummary && (
-          <SailingConclusion
-            diagnosis={diagnosis}
-            sailingSummary={sailingSummary}
-            thermalWindows={thermalWindows}
-            deltaT={deltaT}
-            sectorId={sectorId}
-          />
-        )}
-        </>
-      ) : (
-        <>
-          {/* Sidebar: full thermal windows + diagnosis + sailing summary */}
+      <>
+          {/* Thermal windows + diagnosis + sailing summary */}
           {thermalWindows.length > 0 && (
             <div className="mb-2 space-y-1">
               {thermalWindows.slice(0, 3).map((w, i) => (
@@ -1186,21 +996,15 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
               {deltaT < 8 && <span className="inline-flex ml-0.5 text-blue-400"><WeatherIcon id="snowflake" size={12} /></span>}
             </div>
           )}
-        </>
-      )}
-
-      {/* Meteogram sparkline (expanded mode only, above table) */}
-      {expanded && visibleData.length > 0 && (
-        <ForecastMeteogram data={visibleData} />
-      )}
+      </>
 
       {/* Table view */}
       {viewMode === 'table' ? (
         <div className="flex-1 overflow-hidden min-h-0">
-          <ForecastTable data={visibleData} expanded={expanded} />
+          <ForecastTable data={visibleData} />
         </div>
       ) : (
-        <div className={expanded ? 'max-w-2xl' : ''}>
+        <div>
           {/* Column header */}
           <div className="grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px] gap-1 px-2 py-1 text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-700">
             <span>Hora</span>

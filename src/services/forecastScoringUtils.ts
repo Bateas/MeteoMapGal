@@ -57,8 +57,10 @@ export function scoreForecastThermal(
 
   for (const rule of rules) {
     if (!rule.enabled) continue;
-    // Only score embalse rules for the forecast (forecast is at embalse location)
-    if (rule.expectedWind.zone !== 'embalse' && rule.expectedWind.zone !== 'norte') continue;
+    // Only the reservoir's own rules: the forecast point is the reservoir. The north-mountain
+    // rule (a hypothesis, 6-10 h from 14 °C) used to score here too and painted «thermal
+    // windows» at dawn (6-oct: 06-08 h, 45 %).
+    if (rule.expectedWind.zone !== 'embalse') continue;
 
     let score = 0;
     const c = rule.conditions;

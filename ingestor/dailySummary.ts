@@ -22,6 +22,7 @@ import { log } from './logger.js';
 import { noteSent, type PastSend } from './alertDispatcher.js';
 import { msToKnots, degreesToCardinal, angleDifference } from '../src/services/windUtils.js';
 import { haversineDistance } from '../src/services/geoUtils.js';
+import { isStormRiskHour } from '../src/services/stormRiskRule.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { assessSynopticRegime, upperWindAt, type UpperAirLevel } from '../src/services/synopticRegime.js';
@@ -46,15 +47,7 @@ const DIR_MATCH_TOLERANCE = 50; // ° — spot windPattern vs outlook direction
 // Day-hazard thresholds (O2 safety line). Rain: forecast probability + amount.
 const RAIN_PROB = 55;     // % precip probability to flag rain
 const RAIN_MM = 0.3;      // mm — ignore drizzle-trace noise
-// Storm: uncapped instability proxy (CAPE + lifted index negative + not
-// strongly capped by CIN). Framed as "riesgo" — a forecast risk, NOT a
-// confirmed storm (those need real lightning, per the storm-severity rule).
-// Measured 6-oct over 160 days x 2 sectors (31 days with >= 5 strikes inside the
-// sector between 8 and 21 h): CAPE 1000 caught 9 of them at 31 % precision; CAPE 300
-// catches 21 at 40 %. Galician storms are low-CAPE: 6-oct, 2.400 strikes, peaked at 590.
-const STORM_CAPE = 300;
-const STORM_LI = -2;
-const STORM_CIN_MAX = 200;
+// Storm risk: isStormRiskHour (src/services/stormRiskRule.ts), shared with the forecast panel.
 // Strikes already down near the sector at send time, quoted only on a storm-risk day.
 const STRIKE_LOOKBACK_MIN = 120;
 const STRIKE_EXTRA_KM = 60;   // beyond the sector radius
@@ -230,8 +223,7 @@ export function summarizeDayHazard(hourly: HourlyForecast[], now: Date): DayHaza
       rainHour = h;
     }
     // Storm risk: uncapped instability.
-    if ((f.cape ?? 0) >= STORM_CAPE && (f.liftedIndex ?? 99) <= STORM_LI
-        && (f.cin ?? 0) < STORM_CIN_MAX && (stormHour < 0 || h < stormHour)) {
+    if (isStormRiskHour(f) && (stormHour < 0 || h < stormHour)) {
       stormHour = h;
     }
   }

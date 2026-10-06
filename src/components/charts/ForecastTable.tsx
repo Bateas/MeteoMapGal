@@ -62,7 +62,7 @@ function DirArrow({ dir, size = 12 }: { dir: number | null; size?: number }) {
 }
 
 /** Map sky_state to icon, fallback to cloudCover */
-function skyIcon(skyState: string | null | undefined, cloudCover: number | null): IconId | null {
+export function skyIcon(skyState: string | null | undefined, cloudCover: number | null): IconId | null {
   if (skyState) {
     switch (skyState) {
       case 'SUNNY': case 'CLEAR': return 'sun';
