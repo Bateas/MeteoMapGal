@@ -222,64 +222,66 @@ export const RadarOverlay = memo(function RadarOverlay() {
 /** RainViewer tile layer — updates tiles via map API without remounting */
 function RainViewerLayer({ tileUrl, opacity }: { tileUrl: string; opacity: number }) {
   const { current: mapInstance } = useMap();
+  // The latest frame and opacity, read by the installer. Until 6-oct the installer was a callback of
+  // [tileUrl, opacity] and the effect that ran it cleaned up on every change: each animation step
+  // REMOVED the source and added it again (tiles dropped, decoded and uploaded anew several times a
+  // second) instead of swapping its tiles.
+  const tileUrlRef = useRef(tileUrl);
+  const opacityRef = useRef(opacity);
+  tileUrlRef.current = tileUrl;
+  opacityRef.current = opacity;
 
-  // Shared installer so both the deps effect and the style.load listener
-  // can re-apply the source + layer with identical config. Idempotent —
-  // exits early if the source already exists with current tiles.
+  const SOURCE_ID = 'rainviewer-tiles';
+  const LAYER_ID = 'rainviewer-raster';
+
+  // Idempotent: adds the source + layer when missing (first mount, or after a setStyle wiped them).
   const installLayer = useCallback((map: maplibregl.Map) => {
-    const sourceId = 'rainviewer-tiles';
-    const layerId = 'rainviewer-raster';
-
-    const existingSource = map.getSource(sourceId);
-    if (existingSource) {
-      // Update tiles URL
-      (existingSource as maplibregl.RasterTileSource).setTiles?.([tileUrl]);
-      // Fallback: remove and re-add if setTiles not available
-      if (!(existingSource as maplibregl.RasterTileSource).setTiles) {
-        if (map.getLayer(layerId)) map.removeLayer(layerId);
-        map.removeSource(sourceId);
-      } else {
-        // Update opacity
-        if (map.getLayer(layerId)) {
-          map.setPaintProperty(layerId, 'raster-opacity', opacity);
-        }
-        return;
-      }
-    }
-
-    // Add new source + layer
-    map.addSource(sourceId, {
+    if (map.getSource(SOURCE_ID)) return;
+    map.addSource(SOURCE_ID, {
       type: 'raster',
-      tiles: [tileUrl],
+      tiles: [tileUrlRef.current],
       tileSize: 256,
       maxzoom: 7,
     });
     map.addLayer({
-      id: layerId,
+      id: LAYER_ID,
       type: 'raster',
-      source: sourceId,
-      paint: { 'raster-opacity': opacity, 'raster-fade-duration': 300 },
+      source: SOURCE_ID,
+      paint: { 'raster-opacity': opacityRef.current, 'raster-fade-duration': 300 },
     });
-  }, [tileUrl, opacity]);
+  }, []);
 
+  // Mount / unmount only.
   useEffect(() => {
     if (!mapInstance) return;
     const map = mapInstance.getMap();
     if (!map) return;
     installLayer(map);
     return () => {
-      const sourceId = 'rainviewer-tiles';
-      const layerId = 'rainviewer-raster';
-      if (map.getLayer(layerId)) map.removeLayer(layerId);
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
+      if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID);
+      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
     };
   }, [mapInstance, installLayer]);
 
+  // A new frame swaps the tiles of the same source.
+  useEffect(() => {
+    const map = mapInstance?.getMap();
+    if (!map) return;
+    const src = map.getSource(SOURCE_ID) as maplibregl.RasterTileSource | undefined;
+    if (src?.setTiles) src.setTiles([tileUrl]);
+    else installLayer(map);
+  }, [mapInstance, tileUrl, installLayer]);
+
+  useEffect(() => {
+    const map = mapInstance?.getMap();
+    if (map?.getLayer(LAYER_ID)) map.setPaintProperty(LAYER_ID, 'raster-opacity', opacity);
+  }, [mapInstance, opacity]);
+
   // Re-apply source + layer after any setStyle (audit finding):
   // MapLibre wipes all sources/layers on a style rebuild (base-map change)
-  // and the deps effect above does NOT re-run because mapInstance/tileUrl/
-  // opacity didn't change. Without this listener the radar disappears
-  // silently when the user switches the base map while radar is active.
+  // and the effects above do NOT re-run because nothing they depend on
+  // changed. Without this listener the radar disappears silently when the
+  // user switches the base map while radar is active.
   useEffect(() => {
     if (!mapInstance) return;
     const map = mapInstance.getMap();
