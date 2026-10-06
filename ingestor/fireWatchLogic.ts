@@ -30,6 +30,69 @@
 
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { precipKindFor, rainInWindowMm, type PrecipSample } from '../src/services/precipSemantics.js';
+import { RAIN_GAUGE_BLACKLIST } from '../src/services/rainNowService.js';
+
+// ── Mute gauges ──────────────────────────────────────
+
+/** One station's rain on one local day: the sum of its hourly totals (readings_hourly). For a day
+ *  counter (wu_, mc_) the sum is not the rain, but it is 0 only when the counter never left 0. */
+export interface DailyRain { stationId: string; day: string; mm: number }
+
+/** A day counts as «it rained here» when an official gauge this close measured at least WET_DAY_MM. */
+const MUTE_NEAR_KM = 15;
+const MUTE_FAR_KM = 30;
+const WET_DAY_MM = 3;
+
+/**
+ * Gauges that read nothing when it rains around them: no gauge at all (a station without one
+ * reports 0 forever) or a clogged one. Judged against OFFICIAL gauges only, day by day, so a long
+ * dry spell in summer (when the fire watch matters most) flags nobody:
+ *  - near: on >= 2 days an official gauge <= 15 km measured >= 3 mm, and it read 0 on >= 80 % of them;
+ *  - far: no official within 15 km, but on >= 3 such days of one <= 30 km it read 0 every time.
+ * On 6-oct, 14 gauges read 0.0 under 45-55 dBZ with their neighbours soaked; Moncao and Valenca,
+ * the two nearest to the strikes of that day's «dry lightning» fire watch, had never recorded rain
+ * in 45 days.
+ */
+export function findMuteGauges(daily: DailyRain[], coords: Map<string, { lat: number; lon: number }>): Set<string> {
+  const byStation = new Map<string, Map<string, number>>();
+  for (const r of daily) {
+    if (!Number.isFinite(r.mm)) continue;
+    const m = byStation.get(r.stationId) ?? new Map<string, number>();
+    m.set(r.day, (m.get(r.day) ?? 0) + r.mm);
+    byStation.set(r.stationId, m);
+  }
+  const witnesses = [...byStation.keys()].filter((id) => precipKindFor(id) === 'interval' && !RAIN_GAUGE_BLACKLIST.has(id) && coords.has(id));
+  const mute = new Set<string>();
+  for (const [id, days] of byStation) {
+    const at = coords.get(id);
+    if (!at) continue;
+    const near: string[] = [], far: string[] = [];
+    for (const w of witnesses) {
+      if (w === id) continue;
+      const c = coords.get(w)!;
+      const km = haversineDistance(at.lat, at.lon, c.lat, c.lon);
+      if (km <= MUTE_NEAR_KM) near.push(w);
+      else if (km <= MUTE_FAR_KM) far.push(w);
+    }
+    const judge = (ws: string[]) => {
+      let wet = 0, zero = 0;
+      for (const [day, mm] of days) {
+        if (!ws.some((w) => (byStation.get(w)!.get(day) ?? 0) >= WET_DAY_MM)) continue;
+        wet++;
+        if (mm <= 0) zero++;
+      }
+      return { wet, zero };
+    };
+    if (near.length) {
+      const j = judge(near);
+      if (j.wet >= 2 && j.zero >= 0.8 * j.wet) mute.add(id);
+    } else if (far.length) {
+      const j = judge(far);
+      if (j.wet >= 3 && j.zero === j.wet) mute.add(id);
+    }
+  }
+  return mute;
+}
 
 // ── Tunables ─────────────────────────────────────────
 

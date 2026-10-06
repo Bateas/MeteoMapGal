@@ -44,6 +44,10 @@ const DAWN_TO_H = 10;
 const DAWN_MAX_MM = 0.4;
 /** Radar echo over a gauge that counts as seeing precipitation there. */
 const RADAR_CONFIRM_DBZ = 15;
+/** A gauge reading nothing with echo this strong over it is not evidence of dry: on 6-oct, with
+ *  45-55 dBZ overhead and its neighbours soaked, 14 amateur gauges read 0.0 (four never recorded
+ *  rain in 45 days, i.e. have no gauge; others stopped collecting in late August). */
+const MUTE_DBZ = 40;
 const RADAR_CONFIRM_KM = 2;
 const MAX_READING_AGE_MIN = 30;
 /** Echo drawn as rain: ~0.6 mm/h and up. Sea clutter off the Rías sits at 10-15 dBZ. */
@@ -67,6 +71,7 @@ export const isOfficialGauge = (id: string) => /^(mg_|aemet_|ipma_)/.test(id);
 export type GaugeVerdict =
   | 'rain'       // measured rain that passed the checks
   | 'dry'        // fresh reading, no rain in the window
+  | 'mute'       // no rain with strong echo overhead: the gauge, not the sky, is dry
   | 'sun'        // wet reading with the sun out
   | 'blacklist'  // a gauge known to leak
   | 'dew'        // amateur at dawn, nobody official agrees
@@ -137,7 +142,7 @@ export function classifyGauges(opts: {
   });
 
   return cands.map(({ sunny, ...c }) => {
-    if (c.mm < MIN_RAIN_MM) return { ...c, verdict: 'dry' as const };
+    if (c.mm < MIN_RAIN_MM) return { ...c, verdict: (c.radarDbz != null && c.radarDbz >= MUTE_DBZ ? 'mute' : 'dry') as GaugeVerdict };
     if (sunny) return { ...c, verdict: 'sun' as const };
     if (RAIN_GAUGE_BLACKLIST.has(c.id)) return { ...c, verdict: 'blacklist' as const };
     const radarSees = c.radarDbz != null && c.radarDbz >= RADAR_CONFIRM_DBZ;

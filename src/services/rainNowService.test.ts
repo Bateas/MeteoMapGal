@@ -76,6 +76,17 @@ describe('classifyGauges', () => {
     expect(judge(AFTERNOON, [g], [m]).mg_1).toBe('rain');
   });
 
+  it('a gauge at zero under a storm core is mute, not dry, and does not dry out its cell (6-oct)', () => {
+    const m = assembleMosaic([], { x0: 60, y0: 46, nx: 2, ny: 2 }, AFTERNOON / 1000);
+    const [px, py] = lonLatToPx(m, BASE.lon, BASE.lat);
+    m.dbz[Math.floor(py) * m.w + Math.floor(px)] = 52;
+    const silent = (id: string, at = BASE) => ({ s: st(id, at), r: rd(id, AFTERNOON, 3), h: [rd(id, AFTERNOON, 3, 0, 40)] });
+    expect(judge(AFTERNOON, [silent('wu_A')], [m]).wu_A).toBe('mute');
+    // weak echo over it: an honest «dry» vote
+    m.dbz[Math.floor(py) * m.w + Math.floor(px)] = 20;
+    expect(judge(AFTERNOON, [silent('wu_A')], [m]).wu_A).toBe('dry');
+  });
+
   it('skips stale readings and networks whose rain field means nothing known', () => {
     expect(judge(AFTERNOON, [{ s: st('mg_1'), r: rd('mg_1', AFTERNOON, 2, 0, 50) }])).toEqual({});
     expect(judge(AFTERNOON, [{ s: st('skyx_1'), r: rd('skyx_1', AFTERNOON, 2) }])).toEqual({});

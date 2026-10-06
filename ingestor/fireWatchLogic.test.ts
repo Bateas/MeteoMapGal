@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
+import { findMuteGauges,
   isLikelyLand,
   groupRainReadings,
   classifyStrikeDryness,
@@ -352,5 +352,43 @@ describe('computeFireWatch', () => {
     const result = computeFireWatch([mkStrike()], every('mg_our', -60, 30, 10, () => 0), T0.getTime() + 30 * 60_000);
     expect(result.pendingStrikes).toBe(1);
     expect(result.dryStrikes).toBe(0);
+  });
+});
+
+describe('findMuteGauges — gauges that read nothing when it rains around them (6-oct)', () => {
+  // ~1 km = 0.009 deg of latitude
+  const coords = new Map([
+    ['mg_1', { lat: 42.10, lon: -8.50 }],      // official witness
+    ['nt_mute', { lat: 42.15, lon: -8.50 }],   // 5.5 km: never collects
+    ['wu_ok', { lat: 42.12, lon: -8.50 }],     // 2 km: collects
+    ['wu_far', { lat: 42.30, lon: -8.50 }],    // 22 km: no official within 15 km, never collects
+    ['wu_short', { lat: 42.14, lon: -8.50 }],  // only one wet day to judge by
+  ]);
+  const days = ['2026-09-29', '2026-10-01', '2026-10-05', '2026-10-06'];
+  const daily = [
+    ...days.map((day) => ({ stationId: 'mg_1', day, mm: 8 })),
+    ...days.map((day) => ({ stationId: 'nt_mute', day, mm: 0 })),
+    ...days.map((day) => ({ stationId: 'wu_ok', day, mm: 5 })),
+    ...days.map((day) => ({ stationId: 'wu_far', day, mm: 0 })),
+    { stationId: 'wu_short', day: '2026-10-06', mm: 0 },
+  ];
+
+  it('flags the gauge at zero on the days its official neighbour measured rain', () => {
+    const m = findMuteGauges(daily, coords);
+    expect(m.has('nt_mute')).toBe(true);
+    expect(m.has('wu_ok')).toBe(false);
+    expect(m.has('mg_1')).toBe(false);
+  });
+
+  it('judges a gauge with no official within 15 km against one within 30 km, only if always zero', () => {
+    expect(findMuteGauges(daily, coords).has('wu_far')).toBe(true);
+    const oneWet = daily.map((r) => (r.stationId === 'wu_far' && r.day === '2026-10-06' ? { ...r, mm: 1.2 } : r));
+    expect(findMuteGauges(oneWet, coords).has('wu_far')).toBe(false);
+  });
+
+  it('needs at least two wet days to judge, and a summer dry spell flags nobody', () => {
+    expect(findMuteGauges(daily, coords).has('wu_short')).toBe(false);
+    const dry = daily.map((r) => ({ ...r, mm: 0 }));
+    expect(findMuteGauges(dry, coords).size).toBe(0);
   });
 });

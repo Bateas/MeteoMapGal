@@ -19,6 +19,7 @@ import { haversineDistance } from '../src/services/geoUtils.js';
 import { dispatchFireWatchDigest, fireWatchAlertedZones } from './alertDispatcher.js';
 import {
   computeFireWatch,
+  findMuteGauges,
   freshZones,
   placeName,
   type FireWatchStrike,
@@ -36,6 +37,41 @@ const STRIKE_WINDOW_HOURS = 12;
 const RAIN_WINDOW_HOURS = 15;
 /** Max distance zone centroid → named station for the "cerca de X" label. */
 const NEAREST_NAME_KM = 25;
+/** How far back the mute-gauge check looks, and how often it is recomputed. */
+const MUTE_LOOKBACK_DAYS = 40;
+const MUTE_REFRESH_MS = 12 * 60 * 60_000;
+let muteCache: { at: number; ids: Set<string> } | null = null;
+
+/**
+ * Gauges that read 0 when it rains around them (findMuteGauges), from the daily totals of the
+ * hourly aggregate: one light query every 12 h. On failure the last set is kept (or none: then
+ * every gauge votes, as before).
+ */
+async function muteGauges(): Promise<Set<string>> {
+  if (muteCache && Date.now() - muteCache.at < MUTE_REFRESH_MS) return muteCache.ids;
+  try {
+    const db = getPool();
+    const [daily, st] = await Promise.all([
+      db.query(
+        `SELECT station_id, ((bucket AT TIME ZONE 'Europe/Madrid')::date)::text AS day, SUM(total_precip) AS mm
+         FROM readings_hourly
+         WHERE bucket > NOW() - make_interval(days => $1) AND total_precip IS NOT NULL
+         GROUP BY 1, 2`,
+        [MUTE_LOOKBACK_DAYS],
+      ),
+      db.query(`SELECT station_id, latitude, longitude FROM stations`),
+    ]);
+    const coords = new Map<string, { lat: number; lon: number }>();
+    for (const r of st.rows) coords.set(String(r.station_id), { lat: Number(r.latitude), lon: Number(r.longitude) });
+    const ids = findMuteGauges(daily.rows.map((r) => ({ stationId: String(r.station_id), day: String(r.day), mm: Number(r.mm) })), coords);
+    muteCache = { at: Date.now(), ids };
+    log.info(`Fire watch: ${ids.size} pluviometros mudos fuera del voto${ids.size ? ` (${[...ids].slice(0, 12).join(', ')}${ids.size > 12 ? ', ...' : ''})` : ''}`);
+    return ids;
+  } catch (err) {
+    log.warn(`Fire watch: mute-gauge check failed: ${(err as Error).message}`);
+    return muteCache?.ids ?? new Set();
+  }
+}
 
 // ── Queries (parameterized — never interpolate) ─────
 
@@ -147,8 +183,9 @@ export async function runFireWatchCycle(): Promise<void> {
     }
 
     const { rain, stationMeta } = await queryRainContext();
+    const mute = await muteGauges();
     const now = Date.now();
-    const result = computeFireWatch(strikes, rain, now);
+    const result = computeFireWatch(strikes, mute.size ? rain.filter((r) => !mute.has(r.stationId)) : rain, now);
 
     // The zones no recent message covered go out together. The dispatcher owns
     // the night silence and the gap between messages, and marks them announced
