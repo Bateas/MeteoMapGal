@@ -159,13 +159,9 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
         ctx.putImageData(new ImageData(rgba, newest.w, newest.h), 0, 0);
         picture = { url: canvas.toDataURL('image/png'), corners: mosaicCorners(newest) };
       }
-      // Arrows: the soonest coming, else the biggest patch that moves steadily.
-      const arrowCells = approach.length
-        ? approach.slice(0, MAX_ARROWS).map((a) => ({ lon: a.lon, lat: a.lat, toDeg: a.toDeg, kmh: a.kmh }))
-        : judged
-          .filter((c) => draw.has(c.id) && analysis.tracks?.get(c.id)?.kind === 'moving' && analysis.tracks.get(c.id)!.steady)
-          .sort((p, q) => q.pixels - p.pixels).slice(0, 1)
-          .map((c) => ({ lon: c.lon, lat: c.lat, toDeg: analysis.tracks!.get(c.id)!.toDeg, kmh: analysis.tracks!.get(c.id)!.kmh }));
+      // Arrows only for the rain coming to the sector: an arrow means «this is heading your way».
+      // 6-oct: the fallback (biggest steady patch) drew one over the sea, going nowhere near a spot.
+      const arrowCells = approach.slice(0, MAX_ARROWS).map((a) => ({ lon: a.lon, lat: a.lat, toDeg: a.toDeg, kmh: a.kmh }));
       arrows = arrowCells.flatMap((c) => arrowGeo(c.lon, c.lat, c.toDeg, c.kmh * 0.5).features);
     } else if (raining.length === 0 && !sim) {
       return { off: true as const, gauges, arrivals, debug };

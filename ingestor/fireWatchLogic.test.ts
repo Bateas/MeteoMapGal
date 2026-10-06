@@ -16,6 +16,7 @@ import { findMuteGauges,
   clusterDryStrikes,
   computeFireWatch,
   freshZones,
+  zonesNearSectors,
   alertedZoneKey,
   parseAlertedZoneKey,
   fireWatchDigestText,
@@ -390,5 +391,17 @@ describe('findMuteGauges — gauges that read nothing when it rains around them 
     expect(findMuteGauges(daily, coords).has('wu_short')).toBe(false);
     const dry = daily.map((r) => ({ ...r, mm: 0 }));
     expect(findMuteGauges(dry, coords).size).toBe(0);
+  });
+});
+
+describe('zonesNearSectors', () => {
+  const SECT: { center: [number, number]; radiusKm: number }[] = [{ center: [-8.68, 42.30], radiusKm: 30 }, { center: [-8.1, 42.29], radiusKm: 35 }];
+  const zone = (lat: number, lon: number) => ({ lat, lon, strikeCount: 3, maxAbsKa: 20, inWatch: true });
+  it('keeps the zones inside a sector reach and drops the rest of Galicia (6-oct: Cospeito)', () => {
+    const kept = zonesNearSectors([zone(42.35, -8.60), zone(42.20, -7.80), zone(43.24, -7.55)], SECT);
+    expect(kept.map((z) => z.lat)).toEqual([42.35, 42.20]);
+  });
+  it('no sectors, no zones', () => {
+    expect(zonesNearSectors([zone(42.35, -8.60)], [])).toEqual([]);
   });
 });

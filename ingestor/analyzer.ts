@@ -14,7 +14,7 @@ import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
-import { dispatchSpotAlert, dispatchForecastAlert, dispatchMagicWindowAlert, dispatchLightningAlert, dispatchWindSafetyAlert, type PastSend } from './alertDispatcher.js';
+import { dispatchSpotAlert, dispatchForecastAlert, dispatchLightningAlert, dispatchWindSafetyAlert, type PastSend } from './alertDispatcher.js';
 import {
   assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, reopenFromHistory, windLogState, windLogDue, safetySpots,
   WIND_EPISODE_GAP_MS, WIND_REOPEN_MAX_MS, WIND_MAX_AGE_MIN, WIND_MAX_ALTITUDE_M, type WindEpisode,
@@ -777,7 +777,8 @@ async function evaluateAndDispatchMagicWindow(
   if (result.active) {
     log.info(`Magic Window ACTIVE — score=${result.score}/100, ~${result.estimatedHours}h`);
     await persistMagicWindow(result.score, result.summary, result.estimatedHours);
-    await dispatchMagicWindowAlert('Rias Baixas', result.score, result.summary, result.estimatedHours);
+    // Off Telegram until validated (6-oct): it is a textbook detector with no check against what
+    // the water did. Still computed, stored and logged, so its firings can be graded.
   } else if (result.score >= 60) {
     // Heartbeat (loud): close to threshold, log it so we can verify the
     // detector nearly fires.

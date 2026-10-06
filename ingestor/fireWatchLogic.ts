@@ -398,6 +398,18 @@ export interface AlertedZone {
   atMs: number;
 }
 
+/** How far around a sector a zone still counts as ours: the same 1.5 x radius as the regional data. */
+export const SECTOR_REACH = 1.5;
+
+/**
+ * Zones inside our sectors (radius x SECTOR_REACH). The watch is computed for all of Galicia,
+ * but the message only names ours (6-oct: Cospeito, 130 km from both). Driven by the sector
+ * list, so a new sector gets it with no change here.
+ */
+export function zonesNearSectors(zones: FireWatchZone[], sectors: { center: [number, number]; radiusKm: number }[]): FireWatchZone[] {
+  return zones.filter((z) => sectors.some((s) => haversineDistance(s.center[1], s.center[0], z.lat, z.lon) <= s.radiusKm * SECTOR_REACH));
+}
+
 /** The zones in watch that no recent message has covered. */
 export function freshZones(watch: FireWatchZone[], alerted: AlertedZone[], nowMs: number): FireWatchZone[] {
   return watch.filter((z) => !alerted.some((a) =>

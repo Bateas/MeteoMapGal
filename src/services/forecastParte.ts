@@ -179,3 +179,18 @@ export function buildHourCols(hourly: HourlyForecast[], now: Date, hours = 48, i
       cloudCover: p.cloudCover ?? null,
     }));
 }
+
+/**
+ * Temperature band for the hour table, on the app's own breakpoints (windUtils.temperatureColor:
+ * 5, 10, 25, 30, 35 °C) but blue for cold and orange/red for heat only: green and yellow already
+ * mean «navegable» and «bueno» in the wind row. 10-25 °C stays plain ink.
+ */
+export type TempBand = 'frio2' | 'frio' | 'templado' | 'calido' | 'calor' | 'extremo';
+export function tempBand(t: number): TempBand {
+  if (t < 5) return 'frio2';
+  if (t < 10) return 'frio';
+  if (t < 25) return 'templado';
+  if (t < 30) return 'calido';
+  if (t < 35) return 'calor';
+  return 'extremo';
+}

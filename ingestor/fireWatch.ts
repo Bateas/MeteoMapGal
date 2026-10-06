@@ -16,11 +16,13 @@
 import { getPool } from './db.js';
 import { log } from './logger.js';
 import { haversineDistance } from '../src/services/geoUtils.js';
+import { SECTORS } from '../src/config/sectors.js';
 import { dispatchFireWatchDigest, fireWatchAlertedZones } from './alertDispatcher.js';
 import {
   computeFireWatch,
   findMuteGauges,
   freshZones,
+  zonesNearSectors,
   placeName,
   type FireWatchStrike,
   type FireWatchZone,
@@ -191,7 +193,9 @@ export async function runFireWatchCycle(): Promise<void> {
     // the night silence and the gap between messages, and marks them announced
     // only after a successful send: the ones held back are offered again next
     // cycle (a zone found at 3 AM goes out at 7 AM).
-    const fresh = freshZones(result.watchZones, fireWatchAlertedZones(now), now);
+    // Only the zones inside our sectors go out; the rest stay in the log line below.
+    const ours = zonesNearSectors(result.watchZones, SECTORS);
+    const fresh = freshZones(ours, fireWatchAlertedZones(now), now);
     const sent = fresh.length > 0 && await dispatchFireWatchDigest(
       fresh.map((z) => ({
         lat: z.lat,
@@ -209,7 +213,7 @@ export async function runFireWatchCycle(): Promise<void> {
       `[FireWatch] fire watch: ${result.totalStrikes} strikes (${result.landStrikes} tierra), ` +
         `${result.dryStrikes} secos (${result.wetStrikes} lluvia, ${result.unknownStrikes} sin dato, ` +
         `${result.pendingStrikes} pendientes), ` +
-        `${result.watchZones.length}/${result.zones.length} zonas en vigilancia` +
+        `${result.watchZones.length}/${result.zones.length} zonas en vigilancia, ${ours.length} en nuestros sectores` +
         (fresh.length > 0 ? (sent ? ` (${fresh.length} avisadas ahora)` : ` (${fresh.length} por avisar)`) : ''),
     );
   } catch (err) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildDayParts, buildHourCols, daySentence, windTone, cardinalEs, type PartHour } from './forecastParte';
+import { buildDayParts, buildHourCols, daySentence, tempBand, windTone, cardinalEs, type PartHour } from './forecastParte';
 import type { HourlyForecast } from '../types/forecast';
 
 const KT = 1 / 1.944;
@@ -82,5 +82,12 @@ describe('buildHourCols', () => {
     const now = new Date(2026, 9, 6, 10, 0);
     const hourly = [hour(6, 10, 9), hour(6, 11, 9, { windSpeed: null }), hour(6, 12, 9)];
     expect(buildHourCols(hourly, now, 4, () => true).map((c) => c.time.getHours())).toEqual([10, 12]);
+  });
+});
+
+describe('tempBand', () => {
+  it('the app breakpoints, plain ink between 10 and 25', () => {
+    expect([2, 5, 9.9, 10, 24.9, 25, 29, 30, 34, 35].map(tempBand))
+      .toEqual(['frio2', 'frio', 'frio', 'templado', 'templado', 'calido', 'calido', 'calor', 'calor', 'extremo']);
   });
 });

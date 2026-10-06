@@ -103,3 +103,12 @@
 .g-notice.lv2 { --g-warn-c: #f08a00; }
 .g-notice.lv3 { --g-warn-c: var(--g-danger); }
 .g-zap { display: inline-flex; flex: none; color: var(--g-danger); }
+
+/* ── Temperatura en la tabla: solo el número, frío en azul y calor en naranja/rojo ── */
+.g-theme { --g-tb-frio2: #8fbcff; --g-tb-frio: #a9c9ec; --g-tb-calido: #f2a35e; --g-tb-calor: #ff7b6b; --g-tb-extremo: #ff5a5a; }
+[data-theme="light"] .g-theme { --g-tb-frio2: #1d4ed8; --g-tb-frio: #2f6fb0; --g-tb-calido: #b8560f; --g-tb-calor: #c8102e; --g-tb-extremo: #8b0000; }
+.g-temp.tb-frio2 { color: var(--g-tb-frio2); font-weight: 700; }
+.g-temp.tb-frio { color: var(--g-tb-frio); }
+.g-temp.tb-calido { color: var(--g-tb-calido); font-weight: 600; }
+.g-temp.tb-calor { color: var(--g-tb-calor); font-weight: 700; }
+.g-temp.tb-extremo { color: var(--g-tb-extremo); font-weight: 800; }

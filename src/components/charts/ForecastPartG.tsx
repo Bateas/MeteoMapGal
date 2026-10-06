@@ -6,7 +6,7 @@
  */
 import { useMemo, useState, type ReactNode } from 'react';
 import type { HourlyForecast } from '../../types/forecast';
-import { buildDayParts, buildHourCols, cardinalEs, TONES, type DayPart, type HourCol, type PartHour, type Tone } from '../../services/forecastParte';
+import { buildDayParts, buildHourCols, cardinalEs, tempBand, TONES, type DayPart, type HourCol, type PartHour, type Tone } from '../../services/forecastParte';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import { skyIcon } from './ForecastTable';
 import { useWarningsStore } from '../../hooks/useWarnings';
@@ -181,7 +181,7 @@ export function ForecastHoursG({ hourly }: { hourly: HourlyForecast[] }) {
             {row('Viento', 'kt', (c) => <span className={`g-kt g-kt-sm t-${c.tone}`}>{Math.round(c.kt)}</span>, 'g-windrow')}
             {row('Dirección', null, (c) => (c.dirDeg != null ? <span className="g-arrow" title={`del ${cardinalEs(c.dirDeg)}`}><DirArrow fromDeg={c.dirDeg} /></span> : null))}
             {anyGust && row('Rachas', 'kt', (c) => (c.gustKt != null ? <span className={c.gustKt >= GUST_WARN_KT ? 'g-warn' : ''}>{Math.round(c.gustKt)}</span> : null))}
-            {row('Temp.', '°C', (c) => (c.temp != null ? `${Math.round(c.temp)}°` : null))}
+            {row('Temp.', '°C', (c) => (c.temp != null ? <span className={`g-temp tb-${tempBand(c.temp)}`}>{Math.round(c.temp)}°</span> : null))}
             {anyRain && row('Lluvia', 'mm', (c) => (c.rainMm >= 0.1 ? <span className="g-rain">{num(c.rainMm, 1)}</span> : null))}
             {more && anyHum && row('Humedad', '%', (c) => (c.humidity != null ? Math.round(c.humidity) : null), 'g-more')}
             {more && anyPres && row('Presión', 'hPa', (c) => (c.pressure != null ? Math.round(c.pressure) : null), 'g-more')}

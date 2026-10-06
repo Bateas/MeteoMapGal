@@ -468,9 +468,11 @@ export function echoWorthFollowing(m: RadarMosaic, centre: { lon: number; lat: n
 
 /** Our three tones (light, moderate, heavy) as RGBA. Low alpha on purpose: start faint, raise on request. */
 const TONES: [number, number, number, number][] = [
-  [96, 165, 250, 51],   // 20-30 dBZ  ~0.6-2.7 mm/h   (alpha 0.20)
-  [37, 99, 235, 82],    // 30-40 dBZ  ~2.7-11 mm/h    (0.32)
-  [124, 58, 237, 115],  // >= 40 dBZ  > 11 mm/h       (0.45)
+  // One picture, no overlapping fills, so no opacity compounding. 6-oct: at 0.20 the light rain
+  // all but vanished on the dark grey map and its arrow read as a stray line.
+  [96, 165, 250, 87],   // 20-30 dBZ  ~0.6-2.7 mm/h   (alpha 0.34)
+  [37, 99, 235, 110],   // 30-40 dBZ  ~2.7-11 mm/h    (0.43)
+  [124, 58, 237, 135],  // >= 40 dBZ  > 11 mm/h       (0.53)
 ];
 export function toneFor(dbz: number): 0 | 1 | 2 {
   return dbz >= 40 ? 2 : dbz >= 30 ? 1 : 0;
