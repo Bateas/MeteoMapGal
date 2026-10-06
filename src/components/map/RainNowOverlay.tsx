@@ -14,6 +14,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Source, Layer, type SourceProps } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
+import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useRainNowStore, type RainNowDebug } from '../../store/rainNowStore';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
@@ -49,6 +50,9 @@ function canvasSource(p: Picture): SourceProps {
 }
 
 export const RainNowOverlay = memo(function RainNowOverlay() {
+  // One radar picture at a time: with the raw radar layer on (drawn on top, 75 %), ours sat under it
+  // and looked gone (6-oct). Gauges, arrows and the chip stay.
+  const rawRadarOn = useWeatherLayerStore((s) => s.activeLayer === 'radar');
   const sector = useSectorStore((s) => s.activeSector);
   const stations = useWeatherStore((s) => s.stations);
   const readingsEpoch = useWeatherStore((s) => s.readingsEpoch);
@@ -218,7 +222,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   if (!view || view.off) return null;
   return (
     <>
-      {view.picture && (
+      {view.picture && !rawRadarOn && (
         // A new canvas is a new source (key): MapLibre has no setter for a canvas source.
         <Source key={view.picture.id} id="rain-now-radar" {...canvasSource(view.picture)}>
           <Layer id="rain-now-radar" type="raster" paint={{ 'raster-opacity': 1, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }} />

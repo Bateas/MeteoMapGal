@@ -252,16 +252,17 @@ function RadarLegend() {
       <span className="text-[11px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> Radar</span>
       <div className="text-[11px] text-slate-400">
         RainViewer — radar animado de las últimas 2 h.
-        Pulsa el botón del mapa para reproducir.
+        Pulsa el botón del mapa para reproducir. El beis claro es eco muy débil o ruido del mar.
       </div>
+      {/* The colours RainViewer really draws (Universal Blue, the only scheme of the free tier;
+          radarDecode.ts has the table): the old rainbow had a green it never uses (6-oct). */}
       <div className="flex items-center gap-0">
         {[
-          { color: '#00c8ff', label: 'Débil' },
-          { color: '#00ff00', label: 'Mod.' },
-          { color: '#ffff00', label: 'Fuerte' },
-          { color: '#ff8000', label: 'Intensa' },
-          { color: '#ff0000', label: 'Muy int.' },
-          { color: '#ff00ff', label: 'Granizo' },
+          { color: '#00a3e0', label: 'Débil' },
+          { color: '#005588', label: 'Moderada' },
+          { color: '#ffaa00', label: 'Fuerte' },
+          { color: '#c10000', label: 'Tormenta' },
+          { color: '#ff77ff', label: 'Granizo' },
         ].map((s, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
             <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />

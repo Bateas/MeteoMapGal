@@ -32,6 +32,8 @@ export const RadarOverlay = memo(function RadarOverlay() {
   const [rvHost, setRvHost] = useState('');
   const [frames, setFrames] = useState<RainViewerFrame[]>([]);
   const [frameIndex, setFrameIndex] = useState(0);
+  /** Index of the first forecast frame (= past.length). The free tier sends none today. */
+  const [nowcastFrom, setNowcastFrom] = useState(Infinity);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [radarError, setRadarError] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export const RadarOverlay = memo(function RadarOverlay() {
         setRvHost(data.host);
         const allFrames = [...data.past, ...data.nowcast];
         setFrames(allFrames);
+        setNowcastFrom(data.past.length);
         setFrameIndex(data.past.length - 1);
         setRadarError(null);
         failCountRef.current = 0;
@@ -167,8 +170,9 @@ export const RadarOverlay = memo(function RadarOverlay() {
               {currentFrame ? formatFrameTime(currentFrame.time) : '--:--'}
             </span>
 
-            {/* Nowcast indicator */}
-            {currentFrame && frames.indexOf(currentFrame) >= frames.length - 3 && (
+            {/* Forecast frames only. It used to tag the last 3 frames, which since the free tier has no
+                nowcast are observations: «PREV» sat on the 20:30 radar (6-oct). */}
+            {currentFrame && frameIndex >= nowcastFrom && (
               <span className="text-[11px] text-amber-400 font-semibold">PREV</span>
             )}
 
