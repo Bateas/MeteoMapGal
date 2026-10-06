@@ -21,6 +21,7 @@ import { getPool } from './db.js';
 import { log } from './logger.js';
 import { noteSent, type PastSend } from './alertDispatcher.js';
 import { msToKnots, degreesToCardinal, angleDifference } from '../src/services/windUtils.js';
+import { haversineDistance } from '../src/services/geoUtils.js';
 import { getAllForecasts } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { assessSynopticRegime, upperWindAt, type UpperAirLevel } from '../src/services/synopticRegime.js';
@@ -45,12 +46,19 @@ const DIR_MATCH_TOLERANCE = 50; // ° — spot windPattern vs outlook direction
 // Day-hazard thresholds (O2 safety line). Rain: forecast probability + amount.
 const RAIN_PROB = 55;     // % precip probability to flag rain
 const RAIN_MM = 0.3;      // mm — ignore drizzle-trace noise
-// Storm: uncapped instability proxy (CAPE high + lifted index negative + not
+// Storm: uncapped instability proxy (CAPE + lifted index negative + not
 // strongly capped by CIN). Framed as "riesgo" — a forecast risk, NOT a
 // confirmed storm (those need real lightning, per the storm-severity rule).
-const STORM_CAPE = 1000;
+// Measured 6-oct over 160 days x 2 sectors (31 days with >= 5 strikes inside the
+// sector between 8 and 21 h): CAPE 1000 caught 9 of them at 31 % precision; CAPE 300
+// catches 21 at 40 %. Galician storms are low-CAPE: 6-oct, 2.400 strikes, peaked at 590.
+const STORM_CAPE = 300;
 const STORM_LI = -2;
 const STORM_CIN_MAX = 200;
+// Strikes already down near the sector at send time, quoted only on a storm-risk day.
+const STRIKE_LOOKBACK_MIN = 120;
+const STRIKE_EXTRA_KM = 60;   // beyond the sector radius
+const STRIKE_MIN_COUNT = 3;
 
 // ── State ───────────────────────────────────────────
 
@@ -194,6 +202,10 @@ export function formatOutlook(o: DayOutlook | null): string {
 interface DayHazard {
   rain: { hour: number; prob: number } | null;
   storm: boolean;
+  /** First hour of the storm risk. */
+  stormHour?: number;
+  /** Nearest strike already down (km from the sector centre), on a storm-risk day only. */
+  strikesNearKm?: number;
 }
 
 /**
@@ -205,7 +217,7 @@ export function summarizeDayHazard(hourly: HourlyForecast[], now: Date): DayHaza
   const today = now.toDateString();
   const fromHour = Math.max(now.getHours(), DAY_START);
 
-  let rainHour = -1, rainProb = 0, storm = false;
+  let rainHour = -1, rainProb = 0, stormHour = -1;
   for (const f of hourly) {
     if (f.time.toDateString() !== today) continue;
     const h = f.time.getHours();
@@ -219,21 +231,26 @@ export function summarizeDayHazard(hourly: HourlyForecast[], now: Date): DayHaza
     }
     // Storm risk: uncapped instability.
     if ((f.cape ?? 0) >= STORM_CAPE && (f.liftedIndex ?? 99) <= STORM_LI
-        && (f.cin ?? 0) < STORM_CIN_MAX) {
-      storm = true;
+        && (f.cin ?? 0) < STORM_CIN_MAX && (stormHour < 0 || h < stormHour)) {
+      stormHour = h;
     }
   }
 
   return {
     rain: rainHour >= 0 ? { hour: rainHour, prob: Math.round(rainProb) } : null,
-    storm,
+    storm: stormHour >= 0,
+    ...(stormHour >= 0 ? { stormHour } : {}),
   };
 }
 
 /** Concise hazard line(s). Empty string when the day is clear. */
 export function formatHazard(h: DayHazard): string {
   const parts: string[] = [];
-  if (h.storm) parts.push('⛈️ Riesgo de tormenta');
+  if (h.storm) {
+    const from = h.stormHour != null ? ` desde ~${h.stormHour}h` : '';
+    const near = h.strikesNearKm != null ? ` · ya hay rayos a ${h.strikesNearKm} km` : '';
+    parts.push(`⛈️ Riesgo de tormenta${from}${near}`);
+  }
   if (h.rain) parts.push(`🌧️ Lluvia ~${h.rain.hour}h (${h.rain.prob}%)`);
   return parts.join('\n');
 }
@@ -253,6 +270,35 @@ async function queryUpperAir850(sectorId: string, now: Date): Promise<UpperAirLe
     log.warn(`Summary: 850 hPa not read for ${sectorId} (${(err as Error).message}), outlook without regime`);
     return [];
   }
+}
+
+/**
+ * Nearest cloud-to-ground strike of the last STRIKE_LOOKBACK_MIN within the sector radius
+ * plus STRIKE_EXTRA_KM. Null with fewer than STRIKE_MIN_COUNT strikes or on error.
+ */
+async function queryStrikesNear(sector: (typeof SECTORS)[number], now: Date): Promise<number | null> {
+  const maxKm = sector.radiusKm + STRIKE_EXTRA_KM;
+  const [lon0, lat0] = sector.center;
+  const dLat = maxKm / 111, dLon = maxKm / 82;
+  try {
+    const res = await getPool().query<{ lat: number; lon: number }>(
+      `SELECT lat, lon FROM lightning_strikes
+        WHERE time > $1 AND cloud_to_cloud = FALSE
+          AND lat BETWEEN $2 AND $3 AND lon BETWEEN $4 AND $5`,
+      [new Date(now.getTime() - STRIKE_LOOKBACK_MIN * 60_000), lat0 - dLat, lat0 + dLat, lon0 - dLon, lon0 + dLon],
+    );
+    return nearestStrikeKm(res.rows, lat0, lon0, maxKm);
+  } catch (err) {
+    log.warn(`Summary: strikes not read for ${sector.id} (${(err as Error).message})`);
+    return null;
+  }
+}
+
+/** Pure part of queryStrikesNear: nearest strike inside maxKm, to 5 km, when there are enough of them. */
+export function nearestStrikeKm(strikes: { lat: number; lon: number }[], lat0: number, lon0: number, maxKm: number): number | null {
+  const km = strikes.map((s) => haversineDistance(lat0, lon0, s.lat, s.lon)).filter((d) => d <= maxKm);
+  if (km.length < STRIKE_MIN_COUNT) return null;
+  return Math.max(5, Math.round(Math.min(...km) / 5) * 5);
 }
 
 async function querySectorSummary(
@@ -286,6 +332,10 @@ async function querySectorSummary(
     // "Brisa/Viento SW (tardes)"); with the front aloft there is no breeze to name them for.
     const favoredSpots = outlook && outlook.pattern !== 'de frente' ? spotsFavoredByDir(sectorId, outlook.dirDeg) : [];
     const hazard = summarizeDayHazard(hourly, now);
+    if (hazard.storm) {
+      const near = await queryStrikesNear(sector, now);
+      if (near != null) hazard.strikesNearKm = near;
+    }
 
     // Marine obs ONLY for coastal sectors. Embalse is an inland reservoir with
     // no buoys — never attach waves/water temp (was a bug). All buoys are Rías.
@@ -336,17 +386,22 @@ export const BUOY_CREDIT = '_Boyas: Puertos del Estado (portus.puertos.es) y Obs
 /** Per-sector block. Exported pure for testing. */
 export function buildSectorBlock(s: SectorSummary): string {
   let block = `*${s.name}*\n`;
-  block += formatOutlook(s.outlook) + '\n';
+  const storm = s.hazard.storm;
+  // A storm-risk day leads with the hazard, and the wind no longer comes as a breeze to plan
+  // around: the cloud and the outflows of a storm kill the thermal or turn it (6-oct).
+  if (storm) block += formatHazard({ ...s.hazard, rain: null }) + '\n';
+  const outlook = storm && s.outlook?.pattern === 'térmico' ? { ...s.outlook, pattern: '' as const } : s.outlook;
+  block += formatOutlook(outlook) + (storm && outlook && !outlook.strong ? ' · si no hay tormenta' : '') + '\n';
 
-  // Spots the outlook direction favours (cap 4 to stay concise).
-  if (s.outlook && s.favoredSpots.length > 0) {
+  // Spots the outlook direction favours (cap 4 to stay concise). Not on a storm-risk day.
+  if (!storm && s.outlook && s.favoredSpots.length > 0) {
     const shown = s.favoredSpots.slice(0, 4).join(' · ');
     const extra = s.favoredSpots.length > 4 ? ' …' : '';
     block += `🏄 ${shown}${extra}\n`;
   }
 
-  // Day hazard (rain / storm risk) — O2 safety.
-  const hazardLine = formatHazard(s.hazard);
+  // Day hazard (rain; the storm line went first) — O2 safety.
+  const hazardLine = formatHazard(storm ? { ...s.hazard, storm: false } : s.hazard);
   if (hazardLine) block += hazardLine + '\n';
 
   if (s.coastal) {

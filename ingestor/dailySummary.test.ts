@@ -7,7 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { log } from './logger';
 import { checkAndSendDailySummary, seedDailySummary,
   summarizeDayOutlook, spotsFavoredByDir, formatOutlook,
-  summarizeDayHazard, formatHazard,
+  summarizeDayHazard, formatHazard, nearestStrikeKm,
   buildSectorBlock, buildMessage, withSynopticRegime,
 } from './dailySummary';
 import type { HourlyForecast } from '../src/types/forecast';
@@ -127,6 +127,34 @@ describe('summarizeDayHazard', () => {
     const capped = summarizeDayHazard([fcHour(17, ms(8), 225, { cape: 1500, liftedIndex: -4, cin: 400 })], NOW);
     expect(capped.storm).toBe(false); // CIN caps it
   });
+
+  it('6-oct: 2.400 strikes under CAPE 590 / LI -2.4 -> risk, from its first hour', () => {
+    const h = summarizeDayHazard([
+      fcHour(13, ms(6), 225, { cape: 340, liftedIndex: -2.2, cin: 5 }),
+      fcHour(15, ms(6), 225, { cape: 590, liftedIndex: -2.4, cin: 0 }),
+      fcHour(11, ms(6), 225, { cape: 240, liftedIndex: -2, cin: 17 }), // under CAPE 300
+    ], NOW);
+    expect(h.storm).toBe(true);
+    expect(h.stormHour).toBe(13);
+  });
+
+  it('CAPE under 300 or LI above -2 stays quiet', () => {
+    expect(summarizeDayHazard([fcHour(15, ms(6), 225, { cape: 280, liftedIndex: -3, cin: 0 })], NOW).storm).toBe(false);
+    expect(summarizeDayHazard([fcHour(15, ms(6), 225, { cape: 800, liftedIndex: -1.5, cin: 0 })], NOW).storm).toBe(false);
+  });
+});
+
+describe('nearestStrikeKm', () => {
+  const at = (km: number) => ({ lat: 42.29 + km / 111.2, lon: -8.1 }); // due north of Castrelo
+  it('nearest of three or more, to 5 km', () => {
+    expect(nearestStrikeKm([at(47), at(60), at(80)], 42.29, -8.1, 95)).toBe(45);
+  });
+  it('null with fewer than three inside the reach', () => {
+    expect(nearestStrikeKm([at(47), at(60), at(120)], 42.29, -8.1, 95)).toBeNull();
+  });
+  it('never says 0 km', () => {
+    expect(nearestStrikeKm([at(1), at(2), at(3)], 42.29, -8.1, 95)).toBe(5);
+  });
 });
 
 describe('formatHazard', () => {
@@ -137,6 +165,10 @@ describe('formatHazard', () => {
     const s = formatHazard({ rain: { hour: 16, prob: 70 }, storm: true });
     expect(s).toMatch(/⛈️ Riesgo de tormenta/);
     expect(s).toMatch(/🌧️ Lluvia ~16h \(70%\)/);
+  });
+  it('storm line with its hour and the strikes already down', () => {
+    expect(formatHazard({ rain: null, storm: true, stormHour: 13, strikesNearKm: 45 }))
+      .toBe('⛈️ Riesgo de tormenta desde ~13h · ya hay rayos a 45 km');
   });
 });
 
@@ -172,6 +204,30 @@ describe('buildSectorBlock', () => {
     expect(block).toMatch(/Navegable 14-18h/);
     expect(block).not.toMatch(/Olas/);
     expect(block).not.toMatch(/Agua/);
+  });
+
+  it('storm-risk day: hazard first, no thermal promised, no spots to go to (6-oct)', () => {
+    const block = buildSectorBlock(sector({
+      outlook: { startHour: 14, endHour: 19, peakKt: 14, dirDeg: 225, dir: 'SW', pattern: 'térmico', strong: false },
+      favoredSpots: ['Cesantes', 'Lourido'],
+      hazard: { rain: { hour: 16, prob: 70 }, storm: true, stormHour: 13 },
+    }));
+    const lines = block.trim().split(/\r?\n/);
+    expect(lines[1]).toBe('⛈️ Riesgo de tormenta desde ~13h');
+    expect(lines[2]).toBe('Navegable 14-19h · hasta 14kt SW · si no hay tormenta');
+    expect(block).not.toMatch(/térmico/);
+    expect(block).not.toMatch(/🏄/);
+    expect(block).toMatch(/🌧️ Lluvia ~16h/);
+    expect(block.match(/Riesgo de tormenta/g)).toHaveLength(1);
+  });
+
+  it('storm-risk day with strong wind keeps the warning as it is', () => {
+    const block = buildSectorBlock(sector({
+      outlook: { startHour: 12, endHour: 18, peakKt: 28, dirDeg: 225, dir: 'SW', pattern: 'de frente', strong: true },
+      hazard: { rain: null, storm: true },
+    }));
+    expect(block).toMatch(/⚠️ Viento fuerte 12-18h · hasta 28kt SW \(de frente\)\r?\n/);
+    expect(block).not.toMatch(/si no hay tormenta/);
   });
 
   it('light day → no favoured-spots line', () => {
