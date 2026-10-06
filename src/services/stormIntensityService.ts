@@ -161,8 +161,12 @@ export function classifyHailRisk(c: ConvectionState | null): HailRisk {
 
 function classifyType(rainRate: number | null, strikeRate: number): StormType {
   if (rainRate === null && strikeRate === 0) return 'sin datos';
+  // No gauge within reach is not «no rain»: over the sea, Portugal or outside the loaded sector
+  // the cluster was labelled «Eléctrica seca» on top of red radar echo (6-oct). Without a gauge
+  // there is nothing to say about its rain.
+  if (rainRate === null) return 'mixta';
 
-  const r = rainRate ?? 0;
+  const r = rainRate;
 
   // Dry electrical: many strikes, very little rain
   if (strikeRate >= 10 && r < 1) return 'eléctrica seca';

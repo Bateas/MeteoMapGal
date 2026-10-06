@@ -117,7 +117,9 @@ function isClusterActive(c: StormCluster): boolean {
  * gate), drawing a trail line with no flecha + no ghost is incoherent.
  */
 function isClusterMoving(c: StormCluster): boolean {
-  return c.velocity != null;
+  // A 'low' vector is the centroid jumping as cells are born beside each other (6-oct: arrows of
+  // 30-68 km/h under a 6-8 km/h steering wind). The tracker keeps it for severity only.
+  return c.velocity != null && c.velocity.confidence !== 'low';
 }
 
 /**
@@ -294,8 +296,8 @@ function clusterInfoPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point>
     lines.push(`${cluster.strikeCount} rayos`);
   }
 
-  // Line: speed + direction (if velocity known)
-  if (cluster.velocity) {
+  // Line: speed + direction (only a vector the tracker trusts)
+  if (cluster.velocity && isClusterMoving(cluster)) {
     const dir = bearingToCardinal(cluster.velocity.bearingDeg);
     lines.push(`→ ${cluster.velocity.speedKmh.toFixed(0)} km/h ${dir}`);
   }
@@ -314,10 +316,10 @@ function clusterInfoPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point>
     properties: {
       label: lines.join('\n'),
       approaching: cluster.approaching ? 1 : 0,
-      hasVelocity: cluster.velocity ? 1 : 0,
+      hasVelocity: isClusterMoving(cluster) ? 1 : 0,
       etaMinutes: cluster.etaMinutes ?? -1,
       distance: cluster.distanceToReservoir,
-      speedKmh: cluster.velocity?.speedKmh ?? 0,
+      speedKmh: isClusterMoving(cluster) ? cluster.velocity?.speedKmh ?? 0 : 0,
     },
   };
 }

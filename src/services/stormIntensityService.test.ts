@@ -148,6 +148,13 @@ describe('classifyStormIntensity — type detection', () => {
     expect(r.label).toContain('Eléctrica seca');
   });
 
+  it('no gauge in reach: many strikes are never called dry', () => {
+    const cluster = makeCluster({ strikeCount: 25, avgAgeMin: 10 });
+    const r = classifyStormIntensity(cluster, [], noConvection);
+    expect(r.type).toBe('mixta');
+    expect(r.label).not.toContain('seca');
+  });
+
   it('lluvia intensa: rain >15mm/h triggers regardless of strikes', () => {
     const cluster = makeCluster({ strikeCount: 5 });
     // 10mm × 2 = 20mm/h

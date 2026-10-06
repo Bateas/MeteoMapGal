@@ -337,14 +337,14 @@ describe('stormPredictor golden master (v2.90.0 — shadow/gusts measured at zer
     expect(golden(predictStorm([makeForecast({ cape: 1000 })], alert({ level: 'danger', trend: 'approaching', nearestKm: 8, recentCount: 40 }), null))).toMatchInlineSnapshot(`
       {
         "horizon": "imminent",
-        "probability": 70,
+        "probability": 55,
         "severity": "severe",
         "signals": [
           "CAPE=0.2",
           "Lluvia prevista=0",
           "Nubosidad=0",
           "Rayos detectados=0.35",
-          "Tormenta acercandose=0.15",
+          "Tormenta acercandose=0",
           "Sombra de tormenta=0",
           "Rachas previstas=0",
           "Aviso MG oficial=0",
@@ -479,7 +479,7 @@ describe('stormPredictor golden master (v2.90.0 — shadow/gusts measured at zer
           "Lluvia prevista=0.25",
           "Nubosidad=0.08",
           "Rayos detectados=0.35",
-          "Tormenta acercandose=0.15",
+          "Tormenta acercandose=0",
           "Sombra de tormenta=0",
           "Rachas previstas=0",
           "Aviso MG oficial=0.3",

@@ -74,6 +74,11 @@ const CAPE_SEVERE = 1500;    // J/kg — severe storms
 const PRECIP_THRESHOLD = 2;  // mm/h — significant rain
 const CLOUD_THRESHOLD = 80;  // % — heavy overcast
 
+/** The lightning trend as the user reads it (the enum used to be printed raw: «(approaching)»). */
+const TREND_LABEL: Record<StormAlert['trend'], string> = {
+  approaching: 'acercándose', receding: 'alejándose', stationary: 'estable', none: '',
+};
+
 // ── Core Predictor ───────────────────────────────────────
 
 export function predictStorm(
@@ -151,7 +156,7 @@ export function predictStorm(
     name: 'Rayos detectados',
     active: stormAlert.level !== 'none',
     value: stormAlert.level !== 'none'
-      ? `${stormAlert.recentCount} rayos a ${stormAlert.nearestKm.toFixed(0)}km (${stormAlert.trend})`
+      ? `${stormAlert.recentCount} rayos a ${stormAlert.nearestKm.toFixed(0)} km${TREND_LABEL[stormAlert.trend] ? ` (${TREND_LABEL[stormAlert.trend]})` : ''}`
       : 'Ninguno',
     weight: stormAlert.level === 'danger' ? 0.35
       : stormAlert.level === 'warning' ? 0.3
@@ -162,11 +167,15 @@ export function predictStorm(
   probability += lightningSignal.weight * 100;
 
   // ── 5. Storm approaching (velocity vector) ──
+  // Only a tracked arrival counts (stormTracker gives one only from a steady vector and within
+  // 90 min). The bare 'approaching' trend also flips when the nearest of hundreds of strikes moves
+  // 2 km between polls, and added +15 for storms beyond the 80 km watch ring (6-oct).
+  const hasArrival = stormAlert.trend === 'approaching' && stormAlert.etaMinutes != null;
   const approachSignal: StormSignal = {
     name: 'Tormenta acercandose',
-    active: stormAlert.trend === 'approaching' && stormAlert.etaMinutes != null,
-    value: stormAlert.etaMinutes != null ? `ETA ${stormAlert.etaMinutes}min a ${stormAlert.speedKmh?.toFixed(0) ?? '?'}km/h` : 'No',
-    weight: stormAlert.trend === 'approaching' ? 0.15 : 0,
+    active: hasArrival,
+    value: hasArrival ? `ETA ${stormAlert.etaMinutes} min a ${stormAlert.speedKmh?.toFixed(0) ?? '?'} km/h` : 'No',
+    weight: hasArrival ? 0.15 : 0,
   };
   signals.push(approachSignal);
   probability += approachSignal.weight * 100;
@@ -254,10 +263,13 @@ export function predictStorm(
   probability = Math.min(100, Math.round(probability));
 
   // ── Determine horizon ──
+  // From the arrival time, not from the trend: on 6-oct «Probable (30-60 min)» sat next to
+  // «ETA 501 min» because any approaching cluster, however far, set the trend.
   let horizon: StormPrediction['horizon'] = 'none';
-  if (stormAlert.level === 'danger' || (stormAlert.level === 'warning' && stormAlert.trend === 'approaching')) {
+  const eta = hasArrival ? stormAlert.etaMinutes! : null;
+  if (stormAlert.level === 'danger' || (stormAlert.level === 'warning' && eta !== null && eta <= 30)) {
     horizon = 'imminent';
-  } else if (stormAlert.level === 'warning' || (stormAlert.level === 'watch' && stormAlert.trend === 'approaching')) {
+  } else if (stormAlert.level === 'warning' || (eta !== null && eta <= 60)) {
     horizon = 'likely';
   } else if (probability >= 40) {
     horizon = 'possible';

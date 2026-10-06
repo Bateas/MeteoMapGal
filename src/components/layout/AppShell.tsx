@@ -332,9 +332,13 @@ export function AppShell() {
   // ── Storm prediction logging (for future ML calibration) ──
   const stormPrediction = useStormPrediction();
   const stormAlertLevel = useLightningStore((s) => s.stormAlert.level);
+  // Not before the first lightning fetch: a visitor who had just opened the map logged «10 %, none»
+  // in the middle of the 6-oct storms, and those rows are what the predictor is scored against.
+  const lightningLoaded = useLightningStore((s) => s.lastFetch !== null);
   useEffect(() => {
+    if (!lightningLoaded) return;
     logPredictionSnapshot(stormPrediction, stormAlertLevel !== 'none', activeSectorId);
-  }, [stormPrediction, stormAlertLevel, activeSectorId]);
+  }, [stormPrediction, stormAlertLevel, activeSectorId, lightningLoaded]);
 
   return (
     <div className="h-screen-safe w-full flex flex-col bg-slate-950 text-white overflow-hidden">

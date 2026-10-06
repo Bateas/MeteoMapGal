@@ -47,6 +47,14 @@ const MAX_VELOCITY_AGE_MS = 15 * 60 * 1000; // 15 min
 /** Min age of a snapshot before it can be used for velocity (prevents jitter) */
 const MIN_VELOCITY_AGE_MS = 60_000; // 60 seconds
 
+/**
+ * Furthest arrival the tracker announces. Replayed on 6-oct (cells born and growing beside each
+ * other, steering wind 6-8 km/h): the ETA jumped 156 -> 54 -> 78 -> 52 -> 0 -> 65 min poll to poll,
+ * with the storm already overhead, from vectors of 10-68 km/h. Beyond 90 min a centroid line says
+ * nothing, and the night study of 36 events scored the app's ETA as the noisiest warning.
+ */
+const ETA_MAX_MIN = 90;
+
 // ── ID continuity ───────────────────────────
 // Module-level counter so cluster IDs survive across trackStorms calls.
 // When a cluster matches a previous-snapshot centroid by position we INHERIT
@@ -573,19 +581,22 @@ function computeVelocities(
             };
 
             // Approaching: bearing aligned with reservoir vector AND distance
-            // decreasing across the longest baseline.
+            // decreasing across the longest baseline. A 'low' vector (two points
+            // or a poor fit) is the centroid jumping as cells are born and merge:
+            // it may still feed severity, never an arrival.
             const oldest = matchedPoints[0];
             const bearingToReservoir = computeBearing(cluster.lat, cluster.lon, reservoirLat, reservoirLon);
             let angleDiff = Math.abs(regressed.bearingDeg - bearingToReservoir);
             if (angleDiff > 180) angleDiff = 360 - angleDiff;
             const prevDist = distanceKm(oldest.lat, oldest.lon, reservoirLat, reservoirLon);
             const distDecreasing = cluster.distanceToReservoir < prevDist - 0.5;
-            approaching = distDecreasing && angleDiff < 60;
+            approaching = distDecreasing && angleDiff < 60 && confidence !== 'low';
 
             if (approaching && regressed.speedKmh > 0) {
               const approachSpeed = regressed.speedKmh * Math.cos((angleDiff * Math.PI) / 180);
               const edgeDist = Math.max(0, cluster.distanceToReservoir - cluster.radiusKm);
               etaMinutes = approachSpeed > 1 ? Math.round((edgeDist / approachSpeed) * 60) : null;
+              if (etaMinutes !== null && etaMinutes > ETA_MAX_MIN) etaMinutes = null;
             }
           }
         }

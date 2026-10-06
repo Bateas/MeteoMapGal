@@ -198,7 +198,9 @@ function computeStormAlert(
   let speedKmh: number | null = null;
   let bearingDeg: number | null = null;
 
-  const nearestApproaching = clusters.find((c) => c.approaching && c.etaMinutes !== null);
+  // With a strike already inside DANGER_KM the storm is here: an arrival time for another cluster
+  // («ETA 72 min» with lightning at 1.4 km, 6-oct replay) only contradicts the danger.
+  const nearestApproaching = level === 'danger' ? undefined : clusters.find((c) => c.approaching && c.etaMinutes !== null);
   if (nearestApproaching) {
     etaMinutes = nearestApproaching.etaMinutes;
     speedKmh = nearestApproaching.velocity?.speedKmh ?? null;

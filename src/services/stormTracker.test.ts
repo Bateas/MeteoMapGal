@@ -196,12 +196,12 @@ describe('trackStorms — velocity computation', () => {
 describe('trackStorms — approaching detection', () => {
   it('flags approaching when storm moves toward reservoir + distance decreases', () => {
     const now = Date.now();
-    // Old position: 42.66 (~40km north of reservoir 42.30)
-    // New position: 42.62 — moved 4.4km south in 5min = 53 km/h (within cap)
-    const history: ClusterSnapshot[] = [{
-      timestamp: now - 5 * 60_000,
-      centroids: [{ id: 'storm-1', lat: 42.66, lon: -8.10, strikeCount: 4 }],
-    }];
+    // A steady track (three earlier polls on a line, R² ~1 -> 'medium'): 42.68 -> 42.62 in 9 min,
+    // ~45 km/h south, 35-38 km out -> arrival within the 90-min horizon.
+    const history: ClusterSnapshot[] = [9, 6, 3].map((m, k) => ({
+      timestamp: now - m * 60_000,
+      centroids: [{ id: 'storm-1', lat: 42.68 - k * 0.015, lon: -8.10, strikeCount: 4 }],
+    }));
     const strikes = [
       makeStrike({ lat: 42.62, lon: -8.10, ageMinutes: 1 }),
       makeStrike({ lat: 42.63, lon: -8.10, ageMinutes: 1 }),
@@ -212,6 +212,42 @@ describe('trackStorms — approaching detection', () => {
     expect(r.clusters[0].approaching).toBe(true);
     expect(r.clusters[0].etaMinutes).not.toBeNull();
     expect(r.clusters[0].etaMinutes!).toBeGreaterThan(0);
+  });
+
+  it('a two-point (low confidence) vector never announces an arrival', () => {
+    const now = Date.now();
+    const history: ClusterSnapshot[] = [{
+      timestamp: now - 5 * 60_000,
+      centroids: [{ id: 'storm-1', lat: 42.66, lon: -8.10, strikeCount: 4 }],
+    }];
+    const strikes = [
+      makeStrike({ lat: 42.62, lon: -8.10, ageMinutes: 1 }),
+      makeStrike({ lat: 42.63, lon: -8.10, ageMinutes: 1 }),
+      makeStrike({ lat: 42.62, lon: -8.11, ageMinutes: 1 }),
+      makeStrike({ lat: 42.63, lon: -8.09, ageMinutes: 1 }),
+    ];
+    const c = trackStorms(strikes, history, RES_LAT, RES_LON).clusters[0];
+    expect(c.velocity?.confidence).toBe('low');
+    expect(c.approaching).toBe(false);
+    expect(c.etaMinutes).toBeNull();
+  });
+
+  it('an arrival beyond 90 min is not announced', () => {
+    const now = Date.now();
+    // Same steady line but slow (~6 km/h) and ~35 km out: ~5 h away.
+    const history: ClusterSnapshot[] = [9, 6, 3].map((m, k) => ({
+      timestamp: now - m * 60_000,
+      centroids: [{ id: 'storm-1', lat: 42.626 - k * 0.0025, lon: -8.10, strikeCount: 4 }],
+    }));
+    const strikes = [
+      makeStrike({ lat: 42.618, lon: -8.10, ageMinutes: 1 }),
+      makeStrike({ lat: 42.619, lon: -8.10, ageMinutes: 1 }),
+      makeStrike({ lat: 42.618, lon: -8.101, ageMinutes: 1 }),
+      makeStrike({ lat: 42.619, lon: -8.099, ageMinutes: 1 }),
+    ];
+    const c = trackStorms(strikes, history, RES_LAT, RES_LON).clusters[0];
+    expect(c.velocity).not.toBeNull();
+    expect(c.etaMinutes).toBeNull();
   });
 
   it('does NOT flag approaching when moving tangentially (perpendicular to reservoir)', () => {
