@@ -32,7 +32,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="wind"
             title="Barra inferior — capas de datos"
-            text="Botones en la parte inferior del mapa para activar/desactivar capas: Viento (partículas), Humedad, Radar precipitación. Solo una activa a la vez. Tecla W para ciclar."
+            text="Botones en la parte inferior del mapa para activar/desactivar capas: Viento (partículas) y Radar de precipitación. Solo una activa a la vez. Tecla W para ciclar."
           />
           <MiniExplainer
             iconId="map"

@@ -3,7 +3,7 @@ import { devtools, persist } from 'zustand/middleware';
 
 // ── Types ──────────────────────────────────────────────────
 
-export type WeatherLayerType = 'none' | 'wind-particles' | 'humidity' | 'radar';
+export type WeatherLayerType = 'none' | 'wind-particles' | 'radar';
 
 // ── State ──────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ interface WeatherLayerState {
   setLayerOpacity: (opacity: number) => void;
 }
 
-const LAYER_CYCLE: WeatherLayerType[] = ['none', 'wind-particles', 'humidity', 'radar'];
+const LAYER_CYCLE: WeatherLayerType[] = ['none', 'wind-particles', 'radar'];
 
 export const useWeatherLayerStore = create<WeatherLayerState>()(
   devtools(
@@ -41,6 +41,13 @@ export const useWeatherLayerStore = create<WeatherLayerState>()(
       }),
       {
         name: 'meteomap-layer-prefs',
+        // v1: the humidity layer was removed. A saved 'humidity' falls back to no layer.
+        version: 1,
+        migrate: (persisted) => {
+          const s = (persisted ?? {}) as { activeLayer?: string; layerOpacity?: number };
+          if (s.activeLayer === 'humidity') s.activeLayer = 'none';
+          return s as { activeLayer: WeatherLayerType; layerOpacity: number };
+        },
         partialize: (state) => ({
           activeLayer: state.activeLayer,
           layerOpacity: state.layerOpacity,

@@ -22,7 +22,7 @@
  * Coverage: regional (Galicia-wide). Renders in BOTH sectors when active —
  * pollution events affect both Embalse interior and Rías coast simultaneously.
  *
- * Pattern based on HumidityHeatmapOverlay: per-row unproject + small
+ * Pattern: per-row unproject + small
  * ImageData scaled up for smooth gradient at 12px grid cells.
  *
  * Performance: the canvas is repainted only when the data, the size or the

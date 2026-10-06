@@ -21,14 +21,6 @@ export interface StationWindData {
   freshness?: number;
 }
 
-export interface StationScalarData {
-  lat: number;
-  lon: number;
-  value: number;
-  /** Freshness multiplier 0.0-1.0 (recent=1.0, older=decayed). Default 1.0 */
-  freshness?: number;
-}
-
 // ── Fast distance approximation ────────────────────────────
 // Uses equirectangular approximation — accurate enough at local scale (~50km)
 // ~100x faster than full haversine for tight loops
@@ -117,36 +109,6 @@ export function interpolateWind(
   const speed = Math.sqrt(vx * vx + vy * vy);
 
   return { vx, vy, speed };
-}
-
-/**
- * Interpolate a scalar value (e.g., humidity %) at (lat, lon) using IDW.
- */
-export function interpolateScalar(
-  lat: number,
-  lon: number,
-  stations: StationScalarData[],
-  power = 2.5,
-  maxRadiusKm = 25,
-): number {
-  if (stations.length === 0) return 0;
-
-  let weightSum = 0;
-  let valueSum = 0;
-
-  for (const s of stations) {
-    const d = fastDistanceKm(lat, lon, s.lat, s.lon);
-
-    if (d < 0.05) return s.value;
-    if (d > maxRadiusKm) continue;
-
-    const w = (1 / Math.pow(d, power)) * (s.freshness ?? 1.0);
-    valueSum += w * s.value;
-    weightSum += w;
-  }
-
-  if (weightSum === 0) return 0;
-  return valueSum / weightSum;
 }
 
 // ── Pre-computed wind grid ─────────────────────────────────
@@ -300,38 +262,6 @@ export function extractBuoyWindData(buoys: BuoyReading[]): StationWindData[] {
       lon: coords.lon,
       speed: b.windSpeed,
       dirDeg: b.windDir,
-    });
-  }
-  return result;
-}
-
-/** Build StationScalarData[] for humidity IDW interpolation.
- *  Filters out stale readings (>90 min) and applies freshness decay.
- *  90-min window accommodates hourly stations (MeteoGalicia, AEMET, IPMA)
- *  so they do not vanish between reporting cycles. */
-export function extractHumidityData(
-  stations: NormalizedStation[],
-  readings: Map<string, NormalizedReading>,
-): StationScalarData[] {
-  const result: StationScalarData[] = [];
-  const maxAgeMs = 90 * 60_000;
-  const now = Date.now();
-  for (const station of stations) {
-    const reading = readings.get(station.id);
-    if (!reading || reading.humidity === null || !Number.isFinite(reading.humidity)) continue;
-    const readingTime = reading.timestamp instanceof Date
-      ? reading.timestamp.getTime()
-      : typeof reading.timestamp === 'string'
-        ? new Date(reading.timestamp).getTime()
-        : 0;
-    if (readingTime <= 0) continue;
-    const ageMs = now - readingTime;
-    if (ageMs > maxAgeMs) continue; // skip stale
-    result.push({
-      lat: station.lat,
-      lon: station.lon,
-      value: reading.humidity,
-      freshness: freshnessDecay(ageMs / 60_000),
     });
   }
   return result;

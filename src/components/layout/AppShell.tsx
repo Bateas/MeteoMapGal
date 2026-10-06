@@ -283,7 +283,6 @@ export function AppShell() {
     const LAYER_LABELS: Record<string, string> = {
       'none': 'Ninguna',
       'wind-particles': 'Viento',
-      'humidity': 'Humedad',
       'satellite': 'Satélite',
       'radar': 'Radar',
     };

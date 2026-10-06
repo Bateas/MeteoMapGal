@@ -68,7 +68,6 @@ const SwanWaveOverlay = lazy(() => import('./SwanWaveOverlay').then(m => ({ defa
 const StormIndicator = lazy(() => import('./StormIndicator').then(m => ({ default: m.StormIndicator })));
 const AlertPanel = lazy(() => import('./AlertPanel').then(m => ({ default: m.AlertPanel })));
 const WindParticleOverlay = lazy(() => import('./WindParticleOverlay').then(m => ({ default: m.WindParticleOverlay })));
-const HumidityHeatmapOverlay = lazy(() => import('./HumidityHeatmapOverlay').then(m => ({ default: m.HumidityHeatmapOverlay })));
 const IcaOverlay = lazy(() => import('./IcaOverlay').then(m => ({ default: m.IcaOverlay })));
 const RadarOverlay = lazy(() => import('./RadarOverlay').then(m => ({ default: m.RadarOverlay })));
 const RainNowOverlay = lazy(() => import('./RainNowOverlay').then(m => ({ default: m.RainNowOverlay })));
@@ -583,8 +582,6 @@ export function WeatherMap() {
         {/* Temperature gradient circles + lapse-rate lines (below wind arrows) */}
         <TemperatureOverlay />
 
-        {/* Humidity heatmap overlay (native WebGL raster beneath stations and markers) */}
-        <Suspense fallback={null}><HumidityHeatmapOverlay mapRef={mapRef} /></Suspense>
 
         {/* Wind arrows + temp dots + station markers — wrapper subscribes to
             weatherStore itself so the 60s poll only re-commits these layers,
