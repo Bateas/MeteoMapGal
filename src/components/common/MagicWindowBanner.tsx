@@ -11,9 +11,19 @@
  */
 import { memo, useState, useEffect } from 'react';
 import { useMagicWindow } from '../../hooks/useMagicWindow';
+import { useUIStore } from '../../store/uiStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
 
+/**
+ * Alpha mode only until the detector is validated against what the water did (6-oct: it showed
+ * «Ventana favorable 84/100» to everyone while it rained after a storm). Off, it does not even poll.
+ */
 export const MagicWindowBanner = memo(function MagicWindowBanner() {
+  const alphaMode = useUIStore((s) => s.alphaMode);
+  return alphaMode ? <MagicWindowBannerInner /> : null;
+});
+
+function MagicWindowBannerInner() {
   const magic = useMagicWindow();
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
 
@@ -59,4 +69,4 @@ export const MagicWindowBanner = memo(function MagicWindowBanner() {
       </button>
     </div>
   );
-});
+}
