@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   assessSpotLightningRisk,
   formatRiskLine,
+  stormNearPoint,
   LIGHTNING_WINDOW_MIN,
   type ProximitySpot,
   type ProximityStrike,
@@ -168,5 +169,21 @@ describe('formatRiskLine', () => {
       approaching: false, etaMin: null, freshestAgeMin: 1,
     });
     expect(line).toBe('O Vao: rayo a <1km (4 en 20min)');
+  });
+});
+
+describe('stormNearPoint — no «go sailing» with a storm near (6-oct)', () => {
+  it('three strikes within 40 km hold the alert, with the nearest distance', () => {
+    const r = stormNearPoint(CESANTES.lat, CESANTES.lon, [strike(CESANTES, 38, 5), strike(CESANTES, 30, 8), strike(CESANTES, 25, 12)], NOW);
+    expect(r).not.toBeNull();
+    expect(r!.count).toBe(3);
+    expect(r!.nearestKm).toBe(25);
+  });
+
+  it('two strikes, strikes beyond 40 km or older than the window do not', () => {
+    expect(stormNearPoint(CESANTES.lat, CESANTES.lon, [strike(CESANTES, 20, 5), strike(CESANTES, 22, 5)], NOW)).toBeNull();
+    expect(stormNearPoint(CESANTES.lat, CESANTES.lon, [strike(CESANTES, 45, 5), strike(CESANTES, 50, 5), strike(CESANTES, 60, 5)], NOW)).toBeNull();
+    const old = LIGHTNING_WINDOW_MIN + 5;
+    expect(stormNearPoint(CESANTES.lat, CESANTES.lon, [strike(CESANTES, 5, old), strike(CESANTES, 6, old), strike(CESANTES, 7, old)], NOW)).toBeNull();
   });
 });

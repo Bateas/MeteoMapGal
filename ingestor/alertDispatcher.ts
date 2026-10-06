@@ -7,6 +7,7 @@
  */
 
 import { log } from './logger.js';
+import { LIGHTNING_OVERHEAD_KM } from '../src/services/lightningProximityService.js';
 import {
   alertedZoneKey, parseAlertedZoneKey, fireWatchDigestText, ALERT_COOLDOWN_MS, DIGEST_MIN_GAP_MS,
   type AlertedZone, type DigestZone,
@@ -370,7 +371,8 @@ const LIGHTNING_COOLDOWN_MS = 45 * 60_000;
 
 type LightningAlertLevel = 'aviso' | 'peligro';
 const LIGHTNING_RANK: Record<LightningAlertLevel, number> = { aviso: 1, peligro: 2 };
-const lastLightningAlert = new Map<string, { at: number; level: LightningAlertLevel }>();
+const lastLightningAlert = new Map<string, { at: number; level: LightningAlertLevel; nearestKm?: number }>();
+
 
 /**
  * Dispatch a per-spot lightning proximity alert, one message per sector with
@@ -385,17 +387,22 @@ export async function dispatchLightningAlert(
   sector: string,
   level: LightningAlertLevel,
   spotLines: string[],
+  nearestKm?: number,
 ): Promise<void> {
   if (level === 'aviso' && isNightTime()) return;
 
+  // The storm reaching a spot is news even inside the cooldown, once per approach: the previous
+  // PELIGRO was further out (or its distance is unknown, after a restart).
+  const overhead = level === 'peligro' && nearestKm != null && nearestKm <= LIGHTNING_OVERHEAD_KM;
   const prev = lastLightningAlert.get(sector);
+  const reachedSpot = overhead && prev?.level === 'peligro' && !(prev.nearestKm != null && prev.nearestKm <= LIGHTNING_OVERHEAD_KM);
   if (prev && (Date.now() - prev.at) < LIGHTNING_COOLDOWN_MS
-      && LIGHTNING_RANK[level] <= LIGHTNING_RANK[prev.level]) {
+      && LIGHTNING_RANK[level] <= LIGHTNING_RANK[prev.level] && !reachedSpot) {
     return;
   }
 
   const title = level === 'peligro'
-    ? `RAYOS CERCA — ${sector}`
+    ? (overhead ? `RAYOS ENCIMA — ${sector}` : `RAYOS CERCA — ${sector}`)
     : `Actividad electrica — ${sector}`;
   const advice = level === 'peligro'
     ? 'Fuera del agua: refugio cerrado o coche.'
@@ -414,7 +421,7 @@ export async function dispatchLightningAlert(
   }, `lightning:${sector}`);
 
   if (ok) {
-    lastLightningAlert.set(sector, { at: Date.now(), level });
+    lastLightningAlert.set(sector, { at: Date.now(), level, nearestKm });
     log.ok(`Lightning alert: ${sector} ${level.toUpperCase()} — ${spotLines.length} spot(s)`);
   }
 }

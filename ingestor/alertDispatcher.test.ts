@@ -117,6 +117,45 @@ describe('alertDispatcher — sends are stored and cooldowns survive a restart (
   });
 });
 
+describe('alertDispatcher — the storm reaching a spot gets through the PELIGRO cooldown (6-oct)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 6, 10, 27));
+    resetCooldowns();
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    vi.spyOn(log, 'ok').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+  const texts = (f: { mock: { calls: unknown[][] } }) => f.mock.calls.map((c) => (JSON.parse(String((c[1] as RequestInit).body)) as { text: string }).text);
+
+  it('Castrelo: PELIGRO at 10 km, then a strike within 1 km 29 min later is sent as RAYOS ENCIMA, once', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    await dispatchLightningAlert('Embalse', 'peligro', ['Castrelo: rayo a 10km (10 en 20min)'], 10);
+    vi.setSystemTime(new Date(2026, 9, 6, 10, 40));
+    await dispatchLightningAlert('Embalse', 'peligro', ['Castrelo: rayo a 6km (30 en 20min)'], 6);
+    expect(fetch).toHaveBeenCalledTimes(1);                     // still inside the cooldown, not on the spot
+    vi.setSystemTime(new Date(2026, 9, 6, 10, 56));
+    await dispatchLightningAlert('Embalse', 'peligro', ['Castrelo: rayo a <1km (80 en 20min)'], 0.9);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(texts(fetch)[1]).toContain('RAYOS ENCIMA');
+    vi.setSystemTime(new Date(2026, 9, 6, 11, 1));
+    await dispatchLightningAlert('Embalse', 'peligro', ['Castrelo: rayo a <1km (118 en 20min)'], 0.5);
+    expect(fetch).toHaveBeenCalledTimes(2);                     // already said it is overhead
+  });
+
+  it('after a restart (stored PELIGRO without distance) the storm overhead is still announced', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    seedCooldowns([{ key: 'lightning:Embalse', atMs: Date.now() - 10 * 60_000, level: 'peligro' }]);
+    await dispatchLightningAlert('Embalse', 'peligro', ['Castrelo: rayo a 7km'], 7);
+    expect(fetch).not.toHaveBeenCalled();
+    await dispatchLightningAlert('Embalse', 'peligro', ['Castrelo: rayo a 2km'], 2);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('alertDispatcher — fire watch: one message per storm, not one per zone (30-sep)', () => {
   const zones = [
     { lat: 42.34, lon: -7.86, strikeCount: 3, maxAbsKa: 12, near: 'Ribadavia' },

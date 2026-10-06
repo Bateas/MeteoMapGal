@@ -23,6 +23,7 @@ import { dispatchLightningPush, logPushStartup } from './pushDispatcher.js';
 import {
   assessSpotLightningRisk,
   formatRiskLine,
+  stormNearPoint,
   LIGHTNING_WINDOW_MIN,
   type ProximityStrike,
   type SpotLightningRisk,
@@ -385,6 +386,10 @@ export async function runAnalysis(): Promise<void> {
     lastAlertModeLine = modeLine;
   }
 
+  // Strikes of the last LIGHTNING_WINDOW_MIN, once per cycle: they hold back «go sailing» alerts
+  // with a storm near, and feed the lightning safety check below.
+  const strikesNow = await getRecentStrikes();
+
   // 2. Score each spot, detect transitions, and persist to DB
   const scoreRows: SpotResult[] = [];
   const pipelineRows: SpotResult[] = [];
@@ -421,7 +426,10 @@ export async function runAnalysis(): Promise<void> {
     const step = stepOpportunityRise(riseStates.get(spot.id), result.verdict, ok);
     riseStates.set(spot.id, step.state);
     const rises = step.confirmed;
-    if (rises && !opportunityAlertAllowed(spot.sector, upperWind)) {
+    const storm = rises ? stormNearPoint(spot.lat, spot.lon, strikesNow) : null;
+    if (storm) {
+      log.info(`[Analyzer] ${spot.name} ${VERDICT_LABEL[result.verdict]} ${Math.round(result.avgWindKt)}kt: aviso no enviado, tormenta cerca (${storm.count} rayos, el mas cercano a ${storm.nearestKm} km)`);
+    } else if (rises && !opportunityAlertAllowed(spot.sector, upperWind)) {
       log.info(`[Analyzer] ${spot.name} ${VERDICT_LABEL[result.verdict]} ${Math.round(result.avgWindKt)}kt: aviso no enviado, hay frente (veto 850 hPa)`);
     } else if (rises) {
       const dir = result.avgDir != null ? degreesToCardinal(result.avgDir) : '';
@@ -506,7 +514,7 @@ export async function runAnalysis(): Promise<void> {
   // (certified source), not a model; the per-spot distance is the signal the
   // sector-wide storm probability structurally cannot give.
   try {
-    await checkLightningProximity();
+    await checkLightningProximity(strikesNow);
   } catch (err) {
     log.warn(`Lightning proximity check failed: ${(err as Error).message}`);
   }
@@ -618,8 +626,7 @@ async function getRecentStrikes(): Promise<ProximityStrike[]> {
  * the affected spots — a storm over the ría would otherwise fire the same
  * information five times, once per spot.
  */
-async function checkLightningProximity(): Promise<void> {
-  const strikes = await getRecentStrikes();
+async function checkLightningProximity(strikes: ProximityStrike[]): Promise<void> {
   if (strikes.length === 0) return; // quiet weather — no heartbeat needed
 
   const risks = assessSpotLightningRisk(SAFETY_SPOTS, strikes);
@@ -651,6 +658,7 @@ async function checkLightningProximity(): Promise<void> {
     const lines = list.slice(0, 4).map(formatRiskLine);
     await dispatchLightningAlert(
       sector === 'embalse' ? 'Embalse' : 'Rias Baixas', worst, lines,
+      Math.min(...list.map((r) => r.nearestKm)),
     );
   }
 }

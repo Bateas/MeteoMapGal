@@ -63,6 +63,14 @@ export const LIGHTNING_WARN_KM = 25;
 const TREND_KM = 60;
 /** meteo2api publishes with 3-5min lag; 20min covers the live storm state */
 export const LIGHTNING_WINDOW_MIN = 20;
+/** A strike this close to a spot means the storm is ON it, not coming: worth a new message even
+ *  inside the PELIGRO cooldown (6-oct, Castrelo: PELIGRO at 10 km at 10:27, a strike within 1 km
+ *  at 10:56, and the next message only at 11:17 when the 45-min cooldown ran out). */
+export const LIGHTNING_OVERHEAD_KM = 3;
+/** «Go sailing» is not sent with a storm this close: on 6-oct «Cies NAVEGABLE» went out the same
+ *  minute as the first PELIGRO of the day, with storms 25-40 km off moving 10-30 km/h. */
+export const OPPORTUNITY_STORM_KM = 40;
+const OPPORTUNITY_STORM_MIN_STRIKES = 3;
 const HALF_WINDOW_MIN = 10;
 /** Mean distance must shrink at least this much between half-windows */
 const APPROACH_MIN_DELTA_KM = 2;
@@ -161,6 +169,27 @@ export function assessSpotLightningRisk(
 }
 
 /** One human line per spot for alerts/UI: "Cesantes: rayo a 6km (5 en 20min, acercandose ~15min)" */
+/** Strikes in the window within OPPORTUNITY_STORM_KM of a point: a storm close enough that an
+ *  opportunity alert («sal a navegar») must not go out. Null when there is none. */
+export function stormNearPoint(
+  lat: number,
+  lon: number,
+  strikes: ProximityStrike[],
+  now: Date = new Date(),
+): { count: number; nearestKm: number } | null {
+  let count = 0;
+  let nearest = Infinity;
+  for (const s of strikes) {
+    const age = (now.getTime() - s.time.getTime()) / 60_000;
+    if (age > LIGHTNING_WINDOW_MIN) continue;
+    const d = haversineDistance(lat, lon, s.lat, s.lon);
+    if (d > OPPORTUNITY_STORM_KM) continue;
+    count++;
+    if (d < nearest) nearest = d;
+  }
+  return count >= OPPORTUNITY_STORM_MIN_STRIKES ? { count, nearestKm: Math.round(nearest) } : null;
+}
+
 export function formatRiskLine(r: SpotLightningRisk): string {
   const kmTxt = r.nearestKm < 1 ? '<1km' : `${Math.round(r.nearestKm)}km`;
   let extra = `${r.count25} en ${LIGHTNING_WINDOW_MIN}min`;
