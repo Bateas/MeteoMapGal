@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   parseMetarVisibilityKm,
   metarToVisibilityReadings,
+  metarPrecipWithoutFog,
   fetchMetarVisibility,
   type MetarEntry,
 } from './metarClient';
@@ -49,6 +50,26 @@ describe('parseMetarVisibilityKm', () => {
     // 99 SM = ~159km — beyond the sanity ceiling shared with the AEMET writer
     expect(parseMetarVisibilityKm('99')).toBeNull();
     expect(parseMetarVisibilityKm(undefined)).toBeNull();
+  });
+});
+
+describe('metarPrecipWithoutFog — low visibility in rain is not fog (6-oct)', () => {
+  it('heavy thunderstorm rain at Santiago (0.8 km) is precipitation, not fog', () => {
+    expect(metarPrecipWithoutFog('METAR LEST 060916Z 22006KT 0800 +TSRA SCT010 SCT030 BKN045CB 16/14 Q1012')).toBe(true);
+    expect(metarPrecipWithoutFog('METAR LEVX 061000Z 22007KT 6000 -SHRA FEW012 16/14 Q1013')).toBe(true);
+  });
+  it('fog or mist with the rain, vicinity, recent or trend weather keep it a fog candidate', () => {
+    expect(metarPrecipWithoutFog('METAR LEVX 060600Z 00000KT 0300 -DZ FG VV001 14/14 Q1015')).toBe(false);
+    expect(metarPrecipWithoutFog('METAR LEVX 060600Z 00000KT 0800 -RA BR OVC002 14/14 Q1015')).toBe(false);
+    expect(metarPrecipWithoutFog('METAR LEVX 060800Z 22002KT 9999 VCTS SCT050 17/14 Q1013')).toBe(false);
+    expect(metarPrecipWithoutFog('METAR LEVX 060600Z 00000KT 0200 FG VV001 14/14 Q1015 RETSRA')).toBe(false);
+    expect(metarPrecipWithoutFog('METAR LEVX 060600Z 00000KT 0200 FG VV001 14/14 Q1015 TEMPO 3000 SHRA')).toBe(false);
+    expect(metarPrecipWithoutFog(undefined)).toBe(false);
+  });
+  it('the reading carries the flag only when it applies', () => {
+    const rain = metarToVisibilityReadings([{ ...LEVX_FIXTURE, visib: '0.5', rawOb: 'METAR LEVX 061100Z 22012KT 0800 +TSRA BKN010CB 16/15 Q1011' }]);
+    expect(rain[0].precipitating).toBe(true);
+    expect(metarToVisibilityReadings([LEVX_FIXTURE])[0]).not.toHaveProperty('precipitating');
   });
 });
 

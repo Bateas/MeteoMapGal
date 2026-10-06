@@ -39,6 +39,9 @@ export interface VisibilityReading {
   lon: number;
   visibility: number; // km — ICAO: <1 = fog, <5 = mist/haze
   timestamp: Date;
+  /** Set (METAR only) when the report's present weather is precipitation without fog: the low
+   *  visibility is the rain, not fog (6-oct, Santiago 0.8 km in +TSRA). */
+  precipitating?: true;
 }
 
 interface WeatherState {

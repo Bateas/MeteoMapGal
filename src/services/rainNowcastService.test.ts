@@ -107,6 +107,16 @@ describe('assessRainNowcast — observed (station)', () => {
     expect(r.intensityLabel).toMatch(/fuerte/);
   });
 
+  it('quotes the NEAREST wet gauge, not the wettest one in another ría (6-oct, Cesantes)', () => {
+    // centre of the default opts sits on b; a is ~1.4 km away, c (Marín-like) ~20 km
+    const stations = [station('a', 42.31, -8.61), station('b', 42.30, -8.62), station('c', 42.39, -8.71)];
+    const readings = new Map([['a', reading('a', 0.4)], ['b', reading('b', 0.6)], ['c', reading('c', 2.5)]]);
+    const r = assessRainNowcast(opts({ stations, readings, radiusKm: 25 }));
+    expect(r.rainingNow).toBe(true);
+    expect(r.stationName).toBe('b');
+    expect(r.intensityMm).toBeCloseTo(0.6, 1);
+  });
+
   it('ignores stations beyond the radius', () => {
     const stations = [station('far', 42.6, -9.1)]; // ~50km
     const readings = new Map([['far', reading('far', 10)]]);

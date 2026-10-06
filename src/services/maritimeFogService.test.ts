@@ -213,6 +213,16 @@ describe('buildMaritimeFogAlerts — firing gate (varias variables, no a la lige
   });
 });
 
+describe('buildMaritimeFogAlerts — rain at the airport is not fog (6-oct)', () => {
+  it('a sub-kilometre METAR the report puts down to rain does not fire', () => {
+    const regionalVis = new Map([
+      ['metar_LEVX', { stationId: 'metar_LEVX', name: 'Vigo/Peinador (METAR)', lat: 42.239, lon: -8.624, visibility: 0.8, timestamp: new Date(), precipitating: true as const }],
+    ]);
+    const alerts = buildMaritimeFogAlerts([], new Map(), [], false, 0, [], undefined, regionalVis, 0);
+    expect(alerts.find((a) => a.category === 'fog')).toBeUndefined();
+  });
+});
+
 describe('buildMaritimeFogAlerts — cameras against the physics (30-sep, Ons Praia)', () => {
   // 18:30 UTC: 20:30 in Madrid, 18:30 on a UTC runner. The level is 'alto' under both
   // (confidence 85 or 90), so the tests assert levels and wording, never the exact number.

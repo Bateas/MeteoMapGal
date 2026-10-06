@@ -616,7 +616,7 @@ export function buildMaritimeFogAlerts(
   webcamFogCount?: number,
   webcamFogIds?: string[],
   fogSources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[],
-  regionalVisibility?: Map<string, { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }>,
+  regionalVisibility?: Map<string, { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date; precipitating?: true }>,
   webcamCriticalVisibilityCount?: number,
   /** Cameras analysed in the last 30 min that saw no fog. */
   webcamClearCount?: number,
@@ -645,7 +645,8 @@ export function buildMaritimeFogAlerts(
   const visFogStations: { id: string; vis: number; name: string }[] = [];
   if (regionalVisibility) {
     for (const v of regionalVisibility.values()) {
-      if (v.visibility < 1) visFogStations.push({ id: v.stationId, vis: v.visibility, name: v.name });
+      // A low visibility the report itself puts down to rain is not fog evidence.
+      if (v.visibility < 1 && !v.precipitating) visFogStations.push({ id: v.stationId, vis: v.visibility, name: v.name });
     }
   }
   const visFogCount = visFogStations.length;

@@ -81,12 +81,18 @@ export function assessRainNowcast(opts: {
   // ── Observed: wettest fresh nearby station ──────────────
   let wettestMm = 0;
   let wettestName: string | null = null;
+  // The gauge the card quotes: the NEAREST wet one, with its own reading. The wettest in the radius
+  // put «Lloviendo (Porto de Marín)» on Cesantes on 6-oct, from the other ría, with Redondela soaked.
+  let nearestWetKm = Infinity;
+  let nearestWetMm = 0;
+  let nearestWetName: string | null = null;
   let anyStationData = false;
   let maxSolar: number | null = null;
   let wetStationCount = 0;
 
   for (const s of stations) {
-    if (fastDistanceKm(lat, lon, s.lat, s.lon) > radiusKm) continue;
+    const distKm = fastDistanceKm(lat, lon, s.lat, s.lon);
+    if (distKm > radiusKm) continue;
     const r = readings.get(s.id);
     if (!r) continue;
     if (nowMs - r.timestamp.getTime() > MAX_READING_AGE_MS) continue;
@@ -100,7 +106,10 @@ export function assessRainNowcast(opts: {
     // 10-50 mm every 5 min) put «lluvia fuerte (Nigrán)» on the card of the ría centre.
     if (precipKindFor(s.id) === 'dayTotal') continue;
     anyStationData = true;
-    if (r.precipitation >= RAIN_THRESHOLD_MM) wetStationCount++;
+    if (r.precipitation >= RAIN_THRESHOLD_MM) {
+      wetStationCount++;
+      if (distKm < nearestWetKm) { nearestWetKm = distKm; nearestWetMm = r.precipitation; nearestWetName = s.name; }
+    }
     if (r.precipitation > wettestMm) {
       wettestMm = r.precipitation;
       wettestName = s.name;
@@ -149,14 +158,16 @@ export function assessRainNowcast(opts: {
   }
 
   // ── Status + summary ────────────────────────────────────
-  const intensityLabel = rainingNow ? intensityLabelFor(wettestMm) : null;
+  const quotedMm = nearestWetName ? nearestWetMm : wettestMm;
+  const quotedName = nearestWetName ?? wettestName;
+  const intensityLabel = rainingNow ? intensityLabelFor(quotedMm) : null;
 
   let status: RainStatus;
   let summary: string;
 
   if (rainingNow) {
     status = 'raining';
-    summary = `Lloviendo${intensityLabel ? ` · ${intensityLabel}` : ''}${wettestName ? ` (${wettestName})` : ''}`;
+    summary = `Lloviendo${intensityLabel ? ` · ${intensityLabel}` : ''}${quotedName ? ` (${quotedName})` : ''}`;
   } else if (nextRainHours != null && nextRainHours <= SOON_HORIZON_H) {
     status = 'rain-soon';
     summary = `Lluvia prevista ~${formatHours(nextRainHours)}${nextRainProb != null ? ` (${nextRainProb}%)` : ''}`;
@@ -173,11 +184,11 @@ export function assessRainNowcast(opts: {
   return {
     status,
     rainingNow,
-    intensityMm: rainingNow ? Math.round(wettestMm * 10) / 10 : null,
+    intensityMm: rainingNow ? Math.round(quotedMm * 10) / 10 : null,
     intensityLabel,
     nextRainHours,
     nextRainProb,
-    stationName: rainingNow ? wettestName : null,
+    stationName: rainingNow ? quotedName : null,
     summary,
   };
 }

@@ -53,6 +53,20 @@ export interface MetarEntry {
  * field: a station missing coords, timestamp or a trustworthy visibility
  * is dropped entirely rather than half-filled.
  */
+/**
+ * Whether a METAR's PRESENT weather is precipitation without fog. Only the body counts: the trend
+ * (TEMPO/BECMG/NOSIG) and remarks are forecast or recent weather (RE...), and «VC» is the vicinity,
+ * not the station. Fog or mist reported with the rain (FG/BR) keeps it a fog candidate.
+ */
+export function metarPrecipWithoutFog(rawOb: string | undefined): boolean {
+  if (!rawOb) return false;
+  const body = rawOb.split(/\s(?:TEMPO|BECMG|NOSIG|RMK)/)[0];
+  const tokens = body.split(/\s+/);
+  const precip = tokens.some((t) => /^[+-]?(TS|SH|FZ)?(RA|DZ|SN|SG|GR|GS|PL|UP)+$/.test(t) || /^[+-]?TS(RA|SN|GR|GS|PL)+$/.test(t));
+  const fog = tokens.some((t) => /^(MI|BC|PR|FZ)?FG$/.test(t) || t === 'BR');
+  return precip && !fog;
+}
+
 export function metarToVisibilityReadings(payload: unknown): VisibilityReading[] {
   if (!Array.isArray(payload)) return [];
 
@@ -78,6 +92,7 @@ export function metarToVisibilityReadings(payload: unknown): VisibilityReading[]
       lon: m.lon,
       visibility,
       timestamp: new Date(m.obsTime * 1000), // obsTime is epoch SECONDS
+      ...(metarPrecipWithoutFog(m.rawOb) ? { precipitating: true as const } : {}),
     };
     const existing = latestByStation.get(entry.stationId);
     if (!existing || entry.timestamp > existing.timestamp) {
