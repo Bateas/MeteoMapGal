@@ -23,11 +23,15 @@ function bestTone(hours: PartHour[]): Tone {
   return hours.reduce<Tone>((best, h) => (TONES.indexOf(h.tone) > TONES.indexOf(best) ? h.tone : best), 'calma');
 }
 
-/** Arrow pointing where the wind goes (the label says where it comes from). */
+/**
+ * Arrow pointing where the wind goes (the label says where it comes from). The head is drawn at the
+ * TOP (north) and turned by from + 180, like ForecastTable. 6-oct: the head was drawn at the bottom
+ * AND turned by +180, so every arrow pointed back into the wind.
+ */
 function DirArrow({ fromDeg }: { fromDeg: number }) {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" style={{ transform: `rotate(${fromDeg + 180}deg)` }}>
-      <path d="M12 3v18M12 21l-6-6M12 21l6-6" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" data-from={fromDeg} style={{ transform: `rotate(${(fromDeg + 180) % 360}deg)` }}>
+      <path d="M12 21V3M12 3l-6 6M12 3l6 6" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

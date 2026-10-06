@@ -44,3 +44,19 @@ describe('ForecastHoursG', () => {
     expect(container.innerHTML).toBe('');
   });
 });
+
+describe('direction arrows point where the wind goes (6-oct: they pointed back into the wind)', () => {
+  it('head drawn at the top, turned from + 180: N points south, ESE points WNW, W points east', () => {
+    const h = hours(3).map((p, i) => ({ ...p, windDirection: [0, 112.5, 270][i] }));
+    const { container } = render(<ForecastHoursG hourly={h} />);
+    const svgs = [...container.querySelectorAll('svg[data-from]')] as SVGElement[];
+    expect(svgs).toHaveLength(3);
+    const turn = (s: SVGElement) => Number(/rotate\(([-\d.]+)deg\)/.exec(s.style.transform)![1]);
+    for (const s of svgs) {
+      // The head is where both barbs start: at the top of the box, i.e. pointing north before the turn,
+      // so after turning clockwise by `turn` it points to the compass bearing `turn`.
+      expect(s.querySelector('path')!.getAttribute('d')).toMatch(/M12 3l-6 6M12 3l6 6/);
+    }
+    expect(svgs.map(turn)).toEqual([180, 292.5, 90]);
+  });
+});

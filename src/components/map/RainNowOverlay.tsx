@@ -12,7 +12,7 @@
  * are in services/rainNowService.ts.
  */
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Source, Layer } from 'react-map-gl/maplibre';
+import { Source, Layer, type SourceProps } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useRainNowStore, type RainNowDebug } from '../../store/rainNowStore';
@@ -34,7 +34,19 @@ const TONE_COLOR = { debil: '#60a5fa', moderada: '#2563eb', fuerte: '#7c3aed' } 
 /** Arrows drawn at most (the soonest coming), so the map does not fill with them. */
 const MAX_ARROWS = 3;
 
-interface Picture { url: string; corners: [[number, number], [number, number], [number, number], [number, number]] }
+/**
+ * The radar picture goes to MapLibre as a CANVAS source, never as an image URL. MapLibre fetches an
+ * image source's URL, and the production policy has no data: (nor blob:) in connect-src, so the
+ * data: URL this used was blocked and the rain never drew in production (6-oct; dev has no policy,
+ * so it looked fine). A canvas source reads the pixels directly: no request at all.
+ */
+interface Picture { canvas: HTMLCanvasElement; corners: [[number, number], [number, number], [number, number], [number, number]]; id: number }
+let pictureSeq = 0;
+
+function canvasSource(p: Picture): SourceProps {
+  // Runtime-only source type: not in the style spec union that SourceProps is built from.
+  return { type: 'canvas', canvas: p.canvas, coordinates: p.corners, animate: false } as unknown as SourceProps;
+}
 
 export const RainNowOverlay = memo(function RainNowOverlay() {
   const sector = useSectorStore((s) => s.activeSector);
@@ -157,7 +169,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.putImageData(new ImageData(rgba, newest.w, newest.h), 0, 0);
-        picture = { url: canvas.toDataURL('image/png'), corners: mosaicCorners(newest) };
+        picture = { canvas, corners: mosaicCorners(newest), id: ++pictureSeq };
       }
       // Arrows only for the rain coming to the sector: an arrow means «this is heading your way».
       // 6-oct: the fallback (biggest steady patch) drew one over the sea, going nowhere near a spot.
@@ -207,7 +219,8 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   return (
     <>
       {view.picture && (
-        <Source id="rain-now-radar" type="image" url={view.picture.url} coordinates={view.picture.corners}>
+        // A new canvas is a new source (key): MapLibre has no setter for a canvas source.
+        <Source key={view.picture.id} id="rain-now-radar" {...canvasSource(view.picture)}>
           <Layer id="rain-now-radar" type="raster" paint={{ 'raster-opacity': 1, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }} />
         </Source>
       )}
