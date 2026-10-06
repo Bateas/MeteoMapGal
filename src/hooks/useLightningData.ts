@@ -14,15 +14,15 @@ import { useForecastStore } from './useForecastTimeline';
 import { enrichClustersWithIntensity, type NearbyPrecipReading, type ConvectionState } from '../services/stormIntensityService';
 import type { RecentLightningActivity } from '../services/stormPredictor';
 import { useVisibilityPolling } from './useVisibilityPolling';
+import { assessSpotLightningRisk } from '../services/lightningProximityService';
 
 /**
- * Alert distance thresholds (updated per user request):
- * - danger:  < 5 km  → storm overhead
- * - warning: < 25 km → storm approaching
- * - watch:   < 50 km → activity in the area
+ * Alert levels, measured from the sector centre:
+ * - danger / warning: the lightning safety rule (lightningProximityService, the one behind the
+ *   map banner and Telegram): >= 2 ground strikes within 10 km, or 1 with >= 3 within 25 km /
+ *   >= 3 within 25 km, in its 20-min window. A lone strike never raises either.
+ * - watch: any strike within WATCH_KM in the last 30 min (information, not a warning).
  */
-const DANGER_KM = 5;
-const WARNING_KM = 25;
 const WATCH_KM = 80; // Extended from 50 — shows "Rayos detectados" info for distant strikes
 
 /** Only consider strikes from the last 30 minutes for alert scoring */
@@ -150,7 +150,7 @@ export const useLightningStore = create<LightningState>()(
 // Alert computation (enhanced with cluster data)
 // ---------------------------------------------------------------------------
 
-function computeStormAlert(
+export function computeStormAlert(
   strikes: LightningStrike[],
   clusters: StormCluster[],
   previousAlert: StormAlert,
@@ -174,10 +174,17 @@ function computeStormAlert(
   );
   const nearestKm = Math.round(Math.min(...distances) * 10) / 10;
 
-  // Determine alert level (updated thresholds: 5 / 25 / 50)
+  // Level: the same rule as the safety banner and Telegram, so the bar can no longer say «AVISO»
+  // while they stay quiet (6-oct: «aviso, 11 km» for 30 min from one strike, the next at 28 km).
+  const ground = recent
+    .filter((s) => !s.cloudToCloud)
+    .map((s) => ({ lat: s.lat, lon: s.lon, time: new Date(s.timestamp) }));
+  const risk = assessSpotLightningRisk(
+    [{ id: 'sector', name: 'sector', lat: centerLat, lon: centerLon }], ground, new Date(now),
+  )[0];
   let level: StormAlertLevel = 'none';
-  if (nearestKm <= DANGER_KM) level = 'danger';
-  else if (nearestKm <= WARNING_KM) level = 'warning';
+  if (risk?.level === 'peligro') level = 'danger';
+  else if (risk?.level === 'aviso') level = 'warning';
   else if (nearestKm <= WATCH_KM) level = 'watch';
 
   // Count strikes within alert radius (50km)
@@ -198,7 +205,7 @@ function computeStormAlert(
   let speedKmh: number | null = null;
   let bearingDeg: number | null = null;
 
-  // With a strike already inside DANGER_KM the storm is here: an arrival time for another cluster
+  // At danger level the storm is here: an arrival time for another cluster
   // («ETA 72 min» with lightning at 1.4 km, 6-oct replay) only contradicts the danger.
   const nearestApproaching = level === 'danger' ? undefined : clusters.find((c) => c.approaching && c.etaMinutes !== null);
   if (nearestApproaching) {
