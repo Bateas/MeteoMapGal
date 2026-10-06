@@ -142,12 +142,10 @@ function parseStrikes(
   negatives: RaioStrike[],
   now: number,
 ): LightningStrike[] {
-  let idCounter = 0;
-
   const mapStrike = (s: RaioStrike): LightningStrike => {
     const timestamp = parseRaioDate(s.date);
     return {
-      id: ++idCounter,
+      id: nextId.value++, // the same counter as the API path, so ids never repeat across the two
       lat: s.latitude,
       lon: s.longitude,
       timestamp,
@@ -213,10 +211,80 @@ export function buildStrikesUrl(nowMs: number): string {
   return `${RAIOS_LENDA_URL}?${params}`;
 }
 
+// ── Our own API (6-oct) ──────────────────────────────────────────
+// The ingestor is the only one asking MeteoGalicia (every 2 min in a storm, 5 in calm) and
+// stores every strike. The map used to pull the whole day from meteo2api every minute in a
+// storm: 1 MB per tab, and a provider call per half minute while anyone watched. Now it takes
+// the day once and then only the last half hour, merged here.
+
+const RECENT_URL = '/api/v1/lightning/recent';
+/** The windows the API serves, in minutes. */
+const API_WINDOWS_MIN = [30, 120, 1440] as const;
+const DAY_MS = 24 * 60 * 60_000;
+/** [time ms, lat, lon, peak kA (signed), cloud-to-cloud 0/1] — see ingestor queryRecentLightning. */
+export type RecentStrikeRow = [number, number, number, number, number];
+
+const known = new Map<string, LightningStrike>();
+const nextId = { value: 1 };
+let lastApiAt: number | null = null;
+let apiDownUntil = 0;
+
+/** The smallest window that reaches back past the last good read (the whole day on the first). */
+export function apiWindowMinutes(nowMs: number, lastReadAt: number | null): number {
+  if (lastReadAt == null) return 1440;
+  const need = Math.ceil((nowMs - lastReadAt) / 60_000) + 10;
+  return API_WINDOWS_MIN.find((m) => m >= need) ?? 1440;
+}
+
 /**
- * Fetch lightning strikes from the last 24 hours.
- * Uses MeteoGalicia's `raios/lenda` endpoint.
- * Returns parsed LightningStrike[] sorted by timestamp (newest first).
+ * Add the rows not seen yet (a strike keeps its id for as long as it stays), drop those over a
+ * day old, and return the day newest first with ages for `nowMs`. Pure apart from the map and
+ * the id counter it is handed.
+ */
+export function mergeStrikes(
+  seen: Map<string, LightningStrike>,
+  rows: RecentStrikeRow[],
+  nowMs: number,
+  ids: { value: number },
+): LightningStrike[] {
+  for (const [t, lat, lon, ka, cc] of rows) {
+    const key = `${t}|${lat}|${lon}`;
+    if (seen.has(key)) continue;
+    seen.set(key, {
+      id: ids.value++, lat, lon, timestamp: t, peakCurrent: ka,
+      cloudToCloud: cc === 1, multiplicity: 1, ageMinutes: 0,
+    });
+  }
+  for (const [key, s] of seen) if (nowMs - s.timestamp > DAY_MS) seen.delete(key);
+  return [...seen.values()]
+    .map((s) => ({ ...s, ageMinutes: Math.round((nowMs - s.timestamp) / 60_000) }))
+    .sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/** The day of strikes from our API, or null when it fails (the caller then asks meteo2api). */
+async function fetchFromOwnApi(): Promise<LightningStrike[] | null> {
+  if (Date.now() < apiDownUntil) return null;
+  const askedAt = Date.now();
+  try {
+    const res = await fetch(`${RECENT_URL}?minutes=${apiWindowMinutes(askedAt, lastApiAt)}`, {
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new Error(`Lightning API ${res.status}`);
+    const body = await res.json() as { strikes?: unknown };
+    if (!Array.isArray(body.strikes)) throw new Error('Lightning API: no strikes array');
+    const strikes = mergeStrikes(known, body.strikes as RecentStrikeRow[], Date.now(), nextId);
+    lastApiAt = askedAt;
+    return strikes;
+  } catch (err) {
+    apiDownUntil = Date.now() + LIGHTNING_COOLDOWN_MS;
+    console.debug('[Lightning] own API failed, meteo2api for 3 min:', err);
+    return null;
+  }
+}
+
+/**
+ * Lightning strikes from the last 24 hours, newest first.
+ * From our API (the ingestor's table); from MeteoGalicia's `raios/lenda` only when our API fails.
  *
  * `opts.stormActive` shortens the cache TTL from 2 min to 30 s — used during
  * active storms (recent nearby strikes) so the user sees fresh strikes ASAP.
@@ -230,6 +298,16 @@ export async function fetchLightningStrikes(
     return recomputeAges(cache.data);
   }
 
+  const own = await fetchFromOwnApi();
+  if (own) {
+    cache = { data: own, fetchedAt: Date.now() };
+    return own;
+  }
+  return fetchFromMeteo2api();
+}
+
+/** The old path, kept as the fallback: the whole day straight from meteo2api (via our proxy). */
+async function fetchFromMeteo2api(): Promise<LightningStrike[]> {
   // Circuit breaker — if upstream just failed, don't hammer it again.
   // Serve stale cache if we have it; otherwise empty.
   if (Date.now() < lightningRateLimitedUntil) {

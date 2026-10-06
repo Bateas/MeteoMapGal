@@ -55,6 +55,8 @@ import {
   queryHistoricalBaseline,
   queryFireAttribution,
   queryUpperAir,
+  queryRecentLightning,
+  LIGHTNING_RECENT_WINDOWS,
 } from './queries.js';
 import { getPool } from './db.js';
 import { clientIpOf, clampInt, isAllowedPushEndpoint, pruneCache, memoAsync } from './requestGuards.js';
@@ -659,6 +661,28 @@ async function handleMagicWindowLatest(
  * FIRMS proxy: the attribution needs our lightning history anyway, and the
  * fetcher polls at the same ~1h cadence as the satellites publish.
  */
+/**
+ * Strikes of the last 30 min / 2 h / 24 h for the map (6-oct). The browser used to pull the
+ * whole day from meteo2api through our proxy every minute in a storm (1 MB per tab, and one
+ * provider call per half minute while anyone watched); now the ingestor is the only one asking
+ * MeteoGalicia and the map takes the new strikes from here. Any other value rounds up to the
+ * next window.
+ */
+async function handleLightningRecent(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const asked = parseInt(params.minutes || '30', 10) || 30;
+  const minutes = LIGHTNING_RECENT_WINDOWS.find((m) => m >= asked) ?? 1440;
+  try {
+    const strikes = await queryRecentLightning(minutes);
+    json(res, { minutes, count: strikes.length, strikes }, 200, origin, 'public, max-age=20');
+  } catch (err) {
+    dbError(res, err, 'handleLightningRecent', origin);
+  }
+}
+
 async function handleFires(
   params: Record<string, string>,
   res: http.ServerResponse,
@@ -824,6 +848,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/webcam-vision': handleWebcamVision,
   // Active fires + the lightning that may have started them (satellite hotspots)
   '/api/v1/fires': handleFires,
+  '/api/v1/lightning/recent': handleLightningRecent,
   // Grouped fire events with commune + burnt hectares (EFFIS)
   '/api/v1/fires/events': handleFireEvents,
   // ── Analytics (Phase 3) — pre-computed rollups from continuous aggregates ──

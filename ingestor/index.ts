@@ -19,7 +19,7 @@ import { fetchAllObservations, getNetatmoSweepStatus, NETATMO_SWEEP_INTERVAL_MS 
 import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
 import { checkAndSendDailySummary, seedDailySummary } from './dailySummary.js';
-import { runAnalysis, seedWindEpisodes, reopenWindEpisodesFromHistory } from './analyzer.js';
+import { runAnalysis, runLightningSafety, seedWindEpisodes, reopenWindEpisodesFromHistory } from './analyzer.js';
 import { setSendRecorder, seedCooldowns } from './alertDispatcher.js';
 import { recordSent, loadRecentSends } from './sentAlerts.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
@@ -64,7 +64,29 @@ let stations = new Map<string, NormalizedStation>();
 let discoveryGoodAt = new Map<string, number>();
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let discoverTimer: ReturnType<typeof setInterval> | null = null;
-let lightningTimer: ReturnType<typeof setInterval> | null = null;
+let lightningTimer: ReturnType<typeof setTimeout> | null = null;
+let lightningStopped = false;
+const LIGHTNING_QUIET_MS = 5 * 60_000;
+const LIGHTNING_STORM_MS = 2 * 60_000;
+let lightningStormMode = false;
+
+/** One lightning poll, the safety check on what it stored, and the next poll at the pace the
+ *  activity asks for. Neither step can stop the loop. */
+async function lightningLoop(): Promise<void> {
+  let stormActive = lightningStormMode;
+  try {
+    stormActive = (await runLightningCycle()).stormActive;
+    await runLightningSafety();
+    if (stormActive !== lightningStormMode) {
+      log.info(stormActive ? '[Lightning] tormenta activa: sondeo cada 2 min' : '[Lightning] sin tormenta cerca: sondeo cada 5 min');
+      lightningStormMode = stormActive;
+    }
+  } catch (err) {
+    log.error('[Lightning] cycle err:', (err as Error).message);
+  } finally {
+    if (!lightningStopped) lightningTimer = setTimeout(lightningLoop, stormActive ? LIGHTNING_STORM_MS : LIGHTNING_QUIET_MS);
+  }
+}
 let synopticTimer: ReturnType<typeof setInterval> | null = null;
 let firmsTimer: ReturnType<typeof setInterval> | null = null;
 let effisTimer: ReturnType<typeof setInterval> | null = null;
@@ -438,16 +460,11 @@ async function start(): Promise<void> {
     rediscover().catch((err) => log.error('Discover timer error:', (err as Error).message));
   }, DISCOVER_MS);
 
-  // Lightning fetcher — independent 5min poll.
-  // Decoupled from the main weather cycle so a slow station fetch never delays
-  // strike persistence (real-time forensics matter for the lightning data).
-  // First run after 30s stagger so it doesn't pile on top of the initial cycle.
-  setTimeout(() => {
-    runLightningCycle().catch((err) => log.error('[Lightning] init err:', (err as Error).message));
-  }, 30_000);
-  lightningTimer = setInterval(() => {
-    runLightningCycle().catch((err) => log.error('[Lightning] timer err:', (err as Error).message));
-  }, 5 * 60_000);
+  // Lightning fetcher — its own loop, decoupled from the main weather cycle so a slow station
+  // fetch never delays strike persistence. Every 5 min in calm and every 2 with a storm near
+  // Galicia; the lightning safety check (Telegram) runs right after each poll. First run after
+  // a 30 s stagger so it doesn't pile on top of the initial cycle.
+  lightningTimer = setTimeout(lightningLoop, 30_000);
 
   // Synoptic fetcher — upper-air winds + convection.
   // Bumped 1h → 2h to fit within Open-Meteo free tier daily quota.
@@ -619,7 +636,8 @@ async function shutdown(signal: string): Promise<void> {
   // Clear timers
   if (pollTimer) clearInterval(pollTimer);
   if (discoverTimer) clearInterval(discoverTimer);
-  if (lightningTimer) clearInterval(lightningTimer);
+  lightningStopped = true;
+  if (lightningTimer) clearTimeout(lightningTimer);
   if (synopticTimer) clearInterval(synopticTimer);
   if (firmsTimer) clearInterval(firmsTimer);
   if (effisTimer) clearInterval(effisTimer);

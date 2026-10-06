@@ -387,7 +387,7 @@ export async function runAnalysis(): Promise<void> {
   }
 
   // Strikes of the last LIGHTNING_WINDOW_MIN, once per cycle: they hold back «go sailing» alerts
-  // with a storm near, and feed the lightning safety check below.
+  // with a storm near.
   const strikesNow = await getRecentStrikes();
 
   // 2. Score each spot, detect transitions, and persist to DB
@@ -510,14 +510,7 @@ export async function runAnalysis(): Promise<void> {
     log.warn(`Magic window evaluation failed: ${(err as Error).message}`);
   }
 
-  // 5. LOCAL lightning safety — "rayo a X km de TU spot". Observed strikes
-  // (certified source), not a model; the per-spot distance is the signal the
-  // sector-wide storm probability structurally cannot give.
-  try {
-    await checkLightningProximity(strikesNow);
-  } catch (err) {
-    log.warn(`Lightning proximity check failed: ${(err as Error).message}`);
-  }
+  // 5. LOCAL lightning safety runs after every lightning poll instead (runLightningSafety).
 
   // 6. Strong-wind SAFETY alert (windSafetyLogic.ts): measured gusts, two sources near a spot.
   try {
@@ -626,6 +619,21 @@ async function getRecentStrikes(): Promise<ProximityStrike[]> {
  * the affected spots — a storm over the ría would otherwise fire the same
  * information five times, once per spot.
  */
+/**
+ * LOCAL lightning safety — "rayo a X km de TU spot". Observed strikes (certified source), not a
+ * model; the per-spot distance is the signal the sector-wide storm probability structurally
+ * cannot give. index.ts runs it right after each lightning poll (every 2 min in a storm, 5 in
+ * calm), so a warning follows the strikes as they reach the table, not the 5-min analysis
+ * cycle on top of the poll (6-oct: Telegram ran 8-13 min behind the strikes, the map ~5).
+ */
+export async function runLightningSafety(): Promise<void> {
+  try {
+    await checkLightningProximity(await getRecentStrikes());
+  } catch (err) {
+    log.warn(`Lightning proximity check failed: ${(err as Error).message}`);
+  }
+}
+
 async function checkLightningProximity(strikes: ProximityStrike[]): Promise<void> {
   if (strikes.length === 0) return; // quiet weather — no heartbeat needed
 

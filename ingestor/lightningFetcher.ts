@@ -154,17 +154,75 @@ export function mapStrikesForPersist(
 
 // ── Fetcher ───────────────────────────────────────────
 
+const FULL_WINDOW_MS = 24 * 60 * 60_000;
+/** Each poll reaches this far behind the last good one: covers the 3-5 min publishing delay
+ *  and a missed poll or two. */
+const OVERLAP_MS = 30 * 60_000;
+/** Rows per INSERT: 7 parameters each, and PostgreSQL takes at most 65,535 per statement. */
+const INSERT_CHUNK = 1000;
+
+/** Offset of Madrid's wall clock from UTC at an instant (+2 h in summer, +1 h in winter). */
+export function madridOffsetMs(atMs: number): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Madrid', hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(atMs));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const wall = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return wall - Math.floor(atMs / 1000) * 1000;
+}
+
+/**
+ * The request window for the strikes of the last `spanMs`.
+ *
+ * meteo2api reads fechaInicio/fechaFin as Madrid wall time against strike labels in UTC: asking
+ * 09:10-09:40Z on 6-oct returned exactly the 414 strikes labelled 11:10-11:39 (the ones we hold
+ * at 11:10-11:40 UTC). The newer end therefore stays at now (it reaches now plus the offset,
+ * which is empty) and the older end moves back by the offset. If they ever fix it, the same
+ * request just returns a couple of hours more, never fewer.
+ */
+export function lightningWindow(nowMs: number, spanMs: number): { fechaInicio: Date; fechaFin: Date } {
+  return { fechaInicio: new Date(nowMs), fechaFin: new Date(nowMs - spanMs - madridOffsetMs(nowMs)) };
+}
+
+/** How far back the next poll must reach: everything since the last good poll plus the
+ *  overlap, the whole day after a restart or a long outage. */
+export function pollSpanMs(nowMs: number, lastSuccessAt: number | null): number {
+  if (lastSuccessAt == null) return FULL_WINDOW_MS;
+  return Math.min(FULL_WINDOW_MS, Math.max(OVERLAP_MS, nowMs - lastSuccessAt + OVERLAP_MS));
+}
+
+/** Strike activity near Galicia that warrants the short poll: one in the last 5 min, or five in
+ *  the last 15 (the same rule the map uses, with the publishing delay in mind). */
+export function isStormActive(strikes: PersistedStrike[], nowMs: number): boolean {
+  let n5 = 0, n15 = 0;
+  for (const s of strikes) {
+    if (!s.isGalicia) continue;
+    const age = nowMs - s.time.getTime();
+    if (age < 0 || age > 15 * 60_000) continue;
+    n15++;
+    if (age <= 5 * 60_000) n5++;
+  }
+  return n5 >= 1 || n15 >= 5;
+}
+
+/** Last poll whose strikes all reached the table: the next window starts from it. */
+let lastSuccessAt: number | null = null;
+/** The poll in flight (set when meteo2api answers, promoted once the rows are stored). */
+let lastPolledAt: number | null = null;
+let lastStormActive = false;
+
 async function fetchRaios(): Promise<RaiosResponse | null> {
   // During a sustained meteo2api outage, skip the fetch silently instead of
   // hammering the dead endpoint and logging a WARN every 5-min cycle.
   if (isLightningBreakerOpen()) return null;
 
-  const now = new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const nowMs = Date.now();
+  const { fechaInicio, fechaFin } = lightningWindow(nowMs, pollSpanMs(nowMs, lastSuccessAt));
   // meteo2api convention: fechaInicio = newer, fechaFin = older
   const params = new URLSearchParams({
-    fechaInicio: now.toISOString(),
-    fechaFin: yesterday.toISOString(),
+    fechaInicio: fechaInicio.toISOString(),
+    fechaFin: fechaFin.toISOString(),
   });
   const url = `${RAIOS_LENDA_URL}?${params}`;
   try {
@@ -177,8 +235,10 @@ async function fetchRaios(): Promise<RaiosResponse | null> {
       log.warn(`[Lightning] API ${res.status}`);
       return null;
     }
+    const body = await res.json() as RaiosResponse;
     reportLightningSuccess();
-    return await res.json();
+    lastPolledAt = nowMs;
+    return body;
   } catch (err) {
     reportLightningFailure((err as Error).message);
     log.warn(`[Lightning] fetch failed: ${(err as Error).message}`);
@@ -188,57 +248,71 @@ async function fetchRaios(): Promise<RaiosResponse | null> {
 
 // ── DB persist ────────────────────────────────────────
 
-async function batchInsertStrikes(strikes: PersistedStrike[]): Promise<number> {
+/** New rows stored, or null when an INSERT failed (the next poll then reaches back further). */
+async function batchInsertStrikes(strikes: PersistedStrike[]): Promise<number | null> {
   if (strikes.length === 0) return 0;
   const db = getPool();
+  let inserted = 0;
 
-  // Multi-row INSERT with ON CONFLICT DO NOTHING (PK-based dedup)
-  const values: string[] = [];
-  const params: unknown[] = [];
-  let p = 1;
-  for (const s of strikes) {
-    values.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
-    params.push(s.time, s.lat, s.lon, s.peakCurrent, s.cloudToCloud, s.multiplicity, s.isGalicia);
+  // Multi-row INSERT with ON CONFLICT DO NOTHING (PK-based dedup), in chunks: the whole day in
+  // one statement went over PostgreSQL's 65,535 parameters past ~9,360 strikes (17-jun: 9,975),
+  // and the storm stopped reaching the table, and the lightning alerts, until it aged out.
+  for (let i = 0; i < strikes.length; i += INSERT_CHUNK) {
+    const chunk = strikes.slice(i, i + INSERT_CHUNK);
+    const values: string[] = [];
+    const params: unknown[] = [];
+    let p = 1;
+    for (const s of chunk) {
+      values.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
+      params.push(s.time, s.lat, s.lon, s.peakCurrent, s.cloudToCloud, s.multiplicity, s.isGalicia);
+    }
+    const sql = `
+      INSERT INTO lightning_strikes (time, lat, lon, peak_current, cloud_to_cloud, multiplicity, is_galicia)
+      VALUES ${values.join(', ')}
+      ON CONFLICT (time, lat, lon) DO NOTHING
+    `;
+    try {
+      const result = await db.query(sql, params);
+      inserted += result.rowCount ?? 0;
+    } catch (err) {
+      log.error(`[Lightning] DB insert failed: ${(err as Error).message}`);
+      return null;
+    }
   }
-
-  const sql = `
-    INSERT INTO lightning_strikes (time, lat, lon, peak_current, cloud_to_cloud, multiplicity, is_galicia)
-    VALUES ${values.join(', ')}
-    ON CONFLICT (time, lat, lon) DO NOTHING
-  `;
-
-  try {
-    const result = await db.query(sql, params);
-    return result.rowCount ?? 0;
-  } catch (err) {
-    log.error(`[Lightning] DB insert failed: ${(err as Error).message}`);
-    return 0;
-  }
+  return inserted;
 }
 
 // ── Public entry ──────────────────────────────────────
 
 /**
- * One poll cycle: fetch last 24h of strikes from meteo2api → dedup → persist.
- * The 24h window means each poll re-fetches strikes we already have; PK
- * conflict makes that a cheap no-op. Net new rows ≈ strikes since last poll.
+ * One poll cycle: fetch the strikes since the last good poll (the whole day after a restart)
+ * from meteo2api → dedup → persist. The overlap re-fetches some strikes we already have; the
+ * PK conflict makes that a cheap no-op.
+ *
+ * Returns whether there is storm activity near Galicia, which sets the next poll's delay
+ * (index.ts). On a failed poll the last known answer stands.
  */
-export async function runLightningCycle(): Promise<void> {
+export async function runLightningCycle(): Promise<{ stormActive: boolean }> {
   const data = await fetchRaios();
-  if (!data) return;
+  if (!data) return { stormActive: lastStormActive };
+  const polledAt = lastPolledAt ?? Date.now();
 
   const strikes = mapStrikesForPersist(
     data.raiosPosit || [],
     data.raiosNegat || [],
   );
+  lastStormActive = isStormActive(strikes, polledAt);
   if (strikes.length === 0) {
+    lastSuccessAt = polledAt;
     log.debug(`[Lightning] poll ok — 0 strikes in window`);
-    return;
+    return { stormActive: lastStormActive };
   }
 
   const inserted = await batchInsertStrikes(strikes);
+  if (inserted !== null) lastSuccessAt = polledAt;
   const inScope = strikes.filter((s) => s.isGalicia).length;
   log.info(
-    `[Lightning] poll ok — ${strikes.length} returned by API (${inScope} in Galicia scope, ${strikes.length - inScope} buffer), ${inserted} new rows persisted`,
+    `[Lightning] poll ok — ${strikes.length} returned by API (${inScope} in Galicia scope, ${strikes.length - inScope} buffer), ${inserted ?? 0} new rows persisted`,
   );
+  return { stormActive: lastStormActive };
 }

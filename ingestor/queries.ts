@@ -1042,3 +1042,25 @@ export const queryConvectionGrid = memoByKey(ANALYTICS_TTL_MS, queryConvectionGr
 export const queryHistoricalBaseline = memoByKey(ANALYTICS_TTL_MS, queryHistoricalBaselineUncached, (stationId, metric, days) => `baseline:${stationId}:${metric}:${days}`);
 export const queryUpperAir = memoByKey(ANALYTICS_TTL_MS, queryUpperAirUncached, (sector, hours) => `upperair:${sector}:${hours}`);
 export const queryFireAttribution = memoByKey(ANALYTICS_TTL_MS, queryFireAttributionUncached, (days) => `fires:${days}`);
+
+// ── Recent lightning for the map (6-oct) ─────────────
+
+/** Windows the map may ask for: the incremental poll, a tab woken after a while, the full day. */
+export const LIGHTNING_RECENT_WINDOWS = [30, 120, 1440] as const;
+
+/** One strike as the map gets it: [time ms, lat, lon, peak kA (signed), cloud-to-cloud 0/1]. */
+export type RecentStrikeRow = [number, number, number, number, number];
+
+async function queryRecentLightningUncached(minutes: number): Promise<RecentStrikeRow[]> {
+  const res = await getPool().query<{ t: string; lat: number; lon: number; ka: number | null; cc: boolean }>(
+    `SELECT (extract(epoch FROM time) * 1000)::bigint AS t, lat, lon, peak_current AS ka, cloud_to_cloud AS cc
+       FROM lightning_strikes
+      WHERE time > NOW() - make_interval(mins => $1)
+      ORDER BY time DESC`,
+    [minutes],
+  );
+  return res.rows.map((r) => [Number(r.t), r.lat, r.lon, r.ka ?? 0, r.cc ? 1 : 0]);
+}
+
+/** The map polls this every minute in a storm: every visitor of the same 20 s shares one query. */
+export const queryRecentLightning = memoByKey(20_000, queryRecentLightningUncached, (minutes) => `lightning:${minutes}`);
