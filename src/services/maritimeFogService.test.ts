@@ -13,7 +13,7 @@
  * (= 16:00 CEST) so the hour is in-range under both CI (UTC) and local (CEST).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { detectNorthWindConsensus, detectFogBySolarSignature, buildMaritimeFogAlerts } from './maritimeFogService';
+import { detectNorthWindConsensus, detectFogBySolarSignature, buildMaritimeFogAlerts, activeRainVeto } from './maritimeFogService';
 import type { NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 
@@ -274,6 +274,19 @@ describe('buildMaritimeFogAlerts — cameras against the physics (30-sep, Ons Pr
     expect(a?.title).toBe('Niebla marítima probable');
     expect(a?.urgent).toBe(false);
     expect(a?.detail).toMatch(/confianza/);
+  });
+
+  it('rain over the ría vetoes it (6-oct): two interval gauges wet, or a METAR in rain', () => {
+    const wet = (id: string, mm: number) => [id, { ...reading({ stationId: id, precipitation: mm }), timestamp: new Date() }] as const;
+    const twoWet = new Map([wet('mg_1', 0.8), wet('mg_2', 1.2)]);
+    expect(physics(buildMaritimeFogAlerts([ribeira()], twoWet, [], undefined, 0, [], undefined, undefined, 0))).toBeUndefined();
+    // drizzle in fog, one dripping gauge, or a day counter: no veto
+    const drizzle = new Map([wet('mg_1', 0.2), wet('mg_2', 0.3)]);
+    expect(physics(buildMaritimeFogAlerts([ribeira()], drizzle, [], undefined, 0, [], undefined, undefined, 0))?.title).toBe('Niebla marítima probable');
+    expect(activeRainVeto(new Map([wet('mg_1', 3)]))).toBe(false);
+    expect(activeRainVeto(new Map([wet('wu_A', 12), wet('wu_B', 12)]))).toBe(false);
+    const metar = new Map([['metar_LEVX', { precipitating: true as const, timestamp: new Date() }]]);
+    expect(activeRainVeto(new Map(), metar)).toBe(true);
   });
 
   it('cameras that looked and saw no fog bring it down and say so', () => {

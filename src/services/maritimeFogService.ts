@@ -26,6 +26,7 @@ import type { AlertLevel } from '../types/campo';
 import type { UnifiedAlert } from '../services/alertService';
 import { fastDistanceKm } from './idwInterpolation';
 import { isBuoyFresh } from './buoyUtils';
+import { precipKindFor } from './precipSemantics';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -608,6 +609,37 @@ export function detectFogBySolarSignature(
  * Build UnifiedAlert[] from maritime fog assessment.
  * Only emits alerts if risk is riesgo or above.
  */
+/** Rain that rules fog out: at least this much in one interval reading of a gauge (drizzle in fog
+ *  stays below it), on two gauges, or a METAR reporting precipitation without fog or mist. */
+const RAIN_VETO_MM = 0.5;
+const RAIN_VETO_MAX_AGE_MS = 60 * 60_000;
+
+/**
+ * Is it raining in the sector right now? On 6-oct, with thunderstorm rain over the whole ría and
+ * Vigo airport at 10 km visibility, the physics path still printed «Niebla marítima probable»: humid
+ * air over water is what rain also brings. Only interval gauges count (a day counter keeps saying it
+ * rained); two of them, so a single dripping one never vetoes real fog.
+ */
+export function activeRainVeto(
+  stationReadings: Map<string, NormalizedReading>,
+  regionalVisibility?: Map<string, { precipitating?: true; timestamp: Date }>,
+  nowMs: number = Date.now(),
+): boolean {
+  let wet = 0;
+  for (const [id, r] of stationReadings) {
+    if (precipKindFor(id) !== 'interval') continue;
+    if (r.precipitation == null || r.precipitation < RAIN_VETO_MM) continue;
+    if (nowMs - r.timestamp.getTime() > RAIN_VETO_MAX_AGE_MS) continue;
+    if (++wet >= 2) return true;
+  }
+  if (regionalVisibility) {
+    for (const v of regionalVisibility.values()) {
+      if (v.precipitating && nowMs - v.timestamp.getTime() <= RAIN_VETO_MAX_AGE_MS) return true;
+    }
+  }
+  return false;
+}
+
 export function buildMaritimeFogAlerts(
   buoys: BuoyReading[],
   stationReadings: Map<string, NormalizedReading>,
@@ -717,6 +749,7 @@ export function buildMaritimeFogAlerts(
   }
 
   if (risk.level === 'none') return [];
+  if (activeRainVeto(stationReadings, regionalVisibility)) return [];
 
   // What the cameras say about the physics. A camera only gets here uncorroborated: two cameras,
   // or one plus a non-camera signal, already fired the evidence alert above. So a camera that sees
