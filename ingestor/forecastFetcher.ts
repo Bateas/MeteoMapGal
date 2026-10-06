@@ -34,6 +34,8 @@ const FORECAST_COORDS = [
 const CACHE_TTL_MS = 60 * 60_000;
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 const HOUR_MS = 3_600_000;
+/** An expired copy younger than this is served at once while the refresh runs behind it. */
+const STALE_SERVE_MS = 3 * HOUR_MS;
 
 /**
  * A sector forecast is reused only while it is younger than the TTL AND was fetched in the
@@ -156,10 +158,17 @@ export async function getForecast(sector: 'embalse' | 'rias'): Promise<HourlyFor
   // The API serves this to visitors. Once an hour the copy expires, and every
   // visitor arriving while the refresh is in flight used to start one of their
   // own: two provider calls each, one against Open-Meteo's daily quota. Now
-  // they all wait for the same one. Deadline above the worst case of the two
+  // they all share the same one. Deadline above the worst case of the two
   // calls in a row (30 s + 10 s); past it, the last good copy.
+  const refresh = singleFlight(`forecast:${sector}`, () => refreshForecast(sector), 45_000);
+  // With a recent copy in hand nobody waits for it: on 6-oct about one request in ten
+  // landed on the expiry and waited 2-3.4 s for the two provider calls.
+  if (cached && cached.data.length > 0 && Date.now() - cached.fetchedAt < STALE_SERVE_MS) {
+    refresh.catch((err) => log.warn(`Forecast ${sector}: background refresh failed: ${(err as Error).message}`));
+    return cached.data;
+  }
   try {
-    const { value } = await singleFlight(`forecast:${sector}`, () => refreshForecast(sector), 45_000);
+    const { value } = await refresh;
     return value;
   } catch (err) {
     log.warn(`Forecast ${sector}: refresh abandoned: ${(err as Error).message}`);

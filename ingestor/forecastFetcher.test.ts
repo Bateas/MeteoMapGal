@@ -46,6 +46,26 @@ describe('getForecast', () => {
     await getForecast('rias');
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('on expiry serves the last copy at once and refreshes behind it (6-oct: 2-3.4 s waits)', async () => {
+    const later = Date.now() + 61 * 60_000;
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(later);
+    const body3 = { hourly: { ...OM_BODY.hourly, time: [...OM_BODY.hourly.time, '2026-09-23T14:00'], temperature_2m: [20, 21, 22], wind_speed_10m: [3, 4, 5] } };
+    fetchMock.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+      return new Response(JSON.stringify(body3), { status: 200 });
+    });
+    try {
+      const first = await getForecast('rias');
+      expect(first).toHaveLength(2);              // the old copy, without waiting
+      expect(fetchMock).toHaveBeenCalledTimes(1); // the refresh is under way
+      await new Promise((r) => setTimeout(r, 60));
+      expect(await getForecast('rias')).toHaveLength(3);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      clock.mockRestore();
+    }
+  });
 });
 
 describe('isForecastFresh', () => {
