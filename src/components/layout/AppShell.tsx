@@ -12,7 +12,7 @@ import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { logPredictionSnapshot } from '../../services/stormPredictionLogger';
-import { useStormPrediction } from '../../hooks/useStormPrediction';
+import { useStormPrediction, usePredictionInputsReady } from '../../hooks/useStormPrediction';
 import { fetchSeasonGDD } from '../../services/gddService';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -332,13 +332,14 @@ export function AppShell() {
   // ── Storm prediction logging (for future ML calibration) ──
   const stormPrediction = useStormPrediction();
   const stormAlertLevel = useLightningStore((s) => s.stormAlert.level);
-  // Not before the first lightning fetch: a visitor who had just opened the map logged «10 %, none»
-  // in the middle of the 6-oct storms, and those rows are what the predictor is scored against.
-  const lightningLoaded = useLightningStore((s) => s.lastFetch !== null);
+  // Not before the lightning, the forecast and the warnings have answered: a visitor who had just
+  // opened the map logged «10 %, none» or «30 %» in the middle of the 6-oct storms, and those rows
+  // are what the predictor is scored against.
+  const predictionReady = usePredictionInputsReady();
   useEffect(() => {
-    if (!lightningLoaded) return;
+    if (!predictionReady) return;
     logPredictionSnapshot(stormPrediction, stormAlertLevel !== 'none', activeSectorId);
-  }, [stormPrediction, stormAlertLevel, activeSectorId, lightningLoaded]);
+  }, [stormPrediction, stormAlertLevel, activeSectorId, predictionReady]);
 
   return (
     <div className="h-screen-safe w-full flex flex-col bg-slate-950 text-white overflow-hidden">

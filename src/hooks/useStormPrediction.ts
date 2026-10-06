@@ -24,6 +24,19 @@ const NO_PREDICTION: StormPrediction = {
 };
 
 /**
+ * True once the lightning, the forecast and the warnings have each had their first answer (a
+ * failed forecast counts: it will not come). Before that the prediction is not computed: on 6-oct
+ * tabs just opened showed, and logged, 30 % in the Embalse next to 88-98 % from the others, with
+ * the same strikes and the forecast rain, the cloud and the MeteoGalicia warning still empty.
+ */
+export function usePredictionInputsReady(): boolean {
+  const lightning = useLightningStore((s) => s.lastFetch !== null);
+  const forecast = useForecastStore((s) => s.fetchedAt !== null || s.error !== null);
+  const warnings = useWarningsStore((s) => s.lastFetch !== null);
+  return lightning && forecast && warnings;
+}
+
+/**
  * Returns the current storm prediction, recalculated from live data.
  * Safe to call from any component — reads from Zustand stores.
  */
@@ -34,8 +47,10 @@ export function useStormPrediction(): StormPrediction {
   const recentActivity = useLightningStore((s) => s.recentActivity);
   const stormShadow = useStormShadowStore((s) => s.stormShadow);
   const sectorWarnings = useWarningsStore((s) => s.sectorWarnings);
+  const ready = usePredictionInputsReady();
 
   return useMemo(() => {
+    if (!ready) return NO_PREDICTION;
     // Need at least some data source active. Note recentActivity can keep the
     // prediction alive through a lull even when stormAlert just dropped to
     // 'none' — that's the whole point of the hysteresis.
@@ -49,5 +64,5 @@ export function useStormPrediction(): StormPrediction {
       return NO_PREDICTION;
     }
     return predictStorm(forecast, stormAlert, stormShadow, sectorWarnings, recentActivity);
-  }, [forecast, stormAlert, recentActivity, stormShadow, sectorWarnings]);
+  }, [ready, forecast, stormAlert, recentActivity, stormShadow, sectorWarnings]);
 }
