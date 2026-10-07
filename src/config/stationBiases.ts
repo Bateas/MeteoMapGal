@@ -164,6 +164,26 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
     evidence: 'empirical-buoy',
   },
 
+  // Nigrán, the land side of Patos and Vao (sweep of the afternoons of 22-sep..7-oct: they
+  // weighed 17-21 % of those spots while reading under 40 % of the free stream, with vanes
+  // 120-140° off the buoys' wind on north days).
+  'wu_INIGRN10': {
+    stationId: 'wu_INIGRN10',
+    unreliableSectors: [{ from: 0, to: 360, type: 'sheltered' }],
+    note: 'Nigrán WU — 0,28-0,40 del viento libre en todos los rumbos (calibracion). Con N marca rumbos cruzados.',
+    evidence: 'empirical-buoy',
+  },
+  'mc_ESGAL3600000036350C': {
+    stationId: 'mc_ESGAL3600000036350C',
+    unreliableSectors: [
+      // station_calibration: N 0.37, NE 0.25, NW 0.39, S 0.37; SW 0.56 and W 0.47 kept.
+      { from: 292, to: 67, type: 'sheltered' },
+      { from: 158, to: 202, type: 'sheltered' },
+    ],
+    note: 'Nigrán (Meteoclimatic) — con N/NE/NO y S ve el 25-39 % del viento libre (calibracion); con SW-W, 47-56 %.',
+    evidence: 'empirical-buoy',
+  },
+
   'mg_10018': {
     stationId: 'mg_10018',
     unreliableSectors: [
