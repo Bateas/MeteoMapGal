@@ -1075,6 +1075,35 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- IDEG lightning archive (idegLightningArchive.ts): the discharges of MeteoGalicia's own lightning
+-- viewer, from the Xunta's public map service «Observacion_raios_ultimas_24h» (layer 1), INCLUDING
+-- intra-cloud ones (intra_cloud = CloudInd 1) and how well each was located. Shadow only: no alert
+-- reads it. It is to measure whether intra-cloud discharges warn earlier than ground strikes and how
+-- late the service publishes (fetched_at - time). Separate from lightning_strikes on purpose: the same
+-- ground strike comes from both feeds with different time precision, and mixing them would count it twice.
+CREATE TABLE IF NOT EXISTS lightning_ideg (
+  time          TIMESTAMPTZ      NOT NULL,   -- UTC, to the second
+  lat           DOUBLE PRECISION NOT NULL,
+  lon           DOUBLE PRECISION NOT NULL,
+  peak_current  REAL,                        -- kA, signed
+  intra_cloud   BOOLEAN          NOT NULL,
+  multiplicity  SMALLINT,
+  sensors       SMALLINT,                    -- detectors that located it (Nsensores)
+  semi_major    REAL,                        -- error ellipse as published (SemiEjeMayor / SemiEjeMenor)
+  semi_minor    REAL,
+  chi_square    REAL,
+  source_id     BIGINT,                      -- idDescargas, reference only
+  fetched_at    TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (time, lat, lon)
+);
+SELECT create_hypertable('lightning_ideg', 'time', if_not_exists => TRUE);
+GRANT SELECT, INSERT ON lightning_ideg TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON lightning_ideg TO grafana_ro;
+  END IF;
+END $$;
+
 -- ── METAR archive (metarArchive.ts) ───────────────────────
 -- The reports of the Galician airports (LEVX Vigo, LEST Santiago, LECO A Coruña) as published,
 -- every 30 min. The map read them live and nothing kept them; stored, present weather (FG, BR,

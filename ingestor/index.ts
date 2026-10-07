@@ -37,6 +37,7 @@ import { runStationHealthCycle, loadStationHealth, HEALTH_CHECK_INTERVAL_MS } fr
 import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetcher.js';
 import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
 import { runMetarArchive, METAR_ARCHIVE_INTERVAL_MS } from './metarArchive.js';
+import { runIdegLightningArchive } from './idegLightningArchive.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
   countBySource,
@@ -99,6 +100,7 @@ let stationHealthTimer: ReturnType<typeof setInterval> | null = null;
 let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
 let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
 let metarTimer: ReturnType<typeof setInterval> | null = null;
+let idegTimer: ReturnType<typeof setTimeout> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -622,6 +624,21 @@ async function start(): Promise<void> {
   setTimeout(() => { void runMetarArchive(); }, 280_000);
   metarTimer = setInterval(() => { void runMetarArchive(); }, METAR_ARCHIVE_INTERVAL_MS);
 
+  // MeteoGalicia's own lightning viewer, intra-cloud included (idegLightningArchive.ts): shadow archive,
+  // no alert reads it. Every 2 min with fresh activity, 5 otherwise. 300s stagger, after the METAR.
+  // Off unless IDEG_LIGHTNING=1: MeteoGalicia pointed third parties to its JSON services, and this map
+  // service is not on that list, so it waits for their answer (a blocked IP would cost every MG feed).
+  if (process.env.IDEG_LIGHTNING === '1') {
+    const idegLoop = async () => {
+      const next = await runIdegLightningArchive();
+      idegTimer = setTimeout(() => { void idegLoop(); }, next);
+    };
+    idegTimer = setTimeout(() => { void idegLoop(); }, 300_000);
+    log.info('[IDEG rayos] archivo en sombra activo (rayos entre nubes incluidos)');
+  } else {
+    log.info('[IDEG rayos] apagado; IDEG_LIGHTNING=1 en ingestor/.env para archivar los rayos entre nubes');
+  }
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -650,6 +667,7 @@ async function shutdown(signal: string): Promise<void> {
   if (nwpPreviousTimer) clearInterval(nwpPreviousTimer);
   if (wrfPointTimer) clearInterval(wrfPointTimer);
   if (metarTimer) clearInterval(metarTimer);
+  if (idegTimer) clearTimeout(idegTimer);
 
   // Close database pool
   await closePool();
