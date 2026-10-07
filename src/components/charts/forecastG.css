@@ -5,10 +5,7 @@
  * --g-s-* are those tones darkened or lightened to >= 3:1 on the background, for lines and text.
  * Plain classes (not Tailwind spacing): the unlayered reset in index.css zeroes the padding and margin utilities.
  */
-/* Archivo and Archivo Narrow, self-hosted (font-src is self only), Latin subset: Spanish fits in
- * U+0000-00FF. Variable weight files; licence in public/fonts/OFL-Archivo.txt. */
-@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 400 800; font-display: swap; src: url('/fonts/archivo-latin-var.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-@font-face { font-family: 'Archivo Narrow'; font-style: normal; font-weight: 500 700; font-display: swap; src: url('/fonts/archivo-narrow-latin-var.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+/* The Archivo faces live in src/styles/archivoFonts.css (shared with the spot popup). */
 
 .g-theme {
   --g-bg: #141618; --g-ink: #e4e8e5; --g-muted: #a2a8a4; --g-hair: #30353a; --g-rule: #687070;

@@ -1,0 +1,36 @@
+/*
+ * Spot popup head in the V3 style «G · Parte refinada», like the forecast panel: Archivo type, ink on the
+ * dark card, colour only for the state. The popup sits on the map, which stays dark in both themes, so
+ * these tokens are the dark ones only. The state colours stay the map's (VERDICT colours in SpotPopup) so
+ * the marker and its card keep saying the same thing until the V3 palette lands everywhere at once.
+ * Plain classes: the unlayered reset in index.css zeroes Tailwind's padding and margin utilities.
+ */
+.sg {
+  --sg-ink: #e4e8e5; --sg-muted: #a2a8a4; --sg-hair: #30353a; --sg-rule: #687070;
+  --sg-font: 'Archivo', 'DM Sans', system-ui, sans-serif;
+  --sg-narrow: 'Archivo Narrow', 'Archivo', 'DM Sans', system-ui, sans-serif;
+  font-family: var(--sg-font);
+  color: var(--sg-ink);
+}
+.sg-head { display: flex; align-items: flex-start; gap: 10px; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 2px solid var(--sg-rule); }
+.sg-chip { flex-shrink: 0; margin-top: 1px; }
+.sg-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.sg-name-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.sg-name { font-size: 19px; font-weight: 800; letter-spacing: -.01em; line-height: 1.12; }
+.sg-desc { font-size: 12px; color: var(--sg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sg-beta { font: 600 10px var(--sg-narrow); color: var(--sg-muted); border: 1px solid var(--sg-hair); padding: 1px 5px; border-radius: 2px; text-transform: uppercase; letter-spacing: .06em; line-height: 1.3; }
+.sg-act { min-width: 30px; min-height: 30px; display: inline-flex; align-items: center; justify-content: center; color: var(--sg-muted); background: transparent; border: 0; cursor: pointer; font-size: 17px; line-height: 1; }
+.sg-act:hover { color: var(--sg-ink); }
+.sg-act.on { color: #e7b340; }
+.sg-act:focus-visible { outline: 2px solid var(--sg-ink); outline-offset: -2px; }
+
+.sg-big { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; min-width: 0; }
+.sg-verdict { font: 700 30px/1.05 var(--sg-narrow); letter-spacing: -.01em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sg-model { font: 500 13px var(--sg-font); color: var(--sg-muted); }
+.sg-side { display: flex; flex-direction: column; gap: 1px; font-size: 13px; line-height: 1.3; min-width: 0; }
+.sg-strong { font-weight: 600; color: var(--sg-ink); white-space: nowrap; }
+.sg-mut { color: var(--sg-muted); }
+.sg-pending { font-size: 15px; font-weight: 600; color: var(--sg-muted); }
+.sg-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--sg-muted); margin-bottom: 6px; }
+.sg-pattern { font-size: 12px; color: #e7b340; margin-bottom: 6px; }
+.sg-summary { font-size: 13px; line-height: 1.35; margin-bottom: 6px; padding-left: 8px; border-left: 3px solid var(--sg-tone, var(--sg-rule)); }

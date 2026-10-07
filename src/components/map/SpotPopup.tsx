@@ -23,6 +23,8 @@ import type { SailingSpot } from '../../config/spots';
 import { isBeachSpot } from '../../config/spots';
 import { displayWindKt, displayWindDir, displayVerdict as renderedVerdict } from '../../config/verdictStyles';
 import { SpotReportBox } from '../spot/SpotReportBox';
+import '../../styles/archivoFonts.css';
+import '../spot/spotG.css';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import { formatThermalCountdown } from '../../services/thermalPrecursorService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
@@ -56,6 +58,12 @@ import { WindPatterns } from '../spot/WindPatterns';
 import { useHistoricalBaseline } from '../../hooks/useHistoricalBaseline';
 import { describeVsBaseline, severityToBadgeClass } from '../../services/historicalBaselineService';
 import { buildShareUrl } from '../../services/shareImageGenerator';
+
+// Marker shapes for the popup head chip (30x30 box): hexagon for wind spots, pentagon for surf.
+const HEX_PTS = '15,2 26.26,8.5 26.26,21.5 15,28 3.74,21.5 3.74,8.5';
+const PENTA_PTS = '15,2 27.36,10.98 22.64,25.52 7.36,25.52 2.64,10.98';
+/** «NAVEGABLE» → «Navegable»: the V3 head writes the state as a word, not a shout. */
+const sentenceCase = (s: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : s);
 
 // ── Verdict palette — matches windSpeedColor() for coherence ──
 const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
@@ -359,54 +367,126 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
 
   const popupContent = (
     <div className={`break-words ${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[260px] max-w-[350px] max-h-[70vh] overflow-y-auto overflow-x-hidden'}`}>
-      {/* ── Header ── */}
-      <div className="flex items-center gap-2 mb-1.5 pb-1.5 border-b border-slate-700/60">
-        <div
-          className={`${isMobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-full flex items-center justify-center shrink-0`}
-          style={{ background: displayVerdict.bg, border: `2px solid ${displayVerdict.color}` }}
-        >
-          <WeatherIcon id={spot.icon} size={isMobile ? 20 : 16} className="text-slate-200" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-1.5 flex-wrap">
-            <span id={titleId} className={`${isMobile ? 'text-base' : 'text-sm'} font-bold text-slate-100 leading-tight`}>{spot.name}</span>
-            <button
-              onClick={(e) => { e.stopPropagation(); toggleFavorite(spot.id); }}
-              className={`shrink-0 transition-colors ${isMobile ? 'text-base' : 'text-sm'} ${
-                favoriteSpotId === spot.id ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300'
-              }`}
-              title={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
-              aria-label={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
-            >
-              {favoriteSpotId === spot.id ? '\u2605' : '\u2606'}
-            </button>
-            {/* Hidden while provisional: a shared image outlives the correction.
-                The popup will settle in a cycle or two; a screenshot in someone
-                else's chat will not. Hidden on surf spots too: the image is a
-                WIND card, and it said «CALMA 2 kt» for a beach whose card said
-                «CLÁSICO ~1,1 m». */}
-            {score && !score.provisional && spot.category !== 'surf' && (
+      {/* ── Head, V3 «G»: name and actions, then the state in one big line (word · figure) with the
+            wind details beside it. Same data and states as before; the colour is still the map's. ── */}
+      <div className="sg">
+        <div className="sg-head">
+          <svg className="sg-chip" width={isMobile ? 30 : 26} height={isMobile ? 30 : 26} viewBox="0 0 30 30" aria-hidden="true">
+            <polygon points={spot.category === 'surf' ? PENTA_PTS : HEX_PTS} fill={displayVerdict.color} stroke="#0b0d0e" strokeWidth="2" />
+          </svg>
+          <div className="sg-titles">
+            <div className="sg-name-row">
+              <span id={titleId} className="sg-name">{spot.name}</span>
               <button
-                onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
-                className={`shrink-0 inline-flex items-center justify-center transition-colors text-slate-500 hover:text-sky-300 ${isMobile ? 'p-1' : ''}`}
-                title="Compartir como imagen"
-                aria-label="Compartir como imagen"
+                type="button"
+                onClick={(e) => { e.stopPropagation(); toggleFavorite(spot.id); }}
+                className={`sg-act${favoriteSpotId === spot.id ? ' on' : ''}`}
+                title={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
+                aria-label={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
               >
-                <WeatherIcon id="share" size={isMobile ? 16 : 13} />
+                {favoriteSpotId === spot.id ? '★' : '☆'}
               </button>
-            )}
-            <span className={`text-[11px] font-bold tracking-wider ${
-              spot.category === 'surf'
-                ? 'text-cyan-300 bg-cyan-500/20 border-cyan-500/30'
-                : 'text-amber-300 bg-amber-500/20 border-amber-500/30'
-            } px-1.5 py-0.5 rounded-full border shrink-0 leading-none`}>
-              {spot.category === 'surf' ? 'SURF BETA' : 'BETA'}
-            </span>
+              {/* Hidden while provisional: a shared image outlives the correction.
+                  The popup will settle in a cycle or two; a screenshot in someone
+                  else's chat will not. Hidden on surf spots too: the image is a
+                  WIND card, and it said «CALMA 2 kt» for a beach whose card said
+                  «CLÁSICO ~1,1 m». */}
+              {score && !score.provisional && spot.category !== 'surf' && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
+                  className="sg-act"
+                  title="Compartir como imagen"
+                  aria-label="Compartir como imagen"
+                >
+                  <WeatherIcon id="share" size={15} />
+                </button>
+              )}
+              <span className="sg-beta">{spot.category === 'surf' ? 'surf beta' : 'beta'}</span>
+            </div>
+            {/* Single-line description — full text on hover; prose costs vertical
+                space the popup cannot afford on mobile. */}
+            <div className="sg-desc" title={spot.description}>{spot.description}</div>
           </div>
-          {/* Single-line description — full text on hover; prose costs vertical
-              space the popup cannot afford on mobile. */}
-          <div className="text-[11px] text-slate-300 truncate" title={spot.description}>{spot.description}</div>
         </div>
+
+        {score?.provisional || surfState === 'loading' ? (
+          // Cold-load provisional score (same flag SpotMarker reads): never show
+          // a firm verdict computed from a still-partial reading set. Surf: same
+          // rule while the wave forecast or the spot's wind has not arrived.
+          // While provisional the figure itself is the unsettled thing, so it is
+          // the figure that is withheld — direction and station count stay, and
+          // the count is the very reason the number is not ready yet.
+          <div className="sg-big">
+            <span className="sg-pending">
+              {/* With the waves in, what is missing is the spot's wind. */}
+              {surfState === 'loading'
+                ? (surfEntry ? 'Calculando (esperando el viento de las estaciones)…' : 'Calculando olas…')
+                : 'Calculando condiciones (esperando estaciones)…'}
+            </span>
+            {spot.category !== 'surf' && score?.wind && (
+              <span className="sg-side">
+                <span className="sg-mut">{windDirView?.deg != null ? `del ${windDirView.label} ${Math.round(windDirView.deg)}°` : 'dirección variable'}</span>
+                <span className="sg-mut">{score.wind.stationCount} estaciones</span>
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="sg-big">
+            <span className="sg-verdict" style={{ color: displayVerdict.textColor }}>
+              {spot.category === 'surf' ? displayVerdict.label : sentenceCase(displayVerdict.label)}
+              {/* Same height the marker, the list and the ticker print — a model
+                  value, and it says so: nobody measures waves on this beach. */}
+              {surfInfo && surfEntry?.waveHeight != null && <> · {formatSurfWave(surfEntry.waveHeight)}</>}
+              {(spot.category !== 'surf' || surfState === 'danger') && score?.wind && <> · {effectiveKt.toFixed(0)}</>}
+            </span>
+            {surfInfo && surfEntry?.waveHeight != null && <span className="sg-model"> (modelo)</span>}
+            {(spot.category !== 'surf' || surfState === 'danger') && score?.wind && (
+              <span className="sg-side">
+                <span className="sg-strong">
+                  {windDirView?.deg != null ? (
+                    <>
+                      nudos del {windDirView.label}{' '}
+                      <span style={{ display: 'inline-block', transform: `rotate(${(windDirView.deg + 180) % 360}deg)` }} aria-hidden="true">↑</span>
+                      {' '}{Math.round(windDirView.deg)}°
+                    </>
+                  ) : (
+                    <span title="Las estaciones cercanas no coinciden en la dirección">nudos, dirección variable</span>
+                  )}
+                </span>
+                {/* The gust travels with the mean (scaleGustToSpot), with what the
+                    instrument read kept in view when the spot figure differs. */}
+                {effectiveGustKt != null && effectiveGustKt > effectiveKt && (
+                  <span className="sg-mut">
+                    racha {effectiveGustKt.toFixed(0)}
+                    {gustIsBoosted && score.gustKt != null && ` (medida ${score.gustKt.toFixed(0)})`}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
+
+        {spot.category !== 'surf' && score?.wind && (
+          <div className="sg-meta">
+            <SpotWindTrend spotId={spot.id} />
+            <SpotWindSparkline spotId={spot.id} />
+            <span>{score.wind.stationCount} estaciones</span>
+            {!score.provisional && windIsBoosted && <span>· medido {score.wind.avgSpeedKt.toFixed(0)} kt</span>}
+            {!score.provisional && !simpleMode && <span>· {score.score}/100</span>}
+          </div>
+        )}
+        {spot.category !== 'surf' && score?.wind?.matchedPattern && (
+          <div className="sg-pattern">
+            <WeatherIcon id="thermal-wind" size={11} className="inline -mt-px" /> {score.wind.matchedPattern}
+          </div>
+        )}
+        {/* Surf verdict summary — plain language */}
+        {displayVerdict.summary && (
+          <div className="sg-summary" style={{ ['--sg-tone' as string]: displayVerdict.color } as React.CSSProperties}>
+            {displayVerdict.summary}
+          </div>
+        )}
       </div>
 
       {/* ── Surf conditions reference (surf spots only) ── */}
@@ -437,46 +517,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
         <SpotTideSummary tideStationId={spot.tideStationId} tidePreference={spot.tidePreference} />
       )}
 
-      {/* ── Verdict badge — surf uses wave-based verdict, sailing uses wind ── */}
-      {score?.provisional || surfState === 'loading' ? (
-        // Cold-load provisional score (same flag SpotMarker reads): never show
-        // a firm verdict computed from a still-partial reading set. Surf: same
-        // rule while the wave forecast or the spot's wind has not arrived.
-        <div className="mb-1.5 text-[12px] text-slate-400 italic">
-          {/* With the waves in, what is missing is the spot's wind. */}
-          {surfState === 'loading'
-            ? (surfEntry ? 'Calculando (esperando el viento de las estaciones)…' : 'Calculando olas…')
-            : 'Calculando condiciones (esperando estaciones)…'}
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 mb-1.5">
-          <span
-            className="px-2.5 py-0.5 rounded-full text-[13px] font-extrabold tracking-wide"
-            style={{ background: displayVerdict.bg, color: displayVerdict.textColor, border: `1px solid ${displayVerdict.color}40` }}
-          >
-            {displayVerdict.label}
-          </span>
-          {/* Same height the marker, the list and the ticker print — a model
-              value, and it says so: nobody measures waves on this beach. */}
-          {surfInfo && surfEntry?.waveHeight != null && (
-            <span className="text-xs text-slate-300 tabular-nums">
-              {formatSurfWave(surfEntry.waveHeight)} (modelo)
-            </span>
-          )}
-          {spot.category !== 'surf' && score && (
-            <span className="text-xs text-slate-400 font-mono">
-              {score.score}/100
-            </span>
-          )}
-        </div>
-      )}
-      {/* Surf verdict summary — plain language */}
-      {displayVerdict.summary && (
-        <div className="text-[11px] text-slate-300 mb-1.5 leading-tight break-words" style={{ color: displayVerdict.textColor }}>
-          {displayVerdict.summary}
-        </div>
-      )}
-
       {/* Sport-threshold reading of an active orange marine warning. Informs,
           never authorises — all copy lives in sportWarningService, guarded by
           the no-authorisation test. Wave is passed ONLY for surf spots, where
@@ -503,77 +543,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       {spot.category === 'surf' && swanHs !== null && (
         <div className="text-[10px] text-cyan-400/80 mb-1 italic">
           SWAN {swanHs.toFixed(2)} m (modelo alta resolución CESGA en este punto)
-        </div>
-      )}
-
-      {/* ── Wind consensus ── */}
-      {score?.wind && (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-1.5">
-          {/* nowrap on the whole row: this is half of a two-column grid, and
-              without it the browser breaks words mid-letter to make things fit
-              — "Viento" came out as "Vie / nfo". Better to sit tight than to
-              shatter. */}
-          <div className="flex items-baseline gap-1 whitespace-nowrap">
-            <span className="text-slate-500 text-[11px]">Viento</span>
-            {/* While provisional the figure itself is the unsettled thing, so it
-                is the figure that is withheld — direction and station count stay,
-                and the count is the very reason the number is not ready yet. */}
-            {score.provisional ? (
-              <span className="text-[11px] text-slate-500 italic">calculando</span>
-            ) : (
-              <>
-                <span className="font-bold" style={{ color: windKtColor(effectiveKt) }}>
-                  {effectiveKt.toFixed(0)} kt
-                </span>
-                {windIsBoosted && (
-                  <span className="text-[9px] text-slate-500 italic">(medido: {score.wind.avgSpeedKt.toFixed(0)})</span>
-                )}
-              </>
-            )}
-            <SpotWindTrend spotId={spot.id} />
-            <SpotWindSparkline spotId={spot.id} />
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-slate-500 text-[11px]">Dirección</span>
-            {windDirView?.deg != null ? (
-              <span className="font-bold text-slate-200 flex items-center gap-1">
-                <span
-                  className="inline-block text-sm leading-none"
-                  style={{ transform: `rotate(${(windDirView.deg + 180) % 360}deg)`, display: 'inline-block' }}
-                >↑</span>
-                {windDirView.label}
-                <span className="text-[11px] text-slate-400 font-normal">{Math.round(windDirView.deg)}°</span>
-              </span>
-            ) : (
-              <span className="font-bold text-slate-200" title="Las estaciones cercanas no coinciden en la dirección">
-                Variable
-              </span>
-            )}
-          </div>
-          {/* Laid out by hand rather than through <Cell>, which takes only
-              label/value/color and silently drops anything passed as children —
-              and TypeScript does not complain, so the annotation would simply
-              never appear. Same markup Cell produces, plus the measured value. */}
-          {!score.provisional && effectiveGustKt != null && effectiveGustKt > effectiveKt && (
-            <div className="flex items-baseline gap-1 whitespace-nowrap">
-              <span className="text-slate-500 text-[11px]">Racha</span>
-              <span className="font-bold" style={{ color: windKtColor(effectiveGustKt) }}>
-                {effectiveGustKt.toFixed(0)} kt
-              </span>
-              {/* Same wording as the wind above it, because it is the same
-                  story: a figure carried from the station to the spot, with
-                  what the instrument actually read kept in view. */}
-              {gustIsBoosted && score.gustKt != null && (
-                <span className="text-[9px] text-slate-500 italic">(medida: {score.gustKt.toFixed(0)})</span>
-              )}
-            </div>
-          )}
-          {score.wind.matchedPattern && (
-            <div className="col-span-2 text-[11px] text-amber-400/80 italic">
-              <WeatherIcon id="thermal-wind" size={11} className="inline -mt-px" /> {score.wind.matchedPattern}
-            </div>
-          )}
-          <Cell label="Estaciones" value={`${score.wind.stationCount}`} />
         </div>
       )}
 

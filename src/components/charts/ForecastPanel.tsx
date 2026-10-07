@@ -14,6 +14,7 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useSectorStore } from '../../store/sectorStore';
 import { getSpotsForSector } from '../../config/spots';
 import { ForecastTimeline } from './ForecastTimeline';
+import '../../styles/archivoFonts.css';
 import './forecastG.css';
 
 function ForecastPanelInner() {
