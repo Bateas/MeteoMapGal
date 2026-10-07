@@ -183,7 +183,14 @@ export function ForecastHoursG({ hourly }: { hourly: HourlyForecast[] }) {
               return id ? <span className="g-sky"><WeatherIcon id={id} size={16} /></span> : null;
             })}
             {row('Viento', 'kt', (c) => <span className={`g-kt g-kt-sm t-${c.tone}`}>{Math.round(c.kt)}</span>, 'g-windrow')}
-            {row('Dirección', null, (c) => (c.dirDeg != null ? <span className="g-arrow" title={`del ${cardinalEs(c.dirDeg)}`}><DirArrow fromDeg={c.dirDeg} /></span> : null))}
+            {/* With «Más datos» each arrow carries its bearing: two neighbouring arrows can look the same
+                and be 20 degrees apart, which is the difference between entering a spot or not. */}
+            {row('Dirección', more ? '°' : null, (c) => (c.dirDeg != null ? (
+              <span className={`g-arrow${more ? ' g-arrow-deg' : ''}`} title={`del ${cardinalEs(c.dirDeg)} (${Math.round(c.dirDeg) % 360}°)`}>
+                <DirArrow fromDeg={c.dirDeg} />
+                {more && <span className="g-deg">{Math.round(c.dirDeg) % 360}</span>}
+              </span>
+            ) : null))}
             {anyGust && row('Rachas', 'kt', (c) => (c.gustKt != null ? <span className={c.gustKt >= GUST_WARN_KT ? 'g-warn' : ''}>{Math.round(c.gustKt)}</span> : null))}
             {row('Temp.', '°C', (c) => (c.temp != null ? <span className={`g-temp tb-${tempBand(c.temp)}`}>{Math.round(c.temp)}°</span> : null))}
             {anyRain && row('Lluvia', 'mm', (c) => (c.rainMm >= 0.1 ? <span className="g-rain">{num(c.rainMm, 1)}</span> : null))}

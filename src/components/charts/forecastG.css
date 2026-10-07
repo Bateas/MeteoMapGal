@@ -96,6 +96,8 @@
 .g-nowcol .g-kt { outline: 2px solid var(--g-ink); outline-offset: 1px; }
 .g-sky { display: inline-flex; color: var(--g-muted); }
 .g-table .g-arrow { justify-content: center; height: auto; }
+.g-table .g-arrow-deg { flex-direction: column; gap: 1px; }
+.g-deg { font: 600 12px var(--g-narrow); color: var(--g-ink); opacity: .85; line-height: 1; font-variant-numeric: tabular-nums; }
 .g-warn { color: var(--g-danger); font-weight: 800; }
 .g-rain { color: var(--g-s-flojo); font-weight: 600; }
 .g-more th, .g-more td { color: var(--g-muted); }

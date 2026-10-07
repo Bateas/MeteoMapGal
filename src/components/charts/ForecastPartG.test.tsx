@@ -39,6 +39,15 @@ describe('ForecastHoursG', () => {
     expect(rowNames()).toEqual(expect.arrayContaining(['Humedad%', 'PresiónhPa']));
   });
 
+  it('«Más datos» writes the bearing under each arrow', () => {
+    const h = hours(3).map((p, i) => ({ ...p, windDirection: [0, 112.4, 359.6][i] }));
+    const { container } = render(<ForecastHoursG hourly={h} />);
+    expect(container.querySelectorAll('.g-deg')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Más datos' }));
+    expect([...container.querySelectorAll('.g-deg')].map((e) => e.textContent)).toEqual(['0', '112', '0']);
+    expect(rowNames()).toContain('Dirección°');
+  });
+
   it('nothing to draw without forecast hours', () => {
     const { container } = render(<ForecastHoursG hourly={[]} />);
     expect(container.innerHTML).toBe('');
