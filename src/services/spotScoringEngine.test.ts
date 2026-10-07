@@ -3,7 +3,7 @@
  * Covers: windVerdict thresholds, scoreAllSpots integration, hard gates.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { scoreAllSpots, isWindBlacklisted, getSourceQuality, gustIsPlausible, peakPlausibleGustKt } from './spotScoringEngine';
+import { scoreAllSpots, isWindBlacklisted, getSourceQuality, gustIsPlausible, peakPlausibleGustKt, freeStreamDirection } from './spotScoringEngine';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import { RIAS_SPOTS, EMBALSE_SPOTS } from '../config/spots';
@@ -928,5 +928,49 @@ describe('scoreAllSpots — the spot gust comes from the height of the water', (
     const results = scoreAllSpots([castrelo], [at('test_slope', castrelo, 200, 0.018)],
       new Map([['test_slope', gusty('test_slope', 9, 15)]]), []);
     expect(results.get('castrelo')!.gustKt).toBeCloseTo(15, 0);
+  });
+});
+
+// ── Blind sectors keyed on the free stream (7-oct) ───────
+
+describe('station blind sectors use the buoys direction', () => {
+  // centro-ria: mg_10125 is not one of its preferred stations, so it weighs like any twin.
+  const centro = RIAS_SPOTS.find(s => s.id === 'centro-ria')!;
+  const buoy = (stationId: number, kt: number, dir: number): BuoyReading => ({
+    stationId, stationName: String(stationId), timestamp: new Date().toISOString(),
+    waveHeight: 1.0, wavePeriod: 8, waveDir: 300, waveHeightMax: null, wavePeriodMean: null,
+    windSpeed: msFromKt(kt), windDir: dir, windGust: null,
+    waterTemp: 14, airTemp: 16, humidity: null, dewPoint: null,
+    airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
+    seaLevel: null,
+  });
+  const near = (b: BuoyReading, distKm = 5) => ({ buoy: b, distKm });
+
+  it('freeStreamDirection: circular mean of the buoys, null without wind or when they disagree', () => {
+    const n = freeStreamDirection([near(buoy(2248, 15, 350)), near(buoy(3221, 12, 10))])!;
+    expect(Math.min(n, 360 - n)).toBeLessThan(10);
+    expect(freeStreamDirection([])).toBeNull();
+    expect(freeStreamDirection([near(buoy(2248, 2, 0))])).toBeNull();                     // calm
+    expect(freeStreamDirection([near(buoy(2248, 15, 0)), near(buoy(3221, 15, 180))])).toBeNull(); // N vs S
+    expect(freeStreamDirection([near(buoy(4273, 15, 0))])).toBeNull();                    // land copy (Cabo Udra)
+  });
+
+  // Cies read 5 kt from the S (eddy behind the island) with 15-18 kt N in the ria on 1-oct.
+  // Keyed on its own vane, its N blind sector never fired.
+  it('demotes a sheltered station whose own vane points outside its blind sector', () => {
+    const vigo = buoy(3221, 15, 0);
+    const score = (id: string) => scoreAllSpots(
+      [centro], [makeStation(id, 42.22, -8.84)], new Map([[id, makeReading(id, msFromKt(7), 189)]]), [vigo],
+    ).get('centro-ria')!.wind!.avgSpeedKt;
+    expect(score('mg_10125')).toBeGreaterThan(score('mg_twin') + 0.5);
+  });
+
+  it('without buoys (inland) the blind sector still uses the own vane of the station', () => {
+    const score = (id: string, dir: number) => scoreAllSpots(
+      [centro], [makeStation(id, 42.22, -8.84), makeStation('mg_other', 42.24, -8.78)],
+      new Map([[id, makeReading(id, msFromKt(5), dir)], ['mg_other', makeReading('mg_other', msFromKt(12), dir)]]), [],
+    ).get('centro-ria')!.wind!.avgSpeedKt;
+    expect(score('mg_10125', 0)).toBeGreaterThan(score('mg_twin', 0) + 0.5);  // N: inside the sector
+    expect(score('mg_10125', 189)).toBe(score('mg_twin', 189));               // S: outside, as before
   });
 });

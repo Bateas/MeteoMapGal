@@ -96,6 +96,47 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
     evidence: 'empirical-buoy',
   },
 
+  'mg_10125': {
+    stationId: 'mg_10125',
+    unreliableSectors: [
+      // Free-stream audit (station_calibration, binned by the reference's
+      // direction, ~750 h) and a check of the N afternoons of 8-ago..7-oct:
+      //   N  (337-22°): 0.58 vs the combined reference; 0.50 vs Cabo Udra MG
+      //                 (103 h, 19 afternoons), 0.65 vs 3221 Vigo REDMAR
+      //   NE (22-67°):  0.41 · NW (292-337°): 0.56
+      //   S-SW:         0.92-0.97 (1.65 vs 3221 with SW) → exposed
+      // With N its gusts run 2.5x its mean: lee turbulence. Field truth: on
+      // 1-oct it read 5 kt from the S (eddy behind the island) with 15-18 kt N
+      // in the ria; on 7-oct 7.6 kt NNE with 12+ in the ria.
+      { from: 292, to: 67, type: 'sheltered' },
+    ],
+    note: 'Illas Cies — a sotavento de la isla con N/NE/NW (0,41-0,58 del viento libre; con S-SW expuesta, 0,92-0,97). Con nortada lee la mitad que Udra, rachas x2,5 y a veces del S por el remolino.',
+    evidence: 'empirical-buoy',
+  },
+
+  // Cangas WU: 0.09-0.47 of the free stream in every sector (station_calibration,
+  // 640-750 h each); with N 0.20-0.27 of both Cabo Udra and 3221 Vigo REDMAR.
+  // Globally unrepresentative, like Lourizan. They read 2-4 kt with 13-16 kt in
+  // the ria (1-oct, 7-oct) and carried a quarter of Limens' consensus.
+  'wu_ICANGA20': {
+    stationId: 'wu_ICANGA20',
+    unreliableSectors: [{ from: 0, to: 360, type: 'sheltered' }],
+    note: 'Cangas WU — 0,09-0,25 del viento libre en todos los rumbos (calibracion). Lee 2-4 kt con 13-16 en la ria.',
+    evidence: 'empirical-buoy',
+  },
+  'wu_ICANGA32': {
+    stationId: 'wu_ICANGA32',
+    unreliableSectors: [{ from: 0, to: 360, type: 'sheltered' }],
+    note: 'Cangas WU — 0,17-0,47 del viento libre en todos los rumbos (calibracion). Lee 2-4 kt con 13-16 en la ria.',
+    evidence: 'empirical-buoy',
+  },
+  'wu_ICANGA33': {
+    stationId: 'wu_ICANGA33',
+    unreliableSectors: [{ from: 0, to: 360, type: 'sheltered' }],
+    note: 'Cangas WU — 0,15-0,26 del viento libre en todos los rumbos (calibracion). Lee 2-4 kt con 13-16 en la ria.',
+    evidence: 'empirical-buoy',
+  },
+
   'mg_10018': {
     stationId: 'mg_10018',
     unreliableSectors: [

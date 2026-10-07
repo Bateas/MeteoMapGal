@@ -356,6 +356,7 @@ export const MAX_PLAUSIBLE_GUST_KT = 90;
 const BUOY_EXPOSURE_BOOST = 1.5;          // Buoys over water — inherently unobstructed
 const PREFERRED_EXPOSURE_BOOST = 1.3;     // Manually vetted preferred stations
 const BIAS_BLIND_PENALTY = 0.3;           // station reading FROM a documented-unreliable sector (stationBiases.ts)
+const FREE_STREAM_MIN_COHERENCE = 0.8;    // resultant length of the buoy directions; below it they disagree
 
 const DIR_AGREE_THRESHOLD = 60;           // degrees — direction "agreement"
 const SPEED_RATIO_MIN = 0.35;            // min ratio for speed "agreement"
@@ -525,6 +526,31 @@ export function isWindBlacklisted(stationId: string): boolean {
 
 // ── Wind Consensus ───────────────────────────────────────────
 
+/**
+ * Direction of the free stream over the water near a spot, from the buoys in its
+ * consensus: circular mean weighted by closeness and speed. Copies of land
+ * anemometers and calm buoys don't count. Null when there is no buoy with wind,
+ * or when the buoys disagree (resultant length under FREE_STREAM_MIN_COHERENCE):
+ * then there is no single free stream to key a station's blind sector on.
+ */
+export function freeStreamDirection(buoyData: { buoy: BuoyReading; distKm: number }[]): number | null {
+  let sin = 0, cos = 0, total = 0;
+  for (const { buoy, distKm } of buoyData) {
+    if (buoy.windSpeed === null || buoy.windDir === null) continue;
+    if (isLandStationCopy(buoy.stationId)) continue;
+    const kt = msToKnots(buoy.windSpeed);
+    if (kt < MIN_SPEED_CORROBORATION) continue;
+    const w = kt / (distKm + 1);
+    const rad = (buoy.windDir * Math.PI) / 180;
+    sin += w * Math.sin(rad);
+    cos += w * Math.cos(rad);
+    total += w;
+  }
+  if (total === 0) return null;
+  if (Math.hypot(sin, cos) / total < FREE_STREAM_MIN_COHERENCE) return null;
+  return ((Math.atan2(sin, cos) * 180) / Math.PI + 360) % 360;
+}
+
 function computeSpotWindConsensus(
   spot: SailingSpot,
   stationData: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
@@ -540,6 +566,7 @@ function computeSpotWindConsensus(
   const entries: SourceEntry[] = [];
   const [spotLon, spotLat] = spot.center;
   const preferredSet = new Set(spot.preferredStations);
+  const freeDir = freeStreamDirection(buoyData);
 
   for (const { station, reading, distKm } of stationData) {
     if (reading.windSpeed === null) continue;
@@ -552,11 +579,18 @@ function computeSpotWindConsensus(
     const qualityMul = getSourceQuality(station.id);
     const ageMin = (Date.now() - reading.timestamp.getTime()) / 60_000;
     const freshnessMul = freshnessMulFor(station.id, ageMin);
-    // Documented orographic bias: when a station reads FROM a direction it's
-    // known to misread (sheltered/channeled/accelerated — empirical buoy audits
-    // + geography, see stationBiases.ts), demote its weight so its bad reading
-    // doesn't drag the consensus. The sector is keyed on wind direction.
-    const biasMul = (reading.windDirection !== null && getStationBiasAt(station.id, reading.windDirection))
+    // Documented orographic bias: when the wind comes FROM a direction the
+    // station is known to misread (sheltered/channeled/accelerated — empirical
+    // buoy audits + geography, see stationBiases.ts), demote its weight so its
+    // bad reading doesn't drag the consensus. The sector is looked up with the
+    // free stream's direction (the buoys), not the station's own vane: the
+    // terrain that eats its speed also bends its vane, so a sheltered station
+    // reports a direction outside its blind sector and the demotion never fired
+    // (Cies read S on 1-oct with N outside; Cangas MC read NW on 7-oct).
+    // Without a coherent buoy direction (inland, or buoys that disagree) the
+    // station's own reading is all there is.
+    const biasDir = freeDir ?? reading.windDirection;
+    const biasMul = (biasDir !== null && getStationBiasAt(station.id, biasDir))
       ? BIAS_BLIND_PENALTY : 1;
     const weight = distWeight * qualityMul * freshnessMul * biasMul;
     const src = station.id.split('_')[0] as WindContribution['source'];
