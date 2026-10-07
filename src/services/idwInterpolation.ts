@@ -3,6 +3,7 @@ import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import { isWindBlacklisted } from './spotScoringEngine';
+import { isLandStationCopy } from './buoyUtils';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -17,8 +18,39 @@ export interface StationWindData {
   lon: number;
   speed: number; // m/s
   dirDeg: number; // meteorological "from" direction
-  /** Freshness multiplier 0.0-1.0 (recent=1.0, older=decayed). Default 1.0 */
+  /** Weight multiplier: freshness (recent=1.0, older=decayed), times the station's measured
+   *  exposure, or the buoys' extra weight. Default 1.0 */
   freshness?: number;
+}
+
+/** Measured exposure of a land station (station_calibration, via /api/v1/stations/exposure):
+ *  the share of the free stream it reads, overall and per 45° sector of the free stream's
+ *  direction (index 0 = N … 7 = NW, null where the sector lacked hours). */
+export interface StationExposure {
+  ratio: number | null;
+  sectors: (number | null)[];
+}
+export type StationExposureMap = Map<string, StationExposure>;
+
+/** Extra weight of a buoy over the water in the arrows' field. */
+export const BUOY_FIELD_WEIGHT = 3;
+
+/**
+ * Weight of a land station in the arrows' field from its measured exposure in the free stream's
+ * direction: (ratio / 0.6)², capped at 1 and floored at 0.05. No measurement = 1, as before.
+ *
+ * Measured 22-sep..7-oct on 448 buoy-hours, each buoy left out and predicted by the field built
+ * from everything else: with the buoys at BUOY_FIELD_WEIGHT the error over the water drops from
+ * 7.3 to 6.8 kt and the field stops being ~5 kt short by half a knot. Most of that shortfall
+ * stays — the field is still built from land — but the sheltered gardens that painted calm and
+ * crossed arrows next to an exposed station stop deciding it.
+ */
+export function exposureWeight(exposure: StationExposure | undefined, dirDeg: number | null): number {
+  if (!exposure) return 1;
+  const sector = dirDeg == null ? null : exposure.sectors[Math.round((((dirDeg % 360) + 360) % 360) / 45) % 8];
+  const r = sector ?? exposure.ratio;
+  if (r == null || !Number.isFinite(r)) return 1;
+  return Math.max(0.05, Math.min(1, (r / 0.6) ** 2));
 }
 
 // ── Fast distance approximation ────────────────────────────
@@ -216,10 +248,14 @@ function freshnessDecay(ageMin: number): number {
 
 /** Build StationWindData[] from stations + readings for IDW wind interpolation.
  *  Filters out stale readings (>STALE_THRESHOLD_MIN) and applies freshness decay
- *  so recently-updated stations contribute more to interpolation. */
+ *  so recently-updated stations contribute more to interpolation. With `exposure`,
+ *  each station also weighs by its measured exposure in the direction of `freeDir`
+ *  (the buoys' wind; the station's own reading when there is none). */
 export function extractWindData(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
+  exposure?: StationExposureMap,
+  freeDir?: number | null,
 ): StationWindData[] {
   const result: StationWindData[] = [];
   const maxAgeMs = STALE_THRESHOLD_MIN * 60_000;
@@ -243,17 +279,20 @@ export function extractWindData(
       lon: station.lon,
       speed: reading.windSpeed,
       dirDeg: reading.windDirection,
-      freshness: freshnessDecay(ageMs / 60_000),
+      freshness: freshnessDecay(ageMs / 60_000)
+        * exposureWeight(exposure?.get(station.id), freeDir ?? reading.windDirection),
     });
   }
   return result;
 }
 
-/** Extract wind data from marine buoy readings for IDW wind interpolation */
-export function extractBuoyWindData(buoys: BuoyReading[]): StationWindData[] {
+/** Extract wind data from marine buoy readings for IDW wind interpolation. A PORTUS copy of a
+ *  land anemometer is not a sensor over the water (and the land station is already in). */
+export function extractBuoyWindData(buoys: BuoyReading[], weight = 1): StationWindData[] {
   const result: StationWindData[] = [];
   for (const b of buoys) {
     if (b.windSpeed == null || b.windDir == null) continue;
+    if (isLandStationCopy(b.stationId)) continue;
     if (b.windSpeed < 0.1) continue;
     const coords = BUOY_COORDS_MAP.get(b.stationId);
     if (!coords) continue;
@@ -262,6 +301,7 @@ export function extractBuoyWindData(buoys: BuoyReading[]): StationWindData[] {
       lon: coords.lon,
       speed: b.windSpeed,
       dirDeg: b.windDir,
+      freshness: weight,
     });
   }
   return result;

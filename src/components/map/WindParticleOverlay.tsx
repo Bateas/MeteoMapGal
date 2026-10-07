@@ -1,11 +1,13 @@
-import { useRef, useEffect, useCallback, memo } from 'react';
+import { useRef, useEffect, useCallback, useState, memo } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
 import { useBuoyStore } from '../../store/buoyStore';
-import { extractWindData, extractBuoyWindData, buildWindGrid, lookupWindGrid } from '../../services/idwInterpolation';
-import type { WindGrid } from '../../services/idwInterpolation';
+import { extractWindData, extractBuoyWindData, buildWindGrid, lookupWindGrid, BUOY_FIELD_WEIGHT } from '../../services/idwInterpolation';
+import type { WindGrid, StationExposureMap } from '../../services/idwInterpolation';
+import { freeStreamDirection } from '../../services/spotScoringEngine';
+import { fetchStationExposure } from '../../api/stationExposureClient';
 import { windSpeedColor } from '../../services/windUtils';
 
 // ── Configuration ──────────────────────────────────────────
@@ -58,13 +60,26 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
   const gridBoundsRef = useRef<string>('');
   const mapMovingRef = useRef(false);
 
+  // Measured exposure of each land station: sheltered gardens stop painting calm and crossed
+  // arrows next to an exposed station. Only while the layer is on; one request an hour.
+  const [exposure, setExposure] = useState<StationExposureMap | undefined>(undefined);
   useEffect(() => {
-    const stationWind = extractWindData(stations, readings);
-    const buoyWind = extractBuoyWindData(buoys);
+    if (!isActive) return;
+    let alive = true;
+    fetchStationExposure().then((m) => { if (alive && m.size > 0) setExposure(m); });
+    return () => { alive = false; };
+  }, [isActive]);
+
+  useEffect(() => {
+    // Direction of the free stream (the buoys, when they agree): the sector each station's
+    // exposure is read in. Without it, each station's own reading.
+    const freeDir = freeStreamDirection(buoys.map((buoy) => ({ buoy, distKm: 0 })));
+    const stationWind = extractWindData(stations, readings, exposure, freeDir);
+    const buoyWind = extractBuoyWindData(buoys, BUOY_FIELD_WEIGHT);
     windDataRef.current = [...stationWind, ...buoyWind];
     // Invalidate grid — will be rebuilt on next frame with current viewport
     windGridRef.current = null;
-  }, [stations, readings, buoys]);
+  }, [stations, readings, buoys, exposure]);
 
   // Spawn a particle at random position within map bounds
   const spawnParticle = useCallback((bounds?: { w: number; e: number; s: number; n: number }): Particle => {

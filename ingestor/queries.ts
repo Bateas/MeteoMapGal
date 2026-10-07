@@ -127,6 +127,34 @@ export async function queryStationList(): Promise<StationListItem[]> {
   return withPublicLocation(result.rows);
 }
 
+export interface StationExposureRow {
+  station_id: string;
+  /** Station mean / free-stream mean, all directions; null when the station has no usable figure. */
+  ratio: number | null;
+  /** Per 45° sector of the free stream's direction (0 = N … 7 = NW), only the sectors that cleared their floor. */
+  sectors: { sector: number; ratio: number; hours: number }[];
+}
+
+/**
+ * The latest measured exposure of each land station (station_calibration, recomputed nightly):
+ * how much of the free stream it reads. The map's wind arrows weigh each station by it. A few
+ * hundred rows, the newest per station from the last ten days.
+ */
+export async function queryStationExposure(): Promise<StationExposureRow[]> {
+  const db = getPool();
+  const result = await db.query<StationExposureRow>(`
+    SELECT DISTINCT ON (station_id) station_id, ratio, sectors
+      FROM station_calibration
+     WHERE computed_at > NOW() - INTERVAL '10 days'
+     ORDER BY station_id, computed_at DESC
+  `);
+  return result.rows.map((r) => ({
+    station_id: r.station_id,
+    ratio: r.ratio == null ? null : Number(r.ratio),
+    sectors: Array.isArray(r.sectors) ? r.sectors : [],
+  }));
+}
+
 /** List all stations with their last reading time, count, and coordinates */
 export async function queryStations(): Promise<StationInfo[]> {
   const db = getPool();

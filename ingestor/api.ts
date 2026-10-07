@@ -9,6 +9,7 @@
  *   GET /api/v1/health           → DB status + row counts
  *   GET /api/v1/stations         → All weather stations with last reading
  *   GET /api/v1/stations/list    → Station list from discovery (?source=), no history counts
+ *   GET /api/v1/stations/exposure → Measured exposure of each land station (wind arrows)
  *   GET /api/v1/readings         → Weather time series (raw or hourly)
  *   GET /api/v1/readings/latest  → Latest weather reading per station
  *   GET /api/v1/readings/compare → Multi-station comparison
@@ -39,6 +40,7 @@ import {
   queryHealth,
   queryStations,
   queryStationList,
+  queryStationExposure,
   queryReadings,
   queryHourly,
   queryLatest,
@@ -123,6 +125,8 @@ const cachedHealth = memoAsync(60_000, queryHealth);
 // Reads the stations table, not readings, so it is cheap; memoised all the same because every
 // visitor's station discovery asks for it.
 const cachedStationList = memoAsync(5 * 60_000, queryStationList);
+// Recomputed nightly: an hour is plenty.
+const cachedStationExposure = memoAsync(60 * 60_000, queryStationExposure);
 
 async function handleHealth(
   _params: Record<string, string>,
@@ -155,6 +159,17 @@ async function handleStationList(
   const all = await cachedStationList();
   const stations = source ? all.filter((s) => s.source === source) : all;
   json(res, { count: stations.length, stations }, 200, origin, 'public, max-age=300');
+}
+
+/** The measured exposure of each land station (station_calibration). The map's wind arrows
+ *  weigh each station by it, so sheltered gardens stop painting calm over the ria. */
+async function handleStationExposure(
+  _params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const stations = await cachedStationExposure();
+  json(res, { count: stations.length, stations }, 200, origin, 'public, max-age=3600');
 }
 
 async function handleReadings(
@@ -830,6 +845,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/health': handleHealth,
   '/api/v1/stations': handleStations,
   '/api/v1/stations/list': handleStationList,
+  '/api/v1/stations/exposure': handleStationExposure,
   '/api/v1/readings': handleReadings,
   '/api/v1/readings/latest': handleLatest,
   '/api/v1/readings/compare': handleCompare,
