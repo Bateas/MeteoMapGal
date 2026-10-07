@@ -5,7 +5,7 @@
  * Storage can be missing (private window, blocked site data): every access is guarded and
  * the box still works, it just forgets.
  */
-import { OBSERVER_CODE_RE, REPORT_COOLDOWN_MIN, type FieldReport } from '../services/fieldReport';
+import { OBSERVER_CODE_RE, REPORT_COOLDOWN_MIN, type FieldReport, type RecentReportSummary } from '../services/fieldReport';
 
 const OBSERVER_KEY = 'mmg-observer';
 const LAST_KEY = (spotId: string) => `mmg-report-${spotId}`;
@@ -45,11 +45,34 @@ export async function postFieldReport(report: FieldReport): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(report),
     });
-    if (res.ok) write(LAST_KEY(report.spotId), String(Date.now()));
+    if (res.ok) { write(LAST_KEY(report.spotId), String(Date.now())); recentCache.delete(report.spotId); }
     else console.debug(`[FieldReport] POST responded ${res.status}`);
     return res.ok;
   } catch (err) {
     console.debug('[FieldReport] POST failed:', err);
     return false;
   }
+}
+
+// What was said at the water lately. A promise per spot for a minute: the popup remounts (and
+// StrictMode mounts twice) without asking again, and the remount gets the same answer.
+const RECENT_TTL_MS = 60_000;
+const recentCache = new Map<string, { at: number; p: Promise<RecentReportSummary | null> }>();
+
+export function fetchRecentReports(spotId: string, now = Date.now()): Promise<RecentReportSummary | null> {
+  const hit = recentCache.get(spotId);
+  if (hit && now - hit.at < RECENT_TTL_MS) return hit.p;
+  const p = fetch(`/api/v1/reports/recent?spot=${encodeURIComponent(spotId)}`)
+    .then((res) => (res.ok ? res.json() : null))
+    .then((body) => (body && body.summary ? (body.summary as RecentReportSummary) : null))
+    .catch(() => {
+      recentCache.delete(spotId);                         // a network failure is not an answer: ask again later
+      return null;
+    });
+  recentCache.set(spotId, { at: now, p });
+  return p;
+}
+
+export function __clearRecentReportsCacheForTests(): void {
+  recentCache.clear();
 }

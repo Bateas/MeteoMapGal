@@ -4,6 +4,8 @@
  * They are labels for checking the app, never a map layer: an unconfirmed report on the map
  * would teach people that "nothing ever happens" once it expired. Only FACTS are asked, never a
  * verdict: wind vs the figure shown, what the water looks like, and where the wind comes from.
+ * The spot's popup shows what was said in the last two hours, grouped and anonymous, next to the
+ * question; it never changes the verdict.
  *
  * Shared by the popup (what it sends) and the API (what it accepts), so both agree on the shape.
  */
@@ -71,4 +73,87 @@ export function parseFieldReport(body: unknown, isValidSpot: (id: string) => boo
       observerCode: code,
     },
   };
+}
+
+// ── What people at the water said lately (popup line) ──
+
+/** How far back the popup looks: past two hours a report says nothing about now. */
+export const RECENT_REPORT_WINDOW_MIN = 120;
+
+export interface RecentReportRow {
+  minutesAgo: number;
+  windVsApp: WindVsApp;
+  waterState: WaterState | null;
+  dirSeen: DirSeen | null;
+  appWindKt: number | null;
+}
+
+export interface RecentReportSummary {
+  count: number;
+  /** Minutes since the newest report, rounded down to 5: when, not the exact minute. */
+  newestMin: number;
+  /** What two thirds or more said; 'mixed' when they do not agree. */
+  wind: WindVsApp | 'mixed';
+  /** The figure the newest reporter was comparing against. */
+  appWindKt: number | null;
+  /** The water most of them described (the newest wins a tie), if anyone did. */
+  water: WaterState | null;
+  /** Where the wind came from, only when more than half of those who said it agree. */
+  dir: DirSeen | null;
+}
+
+function modeNewestFirst<T>(values: T[]): { value: T; n: number } | null {
+  const counts = new Map<T, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best: { value: T; n: number } | null = null;
+  for (const v of values) {                       // newest first: a tie keeps the newest
+    const n = counts.get(v)!;
+    if (!best || n > best.n) best = { value: v, n };
+  }
+  return best;
+}
+
+/** Groups the last two hours of reports of one spot. Null when there are none. */
+export function summarizeRecentReports(rows: RecentReportRow[]): RecentReportSummary | null {
+  const fresh = rows
+    .filter((r) => Number.isFinite(r.minutesAgo) && r.minutesAgo >= 0 && r.minutesAgo <= RECENT_REPORT_WINDOW_MIN)
+    .sort((a, b) => a.minutesAgo - b.minutesAgo);
+  if (fresh.length === 0) return null;
+  const n = fresh.length;
+  const wind = modeNewestFirst(fresh.map((r) => r.windVsApp))!;
+  const waters = fresh.map((r) => r.waterState).filter((w): w is WaterState => w != null);
+  const dirs = fresh.map((r) => r.dirSeen).filter((d): d is DirSeen => d != null);
+  const dir = modeNewestFirst(dirs);
+  return {
+    count: n,
+    newestMin: Math.floor(fresh[0].minutesAgo / 5) * 5,
+    wind: wind.n * 3 >= n * 2 ? wind.value : 'mixed',
+    appWindKt: fresh[0].appWindKt,
+    water: modeNewestFirst(waters)?.value ?? null,
+    dir: dir && dir.n * 2 > dirs.length ? dir.value : null,
+  };
+}
+
+const WATER_WORDS: Record<WaterState, string> = { 0: 'agua como un espejo', 1: 'agua movida, sin espuma', 2: 'algo de espuma', 3: 'mucha espuma' };
+const DIR_WORDS: Record<DirSeen, string> = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SO', 270: 'O', 315: 'NO' };
+
+/** «hace 15 min · 2 reportes» */
+export function recentReportWhen(s: RecentReportSummary): string {
+  const ago = s.newestMin < 5 ? 'hace un momento'
+    : s.newestMin < 60 ? `hace ${s.newestMin} min`
+    : `hace ${Math.floor(s.newestMin / 60)} h${s.newestMin % 60 ? ` ${s.newestMin % 60} min` : ''}`;
+  return `${ago} · ${s.count === 1 ? '1 reporte' : `${s.count} reportes`}`;
+}
+
+/** «Más viento que los 9 kt de la app · algo de espuma · del N» */
+export function recentReportWhat(s: RecentReportSummary): string {
+  const kt = s.appWindKt != null ? Math.round(s.appWindKt) : null;
+  const wind = s.wind === 'mixed' ? 'No coinciden entre ellos'
+    : s.wind === 1 ? (kt != null ? `Más viento que los ${kt} kt de la app` : 'Más viento que la app')
+    : s.wind === -1 ? (kt != null ? `Menos viento que los ${kt} kt de la app` : 'Menos viento que la app')
+    : (kt != null ? `El viento de la app (${kt} kt)` : 'El viento de la app');
+  const parts = [wind];
+  if (s.water != null) parts.push(WATER_WORDS[s.water]);
+  if (s.dir != null) parts.push(`del ${DIR_WORDS[s.dir]}`);
+  return parts.join(' · ');
 }

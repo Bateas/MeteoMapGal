@@ -1,14 +1,15 @@
 /**
  * "¿Estás aquí ahora?" — a small card right under a wind spot's wind figure. It asks FACTS: more /
  * same / less wind than the figure shown, then (optional) what the water looks like and where the
- * wind comes from, and sends them as a label for checking the app. Nothing reported is drawn on the map.
+ * wind comes from, and sends them as a label for checking the app. Nothing reported is drawn on the map;
+ * on top of the card, what was said here in the last two hours, grouped and anonymous (never the verdict).
  * It sits next to the number it asks about and the main answer is one tap away: at the foot of a
  * thirty-section popup, folded into a grey line, almost nobody found it.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
-import type { WindVsApp, WaterState, DirSeen } from '../../services/fieldReport';
-import { postFieldReport, currentObserverCode, cooldownLeftMin } from '../../api/fieldReportClient';
+import { recentReportWhat, recentReportWhen, type WindVsApp, type WaterState, type DirSeen, type RecentReportSummary } from '../../services/fieldReport';
+import { postFieldReport, currentObserverCode, cooldownLeftMin, fetchRecentReports } from '../../api/fieldReportClient';
 import { APP_VERSION } from '../../config/version';
 
 interface Props {
@@ -48,6 +49,21 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
   const [water, setWater] = useState<WaterState | null>(null);
   const [dir, setDir] = useState<DirSeen | null>(null);
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [recent, setRecent] = useState<RecentReportSummary | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchRecentReports(spotId).then((s) => { if (alive) setRecent(s); });
+    return () => { alive = false; };
+  }, [spotId]);
+
+  // What others said, labelled as theirs: it never moves the verdict or the figure above.
+  const said = recent && (
+    <div className="flex flex-col gap-0.5" style={{ paddingBottom: '6px', borderBottom: '1px solid rgba(148,163,184,.25)' }}>
+      <span className="text-[11px] text-slate-400">En el agua, {recentReportWhen(recent)}</span>
+      <span className="text-[12px] font-semibold text-slate-100">{recentReportWhat(recent)}</span>
+    </div>
+  );
 
   if (state === 'sent') {
     return (
@@ -59,11 +75,8 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
 
   const wait = cooldownLeftMin(spotId);
   if (wait > 0) {
-    return (
-      <p className="text-[11px] text-slate-500" style={{ marginBottom: '6px' }}>
-        Ya enviaste un reporte de este sitio. Puedes mandar otro en {wait} min.
-      </p>
-    );
+    const note = <span className="text-[11px] text-slate-400">Ya enviaste un reporte de este sitio. Puedes mandar otro en {wait} min.</span>;
+    return said ? <div className={CARD} style={CARD_STYLE}>{said}{note}</div> : <p style={{ marginBottom: '6px' }}>{note}</p>;
   }
 
   const send = async () => {
@@ -86,6 +99,7 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
 
   return (
     <div className={CARD} style={CARD_STYLE}>
+      {said}
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[12px] font-semibold text-sky-200">¿Estás aquí ahora?</span>
         <span className="text-[10px] text-slate-500">solo si ves el agua</span>

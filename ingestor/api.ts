@@ -27,6 +27,7 @@
  *   GET /api/v1/push/vapid-key                                    → Web Push VAPID public key
  *   POST /api/v1/push/{subscribe,unsubscribe,test}                → Lightning-safety push channel
  *   POST /api/v1/reports                                          → Field reports (labels, never drawn)
+ *   GET /api/v1/reports/recent?spot=                              → What was said there in the last 2 h (grouped, anonymous)
  *
  * Usage:
  *   node --import tsx api.ts
@@ -41,6 +42,7 @@ import {
   queryStations,
   queryStationList,
   queryStationExposure,
+  queryRecentFieldReports,
   queryReadings,
   queryHourly,
   queryLatest,
@@ -62,7 +64,7 @@ import {
 } from './queries.js';
 import { getPool } from './db.js';
 import { clientIpOf, clampInt, isAllowedPushEndpoint, pruneCache, memoAsync } from './requestGuards.js';
-import { parseFieldReport } from '../src/services/fieldReport.js';
+import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, type RecentReportSummary } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatcher.js';
@@ -846,6 +848,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/stations': handleStations,
   '/api/v1/stations/list': handleStationList,
   '/api/v1/stations/exposure': handleStationExposure,
+  '/api/v1/reports/recent': handleRecentReports,
   '/api/v1/readings': handleReadings,
   '/api/v1/readings/latest': handleLatest,
   '/api/v1/readings/compare': handleCompare,
@@ -1015,6 +1018,32 @@ const REPORT_SPOT_SECTOR = new Map<string, string>(
   (['embalse', 'rias'] as const).flatMap((s) => getSpotsForSector(s).map((x) => [x.id, s] as [string, string])),
 );
 
+// What people at the water said about one spot in the last two hours, grouped and without who or
+// the exact minute. One query per spot a minute at most; a new report clears that spot's copy.
+const RECENT_REPORTS_TTL_MS = 60_000;
+const recentReportsCache = new Map<string, { at: number; summary: RecentReportSummary | null }>();
+
+async function handleRecentReports(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string
+): Promise<void> {
+  const spot = params.spot;
+  if (!spot || !VALID_REPORT_SPOT_IDS.has(spot)) {
+    error(res, 'Unknown spot', 400, origin);
+    return;
+  }
+  const hit = recentReportsCache.get(spot);
+  let summary: RecentReportSummary | null;
+  if (hit && Date.now() - hit.at < RECENT_REPORTS_TTL_MS) {
+    summary = hit.summary;
+  } else {
+    summary = summarizeRecentReports(await queryRecentFieldReports(spot, RECENT_REPORT_WINDOW_MIN));
+    recentReportsCache.set(spot, { at: Date.now(), summary });
+  }
+  json(res, { summary }, 200, origin, 'public, max-age=60');
+}
+
 async function handleFieldReportPost(
   req: http.IncomingMessage,
   res: http.ServerResponse,
@@ -1089,6 +1118,7 @@ async function handleFieldReportPost(
       [r.spotId, REPORT_SPOT_SECTOR.get(r.spotId) ?? null, observer, r.windVsApp, r.waterState, r.dirSeen, r.appVerdict, r.appWindKt, r.appVersion],
     );
     reportLastBySpot.set(spotKey, now);
+    recentReportsCache.delete(r.spotId);
     if (reportLastBySpot.size > 5000) reportLastBySpot.clear();
     res.writeHead(201, corsHeaders(origin));
     res.end(JSON.stringify({ ok: true }));

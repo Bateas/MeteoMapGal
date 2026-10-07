@@ -6,6 +6,7 @@
 import { getPool, stationAltitudeSql } from './db.js';
 import { memoByKey } from './singleFlight.js';
 import { withPublicLocation } from './publicLocation.js';
+import type { RecentReportRow } from '../src/services/fieldReport.js';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -152,6 +153,26 @@ export async function queryStationExposure(): Promise<StationExposureRow[]> {
     station_id: r.station_id,
     ratio: r.ratio == null ? null : Number(r.ratio),
     sectors: Array.isArray(r.sectors) ? r.sectors : [],
+  }));
+}
+
+/** Field reports of one spot in the last `windowMin` minutes, newest first. Only what the popup
+ *  groups: no observer code, no exact time (minutes ago). */
+export async function queryRecentFieldReports(spotId: string, windowMin: number): Promise<RecentReportRow[]> {
+  const db = getPool();
+  const result = await db.query<{ minutes_ago: string; wind_vs_app: number; water_state: number | null; dir_seen: number | null; app_wind_kt: number | null }>(`
+    SELECT EXTRACT(EPOCH FROM (NOW() - time)) / 60 AS minutes_ago, wind_vs_app, water_state, dir_seen, app_wind_kt
+      FROM field_reports
+     WHERE spot_id = $1 AND time > NOW() - make_interval(mins => $2::int)
+     ORDER BY time DESC
+     LIMIT 50
+  `, [spotId, windowMin]);
+  return result.rows.map((r) => ({
+    minutesAgo: Number(r.minutes_ago),
+    windVsApp: r.wind_vs_app as RecentReportRow['windVsApp'],
+    waterState: r.water_state as RecentReportRow['waterState'],
+    dirSeen: r.dir_seen as RecentReportRow['dirSeen'],
+    appWindKt: r.app_wind_kt == null ? null : Number(r.app_wind_kt),
   }));
 }
 
