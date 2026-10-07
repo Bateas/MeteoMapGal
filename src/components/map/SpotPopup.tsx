@@ -618,6 +618,21 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
         );
       })()}
 
+      {/* ── Field report: people at the water say if the wind matches (labels for checking
+            the app, never drawn on the map). Right under the figure it asks about: at the foot
+            of the popup almost nobody found it. Wind spots only, and never while provisional:
+            there is no settled figure to compare against yet. ── */}
+      {spot.category !== 'surf' && score && !score.provisional && (
+        <SpotReportBox
+          spotId={spot.id}
+          // The figure the headline actually shows: the wind the engine decided, canalization
+          // included. Comparing against a number the reporter cannot see (25-sep: headline ~14,
+          // box "5") makes the answer useless.
+          shownWindKt={displayWindKt(score)}
+          shownVerdict={renderedVerdict(score)}
+        />
+      )}
+
       {/* ── Wave conditions (coastal spots — NOT surf, which uses marine forecast) ── */}
       {spot.category !== 'surf' && score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-1.5 pt-1 border-t border-slate-700/40">
@@ -994,20 +1009,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
 
       {/* ── Wind patterns (collapsible) — power-user detail, hidden in simpleMode ── */}
       {spot.windPatterns.length > 0 && !simpleMode && <WindPatterns patterns={spot.windPatterns} />}
-
-      {/* ── Field report: people at the water say if the wind matches (labels for checking
-            the app, never drawn on the map). Wind spots only, and never while provisional:
-            there is no settled figure to compare against yet. ── */}
-      {spot.category !== 'surf' && score && !score.provisional && (
-        <SpotReportBox
-          spotId={spot.id}
-          // The figure the headline actually shows: the wind the engine decided, canalization
-          // included. Comparing against a number the reporter cannot see (25-sep: headline ~14,
-          // box "5") makes the answer useless.
-          shownWindKt={displayWindKt(score)}
-          shownVerdict={renderedVerdict(score)}
-        />
-      )}
 
       {/* ── Share + Apoyar + Timestamp ── */}
       <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-700/30">
