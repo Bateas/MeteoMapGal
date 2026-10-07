@@ -137,6 +137,33 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
     evidence: 'empirical-buoy',
   },
 
+  'mg_10154': {
+    stationId: 'mg_10154',
+    unreliableSectors: [
+      // O Viso (260 m), Cesantes' closest station. Free-stream audit
+      // (station_calibration, ~750 h, binned by the reference's direction):
+      //   N 0.42 · NE 0.31 · NW 0.43  → blind to the north
+      //   SW 0.75 · W 0.63 · S 0.54   → keeps deciding the afternoon breeze
+      // Field truth: 7-oct with N it read 6 kt while Cesantes had 13-15
+      // (17:48) and 10-14 (18:19); 1-oct 4 kt with 8-13.
+      { from: 292, to: 67, type: 'sheltered' },
+    ],
+    note: 'O Viso — con N/NE/NW ve el 31-43 % del viento libre (calibracion); con SW el 75 %. Con nortada se queda en 4-6 kt con 10-15 en Cesantes.',
+    evidence: 'empirical-buoy',
+  },
+
+  'mc_ESGAL3600000036316A': {
+    stationId: 'mc_ESGAL3600000036316A',
+    unreliableSectors: [
+      // Vigo-Coia Meteoclimatic (320 m): N 0.25, S 0.28, SW 0.37, W 0.41,
+      // NW 0.35 of the free stream (station_calibration). Low everywhere,
+      // worst with N.
+      { from: 292, to: 67, type: 'sheltered' },
+    ],
+    note: 'Vigo-Coia (Meteoclimatic) — con N ve el 25 % del viento libre (calibracion).',
+    evidence: 'empirical-buoy',
+  },
+
   'mg_10018': {
     stationId: 'mg_10018',
     unreliableSectors: [
