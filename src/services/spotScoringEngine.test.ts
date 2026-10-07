@@ -3,7 +3,7 @@
  * Covers: windVerdict thresholds, scoreAllSpots integration, hard gates.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { scoreAllSpots, isWindBlacklisted, getSourceQuality, gustIsPlausible, peakPlausibleGustKt, freeStreamDirection } from './spotScoringEngine';
+import { scoreAllSpots, isWindBlacklisted, getSourceQuality, gustIsPlausible, peakPlausibleGustKt, freeStreamDirection, markProvisionalUntilBuoys } from './spotScoringEngine';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import { RIAS_SPOTS, EMBALSE_SPOTS } from '../config/spots';
@@ -972,5 +972,31 @@ describe('station blind sectors use the buoys direction', () => {
     ).get('centro-ria')!.wind!.avgSpeedKt;
     expect(score('mg_10125', 0)).toBeGreaterThan(score('mg_twin', 0) + 0.5);  // N: inside the sector
     expect(score('mg_10125', 189)).toBe(score('mg_twin', 189));               // S: outside, as before
+  });
+});
+
+// ── Coastal cold load: buoys not arrived yet (7-oct) ─────
+
+describe('markProvisionalUntilBuoys', () => {
+  const ria = RIAS_SPOTS.filter(s => ['centro-ria', 'patos'].includes(s.id) || s.category === 'surf');
+  const centro = RIAS_SPOTS.find(s => s.id === 'centro-ria')!;
+  const st = makeStation('mg_a', centro.center[1], centro.center[0]);
+
+  it('turns sailing verdicts into "calculando", leaves surf spots alone and does not mutate the input', () => {
+    const scores = scoreAllSpots(ria, [st], new Map([['mg_a', makeReading('mg_a', msFromKt(12), 0)]]), []);
+    const sailingId = 'centro-ria' as const;
+    expect(scores.get(sailingId)!.provisional).toBe(false);
+    const marked = markProvisionalUntilBuoys(scores, ria);
+    expect(marked.get(sailingId)!.provisional).toBe(true);
+    expect(scores.get(sailingId)!.provisional).toBe(false);
+    for (const sp of ria.filter(s => s.category === 'surf')) {
+      expect(marked.get(sp.id)!.provisional).toBe(scores.get(sp.id)!.provisional);
+    }
+  });
+
+  it('never hides a hard gate: danger always shows', () => {
+    const scores = scoreAllSpots([centro], [st], new Map([['mg_a', makeReading('mg_a', msFromKt(45), 0)]]), []);
+    expect(scores.get('centro-ria')!.hardGateTriggered).not.toBeNull();
+    expect(markProvisionalUntilBuoys(scores, [centro]).get('centro-ria')!.provisional).toBe(false);
   });
 });

@@ -15,10 +15,11 @@ import { useSectorStore } from '../store/sectorStore';
 import { useThermalStore } from '../store/thermalStore';
 import { useLightningStore } from './useLightningData';
 import { useForecastStore } from './useForecastTimeline';
-import { scoreAllSpots, type SpotThermalContext } from '../services/spotScoringEngine';
+import { scoreAllSpots, markProvisionalUntilBuoys, type SpotThermalContext } from '../services/spotScoringEngine';
 import { computeThermalPrecursors, withRegimeVeto } from '../services/thermalPrecursorService';
 import { checkSpotAlerts, resetSpotAlerts } from '../services/spotAlertService';
 import { getSpotsForSector } from '../config/spots';
+import { isCoastalSector } from '../config/sectors';
 import { msToKnots, degToCardinal8 } from '../services/windUtils';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../api/naoClient';
 import { fetchUpperWindNow } from '../api/upperAirClient';
@@ -42,11 +43,13 @@ export function useSpotScoring() {
   // Use readingsEpoch as reactive trigger — Map references can fool Zustand's Object.is check
   const readingsEpoch = useWeatherStore((s) => s.readingsEpoch);
   const buoys = useBuoyStore((s) => s.buoys);
+  const buoyError = useBuoyStore((s) => s.error);
   const setScores = useSpotStore((s) => s.setScores);
   const setThermalPrecursors = useSpotStore((s) => s.setThermalPrecursors);
   const sectorForecast = useSpotStore((s) => s.sectorForecast);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const lastScoredRef = useRef(0);
+  const scoredBuoysPendingRef = useRef<boolean | null>(null);
   const mountTimeRef = useRef(Date.now());
   const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
 
@@ -108,11 +111,18 @@ export function useSpotScoring() {
     if (spots.length === 0) return;
     if (stations.length === 0 && buoys.length === 0) return;
 
-    // Throttle: fast during startup (sources arriving), slow in steady state
+    // Coastal sector whose buoys have not landed (nor failed) yet — cold load, or back from an
+    // inland sector, which empties them: the scores would come out low for a few seconds, so
+    // they say "calculando" instead. A failed fetch scores without buoys, as before.
+    const buoysPending = isCoastalSector(sectorId) && buoys.length === 0 && buoyError === null;
+
+    // Throttle: fast during startup (sources arriving), slow in steady state.
+    // The buoys landing always re-scores, or "calculando" could wait for the next tick.
     const now = Date.now();
     const isStartup = (now - mountTimeRef.current) < STARTUP_WINDOW;
     const minInterval = isStartup ? STARTUP_INTERVAL : STEADY_INTERVAL;
-    if (lastScoredRef.current > 0 && (now - lastScoredRef.current) < minInterval) return;
+    if (lastScoredRef.current > 0 && (now - lastScoredRef.current) < minInterval
+      && scoredBuoysPendingRef.current === buoysPending) return;
 
     // Build thermal context if any spot in this sector uses thermalDetection
     const hasThermalSpots = spots.some((s) => s.thermalDetection);
@@ -128,8 +138,9 @@ export function useSpotScoring() {
       const tc = teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined;
       const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc, readingHistory, undefined, upperWind);
 
-      setScores(scores);
+      setScores(buoysPending ? markProvisionalUntilBuoys(scores, spots) : scores);
       lastScoredRef.current = Date.now();
+      scoredBuoysPendingRef.current = buoysPending;
 
       // Proactive Telegram alerts when spots transition to good conditions
       const sectorName = useSectorStore.getState().activeSector.name;
@@ -154,7 +165,7 @@ export function useSpotScoring() {
     }, 50);
 
     return () => clearTimeout(timerRef.current);
-  }, [sectorId, stations, readingsEpoch, buoys, setScores, setThermalPrecursors, sectorForecast, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast, upperWind]);
+  }, [sectorId, stations, readingsEpoch, buoys, buoyError, setScores, setThermalPrecursors, sectorForecast, dailyContext, atmosphericContext, tendencySignals, stormAlert, forecast, upperWind]);
 }
 
 /**

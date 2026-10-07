@@ -1528,6 +1528,26 @@ export function localGustKt(
  * Returns a Map of spotId → SpotScore.
  * Accepts spots array to support multiple sectors.
  */
+/**
+ * Marks the wind verdicts provisional while a coastal sector's buoys have not
+ * arrived yet. They load a few seconds after the stations, and a ria scored
+ * without them reads 2-6 kt low (no over-water source, no free-stream direction
+ * to demote the sheltered stations) and corrects itself seconds later: the
+ * same "calculando" contract as the cold-load gate. Surf spots (wave verdict)
+ * and hard gates (danger always shows) are left as they are.
+ */
+export function markProvisionalUntilBuoys(
+  scores: Map<string, SpotScore>,
+  spots: SailingSpot[],
+): Map<string, SpotScore> {
+  const surf = new Set<string>(spots.filter((sp) => sp.category === 'surf').map((sp) => sp.id));
+  const out = new Map<string, SpotScore>();
+  for (const [id, sc] of scores) {
+    out.set(id, surf.has(id) || sc.hardGateTriggered !== null ? sc : { ...sc, provisional: true });
+  }
+  return out;
+}
+
 export function scoreAllSpots(
   spots: SailingSpot[],
   stations: NormalizedStation[],
