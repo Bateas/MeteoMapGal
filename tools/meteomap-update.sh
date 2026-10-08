@@ -251,20 +251,22 @@ if [ "$FRONTEND_CHANGED" = true ] || [ "$VERSION_BUMPED" = true ] || [ "$ROOT_PK
     npm run build
     echo "📂 Copying dist → $WWW..."
     cp -r dist/* "$WWW/"
-    # Purge orphaned hashed chunks from previous deploys. `cp` only ADDS files,
-    # so old assets/<name>-<hash>.js pile up forever (80+ stale MeteoGuide /
-    # stationDiscovery chunks seen S136+3+5). index.html only references the
-    # current hashes → orphans are harmless, but they bloat the dir and turn any
-    # `grep` verification into noise. Pure-bash mirror (rsync is NOT installed on
-    # the server): remove any web asset whose name isn't in the fresh build. Scoped
-    # to assets/ only — index.html / sw.js / fonts / icons at the root untouched.
-    # Guarded so an empty build can never wipe the live dir.
+    # Purge orphaned hashed chunks from previous deploys, but only those no build has
+    # shipped for 14 days. `cp` only ADDS files, so old assets/<name>-<hash>.js would
+    # pile up forever. They are NOT harmless the moment they go: a page left open, or
+    # an installed app resumed from memory, still asks for the chunks of the build it
+    # started with, and stations and charts stay blank (8-oct: a visitor hit it three
+    # times in two days). `cp` rewrites every file of the fresh build, so a file's date
+    # is the last deploy that shipped it. Pure bash plus find (rsync is NOT installed
+    # on the server). Scoped to assets/ only — index.html / sw.js / fonts / icons at the
+    # root untouched. Guarded so an empty build can never wipe the live dir.
     if [ -d dist/assets ] && [ -n "$(ls -A dist/assets 2>/dev/null)" ]; then
       for f in "$WWW"/assets/*; do
         [ -e "$f" ] || continue
-        [ -e "dist/assets/$(basename "$f")" ] || rm -f "$f"
+        [ -e "dist/assets/$(basename "$f")" ] && continue
+        [ -n "$(find "$f" -mtime +14 2>/dev/null)" ] && rm -f "$f"
       done
-      echo "🧹 Pruned orphaned asset chunks"
+      echo "🧹 Pruned asset chunks no build has shipped for 14 days"
     fi
     echo "✅ Frontend deployed"
 fi

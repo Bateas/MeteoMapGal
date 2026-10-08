@@ -108,6 +108,23 @@ import { useAlertStore } from './store/alertStore';
 // SW derive its own CACHE_NAME per app version (see public/sw.js header). A
 // version bump → new registration URL → re-install → activate purges old
 // caches → no stale-chunk bootstrap crashes after rapid deploys.
+// A lazy chunk that fails to load means this page was built before the last deploys (a tab
+// left open, an app resumed from memory): stations and charts would stay blank until a manual
+// reload. Reload once instead; a second failure within a minute is left to surface, so a
+// chunk missing for everyone cannot loop. The service worker does the same for 404s, this
+// covers the pages it does not control.
+if (import.meta.env.PROD) {
+  window.addEventListener('vite:preloadError', (event) => {
+    const KEY = 'meteomap-chunk-reload-at';
+    let last = 0;
+    try { last = Number(sessionStorage.getItem(KEY) ?? 0); } catch { /* storage blocked */ }
+    if (Date.now() - last < 60_000) return;
+    try { sessionStorage.setItem(KEY, String(Date.now())); } catch { /* storage blocked */ }
+    event.preventDefault();
+    window.location.reload();
+  });
+}
+
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register(`/sw.js?v=${APP_VERSION}`).catch(() => {

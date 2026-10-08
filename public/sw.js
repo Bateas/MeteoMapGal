@@ -14,6 +14,24 @@ const MAX_TILE_CACHE = 500; // LRU eviction above this
 
 const STATIC_EXTENSIONS = /\.(js|css|woff2?|ttf|svg|png|jpg|webp|ico|json)$/;
 
+// A page that asks for one of OUR hashed chunks and gets a 404 was built before the last
+// deploys: a tab left open for days, or an installed app resumed from memory. Its code points
+// at chunks the server no longer has, so stations and charts never load (8-oct: one visitor,
+// three times in two days, always the same two missing chunks). Reload that page so it picks
+// up the current build. At most once per missing file every 5 minutes, so a chunk that is
+// missing for everyone (a broken deploy) cannot start a reload loop.
+const STALE_RELOAD_GAP_MS = 5 * 60_000;
+const staleReloads = new Map(); // pathname -> last reload (ms)
+function reloadStaleClient(clientId, pathname) {
+  if (!clientId) return;
+  const last = staleReloads.get(pathname) || 0;
+  if (Date.now() - last < STALE_RELOAD_GAP_MS) return;
+  staleReloads.set(pathname, Date.now());
+  self.clients.get(clientId)
+    .then((client) => (client && 'navigate' in client ? client.navigate(client.url) : undefined))
+    .catch(() => undefined);
+}
+
 // API proxy paths — always network, never cache
 const API_PATHS = [
   '/meteogalicia-api', '/meteoclimatic-api',
@@ -119,6 +137,8 @@ self.addEventListener('fetch', (event) => {
           if (response.ok) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          } else if (response.status === 404 && url.pathname.startsWith('/assets/')) {
+            reloadStaleClient(event.clientId, url.pathname);
           }
           return response;
         });
