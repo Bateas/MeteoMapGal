@@ -19,6 +19,7 @@ import type { HourlyForecast } from '../../types/forecast';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import { waterTempColor } from '../../services/buoyUtils';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
+import { useAloft } from '../../hooks/useAloft';
 
 // Moved to config/verdictStyles.ts to fix bundle splitting — import + re-export
 import { VERDICT_STYLE, displayVerdict, displayWindKt, displayWindDir, verdictLabel } from '../../config/verdictStyles';
@@ -216,6 +217,7 @@ function SpotCard({
   const v = VERDICT_STYLE[verdict];
   const windKt = displayWindKt(score);
   const theme = useThemeStore((s) => s.theme);
+  const aloft = useAloft();
   const isSurfRow = category === 'surf';
   const surfRow = isSurfRow ? surfView(surfWave, score, theme) : null;
   // The surf badge, unless the engine's hard gate is on: then the wind badge
@@ -331,7 +333,7 @@ function SpotCard({
 
       {/* Thermal forecast BETA (early warning from forecast data) */}
       {thermalDetection && forecast && forecast.length > 0 && (() => {
-        const signals = detectThermalForecast(forecast);
+        const signals = detectThermalForecast(forecast, aloft);
         if (signals.length === 0) return null;
         return signals.map((s, i) => {
           const color = s.confidence === 'alta' ? 'text-green-400' : s.confidence === 'media' ? 'text-blue-400' : 'text-slate-400';

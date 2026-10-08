@@ -361,9 +361,9 @@ export async function runAnalysis(): Promise<void> {
   const precipIds = cesantesDef ? selectNearbyStations(cesantesDef, readings).map((n) => n.r.station_id) : [];
   const upperWind = await getUpperWindNow();
   const ctx: ScoreContext = { precip: await getRecentPrecip(precipIds), nowMs: now, upperWind };
-  const riasRegime = assessSynopticRegime(upperWind.rias);
+  const riasRegime = assessSynopticRegime(upperWind.rias, { coastal: true });
   const regimeLine = !riasRegime ? 'sin dato de altura (sin veto)'
-    : riasRegime.vetoed ? `frente en Rías — ${riasRegime.reason}`
+    : riasRegime.vetoed ? `${riasRegime.kind === 'offshore' ? 'NE en altura' : 'frente'} en Rías — ${riasRegime.reason}`
     : `brisa posible en Rías (${Math.round(upperWind.rias!.speedKt)} kt ${degreesToCardinal(upperWind.rias!.dirDeg)} a 850 hPa)`;
   if (regimeLine !== lastRegimeLine) {
     log.info(`[Analyzer] Régimen: ${regimeLine}`);

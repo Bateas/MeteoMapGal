@@ -14,6 +14,7 @@
  */
 
 import type { HourlyForecast } from '../types/forecast';
+import { windowRegime, type UpperAirLevel } from './synopticRegime';
 
 // ── Types ──────────────────────────────────────────
 
@@ -86,8 +87,14 @@ const WIND_STRONG_CLAIM_KT = 12;
  */
 export function detectThermalForecast(
   forecast: HourlyForecast[],
+  /** The sector's 850 hPa hours (spotStore.upperAir) and whether it is coastal. A window
+   *  whose flow aloft rules the breeze out (a front, or strong NNE-E on the coast; see
+   *  synopticRegime.ts) is not announced. No data = no veto, as before. */
+  aloft: { levels?: UpperAirLevel[] | null; coastal?: boolean } = {},
 ): ThermalForecastSignal[] {
   if (!forecast || forecast.length === 0) return [];
+  const ruledOut = (hours: HourlyForecast[]) =>
+    windowRegime(aloft.levels, hours.map((h) => h.time.getTime()), { coastal: aloft.coastal })?.vetoed === true;
 
   const now = new Date();
   const todayDate = now.toDateString();
@@ -113,13 +120,13 @@ export function detectThermalForecast(
   // Analyze today (only future hours)
   const currentHour = now.getHours();
   const todayFuture = todayHours.filter(h => h.time.getHours() > currentHour);
-  if (todayFuture.length >= 2) {
+  if (todayFuture.length >= 2 && !ruledOut(todayFuture)) {
     const signal = analyzeWindow(todayFuture, 'hoy');
     if (signal) results.push(signal);
   }
 
   // Analyze tomorrow
-  if (tomorrowHours.length >= 3) {
+  if (tomorrowHours.length >= 3 && !ruledOut(tomorrowHours)) {
     const signal = analyzeWindow(tomorrowHours, 'manana');
     if (signal) results.push(signal);
   }

@@ -31,8 +31,9 @@ import {
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 const FETCH_TIMEOUT_MS = 12_000;
-/** Hours ahead each cycle stores (the request's forecast_hours). */
-const FORECAST_HOURS = 12;
+/** Hours ahead each cycle stores (the request's forecast_hours). 36 so tomorrow's breeze
+ *  window is there: the breeze forecasts check the flow aloft (synopticRegime.ts). */
+const FORECAST_HOURS = 36;
 
 // Sector centers — same as forecastFetcher.ts to keep correlations clean
 const SECTOR_COORDS = [
@@ -254,9 +255,9 @@ async function batchInsertConvection(rows: ConvectionRow[]): Promise<number> {
  * the model run progresses (e.g. forecast → analysis), and we want the
  * latest authoritative value.
  *
- * The past_hours=6 + forecast_hours=12 window means each poll covers
- * ±6h around the present so we capture the model's most recent re-analysis
- * of recent past hours (where the data is most accurate).
+ * The past_hours=6 + forecast_hours=FORECAST_HOURS window means each poll
+ * re-reads the last 6 h, so we capture the model's most recent re-analysis
+ * of recent past hours (where the data is most accurate), and the next 36 h.
  */
 /**
  * Roughly when the last synoptic cycle ran, for the first run after a start

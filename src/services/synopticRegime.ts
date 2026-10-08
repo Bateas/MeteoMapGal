@@ -18,6 +18,17 @@
  *   28-Sep 19 kt SSW  → Cesantes and Lourido <= 10 kt (the app said 15-18)
  * Jun-Sep this marks 4-8 afternoons a month as frontal; 20-23 stay open.
  *
+ * Strong NNE-E aloft (coastal only, opt-in): the land-to-sea flow keeps the SW
+ * breeze out. Clear afternoons 2024-2026 (POEM tide gauges, Open-Meteo 850 hPa),
+ * share with the breeze in at 14-17 h when 850 hPa blows from 20-120 degrees:
+ *   >= 15 kt   Vigo 19-24 %, Marin 13-17 %, Vilagarcia 0-6 %
+ *   10-15 kt   Vigo 40-50 %, Marin 17-24 %, Vilagarcia 0-10 %   (not vetoed)
+ *   < 10 kt    Vigo 82-92 %, Marin 67-74 %
+ * The N (330-20) does NOT block it: at 10-15 kt the breeze still came in 71-75 %.
+ * Only the callers that talk about a breeze opt in (boosts, canalization, the
+ * breeze forecasts); the alert that a spot became sailable does not, because
+ * a strong NE is itself sailing wind.
+ *
  * No upper-air data = no veto: every boost behaves as before this existed.
  */
 import { degreesToCardinal } from './windUtils';
@@ -32,6 +43,9 @@ export interface UpperWind {
 export interface RegimeVeto {
   vetoed: boolean;
   reason: string | null;
+  /** 'frontal': the SW at the surface is the front itself. 'offshore': strong NNE-E aloft
+   *  keeps the sea breeze out (only when the caller passes coastal). */
+  kind?: 'frontal' | 'offshore' | null;
 }
 
 /** 850 hPa at or above this, from the frontal sector, is a front coming in. */
@@ -40,15 +54,59 @@ export const FRONTAL_MIN_KT = 15;
 export const FRONTAL_DIR_FROM = 150;
 export const FRONTAL_DIR_TO = 290;
 
-export function assessSynopticRegime(w: UpperWind | null | undefined): RegimeVeto | null {
+/** 850 hPa at or above this, from the offshore sector, keeps the breeze out of the rías. */
+export const OFFSHORE_MIN_KT = 15;
+/** Offshore sector at 850 hPa: NNE through E (from the land to the sea in the Rías Baixas). */
+export const OFFSHORE_DIR_FROM = 20;
+export const OFFSHORE_DIR_TO = 120;
+
+export function assessSynopticRegime(
+  w: UpperWind | null | undefined,
+  opts: { coastal?: boolean } = {},
+): RegimeVeto | null {
   if (!w || !Number.isFinite(w.speedKt) || !Number.isFinite(w.dirDeg)) return null;
   const dir = ((w.dirDeg % 360) + 360) % 360;
   const frontal = w.speedKt >= FRONTAL_MIN_KT && dir >= FRONTAL_DIR_FROM && dir <= FRONTAL_DIR_TO;
-  if (!frontal) return { vetoed: false, reason: null };
-  return {
-    vetoed: true,
-    reason: `Entra viento de frente (${Math.round(w.speedKt)} kt ${degreesToCardinal(dir)} a 1.500 m): lo que miden las estaciones, sin refuerzo de brisa`,
-  };
+  if (frontal) {
+    return {
+      vetoed: true,
+      kind: 'frontal',
+      reason: `Entra viento de frente (${Math.round(w.speedKt)} kt ${degreesToCardinal(dir)} a 1.500 m): lo que miden las estaciones, sin refuerzo de brisa`,
+    };
+  }
+  const offshore = opts.coastal === true && w.speedKt >= OFFSHORE_MIN_KT && dir >= OFFSHORE_DIR_FROM && dir < OFFSHORE_DIR_TO;
+  if (offshore) {
+    return {
+      vetoed: true,
+      kind: 'offshore',
+      reason: `NE fuerte en altura (${Math.round(w.speedKt)} kt ${degreesToCardinal(dir)} a 1.500 m): la brisa del SW no suele entrar`,
+    };
+  }
+  return { vetoed: false, reason: null, kind: null };
+}
+
+/**
+ * The regime over a window of hours (a forecast window, the day's outlook): vetoed when at
+ * least half of the hours with upper-air data are, with the reason of the first vetoed one.
+ * Null when no hour has data (no veto, as everywhere else).
+ */
+export function windowRegime(
+  levels: UpperAirLevel[] | null | undefined,
+  hoursMs: number[],
+  opts: { coastal?: boolean } = {},
+): RegimeVeto | null {
+  if (!levels || levels.length === 0) return null;
+  let judged = 0;
+  let first: RegimeVeto | null = null;
+  let vetoed = 0;
+  for (const ms of hoursMs) {
+    const r = assessSynopticRegime(upperWindAt(levels, ms), opts);
+    if (!r) continue;
+    judged++;
+    if (r.vetoed) { vetoed++; first ??= r; }
+  }
+  if (judged === 0) return null;
+  return vetoed * 2 >= judged && first ? first : { vetoed: false, reason: null, kind: null };
 }
 
 export interface UpperAirLevel {

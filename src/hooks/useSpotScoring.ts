@@ -22,8 +22,8 @@ import { getSpotsForSector } from '../config/spots';
 import { isCoastalSector } from '../config/sectors';
 import { msToKnots, degToCardinal8 } from '../services/windUtils';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../api/naoClient';
-import { fetchUpperWindNow } from '../api/upperAirClient';
-import type { UpperWind } from '../services/synopticRegime';
+import { fetchUpperAirLevels } from '../api/upperAirClient';
+import { upperWindAt, type UpperWind } from '../services/synopticRegime';
 import { useVisibilityPolling } from './useVisibilityPolling';
 
 /**
@@ -61,8 +61,10 @@ export function useSpotScoring() {
   const loadUpperWind = useCallback(async () => {
     const sector = sectorIdRef.current;
     try {
-      const w = await fetchUpperWindNow(sector);
-      if (sectorIdRef.current === sector) setUpperWind(w);
+      const levels = await fetchUpperAirLevels(sector);
+      if (sectorIdRef.current !== sector) return;
+      setUpperWind(levels ? upperWindAt(levels, Date.now()) : null);
+      useSpotStore.getState().setUpperAir(levels ? { sector, levels } : null);
     } catch { /* no data = no veto */ }
   }, []);
   useVisibilityPolling(loadUpperWind, UPPER_WIND_POLL_MS);
@@ -73,6 +75,7 @@ export function useSpotScoring() {
     if (upperWindSectorRef.current === sectorId) return;
     upperWindSectorRef.current = sectorId;
     setUpperWind(null);
+    useSpotStore.getState().setUpperAir(null);
     void loadUpperWind();
   }, [sectorId, loadUpperWind]);
   // A new sounding re-scores at once instead of waiting out the steady throttle.

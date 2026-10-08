@@ -38,6 +38,9 @@ import { precipSamplesFromHistory, type PrecipSample } from './precipSemantics';
 import { getStationBiasAt } from '../config/stationBiases';
 import { isDirVariable } from '../config/verdictStyles';
 
+/** Spots of the inland sector: the offshore-aloft veto (synopticRegime.ts) was measured on the coast only. */
+const INLAND_SPOT_IDS = new Set<string>(getSpotsForSector('embalse').map((s) => s.id));
+
 // ── Types ────────────────────────────────────────────────────
 
 export type SpotVerdict = 'calm' | 'light' | 'sailing' | 'good' | 'strong' | 'unknown';
@@ -939,7 +942,7 @@ function humidityPrecursorBoost(
   buoyData: { buoy: BuoyReading; distKm: number }[],
   wind: SpotWindConsensus | null,
   stationData?: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[],
-): { boost: number; humidity: number | null; signal: string | null; thetaVGradient: number | null } {
+): { boost: number; humidity: number | null; signal: string | null; thetaVGradient: number | null; terral?: boolean } {
   if (!spot.thermalDetection) return { boost: 0, humidity: null, signal: null, thetaVGradient: null };
 
   // Compute theta-v gradient if station data available
@@ -991,7 +994,7 @@ function humidityPrecursorBoost(
     const conf = Math.abs(thetaV.gradient) >= 3.0 ? 'alta' : Math.abs(thetaV.gradient) >= 2.0 ? 'media' : 'baja';
     const endHour = Math.min(11, 8 + Math.round(Math.abs(thetaV.gradient))); // Stronger gradient = lasts longer
     const signal = `Viento probable hasta ~${endHour}h (E/NE) - Confianza: ${conf}`;
-    return { boost: strength * 0.8, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient };
+    return { boost: strength * 0.8, humidity: nearestHumidity, signal, thetaVGradient: thetaV.gradient, terral: true };
   }
 
   // ── Pre-virazon morning signal (9-12h) ──────────
@@ -1172,7 +1175,9 @@ function scoreSpot(
   // canalization figure already IS the breeze, adding +3 counted it twice
   // (28-sep: 15 kt predicted, 18 shown, <= 10 on the water).
   const precursorRaw = buoyData ? humidityPrecursorBoost(spot, buoyData, wind, stationData) : { boost: 0, humidity: null, signal: null, thetaVGradient: null };
-  const precursor = thermalVetoed
+  // The morning land breeze (E/NE) is not a sea breeze: strong NE aloft does not rule it out.
+  const keepTerral = precursorRaw.terral === true && !rainVetoed && regimeVeto?.kind === 'offshore';
+  const precursor = thermalVetoed && !keepTerral
     ? { ...precursorRaw, boost: 0, signal: null }
     : channelingApplied ? { ...precursorRaw, boost: 0 } : precursorRaw;
   if (precursor.boost > 0 && effectiveSpd >= 2 && !inLee) {
@@ -1582,7 +1587,10 @@ export function scoreAllSpots(
 ): Map<string, SpotScore> {
   const results = new Map<string, SpotScore>();
   const computedAt = new Date();
-  const regimeVeto = assessSynopticRegime(upperWind);
+  // Frontal flow vetoes the breeze boosts everywhere; strong NNE-E aloft only on the coast,
+  // where it was measured (synopticRegime.ts). The reservoir keeps the frontal rule alone.
+  const regimeCoastal = assessSynopticRegime(upperWind, { coastal: true });
+  const regimeInland = assessSynopticRegime(upperWind);
 
   // ── Cold-load readiness gate (O3 — honest "calculando" state) ────────
   // On a cold load (F5, shared ?spot= deep-link, sector switch) the sector's
@@ -1622,6 +1630,7 @@ export function scoreAllSpots(
   const ao = teleconnections?.find((t) => t.name === 'AO');
 
   for (const spot of spots) {
+    const regimeVeto = INLAND_SPOT_IDS.has(spot.id) ? regimeInland : regimeCoastal;
     const stationData = selectStationsForSpot(spot, stations, readings);
     const buoyData = selectBuoysForSpot(spot, buoys);
 

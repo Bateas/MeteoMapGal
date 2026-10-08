@@ -13,6 +13,7 @@ import type { ThermalPrecursorResult } from '../services/thermalPrecursorService
 import type { WebcamVisionResult } from '../services/webcamVisionService';
 import type { SurfWaveEntry } from '../services/surfVerdictEngine';
 import type { HourlyForecast } from '../types/forecast';
+import type { UpperAirLevel } from '../services/synopticRegime';
 
 /** Historical wind speed entry for sparkline */
 /** Points older than this are dropped when rehydrating: the sparkline is
@@ -57,6 +58,9 @@ interface SpotState {
   surfWaveCache: Map<string, SurfWaveEntry>;
   /** Per-spot WRF 1km forecast cache (keyed by spot.id, fetched on popup open) */
   spotForecasts: Map<string, { data: HourlyForecast[]; fetchedAt: number }>;
+  /** The sector's 850 hPa hours (past few + the next ~36), written by useSpotScoring. The breeze
+   *  forecasts read it to stay quiet when the flow aloft rules the breeze out. Not persisted. */
+  upperAir: { sector: string; levels: UpperAirLevel[] } | null;
 }
 
 interface SpotActions {
@@ -68,6 +72,7 @@ interface SpotActions {
   setThermalPrecursors: (precursors: Map<string, ThermalPrecursorResult>) => void;
   setWebcamVision: (results: Map<string, WebcamVisionResult>) => void;
   setSurfWave: (spotId: string, data: SurfWaveEntry) => void;
+  setUpperAir: (upperAir: { sector: string; levels: UpperAirLevel[] } | null) => void;
   /** Replace the whole cache in one update (a recompute touches every surf spot) */
   setSurfWaves: (next: Map<string, SurfWaveEntry>) => void;
   setSpotForecast: (spotId: string, data: HourlyForecast[]) => void;
@@ -98,6 +103,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
         visionAnalyzedAt: 0,
         surfWaveCache: new Map(),
         spotForecasts: new Map(),
+        upperAir: null,
 
         toggleFavorite: (spotId: string) => {
           const current = useSpotStore.getState().favoriteSpotId;
@@ -151,6 +157,7 @@ export const useSpotStore = create<SpotState & SpotActions>()(
           set({ surfWaveCache: next }, undefined, 'setSurfWave');
         },
         setSurfWaves: (next) => set({ surfWaveCache: next }, undefined, 'setSurfWaves'),
+        setUpperAir: (upperAir) => set({ upperAir }, undefined, 'setUpperAir'),
         setSpotForecast: (spotId, data) => {
           const next = new Map(useSpotStore.getState().spotForecasts);
           next.set(spotId, { data, fetchedAt: Date.now() });

@@ -129,3 +129,27 @@ describe('detectThermalForecast — the ingredients still rule everything else',
     expect(today(day())!.maxWindKt).toBeGreaterThan(0);
   });
 });
+
+describe('the flow aloft can rule the breeze out (synopticRegime.ts)', () => {
+  const aloftFor = (hours: HourlyForecast[], kt: number, dir: number) =>
+    hours.map((h) => ({ time: h.time, pressureHpa: 850, windSpeedMs: kt / 1.94384, windDirDeg: dir }));
+
+  it('strong NE aloft on the coast: the window is not announced', () => {
+    const hours = day();
+    expect(today(hours)).toBeDefined();
+    const signals = detectThermalForecast(hours, { levels: aloftFor(hours, 19, 60), coastal: true });
+    expect(signals.find((s) => s.day === 'hoy')).toBeUndefined();
+  });
+
+  it('the same NE aloft inland changes nothing (not measured there)', () => {
+    const hours = day();
+    const signals = detectThermalForecast(hours, { levels: aloftFor(hours, 19, 60), coastal: false });
+    expect(signals.find((s) => s.day === 'hoy')).toBeDefined();
+  });
+
+  it('a front aloft quiets it anywhere; no upper-air data changes nothing', () => {
+    const hours = day();
+    expect(detectThermalForecast(hours, { levels: aloftFor(hours, 20, 230) }).find((s) => s.day === 'hoy')).toBeUndefined();
+    expect(detectThermalForecast(hours, { levels: [], coastal: true }).find((s) => s.day === 'hoy')).toBeDefined();
+  });
+});

@@ -509,6 +509,22 @@ describe('Cesantes rain veto', () => {
     expect(score.effectiveWindKt!).toBeGreaterThanOrEqual(12);
   });
 
+  it('strong NE aloft on the coast vetoes the breeze boost too (8-oct, 19 kt ENE)', () => {
+    const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal,
+      undefined, undefined, undefined, { speedKt: 19, dirDeg: 65 }).get('cesantes')!;
+    expect(score.regimeVeto).toMatchObject({ vetoed: true, kind: 'offshore' });
+    expect(score.channeling?.active).toBe(false);
+    expect(score.thermalBoosted).toBe(false);
+  });
+
+  it('the same NE aloft does not veto the reservoir (measured on the coast only)', () => {
+    const castrelo = EMBALSE_SPOTS.find((s) => s.id === 'castrelo')!;
+    const st = makeStation('cas1', castrelo.center[1], castrelo.center[0]);
+    const score = scoreAllSpots([castrelo], [st], new Map([['cas1', makeReading('cas1', msFromKt(8), 240)]]), [],
+      undefined, undefined, undefined, undefined, { speedKt: 19, dirDeg: 65 }).get('castrelo')!;
+    expect(score.regimeVeto?.vetoed ?? false).toBe(false);
+  });
+
   it('the humidity precursor no longer stacks on top of the canalization figure', () => {
     const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal).get('cesantes')!;
     expect(score.channeling?.active).toBe(true);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assessSynopticRegime, upperWindAt } from './synopticRegime';
+import { assessSynopticRegime, upperWindAt, windowRegime } from './synopticRegime';
 
 describe('assessSynopticRegime — the afternoons with ground truth', () => {
   it.each([
@@ -58,5 +58,45 @@ describe('upperWindAt', () => {
 
   it('skips rows without wind', () => {
     expect(upperWindAt([row('2026-09-28T15:00:00Z', 850, null, 213)], now)).toBeNull();
+  });
+});
+
+describe('assessSynopticRegime — strong NNE-E aloft on the coast (opt-in)', () => {
+  it('8-oct: 19 kt ENE at 1.500 m keeps the breeze out of the rías', () => {
+    const r = assessSynopticRegime({ speedKt: 19, dirDeg: 70 }, { coastal: true });
+    expect(r).toMatchObject({ vetoed: true, kind: 'offshore' });
+    expect(r?.reason).toMatch(/NE fuerte en altura \(19 kt ENE a 1\.500 m\)/);
+  });
+
+  it('only where it was measured: without the coastal flag it is not a veto', () => {
+    expect(assessSynopticRegime({ speedKt: 19, dirDeg: 70 })?.vetoed).toBe(false);
+  });
+
+  it('the N does not block the breeze, 10-15 kt from the NE is left open, 20-120 the sector', () => {
+    expect(assessSynopticRegime({ speedKt: 20, dirDeg: 0 }, { coastal: true })?.vetoed).toBe(false);
+    expect(assessSynopticRegime({ speedKt: 14.9, dirDeg: 60 }, { coastal: true })?.vetoed).toBe(false);
+    expect(assessSynopticRegime({ speedKt: 15, dirDeg: 20 }, { coastal: true })?.vetoed).toBe(true);
+    expect(assessSynopticRegime({ speedKt: 15, dirDeg: 120 }, { coastal: true })?.vetoed).toBe(false);
+  });
+
+  it('a front is still a front on the coast, and says so', () => {
+    expect(assessSynopticRegime({ speedKt: 19, dirDeg: 209 }, { coastal: true })?.kind).toBe('frontal');
+  });
+});
+
+describe('windowRegime', () => {
+  const at = (h: number, kt: number, dir: number) => ({ time: new Date(Date.UTC(2026, 9, 9, h)), pressureHpa: 850, windSpeedMs: kt / 1.94384, windDirDeg: dir });
+  const hours = [12, 13, 14, 15].map((h) => Date.UTC(2026, 9, 9, h));
+
+  it('vetoed when at least half of the judged hours are', () => {
+    const half = [at(12, 19, 60), at(13, 18, 65), at(14, 8, 300), at(15, 6, 300)];
+    expect(windowRegime(half, hours, { coastal: true })).toMatchObject({ vetoed: true, kind: 'offshore' });
+    const one = [at(12, 19, 60), at(13, 8, 300), at(14, 8, 300), at(15, 6, 300)];
+    expect(windowRegime(one, hours, { coastal: true })?.vetoed).toBe(false);
+  });
+
+  it('no upper-air hours = no veto', () => {
+    expect(windowRegime([], hours, { coastal: true })).toBeNull();
+    expect(windowRegime(null, hours)).toBeNull();
   });
 });

@@ -34,6 +34,7 @@ import { assessBeachDay, type BeachDayResult } from '../../services/beachDayServ
 import { msToKnots } from '../../services/windUtils';
 import { VERDICT_STYLE, displayVerdict, displayWindDir } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
+import { useAloft } from '../../hooks/useAloft';
 import { assessSeaBreezeRias } from '../../services/seaBreezeService';
 import { fetchTidePredictions, type TidePoint } from '../../api/tideClient';
 import { isPeakUvHour, uvCategory, uvTickerLabel, UV_TICKER_THRESHOLD } from '../../services/uvService';
@@ -123,6 +124,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
   // Real measured storm surge from REDMAR tide gauge (Vigo port '29' as regional coastal reference)
   const meteoTide = useMeteoTide(isCoastalSector(sectorId) ? '29' : undefined);
 
+  const aloft = useAloft();
   const items = useMemo(() => {
     // `essential: true` marks items that survive the simpleMode filter:
     // safety (storm, forecast storms/fog, fires) + the casual beach headline
@@ -432,7 +434,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
       }
 
       // Thermal forecast early warning (priority 9)
-      const thermalSignals = detectThermalForecast(forecastHourly);
+      const thermalSignals = detectThermalForecast(forecastHourly, aloft);
       for (const s of thermalSignals) {
         const color = s.confidence === 'alta' ? 'text-green-400' : s.confidence === 'media' ? 'text-blue-400' : 'text-slate-400';
         result.push({
@@ -695,7 +697,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
 
     const cap = isMobile ? 6 : 9;
     return pool.length > cap ? pool.slice(0, cap) : pool;
-  }, [scores, surfWaveCache, theme, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple]);
+  }, [scores, surfWaveCache, theme, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple, aloft]);
 
   // ── Official MG warnings — static strip above the marquee ─────
   // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).

@@ -72,8 +72,10 @@ interface DayOutlook {
   dirDeg: number;                       // dominant direction (degrees)
   dir: string;                          // cardinal
   /** Recognised Galician pattern. 'de frente': SW at the surface with the frontal flow
-   *  aloft (synopticRegime.ts), which is not a breeze even though it blows from the SW. */
-  pattern: 'térmico' | 'nortada' | 'de frente' | '';
+   *  aloft (synopticRegime.ts), which is not a breeze even though it blows from the SW.
+   *  'brisa poco probable': the forecast draws a SW breeze on the coast while strong NNE-E
+   *  blows aloft, which keeps it out most afternoons. */
+  pattern: 'térmico' | 'nortada' | 'de frente' | 'brisa poco probable' | '';
   strong: boolean;
 }
 
@@ -148,18 +150,19 @@ export function summarizeDayOutlook(hourly: HourlyForecast[], now: Date): DayOut
  * window hours: frontal in at least half of them turns 'térmico' into 'de frente'. Without
  * upper-air rows for those hours, the outlook stays as it was. Pure.
  */
-export function withSynopticRegime(o: DayOutlook, levels: UpperAirLevel[], day: Date): DayOutlook {
+export function withSynopticRegime(o: DayOutlook, levels: UpperAirLevel[], day: Date, coastal = false): DayOutlook {
   if (o.pattern !== 'térmico') return o;
-  let frontal = 0, judged = 0;
+  let vetoed = 0, judged = 0, offshore = 0;
   for (let h = o.startHour; h <= o.endHour; h++) {
     const at = new Date(day);
     at.setHours(h, 0, 0, 0);
-    const regime = assessSynopticRegime(upperWindAt(levels, at.getTime()));
+    const regime = assessSynopticRegime(upperWindAt(levels, at.getTime()), { coastal });
     if (!regime) continue;
     judged++;
-    if (regime.vetoed) frontal++;
+    if (regime.vetoed) { vetoed++; if (regime.kind === 'offshore') offshore++; }
   }
-  return judged > 0 && frontal * 2 >= judged ? { ...o, pattern: 'de frente' } : o;
+  if (judged === 0 || vetoed * 2 < judged) return o;
+  return { ...o, pattern: offshore * 2 > vetoed ? 'brisa poco probable' : 'de frente' };
 }
 
 /**
@@ -319,10 +322,10 @@ async function querySectorSummary(
     const stationCount = Number(countRes.rows[0]?.n ?? 0);
 
     const rawOutlook = summarizeDayOutlook(hourly, now);
-    const outlook = rawOutlook ? withSynopticRegime(rawOutlook, await queryUpperAir850(sectorId, now), now) : null;
+    const outlook = rawOutlook ? withSynopticRegime(rawOutlook, await queryUpperAir850(sectorId, now), now, sector.coastal) : null;
     // The spots a SW favours are the afternoon-breeze ones (their primary pattern is
     // "Brisa/Viento SW (tardes)"); with the front aloft there is no breeze to name them for.
-    const favoredSpots = outlook && outlook.pattern !== 'de frente' ? spotsFavoredByDir(sectorId, outlook.dirDeg) : [];
+    const favoredSpots = outlook && outlook.pattern !== 'de frente' && outlook.pattern !== 'brisa poco probable' ? spotsFavoredByDir(sectorId, outlook.dirDeg) : [];
     const hazard = summarizeDayHazard(hourly, now);
     if (hazard.storm) {
       const near = await queryStrikesNear(sector, now);

@@ -31,6 +31,7 @@ import type { ThermalPrecursorResult } from '../../services/thermalPrecursorServ
 import type { WebcamVisionResult } from '../../services/webcamVisionService';
 import type { HourlyForecast } from '../../types/forecast';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
+import { useAloft } from '../../hooks/useAloft';
 import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useWeatherStore } from '../../store/weatherStore';
@@ -1380,7 +1381,8 @@ function SpotWindTrend({ spotId }: { spotId: string }) {
 // ── Thermal forecast early warning (BETA) ─────────────────────
 
 function ThermalForecastBadge({ forecast }: { forecast: HourlyForecast[] }) {
-  const signals = useMemo(() => detectThermalForecast(forecast), [forecast]);
+  const aloft = useAloft();
+  const signals = useMemo(() => detectThermalForecast(forecast, aloft), [forecast, aloft]);
   if (signals.length === 0) return null;
 
   return (

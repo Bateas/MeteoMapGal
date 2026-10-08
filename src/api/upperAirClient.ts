@@ -9,12 +9,22 @@
  */
 import { upperWindAt, type UpperAirLevel, type UpperWind } from '../services/synopticRegime';
 
+/** The sector's 850 hPa hours: the last 3 and every stored hour ahead (the API returns the
+ *  future rows too). Null on any failure. */
+export async function fetchUpperAirLevels(
+  sector: string,
+  signal?: AbortSignal,
+): Promise<UpperAirLevel[] | null> {
+  const res = await fetch(`/api/v1/analytics/upper-air?sector=${encodeURIComponent(sector)}&hours=3`, { signal });
+  if (!res.ok) return null;
+  const body = (await res.json()) as { levels?: UpperAirLevel[] };
+  return body.levels ?? [];
+}
+
 export async function fetchUpperWindNow(
   sector: string,
   signal?: AbortSignal,
 ): Promise<UpperWind | null> {
-  const res = await fetch(`/api/v1/analytics/upper-air?sector=${encodeURIComponent(sector)}&hours=3`, { signal });
-  if (!res.ok) return null;
-  const body = (await res.json()) as { levels?: UpperAirLevel[] };
-  return upperWindAt(body.levels ?? [], Date.now());
+  const levels = await fetchUpperAirLevels(sector, signal);
+  return levels ? upperWindAt(levels, Date.now()) : null;
 }

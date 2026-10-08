@@ -745,9 +745,10 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
       })
       : null;
     if (rainVeto) rainVetoReason = rainVeto.vetoed ? rainVeto.reason : null;
-    // A front aloft: the SW at the surface is the front itself, no breeze to amplify.
-    // Cesantes is in the Rías; no upper-air data = no veto, as before.
-    const regime = assessSynopticRegime(ctx?.upperWind?.rias);
+    // A front aloft (the SW at the surface is the front itself) or strong NNE-E aloft (the
+    // breeze stays out): no breeze to amplify. Cesantes is in the Rías; no upper-air data =
+    // no veto, as before.
+    const regime = assessSynopticRegime(ctx?.upperWind?.rias, { coastal: true });
     if (regime) regimeVetoReason = regime.vetoed ? regime.reason : null;
     const veto = rainVeto?.vetoed ? rainVeto : regime;
     const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds, avgDir, gustMax > 0 ? gustMax : null, veto);

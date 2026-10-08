@@ -310,6 +310,14 @@ describe('withSynopticRegime — a SW under the frontal flow aloft is not a bree
     expect(withSynopticRegime(outlook, one, day).pattern).toBe('térmico');
   });
 
+  it('coastal, strong NE aloft over the window -> "brisa poco probable"; inland it stays "térmico"', () => {
+    const ne = [13, 14, 15, 16].map((h) => level(h, 19, 60));
+    const o = withSynopticRegime(outlook, ne, day, true);
+    expect(o.pattern).toBe('brisa poco probable');
+    expect(formatOutlook(o)).toBe('Navegable 13-16h · hasta 11kt WSW (brisa poco probable)');
+    expect(withSynopticRegime(outlook, ne, day).pattern).toBe('térmico');
+  });
+
   it('without upper-air rows for those hours nothing changes; a nortada is never touched', () => {
     expect(withSynopticRegime(outlook, [], day)).toBe(outlook);
     const nortada = { ...outlook, dirDeg: 340, dir: 'NNW', pattern: 'nortada' as const };
