@@ -69,6 +69,8 @@ export interface SpotWindConsensus {
   dirSteadiness?: number | null;
   /** Matched wind pattern name, if any */
   matchedPattern: string | null;
+  /** Set when the spot's leeSectors cut the consensus (the card shows it). */
+  leeNote?: string | null;
   /** Individual station/buoy contributions, sorted by weight descending */
   contributions: WindContribution[];
 }
@@ -761,6 +763,14 @@ function computeSpotWindConsensus(
     dirSteadiness = dirWeight > 0 ? Math.round((Math.hypot(sinSum, cosSum) / dirWeight) * 100) / 100 : null;
   }
 
+  // Lee of the spot (spots.ts leeSectors): from these directions the stations around read more
+  // wind than reaches the water. Only with a stated direction: a 'variable' mean is noise.
+  let leeNote: string | null = null;
+  if (spot.leeSectors && dirPoints.length > 0 && !isDirVariable({ dirSteadiness })) {
+    const lee = spot.leeSectors.find((s) => avgDir >= s.from && avgDir < s.to);
+    if (lee) { leeNote = `${lee.note} (alrededor marcan ${Math.round(avgSpeed)} kt)`; avgSpeed *= lee.factor; }
+  }
+
   // Wind pattern match
   const patternThreshold = spot.thermalDetection ? 5 : 8;
   let matchedPattern: string | null = null;
@@ -800,6 +810,7 @@ function computeSpotWindConsensus(
     dirDeg: Math.round(avgDir),
     dirSteadiness,
     matchedPattern,
+    leeNote,
     contributions,
   };
 }
@@ -1110,8 +1121,11 @@ function scoreSpot(
   // A front aloft means the SW at the surface is the front itself, not a breeze:
   // nothing to amplify (28-sep: Lourido 15 kt shown, 10 on the water).
   const thermalVetoed = rainVetoed || regimeVeto?.vetoed === true;
+  // In the lee (spots.ts leeSectors) the water reads LESS than the stations: no boost may lift it
+  // back (8-oct: Cesantes cut to 6.5 kt with land wind, then +1.5 from the afternoon-breeze precursor).
+  const inLee = !!wind.leeNote;
 
-  if (!thermalVetoed && spot.thermalDetection && thermalData && thermalData.thermalProbability >= 40) {
+  if (!thermalVetoed && !inLee && spot.thermalDetection && thermalData && thermalData.thermalProbability >= 40) {
     // Check if current wind direction matches a thermal pattern
     const dirMatchesThermal = spot.windPatterns.some(
       (p) => angleDifference(wind.dirDeg, p.direction) <= 50,
@@ -1161,7 +1175,7 @@ function scoreSpot(
   const precursor = thermalVetoed
     ? { ...precursorRaw, boost: 0, signal: null }
     : channelingApplied ? { ...precursorRaw, boost: 0 } : precursorRaw;
-  if (precursor.boost > 0 && effectiveSpd >= 2) {
+  if (precursor.boost > 0 && effectiveSpd >= 2 && !inLee) {
     // Additive boost: up to +3kt at max precursor signal
     effectiveSpd += precursor.boost * 3;
     thermalBoosted = true;

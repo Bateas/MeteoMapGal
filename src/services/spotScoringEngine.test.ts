@@ -1000,3 +1000,39 @@ describe('markProvisionalUntilBuoys', () => {
     expect(markProvisionalUntilBuoys(scores, [centro]).get('centro-ria')!.provisional).toBe(false);
   });
 });
+
+// ── Lee of the spot (spots.ts leeSectors) ────────────────
+describe('leeSectors: wind from the land at Cesantes', () => {
+  const cesantes = RIAS_SPOTS.find(s => s.id === 'cesantes')!;
+  const bocana = RIAS_SPOTS.find(s => s.id === 'bocana')!;
+  const at = (spot: typeof cesantes, kt: number, dir: number) => {
+    const st = makeStation('lee1', spot.center[1], spot.center[0]);
+    return scoreAllSpots([spot], [st], new Map([['lee1', makeReading('lee1', msFromKt(kt), dir)]]), []).get(spot.id)!;
+  };
+
+  it('cuts the consensus from the NE and says why, with what the stations read', () => {
+    const ne = at(cesantes, 12, 45), sw = at(cesantes, 12, 225);
+    expect(ne.wind!.avgSpeedKt / sw.wind!.avgSpeedKt).toBeCloseTo(0.8, 1);
+    expect(ne.wind!.leeNote).toMatch(/^Viento de tierra: plato en la orilla, sopla a unos metros \(alrededor marcan \d+ kt\)$/);
+    expect(sw.wind!.leeNote ?? null).toBeNull();
+  });
+
+  it('leaves the N and the SW afternoons alone (they were already right)', () => {
+    expect(at(cesantes, 12, 10).wind!.leeNote ?? null).toBeNull();
+    expect(at(cesantes, 12, 130).wind!.leeNote ?? null).toBeNull();
+  });
+
+  it('only touches spots that declare it', () => {
+    expect(at(bocana, 12, 45).wind!.leeNote ?? null).toBeNull();
+  });
+});
+
+describe('leeSectors: no boost lifts the wind back', () => {
+  it('with land wind the card shows the cut consensus, not a boosted figure', () => {
+    const cesantes = RIAS_SPOTS.find(s => s.id === 'cesantes')!;
+    const st = makeStation('lee2', cesantes.center[1], cesantes.center[0]);
+    const s = scoreAllSpots([cesantes], [st], new Map([['lee2', makeReading('lee2', msFromKt(10), 45)]]), []).get('cesantes')!;
+    expect(s.wind!.leeNote).toBeTruthy();
+    expect(s.effectiveWindKt ?? s.wind!.avgSpeedKt).toBeCloseTo(s.wind!.avgSpeedKt, 5);
+  });
+});
