@@ -477,9 +477,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
             {!score.provisional && !simpleMode && <span>· {score.score}/100</span>}
           </div>
         )}
-        {spot.category !== 'surf' && !score?.provisional && score?.wind?.leeNote && (
-          <div className="sg-lee">{score.wind.leeNote}</div>
-        )}
         {spot.category !== 'surf' && score?.wind?.matchedPattern && (
           <div className="sg-pattern">
             <WeatherIcon id="thermal-wind" size={11} className="inline -mt-px" /> {score.wind.matchedPattern}

@@ -33,5 +33,4 @@
 .sg-pending { font-size: 15px; font-weight: 600; color: var(--sg-muted); }
 .sg-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--sg-muted); margin-bottom: 6px; }
 .sg-pattern { font-size: 12px; color: #e7b340; margin-bottom: 6px; }
-.sg-lee { font-size: 12px; line-height: 1.35; color: var(--sg-muted); margin-bottom: 6px; }
 .sg-summary { font-size: 13px; line-height: 1.35; margin-bottom: 6px; padding-left: 8px; border-left: 3px solid var(--sg-tone, var(--sg-rule)); }

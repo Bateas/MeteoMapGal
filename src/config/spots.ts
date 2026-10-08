@@ -100,11 +100,6 @@ export interface SailingSpot {
    *  For stations that are fine elsewhere but misrepresent THIS spot (different
    *  microclimate / sheltered). e.g. Liméns excludes Cangas MG. */
   excludeStations?: string[];
-  /** Directions from which the wind reaches the spot weaker than the stations around it
-   *  read (the spot sits in the lee). When the consensus direction falls in [from, to), the
-   *  consensus speed is multiplied by `factor` and `note` goes on the card. Measured against
-   *  ground truth, never guessed. */
-  leeSectors?: { from: number; to: number; factor: number; note: string }[];
   /** Upwind indicator stations — if these show wind in a pattern direction
    *  while the spot is calm, it signals approaching wind (frontal propagation).
    *  NOT used for thermal/bruma patterns (those generate locally).
@@ -173,13 +168,6 @@ export const RIAS_SPOTS: SailingSpot[] = [
       1251, // Rande CETMAR (~3km) — key buoy for interior ría
       3221, // Vigo REDMAR (tide/pressure, ~5km)
     ],
-    // Wind from the land (NNE-E) blows off the beach: flat at the shore, 7-9 kt a few metres
-    // out, while the channel stations (Vigo tide gauge, O Viso) read 10-13. Over the 10 ground
-    // truths with that wind (26-sep to 8-oct) the card read 2.9 kt high, 1 of 10 inside. Most of
-    // it was the breeze boosts landing on land wind (the engine now skips them in the lee); on the
-    // boost-free consensus x0.8 fits the readings of the water a few metres out (4 of 5 inside,
-    // 0.2 kt off). The flat shore is what the note says. Every other direction was already right.
-    leeSectors: [{ from: 30, to: 120, factor: 0.8, note: 'Viento de tierra: plato en la orilla, sopla a unos metros' }],
     waveRelevance: 'none',
     thermalDetection: true,
     hardGates: { maxWindKt: 30 },
