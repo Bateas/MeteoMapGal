@@ -25,6 +25,7 @@ import { fetchTeleconnections, type TeleconnectionIndex } from '../api/naoClient
 import { fetchUpperAirLevels } from '../api/upperAirClient';
 import { upperWindAt, type UpperWind } from '../services/synopticRegime';
 import { useVisibilityPolling } from './useVisibilityPolling';
+import type { VerdictHoldState } from '../services/verdictHold';
 
 /**
  * Throttle intervals:
@@ -52,6 +53,9 @@ export function useSpotScoring() {
   const scoredBuoysPendingRef = useRef<boolean | null>(null);
   const mountTimeRef = useRef(Date.now());
   const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
+  // Verdict shown per spot, so a wind sitting on a threshold line does not flip the colour
+  // every cycle (verdictHold.ts). Emptied on a sector switch.
+  const verdictHoldRef = useRef(new Map<string, VerdictHoldState>());
 
   // 850 hPa wind for the sector: a front aloft vetoes the thermal boosts
   // (synopticRegime.ts). No data = no veto.
@@ -74,6 +78,7 @@ export function useSpotScoring() {
     // other sector's sounding until then.
     if (upperWindSectorRef.current === sectorId) return;
     upperWindSectorRef.current = sectorId;
+    verdictHoldRef.current.clear();
     setUpperWind(null);
     useSpotStore.getState().setUpperAir(null);
     void loadUpperWind();
@@ -139,7 +144,8 @@ export function useSpotScoring() {
     timerRef.current = setTimeout(() => {
       const { currentReadings, readingHistory } = useWeatherStore.getState();
       const tc = teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined;
-      const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc, readingHistory, undefined, upperWind);
+      const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc, readingHistory, undefined, upperWind,
+        { states: verdictHoldRef.current, nowMs: Date.now() });
 
       setScores(buoysPending ? markProvisionalUntilBuoys(scores, spots) : scores);
       lastScoredRef.current = Date.now();

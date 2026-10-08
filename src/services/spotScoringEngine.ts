@@ -37,6 +37,7 @@ import { assessSynopticRegime, type RegimeVeto, type UpperWind } from './synopti
 import { precipSamplesFromHistory, type PrecipSample } from './precipSemantics';
 import { getStationBiasAt } from '../config/stationBiases';
 import { isDirVariable } from '../config/verdictStyles';
+import { settleVerdict, verdictRank, VERDICT_CLEAR_MARGIN_KT, type VerdictHoldState } from './verdictHold';
 
 /** Spots of the inland sector: the offshore-aloft veto (synopticRegime.ts) was measured on the coast only. */
 const INLAND_SPOT_IDS = new Set<string>(getSpotsForSector('embalse').map((s) => s.id));
@@ -1073,6 +1074,8 @@ function scoreSpot(
   rainVeto?: RainVeto | null,
   /** A front aloft (850 hPa). Same effect as the rain veto, for every spot. */
   regimeVeto?: RegimeVeto | null,
+  /** Map only: holds the verdict through noise on a threshold line (verdictHold.ts). */
+  settle?: (raw: SpotVerdict, effectiveKt: number) => SpotVerdict,
 ): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; effectiveWindKt: number | null; humiditySignal: string | null; thetaVGradient: number | null } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
@@ -1208,7 +1211,9 @@ function scoreSpot(
   // Note: humidityPrecursorBoost already handles thermal/bruma separately.
 
   // ── Primary verdict from wind speed (using effective speed with thermal boost) ──
-  const verdict = windVerdict(effectiveSpd, spot.id);
+  const rawVerdict = windVerdict(effectiveSpd, spot.id);
+  // Summary and score below follow the verdict SHOWN, so the popup text matches the colour.
+  const verdict = settle ? settle(rawVerdict, effectiveSpd) : rawVerdict;
 
   // ── Score computation (0-100) for ranking ──────────────
   let score = 0;
@@ -1570,6 +1575,9 @@ export function scoreAllSpots(
   /** 850 hPa wind for the sector (synopticRegime.ts). A front aloft vetoes every thermal
    *  boost. Omitted (or no data) = no veto, as before it existed. */
   upperWind?: UpperWind | null,
+  /** Map only (verdictHold.ts): the hold state per spot, updated in place. The server omits it
+   *  and keeps the raw verdict for alerts and spot_scores. */
+  verdictHold?: { states: Map<string, VerdictHoldState>; nowMs: number },
 ): Map<string, SpotScore> {
   const results = new Map<string, SpotScore>();
   const computedAt = new Date();
@@ -1703,7 +1711,26 @@ export function scoreAllSpots(
       );
     }
 
-    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction, rainVeto, regimeVeto);
+    // Hold through noise on a line only for wind verdicts; surf spots and hard gates go straight.
+    const settle = verdictHold && spot.category !== 'surf'
+      ? (raw: SpotVerdict, kt: number): SpotVerdict => {
+          const prev = verdictHold.states.get(spot.id);
+          const prevRank = prev ? verdictRank(prev.shown) : -1;
+          const rawRank = verdictRank(raw);
+          // Past the line by a margin = a real change: the verdict a bit nearer the shown one agrees with raw.
+          const probe = windVerdict(rawRank > prevRank ? kt - VERDICT_CLEAR_MARGIN_KT : kt + VERDICT_CLEAR_MARGIN_KT, spot.id);
+          const clearly = rawRank > prevRank ? verdictRank(probe) >= rawRank : verdictRank(probe) <= rawRank;
+          const out = settleVerdict(prev, raw, verdictHold.nowMs, clearly);
+          verdictHold.states.set(spot.id, out.state);
+          return out.shown;
+        }
+      : undefined;
+    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction, rainVeto, regimeVeto, settle);
+    // Early returns of scoreSpot (danger gates, no wind) never reach settle: they are shown at once
+    // and become the state, so the next ordinary verdict is compared with what the map showed.
+    if (verdictHold && (hardGate !== null || verdict === 'unknown')) {
+      verdictHold.states.set(spot.id, settleVerdict(undefined, verdict, verdictHold.nowMs, true).state);
+    }
 
     // Scoring confidence based on source count and type
     const sourceCount = wind?.stationCount ?? 0;
