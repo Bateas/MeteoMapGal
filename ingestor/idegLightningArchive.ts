@@ -22,7 +22,8 @@ const GALICIA_BOX = '-10.5,41.5,-6.0,44.5';
 const PAGE = 2000;               // the layer's maxRecordCount
 const MAX_PAGES = 10;
 export const IDEG_QUIET_MS = 5 * 60_000;
-export const IDEG_ACTIVE_MS = 2 * 60_000;
+/** 5 min also with a storm: MeteoGalicia asked (9-oct) not to repeat requests more often. */
+export const IDEG_ACTIVE_MS = 5 * 60_000;
 
 let filledAfterStart = false;
 let running = false;

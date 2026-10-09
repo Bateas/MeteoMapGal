@@ -29,7 +29,7 @@ import { runFirmsCycle } from './firmsFetcher.js';
 import { runEffisCycle } from './effisFetcher.js';
 import { runIcaCycle } from './icaFetcher.js';
 import { runConvectionGridCycle, lastConvectionGridRunMs } from './convectionGridFetcher.js';
-import { firstRunDelayMs } from './startupSchedule.js';
+import { firstRunDelayMs, msToNextSlot, msToSlotAfterRun } from './startupSchedule.js';
 import { runOutcomeEvaluatorCycle } from './outcomeEvaluator.js';
 import { runFireWatchCycle } from './fireWatch.js';
 import { runCalibrationCycle, CALIBRATION_CHECK_INTERVAL_MS } from './calibration.js';
@@ -71,6 +71,10 @@ let lightningStopped = false;
 /** MeteoGalicia publishes strikes with ~5 min of delay and asked (9-oct) for no more than one
  *  request every 5 minutes, so the pace no longer speeds up in a storm (it was 2 min). */
 const LIGHTNING_POLL_MS = 5 * 60_000;
+/** Polls sit on fixed slots of the clock, 30 s past each 5 minutes (startupSchedule.ts): a deploy,
+ *  or a crash loop with the unit's 30 s restart, waits for the next slot instead of asking again
+ *  sooner than 5 minutes. */
+const LIGHTNING_SLOT_OFFSET_MS = 30_000;
 let lightningStormMode = false;
 
 /** One lightning poll, the safety check on what it stored, and the next poll 5 minutes later.
@@ -89,7 +93,7 @@ async function lightningLoop(): Promise<void> {
   } catch (err) {
     log.error('[Lightning] cycle err:', (err as Error).message);
   } finally {
-    if (!lightningStopped) lightningTimer = setTimeout(lightningLoop, LIGHTNING_POLL_MS);
+    if (!lightningStopped) lightningTimer = setTimeout(lightningLoop, msToSlotAfterRun(Date.now(), LIGHTNING_POLL_MS, LIGHTNING_SLOT_OFFSET_MS));
   }
 }
 let synopticTimer: ReturnType<typeof setInterval> | null = null;
@@ -467,10 +471,12 @@ async function start(): Promise<void> {
   }, DISCOVER_MS);
 
   // Lightning fetcher — its own loop, decoupled from the main weather cycle so a slow station
-  // fetch never delays strike persistence. Every 5 min in calm and every 2 with a storm near
-  // Galicia; the lightning safety check (Telegram) runs right after each poll. First run after
-  // a 30 s stagger so it doesn't pile on top of the initial cycle.
-  lightningTimer = setTimeout(lightningLoop, 30_000);
+  // fetch never delays strike persistence. Every 5 min, on fixed slots of the clock, storm or no
+  // storm (what MeteoGalicia asked for); the lightning safety check (Telegram) runs right after
+  // each poll. The first poll waits for the next slot (0-5 min after the start), never sooner.
+  const firstLightningMs = msToNextSlot(Date.now(), LIGHTNING_POLL_MS, LIGHTNING_SLOT_OFFSET_MS);
+  log.info(`[Lightning] primer sondeo en ${Math.round(firstLightningMs / 1000)} s (franjas fijas de 5 min)`);
+  lightningTimer = setTimeout(lightningLoop, firstLightningMs);
 
   // Synoptic fetcher — upper-air winds + convection.
   // Bumped 1h → 2h to fit within Open-Meteo free tier daily quota.
