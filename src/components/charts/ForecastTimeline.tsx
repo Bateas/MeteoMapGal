@@ -112,10 +112,13 @@ function ForecastRow({
   point,
   showDate,
   thermalScore,
+  showThermal,
 }: {
   point: HourlyForecast;
   showDate: boolean;
   thermalScore: ThermalScore;
+  /** The thermal score column and tint are the Embalse rules: off in the Rías. */
+  showThermal: boolean;
 }) {
   const kt = point.windSpeed !== null ? msToKnots(point.windSpeed) : null;
   const barWidth = kt !== null ? Math.min((kt / MAX_WIND_KT) * 100, 100) : 0;
@@ -126,11 +129,11 @@ function ForecastRow({
 
   return (
     <div
-      className={`grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px] gap-1 items-center px-2 py-[3px] text-xs
+      className={`grid ${showThermal ? 'grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px]' : 'grid-cols-[52px_28px_1fr_42px_36px_36px_24px]'} gap-1 items-center px-2 py-[3px] text-xs
         ${!point.isDay ? 'bg-slate-800/40' : ''}
         ${showDate ? 'border-t border-slate-600' : 'border-t border-slate-800/50'}
         hover:bg-slate-700/30 transition-colors`}
-      style={{ background: thermalScore.score >= 20 ? thermalBg(thermalScore.score) : undefined }}
+      style={{ background: showThermal && thermalScore.score >= 20 ? thermalBg(thermalScore.score) : undefined }}
     >
       {/* Time */}
       <div className="text-slate-400 tabular-nums">
@@ -191,7 +194,7 @@ function ForecastRow({
       </div>
 
       {/* Thermal score indicator — hover shows full breakdown */}
-      <div
+      {showThermal && <div
         className="text-center cursor-default"
         title={buildBreakdownTooltip(thermalScore)}
       >
@@ -207,7 +210,7 @@ function ForecastRow({
         ) : (
           <span className="text-slate-700">·</span>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -728,9 +731,13 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
 
   const rules = useThermalStore((s) => s.rules);
   const dailyContext = useThermalStore((s) => s.dailyContext);
-  const deltaT = dailyContext?.deltaT ?? null;
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const sectorName = useSectorStore((s) => s.activeSector.shortName);
+  // The thermal rules and the ΔT are the reservoir's (scoreForecastThermal: «the forecast point is the
+  // reservoir»). In the Rías they scored the Rías forecast and painted «W navegable (Embalse)» windows.
+  const isEmbalse = sectorId === 'embalse';
+  const sectorRules = useMemo(() => (isEmbalse ? rules : []), [isEmbalse, rules]);
+  const deltaT = isEmbalse ? (dailyContext?.deltaT ?? null) : null;
   // Reference point for the forecast (so users know WHERE the data is for)
   const forecastRef = spotCoords
     ? '' // ForecastPanel header already shows spot name
@@ -749,13 +756,13 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
 
   // Score thermal for each point
   const thermalScores = useMemo(() => {
-    return visibleData.map((point) => scoreForecastThermal(point, rules, deltaT));
-  }, [visibleData, rules, deltaT]);
+    return visibleData.map((point) => scoreForecastThermal(point, sectorRules, deltaT));
+  }, [visibleData, sectorRules, deltaT]);
 
   // Find thermal windows in the full dataset
   const thermalWindows = useMemo(() => {
-    return findThermalWindows(hourly, rules, deltaT);
-  }, [hourly, rules, deltaT]);
+    return findThermalWindows(hourly, sectorRules, deltaT);
+  }, [hourly, sectorRules, deltaT]);
 
   // Day diagnosis
   const diagnosis = useMemo(() => {
@@ -1006,7 +1013,7 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
       ) : (
         <div>
           {/* Column header */}
-          <div className="grid grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px] gap-1 px-2 py-1 text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-700">
+          <div className={`grid ${isEmbalse ? 'grid-cols-[52px_28px_1fr_42px_36px_36px_24px_28px]' : 'grid-cols-[52px_28px_1fr_42px_36px_36px_24px]'} gap-1 px-2 py-1 text-[11px] text-slate-500 uppercase tracking-wider border-b border-slate-700`}>
             <span>Hora</span>
             <span>Dir</span>
             <span>Viento</span>
@@ -1014,7 +1021,7 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
             <span className="text-right">HR</span>
             <span className="text-right">mm</span>
             <span className="text-center"><WeatherIcon id="cloud" size={12} /></span>
-            <span className="text-center" title="Score térmico estimado"><WeatherIcon id="thermometer" size={12} /></span>
+            {isEmbalse && <span className="text-center" title="Score térmico estimado"><WeatherIcon id="thermometer" size={12} /></span>}
           </div>
 
           {/* Timeline rows */}
@@ -1062,6 +1069,7 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
                     point={point}
                     showDate={false}
                     thermalScore={thermalScores[i] ?? { score: 0, mainRule: null, isNavigable: false, isPrecursor: false }}
+                    showThermal={isEmbalse}
                   />
             </div>
           );
@@ -1073,7 +1081,7 @@ export function ForecastTimeline({ expanded = false, spotCoords }: { expanded?: 
       {/* Footer */}
       {fetchedAt && (
         <div className="text-[11px] text-slate-600 text-center py-1 border-t border-slate-800">
-          {activeModel === 'meteosix_wrf' ? 'WRF MeteoGalicia 1km' : 'Open-Meteo'} + scoring térmico · Actualizado {formatHour(fetchedAt)}
+          {activeModel === 'meteosix_wrf' ? 'WRF MeteoGalicia 1km' : 'Open-Meteo'}{isEmbalse ? ' + scoring térmico' : ''} · Actualizado {formatHour(fetchedAt)}
         </div>
       )}
     </div>
