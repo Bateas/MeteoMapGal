@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { settleVerdict, VERDICT_HOLD_MS, HOLD_STATE_TTL_MS, type VerdictHoldState } from './verdictHold';
+import { settleVerdict, holdContextKey, VERDICT_HOLD_MS, HOLD_STATE_TTL_MS, type VerdictHoldState } from './verdictHold';
 import { scoreAllSpots } from './spotScoringEngine';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { RIAS_SPOTS } from '../config/spots';
@@ -41,11 +41,19 @@ describe('settleVerdict', () => {
     expect(run([{ raw: 'sailing', at: T0 }, { raw: 'good', at: T0 + MIN, clearly: true }])).toEqual(['sailing', 'good']);
   });
 
-  it('never holds back strong, unknown or a jump of two levels', () => {
+  it('never holds back going up to strong, unknown or a jump of two levels', () => {
     expect(run([{ raw: 'good', at: T0 }, { raw: 'strong', at: T0 + MIN }])).toEqual(['good', 'strong']);
-    expect(run([{ raw: 'strong', at: T0 }, { raw: 'good', at: T0 + MIN }])).toEqual(['strong', 'good']);
     expect(run([{ raw: 'sailing', at: T0 }, { raw: 'unknown', at: T0 + MIN }])).toEqual(['sailing', 'unknown']);
     expect(run([{ raw: 'calm', at: T0 }, { raw: 'sailing', at: T0 + MIN }])).toEqual(['calm', 'sailing']);
+    expect(run([{ raw: 'strong', at: T0 }, { raw: 'sailing', at: T0 + MIN }])).toEqual(['strong', 'sailing']);
+  });
+
+  it('coming down from strong waits like any adjacent change (17-18 kt flicker), and goes clearly at once', () => {
+    const seq = ['strong', 'good', 'strong', 'good', 'good'] as const;
+    expect(run(seq.map((raw, i) => ({ raw, at: T0 + i * 5 * MIN })))).toEqual(['strong', 'strong', 'strong', 'strong', 'strong']);
+    expect(run([{ raw: 'strong', at: T0 }, { raw: 'good', at: T0 + MIN }, { raw: 'good', at: T0 + MIN + VERDICT_HOLD_MS }]))
+      .toEqual(['strong', 'strong', 'good']);
+    expect(run([{ raw: 'strong', at: T0 }, { raw: 'good', at: T0 + MIN, clearly: true }])).toEqual(['strong', 'good']);
   });
 
   it('forgets a state nobody refreshed (tab asleep)', () => {
@@ -83,8 +91,44 @@ describe('scoreAllSpots with the verdict hold', () => {
     expect(score(onLine + 2, { states, nowMs: T0 + MIN }).verdict).toBe('good');
   });
 
+  it('1.2 kt past the line is a real change: a held colour never reads «NAVEG. 13kt»', () => {
+    const states = new Map<string, VerdictHoldState>();
+    expect(score(onLine - 1.5, { states, nowMs: T0 }).verdict).toBe('sailing');
+    expect(score(onLine + 1.2, { states, nowMs: T0 + MIN }).verdict).toBe('good');
+  });
+
+  it('a provisional score («Calculando…») leaves no state behind', () => {
+    const states = new Map<string, VerdictHoldState>();
+    expect(score(onLine - 1.5, { states, nowMs: T0 }).verdict).toBe('sailing');
+    // Eight stations known, one with a reading: the set is partial and there is one source.
+    const others: NormalizedStation[] = ['h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8'].map((id) => ({ ...station, id, name: id }));
+    const partial = scoreAllSpots([spot], [station, ...others], new Map([['h1', reading(onLine)]]), [],
+      undefined, undefined, undefined, undefined, undefined, { states, nowMs: T0 + 5 * MIN }).get(spot.id)!;
+    expect(partial.provisional).toBe(true);
+    expect(states.has(spot.id)).toBe(false);
+    // The first verdict anyone sees after it shows as it is, not held behind the unseen one.
+    expect(score(onLine, { states, nowMs: T0 + 10 * MIN }).verdict).toBe('good');
+  });
+
   it('without the hold state (server) it keeps the raw verdict', () => {
     expect(score(onLine).verdict).toBe('good');
     expect(score(onLine - 1.5).verdict).toBe('sailing');
+  });
+});
+
+describe('holdContextKey', () => {
+  const base = { buoysPending: false, upperWind: { speedKt: 12, dirDeg: 50 }, thermalReady: false };
+  it('changes when the buoys arrive, the veto aloft switches or the thermal context appears', () => {
+    const k = holdContextKey(base);
+    expect(holdContextKey({ ...base, buoysPending: true })).not.toBe(k);
+    expect(holdContextKey({ ...base, upperWind: { speedKt: 16, dirDeg: 50 } })).not.toBe(k); // NE >= 15 kt: offshore veto
+    expect(holdContextKey({ ...base, upperWind: null })).not.toBe(k);
+    expect(holdContextKey({ ...base, thermalReady: true })).not.toBe(k);
+  });
+
+  it('a new sounding with the same regime is the same context', () => {
+    expect(holdContextKey({ ...base, upperWind: { speedKt: 13, dirDeg: 60 } })).toBe(holdContextKey(base));
+    expect(holdContextKey({ ...base, upperWind: { speedKt: 16, dirDeg: 50 } }))
+      .toBe(holdContextKey({ ...base, upperWind: { speedKt: 19, dirDeg: 70 } }));
   });
 });

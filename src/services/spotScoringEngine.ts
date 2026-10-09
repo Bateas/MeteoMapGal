@@ -1747,6 +1747,8 @@ export function scoreAllSpots(
       readingSetPartial &&
       sourceCount < PROVISIONAL_MIN_WIND_SOURCES &&
       hardGate === null;
+    // The map shows «Calculando…» for it: a verdict nobody saw is no reference for the next one.
+    if (verdictHold && provisional) verdictHold.states.delete(spot.id);
 
     // ── NAO/AO score modulation ──────────────────────────
     // NAO+ = Atlantic storms → consistent wind patterns (+5-8%)

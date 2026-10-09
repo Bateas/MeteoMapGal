@@ -25,7 +25,7 @@ import { fetchTeleconnections, type TeleconnectionIndex } from '../api/naoClient
 import { fetchUpperAirLevels } from '../api/upperAirClient';
 import { upperWindAt, type UpperWind } from '../services/synopticRegime';
 import { useVisibilityPolling } from './useVisibilityPolling';
-import type { VerdictHoldState } from '../services/verdictHold';
+import { holdContextKey, type VerdictHoldState } from '../services/verdictHold';
 
 /**
  * Throttle intervals:
@@ -56,6 +56,8 @@ export function useSpotScoring() {
   // Verdict shown per spot, so a wind sitting on a threshold line does not flip the colour
   // every cycle (verdictHold.ts). Emptied on a sector switch.
   const verdictHoldRef = useRef(new Map<string, VerdictHoldState>());
+  /** What the held verdicts were computed with (holdContextKey). */
+  const holdKeyRef = useRef('');
 
   // 850 hPa wind for the sector: a front aloft vetoes the thermal boosts
   // (synopticRegime.ts). No data = no veto.
@@ -144,6 +146,13 @@ export function useSpotScoring() {
     timerRef.current = setTimeout(() => {
       const { currentReadings, readingHistory } = useWeatherStore.getState();
       const tc = teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined;
+      // The hold smooths noise on a line, not a new context: buoys arriving, the veto aloft
+      // switching, the thermal context appearing. Then the next verdicts show at once.
+      const holdKey = holdContextKey({ buoysPending, upperWind, thermalReady: thermalData?.deltaT != null });
+      if (holdKey !== holdKeyRef.current) {
+        verdictHoldRef.current.clear();
+        holdKeyRef.current = holdKey;
+      }
       const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc, readingHistory, undefined, upperWind,
         { states: verdictHoldRef.current, nowMs: Date.now() });
 
