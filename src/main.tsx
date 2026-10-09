@@ -34,13 +34,10 @@ initWebVitals();
 // F12 debug helpers — invocables desde la consola del navegador.
 // `__meteomapDebug.<fn>()` para verificar hipótesis live sin tocar código.
 // Survive esbuild.drop (no usamos console.*), pueden invocarse en prod.
-import { getLightningParseDebug } from './api/lightningClient';
 import { useLightningStore } from './hooks/useLightningData';
 import { useWebcamStore } from './store/webcamStore';
 import { useAlertStore } from './store/alertStore';
 (window as unknown as { __meteomapDebug?: object }).__meteomapDebug = {
-  /** Parser TZ debug — verifica que MG envía UTC vs Madrid local */
-  lightning: getLightningParseDebug,
   /** Recent strike activity counts: count30m / count15m / count5m (within WATCH_KM) */
   activity: () => useLightningStore.getState().recentActivity,
   /** Storm clusters with velocity + ETA — compact summary per cluster */
@@ -92,7 +89,6 @@ import { useAlertStore } from './store/alertStore';
     })),
   /** Single-shot dump of everything storm-related — quick health check */
   dump: () => ({
-    parseTZ: getLightningParseDebug(),
     activity: useLightningStore.getState().recentActivity,
     alert: useLightningStore.getState().stormAlert,
     clusterCount: useLightningStore.getState().clusters.length,

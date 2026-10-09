@@ -1,6 +1,6 @@
 import type { StormCluster } from '../services/stormTracker';
 
-/** Lightning strike from MeteoGalicia meteo2api raios/lenda endpoint */
+/** Lightning strike (MeteoGalicia's detection network, read through our own API) */
 export interface LightningStrike {
   id: number;
   lat: number;

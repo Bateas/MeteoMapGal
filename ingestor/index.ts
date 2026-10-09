@@ -68,19 +68,20 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let discoverTimer: ReturnType<typeof setInterval> | null = null;
 let lightningTimer: ReturnType<typeof setTimeout> | null = null;
 let lightningStopped = false;
-const LIGHTNING_QUIET_MS = 5 * 60_000;
-const LIGHTNING_STORM_MS = 2 * 60_000;
+/** MeteoGalicia publishes strikes with ~5 min of delay and asked (9-oct) for no more than one
+ *  request every 5 minutes, so the pace no longer speeds up in a storm (it was 2 min). */
+const LIGHTNING_POLL_MS = 5 * 60_000;
 let lightningStormMode = false;
 
-/** One lightning poll, the safety check on what it stored, and the next poll at the pace the
- *  activity asks for. Neither step can stop the loop. */
+/** One lightning poll, the safety check on what it stored, and the next poll 5 minutes later.
+ *  Neither step can stop the loop. */
 async function lightningLoop(): Promise<void> {
   let stormActive = lightningStormMode;
   try {
     stormActive = (await runLightningCycle()).stormActive;
     await runLightningSafety();
     if (stormActive !== lightningStormMode) {
-      log.info(stormActive ? '[Lightning] tormenta activa: sondeo cada 2 min' : '[Lightning] sin tormenta cerca: sondeo cada 5 min');
+      log.info(stormActive ? '[Lightning] tormenta activa (sondeo cada 5 min, lo que pide MeteoGalicia)' : '[Lightning] sin tormenta cerca');
       lightningStormMode = stormActive;
     }
     // Official JSON side by side, after the alert so it never delays it (jsonRaiosShadow.ts).
@@ -88,7 +89,7 @@ async function lightningLoop(): Promise<void> {
   } catch (err) {
     log.error('[Lightning] cycle err:', (err as Error).message);
   } finally {
-    if (!lightningStopped) lightningTimer = setTimeout(lightningLoop, stormActive ? LIGHTNING_STORM_MS : LIGHTNING_QUIET_MS);
+    if (!lightningStopped) lightningTimer = setTimeout(lightningLoop, LIGHTNING_POLL_MS);
   }
 }
 let synopticTimer: ReturnType<typeof setInterval> | null = null;

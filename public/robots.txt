@@ -8,7 +8,6 @@ Disallow: /meteogalicia-api/
 Disallow: /meteoclimatic-api/
 Disallow: /netatmo-api/
 Disallow: /netatmo-auth/
-Disallow: /meteo2api/
 Disallow: /ica-api/
 Disallow: /enaire-api/
 Disallow: /ihm-api/

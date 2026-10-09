@@ -1,6 +1,7 @@
 /**
- * The map reads lightning from our API: the day once, then the last half hour, and only goes
- * to meteo2api when our API fails (6-oct).
+ * The map reads lightning from our API: the day once, then the last half hour. When our API
+ * fails it keeps the last day it had and never asks MeteoGalicia itself (9-oct: MeteoGalicia
+ * asked third parties not to use meteo2api, and for 5 minutes between requests).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fetchLightningStrikes } from './lightningClient';
@@ -14,7 +15,7 @@ afterEach(() => {
 });
 
 describe('fetchLightningStrikes', () => {
-  it('day from our API, then only the new half hour, then meteo2api when ours fails', async () => {
+  it('day from our API, then only the new half hour, then the last day when ours fails', async () => {
     const urls: string[] = [];
     let now = T0;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
@@ -25,7 +26,7 @@ describe('fetchLightningStrikes', () => {
         if (urls.length > 2) return json({ error: 'down' }, 500);
         return json({ strikes: [[T0 + 2 * 60_000, 42.4, -8.6, 20, 0]] });
       }
-      return json({ raiosPosit: [{ date: '06-10-2026 14:05', latitude: 42.5, longitude: -8.5, peakCurrent: 9, idCityHall: 1, delaySymbol: 1 }], raiosNegat: [] });
+      throw new Error(`unexpected url ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -39,7 +40,9 @@ describe('fetchLightningStrikes', () => {
     now = T0 + 6 * 60_000;
     const third = await fetchLightningStrikes();
     expect(urls[2]).toMatch(/^\/api\/v1\/lightning\/recent\?minutes=30/);
-    expect(urls[3]).toMatch(/^\/meteo2api\//);
-    expect(third.map((s) => s.lat)).toEqual([42.5]);
+    expect(urls).toHaveLength(3);
+    expect(urls.some((u) => /meteo2api/.test(u))).toBe(false);
+    expect(third.map((s) => s.lat)).toEqual([42.4, 42.3]);
+    expect(third[0].ageMinutes).toBe(4);
   });
 });
