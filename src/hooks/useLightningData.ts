@@ -348,7 +348,13 @@ export function useLightningData() {
 
     setLoading(true);
     try {
-      const strikes = await fetchLightningStrikes({ stormActive });
+      const { strikes, asOf, fresh } = await fetchLightningStrikes({ stormActive });
+      // Our API did not answer: keep the last picture as it was — a storm that stops being read
+      // is not a storm that went away — and let the indicator show how old it is (lastFetch stays
+      // at the last good answer). Before 9-oct the meteo2api fallback hid this case.
+      if (!fresh) {
+        throw new Error(asOf != null ? 'Sin respuesta del servidor de rayos' : 'Sin datos de rayos: el servidor no responde');
+      }
       setStrikes(strikes);
       setError(null);
       retryCountRef.current = 0; // reset on success
@@ -385,7 +391,7 @@ export function useLightningData() {
 
       setRecentActivity(computeRecentActivity(strikes, centerLat, centerLon));
 
-      setLastFetch(new Date());
+      setLastFetch(new Date(asOf ?? Date.now()));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error obteniendo rayos';
       setError(msg);

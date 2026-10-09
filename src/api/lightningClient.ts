@@ -20,8 +20,10 @@ const CACHE_TTL_NORMAL_MS = 2 * 60 * 1000;
 /** Cache TTL when a storm is active (recent strikes < 15 min ago, < 80 km): our API, not the
  *  provider, so a short TTL costs MeteoGalicia nothing. */
 const CACHE_TTL_STORM_MS = 30 * 1000;
-/** After our API fails, wait this long before asking it again; the last day stays on screen. */
-const API_COOLDOWN_MS = 3 * 60_000;
+/** After our API fails, wait this long before asking it again (the hook's quick retries land inside
+ *  it and stay off the network). One minute: with polls every 2 min (1 in a storm) the map is back
+ *  on the next poll once our API answers; at 3 min it could stay on the stale picture for 4. */
+const API_COOLDOWN_MS = 60_000;
 
 // ── Our own API (6-oct) ──────────────────────────────────────────
 // The ingestor is the only one asking MeteoGalicia (every 5 min, what MeteoGalicia asks for) and
@@ -89,33 +91,43 @@ async function fetchFromOwnApi(): Promise<LightningStrike[] | null> {
     return strikes;
   } catch (err) {
     apiDownUntil = Date.now() + API_COOLDOWN_MS;
-    console.debug('[Lightning] own API failed, keeping the last day for 3 min:', err);
+    console.debug('[Lightning] own API failed, keeping the last picture:', err);
     return null;
   }
 }
 
+export interface LightningFetch {
+  /** The last 24 hours, newest first. */
+  strikes: LightningStrike[];
+  /** When these strikes came from our API (epoch ms); null when it never answered. */
+  asOf: number | null;
+  /** False when our API failed just now: `strikes` is the last day we had (ages updated), or none.
+   *  The caller must not take that for a fresh answer: «no strikes» would read as «no storm». */
+  fresh: boolean;
+}
+
 /**
- * Lightning strikes from the last 24 hours, newest first.
- * From our API (the ingestor's table). When it fails, the last day we had (ages updated), or none.
+ * Lightning strikes from the last 24 hours, from our API (the ingestor's table), with when they
+ * were read and whether this answer is fresh.
  *
  * `opts.stormActive` shortens the cache TTL from 2 min to 30 s — used during
  * active storms (recent nearby strikes) so the user sees fresh strikes ASAP.
  */
 export async function fetchLightningStrikes(
   opts: { stormActive?: boolean } = {},
-): Promise<LightningStrike[]> {
+): Promise<LightningFetch> {
   const ttl = opts.stormActive ? CACHE_TTL_STORM_MS : CACHE_TTL_NORMAL_MS;
   // Return cached data if fresh enough
   if (cache && Date.now() - cache.fetchedAt < ttl) {
-    return recomputeAges(cache.data);
+    return { strikes: recomputeAges(cache.data), asOf: cache.fetchedAt, fresh: true };
   }
 
   const own = await fetchFromOwnApi();
   if (own) {
     cache = { data: own, fetchedAt: Date.now() };
-    return own;
+    return { strikes: own, asOf: cache.fetchedAt, fresh: true };
   }
-  return cache ? recomputeAges(cache.data) : [];
+  return { strikes: cache ? recomputeAges(cache.data) : [], asOf: cache?.fetchedAt ?? null, fresh: false };
 }
 
 /** Recompute ageMinutes from cached timestamps */

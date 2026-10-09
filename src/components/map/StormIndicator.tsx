@@ -27,6 +27,9 @@ export const StormIndicator = memo(function StormIndicator() {
    *  Anything past this means a fetch is really stuck and the user should
    *  know the map data on screen does NOT reflect current conditions. */
   const isVeryStale = fetchAgeMin !== null && fetchAgeMin >= 7;
+  /** Our server never answered since the page opened: no lightning picture at all, which is
+   *  not the same as «no lightning». */
+  const noData = lastFetch === null && lightningError !== null;
 
   // Color: purple for lightning, amber for prediction-only
   const isPurple = hasStorm;
@@ -49,6 +52,8 @@ export const StormIndicator = memo(function StormIndicator() {
     ? `Actividad electrica (${{ danger: 'peligro', warning: 'aviso', watch: 'vigilancia' }[stormLevel] ?? stormLevel})${ageMin != null ? ` · dato hace ${ageMin}min` : ''}${prediction.probability > 0 ? ` · prediccion ${prediction.probability}%` : ''}${legendSuffix}`
     : hasPrediction
     ? `Prediccion tormenta: ${prediction.probability}% · ${prediction.summary}`
+    : noData
+    ? 'Sin datos de rayos: el servidor no responde'
     : 'Sin actividad electrica';
 
   return (
@@ -76,6 +81,11 @@ export const StormIndicator = memo(function StormIndicator() {
           title={lightningError ?? `Dato hace ${fetchAgeMin}min${isVeryStale ? ' — datos posiblemente desactualizados' : ''}`}
         >
           {fetchAgeMin}m
+        </span>
+      )}
+      {noData && (
+        <span className="text-[9px] font-mono text-amber-500" title={lightningError ?? undefined}>
+          sin dato
         </span>
       )}
       {hasPrediction && !hasStorm && (
