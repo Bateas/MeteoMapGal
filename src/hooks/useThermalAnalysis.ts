@@ -25,6 +25,9 @@ import { useSectorStore } from '../store/sectorStore';
 const FORECAST_INTERVAL_MS = 30 * 60 * 1000;
 const ATMOSPHERIC_INTERVAL_MS = 15 * 60 * 1000;
 
+/** Read at the moment an answer lands, not when the request left. */
+const stillEmbalse = () => useSectorStore.getState().activeSector.id === 'embalse';
+
 /**
  * Connects weather data → scoring engine → tendency detector → thermal store.
  * Call this once at the AppShell level.
@@ -52,7 +55,7 @@ export function useThermalAnalysis() {
     zones, rules, dailyContext, stationToZone, atmosphericContext,
     setRuleScores, setZoneAlerts, setTendencySignals, setPropagationEvents,
     setStationToZone, setZoneForecast, setForecastAlerts, setDailyContext,
-    setAtmosphericContext, setHumidityAssessments, setWindStatus,
+    setAtmosphericContext, setHumidityAssessments, setWindStatus, clearEmbalseContext,
   } = useThermalStore(
     useShallow((s) => ({
       zones: s.zones,
@@ -71,6 +74,7 @@ export function useThermalAnalysis() {
       setAtmosphericContext: s.setAtmosphericContext,
       setHumidityAssessments: s.setHumidityAssessments,
       setWindStatus: s.setWindStatus,
+      clearEmbalseContext: s.clearEmbalseContext,
     }))
   );
 
@@ -97,10 +101,22 @@ export function useThermalAnalysis() {
     setStationToZone(mapping);
   }, [stations, zones, setStationToZone]);
 
+  // ── Out of the Embalse its context goes ──
+  // ΔT (Ourense), atmosphere and tendencies describe the reservoir valley. Kept after a
+  // switch to the Rías they fed the Rías spots: useSpotScoring built a thermal probability
+  // from them (the card read «Térmica 41 % prob» in Cesantes and centro-ría), the engine
+  // could boost the wind of the thermal spots by up to x1.5, and the forecast panel showed
+  // the Embalse «ΔT hoy». Opening the app straight in the Rías never had them.
+  useEffect(() => {
+    if (!isEmbalse) clearEmbalseContext();
+  }, [isEmbalse, clearEmbalseContext]);
+
   // ── Fetch daily context (ΔT) on mount — Embalse only ──
+  // An answer that lands after the switch to the Rías is dropped (same reason as above).
   useEffect(() => {
     if (!isEmbalse) return;
     fetchDailyContextForEmbalse().then((ctx) => {
+      if (!stillEmbalse()) return;
       setDailyContext(ctx);
     }).catch((err) => console.warn('[ThermalAnalysis] Daily context error:', err));
   }, [isEmbalse, setDailyContext]);
@@ -109,12 +125,15 @@ export function useThermalAnalysis() {
   const fetchAtmospheric = useCallback(() => {
     if (!isEmbalse) return;
     fetchAtmosphericContextForEmbalse().then((ctx) => {
+      if (!stillEmbalse()) return;
       setAtmosphericContext(ctx);
     }).catch((err) => console.warn('[ThermalAnalysis] Atmospheric context error:', err));
   }, [isEmbalse, setAtmosphericContext]);
 
-  // Visibility-aware polling — pauses atmospheric fetches when tab is hidden
-  useVisibilityPolling(fetchAtmospheric, ATMOSPHERIC_INTERVAL_MS, true, 8_000); // Stagger: 8s
+  // Visibility-aware polling — pauses atmospheric fetches when tab is hidden. Off outside the
+  // Embalse, so coming back asks again (8 s later) instead of waiting out the 15 minutes
+  // with the context cleared.
+  useVisibilityPolling(fetchAtmospheric, ATMOSPHERIC_INTERVAL_MS, isEmbalse, 8_000); // Stagger: 8s
 
   // ── Fetch Open-Meteo 24h history for tendency backfill — Embalse only ──
   // Station-based history may be sparse (only 10min readings since app opened).

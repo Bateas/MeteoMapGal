@@ -58,6 +58,8 @@ interface ThermalState {
   setStationToZone: (mapping: Map<string, MicroZoneId>) => void;
   setDailyContext: (ctx: DailyContext) => void;
   setAtmosphericContext: (ctx: AtmosphericContext) => void;
+  /** Leaving the Embalse: drop what describes its valley (ΔT, atmosphere, tendencies). */
+  clearEmbalseContext: () => void;
   setHumidityAssessments: (assessments: Map<MicroZoneId, HumidityAssessment>) => void;
   setWindStatus: (status: WindStatus | null) => void;
   toggleZoneOverlays: () => void;
@@ -92,6 +94,7 @@ export const useThermalStore = create<ThermalState>()(devtools(persist((set, get
   setStationToZone: (stationToZone) => set({ stationToZone }),
   setDailyContext: (dailyContext) => set({ dailyContext }),
   setAtmosphericContext: (atmosphericContext) => set({ atmosphericContext }),
+  clearEmbalseContext: () => set({ dailyContext: null, atmosphericContext: null, tendencySignals: new Map() }),
   setHumidityAssessments: (humidityAssessments) => set({ humidityAssessments }),
   setWindStatus: (windStatus) => set({ windStatus }),
 
