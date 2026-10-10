@@ -185,10 +185,10 @@ describe('spatial wind coherence', () => {
   });
 
   it('buoy readings get exposure boost over land stations', () => {
-    // Buoy at ~12km with 14kt vs land WU at 4km with 7kt — buoy should have more influence
+    // Open-water buoy in the ria (Rande) with 14kt vs land WU at 4km with 7kt — buoy should have more influence
     const land = makeStation('wu_land', 42.31, -8.62, 'wunderground');
     const buoy: BuoyReading = {
-      stationId: 3221, stationName: 'Vigo', timestamp: new Date().toISOString(),
+      stationId: 1251, stationName: 'Rande', timestamp: new Date().toISOString(),
       waveHeight: null, wavePeriod: null, waveDir: null, waveHeightMax: null, wavePeriodMean: null,
       windSpeed: msFromKt(14), windDir: 225, windGust: null,
       waterTemp: 14, airTemp: 16, humidity: null, dewPoint: null,
@@ -198,7 +198,7 @@ describe('spatial wind coherence', () => {
     const readings = new Map([['wu_land', makeReading('wu_land', msFromKt(7), 225)]]);
     const results = scoreAllSpots([cesantes], [land], readings, [buoy]);
     // With buoy exposure boost, consensus should favor buoy over pure distance average
-    // Buoy at 12km with 1.5x boost vs WU at 4km with 0.7 quality — buoy pulls up
+    // Buoy with 1.5x boost vs WU at 4km with 0.7 quality — buoy pulls up
     expect(results.get('cesantes')!.wind!.avgSpeedKt).toBeGreaterThan(8);
   });
 

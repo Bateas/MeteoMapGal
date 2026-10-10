@@ -18,6 +18,7 @@ import {
   isBuoyFresh,
   BUOY_STALE_MAX_MIN,
   BUOY_WAVE_MAX_MIN,
+  isOpenWaterWind,
 } from './buoyUtils';
 
 // ── waveHeightColor ──────────────────────────────────────────
@@ -256,5 +257,15 @@ describe('isBuoyFresh', () => {
   it('accepts string and epoch-ms timestamps', () => {
     expect(isBuoyFresh({ timestamp: new Date(NOW - 10 * 60_000).toISOString() }, BUOY_STALE_MAX_MIN, NOW)).toBe(true);
     expect(isBuoyFresh({ timestamp: NOW - 10 * 60_000 }, BUOY_STALE_MAX_MIN, NOW)).toBe(true);
+  });
+});
+
+describe('isOpenWaterWind', () => {
+  it('harbour tide gauges and the Lourizán land station are not open water', () => {
+    for (const id of [3220, 3221, 3223, 4271]) expect(isOpenWaterWind(id)).toBe(false);
+  });
+
+  it('open-sea and in-ria buoys are', () => {
+    for (const id of [1250, 1251, 1253, 2248]) expect(isOpenWaterWind(id)).toBe(true);
   });
 });

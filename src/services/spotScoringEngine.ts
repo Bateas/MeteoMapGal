@@ -25,7 +25,7 @@ import type { SailingSpot, SpotId } from '../config/spots';
 import { patternHours, getSpotsForSector } from '../config/spots';
 import { madridHour } from './localTime';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
-import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
+import { isBuoyFresh, isLandStationCopy, isOpenWaterWind, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
 import { fastDistanceKm, computeBearing } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
@@ -619,13 +619,14 @@ function computeSpotWindConsensus(
     const weight = distWeight * buoyFreshness;
     const coords = BUOY_COORDS_MAP.get(buoy.stationId);
     const bearing = coords ? computeBearing(spotLat, spotLon, coords.lat, coords.lon) : 0;
-    entries.push({ speedKt, weight, dir: buoy.windDir, name: buoy.stationName, source: 'buoy', distKm, bearing, isOverWater: true, stationId: `buoy_${buoy.stationId}` });
+    entries.push({ speedKt, weight, dir: buoy.windDir, name: buoy.stationName, source: 'buoy', distKm, bearing, isOverWater: isOpenWaterWind(buoy.stationId), stationId: `buoy_${buoy.stationId}` });
   }
 
   if (entries.length < 1) return null;
 
   // ── Step 2: Exposure-aware weighting ────────────────────────
   // Buoys over water are inherently more representative for sailing spots.
+  // Harbour tide gauges and the Lourizán land station are not (SHELTERED_BUOY_WIND).
   // Preferred stations were manually vetted as exposed.
   for (const e of entries) {
     if (e.isOverWater) e.weight *= BUOY_EXPOSURE_BOOST;

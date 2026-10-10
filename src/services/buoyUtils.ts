@@ -144,6 +144,19 @@ export function isLandStationCopy(buoyId: number): boolean {
   return LAND_STATION_BUOY_COPIES.has(buoyId);
 }
 
+/**
+ * Wind sensors in the buoy feed that are NOT over open water: the three REDMAR tide
+ * gauges sit inside harbours (Vilagarcía 3220, Vigo 3221, Marín 3223) and 4271 is the
+ * Lourizán land station. They stay in the wind consensus as ordinary stations, without
+ * the x1.5 over-water boost. Field-truth exam of 10-oct (117 truths): within range
+ * 46 -> 49 %, mean error 1.11 -> 1.09 kt, bias +0.13 -> +0.04 kt; Lourido 47 -> 53 %.
+ */
+export const SHELTERED_BUOY_WIND: ReadonlySet<number> = new Set([3220, 3221, 3223, 4271]);
+
+export function isOpenWaterWind(buoyId: number): boolean {
+  return !SHELTERED_BUOY_WIND.has(buoyId);
+}
+
 /** Max age (minutes) for WAVE data specifically.
  *
  *  Wind is a minutes-scale field, so the 2h gate above is right for it. Swell
