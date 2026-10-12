@@ -5,8 +5,9 @@
  * network into `ica_readings`. ~30 stations across Galicia × hourly polls.
  *
  * Reuses the pure client from `src/api/meteoGaliciaIcaClient.ts` so the
- * REST endpoint contract lives in ONE place. Network call CORS-permissive
- * (server reflects Origin), no proxy needed.
+ * contract with the source lives in ONE place: MeteoGalicia's official
+ * jsonICAActual.action since v2.178.23 (before, the IDEG map layer of their
+ * viewer, which is not for third parties). Asked directly from the server.
  *
  * Cadence: 30min (matches Xunta's hourly publication cadence with margin).
  * Dedup via PK (time, station) → ON CONFLICT DO NOTHING.

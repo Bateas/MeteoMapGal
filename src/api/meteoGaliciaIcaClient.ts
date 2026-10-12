@@ -1,37 +1,38 @@
 /**
  * MeteoGalicia ICA (Índice de Calidade do Aire) client.
  *
- * Official Xunta de Galicia air-quality network: ~30 monitored stations
- * reporting hourly. We hit the ESRI ArcGIS REST endpoint (CORS allowed)
- * directly — no proxy needed.
+ * Official Xunta de Galicia air-quality network: ~46 stations reporting
+ * hourly. Read from MeteoGalicia's official JSON service
+ * (`mgrss/caire/jsonICAActual.action`, doc IT/052 on their RSS/JSON page).
+ * Until v2.178.23 it read the ESRI map layer of their web viewer (IDEG,
+ * `METEO2_WS/Observacion_Predicion_Calidad_Aire`), which MeteoGalicia told us
+ * on 9-oct is not for third-party apps. Checked side by side on 12-oct: the
+ * same 46 stations with the same category, pollutant and hour; the index comes
+ * rounded to two decimals (at most 0.04 apart) and the positions differ by up
+ * to ~1 km between the two sources (irrelevant for a regional index).
  *
- * Layer 1 = ICA_Observacion (actual measurements). Layer 0 is forecast.
+ * ICA scale (documented): a decimal 0-6. 0-1 Buena, 1-2 Adecuada/Favorable,
+ * 2-3 Regular, 3-4 Mala, 4-5 Muy mala, 5-6 Pésima.
  *
- * ICA scale (Galicia/Spain national index):
- *   1 = Buena/Boa, 2 = Aceptable, 3 = Deficiente, 4 = Mala, 5 = Muy mala
- *
- * Each reading also reports the limiting pollutant (`parametro_maximo`):
- * O3, NO2, PM10, PM25, SO2, CO, BEN.
+ * Each reading also reports the limiting pollutant (`maximo`): O3, NO2,
+ * PM10, PM25, SO2, CO, BEN.
  */
+import { parseMadridWallTime } from '../services/localTime';
 
-/** The layer at the provider, as the service that stores the readings asks for it. */
-const DIRECT_ENDPOINT =
-  'https://ideg.xunta.gal/meteogalicia/rest/services/' +
-  'METEO2_WS/Observacion_Predicion_Calidad_Aire/MapServer/1/query';
-
-/** The same layer through our own proxy, which caches it for everyone. */
-const PROXIED_ENDPOINT = '/ica-api/query';
+const PATH = '/mgrss/caire/jsonICAActual.action';
+/** The service, as the server that stores the readings asks for it. */
+const DIRECT_ENDPOINT = `https://servizos.meteogalicia.gal${PATH}`;
+/** The same service through our own MeteoGalicia proxy, which caches it for everyone. */
+const PROXIED_ENDPOINT = `/meteogalicia-api${PATH}`;
 
 /**
  * Where to ask, depending on who is asking.
  *
  * This module has two callers: the browser and the service that stores the
- * readings. From the browser the absolute url went straight to the provider's
- * domain, so every visitor paid their own request and nothing of ours could
- * cache a single one; through our own path, a thousand visitors cost the
- * Xunta one request every ten minutes. From the service there is no proxy to
- * go through and a relative url does not even parse, so it keeps asking
- * directly.
+ * readings. From the browser it goes through our own path, so a thousand
+ * visitors cost MeteoGalicia one request per cache window. From the service
+ * there is no proxy to go through and a relative url does not even parse, so
+ * it asks directly.
  */
 export function icaEndpoint(inBrowser: boolean): string {
   return inBrowser ? PROXIED_ENDPOINT : DIRECT_ENDPOINT;
@@ -43,7 +44,7 @@ export type IcaCategory = 'buena' | 'aceptable' | 'deficiente' | 'mala' | 'muy_m
 
 export interface IcaReading {
   station: string;
-  /** Decimal value 1.0-5.0 (interpolated). Bucket via icaCategory() */
+  /** Decimal value 0-6 (see the scale above). Bucket via icaCategory() */
   ica: number;
   /** Pollutant driving the index (O3, NO2, PM10, PM25, etc) */
   dominantPollutant: string;
@@ -56,68 +57,59 @@ export interface IcaReading {
   timestamp: Date;
 }
 
-interface ArcGisFeature {
-  attributes: {
-    estacion: string;
-    valor_ica: number;
-    nombre_es: string;
-    parametro_maximo: string;
-    rgb: string;
-    latWGS84: number;
-    lonWGS84: number;
-    sFecha: string;
-  };
+/**
+ * Parse a jsonICAActual.action body: `{icas: [{fecha ("YYYY-MM-DD HH:MM",
+ * Madrid local time, no offset), estacion, ica, icaEs, color, maximo,
+ * latitud, longitud (strings), ...}]}`. Keeps the freshest record per station;
+ * drops records without a number for the index, a position or a valid time.
+ */
+export function parseIcaActual(body: unknown): IcaReading[] {
+  const list = (body as { icas?: unknown } | null)?.icas;
+  if (!Array.isArray(list)) return [];
+  const byStation = new Map<string, IcaReading>();
+  for (const raw of list) {
+    const a = raw as Record<string, unknown> | null;
+    if (!a || typeof a.estacion !== 'string' || !a.estacion) continue;
+    if (typeof a.ica !== 'number' || !Number.isFinite(a.ica)) continue;
+    const lat = Number(a.latitud);
+    const lon = Number(a.longitud);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const t = typeof a.fecha === 'string' ? parseMadridWallTime(a.fecha) : NaN;
+    if (!Number.isFinite(t)) continue;
+    const prev = byStation.get(a.estacion);
+    if (prev && prev.timestamp.getTime() >= t) continue;
+    byStation.set(a.estacion, {
+      station: a.estacion,
+      ica: a.ica,
+      dominantPollutant: typeof a.maximo === 'string' ? a.maximo : '',
+      categoryEs: typeof a.icaEs === 'string' ? a.icaEs : '',
+      color: typeof a.color === 'string' ? a.color : '#94a3b8',
+      lat,
+      lon,
+      timestamp: new Date(t),
+    });
+  }
+  return [...byStation.values()];
 }
 
-/**
- * Fetch the latest ICA observation for every reporting station.
- *
- * Server-side filter: `fecha >= CURRENT_TIMESTAMP - 1` (last day) — keeps
- * the response small. We then de-dup keeping the freshest record per station.
- */
+/** Fetch the latest ICA observation for every reporting station. */
 export async function fetchIcaObservations(): Promise<IcaReading[]> {
-  const params = new URLSearchParams({
-    where: 'fecha>=CURRENT_TIMESTAMP-1',
-    outFields: 'estacion,valor_ica,nombre_es,parametro_maximo,rgb,latWGS84,lonWGS84,sFecha',
-    f: 'json',
-    orderByFields: 'fecha DESC',
-    resultRecordCount: '500',
-  });
-
   try {
-    const res = await fetch(`${ENDPOINT}?${params}`, { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(ENDPOINT, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return [];
-    const json = await res.json();
-    const features: ArcGisFeature[] = json?.features ?? [];
-
-    // De-dup: keep first record per station (orderByFields is DESC so first = freshest)
-    const seen = new Set<string>();
-    const out: IcaReading[] = [];
-    for (const f of features) {
-      const a = f.attributes;
-      if (!a?.estacion || seen.has(a.estacion)) continue;
-      if (typeof a.valor_ica !== 'number' || !Number.isFinite(a.valor_ica)) continue;
-      if (typeof a.latWGS84 !== 'number' || typeof a.lonWGS84 !== 'number') continue;
-      seen.add(a.estacion);
-      out.push({
-        station: a.estacion,
-        ica: a.valor_ica,
-        dominantPollutant: a.parametro_maximo ?? '',
-        categoryEs: a.nombre_es ?? '',
-        color: a.rgb ?? '#94a3b8',
-        lat: a.latWGS84,
-        lon: a.lonWGS84,
-        timestamp: new Date(a.sFecha?.replace(' ', 'T') + 'Z'),
-      });
-    }
-    return out;
+    return parseIcaActual(await res.json());
   } catch (err) {
     console.debug('[MG ICA] fetch/parse failed', err);
     return [];
   }
 }
 
-/** Map decimal ICA (1-5) to a discrete category */
+/**
+ * Map the decimal ICA to a discrete category. These bands date from when we
+ * read the index as 1-5; the documented scale is 0-6 (see the header), so they
+ * sit about half a band high. Kept as they are in this change (same data,
+ * same bands); reviewing them changes when the ticker names a station.
+ */
 export function icaCategory(value: number): IcaCategory {
   if (!Number.isFinite(value)) return 'unknown';
   if (value < 1.5) return 'buena';

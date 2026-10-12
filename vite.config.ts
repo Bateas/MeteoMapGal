@@ -69,16 +69,7 @@ export default defineConfig(({ mode }) => {
         rewrite: (path) => path.replace(/^\/meteoclimatic-api/, ''),
         secure: true,
       },
-      // Air quality: only the one layer we read, never the whole host.
-      '/ica-api': {
-        target: 'https://ideg.xunta.gal',
-        changeOrigin: true,
-        secure: true,
-        rewrite: (path) => path.replace(
-          /^\/ica-api/,
-          '/meteogalicia/rest/services/METEO2_WS/Observacion_Predicion_Calidad_Aire/MapServer/1',
-        ),
-      },
+      // Air quality goes through /meteogalicia-api since v2.178.23 (their official JSON).
       '/netatmo-api': {
         target: 'https://app.netatmo.net',
         changeOrigin: true,
