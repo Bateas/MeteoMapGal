@@ -27,6 +27,7 @@ import type { UnifiedAlert } from '../services/alertService';
 import { fastDistanceKm } from './idwInterpolation';
 import { isBuoyFresh } from './buoyUtils';
 import { precipKindFor } from './precipSemantics';
+import { clearSkyGhi, solarElevationDeg } from './solarUtils';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -531,78 +532,79 @@ export function assessMaritimeFogRisk(
   return worst!;
 }
 
+/** Below this sun height a low reading is what a clean sky gives too, so the signature cannot judge. */
+export const SIGNATURE_MIN_SUN_DEG = 15;
+/** Sun blocked at a station: under this share of the clear-sky value. Sunny inland: over the second. */
+export const SIGNATURE_BLOCKED_FRAC = 0.4;
+export const SIGNATURE_SUNNY_FRAC = 0.7;
+/** Fog on the water: only stations whose network gives an altitude, up to this (0 = not given). */
+export const SIGNATURE_MAX_ALT_M = 100;
+/** One site = a cell of this size (~5 km): stations under the same patch of cloud are one reading. */
+export const SIGNATURE_CELL_DEG = 0.05;
+
 /**
- * Detect stations with fog signature: HIGH humidity + LOW solar radiation simultaneously.
+ * Stations with the fog signature: air saturated (HR >= 90 %, T-Td < 2 °C) and the sun blocked at the
+ * station while it shines inland, at stations near sea level, with no rain.
  *
- * Physical principle: true fog blocks sunlight. A station
- * with HR > 85% AND solar < 300 W/m² (during daytime) has fog overhead, not
- * just humid air. Cross-reference with INTERIOR stations (high solar, low HR)
- * to confirm spatial localization vs general overcast.
+ * What it cannot tell apart: a low cloud deck over the coast gives the same signature (with T-Td up to
+ * 2 °C the cloud base, by Espy's ~125 m per degree, can sit 250 m up). Replayed over 73 days (Aug-Oct
+ * 2026) it held on almost every day once rain was read properly. So it is EVIDENCE
+ * for buildMaritimeFogAlerts, never an alert by itself.
  *
- * Returns list of stations actively in fog by radiation signature.
+ * The rules, all relative to physics rather than fixed numbers:
+ *  - the sun measured against its clear-sky value at that moment and place (clearSkyGhi): with the sun
+ *    low, 300 W/m2 is a clean sky, and the old fixed test fired at 19:00 on clear evenings;
+ *  - rain read with each network's meaning (activeRainVeto): the old «any station above 0.1 mm» was
+ *    tripped by day counters still holding the morning drizzle, and on 11-oct by the drizzle of the
+ *    fog itself;
+ *  - near sea level only: the 11-oct cloud sat 260-450 m up and the hills were inside it.
  */
 export function detectFogBySolarSignature(
   stationReadings: Map<string, NormalizedReading>,
-  stations: { id: string; lat: number; lon: number }[],
+  stations: { id: string; lat: number; lon: number; altitude?: number | null }[],
+  nowMs: number = Date.now(),
+  regionalVisibility?: Map<string, { precipitating?: true; timestamp: Date }>,
 ): { id: string; humidity: number; solar: number; lat: number; lon: number }[] {
-  // Only meaningful during daylight when sun should illuminate
-  const hour = new Date().getHours();
-  if (hour < 9 || hour > 19) return [];
+  const clearAt = (lat: number, lon: number) => {
+    const elev = solarElevationDeg(nowMs, lat, lon);
+    return elev >= SIGNATURE_MIN_SUN_DEG ? clearSkyGhi(elev) : null;
+  };
 
-  // First check: is there sun at all? Find at least 1 interior station with high solar
-  // Without this baseline, low solar = night/clouds, not fog
+  // Is the sun out inland? Without it, low radiation at the coast is just a cloudy day.
   let hasInteriorSun = false;
   for (const s of stations) {
-    // Interior = inland (lon > -8.5) or far from coast
-    if (s.lon < -8.5) continue;
+    if (s.lon < -8.5) continue; // interior = inland of -8.5
     const r = stationReadings.get(s.id);
-    if (r?.solarRadiation != null && r.solarRadiation >= 350) {
+    const clear = clearAt(s.lat, s.lon);
+    if (clear != null && r?.solarRadiation != null && r.solarRadiation >= SIGNATURE_SUNNY_FRAC * clear) {
       hasInteriorSun = true;
       break;
     }
   }
-  if (!hasInteriorSun) return []; // Generally cloudy/dusk — can't distinguish fog
+  if (!hasInteriorSun) return [];
 
-  // discard the whole signature if active rain detected anywhere — storms produce
-  // the same HR-high + solar-low pattern but it's NOT fog. Even one station reporting
-  // precipitation > 0.1mm in last reading invalidates the signature regionally.
-  let stormPrecipDetected = false;
-  for (const s of stations) {
-    const r = stationReadings.get(s.id);
-    if (r?.precipitation != null && r.precipitation > 0.1) {
-      stormPrecipDetected = true;
-      break;
-    }
-  }
-  if (stormPrecipDetected) return []; // Active rain → it's a storm, not fog
+  // Rain over the sector: it is not fog (two interval gauges, or a METAR in rain).
+  if (activeRainVeto(stationReadings, regionalVisibility, nowMs)) return [];
 
-  // Find stations with fog signature — STRICT requirements:
-  //   1. HR >= 90% (raised from 85% — fog needs near-saturation)
-  //   2. Solar < 300 W/m² (sun blocked = fog candidate)
-  //   3. **Dew point spread T-Td < 2°C** (real fog REQUIRES saturation; storm clouds
-  //      block sun without saturating air → spread stays >3°C)
-  //   4. **No precipitation** at this station (rain ≠ fog)
   const fogStations: { id: string; humidity: number; solar: number; lat: number; lon: number }[] = [];
   for (const s of stations) {
+    if (!(s.altitude != null && s.altitude > 0 && s.altitude <= SIGNATURE_MAX_ALT_M)) continue;
     const r = stationReadings.get(s.id);
-    if (!r || r.humidity == null || r.solarRadiation == null) continue;
-    if (r.humidity < 90) continue;            // raised threshold
-    if (r.solarRadiation >= 300) continue;
-    // Dew point spread check — discriminates fog (saturated) from clouds (dry-ish)
-    if (r.temperature == null || r.dewPoint == null) continue; // need both for spread
-    const spread = r.temperature - r.dewPoint;
-    if (spread >= 2) continue; // air not saturated → not fog (it's storm clouds)
-    // No active precipitation at this exact station
-    if (r.precipitation != null && r.precipitation > 0.1) continue;
-    fogStations.push({
-      id: s.id,
-      humidity: r.humidity,
-      solar: r.solarRadiation,
-      lat: s.lat,
-      lon: s.lon,
-    });
+    if (!r || r.humidity == null || r.solarRadiation == null || r.temperature == null || r.dewPoint == null) continue;
+    if (r.humidity < 90) continue;
+    if (r.temperature - r.dewPoint >= 2) continue; // not saturated: cloud above, not fog
+    const clear = clearAt(s.lat, s.lon);
+    if (clear == null || r.solarRadiation >= SIGNATURE_BLOCKED_FRAC * clear) continue;
+    // Rain at this gauge (a drizzle in fog stays under it); only interval gauges say it in one reading.
+    if (precipKindFor(s.id) === 'interval' && r.precipitation != null && r.precipitation >= RAIN_VETO_MM) continue;
+    fogStations.push({ id: s.id, humidity: r.humidity, solar: r.solarRadiation, lat: s.lat, lon: s.lon });
   }
   return fogStations;
+}
+
+/** How many sites (cells of SIGNATURE_CELL_DEG) the stations fall in. */
+export function signatureSites(stations: { lat: number; lon: number }[]): number {
+  return new Set(stations.map((s) => `${Math.round(s.lat / SIGNATURE_CELL_DEG)},${Math.round(s.lon / SIGNATURE_CELL_DEG)}`)).size;
 }
 
 /**
@@ -643,31 +645,34 @@ export function activeRainVeto(
 export function buildMaritimeFogAlerts(
   buoys: BuoyReading[],
   stationReadings: Map<string, NormalizedReading>,
-  stations: { id: string; lat: number; lon: number }[],
+  stations: { id: string; lat: number; lon: number; altitude?: number | null }[],
   webcamFogDetected?: boolean,
   webcamFogCount?: number,
   webcamFogIds?: string[],
   fogSources?: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[],
   regionalVisibility?: Map<string, { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date; precipitating?: true }>,
-  webcamCriticalVisibilityCount?: number,
+  /** Camera sites that lost the horizon. Not used since 12-oct: a lost horizon at one site is still one
+   *  camera; it stays in the call for the callers. */
+  _webcamCriticalVisibilityCount?: number,
   /** Cameras analysed in the last 30 min that saw no fog. */
   webcamClearCount?: number,
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
 
-  // ── INDEPENDENT EVIDENCE-DRIVEN ALERT ────────────────────
-  // If physics detects no fog but other evidence confirms, generate alert anyway:
-  // - 2+ webcams visually confirming fog (each counts 1)
-  // - 1 webcam reporting visibility 'poor' (<1km) — counts 2 (very strong signal,
-  //   same weight as AEMET station vis<1km — the IA's "poor" only fires when
-  //   horizon truly invisible, e.g. Cíes Faro Sur during marine fog event)
-  // - 2+ stations with fog signature (HR>85% + solar<300 simultaneously)
-  // - AEMET station vis<1km (counts 2)
-  // The physics detector uses zone-wide median humidity which dilutes localized fog.
-  const solarFogStations = detectFogBySolarSignature(stationReadings, stations);
+  // ── EVIDENCE-DRIVEN ALERT: kinds of evidence, not counts ─────────────────
+  // Four kinds: OFFICIAL visibility (METAR/AEMET under 1 km, not in rain), CAMERA sites seeing fog,
+  // the station SIGNATURE (saturated air with the sun blocked, at >= 2 sites near sea level) and the
+  // PHYSICS (warm air over cold water, risk «alto», no rain). Many stations of one kind do not add up:
+  // forty stations under the same low cloud are one reading, and their errors move together. Cameras
+  // at two different sites do corroborate (a misted glass or a glare is local to its site).
+  // Fires with: an official sensor alone; cameras at two sites; or two different kinds, except a
+  // lone camera with the physics (one camera never confirms, 30-sep). The signature or the physics
+  // alone never fire: replayed over 73 days, they held on almost every day.
+  const solarFogStations = detectFogBySolarSignature(stationReadings, stations, Date.now(), regionalVisibility);
   const solarFogCount = solarFogStations.length;
+  const sigSites = signatureSites(solarFogStations);
+  const signature = sigSites >= 2;
   const cams = webcamFogCount ?? 0;
-  const critCams = webcamCriticalVisibilityCount ?? 0;
 
   // AEMET airport/coastal visibility <1km (ICAO fog). Each counts as 2 evidence units —
   // certified government sensors, strongest signal we have (even a single station
@@ -682,61 +687,49 @@ export function buildMaritimeFogAlerts(
     }
   }
   const visFogCount = visFogStations.length;
-  // Critical-visibility webcams (IA reported 'poor' i.e. <1km) get the same
-  // weight as AEMET station vis<1km because the signal is equally unambiguous:
-  // the IA only marks 'poor' when the horizon is invisible. Helps fire alerts
-  // in zones with strong marine fog but no nearby AEMET vis station (Cíes /
-  // outer rías) where the only available source is the lighthouse cameras.
-  const totalEvidence = cams + critCams + solarFogCount + visFogCount * 2;
-
-  // ── Firing gate: NEVER fire on a single unreliable signal ──────────────────
-  // Lección user S136+3+8: the low sun at sunset glared on the water and ONE
-  // webcam (vision model) read it as "fog" → false alert. An event/alert needs
-  // SEVERAL independent variables, not a lone unreliable read. So:
-  //   - cameras (vision model) must corroborate: ≥2 cameras, OR 1 camera + a
-  //     non-camera signal (solar-signature station). A lone camera does NOT fire.
-  //   - a certified AEMET visibility station (government sensor) may fire alone.
-  // `cams` = distinct fog cameras; critCams (poor-vis) is a subset, never extra.
-  const enoughEvidence = visFogCount >= 1 || (cams + solarFogCount) >= 2;
+  const hasOfficial = visFogCount > 0;
+  const physicsAlto = risk.level === 'alto' && !activeRainVeto(stationReadings, regionalVisibility);
+  const kinds = [hasOfficial, cams >= 1, signature, physicsAlto].filter(Boolean).length;
+  const enoughEvidence = hasOfficial || cams >= 2
+    || (cams >= 1 && signature) || (signature && physicsAlto) || (hasOfficial && kinds >= 2);
   if (enoughEvidence) {
     const camList = (webcamFogIds ?? []).slice(0, 3).join(', ');
-    const stationList = solarFogStations.slice(0, 3).map(s => s.id).join(', ');
     const parts: string[] = [];
-    if (cams > 0) parts.push(`${cams} cámara${cams > 1 ? 's' : ''} visualiza${cams > 1 ? 'n' : ''} niebla${camList ? ` (${camList})` : ''}`);
-    if (solarFogCount > 0) {
+    if (cams > 0) parts.push(`${cams} ${cams > 1 ? 'sitios con cámara ven' : 'sitio con cámara ve'} niebla${camList ? ` (${camList})` : ''}`);
+    if (signature) {
       const avgHr = Math.round(solarFogStations.reduce((a, b) => a + b.humidity, 0) / solarFogCount);
       const avgSolar = Math.round(solarFogStations.reduce((a, b) => a + b.solar, 0) / solarFogCount);
-      parts.push(`${solarFogCount} estación${solarFogCount > 1 ? 'es' : ''} con HR ${avgHr}% + radiación ${avgSolar}W/m² (sol bloqueado)${stationList ? ` — ${stationList}` : ''}`);
+      parts.push(`${sigSites} sitios a nivel del mar con el aire saturado y el sol tapado (HR ${avgHr} %, ${avgSolar} W/m²)`);
     }
-    if (visFogCount > 0) {
+    if (physicsAlto && risk.airWaterDelta != null) {
+      parts.push(`aire ${risk.airWaterDelta >= 0 ? 'más templado que' : 'casi como'} el agua (ΔT ${risk.airWaterDelta >= 0 ? '+' : ''}${risk.airWaterDelta.toFixed(1)} °C${risk.sourceBuoy ? `, ${risk.sourceBuoy}` : ''})`);
+    }
+    if (hasOfficial) {
       const minVis = Math.min(...visFogStations.map(v => v.vis));
       const nameList = visFogStations.slice(0, 2).map(v => v.name.replace(/\/.*$/, '')).join(', ');
       parts.push(`AEMET visibilidad ${(minVis * 1000).toFixed(0)}m (${nameList})`);
     }
-    const hasOfficial = visFogCount > 0;
-    // Webcam vision (moondream) is reliable for fog PRESENCE but is not a
-    // certified sensor. A 'high'/'critical' "Niebla confirmada" needs at least
-    // one NON-webcam confirmation (AEMET visibility OR solar-signature station);
-    // webcam-only evidence caps at 'moderate' (notable, not a danger-grade alert).
-    const hasNonWebcamEvidence = visFogCount > 0 || solarFogCount > 0;
+    // Cameras alone (two sites) are not a certified sensor: «moderado». Three kinds together: critical.
+    const camerasOnly = !hasOfficial && !signature && !physicsAlto;
+    const critical = kinds >= 3;
     return [{
       id: 'maritime-fog-webcam',
       category: 'fog' as const,
-      severity: !hasNonWebcamEvidence ? 'moderate' as const : (totalEvidence >= 4 ? 'critical' as const : 'high' as const),
-      score: !hasNonWebcamEvidence ? 50 : (totalEvidence >= 4 ? 80 : 65),
+      severity: camerasOnly ? 'moderate' as const : (critical ? 'critical' as const : 'high' as const),
+      score: camerasOnly ? 50 : (critical ? 80 : 65),
       icon: 'fog' as const,
       title: hasOfficial && cams > 0
         ? 'Niebla confirmada (AEMET + cámaras)'
         : hasOfficial
         ? 'Niebla confirmada (AEMET aeropuerto)'
-        : cams > 0 && solarFogCount > 0
+        : cams > 0 && signature
         ? 'Niebla confirmada (cámaras + radiación)'
         : cams > 0 ? 'Niebla detectada en webcams'
-        : 'Niebla detectada por radiación solar',
-      detail: parts.join(' · ') + '. Visibilidad reducida confirmada.',
-      urgent: hasNonWebcamEvidence && totalEvidence >= 3,
+        : 'Niebla probable en la costa',
+      detail: parts.join(' · ') + (hasOfficial || cams > 0 ? '. Visibilidad reducida confirmada.' : '.'),
+      urgent: critical,
       updatedAt: new Date(),
-      confidence: hasOfficial ? 98 : (cams > 0 && solarFogCount > 0 ? 95 : 80),
+      confidence: hasOfficial ? 98 : (cams > 0 && signature ? 95 : 80),
       fogMeta: {
         type: 'advective' as const,
         windDir: null,

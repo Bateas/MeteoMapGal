@@ -182,8 +182,8 @@ export function useUnifiedAlertPipeline({
       if (sig === lastAggregateSigRef.current) return;
       lastAggregateSigRef.current = sig;
 
-      // Station geo for maritime fog (nearby station lookup)
-      const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
+      // Station geo for maritime fog (nearby station lookup; altitude for the near-sea-level signature)
+      const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon, altitude: s.altitude }));
 
       // ── Webcam fog detection (cameras with fogVisible in last 30min) ──
       const visionResults = useWebcamStore.getState().visionResults;
@@ -237,9 +237,9 @@ export function useUnifiedAlertPipeline({
         }
       }
 
-      // Stations with solar+humidity fog signature — daylight + interior-sun gate
-      // enforced by detectFogBySolarSignature (prevents night solar=0 spam).
-      const solarFogStations = detectFogBySolarSignature(currentReadings, stationsGeo);
+      // Stations with the fog signature (saturated air, sun blocked against its clear-sky value, near
+      // sea level, no rain): evidence only, drawn where an alert that it supports fires.
+      const solarFogStations = detectFogBySolarSignature(currentReadings, stationsGeo, Date.now(), relevantVisibility);
       for (const s of solarFogStations) {
         fogSources.push({ lat: s.lat, lon: s.lon, type: 'station', id: s.id });
       }

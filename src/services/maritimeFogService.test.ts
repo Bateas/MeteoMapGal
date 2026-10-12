@@ -8,12 +8,11 @@
  *   - detectFogBySolarSignature: "which stations have fog overhead (HR high
  *     + solar blocked + air saturated)?"
  *
- * Timezone note (CLAUDE.md gotcha): detectFogBySolarSignature gates on
- * `new Date().getHours()` in [9,19]. Tests pin the clock to 14:00 UTC
- * (= 16:00 CEST) so the hour is in-range under both CI (UTC) and local (CEST).
+ * Time: detectFogBySolarSignature judges by the height of the sun at the instant it is given
+ * (solarElevationDeg), not by the local hour, so the tests behave the same under any time zone.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { detectNorthWindConsensus, detectFogBySolarSignature, buildMaritimeFogAlerts, activeRainVeto } from './maritimeFogService';
+import { detectNorthWindConsensus, detectFogBySolarSignature, buildMaritimeFogAlerts, activeRainVeto, signatureSites } from './maritimeFogService';
 import type { NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 
@@ -112,67 +111,141 @@ describe('detectNorthWindConsensus', () => {
 });
 
 describe('detectFogBySolarSignature', () => {
+  // 14:00 UTC on 28-may: the sun at ~63 degrees, clear sky ~920 W/m2 (sunny inland >= ~640, blocked < ~370).
   beforeEach(() => {
     vi.useFakeTimers();
-    // 14:00 UTC = 16:00 CEST → in the [9,19] daylight gate under both TZs
     vi.setSystemTime(new Date('2026-05-28T14:00:00Z'));
   });
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  const interiorSunStation = { id: 'interior', lat: 42.3, lon: -8.1 }; // lon > -8.5 = interior
-  const coastStation = { id: 'coast', lat: 42.2, lon: -8.9 };
+  const interior = { id: 'mg_interior', lat: 42.3, lon: -8.1, altitude: 400 }; // lon > -8.5 = interior
+  const coast = { id: 'mg_coast', lat: 42.2, lon: -8.9, altitude: 10 };
+  const sunny = () => reading({ solarRadiation: 800 });
+  const fogged = (over: Partial<NormalizedReading> = {}) =>
+    reading({ humidity: 95, solarRadiation: 150, temperature: 14, dewPoint: 13.2, ...over });
+  const detect = (r: Map<string, NormalizedReading>, st = [interior, coast]) =>
+    detectFogBySolarSignature(r, st, Date.now());
 
-  it('returns [] at night (outside 9-19h gate)', () => {
-    vi.setSystemTime(new Date('2026-05-28T02:00:00Z')); // 04:00 CEST — night
-    const readings = new Map([
-      ['interior', reading({ solarRadiation: 400 })],
-      ['coast', reading({ humidity: 95, solarRadiation: 50, temperature: 14, dewPoint: 13.5 })],
-    ]);
-    expect(detectFogBySolarSignature(readings, [interiorSunStation, coastStation])).toEqual([]);
+  it('detects a coastal station near sea level: saturated, sun blocked, sun out inland', () => {
+    const result = detect(new Map([['mg_interior', sunny()], ['mg_coast', fogged()]]));
+    expect(result.map((x) => x.id)).toEqual(['mg_coast']);
   });
 
-  it('returns [] when no interior station shows sun (generally overcast)', () => {
-    const readings = new Map([
-      ['interior', reading({ solarRadiation: 100 })], // no interior sun
-      ['coast', reading({ humidity: 95, solarRadiation: 50, temperature: 14, dewPoint: 13.5 })],
-    ]);
-    expect(detectFogBySolarSignature(readings, [interiorSunStation, coastStation])).toEqual([]);
+  it('returns [] at night', () => {
+    vi.setSystemTime(new Date('2026-05-28T02:00:00Z'));
+    expect(detect(new Map([['mg_interior', sunny()], ['mg_coast', fogged({ solarRadiation: 0 })]]))).toEqual([]);
   });
 
-  it('detects a coastal fog station when interior is sunny + air saturated', () => {
-    const readings = new Map([
-      ['interior', reading({ solarRadiation: 500 })],
-      ['coast', reading({ humidity: 95, solarRadiation: 40, temperature: 14, dewPoint: 13.2 })], // spread 0.8 <2
-    ]);
-    const result = detectFogBySolarSignature(readings, [interiorSunStation, coastStation]);
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('coast');
+  it('cannot judge with the sun low: 19:30 on 28-sep, a clean evening reads under 300 W/m2', () => {
+    vi.setSystemTime(new Date('2026-09-28T17:30:00Z'));
+    expect(detect(new Map([['mg_interior', reading({ solarRadiation: 200 })], ['mg_coast', fogged({ solarRadiation: 90 })]]))).toEqual([]);
   });
 
-  it('rejects a station whose air is NOT saturated (spread ≥2°C = storm clouds, not fog)', () => {
-    const readings = new Map([
-      ['interior', reading({ solarRadiation: 500 })],
-      ['coast', reading({ humidity: 95, solarRadiation: 40, temperature: 16, dewPoint: 13 })], // spread 3 ≥2
-    ]);
-    expect(detectFogBySolarSignature(readings, [interiorSunStation, coastStation])).toEqual([]);
+  it('needs the sun out inland against its clear-sky value, not a fixed 350 W/m2', () => {
+    // 500 W/m2 at midday is a thin overcast, not sun: the whole region is grey
+    expect(detect(new Map([['mg_interior', reading({ solarRadiation: 500 })], ['mg_coast', fogged()]]))).toEqual([]);
   });
 
-  it('invalidates regionally when any station reports active rain', () => {
-    const readings = new Map([
-      ['interior', reading({ solarRadiation: 500, precipitation: 0.5 })], // rain → storm, not fog
-      ['coast', reading({ humidity: 95, solarRadiation: 40, temperature: 14, dewPoint: 13.5 })],
-    ]);
-    expect(detectFogBySolarSignature(readings, [interiorSunStation, coastStation])).toEqual([]);
+  it('judges the coast against the clear sky too: 340 W/m2 at midday is the sun blocked', () => {
+    expect(detect(new Map([['mg_interior', sunny()], ['mg_coast', fogged({ solarRadiation: 340 })]]))).toHaveLength(1);
+    expect(detect(new Map([['mg_interior', sunny()], ['mg_coast', fogged({ solarRadiation: 450 })]]))).toEqual([]);
   });
 
-  it('rejects stations below 90% humidity', () => {
-    const readings = new Map([
-      ['interior', reading({ solarRadiation: 500 })],
-      ['coast', reading({ humidity: 85, solarRadiation: 40, temperature: 14, dewPoint: 13.5 })], // HR<90
-    ]);
-    expect(detectFogBySolarSignature(readings, [interiorSunStation, coastStation])).toEqual([]);
+  it('rejects air that is not saturated (T-Td >= 2: cloud above, not fog) and HR under 90 %', () => {
+    expect(detect(new Map([['mg_interior', sunny()], ['mg_coast', fogged({ temperature: 16, dewPoint: 13 })]]))).toEqual([]);
+    expect(detect(new Map([['mg_interior', sunny()], ['mg_coast', fogged({ humidity: 85 })]]))).toEqual([]);
+  });
+
+  it('only stations near sea level count; an altitude of 0 means the network does not give one', () => {
+    const hill = { ...coast, id: 'mg_hill', altitude: 260 };
+    const noAlt = { ...coast, id: 'wu_X', altitude: 0 };
+    const r = new Map([['mg_interior', sunny()], ['mg_hill', fogged()], ['wu_X', fogged()]]);
+    expect(detect(r, [interior, hill, noAlt])).toEqual([]);
+  });
+
+  it('rain over the sector vetoes it: two interval gauges at 0.5 mm or more', () => {
+    const r = new Map([['mg_interior', sunny()], ['mg_coast', fogged()],
+      ['mg_a', reading({ stationId: 'mg_a', precipitation: 0.6 })], ['mg_b', reading({ stationId: 'mg_b', precipitation: 0.8 })]]);
+    expect(detect(r)).toEqual([]);
+  });
+
+  it('11-oct: day counters still holding the morning drizzle, and the drizzle of the fog itself, do not veto', () => {
+    const r = new Map([['mg_interior', sunny()], ['mg_coast', fogged({ precipitation: 0.2 })],
+      ['wu_A', reading({ stationId: 'wu_A', precipitation: 0.99 })], ['mc_B', reading({ stationId: 'mc_B', precipitation: 4.6 })],
+      ['mg_c', reading({ stationId: 'mg_c', precipitation: 0.3 })]]);
+    expect(detect(r).map((x) => x.id)).toEqual(['mg_coast']);
+  });
+
+  it('a gauge with rain of its own (0.5 mm or more in the interval) is left out', () => {
+    expect(detect(new Map([['mg_interior', sunny()], ['mg_coast', fogged({ precipitation: 0.6 })]]))).toEqual([]);
+  });
+});
+
+describe('signatureSites', () => {
+  it('stations a few hundred metres apart are one site; ~10 km apart, two', () => {
+    expect(signatureSites([{ lat: 42.201, lon: -8.901 }, { lat: 42.203, lon: -8.899 }, { lat: 42.29, lon: -8.80 }])).toBe(2);
+    expect(signatureSites([])).toBe(0);
+  });
+});
+
+describe('buildMaritimeFogAlerts — kinds of evidence, not counts (12-oct)', () => {
+  // 30-sep 12:00 UTC (14:00 in Madrid): the sun at ~44 degrees, clear sky ~700 W/m2.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-30T12:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const interior = { id: 'mg_interior', lat: 42.3, lon: -8.1, altitude: 400 };
+  const coastA = { id: 'mg_a', lat: 42.50, lon: -8.90, altitude: 10 };
+  const coastB = { id: 'mg_b', lat: 42.40, lon: -8.80, altitude: 20 };
+  const stations = [interior, coastA, coastB];
+  const fogged = () => reading({ humidity: 96, solarRadiation: 150, temperature: 16.4, dewPoint: 15.9 });
+  const readings = () => new Map([['mg_interior', reading({ solarRadiation: 650 })], ['mg_a', fogged()], ['mg_b', fogged()]]);
+  // Ribeira: air 1.1 °C over the water, humid, light onshore breeze -> physics «alto»
+  const ribeira = (): BuoyReading => ({
+    stationId: 1255, stationName: 'Ribeira', timestamp: new Date().toISOString(),
+    waveHeight: null, waveHeightMax: null, wavePeriod: null, wavePeriodMean: null, waveDir: null,
+    windSpeed: 3, windDir: 250, windGust: null, waterTemp: 16, airTemp: 17.1, airPressure: null,
+    currentSpeed: null, currentDir: null, salinity: null, seaLevel: null, humidity: 88, dewPoint: null, source: 'obscosteiro',
+  });
+  const evidence = (a: ReturnType<typeof buildMaritimeFogAlerts>) => a.find((x) => x.id === 'maritime-fog-webcam');
+
+  it('the signature alone, at any number of sites, never fires (it holds on most days: low cloud)', () => {
+    expect(evidence(buildMaritimeFogAlerts([], readings(), stations, undefined, 0, [], undefined, undefined, 0))).toBeUndefined();
+  });
+
+  it('signature + physics: two different kinds fire «Niebla probable en la costa», high, not urgent', () => {
+    const a = evidence(buildMaritimeFogAlerts([ribeira()], readings(), stations, undefined, 0, [], undefined, undefined, 0));
+    expect(a?.title).toBe('Niebla probable en la costa');
+    expect(a?.severity).toBe('high');
+    expect(a?.urgent).toBe(false);
+    expect(a?.detail).toMatch(/2 sitios a nivel del mar/);
+    expect(a?.detail).toMatch(/ΔT \+1\.1 °C, Ribeira/);
+  });
+
+  it('a camera site + the signature fire; a lone camera with the physics does not (30-sep)', () => {
+    const camSig = evidence(buildMaritimeFogAlerts([], readings(), stations, true, 1, ['mg-cangas'], undefined, undefined, 0));
+    expect(camSig?.title).toBe('Niebla confirmada (cámaras + radiación)');
+    const camPhys = evidence(buildMaritimeFogAlerts([ribeira()], new Map(), [], true, 1, ['mg-ons-praia'], undefined, undefined, 0));
+    expect(camPhys).toBeUndefined();
+  });
+
+  it('three kinds together are critical and urgent; many stations of one kind are not', () => {
+    const a = evidence(buildMaritimeFogAlerts([ribeira()], readings(), stations, true, 1, ['mg-cangas'], undefined, undefined, 0));
+    expect(a?.severity).toBe('critical');
+    expect(a?.urgent).toBe(true);
+    const many = new Map(readings());
+    const st = [...stations];
+    for (let i = 0; i < 40; i++) {
+      st.push({ id: `mg_x${i}`, lat: 42.1 + i * 0.012, lon: -8.85, altitude: 15 });
+      many.set(`mg_x${i}`, fogged());
+    }
+    const b = evidence(buildMaritimeFogAlerts([ribeira()], many, st, undefined, 0, [], undefined, undefined, 0));
+    expect(b?.severity).toBe('high');
   });
 });
 

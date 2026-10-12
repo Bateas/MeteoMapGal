@@ -30,6 +30,16 @@ interface SunTimes {
  * midday). Thresholds on solar radiation should be relative to this, not absolute: on the eclipse
  * of 12-ago every fixed W/m2 threshold mistook the evening for a storm shadow.
  */
+/**
+ * Global radiation under a clean sky (Haurwitz), W/m2, for a sun height in degrees. What a pyranometer
+ * reads when nothing is in the way: ~320 at 20 degrees, ~940 with the sun at 65. A reading is «sun
+ * blocked» or «sunny» only against this, never against a fixed number.
+ */
+export function clearSkyGhi(elevDeg: number): number {
+  const c = Math.sin(elevDeg * DEG);
+  return c <= 0 ? 0 : 1098 * c * Math.exp(-0.057 / c);
+}
+
 export function solarElevationDeg(ms: number, lat: number, lon: number): number {
   const d = new Date(ms);
   const startOfYear = Date.UTC(d.getUTCFullYear(), 0, 1);
