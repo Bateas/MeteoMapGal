@@ -113,7 +113,7 @@ export interface WebcamAnalysisResult {
  * call the LLM, reuse the cached verdict, or give up.
  */
 type FetchOutcome =
-  | { kind: 'fresh'; base64: string }
+  | { kind: 'fresh'; base64: string; hash: string }   // hash: remembered only once the model has looked
   | { kind: 'frozen' }   // the same image as last time, or one older than STALE_IMAGE_MAX_AGE_MS
   | { kind: 'failed' };  // network/decode failure
 
@@ -147,6 +147,12 @@ async function loadSharp(): Promise<SharpModule | null> {
   }
 }
 
+/** The image the model has just looked at: from now on the same bytes mean «frozen». */
+function rememberAnalyzedImage(url: string, hash: string): void {
+  lastImageHash.set(url, hash);
+  lastImageChangeTime.set(url, Date.now());
+}
+
 async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcome> {
   try {
     const response = await fetch(url, {
@@ -154,6 +160,7 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
       headers: { 'User-Agent': SERVER_USER_AGENT },
     });
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);   // the body is not read: release the connection
       log.warn(`[Webcam] Image fetch failed: ${url} → ${response.status}`);
       return { kind: 'failed' };
     }
@@ -161,6 +168,7 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
     // is frozen even right after a restart, when there is no previous hash to compare with.
     const lastModified = Date.parse(response.headers.get('last-modified') ?? '');
     if (Number.isFinite(lastModified) && Date.now() - lastModified > STALE_IMAGE_MAX_AGE_MS) {
+      await response.body?.cancel().catch(() => undefined);
       log.warn(`[Webcam] Image frozen ${Math.round((Date.now() - lastModified) / 60_000)}min (Last-Modified): ${url}`);
       return { kind: 'frozen' };
     }
@@ -175,6 +183,8 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
 
     // The same image as last time says nothing new: no verdict, and the last one keeps its own time.
     // (Re-analysing it stamped an old view as fresh: up to an hour of «fog» from a stuck camera.)
+    // «Last time» = the last image the model actually looked at: the hash is remembered by
+    // rememberAnalyzedImage() after a good answer, so an image the model failed on is tried again.
     const hash = createHash('sha1').update(buffer).digest('hex').slice(0, 16);
     const prevHash = lastImageHash.get(url);
     const now = Date.now();
@@ -185,30 +195,27 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
         log.warn(`[Webcam] Image frozen ${frozenMin}min (hash ${hash} unchanged): ${url}`);
       }
       return { kind: 'frozen' };
-    } else {
-      lastImageHash.set(url, hash);
-      lastImageChangeTime.set(url, now);
     }
 
     // Resize + pre-classifier. Both depend on sharp; if it is missing we fall
     // back to the raw buffer so behavior matches the original path.
     const sharp = await loadSharp();
     if (!sharp) {
-      return { kind: 'fresh', base64: buffer.toString('base64') };
+      return { kind: 'fresh', base64: buffer.toString('base64'), hash };
     }
     try {
       const resized = await sharp(buffer)
         .resize(IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
-      return { kind: 'fresh', base64: resized.toString('base64') };
+      return { kind: 'fresh', base64: resized.toString('base64'), hash };
     } catch (err) {
       // Per-image decode failure (corrupt JPEG, unexpected format) — unlike a
       // failed import this is not permanent, so it stays a per-image warning.
       log.warn(
         `[Webcam] ${webcamName ?? '?'}: sharp could not process the image, sending it unresized — ${(err as Error).message}`,
       );
-      return { kind: 'fresh', base64: buffer.toString('base64') };
+      return { kind: 'fresh', base64: buffer.toString('base64'), hash };
     }
   } catch (err) {
     log.warn(`[Webcam] Image fetch error: ${url} — ${(err as Error).message}`);
@@ -367,7 +374,8 @@ async function analyzeWebcam(webcam: WebcamStation): Promise<WebcamAnalysisResul
 
   // Otherwise run the full LLM pipeline
   const rawResponse = await callOllamaVision(fetchOutcome.base64);
-  if (!rawResponse) return null;
+  if (!rawResponse) return null;   // hash not remembered: the next pass tries this image again
+  rememberAnalyzedImage(webcam.imageUrl, fetchOutcome.hash);
 
   const parsed = parseVisionResponse(rawResponse);
   const latencyMs = Date.now() - start;
