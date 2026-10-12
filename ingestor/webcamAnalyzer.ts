@@ -36,7 +36,8 @@ async function nearbyWeather(lat: number, lon: number): Promise<NearbyWeather[]>
   }
 }
 import { dispatchVisibilityAlert } from './alertDispatcher.js';
-import { RIAS_WEBCAMS, type WebcamStation } from '../src/config/webcams.js';
+import { RIAS_WEBCAMS, webcamSite, type WebcamStation } from '../src/config/webcams.js';
+import { summarizeFogBySite } from '../src/services/webcamFogSites.js';
 
 // ── Configuration ────────────────────────────────────
 
@@ -54,6 +55,8 @@ const lastImageChangeTime = new Map<string, number>();
 const STALE_IMAGE_MAX_AGE_MS = 30 * 60_000; // 30min — aggressive: if unchanged half an hour, skip analysis
 const MAP_CLEANUP_INTERVAL_MS = 24 * 60 * 60_000; // Cleanup old entries daily
 let lastMapCleanup = Date.now();
+/** How old a sibling camera's verdict may be and still speak for its site (the map uses 30 min too). */
+const SITE_FRESH_MS = 30 * 60_000;
 
 // One-shot guard so the "vision is off" notice appears once per process.
 let visionDisabledLogged = false;
@@ -493,17 +496,31 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
 
   // Check fog alerts — only real fog (not haze), only poor visibility, and only when the
   // stations around the camera agree it is fog (fogAlertGate.ts): the camera alone never sends.
-  // The check was made just before the model ran.
+  // The check was made just before the model ran. Cameras on the same mast are one site
+  // (webcamFogSites.ts): one message per site, and none when a fresh camera of the site sees clear.
+  const freshCutoff = Date.now() - SITE_FRESH_MS;
+  const fresh = [...webcamStates.entries()]
+    .filter(([, st]) => st.lastResult && st.lastResult.analyzedAt.getTime() >= freshCutoff)
+    .map(([id, st]) => ({ id, fog: st.lastResult!.fog }));
+  const siteState = summarizeFogBySite(fresh, webcamSite).sites;
+  const sentSites = new Set<string>();
   for (const r of results) {
     if (r.fog && r.visibility === 'poor' && r.spotId) {
       const cam = RIAS_WEBCAMS.find(w => w.id === r.webcamId);
       const camName = cam?.name ?? r.webcamId;
+      const site = webcamSite(r.webcamId);
+      if (sentSites.has(site)) continue;
+      if (siteState.get(site) === 'mixed') {
+        log.info(`[Webcam] ${camName}: niebla de la camara no enviada — otra camara del mismo sitio no la ve`);
+        continue;
+      }
       const gate = gates.get(r.webcamId) ?? { ok: false, reason: 'sin comprobar las estaciones' };
       if (!gate.ok) {
         log.info(`[Webcam] ${camName}: niebla de la camara no enviada — ${gate.reason}`);
         continue;
       }
-      await dispatchVisibilityAlert(r.webcamId, r.spotId, r.description, camName).catch(err =>
+      sentSites.add(site);
+      await dispatchVisibilityAlert(r.webcamId, r.spotId, r.description, camName, site).catch(err =>
         log.warn(`[Webcam] Fog alert failed: ${(err as Error).message}`));
     }
   }

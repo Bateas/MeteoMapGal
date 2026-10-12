@@ -48,7 +48,8 @@ import {
   SECTOR_VISIBILITY_RADIUS_FACTOR,
 } from '../services/visibilityFreshness';
 import { processAlertNotifications } from '../services/notificationService';
-import { RIAS_WEBCAMS } from '../config/webcams';
+import { RIAS_WEBCAMS, webcamSite } from '../config/webcams';
+import { summarizeFogBySite, type CameraFogRead } from '../services/webcamFogSites';
 
 interface PipelineParams {
   stations: NormalizedStation[];
@@ -208,6 +209,7 @@ export function useUnifiedAlertPipeline({
         for (const v of relevantVisibility.values()) {
           if (v.visibility < 1) { regionalAemetFog = true; break; }
         }
+        const reads: CameraFogRead[] = [];
         for (const [id, result] of visionResults) {
           const ageOk = (now - result.analyzedAt.getTime()) < 30 * 60_000;
           if (!ageOk || result.beaufort < 0) continue;
@@ -216,19 +218,22 @@ export function useUnifiedAlertPipeline({
             && result.weather.sky !== 'clear'
             && !result.weather.precipitation;
           const indirectFog = regionalAemetFog && lowConfNonClear;
-          if (directFog || indirectFog) {
-            webcamFogDetected = true;
-            webcamFogCount++;
-            webcamFogIds.push(id);
-            // visibility 'poor' (<1km from the IA) is a critical signal — same
-            // weight as AEMET station vis<1km. Lets single-camera marine fog
-            // in zones without nearby AEMET vis (Cíes / outer rías) fire alerts.
-            if (result.weather.visibility === 'poor') webcamCriticalVisibilityCount++;
-            const c = webcamCoords.get(id);
-            if (c) fogSources.push({ lat: c.lat, lon: c.lon, type: 'webcam', id });
-          } else {
-            webcamClearCount++;
-          }
+          // visibility 'poor' (<1km from the IA) is a critical signal — same
+          // weight as AEMET station vis<1km. Lets single-camera marine fog
+          // in zones without nearby AEMET vis (Cíes / outer rías) fire alerts.
+          reads.push({ id, fog: directFog || indirectFog, critical: result.weather.visibility === 'poor' });
+        }
+        // Cameras on the same mast count once, and when they disagree the fog one does not
+        // count (webcamFogSites.ts): every count below is of sites, not cameras.
+        const bySite = summarizeFogBySite(reads, webcamSite);
+        webcamFogDetected = bySite.fogSites > 0;
+        webcamFogCount = bySite.fogSites;
+        webcamCriticalVisibilityCount = bySite.criticalSites;
+        webcamClearCount = bySite.clearSites;
+        for (const id of bySite.fogCameraIds) {
+          webcamFogIds.push(id);
+          const c = webcamCoords.get(id);
+          if (c) fogSources.push({ lat: c.lat, lon: c.lon, type: 'webcam', id });
         }
       }
 

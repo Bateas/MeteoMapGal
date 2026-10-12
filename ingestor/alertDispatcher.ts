@@ -296,9 +296,11 @@ export async function dispatchVisibilityAlert(
   spotId: string,
   _description: string,
   webcamName?: string,
+  /** Cameras on the same mast share one cooldown: two of them are one place, one message. */
+  siteId: string = webcamId,
 ): Promise<void> {
   if (isNightTime()) return;
-  if (isInCooldown(lastVisibilityAlert, webcamId, VISIBILITY_COOLDOWN_MS)) return;
+  if (isInCooldown(lastVisibilityAlert, siteId, VISIBILITY_COOLDOWN_MS)) return;
 
   const camLabel = webcamName ?? webcamId;
 
@@ -310,10 +312,10 @@ export async function dispatchVisibilityAlert(
     severity: 'moderate',
     title: `Niebla detectada — ${camLabel}`,
     message: `Webcam ${camLabel}: niebla real detectada por Vision IA — visibilidad pobre.`,
-  }, `visibility:${webcamId}`);
+  }, `visibility:${siteId}`);
 
   if (ok) {
-    lastVisibilityAlert.set(webcamId, Date.now());
+    lastVisibilityAlert.set(siteId, Date.now());
     log.ok(`Visibility alert: ${webcamId} (${camLabel}) → fog detected`);
   }
 }

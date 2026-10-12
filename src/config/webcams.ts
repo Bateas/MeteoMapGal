@@ -33,6 +33,12 @@ export interface WebcamStation {
   concello: string;
   /** Optional: what this camera is useful for (fog detection, wind validation) */
   purpose?: string;
+  /**
+   * Cameras on the same mast share a site and count ONCE as fog evidence: they share the
+   * humidity on the glass, the low sun and the hour, so two of them are not two independent
+   * readings. Unset = the camera is its own site.
+   */
+  site?: string;
 }
 
 const MG_IMG_BASE = 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia';
@@ -55,6 +61,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-ciesfaro-sur',
     name: 'Cies Faro Sur',
+    site: 'cies-faro',
     source: 'meteogalicia',
     lat: 42.2141, lon: -8.9147,
     azimuth: 180, // Sur — oceano abierto
@@ -67,6 +74,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-ciesfaro-norte',
     name: 'Cies Faro Norte',
+    site: 'cies-faro',
     source: 'meteogalicia',
     lat: 42.2142, lon: -8.9147,
     azimuth: 0, // Norte — mira hacia la ria de Vigo
@@ -103,6 +111,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-ons-praia',
     name: 'Ons Praia',
+    site: 'ons',
     source: 'meteogalicia',
     lat: 42.3769, lon: -8.9322,
     azimuth: 180, // Sur — oceano + linea de islas
@@ -114,6 +123,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-ons-porto',
     name: 'Ons Porto',
+    site: 'ons',
     source: 'meteogalicia',
     lat: 42.3769, lon: -8.9321,
     azimuth: 270, // Oeste — oceano abierto
@@ -300,6 +310,13 @@ export const EMBALSE_WEBCAMS: WebcamStation[] = [
 
 /** All webcams */
 export const ALL_WEBCAMS: WebcamStation[] = [...RIAS_WEBCAMS, ...NORTH_WEBCAMS, ...EMBALSE_WEBCAMS];
+
+const SITE_BY_ID = new Map(ALL_WEBCAMS.map((w) => [w.id, w.site ?? w.id]));
+
+/** The site a camera belongs to (see `WebcamStation.site`); an unknown id is its own site. */
+export function webcamSite(id: string): string {
+  return SITE_BY_ID.get(id) ?? id;
+}
 
 /** Get webcams for a sector */
 export function getWebcamsForSector(sectorId: string): WebcamStation[] {

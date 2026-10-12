@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   dispatchMagicWindowAlert, dispatchWindSafetyAlert, dispatchForecastAlert, dispatchSpotAlert, dispatchLightningAlert,
-  dispatchFireWatchDigest, fireWatchAlertedZones,
+  dispatchFireWatchDigest, fireWatchAlertedZones, dispatchVisibilityAlert,
   resetCooldowns, seedCooldowns, setSendRecorder, type SentRecord,
 } from './alertDispatcher';
 import { log } from './logger';
@@ -214,5 +214,38 @@ describe('alertDispatcher — fire watch: one message per storm, not one per zon
       { key: 'fire:42.4,-7.6', atMs: now - 2 * 60 * 60_000, level: 'moderate' },
     ])).toBe(3);
     expect(fireWatchAlertedZones()).toHaveLength(3);
+  });
+});
+
+describe('alertDispatcher — cameras on the same mast are one place, one fog message (12-oct)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 12, 12, 0));
+    resetCooldowns();
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    vi.spyOn(log, 'ok').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    setSendRecorder(null);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('the second Cies lighthouse camera shares the first one cooldown; another site does not', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    const stored: SentRecord[] = [];
+    setSendRecorder(async (r) => { stored.push(r); });
+    await dispatchVisibilityAlert('mg-ciesfaro-sur', 'cies-ria', '', 'Cies Faro Sur', 'cies-faro');
+    await dispatchVisibilityAlert('mg-ciesfaro-norte', 'cies-ria', '', 'Cies Faro Norte', 'cies-faro');
+    await dispatchVisibilityAlert('mg-cangas', 'centro-ria', '', 'Cangas');
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(stored.map((r) => r.key)).toEqual(['visibility:cies-faro', 'visibility:mg-cangas']);
+  });
+
+  it('a stored site send holds both cameras of the site back after a restart', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    expect(seedCooldowns([{ key: 'visibility:ons', atMs: Date.now() - 60 * 60_000, level: 'moderate' }])).toBe(1);
+    await dispatchVisibilityAlert('mg-ons-porto', 'cies-ria', '', 'Ons Porto', 'ons');
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
