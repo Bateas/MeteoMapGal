@@ -11,7 +11,7 @@
 import { createHash } from 'crypto';
 import { log } from './logger.js';
 import { batchUpsertWebcamReadings, getPool } from './db.js';
-import { fogCorroborated, nearbyFromRows, type NearbyRow, type NearbyWeather } from './fogAlertGate.js';
+import { fogCorroborated, fogWorthALook, nearbyFromRows, type NearbyRow, type NearbyWeather } from './fogAlertGate.js';
 
 /**
  * The stations within FOG_NEAR_KM of a camera over the last 90 minutes: latest mean wind and
@@ -449,13 +449,15 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
     }
     const state: WebcamState = webcamStates.get(webcam.id) ?? { lastResult: null, cyclesSinceLastAnalysis: 0 };
     webcamStates.set(webcam.id, state);
-    // The model only earns its ~30 s of CPU when the stations around the camera
-    // leave room for fog: the same check a camera's fog must pass to reach Telegram.
-    const gate = fogCorroborated(await nearbyWeather(webcam.lat, webcam.lon));
-    gates.set(webcam.id, gate);
+    // The model only earns its ~30 s of CPU when the stations around the camera leave room for fog
+    // (fogWorthALook: the drizzle of the fog itself does not close it). A fog message needs the stricter
+    // fogCorroborated (no rain at all), kept here for the dispatch below.
+    const near = await nearbyWeather(webcam.lat, webcam.lon);
+    const look = fogWorthALook(near);
+    gates.set(webcam.id, fogCorroborated(near));
     state.cyclesSinceLastAnalysis = 0;
-    state.gateClosed = !gate.ok;
-    if (!gate.ok) {
+    state.gateClosed = !look.ok;
+    if (!look.ok) {
       noRoom.push(webcam.name);
       continue;
     }

@@ -21,6 +21,9 @@ import { rainInWindowMm, type PrecipSample } from '../src/services/precipSemanti
 export const FOG_NEAR_KM = 10;
 export const FOG_MAX_WIND_KT = 15;
 export const FOG_MAX_SPREAD_C = 2;
+/** Rain under this in the last hour, with saturated air and light wind, is the drizzle of the fog itself
+ *  (orballo: 0.1-0.3 mm/h on 11-oct), not rain. */
+export const FOG_DRIZZLE_MAX_MM = 0.5;
 
 export interface NearbyWeather {
   distKm: number;
@@ -76,6 +79,27 @@ export function nearbyFromRows(rows: NearbyRow[], lat: number, lon: number, nowM
     });
   }
   return out;
+}
+
+/**
+ * Whether the vision model should LOOK at a camera: the same physics as fogCorroborated, except that the
+ * drizzle of the fog itself does not close it (only rain from FOG_DRIZZLE_MAX_MM in the hour does).
+ * On 11-oct the fog's own drizzle (0.1-0.3 mm) kept every camera from looking all afternoon. Measured over
+ * August-September, when the model looked at every image: under such drizzle it read fog in 1.7 % of the
+ * images, against 1.2 % with this gate open and 1.9 % in rain, so the drizzle does not fool it. Sending a
+ * fog message still takes fogCorroborated (no rain at all).
+ */
+export function fogWorthALook(nearby: NearbyWeather[]): { ok: boolean; reason: string } {
+  const near = nearby.filter((n) => n.distKm <= FOG_NEAR_KM);
+  if (near.length === 0) return { ok: false, reason: 'sin estaciones cercanas con las que comprobarla' };
+  const maxRain = Math.max(0, ...near.map((n) => n.rainMm60 ?? 0));
+  if (maxRain >= FOG_DRIZZLE_MAX_MM) return { ok: false, reason: 'llueve cerca: es lluvia, no niebla' };
+  const maxWind = Math.max(0, ...near.map((n) => n.windKt ?? 0));
+  if (maxWind >= FOG_MAX_WIND_KT) return { ok: false, reason: `viento de ${Math.round(maxWind)} kt cerca: la niebla no se sostiene` };
+  if (!near.some((n) => n.spreadC != null && n.spreadC <= FOG_MAX_SPREAD_C)) {
+    return { ok: false, reason: 'el aire cercano no esta saturado' };
+  }
+  return { ok: true, reason: maxRain > 0 ? 'aire saturado con orballo y viento flojo' : 'aire saturado, sin lluvia y con viento flojo' };
 }
 
 export function fogCorroborated(nearby: NearbyWeather[]): { ok: boolean; reason: string } {
