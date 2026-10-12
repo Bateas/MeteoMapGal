@@ -186,7 +186,7 @@ export function RoadmapSection() {
             E.U. Copernicus Marine Service (CMEMS) · © EMODnet Bathymetry (CC BY 4.0) ·{' '}
             Modelo SWAN — CESGA · ENAIRE / AESA ·{' '}
             © Meteoclimatic · Powered by Weather Underground® · Powered by Netatmo ·{' '}
-            Open-Meteo.com (CC BY 4.0) · RainViewer.com · meteo2api ·{' '}
+            Open-Meteo.com (CC BY 4.0) · RainViewer.com ·{' '}
             © OpenStreetMap contributors · © CARTO · © IGN España (CC BY 4.0) ·{' '}
             AWS Open Data (Mapzen Terrarium) · Noto Sans © Google (OFL).
           </p>

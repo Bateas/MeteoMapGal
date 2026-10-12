@@ -3,7 +3,7 @@
  *
  * Answers the question that a sector-wide probability cannot: "is there
  * lightning near MY spot, and is it getting closer?". Input is observed
- * cloud-to-ground strikes (MeteoGalicia meteo2api — certified source, so a
+ * cloud-to-ground strikes (MeteoGalicia lightning network — certified source, so a
  * confirmed strike can raise an alert on its own), not a model.
  *
  * Pure module: shared by the ingestor analyzer (Telegram alerts) and, later,
@@ -61,7 +61,7 @@ export const LIGHTNING_DANGER_KM = 10;
 export const LIGHTNING_WARN_KM = 25;
 /** Strikes inside this radius feed the approach-trend estimate */
 const TREND_KM = 60;
-/** meteo2api publishes with 3-5min lag; 20min covers the live storm state */
+/** MeteoGalicia publishes strikes with ~5 min of lag; 20min covers the live storm state */
 export const LIGHTNING_WINDOW_MIN = 20;
 /** A strike this close to a spot means the storm is ON it, not coming: worth a new message even
  *  inside the PELIGRO cooldown (6-oct, Castrelo: PELIGRO at 10 km at 10:27, a strike within 1 km

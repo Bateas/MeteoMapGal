@@ -1,9 +1,9 @@
 /**
- * Tests for the meteo2api lightning breaker.
+ * Tests for the lightning breaker.
  *
  * The contract differs from the Open-Meteo / AEMET breakers in one way: it
  * opens on REPEATED failure (FAILURE_THRESHOLD consecutive failures), not on
- * the first one — meteo2api has no rate limit, so a single blip self-recovers.
+ * the first one — the lightning feed has no rate quota, so a single blip self-recovers.
  *
  *   - reportFailure() opens only after the threshold is reached
  *   - reportSuccess() resets the counter and clears the breaker

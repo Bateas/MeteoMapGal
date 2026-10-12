@@ -1,38 +1,53 @@
 /**
- * The ingestor is now the only one asking meteo2api, every 2 min in a storm. What these tests
- * pin: the short window really reaches the last strikes (meteo2api reads the window in Madrid
- * time against UTC labels), the reach grows after a missed poll, and the storm mode switches.
+ * What the lightning poll asks for. The official service answers whole UTC days, so the risk is
+ * the day edge: strikes of 23:55 published at 00:01 belong to yesterday. What these tests pin:
+ * yesterday is asked after a restart, after a poll that missed the day change and in the first
+ * half hour of the UTC day, and only then; the date format is the one the service takes.
  */
 import { describe, it, expect } from 'vitest';
-import { lightningWindow, madridOffsetMs, pollSpanMs, isStormActive, type PersistedStrike } from './lightningFetcher';
+import { jsonRaiosUrl, utcDayParam, isStormActive, type PersistedStrike } from './lightningFetcher';
 
 const MIN = 60_000;
+const BASE = 'https://servizos.meteogalicia.gal/mgrss/observacion/jsonRaios.action';
 
-describe('madridOffsetMs', () => {
-  it('two hours in summer, one in winter', () => {
-    expect(madridOffsetMs(Date.parse('2026-10-06T12:00:00Z'))).toBe(120 * MIN);
-    expect(madridOffsetMs(Date.parse('2026-12-01T12:00:00Z'))).toBe(60 * MIN);
+describe('utcDayParam', () => {
+  it('dd/mm/yyyy of the UTC day, zero-padded', () => {
+    expect(utcDayParam(Date.parse('2026-10-06T12:00:00Z'))).toBe('06/10/2026');
+    expect(utcDayParam(Date.parse('2026-01-05T00:00:00Z'))).toBe('05/01/2026');
+  });
+
+  it('the UTC day, not the Madrid one (23:30 UTC is already tomorrow in Madrid)', () => {
+    expect(utcDayParam(Date.parse('2026-10-06T23:30:00Z'))).toBe('06/10/2026');
   });
 });
 
-describe('lightningWindow', () => {
-  it('6-oct: to get the strikes labelled 11:10-11:40 UTC, ask 09:10Z back from now', () => {
-    const now = Date.parse('2026-10-06T11:40:00Z');
-    const { fechaInicio, fechaFin } = lightningWindow(now, 30 * MIN);
-    expect(fechaInicio.toISOString()).toBe('2026-10-06T11:40:00.000Z');
-    expect(fechaFin.toISOString()).toBe('2026-10-06T09:10:00.000Z');
-  });
-});
+describe('jsonRaiosUrl', () => {
+  const now = Date.parse('2026-10-12T14:00:30Z');
 
-describe('pollSpanMs', () => {
-  const now = Date.parse('2026-10-06T14:00:00Z');
-  it('the whole day after a restart', () => {
-    expect(pollSpanMs(now, null)).toBe(24 * 60 * MIN);
+  it('just today in the middle of the day after a good poll', () => {
+    expect(jsonRaiosUrl(now, now - 5 * MIN)).toBe(BASE);
   });
-  it('half an hour on a normal poll, more after missed ones, never over a day', () => {
-    expect(pollSpanMs(now, now - 2 * MIN)).toBe(32 * MIN);
-    expect(pollSpanMs(now, now - 40 * MIN)).toBe(70 * MIN);
-    expect(pollSpanMs(now, now - 3 * 24 * 60 * MIN)).toBe(24 * 60 * MIN);
+
+  it('yesterday and today after a restart', () => {
+    expect(jsonRaiosUrl(now, null)).toBe(`${BASE}?dataIni=11/10/2026&dataFin=12/10/2026`);
+  });
+
+  it('yesterday and today in the first half hour of the UTC day', () => {
+    const t = Date.parse('2026-10-12T00:10:30Z');
+    expect(jsonRaiosUrl(t, t - 5 * MIN)).toBe(`${BASE}?dataIni=11/10/2026&dataFin=12/10/2026`);
+  });
+
+  it('yesterday and today when the last good poll is from before the day change', () => {
+    expect(jsonRaiosUrl(now, Date.parse('2026-10-11T23:50:00Z'))).toBe(`${BASE}?dataIni=11/10/2026&dataFin=12/10/2026`);
+  });
+
+  it('back to today alone once a poll after 00:30 has succeeded', () => {
+    const t = Date.parse('2026-10-12T00:35:30Z');
+    expect(jsonRaiosUrl(t, Date.parse('2026-10-12T00:30:30Z'))).toBe(BASE);
+  });
+
+  it('the range crosses months and years', () => {
+    expect(jsonRaiosUrl(Date.parse('2027-01-01T00:05:00Z'), null)).toBe(`${BASE}?dataIni=31/12/2026&dataFin=01/01/2027`);
   });
 });
 

@@ -38,7 +38,6 @@ import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetc
 import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
 import { runMetarArchive, METAR_ARCHIVE_INTERVAL_MS } from './metarArchive.js';
 import { runIdegLightningArchive } from './idegLightningArchive.js';
-import { runJsonRaiosShadow } from './jsonRaiosShadow.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
   countBySource,
@@ -88,8 +87,6 @@ async function lightningLoop(): Promise<void> {
       log.info(stormActive ? '[Lightning] tormenta activa (sondeo cada 5 min, lo que pide MeteoGalicia)' : '[Lightning] sin tormenta cerca');
       lightningStormMode = stormActive;
     }
-    // Official JSON side by side, after the alert so it never delays it (jsonRaiosShadow.ts).
-    void runJsonRaiosShadow(stormActive);
   } catch (err) {
     log.error('[Lightning] cycle err:', (err as Error).message);
   } finally {

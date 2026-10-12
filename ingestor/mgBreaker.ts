@@ -4,7 +4,7 @@
  * `fetchMeteoGalicia` fetches ~150-440 stations independently every cycle.
  * servizos.meteogalicia.gal periodically drops off DNS entirely
  * (NameResolutionError / ENOTFOUND) from the deploy host — unlike AEMET
- * (one call, rate-limited) or meteo2api lightning (one call, outage), this
+ * (one call, rate-limited) or the lightning feed (one call, outage), this
  * failure mode hits EVERY station fetch in the cycle at once. `allSettledLimit`
  * isolates them so nothing crashes, but the resolver still gets hit 8-at-a-time
  * for the whole station list, every 5 minutes, for as long as the outage lasts:

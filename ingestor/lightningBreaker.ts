@@ -1,8 +1,8 @@
 /**
- * Circuit breaker for ingestor → meteo2api lightning traffic.
+ * Circuit breaker for ingestor → MeteoGalicia lightning traffic (jsonRaios.action).
  *
- * `fetchRaios` polls meteo2api (`/raios/lenda`) every 5 min, 24/7. The
- * endpoint is a free Xunta public API with no rate limit, so unlike the
+ * `fetchRaios` polls MeteoGalicia's lightning JSON every 5 min, 24/7 (meteo2api
+ * until v2.178.22). There is no per-minute quota to react to, so unlike the
  * Open-Meteo / AEMET breakers there's no 429 to react to — the failure mode
  * is a sustained UPSTREAM OUTAGE (DNS, gateway 5xx, connection timeout).
  * During one of those, every cycle logged another WARN forever:
@@ -26,7 +26,7 @@
 
 import { log } from './logger.js';
 
-// Middle of the 15-30 min band. meteo2api outages aren't rate-quota driven
+// Middle of the 15-30 min band. Lightning-feed outages aren't rate-quota driven
 // (no per-minute counter to recover), so there's no "wait exactly N min"
 // target — 20 min just keeps the probe cadence sane during a long outage.
 const COOLDOWN_MS = 20 * 60_000;
@@ -51,7 +51,7 @@ export function minutesUntilReset(): number {
 
 /**
  * Throw if the breaker is open. Use at the top of any function about to call
- * meteo2api. Callers can catch `LightningBreakerError` to surface a "paused"
+ * the lightning service. Callers can catch `LightningBreakerError` to surface a "paused"
  * path without logging an error.
  */
 export function checkBreaker(label: string): void {
@@ -61,7 +61,7 @@ export function checkBreaker(label: string): void {
 }
 
 /**
- * Report a failed meteo2api call (non-OK response or thrown error). Opens the
+ * Report a failed lightning call (non-OK response or thrown error). Opens the
  * breaker once FAILURE_THRESHOLD consecutive failures have accumulated. The
  * counter is NOT reset on open, so after the cooldown a single probe failure
  * re-opens immediately. Logs exactly once per closed→open transition.
@@ -80,7 +80,7 @@ export function reportFailure(label: string): void {
 }
 
 /**
- * Report a successful meteo2api call. Resets the failure counter and clears
+ * Report a successful lightning call. Resets the failure counter and clears
  * the breaker so the next cycle runs immediately.
  */
 export function reportSuccess(): void {

@@ -1,133 +1,83 @@
 /**
- * Tests for ingestor/lightningFetcher — pure parser & mapping.
+ * Tests for ingestor/lightningFetcher — pure parser & mapping of MeteoGalicia's official
+ * lightning JSON (jsonRaios.action).
  *
  * The fetch + DB write paths are covered by integration in production
  * (deduplication is enforced by the PK constraint, not the test). Here
- * we lock the parser behavior so the wire format from meteo2api can't
- * regress silently.
+ * we lock the parser behavior so the wire format can't regress silently.
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseRaioDate, mapStrikesForPersist, isInGaliciaScope } from './lightningFetcher';
+import { parseJsonRaios, toPersisted, isInGaliciaScope } from './lightningFetcher';
 
-// ── parseRaioDate ────────────────────────────────────
+// ── parseJsonRaios ───────────────────────────────────
 
-describe('parseRaioDate', () => {
-  it('parses "DD-MM-YYYY HH:MM" UTC format', () => {
-    const ts = parseRaioDate('27-04-2026 14:35');
-    expect(new Date(ts).toISOString()).toBe('2026-04-27T14:35:00.000Z');
-  });
-
-  it('returns NaN for malformed input', () => {
-    expect(Number.isNaN(parseRaioDate('not a date'))).toBe(true);
-    expect(Number.isNaN(parseRaioDate(''))).toBe(true);
-  });
-
-  it('returns NaN for missing time portion', () => {
-    expect(Number.isNaN(parseRaioDate('27-04-2026'))).toBe(true);
-  });
-
-  it('handles single-digit day/month with leading zeros', () => {
-    const ts = parseRaioDate('05-01-2026 09:03');
-    expect(new Date(ts).toISOString()).toBe('2026-01-05T09:03:00.000Z');
-  });
-});
-
-// ── mapStrikesForPersist ─────────────────────────────
-
-const mkRaio = (overrides: Partial<{ date: string; latitude: number; longitude: number; peakCurrent: number }> = {}) => ({
-  date: '27-04-2026 14:35',
-  latitude: 42.5,
-  longitude: -8.2,
-  peakCurrent: 25,
-  idCityHall: 36057,
-  delaySymbol: 1,
-  ...overrides,
-});
-
-describe('mapStrikesForPersist', () => {
-  it('returns empty array for empty input', () => {
-    expect(mapStrikesForPersist([], [])).toEqual([]);
-  });
-
-  it('maps positive-polarity strikes with positive peakCurrent', () => {
-    const strikes = mapStrikesForPersist([mkRaio({ peakCurrent: 18 })], []);
-    expect(strikes).toHaveLength(1);
-    expect(strikes[0].peakCurrent).toBe(18);
-  });
-
-  it('maps negative-polarity strikes with NEGATIVE peakCurrent (polarity preserved)', () => {
-    const strikes = mapStrikesForPersist([], [mkRaio({ peakCurrent: 18 })]);
-    expect(strikes).toHaveLength(1);
-    expect(strikes[0].peakCurrent).toBe(-18);
-  });
-
-  it('takes |peakCurrent| from input regardless of input sign', () => {
-    // API returns absolute current; our convention encodes polarity in the sign
-    const pos = mapStrikesForPersist([mkRaio({ peakCurrent: -25 })], []);
-    expect(pos[0].peakCurrent).toBe(25); // positive bucket → positive sign
-
-    const neg = mapStrikesForPersist([], [mkRaio({ peakCurrent: -25 })]);
-    expect(neg[0].peakCurrent).toBe(-25); // negative bucket → negative sign
-  });
-
-  it('flags cloud_to_cloud=false (meteo2api lenda is CG only)', () => {
-    const strikes = mapStrikesForPersist([mkRaio()], []);
-    expect(strikes[0].cloudToCloud).toBe(false);
-  });
-
-  it('multiplicity defaults to 1 (not provided by meteo2api)', () => {
-    const strikes = mapStrikesForPersist([mkRaio()], []);
-    expect(strikes[0].multiplicity).toBe(1);
-  });
-
-  it('preserves lat/lon at full precision', () => {
-    const strikes = mapStrikesForPersist([mkRaio({ latitude: 42.54042, longitude: -8.30263 })], []);
-    expect(strikes[0].lat).toBe(42.54042);
-    expect(strikes[0].lon).toBe(-8.30263);
-  });
-
-  it('skips records with non-finite lat/lon', () => {
-    const strikes = mapStrikesForPersist([
-      mkRaio({ latitude: NaN }),
-      mkRaio({ longitude: Infinity }),
-      mkRaio(),
-    ], []);
-    expect(strikes).toHaveLength(1); // only the valid one
-  });
-
-  it('skips records with unparseable date', () => {
-    const strikes = mapStrikesForPersist([mkRaio({ date: 'garbage' })], []);
-    expect(strikes).toEqual([]);
-  });
-
-  it('combines positives + negatives in one list', () => {
-    const strikes = mapStrikesForPersist(
-      [mkRaio({ peakCurrent: 10, latitude: 42.1 })],
-      [mkRaio({ peakCurrent: 20, latitude: 42.2 })],
-    );
+describe('parseJsonRaios', () => {
+  it('reads each strike with its UTC time to the second (real body of 7-oct-2026)', () => {
+    const body = {
+      raios: [{
+        data: '2026-10-07T00:00:00',
+        listaRaios: [
+          { fecha: '2026-10-07T01:46:13', lat: 45.127, lon: -1.4622, peakCurrent: -139 },
+          { fecha: '2026-10-07T01:51:46', lat: 43.7784, lon: -6.6218, peakCurrent: -14 },
+          { fecha: 'mal', lat: 43, lon: -8, peakCurrent: 5 },
+        ],
+        numRaiosGalicia: 0,
+        numRaiosTotal: 3,
+      }],
+    };
+    const strikes = parseJsonRaios(body);
     expect(strikes).toHaveLength(2);
-    // Positive first (input order), then negative
-    expect(strikes[0].peakCurrent).toBe(10);
-    expect(strikes[1].peakCurrent).toBe(-20);
+    expect(strikes[1].time.toISOString()).toBe('2026-10-07T01:51:46.000Z');
+    expect(strikes[1]).toMatchObject({ lat: 43.7784, lon: -6.6218, peakCurrent: -14 });
   });
 
-  it('returns time as Date object for direct DB write', () => {
-    const strikes = mapStrikesForPersist([mkRaio({ date: '27-04-2026 14:35' })], []);
-    expect(strikes[0].time).toBeInstanceOf(Date);
-    expect(strikes[0].time.toISOString()).toBe('2026-04-27T14:35:00.000Z');
+  it('reads every day of a range answer (one element per day)', () => {
+    const body = {
+      raios: [
+        { data: '2026-10-11T00:00:00', listaRaios: [{ fecha: '2026-10-11T23:58:10', lat: 42.3, lon: -8.6, peakCurrent: 12 }] },
+        { data: '2026-10-12T00:00:00', listaRaios: [{ fecha: '2026-10-12T00:01:02', lat: 42.31, lon: -8.61, peakCurrent: -8 }] },
+      ],
+    };
+    expect(parseJsonRaios(body).map((s) => s.time.toISOString())).toEqual(['2026-10-11T23:58:10.000Z', '2026-10-12T00:01:02.000Z']);
   });
 
-  it('flags isGalicia=true for strikes inside the bbox', () => {
-    // Central Galicia (Lugo area)
-    const s = mapStrikesForPersist([mkRaio({ latitude: 42.59, longitude: -7.86 })], []);
-    expect(s[0].isGalicia).toBe(true);
+  it('an empty or odd body gives no strikes, never a throw', () => {
+    expect(parseJsonRaios({})).toEqual([]);
+    expect(parseJsonRaios(null)).toEqual([]);
+    expect(parseJsonRaios({ raios: 'x' })).toEqual([]);
+    expect(parseJsonRaios({ raios: [{ data: '2026-10-08T00:00:00', listaRaios: null }, null] })).toEqual([]);
+    expect(parseJsonRaios({ raios: [{ listaRaios: [null, { fecha: '2026-10-08T10:00:00', lat: 'x', lon: -8 }] }] })).toEqual([]);
   });
 
-  it('flags isGalicia=false for strikes outside (Castilla interior)', () => {
-    // East of -6.0 → out of scope (e.g. Zamora/León interior)
-    const s = mapStrikesForPersist([mkRaio({ latitude: 41.9, longitude: -5.5 })], []);
-    expect(s[0].isGalicia).toBe(false);
+  it('a strike without current keeps its position (current null)', () => {
+    const [s] = parseJsonRaios({ raios: [{ listaRaios: [{ fecha: '2026-10-08T10:00:00', lat: 42, lon: -8 }] }] });
+    expect(s.peakCurrent).toBeNull();
+  });
+});
+
+// ── toPersisted ──────────────────────────────────────
+
+describe('toPersisted', () => {
+  it('keeps the signed current, marks ground strikes and the Galicia scope', () => {
+    const rows = toPersisted([
+      { time: new Date('2026-10-06T10:00:56Z'), lat: 42.24, lon: -8.72, peakCurrent: -65 },
+      { time: new Date('2026-10-06T10:01:00Z'), lat: 40.72, lon: -7.58, peakCurrent: 18 },
+    ]);
+    expect(rows[0]).toEqual({
+      time: new Date('2026-10-06T10:00:00Z'), lat: 42.24, lon: -8.72, peakCurrent: -65,
+      cloudToCloud: false, multiplicity: 1, isGalicia: true,
+    });
+    expect(rows[1]).toMatchObject({ peakCurrent: 18, isGalicia: false });
+  });
+
+  it('stores the time to the minute, like every row before the switch (PK time, lat, lon)', () => {
+    const [r] = toPersisted([{ time: new Date('2026-10-06T23:59:59Z'), lat: 42, lon: -8, peakCurrent: 5 }]);
+    expect(r.time.toISOString()).toBe('2026-10-06T23:59:00.000Z');
+  });
+
+  it('a missing current is stored as 0, not dropped', () => {
+    expect(toPersisted([{ time: new Date(0), lat: 42, lon: -8, peakCurrent: null }])[0].peakCurrent).toBe(0);
   });
 });
 

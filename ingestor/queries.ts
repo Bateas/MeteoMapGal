@@ -938,7 +938,8 @@ export interface FireAttribution {
  * Lag between strike and hotspot measured at 7-18h: lightning smoulders in the
  * humus long before it is visible from orbit.
  *
- * meteo2api's `lenda` feed is cloud-to-ground only, so every strike we store is
+ * MeteoGalicia's lightning feeds (meteo2api until v2.178.22, jsonRaios since) are
+ * cloud-to-ground only, so every strike we store is
  * the kind that starts fires — no cloud-to-cloud filtering needed.
  */
 async function queryFireAttributionUncached(days: number): Promise<FireAttribution[]> {

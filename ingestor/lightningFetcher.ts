@@ -1,19 +1,28 @@
 /**
  * Lightning fetcher.
  *
- * Mirrors the frontend `src/api/lightningClient.ts` but writes every observed
- * strike into the `lightning_strikes` hypertable on TimescaleDB. Runs 24/7
- * in the ingestor regardless of whether anyone has the web app open.
+ * Reads MeteoGalicia's official lightning JSON (`jsonRaios.action`, listed on their RSS/JSON
+ * services page) and writes every strike into the `lightning_strikes` hypertable. Runs 24/7 in
+ * the ingestor; the map and the lightning alert read the table, never the provider.
  *
- * Why persist raw strikes:
- * - Frontend keeps ~60min in memory, then forgets.
- * - `storm_predictions` only logs `has_lightning bool`, no coordinates.
- * - Without lat/lon/time history, we cannot:
- *     1. Build a heatmap of "where does lightning hit most?"
- *     2. Correlate strikes with upper-level wind / front passage.
- *     3. Calibrate the storm predictor against real ground truth.
+ * Until v2.178.22 this read meteo2api (its `lenda` feed), the service behind MeteoGalicia's own web.
+ * They asked on 2-oct-2026 that third-party apps use their JSON services instead, and on 9-oct
+ * that nobody ask for lightning more than once every 5 minutes (they publish with ~5 min of delay).
+ * The switch was checked strike by strike on the storm of 6-oct: 9,466 of the official 9,467
+ * strikes are in our table with the same minute, position and current (the extra one shares
+ * minute and position with another, which the minute key merges). The official service gives
+ * the time to the second, but the table keeps the MINUTE, as it always has: the PK is (time, lat,
+ * lon), so storing seconds would insert again every strike already stored at the minute (the
+ * whole day of the switch, or any re-asked day) and mix two precisions in the archive. Seconds
+ * are only used in memory, to measure how late strikes are published.
  *
- * Dedup is automatic via the PK (time, lat, lon) + ON CONFLICT DO NOTHING.
+ * The service answers whole UTC days: no parameters = today; `dataIni`/`dataFin` (dd/mm/yyyy,
+ * up to 7 days) = a range. We ask for today, and for yesterday too right after a restart or in
+ * the first half hour of the UTC day, so the strikes of 23:55 published at 00:01 are not lost.
+ * Dedup is the PK (time, lat, lon) + ON CONFLICT DO NOTHING, so asking again is free.
+ *
+ * Why persist raw strikes: the map keeps ~60 min in memory; without lat/lon/time history there
+ * is no heatmap, no storm-path study and no ground truth for the storm predictor.
  */
 
 import { getPool } from './db.js';
@@ -24,35 +33,19 @@ import {
   reportSuccess as reportLightningSuccess,
 } from './lightningBreaker.js';
 
-const RAIOS_LENDA_URL = 'https://apis-ext.xunta.gal/meteo2api/v1/api/raios/lenda';
-const FETCH_TIMEOUT_MS = 15_000;
-
-// Public-tier API key (WSO2 API Manager JWT). Same as frontend — extracted from
-// MeteoGalicia's production Angular bundle, NOT a private credential. Configurable
-// via env for rotation.
-const API_KEY = process.env.LIGHTNING_API_KEY ??
-  'eyJ4NXQiOiJObUU1TXpSbVpXSmtNREZtT1RJeFlqWTFNRE00TmpnM1pqVmlOR0k1WkdZM09HTXpPVEJsTURNelpUQmhOalJtWVdJNE9HUmpOR1ZpTldKak1qZGpZUSIsImtpZCI6ImdhdGV3YXlfY2VydGlmaWNhdGVfYWxpYXMiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJhZG1pbkBjYXJib24uc3VwZXIiLCJhcHBsaWNhdGlvbiI6eyJvd25lciI6ImFkbWluIiwidGllclF1b3RhVHlwZSI6bnVsbCwidGllciI6IlVubGltaXRlZCIsIm5hbWUiOiJ3X21ldGVvMiIsImlkIjozMzAxLCJ1dWlkIjoiMmNhMDI4N2ItNWYzYy00NGMzLTg3ZGEtOWY5ODg3NWZjNjk5In0sImlzcyI6Imh0dHBzOlwvXC9wcmQtd3NvMmFwaW0tYzAxLTAwMDEueHVudGEubG9jYWw6OTQ0NFwvb2F1dGgyXC90b2tlbiIsInRpZXJJbmZvIjp7IlB1YmxpYyI6eyJ0aWVyUXVvdGFUeXBlIjoicmVxdWVzdENvdW50IiwiZ3JhcGhRTE1heENvbXBsZXhpdHkiOjAsImdyYXBoUUxNYXhEZXB0aCI6MCwic3RvcE9uUXVvdGFSZWFjaCI6dHJ1ZSwic3Bpa2VBcnJlc3RMaW1pdCI6MCwic3Bpa2VBcnJlc3RVbml0Ijoic2VjIn19LCJrZXl0eXBlIjoiUFJPRFVDVElPTiIsInBlcm1pdHRlZFJlZmVyZXIiOiIiLCJzdWJzY3JpYmVkQVBJcyI6W3sic3Vic2NyaWJlclRlbmFudERvbWFpbiI6ImNhcmJvbi5zdXBlciIsIm5hbWUiOiJNRVRFTzJfQVBJIiwiY29udGV4dCI6IlwvbWV0ZW8yYXBpXC92MSIsInB1Ymxpc2hlciI6IkFNVEVHQVwvdWUwODIwNSIsInZlcnNpb24iOiJ2MSIsInN1YnNjcmlwdGlvblRpZXIiOiJQdWJsaWMifV0sInBlcm1pdHRlZElQIjoiIiwiaWF0IjoxNjk0MDk1MzMzLCJqdGkiOiI1NzkwYmM5NC04M2Y2LTQ4YTgtODg3Yy02MmQyNDJiMTJmZDYifQ==.W9Uc6D5te5GhMcWb-ewkiuor8rpNX5S3P89LSvrewNxNffwkQ5LC47OiSIwx0NOhZ9YKSiOf0i5L2MDjA8Roezp1xkPzC1Cx6ESkuTaXtIgu0iP4mUo6pCmwywWLhDO7_fz58k6PnPAYyehQ6R8r85nEx3Wr9F9e1u-WZx2zGTFGpqvTU9jFA1d4rlcTjTK7eGuIFSbQn6goko8elKFe3GajzGy8r6NtJLMvSgxhSpftsykx-tpGyoUVVH90dTiEul927JiYvqgOsCKa4FU1tVVY3Y9t8AJByJqsOeTz64R7KIe9A8C2WB29IewjKxDkrsypFODpOQHkIbEDhZ5g8Q==';
+const JSON_RAIOS_URL = 'https://servizos.meteogalicia.gal/mgrss/observacion/jsonRaios.action';
+/** A storm day is ~730 KB (6-oct: 9,467 strikes), answered in under a second. */
+const FETCH_TIMEOUT_MS = 30_000;
+const USER_AGENT = 'Mozilla/5.0 (compatible; MeteoMapGal/1.0; +https://meteomapgal.navia3d.com)';
+/** Also ask for yesterday this long after 00:00 UTC (covers the ~5 min publishing delay with margin). */
+const DAY_EDGE_MS = 30 * 60_000;
+/** Rows per INSERT: 7 parameters each, and PostgreSQL takes at most 65,535 per statement. */
+const INSERT_CHUNK = 1000;
 
 // ── Types ─────────────────────────────────────────────
 
-interface RaioStrike {
-  /** "DD-MM-YYYY HH:MM" UTC */
-  date: string;
-  latitude: number;
-  longitude: number;
-  /** Peak current in kA */
-  peakCurrent: number;
-  idCityHall: number;
-  delaySymbol: number;
-}
-
-interface RaiosResponse {
-  raiosPosit: RaioStrike[];
-  raiosNegat: RaioStrike[];
-  numTotalRaios: number;
-  numTotalRaiosGalicia: number;
-  numTotalRaiosIntra: number | null;
-}
+/** One strike as the official service gives it. `peakCurrent` is signed (negative = negative strike). */
+export interface JsonRaio { time: Date; lat: number; lon: number; peakCurrent: number | null }
 
 export interface PersistedStrike {
   time: Date;
@@ -66,12 +59,11 @@ export interface PersistedStrike {
 }
 
 /**
- * Geographic scope for "relevant" lightning. meteo2api returns strikes for
- * the whole NW Iberian peninsula; ~32% (audited 2026-05-14) fall outside the
- * area that actually affects Galician weather (Castilla interior, deep
- * Portugal, Asturias). We KEEP those rows (storm-approach analysis may want
- * them) but flag them so the predictor / analyzer can calibrate on
- * `WHERE is_galicia = TRUE` only.
+ * Geographic scope for "relevant" lightning. The service returns strikes for the whole NW
+ * Iberian peninsula; ~32% (audited 2026-05-14) fall outside the area that actually affects
+ * Galician weather (Castilla interior, deep Portugal, Asturias). We KEEP those rows
+ * (storm-approach analysis may want them) but flag them so the predictor / analyzer can
+ * calibrate on `WHERE is_galicia = TRUE` only.
  *
  * Bbox rationale:
  *   N 44.5  — Estaca de Bares + ~20km buffer
@@ -99,101 +91,67 @@ export function isInGaliciaScope(lat: number, lon: number): boolean {
   );
 }
 
-// ── Pure parsing (testable in isolation) ─────────────
-
-/** Parse meteo2api date "DD-MM-YYYY HH:MM" → unix milliseconds (UTC) */
-export function parseRaioDate(dateStr: string): number {
-  const [datePart, timePart] = dateStr.split(' ');
-  if (!datePart || !timePart) return NaN;
-  const [day, month, year] = datePart.split('-');
-  const [hours, minutes] = timePart.split(':');
-  return Date.UTC(
-    Number(year),
-    Number(month) - 1,
-    Number(day),
-    Number(hours),
-    Number(minutes),
-  );
-}
+// ── Pure helpers (testable in isolation) ─────────────
 
 /**
- * Map raw API strikes to the persisted shape. Negative-polarity strikes get
- * `peakCurrent` flipped to negative so polarity is preserved in storage.
+ * Parse a jsonRaios.action body: `{raios: [{data, numRaiosTotal, numRaiosGalicia, listaRaios:
+ * [{fecha (UTC, no offset), lat, lon, peakCurrent}]}, ...]}`, one element per day asked.
+ * Entries without a valid time or position are dropped.
  */
-export function mapStrikesForPersist(
-  positives: RaioStrike[],
-  negatives: RaioStrike[],
-): PersistedStrike[] {
-  const out: PersistedStrike[] = [];
-  const make = (s: RaioStrike, signedCurrent: number): PersistedStrike | null => {
-    const ts = parseRaioDate(s.date);
-    if (!Number.isFinite(ts) || !Number.isFinite(s.latitude) || !Number.isFinite(s.longitude)) {
-      return null;
+export function parseJsonRaios(body: unknown): JsonRaio[] {
+  const days = (body as { raios?: unknown } | null)?.raios;
+  if (!Array.isArray(days)) return [];
+  const out: JsonRaio[] = [];
+  for (const day of days) {
+    const list = (day as { listaRaios?: unknown } | null)?.listaRaios;
+    if (!Array.isArray(list)) continue;
+    for (const r of list) {
+      const o = r as Record<string, unknown> | null;
+      if (!o) continue;
+      const t = typeof o.fecha === 'string' ? Date.parse(o.fecha + 'Z') : NaN;   // documented as UTC
+      if (!Number.isFinite(t) || typeof o.lat !== 'number' || typeof o.lon !== 'number') continue;
+      if (!Number.isFinite(o.lat) || !Number.isFinite(o.lon)) continue;
+      out.push({ time: new Date(t), lat: o.lat, lon: o.lon, peakCurrent: typeof o.peakCurrent === 'number' ? o.peakCurrent : null });
     }
-    return {
-      time: new Date(ts),
-      lat: s.latitude,
-      lon: s.longitude,
-      peakCurrent: signedCurrent,
-      cloudToCloud: false, // meteo2api lenda is cloud-to-ground only
-      multiplicity: 1,
-      isGalicia: isInGaliciaScope(s.latitude, s.longitude),
-    };
-  };
-
-  for (const s of positives) {
-    const m = make(s, Math.abs(s.peakCurrent));
-    if (m) out.push(m);
-  }
-  for (const s of negatives) {
-    const m = make(s, -Math.abs(s.peakCurrent));
-    if (m) out.push(m);
   }
   return out;
 }
 
-// ── Fetcher ───────────────────────────────────────────
+/** The persisted shape, time truncated to the minute (see the header). The service gives only
+ *  cloud-to-ground strikes (MeteoGalicia offered on 9-oct to add intra-cloud ones with a flag:
+ *  when it exists, read it here). */
+export function toPersisted(strikes: JsonRaio[]): PersistedStrike[] {
+  return strikes.map((s) => ({
+    time: new Date(Math.floor(s.time.getTime() / 60_000) * 60_000),
+    lat: s.lat,
+    lon: s.lon,
+    peakCurrent: s.peakCurrent ?? 0,
+    cloudToCloud: false,
+    multiplicity: 1,
+    isGalicia: isInGaliciaScope(s.lat, s.lon),
+  }));
+}
 
-const FULL_WINDOW_MS = 24 * 60 * 60_000;
-/** Each poll reaches this far behind the last good one: covers the 3-5 min publishing delay
- *  and a missed poll or two. */
-const OVERLAP_MS = 30 * 60_000;
-/** Rows per INSERT: 7 parameters each, and PostgreSQL takes at most 65,535 per statement. */
-const INSERT_CHUNK = 1000;
-
-/** Offset of Madrid's wall clock from UTC at an instant (+2 h in summer, +1 h in winter). */
-export function madridOffsetMs(atMs: number): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/Madrid', hourCycle: 'h23',
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).formatToParts(new Date(atMs));
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
-  const wall = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
-  return wall - Math.floor(atMs / 1000) * 1000;
+/** dd/mm/yyyy of the UTC day of `ms`, the format the service takes. */
+export function utcDayParam(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
 }
 
 /**
- * The request window for the strikes of the last `spanMs`.
- *
- * meteo2api reads fechaInicio/fechaFin as Madrid wall time against strike labels in UTC: asking
- * 09:10-09:40Z on 6-oct returned exactly the 414 strikes labelled 11:10-11:39 (the ones we hold
- * at 11:10-11:40 UTC). The newer end therefore stays at now (it reaches now plus the offset,
- * which is empty) and the older end moves back by the offset. If they ever fix it, the same
- * request just returns a couple of hours more, never fewer.
+ * What to ask for: today, or yesterday and today after a restart (`lastSuccessAt` null), after a
+ * poll that missed the day change, or in the first half hour of the UTC day.
  */
-export function lightningWindow(nowMs: number, spanMs: number): { fechaInicio: Date; fechaFin: Date } {
-  return { fechaInicio: new Date(nowMs), fechaFin: new Date(nowMs - spanMs - madridOffsetMs(nowMs)) };
+export function jsonRaiosUrl(nowMs: number, lastSuccessAt: number | null): string {
+  const dayStart = Math.floor(nowMs / 86_400_000) * 86_400_000;
+  const needYesterday = lastSuccessAt == null || lastSuccessAt < dayStart + DAY_EDGE_MS || nowMs - dayStart < DAY_EDGE_MS;
+  if (!needYesterday) return JSON_RAIOS_URL;
+  return `${JSON_RAIOS_URL}?dataIni=${utcDayParam(dayStart - 86_400_000)}&dataFin=${utcDayParam(dayStart)}`;
 }
 
-/** How far back the next poll must reach: everything since the last good poll plus the
- *  overlap, the whole day after a restart or a long outage. */
-export function pollSpanMs(nowMs: number, lastSuccessAt: number | null): number {
-  if (lastSuccessAt == null) return FULL_WINDOW_MS;
-  return Math.min(FULL_WINDOW_MS, Math.max(OVERLAP_MS, nowMs - lastSuccessAt + OVERLAP_MS));
-}
-
-/** Strike activity near Galicia that warrants the short poll: one in the last 5 min, or five in
- *  the last 15 (the same rule the map uses, with the publishing delay in mind). */
+/** Strike activity near Galicia: one in the last 5 min, or five in the last 15 (the same rule the
+ *  map uses, with the publishing delay in mind). Only logged since the pace is fixed at 5 min. */
 export function isStormActive(strikes: PersistedStrike[], nowMs: number): boolean {
   let n5 = 0, n15 = 0;
   for (const s of strikes) {
@@ -206,49 +164,64 @@ export function isStormActive(strikes: PersistedStrike[], nowMs: number): boolea
   return n5 >= 1 || n15 >= 5;
 }
 
-/** Last poll whose strikes all reached the table: the next window starts from it. */
+const median = (a: number[]) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+// ── Fetcher ───────────────────────────────────────────
+
+/** Last poll whose strikes all reached the table. */
 let lastSuccessAt: number | null = null;
-/** The poll in flight (set when meteo2api answers, promoted once the rows are stored). */
-let lastPolledAt: number | null = null;
 let lastStormActive = false;
+let announced = false;
+/** Strikes already seen near Galicia (last 48 h), to measure how late new ones are published. */
+const seen = new Map<string, number>();
 
-async function fetchRaios(): Promise<RaiosResponse | null> {
-  // During a sustained meteo2api outage, skip the fetch silently instead of
-  // hammering the dead endpoint and logging a WARN every 5-min cycle.
+async function fetchRaios(nowMs: number): Promise<JsonRaio[] | null> {
+  // During a sustained outage, skip the fetch silently instead of logging a WARN every cycle.
   if (isLightningBreakerOpen()) return null;
-
-  const nowMs = Date.now();
-  const { fechaInicio, fechaFin } = lightningWindow(nowMs, pollSpanMs(nowMs, lastSuccessAt));
-  // meteo2api convention: fechaInicio = newer, fechaFin = older
-  const params = new URLSearchParams({
-    fechaInicio: fechaInicio.toISOString(),
-    fechaFin: fechaFin.toISOString(),
-  });
-  const url = `${RAIOS_LENDA_URL}?${params}`;
+  const url = jsonRaiosUrl(nowMs, lastSuccessAt);
   try {
     const res = await fetch(url, {
-      headers: { apikey: API_KEY, Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
-      reportLightningFailure(`API ${res.status}`);
-      log.warn(`[Lightning] API ${res.status}`);
+      reportLightningFailure(`HTTP ${res.status}`);
+      log.warn(`[Lightning] jsonRaios HTTP ${res.status}`);
       return null;
     }
-    const body = await res.json() as RaiosResponse;
+    const strikes = parseJsonRaios(await res.json());
     reportLightningSuccess();
-    lastPolledAt = nowMs;
-    return body;
+    if (!announced) {
+      log.info('[Lightning] fuente: jsonRaios.action de MeteoGalicia (servicio oficial), cada 5 min');
+      announced = true;
+    }
+    return strikes;
   } catch (err) {
     reportLightningFailure((err as Error).message);
-    log.warn(`[Lightning] fetch failed: ${(err as Error).message}`);
+    log.warn(`[Lightning] jsonRaios fetch failed: ${(err as Error).message}`);
     return null;
   }
 }
 
+/** Minutes between each strike and the first poll that saw it, for strikes near Galicia not seen
+ *  before, with the time to the second. Empty on the first poll after a restart (everything is
+ *  "new" then). */
+function publishLags(strikes: JsonRaio[], nowMs: number, firstPoll: boolean): number[] {
+  const lags: number[] = [];
+  for (const s of strikes) {
+    if (!isInGaliciaScope(s.lat, s.lon)) continue;
+    const k = `${s.time.getTime()}|${s.lat}|${s.lon}`;
+    if (seen.has(k)) continue;
+    seen.set(k, s.time.getTime());
+    if (!firstPoll) lags.push((nowMs - s.time.getTime()) / 60_000);
+  }
+  for (const [k, t] of seen) if (nowMs - t > 48 * 3_600_000) seen.delete(k);
+  return lags;
+}
+
 // ── DB persist ────────────────────────────────────────
 
-/** New rows stored, or null when an INSERT failed (the next poll then reaches back further). */
+/** New rows stored, or null when an INSERT failed. */
 async function batchInsertStrikes(strikes: PersistedStrike[]): Promise<number | null> {
   if (strikes.length === 0) return 0;
   const db = getPool();
@@ -285,34 +258,33 @@ async function batchInsertStrikes(strikes: PersistedStrike[]): Promise<number | 
 // ── Public entry ──────────────────────────────────────
 
 /**
- * One poll cycle: fetch the strikes since the last good poll (the whole day after a restart)
- * from meteo2api → dedup → persist. The overlap re-fetches some strikes we already have; the
- * PK conflict makes that a cheap no-op.
+ * One poll cycle: today's strikes (and yesterday's at the day edge or after a restart) →
+ * persist. Asking again for strikes we already have is a cheap PK no-op.
  *
- * Returns whether there is storm activity near Galicia, which sets the next poll's delay
- * (index.ts). On a failed poll the last known answer stands.
+ * Returns whether there is storm activity near Galicia (logged by index.ts). On a failed poll
+ * the last known answer stands.
  */
 export async function runLightningCycle(): Promise<{ stormActive: boolean }> {
-  const data = await fetchRaios();
-  if (!data) return { stormActive: lastStormActive };
-  const polledAt = lastPolledAt ?? Date.now();
+  const polledAt = Date.now();
+  const firstPoll = lastSuccessAt == null;
+  const raw = await fetchRaios(polledAt);
+  if (!raw) return { stormActive: lastStormActive };
 
-  const strikes = mapStrikesForPersist(
-    data.raiosPosit || [],
-    data.raiosNegat || [],
-  );
+  const strikes = toPersisted(raw);
   lastStormActive = isStormActive(strikes, polledAt);
+  const lags = publishLags(raw, polledAt, firstPoll);
   if (strikes.length === 0) {
     lastSuccessAt = polledAt;
-    log.debug(`[Lightning] poll ok — 0 strikes in window`);
+    log.debug(`[Lightning] poll ok — 0 strikes`);
     return { stormActive: lastStormActive };
   }
 
   const inserted = await batchInsertStrikes(strikes);
   if (inserted !== null) lastSuccessAt = polledAt;
   const inScope = strikes.filter((s) => s.isGalicia).length;
+  const lagText = lags.length ? ` · ${lags.length} nuevos cerca, publicados con ${Math.round(median(lags))} min de retraso (mediana; max ${Math.round(Math.max(...lags))})` : '';
   log.info(
-    `[Lightning] poll ok — ${strikes.length} returned by API (${inScope} in Galicia scope, ${strikes.length - inScope} buffer), ${inserted ?? 0} new rows persisted`,
+    `[Lightning] poll ok — ${strikes.length} returned (${inScope} in Galicia scope, ${strikes.length - inScope} buffer), ${inserted ?? 0} new rows persisted${lagText}`,
   );
   return { stormActive: lastStormActive };
 }
