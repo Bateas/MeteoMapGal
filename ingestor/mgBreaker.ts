@@ -66,9 +66,10 @@ export function checkBreaker(label: string): void {
 }
 
 /**
- * Report how a cycle's station fan-out went: `attempted` stations tried,
- * `failed` of them rejected (network/timeout — NOT "station had no fresh
- * entry yet", which resolves to `null` and is never a rejection). Only a
+ * Report how a cycle's requests went: `attempted` requests tried (one per
+ * group of stations since v2.178.21), `failed` of them rejected
+ * (network/timeout/5xx — NOT "a station had no fresh entry yet", which is
+ * simply missing from the answer and is never a rejection). Only a
  * cycle where EVERYTHING attempted failed counts toward the threshold;
  * any success resets it immediately.
  */
@@ -87,7 +88,7 @@ export function reportCycleResult(attempted: number, failed: number): void {
   if (!wasOpen) {
     log.warn(
       `[MeteoGalicia] ${consecutiveFullFailures} consecutive fully-failed cycles ` +
-        `(${attempted} stations each) — breaker open ${COOLDOWN_MS / 60_000} min`,
+        `(${attempted} request${attempted === 1 ? '' : 's'} each) — breaker open ${COOLDOWN_MS / 60_000} min`,
     );
   }
 }

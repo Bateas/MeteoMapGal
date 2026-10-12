@@ -1,5 +1,6 @@
 import type { MeteoGaliciaStation, MeteoGaliciaObsEntry } from '../types/meteogalicia';
 import { METEOGALICIA } from '../config/apiEndpoints';
+import { latestObservationUrls, indexLatestById } from './mgLatestBatch';
 
 /** Stations that consistently fail (500/404). Skip them to avoid wasted requests.
  * NOTE (2026-03): 10109 (Amiudal) and 19044 (Remuíño) were previously broken
@@ -9,9 +10,9 @@ import { METEOGALICIA } from '../config/apiEndpoints';
 const BROKEN_STATIONS = new Set<number>();
 
 /** Retry helper for transient server errors (502/503/504) */
-async function fetchWithRetry(url: string, retries = 1, delayMs = 1500): Promise<Response> {
+async function fetchWithRetry(url: string, retries = 1, delayMs = 1500, timeoutMs = 5_000): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (res.ok || (res.status < 500 && res.status !== 429)) return res;
     if (attempt < retries) {
       console.warn(`[MeteoGalicia] ${res.status} on attempt ${attempt + 1}, retry in ${delayMs}ms`);
@@ -54,36 +55,22 @@ export async function fetchStationList(): Promise<MeteoGaliciaStation[]> {
   return stations;
 }
 
-/** Fetch latest 10-min observations for a single station.
- *  Response: { listUltimos10min: [{ estacion, idEstacion, instanteLecturaUTC, listaMedidas: [...] }] }
- */
-export async function fetchLatestObservation(stationId: number): Promise<MeteoGaliciaObsEntry | null> {
-  const res = await fetchWithRetry(METEOGALICIA.latestObservation(stationId), 1, 2000);
-  if (!res.ok) {
-    console.warn(`MeteoGalicia observation failed for station ${stationId}: ${res.status}`);
-    return null;
-  }
-
-  const json = await res.json();
-  const entries: MeteoGaliciaObsEntry[] = json.listUltimos10min || [];
-  return entries.length > 0 ? entries[0] : null;
-}
-
-/** Fetch latest observations for multiple stations in parallel */
+/** Latest 10-min observations for many stations, grouped in as few requests as possible
+ *  (one for our ~50 stations; see mgLatestBatch.ts). Only used when our own API fails.
+ *  Rejects only if every request failed, so the source status tells the truth. */
 export async function fetchLatestForStations(stationIds: number[]): Promise<Map<number, MeteoGaliciaObsEntry>> {
   const validIds = stationIds.filter((id) => !BROKEN_STATIONS.has(id));
-  const results = await Promise.allSettled(
-    validIds.map(async (id) => ({
-      id,
-      entry: await fetchLatestObservation(id),
-    }))
-  );
+  const urls = latestObservationUrls(METEOGALICIA.base, validIds);
+  const results = await Promise.allSettled(urls.map(async (url) => {
+    const res = await fetchWithRetry(url, 1, 2000, 15_000);
+    if (!res.ok) throw new Error(`MeteoGalicia observations: HTTP ${res.status}`);
+    return indexLatestById(await res.json());
+  }));
 
-  const map = new Map<number, MeteoGaliciaObsEntry>();
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value.entry) {
-      map.set(result.value.id, result.value.entry);
-    }
+  if (urls.length > 0 && results.every((r) => r.status === 'rejected')) {
+    throw (results[0] as PromiseRejectedResult).reason;
   }
+  const map = new Map<number, MeteoGaliciaObsEntry>();
+  for (const r of results) if (r.status === 'fulfilled') for (const [id, e] of r.value) map.set(id, e);
   return map;
 }

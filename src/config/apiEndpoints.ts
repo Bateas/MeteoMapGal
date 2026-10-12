@@ -52,11 +52,10 @@ export const METEOSIX = {
 } as const;
 
 export const METEOGALICIA = {
+  /** Our proxy to servizos.meteogalicia.gal. Latest observations: `latestObservationUrls(base, ids)` in api/mgLatestBatch.ts. */
+  base: '/meteogalicia-api',
+
   /** List all meteorological stations */
   stationList: () =>
     `/meteogalicia-api/mgrss/observacion/listaEstacionsMeteo.action`,
-
-  /** Last 10-min observations for a station */
-  latestObservation: (stationId: number) =>
-    `/meteogalicia-api/mgrss/observacion/ultimos10minEstacionsMeteo.action?idEst=${stationId}`,
 } as const;

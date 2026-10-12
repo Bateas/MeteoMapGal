@@ -5,7 +5,8 @@
 
 import type { NormalizedStation, NormalizedReading } from '../src/types/station.js';
 import type { AemetApiResponse, AemetRawObservation } from '../src/types/aemet.js';
-import type { MeteoGaliciaObsResponse } from '../src/types/meteogalicia.js';
+import type { MeteoGaliciaObsEntry } from '../src/types/meteogalicia.js';
+import { latestObservationUrls, indexLatestById } from '../src/api/mgLatestBatch.js';
 import type { MeteoclimaticRawStation } from '../src/types/meteoclimatic.js';
 import { METEOCLIMATIC_STATIONS } from '../src/types/meteoclimatic.js';
 import {
@@ -147,34 +148,34 @@ async function fetchMeteoGalicia(
     return [];
   }
 
-  // Cap parallelism at 8 — without this we'd fan out to ~50 simultaneous
-  // fetches per cycle, hammering the server's DNS resolver and MeteoGalicia
-  // with a thundering herd. 8 is plenty to finish a cycle in ~2s and lets
-  // undici reuse TCP connections across requests to the same host.
-  const results = await allSettledLimit(mgStations, async (station) => {
-    const numId = station.id.replace('mg_', '');
-    const res = await fetchWithRetry(
-      `${MG_BASE}/mgrss/observacion/ultimos10minEstacionsMeteo.action?idEst=${numId}`,
-      'MG',
-    );
-    const data: MeteoGaliciaObsResponse = await res.json();
-    const entries = data.listUltimos10min ?? [];
-    if (entries.length === 0) return null;
-
-    // Take latest entry
-    const entry = entries[0];
-    return normalizeMeteoGaliciaObservation(parseInt(numId, 10), entry);
-  }, 8);
+  // All stations in one request (comma-separated ids), not one per station:
+  // MeteoGalicia audits request efficiency and blocks the IPs below its
+  // threshold. ~50 requests every 5 min became 1. See src/api/mgLatestBatch.ts.
+  const ids = mgStations.map((s) => parseInt(s.id.replace('mg_', ''), 10));
+  const urls = latestObservationUrls(MG_BASE, ids);
+  const results = await Promise.allSettled(urls.map(async (url) => {
+    const res = await fetchWithRetry(url, 'MG');
+    return indexLatestById(await res.json());
+  }));
 
   const failedCount = results.filter((r) => r.status === 'rejected').length;
-  mgBreaker.reportCycleResult(mgStations.length, failedCount);
+  mgBreaker.reportCycleResult(urls.length, failedCount);
+  if (failedCount > 0) {
+    const reason = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')?.reason;
+    log.warn(`MeteoGalicia: ${failedCount}/${urls.length} requests failed: ${(reason as Error)?.message ?? reason}`);
+  }
 
-  const readings = results
-    .filter((r): r is PromiseFulfilledResult<NormalizedReading | null> => r.status === 'fulfilled')
-    .map((r) => r.value)
-    .filter((r): r is NormalizedReading => r !== null);
+  const byId = new Map<number, MeteoGaliciaObsEntry>();
+  for (const r of results) if (r.status === 'fulfilled') for (const [id, e] of r.value) byId.set(id, e);
 
-  log.info(`MeteoGalicia: ${readings.length}/${mgStations.length} readings`);
+  const readings: NormalizedReading[] = [];
+  for (const id of ids) {
+    const entry = byId.get(id);
+    const reading = entry ? normalizeMeteoGaliciaObservation(id, entry) : null;
+    if (reading) readings.push(reading);
+  }
+
+  log.info(`MeteoGalicia: ${readings.length}/${mgStations.length} readings (${urls.length} request${urls.length === 1 ? '' : 's'})`);
   return readings;
 }
 
