@@ -14,6 +14,13 @@ describe('fogCorroborated — a camera alone never sends «niebla» (29-sep)', (
     expect(r.reason).toMatch(/lluvia/);
   });
 
+  it('drizzle (the fog\'s own, 11-oct) still holds the message, and the reason says orballo, not rain', () => {
+    const r = fogCorroborated([st({ rainMm60: 0.2, spreadC: 0.3, windKt: 3 }), st({ distKm: 6, rainMm60: 0.1, windKt: 4 })]);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/orballo/);
+    expect(r.reason).not.toMatch(/es lluvia/);
+  });
+
   it('strong wind at the most exposed station nearby → not fog, even with sheltered ones calm', () => {
     const r = fogCorroborated([st({ windKt: 2 }), st({ windKt: 4 }), st({ distKm: 7, windKt: 17 })]);
     expect(r.ok).toBe(false);

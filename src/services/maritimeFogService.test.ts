@@ -371,7 +371,7 @@ describe('buildMaritimeFogAlerts — cameras against the physics (30-sep, Ons Pr
     expect(a!.severity).not.toBe('critical');
     expect(a!.urgent).toBe(false);
     expect(a!.title).toBe('Riesgo de niebla marítima');
-    expect(a!.detail).toMatch(/11 cámaras no la ven/);
+    expect(a!.detail).toMatch(/11 sitios con cámara no la ven/);
     expect(a!.detail).not.toMatch(/confianza/);
     expect(a!.confidence).toBeUndefined();
     expect(a!.fogMeta?.webcamConfirmed).toBe(false);
@@ -400,7 +400,7 @@ describe('buildMaritimeFogAlerts — cameras against the physics (30-sep, Ons Pr
   it('cameras that looked and saw no fog bring it down and say so', () => {
     const a = physics(build(false, 0, 1));
     expect(a?.title).toBe('Riesgo de niebla marítima');
-    expect(a?.detail).toMatch(/1 cámara no la ve/);
+    expect(a?.detail).toMatch(/1 sitio con cámara no la ve/);
     expect(a?.confidence).toBeUndefined();
   });
 

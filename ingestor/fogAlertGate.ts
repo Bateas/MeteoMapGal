@@ -105,7 +105,10 @@ export function fogWorthALook(nearby: NearbyWeather[]): { ok: boolean; reason: s
 export function fogCorroborated(nearby: NearbyWeather[]): { ok: boolean; reason: string } {
   const near = nearby.filter((n) => n.distKm <= FOG_NEAR_KM);
   if (near.length === 0) return { ok: false, reason: 'sin estaciones cercanas con las que comprobarla' };
-  if (near.some((n) => (n.rainMm60 ?? 0) > 0)) return { ok: false, reason: 'llueve cerca: es lluvia, no niebla' };
+  const wettest = Math.max(0, ...near.map((n) => n.rainMm60 ?? 0));
+  if (wettest >= FOG_DRIZZLE_MAX_MM) return { ok: false, reason: 'llueve cerca: es lluvia, no niebla' };
+  // Drizzle can be the fog's own (11-oct); the message still waits for dry gauges, but the log says what it is.
+  if (wettest > 0) return { ok: false, reason: 'orballo cerca: puede ser de la propia niebla, pero sin aviso mientras moje' };
   const maxWind = Math.max(0, ...near.map((n) => n.windKt ?? 0));
   if (maxWind >= FOG_MAX_WIND_KT) return { ok: false, reason: `viento de ${Math.round(maxWind)} kt cerca: la niebla no se sostiene` };
   if (!near.some((n) => n.spreadC != null && n.spreadC <= FOG_MAX_SPREAD_C)) {

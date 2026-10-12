@@ -693,7 +693,7 @@ export function buildMaritimeFogAlerts(
   /** Camera sites that lost the horizon. Not used since 12-oct: a lost horizon at one site is still one
    *  camera; it stays in the call for the callers. */
   _webcamCriticalVisibilityCount?: number,
-  /** Cameras analysed in the last 30 min that saw no fog. */
+  /** Camera SITES (one per mast, webcamFogSites.ts) analysed in the last 30 min that saw no fog. */
   webcamClearCount?: number,
   /** For the station signature: the reading history and the cameras that see clear (signatureOptions). */
   signatureOpts?: { readingHistory?: Map<string, NormalizedReading[]>; clearCameras?: { lat: number; lon: number }[] },
@@ -836,7 +836,7 @@ export function buildMaritimeFogAlerts(
       risk.humidity !== null ? `HR ${risk.humidity.toFixed(0)}%` : '',
       risk.isOnshore ? 'viento onshore' : risk.windDir !== null ? 'viento offshore' : '',
       camerasSawNone
-        ? `${clearCams} ${clearCams === 1 ? 'cámara no la ve' : 'cámaras no la ven'}`
+        ? `${clearCams} ${clearCams === 1 ? 'sitio con cámara no la ve' : 'sitios con cámara no la ven'}`
         : cameraBacksIt ? `${risk.confidence}% confianza` : 'sin confirmar',
     ].filter(Boolean).join(' · '),
     urgent: risk.level === 'critico',
