@@ -93,6 +93,18 @@ const THERMAL_MIN_BASE_KT = 5;
  *  veto (at 100 it removes 0 of the 256 boosted rows of 13-27 Sep; at 150, 11). */
 const MIN_SOLAR_FOR_THERMAL_BREEZE = 150;
 
+/** W/m² of interior sun at which the thermal boost is whole. Between the off value and this one
+ *  the boost grows in a straight line: the thermal low weakens with the sun, it does not switch
+ *  off. 12-oct: whole boost up to 18:59 with the interior peak falling 384 -> 144 W/m², then off
+ *  in one cycle (13-14 -> 5 kt) while the water went 13-14 at 17:44 to 6-8 at 19:12; and since
+ *  the sun sat near 150, the map and the server crossed the line at different cycles. */
+const FULL_SOLAR_FOR_THERMAL_BREEZE = 400;
+
+/** Interior solar readings older than this do not count (AEMET arrives ~90 min late and the map
+ *  keeps a station's last reading): an old afternoon value kept the map at the whole boost while
+ *  the server, with fresh readings, had already measured dusk. */
+export const INTERIOR_SOLAR_MAX_AGE_MS = 45 * 60_000;
+
 /** Inland of the ría, where the thermal low forms. East of Cesantes and up the
  *  Miño valley — deliberately NOT the spot's own neighbourhood. */
 const INTERIOR_ZONE = { lonMin: -8.60, lonMax: -7.80, latMin: 42.10, latMax: 42.60 };
@@ -201,7 +213,10 @@ export function predictCesantesCanalization(
   // breeze arriving at a sheltered station before its mean moves: 8kt gust = half the boost,
   // 10kt or more = all of it. Unknown gust: three quarters, never the full amount on no evidence.
   const established = localGustKt == null ? 0.75 : Math.min(1, Math.max(0.4, (localGustKt - 6) / 4));
-  const thermalBoostKt = Math.min(8, deltaT * 2) * established;
+  // And by the interior sun: whole from FULL_SOLAR_FOR_THERMAL_BREEZE, none at the off value (unknown = whole).
+  const sunShare = solarRadInterior == null ? 1 : Math.min(1, Math.max(0,
+    (solarRadInterior - MIN_SOLAR_FOR_THERMAL_BREEZE) / (FULL_SOLAR_FOR_THERMAL_BREEZE - MIN_SOLAR_FOR_THERMAL_BREEZE)));
+  const thermalBoostKt = Math.min(8, deltaT * 2) * established * sunShare;
   // Sanity cap: pure thermal breeze capped at 17kt max so it NEVER over-boosts on normal days
   const predictedKt = Math.min(17, Math.round(baseKt + thermalBoostKt));
   // 8, not 10: a graded boost reports the early breeze (8kt) instead of hiding it as calm.
@@ -240,6 +255,7 @@ export function predictCesantesCanalization(
 export function computeInteriorSolar(
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
+  nowMs: number = Date.now(),
 ): number | null {
   let peak: number | null = null;
   for (const st of stations) {
@@ -247,6 +263,8 @@ export function computeInteriorSolar(
     if (st.lat < INTERIOR_ZONE.latMin || st.lat > INTERIOR_ZONE.latMax) continue;
     const r = readings.get(st.id);
     if (r?.solarRadiation == null) continue;
+    const at = r.timestamp instanceof Date ? r.timestamp.getTime() : new Date(r.timestamp as unknown as string).getTime();
+    if (!Number.isFinite(at) || nowMs - at > INTERIOR_SOLAR_MAX_AGE_MS) continue;
     if (peak === null || r.solarRadiation > peak) peak = r.solarRadiation;
   }
   return peak;

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { predictCesantesCanalization } from './cesantesCanalizationDetector';
+import { predictCesantesCanalization, computeInteriorSolar } from './cesantesCanalizationDetector';
 import type { RainVeto } from './rainVeto';
 
 // ── Thermal breeze (Apr-Oct, 12-20h, ΔT≥2°C, air≥16°C) ──
@@ -308,10 +308,29 @@ describe('predictCesantesCanalization — needs the interior sun', () => {
     expect(r.predictedKt).toBe(13);
   });
 
-  it('switches at the threshold: 150 W/m² keeps it, 149 does not', () => {
-    at(19, 20);
-    expect(predictCesantesCanalization(23, 16.2, 5.0, 246, 150, 13).active).toBe(true);
-    expect(predictCesantesCanalization(23, 16.2, 5.0, 246, 149, 13).active).toBe(false);
+  // 12-oct dusk (user, tmkites): 13-14 kt at 17:44 with the interior peak at 384 W/m², «8-10 yes,
+  // 13 no» at ~18:40-19:00 (202-259 W/m²), 6-8 at 19:12 (144). The old rule gave the whole boost
+  // down to 150 and nothing below: 13-14 until 18:59, then 5 in one cycle.
+  it('12-oct dusk: the boost fades with the interior sun instead of switching off', () => {
+    at(18, 40);
+    const kt = (sun: number) => {
+      const r = predictCesantesCanalization(19, 15.4, 6.0, 237, sun, 10);
+      return r.active && r.predictedKt != null ? r.predictedKt : 6.0;
+    };
+    expect(kt(384)).toBeGreaterThanOrEqual(12);
+    expect(kt(259)).toBeGreaterThanOrEqual(8);
+    expect(kt(259)).toBeLessThanOrEqual(10);
+    expect(predictCesantesCanalization(19, 15.4, 6.0, 237, 144, 10).active).toBe(false);
+    // No step: every 25 W/m² of sun moves the wind by 3 kt at most, from 400 down to 125.
+    for (let sun = 400; sun > 125; sun -= 25) expect(Math.abs(kt(sun) - kt(sun - 25))).toBeLessThanOrEqual(3);
+  });
+
+  it('interior sun older than 45 min does not count (the map kept an afternoon value at dusk)', () => {
+    const now = new Date(2026, 9, 12, 19, 10).getTime();
+    const st = [{ id: 'mg_in', lat: 42.3, lon: -8.2 }] as never;
+    const reading = (minAgo: number, sun: number) => new Map([['mg_in', { stationId: 'mg_in', timestamp: new Date(now - minAgo * 60_000), solarRadiation: sun }]]) as never;
+    expect(computeInteriorSolar(st, reading(20, 200), now)).toBe(200);
+    expect(computeInteriorSolar(st, reading(90, 384), now)).toBeNull();
   });
 
   it('unknown interior sun does not veto: a silent radiometer must not kill the 15h breeze', () => {
