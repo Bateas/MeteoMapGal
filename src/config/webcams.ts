@@ -39,6 +39,13 @@ export interface WebcamStation {
    * readings. Unset = the camera is its own site.
    */
   site?: string;
+  /**
+   * Ground altitude of the camera (m), only where a MeteoGalicia station stands beside it (within
+   * ~10 m) and gives it. Unset = not known. A camera high up can sit inside a low cloud deck while the
+   * water below is clear (Castrove, 515 m, on 11-oct), so above SEA_FOG_CAMERA_MAX_ALT_M it does not
+   * count as sea fog evidence.
+   */
+  altitudeM?: number;
 }
 
 const MG_IMG_BASE = 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia';
@@ -87,6 +94,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-cangas',
     name: 'Cangas',
+    altitudeM: 3, // mg_10906 Cangas-Porto, beside it
     source: 'meteogalicia',
     lat: 42.2604, lon: -8.7826,
     azimuth: 120, // SE — Ria de Vigo, bruma, visibilidad
@@ -135,6 +143,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-castrove',
     name: 'Castrove (alto)',
+    altitudeM: 515, // mg_10067 Castrove, beside it
     source: 'meteogalicia',
     lat: 42.4584, lon: -8.7221,
     azimuth: 270, // Oeste — panoramica ria Pontevedra
@@ -146,6 +155,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-salvora',
     name: 'Salvora',
+    altitudeM: 21, // mg_10134 Sálvora-Pazo, beside it
     source: 'meteogalicia',
     lat: 42.4714, lon: -9.0059,
     azimuth: 180, // Sur — boca ria Arousa, bruma
@@ -158,6 +168,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-coron',
     name: 'Coron',
+    altitudeM: 3, // mg_10085 Corón, beside it
     source: 'meteogalicia',
     lat: 42.5801, lon: -8.8047,
     azimuth: 270, // Oeste — Arousa interior
@@ -170,6 +181,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-corrubedo',
     name: 'Corrubedo',
+    altitudeM: 30, // mg_10049 Corrubedo, beside it
     source: 'meteogalicia',
     lat: 42.5552, lon: -9.0286,
     azimuth: 270, // Oeste — Atlantico abierto
@@ -181,6 +193,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
   {
     id: 'mg-baiona',
     name: 'Baiona',
+    altitudeM: 3, // mg_10169 Baiona, beside it
     source: 'meteogalicia',
     lat: 42.1155, lon: -8.8372,
     azimuth: 270, // Oeste — Atlantico
@@ -312,6 +325,17 @@ export const EMBALSE_WEBCAMS: WebcamStation[] = [
 export const ALL_WEBCAMS: WebcamStation[] = [...RIAS_WEBCAMS, ...NORTH_WEBCAMS, ...EMBALSE_WEBCAMS];
 
 const SITE_BY_ID = new Map(ALL_WEBCAMS.map((w) => [w.id, w.site ?? w.id]));
+
+/** Above this a camera can be inside a low cloud deck with the water clear below it. */
+export const SEA_FOG_CAMERA_MAX_ALT_M = 150;
+
+const ALT_BY_ID = new Map(ALL_WEBCAMS.map((w) => [w.id, w.altitudeM]));
+
+/** Whether a camera's verdict speaks for fog on the water: not when it is known to stand high up. */
+export function isSeaFogCamera(id: string): boolean {
+  const alt = ALT_BY_ID.get(id);
+  return alt == null || alt <= SEA_FOG_CAMERA_MAX_ALT_M;
+}
 
 /** The site a camera belongs to (see `WebcamStation.site`); an unknown id is its own site. */
 export function webcamSite(id: string): string {

@@ -48,7 +48,7 @@ import {
   SECTOR_VISIBILITY_RADIUS_FACTOR,
 } from '../services/visibilityFreshness';
 import { processAlertNotifications } from '../services/notificationService';
-import { RIAS_WEBCAMS, webcamSite } from '../config/webcams';
+import { RIAS_WEBCAMS, webcamSite, isSeaFogCamera } from '../config/webcams';
 import { summarizeFogBySite, type CameraFogRead } from '../services/webcamFogSites';
 
 interface PipelineParams {
@@ -213,6 +213,8 @@ export function useUnifiedAlertPipeline({
         for (const [id, result] of visionResults) {
           const ageOk = (now - result.analyzedAt.getTime()) < 30 * 60_000;
           if (!ageOk || result.beaufort < 0) continue;
+          // A camera high up (Castrove, 515 m) can be inside the low cloud with the water clear below.
+          if (!isSeaFogCamera(id)) continue;
           const directFog = result.weather.fogVisible;
           const lowConfNonClear = result.confidence === 'low'
             && result.weather.sky !== 'clear'

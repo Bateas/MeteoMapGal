@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { summarizeFogBySite } from './webcamFogSites';
-import { webcamSite } from '../config/webcams';
+import { webcamSite, isSeaFogCamera } from '../config/webcams';
 
 describe('summarizeFogBySite', () => {
   it('counts two cameras on the same mast that both see fog as ONE site', () => {
@@ -64,5 +64,16 @@ describe('webcamSite', () => {
     expect(webcamSite('mg-ons-praia')).toBe(webcamSite('mg-ons-porto'));
     expect(webcamSite('mg-ciesrodas')).toBe('mg-ciesrodas');
     expect(webcamSite('desconocida')).toBe('desconocida');
+  });
+});
+
+describe('isSeaFogCamera', () => {
+  it('a camera known to stand high up does not speak for fog on the water (Castrove, 515 m, 11-oct)', () => {
+    expect(isSeaFogCamera('mg-castrove')).toBe(false);
+  });
+  it('cameras at sea level, and those whose altitude is not known, do', () => {
+    expect(isSeaFogCamera('mg-cangas')).toBe(true);
+    expect(isSeaFogCamera('mg-ciesfaro-norte')).toBe(true);
+    expect(isSeaFogCamera('desconocida')).toBe(true);
   });
 });
