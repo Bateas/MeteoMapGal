@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeFogBySite, camerasForSector } from './webcamFogSites';
+import { summarizeFogBySite, camerasForSector, sunInView } from './webcamFogSites';
 import { webcamSite, isSeaFogCamera, ALL_WEBCAMS } from '../config/webcams';
 import { SECTORS } from '../config/sectors';
 
@@ -98,5 +98,18 @@ describe('camerasForSector', () => {
     expect(r).not.toContain('mg-corunha');
     expect(r).not.toContain('mg-langosteira');
     expect(r).not.toContain('dgt-ribadavia');
+  });
+});
+
+describe('sunInView — a camera with the low sun in front cannot judge fog', () => {
+  const onsPorto = { lat: 42.3769, lon: -8.9321, azimuth: 270 }; // looks west
+  const at = (iso: string) => new Date(iso).getTime();
+  it('Ons Porto at sunset looks into the sun; on an August morning it has it behind', () => {
+    expect(sunInView(onsPorto, at('2026-09-27T16:50:00Z'))).toBe(true); // 18:50 in Madrid, sun low in the W
+    expect(sunInView(onsPorto, at('2026-08-11T07:30:00Z'))).toBe(false); // 09:30, sun in the E
+  });
+  it('the sun high up is out of the frame, and at night there is none', () => {
+    expect(sunInView({ ...onsPorto, azimuth: 180 }, at('2026-08-11T12:30:00Z'))).toBe(false); // midday, ~65 degrees
+    expect(sunInView(onsPorto, at('2026-08-11T23:00:00Z'))).toBe(false);
   });
 });

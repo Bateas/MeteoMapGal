@@ -40,6 +40,27 @@ export function clearSkyGhi(elevDeg: number): number {
   return c <= 0 ? 0 : 1098 * c * Math.exp(-0.057 / c);
 }
 
+/** Azimuth of the sun (degrees from north, clockwise) at an instant and place, with the same NOAA
+ *  formulas as solarElevationDeg. */
+export function solarAzimuthDeg(ms: number, lat: number, lon: number): number {
+  const d = new Date(ms);
+  const startOfYear = Date.UTC(d.getUTCFullYear(), 0, 1);
+  const dayOfYear = Math.floor((ms - startOfYear) / 86_400_000) + 1;
+  const hour = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+  const g = ((2 * Math.PI) / 365) * (dayOfYear - 1 + (hour - 12) / 24);
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g)
+    + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const eqTimeMin = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g)
+    - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const hourAngle = ((hour * 60 + eqTimeMin + 4 * lon) / 4 - 180) * DEG;
+  const la = lat * DEG;
+  const cosZenith = Math.sin(la) * Math.sin(decl) + Math.cos(la) * Math.cos(decl) * Math.cos(hourAngle);
+  const zenith = Math.acos(Math.max(-1, Math.min(1, cosZenith)));
+  const cosAz = (Math.sin(la) * Math.cos(zenith) - Math.sin(decl)) / (Math.cos(la) * Math.sin(zenith));
+  const az = Math.acos(Math.max(-1, Math.min(1, cosAz))) / DEG;
+  return hourAngle > 0 ? (az + 180) % 360 : (540 - az) % 360;
+}
+
 export function solarElevationDeg(ms: number, lat: number, lon: number): number {
   const d = new Date(ms);
   const startOfYear = Date.UTC(d.getUTCFullYear(), 0, 1);

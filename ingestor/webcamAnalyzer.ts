@@ -37,7 +37,7 @@ async function nearbyWeather(lat: number, lon: number): Promise<NearbyWeather[]>
 }
 import { dispatchVisibilityAlert } from './alertDispatcher.js';
 import { RIAS_WEBCAMS, webcamSite, isSeaFogCamera, type WebcamStation } from '../src/config/webcams.js';
-import { summarizeFogBySite } from '../src/services/webcamFogSites.js';
+import { summarizeFogBySite, sunInView } from '../src/services/webcamFogSites.js';
 
 // ── Configuration ────────────────────────────────────
 
@@ -502,7 +502,11 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
   // (webcamFogSites.ts): one message per site, and none when a fresh camera of the site sees clear.
   const freshCutoff = Date.now() - SITE_FRESH_MS;
   const fresh = [...webcamStates.entries()]
-    .filter(([id, st]) => isSeaFogCamera(id) && st.lastResult && st.lastResult.analyzedAt.getTime() >= freshCutoff)
+    .filter(([id, st]) => {
+      const cam = RIAS_WEBCAMS.find((w) => w.id === id);
+      return isSeaFogCamera(id) && !!st.lastResult && st.lastResult.analyzedAt.getTime() >= freshCutoff
+        && !(cam && sunInView(cam, st.lastResult.analyzedAt.getTime()));
+    })
     .map(([id, st]) => ({ id, fog: st.lastResult!.fog }));
   const siteState = summarizeFogBySite(fresh, webcamSite).sites;
   const sentSites = new Set<string>();
@@ -513,7 +517,11 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
       const site = webcamSite(r.webcamId);
       if (sentSites.has(site)) continue;
       if (!isSeaFogCamera(r.webcamId)) {
-        log.info(`[Webcam] ${camName}: niebla de la camara no enviada — camara de monte, puede estar dentro de la nube baja`);
+        log.info(`[Webcam] ${camName}: niebla de la camara no enviada — no cuenta para la niebla en el mar (monte o cristal)`);
+        continue;
+      }
+      if (cam && sunInView(cam, r.analyzedAt.getTime())) {
+        log.info(`[Webcam] ${camName}: niebla de la camara no enviada — el sol bajo de frente la deslumbra`);
         continue;
       }
       if (siteState.get(site) === 'mixed') {
