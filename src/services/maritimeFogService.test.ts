@@ -322,11 +322,21 @@ describe('buildMaritimeFogAlerts — cameras against the physics (30-sep, Ons Pr
     buildMaritimeFogAlerts([ribeira()], new Map(), [], fog, fogCount, fog ? ['mg-ons-praia'] : [],
       undefined, undefined, 0, clear);
 
-  it('without cameras the physics alone stays at «probable», never PELIGRO', () => {
+  it('without cameras the physics alone is a risk, not a probable fog (44 of 73 nights read «alto»)', () => {
     const a = physics(build(undefined, 0));
-    expect(a?.title).toBe('Niebla marítima probable');
-    expect(a?.severity).not.toBe('critical');
+    expect(a?.title).toBe('Riesgo de niebla marítima');
+    expect(a?.severity).toBe('info');
     expect(a?.urgent).toBe(false);
+    expect(a?.detail).toMatch(/sin confirmar/);
+    expect(a?.detail).not.toMatch(/confianza/);
+    expect(a?.confidence).toBeUndefined();
+  });
+
+  it('cameras that were not looking (night, gate closed) say nothing either way: same as no cameras', () => {
+    const stale = physics(build(false, 0, 0));
+    const none = physics(build(undefined, 0));
+    expect(stale?.title).toBe(none?.title);
+    expect(stale?.detail).toBe(none?.detail);
   });
 
   it('ONE camera seeing fog while eleven see none does not raise it to PELIGRO: it comes down', () => {
@@ -355,7 +365,7 @@ describe('buildMaritimeFogAlerts — cameras against the physics (30-sep, Ons Pr
     expect(physics(buildMaritimeFogAlerts([ribeira()], twoWet, [], undefined, 0, [], undefined, undefined, 0))).toBeUndefined();
     // drizzle in fog, one dripping gauge, or a day counter: no veto
     const drizzle = new Map([wet('mg_1', 0.2), wet('mg_2', 0.3)]);
-    expect(physics(buildMaritimeFogAlerts([ribeira()], drizzle, [], undefined, 0, [], undefined, undefined, 0))?.title).toBe('Niebla marítima probable');
+    expect(physics(buildMaritimeFogAlerts([ribeira()], drizzle, [], undefined, 0, [], undefined, undefined, 0))?.title).toBe('Riesgo de niebla marítima');
     expect(activeRainVeto(new Map([wet('mg_1', 3)]))).toBe(false);
     expect(activeRainVeto(new Map([wet('wu_A', 12), wet('wu_B', 12)]))).toBe(false);
     const metar = new Map([['metar_LEVX', { precipitating: true as const, timestamp: new Date() }]]);

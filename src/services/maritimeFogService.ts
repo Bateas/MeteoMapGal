@@ -752,15 +752,21 @@ export function buildMaritimeFogAlerts(
   // 11 % of its images, 57 of 129 times with every other camera clear, mostly at sunrise and
   // sunset. Cameras that looked and saw no fog bring the alert down; a lone camera that sees fog
   // neither raises it nor outweighs them.
+  //
+  // And the physics alone is a RISK, not a probable fog: warm air over cold water with humid air holds
+  // on most autumn nights (replayed over 73 days, «alto» on 44 nights). It reads «probable» only when a
+  // camera sees fog and no fresh camera contradicts it. Cameras that were not looking (at night, or
+  // with their gate closed) say nothing either way; until 12-oct they counted as «saw no fog», which
+  // by accident is what kept the nights at «riesgo».
   const clearCams = webcamClearCount ?? 0;
-  const camerasContradict = webcamFogDetected === false || (webcamFogDetected === true && clearCams > 0);
-  if (camerasContradict && risk.level === 'alto') {
+  const cameraBacksIt = webcamFogDetected === true && clearCams === 0;
+  if (risk.level === 'alto' && !cameraBacksIt) {
     risk.level = 'riesgo' as AlertLevel;
-    risk.hypothesis += ' · Webcam no detecta niebla — rebajado';
+    risk.hypothesis += clearCams > 0 ? ' · Webcam no detecta niebla — rebajado' : ' · sin cámara que la vea — rebajado';
   }
-  // Once cameras that looked saw no fog, the physics score is no longer a probability of fog:
-  // the detail says what the cameras saw instead of printing it.
-  const camerasSawNone = camerasContradict && clearCams > 0;
+  // Unless a camera backs it, the physics score is not a probability of fog: the detail says what the
+  // cameras saw, or that nothing confirms it, instead of printing it.
+  const camerasSawNone = clearCams > 0;
 
   const levelToScore: Record<AlertLevel, number> = {
     none: 0, riesgo: 35, alto: 60, critico: 85,
@@ -788,11 +794,11 @@ export function buildMaritimeFogAlerts(
       risk.isOnshore ? 'viento onshore' : risk.windDir !== null ? 'viento offshore' : '',
       camerasSawNone
         ? `${clearCams} ${clearCams === 1 ? 'cámara no la ve' : 'cámaras no la ven'}`
-        : `${risk.confidence}% confianza`,
+        : cameraBacksIt ? `${risk.confidence}% confianza` : 'sin confirmar',
     ].filter(Boolean).join(' · '),
     urgent: risk.level === 'critico',
     updatedAt: new Date(),
-    confidence: camerasSawNone ? undefined : risk.confidence,
+    confidence: cameraBacksIt ? risk.confidence : undefined,
     fogMeta: {
       type: 'advective',
       windDir: risk.windDir ?? null,
