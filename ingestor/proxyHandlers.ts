@@ -1,5 +1,6 @@
 import type http from 'node:http';
 import { log } from './logger.js';
+import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import { pruneCache } from './requestGuards.js';
 import { corsHeaders, error } from './httpHelpers.js';
 import { singleFlight } from './singleFlight.js';
@@ -334,7 +335,7 @@ export async function handleMeteoSixProxy(
     const { value, joined } = await singleFlight(`meteosix:${cacheKey}`, async () => {
       const sep = query ? '&' : '';
       const url = `${METEOSIX_BASE}${msPath}?${query}${sep}API_KEY=${METEOSIX_API_KEY}`;
-      const upstream = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
+      const upstream = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': SERVER_USER_AGENT }, signal: AbortSignal.timeout(15_000) });
       const contentType = upstream.headers.get('content-type') || 'application/json';
       const buf = Buffer.from(await upstream.arrayBuffer());
 
@@ -398,7 +399,7 @@ export async function handleObsCosteiroProxy(
     const { value, joined } = await singleFlight(`obscosteiro:${obsPath}`, async () => {
       const url = `${OBSCOSTEIRO_BASE}${obsPath}`;
       const upstream = await fetch(url, {
-        headers: { apikey: OBSCOSTEIRO_API_KEY, Accept: 'application/json' },
+        headers: { apikey: OBSCOSTEIRO_API_KEY, Accept: 'application/json', 'User-Agent': SERVER_USER_AGENT },
         signal: AbortSignal.timeout(15_000),
       });
       const contentType = upstream.headers.get('content-type') || 'application/json';

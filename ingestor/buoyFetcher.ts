@@ -13,6 +13,7 @@
 
 import type { BuoyReadingRow } from './db.js';
 import { log } from './logger.js';
+import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import { allSettledLimit } from './concurrency.js';
 import { readObsCurrent, type ObsResponse } from '../src/api/obsCosteiroParse.js';
 import { portusFechaToIso } from '../src/api/portusTime.js';
@@ -172,7 +173,7 @@ async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow 
     // some upstreams (incl. PORTUS) treat as "bot" and rate-limit harder.
     const headers = {
       'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (compatible; MeteoMapGal/1.0; +https://meteomapgal.navia3d.com)',
+      'User-Agent': SERVER_USER_AGENT,
     };
     const res = await fetch(`${PORTUS_BASE}/lastData/station/${station.id}?locale=es`, {
       method: 'POST',
@@ -463,7 +464,7 @@ async function fetchPdeViaPoem(
 async function fetchObsStation(station: ObsStation, apiKey: string): Promise<BuoyReadingRow | null> {
   try {
     const res = await fetch(`${OBS_BASE}/ultimo/recente/${station.obsId}`, {
-      headers: { 'apikey': apiKey },
+      headers: { 'apikey': apiKey, 'User-Agent': SERVER_USER_AGENT },
       signal: AbortSignal.timeout(TIMEOUT),
     });
 
@@ -471,7 +472,7 @@ async function fetchObsStation(station: ObsStation, apiKey: string): Promise<Buo
       if (res.status >= 500) {
         await new Promise((r) => setTimeout(r, 3000));
         const retry = await fetch(`${OBS_BASE}/ultimo/recente/${station.obsId}`, {
-          headers: { 'apikey': apiKey },
+          headers: { 'apikey': apiKey, 'User-Agent': SERVER_USER_AGENT },
           signal: AbortSignal.timeout(TIMEOUT),
         });
         if (!retry.ok) return null;

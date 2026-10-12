@@ -18,6 +18,7 @@
  * PM10, PM25, SO2, CO, BEN.
  */
 import { parseMadridWallTime } from '../services/localTime';
+import { SERVER_USER_AGENT } from '../config/serverIdentity';
 
 const PATH = '/mgrss/caire/jsonICAActual.action';
 /** The service, as the server that stores the readings asks for it. */
@@ -95,7 +96,9 @@ export function parseIcaActual(body: unknown): IcaReading[] {
 /** Fetch the latest ICA observation for every reporting station. */
 export async function fetchIcaObservations(): Promise<IcaReading[]> {
   try {
-    const res = await fetch(ENDPOINT, { signal: AbortSignal.timeout(10_000) });
+    // From the server, say who we are (serverIdentity.ts); a browser does not let a page set it.
+    const headers = typeof window === 'undefined' ? { 'User-Agent': SERVER_USER_AGENT } : undefined;
+    const res = await fetch(ENDPOINT, { headers, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return [];
     return parseIcaActual(await res.json());
   } catch (err) {

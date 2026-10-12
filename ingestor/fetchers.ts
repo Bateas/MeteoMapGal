@@ -7,6 +7,7 @@ import type { NormalizedStation, NormalizedReading } from '../src/types/station.
 import type { AemetApiResponse, AemetRawObservation } from '../src/types/aemet.js';
 import type { MeteoGaliciaObsEntry } from '../src/types/meteogalicia.js';
 import { latestObservationUrls, indexLatestById } from '../src/api/mgLatestBatch.js';
+import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import type { MeteoclimaticRawStation } from '../src/types/meteoclimatic.js';
 import { METEOCLIMATIC_STATIONS } from '../src/types/meteoclimatic.js';
 import {
@@ -127,7 +128,7 @@ async function fetchAemet(
 async function fetchWithRetry(url: string, label: string, retries = 2, delayMs = 2000): Promise<Response> {
   let last: Response | null = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
-    last = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT) });
+    last = await fetch(url, { headers: { 'User-Agent': SERVER_USER_AGENT }, signal: AbortSignal.timeout(TIMEOUT) });
     if (last.ok) return last;
     if (attempt < retries) await new Promise((r) => setTimeout(r, delayMs));
   }

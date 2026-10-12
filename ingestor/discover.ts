@@ -15,6 +15,7 @@ import { normalizeAemetStation,
   normalizeIpmaStation } from '../src/services/normalizer.js';
 import { isWithinRadius } from '../src/services/geoUtils.js';
 import { log } from './logger.js';
+import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import * as aemetBreaker from './aemetBreaker.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
@@ -221,7 +222,7 @@ async function discoverMeteoGalicia(): Promise<NormalizedStation[]> {
   try {
     const res = await fetch(
       `${MG_BASE}/mgrss/observacion/listaEstacionsMeteo.action`,
-      { signal: AbortSignal.timeout(TIMEOUT) }
+      { headers: { 'User-Agent': SERVER_USER_AGENT }, signal: AbortSignal.timeout(TIMEOUT) }
     );
     const data = await res.json();
     const rawStations: MeteoGaliciaStation[] = data.listaEstacionsMeteo ?? [];

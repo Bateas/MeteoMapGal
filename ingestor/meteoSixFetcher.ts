@@ -10,6 +10,7 @@
  */
 
 import { log } from './logger.js';
+import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import type { HourlyForecast } from '../src/types/forecast.js';
 import { isDaylight } from '../src/services/solarUtils.js';
 
@@ -142,7 +143,7 @@ export async function fetchWrfForecast(lat: number, lon: number): Promise<Hourly
   }
 
   const url = buildUrl(lon, lat);
-  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  const res = await fetch(url, { headers: { 'User-Agent': SERVER_USER_AGENT }, signal: AbortSignal.timeout(30_000) });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -261,7 +262,7 @@ export async function getUswanForecast(spotId: string, lat: number, lon: number)
 
   try {
     const url = buildMarineUrl(lon, lat);
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    const res = await fetch(url, { headers: { 'User-Agent': SERVER_USER_AGENT }, signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`USWAN ${res.status}`);
 
     const data: MeteoSIXResponse = await res.json();

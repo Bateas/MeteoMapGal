@@ -32,11 +32,12 @@ import {
   reportFailure as reportLightningFailure,
   reportSuccess as reportLightningSuccess,
 } from './lightningBreaker.js';
+import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 
 const JSON_RAIOS_URL = 'https://servizos.meteogalicia.gal/mgrss/observacion/jsonRaios.action';
 /** A storm day is ~730 KB (6-oct: 9,467 strikes), answered in under a second. */
 const FETCH_TIMEOUT_MS = 30_000;
-const USER_AGENT = 'Mozilla/5.0 (compatible; MeteoMapGal/1.0; +https://meteomapgal.navia3d.com)';
+const USER_AGENT = SERVER_USER_AGENT;
 /** Also ask for yesterday this long after 00:00 UTC (covers the ~5 min publishing delay with margin). */
 const DAY_EDGE_MS = 30 * 60_000;
 /** Rows per INSERT: 7 parameters each, and PostgreSQL takes at most 65,535 per statement. */

@@ -10,6 +10,7 @@
 
 import { createHash } from 'crypto';
 import { log } from './logger.js';
+import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import { batchUpsertWebcamReadings, getPool } from './db.js';
 import { fogCorroborated, fogWorthALook, nearbyFromRows, type NearbyRow, type NearbyWeather } from './fogAlertGate.js';
 
@@ -150,7 +151,7 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(15_000),
-      headers: { 'User-Agent': 'MeteoMapGal-Ingestor/1.0' },
+      headers: { 'User-Agent': SERVER_USER_AGENT },
     });
     if (!response.ok) {
       log.warn(`[Webcam] Image fetch failed: ${url} → ${response.status}`);
