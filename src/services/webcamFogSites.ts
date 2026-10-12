@@ -12,6 +12,29 @@
  * rule to revisit (with the cameras' azimuths), not a threshold to loosen.
  */
 
+import { haversineDistance } from './geoUtils';
+
+/**
+ * The cameras that can speak for a sector: its own (or shared) cameras within `maxKm` of its centre.
+ * The camera feed carries every camera in Galicia; until 12-oct a fog at Cies counted in the Embalse,
+ * one at A Coruna in the Rias, and the Ribadavia road camera (valley fog, 44 km inland) would have too.
+ */
+export function camerasForSector<T extends { id: string; lat: number; lon: number; sector: string }>(
+  cameras: readonly T[],
+  sectorId: string,
+  centerLat: number,
+  centerLon: number,
+  maxKm: number,
+): Map<string, { lat: number; lon: number }> {
+  const out = new Map<string, { lat: number; lon: number }>();
+  for (const w of cameras) {
+    if (w.sector !== sectorId && w.sector !== 'all') continue;
+    if (haversineDistance(centerLat, centerLon, w.lat, w.lon) > maxKm) continue;
+    out.set(w.id, { lat: w.lat, lon: w.lon });
+  }
+  return out;
+}
+
 export interface CameraFogRead {
   id: string;
   /** The camera counts as fog evidence (the caller decides how: the model's flag, the indirect rule). */

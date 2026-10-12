@@ -48,8 +48,8 @@ import {
   SECTOR_VISIBILITY_RADIUS_FACTOR,
 } from '../services/visibilityFreshness';
 import { processAlertNotifications } from '../services/notificationService';
-import { RIAS_WEBCAMS, webcamSite, isSeaFogCamera } from '../config/webcams';
-import { summarizeFogBySite, type CameraFogRead } from '../services/webcamFogSites';
+import { RIAS_WEBCAMS, ALL_WEBCAMS, webcamSite, isSeaFogCamera } from '../config/webcams';
+import { summarizeFogBySite, camerasForSector, type CameraFogRead } from '../services/webcamFogSites';
 
 interface PipelineParams {
   stations: NormalizedStation[];
@@ -196,8 +196,9 @@ export function useUnifiedAlertPipeline({
       if (visionResults.size > 0) {
         const now = Date.now();
         webcamFogDetected = false;
-        const webcamCoords = new Map<string, { lat: number; lon: number }>();
-        for (const w of RIAS_WEBCAMS) webcamCoords.set(w.id, { lat: w.lat, lon: w.lon });
+        // Only the cameras that can speak for THIS sector (webcamFogSites.ts): its own or shared ones,
+        // within the same 1.5x radius as the official visibility.
+        const webcamCoords = camerasForSector(ALL_WEBCAMS, sectorId, secLat, secLon, sectorRadiusKm * SECTOR_VISIBILITY_RADIUS_FACTOR);
 
         // Pre-check: any AEMET station reporting vis<1km right now? If so,
         // it's a regional fog event — webcams in low-confidence partly-cloudy
@@ -205,14 +206,16 @@ export function useUnifiedAlertPipeline({
         // fogVisible (moondream often misclassifies blanket marine fog as
         // 'good visibility partly_cloudy' — confirmed S136+3 Cíes case).
         // Uses the gated subset: only fresh readings from near this sector.
+        // Not when the report puts the low visibility down to rain (as the alert itself does).
         let regionalAemetFog = false;
         for (const v of relevantVisibility.values()) {
-          if (v.visibility < 1) { regionalAemetFog = true; break; }
+          if (v.visibility < 1 && !v.precipitating) { regionalAemetFog = true; break; }
         }
         const reads: CameraFogRead[] = [];
         for (const [id, result] of visionResults) {
           const ageOk = (now - result.analyzedAt.getTime()) < 30 * 60_000;
           if (!ageOk || result.beaufort < 0) continue;
+          if (!webcamCoords.has(id)) continue;
           // A camera high up (Castrove, 515 m) can be inside the low cloud with the water clear below.
           if (!isSeaFogCamera(id)) continue;
           const directFog = result.weather.fogVisible;

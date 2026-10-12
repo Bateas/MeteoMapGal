@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeFogBySite } from './webcamFogSites';
-import { webcamSite, isSeaFogCamera } from '../config/webcams';
+import { summarizeFogBySite, camerasForSector } from './webcamFogSites';
+import { webcamSite, isSeaFogCamera, ALL_WEBCAMS } from '../config/webcams';
+import { SECTORS } from '../config/sectors';
 
 describe('summarizeFogBySite', () => {
   it('counts two cameras on the same mast that both see fog as ONE site', () => {
@@ -75,5 +76,23 @@ describe('isSeaFogCamera', () => {
     expect(isSeaFogCamera('mg-cangas')).toBe(true);
     expect(isSeaFogCamera('mg-ciesfaro-norte')).toBe(true);
     expect(isSeaFogCamera('desconocida')).toBe(true);
+  });
+});
+
+describe('camerasForSector', () => {
+  const ids = (sectorId: string) => {
+    const s = SECTORS.find((x) => x.id === sectorId)!;
+    return [...camerasForSector(ALL_WEBCAMS, sectorId, s.center[1], s.center[0], s.radiusKm * 1.5).keys()];
+  };
+  it('the Embalse counts its road cameras, never a Rias camera', () => {
+    expect(ids('embalse').sort()).toEqual(['dgt-barbantes', 'dgt-ribadavia']);
+  });
+  it('the Rias count their cameras, not the A Coruna ones nor the Ribadavia road camera', () => {
+    const r = ids('rias');
+    expect(r).toContain('mg-ciesfaro-norte');
+    expect(r).toContain('mg-corrubedo');
+    expect(r).not.toContain('mg-corunha');
+    expect(r).not.toContain('mg-langosteira');
+    expect(r).not.toContain('dgt-ribadavia');
   });
 });
