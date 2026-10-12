@@ -60,9 +60,7 @@ let visionDisabledLogged = false;
 
 // ── Per-webcam state (cache + adaptive schedule) ─────
 //
-// Layer 1 (pre-classifier) needs the last result to reuse when the image is
-// trivial (calm water / uniform sky) and Beaufort was already 0-1. Layer 2
-// (schedule, see webcamScheduler.ts) needs whether it saw fog and whether the
+// The schedule (webcamScheduler.ts) needs whether the camera saw fog and whether the
 // stations around it left room for fog last time.
 import { shouldAnalyzeCam } from './webcamScheduler.js';
 import type { WebcamScheduleState } from './webcamScheduler.js';
@@ -71,19 +69,6 @@ interface WebcamState extends WebcamScheduleState {
   lastResult: WebcamAnalysisResult | null;
 }
 const webcamStates = new Map<string, WebcamState>();
-
-// ── Pre-classifier thresholds (Layer 1) ──────────────
-// Computed on a 64x64 grayscale downsample. variance < 200 ≈ smooth surface
-// (calm water OR overcast sky); edgeRate < 0.05 ≈ very few sharp transitions
-// (almost no waves/whitecaps/spray). Both true AND last beaufort ≤ 1 → safe
-// to skip the LLM and reuse last verdict, dropping confidence to 'low'.
-// Calibrated empirically with 50 cycles of real Galician coastal cams.
-// Distribution observed: variance 1485-6285 (median ~3200), edgeRate 0.022-0.258
-// (median ~0.110). Initial values 200 / 0.05 produced 0 hits. Current thresholds
-// expect ~16-18% hit rate when prev Beaufort ≤ 1. Each hit saves ~30-45s of
-// moondream CPU.
-const PRECLASSIFIER_VARIANCE_THRESHOLD = 3000;
-const PRECLASSIFIER_EDGE_RATE_THRESHOLD = 0.08;
 
 // ── Beaufort prompt (adapted from webcamVisionService.ts) ────
 
@@ -126,18 +111,17 @@ export interface WebcamAnalysisResult {
  * call the LLM, reuse the cached verdict, or give up.
  */
 type FetchOutcome =
-  | { kind: 'fresh'; base64: string; isTrivial: boolean }
+  | { kind: 'fresh'; base64: string }
   | { kind: 'frozen' }   // image unchanged for >STALE_IMAGE_MAX_AGE_MS
   | { kind: 'failed' };  // network/decode failure
 
 // `sharp` is loaded lazily so a missing native binary degrades to "send the
-// full-size image, skip the pre-classifier" instead of killing the cycle.
+// full-size image" instead of killing the cycle.
 // It IS declared in package.json, but `.npmrc` sets ignore-scripts=true, so
 // the binary only lands via the explicit `npm rebuild sharp` step — a deploy
 // that skips it breaks the import permanently. That used to be swallowed by an
-// empty catch, which is expensive to miss: without sharp, Layer 1 never skips
-// anything and every image reaches the model at full resolution (2-3x more
-// vision calls, plus timeouts). Log the first failure so the degraded mode is
+// empty catch, which is expensive to miss: without sharp every image reaches the
+// model at full resolution (slower calls, plus timeouts). Log the first failure so the degraded mode is
 // attributable; the flag keeps it to one line per process instead of per image.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SharpModule = any;
@@ -153,8 +137,8 @@ async function loadSharp(): Promise<SharpModule | null> {
   } catch (err) {
     sharpLoadFailed = true;
     log.error(
-      `[Webcam] sharp unavailable — pre-classifier DISABLED and images sent at full resolution ` +
-        `(expect more vision calls and timeouts). Run: npm rebuild sharp --foreground-scripts --ignore-scripts=false. ` +
+      `[Webcam] sharp unavailable — images sent at full resolution ` +
+        `(expect slower vision calls and timeouts). Run: npm rebuild sharp --foreground-scripts --ignore-scripts=false. ` +
         `Cause: ${(err as Error).message}`,
     );
     return null;
@@ -197,93 +181,28 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
     }
 
     // Resize + pre-classifier. Both depend on sharp; if it is missing we fall
-    // back to raw buffer + isTrivial=false so behavior matches the original path.
+    // back to the raw buffer so behavior matches the original path.
     const sharp = await loadSharp();
     if (!sharp) {
-      return { kind: 'fresh', base64: buffer.toString('base64'), isTrivial: false };
+      return { kind: 'fresh', base64: buffer.toString('base64') };
     }
     try {
       const resized = await sharp(buffer)
         .resize(IMAGE_MAX_SIZE, IMAGE_MAX_SIZE, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
-      const isTrivial = await isImageTrivial(buffer, sharp, webcamName);
-      return { kind: 'fresh', base64: resized.toString('base64'), isTrivial };
+      return { kind: 'fresh', base64: resized.toString('base64') };
     } catch (err) {
       // Per-image decode failure (corrupt JPEG, unexpected format) — unlike a
       // failed import this is not permanent, so it stays a per-image warning.
       log.warn(
         `[Webcam] ${webcamName ?? '?'}: sharp could not process the image, sending it unresized — ${(err as Error).message}`,
       );
-      return { kind: 'fresh', base64: buffer.toString('base64'), isTrivial: false };
+      return { kind: 'fresh', base64: buffer.toString('base64') };
     }
   } catch (err) {
     log.warn(`[Webcam] Image fetch error: ${url} — ${(err as Error).message}`);
     return { kind: 'failed' };
-  }
-}
-
-/**
- * Pre-classifier (Layer 1). Computes luma variance + Sobel-ish edge rate on a
- * 64×64 grayscale downsample (~4096 pixels — 1-2ms). "Trivial" = low texture
- * AND few sharp transitions: typically calm water or fully-overcast sky.
- *
- * Returns true only when BOTH metrics agree. Single false negative is cheap
- * (we still call the LLM); single false positive (skip + reuse) is what we
- * want to minimize, so thresholds are conservative.
- */
-async function isImageTrivial(
-  buffer: Buffer,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sharp: any,
-  webcamName?: string,
-): Promise<boolean> {
-  try {
-    const { data, info } = await sharp(buffer)
-      .resize(64, 64, { fit: 'fill' })
-      .grayscale()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    // Variance of luma
-    let sum = 0;
-    for (let i = 0; i < data.length; i++) sum += data[i];
-    const mean = sum / data.length;
-    let varSum = 0;
-    for (let i = 0; i < data.length; i++) {
-      const d = data[i] - mean;
-      varSum += d * d;
-    }
-    const variance = varSum / data.length;
-
-    // Edge rate — count adjacent pixels with |Δluma| > 20 (Sobel-ish)
-    let edges = 0;
-    const w = info.width;
-    for (let y = 0; y < info.height - 1; y++) {
-      for (let x = 0; x < w - 1; x++) {
-        const i = y * w + x;
-        const dx = Math.abs(data[i] - data[i + 1]);
-        const dy = Math.abs(data[i] - data[i + w]);
-        if (dx > 20 || dy > 20) edges++;
-      }
-    }
-    const edgeRate = edges / data.length;
-
-    const trivial =
-      variance < PRECLASSIFIER_VARIANCE_THRESHOLD &&
-      edgeRate < PRECLASSIFIER_EDGE_RATE_THRESHOLD;
-
-    // Always log the metrics so thresholds can be calibrated against real
-    // imagery. Cost is ~1 line per cam per cycle; cheap.
-    log.info(
-      `[Webcam] ${webcamName ?? '?'} stats: variance=${variance.toFixed(0)} ` +
-      `edgeRate=${edgeRate.toFixed(3)} → ${trivial ? 'TRIVIAL' : 'non-trivial'}`,
-    );
-
-    return trivial;
-  } catch {
-    // Pre-classifier never blocks the pipeline — on error, behave as if not trivial
-    return false;
   }
 }
 
@@ -419,54 +338,22 @@ function parseVisionResponse(raw: string): Partial<WebcamAnalysisResult> {
 
 // ── Single webcam analysis ───────────────────────────
 
-/**
- * Reuse the previous result while attenuating confidence. Used when:
- *   - The image is byte-identical and we already have a verdict (frozen).
- *   - The pre-classifier flagged the scene as trivial AND last beaufort ≤ 1
- *     (calm-on-calm — no point burning ~30s of CPU on the LLM).
- */
-function reuseLastResult(
-  prev: WebcamAnalysisResult,
-  reason: 'frozen' | 'trivial',
-): WebcamAnalysisResult {
-  return {
-    ...prev,
-    confidence: 'low',
-    // From the model's own name: appending to prev.provider stacked a suffix per reuse
-    // ("moondream-trivial-trivial-trivial…") in the stored rows.
-    provider: `${prev.provider.replace(/(-(frozen|trivial))+$/, '')}-${reason}`,
-    latencyMs: 0,
-    analyzedAt: new Date(),
-  };
-}
-
 async function analyzeWebcam(webcam: WebcamStation): Promise<WebcamAnalysisResult | null> {
   const start = Date.now();
-  const state = webcamStates.get(webcam.id);
-  const prev = state?.lastResult ?? null;
-
   const fetchOutcome = await fetchImage(webcam.imageUrl, webcam.name);
 
   if (fetchOutcome.kind === 'failed') return null;
 
+  // A frozen image says nothing new: no verdict. The last real one keeps its own time, so the map's
+  // 30-min gate lets it expire. Re-stamping it «now» (as before 12-oct) kept a camera stuck since
+  // 13:23 counting as fresh for hours: a frozen «fog» held the fog, a frozen «clear» lowered real fog.
   if (fetchOutcome.kind === 'frozen') {
-    if (prev) {
-      log.info(`[Webcam] ${webcam.name}: reusing last verdict (image frozen)`);
-      return reuseLastResult(prev, 'frozen');
-    }
-    return null; // no prev to reuse — first time + frozen
+    log.info(`[Webcam] ${webcam.name}: image frozen, no verdict (the last one expires on its own)`);
+    return null;
   }
-
-  // Layer 1 short-circuit: trivial scene + last reading was calm → reuse
-  if (
-    fetchOutcome.isTrivial &&
-    prev &&
-    prev.beaufort >= 0 &&
-    prev.beaufort <= 1
-  ) {
-    log.info(`[Webcam] ${webcam.name}: pre-classifier skip (trivial, prev Beaufort ${prev.beaufort})`);
-    return reuseLastResult(prev, 'trivial');
-  }
+  // No «trivial scene» shortcut any more: the model only runs when the stations leave room for fog
+  // (fogAlertGate, just before), and a uniform grey image is exactly what fog looks like. Reusing the
+  // last «no fog» there hid the fog it should have looked at.
 
   // Otherwise run the full LLM pipeline
   const rawResponse = await callOllamaVision(fetchOutcome.base64);
