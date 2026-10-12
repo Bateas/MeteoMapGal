@@ -48,7 +48,7 @@ import {
   SECTOR_VISIBILITY_RADIUS_FACTOR,
 } from '../services/visibilityFreshness';
 import { processAlertNotifications } from '../services/notificationService';
-import { RIAS_WEBCAMS, ALL_WEBCAMS, webcamSite, isSeaFogCamera } from '../config/webcams';
+import { RIAS_WEBCAMS, ALL_WEBCAMS, webcamSite, isSeaFogCamera, isFogUnreliable } from '../config/webcams';
 import { summarizeFogBySite, camerasForSector, sunInView, type CameraFogRead } from '../services/webcamFogSites';
 
 interface PipelineParams {
@@ -222,14 +222,19 @@ export function useUnifiedAlertPipeline({
           // With the low sun in front, the washed-out image reads as fog: that camera cannot judge.
           if (sunInView(cam, result.analyzedAt.getTime())) continue;
           const directFog = result.weather.fogVisible;
+          // The model's sky 'rain' is rain it saw, not fog (precipitation is not carried by the API).
           const lowConfNonClear = result.confidence === 'low'
             && result.weather.sky !== 'clear'
+            && result.weather.sky !== 'rain'
             && !result.weather.precipitation;
           const indirectFog = regionalAemetFog && lowConfNonClear;
           // visibility 'poor' (<1km from the IA) is a critical signal — same
           // weight as AEMET station vis<1km. Lets single-camera marine fog
           // in zones without nearby AEMET vis (Cíes / outer rías) fire alerts.
-          reads.push({ id, fog: directFog || indirectFog, critical: result.weather.visibility === 'poor' });
+          const fog = directFog || indirectFog;
+          // A camera whose fog is unreliable (misted glass) still counts when it sees clear.
+          if (fog && isFogUnreliable(id)) continue;
+          reads.push({ id, fog, critical: result.weather.visibility === 'poor' });
         }
         // Cameras on the same mast count once, and when they disagree the fog one does not
         // count (webcamFogSites.ts): every count below is of sites, not cameras.

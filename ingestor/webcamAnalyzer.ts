@@ -36,8 +36,8 @@ async function nearbyWeather(lat: number, lon: number): Promise<NearbyWeather[]>
   }
 }
 import { dispatchVisibilityAlert } from './alertDispatcher.js';
-import { RIAS_WEBCAMS, webcamSite, isSeaFogCamera, type WebcamStation } from '../src/config/webcams.js';
-import { summarizeFogBySite, sunInView } from '../src/services/webcamFogSites.js';
+import { RIAS_WEBCAMS, type WebcamStation } from '../src/config/webcams.js';
+import { planFogMessages } from './fogSendPlan.js';
 
 // ── Configuration ────────────────────────────────────
 
@@ -55,8 +55,6 @@ const lastImageChangeTime = new Map<string, number>();
 const STALE_IMAGE_MAX_AGE_MS = 30 * 60_000; // 30min — aggressive: if unchanged half an hour, skip analysis
 const MAP_CLEANUP_INTERVAL_MS = 24 * 60 * 60_000; // Cleanup old entries daily
 let lastMapCleanup = Date.now();
-/** How old a sibling camera's verdict may be and still speak for its site (the map uses 30 min too). */
-const SITE_FRESH_MS = 30 * 60_000;
 
 // One-shot guard so the "vision is off" notice appears once per process.
 let visionDisabledLogged = false;
@@ -115,7 +113,7 @@ export interface WebcamAnalysisResult {
  */
 type FetchOutcome =
   | { kind: 'fresh'; base64: string }
-  | { kind: 'frozen' }   // image unchanged for >STALE_IMAGE_MAX_AGE_MS
+  | { kind: 'frozen' }   // the same image as last time, or one older than STALE_IMAGE_MAX_AGE_MS
   | { kind: 'failed' };  // network/decode failure
 
 // `sharp` is loaded lazily so a missing native binary degrades to "send the
@@ -158,6 +156,13 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
       log.warn(`[Webcam] Image fetch failed: ${url} → ${response.status}`);
       return { kind: 'failed' };
     }
+    // The image server says when the image was taken (MeteoGalicia sends Last-Modified). An old image
+    // is frozen even right after a restart, when there is no previous hash to compare with.
+    const lastModified = Date.parse(response.headers.get('last-modified') ?? '');
+    if (Number.isFinite(lastModified) && Date.now() - lastModified > STALE_IMAGE_MAX_AGE_MS) {
+      log.warn(`[Webcam] Image frozen ${Math.round((Date.now() - lastModified) / 60_000)}min (Last-Modified): ${url}`);
+      return { kind: 'frozen' };
+    }
 
     const buffer = Buffer.from(await response.arrayBuffer());
 
@@ -167,7 +172,8 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
       return { kind: 'failed' };
     }
 
-    // Stale image detection — hash the buffer, skip if unchanged for >30min.
+    // The same image as last time says nothing new: no verdict, and the last one keeps its own time.
+    // (Re-analysing it stamped an old view as fresh: up to an hour of «fog» from a stuck camera.)
     const hash = createHash('sha1').update(buffer).digest('hex').slice(0, 16);
     const prevHash = lastImageHash.get(url);
     const now = Date.now();
@@ -176,8 +182,8 @@ async function fetchImage(url: string, webcamName?: string): Promise<FetchOutcom
       if (now - changeTime > STALE_IMAGE_MAX_AGE_MS) {
         const frozenMin = Math.round((now - changeTime) / 60_000);
         log.warn(`[Webcam] Image frozen ${frozenMin}min (hash ${hash} unchanged): ${url}`);
-        return { kind: 'frozen' };
       }
+      return { kind: 'frozen' };
     } else {
       lastImageHash.set(url, hash);
       lastImageChangeTime.set(url, now);
@@ -500,43 +506,15 @@ export async function runWebcamAnalysis(cycle: number): Promise<WebcamAnalysisRe
   // stations around the camera agree it is fog (fogAlertGate.ts): the camera alone never sends.
   // The check was made just before the model ran. Cameras on the same mast are one site
   // (webcamFogSites.ts): one message per site, and none when a fresh camera of the site sees clear.
-  const freshCutoff = Date.now() - SITE_FRESH_MS;
-  const fresh = [...webcamStates.entries()]
-    .filter(([id, st]) => {
-      const cam = RIAS_WEBCAMS.find((w) => w.id === id);
-      return isSeaFogCamera(id) && !!st.lastResult && st.lastResult.analyzedAt.getTime() >= freshCutoff
-        && !(cam && sunInView(cam, st.lastResult.analyzedAt.getTime()));
-    })
-    .map(([id, st]) => ({ id, fog: st.lastResult!.fog }));
-  const siteState = summarizeFogBySite(fresh, webcamSite).sites;
-  const sentSites = new Set<string>();
-  for (const r of results) {
-    if (r.fog && r.visibility === 'poor' && r.spotId) {
-      const cam = RIAS_WEBCAMS.find(w => w.id === r.webcamId);
-      const camName = cam?.name ?? r.webcamId;
-      const site = webcamSite(r.webcamId);
-      if (sentSites.has(site)) continue;
-      if (!isSeaFogCamera(r.webcamId)) {
-        log.info(`[Webcam] ${camName}: niebla de la camara no enviada — no cuenta para la niebla en el mar (monte o cristal)`);
-        continue;
-      }
-      if (cam && sunInView(cam, r.analyzedAt.getTime())) {
-        log.info(`[Webcam] ${camName}: niebla de la camara no enviada — el sol bajo de frente la deslumbra`);
-        continue;
-      }
-      if (siteState.get(site) === 'mixed') {
-        log.info(`[Webcam] ${camName}: niebla de la camara no enviada — otra camara del mismo sitio no la ve`);
-        continue;
-      }
-      const gate = gates.get(r.webcamId) ?? { ok: false, reason: 'sin comprobar las estaciones' };
-      if (!gate.ok) {
-        log.info(`[Webcam] ${camName}: niebla de la camara no enviada — ${gate.reason}`);
-        continue;
-      }
-      sentSites.add(site);
-      await dispatchVisibilityAlert(r.webcamId, r.spotId, r.description, camName, site).catch(err =>
-        log.warn(`[Webcam] Fog alert failed: ${(err as Error).message}`));
+  const latest = new Map([...webcamStates.entries()].map(([id, st]) => [id, st.lastResult] as const));
+  const byId = new Map(results.map((r) => [r.webcamId, r]));
+  for (const p of planFogMessages(results, latest, gates, Date.now())) {
+    if (!p.send) {
+      log.info(`[Webcam] ${p.camName}: niebla de la camara no enviada — ${p.reason}`);
+      continue;
     }
+    await dispatchVisibilityAlert(p.webcamId, p.spotId, byId.get(p.webcamId)?.description ?? '', p.camName, p.site).catch(err =>
+      log.warn(`[Webcam] Fog alert failed: ${(err as Error).message}`));
   }
 
   return results;

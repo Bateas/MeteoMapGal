@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { summarizeFogBySite, camerasForSector, sunInView } from './webcamFogSites';
-import { webcamSite, isSeaFogCamera, ALL_WEBCAMS } from '../config/webcams';
+import { webcamSite, isSeaFogCamera, isFogUnreliable, ALL_WEBCAMS } from '../config/webcams';
 import { SECTORS } from '../config/sectors';
 
 describe('summarizeFogBySite', () => {
@@ -72,9 +72,10 @@ describe('isSeaFogCamera', () => {
   it('a camera known to stand high up does not speak for fog on the water (Castrove, 515 m, 11-oct)', () => {
     expect(isSeaFogCamera('mg-castrove')).toBe(false);
   });
-  it('nor one whose glass mists over (Ons Praia: fog in 12.4 % of its verdicts, 77 % alone)', () => {
-    expect(isSeaFogCamera('mg-ons-praia')).toBe(false);
-    expect(isSeaFogCamera('mg-ons-porto')).toBe(true);
+  it('one whose glass mists over (Ons Praia: fog in 12.4 % of its verdicts, 77 % alone) has unreliable FOG', () => {
+    expect(isFogUnreliable('mg-ons-praia')).toBe(true);
+    expect(isSeaFogCamera('mg-ons-praia')).toBe(true); // its clear verdicts still count
+    expect(isFogUnreliable('mg-ons-porto')).toBe(false);
   });
   it('cameras at sea level, and those whose altitude is not known, do', () => {
     expect(isSeaFogCamera('mg-cangas')).toBe(true);

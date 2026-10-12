@@ -339,12 +339,16 @@ export const SEA_FOG_CAMERA_MAX_ALT_M = 150;
 const ALT_BY_ID = new Map(ALL_WEBCAMS.map((w) => [w.id, w.altitudeM]));
 const UNRELIABLE = new Set(ALL_WEBCAMS.filter((w) => w.fogUnreliable).map((w) => w.id));
 
-/** Whether a camera's verdict speaks for fog on the water: not when it is known to stand high up,
- *  nor when its fog verdicts are known to be unreliable (`fogUnreliable`). */
+/** Whether a camera's verdicts speak for the water at all: not when it is known to stand high up. */
 export function isSeaFogCamera(id: string): boolean {
-  if (UNRELIABLE.has(id)) return false;
   const alt = ALT_BY_ID.get(id);
   return alt == null || alt <= SEA_FOG_CAMERA_MAX_ALT_M;
+}
+
+/** Whether a camera's FOG verdicts are known to be unreliable (`fogUnreliable`). Its clear verdicts
+ *  still count: a clear horizon is not a misted glass. */
+export function isFogUnreliable(id: string): boolean {
+  return UNRELIABLE.has(id);
 }
 
 /** The site a camera belongs to (see `WebcamStation.site`); an unknown id is its own site. */

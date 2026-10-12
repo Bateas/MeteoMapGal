@@ -7,6 +7,7 @@
  */
 
 import { log } from './logger.js';
+import { webcamSite } from '../src/config/webcams.js';
 import { LIGHTNING_OVERHEAD_KM } from '../src/services/lightningProximityService.js';
 import {
   alertedZoneKey, parseAlertedZoneKey, fireWatchDigestText, ALERT_COOLDOWN_MS, DIGEST_MIN_GAP_MS,
@@ -544,7 +545,7 @@ export function seedCooldowns(sends: PastSend[]): number {
     const later = (m: Map<string, number>, k = id) => { if ((m.get(k) ?? 0) < s.atMs) { m.set(k, s.atMs); n++; } };
     if (kind === 'spot') later(lastSpotAlert);
     else if (kind === 'forecast') later(lastForecastAlert);
-    else if (kind === 'visibility') later(lastVisibilityAlert);
+    else if (kind === 'visibility') later(lastVisibilityAlert, webcamSite(id)); // keys stored per camera before 12-oct
     else if (kind === 'magic') later(lastMagicWindowAlert);
     else if (kind === 'fire') for (const zone of id.split(';')) later(lastFireWatchAlert, zone);
     else if (kind === 'lightning' && (s.level === 'aviso' || s.level === 'peligro')) {
