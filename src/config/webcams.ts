@@ -46,6 +46,12 @@ export interface WebcamStation {
    * count as sea fog evidence.
    */
   altitudeM?: number;
+  /**
+   * Its fog verdicts are not evidence: the glass mists over, seen in the field twice (30-sep, 11-oct).
+   * Measured 1-ago to 12-oct: fog in 12.4 % of its daytime verdicts, three times any other sea-level
+   * camera, 77 % of them with no other site seeing it. Re-check with the camera audit before lifting.
+   */
+  fogUnreliable?: true;
 }
 
 const MG_IMG_BASE = 'https://www.meteogalicia.gal/datosred/camaras/MeteoGalicia';
@@ -120,6 +126,7 @@ export const RIAS_WEBCAMS: WebcamStation[] = [
     id: 'mg-ons-praia',
     name: 'Ons Praia',
     site: 'ons',
+    fogUnreliable: true,
     source: 'meteogalicia',
     lat: 42.3769, lon: -8.9322,
     azimuth: 180, // Sur — oceano + linea de islas
@@ -330,9 +337,12 @@ const SITE_BY_ID = new Map(ALL_WEBCAMS.map((w) => [w.id, w.site ?? w.id]));
 export const SEA_FOG_CAMERA_MAX_ALT_M = 150;
 
 const ALT_BY_ID = new Map(ALL_WEBCAMS.map((w) => [w.id, w.altitudeM]));
+const UNRELIABLE = new Set(ALL_WEBCAMS.filter((w) => w.fogUnreliable).map((w) => w.id));
 
-/** Whether a camera's verdict speaks for fog on the water: not when it is known to stand high up. */
+/** Whether a camera's verdict speaks for fog on the water: not when it is known to stand high up,
+ *  nor when its fog verdicts are known to be unreliable (`fogUnreliable`). */
 export function isSeaFogCamera(id: string): boolean {
+  if (UNRELIABLE.has(id)) return false;
   const alt = ALT_BY_ID.get(id);
   return alt == null || alt <= SEA_FOG_CAMERA_MAX_ALT_M;
 }

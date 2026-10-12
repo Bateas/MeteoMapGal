@@ -72,6 +72,10 @@ describe('isSeaFogCamera', () => {
   it('a camera known to stand high up does not speak for fog on the water (Castrove, 515 m, 11-oct)', () => {
     expect(isSeaFogCamera('mg-castrove')).toBe(false);
   });
+  it('nor one whose glass mists over (Ons Praia: fog in 12.4 % of its verdicts, 77 % alone)', () => {
+    expect(isSeaFogCamera('mg-ons-praia')).toBe(false);
+    expect(isSeaFogCamera('mg-ons-porto')).toBe(true);
+  });
   it('cameras at sea level, and those whose altitude is not known, do', () => {
     expect(isSeaFogCamera('mg-cangas')).toBe(true);
     expect(isSeaFogCamera('mg-ciesfaro-norte')).toBe(true);
