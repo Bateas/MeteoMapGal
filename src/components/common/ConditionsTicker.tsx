@@ -557,7 +557,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
     // PRIMARY: MeteoGalicia ICA (official Xunta, station-by-station). When any
     // station registers ICA ≥ 2.5 (deficiente or worse), surface the worst one.
     // FALLBACK: Open-Meteo European AQI when ICA has no readings yet (boot or
-    // outage at ideg.xunta.gal).
+    // an outage of MeteoGalicia's air-quality JSON).
     const icaReadings = useIcaStore.getState().readings;
     if (icaReadings.length > 0) {
       let worst: typeof icaReadings[0] | null = null;

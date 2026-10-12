@@ -1075,6 +1075,8 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- Never switched on, and its fetcher was removed in v2.178.25: MeteoGalicia said on 9-oct their map
+-- services are not for third parties. The table stays (empty) until it is dropped on purpose.
 -- IDEG lightning archive (idegLightningArchive.ts): the discharges of MeteoGalicia's own lightning
 -- viewer, from the Xunta's public map service «Observacion_raios_ultimas_24h» (layer 1), INCLUDING
 -- intra-cloud ones (intra_cloud = CloudInd 1) and how well each was located. Shadow only: no alert

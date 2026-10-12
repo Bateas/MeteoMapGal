@@ -20,8 +20,9 @@ const { fileURLToPath } = await import(/* @vite-ignore */ urlModule);
 const path = await import(/* @vite-ignore */ pathModule);
 
 const ROOT: string = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-/** A path or url to the service; the bare name in a comment or a credit is fine. */
-const FORBIDDEN = /\/meteo2api|xunta\.gal\/meteo2api|raios\/lenda/i;
+/** A path or url to the service, or to the map services of their web viewer (IDEG, the same
+ *  situation per their answer of 9-oct); the bare name in a comment or a credit is fine. */
+const FORBIDDEN = /\/meteo2api|xunta\.gal\/meteo2api|raios\/lenda|ideg\.xunta\.gal/i;
 
 interface DirEntry { name: string; isDirectory(): boolean }
 
@@ -45,6 +46,7 @@ describe('nothing of ours reaches meteo2api', () => {
     expect(offending("const RAIOS_LENDA_URL = '/meteo2api/v1/api/raios/lenda';")).toHaveLength(1);
     expect(offending("proxy_pass https://apis-ext.xunta.gal/meteo2api/;")).toHaveLength(1);
     expect(offending(' * cloud-to-ground strikes (MeteoGalicia meteo2api — certified source)')).toHaveLength(0);
+    expect(offending("const URL = 'https://ideg.xunta.gal/meteogalicia/rest/services/METEO2_WS/x/MapServer/1/query';")).toHaveLength(1);
   });
 
   it('no web source file asks for it', async () => {
