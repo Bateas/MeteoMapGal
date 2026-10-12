@@ -150,7 +150,7 @@ async function fetchMeteoGalicia(
 
   // All stations in one request (comma-separated ids), not one per station:
   // MeteoGalicia audits request efficiency and blocks the IPs below its
-  // threshold. ~50 requests every 5 min became 1. See src/api/mgLatestBatch.ts.
+  // threshold. ~155 requests every 5 min became 1. See src/api/mgLatestBatch.ts.
   const ids = mgStations.map((s) => parseInt(s.id.replace('mg_', ''), 10));
   const urls = latestObservationUrls(MG_BASE, ids);
   const results = await Promise.allSettled(urls.map(async (url) => {

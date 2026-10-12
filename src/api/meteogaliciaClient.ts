@@ -56,7 +56,7 @@ export async function fetchStationList(): Promise<MeteoGaliciaStation[]> {
 }
 
 /** Latest 10-min observations for many stations, grouped in as few requests as possible
- *  (one for our ~50 stations; see mgLatestBatch.ts). Only used when our own API fails.
+ *  (one for our ~155 stations; see mgLatestBatch.ts). Only used when our own API fails.
  *  Rejects only if every request failed, so the source status tells the truth. */
 export async function fetchLatestForStations(stationIds: number[]): Promise<Map<number, MeteoGaliciaObsEntry>> {
   const validIds = stationIds.filter((id) => !BROKEN_STATIONS.has(id));

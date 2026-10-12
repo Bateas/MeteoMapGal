@@ -2,8 +2,9 @@
  * MeteoGalicia's latest 10-min observations for many stations in ONE request.
  *
  * The official service (`ultimos10minEstacionsMeteo.action`) takes several station ids separated by
- * commas and answers one entry per station. We used to ask once per station: ~50 requests every 5 min
- * from the server, and the same fan-out from every browser whose copy of our API failed. MeteoGalicia
+ * commas and answers one entry per station. We used to ask once per station: ~155 requests every 5 min
+ * from the server (~44,600 a day), and the same fan-out from every browser whose copy of our API
+ * failed. MeteoGalicia
  * audits request efficiency and temporarily blocks the IPs below its threshold (notice of 17-sep-2026),
  * so the server and the browser fallback both group the ids here.
  *
@@ -12,8 +13,9 @@
  */
 import type { MeteoGaliciaObsEntry } from '../types/meteogalicia';
 
-/** Ids per request. Our ~50 stations fit in one; the cap only keeps the url short if the list grows. */
-export const MG_IDS_PER_REQUEST = 60;
+/** Ids per request. Our ~155 stations (12-oct) fit in one (~1 KB of url; MeteoGalicia has 166 in
+ *  service); the cap only keeps the url bounded if the list ever grows. */
+export const MG_IDS_PER_REQUEST = 200;
 
 /**
  * Urls for the given station ids. Ids are deduplicated and sorted, so the same set always gives the
