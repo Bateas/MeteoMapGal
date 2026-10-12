@@ -188,6 +188,31 @@ describe('signatureSites', () => {
     expect(signatureSites([{ lat: 42.201, lon: -8.901 }, { lat: 42.203, lon: -8.899 }, { lat: 42.29, lon: -8.80 }])).toBe(2);
     expect(signatureSites([])).toBe(0);
   });
+  it('two stations 20 m apart are one site even across the line of a grid (a 0.05-degree grid split them)', () => {
+    expect(signatureSites([{ lat: 42.2249, lon: -8.80 }, { lat: 42.2251, lon: -8.80 }])).toBe(1);
+  });
+});
+
+describe('detectFogBySolarSignature — rain over the hour and cameras that see clear (12-oct review)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-28T14:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const interior = { id: 'mg_interior', lat: 42.3, lon: -8.1, altitude: 400 };
+  const coast = { id: 'mg_coast', lat: 42.2, lon: -8.9, altitude: 10 };
+  const r = () => new Map([['mg_interior', reading({ solarRadiation: 800 })],
+    ['mg_coast', reading({ humidity: 95, solarRadiation: 150, temperature: 14, dewPoint: 13.4, precipitation: 0.2 })]]);
+  it('a light shower (0.6 mm in the hour, 0.2 in this reading) rules the station out; drizzle (0.3) does not', () => {
+    expect(detectFogBySolarSignature(r(), [interior, coast], Date.now(), undefined, { rainMm60: () => 0.6 })).toEqual([]);
+    expect(detectFogBySolarSignature(r(), [interior, coast], Date.now(), undefined, { rainMm60: () => 0.3 })).toHaveLength(1);
+  });
+  it('a camera 3 km away seeing the water clear rules it out; one 20 km away does not (fog comes in banks)', () => {
+    expect(detectFogBySolarSignature(r(), [interior, coast], Date.now(), undefined, { clearCameras: [{ lat: 42.22, lon: -8.88 }] })).toEqual([]);
+    expect(detectFogBySolarSignature(r(), [interior, coast], Date.now(), undefined, { clearCameras: [{ lat: 42.38, lon: -8.9 }] })).toHaveLength(1);
+  });
 });
 
 describe('buildMaritimeFogAlerts — kinds of evidence, not counts (12-oct)', () => {

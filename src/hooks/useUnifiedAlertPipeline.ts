@@ -41,7 +41,7 @@ import {
   extractStationTemps,
   analyzeThermalProfile,
 } from '../services/lapseRateService';
-import { detectFogBySolarSignature } from '../services/maritimeFogService';
+import { detectFogBySolarSignature, signatureOptions, signatureSites } from '../services/maritimeFogService';
 import {
   selectRelevantVisibility,
   visibilitySignature,
@@ -193,6 +193,7 @@ export function useUnifiedAlertPipeline({
       let webcamClearCount = 0;
       const webcamFogIds: string[] = [];
       const fogSources: { lat: number; lon: number; type: 'webcam' | 'station' | 'buoy'; id: string }[] = [];
+      const fogClearCameras: { lat: number; lon: number }[] = [];
       if (visionResults.size > 0) {
         const now = Date.now();
         webcamFogDetected = false;
@@ -234,6 +235,7 @@ export function useUnifiedAlertPipeline({
           const fog = directFog || indirectFog;
           // A camera whose fog is unreliable (misted glass) still counts when it sees clear.
           if (fog && isFogUnreliable(id)) continue;
+          if (!fog) fogClearCameras.push({ lat: cam.lat, lon: cam.lon });
           reads.push({ id, fog, critical: result.weather.visibility === 'poor' });
         }
         // Cameras on the same mast count once, and when they disagree the fog one does not
@@ -252,9 +254,12 @@ export function useUnifiedAlertPipeline({
 
       // Stations with the fog signature (saturated air, sun blocked against its clear-sky value, near
       // sea level, no rain): evidence only, drawn where an alert that it supports fires.
-      const solarFogStations = detectFogBySolarSignature(currentReadings, stationsGeo, Date.now(), relevantVisibility);
-      for (const s of solarFogStations) {
-        fogSources.push({ lat: s.lat, lon: s.lon, type: 'station', id: s.id });
+      // Only drawn when they make the evidence (two sites or more): one site is not a signature.
+      const sigNow = Date.now();
+      const solarFogStations = detectFogBySolarSignature(currentReadings, stationsGeo, sigNow, relevantVisibility,
+        signatureOptions(currentReadings, sigNow, readingHistory, fogClearCameras));
+      if (signatureSites(solarFogStations) >= 2) {
+        for (const s of solarFogStations) fogSources.push({ lat: s.lat, lon: s.lon, type: 'station', id: s.id });
       }
 
       // AEMET stations with measured visibility <1km → official fog. Works 24/7
@@ -262,7 +267,7 @@ export function useUnifiedAlertPipeline({
       // far coastal fog (Fisterra ~110km) nor a reading frozen by an AEMET
       // outage can paint fog over this sector.
       for (const v of relevantVisibility.values()) {
-        if (v.visibility >= 1) continue;
+        if (v.visibility >= 1 || v.precipitating) continue; // low visibility in rain is not fog
         fogSources.push({ lat: v.lat, lon: v.lon, type: 'station', id: v.stationId });
       }
 
@@ -320,6 +325,7 @@ export function useUnifiedAlertPipeline({
         webcamClearCount,
         fogSources: fogSources.length > 0 ? fogSources : undefined,
         regionalVisibility: relevantVisibility.size > 0 ? relevantVisibility : undefined,
+        fogClearCameras,
       });
       // Drone surfaces are Alpha-gated (FieldDrawer tab hidden without
       // alphaMode) — the drone meteo alert must follow, or "Dron: Precaución"

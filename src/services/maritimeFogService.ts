@@ -26,7 +26,7 @@ import type { AlertLevel } from '../types/campo';
 import type { UnifiedAlert } from '../services/alertService';
 import { fastDistanceKm } from './idwInterpolation';
 import { isBuoyFresh } from './buoyUtils';
-import { precipKindFor } from './precipSemantics';
+import { precipKindFor, precipSamplesFromHistory, rainInWindowMm } from './precipSemantics';
 import { clearSkyGhi, solarElevationDeg } from './solarUtils';
 
 // ── Types ────────────────────────────────────────────────────
@@ -539,8 +539,19 @@ export const SIGNATURE_BLOCKED_FRAC = 0.4;
 export const SIGNATURE_SUNNY_FRAC = 0.7;
 /** Fog on the water: only stations whose network gives an altitude, up to this (0 = not given). */
 export const SIGNATURE_MAX_ALT_M = 100;
-/** One site = a cell of this size (~5 km): stations under the same patch of cloud are one reading. */
-export const SIGNATURE_CELL_DEG = 0.05;
+/** Stations within this distance of each other are one site: under the same patch of cloud, one reading. */
+export const SIGNATURE_SITE_KM = 4;
+/** Rain at a station that rules it out, in the last hour: the same line as the camera gate (orballo passes). */
+export const SIGNATURE_STATION_RAIN_MM_60 = 0.5;
+/** A camera that sees the water clear rules out the signature stations this close to it. */
+export const SIGNATURE_CLEAR_CAMERA_KM = 6;
+
+export interface SignatureOptions {
+  /** Rain (mm) of a station over the last 60 min with its network's meaning, or null when unknown. */
+  rainMm60?: (stationId: string) => number | null;
+  /** Fresh cameras that looked and saw no fog (only those that can judge: not blinded, not on a hill). */
+  clearCameras?: { lat: number; lon: number }[];
+}
 
 /**
  * Stations with the fog signature: air saturated (HR >= 90 %, T-Td < 2 °C) and the sun blocked at the
@@ -564,6 +575,7 @@ export function detectFogBySolarSignature(
   stations: { id: string; lat: number; lon: number; altitude?: number | null }[],
   nowMs: number = Date.now(),
   regionalVisibility?: Map<string, { precipitating?: true; timestamp: Date }>,
+  opts: SignatureOptions = {},
 ): { id: string; humidity: number; solar: number; lat: number; lon: number }[] {
   const clearAt = (lat: number, lon: number) => {
     const elev = solarElevationDeg(nowMs, lat, lon);
@@ -595,16 +607,43 @@ export function detectFogBySolarSignature(
     if (r.temperature - r.dewPoint >= 2) continue; // not saturated: cloud above, not fog
     const clear = clearAt(s.lat, s.lon);
     if (clear == null || r.solarRadiation >= SIGNATURE_BLOCKED_FRAC * clear) continue;
-    // Rain at this gauge (a drizzle in fog stays under it); only interval gauges say it in one reading.
-    if (precipKindFor(s.id) === 'interval' && r.precipitation != null && r.precipitation >= RAIN_VETO_MM) continue;
+    // Rain at this gauge over the last hour (the drizzle of the fog stays under it), with its network's
+    // meaning. Without the history, only an interval gauge can tell it from one reading.
+    const own = opts.rainMm60 ? opts.rainMm60(s.id) : null;
+    if (own != null ? own >= SIGNATURE_STATION_RAIN_MM_60
+      : precipKindFor(s.id) === 'interval' && r.precipitation != null && r.precipitation >= RAIN_VETO_MM) continue;
+    // A camera looking at the water close by sees it clear: not fog there (fog comes in banks, so only
+    // the stations near that camera are ruled out).
+    if (opts.clearCameras?.some((c) => fastDistanceKm(c.lat, c.lon, s.lat, s.lon) <= SIGNATURE_CLEAR_CAMERA_KM)) continue;
     fogStations.push({ id: s.id, humidity: r.humidity, solar: r.solarRadiation, lat: s.lat, lon: s.lon });
   }
   return fogStations;
 }
 
-/** How many sites (cells of SIGNATURE_CELL_DEG) the stations fall in. */
+/** How many sites the stations make: greedy groups of SIGNATURE_SITE_KM, so two stations a few metres
+ *  apart are one site wherever they fall (a fixed grid split them across its lines). */
 export function signatureSites(stations: { lat: number; lon: number }[]): number {
-  return new Set(stations.map((s) => `${Math.round(s.lat / SIGNATURE_CELL_DEG)},${Math.round(s.lon / SIGNATURE_CELL_DEG)}`)).size;
+  const centres: { lat: number; lon: number }[] = [];
+  for (const s of stations) {
+    if (!centres.some((c) => fastDistanceKm(c.lat, c.lon, s.lat, s.lon) <= SIGNATURE_SITE_KM)) centres.push(s);
+  }
+  return centres.length;
+}
+
+/** The signature options from what the map holds: the reading history (rain over the last hour, read with
+ *  each network's meaning) and the cameras that see clear. */
+export function signatureOptions(
+  stationReadings: Map<string, NormalizedReading>,
+  nowMs: number,
+  readingHistory?: Map<string, NormalizedReading[]>,
+  clearCameras?: { lat: number; lon: number }[],
+): SignatureOptions {
+  return {
+    rainMm60: readingHistory
+      ? (id) => rainInWindowMm(id, precipSamplesFromHistory(readingHistory.get(id), stationReadings.get(id)), nowMs, 60)
+      : undefined,
+    clearCameras,
+  };
 }
 
 /**
@@ -656,6 +695,8 @@ export function buildMaritimeFogAlerts(
   _webcamCriticalVisibilityCount?: number,
   /** Cameras analysed in the last 30 min that saw no fog. */
   webcamClearCount?: number,
+  /** For the station signature: the reading history and the cameras that see clear (signatureOptions). */
+  signatureOpts?: { readingHistory?: Map<string, NormalizedReading[]>; clearCameras?: { lat: number; lon: number }[] },
 ): UnifiedAlert[] {
   const risk = assessMaritimeFogRisk(buoys, stationReadings, stations);
 
@@ -668,7 +709,9 @@ export function buildMaritimeFogAlerts(
   // Fires with: an official sensor alone; cameras at two sites; or two different kinds, except a
   // lone camera with the physics (one camera never confirms, 30-sep). The signature or the physics
   // alone never fire: replayed over 73 days, they held on almost every day.
-  const solarFogStations = detectFogBySolarSignature(stationReadings, stations, Date.now(), regionalVisibility);
+  const sigNow = Date.now();
+  const solarFogStations = detectFogBySolarSignature(stationReadings, stations, sigNow, regionalVisibility,
+    signatureOptions(stationReadings, sigNow, signatureOpts?.readingHistory, signatureOpts?.clearCameras));
   const solarFogCount = solarFogStations.length;
   const sigSites = signatureSites(solarFogStations);
   const signature = sigSites >= 2;

@@ -122,6 +122,8 @@ export function aggregateAllAlerts(sources: {
   stormShadow?: StormShadow | null;
   currentReadings?: Map<string, import('../../types/station').NormalizedReading>;
   readingHistory?: Map<string, import('../../types/station').NormalizedReading[]>;
+  /** Fresh cameras of the sector that can judge and saw no fog (the fog signature drops stations near them). */
+  fogClearCameras?: { lat: number; lon: number }[];
   buoys?: BuoyReading[];
   stationsGeo?: { id: string; lat: number; lon: number }[];
   teleconnections?: TeleconnectionIndex[];
@@ -160,7 +162,8 @@ export function aggregateAllAlerts(sources: {
     // (applicable even to Embalse — Ourense AEMET 1690A is within 27km and reports visibility)
     ...(sources.currentReadings && sources.stationsGeo &&
         (sources.buoys || sources.regionalVisibility || sources.webcamFogDetected)
-      ? buildMaritimeFogAlerts(sources.buoys ?? [], sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected, sources.webcamFogCount, sources.webcamFogIds, sources.fogSources, sources.regionalVisibility, sources.webcamCriticalVisibilityCount, sources.webcamClearCount) : []),
+      ? buildMaritimeFogAlerts(sources.buoys ?? [], sources.currentReadings, sources.stationsGeo, sources.webcamFogDetected, sources.webcamFogCount, sources.webcamFogIds, sources.fogSources, sources.regionalVisibility, sources.webcamCriticalVisibilityCount, sources.webcamClearCount,
+          { readingHistory: sources.readingHistory, clearCameras: sources.fogClearCameras }) : []),
     ...(sources.buoys ? buildCrossSeaAlerts(sources.buoys) : []),
     // Upwelling alerts removed. The detector required a >=3h SST history buffer
     // that only lived in session memory, so it never fired in production. The
