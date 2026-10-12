@@ -302,6 +302,27 @@ describe('Cesantes canalization override', () => {
     expect(score.summary).toMatch(/1[3-9]kt/i);
   });
 
+  // 12-oct dusk (user, tmkites): «8-10 yes, 13 no» with the interior at 202-259 W/m². The detector's
+  // ramp said 9, but the 4 kt test against the measured 6 dropped it and the map showed 6 (v2.178.19).
+  // The interior station sits 14 km inland: outside the spot's own 12 km, inside the interior zone.
+  it('shows the dimmed boost at dusk (250 W/m² inland): ~9 kt, not the measured 6 nor the full 14', () => {
+    const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
+    const inland = makeStation('mg_inland', 42.32, -8.45);
+    const reading = { ...makeReading('mg_test', msFromKt(6), 230, 25), windGust: msFromKt(12) };
+    const sun = (w: number) => new Map<string, NormalizedReading>([
+      ['mg_test', reading],
+      ['mg_inland', { ...makeReading('mg_inland', null, null, 25), solarRadiation: w }],
+    ]);
+    const dusk = scoreAllSpots([cesantes], [station, inland], sun(250), [randeBuoy]).get('cesantes')!;
+    expect(dusk.thermalBoosted).toBe(true);
+    expect(dusk.effectiveWindKt!).toBeGreaterThanOrEqual(8);
+    expect(dusk.effectiveWindKt!).toBeLessThanOrEqual(11);
+    const full = scoreAllSpots([cesantes], [station, inland], sun(600), [randeBuoy]).get('cesantes')!;
+    expect(full.effectiveWindKt!).toBeGreaterThanOrEqual(13);
+    const dark = scoreAllSpots([cesantes], [station, inland], sun(100), [randeBuoy]).get('cesantes')!;
+    expect(dark.effectiveWindKt!).toBeLessThan(8);
+  });
+
   it('does NOT override when ΔT <2°C (detector gate fails)', () => {
     // ΔT 1°C (airTemp 22, water 21) — fails detector's ≥2°C gate → no canalization
     // Use a low-humidity buoy to avoid other thermal boosts polluting the assertion.

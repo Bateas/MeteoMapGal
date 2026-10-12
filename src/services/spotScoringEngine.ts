@@ -1147,10 +1147,12 @@ function scoreSpot(
   // The engine only sets channelingPrediction for those spots, so no per-id
   // gate is needed here.
   let channelingApplied = false;
+  // The 4 kt test reads the breeze at full sun; the figure applied is the dimmed one (dusk ramp).
   if (channelingPrediction?.active
       && channelingPrediction.predictedKt !== null
       && channelingPrediction.confidence >= 70
-      && (channelingPrediction.predictedKt - spd) >= 4) {
+      && ((channelingPrediction.predictedKtFullSun ?? channelingPrediction.predictedKt) - spd) >= 4
+      && channelingPrediction.predictedKt > spd) {
     effectiveSpd = channelingPrediction.predictedKt;
     thermalBoosted = true;
     channelingApplied = true;
@@ -1700,10 +1702,9 @@ export function scoreAllSpots(
       // and still blow — the engine pulling the air is the thermal low further
       // in. What kills the boost is the interior being covered too, which is a
       // front rather than a sea breeze.
-      const solarRadInterior = computeInteriorSolar(
-        (stationData ?? []).map((sd) => sd.station),
-        new Map((stationData ?? []).map((sd) => [sd.station.id, sd.reading])),
-      );
+      // From every station the engine was handed, not just the spot's (they sit within 12 km and
+      // only one of them is inland): the zone itself (box + 22 km) decides, the same on map and server.
+      const solarRadInterior = computeInteriorSolar(stations, readings);
       channelingPrediction = predictCesantesCanalization(
         airTempLocal, waterTempForDetector, localStationKt, wind?.dirDeg ?? null,
         solarRadInterior,

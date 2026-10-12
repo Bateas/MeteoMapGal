@@ -10,7 +10,7 @@
 
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
-import { predictCesantesCanalization, INTERIOR_SOLAR_MAX_AGE_MS } from '../src/services/cesantesCanalizationDetector.js';
+import { predictCesantesCanalization, INTERIOR_SOLAR_MAX_AGE_MS, inInteriorZone } from '../src/services/cesantesCanalizationDetector.js';
 import { assessRainVeto } from '../src/services/rainVeto.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
 import type { ThermalVeto } from '../src/services/cesantesCanalizationDetector.js';
@@ -434,8 +434,7 @@ function applyCesantesBoost(
   const nowMs = Date.now();
   for (const r of readings) {
     if (r.solar_rad == null) continue;
-    if (r.longitude < -8.60 || r.longitude > -7.80) continue;
-    if (r.latitude < 42.10 || r.latitude > 42.60) continue;
+    if (!inInteriorZone(r.latitude, r.longitude)) continue;   // same zone as the engine (box + 22 km)
     // Same age rule as computeInteriorSolar: an old afternoon value is not the sun of now.
     if (r.time != null && nowMs - new Date(r.time).getTime() > INTERIOR_SOLAR_MAX_AGE_MS) continue;
     if (solarRadInterior === null || r.solar_rad > solarRadInterior) solarRadInterior = r.solar_rad;
@@ -468,7 +467,9 @@ function applyCesantesBoost(
 
   if (!prediction.active || prediction.predictedKt === null) return null;
   if (prediction.confidence < 70) return null;
-  if (prediction.predictedKt - rawKt < 4) return null;
+  // Same test as the engine: the breeze at full sun, the dimmed figure applied (dusk ramp).
+  if ((prediction.predictedKtFullSun ?? prediction.predictedKt) - rawKt < 4) return null;
+  if (prediction.predictedKt <= rawKt) return null;
 
   return {
     effectiveKt: prediction.predictedKt,

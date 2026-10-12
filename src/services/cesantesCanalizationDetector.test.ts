@@ -251,7 +251,7 @@ describe('predictCesantesCanalization — output shape', () => {
     const r = predictCesantesCanalization();
     expect(r).toEqual({
       active: false, confidence: 0, predictedKt: null, predictedDir: null,
-      boostFactor: 1, signals: [], severity: 'info',
+      boostFactor: 1, predictedKtFullSun: null, signals: [], severity: 'info',
     });
   });
 });
@@ -327,10 +327,20 @@ describe('predictCesantesCanalization — needs the interior sun', () => {
 
   it('interior sun older than 45 min does not count (the map kept an afternoon value at dusk)', () => {
     const now = new Date(2026, 9, 12, 19, 10).getTime();
-    const st = [{ id: 'mg_in', lat: 42.3, lon: -8.2 }] as never;
+    const st = [{ id: 'mg_in', lat: 42.32, lon: -8.45 }] as never;   // ~14 km E of Cesantes
     const reading = (minAgo: number, sun: number) => new Map([['mg_in', { stationId: 'mg_in', timestamp: new Date(now - minAgo * 60_000), solarRadiation: sun }]]) as never;
     expect(computeInteriorSolar(st, reading(20, 200), now)).toBe(200);
     expect(computeInteriorSolar(st, reading(90, 384), now)).toBeNull();
+  });
+
+  it('only the interior within 22 km of Cesantes counts: the map does not hold Ourense, nor a stuck radiometer 37 km out', () => {
+    const now = new Date(2026, 9, 12, 19, 10).getTime();
+    const st = [{ id: 'mg_near', lat: 42.32, lon: -8.45 }, { id: 'wu_far', lat: 42.31, lon: -8.17 }] as never;
+    const r = new Map([
+      ['mg_near', { stationId: 'mg_near', timestamp: new Date(now), solarRadiation: 40 }],
+      ['wu_far', { stationId: 'wu_far', timestamp: new Date(now), solarRadiation: 109.5 }],
+    ]) as never;
+    expect(computeInteriorSolar(st, r, now)).toBe(40);
   });
 
   it('unknown interior sun does not veto: a silent radiometer must not kill the 15h breeze', () => {

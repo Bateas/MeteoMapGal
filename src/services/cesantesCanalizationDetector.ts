@@ -44,6 +44,11 @@ export interface CesantesPrediction {
   predictedDir: number | null;
   /** Predicted wind over the base the boost was built on */
   boostFactor: number;
+  /** The prediction with the WHOLE sun share: what the breeze is worth at full strength. The
+   *  callers' «at least 4 kt over the measured wind» test reads this one, and they apply
+   *  predictedKt. Testing the dimmed figure dropped the dusk ramp (9 kt over 6 measured = 3 < 4,
+   *  shown 6) and left a 4 kt step near 270 W/m². */
+  predictedKtFullSun: number | null;
   /** Human-readable signals contributing */
   signals: string[];
   /** Severity for alert */
@@ -108,6 +113,27 @@ export const INTERIOR_SOLAR_MAX_AGE_MS = 45 * 60_000;
 /** Inland of the ría, where the thermal low forms. East of Cesantes and up the
  *  Miño valley — deliberately NOT the spot's own neighbourhood. */
 const INTERIOR_ZONE = { lonMin: -8.60, lonMax: -7.80, latMin: 42.10, latMax: 42.60 };
+/** And no farther than this from Cesantes: the map only holds its sector (Rías, 30 km around
+ *  -8.68 42.30), the server the whole of Galicia. Without the limit the server could see sun at
+ *  Ourense the map never sees. 12-oct: 6 MeteoGalicia stations inside; the stuck amateur
+ *  radiometer reading 109.5 W/m² day and night (wu_ICARBA26, 37 km) stays out. */
+export const INTERIOR_MAX_KM_FROM_CESANTES = 22;
+export const CESANTES_LAT = 42.307;
+export const CESANTES_LON = -8.619;
+
+function kmFromCesantes(lat: number, lon: number): number {
+  const p = Math.PI / 180;
+  const a = Math.sin((lat - CESANTES_LAT) * p / 2) ** 2
+    + Math.cos(CESANTES_LAT * p) * Math.cos(lat * p) * Math.sin((lon - CESANTES_LON) * p / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(a));
+}
+
+/** Whether a station is in the interior that drives the thermal low (box + distance). */
+export function inInteriorZone(lat: number, lon: number): boolean {
+  return lon >= INTERIOR_ZONE.lonMin && lon <= INTERIOR_ZONE.lonMax
+    && lat >= INTERIOR_ZONE.latMin && lat <= INTERIOR_ZONE.latMax
+    && kmFromCesantes(lat, lon) <= INTERIOR_MAX_KM_FROM_CESANTES;
+}
 
 // ── Detector ─────────────────────────────────────────────────
 
@@ -144,6 +170,7 @@ export function predictCesantesCanalization(
     predictedKt: null,
     predictedDir: null,
     boostFactor: 1,
+    predictedKtFullSun: null,
     signals: [],
     severity: 'info',
   };
@@ -216,9 +243,11 @@ export function predictCesantesCanalization(
   // And by the interior sun: whole from FULL_SOLAR_FOR_THERMAL_BREEZE, none at the off value (unknown = whole).
   const sunShare = solarRadInterior == null ? 1 : Math.min(1, Math.max(0,
     (solarRadInterior - MIN_SOLAR_FOR_THERMAL_BREEZE) / (FULL_SOLAR_FOR_THERMAL_BREEZE - MIN_SOLAR_FOR_THERMAL_BREEZE)));
-  const thermalBoostKt = Math.min(8, deltaT * 2) * established * sunShare;
+  const fullBoostKt = Math.min(8, deltaT * 2) * established;
+  const thermalBoostKt = fullBoostKt * sunShare;
   // Sanity cap: pure thermal breeze capped at 17kt max so it NEVER over-boosts on normal days
   const predictedKt = Math.min(17, Math.round(baseKt + thermalBoostKt));
+  const predictedKtFullSun = Math.min(17, Math.round(baseKt + fullBoostKt));
   // 8, not 10: a graded boost reports the early breeze (8kt) instead of hiding it as calm.
   if (predictedKt < 8) return inactive;
 
@@ -237,6 +266,7 @@ export function predictCesantesCanalization(
     predictedKt,
     predictedDir: 230, // Typical SW thermal breeze
     boostFactor: predictedKt / Math.max(baseKt, 1),
+    predictedKtFullSun,
     signals: [
       `Brisa térmica vespertina (${hour}h, aire ${airTempLocal!.toFixed(0)}°C, ΔT +${deltaT.toFixed(1)}°C)`,
       stationsLine,
@@ -259,8 +289,7 @@ export function computeInteriorSolar(
 ): number | null {
   let peak: number | null = null;
   for (const st of stations) {
-    if (st.lon < INTERIOR_ZONE.lonMin || st.lon > INTERIOR_ZONE.lonMax) continue;
-    if (st.lat < INTERIOR_ZONE.latMin || st.lat > INTERIOR_ZONE.latMax) continue;
+    if (!inInteriorZone(st.lat, st.lon)) continue;
     const r = readings.get(st.id);
     if (r?.solarRadiation == null) continue;
     const at = r.timestamp instanceof Date ? r.timestamp.getTime() : new Date(r.timestamp as unknown as string).getTime();
