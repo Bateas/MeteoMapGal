@@ -477,6 +477,9 @@ const WIND_BLACKLIST = new Set([
                     // mean. 1-oct 03:00: 17 kt from 160-167° with gusts of 19 while every station
                     // within 10 km read 0-6 kt and the Castrove hill (515 m) 5 kt, and the real wind on
                     // the water was the opposite way: the Marín buoy 3 km from Lourido read 8 kt from NE.
+  'nt_52e140',      // Bueu: 13-15 kt from exactly 359° in every 6 h block of 9-13 oct, day and night, while
+                    // wu_IBUEU17 beside it read 0-2 kt. Vane and cups both stuck; inside Bocana's radius
+                    // across the Morrazo, where it pulled the consensus towards a northerly that was not there.
   // ── Frozen ──
   'wu_ICARBA26',    // Carballeda de Avia: stuck since 27-sep, 842 of 842 readings in the 3 days to 7-oct
                     // were 1.9 kt from 168°. Up to 19 % of Castrelo's consensus, 139° off the real wind.
