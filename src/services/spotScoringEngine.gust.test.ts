@@ -49,6 +49,29 @@ describe('the engine passes the nearby gust to the Cesantes detector', () => {
   });
 });
 
+describe('the engine passes Porto de Vigo to the Cesantes detector (rebound test)', () => {
+  beforeEach(() => spy.mockClear());
+  const [lon, lat] = cesantes.center;
+  const near = station('near', lat + 0.01, lon);
+  const port = station('mg_14001', 42.24167, -8.727587);
+
+  it('hands over the port wind in knots with its direction', () => {
+    scoreAllSpots([cesantes], [near, port], new Map([
+      ['near', reading('near', 3.9, 11.3, 299)],
+      ['mg_14001', reading('mg_14001', 12.7, 17, 210)],
+    ]), []);
+    const portArg = spy.mock.calls[0][7];
+    expect(portArg.kt).toBeCloseTo(12.7, 1);
+    expect(portArg.dirDeg).toBe(210);
+  });
+
+  it('a port reading older than 30 min is not handed over', () => {
+    const old = { ...reading('mg_14001', 12.7, 17, 210), timestamp: new Date(Date.now() - 45 * 60_000) };
+    scoreAllSpots([cesantes], [near, port], new Map([['near', reading('near', 3.9, 11.3, 299)], ['mg_14001', old]]), []);
+    expect(spy.mock.calls[0][7]).toBeNull();
+  });
+});
+
 describe('localGustKt', () => {
   const st = (distKm: number, meanKt: number, gustKt: number | null) =>
     ({ reading: reading('x', meanKt, gustKt, 230), distKm });

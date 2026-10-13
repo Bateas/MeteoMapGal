@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { predictCesantesCanalization, computeInteriorSolar } from './cesantesCanalizationDetector';
+import { predictCesantesCanalization, computeInteriorSolar, freshPortWind, PORT_WIND_MAX_AGE_MS } from './cesantesCanalizationDetector';
 import type { RainVeto } from './rainVeto';
 
 // ── Thermal breeze (Apr-Oct, 12-20h, ΔT≥2°C, air≥16°C) ──
@@ -411,5 +411,54 @@ describe('predictCesantesCanalization — real instants and the rain veto', () =
     at(2026, 7, 4, 12, 38);
     const r = predictCesantesCanalization(23, 20.187, 4, 239, 473, null);
     expect(r.active).toBe(false);
+  });
+});
+
+describe('predictCesantesCanalization — the rebound at Porto de Vigo', () => {
+  afterEach(() => vi.useRealTimers());
+  const at = (y: number, m: number, d: number, h: number, min: number) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(y, m, d, h, min)); // local clock
+  };
+  // 13-oct 16:01: NW-NNW outside, the stations around Cesantes read 299° at 3.9 kt (gust 11.3),
+  // Porto de Vigo turned to 210° at 12.7 kt. On the water: under 5 kt. Shown BUENO 13 before.
+  const oct13 = [22.945, 15.6, 3.9, 299, 667, 11.33, null] as const;
+
+  it('13-oct 16:01 without the port: the old 13 kt (what was shown)', () => {
+    at(2026, 9, 13, 16, 1);
+    expect(predictCesantesCanalization(...oct13).predictedKt).toBe(13);
+  });
+
+  it('13-oct 16:01 with the port turned to SSW: no canalization', () => {
+    at(2026, 9, 13, 16, 1);
+    const r = predictCesantesCanalization(...oct13, { kt: 12.7, dirDeg: 210.5 });
+    expect(r.active).toBe(false);
+    expect(r.predictedKt).toBeNull();
+  });
+
+  it('a port under 3 kt says nothing about direction: the boost stays', () => {
+    at(2026, 9, 13, 16, 1);
+    expect(predictCesantesCanalization(...oct13, { kt: 2.5, dirDeg: 210.5 }).predictedKt).toBe(13);
+  });
+
+  it('25-sep 15:18 (14 kt on the water, wings out): the port read WSW too, the boost stays', () => {
+    at(2026, 8, 25, 15, 18);
+    const r = predictCesantesCanalization(23.56, 16.93, 4, 314, 809, 9.68, null, { kt: 4.66, dirDeg: 252 });
+    expect(r.active).toBe(true);
+    expect(r.predictedKt).toBe(11);
+  });
+
+  it('narrow on purpose: a 275° consensus with the port at 209° still passes', () => {
+    at(2026, 9, 13, 16, 23);
+    const r = predictCesantesCanalization(22.945, 15.6, 4.0, 275, 667, 11.33, null, { kt: 5.3, dirDeg: 209 });
+    expect(r.active).toBe(true);
+  });
+
+  it('freshPortWind: a stale or clockless port reading is no reading', () => {
+    const now = Date.UTC(2026, 9, 13, 14, 1);
+    expect(freshPortWind({ kt: 12.7, dirDeg: 210, atMs: now - 10 * 60_000 }, now)).toEqual({ kt: 12.7, dirDeg: 210 });
+    expect(freshPortWind({ kt: 12.7, dirDeg: 210, atMs: now - PORT_WIND_MAX_AGE_MS - 1 }, now)).toBeNull();
+    expect(freshPortWind({ kt: 12.7, dirDeg: 210, atMs: NaN }, now)).toBeNull();
+    expect(freshPortWind(null, now)).toBeNull();
   });
 });

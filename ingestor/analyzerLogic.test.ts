@@ -680,6 +680,42 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
     });
   });
 
+  // ── Rebound at Porto de Vigo (13-oct) ──────────────────────
+  // NW outside: the stations around Cesantes read it WNW (299°, 3.9 kt, gust 11.3) while Porto de
+  // Vigo reads it turned to 210° at 12.7 kt. On the water: under 5 kt; the alert path said BUENO 13.
+  // The spot radius is cut to 8 km here so the port stays out of the consensus and only the
+  // rebound test sees it.
+  describe('rebound at Porto de Vigo', () => {
+    const narrow: SpotDef = { ...cesantes, radiusKm: 8 };
+    const kt = (v: number) => v / 1.94384;
+    const rows = () => [
+      makeReading({ station_id: 'mg_cesantes', wind_speed: kt(3.9), wind_gust: kt(11.3), wind_dir: 299, temperature: 22.9, humidity: 60 }),
+      makeReading({ station_id: 'mg_interior', latitude: 42.32, longitude: -8.45, wind_speed: null, wind_gust: null, wind_dir: null,
+        temperature: 24, solar_rad: 667, time: new Date() }),
+    ];
+    const rande = () => makeBuoy({ station_id: 1251, lat: 42.29, lon: -8.66, wind_speed: 0, wind_dir: null, water_temp: 15.6 });
+    const port = (ageMin: number) => makeReading({ station_id: 'mg_14001', latitude: 42.24167, longitude: -8.727587,
+      wind_speed: kt(12.7), wind_gust: kt(17), wind_dir: 210, temperature: 21, time: new Date(Date.now() - ageMin * 60_000) });
+    beforeEach(() => vi.setSystemTime(new Date('2026-10-13T16:01:00+02:00')));
+
+    it('without the port the old boost to 13 kt is there', () => {
+      const r = scoreSpot(narrow, rows(), [rande()]);
+      expect(r.boostedBy).toBe('cesantes-canalization');
+      expect(r.avgWindKt).toBe(13);
+    });
+
+    it('with the port turned to SSW there is no boost: the raw wind stands', () => {
+      const r = scoreSpot(narrow, [...rows(), port(5)], [rande()]);
+      expect(r.boostedBy).toBeNull();
+      expect(r.avgWindKt).toBe(r.rawWindKt);
+    });
+
+    it('a port reading older than 30 min does not count', () => {
+      const r = scoreSpot(narrow, [...rows(), port(45)], [rande()]);
+      expect(r.boostedBy).toBe('cesantes-canalization');
+    });
+  });
+
   // ── Front aloft (synopticRegime.ts) ────────────────────────
   // 28-sep: 19 kt SSW at 850 hPa, the app said 17-18 kt, the water had 10 or less.
   describe('front veto', () => {

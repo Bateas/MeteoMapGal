@@ -10,7 +10,7 @@
 
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { msToKnots, degreesToCardinal } from '../src/services/windUtils.js';
-import { predictCesantesCanalization, INTERIOR_SOLAR_MAX_AGE_MS, inInteriorZone } from '../src/services/cesantesCanalizationDetector.js';
+import { predictCesantesCanalization, INTERIOR_SOLAR_MAX_AGE_MS, inInteriorZone, freshPortWind, PORT_VIGO_STATION_ID } from '../src/services/cesantesCanalizationDetector.js';
 import { assessRainVeto } from '../src/services/rainVeto.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
 import type { ThermalVeto } from '../src/services/cesantesCanalizationDetector.js';
@@ -449,6 +449,14 @@ function applyCesantesBoost(
   const waterTemp = nearbyBuoyWithSST?.water_temp
     ?? (summerLike ? RIA_VIGO_INTERIOR_SST_BY_MONTH[new Date().getMonth()] : null);
 
+  // Porto de Vigo for the rebound test, with the engine's own freshness rule.
+  const port = readings.find((r) => r.station_id === PORT_VIGO_STATION_ID);
+  const portWind = freshPortWind(port ? {
+    kt: port.wind_speed == null ? null : msToKnots(port.wind_speed),
+    dirDeg: port.wind_dir,
+    atMs: port.time == null ? NaN : new Date(port.time).getTime(),
+  } : null, nowMs);
+
   const prediction = predictCesantesCanalization(
     airTempLocal,
     waterTemp,
@@ -463,6 +471,7 @@ function applyCesantesBoost(
     solarRadInterior,
     localGustKt,
     veto,
+    portWind,
   );
 
   if (!prediction.active || prediction.predictedKt === null) return null;

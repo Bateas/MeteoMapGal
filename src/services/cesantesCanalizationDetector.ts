@@ -118,6 +118,18 @@ const INTERIOR_ZONE = { lonMin: -8.60, lonMax: -7.80, latMin: 42.10, latMax: 42.
  *  Ourense the map never sees. 12-oct: 6 MeteoGalicia stations inside; the stuck amateur
  *  radiometer reading 109.5 W/m² day and night (wu_ICARBA26, 37 km) stays out. */
 export const INTERIOR_MAX_KM_FROM_CESANTES = 22;
+
+/** Porto de Vigo: the throat the afternoon breeze has to come through on its way to San Simón. */
+export const PORT_VIGO_STATION_ID = 'mg_14001';
+/** Its reading counts for the rebound test only while this fresh (MeteoGalicia reports every 10 min). */
+export const PORT_WIND_MAX_AGE_MS = 30 * 60_000;
+/** The «rebound»: the stations around Cesantes read WNW-NW (past this, up to LOCAL_ARC_MAX)... */
+const REBOUND_LOCAL_DIR_MIN = 290;
+/** ...while Porto de Vigo reads the flow turned to SW-S or further round (below this)... */
+const REBOUND_PORT_DIR_MAX = 225;
+/** ...with real wind at the port: a direction under 3 kt says nothing. */
+const REBOUND_PORT_MIN_KT = 3;
+
 export const CESANTES_LAT = 42.307;
 export const CESANTES_LON = -8.619;
 
@@ -126,6 +138,16 @@ function kmFromCesantes(lat: number, lon: number): number {
   const a = Math.sin((lat - CESANTES_LAT) * p / 2) ** 2
     + Math.cos(CESANTES_LAT * p) * Math.cos(lat * p) * Math.sin((lon - CESANTES_LON) * p / 2) ** 2;
   return 12742 * Math.asin(Math.sqrt(a));
+}
+
+/** Porto de Vigo's wind for the rebound test, the same on map and server: null when there is no
+ *  reading, no clock on it or it is older than PORT_WIND_MAX_AGE_MS. */
+export function freshPortWind(
+  reading: { kt: number | null; dirDeg: number | null; atMs: number } | null | undefined,
+  nowMs: number,
+): { kt: number | null; dirDeg: number | null } | null {
+  if (!reading || !Number.isFinite(reading.atMs) || nowMs - reading.atMs > PORT_WIND_MAX_AGE_MS) return null;
+  return { kt: reading.kt, dirDeg: reading.dirDeg };
 }
 
 /** Whether a station is in the interior that drives the thermal low (box + distance). */
@@ -163,6 +185,9 @@ export function predictCesantesCanalization(
    *  (assessSynopticRegime). Vetoed = no thermal low pulling, whatever the ΔT
    *  and the clock say. */
   veto: ThermalVeto | null = null,
+  /** Wind at Porto de Vigo (PORT_VIGO_STATION_ID), only when fresh (PORT_WIND_MAX_AGE_MS).
+   *  Unknown = no rebound test, as before it existed. */
+  portWind: { kt: number | null; dirDeg: number | null } | null = null,
 ): CesantesPrediction {
   const inactive: CesantesPrediction = {
     active: false,
@@ -199,6 +224,20 @@ export function predictCesantesCanalization(
   // tapado, no sigue el patrón de entrada por la boca de la ría).
   if (localWindDir != null && (localStationKt ?? 0) >= 5
       && (localWindDir < SW_DIR_MIN || localWindDir > LOCAL_ARC_MAX)) {
+    return inactive;
+  }
+  // The rebound. With a NW-NNW flow outside, the stations around Cesantes read it WNW-NW
+  // (Cangas and O Viso take it over the Morrazo) while Porto de Vigo, at the throat a breeze
+  // has to come through, reads it turned to S-SSW by the harbour. That is the outside flow
+  // deflected, not a SW breeze being funnelled up to San Simón, and there is nothing to
+  // amplify. 13-oct 15:43-16:33: BUENO 11-13 shown, with an alert, consensus 291-296°, the
+  // port at 209° and 2-5 kt on the water at 15:31, 16:01 and 16:45. On the field truths at
+  // Cesantes (46): mean error 1.65 -> 1.48 kt, none broken; 25-sep (14 kt, wings out) had the
+  // port WNW as well and stays. Narrow on purpose: a 275° consensus with the port at 209°
+  // (13-oct 16:23) still passes.
+  if (localWindDir != null && localWindDir > REBOUND_LOCAL_DIR_MIN && localWindDir <= LOCAL_ARC_MAX
+      && portWind?.dirDeg != null && portWind.dirDeg < REBOUND_PORT_DIR_MAX
+      && (portWind.kt ?? 0) >= REBOUND_PORT_MIN_KT) {
     return inactive;
   }
   // Reality check: canalization AMPLIFIES an existing breeze, it does not create

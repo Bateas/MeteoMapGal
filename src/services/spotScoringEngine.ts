@@ -31,7 +31,7 @@ import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
 import { detectBocana } from './bocanaDetector';
-import { predictCesantesCanalization, computeInteriorSolar, type CesantesPrediction } from './cesantesCanalizationDetector';
+import { predictCesantesCanalization, computeInteriorSolar, freshPortWind, PORT_VIGO_STATION_ID, type CesantesPrediction } from './cesantesCanalizationDetector';
 import { assessRainVeto, type RainVeto } from './rainVeto';
 import { assessSynopticRegime, type RegimeVeto, type UpperWind } from './synopticRegime';
 import { precipSamplesFromHistory, type PrecipSample } from './precipSemantics';
@@ -1705,11 +1705,21 @@ export function scoreAllSpots(
       // From every station the engine was handed, not just the spot's (they sit within 12 km and
       // only one of them is inland): the zone itself (box + 22 km) decides, the same on map and server.
       const solarRadInterior = computeInteriorSolar(stations, readings);
+      // Porto de Vigo for the rebound test, read by id from every reading the engine was handed
+      // (11.5 km away, at the edge of the spot's radius: the station list may weigh or drop it).
+      const port = readings.get(PORT_VIGO_STATION_ID);
+      const portAt = port ? (port.timestamp instanceof Date ? port.timestamp.getTime() : new Date(port.timestamp as unknown as string).getTime()) : NaN;
+      const portWind = freshPortWind(port ? {
+        kt: port.windSpeed == null ? null : msToKnots(port.windSpeed),
+        dirDeg: port.windDirection,
+        atMs: portAt,
+      } : null, computedAt.getTime());
       channelingPrediction = predictCesantesCanalization(
         airTempLocal, waterTempForDetector, localStationKt, wind?.dirDeg ?? null,
         solarRadInterior,
         localGustKt(stationData, buoyData, wind?.rawAvgSpeedKt ?? 0),
         rainVeto?.vetoed ? rainVeto : regimeVeto,
+        portWind,
       );
     }
 
