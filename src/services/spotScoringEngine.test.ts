@@ -1037,3 +1037,14 @@ describe('markProvisionalUntilBuoys', () => {
     expect(markProvisionalUntilBuoys(scores, [centro]).get('centro-ria')!.provisional).toBe(false);
   });
 });
+
+describe('Lourido calibration (field truths 25-sep..14-oct)', () => {
+  it('the consensus is not lifted by a fixed calibration: its lead sources are on the water', () => {
+    const lourido = RIAS_SPOTS.find((s) => s.id === 'lourido')!;
+    const [lon, lat] = lourido.center;
+    const st = makeStation('wu_LOU_CTRL', lat, lon, 'wunderground');
+    const r = scoreAllSpots([lourido], [st], new Map([[st.id, makeReading(st.id, msFromKt(5), 240)]]), []).get('lourido')!;
+    // 14-oct 16:09 / 17:50 / 19:12: raw 5.1-5.8 kt with 4-6 on the water; the +1 put the figure out of the band
+    expect(r.wind!.avgSpeedKt).toBeCloseTo(r.wind!.rawAvgSpeedKt, 1);
+  });
+});
