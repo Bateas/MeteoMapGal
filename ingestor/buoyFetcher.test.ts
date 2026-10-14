@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseObsResponse, parsePortusResponse, mergeBuoyReadings } from './buoyFetcher.js';
+import { parseObsResponse, mergeBuoyReadings } from './buoyFetcher.js';
 import type { BuoyReadingRow } from './db.js';
 import { parseObsReading } from '../src/api/observatorioCosteiro';
 import fixture from '../src/api/observatorioCosteiro.fixture.json';
@@ -145,41 +145,6 @@ describe('parseObsResponse — 10-minute readings only', () => {
     at('2026-09-21T23:00:00Z');
     const noRacha = (payload('15001') as { funcion: string }[]).filter((p) => p.funcion !== 'RACHA') as unknown as Payload;
     expect(parseObsResponse(CORTEGADA, noRacha)!.windGust).toBeNull(); // hourly MAX is 10.27
-  });
-});
-
-// ── PORTUS clock: fecha is UTC without a zone ───────────────────────
-//
-// Live answer for 3221 at 16:28:05 UTC on 27-sep: fecha "2026-09-27 16:28:00.0".
-// Stored as-is, Postgres (session in Europe/Madrid) filed it at 14:28 UTC: every
-// PORTUS row landed 2 h early, and "PORTUS arrives 2 h late" was our own clock.
-
-const VIGO = { id: 3221, name: 'Vigo (marea)', type: 'REDMAR' };
-const live3221 = {
-  fecha: '2026-09-27 16:28:00.0',
-  datos: [
-    { paramEseoo: 'WindSpeed', valor: '23', factor: 10.0, averia: false, paramQC: false },
-    { paramEseoo: 'WindDir', valor: '274', factor: 1.0, averia: false, paramQC: false },
-  ],
-};
-
-describe('parsePortusResponse — PORTUS time is UTC', () => {
-  afterEach(() => { vi.useRealTimers(); });
-
-  it('stores the real instant with its zone, not the bare string', () => {
-    at('2026-09-27T16:28:05Z');
-    const r = parsePortusResponse(VIGO, live3221)!;
-    expect(r.time).toBe('2026-09-27T16:28:00.000Z');
-    expect(r.windSpeed).toBe(2.3);
-    expect(r.windDir).toBe(274);
-  });
-  it('a reading seconds old is fresh (it used to look 2 h old)', () => {
-    at('2026-09-27T16:28:05Z');
-    expect(parsePortusResponse(VIGO, live3221)).not.toBeNull();
-  });
-  it('an unreadable fecha is dropped, never guessed', () => {
-    at('2026-09-27T16:28:05Z');
-    expect(parsePortusResponse(VIGO, { ...live3221, fecha: '27/09/2026 16:28' })).toBeNull();
   });
 });
 

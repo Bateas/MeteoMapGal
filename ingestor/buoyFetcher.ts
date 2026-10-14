@@ -3,9 +3,10 @@
  *
  * Fetches from two sources:
  * - Puertos del Estado — 7 stations (exterior buoy, tide gauges, port weather
- *   stations). Through POEM when POEM_TOKEN is set (poemClient.ts, poemLogic.ts);
- *   without it, still through PORTUSSRV lastData, which Puertos del Estado asked
- *   us on 1-oct-2026 to stop using (POEM is the access for third parties).
+ *   stations), ONLY through POEM with POEM_TOKEN (poemClient.ts, poemLogic.ts).
+ *   The old PORTUSSRV path is gone: Puertos del Estado asked us on 1-oct-2026 to
+ *   stop using it, and POEM has served every station since 13-oct. Without a
+ *   token there are no Puertos del Estado buoys, and the log says so.
  * - Observatorio Costeiro da Xunta — 6 platforms, 10min, humidity+dewPoint
  *
  * Returns merged BuoyReadingRow[] ready for DB insert.
@@ -16,7 +17,6 @@ import { log } from './logger.js';
 import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import { allSettledLimit } from './concurrency.js';
 import { readObsCurrent, type ObsResponse } from '../src/api/obsCosteiroParse.js';
-import { portusFechaToIso } from '../src/api/portusTime.js';
 import { shouldAskPortus, isBackingOff, nextPortusBackoff, type PortusBackoff } from './portusBackoff.js';
 import { poemGet, poemToken, PoemHttpError } from './poemClient.js';
 import {
@@ -24,7 +24,6 @@ import {
   type EstacionParamRow, type ParamInfo, type PoemStationPlan,
 } from './poemLogic.js';
 
-const PORTUS_BASE = 'https://portus.puertos.es/portussvr/api';
 const OBS_BASE = 'https://apis-ext.xunta.gal/mgplatpubapi/v1/api';
 const TIMEOUT = 20_000;
 
@@ -34,14 +33,6 @@ interface BuoyStation {
   id: number;
   name: string;
   type: string;
-  /**
-   * Custom PORTUS categories list. Default (undefined) uses all 7. Override
-   * for stations that don't have certain sensors — saves a wasted parse and
-   * removes them from the "empty" failure counter. Rande for example has
-   * no anemometer (documented gotcha), so requesting WAVE+WIND always
-   * returns nothing relevant for our row shape.
-   */
-  categories?: string[];
 }
 
 // The CETMAR moorings (A Guarda, Cíes, Rande, Cortegada, Ribeira) are not asked to
@@ -55,14 +46,8 @@ const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
   // Ría de Vigo
   { id: 1252, name: 'Islas Cíes', type: 'CETMAR', enabled: false },  // OFFLINE since Dec 2025 (same as ObsCosteiro 15002)
   // Rande has NO anemometer (documented gotcha) — only humidity/temp/dewpoint.
-  // Not asked to PORTUS any more: PORTUS answers HTTP 500 whenever AIR_PRESSURE is
-  // requested for it, and that category was in this list from v2.80.0 (May) until
-  // v2.163.46, so every request failed for almost five months. Without it PORTUS
-  // only returns air temperature (water temperature comes null). Its water, air and
-  // humidity arrive through ObsCosteiro (same buoy, same id). If it is ever
-  // re-enabled, do not ask for AIR_PRESSURE.
-  { id: 1251, name: 'Rande (Ría Vigo)', type: 'CETMAR', enabled: false,
-    categories: ['WATER_TEMP', 'AIR_TEMP'] },
+  // Its water, air and humidity arrive through ObsCosteiro (same buoy, same id).
+  { id: 1251, name: 'Rande (Ría Vigo)', type: 'CETMAR', enabled: false },
   { id: 3221, name: 'Vigo (marea)', type: 'REDMAR' },
   // Ría de Pontevedra
   { id: 4272, name: 'Ons', type: 'REMPOR' },
@@ -112,15 +97,6 @@ const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
 const MAX_AGE_MS = 6 * 60 * 60_000;
 
 /**
- * HTTP status code → count for the current cycle. fetchPortusStation
- * increments this on every non-OK response. fetchBuoyObservations
- * resets it before fetching and prints a cycle summary at the end.
- * This gives one informative line per cycle instead of N×11 noisy
- * per-station warnings.
- */
-const portusFailureCounters = new Map<number, number>();
-
-/**
  * Per-station last-seen tracker. Updated every cycle from the readings
  * actually returned this cycle. Compared against STALE_AFTER_MIN at end
  * of cycle to detect upstream regressions per-station — closes the loop
@@ -154,142 +130,6 @@ function notePortusAnswer(station: BuoyStation, failed: boolean, nowMs = Date.no
   }
 }
 
-// ── PORTUS fetch ────────────────────────────────────────
-
-async function fetchPortusStation(station: BuoyStation): Promise<BuoyReadingRow | null> {
-  // Defensive guard — IDs >= 15000 belong to ObsCosteiro, not PORTUS.
-  // Puertos del Estado emailed warning of IP block when this leaked.
-  if (station.id >= 15000) {
-    log.warn(`PORTUS fetch refused for ObsCosteiro id ${station.id} — use OBS_STATIONS path`);
-    return null;
-  }
-  try {
-    // Use station-specific categories if defined (e.g. Rande has no anemometer),
-    // otherwise the default full list.
-    const categories = station.categories ?? [
-      'WAVE', 'WIND', 'WATER_TEMP', 'AIR_TEMP', 'SEA_LEVEL', 'CURRENTS', 'SALINITY',
-    ];
-    // Browser-style User-Agent. Default Node fetch sends an empty UA which
-    // some upstreams (incl. PORTUS) treat as "bot" and rate-limit harder.
-    const headers = {
-      'Content-Type': 'application/json',
-      'User-Agent': SERVER_USER_AGENT,
-    };
-    const res = await fetch(`${PORTUS_BASE}/lastData/station/${station.id}?locale=es`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(categories),
-      signal: AbortSignal.timeout(TIMEOUT),
-    });
-
-    if (!res.ok) {
-      // Aggregate the status code into a module-level counter so the cycle
-      // summary log can say "11 failed: 9× 429, 2× 503" — quieter than
-      // 11 separate warn lines per cycle but still actionable.
-      // (See logCycleSummary() at the end of fetchBuoyObservations.)
-      portusFailureCounters.set(res.status, (portusFailureCounters.get(res.status) ?? 0) + 1);
-      // A station already known to be failing gets no retry: its hourly probe is enough.
-      if ((res.status >= 500 || res.status === 429) && !isBackingOff(portusBackoff.get(station.id))) {
-        // Retry on 5xx or 429 with longer backoff (PORTUS rate-limit window
-        // appears to be ~30-60s based on observed behaviour).
-        await new Promise((r) => setTimeout(r, 5000));
-        const retry = await fetch(`${PORTUS_BASE}/lastData/station/${station.id}?locale=es`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(categories),
-          signal: AbortSignal.timeout(TIMEOUT),
-        });
-        if (!retry.ok) {
-          portusFailureCounters.set(retry.status, (portusFailureCounters.get(retry.status) ?? 0) + 1);
-          notePortusAnswer(station, true);
-          return null;
-        }
-        notePortusAnswer(station, false);
-        const retryData = await retry.json();
-        return parsePortusResponse(station, retryData);
-      }
-      notePortusAnswer(station, true);
-      return null;
-    }
-
-    notePortusAnswer(station, false);
-    const data = await res.json();
-    return parsePortusResponse(station, data);
-  } catch (err) {
-    notePortusAnswer(station, true);
-    log.warn(`PORTUS ${station.name} (${station.id}): ${(err as Error).message}`);
-    return null;
-  }
-}
-
-export function parsePortusResponse(
-  station: BuoyStation,
-  data: { fecha?: string; datos?: any[] }
-): BuoyReadingRow | null {
-  // diagnostic: log WHY a station returns null. Three reasons:
-  //   - empty payload (no datos array, no fecha)
-  //   - stale data (fecha older than MAX_AGE_MS)
-  //   - parsed OK but no recognized parameters (rare)
-  // Aggregating these in the cycle counter using synthetic status codes
-  // outside the HTTP range (-1 = empty, -2 = stale, -3 = no params).
-  // `fecha` is UTC without a zone: stored as-is, Postgres (session in
-  // Europe/Madrid) filed every reading 2 h early. Always go through the parser.
-  const fechaIso = portusFechaToIso(data?.fecha);
-  if (!data?.datos?.length || !fechaIso) {
-    portusFailureCounters.set(-1, (portusFailureCounters.get(-1) ?? 0) + 1);
-    return null;
-  }
-
-  // Check freshness
-  const age = Date.now() - Date.parse(fechaIso);
-  if (age > MAX_AGE_MS) {
-    portusFailureCounters.set(-2, (portusFailureCounters.get(-2) ?? 0) + 1);
-    return null;
-  }
-
-  const row: BuoyReadingRow = {
-    time: fechaIso,
-    stationId: station.id,
-    stationName: station.name,
-    source: 'portus',
-    waveHeight: null, waveHeightMax: null, wavePeriod: null,
-    wavePeriodMean: null, waveDir: null,
-    windSpeed: null, windDir: null, windGust: null,
-    waterTemp: null, airTemp: null, airPressure: null,
-    currentSpeed: null, currentDir: null,
-    salinity: null, seaLevel: null,
-    humidity: null, dewPoint: null,
-  };
-
-  for (const d of data.datos) {
-    if (d.averia || d.paramQC) continue;
-    const val = parseInt(d.valor, 10);
-    if (isNaN(val)) continue;
-    const factor = d.factor || 1;
-    const real = val / factor;
-
-    switch (d.paramEseoo) {
-      case 'Hm0': row.waveHeight = real; break;
-      case 'Hmax': row.waveHeightMax = real; break;
-      case 'Tp': row.wavePeriod = real; break;
-      case 'Tm02': row.wavePeriodMean = real; break;
-      case 'MeanDir': row.waveDir = real; break;
-      case 'WindSpeed': row.windSpeed = real; break;
-      case 'WindDir': row.windDir = real; break;
-      case 'WindSpeedMax': row.windGust = real; break;
-      case 'WaterTemp': row.waterTemp = real; break;
-      case 'AirTemp': row.airTemp = real; break;
-      case 'AirPressure': row.airPressure = real; break;
-      case 'CurrentSpeed': row.currentSpeed = real / 100; break; // cm/s → m/s
-      case 'CurrentDir': row.currentDir = real; break;
-      case 'Salinity': row.salinity = real; break;
-      case 'SeaLevel': row.seaLevel = real; break;
-    }
-  }
-
-  return row;
-}
-
 // ── POEM (Puertos del Estado's API for third parties) ───
 
 /** Plans per station: table, columns, factors, units (poemLogic.ts). Re-read daily. */
@@ -303,8 +143,8 @@ const POEM_PLAN_RETRY_MS = 60 * 60_000;
 const POEM_AUTH_LOG_MS = 60 * 60_000;
 let poemAuthLoggedAt = 0;
 let poemExpiryNotedDay = '';
-let lastDataNotedAt = 0;
-const LAST_DATA_NOTE_MS = 6 * 60 * 60_000;
+let noTokenNotedAt = 0;
+const NO_TOKEN_NOTE_MS = 6 * 60 * 60_000;
 
 function madridDay(ms: number): string {
   return new Date(ms).toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
@@ -580,18 +420,7 @@ export function mergeBuoyReadings(portus: BuoyReadingRow[], obs: BuoyReadingRow[
 export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   const obsApiKey = process.env.OBSCOSTEIRO_API_KEY || '';
 
-  // Concurrency caps — PORTUS rate-limits aggressively per IP. The
-  // audit revealed buoys 2248 and 3223 had been silently dead for 40 days
-  // because the 12-way Promise.allSettled fan-out had most stations losing
-  // the race for PORTUS's connection budget.
-  //
-  // v2.79.6 set PORTUS=2; logs still showed 0-1/12 success per cycle.
-  // v2.79.8 drops to PORTUS=1 (fully sequential) since manual curl from
-  // the same IP works fine — the issue is concurrent-connections-from-
-  // same-IP, not total request volume. Sequential gives every station
-  // ~1.5s per attempt with the 5s backoff on 429 (~25-30s per cycle for
-  // 11 stations, fits within the 5min poll window).
-  const PORTUS_CONCURRENCY = 1;
+  // POEM is asked one station at a time (fetchPdeViaPoem); the Xunta, three at a time.
   const OBS_CONCURRENCY = 3;
 
   const portusStations = RIAS_BUOY_STATIONS.filter((s) => s.enabled !== false);
@@ -601,25 +430,16 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
   const portusAsked = portusStations.filter((s) => shouldAskPortus(portusBackoff.get(s.id), cycleNow));
   const portusWaiting = portusStations.filter((s) => !portusAsked.includes(s));
 
-  // Reset the per-cycle failure counter before we start fetching.
-  portusFailureCounters.clear();
-
-  // With a POEM token, Puertos del Estado is read ONLY through POEM: a failing
-  // POEM never falls back to PORTUSSRV. Without one, the old path, with a reminder.
+  // Puertos del Estado is read ONLY through POEM. Without a token there are no
+  // Puertos del Estado buoys (never PORTUSSRV, which they asked us to stop using).
   const token = poemToken();
-  if (!token && cycleNow - lastDataNotedAt >= LAST_DATA_NOTE_MS) {
-    lastDataNotedAt = cycleNow;
-    log.warn('PORTUS se sigue leyendo por PORTUSSRV (lastData), que Puertos del Estado pidio el 1-oct dejar de usar: falta POEM_TOKEN en ingestor/.env');
+  if (!token && cycleNow - noTokenNotedAt >= NO_TOKEN_NOTE_MS) {
+    noTokenNotedAt = cycleNow;
+    log.error('Sin boyas de Puertos del Estado: falta POEM_TOKEN en ingestor/.env (POEM es el unico acceso)');
   }
   const poemNotes = new Map<string, number>();
-  const readPde = async (): Promise<BuoyReadingRow[]> => {
-    if (token) return fetchPdeViaPoem(portusAsked, portusStations, token, poemNotes);
-    const settled = await allSettledLimit(portusAsked, fetchPortusStation, PORTUS_CONCURRENCY);
-    return (settled as PromiseSettledResult<BuoyReadingRow | null>[])
-      .filter((r): r is PromiseFulfilledResult<BuoyReadingRow | null> => r.status === 'fulfilled')
-      .map((r) => r.value)
-      .filter((r): r is BuoyReadingRow => r != null);
-  };
+  const readPde = async (): Promise<BuoyReadingRow[]> =>
+    token ? fetchPdeViaPoem(portusAsked, portusStations, token, poemNotes) : [];
 
   // Fetch both sources in parallel
   const [portus, obsResults] = await Promise.all([
@@ -654,25 +474,6 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
       .map(([what, count]) => `${count}× ${what}`)
       .join(', ');
     log.warn(`POEM este ciclo: ${breakdown}`);
-  }
-
-  // Diagnostic: when PORTUS gives < total back, surface WHY. Distinguishes:
-  //   HTTP 429/403/5xx — upstream rejecting at network layer
-  //   -1 empty        — 200 OK but no `datos` array or no `fecha`
-  //   -2 stale        — 200 OK but fecha older than MAX_AGE_MS (2h)
-  // This is what makes "PORTUS 1/12" actionable instead of opaque.
-  if (portusFailureCounters.size > 0) {
-    const codeLabel = (code: number): string => {
-      if (code === -1) return 'empty';
-      if (code === -2) return 'stale';
-      if (code === -3) return 'no-params';
-      return String(code);
-    };
-    const breakdown = Array.from(portusFailureCounters.entries())
-      .sort(([, a], [, b]) => b - a)
-      .map(([code, count]) => `${count}× ${codeLabel(code)}`)
-      .join(', ');
-    log.warn(`PORTUS rejections this cycle: ${breakdown}`);
   }
 
   // Per-station freshness check. Closes the lesson: the global
