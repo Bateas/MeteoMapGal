@@ -309,11 +309,6 @@ export function ReadingMapSection() {
             text="Tres capas opcionales del IGN: ortofotos PNOA (vista aérea), sombreado MDT (relieve 3D) y curvas de nivel. Toggle en selector de mapa. Ambos sectores."
           />
           <MiniExplainer
-            iconId="thumbs-up"
-            title="Validación de alertas"
-            text="Botones ✓/✗ en cada alerta del panel expandido. Tu feedback ayuda a mejorar la precisión del sistema de alertas. Las validaciones se almacenan 30 días."
-          />
-          <MiniExplainer
             iconId="camera"
             title="Webcams en spots"
             text="Algunos spots incluyen imagen o enlace a webcam en vivo directamente en el popup del spot. Permite verificar condiciones reales antes de navegar."

@@ -51,8 +51,6 @@ import {
   Eye,
   EyeOff,
   Camera,
-  ThumbsUp,
-  ThumbsDown,
   Bell,
   BellOff,
   Ruler,
@@ -74,7 +72,7 @@ export type IconId =
   | 'fish' | 'calendar'
   | 'database' | 'gauge' | 'check' | 'sprout'
   | 'compass' | 'navigation' | 'layers' | 'eye' | 'eye-off' | 'camera'
-  | 'thumbs-up' | 'thumbs-down' | 'bell' | 'bell-off'
+  | 'bell' | 'bell-off'
   | 'ruler' | 'activity' | 'message-square' | 'maximize' | 'share';
 
 // ── Custom SVG icons (not in Lucide) ──────────────────────────
@@ -234,8 +232,6 @@ const LUCIDE_MAP: Record<string, React.ComponentType<LucideProps>> = {
   'eye': Eye,
   'eye-off': EyeOff,
   'camera': Camera,
-  'thumbs-up': ThumbsUp,
-  'thumbs-down': ThumbsDown,
   'bell': Bell,
   'bell-off': BellOff,
   'ruler': Ruler,
@@ -333,8 +329,6 @@ const ICON_LABELS: Record<IconId, string> = {
   'eye': 'Privacidad',
   'eye-off': 'Ocultar detalle',
   'camera': 'Webcam',
-  'thumbs-up': 'Correcto',
-  'thumbs-down': 'Incorrecto',
   'bell': 'Notificaciones',
   'bell-off': 'Sin notificaciones',
   'ruler': 'Medir distancia',

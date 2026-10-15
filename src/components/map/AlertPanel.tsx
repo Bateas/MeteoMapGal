@@ -1,16 +1,10 @@
-import { memo, useMemo, useCallback, useState } from 'react';
+import { memo, useMemo } from 'react';
 import { useAlertStore } from '../../store/alertStore';
 import { useUIStore } from '../../store/uiStore';
-import { useSectorStore } from '../../store/sectorStore';
 import { NotificationControl } from './NotificationControl';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
 import type { UnifiedAlert, AlertSeverity, CompositeRisk } from '../../services/alertService';
-
-// Compact inline icon for validation buttons (smaller than WeatherIcon)
-function MiniIcon({ id, size = 12, className = '' }: { id: IconId; size?: number; className?: string }) {
-  return <WeatherIcon id={id} size={size} className={className} />;
-}
 
 // ── Severity color palette ───────────────────────────────────
 
@@ -108,30 +102,6 @@ function AlertChip({ alert }: { alert: UnifiedAlert }) {
 
 function AlertRow({ alert }: { alert: UnifiedAlert }) {
   const colors = SEVERITY_COLORS[alert.severity];
-  const validateAlert = useAlertStore((s) => s.validateAlert);
-  const validations = useAlertStore((s) => s.validations);
-  const activeSectorId = useSectorStore((s) => s.activeSector.id);
-  const [justValidated, setJustValidated] = useState<boolean | null>(null);
-
-  // Check if this alert was recently validated (within last 30min) — sector-specific
-  const recentValidation = useMemo(() => {
-    const cutoff = Date.now() - 30 * 60 * 1000;
-    return validations.find(
-      (v) => v.alertId === alert.id && v.validatedAt > cutoff &&
-        (!v.sectorId || v.sectorId === activeSectorId),
-    );
-  }, [validations, alert.id, activeSectorId]);
-
-  const handleValidate = useCallback((valid: boolean, e: React.MouseEvent) => {
-    e.stopPropagation(); // Don't toggle panel
-    validateAlert(alert.id, valid);
-    setJustValidated(valid);
-    // Reset feedback after 3s
-    setTimeout(() => setJustValidated(null), 3000);
-  }, [alert.id, validateAlert]);
-
-  const showValidation = recentValidation || justValidated !== null;
-  const validValue = justValidated ?? recentValidation?.valid;
 
   return (
     <div
@@ -168,42 +138,6 @@ function AlertRow({ alert }: { alert: UnifiedAlert }) {
             </span>
           )}
         </div>
-      </div>
-
-      {/* Validation buttons */}
-      <div className="flex items-center gap-0.5 shrink-0 ml-1">
-        {showValidation ? (
-          <span
-            className="text-xs px-1.5 py-0.5 rounded"
-            style={{
-              background: validValue ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-              color: validValue ? '#22c55e' : '#ef4444',
-            }}
-          >
-            {validValue ? '✓' : '✗'}
-          </span>
-        ) : (
-          <>
-            <button
-              onClick={(e) => handleValidate(true, e)}
-              className="px-1.5 py-1 rounded opacity-70 hover:opacity-100 hover:bg-green-500/20 transition-all cursor-pointer"
-              style={{ color: '#22c55e' }}
-              title="Alerta correcta — validar"
-              aria-label="Validar alerta como correcta"
-            >
-              <MiniIcon id="thumbs-up" size={14} />
-            </button>
-            <button
-              onClick={(e) => handleValidate(false, e)}
-              className="px-1.5 py-1 rounded opacity-70 hover:opacity-100 hover:bg-red-500/20 transition-all cursor-pointer"
-              style={{ color: '#ef4444' }}
-              title="Falso positivo — rechazar"
-              aria-label="Rechazar alerta como falso positivo"
-            >
-              <MiniIcon id="thumbs-down" size={14} />
-            </button>
-          </>
-        )}
       </div>
     </div>
   );
@@ -252,7 +186,6 @@ export const AlertPanel = memo(function AlertPanel() {
   const risk = useAlertStore((s) => s.risk);
   const panelExpanded = useAlertStore((s) => s.panelExpanded);
   const togglePanel = useAlertStore((s) => s.togglePanel);
-  const validationCount = useAlertStore((s) => s.validations.length);
 
   // Separate alerts by importance
   const { topAlerts, otherAlerts } = useMemo(() => {
@@ -281,16 +214,9 @@ export const AlertPanel = memo(function AlertPanel() {
           <div className="flex items-center justify-between mb-1">
             <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
               Alertas activas <span className="badge-beta ml-1">Beta</span>
-              {validationCount > 0 && (
-                <span className="ml-2 text-[11px] font-normal text-slate-600" title="Alertas validadas (30 días)">
-                  {validationCount} validadas
-                </span>
-              )}
             </span>
             {!isMobile && (
-              <span className="text-[11px] text-slate-600 font-mono flex items-center gap-0.5">
-                <MiniIcon id="thumbs-up" size={9} /><MiniIcon id="thumbs-down" size={9} /> para validar · A para cerrar
-              </span>
+              <span className="text-[11px] text-slate-600 font-mono">A para cerrar</span>
             )}
           </div>
 
