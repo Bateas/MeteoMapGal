@@ -11,7 +11,9 @@ import {
   assessSpotLightningRisk,
   formatRiskLine,
   stormNearPoint,
+  assessLightningWait,
   LIGHTNING_WINDOW_MIN,
+  LIGHTNING_WAIT_MIN,
   type ProximitySpot,
   type ProximityStrike,
 } from './lightningProximityService';
@@ -185,5 +187,39 @@ describe('stormNearPoint — no «go sailing» with a storm near (6-oct)', () =>
     expect(stormNearPoint(CESANTES.lat, CESANTES.lon, [strike(CESANTES, 45, 5), strike(CESANTES, 50, 5), strike(CESANTES, 60, 5)], NOW)).toBeNull();
     const old = LIGHTNING_WINDOW_MIN + 5;
     expect(stormNearPoint(CESANTES.lat, CESANTES.lon, [strike(CESANTES, 5, old), strike(CESANTES, 6, old), strike(CESANTES, 7, old)], NOW)).toBeNull();
+  });
+});
+
+describe('assessLightningWait — 30 min after the last close strike (season replay)', () => {
+  it('holds a wait when the spot was in danger and the close strikes have aged out of the window', () => {
+    // danger 22-24 min ago (two strikes within 10 km), nothing since: no danger banner now
+    const s = [strike(CESANTES, 5, 22), strike(CESANTES, 7, 24)];
+    expect(assessSpotLightningRisk([CESANTES], s, NOW).some((r) => r.level === 'peligro')).toBe(false);
+    const w = assessLightningWait([CESANTES], s, NOW);
+    expect(w).toHaveLength(1);
+    expect(w[0]).toMatchObject({ spotId: 'cesantes', lastAgeMin: 22 });
+    expect(w[0].untilMs).toBe(NOW.getTime() - 22 * 60_000 + LIGHTNING_WAIT_MIN * 60_000);
+  });
+
+  it('ends 30 min after the last close strike', () => {
+    expect(assessLightningWait([CESANTES], [strike(CESANTES, 5, 31), strike(CESANTES, 7, 33)], NOW)).toHaveLength(0);
+  });
+
+  it('no wait for a spot in danger now (the danger banner covers it)', () => {
+    expect(assessLightningWait([CESANTES], [strike(CESANTES, 5, 2), strike(CESANTES, 7, 4)], NOW)).toHaveLength(0);
+  });
+
+  it('no wait when the spot never reached danger: one lone strike within 10 km', () => {
+    expect(assessLightningWait([CESANTES], [strike(CESANTES, 5, 22)], NOW)).toHaveLength(0);
+  });
+
+  it('strikes only beyond 10 km never start a wait', () => {
+    const far = [strike(CESANTES, 15, 22), strike(CESANTES, 18, 23), strike(CESANTES, 20, 24)];
+    expect(assessLightningWait([CESANTES], far, NOW)).toHaveLength(0);
+  });
+
+  it('is per spot: the other spot keeps no wait', () => {
+    const s = [strike(CESANTES, 5, 22), strike(CESANTES, 7, 24)];
+    expect(assessLightningWait([CESANTES, CASTRELO], s, NOW).map((w) => w.spotId)).toEqual(['cesantes']);
   });
 });

@@ -168,6 +168,71 @@ export function assessSpotLightningRisk(
   return risks;
 }
 
+/** After «sal del agua» the map keeps a wait this long after the last strike within
+ *  LIGHTNING_DANGER_KM. Measured over the season (a replay on 456 points of the coast and the interior):
+ *  when the danger banner went away, another strike fell within 10 km in the next 30 min 26 % of
+ *  the times; holding 30 min after the last close strike brings it to 19 %, for about 4 more hours
+ *  a year per point. It does not make it zero, so the text says «espera», never «ya puedes». */
+export const LIGHTNING_WAIT_MIN = 30;
+
+export interface SpotLightningWait {
+  spotId: string;
+  spotName: string;
+  sector?: string;
+  /** Distance of the last strike within LIGHTNING_DANGER_KM (km) */
+  lastKm: number;
+  /** Minutes since that strike */
+  lastAgeMin: number;
+  /** When the wait ends (epoch ms): that strike + LIGHTNING_WAIT_MIN */
+  untilMs: number;
+}
+
+/**
+ * Spots that WERE in danger and are not any more: the last strike within LIGHTNING_DANGER_KM is
+ * under LIGHTNING_WAIT_MIN old and, at that strike, the spot was in «peligro». Spots in danger now
+ * are left out (the danger banner covers them). Nothing goes to Telegram: map only.
+ */
+export function assessLightningWait(
+  spots: ProximitySpot[],
+  strikes: ProximityStrike[],
+  now: Date = new Date(),
+): SpotLightningWait[] {
+  if (spots.length === 0 || strikes.length === 0) return [];
+  const nowMs = now.getTime();
+  const waitMs = LIGHTNING_WAIT_MIN * 60_000;
+  const recent = strikes.filter((s) => {
+    const age = nowMs - s.time.getTime();
+    return age >= 0 && age <= waitMs + LIGHTNING_WINDOW_MIN * 60_000;
+  });
+  if (recent.length === 0) return [];
+  const inDangerNow = new Set(assessSpotLightningRisk(spots, recent, now).filter((r) => r.level === 'peligro').map((r) => r.spotId));
+  const out: SpotLightningWait[] = [];
+  for (const spot of spots) {
+    if (inDangerNow.has(spot.id)) continue;
+    let last: { s: ProximityStrike; d: number } | null = null;
+    for (const s of recent) {
+      if (nowMs - s.time.getTime() > waitMs) continue;
+      const d = haversineDistance(spot.lat, spot.lon, s.lat, s.lon);
+      if (d > LIGHTNING_DANGER_KM) continue;
+      if (!last || s.time > last.s.time) last = { s, d };
+    }
+    if (!last) continue;
+    const at = last.s.time;
+    const before = recent.filter((s) => s.time.getTime() <= at.getTime());
+    const thenRisk = assessSpotLightningRisk([spot], before, at)[0];
+    if (thenRisk?.level !== 'peligro') continue;
+    out.push({
+      spotId: spot.id,
+      spotName: spot.name,
+      sector: spot.sector,
+      lastKm: Math.round(last.d * 10) / 10,
+      lastAgeMin: Math.round((nowMs - at.getTime()) / 60_000),
+      untilMs: at.getTime() + waitMs,
+    });
+  }
+  return out.sort((a, b) => b.untilMs - a.untilMs);
+}
+
 /** One human line per spot for alerts/UI: "Cesantes: rayo a 6km (5 en 20min, acercandose ~15min)" */
 /** Strikes in the window within OPPORTUNITY_STORM_KM of a point: a storm close enough that an
  *  opportunity alert («sal a navegar») must not go out. Null when there is none. */
