@@ -1048,3 +1048,49 @@ describe('Lourido calibration (field truths 25-sep..14-oct)', () => {
     expect(r.wind!.avgSpeedKt).toBeCloseTo(r.wind!.rawAvgSpeedKt, 1);
   });
 });
+
+// ── Wave source per spot (15-oct) ────────────────────────
+
+describe('waves only from the spot own wave buoys', () => {
+  const silleiro = (waveHeight: number): BuoyReading => ({
+    stationId: 2248, stationName: 'Cabo Silleiro', timestamp: new Date().toISOString(),
+    waveHeight, wavePeriod: 12, waveDir: 300, waveHeightMax: null, wavePeriodMean: null,
+    windSpeed: null, windDir: null, windGust: null,
+    waterTemp: 16, airTemp: 17, humidity: null, dewPoint: null,
+    airPressure: null, salinity: null, currentSpeed: null, currentDir: null,
+    seaLevel: null,
+  });
+  const calmAt = (id: string) => {
+    const spot = RIAS_SPOTS.find((s) => s.id === id)!;
+    const st = makeStation(`mg_${id}`, spot.center[1], spot.center[0]);
+    return { spot, st, readings: new Map([[st.id, makeReading(st.id, msFromKt(4), 300)]]) };
+  };
+
+  // 15-oct 19:00: Vao in 4 kt read «FUERTE» from Silleiro's open-ocean 2,7 m
+  it('Vao in 4 kt is not strong because of the open-ocean swell at Silleiro', () => {
+    const { spot, st, readings } = calmAt('vao');
+    const r = scoreAllSpots([spot], [st], readings, [silleiro(2.7)]).get('vao')!;
+    expect(r.hardGateTriggered).toBeNull();
+    expect(r.verdict).not.toBe('strong');
+    expect(r.waves).toBeNull();
+  });
+
+  it('cies-ria still takes the gate from Silleiro', () => {
+    const { spot, st, readings } = calmAt('cies-ria');
+    const r = scoreAllSpots([spot], [st], readings, [silleiro(3.4)]).get('cies-ria')!;
+    expect(r.hardGateTriggered).not.toBeNull();
+    expect(r.waves!.waveHeight).toBeCloseTo(3.4, 1);
+  });
+
+  it('a harbour gauge never stands for a spot sea state', () => {
+    const { spot, st, readings } = calmAt('vao');
+    const gauge = { ...silleiro(0.05), stationId: 3221, stationName: 'Vigo (marea)' };
+    expect(scoreAllSpots([spot], [st], readings, [gauge]).get('vao')!.waves).toBeNull();
+  });
+
+  it('every wave buoy is also a preferred buoy (else the selection drops it past 30 km)', () => {
+    for (const s of [...RIAS_SPOTS, ...EMBALSE_SPOTS]) {
+      for (const id of s.waveBuoys ?? []) expect(s.preferredBuoys).toContain(id);
+    }
+  });
+});

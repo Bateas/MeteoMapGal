@@ -1638,8 +1638,12 @@ export function scoreAllSpots(
     // Waves get their own, wider freshness window. Everything else on this
     // list (wind, theta-v, humidity, bocana) stays on the strict wind-scale
     // gate — swell is the only field here slow enough to survive the PORTUS
-    // publication lag without misleading anyone.
-    const waves = extractWaveConditions(selectBuoysForSpot(spot, buoys, BUOY_WAVE_MAX_MIN));
+    // publication lag without misleading anyone. Only the spot's own wave buoys count
+    // (SailingSpot.waveBuoys): the nearest buoy with a wave is usually open ocean.
+    const waveSet = new Set(spot.waveBuoys ?? []);
+    const waves = extractWaveConditions(
+      selectBuoysForSpot(spot, buoys, BUOY_WAVE_MAX_MIN).filter((d) => waveSet.has(d.buoy.stationId)),
+    );
 
     // Water temp + dew point from nearest buoy.
     // SURF spots SKIP the buoy water temp: the closest buoy can sit in a totally

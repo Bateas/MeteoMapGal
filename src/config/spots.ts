@@ -80,6 +80,12 @@ export interface SailingSpot {
   preferredStations: string[];
   /** Buoy IDs to prioritize (from RIAS_BUOY_STATIONS) */
   preferredBuoys: number[];
+  /** Buoys whose wave height stands for THIS spot's water: hard gate, wave score and the
+   *  «Olas» line. Opt-in, each one also in `preferredBuoys`. The only buoy with waves is Cabo
+   *  Silleiro, open ocean 50 km out, and the harbour gauges measure port agitation. Before
+   *  this the engine took the nearest buoy with any wave: on 15-oct Vao, a beach behind the
+   *  Cíes in 4 kt, read «FUERTE» from Silleiro's 2,7 m. */
+  waveBuoys?: number[];
   /** Wave relevance for scoring */
   waveRelevance: 'none' | 'moderate' | 'critical';
   /** Whether thermal wind detection applies */
@@ -344,6 +350,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       1253, // A Guarda CETMAR (sur)
       // 1252 Islas Cíes CETMAR: offline since Dec 2025 (enabled: false in buoyClient)
     ],
+    waveBuoys: [2248], // the south mouth takes the ocean swell
     waveRelevance: 'critical',
     thermalDetection: false,
     hardGates: { maxWindKt: 30, maxWaveHeight: 3.0 },
@@ -740,6 +747,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       4273, // Cabo Udra REMPOR (~13km S) — swell directo enfrente
       2248, // Cabo Silleiro (~58km SW) — referencia oceánica
     ],
+    waveBuoys: [2248],
     waveRelevance: 'critical',
     thermalDetection: false,
     hardGates: { maxWindKt: 30, maxWaveHeight: 5.0 },
@@ -786,6 +794,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
       15009, // Muros ObsCosteiro (~14km N, HAS WIND — supplementary)
       2248, // Cabo Silleiro (~58km SW) — deep-water swell reference
     ],
+    waveBuoys: [2248],
     waveRelevance: 'critical',
     thermalDetection: false,
     hardGates: { maxWindKt: 25, maxWaveHeight: 5.0 },
