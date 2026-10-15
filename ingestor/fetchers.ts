@@ -19,6 +19,7 @@ import {
 } from '../src/services/normalizer.js';
 import { parseMeteoclimaticXml } from './xml.js';
 import { skyXWindIsMeasuring } from '../src/api/skyxClient.js';
+import { WU_UNITS, wuMetricFields, type WuMetric } from '../src/api/wundergroundUnits.js';
 import { getNetatmoToken, GALICIA_SWEEP_POINTS, GALICIA_SWEEP_RADIUS_KM } from './discover.js';
 
 /** The sectors are what someone is deciding on right now, so they keep the
@@ -266,14 +267,7 @@ interface WUObservation {
   winddir: number | null;
   humidity: number | null;
   solarRadiation: number | null;
-  metric_si: {
-    temp: number | null;
-    windSpeed: number | null;
-    windGust: number | null;
-    pressure: number | null;
-    precipTotal: number | null;
-    dewpt: number | null;
-  };
+  metric?: WuMetric;   // units=m: wind in km/h (wundergroundUnits.ts)
 }
 
 async function fetchWunderground(
@@ -292,7 +286,7 @@ async function fetchWunderground(
   const results = await allSettledLimit(wuStations, async (station) => {
     const rawId = station.id.replace('wu_', '');
     const res = await fetch(
-      `${WU_BASE}/v2/pws/observations/current?stationId=${rawId}&format=json&units=s&apiKey=${apiKey}`,
+      `${WU_BASE}/v2/pws/observations/current?stationId=${rawId}&format=json&units=${WU_UNITS}&apiKey=${apiKey}`,
       { signal: AbortSignal.timeout(TIMEOUT) },
     );
     const data = await res.json();
@@ -300,19 +294,19 @@ async function fetchWunderground(
     if (obs.length === 0) return null;
 
     const o = obs[0];
-    const m = o.metric_si;
+    const m = wuMetricFields(o.metric);
     const reading: NormalizedReading = {
       stationId: station.id,
       timestamp: new Date(o.obsTimeUtc),
       windSpeed: m.windSpeed,
       windGust: m.windGust,
       windDirection: o.winddir,
-      temperature: m.temp,
+      temperature: m.temperature,
       humidity: o.humidity,
-      precipitation: m.precipTotal,
+      precipitation: m.precipitation,
       solarRadiation: o.solarRadiation,
       pressure: m.pressure,
-      dewPoint: m.dewpt,
+      dewPoint: m.dewPoint,
     };
     return reading;
   }, 6);

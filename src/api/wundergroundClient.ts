@@ -3,13 +3,14 @@
  *
  * Uses the publicly-exposed SUN_API_KEY from wunderground.com.
  * CORS is allowed (Access-Control-Allow-Origin: *), no proxy needed.
- * Wind speed returned in m/s when using units=s.
+ * Asked with units=m (wind in km/h) and converted to m/s: units=s gave whole m/s (wundergroundUnits.ts).
  */
 
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { isWithinRadius } from '../services/geoUtils';
 import { plausiblePressure } from '../services/normalizer';
 import { fetchListedStations, LIST_SEEN_MAX_MIN } from './stationListClient';
+import { WU_UNITS, wuMetricFields, type WuMetric } from './wundergroundUnits';
 
 // WU public API key — PUBLIC, embedded by IBM in wunderground.com source code.
 // Used ONLY for station discovery (location/near). Observations go via ingestor.
@@ -33,16 +34,7 @@ interface WUObservation {
   humidity: number | null;
   solarRadiation: number | null;
   uv: number | null;
-  metric_si: {
-    temp: number | null;
-    windSpeed: number | null;     // m/s
-    windGust: number | null;      // m/s
-    pressure: number | null;      // hPa
-    precipRate: number | null;    // mm/h
-    precipTotal: number | null;   // mm
-    elev: number | null;          // m
-    dewpt: number | null;
-  };
+  metric?: WuMetric;   // units=m: wind in km/h (wundergroundUnits.ts)
 }
 
 // ── Station discovery ────────────────────────────────────
@@ -131,7 +123,7 @@ async function fetchWUCurrent(stationId: string): Promise<WUObservation | null> 
   const url = new URL('/v2/pws/observations/current', BASE_URL);
   url.searchParams.set('stationId', rawId);
   url.searchParams.set('format', 'json');
-  url.searchParams.set('units', 's');
+  url.searchParams.set('units', WU_UNITS);
   url.searchParams.set('apiKey', API_KEY);
 
   try {
@@ -163,20 +155,20 @@ export async function fetchWUObservations(
     if (result.status !== 'fulfilled' || !result.value) continue;
 
     const obs = result.value;
-    const m = obs.metric_si;
+    const m = wuMetricFields(obs.metric);
 
     readings.push({
       stationId: stationIds[i],
       timestamp: new Date(obs.obsTimeUtc),
-      windSpeed: m.windSpeed,           // Already m/s
-      windGust: m.windGust ?? null,     // Already m/s
+      windSpeed: m.windSpeed,           // m/s, from km/h
+      windGust: m.windGust,             // m/s, from km/h
       windDirection: obs.winddir,       // Meteorological "from"
-      temperature: m.temp,
+      temperature: m.temperature,
       humidity: obs.humidity,
-      precipitation: m.precipTotal,     // mm total today
+      precipitation: m.precipitation,   // mm total today
       solarRadiation: obs.solarRadiation, // W/m² from PWS sensor
       pressure: plausiblePressure(m.pressure), // hPa from PWS barometer (wu_IVILAG10 sends 0.34)
-      dewPoint: m.dewpt ?? null,           // °C from PWS sensor
+      dewPoint: m.dewPoint,             // °C from PWS sensor
     });
   }
 
