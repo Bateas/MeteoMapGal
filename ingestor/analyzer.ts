@@ -14,7 +14,10 @@ import { getAllForecasts } from './forecastFetcher.js';
 import { detectThermalForecast } from '../src/services/thermalForecastDetector.js';
 import { evaluateMagicWindow } from '../src/services/magicWindowDetector.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
-import { dispatchSpotAlert, dispatchForecastAlert, dispatchLightningAlert, dispatchWindSafetyAlert, type PastSend } from './alertDispatcher.js';
+import { dispatchSpotAlert, dispatchForecastAlert, dispatchLightningAlert, dispatchWindSafetyAlert, dispatchDuskBetaAlert, type PastSend } from './alertDispatcher.js';
+import { assessCesantesDusk, noteAfternoonSun, madridDate, DUSK_MIN_GAIN_KT, type AfternoonSun } from '../src/services/cesantesDuskBeta.js';
+import { freshPortWind, inInteriorZone, INTERIOR_SOLAR_MAX_AGE_MS, PORT_VIGO_STATION_ID } from '../src/services/cesantesCanalizationDetector.js';
+import { displayWindKt } from '../src/config/verdictStyles.js';
 import {
   assessStrongWind, windAlertDue, formatWindSafetyMessage, episodesFromSends, reopenFromHistory, windLogState, windLogDue, safetySpots,
   WIND_EPISODE_GAP_MS, WIND_REOPEN_MAX_MS, WIND_MAX_AGE_MIN, WIND_MAX_ALTITUDE_M, type WindEpisode,
@@ -160,6 +163,42 @@ async function getLatestReadings(): Promise<StationReading[]> {
  * upper-air table. A front aloft vetoes the thermal boosts (synopticRegime.ts).
  * Missing on error or without data: no veto, never a crash of the cycle.
  */
+// ── BETA «Cesantes al anochecer» (src/services/cesantesDuskBeta.ts) ──
+let duskSun: AfternoonSun = { date: '', max: null };   // a restart forgets the afternoon: no BETA that day
+let lastDuskLine = '';
+
+async function runDuskBeta(
+  readings: StationReading[],
+  engineScores: Map<string, SpotScore> | null,
+  upperWind: UpperWindBySector,
+  nowMs: number,
+): Promise<void> {
+  let interior: number | null = null;
+  for (const r of readings) {
+    if (r.solar_rad == null || !inInteriorZone(r.latitude, r.longitude)) continue;
+    if (r.time != null && nowMs - new Date(r.time).getTime() > INTERIOR_SOLAR_MAX_AGE_MS) continue;
+    if (interior === null || r.solar_rad > interior) interior = r.solar_rad;
+  }
+  duskSun = noteAfternoonSun(duskSun, nowMs, interior);
+  const port = readings.find((r) => r.station_id === PORT_VIGO_STATION_ID);
+  const pw = freshPortWind(port ? {
+    kt: port.wind_speed == null ? null : port.wind_speed * 1.943844,
+    dirDeg: port.wind_dir ?? null,
+    atMs: port.time == null ? NaN : new Date(port.time).getTime(),
+  } : null, nowMs);
+  const pv = pw && pw.kt != null && pw.dirDeg != null ? { kt: pw.kt, dirDeg: pw.dirDeg } : null;
+  const up = upperWind.rias ?? null;
+  const appKt = displayWindKt(engineScores?.get('cesantes'));
+  const beta = assessCesantesDusk({ nowMs, appKt, pv, interiorSolar: interior, afternoonSunRatio: duskSun.max, upper850: up });
+  const line = beta.active
+    ? `activa: ~${Math.round(beta.estimateKt)} kt frente a ${appKt == null ? '?' : Math.round(appKt)} de la app`
+    : `inactiva (${beta.reason})`;
+  if (line !== lastDuskLine) { log.info(`[BETA anochecer] ${line}`); lastDuskLine = line; }
+  if (beta.active && beta.gainKt >= DUSK_MIN_GAIN_KT && pv && up) {
+    await dispatchDuskBetaAlert(madridDate(nowMs), appKt, beta.estimateKt, pv, up);
+  }
+}
+
 async function getUpperWindNow(): Promise<UpperWindBySector> {
   const out: UpperWindBySector = {};
   try {
@@ -452,6 +491,14 @@ export async function runAnalysis(): Promise<void> {
   const staleBuoys = scoreRows.reduce((n, r) => n + (r.staleBuoysDropped ?? 0), 0);
   if (staleBuoys > 0) {
     log.warn(`Buoy readings past the freshness gate this cycle: ${staleBuoys}`);
+  }
+
+  // BETA «Cesantes al anochecer»: a shadow line for the owner's Telegram, never the map's figure.
+  // A failure costs only this line.
+  try {
+    await runDuskBeta(readings, engineScores, upperWind, now);
+  } catch (err) {
+    log.warn(`BETA anochecer: ${(err as Error).message}`);
   }
 
   // Where the old port would have said something else (pipelineRows, never sent while the

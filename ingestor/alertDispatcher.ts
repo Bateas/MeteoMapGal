@@ -331,6 +331,42 @@ const MAGIC_WINDOW_COOLDOWN_MS = 6 * 60 * 60_000;
 const lastMagicWindowAlert = new Map<string, number>();
 
 /**
+ * BETA «Cesantes al anochecer» (src/services/cesantesDuskBeta.ts): a hypothesis in its exam, sent
+ * to the alert chat, which today only the owner receives. Never on the map. One per evening, and
+ * the cooldown is set only once the message went out.
+ */
+let lastDuskBetaDate = '';
+
+export async function dispatchDuskBetaAlert(
+  dateKey: string,
+  appKt: number | null,
+  estimateKt: number,
+  pv: { kt: number; dirDeg: number },
+  upper850: { dirDeg: number; speedKt: number },
+): Promise<void> {
+  if (isNightTime() || lastDuskBetaDate === dateKey) return;
+  const app = appKt == null ? 'sin cifra' : `${Math.round(appKt)} kt`;
+  const msg = `*BETA · Cesantes al anochecer* (prueba, solo te llega a ti)\n`
+    + `Al caer el sol el agua suele seguir a Porto de Vigo: ahora unos ${Math.round(estimateKt)} kt; la app marca ${app}.\n`
+    + `Porto de Vigo ${Math.round(pv.kt)} kt del ${Math.round(pv.dirDeg)}° · 850 hPa ${Math.round(upper850.speedKt)} kt del ${Math.round(upper850.dirDeg)}°.\n`
+    + 'Si puedes, mira la webcam y reportalo en la ficha (con los nudos).';
+  const ok = await postWebhook({
+    type: 'beta-dusk',
+    category: 'thermal',
+    detail: msg,
+    sector: 'rias',
+    title: 'BETA Cesantes al anochecer',
+    message: msg,
+    text: msg,
+    severity: 'moderate',
+  }, `beta-dusk:${dateKey}`);
+  if (ok) {
+    lastDuskBetaDate = dateKey;
+    log.ok(`BETA anochecer: Cesantes ~${Math.round(estimateKt)} kt (app ${app}) → enviado`);
+  }
+}
+
+/**
  * Dispatch a "Magic Window" detection — rare optimal-sailing convergence.
  *
  * Distinct from spot verdict transitions: this is a SECTOR-WIDE alert
@@ -528,6 +564,7 @@ export function resetCooldowns(): void {
   lastMagicWindowAlert.clear();
   lastLightningAlert.clear();
   lastFireWatchAlert.clear();
+  lastDuskBetaDate = '';
 }
 
 /** A stored send: its cooldown key, when it went out and its level (sentAlerts.ts). */

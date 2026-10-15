@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   dispatchMagicWindowAlert, dispatchWindSafetyAlert, dispatchForecastAlert, dispatchSpotAlert, dispatchLightningAlert,
-  dispatchFireWatchDigest, fireWatchAlertedZones, dispatchVisibilityAlert,
+  dispatchFireWatchDigest, fireWatchAlertedZones, dispatchVisibilityAlert, dispatchDuskBetaAlert,
   resetCooldowns, seedCooldowns, setSendRecorder, type SentRecord,
 } from './alertDispatcher';
 import { log } from './logger';
@@ -257,5 +257,42 @@ describe('alertDispatcher — cameras on the same mast are one place, one fog me
     expect(seedCooldowns([{ key: 'visibility:ons', atMs: Date.now() - 60 * 60_000, level: 'moderate' }])).toBe(1);
     await dispatchVisibilityAlert('mg-ons-porto', 'cies-ria', '', 'Ons Porto', 'ons');
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('alertDispatcher — BETA Cesantes al anochecer (owner only, once per evening)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 15, 19, 40));
+    resetCooldowns();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('says it is a test, gives both figures and the reason, and goes once per day', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    vi.spyOn(log, 'ok').mockImplementation(() => {});
+    await dispatchDuskBetaAlert('2026-10-15', 4.1, 7.6, { kt: 7.6, dirDeg: 217 }, { dirDeg: 200, speedKt: 8 });
+    await dispatchDuskBetaAlert('2026-10-15', 4.1, 8.2, { kt: 8.2, dirDeg: 220 }, { dirDeg: 200, speedKt: 8 });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = JSON.parse((fetch.mock.calls[0][1] as { body: string }).body);
+    expect(body.type).toBe('beta-dusk');
+    expect(body.message).toMatch(/BETA/);
+    expect(body.message).toMatch(/unos 8 kt; la app marca 4 kt/);
+    expect(body.message).toMatch(/Porto de Vigo 8 kt del 217°/);
+  });
+
+  it('a refused send does not use up the evening', async () => {
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('', { status: 500 }))
+      .mockResolvedValue(new Response('', { status: 200 }));
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    vi.spyOn(log, 'ok').mockImplementation(() => {});
+    await dispatchDuskBetaAlert('2026-10-15', 4, 8, { kt: 8, dirDeg: 220 }, { dirDeg: 200, speedKt: 8 });
+    await dispatchDuskBetaAlert('2026-10-15', 4, 8, { kt: 8, dirDeg: 220 }, { dirDeg: 200, speedKt: 8 });
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
