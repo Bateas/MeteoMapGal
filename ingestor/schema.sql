@@ -1022,6 +1022,13 @@ CREATE TABLE IF NOT EXISTS field_observers (
   active      BOOLEAN     NOT NULL DEFAULT TRUE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- New codes at least 12 characters (they are generated at random, 14): a short hand-picked one
+-- could be guessed. NOT VALID: rows from before the rule are not rechecked.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'field_observers_code_len') THEN
+    ALTER TABLE field_observers ADD CONSTRAINT field_observers_code_len CHECK (char_length(code) >= 12) NOT VALID;
+  END IF;
+END $$;
 CREATE TABLE IF NOT EXISTS field_reports (
   time         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   spot_id      TEXT        NOT NULL,

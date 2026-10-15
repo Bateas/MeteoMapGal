@@ -12,7 +12,10 @@ import {
   KT_RANGES, ktRangeLabel, observerReportWhat, recentReportWhat, recentReportWhen, reportConflict,
   type KtRange, type WindVsApp, type WaterState, type DirSeen, type ObserverInfo, type RecentReportSummary,
 } from '../../services/fieldReport';
-import { postFieldReport, currentObserverCode, cooldownLeftMin, fetchRecentReports, saveObserverCode } from '../../api/fieldReportClient';
+import {
+  postFieldReport, currentObserverCode, cooldownLeftMin, fetchRecentReports, saveObserverCode,
+  pendingObserverCode, resolvePendingObserverCode,
+} from '../../api/fieldReportClient';
 import { useObserver } from '../../hooks/useObserver';
 import { useUIStore } from '../../store/uiStore';
 import { ALL_SPOTS } from '../../config/spots';
@@ -123,6 +126,8 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
   const [dir, setDir] = useState<DirSeen | null>(null);
   const [kt, setKt] = useState<KtRange | null>(null);
   const { observer, refresh } = useObserver();
+  const [pending, setPending] = useState(() => pendingObserverCode() != null);
+  const answerPending = (useIt: boolean) => { resolvePendingObserverCode(useIt); setPending(false); if (useIt) void refresh(); };
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [recent, setRecent] = useState<RecentReportSummary | null>(null);
 
@@ -190,6 +195,17 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
   return (
     <div className={CARD} style={CARD_STYLE}>
       {said}
+      {pending && (
+        <div className="flex flex-col gap-1 rounded border border-amber-500/40 bg-amber-500/10" style={{ padding: '4px 6px' }}>
+          <span className="text-[11px] text-amber-200">
+            Has abierto el enlace de otro observador{observer ? ` y aquí reportas como ${observer.name}` : ''}. ¿Pasas a usar ese?
+          </span>
+          <div className="flex gap-1">
+            <button type="button" className={chip(false)} onClick={() => answerPending(true)}>Sí, usar el nuevo</button>
+            <button type="button" className={chip(false)} onClick={() => answerPending(false)}>No, seguir igual</button>
+          </div>
+        </div>
+      )}
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[12px] font-semibold text-sky-200">¿Estás aquí ahora?</span>
         <span className="text-[10px] text-slate-500">{observer ? `observador: ${observer.name}` : 'solo si ves el agua'}</span>

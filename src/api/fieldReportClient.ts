@@ -8,6 +8,7 @@
 import { OBSERVER_CODE_RE, REPORT_COOLDOWN_MIN, type FieldReport, type ObserverInfo, type RecentReportSummary } from '../services/fieldReport';
 
 const OBSERVER_KEY = 'mmg-observer';
+const PENDING_KEY = 'mmg-observer-pending';   // a DIFFERENT code from a link, waiting for a yes
 const LAST_KEY = (spotId: string) => `mmg-report-${spotId}`;
 
 function read(key: string): string | null {
@@ -31,11 +32,17 @@ export function captureObserverCodeFromUrl(): boolean {
     url.searchParams.delete('obs');
     window.history.replaceState(window.history.state, '', url.toString());
     if (!fromUrl || !OBSERVER_CODE_RE.test(fromUrl)) return false;
-    const fresh = read(OBSERVER_KEY) !== fromUrl;
+    const saved = currentObserverCode();
+    if (saved === fromUrl) return false;
+    if (saved) {
+      // Someone else's link must not replace this device's code silently: the report box asks.
+      write(PENDING_KEY, fromUrl);
+      return false;
+    }
     write(OBSERVER_KEY, fromUrl);
-    if (fresh) observerPromise = null;
-    greetPending = fresh;
-    return fresh;
+    observerPromise = null;
+    greetPending = true;
+    return true;
   } catch { return false; /* no window/location in tests */ }
 }
 
@@ -61,6 +68,19 @@ export function saveObserverCode(raw: string): boolean {
   write(OBSERVER_KEY, code);
   observerPromise = null;
   return true;
+}
+
+/** A different observer link was opened on a device that already had a code. */
+export function pendingObserverCode(): string | null {
+  const p = read(PENDING_KEY);
+  return p && OBSERVER_CODE_RE.test(p) ? p : null;
+}
+
+/** The answer to «use the other link?»: yes switches to it, no keeps the current one. */
+export function resolvePendingObserverCode(useIt: boolean): void {
+  const p = pendingObserverCode();
+  try { localStorage.removeItem(PENDING_KEY); } catch { /* storage blocked */ }
+  if (useIt && p) { write(OBSERVER_KEY, p); observerPromise = null; }
 }
 
 function forgetObserverCode(): void {

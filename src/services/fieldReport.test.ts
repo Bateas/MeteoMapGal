@@ -36,6 +36,8 @@ describe('parseFieldReport', () => {
 
   it('keeps a well-formed observer code and silently drops a malformed one', () => {
     const good = parseFieldReport({ ...base, observerCode: 'observer2026' }, isValid);
+    const short = parseFieldReport({ ...base, observerCode: 'obs2026' }, isValid);   // too short to be one of ours
+    expect(short.ok && short.report.observerCode).toBeNull();
     const bad = parseFieldReport({ ...base, observerCode: "x'; DROP TABLE" }, isValid);
     expect(good.ok && good.report.observerCode).toBe('observer2026');
     expect(bad.ok && bad.report.observerCode).toBeNull();

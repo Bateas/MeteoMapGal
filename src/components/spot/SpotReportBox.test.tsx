@@ -128,6 +128,17 @@ describe('SpotReportBox with a personal observer code', () => {
     await waitFor(() => expect(screen.getByText('observador: Luis')).toBeTruthy());
   });
 
+  it('another observer link opened on this device is asked about, not taken', async () => {
+    localStorage.setItem('mmg-observer', 'abcdefgh23456k');
+    localStorage.setItem('mmg-observer-pending', 'zzzzzzzz23456k');
+    vi.stubGlobal('fetch', route('Ana'));
+    render(<SpotReportBox spotId="cesantes" shownWindKt={9} shownVerdict="sailing" />);
+    await waitFor(() => expect(screen.getByText(/aquí reportas como Ana/)).toBeTruthy());
+    fireEvent.click(screen.getByText('No, seguir igual'));
+    expect(screen.queryByText(/enlace de otro observador/)).toBeNull();
+    expect(localStorage.getItem('mmg-observer')).toBe('abcdefgh23456k');
+  });
+
   it('a code the server does not know says so and the box stays anonymous', async () => {
     vi.stubGlobal('fetch', route(null));
     render(<SpotReportBox spotId="cesantes" shownWindKt={9} shownVerdict="sailing" />);

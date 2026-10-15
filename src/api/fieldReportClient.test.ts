@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { captureObserverCodeFromUrl, currentObserverCode, saveObserverCode, fetchObserver, takeObserverGreeting, __clearObserverCacheForTests } from './fieldReportClient';
+import {
+  captureObserverCodeFromUrl, currentObserverCode, saveObserverCode, fetchObserver, takeObserverGreeting,
+  pendingObserverCode, resolvePendingObserverCode, __clearObserverCacheForTests,
+} from './fieldReportClient';
 
 const CODE = 'abcdefgh23456k';
 
@@ -17,6 +20,22 @@ describe('observer code on this device', () => {
     expect(takeObserverGreeting()).toBe(false);                        // hello only once
     window.history.replaceState(null, '', `/?obs=${CODE}`);
     expect(captureObserverCodeFromUrl()).toBe(false);                  // same code again: not new
+  });
+
+  it('someone else\'s link never replaces this device\'s code silently: it waits for a yes', () => {
+    saveObserverCode(CODE);
+    const OTHER = 'zzzzzzzz23456k';
+    window.history.replaceState(null, '', `/?obs=${OTHER}`);
+    expect(captureObserverCodeFromUrl()).toBe(false);
+    expect(currentObserverCode()).toBe(CODE);
+    expect(pendingObserverCode()).toBe(OTHER);
+    resolvePendingObserverCode(false);
+    expect(currentObserverCode()).toBe(CODE);
+    expect(pendingObserverCode()).toBeNull();
+    window.history.replaceState(null, '', `/?obs=${OTHER}`);
+    captureObserverCodeFromUrl();
+    resolvePendingObserverCode(true);
+    expect(currentObserverCode()).toBe(OTHER);
   });
 
   it('a malformed code leaves the address bar too, but is not saved', () => {

@@ -37,7 +37,9 @@ export interface FieldReport {
 }
 
 const VERDICTS = new Set<SpotVerdict>(['calm', 'light', 'sailing', 'good', 'strong', 'unknown']);
-export const OBSERVER_CODE_RE = /^[a-z0-9]{6,32}$/;
+/** Observer codes are generated at random (14 characters, ~70 bits): at least 12 so a short,
+ *  hand-picked one cannot be guessed by trying (security review of v2.179.0). */
+export const OBSERVER_CODE_RE = /^[a-z0-9]{12,32}$/;
 
 /** Minutes a device waits before reporting the same spot again. */
 export const REPORT_COOLDOWN_MIN = 30;

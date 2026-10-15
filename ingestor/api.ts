@@ -1160,7 +1160,9 @@ async function handleFieldReportPost(
 
 const OBSERVER_ME_MAX_PER_HOUR = 60;
 const OBSERVER_ME_MAX_BODY = 256;
+const OBSERVER_ME_MAX_UNKNOWN_PER_HOUR = 200;     // all IPs together: guessing from many addresses stops too
 const observerMeCounts = new Map<string, { count: number; resetAt: number }>();
+let observerUnknown = { count: 0, resetAt: 0 };
 
 async function handleObserverMe(
   req: http.IncomingMessage,
@@ -1174,13 +1176,17 @@ async function handleObserverMe(
   }
   const ip = clientIpOf(req.headers, req.socket.remoteAddress);
   const now = Date.now();
+  if (now >= observerUnknown.resetAt) observerUnknown = { count: 0, resetAt: now + 60 * 60_000 };
+  if (observerUnknown.count >= OBSERVER_ME_MAX_UNKNOWN_PER_HOUR) { error(res, 'Rate limit exceeded', 429, origin); return; }
   const bucket = observerMeCounts.get(ip);
   if (bucket && now < bucket.resetAt) {
     if (bucket.count >= OBSERVER_ME_MAX_PER_HOUR) { error(res, 'Rate limit exceeded', 429, origin); return; }
     bucket.count++;
   } else {
+    observerMeCounts.delete(ip);
     observerMeCounts.set(ip, { count: 1, resetAt: now + 60 * 60_000 });
-    if (observerMeCounts.size > 5000) observerMeCounts.clear();
+    // Bounded without wiping everyone's count: drop the oldest entries (a Map keeps insertion order).
+    for (const k of observerMeCounts.keys()) { if (observerMeCounts.size <= 5000) break; observerMeCounts.delete(k); }
   }
   let received = 0;
   const chunks: Buffer[] = [];
@@ -1195,7 +1201,12 @@ async function handleObserverMe(
   try {
     const pool = getPool();
     const o = await pool.query('SELECT name FROM field_observers WHERE code = $1 AND active', [code]);
-    if (!o.rowCount) { error(res, 'Unknown', 404, origin); return; }
+    if (!o.rowCount) {
+      observerUnknown.count++;
+      if (observerUnknown.count === OBSERVER_ME_MAX_UNKNOWN_PER_HOUR) log.warn(`observers/me: ${OBSERVER_ME_MAX_UNKNOWN_PER_HOUR} codigos desconocidos en una hora; cerrado hasta la hora siguiente`);
+      error(res, 'Unknown', 404, origin);
+      return;
+    }
     let rows;
     try {
       rows = (await pool.query(
