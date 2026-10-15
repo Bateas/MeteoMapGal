@@ -28,6 +28,7 @@
  *   POST /api/v1/push/{subscribe,unsubscribe,test}                → Lightning-safety push channel
  *   POST /api/v1/reports                                          → Field reports (labels, never drawn)
  *   GET /api/v1/reports/recent?spot=                              → What was said there in the last 2 h (grouped, anonymous)
+ *   POST /api/v1/observers/me                                     → Name + last reports of a personal observer code (no-store)
  *
  * Usage:
  *   node --import tsx api.ts
@@ -64,7 +65,7 @@ import {
 } from './queries.js';
 import { getPool } from './db.js';
 import { clientIpOf, clampInt, isAllowedPushEndpoint, pruneCache, memoAsync } from './requestGuards.js';
-import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, type RecentReportSummary } from '../src/services/fieldReport.js';
+import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatcher.js';
@@ -1099,12 +1100,6 @@ async function handleFieldReportPost(
     return;
   }
   const r = parsed.report;
-  const spotKey = `${ip}|${r.spotId}`;
-  if (now - (reportLastBySpot.get(spotKey) ?? 0) < REPORT_SPOT_GAP_MS) {
-    res.writeHead(429, corsHeaders(origin));
-    res.end(JSON.stringify({ error: 'Too soon for this spot' }));
-    return;
-  }
   try {
     const pool = getPool();
     let observer: string | null = null;
@@ -1112,11 +1107,41 @@ async function handleFieldReportPost(
       const o = await pool.query('SELECT code FROM field_observers WHERE code = $1 AND active', [r.observerCode]);
       observer = o.rowCount ? r.observerCode : null;                // unknown code: kept as anonymous
     }
-    await pool.query(
-      `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, water_state, dir_seen, app_verdict, app_wind_kt, app_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [r.spotId, REPORT_SPOT_SECTOR.get(r.spotId) ?? null, observer, r.windVsApp, r.waterState, r.dirSeen, r.appVerdict, r.appWindKt, r.appVersion],
-    );
+    // The 10-min gap per spot counts per OBSERVER when there is one: two people on the same Wi-Fi
+    // or behind the same mobile carrier address must not block each other. Anonymous: per IP.
+    const spotKey = `${observer ? `obs:${observer}` : ip}|${r.spotId}`;
+    if (now - (reportLastBySpot.get(spotKey) ?? 0) < REPORT_SPOT_GAP_MS) {
+      res.writeHead(429, corsHeaders(origin));
+      res.end(JSON.stringify({ error: 'Too soon for this spot' }));
+      return;
+    }
+    const base = [r.spotId, REPORT_SPOT_SECTOR.get(r.spotId) ?? null, observer, r.windVsApp, r.waterState, r.dirSeen, r.appVerdict, r.appWindKt, r.appVersion];
+    const kt = observer && r.ktRange != null ? KT_RANGES[r.ktRange] : null;   // knots only from observers
+    try {
+      if (kt) {
+        await pool.query(
+          `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, water_state, dir_seen, app_verdict, app_wind_kt, app_version, kt_lo, kt_hi)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [...base, kt[0], kt[1]],
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, water_state, dir_seen, app_verdict, app_wind_kt, app_version)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          base,
+        );
+      }
+    } catch (err) {
+      // Columns not created yet on the database (the schema goes first, but if not, keep the
+      // report without the knots rather than losing it).
+      if ((err as { code?: string }).code !== '42703') throw err;
+      log.warn('field_reports sin kt_lo/kt_hi: reporte guardado sin los nudos (falta aplicar schema.sql)');
+      await pool.query(
+        `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, water_state, dir_seen, app_verdict, app_wind_kt, app_version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        base,
+      );
+    }
     reportLastBySpot.set(spotKey, now);
     recentReportsCache.delete(r.spotId);
     if (reportLastBySpot.size > 5000) reportLastBySpot.clear();
@@ -1124,6 +1149,77 @@ async function handleFieldReportPost(
     res.end(JSON.stringify({ ok: true }));
   } catch (err) {
     log.error('Field report insert error:', (err as Error).message);
+    error(res, 'DB error', 500, origin);
+  }
+}
+
+// ── Observers with a personal link: who the code is and their last reports ──
+// POST, never GET: the edge caches GETs under /api/v1 and would serve one observer's name to the
+// next visitor. Same-origin gate, per-IP limit, tiny body, no-store. A code is ~70 random bits, so
+// the limit is about load, not guessing. Unknown or switched-off code: 404 (the device forgets it).
+
+const OBSERVER_ME_MAX_PER_HOUR = 60;
+const OBSERVER_ME_MAX_BODY = 256;
+const observerMeCounts = new Map<string, { count: number; resetAt: number }>();
+
+async function handleObserverMe(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+    res.writeHead(403, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Forbidden' }));
+    return;
+  }
+  const ip = clientIpOf(req.headers, req.socket.remoteAddress);
+  const now = Date.now();
+  const bucket = observerMeCounts.get(ip);
+  if (bucket && now < bucket.resetAt) {
+    if (bucket.count >= OBSERVER_ME_MAX_PER_HOUR) { error(res, 'Rate limit exceeded', 429, origin); return; }
+    bucket.count++;
+  } else {
+    observerMeCounts.set(ip, { count: 1, resetAt: now + 60 * 60_000 });
+    if (observerMeCounts.size > 5000) observerMeCounts.clear();
+  }
+  let received = 0;
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    received += (chunk as Buffer).length;
+    if (received > OBSERVER_ME_MAX_BODY) { error(res, 'Payload too large', 413, origin); return; }
+    chunks.push(chunk as Buffer);
+  }
+  let code: unknown;
+  try { code = (JSON.parse(Buffer.concat(chunks).toString()) as { code?: unknown }).code; } catch { code = null; }
+  if (typeof code !== 'string' || !OBSERVER_CODE_RE.test(code)) { error(res, 'Invalid payload', 400, origin); return; }
+  try {
+    const pool = getPool();
+    const o = await pool.query('SELECT name FROM field_observers WHERE code = $1 AND active', [code]);
+    if (!o.rowCount) { error(res, 'Unknown', 404, origin); return; }
+    let rows;
+    try {
+      rows = (await pool.query(
+        `SELECT time, spot_id, wind_vs_app, water_state, dir_seen, kt_lo, kt_hi, app_wind_kt
+           FROM field_reports WHERE observer = $1 AND time > NOW() - INTERVAL '90 days' ORDER BY time DESC LIMIT 20`, [code])).rows;
+    } catch (err) {
+      if ((err as { code?: string }).code !== '42703') throw err;          // kt columns not created yet
+      rows = (await pool.query(
+        `SELECT time, spot_id, wind_vs_app, water_state, dir_seen, NULL AS kt_lo, NULL AS kt_hi, app_wind_kt
+           FROM field_reports WHERE observer = $1 AND time > NOW() - INTERVAL '90 days' ORDER BY time DESC LIMIT 20`, [code])).rows;
+    }
+    const reports: ObserverReport[] = rows.map((x) => ({
+      time: new Date(x.time).getTime(),
+      spotId: x.spot_id,
+      windVsApp: x.wind_vs_app,
+      waterState: x.water_state,
+      dirSeen: x.dir_seen,
+      ktLo: x.kt_lo,
+      ktHi: x.kt_hi,
+      appWindKt: x.app_wind_kt,
+    }));
+    json(res, { name: o.rows[0].name, reports }, 200, origin, 'no-store');
+  } catch (err) {
+    log.error('Observer lookup error:', (err as Error).message);
     error(res, 'DB error', 500, origin);
   }
 }
@@ -1373,6 +1469,8 @@ const server = http.createServer(async (req, res) => {
       await handleStormPredictionPost(req, res, origin);
     } else if (url.pathname === '/api/v1/reports') {
       await handleFieldReportPost(req, res, origin);
+    } else if (url.pathname === '/api/v1/observers/me') {
+      await handleObserverMe(req, res, origin);
     } else if (url.pathname === '/api/v1/push/subscribe') {
       await handlePushSubscribe(req, res, origin);
     } else if (url.pathname === '/api/v1/push/unsubscribe') {

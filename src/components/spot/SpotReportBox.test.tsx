@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SpotReportBox } from './SpotReportBox';
-import { __clearRecentReportsCacheForTests } from '../../api/fieldReportClient';
+import { __clearRecentReportsCacheForTests, __clearObserverCacheForTests } from '../../api/fieldReportClient';
 
 // GETs answer with `summary`; POSTs with `post`.
 const api = (post: { ok: boolean; status: number }, summary: unknown = null) =>
@@ -86,5 +86,56 @@ describe('SpotReportBox', () => {
     render(<SpotReportBox spotId="lourido" shownWindKt={8} shownVerdict="sailing" />);
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(screen.queryByText(/En el agua/)).toBeNull();
+  });
+});
+
+describe('SpotReportBox with a personal observer code', () => {
+  const route = (name: string | null) => vi.fn((url: string, init?: { method?: string; body?: string }) => {
+    if (url === '/api/v1/observers/me') {
+      return Promise.resolve(name
+        ? { ok: true, status: 200, json: () => Promise.resolve({ name, reports: [{ time: Date.UTC(2026, 9, 15, 14, 5), spotId: 'cesantes', windVsApp: 1, waterState: 2, dirSeen: 225, ktLo: 12, ktHi: 16, appWindKt: 9 }] }) }
+        : { ok: false, status: 404 });
+    }
+    if (init?.method === 'POST') return Promise.resolve({ ok: true, status: 201 });
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ summary: null }) });
+  });
+  beforeEach(() => { localStorage.clear(); __clearRecentReportsCacheForTests(); __clearObserverCacheForTests(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('says who is reporting, asks for knots and sends them; the diary is there', async () => {
+    localStorage.setItem('mmg-observer', 'abcdefgh23456k');
+    const fetchMock = route('Ana');
+    vi.stubGlobal('fetch', fetchMock);
+    render(<SpotReportBox spotId="cesantes" shownWindKt={9} shownVerdict="sailing" />);
+    await waitFor(() => expect(screen.getByText('observador: Ana')).toBeTruthy());
+    expect(screen.getByText('Tu zona de observador')).toBeTruthy();
+    expect(screen.getByText(/12-16 kt · algo de espuma · del SO · la app decía 9/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Más viento'));
+    fireEvent.click(screen.getByText('12-16 kt'));
+    fireEvent.click(screen.getByText('Enviar'));
+    await waitFor(() => expect(screen.getByText(/Gracias, Ana/)).toBeTruthy());
+    const sent = fetchMock.mock.calls.find((c) => c[0] === '/api/v1/reports')!;
+    expect(JSON.parse((sent[1] as { body: string }).body)).toMatchObject({ windVsApp: 1, ktRange: 3, observerCode: 'abcdefgh23456k' });
+  });
+
+  it('anonymous: no knots question and no knots sent; the code can be typed in', async () => {
+    const fetchMock = route('Luis');
+    vi.stubGlobal('fetch', fetchMock);
+    render(<SpotReportBox spotId="cesantes" shownWindKt={9} shownVerdict="sailing" />);
+    fireEvent.click(screen.getByText('Código de observador'));
+    fireEvent.change(screen.getByLabelText('Código de observador'), { target: { value: 'https://meteomapgal.com/?obs=abcdefgh23456k' } });
+    fireEvent.click(screen.getByText('Guardar'));
+    await waitFor(() => expect(screen.getByText('observador: Luis')).toBeTruthy());
+  });
+
+  it('a code the server does not know says so and the box stays anonymous', async () => {
+    vi.stubGlobal('fetch', route(null));
+    render(<SpotReportBox spotId="cesantes" shownWindKt={9} shownVerdict="sailing" />);
+    fireEvent.click(screen.getByText('Código de observador'));
+    fireEvent.change(screen.getByLabelText('Código de observador'), { target: { value: 'abcdefgh23456k' } });
+    fireEvent.click(screen.getByText('Guardar'));
+    await waitFor(() => expect(screen.getByText(/no existe o está desactivado/)).toBeTruthy());
+    fireEvent.click(screen.getByText('Igual'));
+    expect(screen.queryByText('12-16 kt')).toBeNull();
   });
 });

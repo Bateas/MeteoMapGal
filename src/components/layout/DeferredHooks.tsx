@@ -26,6 +26,7 @@ import { useSurfMarineData } from '../../hooks/useSurfMarineData';
 import { useWebcamVisionData } from '../../hooks/useWebcamVisionData';
 import { useForecastTimeline } from '../../hooks/useForecastTimeline';
 import { useMetarVisibility } from '../../hooks/useMetarVisibility';
+import { useObserverGreeting } from '../../hooks/useObserver';
 import { fetchTeleconnections, type TeleconnectionIndex } from '../../api/naoClient';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -38,6 +39,7 @@ export function DeferredHooks({ teleconnectionsRef }: { teleconnectionsRef: Reac
   useAirspace();
   useBuoyData();
   useSpotScoring();
+  useObserverGreeting();
   useUserSpotScoring();
   useSailingWindows();
   useWebcamVision();

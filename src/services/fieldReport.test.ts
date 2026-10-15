@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFieldReport, summarizeRecentReports, recentReportWhen, recentReportWhat, reportConflict } from './fieldReport';
+import { parseFieldReport, summarizeRecentReports, recentReportWhen, recentReportWhat, reportConflict, KT_RANGES, ktRangeLabel, observerReportWhat } from './fieldReport';
 
 const isValid = (id: string) => id === 'cesantes' || id === 'castrelo';
 const base = { spotId: 'cesantes', windVsApp: 1, waterState: 3, dirSeen: 225, appWindKt: 12.34, appVerdict: 'good', appVersion: '2.143.0' };
@@ -99,5 +99,33 @@ describe('reportConflict', () => {
     expect(reportConflict(-1, null, 6)).toBeNull();
     expect(reportConflict(-1, 2, null)).toBeNull();
     expect(reportConflict(null, 2, 6)).toBeNull();
+  });
+});
+
+describe('knots seen (observers with a personal link)', () => {
+  it('takes an index into the fixed ranges and nothing else', () => {
+    for (const k of [0, 5]) expect(parseFieldReport({ ...base, ktRange: k }, isValid)).toMatchObject({ ok: true, report: { ktRange: k } });
+    for (const k of [6, -1, 1.5, '2']) expect(parseFieldReport({ ...base, ktRange: k }, isValid)).toEqual({ ok: false, error: 'ktRange' });
+    const r = parseFieldReport(base, isValid);
+    expect(r.ok && r.report.ktRange).toBeNull();
+  });
+
+  it('reads the ranges and a diary line as plain words', () => {
+    expect(KT_RANGES[3]).toEqual([12, 16]);
+    expect(ktRangeLabel(12, 16)).toBe('12-16 kt');
+    expect(ktRangeLabel(20, 30)).toBe('más de 20 kt');
+    expect(observerReportWhat({ time: 0, spotId: 'cesantes', windVsApp: 1, waterState: 2, dirSeen: 225, ktLo: 12, ktHi: 16, appWindKt: 9.6 }))
+      .toBe('12-16 kt · algo de espuma · del SO · la app decía 10');
+    expect(observerReportWhat({ time: 0, spotId: 'vao', windVsApp: -1, waterState: null, dirSeen: null, ktLo: null, ktHi: null, appWindKt: null }))
+      .toBe('menos viento que la app');
+  });
+});
+
+describe('reportConflict with an observer\'s knots', () => {
+  it('a range wholly on the other side of the figure contradicts «more / less»', () => {
+    expect(reportConflict(-1, null, 2.1, 3)).toBe('less-with-knots');    // «less» than 2 kt, marking 12-16
+    expect(reportConflict(1, null, 14, 0)).toBe('more-with-knots');      // «more» than 14 kt, marking 0-5
+    expect(reportConflict(1, null, 14, 3)).toBeNull();                   // 12-16 straddles 14: fine
+    expect(reportConflict(-1, null, 2.1, null)).toBeNull();
   });
 });

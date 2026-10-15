@@ -115,6 +115,12 @@ export function LegalSection() {
             spots que elijas, únicamente para poder enviarte ese aviso. Se borra al desactivar las
             notificaciones y no está asociado a ninguna identidad.
           </p>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Y otra, solo por invitación: algunos observadores tienen un enlace personal que les damos
+            nosotros. Con él, sus reportes del agua se guardan con el nombre que nos dieron, para saber
+            cuánto fiarnos de cada uno, y solo esa persona ve su lista. Si quieres que lo borremos,
+            díselo a quien te dio el enlace.
+          </p>
           <ul className="space-y-1 text-[11px] text-slate-400">
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>

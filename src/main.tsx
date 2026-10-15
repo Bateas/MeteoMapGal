@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { APP_VERSION } from './config/version'
 import { installIdleAnimations } from './services/idleAnimations'
+import { captureObserverCodeFromUrl } from './api/fieldReportClient'
 
 // One-shot cleanup of legacy localStorage keys.
 // - `meteomap_station_log`: frontend CSV log of every station reading, kept
@@ -23,6 +24,8 @@ try {
 }
 
 installIdleAnimations()
+// A personal observer link (?obs=) is saved now and taken out of the address bar.
+captureObserverCodeFromUrl()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

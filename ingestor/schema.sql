@@ -1039,6 +1039,10 @@ CREATE TABLE IF NOT EXISTS field_reports (
 );
 ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS water_state SMALLINT CHECK (water_state BETWEEN 0 AND 3);
 ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS dir_seen SMALLINT CHECK (dir_seen BETWEEN 0 AND 315 AND dir_seen % 45 = 0);
+-- Knots seen, in ranges (0-5, 5-8, 8-12, 12-16, 16-20, 20-30): only observers with a personal link.
+ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS kt_lo SMALLINT CHECK (kt_lo BETWEEN 0 AND 30);
+ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS kt_hi SMALLINT CHECK (kt_hi BETWEEN 0 AND 30);
+CREATE INDEX IF NOT EXISTS idx_field_reports_observer ON field_reports (observer, time DESC) WHERE observer IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_field_reports_time ON field_reports (time DESC);
 GRANT SELECT, INSERT ON field_reports TO meteomap_app;
 GRANT SELECT ON field_observers TO meteomap_app;

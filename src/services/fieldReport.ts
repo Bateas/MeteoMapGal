@@ -19,11 +19,17 @@ export type WaterState = 0 | 1 | 2 | 3;
 export const DIR_POINTS = [0, 45, 90, 135, 180, 225, 270, 315] as const;
 export type DirSeen = (typeof DIR_POINTS)[number];
 
+/** Knots seen on the water, in ranges: only asked to observers with a personal link (a casual
+ *  visitor's figure would be a guess). Index into this table; the server stores lo and hi. */
+export const KT_RANGES = [[0, 5], [5, 8], [8, 12], [12, 16], [16, 20], [20, 30]] as const;
+export type KtRange = 0 | 1 | 2 | 3 | 4 | 5;
+
 export interface FieldReport {
   spotId: string;
   windVsApp: WindVsApp;
   waterState: WaterState | null;
   dirSeen: DirSeen | null;
+  ktRange: KtRange | null;                   // observers only; the server drops it for anonymous reports
   appWindKt: number | null;                  // the figure the reporter was comparing against
   appVerdict: SpotVerdict | null;
   appVersion: string | null;
@@ -43,12 +49,15 @@ export type ParseResult = { ok: true; report: FieldReport } | { ok: false; error
 export function parseFieldReport(body: unknown, isValidSpot: (id: string) => boolean): ParseResult {
   if (body == null || typeof body !== 'object') return { ok: false, error: 'body' };
   const b = body as Record<string, unknown>;
-  const { spotId, windVsApp, waterState, dirSeen, appWindKt, appVerdict, appVersion, observerCode } = b;
+  const { spotId, windVsApp, waterState, dirSeen, ktRange, appWindKt, appVerdict, appVersion, observerCode } = b;
 
   if (typeof spotId !== 'string' || !isValidSpot(spotId)) return { ok: false, error: 'spotId' };
   if (windVsApp !== -1 && windVsApp !== 0 && windVsApp !== 1) return { ok: false, error: 'windVsApp' };
   if (waterState != null && waterState !== 0 && waterState !== 1 && waterState !== 2 && waterState !== 3) return { ok: false, error: 'waterState' };
   if (dirSeen != null && !(DIR_POINTS as readonly unknown[]).includes(dirSeen)) return { ok: false, error: 'dirSeen' };
+  if (ktRange != null && !(Number.isInteger(ktRange) && (ktRange as number) >= 0 && (ktRange as number) < KT_RANGES.length)) {
+    return { ok: false, error: 'ktRange' };
+  }
   if (appWindKt != null && (typeof appWindKt !== 'number' || !Number.isFinite(appWindKt) || appWindKt < 0 || appWindKt > 80)) {
     return { ok: false, error: 'appWindKt' };
   }
@@ -67,6 +76,7 @@ export function parseFieldReport(body: unknown, isValidSpot: (id: string) => boo
       windVsApp,
       waterState: (waterState ?? null) as WaterState | null,
       dirSeen: (dirSeen ?? null) as DirSeen | null,
+      ktRange: (ktRange ?? null) as KtRange | null,
       appWindKt: appWindKt == null ? null : Math.round((appWindKt as number) * 10) / 10,
       appVerdict: (appVerdict ?? null) as SpotVerdict | null,
       appVersion: (appVersion ?? null) as string | null,
@@ -160,7 +170,7 @@ export function recentReportWhat(s: RecentReportSummary): string {
 
 // ── A report that contradicts itself (asked before sending) ──
 
-export type ReportConflict = 'less-with-foam' | 'more-with-mirror';
+export type ReportConflict = 'less-with-foam' | 'more-with-mirror' | 'less-with-knots' | 'more-with-knots';
 
 /**
  * Whether the wind answer and the water answer cannot both be true for the figure shown. Foam on
@@ -168,9 +178,53 @@ export type ReportConflict = 'less-with-foam' | 'more-with-mirror';
  * «Menos viento que los 6,8 kt» with «algo de espuma» was a mis-tap with 12-14 kt in the water.
  * The form asks again; it never blocks the report.
  */
-export function reportConflict(wind: WindVsApp | null, water: WaterState | null, appWindKt: number | null): ReportConflict | null {
-  if (wind == null || water == null || appWindKt == null) return null;
+export function reportConflict(
+  wind: WindVsApp | null, water: WaterState | null, appWindKt: number | null, ktRange: KtRange | null = null,
+): ReportConflict | null {
+  if (wind == null || appWindKt == null) return null;
+  // An observer's knots against their own «more / less»: the whole range on the other side of the figure.
+  if (ktRange != null) {
+    const [lo, hi] = KT_RANGES[ktRange];
+    if (wind === -1 && lo > appWindKt) return 'less-with-knots';
+    if (wind === 1 && hi < appWindKt) return 'more-with-knots';
+  }
+  if (water == null) return null;
   if (wind === -1 && water >= 2 && appWindKt < 8) return 'less-with-foam';
   if (wind === 1 && water === 0 && appWindKt >= 3) return 'more-with-mirror';
   return null;
+}
+
+// ── Observers with a personal link ──
+
+/** One past report, as the observer sees it in their diary. Times in ms. */
+export interface ObserverReport {
+  time: number;
+  spotId: string;
+  windVsApp: WindVsApp;
+  waterState: WaterState | null;
+  dirSeen: DirSeen | null;
+  ktLo: number | null;
+  ktHi: number | null;
+  appWindKt: number | null;
+}
+
+export interface ObserverInfo {
+  name: string;
+  reports: ObserverReport[];
+}
+
+/** «12-16 kt» / «más de 20 kt» */
+export function ktRangeLabel(lo: number, hi: number): string {
+  return hi >= 30 ? `más de ${lo} kt` : `${lo}-${hi} kt`;
+}
+
+/** One diary line: «12-16 kt · algo de espuma · del SO · la app decía 14». */
+export function observerReportWhat(r: ObserverReport): string {
+  const parts: string[] = [];
+  if (r.ktLo != null && r.ktHi != null) parts.push(ktRangeLabel(r.ktLo, r.ktHi));
+  else parts.push(r.windVsApp === 1 ? 'más viento que la app' : r.windVsApp === -1 ? 'menos viento que la app' : 'como la app');
+  if (r.waterState != null) parts.push(WATER_WORDS[r.waterState]);
+  if (r.dirSeen != null) parts.push(`del ${DIR_WORDS[r.dirSeen]}`);
+  if (r.appWindKt != null) parts.push(`la app decía ${Math.round(r.appWindKt)}`);
+  return parts.join(' · ');
 }
