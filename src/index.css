@@ -130,6 +130,15 @@
   }
 }
 
+/* A page nobody has touched for 10 min (src/services/idleAnimations.ts) stops its endless
+ * animations: it looks the same, it only stops repainting every frame. A tab left open 27 h
+ * kept the GPU busy (15-oct). !important inside @layer base still beats the utilities. */
+@layer base {
+  :root[data-idle] *, :root[data-idle] *::before, :root[data-idle] *::after {
+    animation-play-state: paused !important;
+  }
+}
+
 * {
   margin: 0;
   padding: 0;

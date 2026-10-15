@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
@@ -334,6 +334,9 @@ export function useLightningData() {
   const historyRef = useRef<ClusterSnapshot[]>([]);
 
   const retryCountRef = useRef(0);
+  /** The pending retry, so a remount or a new failure never leaves two timers running (15-oct audit). */
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => { if (retryTimerRef.current) clearTimeout(retryTimerRef.current); }, []);
 
   // Read recentActivity reactively so the storm-active flag drives both the
   // cache TTL passed into fetchLightningStrikes() and the poll cadence below.
@@ -402,7 +405,9 @@ export function useLightningData() {
         const delay = 5000 * Math.pow(3, retryCountRef.current);
         retryCountRef.current++;
         console.log(`[Lightning] Retry ${retryCountRef.current}/3 in ${delay / 1000}s`);
-        setTimeout(() => {
+        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = setTimeout(() => {
+          retryTimerRef.current = undefined;
           fetchAndUpdate();
         }, delay);
       }

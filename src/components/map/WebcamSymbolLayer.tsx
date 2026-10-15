@@ -93,14 +93,18 @@ export function WebcamSymbolLayer({
     if (!map) return;
     const layerId = 'webcams-icons';
 
+    // Named handlers: `off` with a new arrow function removes nothing, and every change of the
+    // selected webcam left two more listeners on the map.
+    const enter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const leave = () => { map.getCanvas().style.cursor = ''; };
     map.on('click', layerId, handleClick);
-    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+    map.on('mouseenter', layerId, enter);
+    map.on('mouseleave', layerId, leave);
 
     return () => {
       map.off('click', layerId, handleClick);
-      map.off('mouseenter', layerId, () => {});
-      map.off('mouseleave', layerId, () => {});
+      map.off('mouseenter', layerId, enter);
+      map.off('mouseleave', layerId, leave);
     };
   }, [mapRef, handleClick]);
 

@@ -106,6 +106,10 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
 
   // 3. Cells, the motion of the whole picture and each cell's own track: once per frame set.
   const analysisRef = useRef<{ key: string; motion: RadarMotion | null; cells: ReturnType<typeof findRainCells>; tracks: Map<number, CellTrack> | null } | null>(null);
+  // The last radar picture and what it was drawn from. A new canvas is a new source, and MapLibre does not
+  // free the texture of the source it drops: rebuild it only when the frame or the drawn cells change, not
+  // on every batch of readings (15-oct, memory audit).
+  const pictureRef = useRef<{ key: string; picture: Picture } | null>(null);
   const analysis = useMemo(() => {
     if (!frames || !newest) return null;
     const key = `${newest.t}:${frames.length}:${simMode ?? ''}`;
@@ -167,13 +171,19 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
       if (raining.length === 0 && approach.length === 0 && arrivals.length === 0 && !sim) {
         return { off: true as const, gauges, arrivals, debug };
       }
-      const rgba = renderRain(newest, labels, draw);
-      const canvas = document.createElement('canvas');
-      canvas.width = newest.w; canvas.height = newest.h;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.putImageData(new ImageData(rgba, newest.w, newest.h), 0, 0);
-        picture = { canvas, corners: mosaicCorners(newest), id: ++pictureSeq };
+      const pictureKey = `${newest.t}:${newest.w}x${newest.h}:${[...draw].sort((p, q) => p - q).join(',')}`;
+      if (pictureRef.current?.key === pictureKey) {
+        picture = pictureRef.current.picture;
+      } else {
+        const rgba = renderRain(newest, labels, draw);
+        const canvas = document.createElement('canvas');
+        canvas.width = newest.w; canvas.height = newest.h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.putImageData(new ImageData(rgba, newest.w, newest.h), 0, 0);
+          picture = { canvas, corners: mosaicCorners(newest), id: ++pictureSeq };
+          pictureRef.current = { key: pictureKey, picture };
+        }
       }
       // Arrows only for the rain coming to the sector: an arrow means «this is heading your way».
       // 6-oct: the fallback (biggest steady patch) drew one over the sea, going nowhere near a spot.
