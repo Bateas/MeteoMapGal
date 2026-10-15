@@ -16,6 +16,15 @@ import { haversineDistance } from './geoUtils';
 import { solarAzimuthDeg, solarElevationDeg } from './solarUtils';
 
 /**
+ * A camera reading the map can use: anything but night. Its Beaufort figure is no test: the model
+ * cannot judge wind (the stations measure it), and in dense fog it cannot see the water and reports
+ * -1, which used to drop the fog reading itself (15-oct 17:15-18:25, Cíes faro norte: 5 of 9).
+ */
+export function isUsableVision(sky: string): boolean {
+  return sky !== 'night';
+}
+
+/**
  * The low sun in front of a camera washes the image out, and the model reads that as fog. Measured over
  * August-October 2026 (examen de niebla): with the sun within GLARE_MAX_OFF_AXIS_DEG of a camera's axis
  * and under GLARE_MAX_SUN_DEG high, the cameras looking west read fog 2-5 times as often (Ons Porto

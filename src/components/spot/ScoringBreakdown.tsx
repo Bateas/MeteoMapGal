@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { useWebcamStore } from '../../store/webcamStore';
+import { isUsableVision } from '../../services/webcamFogSites';
 import { windKtColor, waveColor } from './spotColors';
 import type { SpotScore, WindContribution } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
@@ -156,7 +157,7 @@ function SpotVisionBadge({ spot }: { spot: SailingSpot }) {
   let bestResult: { confidence: string; sky: string; fog: boolean; ago: number; webcamName: string } | null = null;
 
   for (const [webcamId, result] of visionResults) {
-    if (result.beaufort < 0) continue; // night/invalid analysis (sentinel only, not displayed)
+    if (!isUsableVision(result.weather.sky)) continue; // night
     if (result.spotId === spot.id) {
       const ago = Math.round((Date.now() - result.analyzedAt.getTime()) / 60_000);
       if (!bestResult || result.confidence === 'high' || ago < (bestResult.ago ?? 999)) {

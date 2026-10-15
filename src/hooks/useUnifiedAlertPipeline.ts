@@ -49,7 +49,7 @@ import {
 } from '../services/visibilityFreshness';
 import { processAlertNotifications } from '../services/notificationService';
 import { RIAS_WEBCAMS, ALL_WEBCAMS, webcamSite, isSeaFogCamera, isFogUnreliable } from '../config/webcams';
-import { summarizeFogBySite, camerasForSector, sunInView, type CameraFogRead } from '../services/webcamFogSites';
+import { summarizeFogBySite, camerasForSector, sunInView, isUsableVision, type CameraFogRead } from '../services/webcamFogSites';
 
 interface PipelineParams {
   stations: NormalizedStation[];
@@ -215,7 +215,7 @@ export function useUnifiedAlertPipeline({
         const reads: CameraFogRead[] = [];
         for (const [id, result] of visionResults) {
           const ageOk = (now - result.analyzedAt.getTime()) < 30 * 60_000;
-          if (!ageOk || result.beaufort < 0) continue;
+          if (!ageOk || !isUsableVision(result.weather.sky)) continue;
           const cam = webcamCoords.get(id);
           if (!cam) continue;
           // A camera high up (Castrove, 515 m) can be inside the low cloud with the water clear below.

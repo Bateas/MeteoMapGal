@@ -7,6 +7,7 @@ import { Popup } from 'react-map-gl/maplibre';
 import { useUIStore } from '../../store/uiStore';
 import { useWebcamStore } from '../../store/webcamStore';
 import type { WebcamStation } from '../../config/webcams';
+import { isUsableVision } from '../../services/webcamFogSites';
 
 interface WebcamPopupProps {
   webcam: WebcamStation;
@@ -137,7 +138,7 @@ function WebcamContent({
 function VisionBadge({ webcamId }: { webcamId: string }) {
   const visionResults = useWebcamStore((s) => s.visionResults);
   const result = visionResults.get(webcamId);
-  if (!result || result.beaufort < 0) return null; // beaufort < 0 = night/invalid analysis (sentinel only, not displayed)
+  if (!result || !isUsableVision(result.weather.sky)) return null; // night
 
   const skyLabels: Record<string, string> = {
     clear: 'Despejado', partly_cloudy: 'Parcialmente nublado', overcast: 'Cubierto',

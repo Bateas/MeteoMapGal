@@ -3,7 +3,7 @@
  *
  * Reads from /api/v1/webcam-vision (served by ingestor, backed by Ollama).
  * Updates webcamStore.visionResults so popups can display sky/visibility/fog.
- * (Beaufort stays in the payload as a valid-analysis sentinel — never shown as wind.)
+ * (Beaufort stays in the payload but decides nothing: the model cannot judge wind.)
  * Falls back gracefully if ingestor API is unavailable.
  */
 
@@ -12,6 +12,7 @@ import { useWebcamStore } from '../store/webcamStore';
 import { useSpotStore } from '../store/spotStore';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { RIAS_WEBCAMS } from '../config/webcams';
+import { isUsableVision } from '../services/webcamFogSites';
 import type { WebcamVisionResult } from '../services/webcamVisionService';
 
 const POLL_INTERVAL_MS = 5 * 60_000; // 5 min
@@ -58,6 +59,35 @@ function beaufortToKt(bf: number): number {
   return bf >= 0 && bf <= 7 ? midpoints[bf] : 0;
 }
 
+export type VisionRow = Parameters<typeof rowToResult>[0];
+
+/** API rows (latest per camera) → readings by camera and by nearest spot. Night rows are dropped;
+ *  a daytime row with Beaufort -1 is kept: in dense fog the model cannot see the water. */
+export function visionFromRows(rows: VisionRow[]): {
+  results: Map<string, WebcamVisionResult>;
+  spotVision: Map<string, WebcamVisionResult>;
+} {
+  const results = new Map<string, WebcamVisionResult>();
+  const spotVision = new Map<string, WebcamVisionResult>();
+  for (const row of rows) {
+    if (!isUsableVision(row.sky)) continue;
+    const result = rowToResult(row);
+    results.set(row.webcam_id, result);
+
+    // Also map to nearest spot for SpotPopup WebcamVisionBadge
+    const webcam = RIAS_WEBCAMS.find(w => w.id === row.webcam_id);
+    const spotId = webcam?.nearestSpotId ?? row.spot_id;
+    if (spotId) {
+      const existing = spotVision.get(spotId);
+      // Keep highest confidence / most recent per spot
+      if (!existing || result.confidence === 'high' || result.analyzedAt > existing.analyzedAt) {
+        spotVision.set(spotId, result);
+      }
+    }
+  }
+  return { results, spotVision };
+}
+
 export function useWebcamVisionData() {
   const setVisionResults = useWebcamStore((s) => s.setVisionResults);
   const setWebcamVision = useSpotStore((s) => s.setWebcamVision);
@@ -66,29 +96,10 @@ export function useWebcamVisionData() {
     try {
       const res = await fetch(API_URL, { signal: AbortSignal.timeout(10_000) });
       if (!res.ok) return;
-      const data = await res.json() as { readings: Array<Parameters<typeof rowToResult>[0]> };
+      const data = await res.json() as { readings: VisionRow[] };
       if (!data.readings || data.readings.length === 0) return;
 
-      const results = new Map<string, WebcamVisionResult>();
-      const spotVision = new Map<string, WebcamVisionResult>();
-
-      for (const row of data.readings) {
-        if (row.beaufort < 0) continue; // Skip night/unknown
-        const result = rowToResult(row);
-        results.set(row.webcam_id, result);
-
-        // Also map to nearest spot for SpotPopup WebcamVisionBadge
-        const webcam = RIAS_WEBCAMS.find(w => w.id === row.webcam_id);
-        const spotId = webcam?.nearestSpotId ?? row.spot_id;
-        if (spotId) {
-          const existing = spotVision.get(spotId);
-          // Keep highest confidence / most recent per spot
-          if (!existing || result.confidence === 'high' || result.analyzedAt > existing.analyzedAt) {
-            spotVision.set(spotId, result);
-          }
-        }
-      }
-
+      const { results, spotVision } = visionFromRows(data.readings);
       if (results.size > 0) {
         setVisionResults(results);
       }
