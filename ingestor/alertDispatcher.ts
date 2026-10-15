@@ -217,7 +217,7 @@ export async function dispatchSpotAlert(
   verdict: string,
   windKt: number,
   direction: string,
-  extras?: { waterTemp?: number; thermalProb?: number; gustKt?: number },
+  extras?: { waterTemp?: number; thermalProb?: number; gustKt?: number; hardGate?: string },
 ): Promise<void> {
   if (isNightTime()) return;
   if (isInCooldown(lastSpotAlert, spotId, SPOT_COOLDOWN_MS)) return;
@@ -233,6 +233,8 @@ export async function dispatchSpotAlert(
   if (extras?.gustKt && extras.gustKt > windKt) msg += ` (rachas ${extras.gustKt}kt)`;
   if (extras?.waterTemp) msg += ` · Agua ${extras.waterTemp.toFixed(0)}°C`;
   msg += '\n';
+  // A verdict set by the spot's own limit says which: «FUERTE» with 4 kt read as a bug (15-oct).
+  if (extras?.hardGate) msg += `Motivo: ${extras.hardGate}\n`;
   if (dirNote) msg += dirNote;
   if (extras?.thermalProb && extras.thermalProb >= 40) {
     msg += (dirNote ? ' · ' : '') + `Termico ${extras.thermalProb}%`;

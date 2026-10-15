@@ -191,6 +191,9 @@ export interface SpotResult {
   boostedBy?: 'cesantes-canalization' | 'bocana-terral' | null;
   /** Detector confidence 0-100% (when boostedBy set) */
   boostConfidence?: number;
+  /** The spot's hard limit that set the verdict, as the engine words it («Oleaje 3.4m > 3m
+   *  (Cabo Silleiro)»). The alert prints it: «FUERTE» with 4 kt and no reason read as a bug. */
+  hardGate?: string | null;
   /** Buoys in range dropped for being older than the staleness gate. Surfaced
    *  so a silently dying buoy feed shows up in the cycle log. */
   staleBuoysDropped?: number;

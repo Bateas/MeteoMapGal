@@ -55,6 +55,16 @@ describe('alertDispatcher — spot alerts say which wind it is, never the sea (1
     return body ? (JSON.parse(String(body)) as { text: string }).text : '';
   };
 
+  it('a verdict set by the spot limit says which (15-oct)', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    vi.spyOn(log, 'ok').mockImplementation(() => {});
+    resetCooldowns();
+    await dispatchSpotAlert('cies-ria', 'cies-ria', 'Rías Baixas', 'FUERTE', 6, 'N', { hardGate: 'Oleaje 3.4m > 3m (Cabo Silleiro)' });
+    const text = (JSON.parse(String(fetch.mock.calls.at(-1)?.[1]?.body)) as { text: string }).text;
+    expect(text).toContain('Motivo: Oleaje 3.4m > 3m (Cabo Silleiro)');
+  });
+
   it('the 1-oct Cies alert no longer promises heavy seas', async () => {
     const text = await sentText('cies-ria', 'N');
     expect(text).toContain('N 10kt (rachas 17kt)');

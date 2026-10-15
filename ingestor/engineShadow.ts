@@ -106,7 +106,16 @@ export function alertResult(pipeline: SpotResult, score: SpotScore | undefined):
     rawWindKt: score.wind ? Math.round(score.wind.avgSpeedKt * 10) / 10 : undefined,
     boostedBy: channeling ? 'cesantes-canalization' : null,
     boostConfidence: channeling ? channeling.confidence : undefined,
+    hardGate: gateReason(score),
   };
+}
+
+/** The engine's hard gate with the buoy it came from when it is the sea state. */
+function gateReason(score: SpotScore): string | null {
+  const gate = score.hardGateTriggered;
+  if (!gate) return null;
+  const buoy = score.waves?.sourceBuoy;
+  return gate.startsWith('Oleaje') && buoy ? `${gate} (${buoy})` : gate;
 }
 
 export interface Divergence { spotId: string; pipeline: { verdict: string; windKt: number }; engine: EngineView }
