@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
-import { recentReportWhat, recentReportWhen, type WindVsApp, type WaterState, type DirSeen, type RecentReportSummary } from '../../services/fieldReport';
+import { recentReportWhat, recentReportWhen, reportConflict, type WindVsApp, type WaterState, type DirSeen, type RecentReportSummary } from '../../services/fieldReport';
 import { postFieldReport, currentObserverCode, cooldownLeftMin, fetchRecentReports } from '../../api/fieldReportClient';
 import { APP_VERSION } from '../../config/version';
 
@@ -18,10 +18,11 @@ interface Props {
   shownVerdict: SpotVerdict;
 }
 
+// «Más viento», not «Más»: on 15-oct «Menos» was tapped meaning «the app says less».
 const WIND: { v: WindVsApp; label: string }[] = [
-  { v: 1, label: 'Más' },
+  { v: 1, label: 'Más viento' },
   { v: 0, label: 'Igual' },
-  { v: -1, label: 'Menos' },
+  { v: -1, label: 'Menos viento' },
 ];
 // Plain words, agreed with a sailor: the sea-state term "rizada" was read as something else.
 const WATER: { v: WaterState; label: string }[] = [
@@ -96,6 +97,7 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
   };
 
   const reset = () => { setWind(null); setWater(null); setDir(null); setState('idle'); };
+  const conflict = reportConflict(wind, water, shownWindKt);
 
   return (
     <div className={CARD} style={CARD_STYLE}>
@@ -136,6 +138,18 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
               ))}
             </div>
           </div>
+          {conflict && (
+            <div className="flex flex-col gap-1 rounded border border-amber-500/40 bg-amber-500/10" style={{ padding: '4px 6px' }}>
+              <span className="text-[11px] text-amber-200">
+                {conflict === 'less-with-foam'
+                  ? `Con espuma suele haber más de 8-10 kt y la app dice ${Math.round(shownWindKt ?? 0)}. ¿Querías decir «Más viento»?`
+                  : 'Con el agua como un espejo casi no hay viento. ¿Querías decir «Menos viento»?'}
+              </span>
+              <button type="button" className={chip(false)} onClick={() => setWind(conflict === 'less-with-foam' ? 1 : -1)}>
+                {conflict === 'less-with-foam' ? 'Sí, más viento' : 'Sí, menos viento'}
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <button
               type="button"

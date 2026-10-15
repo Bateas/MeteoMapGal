@@ -29,7 +29,7 @@ describe('SpotReportBox', () => {
     const fetchMock = api({ ok: true, status: 201 });
     vi.stubGlobal('fetch', fetchMock);
     const { unmount } = render(<SpotReportBox spotId="cesantes" shownWindKt={12.4} shownVerdict="good" />);
-    fireEvent.click(screen.getByText('Más'));
+    fireEvent.click(screen.getByText('Más viento'));
     fireEvent.click(screen.getByText('Mucha espuma'));
     fireEvent.click(screen.getByText('SO'));
     fireEvent.click(screen.getByText('Enviar'));
@@ -39,14 +39,14 @@ describe('SpotReportBox', () => {
 
     render(<SpotReportBox spotId="cesantes" shownWindKt={12.4} shownVerdict="good" />);
     expect(screen.getByText(/Ya enviaste un reporte/)).toBeTruthy();
-    expect(screen.queryByText('Más')).toBeNull();
+    expect(screen.queryByText('Más viento')).toBeNull();
   });
 
   it('sends with only the wind answer, the other two are optional', async () => {
     const fetchMock = api({ ok: true, status: 201 });
     vi.stubGlobal('fetch', fetchMock);
     render(<SpotReportBox spotId="cesantes" shownWindKt={9} shownVerdict="sailing" />);
-    fireEvent.click(screen.getByText('Menos'));
+    fireEvent.click(screen.getByText('Menos viento'));
     fireEvent.click(screen.getByText('Enviar'));
     await waitFor(() => expect(screen.getByText(/Gracias/)).toBeTruthy());
     expect(postBody(fetchMock)).toMatchObject({ windVsApp: -1, waterState: null, dirSeen: null });
@@ -68,6 +68,16 @@ describe('SpotReportBox', () => {
     await waitFor(() => expect(screen.getByText('En el agua, hace 15 min · 2 reportes')).toBeTruthy());
     expect(screen.getByText('Más viento que los 9 kt de la app · algo de espuma · del N')).toBeTruthy();
     expect(screen.getByText(/comparado con los 11 kt/)).toBeTruthy();
+  });
+
+  it('asks again before sending «Menos viento» with foam when the app shows under 8 kt', () => {
+    render(<SpotReportBox spotId="cesantes" shownWindKt={6.8} shownVerdict="light" />);
+    fireEvent.click(screen.getByText('Menos viento'));
+    fireEvent.click(screen.getByText('Algo de espuma'));
+    expect(screen.getByText(/¿Querías decir «Más viento»\?/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Sí, más viento'));
+    expect(screen.queryByText(/¿Querías decir/)).toBeNull();
+    expect(screen.getByText('Más viento').getAttribute('aria-pressed')).toBe('true');
   });
 
   it('without recent reports the card is only the question', async () => {

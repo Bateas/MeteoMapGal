@@ -157,3 +157,20 @@ export function recentReportWhat(s: RecentReportSummary): string {
   if (s.dir != null) parts.push(`del ${DIR_WORDS[s.dir]}`);
   return parts.join(' · ');
 }
+
+// ── A report that contradicts itself (asked before sending) ──
+
+export type ReportConflict = 'less-with-foam' | 'more-with-mirror';
+
+/**
+ * Whether the wind answer and the water answer cannot both be true for the figure shown. Foam on
+ * the water needs ~8-10 kt (Beaufort 3), a mirror needs under ~2 kt (Beaufort 0-1). 15-oct 17:46:
+ * «Menos viento que los 6,8 kt» with «algo de espuma» was a mis-tap with 12-14 kt in the water.
+ * The form asks again; it never blocks the report.
+ */
+export function reportConflict(wind: WindVsApp | null, water: WaterState | null, appWindKt: number | null): ReportConflict | null {
+  if (wind == null || water == null || appWindKt == null) return null;
+  if (wind === -1 && water >= 2 && appWindKt < 8) return 'less-with-foam';
+  if (wind === 1 && water === 0 && appWindKt >= 3) return 'more-with-mirror';
+  return null;
+}

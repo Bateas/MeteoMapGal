@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFieldReport, summarizeRecentReports, recentReportWhen, recentReportWhat } from './fieldReport';
+import { parseFieldReport, summarizeRecentReports, recentReportWhen, recentReportWhat, reportConflict } from './fieldReport';
 
 const isValid = (id: string) => id === 'cesantes' || id === 'castrelo';
 const base = { spotId: 'cesantes', windVsApp: 1, waterState: 3, dirSeen: 225, appWindKt: 12.34, appVerdict: 'good', appVersion: '2.143.0' };
@@ -80,5 +80,24 @@ describe('what people at the water said lately', () => {
     expect(recentReportWhat(s)).toBe('Más viento que los 9 kt de la app · algo de espuma · del N');
     expect(recentReportWhat({ ...s, wind: 'mixed', water: null, dir: null })).toBe('No coinciden entre ellos');
     expect(recentReportWhat({ ...s, wind: 0, appWindKt: null, water: 0, dir: null })).toBe('El viento de la app · agua como un espejo');
+  });
+});
+
+describe('reportConflict', () => {
+  it('less wind with foam under 8 kt shown is a contradiction (15-oct 17:46, a mis-tap)', () => {
+    expect(reportConflict(-1, 2, 6.8)).toBe('less-with-foam');
+    expect(reportConflict(-1, 3, 7.9)).toBe('less-with-foam');
+  });
+  it('more wind with a mirror over 3 kt shown is a contradiction', () => {
+    expect(reportConflict(1, 0, 4)).toBe('more-with-mirror');
+  });
+  it('consistent answers, or missing ones, are not flagged', () => {
+    expect(reportConflict(-1, 2, 12)).toBeNull();   // foam, but the app says even more
+    expect(reportConflict(-1, 1, 6)).toBeNull();    // moved water without foam
+    expect(reportConflict(1, 0, 2)).toBeNull();     // mirror with the app at 2: little to say
+    expect(reportConflict(1, 3, 6)).toBeNull();
+    expect(reportConflict(-1, null, 6)).toBeNull();
+    expect(reportConflict(-1, 2, null)).toBeNull();
+    expect(reportConflict(null, 2, 6)).toBeNull();
   });
 });
