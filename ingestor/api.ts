@@ -1160,7 +1160,10 @@ async function handleFieldReportPost(
 
 const OBSERVER_ME_MAX_PER_HOUR = 60;
 const OBSERVER_ME_MAX_BODY = 256;
-const OBSERVER_ME_MAX_UNKNOWN_PER_HOUR = 200;     // all IPs together: guessing from many addresses stops too
+// Unknown codes from all addresses together: an ALARM in the log, never a block. A global 429 would
+// let anyone lock real observers out (review of v2.179.1). What stops guessing is the code itself
+// (12-32 random characters; ours ~70 bits) plus the per-IP limit.
+const OBSERVER_ME_ALARM_UNKNOWN_PER_HOUR = 200;
 const observerMeCounts = new Map<string, { count: number; resetAt: number }>();
 let observerUnknown = { count: 0, resetAt: 0 };
 
@@ -1177,7 +1180,6 @@ async function handleObserverMe(
   const ip = clientIpOf(req.headers, req.socket.remoteAddress);
   const now = Date.now();
   if (now >= observerUnknown.resetAt) observerUnknown = { count: 0, resetAt: now + 60 * 60_000 };
-  if (observerUnknown.count >= OBSERVER_ME_MAX_UNKNOWN_PER_HOUR) { error(res, 'Rate limit exceeded', 429, origin); return; }
   const bucket = observerMeCounts.get(ip);
   if (bucket && now < bucket.resetAt) {
     if (bucket.count >= OBSERVER_ME_MAX_PER_HOUR) { error(res, 'Rate limit exceeded', 429, origin); return; }
@@ -1203,7 +1205,7 @@ async function handleObserverMe(
     const o = await pool.query('SELECT name FROM field_observers WHERE code = $1 AND active', [code]);
     if (!o.rowCount) {
       observerUnknown.count++;
-      if (observerUnknown.count === OBSERVER_ME_MAX_UNKNOWN_PER_HOUR) log.warn(`observers/me: ${OBSERVER_ME_MAX_UNKNOWN_PER_HOUR} codigos desconocidos en una hora; cerrado hasta la hora siguiente`);
+      if (observerUnknown.count === OBSERVER_ME_ALARM_UNKNOWN_PER_HOUR) log.warn(`observers/me: ${OBSERVER_ME_ALARM_UNKNOWN_PER_HOUR} codigos desconocidos en una hora (alguien probando codigos?)`);
       error(res, 'Unknown', 404, origin);
       return;
     }
