@@ -10,10 +10,13 @@ const MAX_VISIBILITY_KM = 50;
 /** "N+" and the rawOb 9999 group both mean "10km or more" — report the cap. */
 const VISIBILITY_CAP_KM = 10;
 
-/** Round to 1 decimal; reject negatives and sensor nonsense above the cap. */
+/**
+ * Round to 1 decimal (2 below 1 km, where fog lives: 50 m arrives as 0.03 SM and one decimal
+ * turned it into 0 km, «visibilidad 0m»); reject negatives and sensor nonsense above the cap.
+ */
 function sanitizeKm(km: number): number | null {
   if (!Number.isFinite(km) || km < 0 || km > MAX_VISIBILITY_KM) return null;
-  return Math.round(km * 10) / 10;
+  return km < 1 ? Math.round(km * 100) / 100 : Math.round(km * 10) / 10;
 }
 
 /**

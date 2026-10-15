@@ -37,6 +37,13 @@ describe('parseMetarVisibilityKm', () => {
     expect(parseMetarVisibilityKm(2)).toBe(3.2);
   });
 
+  it('keeps fog visibilities below 1 km to the tens of metres (15-oct: Peinador 0050 read as 0 m)', () => {
+    // METAR LEVX 150600Z ... 0050 ... FG: aviationweather gives visib 0.03 SM
+    expect(parseMetarVisibilityKm(0.03)).toBe(0.05);
+    expect(parseMetarVisibilityKm('0.06')).toBe(0.1);
+    expect(parseMetarVisibilityKm('0.5')).toBe(0.8);
+  });
+
   it('falls back to the rawOb 9999 group only when visib is absent', () => {
     expect(parseMetarVisibilityKm(undefined, LEVX_FIXTURE.rawOb)).toBe(10);
     // explicit garbage visib must NOT fall through to rawOb
