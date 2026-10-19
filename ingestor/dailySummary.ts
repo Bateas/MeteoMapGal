@@ -376,7 +376,7 @@ async function querySectorSummary(
 // ── Build & send ────────────────────────────────────
 
 /** Who the buoy data come from; italic like the footer. */
-export const BUOY_CREDIT = '_Boyas: Puertos del Estado (portus.puertos.es) y Observatorio Costeiro da Xunta_';
+export const BUOY_CREDIT = '_Boyas: Puertos del Estado (portus.puertos.es) y Observatorio Costeiro da Xunta de Galicia (observatoriocosteiro.gal)_';
 
 /** Per-sector block. Exported pure for testing. */
 export function buildSectorBlock(s: SectorSummary): string {
