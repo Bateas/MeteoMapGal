@@ -225,25 +225,40 @@ export function assessCrossSeaRisk(buoys: BuoyReading[]): CrossSeaRisk {
   };
 }
 
+/** Level shown for one buoy: open-sea buoys go two levels down (rarely reflects inside the ría). */
+function effectiveCrossSeaLevel(risk: CrossSeaRisk): AlertLevel {
+  if (!risk.sourceBuoy || !OCEAN_BUOYS.has(risk.sourceBuoy)) return risk.level;
+  const downgrade: Record<AlertLevel, AlertLevel> = {
+    critico: 'riesgo', alto: 'none', riesgo: 'none', none: 'none',
+  };
+  return downgrade[risk.level];
+}
+
 /**
  * Build UnifiedAlert[] from cross-sea assessment.
  * Only emits alerts if risk is riesgo or above.
  */
 export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
-  const risk = assessCrossSeaRisk(buoys);
-  if (risk.level === 'none') return [];
-
-  // Downgrade ocean buoys one level — Cabo Silleiro/Ons are open ocean,
-  // conditions don't translate directly inside the Ría
-  let effectiveLevel = risk.level;
-  if (risk.sourceBuoy && OCEAN_BUOYS.has(risk.sourceBuoy)) {
-    // 2-level downgrade: open ocean conditions rarely reflect inside Ría
-    const downgrade: Record<AlertLevel, AlertLevel> = {
-      critico: 'riesgo', alto: 'none', riesgo: 'none', none: 'none',
-    };
-    effectiveLevel = downgrade[risk.level];
-    if (effectiveLevel === 'none') return [];
+  // The open-sea downgrade is applied to EACH buoy before picking the worst. Picking first
+  // let a Cabo Silleiro 'alto' (downgraded to nothing) hide a 'riesgo' measured inside the ría.
+  const LEVEL_ORDER: Record<AlertLevel, number> = { none: 0, riesgo: 1, alto: 2, critico: 3 };
+  let risk: CrossSeaRisk | null = null;
+  let effectiveLevel: AlertLevel = 'none';
+  for (const buoy of buoys) {
+    if (buoy.waveDir === null || !isBuoyFresh(buoy)) continue;
+    const r = assessBuoyCrossSeaRisk(buoy);
+    const eff = effectiveCrossSeaLevel(r);
+    if (eff === 'none') continue;
+    if (!risk || LEVEL_ORDER[eff] > LEVEL_ORDER[effectiveLevel] ||
+        (eff === effectiveLevel && (r.angleDelta ?? 0) > (risk.angleDelta ?? 0))) {
+      risk = r;
+      effectiveLevel = eff;
+    }
   }
+  if (!risk) return [];
+  // Today only Cabo Silleiro reports wave direction, 50 km out: the alert says so instead of
+  // reading as the sea inside the ría (the harbour gauges measure port agitation, not swell).
+  const openSea = risk.sourceBuoy != null && OCEAN_BUOYS.has(risk.sourceBuoy);
 
   const levelToScore: Record<AlertLevel, number> = {
     none: 0, riesgo: 30, alto: 55, critico: 80,
@@ -252,8 +267,15 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
   const severity = score >= 80 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'moderate' : 'info';
 
   const angleStr = risk.angleDelta !== null ? `${risk.angleDelta.toFixed(0)}°` : '';
-  const buoyStr = risk.sourceBuoy ? ` (${risk.sourceBuoy})` : '';
+  const buoyStr = risk.sourceBuoy
+    ? openSea ? ` (${risk.sourceBuoy}, fuera de la ría)` : ` (${risk.sourceBuoy})`
+    : '';
   const waveStr = risk.waveHeight !== null ? `Hm0 ${risk.waveHeight.toFixed(1)}m` : '';
+  const baseTitle = effectiveLevel === 'critico'
+    ? 'MAR CRUZADA PELIGROSA'
+    : effectiveLevel === 'alto'
+      ? 'Mar cruzada significativa'
+      : 'Mar cruzada moderada';
 
   return [{
     id: 'cross-sea',
@@ -261,11 +283,9 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
     severity: severity as 'info' | 'moderate' | 'high' | 'critical',
     score,
     icon: 'waves',
-    title: effectiveLevel === 'critico'
-      ? 'MAR CRUZADA PELIGROSA'
-      : effectiveLevel === 'alto'
-        ? 'Mar cruzada significativa'
-        : 'Mar cruzada moderada',
+    title: openSea
+      ? effectiveLevel === 'critico' ? 'MAR CRUZADA PELIGROSA EN MAR ABIERTO' : `${baseTitle} en mar abierto`
+      : baseTitle,
     detail: [
       `${angleStr} oleaje-viento${buoyStr}`,
       waveStr,

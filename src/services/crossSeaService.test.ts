@@ -266,7 +266,19 @@ describe('buildCrossSeaAlerts', () => {
     ]);
     expect(alerts).toHaveLength(1);
     expect(alerts[0].score).toBe(30); // riesgo score
+    // Open sea, said as such: it is not the sea inside the ría.
+    expect(alerts[0].title).toBe('Mar cruzada moderada en mar abierto');
+    expect(alerts[0].detail).toContain('Cabo Silleiro, fuera de la ría');
+  });
+
+  it('an open-sea alto (downgraded to nothing) does not hide a riesgo inside the ría', () => {
+    const alerts = buildCrossSeaAlerts([
+      buoy({ stationName: 'Cabo Silleiro', waveDir: 270, windDir: 190, waveHeight: 1.0, wavePeriod: 6 }),
+      buoy({ stationName: 'Boya interior', waveDir: 270, windDir: 215, waveHeight: 0.8, wavePeriod: 6 }),
+    ]);
+    expect(alerts).toHaveLength(1);
     expect(alerts[0].title).toBe('Mar cruzada moderada');
+    expect(alerts[0].detail).toContain('Boya interior');
   });
 
   it('suppresses ocean buoy alerts at alto level (downgrade → none)', () => {
