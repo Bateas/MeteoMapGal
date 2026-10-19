@@ -37,6 +37,7 @@ import { runStationHealthCycle, loadStationHealth, HEALTH_CHECK_INTERVAL_MS } fr
 import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetcher.js';
 import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
 import { runMetarArchive, METAR_ARCHIVE_INTERVAL_MS } from './metarArchive.js';
+import { runIntecmarArchive, INTECMAR_CHECK_MS } from './intecmarArchive.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
   countBySource,
@@ -104,6 +105,7 @@ let stationHealthTimer: ReturnType<typeof setInterval> | null = null;
 let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
 let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
 let metarTimer: ReturnType<typeof setInterval> | null = null;
+let intecmarTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -629,6 +631,11 @@ async function start(): Promise<void> {
   setTimeout(() => { void runMetarArchive(); }, 280_000);
   metarTimer = setInterval(() => { void runMetarArchive(); }, METAR_ARCHIVE_INTERVAL_MS);
 
+  // INTECMAR's own record of the platforms and the CTD casts (intecmarArchive.ts): checked hourly,
+  // runs once per UTC day after 01:00 when nothing was fetched today. 300s stagger, after METAR.
+  setTimeout(() => { void runIntecmarArchive(); }, 300_000);
+  intecmarTimer = setInterval(() => { void runIntecmarArchive(); }, INTECMAR_CHECK_MS);
+
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
 
@@ -657,6 +664,7 @@ async function shutdown(signal: string): Promise<void> {
   if (nwpPreviousTimer) clearInterval(nwpPreviousTimer);
   if (wrfPointTimer) clearInterval(wrfPointTimer);
   if (metarTimer) clearInterval(metarTimer);
+  if (intecmarTimer) clearInterval(intecmarTimer);
 
   // Close database pool
   await closePool();

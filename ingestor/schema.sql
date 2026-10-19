@@ -1145,3 +1145,48 @@ DO $$ BEGIN
     GRANT SELECT ON metar_reports TO grafana_ro;
   END IF;
 END $$;
+
+-- ── INTECMAR archive (intecmarArchive.ts) ─────────────────
+-- The Observatorio Costeiro's own record (api.intecmar.gal, CC BY-SA 4.0: cite «Observatorio Costeiro
+-- da Xunta de Galicia»). Once a day: the two whole UTC days before, every 10-minute value of the five
+-- live platforms with its quality code (Copernicus 0-9, 1 = good), as published and never filtered;
+-- re-asked values refresh their code. It fills the holes of the live feed (buoy_readings lost 35-45 %
+-- of Cortegada's readings, 19-oct-2026) without touching it. ~45 series x 144 a day.
+CREATE TABLE IF NOT EXISTS intecmar_platform (
+  time           TIMESTAMPTZ      NOT NULL,   -- UTC
+  station_code   INTEGER          NOT NULL,   -- 15001 Cortegada, 15004 A Guarda, 15005 Ribeira, 15009 Muros, 15100 Rande
+  parameter_id   INTEGER          NOT NULL,   -- 81 wind speed, 82 wind dir, 83 air temp, 86 RH, 10018 dew point, 20003 water temp, 20005 salinity, 20000 current speed
+  func           TEXT             NOT NULL,   -- AVG, RACHA (gust)...
+  depth_m        DOUBLE PRECISION NOT NULL,   -- positive = depth, negative = height (wind at -5)
+  parameter_code TEXT             NOT NULL,   -- VV, DV, TA, HR, TO, TAU, SAL, VC
+  value          DOUBLE PRECISION,            -- NULL when published as -9999
+  quality_code   SMALLINT,
+  fetched_at     TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (station_code, parameter_id, func, depth_m, time)
+);
+SELECT create_hypertable('intecmar_platform', 'time', if_not_exists => TRUE);
+GRANT SELECT, INSERT, UPDATE ON intecmar_platform TO meteomap_app;
+
+-- The weekly CTD profiles (43 stations, two campaigns a week), one row per scan and parameter with its
+-- QualityFlag. The first scans of a cast are taken out of the water (pressure ~0.25 dbar, salinity ~1,
+-- flag 0): kept, so filter by pressure when reading. cast_date as published, without a time zone.
+CREATE TABLE IF NOT EXISTS intecmar_ctd (
+  cast_id       INTEGER          NOT NULL,
+  station_code  TEXT             NOT NULL,   -- V3 Rande, V4 Chapela, V2 Moaña, P0 Combarro...
+  cast_date     TIMESTAMP        NOT NULL,
+  config_name   TEXT,
+  scan          INTEGER          NOT NULL,
+  parameter     TEXT             NOT NULL,   -- Temperatura, Salinidad, Presión, Oxígeno, pH...
+  value         DOUBLE PRECISION,
+  quality_flag  SMALLINT,
+  units         TEXT,
+  fetched_at    TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (cast_id, scan, parameter)
+);
+CREATE INDEX IF NOT EXISTS intecmar_ctd_station_date ON intecmar_ctd (station_code, cast_date);
+GRANT SELECT, INSERT, UPDATE ON intecmar_ctd TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON intecmar_platform, intecmar_ctd TO grafana_ro;
+  END IF;
+END $$;
