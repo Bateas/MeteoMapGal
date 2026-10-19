@@ -633,7 +633,8 @@ describe('scoreAllSpots — per-spot station exclusion (excludeStations)', () =>
 });
 
 describe('scoreAllSpots — documented station-bias de-weighting', () => {
-  const lourido = RIAS_SPOTS.find((s) => s.id === 'lourido')!;
+  // Without Lourido's shore lee (windShelter, tested on its own below): these tests are about station bias.
+  const lourido = { ...RIAS_SPOTS.find((s) => s.id === 'lourido')!, windShelter: undefined };
   const CANGAS = 'mc_ESGAL3600000036940A'; // documented sheltered 0-150° (N/NE/E/SE)
   const [lon, lat] = lourido.center;
 
@@ -1092,5 +1093,43 @@ describe('waves only from the spot own wave buoys', () => {
     for (const s of [...RIAS_SPOTS, ...EMBALSE_SPOTS]) {
       for (const id of s.waveBuoys ?? []) expect(s.preferredBuoys).toContain(id);
     }
+  });
+});
+
+// ── Shore shelter by direction (windShelter) ─────────────
+
+describe('windShelter', () => {
+  const lourido = RIAS_SPOTS.find(s => s.id === 'lourido')!;
+  const bare = { ...lourido, windShelter: undefined };
+  const at = (spot: typeof lourido, dir: number) => {
+    const station = makeStation('t1', lourido.center[1], lourido.center[0]);
+    const reading = makeReading('t1', msFromKt(12), dir);
+    return scoreAllSpots([spot], [station], new Map([['t1', reading]]), []).get('lourido')!.wind!.avgSpeedKt;
+  };
+
+  it('Lourido has a measured lee with N-NE', () => {
+    expect(lourido.windShelter).toEqual([{ fromDeg: 300, toDeg: 90, factor: 0.81 }]);
+  });
+
+  it('cuts the consensus with a wind from inside the arc (NE)', () => {
+    expect(at(lourido, 40)).toBeCloseTo(at(bare, 40) * 0.81, 0);
+    expect(at(lourido, 40)).toBeLessThan(at(bare, 40));
+  });
+
+  it('wraps through north (NW) and leaves S-W alone', () => {
+    expect(at(lourido, 330)).toBeLessThan(at(bare, 330));
+    expect(at(lourido, 225)).toBe(at(bare, 225));
+  });
+});
+
+describe('dirInArc', () => {
+  it('handles plain and wrapping arcs', async () => {
+    const { dirInArc } = await import('./spotScoringEngine');
+    expect(dirInArc(45, 0, 90)).toBe(true);
+    expect(dirInArc(120, 0, 90)).toBe(false);
+    expect(dirInArc(350, 300, 90)).toBe(true);
+    expect(dirInArc(10, 300, 90)).toBe(true);
+    expect(dirInArc(200, 300, 90)).toBe(false);
+    expect(dirInArc(-20, 300, 90)).toBe(true);
   });
 });

@@ -102,6 +102,11 @@ export interface SailingSpot {
   /** Wind speed calibration offset (kt). Added to consensus avg to compensate
    *  for amateur station low-mounting bias or exposed locations. Default 0. */
   windCalibrationKt?: number;
+  /** Shore shelter by direction: when the consensus wind comes from inside an arc (from -> to,
+   *  clockwise, wrapping through north), the spot's water near the shore gets `factor` times the
+   *  consensus. For spots where a wind from one side leaves the beach in its lee (the wind is
+   *  there, further out). Measured against field reports, never guessed. */
+  windShelter?: Array<{ fromDeg: number; toDeg: number; factor: number }>;
   /** Station IDs to EXCLUDE from this spot's scoring even if within radius.
    *  For stations that are fine elsewhere but misrepresent THIS spot (different
    *  microclimate / sheltered). e.g. Liméns excludes Cangas MG. */
@@ -460,6 +465,12 @@ export const RIAS_SPOTS: SailingSpot[] = [
     waveRelevance: 'moderate',
     thermalDetection: true, // Same ría thermal/bruma dynamics as Cesantes
     windCalibrationKt: 0, // Marin tide gauge (on the water) and Porto de Marin (4 m) lead the consensus: nothing sheltered to compensate (field truths 25-sep..14-oct)
+    // With NW-N-NE-E the wind is cross-shore and the first ~100 m off the beach are in its lee (the
+    // reporter, 19-oct). 19 field reports with knots and that direction (1-19 oct): the map read
+    // high in 12 and low in none; x0.81, judged leaving one report out, cut the error against the
+    // reported range from 1.67 to 0.56 kt and raised the reports inside it from 7 to 11. With S-W it
+    // works well and is left alone (4 reports). One observer so far: re-examine as reports arrive.
+    windShelter: [{ fromDeg: 300, toDeg: 90, factor: 0.81 }],
     hardGates: { maxWindKt: 30, maxWaveHeight: 2.5 },
     tideStationId: '28', // Marín
     webcams: [

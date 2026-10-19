@@ -389,6 +389,12 @@ const PROVISIONAL_FRESH_RATIO = 0.4;      // <40% of stations with a fresh readi
 const PROVISIONAL_MIN_STATIONS = 8;       // ratio is meaningless for tiny station lists
 
 /** Weighted median — entries with higher weight (corroborated) set the reference */
+/** Is a direction inside a clockwise arc from `from` to `to` (degrees, wrapping through north)? */
+export function dirInArc(dir: number, from: number, to: number): boolean {
+  const d = ((dir % 360) + 360) % 360;
+  return from <= to ? d >= from && d <= to : d >= from || d <= to;
+}
+
 function computeWeightedMedian(entries: { speedKt: number; weight: number }[]): number {
   const sorted = [...entries].sort((a, b) => a.speedKt - b.speedKt);
   const totalWeight = sorted.reduce((sum, e) => sum + e.weight, 0);
@@ -767,6 +773,13 @@ function computeSpotWindConsensus(
     // Length of the mean vector: 1 when every source points the same way, near 0 when they
     // cancel out and the mean direction above is noise.
     dirSteadiness = dirWeight > 0 ? Math.round((Math.hypot(sinSum, cosSum) / dirWeight) * 100) / 100 : null;
+  }
+
+  // Shore shelter by direction (spot config, measured against field reports): the consensus is the
+  // ría's wind; with a wind from that side the water near this beach is in its lee.
+  if (spot.windShelter && dirPoints.length > 0) {
+    const lee = spot.windShelter.find((s) => dirInArc(avgDir, s.fromDeg, s.toDeg));
+    if (lee) avgSpeed *= lee.factor;
   }
 
   // Wind pattern match
