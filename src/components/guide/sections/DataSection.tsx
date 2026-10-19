@@ -92,7 +92,7 @@ export function DataSection() {
           <VarGroup
             icon="waves"
             title="Boyas y mareógrafos"
-            source="Puertos del Estado · Observatorio Costeiro da Xunta"
+            source="Puertos del Estado · Observatorio Costeiro da Xunta de Galicia"
             vars={[
               'altura de ola', 'ola máxima', 'periodo', 'dirección del oleaje',
               'temperatura del agua', 'salinidad', 'corrientes', 'nivel del mar',

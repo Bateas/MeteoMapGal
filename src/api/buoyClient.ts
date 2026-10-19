@@ -45,14 +45,15 @@ export interface BuoyReading {
 
 /**
  * Who publishes a buoy's data. Each provider asks to be named wherever its data
- * are shown; Puertos del Estado, in writing on 1-oct-2026, with the address of
- * its portal.
+ * are shown with the address of its portal: Puertos del Estado in writing on
+ * 1-oct-2026, the Observatorio Costeiro (through INTECMAR, which owns its
+ * platforms) on 19-oct-2026, under CC BY-SA 4.0.
  */
 export type BuoyProvider = 'pde' | 'xunta';
 
 export const BUOY_PROVIDERS: Record<BuoyProvider, { name: string; url?: string; urlLabel?: string }> = {
   pde: { name: 'Puertos del Estado', url: 'https://portus.puertos.es/', urlLabel: 'portus.puertos.es' },
-  xunta: { name: 'Observatorio Costeiro da Xunta' },
+  xunta: { name: 'Observatorio Costeiro da Xunta de Galicia', url: 'https://observatoriocosteiro.gal/', urlLabel: 'observatoriocosteiro.gal' },
 };
 
 /** Predefined stations for Rías Baixas sector — all 3 Rías covered */

@@ -32,11 +32,13 @@ describe('BuoyCredit', () => {
   it('shows the portal address as text, linked', () => {
     render(<BuoyCredit providers={['pde', 'xunta']} />);
     expect(screen.getByText(/Datos:/).textContent).toBe(
-      'Datos: Puertos del Estado (portus.puertos.es) y Observatorio Costeiro da Xunta',
+      'Datos: Puertos del Estado (portus.puertos.es) y Observatorio Costeiro da Xunta de Galicia (observatoriocosteiro.gal)',
     );
     const link = screen.getByRole('link', { name: 'portus.puertos.es' });
     expect(link.getAttribute('href')).toBe('https://portus.puertos.es/');
     expect(link.getAttribute('rel')).toContain('noopener');
+    const obs = screen.getByRole('link', { name: 'observatoriocosteiro.gal' });
+    expect(obs.getAttribute('href')).toBe('https://observatoriocosteiro.gal/');
   });
 
   it('renders nothing without providers', () => {

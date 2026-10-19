@@ -1,9 +1,11 @@
 /**
- * "Datos: Puertos del Estado (portus.puertos.es) y Observatorio Costeiro da Xunta".
+ * "Datos: Puertos del Estado (portus.puertos.es) y Observatorio Costeiro da Xunta de
+ * Galicia (observatoriocosteiro.gal)".
  *
  * Puertos del Estado authorised, in writing on 1-oct-2026, showing, storing and
  * modelling its buoy data on the condition that every use says clearly that the
- * data are theirs, with the address of its portal. The address is shown as text,
+ * data are theirs, with the address of its portal. INTECMAR asked on 19-oct-2026
+ * to cite the Observatorio Costeiro da Xunta de Galicia (CC BY-SA 4.0). The address is shown as text,
  * not hidden behind the name, so it is there even in a screenshot.
  */
 import { BUOY_PROVIDERS, type BuoyProvider } from '../../api/buoyClient';

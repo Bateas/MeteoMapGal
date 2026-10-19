@@ -60,12 +60,12 @@ export function LegalSection() {
             <AttrRow name="Netatmo" license="Sus condiciones" desc="© Netatmo. Estaciones personales de su mapa público" />
             <AttrRow name="IPMA" license="Uso no lucrativo" desc="Instituto Português do Mar e da Atmosfera. Estaciones y avisos del norte de Portugal" />
             <AttrRow name="Puertos del Estado" license="Cita de la fuente" desc="Boyas y mareógrafos de PORTUS: viento, oleaje y nivel del mar" href="https://portus.puertos.es/" />
-            <AttrRow name="Observatorio Costeiro" license="Sus condiciones" desc="© Xunta de Galicia. Boyas de las rías" />
+            <AttrRow name="Observatorio Costeiro da Xunta de Galicia" license="CC BY-SA 4.0" desc="Boyas de las rías, cedidas gratuitamente para su uso. El Observatorio no se hace responsable del uso de estos datos ni se vincula a las conclusiones sacadas con ellos; forma parte del Observatorio RAIA" href="https://observatoriocosteiro.gal/" />
             <AttrRow name="SkyX" license="Propia" desc="Estación portátil propia, mediante el servicio SkyX" />
           </ul>
           <p className="text-[11px] font-bold text-slate-400 pt-1">Previsión y modelos</p>
           <ul className="space-y-1.5 text-[11px] text-slate-400">
-            <AttrRow name="MeteoSIX" license="Sus condiciones" desc="MeteoGalicia. Previsión WRF, oleaje costero y temperatura del mar" />
+            <AttrRow name="MeteoSIX" license="CC BY-SA 4.0" desc="MeteoGalicia. Previsión WRF, oleaje costero y temperatura del mar" />
             <AttrRow name="Open-Meteo" license="CC BY 4.0" desc="Previsión de varios modelos, oleaje y previsión del día anterior" />
             <AttrRow name="CESGA" license="Sus condiciones" desc="Modelo de oleaje SWAN (capa de olas)" />
             <AttrRow name="IHM" license="Sus condiciones" desc="Instituto Hidrográfico de la Marina. Predicción de mareas" />
