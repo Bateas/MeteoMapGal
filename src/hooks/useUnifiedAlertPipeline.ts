@@ -33,6 +33,7 @@ import { isCoastalSector } from '../config/sectors';
 import { useStormShadowStore } from './useStormShadow';
 import { useTemperatureOverlayStore } from '../store/temperatureOverlayStore';
 import { useWeatherStore } from '../store/weatherStore';
+import { useRainNowStore } from '../store/rainNowStore';
 import { useWebcamStore } from '../store/webcamStore';
 import { useForecastStore } from './useForecastTimeline';
 import { aggregateAllAlerts } from '../services/alertService';
@@ -88,6 +89,8 @@ export function useUnifiedAlertPipeline({
   const notifConfig = useNotificationStore((s) => s.config);
   const buoys = useBuoyStore((s) => s.buoys);
   const forecastFetchedAt = useForecastStore((s) => s.fetchedAt);
+  // What the «Lluvia ahora» layer measures: «Lloviendo ahora» and the fog-risk veto (rainNowAlerts.ts).
+  const rainSummary = useRainNowStore((s) => s.summary);
   const setThermalProfile = useTemperatureOverlayStore((s) => s.setThermalProfile);
 
   // Ref kept fresh — passed by reference to aggregator so we don't trigger
@@ -178,6 +181,8 @@ export function useUnifiedAlertPipeline({
         // raised (new AEMET batch) and cleared (last batch ageing out) on its
         // own — neither moves any of the axes above.
         visibilitySignature(relevantVisibility),
+        // Raining gauges (and how many have echo over them): the rain alert and the fog veto follow them.
+        rainSummary ? `${rainSummary.gauges.length}:${rainSummary.gauges.filter((g) => (g.radarDbz ?? 0) >= 20).length}:${rainSummary.gauges[0]?.mm ?? 0}` : 'norain',
       ].join('|');
       if (sig === lastAggregateSigRef.current) return;
       lastAggregateSigRef.current = sig;
@@ -317,6 +322,7 @@ export function useUnifiedAlertPipeline({
         // Maritime alerts (cross-sea, fog) only apply to coastal sectors
         buoys: isCoastalSector(sectorId) && buoys.length > 0 ? buoys : undefined,
         stationsGeo: stationsGeo.length > 0 ? stationsGeo : undefined,
+        rainNow: rainSummary && !rainSummary.sim ? { gauges: rainSummary.gauges } : undefined,
         teleconnections: teleconnectionsRef.current.length > 0 ? teleconnectionsRef.current : undefined,
         webcamFogDetected,
         webcamFogCount,
@@ -340,7 +346,7 @@ export function useUnifiedAlertPipeline({
   }, [
     stormAlert, stormShadow, thermalProfile, fieldAlerts, forecastFetchedAt,
     setUnifiedAlerts, notifConfig, currentReadings, historyEpoch,
-    buoys, stations, sectorId, teleconnectionsRef, alphaMode,
+    buoys, stations, sectorId, teleconnectionsRef, alphaMode, rainSummary,
   ]);
 
   return fieldAlerts;

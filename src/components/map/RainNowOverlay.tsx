@@ -219,7 +219,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
     return {
       off: false as const, gauges, picture, gaugeGeo, cellsShown, arrivals, approach, debug,
       arrowGeo: arrows.length ? ({ type: 'FeatureCollection', features: arrows } as GeoJSON.FeatureCollection) : null,
-      raining: raining.map((g) => ({ id: g.id, name: g.name, mm: g.mm })),
+      raining: raining.map((g) => ({ id: g.id, name: g.name, mm: g.mm, radarDbz: g.radarDbz })),
     };
     // newest/frames/analysis change together with the frame set
     // eslint-disable-next-line react-hooks/exhaustive-deps

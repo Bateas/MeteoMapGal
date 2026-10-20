@@ -265,7 +265,9 @@ describe('buildCrossSeaAlerts', () => {
       buoy({ stationName: 'Cabo Silleiro', waveDir: 270, windDir: 180, waveHeight: 1.5, wavePeriod: 6 }),
     ]);
     expect(alerts).toHaveLength(1);
-    expect(alerts[0].score).toBe(30); // riesgo score
+    // 20-oct: a moderate cross sea 50 km out headed the panel during rain; it is a notice now.
+    expect(alerts[0].score).toBe(20);
+    expect(alerts[0].severity).toBe('info');
     // Open sea, said as such: it is not the sea inside the ría.
     expect(alerts[0].title).toBe('Mar cruzada moderada en mar abierto');
     expect(alerts[0].detail).toContain('Cabo Silleiro, fuera de la ría');

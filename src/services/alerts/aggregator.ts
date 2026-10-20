@@ -24,6 +24,7 @@ import { buildCrossSeaAlerts } from '../crossSeaService';
 import { buildWindTrendAlerts } from './windTrendAlerts';
 import { buildRainAlerts } from './rainAlerts';
 import { buildDownburstAlerts } from './downburstAlerts';
+import { applyRainNow, dropFogRiskInRain, type RainNowInput } from './rainNowAlerts';
 
 // ── NAO/AO context helpers ──────────────────────────────────
 
@@ -134,6 +135,8 @@ export function aggregateAllAlerts(sources: {
   fogClearCameras?: { lat: number; lon: number }[];
   buoys?: BuoyReading[];
   stationsGeo?: { id: string; lat: number; lon: number; name?: string }[];
+  /** Gauges the «Lluvia ahora» layer counts as raining now (rainNowAlerts.ts) */
+  rainNow?: RainNowInput;
   teleconnections?: TeleconnectionIndex[];
   /** True if any webcam Vision IA detects fog in the last 30min */
   webcamFogDetected?: boolean;
@@ -183,7 +186,7 @@ export function aggregateAllAlerts(sources: {
   ];
 
   // ── Category dedup: merge alerts from same category into one ──
-  const dedupedAlerts = deduplicateByCategory(allAlerts);
+  const dedupedAlerts = applyRainNow(deduplicateByCategory(dropFogRiskInRain(allAlerts, sources.rainNow)), sources.rainNow);
 
   // Sort by score descending (highest priority first)
   dedupedAlerts.sort((a, b) => b.score - a.score);

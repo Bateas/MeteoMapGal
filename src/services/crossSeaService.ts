@@ -263,8 +263,11 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
   const levelToScore: Record<AlertLevel, number> = {
     none: 0, riesgo: 30, alto: 55, critico: 80,
   };
-  const score = levelToScore[effectiveLevel];
-  const severity = score >= 80 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'moderate' : 'info';
+  // A moderate cross sea 50 km out decides nothing inside the ría: it goes with the notices, below
+  // what is measured here (20-oct it headed the panel during rain).
+  const openSeaNotice = openSea && effectiveLevel === 'riesgo';
+  const score = openSeaNotice ? 20 : levelToScore[effectiveLevel];
+  const severity = openSeaNotice ? 'info' : score >= 80 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'moderate' : 'info';
 
   const angleStr = risk.angleDelta !== null ? `${risk.angleDelta.toFixed(0)}°` : '';
   const buoyStr = risk.sourceBuoy
