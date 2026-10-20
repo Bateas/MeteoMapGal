@@ -36,7 +36,7 @@ import { useWeatherStore } from '../store/weatherStore';
 import { useRainNowStore } from '../store/rainNowStore';
 import { useWebcamStore } from '../store/webcamStore';
 import { useForecastStore } from './useForecastTimeline';
-import { aggregateAllAlerts } from '../services/alertService';
+import { aggregateAllAlerts, computeCompositeRisk } from '../services/alertService';
 import { checkAllFieldAlerts } from '../services/fieldAlertEngine';
 import {
   extractStationTemps,
@@ -337,9 +337,12 @@ export function useUnifiedAlertPipeline({
       // alphaMode) — the drone meteo alert must follow, or "Dron: Precaución"
       // keeps showing in alert lists with no drone tab to act on.
       const visibleAlerts = alphaMode ? alerts : alerts.filter((a) => a.category !== 'drone');
-      setUnifiedAlerts(visibleAlerts, risk);
+      // The light is computed from the alerts that are shown: from the full list, a hidden drone
+      // alert lit «AVISO 1» next to «Sin alertas · todo en orden» (20-oct).
+      const visibleRisk = alphaMode ? risk : computeCompositeRisk(visibleAlerts);
+      setUnifiedAlerts(visibleAlerts, visibleRisk);
       // Trigger notifications for new/escalated alerts
-      processAlertNotifications(visibleAlerts, risk, notifConfig);
+      processAlertNotifications(visibleAlerts, visibleRisk, notifConfig);
     }, 500);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory
