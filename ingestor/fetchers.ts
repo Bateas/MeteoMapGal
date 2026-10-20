@@ -7,6 +7,7 @@ import type { NormalizedStation, NormalizedReading } from '../src/types/station.
 import type { AemetApiResponse, AemetRawObservation } from '../src/types/aemet.js';
 import type { MeteoGaliciaObsEntry } from '../src/types/meteogalicia.js';
 import { latestObservationUrls, indexLatestById } from '../src/api/mgLatestBatch.js';
+import { parseMgAux2m, type MgAuxReading } from '../src/api/mgAux2m.js';
 import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import type { MeteoclimaticRawStation } from '../src/types/meteoclimatic.js';
 import { METEOCLIMATIC_STATIONS } from '../src/types/meteoclimatic.js';
@@ -136,6 +137,17 @@ async function fetchWithRetry(url: string, label: string, retries = 2, delayMs =
   throw new Error(`${label} fetch failed after ${retries + 1} attempts (last HTTP ${last?.status ?? '?'})`);
 }
 
+// SHADOW: the 2 m wind and leaf wetness of the same answer (src/api/mgAux2m.ts), kept aside for
+// mgAuxArchive.ts and never turned into a reading. No extra request: it is the payload already here.
+let pendingMgAux: MgAuxReading[] = [];
+
+/** The 2 m rows of the last MeteoGalicia poll, handed over once (the next call gives []). */
+export function takeMgAuxRows(): MgAuxReading[] {
+  const rows = pendingMgAux;
+  pendingMgAux = [];
+  return rows;
+}
+
 async function fetchMeteoGalicia(
   stations: NormalizedStation[]
 ): Promise<NormalizedReading[]> {
@@ -171,11 +183,15 @@ async function fetchMeteoGalicia(
   for (const r of results) if (r.status === 'fulfilled') for (const [id, e] of r.value) byId.set(id, e);
 
   const readings: NormalizedReading[] = [];
+  const shadow: MgAuxReading[] = [];
   for (const id of ids) {
     const entry = byId.get(id);
     const reading = entry ? normalizeMeteoGaliciaObservation(id, entry) : null;
     if (reading) readings.push(reading);
+    const aux = entry ? parseMgAux2m(id, entry) : null;
+    if (aux) shadow.push(aux);
   }
+  pendingMgAux = shadow;
 
   log.info(`MeteoGalicia: ${readings.length}/${mgStations.length} readings (${urls.length} request${urls.length === 1 ? '' : 's'})`);
   return readings;

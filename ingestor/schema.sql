@@ -1217,3 +1217,36 @@ DO $$ BEGIN
     GRANT SELECT ON intecmar_platform, intecmar_ctd TO grafana_ro;
   END IF;
 END $$;
+
+-- ── MeteoGalicia 2 m wind, SHADOW archive (mgAuxArchive.ts) ───────────────
+-- 39 MeteoGalicia stations (most of the 19xxx agro-meteorological series: Prado 19032 next to the
+-- Castrelo reservoir, EVEGA Leiro 19026, Cequeliños 19048...) measure wind ONLY at 2 m, among the
+-- vines, plus wet-leaf time. The normalizer reads only the 10 m codes, so this was lost. It comes in
+-- the same ultimos10min answer we already fetch: no extra request.
+-- SHADOW: nothing reads this table. At 2 m among vines the 10-min mean read ~1/4 of the wind on the
+-- water on the one strong day checked (3-aug), so it must not reach readings.wind_speed, the engine
+-- or the map until an exam against field truths validates it. Values as published, -9999 and
+-- MeteoGalicia's own rejected values (validation code other than 1) stored as NULL.
+-- ~45 stations x 144 a day.
+CREATE TABLE IF NOT EXISTS mg_aux_readings (
+  time          TIMESTAMPTZ NOT NULL,   -- UTC, end of the 10-min period
+  station_id    TEXT        NOT NULL,   -- mg_<idEstacion>, as in readings
+  wind_2m       REAL,                   -- m/s, 10-min mean at 2 m (VV_AVG_2m)
+  gust_2m       REAL,                   -- m/s (VV_RACHA_2m)
+  dir_2m        REAL,                   -- degrees, from (DV_AVG_2m)
+  wind_sd_2m    REAL,                   -- m/s, std deviation of speed (VV_SD_2m)
+  dir_sd_2m     REAL,                   -- degrees, std deviation of direction (DV_SD_2m)
+  leaf_wet_min  REAL,                   -- minutes of wet leaf within the 10 min (HF_SUM_2m)
+  fetched_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (station_id, time)
+);
+SELECT create_hypertable('mg_aux_readings', 'time', if_not_exists => TRUE);
+GRANT SELECT, INSERT ON mg_aux_readings TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON mg_aux_readings TO grafana_ro;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ml_job') THEN
+    GRANT SELECT ON mg_aux_readings TO ml_job;
+  END IF;
+END $$;

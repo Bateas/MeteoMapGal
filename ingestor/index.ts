@@ -15,7 +15,8 @@ import { findStuckAnemometers } from './queries.js';
 import { discoverAllStations } from './discover.js';
 import { carryOverEmptySources } from './discoveryCarry.js';
 import { resolveMissingAltitudes } from './demAltitudes.js';
-import { fetchAllObservations, getNetatmoSweepStatus, NETATMO_SWEEP_INTERVAL_MS } from './fetchers.js';
+import { fetchAllObservations, getNetatmoSweepStatus, NETATMO_SWEEP_INTERVAL_MS, takeMgAuxRows } from './fetchers.js';
+import { archiveMgAux } from './mgAuxArchive.js';
 import { fetchBuoyObservations } from './buoyFetcher.js';
 import { log } from './logger.js';
 import { checkAndSendDailySummary, seedDailySummary } from './dailySummary.js';
@@ -296,6 +297,10 @@ async function runCycle(): Promise<void> {
     // 1. Fetch weather observations from all 5 sources (requires stations)
     if (stations.size > 0) {
       const readings = await fetchAllObservations(stations);
+
+      // SHADOW archive of MeteoGalicia's 2 m wind and leaf wetness, from the answer just fetched.
+      // Fire-and-forget: it never throws and must not hold the poll.
+      void archiveMgAux(takeMgAuxRows());
 
       // Before the early return: a cycle that brought nothing is exactly the
       // one whose per-source breakdown matters most.
