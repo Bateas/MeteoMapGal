@@ -39,10 +39,13 @@ vi.mock('./poemClient.js', () => {
         ];
       }
       if (h.rejectData > 0) throw new PoemHttpError(h.rejectData, path);
-      // Limit=1 answers an object
-      return { codigo: Number(params.codigo), fecha: Math.floor(Date.now() / 1000) - 600,
+      // The newest rows first. As on 13-oct-2026, the newest minute of a tide gauge has
+      // the wind but not yet nivel; the minute before has it.
+      const t = Math.floor(Date.now() / 1000) - 600;
+      const row = { codigo: Number(params.codigo), fecha: t,
         nivel: 2602, vv_md: 820, dv_md: 30, vv_mx: 1100, hm0: 150, tp: 1100, ts1: 1650, ta: 160,
         qc_nivel: 1, qc_vv_md: 1, qc_dv_md: 1, qc_vv_mx: 1, qc_e: 1, qc_ts1: 1, qc_ta: 1 };
+      return [{ ...row, fecha: t + 60, nivel: null, qc_nivel: null }, row];
     },
   };
 });
@@ -87,9 +90,9 @@ describe('Puertos del Estado through POEM', () => {
     expect(meta.every((c) => c.params.Limit === '500')).toBe(true);
     expect(h.calls.filter((c) => c.path === '/doris/doris/param')).toHaveLength(1);
 
-    // The data: the latest row of each station, its columns and their quality flags.
+    // The data: the last minutes of each station, its columns and their quality flags.
     const vigoData = h.calls.find((c) => c.path === '/doris/mareas/redmar_mir_tr' && c.params.codigo === '3221')!;
-    expect(vigoData.params).toMatchObject({ Limit: '1', OrderBy: 'fecha.desc' });
+    expect(vigoData.params).toMatchObject({ Limit: '15', OrderBy: 'fecha.desc' });
     expect(vigoData.params['fecha.ge']).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00$/);
     expect(vigoData.params.Columns.split(',')).toEqual(expect.arrayContaining(['codigo', 'fecha', 'nivel', 'qc_nivel', 'vv_mx', 'qc_vv_mx']));
   });

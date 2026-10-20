@@ -20,7 +20,7 @@ import { readObsCurrent, type ObsResponse } from '../src/api/obsCosteiroParse.js
 import { shouldAskPortus, isBackingOff, nextPortusBackoff, type PortusBackoff } from './portusBackoff.js';
 import { poemGet, poemToken, PoemHttpError } from './poemClient.js';
 import {
-  buildStationPlan, planRequestColumns, poemRowToReading, poemRows, poemIsoUtc, jwtExpiryMs,
+  buildStationPlan, planRequestColumns, poemRowsToReading, poemRows, poemIsoUtc, jwtExpiryMs,
   type EstacionParamRow, type ParamInfo, type PoemStationPlan,
 } from './poemLogic.js';
 
@@ -141,6 +141,13 @@ const POEM_PLAN_TTL_MS = 24 * 60 * 60_000;
 const POEM_PLAN_RETRY_MS = 60 * 60_000;
 /** A rejected token is logged at most this often. */
 const POEM_AUTH_LOG_MS = 60 * 60_000;
+/**
+ * Rows asked per station each cycle: the newest and the ones just before, so a
+ * column filled late (the tide gauges' `nivel`) is taken from the minute that
+ * has it (poemRowsToReading, at most POEM_FILL_MAX_MS back). A tide gauge
+ * writes a row a minute, so 15 rows cover the whole fill window.
+ */
+const POEM_LATEST_ROWS = 15;
 let poemAuthLoggedAt = 0;
 let poemExpiryNotedDay = '';
 let noTokenNotedAt = 0;
@@ -248,7 +255,8 @@ async function ensurePoemPlans(stations: readonly BuoyStation[], token: string, 
 }
 
 /**
- * The latest row of each Puertos del Estado station through POEM. Asks one
+ * The latest reading of each Puertos del Estado station through POEM (the
+ * newest row, with what it lacks from the minutes before: poemRowsToReading). Asks one
  * station at a time; a rejected token or a rate limit stops the cycle there, so
  * a bad token costs one request per cycle, not one per station.
  */
@@ -273,11 +281,11 @@ async function fetchPdeViaPoem(
         codigo: String(station.id),
         'fecha.ge': poemIsoUtc(nowMs - MAX_AGE_MS),
         OrderBy: 'fecha.desc',
-        Limit: '1',
+        Limit: String(POEM_LATEST_ROWS),
         Columns: planRequestColumns(plan).join(','),
       }, token);
       notePortusAnswer(station, false);
-      const result = poemRowToReading(plan, station.name, poemRows(data)[0], Date.now(), MAX_AGE_MS);
+      const result = poemRowsToReading(plan, station.name, poemRows(data), Date.now(), MAX_AGE_MS);
       for (const d of result.dropped) bump(d);
       if (result.reading) rows.push(result.reading);
       else bump(result.skip ?? 'empty');

@@ -280,6 +280,33 @@ export interface PoemRowResult {
 const ACCEPTED_QC = new Set([1, 2]);
 const FUTURE_SLACK_MS = 10 * 60_000;
 
+/**
+ * How far back a column missing from the newest row may be taken from an
+ * older row. The tide gauges (redmar_mir_tr, a row a minute) publish wind and
+ * pressure first and fill `nivel` a minute or more later, so the newest row
+ * almost never carries the sea level (13-oct-2026, Vigo: 08:49 nivel null,
+ * 08:48 nivel 957). The tide in the rias moves at most ~1.5 cm a minute, so the
+ * usual lag of 1-2 minutes costs a few cm against a meteorological tide of tens.
+ */
+export const POEM_FILL_MAX_MS = 10 * 60_000;
+
+/** One column of one row: its value in our units, why it is dropped, or null if the row does not carry it. */
+function readColumn(c: PoemColumnPlan, row: Record<string, unknown>): { value: number } | { drop: string } | null {
+  const raw = row[c.column];
+  if (raw == null || raw === '') return null;
+  const n = toNumber(raw);
+  if (n == null) return { drop: `${c.column}:nan` };
+  if (c.qcColumn) {
+    const qc = toNumber(row[c.qcColumn]);
+    if (qc != null && !ACCEPTED_QC.has(qc)) return { drop: `${c.column}:qc=${qc}` };
+  }
+  const value = toInternalUnit(c.field, n / c.factor, c.unit);
+  if (value == null) return { drop: `${c.column}:unit` };
+  const [lo, hi] = BOUNDS[c.field];
+  if (value < lo || value > hi) return { drop: `${c.column}:range` };
+  return { value: Math.round(value * 1000) / 1000 };
+}
+
 export function poemRowToReading(
   plan: PoemStationPlan,
   stationName: string,
@@ -287,12 +314,36 @@ export function poemRowToReading(
   nowMs: number,
   maxAgeMs: number,
 ): PoemRowResult {
+  return poemRowsToReading(plan, stationName, row ? [row] : [], nowMs, maxAgeMs);
+}
+
+/**
+ * The newest row of a station, with each column it does not carry taken from
+ * the newest older row (at most `fillMaxMs` older) that does. The time is the
+ * newest row's. Still fail closed: a value the newest row carries but that is
+ * rejected (qc, unit, range) is never replaced by an older one, and a rejected
+ * older value ends the search for that column. Only the newest row's
+ * rejections are counted: the older rows were counted in their own cycle.
+ */
+export function poemRowsToReading(
+  plan: PoemStationPlan,
+  stationName: string,
+  rows: readonly Record<string, unknown>[],
+  nowMs: number,
+  maxAgeMs: number,
+  fillMaxMs: number = POEM_FILL_MAX_MS,
+): PoemRowResult {
   const dropped: string[] = [];
-  if (!row || Object.keys(row).length === 0) return { reading: null, skip: 'empty', dropped };
-  const t = poemFechaMs(row.fecha);
+  const timed = rows
+    .filter((r) => r != null && typeof r === 'object' && Object.keys(r).length > 0)
+    .map((r) => ({ r, t: poemFechaMs(r.fecha) }))
+    .sort((a, b) => (b.t ?? -Infinity) - (a.t ?? -Infinity));
+  if (timed.length === 0) return { reading: null, skip: 'empty', dropped };
+  const { r: row, t } = timed[0];
   if (t == null) return { reading: null, skip: 'no-time', dropped };
   if (nowMs - t > maxAgeMs) return { reading: null, skip: 'stale', dropped };
   if (t - nowMs > FUTURE_SLACK_MS) return { reading: null, skip: 'future', dropped };
+  const older = timed.slice(1).filter((o) => o.t != null && o.t < t && t - o.t <= fillMaxMs);
 
   const reading: BuoyReadingRow = {
     time: new Date(t).toISOString(),
@@ -310,20 +361,16 @@ export function poemRowToReading(
 
   let filled = 0;
   for (const c of plan.columns) {
-    const raw = row[c.column];
-    if (raw == null || raw === '') continue;
-    const n = toNumber(raw);
-    if (n == null) { dropped.push(`${c.column}:nan`); continue; }
-    if (c.qcColumn) {
-      const qc = toNumber(row[c.qcColumn]);
-      if (qc != null && !ACCEPTED_QC.has(qc)) { dropped.push(`${c.column}:qc=${qc}`); continue; }
+    let got = readColumn(c, row);
+    if (got && 'drop' in got) { dropped.push(got.drop); continue; }
+    for (const o of older) {
+      if (got) break;
+      got = readColumn(c, o.r);
     }
-    const value = toInternalUnit(c.field, n / c.factor, c.unit);
-    if (value == null) { dropped.push(`${c.column}:unit`); continue; }
-    const [lo, hi] = BOUNDS[c.field];
-    if (value < lo || value > hi) { dropped.push(`${c.column}:range`); continue; }
-    reading[c.field] = Math.round(value * 1000) / 1000;
-    filled++;
+    if (got && 'value' in got) {
+      reading[c.field] = got.value;
+      filled++;
+    }
   }
   if (filled === 0) return { reading: null, skip: 'no-values', dropped };
   return { reading, dropped };

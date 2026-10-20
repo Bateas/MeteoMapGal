@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  buildStationPlan, planRequestColumns, poemRowToReading, poemRows, poemFechaMs, poemTablePath,
+  buildStationPlan, planRequestColumns, poemRowToReading, poemRowsToReading, poemRows, poemFechaMs, poemTablePath,
   qcColumnFor, toInternalUnit, jwtExpiryMs, poemIsoUtc,
   type EstacionParamRow, type ParamInfo,
 } from './poemLogic.js';
@@ -246,5 +246,65 @@ describe('answers, time and token', () => {
     expect(jwtExpiryMs(`${b64({ alg: 'RS256' })}.${b64({ exp: 1760000000 })}.firma`)).toBe(1760000000 * 1000);
     expect(jwtExpiryMs('no-es-un-token')).toBeNull();
     expect(jwtExpiryMs('a.%%%.c')).toBeNull();
+  });
+});
+
+describe('Vigo tide gauge (redmar_mir_tr): nivel arrives after the wind', () => {
+  // The two newest rows of 3221 as POEM served them on 13-oct-2026 at 10:49 local
+  // (a saved answer): the newest minute has wind and pressure but
+  // nivel null; the minute before has nivel 957 with qc 1. Reading only the newest
+  // row left sea_level null in almost every stored reading since POEM went live.
+  const rows: EstacionParamRow[] = [
+    { param: 90, factor: 1000, db_column: 'nivel', db_table: 'mareas.redmar_mir_tr' },
+    { param: 1, factor: 10, db_column: 'vv_md', db_table: 'mareas.redmar_mir_tr' },
+    { param: 2, factor: 1, db_column: 'dv_md', db_table: 'mareas.redmar_mir_tr' },
+    { param: 5, factor: 10, db_column: 'ps', db_table: 'mareas.redmar_mir_tr' },
+  ];
+  const units = params([
+    [90, 'Nivel del mar instantáneo', 'm'], [1, 'Velocidad media', 'm/s'], [2, 'Dirección media', 'grados'], [5, 'Presión', 'hPa'],
+  ]);
+  const plan = buildStationPlan(3221, rows, units)!;
+  const newest = { codigo: 3221, fecha: 1791881340, nivel: null, qc_nivel: null, vv_md: 2, qc_vv_md: 1, dv_md: 135, qc_dv_md: 1, ps: 10259, qc_ps: 1 };
+  const before = { codigo: 3221, fecha: 1791881280, nivel: 957, qc_nivel: 1, vv_md: 1, qc_vv_md: 1, dv_md: 141, qc_dv_md: 1, ps: 10259, qc_ps: 1 };
+  const now = 1791881340 * 1000 + 5 * 60_000;
+
+  it('the newest row alone has no sea level (the bug)', () => {
+    expect(poemRowToReading(plan, 'Vigo', newest, now, 6 * HOUR).reading!.seaLevel).toBeNull();
+  });
+
+  it('takes nivel from the minute before, keeps the newest wind and time', () => {
+    const { reading, dropped } = poemRowsToReading(plan, 'Vigo', [newest, before], now, 6 * HOUR);
+    expect(dropped).toEqual([]);
+    expect(reading).toMatchObject({
+      time: new Date(1791881340 * 1000).toISOString(), seaLevel: 0.957, windSpeed: 0.2, windDir: 135, airPressure: 1025.9,
+    });
+  });
+
+  it('the order of the answer does not matter', () => {
+    const { reading } = poemRowsToReading(plan, 'Vigo', [before, newest], now, 6 * HOUR);
+    expect(reading).toMatchObject({ time: new Date(1791881340 * 1000).toISOString(), seaLevel: 0.957, windDir: 135 });
+  });
+
+  it('never more than 10 minutes back', () => {
+    const old = { ...before, fecha: 1791881340 - 11 * 60 };
+    expect(poemRowsToReading(plan, 'Vigo', [newest, old], now, 6 * HOUR).reading!.seaLevel).toBeNull();
+  });
+
+  it('fail closed: a rejected nivel in the newest row is not replaced by an older one', () => {
+    const { reading, dropped } = poemRowsToReading(plan, 'Vigo', [{ ...newest, nivel: 960, qc_nivel: 4 }, before], now, 6 * HOUR);
+    expect(reading!.seaLevel).toBeNull();
+    expect(dropped).toEqual(['nivel:qc=4']);
+  });
+
+  it('fail closed: a rejected older nivel ends the search and is not counted again', () => {
+    const older = { ...before, fecha: 1791881220 };
+    const { reading, dropped } = poemRowsToReading(plan, 'Vigo', [newest, { ...before, qc_nivel: 4 }, older], now, 6 * HOUR);
+    expect(reading!.seaLevel).toBeNull();
+    expect(dropped).toEqual([]);
+  });
+
+  it('the freshness rules still judge the newest row', () => {
+    expect(poemRowsToReading(plan, 'Vigo', [newest, before], 1791881340 * 1000 + 7 * HOUR, 6 * HOUR).skip).toBe('stale');
+    expect(poemRowsToReading(plan, 'Vigo', [], now, 6 * HOUR).skip).toBe('empty');
   });
 });
