@@ -10,8 +10,8 @@ import { useEffect, useState } from 'react';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 import {
   KT_RANGES, ktRangeLabel, observerReportWhat, recentReportWhat, recentReportWhen, reportConflict,
-  type KtRange, type WindVsApp, type WaterState, type DirSeen, type ObserverInfo, type ObserverBeta, type RecentReportSummary,
-  betaForSpot,
+  type KtRange, type WindVsApp, type WaterState, type DirSeen, type ObserverInfo, type ObserverBeta, type ObserverLabRow, type RecentReportSummary,
+  betaForSpot, labModelName,
 } from '../../services/fieldReport';
 import {
   postFieldReport, currentObserverCode, cooldownLeftMin, fetchRecentReports, saveObserverCode,
@@ -75,12 +75,31 @@ function ObserverZone({ observer }: { observer: ObserverInfo }) {
               <span className="text-slate-300">{fmtWhen(r.time)} · {SPOT_NAME.get(r.spotId) ?? r.spotId}</span>: {observerReportWhat(r)}
             </span>
           ))}
+        {observer.lab && observer.lab.length > 0 && <ObserverLab rows={observer.lab} />}
         <label className="flex items-center gap-2" style={{ paddingTop: '2px' }}>
           <input type="checkbox" checked={alphaMode} onChange={(e) => setAlphaMode(e.target.checked)} />
           Ver las funciones en pruebas
         </label>
       </div>
     </details>
+  );
+}
+
+/** «Laboratorio»: how the models in test did last week at the buoys, afternoons, after the fact only (never a
+ *  forecast before it happens: observers are the judges). */
+function ObserverLab({ rows }: { rows: ObserverLabRow[] }) {
+  return (
+    <div className="flex flex-col gap-0.5" style={{ paddingTop: '4px' }}>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Laboratorio · última semana</span>
+      <span className="text-[10px] text-slate-500">Modelos en prueba en las boyas, tardes ya medidas. Error medio y horas de 11 kt o más avisadas.</span>
+      {rows.map((r) => (
+        <span key={r.model} className={r.champion ? 'text-slate-200' : 'text-slate-400'}>
+          {labModelName(r)}: {r.maeKt.toFixed(1)} kt de error
+          {r.hits != null ? ` · avisó ${r.hits} de ${r.strongHours}${r.falseAlarms ? `, ${r.falseAlarms} falsas` : ''}` : ''}
+          <span className="text-slate-500"> ({r.n} h)</span>
+        </span>
+      ))}
+    </div>
   );
 }
 

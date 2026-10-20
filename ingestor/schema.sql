@@ -1078,6 +1078,12 @@ CREATE TABLE IF NOT EXISTS beta_signals (
   PRIMARY KEY (kind, spot_id)
 );
 GRANT SELECT, INSERT, UPDATE ON beta_signals TO meteomap_app;
+-- The observers' «Laboratorio» reads the model container's results (tables created by its own setup,
+-- so only when they exist): read-only.
+DO $$ BEGIN
+  IF to_regclass('ml_predictions') IS NOT NULL THEN GRANT SELECT ON ml_predictions TO meteomap_app; END IF;
+  IF to_regclass('ml_models') IS NOT NULL THEN GRANT SELECT ON ml_models TO meteomap_app; END IF;
+END $$;
 
 -- ── Station health ─────────────────────────────────────
 -- A sensor failure seen by the nightly detectors (stationHealthJob.ts): one row per day, station,

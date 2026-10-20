@@ -225,11 +225,28 @@ export interface ObserverBeta {
   reason: string | null;   // why not, when inactive
 }
 
+/** One model of the «Laboratorio»: last 7 days at the buoys, afternoons, already scored (after the fact). */
+export interface ObserverLabRow {
+  model: string;
+  champion: boolean;         // the model in production; the rest are in shadow
+  n: number;                 // hours scored
+  maeKt: number;             // mean error, kt
+  strongHours: number;       // hours that reached 11 kt
+  hits: number | null;       // of those, warned (null = the model gives no warning)
+  falseAlarms: number | null;
+}
+
 export interface ObserverInfo {
   name: string;
   reports: ObserverReport[];
   /** Absent from an older server: treat as none. */
   betas?: ObserverBeta[];
+  lab?: ObserverLabRow[];
+}
+
+/** How the lab names a model: the one in production, or its shadow name without prefixes. */
+export function labModelName(r: ObserverLabRow): string {
+  return r.champion ? 'Modelo actual' : r.model.replace(/^sombra-/, '').replace(/^zona-/, '');
 }
 
 /** The BETA of this spot an observer should see, or null. */

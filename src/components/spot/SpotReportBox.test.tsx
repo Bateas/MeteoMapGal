@@ -205,3 +205,24 @@ describe('SpotReportBox: the observers-only BETA', () => {
     expect(screen.queryByText('Solo para observadores · BETA')).toBeNull();
   });
 });
+
+describe('SpotReportBox: the observers lab (after the fact)', () => {
+  beforeEach(() => { localStorage.clear(); __clearRecentReportsCacheForTests(); __clearObserverCacheForTests(); localStorage.setItem('mmg-observer', 'abcdefgh23456k'); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('lists the models of last week with their error and warned strong hours', async () => {
+    const lab = [
+      { model: 'zona-v3', champion: true, n: 140, maeKt: 1.84, strongHours: 5, hits: 3, falseAlarms: 1 },
+      { model: 'sombra-red-larga-1006', champion: false, n: 138, maeKt: 1.52, strongHours: 5, hits: 4, falseAlarms: 0 },
+      { model: 'sombra-xgb-largo-1006', champion: false, n: 138, maeKt: 1.7, strongHours: 5, hits: null, falseAlarms: null },
+    ];
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url === '/api/v1/observers/me'
+      ? { ok: true, status: 200, json: () => Promise.resolve({ name: 'Ana', reports: [], lab }) }
+      : { ok: true, status: 200, json: () => Promise.resolve({ summary: null }) })));
+    render(<SpotReportBox spotId="vao" shownWindKt={7} shownVerdict="light" />);
+    await waitFor(() => expect(screen.getByText('Laboratorio · última semana')).toBeTruthy());
+    expect(screen.getByText(/Modelo actual: 1\.8 kt de error · avisó 3 de 5, 1 falsas/)).toBeTruthy();
+    expect(screen.getByText(/red-larga-1006: 1\.5 kt de error · avisó 4 de 5/)).toBeTruthy();
+    expect(screen.getByText(/xgb-largo-1006: 1\.7 kt de error/).textContent).not.toMatch(/avisó/);
+  });
+});

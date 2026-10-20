@@ -65,7 +65,7 @@ import {
 } from './queries.js';
 import { getPool } from './db.js';
 import { clientIpOf, clampInt, isAllowedPushEndpoint, pruneCache, memoAsync } from './requestGuards.js';
-import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta } from '../src/services/fieldReport.js';
+import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta, type ObserverLabRow } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatcher.js';
@@ -1227,7 +1227,7 @@ async function handleObserverMe(
       ktHi: x.kt_hi,
       appWindKt: x.app_wind_kt,
     }));
-    json(res, { name: o.rows[0].name, reports, betas: await observerBetas(pool) }, 200, origin, 'no-store');
+    json(res, { name: o.rows[0].name, reports, betas: await observerBetas(pool), lab: await observerLab(pool) }, 200, origin, 'no-store');
   } catch (err) {
     log.error('Observer lookup error:', (err as Error).message);
     error(res, 'DB error', 500, origin);
@@ -1245,6 +1245,43 @@ async function observerBetas(pool: ReturnType<typeof getPool>): Promise<Observer
       kind: x.kind, spotId: x.spot_id, at: new Date(x.time).getTime(), active: x.active,
       estimateKt: x.estimate_kt, appKt: x.app_kt, reason: x.reason,
     }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * «Laboratorio» for observers: how the champion and the shadow models did in the LAST 7 DAYS at the
+ * buoys, afternoons (12-21 h local), issued on time, only hours already scored. Never a forecast before
+ * the fact: observers are the judges. Same filters as the weekly digest (mljob/digest.py). One answer
+ * shared by every observer for 10 min; any error (tables or grant missing) = no lab, never a failed lookup.
+ */
+const LAB_TTL_MS = 10 * 60_000;
+let labCache: { at: number; rows: ObserverLabRow[] } | null = null;
+async function observerLab(pool: ReturnType<typeof getPool>): Promise<ObserverLabRow[]> {
+  if (labCache && Date.now() - labCache.at < LAB_TTL_MS) return labCache.rows;
+  try {
+    const r = await pool.query(
+      `SELECT p.model, m.role, count(*)::int AS n, avg(abs(p.kt_pred - p.obs_kt)) AS mae,
+              count(*) FILTER (WHERE p.obs_kt >= 11)::int AS up,
+              count(p.warn)::int AS with_warn,
+              count(*) FILTER (WHERE p.obs_kt >= 11 AND p.warn)::int AS hit,
+              count(*) FILTER (WHERE p.obs_kt < 11 AND p.warn)::int AS false_alarm
+         FROM ml_predictions p
+         JOIN (SELECT DISTINCT ON (model) model, role FROM ml_models ORDER BY model, role_since DESC) m ON m.model = p.model
+        WHERE m.role IN ('champion', 'shadow')
+          AND p.obs_kt IS NOT NULL AND p.kt_pred IS NOT NULL
+          AND p.target_hour > NOW() - INTERVAL '7 days' AND p.target_hour < NOW()
+          AND extract(hour FROM p.target_hour AT TIME ZONE 'Europe/Madrid') BETWEEN 12 AND 21
+          AND p.issued_at <= p.input_hour + CASE WHEN coalesce(p.serving_version, 3) >= 3 THEN interval '2 hours' ELSE interval '4 hours' END
+        GROUP BY 1, 2
+        ORDER BY (m.role = 'champion') DESC, avg(abs(p.kt_pred - p.obs_kt))`);
+    const rows: ObserverLabRow[] = r.rows.map((x) => ({
+      model: x.model, champion: x.role === 'champion', n: x.n, maeKt: Math.round(Number(x.mae) * 100) / 100,
+      strongHours: x.up, hits: x.with_warn > 0 ? x.hit : null, falseAlarms: x.with_warn > 0 ? x.false_alarm : null,
+    }));
+    labCache = { at: Date.now(), rows };
+    return rows;
   } catch {
     return [];
   }
