@@ -53,7 +53,7 @@ export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
               <span className="text-[11px] text-slate-500 shrink-0">Opacidad</span>
               <input
                 type="range"
-                min={0}
+                min={10}
                 max={100}
                 value={Math.round(layerOpacity * 100)}
                 onChange={(e) => setLayerOpacity(Number(e.target.value) / 100)}
