@@ -12,6 +12,8 @@ import { analyzeWindTrend } from '../windTrendService';
 export function buildWindTrendAlerts(
   currentReadings: Map<string, NormalizedReading>,
   readingHistory: Map<string, NormalizedReading[]>,
+  /** Display names by station id; without one the id is shown without its source prefix. */
+  names?: Map<string, string>,
 ): UnifiedAlert[] {
   const alerts: UnifiedAlert[] = [];
 
@@ -31,7 +33,7 @@ export function buildWindTrendAlerts(
   const corroborated = rapid.length >= 2;
 
   for (const { stationId, trend } of rapid) {
-    const stationName = stationId.replace(/^(aemet|mg|mc|wu|nt|skyx|ipma)_/, '');
+    const stationName = names?.get(stationId) ?? stationId.replace(/^(aemet|mg|mc|wu|nt|skyx|ipma)_/, '');
     alerts.push({
       id: `wind-trend-${stationId}`,
       category: 'wind-front',

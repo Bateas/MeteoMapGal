@@ -114,6 +114,14 @@ export function deduplicateByCategory(alerts: UnifiedAlert[]): UnifiedAlert[] {
 
 // ── Main aggregator — call this from AppShell ────────────────
 
+/** Station id -> display name, for alert titles (a raw id like «IBOIRO5» says nothing). */
+function stationNames(geo: { id: string; name?: string }[] | undefined): Map<string, string> | undefined {
+  if (!geo) return undefined;
+  const m = new Map<string, string>();
+  for (const s of geo) if (s.name) m.set(s.id, s.name);
+  return m;
+}
+
 export function aggregateAllAlerts(sources: {
   stormAlert: StormAlert | null;
   thermalProfile: ThermalProfile | null;
@@ -125,7 +133,7 @@ export function aggregateAllAlerts(sources: {
   /** Fresh cameras of the sector that can judge and saw no fog (the fog signature drops stations near them). */
   fogClearCameras?: { lat: number; lon: number }[];
   buoys?: BuoyReading[];
-  stationsGeo?: { id: string; lat: number; lon: number }[];
+  stationsGeo?: { id: string; lat: number; lon: number; name?: string }[];
   teleconnections?: TeleconnectionIndex[];
   /** True if any webcam Vision IA detects fog in the last 30min */
   webcamFogDetected?: boolean;
@@ -169,7 +177,7 @@ export function aggregateAllAlerts(sources: {
     // that only lived in session memory, so it never fired in production. The
     // useful signal (cold water) reaches the user directly from buoy waterTemp.
     ...(sources.currentReadings && sources.readingHistory
-      ? buildWindTrendAlerts(sources.currentReadings, sources.readingHistory) : []),
+      ? buildWindTrendAlerts(sources.currentReadings, sources.readingHistory, stationNames(sources.stationsGeo)) : []),
     ...buildRainAlerts(sources.forecast),
     ...buildDownburstAlerts(sources.currentReadings, sources.forecast),
   ];

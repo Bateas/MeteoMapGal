@@ -12,6 +12,7 @@
  *   GET /api/v1/stations/exposure → Measured exposure of each land station (wind arrows)
  *   GET /api/v1/readings         → Weather time series (raw or hourly)
  *   GET /api/v1/readings/latest  → Latest weather reading per station
+ *   GET /api/v1/readings/precip-recent → Every station's precipitation, last 75 min (rain layer cold start)
  *   GET /api/v1/readings/compare → Multi-station comparison
  *   GET /api/v1/stats            → Aggregate statistics
  *   GET /api/v1/buoys            → All buoy stations with last reading
@@ -73,6 +74,7 @@ import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effi
 import { corsHeaders, json, error, dbError, parseSearchParams, ALLOWED_ORIGINS } from './httpHelpers.js';
 import { handleWebcamUpload } from './webcamHandler.js';
 import { queryMgAuxLatest, parseMgAuxStationId } from './mgAuxLatest.js';
+import { queryRecentPrecip } from './recentPrecip.js';
 import {
   handleAemetProxy,
   handleAemetDataProxy,
@@ -860,6 +862,22 @@ async function handleMgAuxLatest(
   }
 }
 
+/** Every station's precipitation of the last 75 min, so a page that just opened judges the gauges
+ *  like one open for an hour (see recentPrecip.ts). */
+async function handleRecentPrecip(
+  _params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  try {
+    const data = await queryRecentPrecip();
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    json(res, data, 200, origin);
+  } catch (err) {
+    dbError(res, err, 'handleRecentPrecip', origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -877,6 +895,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/reports/recent': handleRecentReports,
   '/api/v1/readings': handleReadings,
   '/api/v1/readings/latest': handleLatest,
+  '/api/v1/readings/precip-recent': handleRecentPrecip,
   '/api/v1/readings/compare': handleCompare,
   '/api/v1/stats': handleStats,
   // Buoy endpoints

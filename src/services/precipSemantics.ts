@@ -175,3 +175,25 @@ export function withoutCounterDips(sorted: PrecipSample[]): PrecipSample[] {
 function round2(x: number): number {
   return Math.round(x * 100) / 100;
 }
+
+/**
+ * The page's reading history with the server's recent precipitation in front of it (20-oct: a page
+ * that had just opened saw 1 wet gauge where one open for an hour saw ~20). The server covers what
+ * the page did not see; a page reading is kept only AFTER the server's last one, so an interval
+ * network, whose readings are summed, never counts the same interval twice. Server lists come in
+ * time order. Only the precipitation of the result is meant to be read.
+ */
+export function withServerPrecip(
+  live: Map<string, NormalizedReading[]>,
+  server: Map<string, NormalizedReading[]>,
+): Map<string, NormalizedReading[]> {
+  if (server.size === 0) return live;
+  const out = new Map(live);
+  for (const [id, srv] of server) {
+    if (srv.length === 0) continue;
+    const last = srv[srv.length - 1].timestamp.getTime();
+    const mine = (live.get(id) ?? []).filter((r) => r.timestamp.getTime() > last);
+    out.set(id, [...srv, ...mine]);
+  }
+  return out;
+}

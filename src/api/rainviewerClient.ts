@@ -27,14 +27,16 @@ export interface RainViewerData {
 }
 
 const API_URL = 'https://api.rainviewer.com/public/weather-maps.json';
-const CACHE_TTL = 5 * 60 * 1000; // 5 min
+// Clearly shorter than the layers' polls (3 and 5 min): with the same 5 min, set when the answer
+// arrived, the next poll found it still valid by seconds and the radar moved on only every 10 min.
+const CACHE_TTL = 2 * 60 * 1000;
 
 let cached: RainViewerData | null = null;
 let cachedAt = 0;
 
 /**
  * Fetch available radar frames from RainViewer.
- * Returns host + past frames array. Cached for 5 min.
+ * Returns host + past frames array. Cached for 2 min.
  */
 export async function fetchRainViewerFrames(): Promise<RainViewerData | null> {
   if (cached && Date.now() - cachedAt < CACHE_TTL) return cached;

@@ -183,7 +183,7 @@ export function useUnifiedAlertPipeline({
       lastAggregateSigRef.current = sig;
 
       // Station geo for maritime fog (nearby station lookup; altitude for the near-sea-level signature)
-      const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon, altitude: s.altitude }));
+      const stationsGeo = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon, altitude: s.altitude, name: s.name }));
 
       // ── Webcam fog detection (cameras with fogVisible in last 30min) ──
       const visionResults = useWebcamStore.getState().visionResults;

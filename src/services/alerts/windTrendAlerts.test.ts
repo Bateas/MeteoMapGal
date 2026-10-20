@@ -126,6 +126,19 @@ describe('buildWindTrendAlerts — rapid ramp emits alert', () => {
     expect(title).not.toContain('mg_'); // prefix stripped
   });
 
+  it('names the station when its name is known (20-oct: «Cambio brusco: +6kt en IBOIRO5»)', () => {
+    const current = new Map([['wu_IBOIRO5', r({ offsetMin: 0, windMs: 9 })]]);
+    const history = new Map([['wu_IBOIRO5', [
+      r({ offsetMin: -28, windMs: 4 }),
+      r({ offsetMin: -18, windMs: 5 }),
+      r({ offsetMin: -8, windMs: 7 }),
+      r({ offsetMin: 0, windMs: 9 }),
+    ]]]);
+    const title = buildWindTrendAlerts(current, history, new Map([['wu_IBOIRO5', 'Boiro']]))[0].title;
+    expect(title).toContain('en Boiro');
+    expect(title).not.toContain('IBOIRO5');
+  });
+
   it('severity=high when current >=15kt AND corroborated (2+ stations)', () => {
     // 9 m/s ≈ 17.5 kt — needs a 2nd station ramping for 'high' (else capped to moderate)
     const ramp = [

@@ -29,8 +29,13 @@ import {
 } from '../../services/rainNowService';
 import { updateArrivalChecks } from '../../services/rainArrivalChecks';
 import { simGauges, simRainFrames, simRainMode } from '../../services/rainSim';
+import { withServerPrecip } from '../../services/precipSemantics';
+import { fetchRecentPrecip } from '../../api/recentPrecipClient';
+import type { NormalizedReading } from '../../types/station';
 
-const POLL_MS = 5 * 60_000;
+/** RainViewer adds a frame every ~10 min; asking every 3 shows it within a few minutes of it existing.
+ *  A look with no new frame costs one small JSON (the decoded frames are kept). */
+const POLL_MS = 3 * 60_000;
 const TONE_COLOR = { debil: '#60a5fa', moderada: '#2563eb', fuerte: '#7c3aed' } as const;
 /** Arrows drawn at most (the soonest coming), so the map does not fill with them. */
 const MAX_ARROWS = 3;
@@ -67,13 +72,23 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   const centreRef = useRef(centre);
   centreRef.current = centre;
 
+  // 0. The server's last 75 min of precipitation, so a page that just opened judges the gauges like
+  //    one open for an hour (20-oct: 1 wet gauge against ~20, and more weak echo drawn for lack of
+  //    dry gauges to veto it). Refreshed with every radar look.
+  const [serverPrecip, setServerPrecip] = useState<Map<string, NormalizedReading[]>>(() => new Map());
+  const loadServerPrecip = async () => {
+    const m = await fetchRecentPrecip();
+    if (m.size > 0) setServerPrecip(m);
+  };
+  const gaugeHistory = () => withServerPrecip(useWeatherStore.getState().readingHistory, serverPrecip);
+
   // 1. Gauges alone, cheap and offline.
   const gaugesNoRadar = useMemo(() => {
-    const { currentReadings, readingHistory } = useWeatherStore.getState();
-    return classifyGauges({ stations, readings: currentReadings, history: readingHistory, nowMs: Date.now() });
+    const { currentReadings } = useWeatherStore.getState();
+    return classifyGauges({ stations, readings: currentReadings, history: gaugeHistory(), nowMs: Date.now() });
     // epochs stand for the readings and the history, read through getState above
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stations, readingsEpoch, historyEpoch]);
+  }, [stations, readingsEpoch, historyEpoch, serverPrecip]);
   const gaugeRain = gaugesNoRadar.some((g) => g.verdict === 'rain' || (g.official && g.verdict === 'alone'));
   const gaugeRainRef = useRef(gaugeRain);
   gaugeRainRef.current = gaugeRain;
@@ -81,6 +96,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   // 2. Radar: the newest frame always; the history only with something to follow.
   const [radar, setRadar] = useState<{ frames: RadarMosaic[]; newestAgeMin: number } | null>(null);
   const look = async () => {
+    if (!sim) void loadServerPrecip();
     try {
       const newest = await fetchRadarFrames(undefined, 1);
       if (!newest) { setRadar(null); return; }
@@ -130,8 +146,8 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
     let gauges: GaugeRain[];
     if (sim && newest) gauges = simGauges(stations, newest);
     else {
-      const { currentReadings, readingHistory } = useWeatherStore.getState();
-      gauges = classifyGauges({ stations, readings: currentReadings, history: readingHistory, nowMs: Date.now(), radar: frames });
+      const { currentReadings } = useWeatherStore.getState();
+      gauges = classifyGauges({ stations, readings: currentReadings, history: gaugeHistory(), nowMs: Date.now(), radar: frames });
     }
     const raining = gauges.filter((g) => g.verdict === 'rain').sort((a, b) => b.mm - a.mm);
 
@@ -207,7 +223,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
     };
     // newest/frames/analysis change together with the frame set
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dismissed, sim, analysis, stations, readingsEpoch, historyEpoch, sector.id, sector.radiusKm, centre]);
+  }, [dismissed, sim, analysis, stations, readingsEpoch, historyEpoch, serverPrecip, sector.id, sector.radiusKm, centre]);
 
   // 5. The summary for the chip, and the check of what was announced.
   useEffect(() => {
@@ -233,9 +249,11 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   return (
     <>
       {view.picture && !rawRadarOn && (
-        // A new canvas is a new source (key): MapLibre has no setter for a canvas source.
-        <Source key={view.picture.id} id="rain-now-radar" {...canvasSource(view.picture)}>
-          <Layer id="rain-now-radar" type="raster" paint={{ 'raster-opacity': 1, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }} />
+        // A new canvas is a new source: MapLibre has no setter for a canvas source. The id changes with it.
+        // With one fixed id (until 20-oct) the new <Source> found the old one still in the map, reused it
+        // and drew nothing new: the picture only moved on a page reload.
+        <Source key={view.picture.id} id={`rain-now-radar-${view.picture.id}`} {...canvasSource(view.picture)}>
+          <Layer id={`rain-now-radar-${view.picture.id}`} type="raster" paint={{ 'raster-opacity': 1, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }} />
         </Source>
       )}
       {view.arrowGeo && (
