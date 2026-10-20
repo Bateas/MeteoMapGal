@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseFieldReport, summarizeRecentReports, recentReportWhen, recentReportWhat, reportConflict, KT_RANGES, ktRangeLabel, observerReportWhat } from './fieldReport';
+import { parseFieldReport, betaForSpot, summarizeRecentReports, recentReportWhen, recentReportWhat, reportConflict, KT_RANGES, ktRangeLabel, observerReportWhat } from './fieldReport';
 
 const isValid = (id: string) => id === 'cesantes' || id === 'castrelo';
 const base = { spotId: 'cesantes', windVsApp: 1, waterState: 3, dirSeen: 225, appWindKt: 12.34, appVerdict: 'good', appVersion: '2.143.0' };
@@ -14,6 +14,22 @@ describe('parseFieldReport', () => {
       expect(r.report.dirSeen).toBe(225);
       expect(r.report.observerCode).toBeNull();
     }
+  });
+
+  it('betaSeen: optional, false by default, only a boolean', () => {
+    const none = parseFieldReport(base, isValid);
+    expect(none.ok && none.report.betaSeen).toBe(false);
+    const seen = parseFieldReport({ ...base, betaSeen: true }, isValid);
+    expect(seen.ok && seen.report.betaSeen).toBe(true);
+    expect(parseFieldReport({ ...base, betaSeen: 'yes' }, isValid)).toEqual({ ok: false, error: 'betaSeen' });
+  });
+
+  it('betaForSpot: the BETA of that spot, none for others or an older server', () => {
+    const b = { kind: 'dusk', spotId: 'cesantes', at: 1, active: true, estimateKt: 12, appKt: 7, reason: null };
+    expect(betaForSpot({ name: 'A', reports: [], betas: [b] }, 'cesantes')).toBe(b);
+    expect(betaForSpot({ name: 'A', reports: [], betas: [b] }, 'lourido')).toBeNull();
+    expect(betaForSpot({ name: 'A', reports: [] }, 'cesantes')).toBeNull();
+    expect(betaForSpot(null, 'cesantes')).toBeNull();
   });
 
   it('only the wind comparison is required', () => {

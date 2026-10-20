@@ -194,8 +194,35 @@ async function runDuskBeta(
     ? `activa: ~${Math.round(beta.estimateKt)} kt frente a ${appKt == null ? '?' : Math.round(appKt)} de la app`
     : `inactiva (${beta.reason})`;
   if (line !== lastDuskLine) { log.info(`[BETA anochecer] ${line}`); lastDuskLine = line; }
+  await saveDuskBetaState(beta, appKt, nowMs);
   if (beta.active && beta.gainKt >= DUSK_MIN_GAIN_KT && pv && up) {
     await dispatchDuskBetaAlert(madridDate(nowMs), appKt, beta.estimateKt, pv, up);
+  }
+}
+
+/**
+ * The latest BETA state, for the observers' popup (served by the API, a separate process). One row,
+ * overwritten every cycle. A missing table (schema not applied yet) is said once and then skipped:
+ * the BETA and its Telegram line work without it.
+ */
+let betaTableMissing = false;
+async function saveDuskBetaState(beta: ReturnType<typeof assessCesantesDusk>, appKt: number | null, nowMs: number): Promise<void> {
+  if (betaTableMissing) return;
+  try {
+    await getPool().query(
+      `INSERT INTO beta_signals (kind, spot_id, time, active, estimate_kt, app_kt, reason)
+       VALUES ('dusk', 'cesantes', $1, $2, $3, $4, $5)
+       ON CONFLICT (kind, spot_id) DO UPDATE SET time = EXCLUDED.time, active = EXCLUDED.active,
+         estimate_kt = EXCLUDED.estimate_kt, app_kt = EXCLUDED.app_kt, reason = EXCLUDED.reason`,
+      [new Date(nowMs), beta.active, beta.active ? beta.estimateKt : null, appKt, beta.active ? null : beta.reason],
+    );
+  } catch (err) {
+    if ((err as { code?: string }).code === '42P01') {
+      betaTableMissing = true;
+      log.warn('[BETA anochecer] falta la tabla beta_signals (aplicar schema.sql): los observadores no la veran hasta reiniciar');
+      return;
+    }
+    log.warn(`[BETA anochecer] no se pudo guardar el estado: ${(err as Error).message}`);
   }
 }
 

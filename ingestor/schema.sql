@@ -1049,6 +1049,10 @@ ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS dir_seen SMALLINT CHECK (dir_
 -- Knots seen, in ranges (0-5, 5-8, 8-12, 12-16, 16-20, 20-30): only observers with a personal link.
 ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS kt_lo SMALLINT CHECK (kt_lo BETWEEN 0 AND 30);
 ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS kt_hi SMALLINT CHECK (kt_hi BETWEEN 0 AND 30);
+-- What the observers' BETA said when an observer reported that spot (null = no BETA active), and
+-- whether they opened it before reporting: reports made with the figure in front are told apart.
+ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS beta_kt REAL;
+ALTER TABLE field_reports ADD COLUMN IF NOT EXISTS beta_seen BOOLEAN;
 CREATE INDEX IF NOT EXISTS idx_field_reports_observer ON field_reports (observer, time DESC) WHERE observer IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_field_reports_time ON field_reports (time DESC);
 GRANT SELECT, INSERT ON field_reports TO meteomap_app;
@@ -1058,6 +1062,22 @@ DO $$ BEGIN
     GRANT SELECT ON field_reports, field_observers TO grafana_ro;
   END IF;
 END $$;
+
+-- ── BETAs for observers ────────────────────────────────
+-- The latest state of each hypothesis in its exam (one row per kind and spot, overwritten every
+-- cycle by the ingestor). The API shows it only to observers with a personal code and stamps it on
+-- their reports (field_reports.beta_kt). Never the map's figure.
+CREATE TABLE IF NOT EXISTS beta_signals (
+  kind         TEXT        NOT NULL,   -- 'dusk' = «Cesantes al anochecer» (src/services/cesantesDuskBeta.ts)
+  spot_id      TEXT        NOT NULL,
+  time         TIMESTAMPTZ NOT NULL,
+  active       BOOLEAN     NOT NULL,
+  estimate_kt  REAL,                   -- what the BETA says (only when active)
+  app_kt       REAL,                   -- what the map showed at that moment
+  reason       TEXT,                   -- why not, when inactive
+  PRIMARY KEY (kind, spot_id)
+);
+GRANT SELECT, INSERT, UPDATE ON beta_signals TO meteomap_app;
 
 -- ── Station health ─────────────────────────────────────
 -- A sensor failure seen by the nightly detectors (stationHealthJob.ts): one row per day, station,

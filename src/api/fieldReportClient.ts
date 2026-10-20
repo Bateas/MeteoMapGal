@@ -92,11 +92,16 @@ function forgetObserverCode(): void {
 // a report is sent); a 404 means the code is unknown or switched off and is forgotten, any other
 // failure keeps it for next time.
 let observerPromise: Promise<ObserverInfo | null> | null = null;
+let observerAskedAt = 0;
+/** The answer carries the observers' BETA, which changes every few minutes: a page left open asks
+ *  again after this (at most 12 an hour, well under the server's 60). */
+const OBSERVER_MAX_AGE_MS = 5 * 60_000;
 
 export function fetchObserver(): Promise<ObserverInfo | null> {
   const code = currentObserverCode();
   if (!code) return Promise.resolve(null);
-  if (observerPromise) return observerPromise;
+  if (observerPromise && Date.now() - observerAskedAt < OBSERVER_MAX_AGE_MS) return observerPromise;
+  observerAskedAt = Date.now();
   const p: Promise<ObserverInfo | null> = fetch('/api/v1/observers/me', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -115,6 +120,7 @@ export function fetchObserver(): Promise<ObserverInfo | null> {
 
 export function __clearObserverCacheForTests(): void {
   observerPromise = null;
+  observerAskedAt = 0;
 }
 
 /** Minutes left before this device may report the spot again (0 = may report now). */

@@ -65,7 +65,7 @@ import {
 } from './queries.js';
 import { getPool } from './db.js';
 import { clientIpOf, clampInt, isAllowedPushEndpoint, pruneCache, memoAsync } from './requestGuards.js';
-import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport } from '../src/services/fieldReport.js';
+import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatcher.js';
@@ -1117,25 +1117,22 @@ async function handleFieldReportPost(
     }
     const base = [r.spotId, REPORT_SPOT_SECTOR.get(r.spotId) ?? null, observer, r.windVsApp, r.waterState, r.dirSeen, r.appVerdict, r.appWindKt, r.appVersion];
     const kt = observer && r.ktRange != null ? KT_RANGES[r.ktRange] : null;   // knots only from observers
+    // Observers only: what their BETA of this spot said, and whether they opened it before reporting.
+    const betaKt = observer ? await activeBetaKt(pool, r.spotId) : null;
+    const cols = ['spot_id', 'sector', 'observer', 'wind_vs_app', 'water_state', 'dir_seen', 'app_verdict', 'app_wind_kt', 'app_version'];
+    const vals: unknown[] = [...base];
+    if (kt) { cols.push('kt_lo', 'kt_hi'); vals.push(kt[0], kt[1]); }
+    if (betaKt != null) { cols.push('beta_kt', 'beta_seen'); vals.push(betaKt, r.betaSeen === true); }
     try {
-      if (kt) {
-        await pool.query(
-          `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, water_state, dir_seen, app_verdict, app_wind_kt, app_version, kt_lo, kt_hi)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-          [...base, kt[0], kt[1]],
-        );
-      } else {
-        await pool.query(
-          `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, water_state, dir_seen, app_verdict, app_wind_kt, app_version)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          base,
-        );
-      }
+      await pool.query(
+        `INSERT INTO field_reports (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
+        vals,
+      );
     } catch (err) {
       // Columns not created yet on the database (the schema goes first, but if not, keep the
-      // report without the knots rather than losing it).
+      // report without the knots or the BETA rather than losing it).
       if ((err as { code?: string }).code !== '42703') throw err;
-      log.warn('field_reports sin kt_lo/kt_hi: reporte guardado sin los nudos (falta aplicar schema.sql)');
+      log.warn('field_reports sin kt_lo/kt_hi o beta_kt: reporte guardado sin ellos (falta aplicar schema.sql)');
       await pool.query(
         `INSERT INTO field_reports (spot_id, sector, observer, wind_vs_app, water_state, dir_seen, app_verdict, app_wind_kt, app_version)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -1230,10 +1227,38 @@ async function handleObserverMe(
       ktHi: x.kt_hi,
       appWindKt: x.app_wind_kt,
     }));
-    json(res, { name: o.rows[0].name, reports }, 200, origin, 'no-store');
+    json(res, { name: o.rows[0].name, reports, betas: await observerBetas(pool) }, 200, origin, 'no-store');
   } catch (err) {
     log.error('Observer lookup error:', (err as Error).message);
     error(res, 'DB error', 500, origin);
+  }
+}
+
+/** BETA rows written in the last 20 min (the ingestor rewrites them every 5): observers only.
+ *  An absent table or any error = no BETA, never a failed lookup. */
+const BETA_FRESH_SQL = `time > NOW() - INTERVAL '20 minutes'`;
+async function observerBetas(pool: ReturnType<typeof getPool>): Promise<ObserverBeta[]> {
+  try {
+    const r = await pool.query(
+      `SELECT kind, spot_id, time, active, estimate_kt, app_kt, reason FROM beta_signals WHERE ${BETA_FRESH_SQL}`);
+    return r.rows.map((x) => ({
+      kind: x.kind, spotId: x.spot_id, at: new Date(x.time).getTime(), active: x.active,
+      estimateKt: x.estimate_kt, appKt: x.app_kt, reason: x.reason,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** What the observers' BETA of a spot says now (null = none active), to stamp on a report. */
+async function activeBetaKt(pool: ReturnType<typeof getPool>, spotId: string): Promise<number | null> {
+  try {
+    const r = await pool.query(
+      `SELECT estimate_kt FROM beta_signals WHERE spot_id = $1 AND active AND ${BETA_FRESH_SQL} ORDER BY time DESC LIMIT 1`,
+      [spotId]);
+    return r.rowCount ? r.rows[0].estimate_kt : null;
+  } catch {
+    return null;
   }
 }
 

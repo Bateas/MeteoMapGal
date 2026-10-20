@@ -34,6 +34,8 @@ export interface FieldReport {
   appVerdict: SpotVerdict | null;
   appVersion: string | null;
   observerCode: string | null;               // personal link code, if any (checked server-side)
+  /** Observers: they opened the BETA figure of this spot before reporting (optional, default false). */
+  betaSeen?: boolean;
 }
 
 const VERDICTS = new Set<SpotVerdict>(['calm', 'light', 'sailing', 'good', 'strong', 'unknown']);
@@ -51,7 +53,7 @@ export type ParseResult = { ok: true; report: FieldReport } | { ok: false; error
 export function parseFieldReport(body: unknown, isValidSpot: (id: string) => boolean): ParseResult {
   if (body == null || typeof body !== 'object') return { ok: false, error: 'body' };
   const b = body as Record<string, unknown>;
-  const { spotId, windVsApp, waterState, dirSeen, ktRange, appWindKt, appVerdict, appVersion, observerCode } = b;
+  const { spotId, windVsApp, waterState, dirSeen, ktRange, appWindKt, appVerdict, appVersion, observerCode, betaSeen } = b;
 
   if (typeof spotId !== 'string' || !isValidSpot(spotId)) return { ok: false, error: 'spotId' };
   if (windVsApp !== -1 && windVsApp !== 0 && windVsApp !== 1) return { ok: false, error: 'windVsApp' };
@@ -69,6 +71,7 @@ export function parseFieldReport(body: unknown, isValidSpot: (id: string) => boo
   if (appVersion != null && (typeof appVersion !== 'string' || !/^[0-9.]{1,20}$/.test(appVersion))) {
     return { ok: false, error: 'appVersion' };
   }
+  if (betaSeen != null && typeof betaSeen !== 'boolean') return { ok: false, error: 'betaSeen' };
   const code = typeof observerCode === 'string' && OBSERVER_CODE_RE.test(observerCode) ? observerCode : null;
 
   return {
@@ -83,6 +86,7 @@ export function parseFieldReport(body: unknown, isValidSpot: (id: string) => boo
       appVerdict: (appVerdict ?? null) as SpotVerdict | null,
       appVersion: (appVersion ?? null) as string | null,
       observerCode: code,
+      betaSeen: betaSeen === true,
     },
   };
 }
@@ -210,9 +214,27 @@ export interface ObserverReport {
   appWindKt: number | null;
 }
 
+/** A hypothesis in its exam, shown only to observers (`beta_signals`). Times in ms. */
+export interface ObserverBeta {
+  kind: string;            // 'dusk' = «Cesantes al anochecer»
+  spotId: string;
+  at: number;
+  active: boolean;
+  estimateKt: number | null;
+  appKt: number | null;
+  reason: string | null;   // why not, when inactive
+}
+
 export interface ObserverInfo {
   name: string;
   reports: ObserverReport[];
+  /** Absent from an older server: treat as none. */
+  betas?: ObserverBeta[];
+}
+
+/** The BETA of this spot an observer should see, or null. */
+export function betaForSpot(info: ObserverInfo | null, spotId: string): ObserverBeta | null {
+  return info?.betas?.find((b) => b.spotId === spotId) ?? null;
 }
 
 /** «12-16 kt» / «más de 20 kt» */

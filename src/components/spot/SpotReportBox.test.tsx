@@ -150,3 +150,58 @@ describe('SpotReportBox with a personal observer code', () => {
     expect(screen.queryByText('12-16 kt')).toBeNull();
   });
 });
+
+describe('SpotReportBox: the observers-only BETA', () => {
+  const beta = (over: Record<string, unknown>) => ({
+    kind: 'dusk', spotId: 'cesantes', at: Date.now(), active: true, estimateKt: 12.4, appKt: 7, reason: null, ...over,
+  });
+  const route = (betas: unknown[] | undefined) => vi.fn((url: string, init?: { method?: string }) => {
+    if (url === '/api/v1/observers/me') {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ name: 'Ana', reports: [], betas }) });
+    }
+    if (init?.method === 'POST') return Promise.resolve({ ok: true, status: 201 });
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ summary: null }) });
+  });
+  const reportBody = (m: ReturnType<typeof route>) =>
+    JSON.parse((m.mock.calls.find((c) => c[0] === '/api/v1/reports')![1] as { body: string }).body);
+  beforeEach(() => { localStorage.clear(); __clearRecentReportsCacheForTests(); __clearObserverCacheForTests(); localStorage.setItem('mmg-observer', 'abcdefgh23456k'); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('keeps the figure hidden until the observer reports, then shows it', async () => {
+    const fetchMock = route([beta({})]);
+    vi.stubGlobal('fetch', fetchMock);
+    render(<SpotReportBox spotId="cesantes" shownWindKt={7} shownVerdict="light" />);
+    await waitFor(() => expect(screen.getByText('Solo para observadores · BETA')).toBeTruthy());
+    expect(screen.getByText(/Reporta primero lo que ves/)).toBeTruthy();
+    expect(screen.queryByText(/Ahora unos 12 kt/)).toBeNull();
+    fireEvent.click(screen.getByText('Más viento'));
+    fireEvent.click(screen.getByText('Enviar'));
+    await waitFor(() => expect(screen.getByText(/Ahora unos 12 kt \(la app marca 7\)/)).toBeTruthy());
+    expect(reportBody(fetchMock)).toMatchObject({ betaSeen: false });
+  });
+
+  it('«Verla ya» shows it before reporting, and the report says so', async () => {
+    const fetchMock = route([beta({})]);
+    vi.stubGlobal('fetch', fetchMock);
+    render(<SpotReportBox spotId="cesantes" shownWindKt={7} shownVerdict="light" />);
+    await waitFor(() => expect(screen.getByText('Verla ya')).toBeTruthy());
+    fireEvent.click(screen.getByText('Verla ya'));
+    expect(screen.getByText(/Ahora unos 12 kt/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Igual'));
+    fireEvent.click(screen.getByText('Enviar'));
+    await waitFor(() => expect(screen.getByText(/Gracias, Ana/)).toBeTruthy());
+    expect(reportBody(fetchMock)).toMatchObject({ betaSeen: true });
+  });
+
+  it('inactive: says why, with no figure; another spot or an older server: nothing', async () => {
+    vi.stubGlobal('fetch', route([beta({ active: false, estimateKt: null, reason: 'tarde nublada' })]));
+    const { unmount } = render(<SpotReportBox spotId="cesantes" shownWindKt={7} shownVerdict="light" />);
+    await waitFor(() => expect(screen.getByText(/hoy no se activa: tarde nublada/)).toBeTruthy());
+    unmount();
+    __clearObserverCacheForTests();
+    vi.stubGlobal('fetch', route(undefined));
+    render(<SpotReportBox spotId="lourido" shownWindKt={7} shownVerdict="light" />);
+    await waitFor(() => expect(screen.getByText('observador: Ana')).toBeTruthy());
+    expect(screen.queryByText('Solo para observadores · BETA')).toBeNull();
+  });
+});

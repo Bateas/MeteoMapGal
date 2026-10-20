@@ -10,7 +10,8 @@ import { useEffect, useState } from 'react';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 import {
   KT_RANGES, ktRangeLabel, observerReportWhat, recentReportWhat, recentReportWhen, reportConflict,
-  type KtRange, type WindVsApp, type WaterState, type DirSeen, type ObserverInfo, type RecentReportSummary,
+  type KtRange, type WindVsApp, type WaterState, type DirSeen, type ObserverInfo, type ObserverBeta, type RecentReportSummary,
+  betaForSpot,
 } from '../../services/fieldReport';
 import {
   postFieldReport, currentObserverCode, cooldownLeftMin, fetchRecentReports, saveObserverCode,
@@ -83,6 +84,49 @@ function ObserverZone({ observer }: { observer: ObserverInfo }) {
   );
 }
 
+/** «Solo para observadores»: the BETA of this spot (today, Cesantes at dusk). They are the judges of
+ *  the app, so the figure stays hidden until they report what they see, unless they ask for it;
+ *  whether they did travels with the report (beta_seen). Never the map's figure. */
+function ObserverBetaNote({ beta, revealed, onReveal }: { beta: ObserverBeta; revealed: boolean; onReveal?: () => void }) {
+  const head = (
+    <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Solo para observadores · BETA</span>
+  );
+  const box = 'flex flex-col gap-0.5 rounded border border-violet-400/40 bg-violet-500/10';
+  const boxStyle = { padding: '4px 6px' };
+  if (!beta.active) {
+    return (
+      <div className={box} style={boxStyle}>
+        {head}
+        <span className="text-[11px] text-slate-300">
+          {beta.reason === 'fuera de hora'
+            ? 'Al anochecer (16-23 h), tras una tarde de sol, aquí verás cuánto viento suele quedar en el agua.'
+            : `Al anochecer hoy no se activa: ${beta.reason ?? 'faltan datos'}.`}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className={box} style={boxStyle}>
+      {head}
+      <span className="text-[11px] text-slate-300">Al caer el sol, el agua aquí suele seguir al viento de Porto de Vigo.</span>
+      {revealed && beta.estimateKt != null ? (
+        <span className="text-[12px] font-semibold text-violet-100">
+          Ahora unos {Math.round(beta.estimateKt)} kt{beta.appKt != null ? ` (la app marca ${Math.round(beta.appKt)})` : ''}. Puede fallar: tu reporte la juzga.
+        </span>
+      ) : (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] text-slate-400">Reporta primero lo que ves y te la enseñamos.</span>
+          {onReveal && (
+            <button type="button" onClick={onReveal} className="text-[11px] text-violet-300 underline hover:text-violet-100">
+              Verla ya
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** For whoever has a code but opened the app without the link (an iPhone home-screen app keeps
  *  its own storage, apart from Safari). Accepts the code or the whole link. */
 function CodeEntry({ onSaved }: { onSaved: () => Promise<ObserverInfo | null> }) {
@@ -130,6 +174,8 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
   const answerPending = (useIt: boolean) => { resolvePendingObserverCode(useIt); setPending(false); if (useIt) void refresh(); };
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [recent, setRecent] = useState<RecentReportSummary | null>(null);
+  const [betaRevealed, setBetaRevealed] = useState(false);
+  const beta = betaForSpot(observer, spotId);
 
   useEffect(() => {
     let alive = true;
@@ -151,6 +197,7 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
         <p className="text-[11px] text-emerald-300">
           Gracias{observer ? `, ${observer.name}` : ''}. Con esto comprobamos y afinamos la app en este sitio.
         </p>
+        {beta && <ObserverBetaNote beta={beta} revealed />}
         {observer && <ObserverZone observer={observer} />}
       </div>
     );
@@ -160,7 +207,7 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
   if (wait > 0) {
     const note = <span className="text-[11px] text-slate-400">Ya enviaste un reporte de este sitio. Puedes mandar otro en {wait} min.</span>;
     return said || observer
-      ? <div className={CARD} style={CARD_STYLE}>{said}{note}{observer && <ObserverZone observer={observer} />}</div>
+      ? <div className={CARD} style={CARD_STYLE}>{said}{note}{beta && <ObserverBetaNote beta={beta} revealed />}{observer && <ObserverZone observer={observer} />}</div>
       : <p style={{ marginBottom: '6px' }}>{note}</p>;
   }
 
@@ -177,6 +224,7 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
       appVerdict: shownVerdict,
       appVersion: APP_VERSION,
       observerCode: currentObserverCode(),
+      betaSeen: beta?.active === true && betaRevealed,
     });
     setState(ok ? 'sent' : 'error');
     if (ok && observer) void refresh();
@@ -195,6 +243,7 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
   return (
     <div className={CARD} style={CARD_STYLE}>
       {said}
+      {beta && <ObserverBetaNote beta={beta} revealed={betaRevealed} onReveal={() => setBetaRevealed(true)} />}
       {pending && (
         <div className="flex flex-col gap-1 rounded border border-amber-500/40 bg-amber-500/10" style={{ padding: '4px 6px' }}>
           <span className="text-[11px] text-amber-200">
