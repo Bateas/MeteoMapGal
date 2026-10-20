@@ -73,10 +73,10 @@ async function loadDay(day: string): Promise<{ stations: HealthStation[]; endMs:
   const [rows, meta, end] = await Promise.all([
     db.query<{
       station_id: string; t: string; temperature: number | null; humidity: number | null; wind_speed: number | null;
-      wind_gust: number | null; pressure: number | null; precip: number | null; solar_rad: number | null;
+      wind_gust: number | null; pressure: number | null; precip: number | null; solar_rad: number | null; qc_flag: number | null;
     }>(`
       SELECT station_id, (extract(epoch FROM time) * 1000)::bigint AS t,
-             temperature, humidity, wind_speed, wind_gust, pressure, precip, solar_rad
+             temperature, humidity, wind_speed, wind_gust, pressure, precip, solar_rad, qc_flag
         FROM readings
        WHERE time >= ($1::date)::timestamp AT TIME ZONE 'Europe/Madrid'
          AND time <  ($1::date + 1)::timestamp AT TIME ZONE 'Europe/Madrid'
@@ -99,7 +99,7 @@ async function loadDay(day: string): Promise<{ stations: HealthStation[]; endMs:
     }
     st.rows.push({
       t: Number(r.t), temperature: r.temperature, humidity: r.humidity, windSpeed: r.wind_speed, windGust: r.wind_gust,
-      pressure: r.pressure, precip: r.precip, solar: r.solar_rad,
+      pressure: r.pressure, precip: r.precip, solar: r.solar_rad, qc: r.qc_flag,
     });
   }
   return { stations: [...byId.values()], endMs: Number(end.rows[0].end_ms) };

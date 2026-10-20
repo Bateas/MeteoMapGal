@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { detectStrikes, type HealthStation, type DayRow } from './healthDetectors';
+import { solarElevationDeg } from '../src/services/solarUtils';
 
 const DAY = '2026-09-29';
 const START = Date.parse('2026-09-29T00:00:00+02:00');
@@ -152,5 +153,41 @@ describe('detectStrikes — a module that measures the house (warm nights)', () 
     expect(rulesFor(detectStrikes([atAlt('nt_noalt', 0, null, night(21, 58)), ...neighbours()], DAY, END), 'nt_noalt')).toEqual([]);
     const two = neighbours().slice(0, 2);
     expect(rulesFor(detectStrikes([atAlt('nt_few', 0, 19, night(21, 58)), ...two], DAY, END), 'nt_few')).toEqual([]);
+  });
+});
+
+describe('detectStrikes — what the per-reading QC already nulled (anulado por QC)', () => {
+  it('stopped anemometer (wu_ITRUTE1, week to 20-oct): every wind reading nulled with mark 8', () => {
+    const stopped = at('wu_ITRUTE1', 0, day(() => ({ windSpeed: null, windGust: null, qc: 8 })));
+    const strikes = detectStrikes([stopped, at('mg_2', 3), at('mg_3', -4)], DAY, END);
+    expect(rulesFor(strikes, 'wu_ITRUTE1')).toEqual(['wind:anulado por QC']);
+    expect(strikes.find((s) => s.stationId === 'wu_ITRUTE1')?.detail).toBe('144 de 144 lecturas anuladas (anemometro parado)');
+  });
+
+  it('impossible pressure (wu_IVILAG10): every pressure nulled with mark 128', () => {
+    const broken = at('wu_IVILAG10', 0, day(() => ({ pressure: null, qc: 128 })));
+    expect(rulesFor(detectStrikes([broken], DAY, END), 'wu_IVILAG10')).toEqual(['pressure:anulado por QC']);
+  });
+
+  it('impossible temperature (mark 64) and solar over the ceiling with the sun up (mark 16)', () => {
+    const hot = at('wu_IMAZAR39', 0, day(() => ({ temperature: null, qc: 64 })));
+    const sun = at('wu_SUN', 0, day((_, t) => (solarElevationDeg(t, VIGO.lat, VIGO.lon) > 0 ? { solar: null, qc: 16 } : { solar: 0 })));
+    expect(rulesFor(detectStrikes([hot], DAY, END), 'wu_IMAZAR39')).toEqual(['temperature:anulado por QC']);
+    expect(rulesFor(detectStrikes([sun], DAY, END), 'wu_SUN')).toEqual(['solar:anulado por QC']);
+  });
+
+  it('several marks in one reading count for each variable', () => {
+    const both = at('wu_BOTH', 0, day(() => ({ windSpeed: null, pressure: null, qc: 8 | 128 })));
+    expect(rulesFor(detectStrikes([both], DAY, END), 'wu_BOTH')).toEqual(['pressure:anulado por QC', 'wind:anulado por QC']);
+  });
+
+  it('silent below half the day, with few readings, or for the routine wind caps', () => {
+    const third = at('wu_THIRD', 0, day((i) => (i % 3 === 0 ? { pressure: null, qc: 128 } : {})));
+    const few = at('wu_FEW', 0, day().slice(0, 10).map((r) => ({ ...r, pressure: null, qc: 128 })));
+    const caps = at('wu_CAPS', 0, day(() => ({ windGust: null, qc: 1 | 2 })));
+    const strikes = detectStrikes([third, few, caps], DAY, END);
+    expect(rulesFor(strikes, 'wu_THIRD')).toEqual([]);
+    expect(rulesFor(strikes, 'wu_FEW')).toEqual([]);
+    expect(rulesFor(strikes, 'wu_CAPS')).toEqual([]);
   });
 });

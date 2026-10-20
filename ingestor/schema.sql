@@ -26,10 +26,11 @@ CREATE TABLE IF NOT EXISTS readings (
   qc_flag        SMALLINT,         -- bitmask: 1 gust cap, 2 gust ratio, 4 speed cap,
                                    -- 8 stopped anemometer, 16 solar above the
                                    -- physical ceiling, 32 dew point over air
-                                   -- temperature, 64 temperature out of range.
+                                   -- temperature, 64 temperature out of range,
+                                   -- 128 pressure outside 900-1100 hPa.
                                    -- 0 = checked and clean. NULL = row predates the check.
                                    -- Only wind archives its raw value: those caps are a
-                                   -- judgement and judgements get re-tuned. 16/32/64 are
+                                   -- judgement and judgements get re-tuned. 16/32/64/128 are
                                    -- physical impossibilities, so there is no threshold to
                                    -- revisit and nothing the archive could add.
   -- Sent by MeteoGalicia (10 min) and AEMET (1 h) only; NULL for every other source.

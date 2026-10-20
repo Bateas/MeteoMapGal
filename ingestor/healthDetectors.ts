@@ -29,12 +29,18 @@
  *    while in the afternoon it is near them. On the dry run over 14 nights (1-oct) it singled out
  *    six Netatmo modules at sea level and no official station; the one at Vao is the nearest
  *    thermometer to that spot.
+ *  · a sensor that the per-reading quality control nulls all day (qcNulled): wu_ITRUTE1 and
+ *    wu_IVIGO48, anemometers stopped in every reading of the week to 20-oct, and wu_IVILAG10, a
+ *    pressure outside 900-1100 hPa in every reading. The QC leaves those values null and the other
+ *    rules only look at values, so they had nothing to judge and gave the variable back after 14
+ *    "clean" days.
  */
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { solarElevationDeg } from '../src/services/solarUtils.js';
 import { madridHour } from '../src/services/localTime.js';
 import { rawRainInWindowMm, rainInWindowMm, MAX_RAIN_RATE_MM_H, type PrecipSample } from '../src/services/precipSemantics.js';
 import type { HealthStrike, HealthVariable } from '../src/services/stationHealth.js';
+import { QC_ANEMOMETER_STUCK, QC_SOLAR_IMPOSSIBLE, QC_TEMP_IMPLAUSIBLE, QC_PRESSURE_IMPLAUSIBLE } from './readingQuality.js';
 
 export interface DayRow {
   t: number;
@@ -45,6 +51,8 @@ export interface DayRow {
   pressure: number | null;
   precip: number | null;
   solar: number | null;
+  /** qc_flag of the reading (readingQuality.ts); null or absent = not flagged. */
+  qc?: number | null;
 }
 
 export interface HealthStation {
@@ -93,6 +101,9 @@ export const NIGHT_WARM_C = 4;
 export const NIGHT_DRY_PCT = 10;
 /** A station this far above its neighbours can be warm at night for real: above the inversion. */
 export const NIGHT_MAX_ABOVE_M = 50;
+/** Share of the day's readings of a variable nulled by the QC above which the sensor counts as failed. */
+export const QC_NULLED_SHARE = 0.5;
+export const QC_NULLED_MIN_READINGS = 12;
 
 const HOUR = 3_600_000;
 
@@ -259,6 +270,35 @@ function pressureOffset(st: HealthStation, near: { st: HealthStation; km: number
   return [{ day, stationId: st.id, variable: 'pressure', rule: 'presion desfasada', detail: `${round(off)} hPa frente a ${theirs.length} vecinas` }];
 }
 
+/** QC marks that say the sensor itself is wrong, by variable. The wind caps (1, 2, 4) are the
+ *  spurious peaks of a working anemometer, and a dew point over the air (32) cannot say which of
+ *  the two sensors failed, so they stay out. */
+const QC_SENSOR_MARKS: readonly { bit: number; field: Field; variable: HealthVariable; what: string }[] = [
+  { bit: QC_ANEMOMETER_STUCK, field: 'windSpeed', variable: 'wind', what: 'anemometro parado' },
+  { bit: QC_TEMP_IMPLAUSIBLE, field: 'temperature', variable: 'temperature', what: 'temperatura imposible' },
+  { bit: QC_PRESSURE_IMPLAUSIBLE, field: 'pressure', variable: 'pressure', what: 'presion fuera de 900-1100 hPa' },
+  { bit: QC_SOLAR_IMPOSSIBLE, field: 'solar', variable: 'solar', what: 'radiacion por encima del techo fisico' },
+];
+
+/** Most of the day's readings of a variable nulled by the QC. The nulled value never reaches the
+ *  other rules, so without this a sensor wrong in every reading counts as healthy. Solar counts
+ *  only with the sun up (at night 0 is the right reading). */
+function qcNulled(st: HealthStation, day: string): DetectedStrike[] {
+  const out: DetectedStrike[] = [];
+  for (const m of QC_SENSOR_MARKS) {
+    const rows = m.field === 'solar' ? st.rows.filter((r) => solarElevationDeg(r.t, st.lat, st.lon) > 0) : st.rows;
+    const isFlagged = (r: DayRow) => ((r.qc ?? 0) & m.bit) !== 0;
+    const flagged = rows.filter(isFlagged).length;
+    const checked = rows.filter((r) => r[m.field] != null || isFlagged(r)).length;
+    if (flagged < QC_NULLED_MIN_READINGS || flagged / checked <= QC_NULLED_SHARE) continue;
+    out.push({
+      day, stationId: st.id, variable: m.variable, rule: 'anulado por QC',
+      detail: `${flagged} de ${checked} lecturas anuladas (${m.what})`,
+    });
+  }
+  return out;
+}
+
 interface NightMean { t: number; rh: number }
 
 /** Mean temperature and humidity of each station over the local NIGHT_HOURS, null with too few
@@ -319,7 +359,7 @@ export function detectStrikes(stations: HealthStation[], day: string, dayEndMs: 
     const n = near.get(st.id) ?? [];
     out.push(
       ...frozen(st, n, day), ...spikes(st, day), ...humidityStuck(st, n, day), ...rain(st, n, day, dayEndMs),
-      ...solar(st, n, day), ...windWithoutMean(st, day), ...pressureOffset(st, n, day), ...warmNight(st, n, day, night),
+      ...solar(st, n, day), ...windWithoutMean(st, day), ...pressureOffset(st, n, day), ...warmNight(st, n, day, night), ...qcNulled(st, day),
     );
   }
   return out;
