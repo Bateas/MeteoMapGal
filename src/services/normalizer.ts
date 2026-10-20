@@ -151,20 +151,29 @@ export function normalizeMeteoGaliciaObservation(
   const sanitize = (v: number | null) => (v !== null && v >= -900 ? v : null);
   const sanitizePositive = (v: number | null) => (v !== null && v >= 0 ? v : null);
 
+  // A station publishes its wind either at 10 m or at 2 m (the agro network). Take the 10 m set
+  // when any of it is there and the 2 m set otherwise, never a mix of the two.
+  const m = entry.listaMedidas;
+  const has10m = [MG_PARAMS.WIND_SPEED, MG_PARAMS.WIND_GUST, MG_PARAMS.WIND_DIRECTION, MG_PARAMS.WIND_DIR_SD, MG_PARAMS.WIND_SPEED_SD]
+    .some((code) => findMedida(m, code) != null);
+  const wind = has10m
+    ? { speed: MG_PARAMS.WIND_SPEED, gust: MG_PARAMS.WIND_GUST, dir: MG_PARAMS.WIND_DIRECTION, dirSd: MG_PARAMS.WIND_DIR_SD, speedSd: MG_PARAMS.WIND_SPEED_SD }
+    : { speed: MG_PARAMS.WIND_SPEED_2M, gust: MG_PARAMS.WIND_GUST_2M, dir: MG_PARAMS.WIND_DIRECTION_2M, dirSd: MG_PARAMS.WIND_DIR_SD_2M, speedSd: MG_PARAMS.WIND_SPEED_SD_2M };
+
   return {
     stationId: `mg_${stationId}`,
     timestamp,
-    windSpeed: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.WIND_SPEED)),
-    windGust: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.WIND_GUST)),
-    windDirection: sanitize(findMedida(entry.listaMedidas, MG_PARAMS.WIND_DIRECTION)),
+    windSpeed: sanitizePositive(findMedida(m, wind.speed)),
+    windGust: sanitizePositive(findMedida(m, wind.gust)),
+    windDirection: sanitize(findMedida(m, wind.dir)),
     temperature: sanitize(findMedida(entry.listaMedidas, MG_PARAMS.TEMPERATURE)),
     humidity: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.HUMIDITY)),
     precipitation: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.PRECIPITATION)),
     solarRadiation: sanitizePositive(findMedida(entry.listaMedidas, MG_PARAMS.SOLAR_RADIATION)),
     pressure: plausiblePressure(sanitize(findMedida(entry.listaMedidas, MG_PARAMS.PRESSURE_SEA_LEVEL))),
     dewPoint: sanitize(findMedida(entry.listaMedidas, MG_PARAMS.DEW_POINT)),
-    windDirSd: plausibleDirSd(findMedida(entry.listaMedidas, MG_PARAMS.WIND_DIR_SD)),
-    windSpeedSd: plausibleSpeedSd(findMedida(entry.listaMedidas, MG_PARAMS.WIND_SPEED_SD)),
+    windDirSd: plausibleDirSd(findMedida(m, wind.dirSd)),
+    windSpeedSd: plausibleSpeedSd(findMedida(m, wind.speedSd)),
     // HSOL_SUM comes in HOURS of sun within the 10 min, so 0.1667 is a full period.
     sunFrac: sunFraction(hoursToMin(findMedida(entry.listaMedidas, MG_PARAMS.SUNSHINE)), 10),
     temp10cm: plausibleGroundTemp(findMedida(entry.listaMedidas, MG_PARAMS.TEMP_10CM)),

@@ -46,6 +46,14 @@ export const MG_PARAMS = {
   PRESSURE_SEA_LEVEL: 'PRED_AVG_1.5m', // hPa — reduced to sea level (PR_AVG_1.5m is station level)
   WIND_DIR_SD: 'DV_SD_10m',         // ° — std deviation of direction over the 10 min
   WIND_SPEED_SD: 'VV_SD_10m',       // m/s — std deviation of speed over the 10 min
+  // About 39 stations (the 19xxx agro network: Prado in Castrelo de Miño, EVEGA Leiro, Ponte Caldelas,
+  // Tremoedo...) carry their anemometer at 2 m and publish only these codes. They are read like any
+  // other station (the engine weighs every station the same way); the 10 m set wins when present.
+  WIND_DIRECTION_2M: 'DV_AVG_2m',
+  WIND_SPEED_2M: 'VV_AVG_2m',
+  WIND_GUST_2M: 'VV_RACHA_2m',
+  WIND_DIR_SD_2M: 'DV_SD_2m',
+  WIND_SPEED_SD_2M: 'VV_SD_2m',
   SUNSHINE: 'HSOL_SUM_1.5m',        // h of sun in the 10 min (0 to 0.1667)
   TEMP_10CM: 'TA_AVG_0.1m',         // °C — air 10 cm above the ground
   SOIL_TEMP: 'TS_AVG_-0.1m',        // °C — soil 10 cm deep

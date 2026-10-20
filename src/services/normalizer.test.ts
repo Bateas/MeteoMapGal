@@ -190,6 +190,43 @@ describe('normalizeMeteoGaliciaObservation', () => {
     expect(reading!.solarRadiation).toBeNull();
   });
 
+  it('reads the 2 m wind of the agro stations like any other wind', () => {
+    // Prado (Castrelo de Miño) publishes only the 2 m codes.
+    const reading = normalizeMeteoGaliciaObservation(19032, makeMG([
+      { codigoParametro: 'VV_AVG_2m', valor: 1.2 },
+      { codigoParametro: 'VV_RACHA_2m', valor: 3.6 },
+      { codigoParametro: 'DV_AVG_2m', valor: 238 },
+      { codigoParametro: 'DV_SD_2m', valor: 25 },
+      { codigoParametro: 'TA_AVG_1.5m', valor: 17.1 },
+    ]));
+    expect(reading!.windSpeed).toBe(1.2);
+    expect(reading!.windGust).toBe(3.6);
+    expect(reading!.windDirection).toBe(238);
+    expect(reading!.windDirSd).toBe(25);
+  });
+
+  it('keeps the 10 m set when the station has it, never mixing heights', () => {
+    const reading = normalizeMeteoGaliciaObservation(10154, makeMG([
+      { codigoParametro: 'VV_AVG_10m', valor: 4.0 },
+      { codigoParametro: 'DV_AVG_10m', valor: 250 },
+      { codigoParametro: 'VV_RACHA_2m', valor: 9.9 },
+    ]));
+    expect(reading!.windSpeed).toBe(4.0);
+    expect(reading!.windDirection).toBe(250);
+    expect(reading!.windGust).toBeNull();
+  });
+
+  it('a 2 m station with no mean in that period keeps its gust and direction', () => {
+    const reading = normalizeMeteoGaliciaObservation(19026, makeMG([
+      { codigoParametro: 'VV_AVG_2m', valor: -9999 },
+      { codigoParametro: 'VV_RACHA_2m', valor: 2.4 },
+      { codigoParametro: 'DV_AVG_2m', valor: 210 },
+    ]));
+    expect(reading!.windSpeed).toBeNull();
+    expect(reading!.windGust).toBe(2.4);
+    expect(reading!.windDirection).toBe(210);
+  });
+
   it('passes valid values through', () => {
     const reading = normalizeMeteoGaliciaObservation(10165, makeMG([
       { codigoParametro: 'VV_AVG_10m', valor: 5.2 },

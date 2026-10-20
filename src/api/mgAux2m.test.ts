@@ -104,17 +104,17 @@ describe('parseMgAux2m', () => {
   });
 });
 
-describe('the 2 m wind stays in the shadow', () => {
-  it('none of its codes is in MG_PARAMS', () => {
+describe('the 2 m wind is read like any other station (owner decision, 20-oct)', () => {
+  it('its wind codes are live codes too', () => {
     const live = new Set<string>(Object.values(MG_PARAMS));
-    for (const code of Object.values(MG_AUX_PARAMS)) expect(live.has(code)).toBe(false);
+    for (const code of [MG_AUX_PARAMS.WIND_SPEED_2M, MG_AUX_PARAMS.WIND_GUST_2M, MG_AUX_PARAMS.WIND_DIRECTION_2M]) expect(live.has(code)).toBe(true);
   });
 
-  it('a 2 m-only station still has no windSpeed, gust or direction in the normal reading', () => {
+  it('a 2 m-only station gets its wind in the normal reading', () => {
     const r = normalizeMeteoGaliciaObservation(19032, prado());
-    expect(r?.windSpeed).toBeNull();
-    expect(r?.windGust).toBeNull();
-    expect(r?.windDirection).toBeNull();
+    expect(r?.windSpeed).toBe(2.0);
+    expect(r?.windGust).toBe(7.3);
+    expect(r?.windDirection).toBe(238);
     expect(r?.temperature).toBe(18.2);
   });
 });
