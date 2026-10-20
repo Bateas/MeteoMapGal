@@ -7,8 +7,12 @@
  * around it read it. No weather station sits in Cesantes valley, so the figure is
  * predicted from the nearby stations, the air-water ΔT and the interior sun.
  *
- * The amplification exists only WITH the thermal low: with sun, Cesantes blows
- * 1.4-1.6x what Porto de Vigo reads; without sun, 0.3-0.6x.
+ * The amplification exists only WITH the thermal low: with sun, Cesantes was OBSERVED to
+ * blow 1.4-1.6x what Porto de Vigo reads; without sun, 0.3-0.6x. That ratio is a field
+ * observation, not what this detector computes: it needs a breeze already measured at the
+ * nearby stations and an air-water ΔT, then adds base + ΔT×2 scaled by the nearby gust. On
+ * 20-oct (ΔT 3.3 °C, the consensus led by a sheltered O Viso) it stayed off with 8-10 kt on
+ * the water and Porto de Vigo at 6.5-7.7.
  *
  * Why there is no synoptic mode any more. A Mode 1 used to multiply the SW wind of
  * the mouth buoys (A Guarda, Silleiro, Cíes) by 1.4-2.5. Replayed against every
