@@ -29,6 +29,7 @@ import type { WindRoseData } from '../../types/campo';
 import { useUIStore } from '../../store/uiStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
+import { StationAux2mLine } from './StationAux2mLine';
 
 // AEMET stations with historical data
 const AEMET_HISTORY_STATIONS = ['aemet_1701X', 'aemet_1690A', 'aemet_1700X'];
@@ -268,6 +269,12 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
         </>
       ) : (
         <div className="text-xs text-slate-400">Sin datos disponibles</div>
+      )}
+
+      {/* MeteoGalicia station without 10 m wind: its 2 m wind, shown as what it is (shadow data,
+          never in a verdict). */}
+      {station.source === 'meteogalicia' && reading?.windSpeed == null && (
+        <StationAux2mLine stationId={station.id} />
       )}
 
       {/* Add to chart button */}

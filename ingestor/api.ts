@@ -72,6 +72,7 @@ import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatche
 import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effisFetcher.js';
 import { corsHeaders, json, error, dbError, parseSearchParams, ALLOWED_ORIGINS } from './httpHelpers.js';
 import { handleWebcamUpload } from './webcamHandler.js';
+import { queryMgAuxLatest, parseMgAuxStationId } from './mgAuxLatest.js';
 import {
   handleAemetProxy,
   handleAemetDataProxy,
@@ -836,6 +837,29 @@ async function handleFireEvents(
   }
 }
 
+// ── MeteoGalicia 2 m wind (SHADOW, popup of its own station only) ──
+
+/** GET /api/v1/stations/mg-aux-latest?station_id=mg_<id> → last 2 m reading (<= 30 min) or null.
+ *  Not validated data: only the station popup reads it (see mgAuxLatest.ts). */
+async function handleMgAuxLatest(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const stationId = parseMgAuxStationId(params.station_id);
+  if (!stationId) {
+    error(res, 'station_id must be mg_<number>', 400, origin);
+    return;
+  }
+  try {
+    const reading = await queryMgAuxLatest(stationId);
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    json(res, { stationId, shadow: true, reading }, 200, origin);
+  } catch (err) {
+    dbError(res, err, 'handleMgAuxLatest', origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -849,6 +873,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/stations': handleStations,
   '/api/v1/stations/list': handleStationList,
   '/api/v1/stations/exposure': handleStationExposure,
+  '/api/v1/stations/mg-aux-latest': handleMgAuxLatest,
   '/api/v1/reports/recent': handleRecentReports,
   '/api/v1/readings': handleReadings,
   '/api/v1/readings/latest': handleLatest,
