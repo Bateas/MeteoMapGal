@@ -28,7 +28,6 @@ import '../spot/spotG.css';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import { formatThermalCountdown } from '../../services/thermalPrecursorService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
-import type { WebcamVisionResult } from '../../services/webcamVisionService';
 import type { HourlyForecast } from '../../types/forecast';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { useAloft } from '../../hooks/useAloft';
@@ -54,9 +53,8 @@ import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotWarningNotice } from '../spot/SpotWarningNotice';
 import { SpotPushOptIn } from '../spot/SpotPushOptIn';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
-import { ScoringBreakdown, Cell } from '../spot/ScoringBreakdown';
+import { Cell } from '../spot/Cell';
 import { WebcamSection } from '../spot/WebcamSection';
-import { WindPatterns } from '../spot/WindPatterns';
 import { useHistoricalBaseline } from '../../hooks/useHistoricalBaseline';
 import { describeVsBaseline, severityToBadgeClass } from '../../services/historicalBaselineService';
 import { buildShareUrl } from '../../services/shareImageGenerator';
@@ -90,7 +88,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   const toggleFavorite = useSpotStore((s) => s.toggleFavorite);
   const sailingWindows = useSpotStore((s) => s.sailingWindows);
   const thermalPrecursors = useSpotStore((s) => s.thermalPrecursors);
-  const webcamVision = useSpotStore((s) => s.webcamVision);
   const isMobile = useUIStore((s) => s.isMobile);
   // With simpleMode on (opt-in today, uiStore defaults it to false) the popup
   // keeps the decision essentials and hides the technical/power-user sections.
@@ -183,7 +180,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   }, [spot.id, spot.center, spot.category]);
 
   const precursor = spot.thermalDetection ? thermalPrecursors.get(spot.id) : undefined;
-  const visionResult = webcamVision.get(spot.id);
 
   /**
    * Fog for the beach verdict comes from the GATED alert, never from a raw
@@ -632,11 +628,15 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
               color={waveColor(score.waves.localHeight)}
             />
           )}
-          <Cell
-            label={score.waves.sourceBuoy ? `${score.waves.sourceBuoy} (mar abierto)` : 'Oleaje'}
-            value={`${score.waves.waveHeight.toFixed(1)} m`}
-            color={waveColor(score.waves.waveHeight)}
-          />
+          {/* The open-ocean buoy only when the spot has no sea of its own (21-oct, user: the
+              Silleiro figure next to the spot's own added nothing; it stays in the gate text). */}
+          {(score.waves.localHeight == null || score.waves.localSource === 'buoy') && (
+            <Cell
+              label={score.waves.sourceBuoy ? `Oleaje (${score.waves.sourceBuoy}, mar abierto)` : 'Oleaje'}
+              value={`${score.waves.waveHeight.toFixed(1)} m`}
+              color={waveColor(score.waves.waveHeight)}
+            />
+          )}
           {score.waves.wavePeriod != null && (
             <Cell label="Período" value={`${score.waves.wavePeriod.toFixed(0)} s`} />
           )}
@@ -928,9 +928,6 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
         </div>
       )}
 
-      {/* ── Scoring breakdown (collapsible) — wind-based, hide for surf ── */}
-      {spot.category !== 'surf' && score && score.verdict !== 'unknown' && !simpleMode && <ScoringBreakdown score={score} spot={spot} />}
-
       {/* ── Sailing windows (collapsible) — hide for surf spots ── */}
       {spot.category !== 'surf' && windowResult && <SailingWindowsSection result={windowResult} />}
 
@@ -995,20 +992,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       {/* ── Thermal precursor early warning (collapsible) ── */}
       {precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
 
-      {/* ── Webcam Vision — weather analysis from LLM (sky/visibility/fog only —
-            wind estimate hidden: moondream is not reliable for wind) ── */}
-      {visionResult && (visionResult.weather.weatherDescription || visionResult.weather.fogVisible || visionResult.weather.sky !== 'unknown') && (
-        <WebcamVisionBadge result={visionResult} />
-      )}
-
       {/* ── Webcams (collapsible) ── */}
       {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} />}
 
       {/* ── Spot wind history 24h (wind spots only — surf uses wave forecast) ── */}
       {spot.category !== 'surf' && <SpotHistoryChart spotId={spot.id} />}
-
-      {/* ── Wind patterns (collapsible) — power-user detail, hidden in simpleMode ── */}
-      {spot.windPatterns.length > 0 && !simpleMode && <WindPatterns patterns={spot.windPatterns} />}
 
       {/* ── Share + Apoyar + Timestamp ── */}
       <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-700/30">
@@ -1163,7 +1151,6 @@ function WindowRow({ window: w, isBest }: { window: SailingWindow; isBest: boole
   );
 }
 
-// WindPatterns extracted to ../spot/WindPatterns.tsx
 // WebcamSection extracted to ../spot/WebcamSection.tsx
 
 // ── Thermal precursor early warning ────────────────────────
@@ -1244,94 +1231,6 @@ function PrecursorSignalRow({ name, signal }: { name: string; signal: { active: 
         <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, background: color }} />
       </div>
       <span className="text-slate-500 w-[80px] truncate text-right" title={signal.value}>{signal.value}</span>
-    </div>
-  );
-}
-
-// ── Sky condition icons ─────────────────────────────────────
-const SKY_LABELS: Record<string, { label: string; color: string }> = {
-  clear: { label: 'Despejado', color: '#fbbf24' },
-  partly_cloudy: { label: 'Parcial', color: '#94a3b8' },
-  overcast: { label: 'Nublado', color: '#64748b' },
-  fog: { label: 'Niebla', color: '#a78bfa' },
-  rain: { label: 'Lluvia', color: '#60a5fa' },
-  storm: { label: 'Tormenta', color: '#f87171' },
-  night: { label: 'Noche', color: '#818cf8' },
-  unknown: { label: '--', color: '#64748b' },
-};
-
-const VIS_LABELS: Record<string, { color: string; label: string }> = {
-  good: { color: '#4ade80', label: 'Buena' },
-  moderate: { color: '#fbbf24', label: 'Moderada' },
-  poor: { color: '#f87171', label: 'Pobre' },
-};
-
-const LIGHT_LABELS: Record<string, string> = {
-  bright: 'Luminoso',
-  diffuse: 'Difuso',
-  dim: 'Tenue',
-  dark: 'Oscuro',
-};
-
-// ── Webcam Vision result badge ─────────────────────────────
-function WebcamVisionBadge({ result }: { result: WebcamVisionResult }) {
-  const ago = timeAgoEs(result.analyzedAt);
-  const w = result.weather;
-  const skyInfo = SKY_LABELS[w.sky] ?? SKY_LABELS.unknown;
-  const visInfo = VIS_LABELS[w.visibility] ?? VIS_LABELS.good;
-
-  return (
-    <div className="mt-1.5 pt-1 border-t border-slate-700/40 text-[11px]">
-      <div className="flex items-center gap-1.5 mb-0.5">
-        <WeatherIcon id="camera" size={11} className="text-cyan-400" />
-        <span className="text-slate-300 font-semibold">Visión IA</span>
-        <span className="text-[11px] text-slate-600 ml-auto">{ago}</span>
-      </div>
-
-      {/* Conditions grid — description from LLM omitted (English, not useful for user) */}
-      <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[11px]">
-        {/* Sky */}
-        <div className="text-slate-500">Cielo</div>
-        <div className="col-span-2"><span style={{ color: skyInfo.color }}>{skyInfo.label}</span>{w.cloudType ? ` · ${w.cloudType}` : ''}</div>
-
-        {/* Sea state */}
-        {w.seaState && (
-          <>
-            <div className="text-slate-500">Mar</div>
-            <div className="col-span-2 text-slate-400">{w.seaState}</div>
-          </>
-        )}
-
-        {/* Visibility */}
-        <div className="text-slate-500">Visib.</div>
-        <div className="col-span-2" style={{ color: visInfo.color }}>{visInfo.label}</div>
-
-        {/* Light */}
-        {w.light && (
-          <>
-            <div className="text-slate-500">Luz</div>
-            <div className="col-span-2 text-slate-400">{LIGHT_LABELS[w.light] ?? w.light}</div>
-          </>
-        )}
-
-        {/* Alerts */}
-        {w.precipitation && (
-          <>
-            <div className="text-slate-500">Precip.</div>
-            <div className="col-span-2 text-amber-400">Lluvia visible</div>
-          </>
-        )}
-        {w.fogVisible && (
-          <>
-            <div className="text-slate-500">Niebla</div>
-            <div className="col-span-2 text-amber-400">Niebla/bruma</div>
-          </>
-        )}
-      </div>
-
-      <div className="text-[10px] text-slate-600 mt-1">
-        Confianza: {result.confidence === 'high' ? 'alta' : result.confidence === 'medium' ? 'media' : 'baja'}
-      </div>
     </div>
   );
 }
