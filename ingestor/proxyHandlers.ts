@@ -394,7 +394,9 @@ export async function handleAemetDataProxy(
         aemetCache.set(key, { data: buf, contentType, ts: Date.now() });
         pruneCache(aemetCache, STALE_KEEP_MS, 50);
         upstreamDown.noteSuccess(downKey);
-      } else {
+      } else if (upstream.ok || upstream.status === 429 || upstream.status >= 500) {
+        // A 4xx other than 429 is an expired or made-up temporary url, chosen by whoever asked:
+        // counting it would let one request pause the whole resource for every visitor.
         noteUpstreamFailure('[AEMET Data Proxy]', downKey, upstream.ok ? 502 : upstream.status);
       }
 

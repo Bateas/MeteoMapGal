@@ -203,3 +203,28 @@ describe('ObsCosteiro proxy with the provider failing', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('AEMET data proxy with an expired temporary url', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it('a 404 does not pause the resource: the next visitor still asks AEMET', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-21T09:00:00Z'));
+    vi.resetModules();
+    const { handleAemetDataProxy } = await import('./proxyHandlers');
+    const fetchMock = vi.fn(async () => new Response('{"estado":404}', { status: 404 }));
+    vi.stubGlobal('fetch', fetchMock);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const call = async () => { const r = fakeRes(); await handleAemetDataProxy('/opendata/sh/deadbeef', r as any); return r; };
+
+    let r = await call();
+    expect(r.status).toBe(404);
+    r = await call();
+    expect(r.headers['x-cache']).not.toBe('DOWN');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
