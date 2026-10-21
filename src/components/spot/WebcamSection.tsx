@@ -5,7 +5,10 @@ import type { SpotWebcam } from '../../config/spots';
 
 export function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
   const [open, setOpen] = useState(false);
-  const [imgKey, setImgKey] = useState(0);
+  // Stable per 5-min slot: the popup re-renders on every scoring pass, and a
+  // Date.now() in the URL turned each render into a new request to MeteoGalicia
+  // that the proxy cache could never answer. Same slot for every visitor = shared.
+  const [imgKey, setImgKey] = useState(() => Math.floor(Date.now() / 300_000));
 
   return (
     <div className="mt-2 pt-1.5 border-t border-slate-700/40">
@@ -31,7 +34,7 @@ export function WebcamSection({ webcams }: { webcams: SpotWebcam[] }) {
                 <>
                   <img
                     key={imgKey}
-                    src={`${cam.url.replace('https://www.meteogalicia.gal/', '/meteogalicia-api/')}?_t=${imgKey || Date.now()}`}
+                    src={`${cam.url.replace('https://www.meteogalicia.gal/', '/meteogalicia-api/')}?_t=${imgKey}`}
                     alt={cam.label}
                     className="w-full rounded border border-slate-700/60"
                     loading="lazy"

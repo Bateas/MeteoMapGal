@@ -296,7 +296,11 @@ export async function handleAemetDataProxy(
 
 // ── MeteoSIX proxy (server-side key injection) ─────────
 const meteosixCache = new Map<string, { data: Buffer; contentType: string; ts: number }>();
-const METEOSIX_CACHE_TTL = 3 * 60_000;
+// The WRF runs twice a day and the ingestor itself keeps it 60 min: a 3-min
+// TTL sent up to 480 requests a day per URL to MeteoGalicia for the same run.
+const METEOSIX_CACHE_TTL = 60 * 60_000;
+/** Lets the edge share one copy among visitors; good answers only. */
+const METEOSIX_EDGE_CACHE = 'public, max-age=600';
 
 const MS_ALLOWED_PATHS = new Set(['/getNumericForecastInfo', '/getTidesInfo']);
 
@@ -326,7 +330,7 @@ export async function handleMeteoSixProxy(
   const cacheKey = `${msPath}?${query}`;
   const cached = meteosixCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < METEOSIX_CACHE_TTL) {
-    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'HIT' });
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'Cache-Control': METEOSIX_EDGE_CACHE, 'X-Cache': 'HIT' });
     res.end(cached.data);
     return;
   }
@@ -356,7 +360,12 @@ export async function handleMeteoSixProxy(
       return;
     }
 
-    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.writeHead(value.status, {
+      ...corsHeaders(origin),
+      'Content-Type': value.contentType,
+      'Cache-Control': value.good ? METEOSIX_EDGE_CACHE : 'no-store',
+      'X-Cache': joined ? 'JOINED' : 'MISS',
+    });
     res.end(value.buf);
   } catch (err) {
     log.error('[MeteoSIX Proxy]', (err as Error).message);

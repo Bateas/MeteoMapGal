@@ -40,6 +40,7 @@ import { describeSweep, type SweepStatus } from './sourceHealth.js';
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import * as aemetBreaker from './aemetBreaker.js';
+import { aemetPollDue, isAemetQuotaAnswer } from './aemetCadence.js';
 import * as mgBreaker from './mgBreaker.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
@@ -51,6 +52,9 @@ const NETATMO_API = 'https://app.netatmo.net';
 const TIMEOUT = 15_000;
 
 // ── AEMET observations ───────────────────────────────
+
+let aemetLastGoodAt: number | null = null;
+let aemetLastReadings: NormalizedReading[] = [];
 
 async function fetchAemet(
   stationIds: Set<string>
@@ -67,6 +71,12 @@ async function fetchAemet(
     return [];
   }
 
+  // Hourly data: between good answers, hand back the last batch (the upsert
+  // ignores rows it already has) instead of downloading the same file again.
+  if (!aemetPollDue(aemetLastGoodAt, Date.now())) {
+    return aemetLastReadings.filter((r) => stationIds.has(r.stationId));
+  }
+
   try {
     // Step 1: metadata URL
     const metaRes = await fetch(
@@ -80,6 +90,10 @@ async function fetchAemet(
     }
 
     const meta: AemetApiResponse = await metaRes.json();
+    if (isAemetQuotaAnswer(metaRes.status, meta.estado)) {
+      aemetBreaker.reportRateLimit('observation poll');
+      return [];
+    }
     if (meta.estado !== 200 || !meta.datos) {
       log.warn('AEMET obs: unexpected status', meta.estado);
       return [];
@@ -108,6 +122,10 @@ async function fetchAemet(
       .map(normalizeAemetObservation);
 
     aemetBreaker.reportSuccess();
+    if (readings.length > 0) {
+      aemetLastGoodAt = Date.now();
+      aemetLastReadings = readings;
+    }
     log.info(`AEMET: ${readings.length} readings`);
     return readings;
   } catch (err) {
