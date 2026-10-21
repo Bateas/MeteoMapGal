@@ -75,9 +75,12 @@ export function computeCompositeRisk(alerts: UnifiedAlert[]): CompositeRisk {
   // Respect individual alert severity caps: if the winning alert has a capped severity
   // (e.g. inversion capped at 'moderate'), don't let the composite exceed it.
   // Only cap DOWN, never cap UP (an alert can't raise its own severity beyond what it declared).
+  // And the other way: an alert that declared itself critical with a score under 85 (pressure
+  // 75-84, three-kind fog 80, open-sea cross sea 80) showed a red card under an orange light
+  // («ALERTA») and no banner. The light follows the winning alert's own severity then.
   const severity = SEVERITY_RANK[derivedSeverity] > SEVERITY_RANK[winningSeverity]
     ? winningSeverity
-    : derivedSeverity;
+    : winningSeverity === 'critical' ? 'critical' : derivedSeverity;
 
   return {
     score: finalScore,

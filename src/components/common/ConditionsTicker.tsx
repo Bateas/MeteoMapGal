@@ -521,7 +521,12 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
       const etaStr = stormPrediction.etaMinutes != null && stormPrediction.etaMinutes < 120
         ? ` ETA ~${stormPrediction.etaMinutes}min`
         : '';
-      const text = isImminent
+      // With measured lightning overhead it is not a probability any more: say what is happening,
+      // the same words as the alert panel and the banner.
+      const stormOverhead = unifiedAlerts.some((a) => a.category === 'storm' && a.severity === 'critical');
+      const text = isImminent && stormOverhead
+        ? 'TORMENTA ENCIMA · rayos medidos'
+        : isImminent
         ? `TORMENTA INMINENTE ${stormPrediction.probability}%${etaStr}`
         : isLikely
         ? `Tormenta probable ${stormPrediction.probability}%${etaStr}`

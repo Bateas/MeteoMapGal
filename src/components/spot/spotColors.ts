@@ -3,14 +3,14 @@
  * Pure functions — no React, no side effects.
  */
 
-/** Wave bar color for mini forecast chart */
+/** Wave bar color for the surf «Olas 24h» strip: the same bands and colours as the surf verdict's
+ *  base level (surfVerdictEngine: FLAT <0,3 · PEQUE <0,8 · SURF OK <1,5 · CLÁSICO <2,5 · GRANDE). */
 export function waveBarColor(m: number): string {
-  if (m < 0.5) return 'rgba(100,116,139,0.4)'; // flat — grey
-  if (m < 1.0) return 'rgba(34,211,238,0.5)';  // small — cyan
-  if (m < 1.5) return 'rgba(56,189,248,0.6)';  // medium — sky
-  if (m < 2.5) return 'rgba(59,130,246,0.7)';  // good — blue
-  if (m < 4.0) return 'rgba(234,179,8,0.7)';   // big — yellow
-  return 'rgba(239,68,68,0.8)';                  // huge — red
+  if (m < 0.3) return 'rgba(100,116,139,0.45)'; // FLAT
+  if (m < 0.8) return 'rgba(34,211,238,0.55)';  // PEQUE
+  if (m < 1.5) return 'rgba(59,130,246,0.65)';  // SURF OK
+  if (m < 2.5) return 'rgba(34,197,94,0.7)';    // CLÁSICO
+  return 'rgba(249,115,22,0.8)';                 // GRANDE
 }
 
 /** Wind speed color aligned with verdict thresholds */
@@ -24,13 +24,6 @@ export function windKtColor(kt: number): string {
   if (kt < 40) return '#a855f7';  // storm — violet
   if (kt < 50) return '#7c3aed';  // severe storm — dark violet
   return '#1e1b4b';               // hurricane — near-black
-}
-
-export function waveColor(m: number): string {
-  if (m < 0.5) return '#94a3b8';
-  if (m < 1.0) return '#34d399';
-  if (m < 2.0) return '#fbbf24';
-  return '#f87171';
 }
 
 export function humidityColor(h: number): string {

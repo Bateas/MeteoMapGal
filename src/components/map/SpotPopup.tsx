@@ -47,8 +47,8 @@ import { detectViracionPhase } from '../../services/viracionDetector';
 import { assessRainNowcast } from '../../services/rainNowcastService';
 import { useRainNowStore } from '../../store/rainNowStore';
 import { assessBeachDay } from '../../services/beachDayService';
-import { waterTempLabel } from '../../services/buoyUtils';
-import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
+import { waterTempLabel, waveHeightColor } from '../../services/buoyUtils';
+import { waveBarColor, windKtColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotWarningNotice } from '../spot/SpotWarningNotice';
 import { SpotPushOptIn } from '../spot/SpotPushOptIn';
@@ -625,7 +625,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
             <Cell
               label={score.waves.localSource === 'swan' ? 'Ola en la zona (SWAN)' : 'Ola en la zona (estimada)'}
               value={`${score.waves.localSource === 'estimate' ? '≈' : ''}${score.waves.localHeight.toFixed(1)} m`}
-              color={waveColor(score.waves.localHeight)}
+              color={waveHeightColor(score.waves.localHeight)}
             />
           )}
           {/* The open-ocean buoy only when the spot has no sea of its own (21-oct, user: the
@@ -634,7 +634,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
             <Cell
               label={score.waves.sourceBuoy ? `Oleaje (${score.waves.sourceBuoy}, mar abierto)` : 'Oleaje'}
               value={`${score.waves.waveHeight.toFixed(1)} m`}
-              color={waveColor(score.waves.waveHeight)}
+              color={waveHeightColor(score.waves.waveHeight)}
             />
           )}
           {score.waves.wavePeriod != null && (

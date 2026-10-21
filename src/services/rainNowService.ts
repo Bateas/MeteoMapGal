@@ -155,11 +155,13 @@ export function classifyGauges(opts: {
   });
 }
 
-/** Coarse intensity of a gauge's rain over the window. */
+/** Coarse intensity of a gauge's rain over the window, on AEMET's scale (2 / 15 mm/h): the same
+ *  bands the alert uses (rainNowAlerts.ts). At 10 the map said «fuerte» where the alert said
+ *  «moderada» for the same gauge. */
 export function gaugeIntensity(mmInWindow: number): 'debil' | 'moderada' | 'fuerte' {
   const perHour = mmInWindow * (60 / RAIN_WINDOW_MIN);
   if (perHour < 2) return 'debil';
-  if (perHour < 10) return 'moderada';
+  if (perHour < 15) return 'moderada';
   return 'fuerte';
 }
 

@@ -52,7 +52,8 @@ export const CriticalAlertBanner = memo(function CriticalAlertBanner() {
     const topAlert = criticalAlerts[0];
     if (!topAlert) return null;
 
-    title = `PELIGRO · ${topAlert.title}`;
+    // Some titles already start with «PELIGRO —» (storm overhead): no «PELIGRO · PELIGRO».
+    title = /^PELIGRO/.test(topAlert.title) ? topAlert.title : `PELIGRO · ${topAlert.title}`;
     subtitle = criticalAlerts.length > 1
       ? `${criticalAlerts.length} alertas criticas activas`
       : topAlert.detail;

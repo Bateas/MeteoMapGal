@@ -7,7 +7,7 @@
 import { useMemo, useEffect, useCallback } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { BUOY_COORDS_MAP, type BuoyReading } from '../../api/buoyClient';
-import { temperatureColor } from '../../services/windUtils';
+import { waterTempColor } from '../../services/buoyUtils';
 
 /**
  * In the map's credits while the buoys are drawn. Puertos del Estado asks for its
@@ -88,7 +88,8 @@ export function BuoySymbolLayer({
 
       const waveLabel = buoy.waveHeight != null ? `${buoy.waveHeight.toFixed(1)}m` : '';
       const isSelected = buoy.stationId === selectedBuoyId;
-      const tempColor = temperatureColor(buoy.waterTemp ?? null);
+      // Water scale, the one the buoy popup uses: the air scale painted 16 °C water lime here and green there.
+      const tempColor = waterTempColor(buoy.waterTemp ?? null);
 
       features.push({
         type: 'Feature',

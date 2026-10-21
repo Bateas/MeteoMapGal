@@ -1363,10 +1363,13 @@ function LunarCalendarDropdown() {
 function AlertHistorySection() {
   const history = useAlertStore((s) => s.alertHistory);
 
+  // Same colours as the live alert panel (AlertPanel SEVERITY_COLORS): a «moderate» was blue
+  // here and yellow there, a «high» amber here and orange there.
   const SEVERITY_DOT: Record<string, string> = {
     critical: '#ef4444',
-    high: '#f59e0b',
-    moderate: '#3b82f6',
+    high: '#f97316',
+    moderate: '#eab308',
+    info: '#3b82f6',
   };
 
   if (history.length === 0) {

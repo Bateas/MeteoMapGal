@@ -152,7 +152,7 @@ describe('buildWindTrendAlerts — rapid ramp emits alert', () => {
     expect(buildWindTrendAlerts(current, history)[0].severity).toBe('high');
   });
 
-  it('single-station rapid ramp caps to moderate (no spatial corroboration)', () => {
+  it('single-station rapid ramp stays info: shown, but it does not light the AVISO (21-oct)', () => {
     // 9 m/s ≈ 17.5 kt but only ONE station → likely a dirty sensor, not a front
     const current = new Map([['mg_x', r({ offsetMin: 0, windMs: 9 })]]);
     const history = new Map([['mg_x', [
@@ -162,19 +162,20 @@ describe('buildWindTrendAlerts — rapid ramp emits alert', () => {
       r({ offsetMin: 0, windMs: 9 }),
     ]]]);
     const a = buildWindTrendAlerts(current, history)[0];
-    expect(a.severity).toBe('moderate');
+    expect(a.severity).toBe('info');
     expect(a.urgent).toBe(false);
   });
 
-  it('severity=moderate when current 8-14kt', () => {
+  it('severity=moderate when current 8-14kt and two stations ramp', () => {
     // 5.5 m/s ≈ 10.7 kt — above 8 but below 15
-    const current = new Map([['mg_x', r({ offsetMin: 0, windMs: 5.5 })]]);
-    const history = new Map([['mg_x', [
+    const ramp = [
       r({ offsetMin: -28, windMs: 0.5 }),
       r({ offsetMin: -18, windMs: 1.5 }),
       r({ offsetMin: -8, windMs: 3.5 }),
       r({ offsetMin: 0, windMs: 5.5 }),
-    ]]]);
+    ];
+    const current = new Map([['mg_x', r({ offsetMin: 0, windMs: 5.5 })], ['mg_y', r({ offsetMin: 0, windMs: 5.5 })]]);
+    const history = new Map([['mg_x', ramp], ['mg_y', ramp]]);
     expect(buildWindTrendAlerts(current, history)[0].severity).toBe('moderate');
   });
 

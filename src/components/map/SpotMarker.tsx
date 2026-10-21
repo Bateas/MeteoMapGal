@@ -15,7 +15,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
-import { VERDICT_STYLE, gateWaveText, gateWaveWhere } from '../../config/verdictStyles';
+import { VERDICT_STYLE, gateWaveText, gateWaveWhere, isWaveGate } from '../../config/verdictStyles';
 import { clusterSpots, CLUSTER_DISABLE_ZOOM, type SpotClusterGroup } from '../../services/spotClustering';
 import { formatSurfWave, surfDisplayState, type SurfVerdictResult } from '../../services/surfVerdictEngine';
 
@@ -107,6 +107,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
               cluster={item}
               zoomScale={zoomScale}
               onClick={handleClusterClick}
+              seaClosed={item.spots.some((sp) => isWaveGate(scores.get(sp.id)))}
             />
           );
         }
@@ -166,12 +167,15 @@ interface SpotClusterMarkerProps {
   cluster: SpotClusterGroup;
   zoomScale: number;
   onClick: (c: SpotClusterGroup) => void;
+  /** A grouped spot is closed by the SEA: the group says so instead of «fuerte» (wind). */
+  seaClosed?: boolean;
 }
 
 const SpotClusterMarker = memo(function SpotClusterMarker({
   cluster,
   zoomScale,
   onClick,
+  seaClosed,
 }: SpotClusterMarkerProps) {
   const colors = VERDICT_COLORS[cluster.worstVerdict];
   const size = 44 * zoomScale;
@@ -183,7 +187,8 @@ const SpotClusterMarker = memo(function SpotClusterMarker({
   // The Marker wrapper is the keyboard button (see markerA11y); it carries the
   // name the inner <button> used to have.
   // Spoken name: Spanish, like the rest of the UI (the enum key is 'calm'/'sailing').
-  const label = `Grupo de ${cluster.count} spots; el peor, ${VERDICT_STYLE[cluster.worstVerdict].label.toLowerCase()}`;
+  const worst = seaClosed && cluster.worstVerdict === 'strong' ? 'cerrado por oleaje' : VERDICT_STYLE[cluster.worstVerdict].label.toLowerCase();
+  const label = `Grupo de ${cluster.count} spots; el peor, ${worst}`;
   const markerRef = useCallback(
     (mk: MarkerInstance | null) => makeMarkerButton(mk, label, () => onClick(cluster)),
     [label, onClick, cluster],
@@ -200,7 +205,7 @@ const SpotClusterMarker = memo(function SpotClusterMarker({
         onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
         className="relative flex items-center justify-center transition-transform hover:scale-110 cursor-pointer bg-transparent border-0 p-0"
         style={{ width: svgSize, height: svgSize }}
-        title={`${cluster.count} spots — click para acercar`}
+        title={`${cluster.count} spots${seaClosed ? ' (uno cerrado por oleaje)' : ''} — click para acercar`}
       >
         <svg
           width={svgSize}

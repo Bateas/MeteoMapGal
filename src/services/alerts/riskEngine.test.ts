@@ -194,6 +194,14 @@ describe('computeCompositeRisk — severity cap respects alert intent', () => {
     expect(result.severity).toBe('critical');
     expect(result.color).toBe('red');
   });
+
+  it('a critical alert with a score under 85 still turns the light red (red card, red light)', () => {
+    const result = computeCompositeRisk([
+      alert({ score: 80, category: 'fog', severity: 'critical' }),
+    ]);
+    expect(result.severity).toBe('critical');
+    expect(result.color).toBe('red');
+  });
 });
 
 // ── computeCompositeRisk — determinism + edge cases ───────────

@@ -37,7 +37,9 @@ export function buildWindTrendAlerts(
     alerts.push({
       id: `wind-trend-${stationId}`,
       category: 'wind-front',
-      severity: corroborated && trend.currentKt >= 15 ? 'high' : 'moderate',
+      // One station alone is shown (info) but does not light the AVISO: the rigour rule wants two
+      // independent sources before an alert counts, and one anemometer can be dirty or gusty.
+      severity: !corroborated ? 'info' : trend.currentKt >= 15 ? 'high' : 'moderate',
       score: Math.min(corroborated ? 90 : 55, Math.round(trend.deltaKt * 8)),
       title: `Cambio brusco: +${trend.deltaKt.toFixed(0)}kt en ${stationName}`,
       detail: `Viento subió de ${trend.startKt.toFixed(0)}kt a ${trend.currentKt.toFixed(0)}kt en 30min.${corroborated ? '' : ' (1 estación — sin confirmar)'} ${trend.dirTrend !== 'stable' ? (trend.dirTrend === 'veering' ? 'Rolada a derechas.' : 'Rolada a izquierdas.') : ''}`,

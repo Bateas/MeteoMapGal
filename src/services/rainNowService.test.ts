@@ -97,7 +97,8 @@ describe('gaugeIntensity', () => {
   it('bands the half-hour rain as an hourly rate', () => {
     expect(gaugeIntensity(0.4)).toBe('debil');
     expect(gaugeIntensity(2)).toBe('moderada');
-    expect(gaugeIntensity(6)).toBe('fuerte');
+    expect(gaugeIntensity(6)).toBe('moderada'); // 12 mm/h: moderate on AEMET's scale, as the alert says
+    expect(gaugeIntensity(8)).toBe('fuerte');
   });
 });
 
