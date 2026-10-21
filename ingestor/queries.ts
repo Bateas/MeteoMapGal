@@ -13,7 +13,9 @@ import type { RecentReportRow } from '../src/services/fieldReport.js';
 export interface StationInfo {
   station_id: string;
   source: string;
-  last_reading: string;
+  /** Last reading within the last STATION_STATS_DAYS; null if the station was quiet all that time. */
+  last_reading: string | null;
+  /** Readings within the last STATION_STATS_DAYS (not since the start). */
   reading_count: number;
   lat: number;
   lon: number;
@@ -177,22 +179,32 @@ export async function queryRecentFieldReports(spotId: string, windowMin: number)
 }
 
 /** List all stations with their last reading time, count, and coordinates */
+/** The Historico station list. Counts and last reading cover the last STATION_STATS_DAYS: until
+ *  v2.191.2 it grouped the WHOLE readings hypertable on every cold call (3.8 s on 30-sep, 9.8 s on
+ *  21-oct, growing with the table toward the 15 s client limit). The base is the stations table,
+ *  so a station quiet for a week is still listed (with no recent count). */
+export const STATION_STATS_DAYS = 7;
+
 export async function queryStations(): Promise<StationInfo[]> {
   const db = getPool();
   const result = await db.query<StationInfo>(`
     SELECT
-      r.station_id,
-      r.source,
-      MAX(r.time)::text AS last_reading,
-      COUNT(*)::int AS reading_count,
-      COALESCE(s.latitude, 0) AS lat,
-      COALESCE(s.longitude, 0) AS lon,
+      s.station_id,
+      s.source,
+      r.last_time::text AS last_reading,
+      COALESCE(r.n, 0)::int AS reading_count,
+      s.latitude AS lat,
+      s.longitude AS lon,
       s.province
-    FROM readings r
-    LEFT JOIN stations s ON r.station_id = s.station_id
-    GROUP BY r.station_id, r.source, s.latitude, s.longitude, s.province
-    ORDER BY r.source, r.station_id
-  `);
+    FROM stations s
+    LEFT JOIN (
+      SELECT station_id, MAX(time) AS last_time, COUNT(*) AS n
+        FROM readings
+       WHERE time > NOW() - make_interval(days => $1)
+       GROUP BY station_id
+    ) r ON r.station_id = s.station_id
+    ORDER BY s.source, s.station_id
+  `, [STATION_STATS_DAYS]);
   // Served by the public API: private stations' positions rounded (publicLocation.ts).
   return withPublicLocation(result.rows);
 }

@@ -506,7 +506,7 @@ export const HistoryDashboard = memo(function HistoryDashboard() {
                   const srcLabel = SOURCE_LABELS[s.source] ?? s.source;
                   return (
                     <option key={s.station_id} value={s.station_id}>
-                      {name ? `${name} (${srcLabel})` : s.station_id} — {s.reading_count.toLocaleString()} lecturas
+                      {name ? `${name} (${srcLabel})` : s.station_id} — {s.station_id.startsWith('buoy_') ? `${s.reading_count.toLocaleString()} lecturas` : `${s.reading_count.toLocaleString()} lecturas en 7 días`}
                     </option>
                   );
                 })}

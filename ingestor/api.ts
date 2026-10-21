@@ -969,7 +969,7 @@ const routes: Record<string, RouteHandler> = {
 // the bundle is public) — so the defense is depth, not authentication:
 // same-origin gate + per-IP rate limit + strict value validation.
 
-const STORM_POST_MAX = 12;                      // per IP per hour (frontend dedups to ~1/min max)
+const STORM_POST_MAX = 36;                      // per IP per hour: one tab posts at most 12 (5-min throttle); 12 dropped the 2nd tab on storm days (6-oct: 54 x 429)
 const STORM_POST_WINDOW_MS = 60 * 60_000;
 const STORM_POST_MAX_BODY = 10 * 1024;          // 10 KB — real payloads are <1 KB
 const STORM_SECTORS = new Set(['rias', 'embalse']);

@@ -15,7 +15,9 @@ const TIMEOUT = 15_000;
 export interface HistoryStation {
   station_id: string;
   source: string;
-  last_reading: string;
+  /** Null when the station sent nothing in the last 7 days. */
+  last_reading: string | null;
+  /** Stations: readings in the last 7 days. Buoys: since the start. */
   reading_count: number;
 }
 
