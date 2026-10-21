@@ -1,14 +1,17 @@
 /**
- * NAO/AO teleconnection index client — fetches daily indices from NOAA CPC.
- * Data: ftp.cpc.ncep.noaa.gov/cwlinks/
- * Format: "YYYY  M  D  value" per line (space-separated).
- * Cached 6h (indices update daily, no rush).
+ * NAO/AO teleconnection indices (NOAA CPC daily files, read by our server: ingestor/teleconnections.ts).
+ * Format of the files: "YYYY  M  D  value" per line (space-separated).
  */
 
-const NAO_URL = '/noaa-api/cwlinks/norm.daily.nao.index.b500101.current.ascii';
-const AO_URL = '/noaa-api/cwlinks/norm.daily.ao.index.b500101.current.ascii';
+/** Our own API: the server reads both NOAA files once every 12 h and hands back four numbers each
+ *  (each visitor used to download 2 x ~500 KB to read 35 lines). */
+const URL_PATH = '/api/v1/teleconnections';
 
 const CACHE_TTL = 6 * 60 * 60_000; // 6 hours
+
+/** NOAA's «current» file can stop for weeks (on 21-oct-2026 it ended on 30-sep). An index older
+ *  than this is not today's circulation and is not used. */
+export const MAX_INDEX_AGE_DAYS = 10;
 
 export interface TeleconnectionIndex {
   name: 'NAO' | 'AO';
@@ -18,15 +21,8 @@ export interface TeleconnectionIndex {
   avg30d: number;     // 30-day running average
 }
 
-interface CacheEntry {
-  data: TeleconnectionIndex;
-  fetchedAt: number;
-}
-
-const cache = new Map<string, CacheEntry>();
-
 /** Parse the last N days from a NOAA index file */
-function parseLast(text: string, name: 'NAO' | 'AO', days: number): { values: { date: string; val: number }[] } {
+function parseLast(text: string, days: number): { date: string; val: number }[] {
   const lines = text.trim().split('\n');
   const values: { date: string; val: number }[] = [];
 
@@ -41,49 +37,47 @@ function parseLast(text: string, name: 'NAO' | 'AO', days: number): { values: { 
     const date = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
     values.push({ date, val });
   }
-  return { values };
+  return values;
 }
 
-async function fetchIndex(url: string, name: 'NAO' | 'AO'): Promise<TeleconnectionIndex> {
-  const cached = cache.get(name);
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.data;
-
-  const resp = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!resp.ok) throw new Error(`NOAA ${name}: ${resp.status}`);
-  const text = await resp.text();
-
-  const { values } = parseLast(text, name, 35); // need 30+ for avg
-  if (values.length < 2) throw new Error(`NOAA ${name}: insufficient data`);
-
+/** A NOAA daily index file -> latest value, 7-day trend and 30-day mean (pure; the server uses it). */
+export function summariseIndex(text: string, name: 'NAO' | 'AO'): TeleconnectionIndex | null {
+  const values = parseLast(text, 35); // need 30+ for avg
+  if (values.length < 2) return null;
   const latest = values[values.length - 1];
   const weekAgo = values.length >= 8 ? values[values.length - 8] : values[0];
   const last30 = values.slice(-30);
   const avg30d = last30.reduce((s, v) => s + v.val, 0) / last30.length;
-
-  const result: TeleconnectionIndex = {
+  return {
     name,
     date: latest.date,
     value: latest.val,
     trend: latest.val - weekAgo.val,
     avg30d: Math.round(avg30d * 100) / 100,
   };
-
-  cache.set(name, { data: result, fetchedAt: Date.now() });
-  return result;
 }
 
-export async function fetchNAO(): Promise<TeleconnectionIndex> {
-  return fetchIndex(NAO_URL, 'NAO');
+/** True when the index is recent enough to describe today's circulation (pure, tested). */
+export function isFreshIndex(index: Pick<TeleconnectionIndex, 'date'>, now = Date.now()): boolean {
+  const t = Date.parse(`${index.date}T00:00:00Z`);
+  return Number.isFinite(t) && now - t <= MAX_INDEX_AGE_DAYS * 86_400_000;
 }
 
-export async function fetchAO(): Promise<TeleconnectionIndex> {
-  return fetchIndex(AO_URL, 'AO');
-}
+let cache: { at: number; data: TeleconnectionIndex[] } | null = null;
 
+/** The fresh indices only: a stale file gives an empty list, so nothing modulates on old data. */
 export async function fetchTeleconnections(): Promise<TeleconnectionIndex[]> {
-  const [nao, ao] = await Promise.allSettled([fetchNAO(), fetchAO()]);
-  const results: TeleconnectionIndex[] = [];
-  if (nao.status === 'fulfilled') results.push(nao.value);
-  if (ao.status === 'fulfilled') results.push(ao.value);
-  return results;
+  if (!cache || Date.now() - cache.at >= CACHE_TTL) {
+    try {
+      const resp = await fetch(URL_PATH, { signal: AbortSignal.timeout(10_000) });
+      if (!resp.ok) return [];
+      const body = (await resp.json()) as { indices?: TeleconnectionIndex[] };
+      cache = { at: Date.now(), data: Array.isArray(body.indices) ? body.indices : [] };
+    } catch {
+      return [];
+    }
+  }
+  return cache.data.filter((i) => isFreshIndex(i));
 }
+
+export function __clearTeleconnectionsForTests(): void { cache = null; }

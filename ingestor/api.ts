@@ -14,6 +14,7 @@
  *   GET /api/v1/readings/latest  → Latest weather reading per station
  *   GET /api/v1/readings/precip-recent → Every station's precipitation, last 75 min (rain layer cold start)
  *   GET /api/v1/readings/recent        → Every station's readings of the last 3 h (page history on load; replaces model values)
+ *   GET /api/v1/teleconnections      → NAO/AO latest values (NOAA, read every 12 h by the server)
  *   GET /api/v1/readings/compare → Multi-station comparison
  *   GET /api/v1/stats            → Aggregate statistics
  *   GET /api/v1/buoys            → All buoy stations with last reading
@@ -76,6 +77,7 @@ import { corsHeaders, json, error, dbError, parseSearchParams, ALLOWED_ORIGINS }
 import { handleWebcamUpload } from './webcamHandler.js';
 import { queryMgAuxLatest, parseMgAuxStationId } from './mgAuxLatest.js';
 import { queryRecentReadings } from './recentReadings.js';
+import { queryTeleconnections } from './teleconnections.js';
 import { queryRecentPrecip } from './recentPrecip.js';
 import {
   handleAemetProxy,
@@ -894,6 +896,20 @@ async function handleRecentReadings(
   }
 }
 
+async function handleTeleconnections(
+  _params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  try {
+    const data = await queryTeleconnections();
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    json(res, data, 200, origin);
+  } catch (err) {
+    error(res, `NOAA: ${(err as Error).message}`, 502, origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────
 
 type RouteHandler = (
@@ -913,6 +929,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/readings/latest': handleLatest,
   '/api/v1/readings/precip-recent': handleRecentPrecip,
   '/api/v1/readings/recent': handleRecentReadings,
+  '/api/v1/teleconnections': handleTeleconnections,
   '/api/v1/readings/compare': handleCompare,
   '/api/v1/stats': handleStats,
   // Buoy endpoints
