@@ -76,28 +76,33 @@ export function buildFieldAlerts(
 
     let detail = `${field.rain.maxPrecip.toFixed(1)} mm/h · ${timeLabel}`;
     if (field.rain.rainAccum6h > 0) detail += ` · ${field.rain.rainAccum6h}mm en 6h`;
-    if (field.rain.hailRisk) detail += ' · GRANIZO';
+    if (field.rain.hailRisk) detail += ' · posible granizo según el modelo (CAPE y lluvia), sin rayos ni radar que lo confirmen';
 
     // Title reflects imminence
     let title: string;
     if (field.rain.hailRisk) {
-      title = 'Riesgo de GRANIZO';
+      title = 'Posible granizo (modelo)';
     } else if (field.rain.hoursUntilRain !== null && field.rain.hoursUntilRain <= 1) {
       title = 'Lluvia inminente';
     } else {
       title = 'Lluvia prevista';
     }
 
-    const rainSeverity = field.rain.level === 'riesgo' ? 'info' as const : severityFromScore(score);
+    // Hail here comes from the MODEL alone (CAPE > 1000 and > 5 mm/h): like the storm predictor
+    // without lightning, it never goes past an AVISO (moderate) nor turns urgent. Before, it
+    // was critical and lit the red banner from a forecast nobody had confirmed.
+    const rainSeverity = field.rain.level === 'riesgo' ? 'info' as const
+      : field.rain.hailRisk ? 'moderate' as const
+      : severityFromScore(score);
     results.push({
       id: 'rain-forecast',
       category: 'rain',
       severity: rainSeverity,
-      score: Math.min(100, field.rain.hailRisk ? score + 20 : score),
+      score: field.rain.hailRisk ? Math.min(score, 50) : score,
       icon: field.rain.hailRisk ? 'hail' : 'cloud-rain',
       title,
       detail,
-      urgent: field.rain.hailRisk || field.rain.level === 'critico',
+      urgent: !field.rain.hailRisk && field.rain.level === 'critico',
       updatedAt: now,
     });
   }

@@ -318,10 +318,11 @@ export async function dispatchVisibilityAlert(
     type: 'visibility-alert',
     spot: spotId,
     sector: 'Rias Baixas',
-    text: `Niebla en ${camLabel}`,
+    text: `Niebla probable en ${camLabel}`,
     severity: 'moderate',
-    title: `Niebla detectada — ${camLabel}`,
-    message: `Webcam ${camLabel}: niebla real detectada por Vision IA — visibilidad pobre.`,
+    // The camera is read by an AI model: «probable», not «real» (same wording as the map).
+    title: `Niebla probable — ${camLabel}`,
+    message: `Webcam ${camLabel}: la IA de la cámara ve niebla (visibilidad pobre), con una estación cercana que lo apoya. No es una medida de visibilidad.`,
   }, `visibility:${siteId}`);
 
   if (ok) {

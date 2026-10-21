@@ -150,14 +150,15 @@ describe('buildFieldAlerts — rain', () => {
     expect(buildFieldAlerts(f)[0].title).toBe('Lluvia inminente');
   });
 
-  it('hailRisk → "Riesgo de GRANIZO" + score boost +20', () => {
+  it('hail from the model alone is a «posible granizo» AVISO, never urgent (21-oct audit)', () => {
     const f = emptyField();
-    f.rain = { ...f.rain, level: 'alto', maxPrecip: 5, hailRisk: true, hoursUntilRain: 1 };
+    f.rain = { ...f.rain, level: 'critico', maxPrecip: 8, hailRisk: true, hoursUntilRain: 1 };
     const alerts = buildFieldAlerts(f);
-    expect(alerts[0].title).toBe('Riesgo de GRANIZO');
+    expect(alerts[0].title).toBe('Posible granizo (modelo)');
     expect(alerts[0].icon).toBe('hail');
-    expect(alerts[0].score).toBe(75); // 55 + 20
-    expect(alerts[0].urgent).toBe(true);
+    expect(alerts[0].severity).toBe('moderate');
+    expect(alerts[0].score).toBeLessThanOrEqual(50);
+    expect(alerts[0].urgent).toBe(false);
   });
 
   it('rain level=riesgo downgraded to severity=info', () => {

@@ -764,12 +764,14 @@ export function buildMaritimeFogAlerts(
       title: hasOfficial && cams > 0
         ? 'Niebla confirmada (AEMET + cámaras)'
         : hasOfficial
-        ? 'Niebla confirmada (AEMET aeropuerto)'
+        ? 'Niebla confirmada (AEMET)'
+        // «Confirmada» only with a certified sensor (AEMET here, METAR elsewhere). Cameras are read
+        // by an AI model and radiation is indirect: they make fog likely, not confirmed.
         : cams > 0 && signature
-        ? 'Niebla confirmada (cámaras + radiación)'
-        : cams > 0 ? 'Niebla detectada en webcams'
+        ? `Niebla probable (vista en ${cams === 1 ? '1 cámara' : `${cams} cámaras`} + radiación)`
+        : cams > 0 ? `Niebla probable (vista en ${cams === 1 ? '1 cámara' : `${cams} cámaras`})`
         : 'Niebla probable en la costa',
-      detail: parts.join(' · ') + (hasOfficial || cams > 0 ? '. Visibilidad reducida confirmada.' : '.'),
+      detail: parts.join(' · ') + (hasOfficial ? '. Visibilidad reducida medida por AEMET.' : '.'),
       urgent: critical,
       updatedAt: new Date(),
       confidence: hasOfficial ? 98 : (cams > 0 && signature ? 95 : 80),

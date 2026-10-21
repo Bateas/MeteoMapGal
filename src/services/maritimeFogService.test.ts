@@ -254,7 +254,7 @@ describe('buildMaritimeFogAlerts — kinds of evidence, not counts (12-oct)', ()
 
   it('a camera site + the signature fire; a lone camera with the physics does not (30-sep)', () => {
     const camSig = evidence(buildMaritimeFogAlerts([], readings(), stations, true, 1, ['mg-cangas'], undefined, undefined, 0));
-    expect(camSig?.title).toBe('Niebla confirmada (cámaras + radiación)');
+    expect(camSig?.title).toBe('Niebla probable (vista en 1 cámara + radiación)');
     const camPhys = evidence(buildMaritimeFogAlerts([ribeira()], new Map(), [], true, 1, ['mg-ons-praia'], undefined, undefined, 0));
     expect(camPhys).toBeUndefined();
   });
