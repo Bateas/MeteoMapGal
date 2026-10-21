@@ -45,13 +45,11 @@ export function SpotScoringSection() {
       <div className="space-y-2">
         <h3 className="text-sm font-bold text-white">Spots disponibles</h3>
 
-        {/* Embalse */}
+        {/* Interior (sector id 'embalse') */}
         <div className="bg-slate-900/50 rounded-lg p-3 border border-amber-500/20 space-y-1.5">
-          <div className="text-[11px] font-bold text-amber-400">Embalse de Castrelo</div>
+          <div className="text-[11px] font-bold text-amber-400">Interior sur de Galicia</div>
           <SpotRow name="Castrelo" desc="Valle del Miño. Agua dulce, térmica WSW tardes." thermal />
-          <p className="text-[11px] text-slate-500 italic pt-1">
-            Próximamente: más spots (viñedos, valles colindantes).
-          </p>
+          <SpotRow name="Belesar" desc="Embalse en el cañón del Miño (Ribeira Sacra). En prueba (beta): el viento sale de una estación en la ladera y de otra en la meseta; ninguna mide sobre el agua, y no aplica reglas térmicas." />
         </div>
 
         {/* Rías */}
@@ -59,7 +57,7 @@ export function SpotScoringSection() {
           <div className="text-[11px] font-bold text-blue-400">Rías Baixas</div>
           <SpotRow name="Cesantes" desc="Interior Ría, ensenada de San Simón. Agua plana, térmica WSW tardes." thermal />
           <SpotRow name="Bocana" desc="Estrecho de Rande, Vigo–San Simón. Terral matutino E/ENE." />
-          <SpotRow name="Centro Ría" desc="Aguas abiertas de la Ría de Vigo (zona Canido). Virazón SW tardes, oleaje moderado." />
+          <SpotRow name="Centro Ría" desc="Aguas abiertas de la Ría de Vigo (zona Canido). Virazón SW tardes, oleaje moderado." thermal />
           <SpotRow name="Cíes-Ría" desc="Baiona–Cíes. Condiciones oceánicas, nortada verano." />
           <SpotRow name="Liméns" desc="Playa en Cangas, sur de la Ría de Vigo. Canalización propia N/NNW (nortada); referencia Cabo Udra." />
           <SpotRow name="Lourido" desc="Playa Lourido, Ría de Pontevedra. Kite/windsurf, virazón SW." thermal />
@@ -86,7 +84,7 @@ export function SpotScoringSection() {
           <div className="pt-1.5 space-y-1.5 text-[11px] text-slate-500 leading-relaxed">
             <p>
               <strong className="text-cyan-300">Swell</strong> = oleaje de fondo generado por tormentas lejanas.
-              Período &gt;8s = buena calidad. Las boyas PORTUS miden altura (Hm0), período (Tp) y dirección.
+              Período &gt;8s = buena calidad. La boya de Cabo Silleiro (Puertos del Estado), en mar abierto, mide altura (Hm0), período (Tp) y dirección: es la única de la red con oleaje.
             </p>
             <p>
               <strong className="text-cyan-300">Offshore</strong> = viento de tierra hacia el mar. Limpia y ordena las olas.
@@ -112,9 +110,10 @@ export function SpotScoringSection() {
         <h3 className="text-sm font-bold text-white">Datos avanzados por spot</h3>
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2 text-[11px] text-slate-400 leading-relaxed">
           <p>
-            <strong className="text-cyan-300">Prevision WRF 1km</strong> (en integracion) — el modelo atmosferico
-            de 1km de MeteoGalicia, con viento, temperatura, precipitacion, nubosidad y cota de nieve, se consulta
-            hoy a nivel de SECTOR. La consulta de la celda exacta de cada spot esta pendiente de reactivar.
+            <strong className="text-cyan-300">Previsión WRF 1 km</strong> — el modelo atmosférico
+            de 1 km de MeteoGalicia, con viento, temperatura, precipitación, nubosidad y cota de nieve. El panel
+            de previsión lo lee a nivel de sector; al abrir la ficha de un spot se consulta la celda de ese spot
+            (se guarda 30 minutos).
           </p>
           <p>
             <strong className="text-cyan-300">USWAN oleaje nearshore</strong> — Modelo de olas costero de MeteoGalicia.
@@ -147,7 +146,7 @@ export function SpotScoringSection() {
             Cíes-Ría usa umbrales oceánicos propios, porque en mar abierto 8 nudos no es lo mismo
             que dentro de la ría: &lt;5 · 5-9 · 10-13 · 14-17 · ≥18 kt. Y por encima del límite de
             seguridad de cada spot el veredicto se fuerza a Fuerte con aviso de peligro, sea cual
-            sea el resto del cálculo.
+            sea el resto del cálculo; si lo que pasa del límite es la ola, el spot lo dice: «Oleaje».
           </p>
         </div>
       </div>
@@ -190,11 +189,11 @@ export function SpotScoringSection() {
           <ul className="space-y-1 pl-3">
             <li><strong className="text-cyan-400">Coherencia regional</strong> — si el 60%+ de las estaciones coinciden en dirección y velocidad, esa es la señal real. Las estaciones que no coinciden (probablemente sheltered) se penalizan automáticamente.</li>
             <li><strong className="text-cyan-400">Bracketing espacial</strong> — si dos estaciones en lados opuestos del spot (separadas ≥120°) coinciden, el agua entre ellas tiene ese mismo viento. Boost x2.5.</li>
-            <li><strong className="text-blue-400">Boost boya x1.5</strong> — las boyas miden viento en el agua sin obstrucciones. Pesan un 50% más que estaciones terrestres a igual distancia.</li>
+            <li><strong className="text-blue-400">Boost boya x1.5</strong> — las boyas miden viento en el agua sin obstrucciones. Pesan un 50% más que estaciones terrestres a igual distancia. Los mareógrafos de puerto (Vigo, Marín, Vilagarcía) y la estación de Lourizán no llevan ese extra: cuentan como una estación más.</li>
             <li><strong className="text-slate-300">Patrón reconocido</strong> — térmica, nortada, terral, virazón. Umbral: ≥5kt en spots térmicos, ≥8kt en el resto.</li>
-            <li><strong className="text-slate-300">Oleaje</strong> — crítico en Cíes-Ría, moderado en Centro Ría, ignorado en Cesantes.</li>
+            <li><strong className="text-slate-300">Oleaje</strong> — crítico en Cíes-Ría, moderado en Centro Ría, ignorado en Cesantes. La ola de esos spots es la del modelo SWAN en el propio spot (las islas y la ría ya cuentan); si el SWAN no responde, la de Cabo Silleiro corregida por lo abrigado que está el spot. La boya de mar abierto queda como contexto, no decide.</li>
             <li><strong className="text-slate-300">Norte en Cesantes</strong> — penaliza: el norte mata la térmica.</li>
-            <li><strong className="text-slate-300">Canalización térmica</strong> — bonus si en Cesantes hay térmica WSW activa (amplifica viento). Nunca con viento de frente en altura (15 kt o más del S-SW-W a 1.500 m): ese día entra lo que miden las estaciones. Tampoco en la costa con NE fuerte en altura (15 kt o más del NNE-E): en las tardes despejadas desde 2024, con ese viento arriba la brisa entró solo 1 de cada 5 veces en Vigo y casi nunca en Arousa (beta).</li>
+            <li><strong className="text-slate-300">Canalización térmica</strong> — si en Cesantes hay térmica WSW activa, la ficha añade «Posible brisa hasta ~N kt (sin confirmar)» junto al viento medido. No sube la cifra ni el veredicto (con la banda a la vista tampoco se aplica la amplificación térmica genérica), y un reporte desde el agua de la última hora que diga que no ha entrado la descarta. Nunca con viento de frente en altura (15 kt o más del S-SW-W a 1.500 m): ese día entra lo que miden las estaciones. Tampoco en la costa con NE fuerte en altura (15 kt o más del NNE-E): en las tardes despejadas desde 2024, con ese viento arriba la brisa entró solo 1 de cada 5 veces en Vigo y casi nunca en Arousa (beta).</li>
             <li><strong className="text-amber-400">Precursor humedad (bruma)</strong> — si la boya cercana detecta humedad &gt;65% + dirección WSW + horario diurno, el sistema anticipa viento probable. En el reanálisis 2023-2025, el 96% de los episodios de viento WSW en Cesantes venían precedidos de humedad &gt;65% tres horas antes: es una señal sensible —rara vez se pierde un episodio— pero no una garantía de que vaya a haberlo, porque en una ría gallega esa humedad es casi permanente. Pesa como indicio, nunca como veredicto: no se suma encima de la canalización ni cuenta con viento de frente o NE fuerte en altura.</li>
             <li><strong className="text-sky-400">Tendencia de viento</strong> — analiza los últimos 30 minutos. Si sube &gt;3kt marca "viento subiendo", si sube &gt;6kt marca "subida rápida" con alerta.</li>
             <li><strong className="text-emerald-400">Viento en costa</strong> — si una estación costera (aguas arriba) marca viento y el spot está en calma, indica viento frontal aproximándose.</li>
@@ -234,7 +233,7 @@ export function SpotScoringSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-[11px] text-slate-400 space-y-2 leading-relaxed">
           <p>
             Los spots con <strong className="text-slate-300">detección térmica</strong> (Castrelo,
-            Cesantes, Lourido) muestran filas adicionales al expandir la tarjeta:
+            Cesantes, Centro Ría, Lourido e Illa Arousa) muestran filas adicionales al expandir la tarjeta:
           </p>
           <ul className="space-y-1 pl-3">
             <li><strong className="text-orange-400">ΔT diurno</strong> — diferencia entre Tmax y Tmin previstas. ≥16°C favorece térmicas.</li>
@@ -313,7 +312,8 @@ export function SpotScoringSection() {
             más un <strong className="text-slate-300">badge con nudos</strong> (bottom-left).
           </p>
           <p className="text-[11px] text-slate-500 italic">
-            Las boyas REDMAR (Vigo, Marín, Vilagarcía) son mareógrafos y <strong>no tienen anemómetro</strong>.
+            Las boyas REDMAR (Vigo, Marín, Vilagarcía) son mareógrafos <strong>dentro del puerto</strong>: su viento
+            es el del puerto, no el de la ría abierta, y cuenta como el de una estación más.
             La boya Rande (1251) tampoco mide viento — mide temperatura del agua y del aire,
             humedad y punto de rocío (vía Observatorio Costeiro). Es clave para detectar el patrón de
             bruma/térmica costera (precursor de humedad &gt;65%).

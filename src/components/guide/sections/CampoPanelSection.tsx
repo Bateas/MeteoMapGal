@@ -27,7 +27,7 @@ export function CampoPanelSection() {
             num="1"
             iconId="activity"
             name="Condiciones"
-            modules="Mareas (Rías) &middot; Perfil atm. (Embalse) &middot; Alertas &middot; Niebla &middot; Timeline 48h"
+            modules="Mareas (Rías) &middot; Perfil atm. (Interior) &middot; Alertas &middot; Niebla &middot; Timeline 48h"
             desc="Navegación, alertas activas, mareas IHM, perfil atmosférico, propagación de viento."
           />
           <TabRow
@@ -76,7 +76,7 @@ export function CampoPanelSection() {
             { label: 'Precip máx/h', desc: 'Máxima precipitación horaria prevista' },
             { label: 'Probabilidad', desc: 'Probabilidad de precipitación en las próximas horas' },
             { label: 'Acum. 6h', desc: 'Acumulación total prevista en 6 horas' },
-            { label: 'Granizo', desc: 'CAPE alto + precipitación fuerte = riesgo de granizo' },
+            { label: 'Granizo', desc: 'CAPE > 1000 con más de 5 mm/h previstos. Sale solo del modelo: en el mapa es «Posible granizo (modelo)» y no pasa de aviso mientras no lo confirmen rayos o radar' },
           ]}
           levels={[
             { level: 'Riesgo', condition: '> 2 mm/h' },
@@ -256,7 +256,7 @@ export function CampoPanelSection() {
 
         <AlertModule
           iconId="thermometer"
-          title="Perfil Atmosférico (solo Embalse)"
+          title="Perfil Atmosférico (solo Interior)"
           color="#8b5cf6"
           items={[
             { label: 'Estabilidad', desc: 'Evaluación combinada: Convección / Excelente / Buena / Marginal / Estable' },

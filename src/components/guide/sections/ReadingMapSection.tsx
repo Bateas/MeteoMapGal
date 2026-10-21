@@ -184,12 +184,17 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="cloud"
             title="Niebla (terreno DEM)"
-            text="Cuando se detecta niebla (temperatura cercana al punto de rocío), se rellena el terreno bajo con una capa semitransparente. Embalse: valles <185m (niebla de fondo de valle). Rías: costa <35m (niebla marina / bruma costera). Basado en el modelo digital del terreno."
+            text="Cuando se detecta niebla (temperatura cercana al punto de rocío), se rellena el terreno bajo con una capa semitransparente. Interior: valles <185m (niebla de fondo de valle). Rías: costa <35m (niebla marina / bruma costera). Basado en el modelo digital del terreno."
+          />
+          <MiniExplainer
+            iconId="cloud-rain"
+            title="Lluvia ahora"
+            text="Cuando llueve, el mapa pinta dónde, con qué intensidad y hacia dónde va. El radar dibuja la zona y los pluviómetros confirman que llega al suelo: el eco débil que desmienten no se pinta. Con tiempo seco no aparece. Se puede ocultar por hoy desde su botón en la barra inferior."
           />
           <MiniExplainer
             iconId="thermometer"
-            title="Prevision WRF 1km (en integracion)"
-            text="El modelo WRF de 1km de MeteoGalicia se consulta hoy a nivel de sector. La consulta de la celda exacta de cada spot esta pendiente de reactivar."
+            title="Previsión WRF 1 km"
+            text="El modelo WRF de 1 km de MeteoGalicia. El panel de previsión lo lee a nivel de sector; la ficha de cada spot consulta la celda de ese spot."
           />
         </div>
       </div>
@@ -250,8 +255,8 @@ export function ReadingMapSection() {
           />
           <MiniExplainer
             iconId="gauge"
-            title="Perfil atmosférico (Embalse)"
-            text="Evaluación de estabilidad: BLH, CAPE, CIN, LI. Barra vertical SVG con indicadores. Solo sector Embalse."
+            title="Perfil atmosférico (Interior)"
+            text="Evaluación de estabilidad: BLH, CAPE, CIN, LI. Barra vertical SVG con indicadores. Solo sector Interior."
           />
           <MiniExplainer
             iconId="sailboat"

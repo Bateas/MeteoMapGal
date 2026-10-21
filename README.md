@@ -21,13 +21,13 @@ Los modelos globales no ven los microclimas de las rías ni del interior: la bri
 | Zona | Dónde | Para qué |
 |---|---|---|
 | **Rías Baixas** | Costa de Pontevedra | Viento costero, olas, mareas, surf |
-| **Embalse de Castrelo** | Interior de Ourense | Brisa térmica para vela en agua plana |
+| **Interior sur de Galicia** | Embalse de Castrelo (Ourense) y, en prueba, Belesar (Ribeira Sacra) | Brisa térmica para vela en agua plana |
 
 ---
 
 ## Qué ves en el mapa
 
-**Veredicto por spot.** Cada uno de los 14 spots dice cómo está ahora: de CALMA a FUERTE para vela, y de FLAT a GRANDE para surf (3 playas). El viento sale del consenso de las estaciones cercanas, pesadas por su exposición real, y la ficha enseña de dónde sale cada cifra.
+**Veredicto por spot.** Cada uno de los 15 spots dice cómo está ahora: de CALMA a FUERTE para vela, y de FLAT a GRANDE para surf (3 playas). Si el mar pasa el límite de seguridad del spot, el veredicto dice OLEAJE, con la ola del modelo SWAN en la zona y no la de la boya de mar abierto. El viento sale del consenso de las estaciones cercanas, pesadas por su exposición real, y la ficha enseña de dónde sale cada cifra.
 
 **Lluvia ahora.** Cuando llueve, el mapa pinta dónde, con qué intensidad y hacia dónde va. El radar dibuja la zona; los pluviómetros confirman que llega al suelo, y el eco débil que desmienten no se pinta. Con tiempo seco no aparece.
 
@@ -55,7 +55,8 @@ Los modelos globales no ven los microclimas de las rías ni del interior: la bri
 - **Calibrado contra el mar.** Cada estación se compara con la boya de su zona, dirección a dirección, para saber cuánto la abriga el terreno. Ese factor corrige su lectura.
 - **Sensores rotos, fuera.** Un anemómetro parado deja de contar, y una estación que se aparta mucho de sus vecinas pesa menos.
 - **Dos pruebas para avisar.** Ninguna alerta sale de una sola señal: lluvia, niebla o viento brusco necesitan dos fuentes independientes y una comprobación física (con sol fuerte no se anuncia lluvia).
-- **Lo que viene del modelo se dice.** La ola en la playa es modelo y la ficha lo indica.
+- **Lo que viene del modelo se dice.** La ola en la playa es modelo y la ficha lo indica. El granizo que solo sale del modelo es «posible granizo», y la niebla vista por las cámaras es «probable»: «confirmada» solo con la visibilidad medida por AEMET.
+- **Lo que no se mide no sube la cifra.** En Cesantes, la brisa que las estaciones de tierra no llegan a medir se ofrece como «posible brisa hasta ~N kt (sin confirmar)» junto al viento medido; un reporte reciente desde el agua la descarta.
 - **Verdad de campo.** Desde la ficha, quien está en el agua puede decir si coincide con lo que ve. Esas respuestas sirven para comprobar la app; no se muestran en el mapa.
 
 ## Alertas 24/7
@@ -70,12 +71,13 @@ Bot de Telegram con resumen diario a las 9:00, cambios de viento por spot, torme
 |---|---|
 | AEMET, MeteoGalicia, IPMA | Estaciones oficiales y avisos |
 | Meteoclimatic, Weather Underground, Netatmo | Estaciones de aficionados |
-| Puertos del Estado, Observatorio Costeiro da Xunta | Boyas y mareógrafos |
+| Puertos del Estado, Observatorio Costeiro da Xunta (INTECMAR) | Boyas, plataformas y mareógrafos |
 | MeteoSIX (MeteoGalicia) | WRF 1 km, oleaje USWAN, temperatura del mar MOHID |
 | MeteoGalicia | Rayos, avisos adversos, calidad del aire, webcams |
 | CESGA | Oleaje SWAN cerca de costa |
 | Instituto Hidrográfico de la Marina | Mareas y cartas náuticas |
 | RainViewer | Radar de precipitación |
+| NOAA (aviationweather.gov) | Partes METAR: visibilidad en los aeropuertos de Vigo, Santiago y A Coruña |
 | Open-Meteo | Inestabilidad atmosférica (CAPE, LI) |
 | NASA FIRMS, Copernicus EFFIS | Focos e incendios activos |
 | ENAIRE, IGN, Copernicus Marine, OpenSeaMap | Espacio aéreo, cartografía, temperatura del mar, balizamiento |

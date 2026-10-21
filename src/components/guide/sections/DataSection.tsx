@@ -86,13 +86,13 @@ export function DataSection() {
               'viento medio', 'racha', 'dirección', 'temperatura', 'humedad',
               'presión', 'punto de rocío', 'radiación solar', 'precipitación', 'visibilidad',
             ]}
-            note="No todas las estaciones miden todo: la visibilidad, por ejemplo, solo la reportan ocho estaciones de AEMET en toda Galicia."
+            note="No todas las estaciones miden todo: la visibilidad, por ejemplo, solo la reportan ocho estaciones de AEMET en toda Galicia, más los partes METAR de los aeropuertos de Vigo, Santiago y A Coruña."
           />
 
           <VarGroup
             icon="waves"
             title="Boyas y mareógrafos"
-            source="Puertos del Estado · Observatorio Costeiro da Xunta de Galicia"
+            source="Puertos del Estado · Observatorio Costeiro da Xunta de Galicia (INTECMAR, en tiempo real)"
             vars={[
               'altura de ola', 'ola máxima', 'periodo', 'dirección del oleaje',
               'temperatura del agua', 'salinidad', 'corrientes', 'nivel del mar',

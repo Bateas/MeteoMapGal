@@ -52,7 +52,15 @@ export function PopupFit() {
         return;
       }
       fit(popup);
-      ro = new ResizeObserver(() => { clearTimeout(pending); pending = setTimeout(() => fit(popup), 120); });
+      // Refit only when the card really grew or shrank (a section unfolded), not on a live
+      // refresh that moves a figure by a line: that would yank back a map the user panned away.
+      let lastH = popup.getBoundingClientRect().height;
+      ro = new ResizeObserver(() => {
+        const h = popup.getBoundingClientRect().height;
+        if (Math.abs(h - lastH) < 24) return;
+        lastH = h;
+        clearTimeout(pending); pending = setTimeout(() => fit(popup), 120);
+      });
       ro.observe(popup);
     };
     wait = setTimeout(attach, 0);

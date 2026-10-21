@@ -376,7 +376,7 @@ export function GlossarySection() {
         />
         <Term
           term="Distancia (km en etiqueta)"
-          definition="Distancia desde el centro del cluster al centro de tu sector (Embalse o Rias). Indica lo lejos que esta la tormenta."
+          definition="Distancia desde el centro del cluster al centro de tu sector (Interior o Rías). Indica lo lejos que esta la tormenta."
           example="'149 km' = esa tormenta esta a 149 km del embalse. A 40 km/h tardaria 3.7 horas en llegar si se acercase."
           color="#a855f7"
           search={q}

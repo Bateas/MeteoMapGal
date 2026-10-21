@@ -19,7 +19,7 @@ import {
   parseGuideTarget,
   guideShareUrl,
 } from '../../config/guideRoute';
-import { approxStationCount } from '../../config/networkStats';
+import { approxStationCount, SPOT_COUNT, SAILING_SPOT_COUNT, SURF_SPOT_COUNT, BUOY_COUNT } from '../../config/networkStats';
 
 // Section list and URL shape both live in config/guideRoute so that the boot
 // path (useDeepLink) can read them without importing this lazy chunk.
@@ -205,11 +205,12 @@ export const MeteoGuide = memo(function MeteoGuide() {
 function IntroSection() {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Embalse de Castrelo de Miño</h2>
+      <h2 className="text-2xl font-bold text-white">Interior sur de Galicia</h2>
 
       <p className="text-slate-400 leading-relaxed">
         MeteoMapGal monitoriza en tiempo real las condiciones meteorológicas del embalse de Castrelo
-        de Miño y su entorno (radio 35 km). Diseñada para navegantes, kitesurfistas, windsurfistas
+        de Miño y su entorno (radio 35 km) y, en prueba, del embalse de Belesar en la Ribeira Sacra.
+        Diseñada para navegantes, kitesurfistas, windsurfistas
         y cualquier persona que necesite datos fiables de viento, temperatura y condiciones.
       </p>
 
@@ -248,7 +249,8 @@ function IntroSection() {
             <WeatherIcon id="thermometer" size={16} /> Spots de navegación
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
-            14 spots monitorizados (11 vela + 3 surf). Vela: scoring calma/flojo/navegable/bueno/fuerte.
+            {SPOT_COUNT} spots monitorizados en los dos sectores ({SAILING_SPOT_COUNT} vela + {SURF_SPOT_COUNT} surf);
+            en el interior, Castrelo y Belesar (en prueba). Vela: scoring calma/flojo/navegable/bueno/fuerte.
             Surf: FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE. Pronóstico 48h y ventanas de navegación.
           </p>
         </div>
@@ -303,7 +305,7 @@ function RiasIntroSection() {
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="anchor" size={24} /></span>
           <p className="text-xs text-slate-400 mt-1 font-medium">Boyas marinas</p>
-          <p className="text-[11px] text-slate-600">Oleaje, viento, T agua, humedad de 13 boyas</p>
+          <p className="text-[11px] text-slate-600">Oleaje, viento, T agua, humedad de {BUOY_COUNT} boyas</p>
         </div>
         <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
           <span className="text-2xl"><WeatherIcon id="map" size={24} /></span>
@@ -321,9 +323,9 @@ function RiasIntroSection() {
         <p className="text-xs text-slate-400 italic">
           <strong className="text-slate-300">Modo Rías Baixas:</strong> Este sector se centra en la
           monitorización del viento costero, oleaje y condiciones marinas. Incluye boyas marinas
-          (PORTUS + Observatorio Costeiro) en el mapa y mareas de 5 puertos. El scoring de spots
+          (Puertos del Estado + Observatorio Costeiro da Xunta) en el mapa y mareas de 5 puertos. El scoring de spots
           y las alertas de navegación funcionan en ambos sectores. Las zonas térmicas y el análisis
-          térmico de valle son exclusivos del sector Embalse de Castrelo.
+          térmico de valle son exclusivos del sector Interior (Castrelo).
         </p>
       </div>
     </div>
