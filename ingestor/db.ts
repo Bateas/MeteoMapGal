@@ -213,7 +213,8 @@ export interface BuoyReadingRow {
   time: string;
   stationId: number;
   stationName: string;
-  source: 'portus' | 'obscosteiro';
+  /** 'obscosteiro' = the platforms via MeteoGalicia's API; 'intecmar' = the same platforms via api.intecmar.gal. */
+  source: 'portus' | 'obscosteiro' | 'intecmar';
   waveHeight: number | null;
   waveHeightMax: number | null;
   wavePeriod: number | null;

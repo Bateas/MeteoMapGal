@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseObsResponse, mergeBuoyReadings } from './buoyFetcher.js';
+import { parseObsResponse, mergeBuoyReadings, mergeXuntaReadings } from './buoyFetcher.js';
 import type { BuoyReadingRow } from './db.js';
 import { parseObsReading } from '../src/api/observatorioCosteiro';
 import fixture from '../src/api/observatorioCosteiro.fixture.json';
@@ -194,3 +194,46 @@ describe('mergeBuoyReadings — a platform both sources report', () => {
   });
 });
 
+
+describe('mergeXuntaReadings — the same Xunta platform via MeteoGalicia and via INTECMAR', () => {
+  it('the newer row wins field by field; the older fills only what it lacks', () => {
+    const mg = buoyRow({ time: '2026-10-19T15:20:00Z', source: 'obscosteiro', windSpeed: 5.3, humidity: 46, salinity: 34.6 });
+    const live = buoyRow({ time: '2026-10-19T16:10:00Z', source: 'intecmar', windSpeed: 6.29, humidity: 44 });
+    const [m] = mergeXuntaReadings([mg], [live]);
+    expect(m).toMatchObject({ time: '2026-10-19T16:10:00Z', source: 'intecmar', windSpeed: 6.29, humidity: 44, salinity: 34.6 });
+  });
+
+  it('a newer MeteoGalicia row stays the base and keeps its label', () => {
+    const mg = buoyRow({ time: '2026-10-19T16:20:00Z', source: 'obscosteiro', windSpeed: 7 });
+    const live = buoyRow({ time: '2026-10-19T16:10:00Z', source: 'intecmar', windSpeed: 6.29, dewPoint: 5.1 });
+    const [m] = mergeXuntaReadings([mg], [live]);
+    expect(m).toMatchObject({ source: 'obscosteiro', windSpeed: 7, dewPoint: 5.1 });
+  });
+
+  it('on the same instant INTECMAR is the base', () => {
+    const mg = buoyRow({ time: '2026-10-19T16:10:00Z', source: 'obscosteiro', windSpeed: 6.29 });
+    const live = buoyRow({ time: '2026-10-19T16:10:00Z', source: 'intecmar', windSpeed: 6.29 });
+    expect(mergeXuntaReadings([mg], [live])[0].source).toBe('intecmar');
+  });
+
+  it('a row more than 90 minutes apart lends nothing', () => {
+    const mg = buoyRow({ time: '2026-10-19T13:00:00Z', source: 'obscosteiro', humidity: 46 });
+    const live = buoyRow({ time: '2026-10-19T16:10:00Z', source: 'intecmar', windSpeed: 6.29 });
+    expect(mergeXuntaReadings([mg], [live])[0].humidity).toBeNull();
+  });
+
+  it('a platform only one of them brings (Cortegada stuck at MeteoGalicia) is kept as it is', () => {
+    const mg = buoyRow({ time: '2026-10-19T16:10:00Z', source: 'obscosteiro', stationId: 1253 });
+    const live = buoyRow({ time: '2026-10-19T16:10:00Z', source: 'intecmar', stationId: 1250 });
+    const out = mergeXuntaReadings([mg], [live]);
+    expect(out.map((r) => [r.stationId, r.source]).sort()).toEqual([[1250, 'intecmar'], [1253, 'obscosteiro']]);
+    expect(mergeXuntaReadings([mg], [])).toEqual([mg]);
+  });
+
+  it('then merges with Puertos del Estado as before', () => {
+    const live = buoyRow({ time: '2026-10-19T16:10:00Z', source: 'intecmar', windSpeed: 6.29 });
+    const portus = buoyRow({ time: '2026-10-19T16:00:00Z', source: 'portus', seaLevel: 2.6 });
+    const [m] = mergeBuoyReadings([portus], mergeXuntaReadings([], [live]));
+    expect(m).toMatchObject({ source: 'intecmar', windSpeed: 6.29, seaLevel: 2.6 });
+  });
+});

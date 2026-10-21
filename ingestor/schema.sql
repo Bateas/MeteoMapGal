@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS buoy_readings (
   time             TIMESTAMPTZ      NOT NULL,
   station_id       INTEGER          NOT NULL,
   station_name     TEXT             NOT NULL,
-  source           TEXT             NOT NULL,  -- 'portus' or 'obscosteiro'
+  source           TEXT             NOT NULL,  -- 'portus', 'obscosteiro' (Xunta platforms via MeteoGalicia) or 'intecmar' (same platforms via api.intecmar.gal)
   -- Wave
   wave_height      DOUBLE PRECISION,  -- Hm0 (m)
   wave_height_max  DOUBLE PRECISION,  -- Hmax (m)

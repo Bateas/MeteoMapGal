@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   castDaysToFetch, castRefs, ctdRows, dedupeCtdRows, dedupePlatformRows, nextDay, platformPlan, platformRows,
-  platformWindow, tokenExpiryMs,
+  platformWindow, tokenExpiryMs, nightRange, shouldListCasts, recoveryDays, FULL_DAY_SAMPLES, type DayCoverage,
 } from './intecmarLogic';
 
 // Shapes copied from real answers of api.intecmar.gal (19-oct-2026), trimmed.
@@ -113,5 +113,80 @@ describe('tokenExpiryMs', () => {
   it('falls back to one hour when the token cannot be read', () => {
     expect(tokenExpiryMs('garbage', 1_000)).toBe(1_000 + 3_600_000);
     expect(tokenExpiryMs(jwt({ sub: 'x' }), 1_000)).toBe(1_000 + 3_600_000);
+  });
+});
+
+describe('nightRange (incremental night)', () => {
+  const D = (d: string) => Date.parse(d + 'T00:00:00Z');
+  const now = Date.parse('2026-10-21T01:10:00Z');
+  /** A whole stored day: 144 instants, last at 23:50, fetched at 00:50 of the next day (the live pass). */
+  const whole = (d: string): DayCoverage => ({ dayMs: D(d), samples: FULL_DAY_SAMPLES, lastMs: D(d) + 86_400_000 - 600_000, fetchedMs: D(d) + 86_400_000 + 3_000_000 });
+
+  it('nothing stored: the old two whole days', () => {
+    expect(nightRange([], now)).toEqual({ begin: '2026-10-19', end: '2026-10-21' });
+  });
+
+  it('every past day complete (the live pass wrote them): nothing to ask', () => {
+    expect(nightRange([whole('2026-10-18'), whole('2026-10-19'), whole('2026-10-20')], now)).toBeNull();
+  });
+
+  it('today is never judged: the night asks past days only', () => {
+    const todayPartial: DayCoverage = { dayMs: D('2026-10-21'), samples: 7, lastMs: D('2026-10-21') + 3_600_000, fetchedMs: now };
+    expect(nightRange([whole('2026-10-20'), todayPartial], now)).toBeNull();
+  });
+
+  it('yesterday with holes: asked from the hour before its first instant (the day before, by date), to today', () => {
+    const holes: DayCoverage = { ...whole('2026-10-20'), samples: 120, fetchedMs: D('2026-10-20') + 80_000_000 };
+    expect(nightRange([whole('2026-10-19'), holes], now)).toEqual({ begin: '2026-10-19', end: '2026-10-21' });
+  });
+
+  it('a day fetched 45 min after it ended is final even with fewer samples (INTECMAR lacks them too)', () => {
+    const short: DayCoverage = { dayMs: D('2026-10-20'), samples: 130, lastMs: D('2026-10-21') - 600_000, fetchedMs: D('2026-10-21') + 46 * 60_000 };
+    expect(nightRange([whole('2026-10-19'), short], now)).toBeNull();
+  });
+
+  it('a series asked only at night (the current): last night left yesterday with its 00:00 sample only', () => {
+    const onlyMidnight: DayCoverage = { dayMs: D('2026-10-20'), samples: 1, lastMs: D('2026-10-20'), fetchedMs: D('2026-10-20') + 4_000_000 };
+    const prev: DayCoverage = { ...whole('2026-10-19'), fetchedMs: D('2026-10-20') + 4_000_000 };
+    expect(nightRange([prev, onlyMidnight], now)).toEqual({ begin: '2026-10-19', end: '2026-10-21' });
+  });
+
+  it('a failed night and live feed: recovered from the gap, three days back', () => {
+    expect(nightRange([whole('2026-10-15'), whole('2026-10-16'), whole('2026-10-17')], now)).toEqual({ begin: '2026-10-17', end: '2026-10-21' });
+  });
+
+  it('a missing day between complete ones is found too', () => {
+    expect(nightRange([whole('2026-10-17'), whole('2026-10-18'), whole('2026-10-20')], now)).toEqual({ begin: '2026-10-18', end: '2026-10-21' });
+  });
+
+  it('a stopped platform (Cies-like): the range never grows beyond 7 days back, however old its last reading', () => {
+    expect(nightRange([whole('2026-08-01')], now)).toEqual({ begin: '2026-10-19', end: '2026-10-21' });
+    const lastWeek = nightRange([whole('2026-10-14')], now)!;
+    expect(lastWeek).toEqual({ begin: '2026-10-14', end: '2026-10-21' });
+    for (let d = 1; d <= 60; d++) {
+      const day = new Date(Date.parse('2026-10-20T00:00:00Z') - d * 86_400_000).toISOString().slice(0, 10);
+      const r = nightRange([whole(day)], now);
+      if (r) expect(Date.parse('2026-10-21T00:00:00Z') - Date.parse(r.begin + 'T00:00:00Z')).toBeLessThanOrEqual(7 * 86_400_000);
+    }
+  });
+});
+
+describe('shouldListCasts / recoveryDays', () => {
+  const fri = Date.parse('2026-10-23T01:10:00Z');
+  const wed = Date.parse('2026-10-21T01:10:00Z');
+
+  it('on Fridays (casts are published on Thursdays)', () => {
+    expect(shouldListCasts(fri, false, 0)).toBe(true);
+    expect(shouldListCasts(wed, false, 2)).toBe(false);
+  });
+
+  it('on other nights only when something is owed or nights were missed', () => {
+    expect(shouldListCasts(wed, true, 0)).toBe(true);
+    expect(shouldListCasts(wed, false, 3)).toBe(true);
+  });
+
+  it('measures the recovery from the earliest begin to the end', () => {
+    expect(recoveryDays([])).toBe(0);
+    expect(recoveryDays([{ begin: '2026-10-19', end: '2026-10-21' }, { begin: '2026-10-17', end: '2026-10-21' }])).toBe(4);
   });
 });

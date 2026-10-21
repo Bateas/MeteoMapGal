@@ -54,6 +54,75 @@ export function platformWindow(nowMs: number): { begin: string; end: string } {
   return { begin: utcDate(today - 2 * DAY_MS), end: utcDate(today) };
 }
 
+/** What the table holds of one series on one past UTC day (intecmarArchive's coverage query). */
+export interface DayCoverage {
+  dayMs: number;        // 00:00 UTC of the day
+  samples: number;      // distinct 10-minute instants stored (any depth, any quality code)
+  lastMs: number;       // newest instant stored that day
+  fetchedMs: number;    // newest fetched_at of that day's rows
+}
+
+/** A whole 10-minute day: 00:00 to 23:50. */
+export const FULL_DAY_SAMPLES = 144;
+/**
+ * A day fetched this long after it ended is final: INTECMAR publishes within ~10 min (Rande ~30) and
+ * its values do not change once in their base (21-oct). Whatever it lacks, INTECMAR lacks too.
+ */
+export const FINAL_AFTER_MS = 45 * 60_000;
+/**
+ * The night never looks further back than this, so a stopped platform (Cíes-like) can never make the
+ * range grow without limit (and 10-minute ranges over 3 months fail at the API). Older holes are for the
+ * monthly history download agreed with INTECMAR, not for the night.
+ */
+export const NIGHT_LOOKBACK_DAYS = 7;
+export const NIGHT_OVERLAP_MS = 60 * 60_000;
+
+/**
+ * Incremental night range of one series: from the first past day that is not complete (with at least
+ * one hour of overlap over what was stored before it) to today, or null when every stored day is
+ * complete. The live pass (intecmarLive.ts) writes today and yesterday as whole days, so on a normal
+ * night the series it reads cost nothing; a night or a live feed that failed is recovered from its own
+ * gap, up to NIGHT_LOOKBACK_DAYS (7) back. A series with nothing stored in the lookback gets the old two-day
+ * window: INTECMAR asked to be told before any bigger download.
+ *
+ * Days before the first stored one are not judged: the lookback query cannot tell «never archived»
+ * from «lost».
+ */
+export function nightRange(coverage: DayCoverage[], nowMs: number): { begin: string; end: string } | null {
+  const today = Math.floor(nowMs / DAY_MS) * DAY_MS;
+  const past = coverage.filter((d) => d.dayMs < today && d.dayMs >= today - NIGHT_LOOKBACK_DAYS * DAY_MS);
+  if (past.length === 0) return platformWindow(nowMs);
+  const byDay = new Map(past.map((d) => [d.dayMs, d]));
+  const first = Math.min(...past.map((d) => d.dayMs));
+  for (let day = first; day < today; day += DAY_MS) {
+    const d = byDay.get(day);
+    const complete = d != null && (d.samples >= FULL_DAY_SAMPLES || d.fetchedMs >= day + DAY_MS + FINAL_AFTER_MS);
+    if (complete) continue;
+    const before = past.filter((x) => x.dayMs < day).map((x) => x.lastMs);
+    const from = before.length > 0 ? Math.min(day, Math.max(...before) - NIGHT_OVERLAP_MS) : day;
+    return { begin: utcDate(from), end: utcDate(today) };
+  }
+  return null;
+}
+
+/**
+ * The CTD casts are published on Thursdays (INTECMAR, 21-oct): the list is asked on Fridays, and on any
+ * other night only when something is owed (a pass that failed or left station-days for later, a
+ * restart that does not know, or platform days being recovered beyond the usual two, which means
+ * nights were missed). A normal night asks yesterday plus the day before for its hour of overlap: 2.
+ */
+export function shouldListCasts(nowMs: number, owed: boolean, recoveringDays: number): boolean {
+  return new Date(nowMs).getUTCDay() === 5 || owed || recoveringDays > 2;
+}
+
+/** Whole days between the earliest `begin` of a set of ranges and `end` (the night's recovery depth). */
+export function recoveryDays(ranges: Array<{ begin: string; end: string }>): number {
+  if (ranges.length === 0) return 0;
+  const earliest = Math.min(...ranges.map((r) => Date.parse(`${r.begin}T00:00:00Z`)));
+  const end = Math.max(...ranges.map((r) => Date.parse(`${r.end}T00:00:00Z`)));
+  return Math.round((end - earliest) / DAY_MS);
+}
+
 /** Day after a YYYY-MM-DD date, for one-day ranges. */
 export function nextDay(date: string): string {
   return utcDate(Date.parse(`${date}T00:00:00Z`) + DAY_MS);

@@ -7,7 +7,9 @@
  *   The old PORTUSSRV path is gone: Puertos del Estado asked us on 1-oct-2026 to
  *   stop using it, and POEM has served every station since 13-oct. Without a
  *   token there are no Puertos del Estado buoys, and the log says so.
- * - Observatorio Costeiro da Xunta — 6 platforms, 10min, humidity+dewPoint
+ * - Observatorio Costeiro da Xunta — 6 platforms, 10min, humidity+dewPoint, through
+ *   MeteoGalicia's platform API AND (since 21-oct-2026) api.intecmar.gal, read by its own
+ *   20-minute pass (intecmarLive.ts) and merged here field by field (mergeXuntaReadings).
  *
  * Returns merged BuoyReadingRow[] ready for DB insert.
  */
@@ -17,6 +19,7 @@ import { log } from './logger.js';
 import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import { allSettledLimit } from './concurrency.js';
 import { readObsCurrent, type ObsResponse } from '../src/api/obsCosteiroParse.js';
+import { intecmarLiveReadings } from './intecmarLive.js';
 import { shouldAskPortus, isBackingOff, nextPortusBackoff, type PortusBackoff } from './portusBackoff.js';
 import { poemGet, poemToken, PoemHttpError } from './poemClient.js';
 import {
@@ -80,7 +83,7 @@ interface ObsStation {
 
 // `enabled: false` skips polling without removing the row — flip back when
 // the station returns to service (no diff in IDs/maps elsewhere).
-const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
+export const OBS_STATIONS: (ObsStation & { enabled?: boolean })[] = [
   { obsId: 15001, canonicalId: 1250, name: 'Cortegada (Arousa)' },
   { obsId: 15002, canonicalId: 1252, name: 'Islas Cíes', enabled: false },     // OFFLINE since Dec 2025
   { obsId: 15004, canonicalId: 1253, name: 'A Guarda' },
@@ -109,6 +112,13 @@ const MAX_AGE_MS = 6 * 60 * 60_000;
  * (any station that didn't appear yet is "unseen", not "stale").
  */
 const buoyLastSeen = new Map<number, number>();
+
+/** Newest instant the MeteoGalicia platform path brought per station_id (audit line of intecmarLive). */
+const obsLastReadingMs = new Map<number, number>();
+
+export function obsCosteiroLastTimes(): ReadonlyMap<number, number> {
+  return obsLastReadingMs;
+}
 
 /** PORTUS stations that keep failing: asked once an hour (portusBackoff.ts). */
 const portusBackoff = new Map<number, PortusBackoff>();
@@ -419,6 +429,37 @@ export function mergeBuoyReadings(portus: BuoyReadingRow[], obs: BuoyReadingRow[
   return Array.from(map.values());
 }
 
+/**
+ * The two readings of the same Xunta platform: MeteoGalicia's platform API ('obscosteiro') and
+ * api.intecmar.gal ('intecmar'). One row per station: the newer row is the base (on a tie, INTECMAR's,
+ * the channel its owner now offers), so its values win field by field; every field it lacks is taken
+ * from the other row when that one is within MERGE_FILL_MAX_MS. Both apply the same quality rules
+ * (code 1 only, intecmarLiveLogic / obsCosteiroParse), so a filled field is never a rejected value.
+ */
+export function mergeXuntaReadings(obs: BuoyReadingRow[], intecmar: BuoyReadingRow[]): BuoyReadingRow[] {
+  const map = new Map<number, BuoyReadingRow>();
+  for (const r of obs) map.set(r.stationId, r);
+  for (const live of intecmar) {
+    const mg = map.get(live.stationId);
+    if (!mg) {
+      map.set(live.stationId, live);
+      continue;
+    }
+    const liveMs = Date.parse(live.time);
+    const mgMs = Date.parse(mg.time);
+    const base = mgMs > liveMs ? mg : live;
+    const other = base === mg ? live : mg;
+    const merged: BuoyReadingRow = { ...base };
+    if (Math.abs(liveMs - mgMs) <= MERGE_FILL_MAX_MS) {
+      for (const k of MERGE_FIELDS) {
+        if (merged[k] == null && other[k] != null) merged[k] = other[k];
+      }
+    }
+    map.set(live.stationId, merged);
+  }
+  return Array.from(map.values());
+}
+
 // ── Public API ──────────────────────────────────────────
 
 /**
@@ -462,7 +503,13 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
     .map((r) => r.value)
     .filter((r): r is BuoyReadingRow => r != null);
 
-  const merged = mergeBuoyReadings(portus, obs);
+  for (const r of obs) {
+    const ms = Date.parse(r.time);
+    if (Number.isFinite(ms) && ms > (obsLastReadingMs.get(r.stationId) ?? -Infinity)) obsLastReadingMs.set(r.stationId, ms);
+  }
+  // INTECMAR's live rows (intecmarLive.ts, its own 20-minute pass; empty when it is off).
+  const intecmar = intecmarLiveReadings();
+  const merged = mergeBuoyReadings(portus, mergeXuntaReadings(obs, intecmar));
 
   const portusCount = portus.length;
   const obsCount = obs.length;
@@ -472,7 +519,8 @@ export async function fetchBuoyObservations(): Promise<BuoyReadingRow[]> {
     ? ` · en espera (1/h): ${portusWaiting.map((s) => `${s.name} ${s.id}`).join(', ')}`
     : '';
   const via = token ? ' via POEM' : '';
-  log.info(`Buoys: PORTUS ${portusCount}/${portusEnabled}${via}, ObsCosteiro ${obsCount}/${obsEnabled} → ${merged.length} merged${waitingNote}`);
+  const intecmarNote = intecmar.length > 0 ? `, INTECMAR ${intecmar.length}/${obsEnabled}` : '';
+  log.info(`Buoys: PORTUS ${portusCount}/${portusEnabled}${via}, ObsCosteiro ${obsCount}/${obsEnabled}${intecmarNote} → ${merged.length} merged${waitingNote}`);
 
   // POEM: what kept a station or a value out this cycle (stale, a quality flag,
   // a unit or bound that did not fit, an HTTP error). Silent when all went in.

@@ -89,6 +89,10 @@ describe('buoys from our own service', () => {
     expect(storedRowToReading({ ...ROW, source: null }).source).toBe('portus');
   });
 
+  it('the same platforms read from INTECMAR keep the coastal observatory label', () => {
+    expect(storedRowToReading({ ...ROW, source: 'intecmar' }).source).toBe('obscosteiro');
+  });
+
   it('one request brings them all', async () => {
     vi.mocked(fetchWithRetry).mockResolvedValue(ok([ROW, { ...ROW, station_id: 3221, source: 'portus' }]));
     const buoys = await fetchStoredBuoys();

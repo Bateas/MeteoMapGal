@@ -155,7 +155,8 @@ export function storedRowToReading(row: StoredBuoyRow): BuoyReading {
     seaLevel: row.sea_level,
     humidity: row.humidity,
     dewPoint: row.dew_point,
-    source: row.source === 'obscosteiro' ? 'obscosteiro' : 'portus',
+    // 'intecmar' = the same Xunta platforms read from api.intecmar.gal (ingestor/intecmarLive.ts).
+    source: row.source === 'obscosteiro' || row.source === 'intecmar' ? 'obscosteiro' : 'portus',
   };
 }
 

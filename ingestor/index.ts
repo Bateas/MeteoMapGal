@@ -17,7 +17,7 @@ import { carryOverEmptySources } from './discoveryCarry.js';
 import { resolveMissingAltitudes } from './demAltitudes.js';
 import { fetchAllObservations, getNetatmoSweepStatus, NETATMO_SWEEP_INTERVAL_MS, takeMgAuxRows } from './fetchers.js';
 import { archiveMgAux } from './mgAuxArchive.js';
-import { fetchBuoyObservations } from './buoyFetcher.js';
+import { fetchBuoyObservations, obsCosteiroLastTimes } from './buoyFetcher.js';
 import { log } from './logger.js';
 import { checkAndSendDailySummary, seedDailySummary } from './dailySummary.js';
 import { runAnalysis, runLightningSafety, seedWindEpisodes, reopenWindEpisodesFromHistory } from './analyzer.js';
@@ -39,6 +39,7 @@ import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetc
 import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
 import { runMetarArchive, METAR_ARCHIVE_INTERVAL_MS } from './metarArchive.js';
 import { runIntecmarArchive, INTECMAR_CHECK_MS } from './intecmarArchive.js';
+import { runIntecmarLive, intecmarLiveIntervalMs } from './intecmarLive.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
   countBySource,
@@ -107,6 +108,7 @@ let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
 let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
 let metarTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarTimer: ReturnType<typeof setInterval> | null = null;
+let intecmarLiveTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
 
@@ -637,9 +639,15 @@ async function start(): Promise<void> {
   metarTimer = setInterval(() => { void runMetarArchive(); }, METAR_ARCHIVE_INTERVAL_MS);
 
   // INTECMAR's own record of the platforms and the CTD casts (intecmarArchive.ts): checked hourly,
-  // runs once per UTC day after 01:00 when nothing was fetched today. 300s stagger, after METAR.
+  // runs once per UTC day after 01:00 and asks only what the table still lacks. 300s stagger, after METAR.
   setTimeout(() => { void runIntecmarArchive(); }, 300_000);
   intecmarTimer = setInterval(() => { void runIntecmarArchive(); }, INTECMAR_CHECK_MS);
+
+  // The platforms in real time from INTECMAR itself (intecmarLive.ts), every INTECMAR_LIVE_MS (60 min by
+  // default; INTECMAR_LIVE=0 switches it off). Fire-and-forget: the buoy step of each poll merges the
+  // newest rows it kept. 45s stagger so the first rows are there for the second poll.
+  setTimeout(() => { void runIntecmarLive(obsCosteiroLastTimes()); }, 45_000);
+  intecmarLiveTimer = setInterval(() => { void runIntecmarLive(obsCosteiroLastTimes()); }, intecmarLiveIntervalMs());
 
   log.ok(`Ingestor running — next poll in ${POLL_INTERVAL_MIN}min`);
 }
@@ -670,6 +678,7 @@ async function shutdown(signal: string): Promise<void> {
   if (wrfPointTimer) clearInterval(wrfPointTimer);
   if (metarTimer) clearInterval(metarTimer);
   if (intecmarTimer) clearInterval(intecmarTimer);
+  if (intecmarLiveTimer) clearInterval(intecmarLiveTimer);
 
   // Close database pool
   await closePool();
