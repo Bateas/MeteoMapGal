@@ -195,9 +195,22 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
   return result;
 }
 
+/** True when our API's forecast is the WRF (MeteoGalicia's sky state on most hours). */
+export function isWrfAnswer(h: HourlyForecast[] | null): h is HourlyForecast[] {
+  if (!h || h.length === 0) return false;
+  const withSky = h.filter((x) => x.skyState != null).length;
+  return withSky >= h.length * 0.5;
+}
+
 async function fetchForecastTimeline(model: ForecastModel = 'best_match', lat = 42.29, lon = -8.1, sectorId = 'embalse'): Promise<HourlyForecast[]> {
-  // MeteoSIX WRF: use MeteoGalicia v5 API directly
+  // MeteoSIX WRF: our server already downloads this same run for these coordinates (hourly,
+  // meteoSixFetcher.ts) and serves it merged with the convection fields. Asking MeteoGalicia from
+  // every browser repeated it up to 480 times a day per URL; they asked for prudent use. Only the
+  // WRF carries the sky state, so an answer without it means the server fell back to Open-Meteo:
+  // then, and only then, ask MeteoSIX directly.
   if (model === 'meteosix_wrf') {
+    const own = await fetchFromOwnAPI(sectorId);
+    if (isWrfAnswer(own)) return own;
     return fetchMeteoSixForecast(lat, lon);
   }
 
