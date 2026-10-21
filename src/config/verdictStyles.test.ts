@@ -135,7 +135,15 @@ describe('spot closed by the sea (wave hard gate)', () => {
   it('names the sea, not the wind', () => {
     expect(verdictLabel(cies)).toBe('Oleaje');
     expect(verdictFigure(cies)).toBe('3,0 m');
-    expect(gateWaveWhere(cies)).toBe('Cabo Silleiro, mar abierto');
+    expect(gateWaveWhere(cies)).toBe('en Cabo Silleiro, mar abierto');
+  });
+  it('prefers the sea AT the spot: SWAN there, or the estimate from the buoy', () => {
+    const swan = { ...cies, waves: { ...cies.waves, localHeight: 2.08, localSource: 'swan' as const } };
+    expect(verdictFigure(swan)).toBe('2,1 m');
+    expect(gateWaveWhere(swan)).toBe('en la zona, SWAN (modelo)');
+    const est = { ...cies, waves: { ...cies.waves, localHeight: 2.04, localSource: 'estimate' as const } };
+    expect(verdictFigure(est)).toBe('≈2,0 m');
+    expect(gateWaveWhere(est)).toBe('estimada desde Cabo Silleiro');
   });
   it('leaves a wind gate and a normal verdict as they were', () => {
     expect(verdictLabel({ ...cies, hardGateKind: 'wind' })).toBe('Fuerte');

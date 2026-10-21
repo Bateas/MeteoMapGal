@@ -397,13 +397,13 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
     : surfWaveMode
       ? (surfV ? `Spot ${shortName}: ${badgeText} (olas: modelo)` : `Spot ${shortName}: sin dato de olas`)
       : seaGateText
-        ? `Spot ${shortName}: oleaje de ${seaGateText} (${seaGateWhere ?? 'mar abierto'})`
+        ? `Spot ${shortName}: oleaje de ${seaGateText} ${seaGateWhere ?? ''}`
         : `Spot ${shortName}: ${badgeText}`;
   // The hover title says what the «~» means: the only surface where the word
   // «modelo» does not fit on screen.
   const title = calculating
     ? `${shortName} — calculando condiciones`
-    : seaGateText ? `${shortName} — oleaje de ${seaGateText} en ${seaGateWhere ?? 'mar abierto'}; no es viento`
+    : seaGateText ? `${shortName} — oleaje de ${seaGateText} ${seaGateWhere ?? ''}; no es viento`
     : surfV ? `${shortName} — olas: modelo, nadie las mide en la playa` : shortName;
   const markerRef = useCallback(
     (mk: MarkerInstance | null) => makeMarkerButton(mk, ariaLabel, () => onSelect(spotId)),

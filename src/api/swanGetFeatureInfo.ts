@@ -13,6 +13,8 @@
  */
 
 const SWAN_GFI_BASE = '/swan-api/thredds/wms/SWAN/agg/SWAN_agg_best.ncd';
+/** The same service straight from CESGA, for the server (the browser goes through our proxy). */
+export const SWAN_GFI_DIRECT = 'https://thredds-meteo.cesga.es/thredds/wms/SWAN/agg/SWAN_agg_best.ncd';
 
 interface SwanHsResult {
   /** Significant wave height in meters, or null on failure / no value */
@@ -81,6 +83,8 @@ export function buildSwanGfiUrl(opts: {
   lon: number;
   /** Hour offset from now (default 0 = current hour) */
   hourOffset?: number;
+  /** Service base; default our proxy path (browser). The server passes SWAN_GFI_DIRECT. */
+  base?: string;
 }): string {
   const lat = opts.lat;
   const lon = opts.lon;
@@ -90,7 +94,7 @@ export function buildSwanGfiUrl(opts: {
   const time = timeForOffset(opts.hourOffset ?? 0);
   // X=0, Y=0 = top-left pixel of a 2x2 grid → spot lat/lon.
   // INFO_FORMAT=text/xml is the THREDDS default and well-supported.
-  return `${SWAN_GFI_BASE}`
+  return `${opts.base ?? SWAN_GFI_BASE}`
     + `?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo`
     + `&LAYERS=hs&QUERY_LAYERS=hs`
     + `&SRS=EPSG:4326&BBOX=${bbox}`
@@ -116,8 +120,9 @@ export async function fetchSwanHsAt(
   lat: number,
   lon: number,
   hourOffset = 0,
+  base?: string,
 ): Promise<SwanHsResult> {
-  const url = buildSwanGfiUrl({ lat, lon, hourOffset });
+  const url = buildSwanGfiUrl({ lat, lon, hourOffset, base });
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
     if (!res.ok) {

@@ -16,6 +16,8 @@
 import { scoreAllSpots, type SpotScore } from '../src/services/spotScoringEngine.js';
 import { displayVerdict, displayWindKt } from '../src/config/verdictStyles.js';
 import { getSpotsForSector } from '../src/config/spots.js';
+import { swanHeightsFor } from '../src/api/swanSpotHeights.js';
+import { SWAN_GFI_DIRECT } from '../src/api/swanGetFeatureInfo.js';
 import type { NormalizedReading, NormalizedStation, StationSource } from '../src/types/station.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
@@ -69,7 +71,10 @@ export function scoreWithEngine(
   const out = new Map<string, SpotScore>();
   for (const sector of ['embalse', 'rias'] as const) {
     const spots = getSpotsForSector(sector).filter((s) => s.category !== 'surf');
-    for (const [id, score] of scoreAllSpots(spots, stations, readingMap, buoyReadings, undefined, undefined, undefined, precipHistory, upperWind?.[sector] ?? null)) out.set(id, score);
+    // SWAN at the spots that decide on the sea, straight from CESGA (refreshed in the background every
+    // 30 min; until it answers, the engine uses the buoy estimate: spotWaveLocal.ts).
+    const swan = swanHeightsFor(spots, SWAN_GFI_DIRECT);
+    for (const [id, score] of scoreAllSpots(spots, stations, readingMap, buoyReadings, undefined, undefined, undefined, precipHistory, upperWind?.[sector] ?? null, undefined, swan)) out.set(id, score);
   }
   return out;
 }

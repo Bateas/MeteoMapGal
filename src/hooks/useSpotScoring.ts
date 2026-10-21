@@ -6,6 +6,7 @@
  * For spots with thermalDetection, enriches scores with thermal context
  * (ΔT, thermal probability, wind window, atmosphere, tendency, alerts).
  */
+import { swanHeightsFor } from '../api/swanSpotHeights';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useWeatherStore } from '../store/weatherStore';
@@ -153,8 +154,10 @@ export function useSpotScoring() {
         verdictHoldRef.current.clear();
         holdKeyRef.current = holdKey;
       }
+      // SWAN at the spots closed by the sea decides their gate (spotWaveLocal.ts); fetched in the
+      // background through our proxy, at most every 30 min. Empty until it answers.
       const scores = scoreAllSpots(spots, stations, currentReadings, buoys, thermalData, tc, readingHistory, undefined, upperWind,
-        { states: verdictHoldRef.current, nowMs: Date.now() });
+        { states: verdictHoldRef.current, nowMs: Date.now() }, swanHeightsFor(spots));
 
       setScores(buoysPending ? markProvisionalUntilBuoys(scores, spots) : scores);
       lastScoredRef.current = Date.now();

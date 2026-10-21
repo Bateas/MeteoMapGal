@@ -93,7 +93,7 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
   const windDir = displayWindDir(activeScore)?.label;
   const sea = gateWaveText(activeScore);
   const windInfo = sea
-    ? `${sea} (${gateWaveWhere(activeScore)})`
+    ? `${sea} ${gateWaveWhere(activeScore)}`
     : windKt != null && verdict !== 'calm' && verdict !== 'unknown'
     ? `${windKt.toFixed(0)}kt ${windDir ?? ''}`
     : null;

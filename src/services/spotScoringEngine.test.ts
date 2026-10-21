@@ -1076,26 +1076,48 @@ describe('waves only from the spot own wave buoys', () => {
     expect(r.waves).toBeNull();
   });
 
-  it('cies-ria still takes the gate from Silleiro', () => {
+  const swanAt = (hs: number) => new Map([['cies-ria', hs]]);
+  const scoreCies = (buoyM: number, swan?: Map<string, number>) => {
     const { spot, st, readings } = calmAt('cies-ria');
-    const r = scoreAllSpots([spot], [st], readings, [silleiro(3.4)]).get('cies-ria')!;
-    expect(r.hardGateTriggered).not.toBeNull();
+    return scoreAllSpots([spot], [st], readings, [silleiro(buoyM)], undefined, undefined, undefined, undefined, undefined, undefined, swan).get('cies-ria')!;
+  };
+
+  // 21-oct 13 h: Silleiro 3,4 m, SWAN 2,1 m at the spot, about a metre at Patos. Not closed.
+  it('decides on the sea AT the spot: SWAN 2,1 m does not close a 3 m gate with 3,4 m at Silleiro', () => {
+    const r = scoreCies(3.4, swanAt(2.08));
+    expect(r.hardGateTriggered).toBeNull();
     expect(r.waves!.waveHeight).toBeCloseTo(3.4, 1);
+    expect(r.waves!.localHeight).toBeCloseTo(2.08, 2);
+    expect(r.waves!.localSource).toBe('swan');
   });
 
-  // 21-oct: «FUERTE 4kt» at Cíes was the sea. The score says which limit it was.
-  it('a sea gate is marked as such and names where the sea was measured', () => {
-    const { spot, st, readings } = calmAt('cies-ria');
-    const r = scoreAllSpots([spot], [st], readings, [silleiro(3.4)]).get('cies-ria')!;
+  it('without SWAN it estimates from Silleiro with the spot factor, and says so', () => {
+    const r = scoreCies(3.4);
+    expect(r.waves!.localSource).toBe('estimate');
+    expect(r.waves!.localHeight).toBeCloseTo(2.04, 2);
+    expect(r.hardGateTriggered).toBeNull();
+  });
+
+  it('a big sea at the spot still closes it, named as the sea', () => {
+    const r = scoreCies(5.5, swanAt(3.4));
     expect(r.hardGateKind).toBe('wave');
-    expect(r.summary).toContain('Cabo Silleiro (mar abierto)');
+    expect(r.summary).toContain('en la zona (SWAN, modelo)');
+    expect(r.summary).toContain('Cabo Silleiro 5,5 m (mar abierto)');
     expect(r.summary).toContain('No es viento');
   });
 
   it('compares the sea at the precision it is shown with (3,04 m is not «3,0 m > 3 m»)', () => {
-    const { spot, st, readings } = calmAt('cies-ria');
-    expect(scoreAllSpots([spot], [st], readings, [silleiro(3.04)]).get('cies-ria')!.hardGateKind).toBeNull();
-    expect(scoreAllSpots([spot], [st], readings, [silleiro(3.06)]).get('cies-ria')!.hardGateKind).toBe('wave');
+    expect(scoreCies(5, swanAt(3.04)).hardGateKind).toBeNull();
+    expect(scoreCies(5, swanAt(3.06)).hardGateKind).toBe('wave');
+  });
+
+  it('the middle of the ria decides on its own sea too (its 2 m gate could never fire)', () => {
+    const { spot, st, readings } = calmAt('centro-ria');
+    const calm = scoreAllSpots([spot], [st], readings, [silleiro(3.4)]).get('centro-ria')!;
+    expect(calm.waves!.localSource).toBe('estimate');
+    expect(calm.hardGateTriggered).toBeNull();
+    const storm = scoreAllSpots([spot], [st], readings, [silleiro(6)], undefined, undefined, undefined, undefined, undefined, undefined, new Map([['centro-ria', 2.3]])).get('centro-ria')!;
+    expect(storm.hardGateKind).toBe('wave');
   });
 
   it('a harbour gauge never stands for a spot sea state', () => {

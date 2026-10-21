@@ -201,7 +201,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
       result.push({
         key: `spot-${spot.id}`,
         text: sea
-          ? `${spot.shortName}: oleaje ${sea} (${gateWaveWhere(sc)})`
+          ? `${spot.shortName}: oleaje ${sea} ${gateWaveWhere(sc)}`
           : `${spot.shortName}: ${v.label}${kt != null && sc.verdict !== 'calm' ? ` ${dir} ${kt.toFixed(0)}kt` : ''}`,
         color: v.text,
         // «Fuerte» is a warning, not an invitation: it never shares the navigable green.

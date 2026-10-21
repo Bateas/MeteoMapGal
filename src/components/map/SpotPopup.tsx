@@ -447,7 +447,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
           <div className="sg-big">
             <span className="sg-verdict" style={{ color: displayVerdict.textColor }}>Oleaje · {seaText}</span>
             <span className="sg-side">
-              <span className="sg-strong">en {seaWhere}</span>
+              <span className="sg-strong">{seaWhere}</span>
               {score?.wind && <span className="sg-mut">no es viento: {Math.round(effectiveKt)} kt</span>}
             </span>
           </div>
@@ -625,8 +625,15 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       {/* ── Wave conditions (coastal spots — NOT surf, which uses marine forecast) ── */}
       {spot.category !== 'surf' && score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-1.5 pt-1 border-t border-slate-700/40">
+          {score.waves.localHeight != null && score.waves.localSource !== 'buoy' && (
+            <Cell
+              label={score.waves.localSource === 'swan' ? 'Ola en la zona (SWAN)' : 'Ola en la zona (estimada)'}
+              value={`${score.waves.localSource === 'estimate' ? '≈' : ''}${score.waves.localHeight.toFixed(1)} m`}
+              color={waveColor(score.waves.localHeight)}
+            />
+          )}
           <Cell
-            label={score.waves.sourceBuoy ? `Oleaje (${score.waves.sourceBuoy})` : 'Oleaje'}
+            label={score.waves.sourceBuoy ? `${score.waves.sourceBuoy} (mar abierto)` : 'Oleaje'}
             value={`${score.waves.waveHeight.toFixed(1)} m`}
             color={waveColor(score.waves.waveHeight)}
           />

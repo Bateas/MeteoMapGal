@@ -288,7 +288,14 @@ export const RIAS_SPOTS: SailingSpot[] = [
       1251, // Rande CETMAR (~8km NE) — humidity/temp for theta-v
       3221, // Vigo REDMAR (sea level, ~3km S) — wind on water
       4273, // Cabo Udra REMPOR (~10km S, wind)
+      2248, // Cabo Silleiro REDEXT (~17 km): only for the sea state below, it was already in range
     ],
+    // The sea in the middle of the ría (21-oct, user: on a storm day big seas do get in). The gate
+    // decides on SWAN at the centre; without SWAN, Silleiro x coastalFactor.
+    waveBuoys: [2248],
+    // PROVISIONAL, one case: 21-oct 13 h, SWAN 1,2 m here vs 3,4 m at Silleiro from 321° (0,35).
+    // Re-fit with more cases and other swell directions (a SW sea enters the ría more).
+    coastalFactor: 0.35,
     waveRelevance: 'moderate',
     thermalDetection: true, // Virazon detection via theta-v gradient (Rande buoy + land stations)
     hardGates: { maxWindKt: 30, maxWaveHeight: 2.0 },
@@ -356,6 +363,9 @@ export const RIAS_SPOTS: SailingSpot[] = [
       // 1252 Islas Cíes CETMAR: offline since Dec 2025 (enabled: false in buoyClient)
     ],
     waveBuoys: [2248], // the south mouth takes the ocean swell
+    // PROVISIONAL, one case: 21-oct 13 h, SWAN 2,1 m at the spot vs 3,4 m at Silleiro from 321°
+    // (0,6): the islands shelter the mouth from the NW. Used only when SWAN does not answer.
+    coastalFactor: 0.6,
     waveRelevance: 'critical',
     thermalDetection: false,
     hardGates: { maxWindKt: 30, maxWaveHeight: 3.0 },

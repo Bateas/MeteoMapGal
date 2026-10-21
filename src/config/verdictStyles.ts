@@ -57,7 +57,7 @@ export interface VerdictSource {
   effectiveWindKt?: number | null;
   wind?: { avgSpeedKt: number } | null;
   hardGateKind?: 'wind' | 'wave' | null;
-  waves?: { waveHeight: number | null; sourceBuoy?: string | null } | null;
+  waves?: { waveHeight: number | null; sourceBuoy?: string | null; localHeight?: number | null; localSource?: 'swan' | 'estimate' | 'buoy' | null } | null;
 }
 
 /** The verdict a surface should RENDER. Provisional collapses to the neutral
@@ -89,15 +89,21 @@ export function isWaveGate(score: VerdictSource | undefined | null): boolean {
 /** «3,0 m» for the gate's sea height, or null when the spot is not closed by the sea. */
 export function gateWaveText(score: VerdictSource | undefined | null): string | null {
   if (!isWaveGate(score)) return null;
-  const h = score!.waves?.waveHeight;
-  return h != null ? `${h.toFixed(1).replace('.', ',')} m` : null;
+  const h = score!.waves?.localHeight ?? score!.waves?.waveHeight;
+  if (h == null) return null;
+  const m = `${h.toFixed(1).replace('.', ',')} m`;
+  return score!.waves?.localSource === 'estimate' ? `≈${m}` : m;
 }
 
-/** Where that sea was measured: «Cabo Silleiro, mar abierto». */
+/** Where that sea comes from, as a phrase: «en la zona, SWAN (modelo)», «estimada desde Cabo
+ *  Silleiro» or «en Cabo Silleiro, mar abierto» (a spot with no local estimate). */
 export function gateWaveWhere(score: VerdictSource | undefined | null): string | null {
   if (!isWaveGate(score)) return null;
-  const buoy = score!.waves?.sourceBuoy;
-  return buoy ? `${buoy}, mar abierto` : 'mar abierto';
+  const w = score!.waves;
+  const buoy = w?.sourceBuoy;
+  if (w?.localSource === 'swan') return 'en la zona, SWAN (modelo)';
+  if (w?.localSource === 'estimate') return buoy ? `estimada desde ${buoy}` : 'estimada';
+  return buoy ? `en ${buoy}, mar abierto` : 'mar abierto';
 }
 
 /** The figure a surface prints beside the label: the sea height for a wave gate, the wind

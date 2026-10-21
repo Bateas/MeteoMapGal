@@ -18,6 +18,7 @@
  * is "¿merece la pena preparar el barco?"
  */
 
+import { localWaveHeight } from './spotWaveLocal';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
@@ -86,6 +87,10 @@ export interface SpotWaveConditions {
   waveDir: number | null;
   /** Source buoy name */
   sourceBuoy: string | null;
+  /** The sea AT the spot (spotWaveLocal.ts): SWAN there, or the buoy times the spot factor.
+   *  The hard gate decides on this, never on the open-ocean buoy alone. Absent = as the buoy. */
+  localHeight?: number | null;
+  localSource?: 'swan' | 'estimate' | 'buoy' | null;
 }
 
 /** Thermal context for spots with thermalDetection: true */
@@ -1117,9 +1122,16 @@ function scoreSpot(
   // Waves only come from a spot's `waveBuoys`, which are open-ocean buoys by policy (Cabo
   // Silleiro today), so the text always says where the sea was measured: the same height
   // at the buoy is not the same at a sheltered mouth.
-  const waveM = waves?.waveHeight != null ? Math.round(waves.waveHeight * 10) / 10 : null;
+  const seaAtSpot = waves?.localHeight ?? waves?.waveHeight ?? null;
+  const waveM = seaAtSpot != null ? Math.round(seaAtSpot * 10) / 10 : null;
   if (waves && spot.hardGates.maxWaveHeight && waveM != null && waveM > spot.hardGates.maxWaveHeight) {
-    const where = waves.sourceBuoy ? ` en ${waves.sourceBuoy} (mar abierto)` : ' (mar abierto)';
+    const buoy = waves.sourceBuoy ?? 'la boya';
+    const buoyM = waves.waveHeight != null ? `${fmtM(Math.round(waves.waveHeight * 10) / 10)} m` : null;
+    const where = waves.localSource === 'swan'
+      ? ` en la zona (SWAN, modelo)${buoyM ? `; en ${buoy} ${buoyM} (mar abierto)` : ''}`
+      : waves.localSource === 'estimate'
+        ? ` estimado en la zona desde ${buoy}${buoyM ? ` (${buoyM}, mar abierto)` : ''}`
+        : ` en ${buoy} (mar abierto)`;
     const period = waves.wavePeriod != null ? ` · ${Math.round(waves.wavePeriod)} s` : '';
     const windNote = wind ? ` No es viento: ${Math.round(wind.avgSpeedKt)} kt.` : '';
     return {
@@ -1301,13 +1313,15 @@ function scoreSpot(
   else if (wind.stationCount >= 1) score += 5;
 
   // ── Wave scoring (per spot relevance) ──────────────────
-  if (spot.waveRelevance === 'critical' && waves?.waveHeight != null) {
-    const wh = waves.waveHeight!;
+  // The sea AT the spot (SWAN or estimate), not at the open-ocean buoy.
+  const spotSea = waves ? (waves.localHeight ?? waves.waveHeight) : null;
+  if (spot.waveRelevance === 'critical' && spotSea != null) {
+    const wh = spotSea;
     if (wh >= 0.3 && wh <= 1.5) score += 25;
     else if (wh <= 2.5) score += 15;
     else if (wh <= 3.0) score += 5;
-  } else if (spot.waveRelevance === 'moderate' && waves?.waveHeight != null) {
-    const wh = waves.waveHeight!;
+  } else if (spot.waveRelevance === 'moderate' && spotSea != null) {
+    const wh = spotSea;
     if (wh <= 0.5) score += 15;
     else if (wh <= 1.0) score += 10;
     else if (wh <= 1.5) score += 5;
@@ -1408,8 +1422,10 @@ function buildSpotSummary(
     parts.push(`(${wind.stationCount} fuentes)`);
   }
 
-  if (waves?.waveHeight != null && spot.waveRelevance !== 'none') {
-    parts.push(`\u00b7 Olas ${waves.waveHeight!.toFixed(1)}m`);
+  const seaHere = waves ? (waves.localHeight ?? waves.waveHeight) : null;
+  if (seaHere != null && spot.waveRelevance !== 'none') {
+    const tag = waves?.localSource === 'swan' ? ' (SWAN)' : waves?.localSource === 'estimate' ? ' (estimada)' : '';
+    parts.push(`\u00b7 Olas ${seaHere.toFixed(1)}m${tag}`);
   }
 
   if (waterTemp !== null && verdict !== 'calm') {
@@ -1613,6 +1629,9 @@ export function scoreAllSpots(
   /** Map only (verdictHold.ts): the hold state per spot, updated in place. The server omits it
    *  and keeps the raw verdict for alerts and spot_scores. */
   verdictHold?: { states: Map<string, VerdictHoldState>; nowMs: number },
+  /** CESGA SWAN wave height at each spot's centre (m), when it answered. Spots closed by the sea
+   *  decide on it; without it the buoy times the spot's coastalFactor (spotWaveLocal.ts). */
+  swanBySpot?: Map<string, number>,
 ): Map<string, SpotScore> {
   const results = new Map<string, SpotScore>();
   const computedAt = new Date();
@@ -1666,9 +1685,15 @@ export function scoreAllSpots(
     // publication lag without misleading anyone. Only the spot's own wave buoys count
     // (SailingSpot.waveBuoys): the nearest buoy with a wave is usually open ocean.
     const waveSet = new Set(spot.waveBuoys ?? []);
-    const waves = extractWaveConditions(
+    const buoyWaves = extractWaveConditions(
       selectBuoysForSpot(spot, buoys, BUOY_WAVE_MAX_MIN).filter((d) => waveSet.has(d.buoy.stationId)),
     );
+    // The sea at the spot, not at the open-ocean buoy (spotWaveLocal.ts). SWAN only counts with
+    // a buoy reading alongside: the spot's sea state stays tied to a measurement.
+    const local = buoyWaves ? localWaveHeight(spot, buoyWaves.waveHeight, swanBySpot?.get(spot.id)) : null;
+    const waves = buoyWaves
+      ? { ...buoyWaves, localHeight: local?.heightM ?? null, localSource: local?.source ?? null }
+      : null;
 
     // Water temp + dew point from nearest buoy.
     // SURF spots SKIP the buoy water temp: the closest buoy can sit in a totally

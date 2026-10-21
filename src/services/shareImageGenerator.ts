@@ -182,7 +182,7 @@ export function renderShareCanvas(canvas: HTMLCanvasElement, data: ShareCardData
   ctx.fillStyle = '#94a3b8';
   const subParts: string[] = [];
   if (data.seaText) {
-    subParts.push(`en ${data.seaWhere ?? 'mar abierto'}`);
+    subParts.push(data.seaWhere ?? 'mar abierto');
     if (data.windKt != null) subParts.push(`viento ${data.windKt} kt`);
   } else {
     if (data.windDirCardinal) subParts.push(data.windDirCardinal);
@@ -322,7 +322,7 @@ export function buildShareText(data: ShareCardData): string {
   // Line 1: spot — verdict · wind · waves
   const line1Bits: string[] = [`${data.spotName} — ${data.verdictLabel}`];
   if (data.seaText) {
-    line1Bits.push(`${data.seaText} (${data.seaWhere ?? 'mar abierto'})`);
+    line1Bits.push(`${data.seaText} ${data.seaWhere ?? ''}`.trim());
     if (data.windKt != null) line1Bits.push(`viento ${data.windKt}kt`);
   } else if (data.windKt != null) {
     line1Bits.push(`${data.windKt}kt${data.windDirCardinal ? ' ' + data.windDirCardinal : ''}`);
