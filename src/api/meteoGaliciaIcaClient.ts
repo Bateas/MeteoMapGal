@@ -93,14 +93,36 @@ export function parseIcaActual(body: unknown): IcaReading[] {
   return [...byStation.values()];
 }
 
-/** Fetch the latest ICA observation for every reporting station. */
+/**
+ * Fetch the latest ICA observation for every reporting station, telling a failure from an
+ * empty answer: an HTTP error, a body that is not JSON or a JSON without the `icas` list
+ * THROWS with the reason; `[]` only means MeteoGalicia answered and listed nothing usable.
+ * The service that stores the readings uses this one, so a cut of the source shows in its log
+ * instead of reading as «0 observations» forever.
+ */
+export async function fetchIcaObservationsChecked(): Promise<IcaReading[]> {
+  // From the server, say who we are (serverIdentity.ts); a browser does not let a page set it.
+  const headers = typeof window === 'undefined' ? { 'User-Agent': SERVER_USER_AGENT } : undefined;
+  const res = await fetch(ENDPOINT, { headers, signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    const type = res.headers.get('content-type') ?? 'sin content-type';
+    throw new Error(`answer is not JSON (${type}, ${text.length} bytes)`);
+  }
+  if (!Array.isArray((body as { icas?: unknown } | null)?.icas)) {
+    throw new Error('JSON without the `icas` list');
+  }
+  return parseIcaActual(body);
+}
+
+/** Fetch the latest ICA observation for every reporting station; `[]` on any failure (map use). */
 export async function fetchIcaObservations(): Promise<IcaReading[]> {
   try {
-    // From the server, say who we are (serverIdentity.ts); a browser does not let a page set it.
-    const headers = typeof window === 'undefined' ? { 'User-Agent': SERVER_USER_AGENT } : undefined;
-    const res = await fetch(ENDPOINT, { headers, signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return [];
-    return parseIcaActual(await res.json());
+    return await fetchIcaObservationsChecked();
   } catch (err) {
     console.debug('[MG ICA] fetch/parse failed', err);
     return [];

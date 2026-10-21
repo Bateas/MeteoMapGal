@@ -1130,3 +1130,47 @@ async function queryRecentLightningUncached(minutes: number): Promise<RecentStri
 
 /** The map polls this every minute in a storm: every visitor of the same 20 s shares one query. */
 export const queryRecentLightning = memoByKey(20_000, queryRecentLightningUncached, (minutes) => `lightning:${minutes}`);
+
+// ── Latest airport METAR for the map (21-oct audit, finding 14) ──
+
+/** One airport's newest stored report, as the map reads it. */
+export interface LatestMetar {
+  icao: string;
+  /** epoch ms */
+  obsTime: number;
+  /** km as stored by metarArchive (same parser as the map); 10 = «10 km or more» */
+  visibilityKm: number | null;
+  rawOb: string;
+}
+
+interface LatestMetarRow {
+  icao: string;
+  t: string | number;
+  visibility_km: string | number | null;
+  raw_ob: string;
+}
+
+/** DB rows → payload; a row without station, time or text is dropped (pure, tested). */
+export function latestMetarRows(rows: LatestMetarRow[]): LatestMetar[] {
+  const out: LatestMetar[] = [];
+  for (const r of rows) {
+    const obsTime = Number(r.t);
+    if (typeof r.icao !== 'string' || !r.icao || !Number.isFinite(obsTime) || typeof r.raw_ob !== 'string' || !r.raw_ob) continue;
+    const vis = r.visibility_km == null ? null : Number(r.visibility_km);
+    out.push({ icao: r.icao, obsTime, visibilityKm: vis != null && Number.isFinite(vis) ? vis : null, rawOb: r.raw_ob });
+  }
+  return out;
+}
+
+async function queryLatestMetarUncached(): Promise<LatestMetar[]> {
+  const res = await getPool().query<LatestMetarRow>(
+    `SELECT DISTINCT ON (icao) icao, (extract(epoch FROM obs_time) * 1000)::bigint AS t, visibility_km, raw_ob
+       FROM metar_reports
+      WHERE obs_time > NOW() - INTERVAL '3 hours'
+      ORDER BY icao, obs_time DESC`,
+  );
+  return latestMetarRows(res.rows);
+}
+
+/** Reports come every 30 min and the archive asks every 30: one query a minute serves every visitor. */
+export const queryLatestMetar = memoByKey(60_000, queryLatestMetarUncached, () => 'metar-latest');

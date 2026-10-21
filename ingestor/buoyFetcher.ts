@@ -319,6 +319,28 @@ async function fetchPdeViaPoem(
 // Field selection (10-minute window, sensor height, per-field time) lives in
 // the pure parser shared with the frontend client: src/api/obsCosteiroParse.ts.
 
+/**
+ * Last HTTP error each ObsCosteiro station answered with. A 4xx (a revoked key, a moved path)
+ * used to come back as `null` with no log, visible only as a lower «ObsCosteiro N/5»; now the
+ * status is logged when it starts or changes, and once more when the station answers again.
+ */
+const obsHttpError = new Map<number, number>();
+
+function noteObsHttp(station: ObsStation, status: number | null): void {
+  const prev = obsHttpError.get(station.obsId);
+  if (status == null) {
+    if (prev != null) {
+      obsHttpError.delete(station.obsId);
+      log.info(`ObsCosteiro ${station.name} (${station.obsId}): answering again after HTTP ${prev}`);
+    }
+    return;
+  }
+  if (prev === status) return;
+  obsHttpError.set(station.obsId, status);
+  const hint = status === 401 || status === 403 ? ' (key refused? check OBSCOSTEIRO_API_KEY)' : '';
+  log.warn(`ObsCosteiro ${station.name} (${station.obsId}): HTTP ${status}${hint}; said once until it changes`);
+}
+
 async function fetchObsStation(station: ObsStation, apiKey: string): Promise<BuoyReadingRow | null> {
   try {
     const res = await fetch(`${OBS_BASE}/ultimo/recente/${station.obsId}`, {
@@ -333,12 +355,18 @@ async function fetchObsStation(station: ObsStation, apiKey: string): Promise<Buo
           headers: { 'apikey': apiKey, 'User-Agent': SERVER_USER_AGENT },
           signal: AbortSignal.timeout(TIMEOUT),
         });
-        if (!retry.ok) return null;
+        if (!retry.ok) {
+          noteObsHttp(station, retry.status);
+          return null;
+        }
+        noteObsHttp(station, null);
         return parseObsResponse(station, await retry.json());
       }
+      noteObsHttp(station, res.status);
       return null;
     }
 
+    noteObsHttp(station, null);
     return parseObsResponse(station, await res.json());
   } catch (err) {
     log.warn(`ObsCosteiro ${station.name} (${station.obsId}): ${(err as Error).message}`);

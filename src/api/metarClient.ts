@@ -1,10 +1,12 @@
 /**
  * METAR client — certified aviation visibility for the Galician airports.
  *
- * Source: aviationweather.gov (NOAA) via the ingestor proxy `/api/v1/metar`
+ * Source: aviationweather.gov (NOAA). First what the server already archives
+ * (`/api/v1/metar/latest`, from `metar_reports`); the ingestor proxy `/api/v1/metar`
  * (the upstream sends no CORS headers, and the proxy pins the station list
- * server-side). METARs are official observations published every ~30min and
- * they feed the EXISTING regional visibility pipeline (`visibilityReadings`),
+ * server-side) only when that is missing or too old (21-oct audit, finding 14).
+ * METARs are official observations published every ~30min and they feed
+ * the EXISTING regional visibility pipeline (`visibilityReadings`),
  * so the fog halo, the age/distance gates and the multi-evidence fog rules
  * pick them up with zero new UI. LEVX (Vigo/Peinador) matters most: it is
  * the gate of the Ria de Vigo and none of the 8 AEMET vis stations cover it.
@@ -26,7 +28,27 @@ import { parseMetarVisibilityKm } from './metarParse';
 export { parseMetarVisibilityKm };
 
 const METAR_ENDPOINT = '/api/v1/metar';
+/** What the server archived (metar_reports), newest report per airport. */
+const STORED_ENDPOINT = '/api/v1/metar/latest';
 const TIMEOUT_MS = 15_000;
+
+/**
+ * Reports come every 30 min and the server archives them every 30 min, so the newest stored one
+ * can be up to ~65 min old while a newer one already exists. Past this age the live proxy is
+ * asked as well, which bounds the delay the archive adds; the proxy caches 5 min for everyone.
+ */
+export const STORED_METAR_MAX_AGE_MS = 50 * 60_000;
+
+/**
+ * Where each airport is. The archive keeps the report, not the position: LEVX as
+ * aviationweather.gov gives it (the test fixture), LEST and LECO at their aerodrome reference
+ * points, within a few hundred metres of it. The fog gates measure tens of km.
+ */
+const METAR_STATION_COORDS: Record<string, { lat: number; lon: number }> = {
+  LEVX: { lat: 42.239, lon: -8.624 },
+  LEST: { lat: 42.896, lon: -8.415 },
+  LECO: { lat: 43.302, lon: -8.377 },
+};
 
 /** Short Spanish display names — the API `name` field is English + verbose. */
 const METAR_STATION_NAMES: Record<string, string> = {
@@ -103,15 +125,97 @@ export function metarToVisibilityReadings(payload: unknown): VisibilityReading[]
   return [...latestByStation.values()];
 }
 
+/** One report as `/api/v1/metar/latest` gives it. */
+export interface StoredMetar {
+  icao?: string;
+  /** epoch ms */
+  obsTime?: number;
+  visibilityKm?: number | null;
+  rawOb?: string;
+}
+
 /**
- * Fetch the pinned Galician METARs through the ingestor proxy.
+ * `/api/v1/metar/latest` → `VisibilityReading[]`, with the same rules as the live payload: an
+ * airport without a known position, a time or a visibility is dropped, never half-filled.
+ */
+export function storedMetarToVisibilityReadings(payload: unknown): VisibilityReading[] {
+  const list = (payload as { reports?: unknown } | null)?.reports;
+  if (!Array.isArray(list)) return [];
+  const latest = new Map<string, VisibilityReading>();
+  for (const raw of list) {
+    const m = raw as StoredMetar | null;
+    if (!m || typeof m.icao !== 'string') continue;
+    const pos = METAR_STATION_COORDS[m.icao];
+    if (!pos) continue;
+    if (typeof m.obsTime !== 'number' || !Number.isFinite(m.obsTime)) continue;
+    if (typeof m.visibilityKm !== 'number' || !Number.isFinite(m.visibilityKm)) continue;
+    const entry: VisibilityReading = {
+      stationId: `metar_${m.icao}`,
+      name: METAR_STATION_NAMES[m.icao] ?? `${m.icao} (METAR)`,
+      lat: pos.lat,
+      lon: pos.lon,
+      visibility: m.visibilityKm,
+      timestamp: new Date(m.obsTime),
+      ...(metarPrecipWithoutFog(m.rawOb) ? { precipitating: true as const } : {}),
+    };
+    const existing = latest.get(entry.stationId);
+    if (!existing || entry.timestamp > existing.timestamp) latest.set(entry.stationId, entry);
+  }
+  return [...latest.values()];
+}
+
+/**
+ * Whether the stored reports can stand alone: all three airports present and none older than
+ * STORED_METAR_MAX_AGE_MS. Otherwise the live proxy is asked too (pure, tested).
+ */
+export function storedMetarIsCurrent(readings: VisibilityReading[], nowMs: number): boolean {
+  const expected = Object.keys(METAR_STATION_COORDS).length;
+  if (readings.length < expected) return false;
+  return readings.every((r) => nowMs - r.timestamp.getTime() <= STORED_METAR_MAX_AGE_MS);
+}
+
+/**
+ * Fetch the pinned Galician METARs: what our server archived first; the live proxy only when
+ * that cannot be read or is older than STORED_METAR_MAX_AGE_MS (then the newer of the two wins,
+ * airport by airport).
+ */
+export async function fetchMetarVisibility(): Promise<VisibilityReading[]> {
+  const stored = await fetchStoredMetarVisibility();
+  if (stored && storedMetarIsCurrent(stored, Date.now())) return stored;
+  const live = await fetchLiveMetarVisibility();
+  if (!stored || stored.length === 0) return live;
+  const byStation = new Map(stored.map((r) => [r.stationId, r]));
+  for (const r of live) {
+    const s = byStation.get(r.stationId);
+    if (!s || r.timestamp > s.timestamp) byStation.set(r.stationId, r);
+  }
+  return [...byStation.values()];
+}
+
+/** Null when our endpoint cannot be read (missing in dev before a deploy, database down). */
+async function fetchStoredMetarVisibility(): Promise<VisibilityReading[] | null> {
+  try {
+    const res = await fetch(STORED_ENDPOINT, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    return storedMetarToVisibilityReadings(await res.json());
+  } catch (err) {
+    console.debug('[METAR] stored reports unavailable:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetch the pinned Galician METARs through the ingestor proxy (aviationweather.gov live).
  *
  * Degrades to `[]` in silence on ANY failure: in dev the `/api/v1` proxy
  * points at prod and this route 404s until the ingestor deploy lands, and
  * upstream hiccups must never surface as console noise — the next poll
  * simply retries.
  */
-export async function fetchMetarVisibility(): Promise<VisibilityReading[]> {
+async function fetchLiveMetarVisibility(): Promise<VisibilityReading[]> {
   try {
     const res = await fetch(METAR_ENDPOINT, {
       headers: { Accept: 'application/json' },

@@ -10,10 +10,6 @@ export const AEMET = {
   stationInventory: () =>
     `/api/v1/aemet/api/valores/climatologicos/inventarioestaciones/todasestaciones`,
 
-  /** National radar composite (two-step: returns URL to PNG) — covers all Spain including Galicia */
-  radarNacional: () =>
-    `/api/v1/aemet/api/red/radar/nacional`,
-
   /** Proxy for AEMET data URLs (step 2) — validates origin to prevent SSRF */
   proxyDataUrl: (url: string) => {
     // AEMET step 2 returns full URLs like https://opendata.aemet.es/opendata/sh/XXXXX
@@ -46,9 +42,6 @@ export const METEOSIX = {
   /** Tide predictions */
   tides: (lon: number, lat: number) =>
     `/api/v1/meteosix/getTidesInfo?coords=${lon},${lat}&lang=es&format=application/json`,
-  /** Sunrise/sunset */
-  solar: (lon: number, lat: number) =>
-    `/api/v1/meteosix/getSolarInfo?coords=${lon},${lat}&format=application/json`,
 } as const;
 
 export const METEOGALICIA = {

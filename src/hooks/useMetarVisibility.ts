@@ -8,9 +8,11 @@
  * halo, the age/distance freshness gates and the multi-evidence fog rules
  * consume them with zero new UI — the integration is invisible by design.
  *
- * METARs publish every ~30min; polling at 10min bounds worst-case staleness
- * without hammering the proxy (which itself caches 5min). The first poll is
- * delayed a few seconds to stay out of the startup fetch burst.
+ * METARs publish every ~30min; polling at 10min bounds worst-case staleness.
+ * Each poll reads what our server archived (`/api/v1/metar/latest`) and only
+ * asks the live proxy (which caches 5min) when that is missing or too old
+ * (metarClient.ts). The first poll is delayed a few seconds to stay out of
+ * the startup fetch burst.
  */
 
 import { useRef } from 'react';

@@ -26,6 +26,7 @@
  *   GET /api/v1/analytics/convection-grid?hourOffset=             → Spatial CAPE/LI grid
  *   GET /api/v1/analytics/upper-air?sector=&hours=                → Sounding 850/700/500 hPa
  *   GET /api/v1/fires?days=                                       → Active fires + lightning attribution
+ *   GET /api/v1/metar/latest                                      → Newest stored METAR of LEVX/LEST/LECO (map visibility)
  *   GET /api/v1/fires/events?days=&galicia=&province=             → EFFIS named fire events (commune + hectares)
  *   GET /api/v1/push/vapid-key                                    → Web Push VAPID public key
  *   POST /api/v1/push/{subscribe,unsubscribe,test}                → Lightning-safety push channel
@@ -64,6 +65,7 @@ import {
   queryFireAttribution,
   queryUpperAir,
   queryRecentLightning,
+  queryLatestMetar,
   LIGHTNING_RECENT_WINDOWS,
 } from './queries.js';
 import { getPool } from './db.js';
@@ -868,6 +870,25 @@ async function handleMgAuxLatest(
 
 /** Every station's precipitation of the last 75 min, so a page that just opened judges the gauges
  *  like one open for an hour (see recentPrecip.ts). */
+/**
+ * Newest stored METAR per airport (21-oct audit, finding 14). The archive already keeps every
+ * report in `metar_reports`; the map read them from aviationweather.gov through our proxy as
+ * well, a second series of requests to the same provider for the same reports.
+ */
+async function handleMetarLatest(
+  _params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  try {
+    const reports = await queryLatestMetar();
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    json(res, { reports }, 200, origin);
+  } catch (err) {
+    dbError(res, err, 'handleMetarLatest', origin);
+  }
+}
+
 async function handleRecentPrecip(
   _params: Record<string, string>,
   res: http.ServerResponse,
@@ -947,6 +968,8 @@ const routes: Record<string, RouteHandler> = {
   // Active fires + the lightning that may have started them (satellite hotspots)
   '/api/v1/fires': handleFires,
   '/api/v1/lightning/recent': handleLightningRecent,
+  // Newest stored airport METAR (visibility for the fog pipeline)
+  '/api/v1/metar/latest': handleMetarLatest,
   // Grouped fire events with commune + burnt hectares (EFFIS)
   '/api/v1/fires/events': handleFireEvents,
   // ── Analytics (Phase 3) — pre-computed rollups from continuous aggregates ──

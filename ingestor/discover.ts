@@ -17,6 +17,7 @@ import { isWithinRadius } from '../src/services/geoUtils.js';
 import { log } from './logger.js';
 import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import * as aemetBreaker from './aemetBreaker.js';
+import { ipmaFeed } from './ipmaCadence.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
 const MG_BASE = 'https://servizos.meteogalicia.gal';
@@ -584,21 +585,14 @@ async function discoverSkyX(): Promise<NormalizedStation[]> {
 
 async function discoverIpma(): Promise<NormalizedStation[]> {
   try {
-    const res = await fetch('https://api.ipma.pt/open-data/observation/meteorology/stations/obs-surface.geojson', {
-      signal: AbortSignal.timeout(TIMEOUT),
-      headers: { Accept: 'application/json, text/plain, */*' },
-    });
-    if (!res.ok) {
-      log.warn(`IPMA discovery HTTP error ${res.status}`);
-      return [];
-    }
-    const data = await res.json();
-    if (!data?.features || !Array.isArray(data.features)) return [];
+    // The poll's last file when it is recent (ipmaCadence.ts): the list of stations in it
+    // is the same one an extra download would bring.
+    const { features, reused } = await ipmaFeed.forDiscovery();
 
     const stations: NormalizedStation[] = [];
     const seen = new Set<string>();
 
-    for (const feat of data.features) {
+    for (const feat of features) {
       if (!feat?.geometry?.coordinates || !feat?.properties?.idEstacao) continue;
       const [lon, lat] = feat.geometry.coordinates;
       if (!inAnySector(lat, lon)) continue;
@@ -609,7 +603,7 @@ async function discoverIpma(): Promise<NormalizedStation[]> {
         stations.push(station);
       }
     }
-    log.info(`IPMA: discovered ${stations.length} stations in sector ranges`);
+    log.info(`IPMA: discovered ${stations.length} stations in sector ranges${reused ? ' (reused the poll file)' : ''}`);
     return stations;
   } catch (err) {
     log.error('IPMA discovery failed:', (err as Error).message);

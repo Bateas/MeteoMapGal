@@ -191,6 +191,35 @@ async function discoverAemet(): Promise<NormalizedStation[]> {
   return (await fetchStationInventory()).map(normalizeAemetStation);
 }
 
+/**
+ * IPMA (Portuguese border) stations from the list our server keeps: one request shared by both
+ * sectors instead of every visitor downloading IPMA's GeoJSON of all of Portugal to find the
+ * same four stations. IPMA's feed only when the list cannot be read.
+ */
+async function discoverIpma(params: DiscoveryParams): Promise<NormalizedStation[]> {
+  const listed = await shared('ipma-list', () => fetchListedStations('ipma'));
+  if (listed) {
+    const [centerLon, centerLat] = params.center;
+    return listed.filter((s) =>
+      isWithinRadius(centerLat, centerLon, s.lat, s.lon, params.radiusKm) ||
+      isInExtraCoverage(s.lat, s.lon, params.extraCoveragePoints));
+  }
+  return (await fetchIpmaNearby(params.center, params.radiusKm, params.extraCoveragePoints)).stations;
+}
+
+/**
+ * The SkyX station from the list our server keeps (it already asks SkyX every 10 min); SkyX
+ * itself, through our proxy, only when the list cannot be read.
+ */
+async function discoverSkyX(params: DiscoveryParams): Promise<NormalizedStation | null> {
+  const listed = await shared('skyx-list', () => fetchListedStations('skyx'));
+  if (listed) {
+    const [centerLon, centerLat] = params.center;
+    return listed.find((s) => isWithinRadius(centerLat, centerLon, s.lat, s.lon, params.radiusKm)) ?? null;
+  }
+  return (await fetchSkyXData(params.center, params.radiusKm)).station;
+}
+
 async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[]> {
   const [centerLon, centerLat] = params.center;
   const radiusKm = params.radiusKm;
@@ -203,7 +232,7 @@ async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[
       fetchMeteoclimaticFeed(params.meteoclimaticRegions),
       discoverWU(params),
       discoverNetatmo(params),
-      fetchIpmaNearby(params.center, radiusKm, extraPoints),
+      discoverIpma(params),
     ]);
 
   const stations: NormalizedStation[] = [];
@@ -328,7 +357,7 @@ async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[
   // Process IPMA stations (Portugal border)
   if (ipmaResult.status === 'fulfilled') {
     const ipmaCount = stations.length;
-    for (const station of ipmaResult.value.stations) {
+    for (const station of ipmaResult.value) {
       const isDuplicate = stations.some(
         (s) =>
           Math.abs(s.lat - station.lat) < 0.005 &&
@@ -356,14 +385,12 @@ async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[
   // Process SkyX personal station AFTER dedup (user's own — never deduped)
   // Non-blocking: race against 5s timeout to prevent blocking other sources
   try {
-    const skyxResult = await Promise.race([
-      fetchSkyXData(params.center, radiusKm),
-      new Promise<{ station: null; reading: null }>((resolve) =>
-        setTimeout(() => resolve({ station: null, reading: null }), 5_000)
-      ),
+    const skyxStation = await Promise.race([
+      discoverSkyX(params),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
     ]);
-    if (skyxResult.station) {
-      result.push(skyxResult.station);
+    if (skyxStation) {
+      result.push(skyxStation);
     }
   } catch (err) {
     console.debug('[Discovery] SkyX fetch failed:', err);

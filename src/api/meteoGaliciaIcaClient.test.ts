@@ -6,8 +6,8 @@
  * and could silently misclassify air quality.
  */
 
-import { describe, it, expect } from 'vitest';
-import { icaCategory, icaEndpoint, parseIcaActual } from './meteoGaliciaIcaClient';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { icaCategory, icaEndpoint, parseIcaActual, fetchIcaObservations, fetchIcaObservationsChecked } from './meteoGaliciaIcaClient';
 
 describe('icaCategory — ICA value bucketing', () => {
   it('returns unknown for NaN', () => {
@@ -112,5 +112,36 @@ describe('parseIcaActual', () => {
     expect(parseIcaActual(body).map((r) => r.station)).toEqual(['Coia']);
     expect(parseIcaActual(null)).toEqual([]);
     expect(parseIcaActual({ icas: 'x' })).toEqual([]);
+  });
+});
+
+describe('fetchIcaObservationsChecked — a failure is not an empty answer', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const answer = (body: string, status = 200, type = 'application/json') =>
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status, headers: { 'content-type': type } })));
+
+  it('throws with the HTTP status', async () => {
+    answer('Service Unavailable', 503, 'text/html');
+    await expect(fetchIcaObservationsChecked()).rejects.toThrow('HTTP 503');
+  });
+
+  it('throws when the body is an HTML page instead of JSON', async () => {
+    answer('<html>mantemento</html>', 200, 'text/html');
+    await expect(fetchIcaObservationsChecked()).rejects.toThrow(/not JSON \(text\/html/);
+  });
+
+  it('throws when the JSON has no `icas` list (the shape changed)', async () => {
+    answer('{"error":"x"}');
+    await expect(fetchIcaObservationsChecked()).rejects.toThrow('icas');
+  });
+
+  it('an empty list is an answer, not a failure', async () => {
+    answer('{"icas":[]}');
+    await expect(fetchIcaObservationsChecked()).resolves.toEqual([]);
+  });
+
+  it('the map keeps getting [] on failure (it holds the last good readings)', async () => {
+    answer('down', 502, 'text/plain');
+    await expect(fetchIcaObservations()).resolves.toEqual([]);
   });
 });

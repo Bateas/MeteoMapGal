@@ -23,7 +23,7 @@
 
 import { getPool } from './db.js';
 import { log } from './logger.js';
-import { fetchIcaObservations } from '../src/api/meteoGaliciaIcaClient.js';
+import { fetchIcaObservationsChecked } from '../src/api/meteoGaliciaIcaClient.js';
 
 interface PersistedIca {
   time: Date;
@@ -63,23 +63,81 @@ async function batchInsertIca(rows: PersistedIca[]): Promise<number> {
 }
 
 /**
- * One poll cycle: fetch latest ICA observations from Xunta REST endpoint
+ * A run of failed or empty polls of the ICA source, so the log says it ONCE.
+ *
+ * Until 21-oct-2026 an HTTP error or a body that was not JSON came back as `[]` and was logged as
+ * «poll ok — 0 observations» at DEBUG (off by default): a cut of the source would have been
+ * invisible for as long as it lasted. Now the first bad poll of a run is a WARN with the reason,
+ * the rest of the run goes to DEBUG (the poll is every 30 min; a WARN each time would be read
+ * once and then ignored), and the first good poll says how long it lasted.
+ */
+export interface IcaEpisode {
+  failingSince: number | null;
+  failures: number;
+}
+
+export type IcaOutcome =
+  | { kind: 'ok'; count: number }
+  | { kind: 'empty' }
+  | { kind: 'error'; reason: string };
+
+export interface IcaLogLine {
+  level: 'warn' | 'info' | 'debug';
+  msg: string;
+}
+
+/** Next episode state and the line to log for this poll (null = nothing beyond the usual). Pure. */
+export function icaEpisodeStep(prev: IcaEpisode, outcome: IcaOutcome, now: number): { next: IcaEpisode; line: IcaLogLine | null } {
+  if (outcome.kind === 'ok') {
+    if (prev.failingSince == null) return { next: prev, line: null };
+    const min = Math.round((now - prev.failingSince) / 60_000);
+    return {
+      next: { failingSince: null, failures: 0 },
+      line: { level: 'info', msg: `[ICA Fetcher] back after ${prev.failures} bad poll(s) (${min} min)` },
+    };
+  }
+  const reason = outcome.kind === 'empty'
+    ? 'MeteoGalicia answered with no usable station (0 observations)'
+    : `fetch failed: ${outcome.reason}`;
+  if (prev.failingSince == null) {
+    return {
+      next: { failingSince: now, failures: 1 },
+      line: { level: 'warn', msg: `[ICA Fetcher] ${reason} — said once; repeats go to DEBUG until it is back` },
+    };
+  }
+  return {
+    next: { failingSince: prev.failingSince, failures: prev.failures + 1 },
+    line: { level: 'debug', msg: `[ICA Fetcher] still failing (${prev.failures + 1} polls): ${reason}` },
+  };
+}
+
+let episode: IcaEpisode = { failingSince: null, failures: 0 };
+
+function note(outcome: IcaOutcome): void {
+  const { next, line } = icaEpisodeStep(episode, outcome, Date.now());
+  episode = next;
+  if (line) log[line.level](line.msg);
+}
+
+/**
+ * One poll cycle: fetch latest ICA observations from MeteoGalicia's JSON service
  * → persist with dedup by (time, station). The frontend polls the SAME
  * endpoint every 30min for the ticker; this fetcher writes them to DB.
  */
 export async function runIcaCycle(): Promise<void> {
   let observations;
   try {
-    observations = await fetchIcaObservations();
+    observations = await fetchIcaObservationsChecked();
   } catch (err) {
-    log.warn(`[ICA Fetcher] fetch failed: ${(err as Error).message}`);
+    note({ kind: 'error', reason: (err as Error).message });
     return;
   }
 
   if (observations.length === 0) {
-    log.debug('[ICA Fetcher] poll ok — 0 observations returned');
+    note({ kind: 'empty' });
     return;
   }
+  note({ kind: 'ok', count: observations.length });
 
   const rows: PersistedIca[] = observations.map((o) => ({
     time: o.timestamp,

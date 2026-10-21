@@ -4,6 +4,9 @@ import {
   metarToVisibilityReadings,
   metarPrecipWithoutFog,
   fetchMetarVisibility,
+  storedMetarToVisibilityReadings,
+  storedMetarIsCurrent,
+  STORED_METAR_MAX_AGE_MS,
   type MetarEntry,
 } from './metarClient';
 
@@ -158,5 +161,72 @@ describe('fetchMetarVisibility', () => {
       json: async () => ({ error: 'Not found' }),
     }));
     await expect(fetchMetarVisibility()).resolves.toEqual([]);
+  });
+});
+
+describe('stored METAR first (21-oct audit, finding 14)', () => {
+  const now = Date.parse('2026-10-21T09:20:00Z');
+  const stored = (ageMin: number, icaos = ['LEVX', 'LEST', 'LECO']) => ({
+    reports: icaos.map((icao) => ({
+      icao, obsTime: now - ageMin * 60_000, visibilityKm: icao === 'LEVX' ? 0.4 : 10,
+      rawOb: `METAR ${icao} 210900Z 00000KT ${icao === 'LEVX' ? '0400 FG' : 'CAVOK'} 12/12 Q1020`,
+    })),
+  });
+  const route = (storedBody: unknown, storedOk = true) => vi.fn(async (url: string) => {
+    if (url === '/api/v1/metar/latest') {
+      return { ok: storedOk, status: storedOk ? 200 : 500, json: async () => storedBody };
+    }
+    return { ok: true, status: 200, json: async () => [{ ...LEVX_FIXTURE, obsTime: Math.floor(now / 1000) }] };
+  });
+
+  it('reads the stored report as the live one: position, km, fog, time', () => {
+    const [levx] = storedMetarToVisibilityReadings(stored(10, ['LEVX']));
+    expect(levx).toMatchObject({ stationId: 'metar_LEVX', name: 'Vigo/Peinador (METAR)', lat: 42.239, lon: -8.624, visibility: 0.4 });
+    expect(levx.timestamp.getTime()).toBe(now - 10 * 60_000);
+    expect(levx.precipitating).toBeUndefined();
+  });
+
+  it('drops an airport it cannot place or without a visibility', () => {
+    expect(storedMetarToVisibilityReadings({ reports: [{ icao: 'LEMD', obsTime: now, visibilityKm: 10, rawOb: 'x' }] })).toEqual([]);
+    expect(storedMetarToVisibilityReadings({ reports: [{ icao: 'LEVX', obsTime: now, visibilityKm: null, rawOb: 'x' }] })).toEqual([]);
+    expect(storedMetarToVisibilityReadings([LEVX_FIXTURE])).toEqual([]);
+  });
+
+  it('current = the three airports, none older than the limit', () => {
+    expect(storedMetarIsCurrent(storedMetarToVisibilityReadings(stored(20)), now)).toBe(true);
+    expect(storedMetarIsCurrent(storedMetarToVisibilityReadings(stored(STORED_METAR_MAX_AGE_MS / 60_000 + 1)), now)).toBe(false);
+    expect(storedMetarIsCurrent(storedMetarToVisibilityReadings(stored(5, ['LEVX', 'LEST'])), now)).toBe(false);
+  });
+
+  it('with current stored reports the live proxy is not asked', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(now);
+    const f = route(stored(20));
+    vi.stubGlobal('fetch', f);
+    const out = await fetchMetarVisibility();
+    vi.useRealTimers();
+    expect(out).toHaveLength(3);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it('with old stored reports it asks the proxy and keeps the newer per airport', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(now);
+    const f = route(stored(70));
+    vi.stubGlobal('fetch', f);
+    const out = await fetchMetarVisibility();
+    vi.useRealTimers();
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(out).toHaveLength(3);
+    expect(out.find((r) => r.stationId === 'metar_LEVX')?.timestamp.getTime()).toBe(Math.floor(now / 1000) * 1000);
+    expect(out.find((r) => r.stationId === 'metar_LEST')?.timestamp.getTime()).toBe(now - 70 * 60_000);
+  });
+
+  it('without our endpoint (database down) it goes to the proxy alone', async () => {
+    const f = route(null, false);
+    vi.stubGlobal('fetch', f);
+    const out = await fetchMetarVisibility();
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(out.map((r) => r.stationId)).toEqual(['metar_LEVX']);
   });
 });

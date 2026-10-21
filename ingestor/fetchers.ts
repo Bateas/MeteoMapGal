@@ -41,6 +41,8 @@ import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import * as aemetBreaker from './aemetBreaker.js';
 import { aemetPollDue, isAemetQuotaAnswer } from './aemetCadence.js';
+import { ipmaFeed } from './ipmaCadence.js';
+import { SKYX_SLOT_MS, SKYX_SLOT_OFFSET_MS, slotOf, slotPollDue } from './sourceCadence.js';
 import * as mgBreaker from './mgBreaker.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
@@ -211,7 +213,12 @@ async function fetchMeteoGalicia(
   }
   pendingMgAux = shadow;
 
-  log.info(`MeteoGalicia: ${readings.length}/${mgStations.length} readings (${urls.length} request${urls.length === 1 ? '' : 's'})`);
+  // How old the newest 10-min record was when we asked. Zero extra requests; a few days of these
+  // lines give MeteoGalicia's publication delay, which is what a fixed 10-min slot needs before
+  // the poll can be halved without making the wind late (21-oct audit, finding 10).
+  const newestMs = readings.reduce((m, r) => Math.max(m, r.timestamp.getTime()), -Infinity);
+  const newestNote = Number.isFinite(newestMs) ? `, newest ${Math.round((Date.now() - newestMs) / 60_000)} min old` : '';
+  log.info(`MeteoGalicia: ${readings.length}/${mgStations.length} readings (${urls.length} request${urls.length === 1 ? '' : 's'}${newestNote})`);
   return readings;
 }
 
@@ -234,16 +241,21 @@ async function fetchMeteoclimatic(
         `${MC_BASE}/feed/xml/${region}`,
         { signal: AbortSignal.timeout(TIMEOUT) }
       );
+      // An error page used to be parsed as an empty feed: one region less, no reason given.
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const xml = await res.text();
       return parseMeteoclimaticXml(xml);
     })
   );
 
-  for (const result of results) {
+  const failedRegions: string[] = [];
+  results.forEach((result, i) => {
     if (result.status === 'fulfilled') {
       allRaw.push(...result.value);
+    } else {
+      failedRegions.push(`${regions[i]} ${rejectionReason(result.reason)}`);
     }
-  }
+  });
 
   // Dedup by station ID, filter to our stations, require known coords
   const seen = new Set<string>();
@@ -281,7 +293,11 @@ async function fetchMeteoclimatic(
     log.info(`Meteoclimatic: ${unplaceable.length} stations publishing without coordinates on our side — add them to METEOCLIMATIC_STATIONS to use them: ${named}`);
   }
 
-  log.info(`Meteoclimatic: ${readings.length} readings${unplaceable.length ? ` (+${unplaceable.length} unplaceable)` : ''}`);
+  const failedNote = failedRegions.length > 0 ? ` · regions failed: ${failedRegions.join(', ')}` : '';
+  log.info(`Meteoclimatic: ${readings.length} readings${unplaceable.length ? ` (+${unplaceable.length} unplaceable)` : ''}${failedNote}`);
+  if (failedRegions.length === regions.length) {
+    log.warn(`Meteoclimatic: all ${regions.length} regional feeds failed this cycle (${failedRegions.join(', ')})`);
+  }
   return readings;
 }
 
@@ -290,6 +306,23 @@ async function fetchMeteoclimatic(
  *  has time for it. */
 const MC_CANDIDATE_LOG_INTERVAL = 60 * 60 * 1000;
 let lastMcCandidateLog = 0;
+
+/** A rejection as a short label for the per-cycle summary: «HTTP 503», «timeout», «no answer». */
+export function rejectionReason(reason: unknown): string {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  if (/^HTTP \d{3}$/.test(msg) || msg === 'no observation') return msg;
+  if (/timeout|aborted/i.test(msg)) return 'timeout';
+  if (/JSON|Unexpected/i.test(msg)) return 'not JSON';
+  return 'no answer';
+}
+
+/** «3× HTTP 204, 1× timeout», most frequent first; '' when nothing. */
+export function countBreakdown(counts: Map<string, number>): string {
+  return [...counts.entries()]
+    .sort(([, a], [, b]) => b - a)
+    .map(([what, n]) => `${n}× ${what}`)
+    .join(', ');
+}
 
 // ── Weather Underground observations ─────────────────
 
@@ -323,9 +356,12 @@ async function fetchWunderground(
       `${WU_BASE}/v2/pws/observations/current?stationId=${rawId}&format=json&units=${WU_UNITS}&apiKey=${apiKey}`,
       { signal: AbortSignal.timeout(TIMEOUT) },
     );
+    // WU answers 204 (no body) for a station that is not reporting: say so instead of a JSON error.
+    if (res.status === 204) throw new Error('HTTP 204');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const obs: WUObservation[] = data.observations ?? [];
-    if (obs.length === 0) return null;
+    if (obs.length === 0) throw new Error('no observation');
 
     const o = obs[0];
     const m = wuMetricFields(o.metric);
@@ -345,13 +381,24 @@ async function fetchWunderground(
     return reading;
   }, 6);
 
+  const rejected = new Map<string, number>();
   for (const result of results) {
     if (result.status === 'fulfilled' && result.value) {
       readings.push(result.value);
+    } else {
+      const why = result.status === 'rejected' ? rejectionReason(result.reason) : 'no observation';
+      rejected.set(why, (rejected.get(why) ?? 0) + 1);
     }
   }
 
-  log.info(`Weather Underground: ${readings.length}/${wuStations.length} readings`);
+  // What kept the rest out, as POEM does: a 204 is a station off the air (routine, WU prunes
+  // them from discovery by itself); a 401/403/429 is about us, and that one is a WARN.
+  const breakdown = countBreakdown(rejected);
+  log.info(`Weather Underground: ${readings.length}/${wuStations.length} readings${breakdown ? ` (left out: ${breakdown})` : ''}`);
+  const aboutUs = [...rejected.keys()].filter((k) => /^HTTP (401|403|429)$/.test(k));
+  if (aboutUs.length > 0) {
+    log.warn(`Weather Underground: refused this cycle (${aboutUs.map((k) => `${rejected.get(k)}× ${k}`).join(', ')})`);
+  }
   return readings;
 }
 
@@ -571,11 +618,20 @@ function cleanSkyX(v: number): number | null {
   return v === 9999 ? null : v;
 }
 
+let skyxLastReading: NormalizedReading | null = null;
+let skyxLastGoodSlot: number | null = null;
+
 async function fetchSkyX(
   stations: NormalizedStation[]
 ): Promise<NormalizedReading[]> {
   const skyxStations = stations.filter((s) => s.source === 'skyx');
   if (skyxStations.length === 0) return [];
+
+  // The unit reports every 10 min: one ask per 10-min slot of the clock, the last
+  // reading handed back in between (the upsert ignores rows it already has).
+  if (skyxLastReading && !slotPollDue(skyxLastGoodSlot, Date.now(), SKYX_SLOT_MS, SKYX_SLOT_OFFSET_MS)) {
+    return [skyxLastReading];
+  }
 
   try {
     const res = await fetch(
@@ -615,6 +671,8 @@ async function fetchSkyX(
       solarRadiation: null,
     };
 
+    skyxLastReading = reading;
+    skyxLastGoodSlot = slotOf(Date.now(), SKYX_SLOT_MS, SKYX_SLOT_OFFSET_MS);
     log.info('SkyX: 1 reading');
     return [reading];
   } catch (err) {
@@ -633,19 +691,12 @@ async function fetchIpma(
   const ipmaIds = new Set(ipmaStations.map((s) => s.id));
 
   try {
-    const res = await fetch('https://api.ipma.pt/open-data/observation/meteorology/stations/obs-surface.geojson', {
-      signal: AbortSignal.timeout(TIMEOUT),
-      headers: { Accept: 'application/json, text/plain, */*' },
-    });
-    if (!res.ok) {
-      log.warn(`IPMA HTTP error ${res.status}`);
-      return [];
-    }
-    const data = await res.json();
-    if (!data?.features || !Array.isArray(data.features)) return [];
+    // Hourly data for four stations out of all of Portugal: IPMA is asked at most once per
+    // 30-min slot, and the last good file is reused in between (ipmaCadence.ts).
+    const { features, reused } = await ipmaFeed.forPoll();
 
     const latestByStation = new Map<number, any>();
-    for (const feat of data.features) {
+    for (const feat of features) {
       if (!feat?.properties?.idEstacao) continue;
       const id = feat.properties.idEstacao;
       const current = latestByStation.get(id);
@@ -667,7 +718,7 @@ async function fetchIpma(
         readings.push(reading);
       }
     }
-    log.info(`IPMA: ${readings.length} readings`);
+    log.info(`IPMA: ${readings.length} readings${reused ? ' (last file, next ask in the next 30-min slot)' : ''}`);
     return readings;
   } catch (err) {
     log.error('IPMA fetch failed:', (err as Error).message);

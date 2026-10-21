@@ -33,6 +33,112 @@ const AEMET_CACHE_TTL = 5 * 60_000; // 5 minutes
  */
 const STALE_KEEP_MS = 48 * 3600_000;
 
+/**
+ * Negative cache: how long a resource that just failed is left alone.
+ *
+ * The caches here only keep GOOD answers, so with the provider failing, every request that
+ * arrived after the TTL asked it again (singleFlight only joins the requests in flight at the
+ * same moment): with traffic, one ask every few seconds at a provider already in trouble, and
+ * AEMET and MeteoGalicia both watch for that. Now a failure is remembered per resource for
+ * 1 min, doubling while it keeps failing up to 5 min. Meanwhile the last good copy is served
+ * (STALE) or, without one, an error, both without asking. The first good answer clears it.
+ */
+export const DOWN_FIRST_MS = 60_000;
+export const DOWN_MAX_MS = 5 * 60_000;
+/** A lone failure under `graceFirst` is forgotten after this long. */
+export const GRACE_WINDOW_MS = 10 * 60_000;
+
+export interface DownState {
+  /** Upstream status of the last failure (0 = no answer at all). */
+  status: number;
+  remainingMs: number;
+}
+
+export function createDownMemo(clock: () => number = () => Date.now(), maxEntries = 500) {
+  const entries = new Map<string, { until: number; streak: number; status: number }>();
+  return {
+    /** The pause still running for this resource, or null. */
+    downFor(key: string): DownState | null {
+      const e = entries.get(key);
+      if (!e) return null;
+      const remainingMs = e.until - clock();
+      return remainingMs > 0 ? { status: e.status, remainingMs } : null;
+    },
+    /**
+     * Remembers a failure; says how long the pause is and whether it opened a run of failures.
+     * With `graceFirst`, a lone failure is only noted and the pause starts at the second one in a
+     * row (within GRACE_WINDOW_MS): for answers known to fail now and work a moment later.
+     */
+    noteFailure(key: string, status: number, graceFirst = false): { pauseMs: number; first: boolean } {
+      const now = clock();
+      let prev = entries.get(key);
+      if (prev && prev.streak === 0 && now - prev.until > GRACE_WINDOW_MS) prev = undefined;
+      if (graceFirst && !prev) {
+        entries.set(key, { until: now, streak: 0, status });
+        return { pauseMs: 0, first: false };
+      }
+      const streak = (prev?.streak ?? 0) + 1;
+      const pauseMs = Math.min(DOWN_MAX_MS, DOWN_FIRST_MS * 2 ** (streak - 1));
+      entries.delete(key); // re-insert at the end: the oldest entry is the one dropped
+      entries.set(key, { until: now + pauseMs, streak, status });
+      while (entries.size > maxEntries) entries.delete(entries.keys().next().value as string);
+      return { pauseMs, first: streak === 1 };
+    },
+    noteSuccess(key: string): void {
+      entries.delete(key);
+    },
+  };
+}
+
+const upstreamDown = createDownMemo();
+
+/** Status for a paused resource with no copy: a 4xx (bad key, unknown path) as it came, else 503. */
+export function downStatus(upstreamStatus: number): number {
+  return upstreamStatus >= 400 && upstreamStatus < 500 ? upstreamStatus : 503;
+}
+
+function noteUpstreamFailure(label: string, key: string, status: number, graceFirst = false): void {
+  const { pauseMs, first } = upstreamDown.noteFailure(key, status, graceFirst);
+  if (pauseMs === 0) {
+    log.debug(`${label} ${key}: failed once; the next failure in a row pauses it`);
+    return;
+  }
+  const what = key.length > 120 ? `${key.slice(0, 120)}...` : key;
+  const msg = `${label} ${what}: ${status ? `HTTP ${status}` : 'no answer'}; not asking again for ${Math.round(pauseMs / 1000)} s (last good copy or an error meanwhile)`;
+  if (first) log.warn(msg);
+  else log.debug(msg);
+}
+
+/** The provider's answer and body; a request that gets no answer at all is noted as a failure. */
+async function fetchBody(url: string, init: RequestInit, label: string, downKey: string): Promise<{ upstream: Response; buf: Buffer }> {
+  try {
+    const upstream = await fetch(url, init);
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    return { upstream, buf };
+  } catch (err) {
+    noteUpstreamFailure(label, downKey, 0);
+    throw err;
+  }
+}
+
+/** Answer for a paused resource: the last good copy if there is one, otherwise an error. Never the provider. */
+function answerWhileDown(
+  res: http.ServerResponse,
+  origin: string | undefined,
+  cached: { data: Buffer; contentType: string } | null | undefined,
+  down: DownState,
+  label: string,
+): void {
+  if (cached) {
+    res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': cached.contentType, 'X-Cache': 'STALE' });
+    res.end(cached.data);
+    return;
+  }
+  res.setHeader('Retry-After', String(Math.max(1, Math.ceil(down.remainingMs / 1000))));
+  res.setHeader('X-Cache', 'DOWN');
+  error(res, `${label} upstream unavailable (failed recently)`, downStatus(down.status), origin);
+}
+
 /** The station inventory barely changes: a long TTL costs nothing. */
 export const AEMET_INVENTORY_TTL = 12 * 3600_000;
 
@@ -117,23 +223,29 @@ export async function handleAemetProxy(
     return;
   }
 
+  // Failed a moment ago: do not ask again yet (see createDownMemo).
+  const downKey = `aemet:${aemetPath}`;
+  const down = upstreamDown.downFor(downKey);
+  if (down) {
+    answerWhileDown(res, origin, cached, down, 'AEMET');
+    return;
+  }
+
   try {
     // One ask per path at a time: a crowd on a cold cache costs AEMET one
     // request, not one each.
-    const { value, joined } = await singleFlight(`aemet:${aemetPath}`, async () => {
+    const { value, joined } = await singleFlight(downKey, async () => {
       // Inject api_key server-side
       const sep = aemetPath.includes('?') ? '&' : '?';
       const url = `${AEMET_BASE}${aemetPath}${sep}api_key=${AEMET_API_KEY}`;
       // AEMET is the one that hangs rather than failing, and now that the
       // answer is shared a hang without a deadline would hang everyone
       // waiting on it instead of only the first.
-      const upstream = await fetch(url, {
+      const { upstream, buf } = await fetchBody(url, {
         headers: { 'Accept': 'application/json' },
         signal: AbortSignal.timeout(15_000),
-      });
-
+      }, '[AEMET Proxy]', downKey);
       const contentType = upstream.headers.get('content-type') || 'application/json';
-      const buf = Buffer.from(await upstream.arrayBuffer());
 
       // Cache real answers only (see aemetAnswerOk)
       const good = upstream.ok && aemetAnswerOk(buf);
@@ -141,6 +253,9 @@ export async function handleAemetProxy(
         aemetCache.set(aemetPath, { data: buf, contentType, ts: Date.now() });
         rememberDataOrigin(aemetPath, buf);
         pruneCache(aemetCache, STALE_KEEP_MS, 50);
+        upstreamDown.noteSuccess(downKey);
+      } else {
+        noteUpstreamFailure('[AEMET Proxy]', downKey, upstream.ok ? 502 : upstream.status);
       }
 
       return { status: upstream.status, contentType, buf, good };
@@ -259,17 +374,28 @@ export async function handleAemetDataProxy(
     return;
   }
 
+  // Paused per RESOURCE (the step-one path), not per temporary url: each step-one answer
+  // brings a new url, so a pause keyed by url would never be found again.
+  const downKey = `aemet-${key}`;
+  const down = upstreamDown.downFor(downKey);
+  if (down) {
+    answerWhileDown(res, origin, cached, down, 'AEMET data');
+    return;
+  }
+
   try {
     const { value, joined } = await singleFlight(`aemet-data:${dataPath}`, async () => {
       const url = `https://opendata.aemet.es${dataPath}`;
-      const upstream = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      const { upstream, buf } = await fetchBody(url, { signal: AbortSignal.timeout(15_000) }, '[AEMET Data Proxy]', downKey);
       const contentType = upstream.headers.get('content-type') || 'application/json';
-      const buf = Buffer.from(await upstream.arrayBuffer());
 
       const good = upstream.ok && aemetAnswerOk(buf);
       if (good) {
         aemetCache.set(key, { data: buf, contentType, ts: Date.now() });
         pruneCache(aemetCache, STALE_KEEP_MS, 50);
+        upstreamDown.noteSuccess(downKey);
+      } else {
+        noteUpstreamFailure('[AEMET Data Proxy]', downKey, upstream.ok ? 502 : upstream.status);
       }
 
       return { status: upstream.status, contentType, buf, good };
@@ -335,13 +461,19 @@ export async function handleMeteoSixProxy(
     return;
   }
 
+  const downKey = `meteosix:${cacheKey}`;
+  const down = upstreamDown.downFor(downKey);
+  if (down) {
+    answerWhileDown(res, origin, cached, down, 'MeteoSIX');
+    return;
+  }
+
   try {
-    const { value, joined } = await singleFlight(`meteosix:${cacheKey}`, async () => {
+    const { value, joined } = await singleFlight(downKey, async () => {
       const sep = query ? '&' : '';
       const url = `${METEOSIX_BASE}${msPath}?${query}${sep}API_KEY=${METEOSIX_API_KEY}`;
-      const upstream = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': SERVER_USER_AGENT }, signal: AbortSignal.timeout(15_000) });
+      const { upstream, buf } = await fetchBody(url, { headers: { Accept: 'application/json', 'User-Agent': SERVER_USER_AGENT }, signal: AbortSignal.timeout(15_000) }, '[MeteoSIX Proxy]', downKey);
       const contentType = upstream.headers.get('content-type') || 'application/json';
-      const buf = Buffer.from(await upstream.arrayBuffer());
 
       // MeteoSIX reports its own failures as 200 + {"exception": ...}. Caching
       // one would serve that error to every visitor for the whole TTL.
@@ -349,6 +481,11 @@ export async function handleMeteoSixProxy(
       if (good) {
         meteosixCache.set(cacheKey, { data: buf, contentType, ts: Date.now() });
         pruneCache(meteosixCache, STALE_KEEP_MS, 100);
+        upstreamDown.noteSuccess(downKey);
+      } else {
+        // The error envelope comes and goes for the same query (src/api/CLAUDE.md) and the tide
+        // client retries it once: a lone envelope does not pause the query, a second one does.
+        noteUpstreamFailure('[MeteoSIX Proxy]', downKey, upstream.ok ? 502 : upstream.status, upstream.ok);
       }
 
       return { status: upstream.status, contentType, buf, good };
@@ -404,20 +541,29 @@ export async function handleObsCosteiroProxy(
     return;
   }
 
+  const downKey = `obscosteiro:${obsPath}`;
+  const down = upstreamDown.downFor(downKey);
+  if (down) {
+    answerWhileDown(res, origin, cached, down, 'ObsCosteiro');
+    return;
+  }
+
   try {
-    const { value, joined } = await singleFlight(`obscosteiro:${obsPath}`, async () => {
+    const { value, joined } = await singleFlight(downKey, async () => {
       const url = `${OBSCOSTEIRO_BASE}${obsPath}`;
-      const upstream = await fetch(url, {
+      const { upstream, buf } = await fetchBody(url, {
         headers: { apikey: OBSCOSTEIRO_API_KEY, Accept: 'application/json', 'User-Agent': SERVER_USER_AGENT },
         signal: AbortSignal.timeout(15_000),
-      });
+      }, '[ObsCosteiro Proxy]', downKey);
       const contentType = upstream.headers.get('content-type') || 'application/json';
-      const buf = Buffer.from(await upstream.arrayBuffer());
 
       const good = upstream.ok;
       if (good) {
         obsCache.set(obsPath, { data: buf, contentType, ts: Date.now() });
         pruneCache(obsCache, STALE_KEEP_MS, 50);
+        upstreamDown.noteSuccess(downKey);
+      } else {
+        noteUpstreamFailure('[ObsCosteiro Proxy]', downKey, upstream.status);
       }
 
       return { status: upstream.status, contentType, buf, good };

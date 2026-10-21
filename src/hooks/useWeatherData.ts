@@ -263,12 +263,19 @@ export function useWeatherData() {
       );
     }
 
-    // SkyX personal station
+    // SkyX personal station — our API first (the server asks SkyX every 10 min and stores it);
+    // SkyX through our proxy only when our API cannot be reached.
     const skyxStations = stations.filter((s) => s.source === 'skyx');
     if (skyxStations.length > 0) {
+      const skyxSet = new Set(skyxStations.map((s) => s.id));
       tasks.push(
-        fetchSkyXReading().then((reading) => {
-          const readings = reading ? [reading] : [];
+        fetchLatestReadings(undefined, 'skyx').then(
+          (rows) => historyToNormalized(rows).filter((r) => skyxSet.has(r.stationId)),
+          (ingestorErr) => {
+            console.warn('[WeatherData] SkyX ingestor failed, trying direct:', (ingestorErr as Error).message);
+            return fetchSkyXReading().then((reading) => (reading ? [reading] : []));
+          },
+        ).then((readings) => {
           updateSourceStatus('skyx', true, readings.length);
           onSourceReadings(readings);
           return readings;
@@ -280,25 +287,23 @@ export function useWeatherData() {
       );
     }
 
-    // IPMA (Portugal) — ingestor API first, fallback to direct IPMA API
+    // IPMA (Portugal) — our API first. IPMA's GeoJSON of all of Portugal only when our API
+    // cannot be reached: an answer without IPMA rows for these stations is the same answer
+    // IPMA would give (the server already asked), so it no longer sends every visitor there.
     const ipmaStations = stations.filter((s) => s.source === 'ipma');
     if (ipmaStations.length > 0) {
       const ipmaSet = new Set(ipmaStations.map((s) => s.id));
       tasks.push(
-        fetchLatestReadings(undefined, 'ipma').then((rows) => {
-          const readings = historyToNormalized(rows).filter((r) => ipmaSet.has(r.stationId));
-          if (readings.length === 0) throw new Error('No IPMA data from ingestor');
+        fetchLatestReadings(undefined, 'ipma').then(
+          (rows) => historyToNormalized(rows).filter((r) => ipmaSet.has(r.stationId)),
+          (ingestorErr) => {
+            console.warn('[WeatherData] IPMA ingestor failed, trying direct:', (ingestorErr as Error).message);
+            return fetchIpmaData().then(({ readings }) => readings.filter((r) => ipmaSet.has(r.stationId)));
+          },
+        ).then((readings) => {
           updateSourceStatus('ipma', true, readings.length);
           onSourceReadings(readings);
           return readings;
-        }).catch((ingestorErr) => {
-          console.warn('[WeatherData] IPMA ingestor failed, trying direct:', (ingestorErr as Error).message);
-          return fetchIpmaData().then(({ readings }) => {
-            const filtered = readings.filter((r) => ipmaSet.has(r.stationId));
-            updateSourceStatus('ipma', true, filtered.length);
-            onSourceReadings(filtered);
-            return filtered;
-          });
         }).catch((err) => {
           console.error('[WeatherData] IPMA both sources failed:', err);
           updateSourceStatus('ipma', false, 0, String(err));

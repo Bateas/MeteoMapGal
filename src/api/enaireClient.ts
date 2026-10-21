@@ -113,7 +113,7 @@ function clearEnaireBreaker(): void {
 // 0 features for this layer in Galicia. Querying it
 // every refresh just wastes one network round-trip with no signal. For real
 // ZEPA coverage use the MITECO WMS source instead (documented gotcha).
-const UAS_LAYERS = [0, 2, 3]; // Aero, Infra, Urbano (was [0,1,2,3])
+const UAS_LAYERS = [0, 2, 3]; // 0 Infraestructuras, 2 Aero, 3 Urbano (1 Medioambiente dropped)
 const UAS_BASE = '/enaire-api/insignia/rest/services/NSF_SRV/SRV_UAS_ZG_V1/MapServer';
 const NOTAM_BASE = '/enaire-api/insignias/rest/services/InfoARES/NOTAM_APP_V3/MapServer';
 
@@ -265,7 +265,7 @@ export async function fetchUasZones(
   }
 
   try {
-    // Fetch all 4 layers in parallel
+    // Fetch the three layers in parallel
     const responses = await Promise.allSettled(
       UAS_LAYERS.map(layer =>
         fetchWithRetry(buildQueryUrl(UAS_BASE, layer, bbox), { label: 'ENAIRE', timeout: 15000, maxRetries: 1 })
@@ -278,7 +278,11 @@ export async function fetchUasZones(
 
     const zones: UasZone[] = [];
 
-    responses.forEach((result, layerIndex) => {
+    // Label each zone with the ENAIRE layer it came from, not with its position in
+    // UAS_LAYERS: by position, aeronautical zones (layer 2) read as environment and urban
+    // ones (layer 3) as aeronautical on the map.
+    responses.forEach((result, i) => {
+      const layerIndex = UAS_LAYERS[i];
       if (result.status !== 'fulfilled') return;
       const data = result.value;
       if (data.error) {

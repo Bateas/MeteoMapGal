@@ -2,9 +2,9 @@
  * useActiveFires — poll NASA FIRMS hotspots every 30 minutes.
  * Mounted lazy from DeferredHooks (3s after page load).
  *
- * Why 30min cadence: VIIRS satellite passes Galicia ~4-6 times/day. The
- * ingestor proxy already caches 30min so a tighter interval would just hit
- * the same cached payload. Visibility-aware so background tabs idle.
+ * Why 30min cadence: VIIRS satellite passes Galicia ~4-6 times/day and the
+ * ingestor stores them once an hour, so a tighter interval would just read
+ * the same rows. Visibility-aware so background tabs idle.
  *
  * The store keeps raw hotspot detections. Grouping them into FIRES happens in
  * `selectFireClusters`, which memoises on the stored array so every surface
@@ -26,9 +26,10 @@ export function useActiveFires() {
   const setEvents = useFireStore((s) => s.setEvents);
 
   const fetch = useCallback(async () => {
-    // Fires come from the live FIRMS proxy; the lightning attribution comes
-    // from our own history. Kept independent so a database hiccup costs the
-    // story behind the fire, never the fire itself.
+    // Fires come from what our server stored (the live FIRMS proxy only if
+    // that cannot answer); the lightning attribution from our own history.
+    // Kept independent so a database hiccup costs the story behind the fire,
+    // never the fire itself.
     const [result, attribution, events] = await Promise.all([
       fetchActiveFires(1), // last 24h
       // 3 days: a strike can smoulder 7-18h before the satellite sees the
