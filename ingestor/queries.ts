@@ -35,6 +35,8 @@ export interface ReadingRow {
   dew_point: number | null;
   precip: number | null;
   solar_rad: number | null;
+  /** km; only the ~8 AEMET stations with a visibility sensor. */
+  visibility?: number | null;
 }
 
 export interface HourlyRow {
@@ -278,7 +280,7 @@ export async function queryLatest(stationId?: string, source?: string): Promise<
         station_id,
         source,
         temperature, humidity, wind_speed, wind_gust, wind_dir,
-        pressure, dew_point, precip, solar_rad
+        pressure, dew_point, precip, solar_rad, visibility
       FROM readings
       WHERE station_id = $1
       ORDER BY time DESC
@@ -288,8 +290,10 @@ export async function queryLatest(stationId?: string, source?: string): Promise<
     return result.rows;
   }
 
-  // Latest reading per station using DISTINCT ON
-  const params: string[] = [];
+  // Latest reading per station using DISTINCT ON. AEMET and IPMA publish HOURLY and late
+  // (AEMET's newest hour lands 40-60 min after it), so 2 h left out stations whose last hour
+  // had not been beaten yet; they get 3 h.
+  const params: (string | number)[] = [source === 'aemet' || source === 'ipma' ? 3 : 2];
   const sourceFilter = source ? (params.push(source), `AND source = $${params.length}`) : '';
   const result = await db.query<ReadingRow>(`
     SELECT DISTINCT ON (station_id)
@@ -297,11 +301,11 @@ export async function queryLatest(stationId?: string, source?: string): Promise<
       station_id,
       source,
       temperature, humidity, wind_speed, wind_gust, wind_dir,
-      pressure, dew_point, precip, solar_rad
+      pressure, dew_point, precip, solar_rad, visibility
     FROM readings
-    WHERE time > NOW() - INTERVAL '2 hours' ${sourceFilter}
+    WHERE time > NOW() - make_interval(hours => $1) ${sourceFilter}
     ORDER BY station_id, time DESC
-  `, params.length > 0 ? params : undefined);
+  `, params);
   return result.rows;
 }
 

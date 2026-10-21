@@ -34,6 +34,8 @@ export interface HistoryReading {
   dew_point: number | null;
   precip: number | null;
   solar_rad: number | null;
+  /** km; only the ~8 AEMET stations with a visibility sensor (and only from /readings/latest). */
+  visibility?: number | null;
 }
 
 export interface HourlyReading {
@@ -211,6 +213,7 @@ export function historyToNormalized(rows: HistoryReading[]): import('../types/st
     solarRadiation: r.solar_rad,
     pressure: r.pressure,
     dewPoint: r.dew_point,
+    ...(r.visibility != null ? { visibility: r.visibility } : {}),
   }));
 }
 

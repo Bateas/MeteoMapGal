@@ -4,6 +4,7 @@ import { useSectorStore } from '../store/sectorStore';
 import { useStations } from './useStations';
 import { useAutoRefresh } from './useAutoRefresh';
 import { fetchAllObservations, isAemetRateLimited, aemetCooldownRemaining } from '../api/aemetClient';
+import { fetchAemetFromApi, GALICIA_VIS_IDS } from '../api/aemetFromApi';
 import { fetchLatestForStations } from '../api/meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
 import { fetchLatestReadings, historyToNormalized } from '../api/historyClient';
@@ -72,61 +73,72 @@ export function useWeatherData() {
       stations.filter((s) => s.source === 'aemet').map((s) => s.id)
     );
     if (aemetStationIds.size > 0) {
-      if (isAemetRateLimited()) {
-        console.debug(`[WeatherData] AEMET rate-limited, skipping (${aemetCooldownRemaining()}s remaining)`);
-      } else {
-        tasks.push(
-          fetchAllObservations().then((aemetObs) => {
-            const readings: NormalizedReading[] = [];
-            // Regional visibility — Galician AEMET stations with `vis` sensor (airports +
-            // coastal METAR). Captured regardless of sector — fog detection needs region-wide
-            // coverage (e.g. Lavacolla fog informs Rías even though 70km outside sector).
-            const visReadings: { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }[] = [];
-            const GALICIA_VIS_IDS = new Set(['1351', '1387', '1387E', '1400', '1428', '1484C', '1505', '1690A']);
-            const latestVisByStation = new Map<string, typeof visReadings[0]>();
-            for (const obs of aemetObs) {
-              if (aemetStationIds.has(`aemet_${obs.idema}`)) {
-                readings.push(normalizeAemetObservation(obs));
-              }
-              // Also capture regional visibility independent of sector
-              if (GALICIA_VIS_IDS.has(obs.idema) && obs.vis != null && obs.vis >= 0 && obs.vis <= 50) {
-                const entry = {
-                  stationId: `aemet_${obs.idema}`,
-                  name: obs.ubi ?? obs.idema,
-                  lat: obs.lat,
-                  lon: obs.lon,
-                  visibility: obs.vis,
-                  timestamp: new Date(obs.fint),
-                };
-                const existing = latestVisByStation.get(entry.stationId);
-                if (!existing || entry.timestamp > existing.timestamp) {
-                  latestVisByStation.set(entry.stationId, entry);
-                }
+      // Our own API first (the server already stores AEMET, visibility included); AEMET's
+      // file of all of Spain (~750 KB compressed per visitor and poll) only as fallback.
+      const directAemet = () =>
+        fetchAllObservations().then((aemetObs) => {
+          const readings: NormalizedReading[] = [];
+          // Regional visibility — Galician AEMET stations with `vis` sensor (airports +
+          // coastal METAR). Captured regardless of sector — fog detection needs region-wide
+          // coverage (e.g. Lavacolla fog informs Rías even though 70km outside sector).
+          const visReadings: { stationId: string; name: string; lat: number; lon: number; visibility: number; timestamp: Date }[] = [];
+          const latestVisByStation = new Map<string, typeof visReadings[0]>();
+          for (const obs of aemetObs) {
+            if (aemetStationIds.has(`aemet_${obs.idema}`)) {
+              readings.push(normalizeAemetObservation(obs));
+            }
+            // Also capture regional visibility independent of sector
+            if (GALICIA_VIS_IDS.has(obs.idema) && obs.vis != null && obs.vis >= 0 && obs.vis <= 50) {
+              const entry = {
+                stationId: `aemet_${obs.idema}`,
+                name: obs.ubi ?? obs.idema,
+                lat: obs.lat,
+                lon: obs.lon,
+                visibility: obs.vis,
+                timestamp: new Date(obs.fint),
+              };
+              const existing = latestVisByStation.get(entry.stationId);
+              if (!existing || entry.timestamp > existing.timestamp) {
+                latestVisByStation.set(entry.stationId, entry);
               }
             }
-            for (const v of latestVisByStation.values()) visReadings.push(v);
-            // Prefix-scoped merge: refreshes the aemet_ entries only, so the
-            // METAR poll (metar_ prefix, its own cadence) is never wiped out.
-            mergeVisibilityReadings(visReadings, 'aemet_');
-            updateSourceStatus('aemet', true, readings.length);
-            onSourceReadings(readings);
-            return readings;
-          }).catch((err) => {
-            // AEMET step-2 503 is a transient backend hiccup (their `datos` URL
-            // is sometimes overloaded). Don't flood F12 — next poll will recover.
-            // Real failures (rate-limit, schema break, network) still log as error.
-            const msg = String(err);
-            const isTransient = msg.includes('step 2 failed: 503');
-            if (isTransient) {
-              console.debug('[WeatherData] AEMET 503 transient, will retry next poll');
-            } else {
-              console.error('[WeatherData] AEMET fetch error:', err);
-            }
-            updateSourceStatus('aemet', false, 0, msg);
+          }
+          for (const v of latestVisByStation.values()) visReadings.push(v);
+          // Prefix-scoped merge: refreshes the aemet_ entries only, so the
+          // METAR poll (metar_ prefix, its own cadence) is never wiped out.
+          mergeVisibilityReadings(visReadings, 'aemet_');
+          updateSourceStatus('aemet', true, readings.length);
+          onSourceReadings(readings);
+          return readings;
+        }).catch((err) => {
+          // AEMET step-2 503 is a transient backend hiccup (their `datos` URL
+          // is sometimes overloaded). Don't flood F12 — next poll will recover.
+          // Real failures (rate-limit, schema break, network) still log as error.
+          const msg = String(err);
+          const isTransient = msg.includes('step 2 failed: 503');
+          if (isTransient) {
+            console.debug('[WeatherData] AEMET 503 transient, will retry next poll');
+          } else {
+            console.error('[WeatherData] AEMET fetch error:', err);
+          }
+          updateSourceStatus('aemet', false, 0, msg);
+          return [];
+        });
+      tasks.push(
+        fetchAemetFromApi(aemetStationIds).then(({ readings, visibility }) => {
+          mergeVisibilityReadings(visibility, 'aemet_');
+          updateSourceStatus('aemet', true, readings.length);
+          onSourceReadings(readings);
+          return readings;
+        }).catch(() => {
+          // The direct path keeps its own rate-limit cooldown; our API does not need it.
+          if (isAemetRateLimited()) {
+            console.debug(`[WeatherData] AEMET rate-limited, skipping (${aemetCooldownRemaining()}s remaining)`);
             return [];
-          })
-        );
-      }
+          }
+          return directAemet();
+        })
+      );
     }
 
     // MeteoGalicia — ingestor API first (TimescaleDB ~10ms), fallback to direct MeteoGalicia API

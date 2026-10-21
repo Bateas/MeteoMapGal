@@ -1,5 +1,6 @@
 import type { NormalizedStation } from '../types/station';
 import { fetchStationInventory } from './aemetClient';
+import { fetchListedAemetStations } from './aemetFromApi';
 import { fetchStationList } from './meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from './meteoclimaticClient';
 import { fetchWUNearbyStations, fetchWUStationsFromApi } from './wundergroundClient';
@@ -174,6 +175,17 @@ async function discoverNetatmo(params: DiscoveryParams): Promise<NormalizedStati
   return fetchNetatmoStations(params.center, params.radiusKm, false);
 }
 
+/**
+ * AEMET stations from the list our server keeps (inventory and observation feed joined, so it
+ * also has the stations the inventory lacks). AEMET's own inventory only when the list cannot
+ * be read: until v2.191.3 every visitor asked AEMET for it through our proxy.
+ */
+async function discoverAemet(): Promise<NormalizedStation[]> {
+  const listed = await fetchListedAemetStations();
+  if (listed) return listed;
+  return (await fetchStationInventory()).map(normalizeAemetStation);
+}
+
 async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[]> {
   const [centerLon, centerLat] = params.center;
   const radiusKm = params.radiusKm;
@@ -181,7 +193,7 @@ async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[
 
   const [aemetStations, mgStations, mcStations, wuStations, netatmoStations, ipmaResult] =
     await Promise.allSettled([
-      shared('aemet-inventory', fetchStationInventory),
+      shared('aemet-stations', discoverAemet),
       shared('mg-station-list', fetchStationList),
       fetchMeteoclimaticFeed(params.meteoclimaticRegions),
       discoverWU(params),
@@ -193,8 +205,7 @@ async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[
 
   // Process AEMET stations
   if (aemetStations.status === 'fulfilled') {
-    for (const raw of aemetStations.value) {
-      const station = normalizeAemetStation(raw);
+    for (const station of aemetStations.value) {
       if (isWithinRadius(centerLat, centerLon, station.lat, station.lon, radiusKm) ||
           isInExtraCoverage(station.lat, station.lon, extraPoints)) {
         stations.push(station);
