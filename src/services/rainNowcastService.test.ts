@@ -216,3 +216,25 @@ describe('assessRainNowcast — day counters (wu_, mc_) say nothing about NOW (2
   });
 });
 
+
+describe('assessRainNowcast — what the rain layer measured (21-oct)', () => {
+  const stations = [station('mg_a', 42.31, -8.61)];
+  it('a gauge the layer confirmed is rain now, even with a dry model hour', () => {
+    const r = assessRainNowcast(opts({
+      stations, readings: new Map([['mg_a', reading('mg_a', 1.2)]]), forecast: [fcHour(0, 0, 5)],
+      measured: { gauges: [{ id: 'mg_a', name: 'Redondela', mm: 1.6 }], arrivalMin: null },
+    }));
+    expect(r.status).toBe('raining');
+    expect(r.summary).toBe('Lloviendo (Redondela)');
+  });
+  it('a gauge outside the spot radius does not make it rain here', () => {
+    const far = [station('mg_far', 42.8, -8.6)];
+    const r = assessRainNowcast(opts({ stations: far, measured: { gauges: [{ id: 'mg_far', name: 'Lejos', mm: 3 }], arrivalMin: null } }));
+    expect(r.status).not.toBe('raining');
+  });
+  it('the radar arrival becomes «lluvia en ~N min»', () => {
+    const r = assessRainNowcast(opts({ stations, measured: { gauges: [], arrivalMin: 20 } }));
+    expect(r.status).toBe('rain-soon');
+    expect(r.summary).toBe('Lluvia en ~20 min (radar)');
+  });
+});

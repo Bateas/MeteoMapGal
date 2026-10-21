@@ -3,7 +3,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useAlertStore } from '../../store/alertStore';
 import { getSpotsForSector } from '../../config/spots';
-import { VERDICT_STYLE, displayVerdict, displayWindKt, displayWindDir, verdictLabel } from '../../config/verdictStyles';
+import { VERDICT_STYLE, displayVerdict, displayWindKt, displayWindDir, verdictLabel, gateWaveText, gateWaveWhere } from '../../config/verdictStyles';
 import { formatSurfWave, surfView } from '../../services/surfVerdictEngine';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { useUIStore } from '../../store/uiStore';
@@ -91,7 +91,10 @@ export const MobileSailingBanner = memo(function MobileSailingBanner() {
   // Null while provisional, calibrated otherwise — both rules in one call.
   const windKt = displayWindKt(activeScore);
   const windDir = displayWindDir(activeScore)?.label;
-  const windInfo = windKt != null && verdict !== 'calm' && verdict !== 'unknown'
+  const sea = gateWaveText(activeScore);
+  const windInfo = sea
+    ? `${sea} (${gateWaveWhere(activeScore)})`
+    : windKt != null && verdict !== 'calm' && verdict !== 'unknown'
     ? `${windKt.toFixed(0)}kt ${windDir ?? ''}`
     : null;
   const label = verdictLabel(activeScore);

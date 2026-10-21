@@ -22,7 +22,7 @@ import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { useAloft } from '../../hooks/useAloft';
 
 // Moved to config/verdictStyles.ts to fix bundle splitting — import + re-export
-import { VERDICT_STYLE, displayVerdict, displayWindKt, displayWindDir, verdictLabel } from '../../config/verdictStyles';
+import { VERDICT_STYLE, displayVerdict, displayWindKt, displayWindDir, verdictLabel, gateWaveText } from '../../config/verdictStyles';
 export { VERDICT_STYLE };
 import { useThemeStore } from '../../store/themeStore';
 // A surf spot reads THE surf verdict from the cache entry (the one the marker,
@@ -114,7 +114,7 @@ export const SpotSelector = memo(function SpotSelector() {
             ) : (
               <span className={`${v.text} text-[11px] font-bold px-1.5 py-0.5 rounded-full ${v.bg} ${verdictPop ? 'animate-verdict-pop' : ''} ${activeVerdict === 'good' ? 'badge-shimmer' : ''}`}>
                 {verdictLabel(activeScore)}
-                {windKt != null && activeVerdict !== 'calm' ? ` ${windKt.toFixed(0)}kt` : ''}
+                {gateWaveText(activeScore) ? ` ${gateWaveText(activeScore)}` : windKt != null && activeVerdict !== 'calm' ? ` ${windKt.toFixed(0)}kt` : ''}
               </span>
             )}
           </div>
@@ -265,7 +265,7 @@ function SpotCard({
           <span className={`flex items-center gap-1 text-[11px] font-bold ${v.text}`}>
             <span className={`w-2 h-2 rounded-full ${v.dot}`} />
             {verdictLabel(score)}
-            {windKt != null && verdict !== 'calm' && verdict !== 'unknown' ? ` ${windKt.toFixed(0)}kt` : ''}
+            {gateWaveText(score) ? ` ${gateWaveText(score)}` : windKt != null && verdict !== 'calm' && verdict !== 'unknown' ? ` ${windKt.toFixed(0)}kt` : ''}
           </span>
         )}
       </div>

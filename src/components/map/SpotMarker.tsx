@@ -15,7 +15,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
-import { VERDICT_STYLE } from '../../config/verdictStyles';
+import { VERDICT_STYLE, gateWaveText, gateWaveWhere } from '../../config/verdictStyles';
 import { clusterSpots, CLUSTER_DISABLE_ZOOM, type SpotClusterGroup } from '../../services/spotClustering';
 import { formatSurfWave, surfDisplayState, type SurfVerdictResult } from '../../services/surfVerdictEngine';
 
@@ -151,6 +151,8 @@ export const SpotMarkers = memo(function SpotMarkers() {
             isSurf={isSurf}
             surfDanger={surfDanger}
             surfVerdict={surfState === 'ready' ? surfEntry?.verdict : null}
+            seaGateText={gateWaveText(score)}
+            seaGateWhere={gateWaveWhere(score)}
           />
         );
       })}
@@ -255,6 +257,10 @@ interface SpotMarkerItemProps {
   surfDanger?: boolean;
   /** THE surf verdict from the cache entry; null/undefined = no usable data */
   surfVerdict?: SurfVerdictResult | null;
+  /** Spot closed by the sea (wave hard gate): «3,0 m» and where it was measured. The badge and
+   *  gauge then show the SEA; the wind figure next to «FUERTE» read as a bug (Cíes, 21-oct). */
+  seaGateText?: string | null;
+  seaGateWhere?: string | null;
 }
 
 /** Hexagon path for sailing spots — 6 sides */
@@ -330,6 +336,8 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   isSurf,
   surfDanger,
   surfVerdict,
+  seaGateText,
+  seaGateWhere,
 }: SpotMarkerItemProps) {
   // A surf spot shows its WAVE verdict — badge, colours, gauge — unless the
   // engine's hard gate is on, where it reads the wind verdict like any spot.
@@ -370,7 +378,9 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
 
   // Badge text: surf uses wave label + height, sailing uses wind label + kt.
   // The beach height is a model value, hence the «~».
-  const badgeText = surfWaveMode
+  const badgeText = seaGateText
+    ? `OLEAJE ${seaGateText.replace(' m', 'm')}`
+    : surfWaveMode
     ? (surfV
       ? (waveHeight !== null && waveHeight >= 0.3 ? `${surfV.label} ${formatSurfWave(waveHeight)}` : surfV.label)
       : VERDICT_MAP_LABEL.unknown)
@@ -386,11 +396,14 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
     ? `Spot ${shortName}: calculando condiciones`
     : surfWaveMode
       ? (surfV ? `Spot ${shortName}: ${badgeText} (olas: modelo)` : `Spot ${shortName}: sin dato de olas`)
-      : `Spot ${shortName}: ${badgeText}`;
+      : seaGateText
+        ? `Spot ${shortName}: oleaje de ${seaGateText} (${seaGateWhere ?? 'mar abierto'})`
+        : `Spot ${shortName}: ${badgeText}`;
   // The hover title says what the «~» means: the only surface where the word
   // «modelo» does not fit on screen.
   const title = calculating
     ? `${shortName} — calculando condiciones`
+    : seaGateText ? `${shortName} — oleaje de ${seaGateText} en ${seaGateWhere ?? 'mar abierto'}; no es viento`
     : surfV ? `${shortName} — olas: modelo, nadie las mide en la playa` : shortName;
   const markerRef = useCallback(
     (mk: MarkerInstance | null) => makeMarkerButton(mk, ariaLabel, () => onSelect(spotId)),
@@ -440,9 +453,9 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
           />
 
           {/* Gauge arc — wind speed for sailing, wave height for surf */}
-          {(surfWaveMode ? (surfV != null && waveHeight != null && waveHeight >= 0.3) : (windKt != null && windKt >= 1)) && (
+          {(seaGateText ? waveHeight != null : surfWaveMode ? (surfV != null && waveHeight != null && waveHeight >= 0.3) : (windKt != null && windKt >= 1)) && (
             <path
-              d={surfWaveMode ? gaugeArc(gaugeR, (waveHeight ?? 0) * 8) : gaugeArc(gaugeR, windKt)}
+              d={seaGateText || surfWaveMode ? gaugeArc(gaugeR, (waveHeight ?? 0) * 8) : gaugeArc(gaugeR, windKt)}
               fill="none"
               stroke={colors.ring}
               strokeWidth={isActive ? 4 : 3}

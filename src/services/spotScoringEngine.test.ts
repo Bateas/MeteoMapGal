@@ -1083,6 +1083,21 @@ describe('waves only from the spot own wave buoys', () => {
     expect(r.waves!.waveHeight).toBeCloseTo(3.4, 1);
   });
 
+  // 21-oct: «FUERTE 4kt» at Cíes was the sea. The score says which limit it was.
+  it('a sea gate is marked as such and names where the sea was measured', () => {
+    const { spot, st, readings } = calmAt('cies-ria');
+    const r = scoreAllSpots([spot], [st], readings, [silleiro(3.4)]).get('cies-ria')!;
+    expect(r.hardGateKind).toBe('wave');
+    expect(r.summary).toContain('Cabo Silleiro (mar abierto)');
+    expect(r.summary).toContain('No es viento');
+  });
+
+  it('compares the sea at the precision it is shown with (3,04 m is not «3,0 m > 3 m»)', () => {
+    const { spot, st, readings } = calmAt('cies-ria');
+    expect(scoreAllSpots([spot], [st], readings, [silleiro(3.04)]).get('cies-ria')!.hardGateKind).toBeNull();
+    expect(scoreAllSpots([spot], [st], readings, [silleiro(3.06)]).get('cies-ria')!.hardGateKind).toBe('wave');
+  });
+
   it('a harbour gauge never stands for a spot sea state', () => {
     const { spot, st, readings } = calmAt('vao');
     const gauge = { ...silleiro(0.05), stationId: 3221, stationName: 'Vigo (marea)' };

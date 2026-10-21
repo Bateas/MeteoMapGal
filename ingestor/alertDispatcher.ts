@@ -128,6 +128,7 @@ function verdictEmoji(verdict: string): string {
     case 'NAVEGABLE': return '🟢';
     case 'BUENO': return '🟡';
     case 'FUERTE': return '🔴';
+    case 'OLEAJE': return '🌊';
     default: return '⚪';
   }
 }
@@ -229,12 +230,18 @@ export async function dispatchSpotAlert(
 
   // Build concise message (3 lines max)
   let msg = `${emoji} *${short}* ${verdict}\n`;
-  msg += `${direction} ${windKt}kt`;
-  if (extras?.gustKt && extras.gustKt > windKt) msg += ` (rachas ${extras.gustKt}kt)`;
-  if (extras?.waterTemp) msg += ` · Agua ${extras.waterTemp.toFixed(0)}°C`;
-  msg += '\n';
-  // A verdict set by the spot's own limit says which: «FUERTE» with 4 kt read as a bug (15-oct).
-  if (extras?.hardGate) msg += `Motivo: ${extras.hardGate}\n`;
+  if (verdict === 'OLEAJE' && extras?.hardGate) {
+    // Closed by the SEA: the sea leads and the wind is context (Cíes 21-oct: «FUERTE / E 4kt»).
+    msg += `${extras.hardGate}\n`;
+    msg += `Viento ${direction} ${windKt}kt\n`;
+  } else {
+    msg += `${direction} ${windKt}kt`;
+    if (extras?.gustKt && extras.gustKt > windKt) msg += ` (rachas ${extras.gustKt}kt)`;
+    if (extras?.waterTemp) msg += ` · Agua ${extras.waterTemp.toFixed(0)}°C`;
+    msg += '\n';
+    // A verdict set by the spot's own limit says which: «FUERTE» with 4 kt read as a bug (15-oct).
+    if (extras?.hardGate) msg += `Motivo: ${extras.hardGate}\n`;
+  }
   if (dirNote) msg += dirNote;
   if (extras?.thermalProb && extras.thermalProb >= 40) {
     msg += (dirNote ? ' · ' : '') + `Termico ${extras.thermalProb}%`;
@@ -248,7 +255,7 @@ export async function dispatchSpotAlert(
     windKt,
     direction,
     text: msg.trim(),
-    severity: verdict === 'FUERTE' ? 'high' : 'moderate',
+    severity: verdict === 'FUERTE' || verdict === 'OLEAJE' ? 'high' : 'moderate',
     title: `${short}: ${verdict}`,
     message: msg.trim(),
   }, `spot:${spotId}`);

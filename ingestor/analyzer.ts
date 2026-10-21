@@ -493,15 +493,18 @@ export async function runAnalysis(): Promise<void> {
     riseStates.set(spot.id, step.state);
     const rises = step.confirmed;
     const storm = rises ? stormNearPoint(spot.lat, spot.lon, strikesNow) : null;
+    // Closed by the sea, not the wind: named «OLEAJE», and a front aloft (which only argues
+    // against a breeze) does not silence it.
+    const seaGate = result.hardGate?.startsWith('Oleaje') ?? false;
     if (storm) {
       log.info(`[Analyzer] ${spot.name} ${VERDICT_LABEL[result.verdict]} ${Math.round(result.avgWindKt)}kt: aviso no enviado, tormenta cerca (${storm.count} rayos, el mas cercano a ${storm.nearestKm} km)`);
-    } else if (rises && !opportunityAlertAllowed(spot.sector, upperWind)) {
+    } else if (rises && !seaGate && !opportunityAlertAllowed(spot.sector, upperWind)) {
       log.info(`[Analyzer] ${spot.name} ${VERDICT_LABEL[result.verdict]} ${Math.round(result.avgWindKt)}kt: aviso no enviado, hay frente (veto 850 hPa)`);
     } else if (rises) {
       const dir = result.avgDir != null ? degreesToCardinal(result.avgDir) : '';
       await dispatchSpotAlert(
         spot.id, spot.name, spot.sector === 'embalse' ? 'Embalse' : 'Rías Baixas',
-        VERDICT_LABEL[result.verdict], result.avgWindKt, dir,
+        seaGate ? 'OLEAJE' : VERDICT_LABEL[result.verdict], result.avgWindKt, dir,
         { gustKt: result.maxGustKt > 0 ? result.maxGustKt : undefined, hardGate: result.hardGate ?? undefined },
       );
     }

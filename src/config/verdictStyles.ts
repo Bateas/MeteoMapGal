@@ -56,6 +56,8 @@ export interface VerdictSource {
   provisional?: boolean;
   effectiveWindKt?: number | null;
   wind?: { avgSpeedKt: number } | null;
+  hardGateKind?: 'wind' | 'wave' | null;
+  waves?: { waveHeight: number | null; sourceBuoy?: string | null } | null;
 }
 
 /** The verdict a surface should RENDER. Provisional collapses to the neutral
@@ -68,7 +70,43 @@ export function displayVerdict(score: VerdictSource | undefined | null): SpotVer
 /** The text to show beside it. */
 export function verdictLabel(score: VerdictSource | undefined | null): string {
   if (score?.provisional) return PROVISIONAL_LABEL;
+  if (isWaveGate(score)) return WAVE_GATE_LABEL;
   return VERDICT_STYLE[displayVerdict(score)].label;
+}
+
+// ── A spot closed by the SEA, not the wind ────
+//
+// The wave hard gate keeps the verdict 'strong' (orange, last in order, every Record intact) but
+// it is not wind: on 21-oct Cíes-Ría read «FUERTE 4kt» on the marker, the ticker, the comparator
+// and Telegram because Cabo Silleiro, open ocean 50 km away, had 3 m. Every surface asks here.
+
+export const WAVE_GATE_LABEL = 'Oleaje';
+
+export function isWaveGate(score: VerdictSource | undefined | null): boolean {
+  return !!score && !score.provisional && score.hardGateKind === 'wave';
+}
+
+/** «3,0 m» for the gate's sea height, or null when the spot is not closed by the sea. */
+export function gateWaveText(score: VerdictSource | undefined | null): string | null {
+  if (!isWaveGate(score)) return null;
+  const h = score!.waves?.waveHeight;
+  return h != null ? `${h.toFixed(1).replace('.', ',')} m` : null;
+}
+
+/** Where that sea was measured: «Cabo Silleiro, mar abierto». */
+export function gateWaveWhere(score: VerdictSource | undefined | null): string | null {
+  if (!isWaveGate(score)) return null;
+  const buoy = score!.waves?.sourceBuoy;
+  return buoy ? `${buoy}, mar abierto` : 'mar abierto';
+}
+
+/** The figure a surface prints beside the label: the sea height for a wave gate, the wind
+ *  otherwise («3,0 m» / «12kt»), or null when there is nothing firm to print. */
+export function verdictFigure(score: VerdictSource | undefined | null): string | null {
+  const wave = gateWaveText(score);
+  if (wave) return wave;
+  const kt = displayWindKt(score);
+  return kt != null ? `${Math.round(kt)}kt` : null;
 }
 
 /**

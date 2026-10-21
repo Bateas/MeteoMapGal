@@ -22,7 +22,7 @@ import type { SpotId, SailingSpot } from '../config/spots';
 import type { SpotScore } from '../services/spotScoringEngine';
 import { scoreAllSpots, MAX_PLAUSIBLE_GUST_KT } from '../services/spotScoringEngine';
 import { scaleGustToSpot } from '../services/windUtils';
-import { displayVerdict, displayWindDir, displayWindKt, verdictLabel, VERDICT_HEX } from '../config/verdictStyles';
+import { displayVerdict, displayWindDir, displayWindKt, verdictLabel, VERDICT_HEX, gateWaveText } from '../config/verdictStyles';
 import { SECTORS, isCoastalSector } from '../config/sectors';
 import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 import { loadWidgetInputs } from './widgetData';
@@ -154,7 +154,9 @@ export function SpotCard({ spot, score }: { spot: SailingSpot; score: SpotScore 
 
       {/* Data grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
-        <DataCell label="Viento" value={windKt != null ? `${Math.round(windKt)} kt` : '—'} color={color} />
+        {gateWaveText(score)
+          ? <DataCell label="Oleaje" value={gateWaveText(score)!} color={color} />
+          : <DataCell label="Viento" value={windKt != null ? `${Math.round(windKt)} kt` : '—'} color={color} />}
         <DataCell label="Dirección" value={dirView?.label ?? '—'} icon={dirDeg != null ? (
           <span style={{
             display: 'inline-block',

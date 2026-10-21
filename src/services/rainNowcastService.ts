@@ -72,8 +72,12 @@ export function assessRainNowcast(opts: {
   readings: Map<string, NormalizedReading>;
   forecast: HourlyForecast[];
   now?: Date;
+  /** What the «Lluvia ahora» layer measured (rainNowStore): gauges that passed its checks and the
+   *  radar arrival at this spot. Measured rain is never vetoed by a dry model hour (the panel got
+   *  that rule in v2.189.0; this card still let the model hide it). Absent = the layer is off. */
+  measured?: { gauges: { id: string; name: string; mm: number }[]; arrivalMin: number | null } | null;
 }): RainNowcast {
-  const { spotCenter, radiusKm, stations, readings, forecast } = opts;
+  const { spotCenter, radiusKm, stations, readings, forecast, measured } = opts;
   const now = opts.now ?? new Date();
   const nowMs = now.getTime();
   const [lon, lat] = spotCenter;
@@ -140,7 +144,18 @@ export function assessRainNowcast(opts: {
   // it's raining NOW — the model predicts rain this hour OR a 2nd nearby station
   // is also wet — and NEVER when the sun is out or the model says the hour is dry.
   const corroborated = forecastWetNow || wetStationCount >= 2;
-  const rainingNow = wettestMm >= RAIN_THRESHOLD_MM && !sunIsOut && !forecastDryNow && corroborated;
+  // Gauges the rain layer confirmed inside the spot radius (it already checked sun, pairs, radar).
+  const byId = new Map(stations.map((s) => [s.id, s]));
+  let layerWet: { name: string; mm: number; km: number } | null = null;
+  for (const g of measured?.gauges ?? []) {
+    const s = byId.get(g.id);
+    if (!s) continue;
+    const km = fastDistanceKm(lat, lon, s.lat, s.lon);
+    if (km <= radiusKm && (!layerWet || km < layerWet.km)) layerWet = { name: g.name, mm: g.mm, km };
+  }
+  const layerRainingHere = layerWet != null || measured?.arrivalMin === 0;
+  const rainingNow = layerRainingHere
+    || (wettestMm >= RAIN_THRESHOLD_MM && !sunIsOut && !forecastDryNow && corroborated);
 
   // ── Forecast: first rain hour in the look-ahead window ──
   let nextRainHours: number | null = null;
@@ -158,9 +173,11 @@ export function assessRainNowcast(opts: {
   }
 
   // ── Status + summary ────────────────────────────────────
-  const quotedMm = nearestWetName ? nearestWetMm : wettestMm;
-  const quotedName = nearestWetName ?? wettestName;
-  const intensityLabel = rainingNow ? intensityLabelFor(quotedMm) : null;
+  const quotedMm = layerWet ? layerWet.mm : nearestWetName ? nearestWetMm : wettestMm;
+  const quotedName = layerWet ? layerWet.name : nearestWetName ?? wettestName;
+  // The layer's mm cover its 30-min window, not one reading: no intensity word from them.
+  const intensityLabel = rainingNow && !layerWet && quotedMm > 0 ? intensityLabelFor(quotedMm) : null;
+  const radarSoonMin = !rainingNow && measured?.arrivalMin != null && measured.arrivalMin > 0 ? measured.arrivalMin : null;
 
   let status: RainStatus;
   let summary: string;
@@ -168,6 +185,9 @@ export function assessRainNowcast(opts: {
   if (rainingNow) {
     status = 'raining';
     summary = `Lloviendo${intensityLabel ? ` · ${intensityLabel}` : ''}${quotedName ? ` (${quotedName})` : ''}`;
+  } else if (radarSoonMin != null) {
+    status = 'rain-soon';
+    summary = `Lluvia en ~${radarSoonMin} min (radar)`;
   } else if (nextRainHours != null && nextRainHours <= SOON_HORIZON_H) {
     status = 'rain-soon';
     summary = `Lluvia prevista ~${formatHours(nextRainHours)}${nextRainProb != null ? ` (${nextRainProb}%)` : ''}`;

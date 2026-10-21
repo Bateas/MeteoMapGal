@@ -19,7 +19,7 @@
 
 import type { SpotScore, SpotVerdict } from './spotScoringEngine';
 import type { SailingSpot } from '../config/spots';
-import { VERDICT_HEX, displayVerdict, displayWindKt, isDirVariable, verdictLabel } from '../config/verdictStyles';
+import { VERDICT_HEX, displayVerdict, displayWindKt, isDirVariable, verdictLabel, gateWaveText, gateWaveWhere } from '../config/verdictStyles';
 
 // ── Data shape ──────────────────────────────────────────────
 
@@ -38,6 +38,9 @@ export interface ShareCardData {
   waterTempC: number | null;
   waveSummary: string | null;
   summary: string | null;
+  /** Spot closed by the sea: «3,0 m» and where it was measured; the card then leads with the sea. */
+  seaText?: string | null;
+  seaWhere?: string | null;
   generatedAt: Date;
 }
 
@@ -96,6 +99,8 @@ export function buildShareData(
     waterTempC: score.waterTemp != null ? Math.round(score.waterTemp * 10) / 10 : null,
     waveSummary: extras.waveSummary ?? null,
     summary: score.summary ?? null,
+    seaText: gateWaveText(score),
+    seaWhere: gateWaveWhere(score),
     generatedAt: new Date(),
   };
 }
@@ -170,14 +175,19 @@ export function renderShareCanvas(canvas: HTMLCanvasElement, data: ShareCardData
   ctx.textBaseline = 'alphabetic';
   ctx.font = '700 96px "DM Sans", system-ui, sans-serif';
   ctx.fillStyle = '#f8fafc';
-  const windText = data.windKt != null ? `${data.windKt} kt` : '- kt';
+  const windText = data.seaText ? data.seaText : data.windKt != null ? `${data.windKt} kt` : '- kt';
   ctx.fillText(windText, PAD, 400);
 
   ctx.font = '500 44px "DM Sans", system-ui, sans-serif';
   ctx.fillStyle = '#94a3b8';
   const subParts: string[] = [];
-  if (data.windDirCardinal) subParts.push(data.windDirCardinal);
-  if (data.gustKt != null) subParts.push(`rachas ${data.gustKt} kt`);
+  if (data.seaText) {
+    subParts.push(`en ${data.seaWhere ?? 'mar abierto'}`);
+    if (data.windKt != null) subParts.push(`viento ${data.windKt} kt`);
+  } else {
+    if (data.windDirCardinal) subParts.push(data.windDirCardinal);
+    if (data.gustKt != null) subParts.push(`rachas ${data.gustKt} kt`);
+  }
   if (subParts.length > 0) ctx.fillText(subParts.join(' - '), PAD, 460);
 
   ctx.font = '500 32px "DM Sans", system-ui, sans-serif';
@@ -311,7 +321,10 @@ export function buildShareUrl(data: Pick<ShareCardData, 'sectorId' | 'spotId'>):
 export function buildShareText(data: ShareCardData): string {
   // Line 1: spot — verdict · wind · waves
   const line1Bits: string[] = [`${data.spotName} — ${data.verdictLabel}`];
-  if (data.windKt != null) {
+  if (data.seaText) {
+    line1Bits.push(`${data.seaText} (${data.seaWhere ?? 'mar abierto'})`);
+    if (data.windKt != null) line1Bits.push(`viento ${data.windKt}kt`);
+  } else if (data.windKt != null) {
     line1Bits.push(`${data.windKt}kt${data.windDirCardinal ? ' ' + data.windDirCardinal : ''}`);
   }
   if (data.gustKt != null && data.windKt != null && data.gustKt >= data.windKt + 5) {

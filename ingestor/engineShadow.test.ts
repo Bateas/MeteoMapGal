@@ -105,7 +105,7 @@ describe('alertResult', () => {
 
   it('carries the hard gate, naming the buoy when it is the sea state (15-oct: «Vao FUERTE 4kt» with no reason)', () => {
     const waves = alertResult(pipeline, engine({ verdict: 'strong', hardGateTriggered: 'Oleaje 3.4m > 3m', waves: { sourceBuoy: 'Cabo Silleiro' } }));
-    expect(waves.hardGate).toBe('Oleaje 3.4m > 3m (Cabo Silleiro)');
+    expect(waves.hardGate).toBe('Oleaje 3.4m > 3m (Cabo Silleiro, mar abierto)');
     const wind = alertResult(pipeline, engine({ verdict: 'strong', hardGateTriggered: 'Viento 35kt > 30kt' }));
     expect(wind.hardGate).toBe('Viento 35kt > 30kt');
     expect(alertResult(pipeline, engine()).hardGate).toBeNull();

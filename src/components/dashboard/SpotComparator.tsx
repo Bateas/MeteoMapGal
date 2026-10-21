@@ -10,7 +10,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { getSpotsForSector } from '../../config/spots';
-import { VERDICT_STYLE, VERDICT_HEX, displayVerdict, displayWindKt, isDirVariable, verdictLabel } from '../../config/verdictStyles';
+import { VERDICT_STYLE, VERDICT_HEX, displayVerdict, displayWindKt, isDirVariable, verdictLabel, gateWaveText } from '../../config/verdictStyles';
 import { degreesToCardinal } from '../../services/windUtils';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
@@ -29,6 +29,13 @@ export const SpotComparator = memo(function SpotComparator() {
     strong: 5, good: 4, sailing: 3, light: 2, calm: 1, unknown: 0,
   };
 
+  // A spot closed by its own limit (sea or wind over the hard gate) is the worst place to go,
+  // not the best: 'strong' sorted it FIRST (Cíes-Ría with a 3 m sea at Silleiro, 21-oct).
+  const rank = (sc: Parameters<typeof displayVerdict>[0]) =>
+    sc && !sc.provisional && (sc as { hardGateTriggered?: string | null }).hardGateTriggered
+      ? -1
+      : (VERDICT_ORDER[displayVerdict(sc)] || 0);
+
   const sorted = useMemo(() => {
     return [...spots].sort((a, b) => {
       const sa = scores.get(a.id);
@@ -36,8 +43,7 @@ export const SpotComparator = memo(function SpotComparator() {
       // Sorted by the DISPLAYED verdict, or a spot still calculating would be
       // ranked on a figure nobody can see. 'unknown' already has an entry in
       // VERDICT_ORDER, so nothing sinks to the bottom by accident.
-      return (VERDICT_ORDER[displayVerdict(sb)] || 0)
-        - (VERDICT_ORDER[displayVerdict(sa)] || 0);
+      return rank(sb) - rank(sa);
     });
   }, [spots, scores]);
 
@@ -117,7 +123,7 @@ export const SpotComparator = memo(function SpotComparator() {
 
             {/* Wind speed */}
             <span className={`text-xs font-bold text-center ${windKt != null ? 'text-slate-200' : 'text-slate-600'}`}>
-              {windKt != null ? `${windKt}kt` : '—'}
+              {gateWaveText(score) ?? (windKt != null ? `${windKt}kt` : '—')}
             </span>
 
             {/* Direction */}

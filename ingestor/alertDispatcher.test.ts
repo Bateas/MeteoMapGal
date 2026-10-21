@@ -60,9 +60,23 @@ describe('alertDispatcher — spot alerts say which wind it is, never the sea (1
     vi.spyOn(log, 'info').mockImplementation(() => {});
     vi.spyOn(log, 'ok').mockImplementation(() => {});
     resetCooldowns();
-    await dispatchSpotAlert('cies-ria', 'cies-ria', 'Rías Baixas', 'FUERTE', 6, 'N', { hardGate: 'Oleaje 3.4m > 3m (Cabo Silleiro)' });
+    await dispatchSpotAlert('cies-ria', 'cies-ria', 'Rías Baixas', 'FUERTE', 6, 'N', { hardGate: 'Oleaje 3,4 m > 3,0 m (Cabo Silleiro, mar abierto)' });
     const text = (JSON.parse(String(fetch.mock.calls.at(-1)?.[1]?.body)) as { text: string }).text;
-    expect(text).toContain('Motivo: Oleaje 3.4m > 3m (Cabo Silleiro)');
+    expect(text).toContain('Motivo: Oleaje 3,4 m > 3,0 m (Cabo Silleiro, mar abierto)');
+  });
+
+  it('a spot closed by the sea leads with the sea, not «FUERTE 4kt» (Cies 21-oct)', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    vi.spyOn(log, 'info').mockImplementation(() => {});
+    vi.spyOn(log, 'ok').mockImplementation(() => {});
+    resetCooldowns();
+    await dispatchSpotAlert('cies-ria', 'cies-ria', 'Rías Baixas', 'OLEAJE', 4, 'E', { hardGate: 'Oleaje 3,0 m > 3,0 m (Cabo Silleiro, mar abierto)' });
+    const body = JSON.parse(String(fetch.mock.calls.at(-1)?.[1]?.body)) as { text: string; severity: string };
+    expect(body.text).toContain('OLEAJE');
+    expect(body.text).toContain('Oleaje 3,0 m');
+    expect(body.text).toContain('Viento E 4kt');
+    expect(body.text).not.toContain('FUERTE');
+    expect(body.severity).toBe('high');
   });
 
   it('the 1-oct Cies alert no longer promises heavy seas', async () => {

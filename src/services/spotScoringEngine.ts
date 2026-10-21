@@ -121,6 +121,9 @@ export interface SpotScore {
   windDirDeg: number | null;
   /** Hard gate that triggered calm/nogo, if any */
   hardGateTriggered: string | null;
+  /** Which limit it was. 'wave' keeps the verdict 'strong' (order and styles unchanged) but every
+   *  surface must name the SEA, not the wind: «FUERTE 4kt» at Cíes was a 3 m swell at Silleiro. */
+  hardGateKind: 'wind' | 'wave' | null;
   /** Thermal context — only for spots with thermalDetection: true */
   thermal: SpotThermalContext | null;
   /** Active storm alert — applies to ALL spots in the sector */
@@ -844,6 +847,11 @@ function extractWaveConditions(
   return null;
 }
 
+/** Metres with a Spanish decimal comma and one decimal (3 -> «3,0»). */
+function fmtM(m: number): string {
+  return m.toFixed(1).replace('.', ',');
+}
+
 // ── Verdict from wind speed ──────────────────────────────────
 
 /**
@@ -1105,13 +1113,20 @@ function scoreSpot(
     };
   }
 
-  if (waves && spot.hardGates.maxWaveHeight && waves.waveHeight != null &&
-      waves.waveHeight > spot.hardGates.maxWaveHeight) {
+  // Compared at the precision it is shown with: a 3.04 m sea must not read «3,0 m > 3 m».
+  // Waves only come from a spot's `waveBuoys`, which are open-ocean buoys by policy (Cabo
+  // Silleiro today), so the text always says where the sea was measured: the same height
+  // at the buoy is not the same at a sheltered mouth.
+  const waveM = waves?.waveHeight != null ? Math.round(waves.waveHeight * 10) / 10 : null;
+  if (waves && spot.hardGates.maxWaveHeight && waveM != null && waveM > spot.hardGates.maxWaveHeight) {
+    const where = waves.sourceBuoy ? ` en ${waves.sourceBuoy} (mar abierto)` : ' (mar abierto)';
+    const period = waves.wavePeriod != null ? ` · ${Math.round(waves.wavePeriod)} s` : '';
+    const windNote = wind ? ` No es viento: ${Math.round(wind.avgSpeedKt)} kt.` : '';
     return {
       score: 0,
       verdict: 'strong',
-      hardGate: `Oleaje ${waves.waveHeight.toFixed(1)}m > ${spot.hardGates.maxWaveHeight}m`,
-      summary: `Oleaje excesivo (${waves.waveHeight.toFixed(1)}m). Peligroso.`,
+      hardGate: `Oleaje ${fmtM(waveM)} m > ${fmtM(spot.hardGates.maxWaveHeight)} m`,
+      summary: `Mar de fondo de ${fmtM(waveM)} m${period}${where}, por encima del límite del spot.${windNote}`,
       thermalBoosted: false, effectiveWindKt: wind?.avgSpeedKt ?? null, humiditySignal: null, thetaVGradient: null,
     };
   }
@@ -1586,7 +1601,8 @@ export function scoreAllSpots(
   readings: Map<string, NormalizedReading>,
   buoys: BuoyReading[],
   thermalData?: SpotThermalContext,
-  teleconnections?: TeleconnectionIndex[],
+  /** Kept for callers; unused since v2.192.0 (the NAO/AO modulation was never validated). */
+  _teleconnections?: TeleconnectionIndex[],
   readingHistory?: Map<string, NormalizedReading[]>,
   /** Precipitation samples per station for the rain veto. The ingestor passes what it read
    *  from the database; the browser omits it and the samples come from readingHistory. */
@@ -1637,10 +1653,6 @@ export function scoreAllSpots(
   const readingSetPartial =
     stations.length >= PROVISIONAL_MIN_STATIONS &&
     freshReadingCount < stations.length * PROVISIONAL_FRESH_RATIO;
-
-  // Extract NAO/AO for score modulation
-  const nao = teleconnections?.find((t) => t.name === 'NAO');
-  const ao = teleconnections?.find((t) => t.name === 'AO');
 
   for (const spot of spots) {
     const regimeVeto = INLAND_SPOT_IDS.has(spot.id) ? regimeInland : regimeCoastal;
@@ -1782,23 +1794,9 @@ export function scoreAllSpots(
     // The map shows «Calculando…» for it: a verdict nobody saw is no reference for the next one.
     if (verdictHold && provisional) verdictHold.states.delete(spot.id);
 
-    // ── NAO/AO score modulation ──────────────────────────
-    // NAO+ = Atlantic storms → consistent wind patterns (+5-8%)
-    // NAO− = anticyclonic blocking → unreliable wind, calms (−5-8%)
-    // AO− = weak polar vortex → variable patterns (−3-5%)
-    // Modulation is multiplicative, capped, and only when NOT calm/unknown
-    if (nao && verdict !== 'calm' && verdict !== 'unknown' && !hardGate) {
-      const naoMod = nao.value * 0.04; // ±4% per index unit (typ. range ±2)
-      const aoMod = ao ? ao.value * 0.02 : 0; // ±2% per AO unit
-      const totalMod = Math.max(-0.12, Math.min(0.12, naoMod + aoMod)); // cap ±12%
-      score = Math.max(0, Math.min(100, Math.round(score * (1 + totalMod))));
-    }
-
-    // ── NAO/AO context line in summary ───────────────────
-    if (nao && verdict !== 'calm' && verdict !== 'unknown') {
-      const naoCtx = naoSummaryContext(nao, ao);
-      if (naoCtx) summary += ` · ${naoCtx}`;
-    }
+    // NAO/AO no longer modulates the score nor adds a line to the summary (v2.192.0): a textbook
+    // rule («NAO+ = steadier wind») never checked against our data, applied at up to +-12 %, and on
+    // 21-oct with an index three weeks old (NOAA's file stopped on 30-sep).
 
     // ── Upwind propagation signal (frontal only) ─────────
     // If upwind stations show wind in a pattern direction but spot is calm → score boost
@@ -1907,6 +1905,7 @@ export function scoreAllSpots(
       heatIndex,
       windDirDeg: wind?.dirDeg ?? null,
       hardGateTriggered: hardGate,
+      hardGateKind: hardGate == null ? null : hardGate.startsWith('Oleaje') ? 'wave' : 'wind',
       thermal: spot.thermalDetection ? (thermalData ?? null) : null,
       hasStormAlert: thermalData?.hasStormAlert ?? false,
       thermalBoosted,
@@ -1928,17 +1927,3 @@ export function scoreAllSpots(
   return results;
 }
 
-// ── NAO/AO summary context (user-friendly Spanish) ──────────
-
-function naoSummaryContext(nao: TeleconnectionIndex, ao?: TeleconnectionIndex): string | null {
-  const v = nao.value;
-  // Strong signals only — don't clutter summary with neutral
-  if (v > 1.0) return 'Patrón atlántico activo: viento consistente';
-  if (v < -1.0) {
-    if (ao && ao.value < -0.5) return 'Bloqueo + aire frío: calmas y frío';
-    return 'Bloqueo anticiclónico: patrones débiles';
-  }
-  if (ao && ao.value < -1.0) return 'Vórtice polar débil: patrones variables';
-  if (ao && ao.value > 1.0) return 'Chorro polar activo: westerlies fuertes';
-  return null; // neutral — no context worth showing
-}

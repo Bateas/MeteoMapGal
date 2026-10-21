@@ -20,6 +20,7 @@ import {
   isDirVariable,
   DIR_VARIABLE_BELOW,
 } from './verdictStyles';
+import { verdictFigure, gateWaveWhere, gateWaveText } from './verdictStyles';
 import type { SpotVerdict } from '../services/spotScoringEngine';
 
 describe('displayVerdict', () => {
@@ -123,5 +124,26 @@ describe('displayWindDir', () => {
     expect(displayWindDir(wind(null))).toEqual({ label: 'N', deg: 5 });
     expect(displayWindDir(undefined)).toBeNull();
     expect(displayWindDir({ wind: null })).toBeNull();
+  });
+});
+
+describe('spot closed by the sea (wave hard gate)', () => {
+  const cies = {
+    verdict: 'strong' as const, provisional: false, effectiveWindKt: 4, wind: { avgSpeedKt: 4 },
+    hardGateKind: 'wave' as const, waves: { waveHeight: 3.04, sourceBuoy: 'Cabo Silleiro' },
+  };
+  it('names the sea, not the wind', () => {
+    expect(verdictLabel(cies)).toBe('Oleaje');
+    expect(verdictFigure(cies)).toBe('3,0 m');
+    expect(gateWaveWhere(cies)).toBe('Cabo Silleiro, mar abierto');
+  });
+  it('leaves a wind gate and a normal verdict as they were', () => {
+    expect(verdictLabel({ ...cies, hardGateKind: 'wind' })).toBe('Fuerte');
+    expect(verdictFigure({ ...cies, hardGateKind: null })).toBe('4kt');
+    expect(gateWaveText({ ...cies, hardGateKind: 'wind' })).toBeNull();
+  });
+  it('a provisional score stays «Calculando…»', () => {
+    expect(verdictLabel({ ...cies, provisional: true })).toBe('Calculando…');
+    expect(verdictFigure({ ...cies, provisional: true })).toBeNull();
   });
 });

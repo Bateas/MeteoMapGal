@@ -18,6 +18,7 @@ import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
+import { useRainNowStore } from '../../store/rainNowStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useStormPrediction } from '../../hooks/useStormPrediction';
 import { useWarningsStore } from '../../hooks/useWarnings';
@@ -32,7 +33,7 @@ import { aggregateFiresForSector, formatFireAge } from '../../services/fireServi
 import { getSpotsForSector, isBeachSpot } from '../../config/spots';
 import { assessBeachDay, type BeachDayResult } from '../../services/beachDayService';
 import { msToKnots } from '../../services/windUtils';
-import { VERDICT_STYLE, displayVerdict, displayWindDir } from '../../config/verdictStyles';
+import { VERDICT_STYLE, displayVerdict, displayWindDir, gateWaveText, gateWaveWhere } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { useAloft } from '../../hooks/useAloft';
 import { assessSeaBreezeRias } from '../../services/seaBreezeService';
@@ -89,6 +90,8 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
   const buoyReadings = useBuoy.use.buoys();
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const forecastHourly = useForecastStore((s) => s.hourly);
+  // Measured rain («Lluvia ahora» layer): the beach headline must not say «Buen día» under it.
+  const rainNowSummary = useRainNowStore((s) => s.summary);
   const stormPrediction = useStormPrediction();
   const mgWarnings = useWarningsStore((s) => s.sectorWarnings);
   const unifiedAlerts = useAlertStore((s) => s.alerts);
@@ -193,11 +196,16 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
       const kt = sc.effectiveWindKt ?? sc.wind?.avgSpeedKt;
       const dir = displayWindDir(sc)?.label ?? '';
       const pri = sc.verdict === 'calm' ? 1 : sc.verdict === 'light' ? 3 : sc.verdict === 'sailing' ? 7 : 10;
+      // Closed by the sea: say the sea and where it was measured, never «Fuerte 4kt».
+      const sea = gateWaveText(sc);
       result.push({
         key: `spot-${spot.id}`,
-        text: `${spot.shortName}: ${v.label}${kt != null && sc.verdict !== 'calm' ? ` ${dir} ${kt.toFixed(0)}kt` : ''}`,
+        text: sea
+          ? `${spot.shortName}: oleaje ${sea} (${gateWaveWhere(sc)})`
+          : `${spot.shortName}: ${v.label}${kt != null && sc.verdict !== 'calm' ? ` ${dir} ${kt.toFixed(0)}kt` : ''}`,
         color: v.text,
-        bg: sc.verdict === 'calm' ? '' : 'bg-emerald-900/25',
+        // «Fuerte» is a warning, not an invitation: it never shares the navigable green.
+        bg: sc.verdict === 'calm' ? '' : sc.verdict === 'strong' ? 'bg-orange-900/25' : 'bg-emerald-900/25',
         priority: pri,
       });
     }
@@ -240,6 +248,8 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
           }
           rainSoon = rainSoonMm > 0.2 || rainSoonProb >= 60;
         }
+        // Two gauges that the rain layer confirmed beat a dry model hour (same rule as the panel).
+        if (rainNowSummary && !rainNowSummary.sim && rainNowSummary.gauges.length >= 2) rainingNow = true;
         const foggy = unifiedAlerts.some(
           (a) => a.category === 'fog' && (a.severity === 'high' || a.severity === 'critical'),
         );
@@ -697,7 +707,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
 
     const cap = isMobile ? 6 : 9;
     return pool.length > cap ? pool.slice(0, cap) : pool;
-  }, [scores, surfWaveCache, theme, readings, stations, buoyReadings, sectorId, forecastHourly, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple, aloft]);
+  }, [scores, surfWaveCache, theme, readings, stations, buoyReadings, sectorId, forecastHourly, rainNowSummary, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple, aloft]);
 
   // ── Official MG warnings — static strip above the marquee ─────
   // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).

@@ -115,7 +115,9 @@ function gateReason(score: SpotScore): string | null {
   const gate = score.hardGateTriggered;
   if (!gate) return null;
   const buoy = score.waves?.sourceBuoy;
-  return gate.startsWith('Oleaje') && buoy ? `${gate} (${buoy})` : gate;
+  // Wave buoys are open-ocean by policy (spots.ts waveBuoys): the same height is not the same
+  // at a sheltered mouth, so the alert says where it was measured.
+  return gate.startsWith('Oleaje') ? `${gate} (${buoy ? `${buoy}, ` : ''}mar abierto)` : gate;
 }
 
 export interface Divergence { spotId: string; pipeline: { verdict: string; windKt: number }; engine: EngineView }

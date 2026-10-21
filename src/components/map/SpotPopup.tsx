@@ -21,7 +21,7 @@ import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import { MAX_PLAUSIBLE_GUST_KT as MAX_DISPLAY_GUST_KT } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
 import { isBeachSpot } from '../../config/spots';
-import { displayWindKt, displayWindDir, displayVerdict as renderedVerdict } from '../../config/verdictStyles';
+import { displayWindKt, displayWindDir, displayVerdict as renderedVerdict, gateWaveText, gateWaveWhere } from '../../config/verdictStyles';
 import { SpotReportBox } from '../spot/SpotReportBox';
 import '../../styles/archivoFonts.css';
 import '../spot/spotG.css';
@@ -46,6 +46,7 @@ import { useAlertStore } from '../../store/alertStore';
 import { beachWaveAt, formatSurfWave, surfDisplayState, type SurfSpotShape, type SurfWaveEntry } from '../../services/surfVerdictEngine';
 import { detectViracionPhase } from '../../services/viracionDetector';
 import { assessRainNowcast } from '../../services/rainNowcastService';
+import { useRainNowStore } from '../../store/rainNowStore';
 import { assessBeachDay } from '../../services/beachDayService';
 import { waterTempLabel } from '../../services/buoyUtils';
 import { waveBarColor, windKtColor, waveColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
@@ -201,6 +202,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
 
   const verdict: SpotVerdict = score?.verdict ?? 'unknown';
   const vs = VERDICT_STYLE[verdict];
+  // Closed by the sea: the headline names the sea and where it was measured, the wind goes second.
+  const seaText = gateWaveText(score);
+  const seaWhere = gateWaveWhere(score);
 
   // ── Cesantes canalization — read from the score, never recomputed here ──
   // The engine runs the detector once, rain veto included, and the marker, this card and
@@ -293,6 +297,9 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
     }
   })();
 
+  // The «Lluvia ahora» layer's measured gauges and radar arrival (same source as the chip and the alerts).
+  const rainSummary = useRainNowStore((s) => s.summary);
+
   // ── Rain nowcast: "¿llueve ahora? / ¿lluvia próxima?" ──────────────
   // Built on data the user trusts: nearby station precip (observed) + the
   // spot's own forecast (short horizon). NOT the webcam-AI precip flag.
@@ -301,12 +308,16 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       const stations = useWeatherStore.getState().stations ?? [];
       const readings = useWeatherStore.getState().currentReadings ?? new Map();
       const forecast = spotForecast.length > 0 ? spotForecast : (useForecastStore.getState().hourly ?? []);
+      const arrival = rainSummary?.arrivals.find((a) => a.spotId === spot.id) ?? null;
       return assessRainNowcast({
         spotCenter: spot.center,
         radiusKm: spot.radiusKm,
         stations,
         readings,
         forecast,
+        measured: rainSummary && !rainSummary.sim
+          ? { gauges: rainSummary.gauges, arrivalMin: arrival ? arrival.etaMin : null }
+          : null,
       });
     } catch (err) {
       console.debug('[RainNowcast] error:', err);
@@ -432,6 +443,14 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
               </span>
             )}
           </div>
+        ) : seaText ? (
+          <div className="sg-big">
+            <span className="sg-verdict" style={{ color: displayVerdict.textColor }}>Oleaje · {seaText}</span>
+            <span className="sg-side">
+              <span className="sg-strong">en {seaWhere}</span>
+              {score?.wind && <span className="sg-mut">no es viento: {Math.round(effectiveKt)} kt</span>}
+            </span>
+          </div>
         ) : (
           <div className="sg-big">
             <span className="sg-verdict" style={{ color: displayVerdict.textColor }}>
@@ -474,7 +493,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
             <SpotWindSparkline spotId={spot.id} />
             <span>{score.wind.stationCount} estaciones</span>
             {!score.provisional && windIsBoosted && <span>· medido {score.wind.avgSpeedKt.toFixed(0)} kt</span>}
-            {!score.provisional && !simpleMode && <span>· {score.score}/100</span>}
+            {!score.provisional && !simpleMode && !score.hardGateTriggered && <span>· {score.score}/100</span>}
           </div>
         )}
         {spot.category !== 'surf' && score?.wind?.matchedPattern && (
@@ -606,7 +625,11 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       {/* ── Wave conditions (coastal spots — NOT surf, which uses marine forecast) ── */}
       {spot.category !== 'surf' && score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-1.5 pt-1 border-t border-slate-700/40">
-          <Cell label="Oleaje" value={`${score.waves.waveHeight.toFixed(1)} m`} color={waveColor(score.waves.waveHeight)} />
+          <Cell
+            label={score.waves.sourceBuoy ? `Oleaje (${score.waves.sourceBuoy})` : 'Oleaje'}
+            value={`${score.waves.waveHeight.toFixed(1)} m`}
+            color={waveColor(score.waves.waveHeight)}
+          />
           {score.waves.wavePeriod != null && (
             <Cell label="Período" value={`${score.waves.wavePeriod.toFixed(0)} s`} />
           )}
