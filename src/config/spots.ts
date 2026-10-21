@@ -18,7 +18,7 @@
 import type { IconId } from '../components/icons/WeatherIcons';
 
 /** Type-safe spot identifiers for exhaustive matching */
-export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourido' | 'castineiras' | 'vao' | 'lanzada' | 'illa-arousa' | 'limens' | 'castrelo'
+export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourido' | 'castineiras' | 'vao' | 'lanzada' | 'illa-arousa' | 'limens' | 'castrelo' | 'belesar'
   | 'surf-patos' | 'surf-lanzada' | 'surf-corrubedo';
 
 export interface WindPattern {
@@ -896,6 +896,31 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
       { label: 'Ribadavia N-120 (DGT)', url: 'https://etraffic.dgt.es/camarasEtraffic/1187.jpg', type: 'image', source: 'DGT', azimuth: 270, refreshInterval: 600 },
       { label: 'Barbantes A-52 (DGT)', url: 'https://etraffic.dgt.es/camarasEtraffic/557.jpg', type: 'image', source: 'DGT', azimuth: 180, refreshInterval: 600 },
     ],
+  },
+  {
+    // Spot en prueba (21-oct), pedido para un observador que navega alli: sus reportes son
+    // la verdad que dira si estas dos estaciones sirven. Ninguna mide el agua. San Fiz es
+    // agraria, anemometro a 2 m en la ladera (391 m, el agua esta a ~330 m): lee bajo y
+    // racheado (19 h de muestra: media 2-4 kt, racha hasta 13). O Saviñao (AEMET) esta en la
+    // meseta a 560 m y solo da un dato por hora. Sin termica ni patrones: no hay nada medido
+    // aqui que los sostenga, y las reglas de Castrelo no se trasladan a un canon.
+    id: 'belesar',
+    name: 'Embalse de Belesar (Miño)',
+    shortName: 'Belesar',
+    icon: 'sailboat',
+    center: [-7.712, 42.630],
+    radiusKm: 8,
+    description: 'Embalse de Belesar, cañón del Miño en la Ribeira Sacra. Spot en prueba: el viento sale de una estación en la ladera (San Fiz, a 2 m) y de O Saviñao en la meseta; ninguna mide sobre el agua.',
+    windPatterns: [],
+    preferredStations: [
+      'mg_19021',     // San Fiz (MeteoGalicia agro, 1,8 km, 2 m)
+      'aemet_1535I',  // O Saviñao (AEMET, 0,8 km, 560 m, horaria)
+    ],
+    preferredBuoys: [],
+    waveRelevance: 'none',
+    thermalDetection: false,
+    hardGates: { maxWindKt: 30 },
+    beta: true,
   },
 ];
 

@@ -262,7 +262,7 @@ export function Sidebar() {
                   className="flex-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-md px-2 py-1.5 focus:ring-1 focus:ring-sky-500 focus:outline-none"
                   aria-label="Seleccionar spot para prevision"
                 >
-                  <option value="">Sector ({activeSectorId === 'embalse' ? 'Embalse' : 'Cesantes'})</option>
+                  <option value="">Sector ({activeSectorId === 'embalse' ? 'Castrelo' : 'Cesantes'})</option>
                   {sectorSpots.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}

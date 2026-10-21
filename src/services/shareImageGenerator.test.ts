@@ -90,9 +90,9 @@ describe('buildShareData', () => {
     expect(buildShareData(SPOT_CESANTES, { ...SCORE_BASE, windDirDeg: NaN } as SpotScore).windDirCardinal).toBeNull();
   });
 
-  it('uses Embalse label for embalse sector', () => {
+  it('uses the Interior label for embalse sector', () => {
     const data = buildShareData(SPOT_CESANTES, SCORE_BASE, { sectorId: 'embalse' });
-    expect(data.sectorLabel).toBe('Embalse de Castrelo');
+    expect(data.sectorLabel).toBe('Interior sur de Galicia');
   });
 
   it('rounds temps to 1 decimal', () => {

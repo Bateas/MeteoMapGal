@@ -27,7 +27,7 @@ export interface ShareCardData {
   spotId: string;
   spotName: string;
   sectorId: 'embalse' | 'rias';
-  sectorLabel: 'Rias Baixas' | 'Embalse de Castrelo';
+  sectorLabel: 'Rias Baixas' | 'Interior sur de Galicia';
   verdict: SpotVerdict;
   verdictLabel: string;
   verdictColor: string;
@@ -88,7 +88,7 @@ export function buildShareData(
     spotId: spot.id,
     spotName: spot.name,
     sectorId: extras.sectorId,
-    sectorLabel: extras.sectorId === 'rias' ? 'Rias Baixas' : 'Embalse de Castrelo',
+    sectorLabel: extras.sectorId === 'rias' ? 'Rias Baixas' : 'Interior sur de Galicia',
     verdict,
     verdictLabel: label,
     verdictColor,

@@ -70,8 +70,8 @@ export const SECTORS: Sector[] = [
   },
   {
     id: 'embalse',
-    name: 'Embalse de Castrelo',
-    shortName: 'Embalse',
+    name: 'Interior sur de Galicia',
+    shortName: 'Interior',
     icon: 'sailboat',
     coastal: false,
     center: [-8.1, 42.29],
@@ -87,6 +87,7 @@ export const SECTORS: Sector[] = [
     extraCoveragePoints: [
       { name: 'Lamas de Mouro (Melgaço)', lon: -8.1833, lat: 42.0333 }, // 29km S — frontera lusa inmediata al embalse
       { name: 'Monção', lon: -8.3833, lat: 42.0667 }, // 32km SW — cañón fluvial del Miño
+      { name: 'Belesar', lon: -7.712, lat: 42.630 }, // ~50km NE — embalse de Belesar (Miño, Ribeira Sacra)
     ],
     // 35km radius covers Ribadavia (17km), Ourense (20km), San Amaro (15km), Remuño (8km).
     // Altitude matters: embalse ~95m — stations >300m are different wind regimes.

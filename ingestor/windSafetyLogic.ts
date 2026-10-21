@@ -246,7 +246,7 @@ export function windLogDue(prev: { state: string; atMs: number } | undefined, st
   return state !== 'sin rachas fuertes' && nowMs - prev.atMs >= WIND_LOG_HEARTBEAT_MS;
 }
 
-const SECTOR_LABEL: Record<WindSector, string> = { rias: 'Rías Baixas', embalse: 'Embalse' };
+const SECTOR_LABEL: Record<WindSector, string> = { rias: 'Rías Baixas', embalse: 'Interior' };
 
 export function formatWindSafetyMessage(a: WindSafetyAssessment): { title: string; message: string } {
   const where = SECTOR_LABEL[a.sector];

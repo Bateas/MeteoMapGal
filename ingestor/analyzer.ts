@@ -503,7 +503,7 @@ export async function runAnalysis(): Promise<void> {
     } else if (rises) {
       const dir = result.avgDir != null ? degreesToCardinal(result.avgDir) : '';
       await dispatchSpotAlert(
-        spot.id, spot.name, spot.sector === 'embalse' ? 'Embalse' : 'Rías Baixas',
+        spot.id, spot.name, spot.sector === 'embalse' ? 'Interior' : 'Rías Baixas',
         seaGate ? 'OLEAJE' : VERDICT_LABEL[result.verdict], result.avgWindKt, dir,
         { gustKt: result.maxGustKt > 0 ? result.maxGustKt : undefined, hardGate: result.hardGate ?? undefined },
       );
@@ -567,7 +567,7 @@ export async function runAnalysis(): Promise<void> {
         }
         for (const signal of signals) {
           await dispatchForecastAlert(
-            sector === 'embalse' ? 'Embalse' : 'Rías Baixas',
+            sector === 'embalse' ? 'Interior' : 'Rías Baixas',
             signal.label,
             signal.confidence,
           );
@@ -742,7 +742,7 @@ async function checkLightningProximity(strikes: ProximityStrike[]): Promise<void
     const worst = list[0].level; // list preserves worst-first sort
     const lines = list.slice(0, 4).map(formatRiskLine);
     await dispatchLightningAlert(
-      sector === 'embalse' ? 'Embalse' : 'Rias Baixas', worst, lines,
+      sector === 'embalse' ? 'Interior' : 'Rias Baixas', worst, lines,
       Math.min(...list.map((r) => r.nearestKm)),
     );
   }

@@ -147,7 +147,7 @@ export const SectorSummaryPanel = memo(function SectorSummaryPanel({
       <div className="flex items-baseline justify-between border-b border-slate-700 pb-2">
         <div>
           <h2 className="text-base font-semibold text-white">Resumen del sector</h2>
-          <p className="text-[10px] text-slate-500">Últimos {days} días · {sector === 'embalse' ? 'Embalse de Castrelo' : 'Rías Baixas'}</p>
+          <p className="text-[10px] text-slate-500">Últimos {days} días · {sector === 'embalse' ? 'Interior sur de Galicia' : 'Rías Baixas'}</p>
         </div>
         <button
           onClick={refetch}

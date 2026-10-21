@@ -170,7 +170,12 @@ async function discoverWU(params: DiscoveryParams): Promise<NormalizedStation[]>
 async function discoverNetatmo(params: DiscoveryParams): Promise<NormalizedStation[]> {
   const listed = await shared('netatmo-list', () => fetchListedStations('netatmo'));
   const inRadius = netatmoStationsInRadius(listed, params.center, params.radiusKm);
-  if (inRadius) return inRadius;
+  // The coverage points too, as for WU and AEMET: until v2.194.0 the Netatmo stations around
+  // them (Corrubedo, A Guarda, Muros...) were scored by the server but never reached the map.
+  if (inRadius) {
+    const extra = (listed ?? []).filter((s) => !inRadius.includes(s) && isInExtraCoverage(s.lat, s.lon, params.extraCoveragePoints));
+    return [...inRadius, ...extra];
+  }
   if (!NETATMO_DIRECT) return [];
   return fetchNetatmoStations(params.center, params.radiusKm, false);
 }

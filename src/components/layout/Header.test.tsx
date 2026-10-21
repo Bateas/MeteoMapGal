@@ -39,7 +39,7 @@ describe('Header', () => {
   it('renders in embalse sector', () => {
     render(<Header {...defaultProps} />);
     // Default sector is embalse
-    expect(screen.getByText(/Embalse/i)).toBeDefined();
+    expect(screen.getByText(/Interior/i)).toBeDefined();
   });
 
   it('renders in rias sector', () => {

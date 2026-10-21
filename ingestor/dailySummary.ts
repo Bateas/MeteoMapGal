@@ -36,7 +36,7 @@ const N8N_WEBHOOK = process.env.N8N_SUMMARY_WEBHOOK || 'http://REDACTED_N8N_HOST
 /** Sector definitions (matching src/config/sectors.ts) */
 const SECTORS = [
   { id: 'rias', name: 'Rías Baixas', center: [-8.68, 42.30], radiusKm: 40, coastal: true },
-  { id: 'embalse', name: 'Embalse de Castrelo', center: [-8.1, 42.29], radiusKm: 35, coastal: false },
+  { id: 'embalse', name: 'Interior sur de Galicia', center: [-8.1, 42.29], radiusKm: 35, coastal: false },
 ] as const;
 
 const NAVEGABLE_KT = 8;   // wind ≥ this (kt) = worth sailing

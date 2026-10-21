@@ -136,7 +136,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
     // air quality, tide coef, gusts, thermal) and only shows in full mode.
     // `hex` (optional) is an inline text colour that wins over `color`.
     const result: { key: string; text: string; color: string; hex?: string; bg: string; priority: number; essential?: boolean; icon?: IconId }[] = [];
-    const sectorLabel = sectorId === 'rias' ? 'Rías' : 'Embalse';
+    const sectorLabel = sectorId === 'rias' ? 'Rías' : 'Interior';
     // Daytime window, shared with the beach headline below: a verdict about
     // going in the water is not what simple mode should lead with at 02:00.
     const hourNow = new Date().getHours();
