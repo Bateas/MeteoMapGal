@@ -7,6 +7,7 @@
  */
 import { memo, useMemo, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
+import { PopupFit } from './PopupFit';
 import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
@@ -278,6 +279,7 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
   // ── Desktop: MapLibre popup ───────────────────────────
   return (
     <Popup longitude={info.lon} latitude={info.lat} anchor="bottom" offset={[0, -30]} closeOnClick={false} onClose={dismiss} className="buoy-popup" maxWidth="380px">
+      <PopupFit />
       {popupContent}
     </Popup>
   );

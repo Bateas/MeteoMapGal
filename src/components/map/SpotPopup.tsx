@@ -8,6 +8,7 @@
  */
 import { memo, useState, useMemo, useEffect, useId } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
+import { PopupFit } from './PopupFit';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
@@ -1104,6 +1105,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
         className="spot-popup"
         maxWidth="380px"
       >
+        <PopupFit />
         {popupContent}
       </Popup>
       {shareOpen && score && (

@@ -4,6 +4,7 @@
  */
 import { memo, useState, useEffect } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
+import { PopupFit } from './PopupFit';
 import { useUIStore } from '../../store/uiStore';
 import { useWebcamStore } from '../../store/webcamStore';
 import type { WebcamStation } from '../../config/webcams';
@@ -68,6 +69,7 @@ export const WebcamPopup = memo(function WebcamPopup({ webcam, onClose }: Webcam
       maxWidth="320px"
       className="webcam-popup"
     >
+      <PopupFit />
       <div className="bg-slate-900/95 rounded-lg border border-green-500/30 p-2.5 min-w-[280px]">
         <div className="flex items-center justify-between mb-1.5">
           <h3 className="text-xs font-bold text-green-400 truncate">{webcam.name}</h3>

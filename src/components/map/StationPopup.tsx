@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, memo } from 'react';
 import { Popup } from 'react-map-gl/maplibre';
+import { PopupFit } from './PopupFit';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
@@ -330,6 +331,7 @@ export const StationPopup = memo(function StationPopup({ station, reading }: Sta
       className="station-popup"
       maxWidth="380px"
     >
+      <PopupFit />
       {popupContent}
     </Popup>
   );
