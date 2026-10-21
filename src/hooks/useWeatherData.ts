@@ -11,7 +11,7 @@ import { fetchWUObservations } from '../api/wundergroundClient';
 import { fetchNetatmoObservations, NETATMO_DIRECT } from '../api/netatmoClient';
 import { fetchSkyXReading } from '../api/skyxClient';
 import { fetchIpmaData } from '../api/ipmaClient';
-import { fetchOpenMeteoForStations } from '../api/openMeteoClient';
+import { fetchRecentReadings } from '../api/recentReadingsClient';
 import { normalizeAemetObservation, normalizeMeteoGaliciaObservation, normalizeMeteoclimaticObservation } from '../services/normalizer';
 import type { NormalizedReading } from '../types/station';
 import { REFRESH_INTERVAL_MS } from '../config/constants';
@@ -334,19 +334,20 @@ export function useWeatherData() {
 
   const { lastRefresh, isPolling, forceRefresh } = useAutoRefresh(fetchData, REFRESH_INTERVAL_MS);
 
-  // Load 24h historical data from Open-Meteo on first load (model data, fills charts only)
+  // Load the last 3 h the stations MEASURED (our own table) on first load. Before v2.191.0 this
+  // was 24 h of Open-Meteo model values under each station's id (~25 requests per visitor), which
+  // sparklines, charts and trend detectors then read as measurements.
   // Uses appendHistory — never overwrites currentReadings (real-time station data)
   const hasLoadedHistoryRef = useRef(false);
   const loadHistory = useCallback(async () => {
     if (stations.length === 0) return;
     try {
-      const stationCoords = stations.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon }));
-      const historyReadings = await fetchOpenMeteoForStations(stationCoords);
+      const historyReadings = await fetchRecentReadings(stations.map((s) => s.id));
       if (historyReadings.length > 0) {
         appendHistory(historyReadings);
       }
     } catch (err) {
-      console.error('[WeatherData] Open-Meteo history load error:', err);
+      console.error('[WeatherData] recent history load error:', err);
     }
   }, [stations, appendHistory]);
 

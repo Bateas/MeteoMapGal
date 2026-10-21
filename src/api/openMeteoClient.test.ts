@@ -4,15 +4,15 @@
  * decides what a crowd costs is how many distinct points we ask for. Measured
  * against the 545 stations in production on 23-sep, asking one point per
  * 1,1 km cell meant 143 requests per visitor in Rias; one point per model node
- * means 27. These tests pin that the grouping is by node and that we ask for
- * the node itself, not for a station that happens to sit in it.
+ * means 27. Since v2.191.0 station history comes from our own table
+ * (recentReadingsClient.ts); the node grouping stays for the Embalse zones.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./openMeteoQueue', () => ({ openMeteoFetch: vi.fn() }));
 
 import { openMeteoFetch } from './openMeteoQueue';
-import { gridNode, historyGridKey, fetchOpenMeteoForStations } from './openMeteoClient';
+import { gridNode, historyGridKey } from './openMeteoClient';
 
 /** An answer shaped like Open-Meteo's, with one hour in it. */
 const answer = () =>
@@ -30,7 +30,6 @@ const answer = () =>
     }),
   }) as unknown as Response;
 
-const urlOf = (call: unknown[]) => String(call[0]);
 
 beforeEach(() => {
   vi.mocked(openMeteoFetch).mockReset();
@@ -59,36 +58,5 @@ describe('gridNode', () => {
 
   it('keeps the span in the key: 24 h and 6 h are different answers', () => {
     expect(historyGridKey(42.31, -8.72, 24)).not.toBe(historyGridKey(42.31, -8.72, 6));
-  });
-});
-
-describe('fetchOpenMeteoForStations', () => {
-  it('asks once per node however many stations sit in it', async () => {
-    const stations = [
-      { id: 'a', lat: 42.31, lon: -8.72 },
-      { id: 'b', lat: 42.33, lon: -8.68 },
-      { id: 'c', lat: 42.29, lon: -8.71 },
-      { id: 'd', lat: 42.55, lon: -8.72 }, // another node
-    ];
-    await fetchOpenMeteoForStations(stations);
-    expect(vi.mocked(openMeteoFetch)).toHaveBeenCalledTimes(2);
-  });
-
-  it('asks for the node, never for the coordinates of one of the stations', async () => {
-    await fetchOpenMeteoForStations([{ id: 'a', lat: 42.3142, lon: -8.7231 }]);
-    const url = urlOf(vi.mocked(openMeteoFetch).mock.calls[0]);
-    expect(url).toContain('latitude=42.3');
-    expect(url).toContain('longitude=-8.7');
-    expect(url).not.toContain('42.3142');
-    expect(url).not.toContain('-8.7231');
-  });
-
-  it('hands every station in the node its own readings', async () => {
-    const readings = await fetchOpenMeteoForStations([
-      { id: 'a', lat: 42.31, lon: -8.72 },
-      { id: 'b', lat: 42.33, lon: -8.68 },
-    ]);
-    const ids = new Set(readings.map((r) => r.stationId));
-    expect(ids).toEqual(new Set(['a', 'b']));
   });
 });

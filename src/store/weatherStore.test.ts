@@ -135,6 +135,17 @@ describe('readingHistory', () => {
     expect(historyOf()).toHaveLength(1);
   });
 
+  it('appendHistory keeps time order when the stored past lands after live polls', () => {
+    // On load the live poll can answer before /readings/recent: the older readings arrive second.
+    const live = reading(5);
+    const r20 = reading(20);
+    useWeatherStore.getState().updateReadings([live]);
+    useWeatherStore.getState().appendHistory([reading(30), r20, { ...live }, { ...r20 }]);
+    const times = historyOf()!.map((r) => r.timestamp.getTime());
+    expect(times).toHaveLength(3);
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
+  });
+
   it('keeps stations apart', () => {
     useWeatherStore.getState().updateReadings([
       reading(10),

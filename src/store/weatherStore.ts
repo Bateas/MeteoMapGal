@@ -313,18 +313,26 @@ export const useWeatherStore = create<WeatherState>()(devtools((set, get) => ({
     // on startup. That is precisely the batch that would fill a sparkline
     // immediately instead of making it wait a quarter of an hour for live
     // polls; mutated in place, it arrived and nothing noticed.
+    // This batch is the stored past and can land after the first live polls, so the result is
+    // kept in time order (the trend detectors and charts read the array in order).
+    const byStation = new Map<string, NormalizedReading[]>();
     for (const reading of readings) {
-      const prev = newHistory.get(reading.stationId) ?? [];
-      const exists = prev.some(
-        (h) => h.timestamp.getTime() === reading.timestamp.getTime()
-      );
-      if (!exists) {
-        const next = prev.length >= MAX_HISTORY_ENTRIES
-          ? [...prev.slice(prev.length - MAX_HISTORY_ENTRIES + 1), reading]
-          : [...prev, reading];
-        newHistory.set(reading.stationId, next);
-        changed = true;
-      }
+      const list = byStation.get(reading.stationId);
+      if (list) list.push(reading); else byStation.set(reading.stationId, [reading]);
+    }
+    for (const [stationId, incoming] of byStation) {
+      const prev = newHistory.get(stationId) ?? [];
+      const seen = new Set(prev.map((h) => h.timestamp.getTime()));
+      const fresh = incoming.filter((r) => {
+        const t = r.timestamp.getTime();
+        if (seen.has(t)) return false;
+        seen.add(t);
+        return true;
+      });
+      if (fresh.length === 0) continue;
+      const merged = [...prev, ...fresh].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      newHistory.set(stationId, merged.length > MAX_HISTORY_ENTRIES ? merged.slice(merged.length - MAX_HISTORY_ENTRIES) : merged);
+      changed = true;
     }
 
     if (changed) {

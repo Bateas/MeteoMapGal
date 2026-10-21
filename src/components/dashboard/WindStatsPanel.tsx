@@ -6,7 +6,7 @@ import { BarChart3, Compass, Wind } from 'lucide-react';
 
 /**
  * Minimalist wind statistics panel shown below a selected StationCard.
- * Computes stats from readingHistory (real observations + Open-Meteo backfill).
+ * Computes stats from readingHistory (measured readings: the last 3 h from our API on load, then live polls).
  */
 export const WindStatsPanel = memo(function WindStatsPanel({ stationId }: { stationId: string }) {
   const history = useWeatherStore((s) => s.readingHistory.get(stationId));

@@ -143,64 +143,6 @@ export async function fetchOpenMeteoHistory(
   return readings.map((r) => ({ ...r, stationId }));
 }
 
-/**
- * Fetch 24h history for multiple stations, de-duplicated by Open-Meteo grid cell.
- *
- * Open-Meteo has ~0.01° resolution. Stations within the same grid cell (lat/lon
- * rounded to 2 decimals) share identical model data, so we fetch each unique cell
- * only once and distribute the readings to all stations in that cell.
- *
- * Additionally, requests are batched (max 6 per batch) and go through the global
- * rate limiter queue (openMeteoQueue.ts) to avoid 429 rate-limiting.
- */
-export async function fetchOpenMeteoForStations(
-  stations: { id: string; lat: number; lon: number }[],
-  pastHours = 24
-): Promise<NormalizedReading[]> {
-  // Group stations by grid node, and keep the NODE as the point to ask for.
-  const gridMap = new Map<string, { lat: number; lon: number; stationIds: string[] }>();
-  for (const s of stations) {
-    const node = gridNode(s.lat, s.lon);
-    const key = `${node.lat}_${node.lon}`;
-    const existing = gridMap.get(key);
-    if (existing) {
-      existing.stationIds.push(s.id);
-    } else {
-      gridMap.set(key, { lat: node.lat, lon: node.lon, stationIds: [s.id] });
-    }
-  }
-
-  const uniqueCells = Array.from(gridMap.values());
-  const allReadings: NormalizedReading[] = [];
-  const BATCH_SIZE = 6; // Larger batches — global queue handles per-request rate limiting (350ms apart)
-
-  // Fetch in batches — each individual request goes through the global rate limiter
-  for (let i = 0; i < uniqueCells.length; i += BATCH_SIZE) {
-    const batch = uniqueCells.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map((cell) =>
-        fetchOpenMeteoHistory(cell.lat, cell.lon, cell.stationIds[0], pastHours)
-      )
-    );
-
-    for (let j = 0; j < results.length; j++) {
-      const result = results[j];
-      if (result.status !== 'fulfilled' || result.value.length === 0) continue;
-      const cell = batch[j];
-      // Distribute readings to all stations in this grid cell
-      for (const sid of cell.stationIds) {
-        allReadings.push(...result.value.map((r) => ({ ...r, stationId: sid })));
-      }
-    }
-    // No extra delay between batches — the global queue (350ms/req) already rate-limits
-  }
-
-  console.debug(
-    `[OpenMeteo] Loaded ${allReadings.length} readings — ${uniqueCells.length} grid cells for ${stations.length} stations`
-  );
-  return allReadings;
-}
-
 // ── Forecast functions ─────────────────────────────────
 
 /**
