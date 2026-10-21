@@ -169,6 +169,10 @@ export interface SpotScore {
   /** The canalization detector's output as the engine computed it (Cesantes). The popup
    *  reads it from here instead of running the detector a second time. */
   channeling?: CesantesPrediction | null;
+  /** The canalization's figure when it would have been applied: since v2.196.0 a «posible brisa»
+   *  band next to the measured wind, never the verdict. A recent field report can cancel it on
+   *  the card (canalizationBand). Null or absent = no band. */
+  channelingPossibleKt?: number | null;
   computedAt: Date;
 }
 
@@ -1106,7 +1110,7 @@ function scoreSpot(
   regimeVeto?: RegimeVeto | null,
   /** Map only: holds the verdict through noise on a threshold line (verdictHold.ts). */
   settle?: (raw: SpotVerdict, effectiveKt: number) => SpotVerdict,
-): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; effectiveWindKt: number | null; humiditySignal: string | null; thetaVGradient: number | null } {
+): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; effectiveWindKt: number | null; humiditySignal: string | null; thetaVGradient: number | null; channelingPossibleKt?: number | null } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
     return {
@@ -1189,16 +1193,27 @@ function scoreSpot(
   // local-channeling prediction for (Cesantes SW canalization, Liméns N/NNW).
   // The engine only sets channelingPrediction for those spots, so no per-id
   // gate is needed here.
+  //
+  // Since v2.196.0 it no longer lifts the figure: it is a «posible brisa» band next to the
+  // measured wind (owner decision, 21-oct). That afternoon it showed BUENO 13 (and sent the
+  // alert) over a mirror-calm ensenada with 4-5 kt measured. The exam (caso_cesantes_1021)
+  // found no rule on these inputs that separates that day from the real breezes of 25-sep and
+  // 14-oct, so the honest answer is to say it may come, not that it is here. The costly error is
+  // sending someone for nothing; on a real breeze day the card still names the possible figure.
   let channelingApplied = false;
-  // The 4 kt test reads the breeze at full sun; the figure applied is the dimmed one (dusk ramp).
+  let channelingPossibleKt: number | null = null;
+  // The 4 kt test reads the breeze at full sun; the figure offered is the dimmed one (dusk ramp).
   if (channelingPrediction?.active
       && channelingPrediction.predictedKt !== null
       && channelingPrediction.confidence >= 70
       && ((channelingPrediction.predictedKtFullSun ?? channelingPrediction.predictedKt) - spd) >= 4
       && channelingPrediction.predictedKt > spd) {
-    effectiveSpd = channelingPrediction.predictedKt;
-    thermalBoosted = true;
     channelingApplied = true;
+    channelingPossibleKt = channelingPrediction.predictedKt;
+    // The band is this spot's whole breeze story: the generic thermal factor does not lift the
+    // measured figure underneath it either (it used to be replaced by the canalization figure).
+    effectiveSpd = spd;
+    thermalBoosted = false;
   }
 
   // ── Humidity precursor boost (ría bruma pattern) ──────────
@@ -1354,7 +1369,7 @@ function scoreSpot(
   let summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData, effectiveSpd);
   if (bocanaSignal) summary += ' · ' + bocanaSignal;
 
-  return { score, verdict, hardGate: null, summary, thermalBoosted, effectiveWindKt: Math.round(effectiveSpd * 10) / 10, humiditySignal: precursor.signal ?? bocanaSignal, thetaVGradient: precursor.thetaVGradient };
+  return { score, verdict, hardGate: null, summary, thermalBoosted, effectiveWindKt: Math.round(effectiveSpd * 10) / 10, humiditySignal: precursor.signal ?? bocanaSignal, thetaVGradient: precursor.thetaVGradient, channelingPossibleKt };
 }
 
 // ── Summary Builder ──────────────────────────────────────────
@@ -1794,7 +1809,7 @@ export function scoreAllSpots(
           return out.shown;
         }
       : undefined;
-    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction, rainVeto, regimeVeto, settle);
+    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient, channelingPossibleKt } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction, rainVeto, regimeVeto, settle);
     // Early returns of scoreSpot (danger gates, no wind) never reach settle: they are shown at once
     // and become the state, so the next ordinary verdict is compared with what the map showed.
     if (verdictHold && (hardGate !== null || verdict === 'unknown')) {
@@ -1945,6 +1960,7 @@ export function scoreAllSpots(
       rainVeto,
       regimeVeto,
       channeling: channelingPrediction,
+      channelingPossibleKt: channelingPossibleKt ?? null,
       computedAt,
     });
   }

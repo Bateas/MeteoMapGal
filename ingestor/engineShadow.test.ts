@@ -97,8 +97,8 @@ describe('alertResult', () => {
     expect(alertResult(pipeline, undefined)).toBe(pipeline);
   });
 
-  it('reports the engine canalization as the boost, and none otherwise', () => {
-    const boosted = alertResult(pipeline, engine({ channeling: { active: true, confidence: 70 } }));
+  it('reports the canalization band, and none otherwise', () => {
+    const boosted = alertResult(pipeline, engine({ channeling: { active: true, confidence: 70 }, channelingPossibleKt: 13 }));
     expect(boosted).toMatchObject({ boostedBy: 'cesantes-canalization', boostConfidence: 70 });
     expect(alertResult({ ...pipeline, boostedBy: 'bocana-terral' } as SpotResult, engine()).boostedBy).toBeNull();
   });

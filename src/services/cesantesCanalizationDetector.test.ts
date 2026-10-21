@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { predictCesantesCanalization, computeInteriorSolar, freshPortWind, PORT_WIND_MAX_AGE_MS } from './cesantesCanalizationDetector';
+import { predictCesantesCanalization, computeInteriorSolar, freshPortWind, PORT_WIND_MAX_AGE_MS, canalizationBand } from './cesantesCanalizationDetector';
 import type { RainVeto } from './rainVeto';
 
 // ── Thermal breeze (Apr-Oct, 12-20h, ΔT≥2°C, air≥16°C) ──
@@ -460,5 +460,25 @@ describe('predictCesantesCanalization — the rebound at Porto de Vigo', () => {
     expect(freshPortWind({ kt: 12.7, dirDeg: 210, atMs: now - PORT_WIND_MAX_AGE_MS - 1 }, now)).toBeNull();
     expect(freshPortWind({ kt: 12.7, dirDeg: 210, atMs: NaN }, now)).toBeNull();
     expect(freshPortWind(null, now)).toBeNull();
+  });
+});
+
+describe('canalizationBand (v2.196.0: a «posible brisa» band, cancelled by the water)', () => {
+  it('no band when the engine offered none', () => {
+    expect(canalizationBand(null, 5, null)).toBeNull();
+  });
+  it('offers the band with no recent report', () => {
+    expect(canalizationBand(13, 4, null)).toEqual({ possibleKt: 13, cancelledBy: null });
+  });
+  it('21-oct 16:34: «menos viento que los 13» cancels it', () => {
+    const v = canalizationBand(13, 4, { newestMin: 10, wind: -1, appWindKt: 13 });
+    expect(v?.cancelledBy).toMatch(/no ha entrado/);
+  });
+  it('«igual» to the measured figure cancels it too; «igual» to the band does not', () => {
+    expect(canalizationBand(13, 4, { newestMin: 20, wind: 0, appWindKt: 4 })?.cancelledBy).not.toBeNull();
+    expect(canalizationBand(13, 4, { newestMin: 20, wind: 0, appWindKt: 13 })?.cancelledBy).toBeNull();
+  });
+  it('a report older than an hour no longer decides', () => {
+    expect(canalizationBand(13, 4, { newestMin: 75, wind: -1, appWindKt: 13 })?.cancelledBy).toBeNull();
   });
 });

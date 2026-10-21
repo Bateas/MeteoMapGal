@@ -23,6 +23,9 @@ import type { SailingSpot } from '../../config/spots';
 import { isBeachSpot } from '../../config/spots';
 import { displayWindKt, displayWindDir, displayVerdict as renderedVerdict, gateWaveText, gateWaveWhere } from '../../config/verdictStyles';
 import { SpotReportBox } from '../spot/SpotReportBox';
+import { fetchRecentReports } from '../../api/fieldReportClient';
+import type { RecentReportSummary } from '../../services/fieldReport';
+import { canalizationBand } from '../../services/cesantesCanalizationDetector';
 import '../../styles/archivoFonts.css';
 import '../spot/spotG.css';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
@@ -142,6 +145,16 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
       .catch((err) => { console.debug(`[SpotForecast] ${spot.id} both attempts failed:`, err); setSpotFcError(true); })
       .finally(() => setSpotFcLoading(false));
   }, [spot.id, spot.center, cached, setSpotForecast]);
+  // The «posible brisa» band (canalization) gives way to someone on the water: the recent reports
+  // decide whether it is offered (canalizationBand). Shared cache with SpotReportBox: one request.
+  const bandKt = score?.channelingPossibleKt ?? null;
+  const [recentReport, setRecentReport] = useState<RecentReportSummary | null>(null);
+  useEffect(() => {
+    if (bandKt == null) return;
+    let alive = true;
+    fetchRecentReports(spot.id).then((s) => { if (alive) setRecentReport(s); });
+    return () => { alive = false; };
+  }, [spot.id, bandKt]);
   // MOHID sea temp (Rías only — fetch alongside spot forecast)
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const aqData = useAirQualityStore((s) => s.data);
@@ -784,20 +797,25 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
         </div>
       )}
 
-      {/* ── Cesantes Canalization predictor (local boost prediction) ── */}
-      {channelingPrediction !== null && channelingPrediction.predictedKt !== null && (() => {
-        const pred = channelingPrediction;
-        const color = pred.severity === 'high' ? 'text-amber-400' : pred.severity === 'moderate' ? 'text-sky-400' : 'text-slate-300';
-        const bg = pred.severity === 'high' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-sky-500/10 border-sky-500/30';
+      {/* ── Cesantes canalization: a «posible brisa» band, never the figure (v2.196.0) ── */}
+      {(() => {
+        const band = canalizationBand(bandKt, score?.wind?.avgSpeedKt ?? null, recentReport);
+        if (!band || !channelingPrediction) return null;
+        if (band.cancelledBy) {
+          return (
+            <div className="text-[11px] mb-1.5 text-slate-400">
+              <WeatherIcon id="wind" size={12} className="inline -mt-px" /> Posible brisa por canalización descartada: {band.cancelledBy}.
+            </div>
+          );
+        }
         return (
-          <div className={`text-[11px] mb-1.5 px-2 py-1 rounded border ${bg} ${color}`}>
+          <div className="text-[11px] mb-1.5 px-2 py-1 rounded border bg-sky-500/10 border-sky-500/30 text-sky-300">
             <div className="font-bold flex items-center gap-1">
               <WeatherIcon id="wind" size={12} className="inline -mt-px" />
-              Predicción local: ~{pred.predictedKt}kt {pred.predictedDir != null ? degreesToCardinal(pred.predictedDir) : ''}
-              <span className="text-[9px] opacity-70">×{pred.boostFactor.toFixed(1)} canalización</span>
+              Posible brisa hasta ~{band.possibleKt} kt {channelingPrediction.predictedDir != null ? degreesToCardinal(channelingPrediction.predictedDir) : ''} (sin confirmar)
             </div>
             <div className="text-[10px] opacity-80 mt-0.5">
-              {pred.signals.join(' · ')}
+              {channelingPrediction.signals[0]}. Las estaciones miden {Math.round(score?.wind?.avgSpeedKt ?? 0)} kt: si en el agua no lo ves, repórtalo.
             </div>
           </div>
         );

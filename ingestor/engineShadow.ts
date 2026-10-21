@@ -101,7 +101,9 @@ export function engineView(score: SpotScore | undefined): EngineView | null {
 export function alertResult(pipeline: SpotResult, score: SpotScore | undefined): SpotResult {
   const e = engineView(score);
   if (!score || !e || e.verdict === 'unknown' || e.windKt == null) return pipeline;
-  const channeling = score.channeling?.active ? score.channeling : null;
+  // Since v2.196.0 the canalization never lifts the figure (a «posible brisa» band on the card):
+  // boosted_by now marks the cycles where that band was offered, so the alert is the measured wind.
+  const channeling = score.channelingPossibleKt != null && score.channeling?.active ? score.channeling : null;
   return {
     ...pipeline,
     verdict: e.verdict as Verdict,

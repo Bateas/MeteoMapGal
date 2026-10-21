@@ -768,8 +768,8 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
     if (regime) regimeVetoReason = regime.vetoed ? regime.reason : null;
     const veto = rainVeto?.vetoed ? rainVeto : regime;
     const boost = applyCesantesBoost(rawWindKt, readings, buoyWinds, avgDir, gustMax > 0 ? gustMax : null, veto);
+    // Recorded, not applied (v2.196.0, same as the map's engine): the alert says the measured wind.
     if (boost) {
-      effectiveKt = boost.effectiveKt;
       boostedBy = 'cesantes-canalization';
       boostConfidence = boost.confidence;
     }

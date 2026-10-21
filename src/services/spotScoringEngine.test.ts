@@ -275,7 +275,9 @@ describe('Cesantes canalization override', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('overrides FLOJO verdict to BUENO when thermal breeze predicts ≥4kt above measured', () => {
+  // v2.196.0: the canalization is a «posible brisa» band, never the verdict (21-oct: BUENO 13 over a
+  // mirror-calm ensenada, the alert sent with it). These tests keep the detector's figure as the band.
+  it('offers the thermal breeze as a band and keeps the measured verdict', () => {
     // Reproduces the v2.81.29 prod bug: station reads 6kt + airTemp 25°C + waterTemp 21°C (ΔT=4°C)
     // → detector predicts baseKt 6 + (4 × 2) = 14kt → verdict should be 'good', not 'light'.
     //
@@ -291,21 +293,16 @@ describe('Cesantes canalization override', () => {
     const reading = { ...makeReading('mg_test', msFromKt(6), 230, 25), windGust: msFromKt(12) };
     const results = scoreAllSpots([cesantes], [station], new Map([['mg_test', reading]]), [randeBuoy]);
     const score = results.get('cesantes')!;
-    expect(score.verdict).toBe('good');
-    expect(score.thermalBoosted).toBe(true);
-    // Effective wind should reflect the canalized boost, not raw 6kt — band
-    // covers both CI (≈16 kt) and local (≈15 kt) without coupling to timezone.
-    expect(score.effectiveWindKt).not.toBeNull();
-    expect(score.effectiveWindKt!).toBeGreaterThanOrEqual(13);
-    // Summary should contain the boosted figure (not raw 6kt) — pattern matches
-    // any two-digit kt in the canalized band 13-19.
-    expect(score.summary).toMatch(/1[3-9]kt/i);
+    expect(score.verdict).not.toBe('good');
+    expect(score.channelingPossibleKt!).toBeGreaterThanOrEqual(13);
+    expect(score.effectiveWindKt!).toBeLessThan(10);
+    expect(score.summary).not.toMatch(/1[3-9]kt/i);
   });
 
   // 12-oct dusk (user, tmkites): «8-10 yes, 13 no» with the interior at 202-259 W/m². The detector's
   // ramp said 9, but the 4 kt test against the measured 6 dropped it and the map showed 6 (v2.178.19).
   // The interior station sits 14 km inland: outside the spot's own 12 km, inside the interior zone.
-  it('shows the dimmed boost at dusk (250 W/m² inland): ~9 kt, not the measured 6 nor the full 14', () => {
+  it('offers the dimmed band at dusk (250 W/m² inland): ~9 kt, not the full 14', () => {
     const station = makeStation('mg_test', cesantes.center[1], cesantes.center[0]);
     const inland = makeStation('mg_inland', 42.32, -8.45);
     const reading = { ...makeReading('mg_test', msFromKt(6), 230, 25), windGust: msFromKt(12) };
@@ -314,13 +311,13 @@ describe('Cesantes canalization override', () => {
       ['mg_inland', { ...makeReading('mg_inland', null, null, 25), solarRadiation: w }],
     ]);
     const dusk = scoreAllSpots([cesantes], [station, inland], sun(250), [randeBuoy]).get('cesantes')!;
-    expect(dusk.thermalBoosted).toBe(true);
-    expect(dusk.effectiveWindKt!).toBeGreaterThanOrEqual(8);
-    expect(dusk.effectiveWindKt!).toBeLessThanOrEqual(11);
+    expect(dusk.channelingPossibleKt!).toBeGreaterThanOrEqual(8);
+    expect(dusk.channelingPossibleKt!).toBeLessThanOrEqual(11);
     const full = scoreAllSpots([cesantes], [station, inland], sun(600), [randeBuoy]).get('cesantes')!;
-    expect(full.effectiveWindKt!).toBeGreaterThanOrEqual(13);
+    expect(full.channelingPossibleKt!).toBeGreaterThanOrEqual(13);
+    expect(full.effectiveWindKt!).toBeLessThan(10);
     const dark = scoreAllSpots([cesantes], [station, inland], sun(100), [randeBuoy]).get('cesantes')!;
-    expect(dark.effectiveWindKt!).toBeLessThan(8);
+    expect(dark.channelingPossibleKt ?? null).toBeNull();
   });
 
   it('does NOT override when ΔT <2°C (detector gate fails)', () => {
@@ -374,12 +371,12 @@ describe('Cesantes canalization override', () => {
       [cesantes], [station], new Map([['mg_test', reading]]), [buoyWithoutWaterTemp],
     );
     const score = results.get('cesantes')!;
-    // May climatology SST=16°C, airTemp=27 → ΔT=11°C → +8kt cap → 7+8=15kt → 'good'
-    expect(score.verdict).toBe('good');
-    expect(score.thermalBoosted).toBe(true);
+    // May climatology SST=16°C, airTemp=27 → ΔT=11°C → +8kt cap → 7+8=15kt offered as the band
+    expect(score.channelingPossibleKt!).toBeGreaterThanOrEqual(13);
+    expect(score.verdict).not.toBe('good');
   });
 
-  it('effectiveWindKt matches the verdict (marker-popup coherence)', () => {
+  it('the band never reaches the marker figure (marker-popup coherence)', () => {
     // After v2.81.31/32: marker was showing wind.avgSpeedKt (7kt) while
     // the verdict was 'good' (from canalized 15kt). The user saw "BUENO 7kt"
     // which is incoherent. effectiveWindKt should equal the boosted speed
@@ -391,10 +388,10 @@ describe('Cesantes canalization override', () => {
       [cesantes], [station], new Map([['mg_test', reading]]), [buoyWithoutWaterTemp],
     );
     const score = results.get('cesantes')!;
-    expect(score.verdict).toBe('good');
-    // Raw consensus is 7kt but the canalized prediction (15kt) drove the verdict
-    expect(score.wind!.avgSpeedKt).toBeLessThanOrEqual(8); // raw stays low
-    expect(score.effectiveWindKt).toBeGreaterThanOrEqual(12); // matches 'good' threshold
+    expect(score.verdict).not.toBe('good');
+    expect(score.wind!.avgSpeedKt).toBeLessThanOrEqual(8);
+    expect(score.effectiveWindKt!).toBeLessThan(10);
+    expect(score.channelingPossibleKt!).toBeGreaterThanOrEqual(12);
   });
 
   it('effectiveWindKt equals wind.avgSpeedKt when no boost applies', () => {
@@ -464,10 +461,9 @@ describe('Cesantes rain veto', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('control: without rain the breeze is canalized and boosted', () => {
+  it('control: without rain the canalization is offered as a band', () => {
     const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal).get('cesantes')!;
-    expect(score.thermalBoosted).toBe(true);
-    expect(score.effectiveWindKt!).toBeGreaterThanOrEqual(12);
+    expect(score.channelingPossibleKt!).toBeGreaterThanOrEqual(12);
     expect(score.channeling?.active).toBe(true);
     expect(score.rainVeto?.vetoed).toBe(false);
   });
@@ -522,12 +518,12 @@ describe('Cesantes rain veto', () => {
     expect(score.verdict).not.toBe('good');
   });
 
-  it('a breeze afternoon aloft keeps the boost', () => {
+  it('a breeze afternoon aloft keeps the band', () => {
     const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal,
       undefined, undefined, undefined, breezeAloft).get('cesantes')!;
     expect(score.regimeVeto?.vetoed).toBe(false);
     expect(score.channeling?.active).toBe(true);
-    expect(score.effectiveWindKt!).toBeGreaterThanOrEqual(12);
+    expect(score.channelingPossibleKt!).toBeGreaterThanOrEqual(12);
   });
 
   it('strong NE aloft on the coast vetoes the breeze boost too (8-oct, 19 kt ENE)', () => {
@@ -546,10 +542,11 @@ describe('Cesantes rain veto', () => {
     expect(score.regimeVeto?.vetoed ?? false).toBe(false);
   });
 
-  it('the humidity precursor no longer stacks on top of the canalization figure', () => {
+  it('with the band offered the humidity precursor adds nothing to the measured figure', () => {
     const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal).get('cesantes')!;
     expect(score.channeling?.active).toBe(true);
-    expect(score.effectiveWindKt).toBe(score.channeling!.predictedKt);
+    expect(score.channelingPossibleKt).toBe(score.channeling!.predictedKt);
+    expect(score.effectiveWindKt).toBeCloseTo(score.wind!.avgSpeedKt, 1);
   });
 
   it('a front aloft also vetoes the generic thermal boost (Lourido)', () => {
@@ -570,7 +567,7 @@ describe('Cesantes rain veto', () => {
     const precip = new Map([['mg_g1', [{ t: Date.now() - 30 * MIN, mm: 0.5 }]]]);
     const score = scoreAllSpots([cesantes], stations(), readings(), [randeBuoy], thermal, undefined, undefined, precip).get('cesantes')!;
     expect(score.rainVeto?.vetoed).toBe(false);
-    expect(score.thermalBoosted).toBe(true);
+    expect(score.channelingPossibleKt!).toBeGreaterThanOrEqual(12);
   });
 
   it('other spots carry no veto and no canalization', () => {

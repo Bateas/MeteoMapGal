@@ -341,3 +341,36 @@ export function computeInteriorSolar(
   }
   return peak;
 }
+
+/** What the card says about a «posible brisa» band (the engine's channelingPossibleKt). */
+export interface CanalizationBandView {
+  possibleKt: number;
+  /** Set when a field report says the breeze is not there: the band is then not offered. */
+  cancelledBy: string | null;
+}
+
+/** A field report this recent overrides the band. */
+export const BAND_REPORT_MAX_MIN = 60;
+
+/**
+ * The band, or why it is not shown. Someone on the water is the truth the detector lacks: a
+ * recent report of LESS wind than the figure they were shown, or of the SAME wind as the measured
+ * figure (they compared against the stations, not the band), says the breeze has not come in.
+ * 21-oct 16:34: «menos viento que los 13» while the card kept the 13 under the report itself.
+ */
+export function canalizationBand(
+  possibleKt: number | null | undefined,
+  measuredKt: number | null,
+  recent: { newestMin: number; wind: -1 | 0 | 1 | 'mixed'; appWindKt: number | null } | null,
+): CanalizationBandView | null {
+  if (possibleKt == null) return null;
+  if (recent && recent.newestMin <= BAND_REPORT_MAX_MIN) {
+    const sameAsMeasured = recent.wind === 0 && recent.appWindKt != null && measuredKt != null
+      && recent.appWindKt <= measuredKt + 2;
+    if (recent.wind === -1 || sameAsMeasured) {
+      const ago = recent.newestMin < 5 ? 'hace un momento' : `hace ${recent.newestMin} min`;
+      return { possibleKt, cancelledBy: `Un reporte en el agua (${ago}) dice que no ha entrado` };
+    }
+  }
+  return { possibleKt, cancelledBy: null };
+}

@@ -499,8 +499,9 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
     const result = scoreSpot(cesantes, [localStation], [mouthBuoy]);
     expect(result.rawWindKt).toBe(6); // raw 5.8 rounds to 6
     // The thermal breeze adds boost — expect at least 'sailing' or better
+    // Recorded, not applied (v2.196.0): the alert says the measured wind
     expect(result.boostedBy).toBe('cesantes-canalization');
-    expect(result.avgWindKt).toBeGreaterThanOrEqual(10);
+    expect(result.avgWindKt).toBe(result.rawWindKt);
     expect(result.boostConfidence).toBeGreaterThanOrEqual(70);
   });
 
@@ -619,7 +620,7 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
     vi.setSystemTime(new Date('2026-09-25T20:28:00+02:00'));
     const r = scoreSpot(cesantes, [duskLocal, { ...duskInterior, solar_rad: 400 }], [duskRande]);
     expect(r.boostedBy).toBe('cesantes-canalization');
-    expect(r.avgWindKt).toBe(13);
+    expect(r.avgWindKt).toBe(r.rawWindKt);
   });
 
   // ── Rain veto ──────────────────────────────────────────────
@@ -651,7 +652,7 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
     it('keeps the boost without rain data, as before the veto existed', () => {
       const r = scoreSpot(cesantes, rows(), []);
       expect(r.boostedBy).toBe('cesantes-canalization');
-      expect(r.avgWindKt).toBeGreaterThan(r.rawWindKt!);
+      expect(r.avgWindKt).toBe(r.rawWindKt);
       expect(r.rainVeto).toBeUndefined();
     });
 
@@ -698,10 +699,10 @@ describe('scoreSpot — Cesantes canalization (Phase B TIER 1 P0)', () => {
       wind_speed: kt(12.7), wind_gust: kt(17), wind_dir: 210, temperature: 21, time: new Date(Date.now() - ageMin * 60_000) });
     beforeEach(() => vi.setSystemTime(new Date('2026-10-13T16:01:00+02:00')));
 
-    it('without the port the old boost to 13 kt is there', () => {
+    it('without the port the detector fires (recorded, not applied)', () => {
       const r = scoreSpot(narrow, rows(), [rande()]);
       expect(r.boostedBy).toBe('cesantes-canalization');
-      expect(r.avgWindKt).toBe(13);
+      expect(r.avgWindKt).toBe(r.rawWindKt);
     });
 
     it('with the port turned to SSW there is no boost: the raw wind stands', () => {
