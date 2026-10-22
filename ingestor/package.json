@@ -17,8 +17,8 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
-    "@types/node": "^26.5.1",
-    "@types/pg": "^8.21.0",
+    "@types/node": "^26.6.3",
+    "@types/pg": "^8.23.1",
     "@types/web-push": "^3.6.4",
     "tsx": "^4.23.13"
   }
