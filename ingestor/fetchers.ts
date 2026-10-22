@@ -44,6 +44,7 @@ import { aemetPollDue, isAemetQuotaAnswer } from './aemetCadence.js';
 import { ipmaFeed } from './ipmaCadence.js';
 import { SKYX_SLOT_MS, SKYX_SLOT_OFFSET_MS, slotOf, slotPollDue } from './sourceCadence.js';
 import * as mgBreaker from './mgBreaker.js';
+import * as wuBreaker from './wuBreaker.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
 const MG_BASE = 'https://servizos.meteogalicia.gal';
@@ -340,8 +341,15 @@ interface WUObservation {
 async function fetchWunderground(
   stations: NormalizedStation[]
 ): Promise<NormalizedReading[]> {
-  const wuStations = stations.filter((s) => s.source === 'wunderground');
-  if (wuStations.length === 0) return [];
+  const allWu = stations.filter((s) => s.source === 'wunderground');
+  if (allWu.length === 0) return [];
+
+  // The shared public key can be refused for everyone (401 «API key is throttled»). While it is,
+  // stay silent; when the pause ends ask ONE station to find out (wuBreaker.ts).
+  const plan = wuBreaker.planCycle();
+  if (plan === 'skip') return [];
+  const wuStations = plan === 'probe' ? allWu.slice(0, 1) : allWu;
+  if (plan === 'probe') log.info('Weather Underground: pause over, asking one station to see if the key answers');
 
   // WU public API key fallback — IBM-embedded public key (see src/api/wundergroundClient.ts).
   // NOT a credential leak. Required: removing it breaks discovery (9f07f33 → 58ea5ca).
@@ -395,9 +403,19 @@ async function fetchWunderground(
   // them from discovery by itself); a 401/403/429 is about us, and that one is a WARN.
   const breakdown = countBreakdown(rejected);
   log.info(`Weather Underground: ${readings.length}/${wuStations.length} readings${breakdown ? ` (left out: ${breakdown})` : ''}`);
-  const aboutUs = [...rejected.keys()].filter((k) => /^HTTP (401|403|429)$/.test(k));
+  const aboutUs = [...rejected.keys()].filter((k) => wuBreaker.isRefusal(k));
   if (aboutUs.length > 0) {
     log.warn(`Weather Underground: refused this cycle (${aboutUs.map((k) => `${rejected.get(k)}× ${k}`).join(', ')})`);
+  }
+  // Nothing got through = the key is refused: pause the poll. Any answer, even a 204, = it works.
+  const refusedN = aboutUs.reduce((n, k) => n + (rejected.get(k) ?? 0), 0);
+  const verdict = wuBreaker.judgeBatch(wuStations.length, refusedN);
+  if (verdict === 'refused') {
+    if (wuBreaker.reportRefused()) {
+      log.warn(`Weather Underground: key refused by every request, polling paused ${wuBreaker.cooldownMinutes()} min, then one probe`);
+    }
+  } else if (verdict === 'answered' && wuBreaker.reportAnswered()) {
+    log.info('Weather Underground: the key answers again, polling resumed');
   }
   return readings;
 }

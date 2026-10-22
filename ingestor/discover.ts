@@ -17,6 +17,7 @@ import { isWithinRadius } from '../src/services/geoUtils.js';
 import { log } from './logger.js';
 import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import * as aemetBreaker from './aemetBreaker.js';
+import * as wuBreaker from './wuBreaker.js';
 import { ipmaFeed } from './ipmaCadence.js';
 
 const AEMET_BASE = 'https://opendata.aemet.es/opendata';
@@ -269,11 +270,21 @@ async function discoverWunderground(): Promise<NormalizedStation[]> {
 
   /** Fetch WU stations near a geocode point and add unique ones to allStations */
   async function fetchWUNear(lat: number, lon: number, label: string): Promise<void> {
+    // While the shared key is refused (wuBreaker.ts) the discovery asks nothing: it comes back
+    // empty and the caller keeps the stations it already had.
+    if (wuBreaker.planCycle() === 'skip') return;
     try {
       const res = await fetch(
         `${WU_BASE}/v3/location/near?geocode=${lat},${lon}&product=pws&format=json&apiKey=${apiKey}`,
         { signal: AbortSignal.timeout(TIMEOUT) }
       );
+      if (wuBreaker.isRefusal(`HTTP ${res.status}`)) {
+        if (wuBreaker.reportRefused()) {
+          log.warn(`Weather Underground discovery: key refused (HTTP ${res.status}), paused ${wuBreaker.cooldownMinutes()} min`);
+        }
+        return;
+      }
+      if (res.ok) wuBreaker.reportAnswered();
       const data = await res.json();
       const loc = data?.location;
       if (!loc?.stationId) return;
