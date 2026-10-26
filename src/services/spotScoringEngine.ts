@@ -867,20 +867,13 @@ function fmtM(m: number): string {
  * Determine base verdict purely from wind speed (kt).
  * This is the PRIMARY driver — score adjustments are secondary.
  */
-function windVerdict(spd: number, spotId: SpotId): SpotVerdict {
+function windVerdict(spd: number, _spotId: SpotId): SpotVerdict {
   // Round to integer — same as displayed value, avoids "CALMA 8kt" incoherence
   const kt = Math.round(spd);
 
-  // Cíes-Ría: ocean conditions — needs "light" category for coherence
-  if (spotId === 'cies-ria') {
-    if (kt < 5) return 'calm';        // ocean <5kt = truly nothing
-    if (kt < 10) return 'light';      // 5-9kt = breeze but not enough for ocean
-    if (kt < 14) return 'sailing';    // 10-13kt = navigable ocean
-    if (kt < 18) return 'good';       // 14-17kt = good ocean sailing
-    return 'strong'; // ≥18kt (hard gate catches danger)
-  }
-
-  // All other spots (interior / sheltered)
+  // One scale for every spot: the same figure is the same colour on the map. Cíes-Ría had its own
+  // (9 kt «FLOJO» beside 8 kt «NAVEG.» elsewhere, 26-oct). The open sea is told by the wave gate
+  // (waveBuoys + maxWaveHeight), not by a hidden scale.
   if (kt < 6) return 'calm';
   if (kt < 8) return 'light';
   if (kt < 12) return 'sailing';
@@ -1296,15 +1289,8 @@ function scoreSpot(
     else if (spdForScore < 15) score += 38;
     else if (spdForScore <= 22) score += 48;
     else score += 30;
-  } else if (spot.id === 'cies-ria') {
-    if (spdForScore < 5) score += 0;
-    else if (spdForScore < 10) score += 8;     // light — not enough for ocean
-    else if (spdForScore < 14) score += 22;    // sailing
-    else if (spdForScore < 18) score += 38;    // good
-    else if (spdForScore <= 22) score += 42;   // strong but manageable
-    else score += 25;                  // overpowered
   } else {
-    // Centro Ría
+    // Centro Ría, Cíes and the rest (Cíes had its own ladder until 26-oct)
     if (spdForScore < 6) score += 0;
     else if (spdForScore < 8) score += 8;
     else if (spdForScore < 12) score += 18;

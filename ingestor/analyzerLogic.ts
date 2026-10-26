@@ -325,18 +325,11 @@ export function isWorthAlerting(verdict: string, windKt: number | null): boolean
 // ── windVerdict ─────────────────────────────────────
 
 /**
- * Match frontend spotScoringEngine thresholds exactly.
- * Cies-Ria uses ocean thresholds (higher), all others use ria/embalse.
+ * Match frontend spotScoringEngine thresholds exactly: one scale for every spot (Cies-Ria
+ * had its own until 26-oct-2026; the open sea is told by the wave gate).
  */
-export function windVerdict(avgKt: number, spotId: string): Verdict {
+export function windVerdict(avgKt: number, _spotId: string): Verdict {
   const kt = Math.round(avgKt);
-  if (spotId === 'cies-ria') {
-    if (kt < 5) return 'calm';
-    if (kt < 10) return 'light';
-    if (kt < 14) return 'sailing';
-    if (kt < 18) return 'good';
-    return 'strong';
-  }
   if (kt < 6) return 'calm';
   if (kt < 8) return 'light';
   if (kt < 12) return 'sailing';

@@ -110,30 +110,15 @@ describe('windVerdict — ria/embalse spots (cesantes/castrelo/etc)', () => {
 
 // ── windVerdict — Cies-Ria special thresholds (ocean) ─
 
-describe('windVerdict — cies-ria ocean thresholds', () => {
-  it('calm <5kt (lower bar than ria)', () => {
-    expect(windVerdict(4, 'cies-ria')).toBe('calm');
+describe('windVerdict — cies-ria uses the same scale as every spot (26-oct-2026)', () => {
+  it('the same figure gives the same verdict as a ria spot', () => {
+    for (const kt of [4, 5, 7, 8, 9, 11, 12, 17, 18]) {
+      expect(windVerdict(kt, 'cies-ria')).toBe(windVerdict(kt, 'cesantes'));
+    }
   });
 
-  it('light 5-9kt (ria thresholds would be light/sailing here)', () => {
-    expect(windVerdict(5, 'cies-ria')).toBe('light');
-    expect(windVerdict(9, 'cies-ria')).toBe('light');
-    // Same kt classified as 'sailing' for ria spots — the diff matters
-    expect(windVerdict(9, 'cesantes')).toBe('sailing');
-  });
-
-  it('sailing 10-13kt (vs ria sailing starts at 8)', () => {
-    expect(windVerdict(10, 'cies-ria')).toBe('sailing');
-    expect(windVerdict(13, 'cies-ria')).toBe('sailing');
-  });
-
-  it('good 14-17kt', () => {
-    expect(windVerdict(14, 'cies-ria')).toBe('good');
-    expect(windVerdict(17, 'cies-ria')).toBe('good');
-  });
-
-  it('strong ≥18kt', () => {
-    expect(windVerdict(18, 'cies-ria')).toBe('strong');
+  it('9 kt is sailing, not light (the «FLOJO 9 kt» beside «NAVEG. 8 kt» of 26-oct)', () => {
+    expect(windVerdict(9, 'cies-ria')).toBe('sailing');
   });
 });
 
