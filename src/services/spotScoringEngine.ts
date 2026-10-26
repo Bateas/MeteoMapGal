@@ -353,6 +353,41 @@ export function freshnessMulFor(stationIdOrSource: string, ageMin: number): numb
 }
 
 /**
+ * An hourly reading describes the hour it was taken, not now. It is dropped from the wind
+ * consensus when it is older than HOURLY_OUTDATED_MIN, at least FRESH_WITNESSES_MIN stations
+ * reported in the last FRESH_WITNESS_MAX_MIN, and it is more than HOURLY_OUTLIVED_RATIO times
+ * the STRONGEST of them: no fresh station sees even a third of it, so the wind it measured is
+ * gone. The 3x is the same line the consensus already draws for a high outlier. Calm counts as
+ * a witness (a fresh 0.6 kt measures now, though the consensus skips it below 1 kt).
+ * 22-oct 19:47, Castrelo: Ribadavia's 18:00 value (17.3 kt, 107 min old, preferred at 1.7 km)
+ * held NAVEG 9 kt while every fresh station read 0.6-5.4 kt.
+ * Judged against the max, not the median: at Castrelo the fresh land stations under-read and
+ * Ribadavia is usually the best witness, so demoting every old hourly reading (or comparing
+ * with the median) cost Castrelo 0.04-0.74 kt of mean error on the field truths of 26-oct;
+ * this rule left them unchanged. Without fresh witnesses (night, or only AEMET reporting) the
+ * old reading always counts: an old wind beats none.
+ */
+const HOURLY_OUTDATED_MIN = 90;
+const FRESH_WITNESS_MAX_MIN = 20;
+const FRESH_WITNESSES_MIN = 2;
+const HOURLY_OUTLIVED_RATIO = 3;
+
+/**
+ * Has this hourly-network reading outlived its hour? `freshWitnessKt` = the wind (kt, calm
+ * included) of the spot's stations younger than FRESH_WITNESS_MAX_MIN.
+ */
+export function hourlyReadingOutlived(
+  stationId: string, ageMin: number, speedKt: number, freshWitnessKt: number[],
+): boolean {
+  const cadence = SOURCE_CADENCE_MIN[sourceOf(stationId)] ?? DEFAULT_CADENCE_MIN;
+  if (cadence < 60 || ageMin <= HOURLY_OUTDATED_MIN) return false;
+  if (freshWitnessKt.length < FRESH_WITNESSES_MIN) return false;
+  // Compared at the 0.1 kt the networks report, so m/s rounding cannot tip an exact 3x.
+  const tenth = (kt: number) => Math.round(kt * 10) / 10;
+  return tenth(speedKt) > HOURLY_OUTLIVED_RATIO * tenth(Math.max(1, ...freshWitnessKt));
+}
+
+/**
  * The most a gust can plausibly reach on this coast. Above it, a cup
  * anemometer is throwing a spike rather than measuring weather — the SkyX has
  * produced peaks up to 97kt while its neighbours sat in single digits.
@@ -595,17 +630,24 @@ function computeSpotWindConsensus(
   const [spotLon, spotLat] = spot.center;
   const preferredSet = new Set(spot.preferredStations);
   const freeDir = freeStreamDirection(buoyData);
+  const ageMinOf = (r: NormalizedReading) => (Date.now() - r.timestamp.getTime()) / 60_000;
+  // Fresh witnesses, calm included: they decide whether an old hourly reading still counts
+  // (hourlyReadingOutlived).
+  const freshKt = stationData.filter(({ station, reading }) =>
+    reading.windSpeed !== null && !isWindBlacklisted(station.id) && ageMinOf(reading) < FRESH_WITNESS_MAX_MIN)
+    .map(({ reading }) => msToKnots(reading.windSpeed!));
 
   for (const { station, reading, distKm } of stationData) {
     if (reading.windSpeed === null) continue;
     if (isWindBlacklisted(station.id)) continue;
     const speedKt = msToKnots(reading.windSpeed);
     if (speedKt < 1) continue;
+    const ageMin = ageMinOf(reading);
+    if (hourlyReadingOutlived(station.id, ageMin, speedKt, freshKt)) continue;
     const isPreferred = preferredSet.has(station.id);
     const proximityBoost = isPreferred ? (distKm <= 2 ? 3.0 : distKm <= 5 ? 2.0 : 1.5) : 1.0;
     const distWeight = proximityBoost / (distKm + 1);
     const qualityMul = getSourceQuality(station.id);
-    const ageMin = (Date.now() - reading.timestamp.getTime()) / 60_000;
     const freshnessMul = freshnessMulFor(station.id, ageMin);
     // Documented orographic bias: when the wind comes FROM a direction the
     // station is known to misread (sheltered/channeled/accelerated — empirical
