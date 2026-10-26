@@ -18,3 +18,10 @@ export function aemetPollDue(lastGoodAt: number | null, now: number, gapMs = AEM
 export function isAemetQuotaAnswer(httpStatus: number, estado: unknown): boolean {
   return httpStatus === 429 || estado === 429 || estado === '429';
 }
+
+/** 401/403, as HTTP status or as `estado` inside the answer: AEMET refuses the key itself. No
+ *  wait fixes it, so it is told apart from the quota (25-26 oct: 28 h of `estado 401`). */
+export function isAemetKeyRefusal(httpStatus: number, estado: unknown): boolean {
+  const e = Number(estado);
+  return httpStatus === 401 || httpStatus === 403 || e === 401 || e === 403;
+}

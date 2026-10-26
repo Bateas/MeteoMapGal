@@ -5,6 +5,7 @@ import {
   formatHeartbeat,
   findSilentSources,
   describeSilence,
+  describeSilenceEs,
   findDeadSweep,
   describeSweep,
   describeDeadSweep,
@@ -208,6 +209,13 @@ describe('describeSilence — the line says why this counts as silent', () => {
     expect(line).toContain('meteogalicia');
     expect(line).toContain('2h');
     expect(line).toContain('40min');
+  });
+});
+
+describe('describeSilenceEs — the owner reads it on Telegram', () => {
+  it('names the network, how long and the margin', () => {
+    const line = describeSilenceEs({ source: 'aemet', silentMs: 28 * 60 * MIN, gateMin: 240 });
+    expect(line).toBe('AEMET: nada desde hace 28h (margen 240 min)');
   });
 });
 

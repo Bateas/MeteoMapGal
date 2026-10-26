@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aemetPollDue, isAemetQuotaAnswer, AEMET_MIN_GAP_MS } from './aemetCadence';
+import { aemetPollDue, isAemetQuotaAnswer, isAemetKeyRefusal, AEMET_MIN_GAP_MS } from './aemetCadence';
 
 describe('aemetPollDue', () => {
   it('polls when nothing good has arrived yet', () => {
@@ -19,5 +19,16 @@ describe('isAemetQuotaAnswer', () => {
     expect(isAemetQuotaAnswer(200, '429')).toBe(true);
     expect(isAemetQuotaAnswer(200, 200)).toBe(false);
     expect(isAemetQuotaAnswer(200, 404)).toBe(false);
+  });
+});
+
+describe('isAemetKeyRefusal', () => {
+  it('reads 401/403 as HTTP status or as estado, and nothing else', () => {
+    expect(isAemetKeyRefusal(200, 401)).toBe(true);
+    expect(isAemetKeyRefusal(200, '401')).toBe(true);
+    expect(isAemetKeyRefusal(401, undefined)).toBe(true);
+    expect(isAemetKeyRefusal(403, undefined)).toBe(true);
+    expect(isAemetKeyRefusal(200, 200)).toBe(false);
+    expect(isAemetKeyRefusal(200, 429)).toBe(false);
   });
 });

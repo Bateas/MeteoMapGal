@@ -331,6 +331,35 @@ export async function dispatchVisibilityAlert(
   }
 }
 
+// ── Sources gone quiet (owner only) ───────────────────
+
+/** A whole network silent is said in the log every 6 h, which nobody reads: AEMET went 28 h on
+ *  25-26 oct, Wunderground days. One message per source per day to the alert chat (today only
+ *  the owner's). Not at night: the next re-warn after 07:00 carries it. */
+const SOURCE_SILENCE_COOLDOWN_MS = 24 * 60 * 60_000;
+const lastSourceSilenceAlert = new Map<string, number>();
+
+export async function dispatchSourceSilenceAlert(sources: { source: string; text: string }[]): Promise<void> {
+  if (isNightTime()) return;
+  const due = sources.filter((s) => !isInCooldown(lastSourceSilenceAlert, s.source, SOURCE_SILENCE_COOLDOWN_MS));
+  if (due.length === 0) return;
+  const msg = '*Fuente sin datos* (aviso de mantenimiento, solo a ti)\n'
+    + due.map((s) => `- ${s.text}`).join('\n')
+    + '\nEl resto de fuentes sigue llegando. Mirar el registro del ingestor.';
+  const ok = await postWebhook({
+    type: 'source-silence',
+    category: 'ops',
+    detail: msg,
+    title: 'Fuente sin datos',
+    message: msg,
+    text: msg,
+    severity: 'moderate',
+  }, `source-silence:${due.map((s) => s.source).join(',')}`);
+  if (ok) {
+    for (const s of due) lastSourceSilenceAlert.set(s.source, Date.now());
+  }
+}
+
 // ── Magic Window alerts (T2-2 S136+3+3) ───────────────
 
 /** Magic window alerts are RARE by design — 6h cooldown prevents spam

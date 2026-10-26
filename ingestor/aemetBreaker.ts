@@ -63,6 +63,25 @@ export function reportRateLimit(label: string): void {
   }
 }
 
+const KEY_REFUSED_COOLDOWN_MS = 60 * 60_000;
+let keyRefusedLoggedAt = 0;
+
+/**
+ * Report a 401/403: AEMET refuses the key itself, which no wait fixes. From 25-oct 16:00 UTC the
+ * poll got `estado 401` for 28 h and logged a WARN every 5 min that nobody read. Now: pause 60 min
+ * and one ERROR per 6 h that says what to do.
+ */
+export function reportKeyRefused(label: string, status: unknown): void {
+  breakerOpenUntil = Date.now() + KEY_REFUSED_COOLDOWN_MS;
+  if (Date.now() - keyRefusedLoggedAt >= 6 * 60 * 60_000) {
+    keyRefusedLoggedAt = Date.now();
+    log.error(
+      `[AEMET] la clave es rechazada (${status}) via ${label}: pausa ${KEY_REFUSED_COOLDOWN_MS / 60_000} min. ` +
+      'Comprobar AEMET_API_KEY en ingestor/.env y que este proceso se arranco despues del ultimo cambio.',
+    );
+  }
+}
+
 /**
  * Report a successful AEMET call. Clears the breaker so the next
  * cycle can run immediately instead of waiting out the full cooldown.
@@ -77,6 +96,7 @@ export function reportSuccess(): void {
 /** Test-only: reset module state between cases. */
 export function _resetAemetBreaker(): void {
   breakerOpenUntil = 0;
+  keyRefusedLoggedAt = 0;
 }
 
 export class AemetBreakerError extends Error {

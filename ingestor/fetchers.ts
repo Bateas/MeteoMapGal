@@ -40,7 +40,7 @@ import { describeSweep, type SweepStatus } from './sourceHealth.js';
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import * as aemetBreaker from './aemetBreaker.js';
-import { aemetPollDue, isAemetQuotaAnswer } from './aemetCadence.js';
+import { aemetPollDue, isAemetQuotaAnswer, isAemetKeyRefusal } from './aemetCadence.js';
 import { ipmaFeed } from './ipmaCadence.js';
 import { SKYX_SLOT_MS, SKYX_SLOT_OFFSET_MS, slotOf, slotPollDue } from './sourceCadence.js';
 import * as mgBreaker from './mgBreaker.js';
@@ -95,6 +95,10 @@ async function fetchAemet(
     const meta: AemetApiResponse = await metaRes.json();
     if (isAemetQuotaAnswer(metaRes.status, meta.estado)) {
       aemetBreaker.reportRateLimit('observation poll');
+      return [];
+    }
+    if (isAemetKeyRefusal(metaRes.status, meta.estado)) {
+      aemetBreaker.reportKeyRefused('observation poll', meta.estado ?? metaRes.status);
       return [];
     }
     if (meta.estado !== 200 || !meta.datos) {

@@ -17,6 +17,7 @@ import { isWithinRadius } from '../src/services/geoUtils.js';
 import { log } from './logger.js';
 import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import * as aemetBreaker from './aemetBreaker.js';
+import { isAemetKeyRefusal } from './aemetCadence.js';
 import * as wuBreaker from './wuBreaker.js';
 import { ipmaFeed } from './ipmaCadence.js';
 
@@ -146,6 +147,10 @@ async function discoverAemet(): Promise<NormalizedStation[]> {
     const meta: AemetApiResponse = await metaRes.json();
     if (meta.estado === 429) {
       aemetBreaker.reportRateLimit('discovery');
+      return [];
+    }
+    if (isAemetKeyRefusal(metaRes.status, meta.estado)) {
+      aemetBreaker.reportKeyRefused('discovery', meta.estado ?? metaRes.status);
       return [];
     }
     if (meta.estado !== 200 || !meta.datos) {

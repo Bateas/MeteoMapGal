@@ -21,7 +21,7 @@ import { fetchBuoyObservations, obsCosteiroLastTimes } from './buoyFetcher.js';
 import { log } from './logger.js';
 import { checkAndSendDailySummary, seedDailySummary } from './dailySummary.js';
 import { runAnalysis, runLightningSafety, seedWindEpisodes, reopenWindEpisodesFromHistory } from './analyzer.js';
-import { setSendRecorder, seedCooldowns } from './alertDispatcher.js';
+import { setSendRecorder, seedCooldowns, dispatchSourceSilenceAlert } from './alertDispatcher.js';
 import { recordSent, loadRecentSends } from './sentAlerts.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
 import { runLightningCycle } from './lightningFetcher.js';
@@ -46,8 +46,10 @@ import {
   formatHeartbeat,
   findSilentSources,
   describeSilence,
+  describeSilenceEs,
   findDeadSweep,
   describeDeadSweep,
+  POLLED_SOURCES,
   type PolledSource,
 } from './sourceHealth.js';
 import type { NormalizedStation } from '../src/types/station.js';
@@ -239,6 +241,17 @@ function checkSourceHealth(readings: readonly { stationId: string }[]): void {
       `The other sources are reporting, so the global counter will not catch this — ` +
       `check that fetcher, it may be returning early rather than failing.`,
   );
+  void dispatchSourceSilenceAlert(silent.map((s) => ({ source: s.source, text: describeSilenceEs(s) })));
+}
+
+/** A source that has stations but brings nothing from the first cycle was never «seen», so the
+ *  check above stayed quiet for it after a restart. Start its clock at process start instead. */
+function seedSourceClocks(list: Map<string, NormalizedStation>): void {
+  const now = Date.now();
+  for (const st of list.values()) {
+    const src = st.source as PolledSource;
+    if ((POLLED_SOURCES as readonly string[]).includes(src) && !sourceLastSeen.has(src)) sourceLastSeen.set(src, now);
+  }
 }
 
 let sweepWarnedAt: number | null = null;
@@ -445,6 +458,7 @@ async function start(): Promise<void> {
   // 2. Initial station discovery + persist coords
   stations = await discoverAllStations();
   discoveryGoodAt = carryOverEmptySources(new Map(), stations, new Map(), Date.now()).lastGoodAt;
+  seedSourceClocks(stations);
   if (stations.size === 0) {
     log.warn('No stations found — will retry on next discovery cycle');
   } else {

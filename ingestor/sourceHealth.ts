@@ -124,6 +124,21 @@ export function describeSilence(s: SilentSource): string {
   return `${s.source} silent ${formatSilence(s.silentMs)} (expected within ${s.gateMin}min)`;
 }
 
+const NAME_ES: Record<PolledSource, string> = {
+  meteogalicia: 'MeteoGalicia',
+  wunderground: 'Weather Underground',
+  netatmo: 'Netatmo',
+  meteoclimatic: 'Meteoclimatic',
+  aemet: 'AEMET',
+  skyx: 'SkyX',
+  ipma: 'IPMA',
+};
+
+/** For the owner's Telegram: `AEMET: nada desde hace 28h (margen 240 min)`. */
+export function describeSilenceEs(s: SilentSource): string {
+  return `${NAME_ES[s.source]}: nada desde hace ${formatSilence(s.silentMs)} (margen ${s.gateMin} min)`;
+}
+
 // ── The Netatmo sweep: the blind spot the per-source line cannot see ─────
 //
 // Netatmo is fetched two ways: the two sectors every cycle (~18 readings) and
