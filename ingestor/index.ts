@@ -49,6 +49,7 @@ import {
   describeSilenceEs,
   findDeadSweep,
   describeDeadSweep,
+  parseSilenceMute,
   POLLED_SOURCES,
   type PolledSource,
 } from './sourceHealth.js';
@@ -241,17 +242,31 @@ function checkSourceHealth(readings: readonly { stationId: string }[]): void {
       `The other sources are reporting, so the global counter will not catch this — ` +
       `check that fetcher, it may be returning early rather than failing.`,
   );
-  void dispatchSourceSilenceAlert(silent.map((s) => ({ source: s.source, text: describeSilenceEs(s) })));
+  const toOwner = silent.filter((s) => !silenceMuted.has(s.source));
+  if (toOwner.length < silent.length) {
+    log.info(`SILENT SOURCE no Telegram (SOURCE_SILENCE_MUTE): ${silent.filter((s) => silenceMuted.has(s.source)).map((s) => s.source).join(', ')}`);
+  }
+  if (toOwner.length > 0) {
+    void dispatchSourceSilenceAlert(toOwner.map((s) => ({ source: s.source, text: describeSilenceEs(s) })));
+  }
 }
 
-/** A source that has stations but brings nothing from the first cycle was never «seen», so the
- *  check above stayed quiet for it after a restart. Start its clock at process start instead. */
+const silenceMuted = parseSilenceMute(process.env.SOURCE_SILENCE_MUTE);
+
+/** A source that brings nothing from the first cycle was never «seen», so the check above stayed
+ *  quiet for it after a restart. Start EVERY polled source's clock at process start, also one whose
+ *  discovery found no stations: in production all of them have stations in Galicia, so an empty
+ *  discovery is the failure itself (Wunderground, 27-oct: dead key, no stations, no warning). */
 function seedSourceClocks(list: Map<string, NormalizedStation>): void {
   const now = Date.now();
-  for (const st of list.values()) {
-    const src = st.source as PolledSource;
-    if ((POLLED_SOURCES as readonly string[]).includes(src) && !sourceLastSeen.has(src)) sourceLastSeen.set(src, now);
+  const withStations = new Set<string>();
+  for (const st of list.values()) withStations.add(st.source);
+  for (const src of POLLED_SOURCES) {
+    if (!sourceLastSeen.has(src)) sourceLastSeen.set(src, now);
   }
+  const empty = POLLED_SOURCES.filter((s) => !withStations.has(s));
+  if (empty.length > 0) log.warn(`Discovery found no stations for: ${empty.join(', ')}`);
+  if (silenceMuted.size > 0) log.info(`Source silence Telegram muted for: ${[...silenceMuted].join(', ')}`);
 }
 
 let sweepWarnedAt: number | null = null;

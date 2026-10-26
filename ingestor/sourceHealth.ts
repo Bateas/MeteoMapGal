@@ -134,6 +134,20 @@ const NAME_ES: Record<PolledSource, string> = {
   ipma: 'IPMA',
 };
 
+/**
+ * Sources the owner already knows are down (`SOURCE_SILENCE_MUTE=skyx,wunderground` in the
+ * ingestor .env): only the daily Telegram stops, the log keeps shouting every 6 h. Unknown
+ * names are dropped, so a typo mutes nothing rather than everything.
+ */
+export function parseSilenceMute(raw: string | undefined): Set<PolledSource> {
+  const out = new Set<PolledSource>();
+  for (const part of (raw ?? '').split(',')) {
+    const s = part.trim().toLowerCase();
+    if ((POLLED_SOURCES as readonly string[]).includes(s)) out.add(s as PolledSource);
+  }
+  return out;
+}
+
 /** For the owner's Telegram: `AEMET: nada desde hace 28h (margen 240 min)`. */
 export function describeSilenceEs(s: SilentSource): string {
   return `${NAME_ES[s.source]}: nada desde hace ${formatSilence(s.silentMs)} (margen ${s.gateMin} min)`;

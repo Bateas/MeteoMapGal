@@ -10,6 +10,7 @@ import {
   describeSweep,
   describeDeadSweep,
   formatMinutes,
+  parseSilenceMute,
   type SweepStatus,
 } from './sourceHealth';
 
@@ -216,6 +217,21 @@ describe('describeSilenceEs — the owner reads it on Telegram', () => {
   it('names the network, how long and the margin', () => {
     const line = describeSilenceEs({ source: 'aemet', silentMs: 28 * 60 * MIN, gateMin: 240 });
     expect(line).toBe('AEMET: nada desde hace 28h (margen 240 min)');
+  });
+});
+
+describe('parseSilenceMute — a source already known to be down can be muted', () => {
+  it('reads a comma list, case and spaces forgiven', () => {
+    expect([...parseSilenceMute(' SkyX , wunderground ')].sort()).toEqual(['skyx', 'wunderground']);
+  });
+
+  it('a typo or an unknown name mutes nothing, never everything', () => {
+    expect(parseSilenceMute('skyxx,aemett,*').size).toBe(0);
+  });
+
+  it('unset or empty = nothing muted', () => {
+    expect(parseSilenceMute(undefined).size).toBe(0);
+    expect(parseSilenceMute('').size).toBe(0);
   });
 });
 
