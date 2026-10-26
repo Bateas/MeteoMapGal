@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aemetPollDue, isAemetQuotaAnswer, isAemetKeyRefusal, AEMET_MIN_GAP_MS } from './aemetCadence';
+import { aemetPollDue, isAemetQuotaAnswer, isAemetKeyRefusal, aemetKeyNotice, AEMET_MIN_GAP_MS } from './aemetCadence';
 
 describe('aemetPollDue', () => {
   it('polls when nothing good has arrived yet', () => {
@@ -30,5 +30,18 @@ describe('isAemetKeyRefusal', () => {
     expect(isAemetKeyRefusal(403, undefined)).toBe(true);
     expect(isAemetKeyRefusal(200, 200)).toBe(false);
     expect(isAemetKeyRefusal(200, 429)).toBe(false);
+  });
+});
+
+describe('aemetKeyNotice', () => {
+  const now = Date.UTC(2026, 9, 26, 12);
+  const DAY = 86_400_000;
+  it('warns about a key without expiry (AEMET withdraws them since 15-oct-2026)', () => {
+    expect(aemetKeyNotice(null, now).level).toBe('warn');
+  });
+  it('says error once expired, warn within 14 days, info otherwise', () => {
+    expect(aemetKeyNotice(now - DAY, now).level).toBe('error');
+    expect(aemetKeyNotice(now + 5 * DAY, now)).toEqual({ level: 'warn', text: expect.stringContaining('en 5 dias') });
+    expect(aemetKeyNotice(now + 60 * DAY, now).level).toBe('info');
   });
 });

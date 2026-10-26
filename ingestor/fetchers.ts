@@ -40,7 +40,9 @@ import { describeSweep, type SweepStatus } from './sourceHealth.js';
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import * as aemetBreaker from './aemetBreaker.js';
-import { aemetPollDue, isAemetQuotaAnswer, isAemetKeyRefusal } from './aemetCadence.js';
+import { aemetPollDue, isAemetQuotaAnswer, isAemetKeyRefusal, aemetKeyNotice } from './aemetCadence.js';
+import { jwtExpiryMs } from './poemLogic.js';
+import { dispatchOpsNotice } from './alertDispatcher.js';
 import { ipmaFeed } from './ipmaCadence.js';
 import { SKYX_SLOT_MS, SKYX_SLOT_OFFSET_MS, slotOf, slotPollDue } from './sourceCadence.js';
 import * as mgBreaker from './mgBreaker.js';
@@ -58,12 +60,26 @@ const TIMEOUT = 15_000;
 
 let aemetLastGoodAt: number | null = null;
 let aemetLastReadings: NormalizedReading[] = [];
+let aemetKeyNotedDay = '';
+
+/** Once a day: when the AEMET key stops working, from its own `exp`. Warnings also go to the owner. */
+function noteAemetKeyExpiry(apiKey: string): void {
+  const now = Date.now();
+  const day = new Date(now).toISOString().slice(0, 10);
+  if (aemetKeyNotedDay === day) return;
+  aemetKeyNotedDay = day;
+  const n = aemetKeyNotice(jwtExpiryMs(apiKey), now);
+  if (n.level === 'info') { log.info(`AEMET: ${n.text}`); return; }
+  if (n.level === 'error') log.error(`AEMET: ${n.text}`); else log.warn(`AEMET: ${n.text}`);
+  void dispatchOpsNotice('aemet-key', 'Clave de AEMET', n.text);
+}
 
 async function fetchAemet(
   stationIds: Set<string>
 ): Promise<NormalizedReading[]> {
   const apiKey = process.env.AEMET_API_KEY;
   if (!apiKey || stationIds.size === 0) return [];
+  noteAemetKeyExpiry(apiKey);
 
   // Skip silently if we tripped a 429 recently — AEMET's quota recovers
   // slowly, hammering it just keeps the breaker open. The first 429

@@ -346,18 +346,23 @@ export async function dispatchSourceSilenceAlert(sources: { source: string; text
   const msg = '*Fuente sin datos* (aviso de mantenimiento, solo a ti)\n'
     + due.map((s) => `- ${s.text}`).join('\n')
     + '\nEl resto de fuentes sigue llegando. Mirar el registro del ingestor.';
-  const ok = await postWebhook({
-    type: 'source-silence',
-    category: 'ops',
-    detail: msg,
-    title: 'Fuente sin datos',
-    message: msg,
-    text: msg,
-    severity: 'moderate',
-  }, `source-silence:${due.map((s) => s.source).join(',')}`);
+  const ok = await postOps('source-silence', 'Fuente sin datos', msg, `source-silence:${due.map((s) => s.source).join(',')}`);
   if (ok) {
     for (const s of due) lastSourceSilenceAlert.set(s.source, Date.now());
   }
+}
+
+/** One maintenance notice (a key about to expire...), once a day per key, not at night. */
+const lastOpsNotice = new Map<string, number>();
+
+export async function dispatchOpsNotice(key: string, title: string, text: string): Promise<void> {
+  if (isNightTime() || isInCooldown(lastOpsNotice, key, SOURCE_SILENCE_COOLDOWN_MS)) return;
+  const msg = `*${title}* (aviso de mantenimiento, solo a ti)\n${text}`;
+  if (await postOps('ops-notice', title, msg, `ops:${key}`)) lastOpsNotice.set(key, Date.now());
+}
+
+function postOps(type: string, title: string, msg: string, key: string): Promise<boolean> {
+  return postWebhook({ type, category: 'ops', detail: msg, title, message: msg, text: msg, severity: 'moderate' }, key);
 }
 
 // ── Magic Window alerts (T2-2 S136+3+3) ───────────────
