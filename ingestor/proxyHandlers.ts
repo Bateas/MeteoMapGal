@@ -92,9 +92,18 @@ export function createDownMemo(clock: () => number = () => Date.now(), maxEntrie
 
 const upstreamDown = createDownMemo();
 
-/** Status for a paused resource with no copy: a 4xx (bad key, unknown path) as it came, else 503. */
+/**
+ * Status we answer for a provider's answer: its 5xx as 502. A 503 or 500 from us read as our
+ * own server failing (the 5xx alerts counted MeteoSIX's 503s as ours); 502 says a provider
+ * behind us failed. Its 2xx/4xx go out as they came.
+ */
+export function gatewayStatus(upstreamStatus: number): number {
+  return upstreamStatus >= 500 ? 502 : upstreamStatus;
+}
+
+/** Status for a paused resource with no copy: a 4xx (bad key, unknown path) as it came, else 502. */
 export function downStatus(upstreamStatus: number): number {
-  return upstreamStatus >= 400 && upstreamStatus < 500 ? upstreamStatus : 503;
+  return upstreamStatus >= 400 && upstreamStatus < 500 ? upstreamStatus : 502;
 }
 
 function noteUpstreamFailure(label: string, key: string, status: number, graceFirst = false): void {
@@ -269,7 +278,7 @@ export async function handleAemetProxy(
       return;
     }
 
-    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.writeHead(gatewayStatus(value.status), { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
     res.end(value.buf);
   } catch (err) {
     log.error('[AEMET Proxy]', (err as Error).message);
@@ -409,7 +418,7 @@ export async function handleAemetDataProxy(
       return;
     }
 
-    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.writeHead(gatewayStatus(value.status), { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
     res.end(value.buf);
   } catch (err) {
     log.error('[AEMET Data Proxy]', (err as Error).message);
@@ -499,7 +508,7 @@ export async function handleMeteoSixProxy(
       return;
     }
 
-    res.writeHead(value.status, {
+    res.writeHead(gatewayStatus(value.status), {
       ...corsHeaders(origin),
       'Content-Type': value.contentType,
       'Cache-Control': value.good ? METEOSIX_EDGE_CACHE : 'no-store',
@@ -577,7 +586,7 @@ export async function handleObsCosteiroProxy(
       return;
     }
 
-    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.writeHead(gatewayStatus(value.status), { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
     res.end(value.buf);
   } catch (err) {
     log.error('[ObsCosteiro Proxy]', (err as Error).message);
@@ -621,7 +630,7 @@ export async function handleMetarProxy(
       return { status: upstream.status, contentType, buf };
     });
 
-    res.writeHead(value.status, { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
+    res.writeHead(gatewayStatus(value.status), { ...corsHeaders(origin), 'Content-Type': value.contentType, 'X-Cache': joined ? 'JOINED' : 'MISS' });
     res.end(value.buf);
   } catch (err) {
     log.error('[METAR Proxy]', (err as Error).message);

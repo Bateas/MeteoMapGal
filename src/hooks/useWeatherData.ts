@@ -111,11 +111,12 @@ export function useWeatherData() {
           onSourceReadings(readings);
           return readings;
         }).catch((err) => {
-          // AEMET step-2 503 is a transient backend hiccup (their `datos` URL
-          // is sometimes overloaded). Don't flood F12 — next poll will recover.
-          // Real failures (rate-limit, schema break, network) still log as error.
+          // AEMET step-2 5xx is a transient backend hiccup (their `datos` URL
+          // is sometimes overloaded; our API passes it on as 502). Don't flood
+          // F12 — next poll will recover. Real failures (rate-limit, schema
+          // break, network) still log as error.
           const msg = String(err);
-          const isTransient = msg.includes('step 2 failed: 503');
+          const isTransient = /step 2 failed: 50[23]/.test(msg);
           if (isTransient) {
             console.debug('[WeatherData] AEMET 503 transient, will retry next poll');
           } else {

@@ -247,9 +247,9 @@ async function runDiscovery(params: DiscoveryParams): Promise<NormalizedStation[
     }
     console.debug(`[Discovery] Found ${stations.length} AEMET stations in radius`);
   } else {
-    // 503 from AEMET step-2 is transient — next discovery cycle (1h) will recover
+    // A 5xx from AEMET step-2 is transient (our API passes it on as 502) — next discovery cycle (1h) will recover
     const msg = String(aemetStations.reason);
-    if (msg.includes('step 2 failed: 503')) {
+    if (/step 2 failed: 50[23]/.test(msg)) {
       console.debug('[Discovery] AEMET 503 transient, will retry next cycle');
     } else {
       console.error('[Discovery] AEMET station fetch failed:', aemetStations.reason);

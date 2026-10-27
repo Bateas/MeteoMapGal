@@ -5,7 +5,7 @@
  * the last good copy exist and be the right one.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { aemetTtlFor, aemetAnswerOk, aemetDataPaths, AEMET_INVENTORY_TTL, isMeteoSixErrorEnvelope, createDownMemo, downStatus, DOWN_FIRST_MS, DOWN_MAX_MS, GRACE_WINDOW_MS } from './proxyHandlers';
+import { aemetTtlFor, aemetAnswerOk, aemetDataPaths, AEMET_INVENTORY_TTL, isMeteoSixErrorEnvelope, createDownMemo, downStatus, gatewayStatus, DOWN_FIRST_MS, DOWN_MAX_MS, GRACE_WINDOW_MS } from './proxyHandlers';
 
 const b = (s: string) => Buffer.from(s, 'utf8');
 
@@ -125,11 +125,20 @@ describe('createDownMemo', () => {
 });
 
 describe('downStatus', () => {
-  it('passes a 4xx through (a refused key is not a 503) and turns the rest into 503', () => {
+  it('passes a 4xx through (a refused key is not a gateway error) and turns the rest into 502', () => {
     expect(downStatus(401)).toBe(401);
     expect(downStatus(429)).toBe(429);
-    expect(downStatus(500)).toBe(503);
-    expect(downStatus(0)).toBe(503);
+    expect(downStatus(500)).toBe(502);
+    expect(downStatus(0)).toBe(502);
+  });
+});
+
+describe('gatewayStatus', () => {
+  it('a provider 5xx goes out as 502; 2xx and 4xx as they came', () => {
+    for (const s of [500, 503, 504]) expect(gatewayStatus(s)).toBe(502);
+    expect(gatewayStatus(200)).toBe(200);
+    expect(gatewayStatus(404)).toBe(404);
+    expect(gatewayStatus(429)).toBe(429);
   });
 });
 
@@ -175,12 +184,12 @@ describe('ObsCosteiro proxy with the provider failing', () => {
 
     // Cold and failing: the failure goes out once...
     let r = await call();
-    expect(r.status).toBe(503);
+    expect(r.status).toBe(502);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     // ...and the next visitors in the pause get an error without a request.
     r = await call();
     expect(r.headers['x-cache']).toBe('DOWN');
-    expect(r.status).toBe(503);
+    expect(r.status).toBe(502);
     expect(Number(r.headers['retry-after'])).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
