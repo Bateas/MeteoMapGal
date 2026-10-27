@@ -28,6 +28,7 @@
  */
 
 import type { NormalizedStation, NormalizedReading } from '../types/station';
+import { sunHour } from './localTime';
 
 /** Why the thermal breeze cannot be there: rain (RainVeto) or a front (RegimeVeto). */
 export interface ThermalVeto {
@@ -207,7 +208,7 @@ export function predictCesantesCanalization(
 
   // ── Thermal breeze (afternoon SW pattern) ──
   // Classic Cesantes pattern Apr-Oct: sun heats land → low pressure inland → SW marine breeze.
-  const hour = new Date().getHours();
+  const hour = sunHour();
   const isThermalHour = hour >= THERMAL_HOUR_MIN && hour <= THERMAL_HOUR_MAX;
   const isWarmAir = airTempLocal !== null && airTempLocal >= THERMAL_MIN_AIR_TEMP;
   const deltaT = (airTempLocal !== null && waterTemp !== null) ? airTempLocal - waterTemp : null;

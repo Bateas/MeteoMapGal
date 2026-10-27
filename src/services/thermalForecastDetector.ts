@@ -15,6 +15,7 @@
 
 import type { HourlyForecast } from '../types/forecast';
 import { windowRegime, type UpperAirLevel } from './synopticRegime';
+import { sunHour } from './localTime';
 
 // ── Types ──────────────────────────────────────────
 
@@ -107,19 +108,20 @@ export function detectThermalForecast(
   // Group forecast by day
   const todayHours = forecast.filter(h =>
     h.time.toDateString() === todayDate &&
-    h.time.getHours() >= THERMAL_WINDOW_START &&
-    h.time.getHours() <= THERMAL_WINDOW_END
+    sunHour(h.time) >= THERMAL_WINDOW_START &&
+    sunHour(h.time) <= THERMAL_WINDOW_END
   );
 
   const tomorrowHours = forecast.filter(h =>
     h.time.toDateString() === tomorrowDate &&
-    h.time.getHours() >= THERMAL_WINDOW_START &&
-    h.time.getHours() <= THERMAL_WINDOW_END
+    sunHour(h.time) >= THERMAL_WINDOW_START &&
+    sunHour(h.time) <= THERMAL_WINDOW_END
   );
 
   // Analyze today (only future hours)
-  const currentHour = now.getHours();
-  const todayFuture = todayHours.filter(h => h.time.getHours() > currentHour);
+  // Compared as instants, not hours: with the window read on the sun clock, an hour number
+  // near midnight would no longer say what is still to come.
+  const todayFuture = todayHours.filter(h => h.time.getTime() > now.getTime());
   if (todayFuture.length >= 2 && !ruledOut(todayFuture)) {
     const signal = analyzeWindow(todayFuture, 'hoy');
     if (signal) results.push(signal);

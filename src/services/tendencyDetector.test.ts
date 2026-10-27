@@ -39,7 +39,7 @@ const ctx = (deltaT: number | null): DailyContext => ({ tempMax: null, tempMin: 
 
 describe('detectTendency — window gating', () => {
   it('returns empty signal before 8h', () => {
-    const t = new Date('2026-07-15T06:00:00');
+    const t = new Date('2026-07-15T04:00:00Z'); // 06:00 summer time
     const s = detectTendency(ZONE, [reading()], [thermalHistory()], ctx(20), t);
     expect(s.level).toBe('none');
     expect(s.score).toBe(0);

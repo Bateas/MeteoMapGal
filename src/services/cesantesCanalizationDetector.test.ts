@@ -294,7 +294,8 @@ describe('Cesantes 25-sep: what the app shows vs what was on the water', () => {
 // with 5.5kt on the water (webcam) and interior radiation at 0 W/m².
 describe('predictCesantesCanalization — needs the interior sun', () => {
   afterEach(() => vi.useRealTimers());
-  const at = (h: number, m: number) => { vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 8, 25, h, m)); };
+  // Official clock in Galicia on a summer day (UTC+2), whatever the zone the tests run in.
+  const at = (h: number, m: number) => { vi.useFakeTimers(); vi.setSystemTime(new Date(Date.UTC(2026, 8, 25, h - 2, m))); };
 
   it('25-sep 20:28: 4kt at 308°, 11kt gust, ΔT 4.1, interior 0 W/m² gives no boost', () => {
     at(20, 28);
@@ -367,7 +368,7 @@ describe('predictCesantesCanalization — real instants and the rain veto', () =
   afterEach(() => vi.useRealTimers());
   const at = (y: number, m: number, d: number, h: number, min: number) => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(y, m, d, h, min)); // local clock
+    vi.setSystemTime(new Date(Date.UTC(y, m, d, h - 2, min))); // official clock on these summer days (UTC+2)
   };
   const rain: RainVeto = {
     vetoed: true,
@@ -418,7 +419,7 @@ describe('predictCesantesCanalization — the rebound at Porto de Vigo', () => {
   afterEach(() => vi.useRealTimers());
   const at = (y: number, m: number, d: number, h: number, min: number) => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(y, m, d, h, min)); // local clock
+    vi.setSystemTime(new Date(Date.UTC(y, m, d, h - 2, min))); // official clock on these summer days (UTC+2)
   };
   // 13-oct 16:01: NW-NNW outside, the stations around Cesantes read 299° at 3.9 kt (gust 11.3),
   // Porto de Vigo turned to 210° at 12.7 kt. On the water: under 5 kt. Shown BUENO 13 before.

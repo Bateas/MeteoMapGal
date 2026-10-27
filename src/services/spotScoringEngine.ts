@@ -24,7 +24,7 @@ import type { BuoyReading } from '../api/buoyClient';
 import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
 import { patternHours, getSpotsForSector } from '../config/spots';
-import { madridHour } from './localTime';
+import { madridHour, sunHour } from './localTime';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
 import { isBuoyFresh, isLandStationCopy, isOpenWaterWind, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
 import { fastDistanceKm, computeBearing } from './idwInterpolation';
@@ -1017,7 +1017,7 @@ function humidityPrecursorBoost(
   }
   if (nearestHumidity === null) return { boost: 0, humidity: null, signal: null, thetaVGradient: thetaV.gradient };
 
-  const hour = new Date().getHours();
+  const hour = sunHour();
 
   // ── Extreme thermal detector (T>30°C + HR<45% + calm) ──────
   // Source: Foro La Taberna del Puerto, 20 Aug 2011 event.

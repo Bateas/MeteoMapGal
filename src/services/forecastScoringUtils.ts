@@ -7,6 +7,7 @@
 import type { HourlyForecast } from '../types/forecast';
 import type { ThermalWindRule } from '../types/thermal';
 import { isDirectionInRange } from './windUtils';
+import { sunHour } from './localTime';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ export function scoreForecastThermal(
   let isPrecursor = false;
   let bestBreakdown: ForecastBreakdown | null = null;
 
-  const hour = point.time.getHours();
+  const hour = sunHour(point.time);
   const month = point.time.getMonth() + 1;
   const temp = point.temperature;
   const humidity = point.humidity;

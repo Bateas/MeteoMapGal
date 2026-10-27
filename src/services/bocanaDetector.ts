@@ -17,6 +17,7 @@
  */
 
 import type { BuoyReading } from '../api/buoyClient';
+import { sunHour } from './localTime';
 
 // ── Types ────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ export function detectBocana(
   solarRad: number | null = null,
   hour?: number,
 ): BocanaSignal {
-  const currentHour = hour ?? new Date().getHours();
+  const currentHour = hour ?? sunHour();
   const noSignal: BocanaSignal = {
     active: false, confidence: 0, boostKt: 0,
     signal: null, deltaT: null, buoyWindKt: null, buoyDir: null,

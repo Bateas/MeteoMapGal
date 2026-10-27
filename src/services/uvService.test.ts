@@ -71,17 +71,19 @@ describe('uvWaterAdjusted', () => {
 });
 
 describe('isPeakUvHour', () => {
+  // Official clock on a June day (UTC+2), whatever the zone the tests run in.
+  const summer = (h: number, m: number) => new Date(Date.UTC(2026, 5, 15, h - 2, m));
   it('true at 12:00, 14:00, 15:59', () => {
-    expect(isPeakUvHour(new Date(2026, 5, 15, 12, 0))).toBe(true);
-    expect(isPeakUvHour(new Date(2026, 5, 15, 14, 0))).toBe(true);
-    expect(isPeakUvHour(new Date(2026, 5, 15, 15, 59))).toBe(true);
+    expect(isPeakUvHour(summer(12, 0))).toBe(true);
+    expect(isPeakUvHour(summer(14, 0))).toBe(true);
+    expect(isPeakUvHour(summer(15, 59))).toBe(true);
   });
 
   it('false at 11:59, 16:00, 8:00, 22:00', () => {
-    expect(isPeakUvHour(new Date(2026, 5, 15, 11, 59))).toBe(false);
-    expect(isPeakUvHour(new Date(2026, 5, 15, 16, 0))).toBe(false);
-    expect(isPeakUvHour(new Date(2026, 5, 15, 8, 0))).toBe(false);
-    expect(isPeakUvHour(new Date(2026, 5, 15, 22, 0))).toBe(false);
+    expect(isPeakUvHour(summer(11, 59))).toBe(false);
+    expect(isPeakUvHour(summer(16, 0))).toBe(false);
+    expect(isPeakUvHour(summer(8, 0))).toBe(false);
+    expect(isPeakUvHour(summer(22, 0))).toBe(false);
   });
 });
 

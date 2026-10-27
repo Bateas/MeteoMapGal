@@ -4,6 +4,7 @@ import type {
 } from '../types/thermal';
 import type { NormalizedReading } from '../types/station';
 import { isDirectionInRange, averageWindDirection, msToKnots } from './windUtils';
+import { sunHour } from './localTime';
 
 /**
  * Thermal Scoring Engine v2.3 — Data-driven weights from AEMET analysis.
@@ -260,7 +261,7 @@ export function scoreRule(
   const avgSpeed = speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : null;
   const avgDir = averageWindDirection(dirs);
 
-  const hour = currentTime.getHours();
+  const hour = sunHour(currentTime);
   const month = currentTime.getMonth() + 1;
 
   const isThermalRule = rule.id.startsWith('thermal_');

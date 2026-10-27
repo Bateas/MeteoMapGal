@@ -27,6 +27,7 @@ import { fetchUpperAirLevels } from '../api/upperAirClient';
 import { upperWindAt, type UpperWind } from '../services/synopticRegime';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { holdContextKey, type VerdictHoldState } from '../services/verdictHold';
+import { sunHour } from '../services/localTime';
 
 /**
  * Throttle intervals:
@@ -217,7 +218,7 @@ function buildThermalContext(
     const todayStr = now.toDateString();
     const thermalHours = forecast.filter(f =>
       f.time.toDateString() === todayStr &&
-      f.time.getHours() >= 15 && f.time.getHours() <= 20 &&
+      sunHour(f.time) >= 15 && sunHour(f.time) <= 20 &&
       f.windSpeed != null && f.windDirection != null,
     );
     if (thermalHours.length > 0) {
@@ -252,7 +253,7 @@ function buildThermalContext(
     if (f.precipProbability !== null && f.precipProbability > maxRainProb) {
       maxRainProb = f.precipProbability;
     }
-    const h = f.time.getHours();
+    const h = sunHour(f.time);
     if (h >= 10 && h <= 20 && f.isDay) todayDayHours.push(f);
   }
 

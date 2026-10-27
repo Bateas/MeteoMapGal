@@ -18,6 +18,7 @@
 import type { NormalizedReading } from '../types/station';
 import type { MicroZoneId, TendencySignal, TendencyLevel, DailyContext } from '../types/thermal';
 import { isDirectionInRange, angleDifference } from './windUtils';
+import { sunHour } from './localTime';
 
 // ── Thermal sector: W/SW/NW (202.5° to 337.5°) ──────────
 const THERMAL_SECTOR = { from: 202.5, to: 337.5 };
@@ -69,7 +70,7 @@ export function detectTendency(
   dailyContext: DailyContext | null,
   now: Date = new Date(),
 ): TendencySignal {
-  const hour = now.getHours();
+  const hour = sunHour(now);
   const month = now.getMonth() + 1;
 
   // Only analyze during thermal-relevant hours (8h-21h) and months (May-Sep)

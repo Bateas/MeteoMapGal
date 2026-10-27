@@ -20,6 +20,7 @@ import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor, 
 import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
+import { sunHour } from '../src/services/localTime.js';
 
 // Climatological monthly SST fallback for Ría de Vigo interior (matches
 // frontend spotScoringEngine.ts — single source of truth would be nicer
@@ -366,7 +367,7 @@ export function inferCastreloDirection(readings: StationReading[]): string | nul
   const avgDeg = (Math.round(Math.atan2(sinSum / nearby.length, cosSum / nearby.length) * 180 / Math.PI) + 360) % 360;
   const cardinal = degreesToCardinal(avgDeg);
 
-  const hour = new Date().getHours();
+  const hour = sunHour();
   const isSWish = avgDeg >= 200 && avgDeg <= 280;
   const isAfternoon = hour >= 13 && hour <= 19;
 

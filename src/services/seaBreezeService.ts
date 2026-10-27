@@ -22,6 +22,7 @@
 
 import type { NormalizedReading } from '../types/station';
 import { msToKnots } from './windUtils';
+import { sunHour } from './localTime';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -216,7 +217,7 @@ export function assessSeaBreezeRias(
   return classifySeaBreeze({
     coastTemp: mean(coastTemps),
     inlandTemp: mean(inlandTemps),
-    hour: now.getHours(),
+    hour: sunHour(now),
     month: now.getMonth(),
     coastOnshore,
     coastWindKt,

@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { madridHour, parseMadridWallTime } from './localTime';
+import { madridHour, parseMadridWallTime, sunHour } from './localTime';
+
+describe('sunHour — the heating-cycle windows stay on the same sun all year', () => {
+  it('in summer it is the official hour', () => {
+    expect(sunHour(Date.parse('2026-08-05T12:00:00Z'))).toBe(14);
+    expect(sunHour(Date.parse('2026-08-05T12:00:00Z'))).toBe(madridHour(Date.parse('2026-08-05T12:00:00Z')));
+  });
+  it('in winter it is one hour ahead of the official clock (same sun as the summer hour)', () => {
+    // 13:00 CET on 26-oct = 12:00 UTC: the same sun as 14:00 CEST in summer.
+    expect(sunHour(Date.parse('2026-10-26T12:00:00Z'))).toBe(14);
+    expect(madridHour(Date.parse('2026-10-26T12:00:00Z'))).toBe(13);
+  });
+  it('wraps at midnight and takes a Date too', () => {
+    expect(sunHour(new Date('2026-12-15T22:30:00Z'))).toBe(0);
+  });
+});
 
 describe('madridHour — the hour in Galicia, whatever the machine clock', () => {
   it('summer time (CEST, UTC+2)', () => {

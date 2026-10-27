@@ -1,3 +1,4 @@
+import { sunHour } from './localTime';
 /**
  * UV index service — exposure helpers for the conditions ticker.
  *
@@ -56,7 +57,7 @@ export function uvWaterAdjusted(uv: number | null | undefined): number | null {
  * because the user can't act on info they're not exposed to.
  */
 export function isPeakUvHour(now: Date = new Date()): boolean {
-  const h = now.getHours();
+  const h = sunHour(now);
   return h >= 12 && h < 16;
 }
 

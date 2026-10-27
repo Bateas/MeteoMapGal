@@ -12,6 +12,7 @@ import type { ThermalWindRule } from '../types/thermal';
 import type { SailingSpot, SpotId } from '../config/spots';
 import { scoreForecastThermal } from './forecastScoringUtils';
 import { msToKnots, degreesToCardinal, angleDifference } from './windUtils';
+import { sunHour } from './localTime';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -186,7 +187,7 @@ function computeForecastDeltaT(hour: HourlyForecast): number | null {
   if (hour.temperature === null) return null;
   // Simple proxy: assume max is ~8°C above current morning temp
   // Real ΔT needs time series — this is a rough estimate
-  const h = hour.time.getHours();
+  const h = sunHour(hour.time);
   if (h >= 12 && h <= 16 && hour.temperature > 20) return hour.temperature - 10;
   if (h >= 10 && h <= 18) return Math.max(8, hour.temperature - 8);
   return null;

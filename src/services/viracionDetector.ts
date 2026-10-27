@@ -43,7 +43,7 @@
 import type { SpotId } from '../config/spots';
 import type { NormalizedReading } from '../types/station';
 import { isStationBlindAt } from '../config/stationBiases';
-import { madridHour } from './localTime';
+import { sunHour } from './localTime';
 
 /** Daily phase of the wind cycle. */
 export type ViracionPhase =
@@ -273,7 +273,7 @@ export function detectViracionPhase(
     };
   }
 
-  const hour = madridHour(now);
+  const hour = sunHour(now);
   const obsDir = reading.windDirection;
   const obsKt = reading.windSpeed != null ? reading.windSpeed * 1.94384 : null;
 

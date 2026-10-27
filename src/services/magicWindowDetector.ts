@@ -22,6 +22,7 @@
  */
 
 import type { BuoyReading } from '../api/buoyClient';
+import { sunHour } from './localTime';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ export function evaluateMagicWindow(opts: {
   // Magic window only applies to Rías — Embalse is a different beast
   if (opts.sector !== 'rias') return null;
 
-  const hour = opts.hour ?? new Date().getHours();
+  const hour = opts.hour ?? sunHour();
 
   // ── Find best mouth buoy with SW synoptic ──
   let synopticWindMs: number | null = null;

@@ -25,6 +25,7 @@ import type { SailingSpot } from '../config/spots';
 import { fastDistanceKm } from './idwInterpolation';
 import { isDirectionInRange, msToKnots, angleDifference } from './windUtils';
 import { isBuoyFresh } from './buoyUtils';
+import { sunHour } from './localTime';
 
 // ── Types ────────────────────────────────────────────────
 
@@ -164,7 +165,7 @@ export function computeThermalPrecursors(
   forecast: HourlyForecast[] | null,
   now: Date = new Date(),
 ): ThermalPrecursorResult {
-  const hour = now.getHours();
+  const hour = sunHour(now);
 
   // NOTE: previously this returned early outside May-Sep / 6h-21h. Removed
   // because anomalous thermal events do occur outside that window (warm
@@ -203,7 +204,7 @@ export function computeThermalPrecursors(
   // detectForecastFavorable). Without this guard the deferred hook crashes
   // on first run when the forecast store hasn't hydrated yet.
   const thermalWindowHours = (forecast ?? []).filter(f => {
-    const h = f.time.getHours();
+    const h = sunHour(f.time);
     const diff = f.time.getTime() - now.getTime();
     return diff >= 0 && diff < 8 * 3600_000 && h >= 13 && h <= 18;
   });
@@ -586,7 +587,7 @@ function detectForecastFavorable(
 
   // Look at afternoon hours (13-18h) today
   const todayAfternoon = forecast.filter(f => {
-    const h = f.time.getHours();
+    const h = sunHour(f.time);
     const sameDay = f.time.toDateString() === now.toDateString();
     return sameDay && h >= 13 && h <= 18;
   });

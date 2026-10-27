@@ -15,6 +15,22 @@ export function madridHour(at: Date | number): number {
   return h === 24 ? 0 : h;
 }
 
+/**
+ * The hour on the SUMMER clock (UTC+2) all year, for the windows of the heating cycle: thermal
+ * breeze, humidity precursor, UV, the thermal forecast... They were set on summer days read in
+ * summer time, and the sun keeps the same UTC timetable all year, so reading them on UTC+2 keeps
+ * them on the same sun after the clocks go back (25-oct-2026) instead of one hour later. In
+ * summer it equals `madridHour`.
+ *
+ * Not for windows tied to sunrise, dusk or night (dew, fog, inversions, cameras): in winter the
+ * day shortens at both ends and a dawn window read here falls in the dark — those want sunrise
+ * and sunset. Nor for anything people read or the night silence: those follow the official clock.
+ */
+export function sunHour(at: Date | number = Date.now()): number {
+  const ms = typeof at === 'number' ? at : at.getTime();
+  return new Date(ms + 2 * 3_600_000).getUTCHours();
+}
+
 /** Offset of Madrid's wall clock from UTC at an instant (+2 h in summer, +1 h in winter). */
 function madridOffsetMs(atMs: number): number {
   const parts = new Intl.DateTimeFormat('en-US', {
