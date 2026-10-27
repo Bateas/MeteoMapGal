@@ -9,7 +9,9 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { FieldAlerts, AlertLevel } from '../../types/campo';
 import type { HourlyForecast } from '../../types/forecast';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
-import { checkFrost, checkRainHail } from '../../services/fieldAlertEngine';
+import { checkFrost, rainLevelForHours } from '../../services/fieldAlertEngine';
+import { useRainNowStore } from '../../store/rainNowStore';
+import { measuredIntensity } from '../../services/alerts/rainNowAlerts';
 import { useUIStore } from '../../store/uiStore';
 import { useAirspaceStore } from '../../store/airspaceStore';
 import { useAlertStore } from '../../store/alertStore';
@@ -58,7 +60,7 @@ const LEVEL_LABELS: Record<AlertLevel, string> = {
   none: 'Sin alerta',
   riesgo: 'Riesgo',
   alto: 'Alto',
-  critico: 'Critico',
+  critico: 'Crítico',
 };
 
 function formatTimeRange(from: Date, to: Date): string {
@@ -1487,7 +1489,22 @@ function AlertSection({
 
 // ── 48h Alert mini-timeline ──────────────────────────────
 
+/** Measured rain intensity -> the timeline's levels (the colours of the forecast row). */
+const MEASURED_RAIN_LEVEL: Record<string, AlertLevel> = { info: 'riesgo', moderate: 'alto', high: 'critico', critical: 'critico' };
+const RAIN_LEVEL_TEXT: Record<AlertLevel, string> = { none: 'sin lluvia', riesgo: 'posible', alto: 'probable', critico: 'fuerte o granizo' };
+const FROST_LEVEL_TEXT: Record<AlertLevel, string> = { none: 'sin helada', riesgo: 'posible', alto: 'probable', critico: 'fuerte' };
+const MEASURED_RAIN_TEXT: Record<AlertLevel, string> = { none: 'sin lluvia', riesgo: 'débil, medida ahora', alto: 'moderada, medida ahora', critico: 'fuerte, medida ahora' };
+const RANK_LEVEL: Record<AlertLevel, number> = { none: 0, riesgo: 1, alto: 2, critico: 3 };
+
 function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').HourlyForecast[] }) {
+  // 27-oct: «Lluvia moderada ahora» in the panel and this row saying no rain, because the model
+  // missed it. While the rain layer measures rain, the block that holds now shows the measured one.
+  const rainNow = useRainNowStore((s) => s.summary);
+  const measured = useMemo<AlertLevel | null>(() => {
+    if (!rainNow || rainNow.sim || rainNow.gauges.length < 2) return null;
+    return MEASURED_RAIN_LEVEL[measuredIntensity({ gauges: rainNow.gauges }).severity] ?? 'riesgo';
+  }, [rainNow]);
+
   // Group forecast into 3-hour buckets for compact display
   const buckets = useMemo(() => {
     const now = Date.now();
@@ -1496,6 +1513,7 @@ function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').
       label: string;
       frostLevel: AlertLevel;
       rainLevel: AlertLevel;
+      rainMeasured: boolean;
       hasStorm: boolean;
     }> = [];
 
@@ -1505,20 +1523,25 @@ function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').
       if (chunk[0].time.getTime() < now - 3600000) continue; // skip past hours
 
       const frost = checkFrost(chunk);
-      const rain = checkRainHail(chunk);
+      let rainLevel = rainLevelForHours(chunk);
+      // The forecast starts at the next full hour, so «now» is the first block when it starts within the hour.
+      const holdsNow = result.length === 0 && chunk[0].time.getTime() <= now + 3600000;
+      const rainMeasured = holdsNow && measured != null && RANK_LEVEL[measured] > RANK_LEVEL[rainLevel];
+      if (rainMeasured) rainLevel = measured!;
       const hasStorm = chunk.some(p => (p.cape ?? 0) > 500);
 
       result.push({
         time: chunk[0].time,
-        label: chunk[0].time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+        label: chunk[0].time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' }),
         frostLevel: frost.level,
-        rainLevel: rain.level,
+        rainLevel,
+        rainMeasured,
         hasStorm,
       });
     }
 
     return result.slice(0, 16); // max 16 buckets = 48h
-  }, [forecast]);
+  }, [forecast, measured]);
 
   if (buckets.length === 0) return null;
 
@@ -1547,7 +1570,7 @@ function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').
               key={`frost-${i}`}
               className="flex-1 h-2.5 rounded-sm transition-colors"
               style={{ background: levelToColor(b.frostLevel) }}
-              title={`${b.label} — Helada: ${b.frostLevel}`}
+              title={`${b.label} — Helada: ${FROST_LEVEL_TEXT[b.frostLevel]}`}
             />
           ))}
         </div>
@@ -1562,7 +1585,7 @@ function AlertTimeline({ forecast }: { forecast: import('../../types/forecast').
               key={`rain-${i}`}
               className="flex-1 h-2.5 rounded-sm transition-colors"
               style={{ background: levelToColor(b.rainLevel) }}
-              title={`${b.label} — Lluvia: ${b.rainLevel}`}
+              title={`${b.label} — Lluvia: ${b.rainMeasured ? MEASURED_RAIN_TEXT[b.rainLevel] : RAIN_LEVEL_TEXT[b.rainLevel]}`}
             />
           ))}
         </div>

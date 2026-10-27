@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   checkFrost,
   checkRainHail,
+  rainLevelForHours,
   checkDroneConditions,
   computeET0,
   checkDiseaseRisk,
@@ -239,5 +240,22 @@ describe('checkDiseaseRisk', () => {
     const r = checkDiseaseRisk(f);
     expect(r.mildiu.risk).toBe(false);
     expect(r.oidio.risk).toBe(false);
+  });
+});
+
+// ── rainLevelForHours (the 48 h timeline) ────────────────
+
+describe('rainLevelForHours', () => {
+  it('judges a block 24 h ahead on its own hours (checkRainHail ignores past 12 h)', () => {
+    const block = series(new Date(NOW.getTime() + 23 * 3600_000), 3, { precipitation: 3, precipProbability: 80 });
+    expect(checkRainHail(block).level).toBe('none');
+    expect(rainLevelForHours(block)).toBe('alto');
+  });
+
+  it('same bands as the imminent rule', () => {
+    expect(rainLevelForHours(series(NOW, 3))).toBe('none');
+    expect(rainLevelForHours(series(NOW, 3, { precipitation: 1.5 }))).toBe('riesgo');
+    expect(rainLevelForHours(series(NOW, 3, { precipitation: 12 }))).toBe('alto');
+    expect(rainLevelForHours(series(NOW, 3, { precipitation: 8, cape: 1500 }))).toBe('critico');
   });
 });

@@ -82,6 +82,26 @@ export function checkFrost(forecast: HourlyForecast[], center?: [number, number]
  *
  * Beyond 12h: no alerts (too uncertain for actionable info).
  */
+/**
+ * Rain level of a block of forecast hours on its own, for the 48 h timeline: the imminent rules of
+ * checkRainHail (hail -> critico; > 10 mm or > 2 mm with > 70 % -> alto; > 1 mm or > 70 % -> riesgo)
+ * applied to those hours, whenever they fall. checkRainHail measures from NOW and ignores what lies
+ * beyond 12 h, so the timeline fed one 3-hour block at a time to it could never show rain past 12 h.
+ */
+export function rainLevelForHours(hours: HourlyForecast[]): AlertLevel {
+  let maxPrecip = 0, maxProb = 0, hail = false;
+  for (const p of hours) {
+    const precip = p.precipitation ?? 0;
+    maxPrecip = Math.max(maxPrecip, precip);
+    maxProb = Math.max(maxProb, p.precipProbability ?? 0);
+    if ((p.cape ?? 0) > 1000 && precip > 5) hail = true;
+  }
+  if (hail) return 'critico';
+  if (maxPrecip > 10 || (maxPrecip > 2 && maxProb > 70)) return 'alto';
+  if (maxPrecip > 1 || maxProb > 70) return 'riesgo';
+  return 'none';
+}
+
 export function checkRainHail(forecast: HourlyForecast[]): RainAlert {
   const noAlert: RainAlert = {
     level: 'none', maxPrecip: 0, maxProbability: 0, rainAccum6h: 0,
