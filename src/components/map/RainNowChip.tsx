@@ -83,11 +83,11 @@ export const RainNowChip = memo(function RainNowChip() {
             </div>
             <div className="text-[11px] text-slate-300 inline-flex items-center gap-1.5">
               <i className="inline-block w-2.5 h-2.5 rounded-full border border-white" style={{ background: '#2563eb' }} />
-              Pluviómetro que la ha medido (mm en 30 min)
+              Pluviómetro que la ha medido (mm/h)
             </div>
             {summary.gauges.length > 0 && (
               <p className="text-[11px] text-slate-400">
-                {summary.gauges.slice(0, 3).map((g) => `${g.name} ${g.mm.toFixed(1).replace('.', ',')} mm`).join(' · ')}
+                {summary.gauges.slice(0, 3).map((g) => `${g.name} ${g.mmPerHour.toFixed(1).replace('.', ',')} mm/h`).join(' · ')}
                 {summary.gauges.length > 3 ? ` y ${summary.gauges.length - 3} más` : ''}
               </p>
             )}

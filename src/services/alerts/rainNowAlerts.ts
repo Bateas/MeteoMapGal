@@ -14,13 +14,13 @@
 import type { UnifiedAlert, AlertSeverity } from './types';
 
 export interface RainNowInput {
-  /** Gauges the rain layer counts as raining, wettest first; mm over its 30-min window */
-  gauges: { name: string; mm: number; radarDbz: number | null }[];
+  /** Gauges the rain layer counts as raining, wettest first; mm over its 30-min window and the
+   *  rate it means (a Netatmo «mm» is its last hour, so its rate is not mm x 2) */
+  gauges: { name: string; mm: number; mmPerHour: number; radarDbz: number | null }[];
 }
 
 export const FOG_VETO_DBZ = 20;
 export const FOG_VETO_GAUGES = 2;
-const WINDOW_MIN = 30;
 
 const FOG_RISK_ONLY = new Set(['maritime-fog|Riesgo de niebla marítima', 'fog-alert|Riesgo de niebla']);
 
@@ -48,7 +48,7 @@ const RANK: Record<AlertSeverity, number> = { info: 0, moderate: 1, high: 2, cri
  * measured rain only made an informative notice).
  */
 export function measuredIntensity(rain: RainNowInput): { severity: AlertSeverity; label: string; score: number } {
-  const rates = rain.gauges.map((g) => g.mm * (60 / WINDOW_MIN)).sort((a, b) => b - a);
+  const rates = rain.gauges.map((g) => g.mmPerHour).sort((a, b) => b - a);
   const r = rates.length >= 2 ? rates[1] : 0;
   if (r >= VERY_HEAVY_MMH) return { severity: 'critical', label: 'Lluvia muy fuerte ahora', score: 85 };
   if (r >= HEAVY_MMH) return { severity: 'high', label: 'Lluvia fuerte ahora', score: 60 };
@@ -60,8 +60,10 @@ export function measuredIntensity(rain: RainNowInput): { severity: AlertSeverity
 export function applyRainNow(alerts: UnifiedAlert[], rain: RainNowInput | undefined): UnifiedAlert[] {
   if (!rain || rain.gauges.length === 0) return alerts;
   const n = rain.gauges.length;
-  const named = rain.gauges.slice(0, 2).map((g) => `${g.name} ${mmText(g.mm)} mm`).join(', ');
-  const now = `${n} ${n === 1 ? 'pluviómetro mide' : 'pluviómetros miden'} lluvia (${named}${n > 2 ? '…' : ''} en ${WINDOW_MIN} min)`;
+  // Named by rate, not by mm: a Netatmo hour sorted against half hours put the wrong gauge first.
+  const named = rain.gauges.slice().sort((a, b) => b.mmPerHour - a.mmPerHour).slice(0, 2)
+    .map((g) => `${g.name} ${mmText(g.mmPerHour)} mm/h`).join(', ');
+  const now = `${n} ${n === 1 ? 'pluviómetro mide' : 'pluviómetros miden'} lluvia (${named}${n > 2 ? '…' : ''})`;
   const m = measuredIntensity(rain);
   const i = alerts.findIndex((a) => a.category === 'rain');
   if (i >= 0) {

@@ -72,9 +72,11 @@ export function precipSamplesFromHistory(
  *
  *   - interval: sum of the readings stamped in (now - window, now]. A reading stamped exactly
  *     at the window start holds the rain of the interval BEFORE it, so it stays out.
- *   - rolling60: the largest reading whose own hour lies inside the window, i.e. stamped
- *     in [now - max(60, window - 60), now]. For a window under an hour it can only
- *     over-state (the reading covers a full hour).
+ *   - rolling60: for a window of an hour or less, the NEWEST reading of the last hour (it
+ *     covers a full hour, so it can only over-state); for a longer window, the largest
+ *     reading whose own hour lies inside it, i.e. stamped in [now - (window - 60), now].
+ *     The largest of the last hour, as it was before 27-oct, kept a shower that ended up
+ *     to two hours ago in «it rains now»: a gauge falling 3,4 -> 2,2 still counted 3,4.
  *   - dayTotal: sum of the positive steps of the counter, starting from the last reading
  *     at or before the window start (at most 30 min before it) or, if there is none, from
  *     the first reading inside the window. A negative step is a reset, not negative rain,
@@ -83,6 +85,17 @@ export function precipSamplesFromHistory(
  */
 export function rainInWindowMm(id: string, s: PrecipSample[], nowMs: number, windowMin: number): number | null {
   return plausibleRain(rawRainInWindowMm(id, s, nowMs, windowMin), windowMin);
+}
+
+/**
+ * The rate (mm/h) behind what `rainInWindowMm` returned for that window. A Netatmo reading of a
+ * window under an hour is already the rain of the last hour, so it is mm/h as it is; every other
+ * network measured `windowMin` minutes. On 27-oct the alert doubled the Netatmo hours like the
+ * rest («2,2 mm en 30 min» that were 2,2 mm in an hour): 5,9 mm/h where the gauges said 2,9.
+ */
+export function rainRateMmH(id: string, mmInWindow: number, windowMin: number): number {
+  if (precipKindFor(id) === 'rolling60' && windowMin <= 60) return mmInWindow;
+  return mmInWindow * (60 / windowMin);
 }
 
 /**
@@ -118,6 +131,7 @@ export function rawRainInWindowMm(id: string, s: PrecipSample[], nowMs: number, 
     const lo = nowMs - Math.max(60, windowMin - 60) * MIN_MS;
     const inWin = sorted.filter((x) => x.t >= lo);
     if (inWin.length === 0) return null;
+    if (windowMin <= 60) return round2(inWin[inWin.length - 1].mm);
     return round2(Math.max(...inWin.map((x) => x.mm)));
   }
 

@@ -3,8 +3,8 @@ import type { ArrivalCheck } from '../services/rainArrivalChecks';
 
 /** What the rain layer found, for the toolbar chip and its legend. Null while it is off. */
 export interface RainNowSummary {
-  /** Gauges that measured rain (passed the checks), wettest first */
-  gauges: { id: string; name: string; mm: number; radarDbz: number | null }[];
+  /** Gauges that measured rain (passed the checks), highest rate first; mmPerHour = GaugeRain.mmPerHour */
+  gauges: { id: string; name: string; mm: number; mmPerHour: number; radarDbz: number | null }[];
   /** Spots it rains on now (etaMin 0) or where rain arrives within ARRIVAL_MAX_MIN, soonest first */
   arrivals: { spotId: string; spotName: string; etaMin: number; distanceKm: number }[];
   /** Rain outside the sector heading into it, soonest first */

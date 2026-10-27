@@ -9,7 +9,7 @@ const SEA = { id: 'cies-ria', lon: -8.90, lat: 42.22 };
 const spots = [SPOT, SEA];
 
 function gauge(verdict: GaugeRain['verdict'], km = 3, name = 'Redondela'): GaugeRain {
-  return { id: 'mg_x', name, lon: SPOT.lon + km / 82.4, lat: SPOT.lat, official: true, mm: verdict === 'rain' ? 0.8 : 0, verdict, radarDbz: null };
+  return { id: 'mg_x', name, lon: SPOT.lon + km / 82.4, lat: SPOT.lat, official: true, mm: verdict === 'rain' ? 0.8 : 0, mmPerHour: verdict === 'rain' ? 1.6 : 0, verdict, radarDbz: null };
 }
 const say = (spotId: string, etaMin: number) => ({ spotId, spotName: spotId, etaMin });
 function step(prev: ArrivalCheck[], at: number, arrivals: ReturnType<typeof say>[], gauges: GaugeRain[]) {

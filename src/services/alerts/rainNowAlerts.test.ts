@@ -6,7 +6,8 @@ const alert = (over: Partial<UnifiedAlert>): UnifiedAlert => ({
   id: 'x', category: 'rain', severity: 'info', score: 40, icon: 'cloud-rain',
   title: 't', detail: 'd', urgent: false, updatedAt: new Date(), ...over,
 });
-const gauge = (name: string, mm: number, radarDbz: number | null) => ({ name, mm, radarDbz });
+// A 30-min gauge (mm x 2 = mm/h) unless the rate is given: a Netatmo «mm» is already its last hour.
+const gauge = (name: string, mm: number, radarDbz: number | null, mmPerHour = mm * 2) => ({ name, mm, mmPerHour, radarDbz });
 
 describe('applyRainNow (20-oct: «Lluvia prevista en ~1h» with the chip saying LLUEVE)', () => {
   it('turns the rain forecast into «Lloviendo ahora», keeps the forecast in the detail, drops its probability', () => {
@@ -14,7 +15,7 @@ describe('applyRainNow (20-oct: «Lluvia prevista en ~1h» with the chip saying 
     const out = applyRainNow([fc], { gauges: [gauge('Boiro', 1.2, 25), gauge('Rianxo', 0.8, 22), gauge('Noia', 0.5, null)] });
     // second wettest 0,8 mm in 30 min = 1,6 mm/h: weak
     expect(out[0].title).toBe('Lloviendo ahora');
-    expect(out[0].detail).toMatch(/^3 pluviómetros miden lluvia \(Boiro 1,2 mm, Rianxo 0,8 mm… en 30 min\) · Previsión: 2.5 mm\/h/);
+    expect(out[0].detail).toMatch(/^3 pluviómetros miden lluvia \(Boiro 2,4 mm\/h, Rianxo 1,6 mm\/h…\) · Previsión: 2.5 mm\/h/);
     expect(out[0].confidence).toBeUndefined();
   });
 
@@ -59,6 +60,16 @@ describe('measuredIntensity (20-oct: 5,3 mm in 30 min in Vigo and the light said
     expect(measuredIntensity({ gauges: [gauge('A', 5.3, 30), gauge('B', 5.2, 30)] })).toMatchObject({ severity: 'moderate', label: 'Lluvia moderada ahora' });
     expect(measuredIntensity({ gauges: [gauge('A', 9, 40), gauge('B', 8, 40)] })).toMatchObject({ severity: 'high', label: 'Lluvia fuerte ahora' });
     expect(measuredIntensity({ gauges: [gauge('A', 20, 50), gauge('B', 16, 50)] })).toMatchObject({ severity: 'critical' });
+  });
+
+  it('reads a Netatmo hour as mm/h, not doubled (27-oct: 5,9 mm/h where the gauges said 2,9)', () => {
+    // Two Netatmo gauges with 9 mm in their last hour: 9 mm/h, moderate. Doubled it read 18: «fuerte».
+    expect(measuredIntensity({ gauges: [gauge('Tomiño', 9.5, 30, 9.5), gauge('Vigo', 9, 30, 9)] }).severity).toBe('moderate');
+  });
+
+  it('names the gauges by rate, so a Netatmo hour does not jump ahead of a heavier half hour', () => {
+    const out = applyRainNow([], { gauges: [gauge('Tomiño', 2.2, 15, 2.2), gauge('Vigo', 1.5, 22), gauge('Baiona', 0.4, 18)] });
+    expect(out[0].detail).toMatch(/^3 pluviómetros miden lluvia \(Vigo 3,0 mm\/h, Tomiño 2,2 mm\/h…\)/);
   });
 
   it('one wet gauge never raises it', () => {

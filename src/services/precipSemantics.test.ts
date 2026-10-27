@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { precipKindFor, precipSamplesFromHistory, rainInWindowMm, withoutCounterDips, type PrecipSample } from './precipSemantics';
+import { precipKindFor, precipSamplesFromHistory, rainInWindowMm, rainRateMmH, withoutCounterDips, type PrecipSample } from './precipSemantics';
 import type { NormalizedReading } from '../types/station';
 
 const T = (iso: string) => Date.parse(iso);
@@ -156,6 +156,23 @@ describe('rainInWindowMm — rolling60 (nt_)', () => {
 
   it('is null when no reading covers the last hour', () => {
     expect(rainInWindowMm('nt_A', [{ t: NOW - 90 * MIN, mm: 0.9 }], NOW, 120)).toBeNull();
+  });
+
+  it('for a window of an hour or less takes the NEWEST reading, not the largest (27-oct: 3,4 -> 2,2 kept 3,4)', () => {
+    const falling = [{ t: NOW - 25 * MIN, mm: 3.4 }, { t: NOW - 5 * MIN, mm: 2.2 }];
+    expect(rainInWindowMm('nt_A', falling, NOW, 30)).toBeCloseTo(2.2, 5);
+    expect(rainInWindowMm('nt_A', falling, NOW, 60)).toBeCloseTo(2.2, 5);
+    // A shower that stopped: the newest reading of the hour says so.
+    expect(rainInWindowMm('nt_A', [{ t: NOW - 40 * MIN, mm: 1.1 }, { t: NOW - 5 * MIN, mm: 0 }], NOW, 30)).toBe(0);
+  });
+});
+
+describe('rainRateMmH', () => {
+  it('a Netatmo reading of a window up to an hour is already mm/h; every other network is scaled', () => {
+    expect(rainRateMmH('nt_A', 2.2, 30)).toBeCloseTo(2.2, 5);
+    expect(rainRateMmH('mg_10060', 1.1, 30)).toBeCloseTo(2.2, 5);
+    expect(rainRateMmH('mc_ESGAL1', 0.8, 30)).toBeCloseTo(1.6, 5);
+    expect(rainRateMmH('nt_A', 3, 120)).toBeCloseTo(1.5, 5);
   });
 });
 

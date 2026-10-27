@@ -26,7 +26,7 @@
  */
 
 import type { NormalizedReading, NormalizedStation } from '../types/station';
-import { precipKindFor, precipSamplesFromHistory, rainInWindowMm } from './precipSemantics';
+import { precipKindFor, precipSamplesFromHistory, rainInWindowMm, rainRateMmH } from './precipSemantics';
 import { NO_ECHO, kmPerPx, lonLatToPx, maxDbzNear, pxToLonLat, type RadarMosaic } from './radarDecode';
 import type { CellTrack } from './radarTracking';
 
@@ -83,8 +83,10 @@ export interface GaugeRain {
   lon: number;
   lat: number;
   official: boolean;
-  /** Rain in the last RAIN_WINDOW_MIN minutes, mm */
+  /** Rain in the last RAIN_WINDOW_MIN minutes, mm (a Netatmo gauge: its last hour) */
   mm: number;
+  /** The same rain as a rate, mm/h, with each network's window (rainRateMmH) */
+  mmPerHour: number;
   verdict: GaugeVerdict;
   /** Strongest echo within 2 km over the last two frames; null without radar */
   radarDbz: number | null;
@@ -130,7 +132,7 @@ export function classifyGauges(opts: {
     }
     cands.push({
       id: s.id, name: s.name, lon: s.lon, lat: s.lat, official: isOfficialGauge(s.id), mm,
-      verdict: 'dry', radarDbz, sunny: r.solarRadiation != null && r.solarRadiation >= SUN_WM2,
+      mmPerHour: rainRateMmH(s.id, mm, RAIN_WINDOW_MIN), verdict: 'dry', radarDbz, sunny: r.solarRadiation != null && r.solarRadiation >= SUN_WM2,
     });
   }
 
@@ -155,11 +157,10 @@ export function classifyGauges(opts: {
   });
 }
 
-/** Coarse intensity of a gauge's rain over the window, on AEMET's scale (2 / 15 mm/h): the same
- *  bands the alert uses (rainNowAlerts.ts). At 10 the map said «fuerte» where the alert said
+/** Coarse intensity of a gauge's rain (GaugeRain.mmPerHour), on AEMET's scale (2 / 15 mm/h): the
+ *  same bands the alert uses (rainNowAlerts.ts). At 10 the map said «fuerte» where the alert said
  *  «moderada» for the same gauge. */
-export function gaugeIntensity(mmInWindow: number): 'debil' | 'moderada' | 'fuerte' {
-  const perHour = mmInWindow * (60 / RAIN_WINDOW_MIN);
+export function gaugeIntensity(perHour: number): 'debil' | 'moderada' | 'fuerte' {
   if (perHour < 2) return 'debil';
   if (perHour < 15) return 'moderada';
   return 'fuerte';

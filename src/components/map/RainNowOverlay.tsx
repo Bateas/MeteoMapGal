@@ -149,7 +149,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
       const { currentReadings } = useWeatherStore.getState();
       gauges = classifyGauges({ stations, readings: currentReadings, history: gaugeHistory(), nowMs: Date.now(), radar: frames });
     }
-    const raining = gauges.filter((g) => g.verdict === 'rain').sort((a, b) => b.mm - a.mm);
+    const raining = gauges.filter((g) => g.verdict === 'rain').sort((a, b) => b.mmPerHour - a.mmPerHour);
 
     let picture: Picture | null = null;
     let arrivals: { spotId: string; spotName: string; etaMin: number; distanceKm: number }[] = [];
@@ -213,13 +213,13 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
       features: raining.map((g) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [g.lon, g.lat] },
-        properties: { color: TONE_COLOR[gaugeIntensity(g.mm)], label: g.mm.toFixed(1).replace('.', ',') },
+        properties: { color: TONE_COLOR[gaugeIntensity(g.mmPerHour)], label: g.mmPerHour.toFixed(1).replace('.', ',') },
       })),
     };
     return {
       off: false as const, gauges, picture, gaugeGeo, cellsShown, arrivals, approach, debug,
       arrowGeo: arrows.length ? ({ type: 'FeatureCollection', features: arrows } as GeoJSON.FeatureCollection) : null,
-      raining: raining.map((g) => ({ id: g.id, name: g.name, mm: g.mm, radarDbz: g.radarDbz })),
+      raining: raining.map((g) => ({ id: g.id, name: g.name, mm: g.mm, mmPerHour: g.mmPerHour, radarDbz: g.radarDbz })),
     };
     // newest/frames/analysis change together with the frame set
     // eslint-disable-next-line react-hooks/exhaustive-deps

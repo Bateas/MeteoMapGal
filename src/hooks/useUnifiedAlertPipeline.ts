@@ -182,7 +182,7 @@ export function useUnifiedAlertPipeline({
         // own — neither moves any of the axes above.
         visibilitySignature(relevantVisibility),
         // Raining gauges (and how many have echo over them): the rain alert and the fog veto follow them.
-        rainSummary ? `${rainSummary.gauges.length}:${rainSummary.gauges.filter((g) => (g.radarDbz ?? 0) >= 20).length}:${rainSummary.gauges[0]?.mm ?? 0}` : 'norain',
+        rainSummary ? `${rainSummary.gauges.length}:${rainSummary.gauges.filter((g) => (g.radarDbz ?? 0) >= 20).length}:${rainSummary.gauges[0]?.mmPerHour ?? 0}` : 'norain',
       ].join('|');
       if (sig === lastAggregateSigRef.current) return;
       lastAggregateSigRef.current = sig;

@@ -11,7 +11,8 @@
 
 import { assembleMosaic, kmPerPx, lonLatToPx, maxDbzNear, type RadarMosaic } from './radarDecode';
 import type { GaugeRain } from './rainNowService';
-import { isOfficialGauge } from './rainNowService';
+import { isOfficialGauge, RAIN_WINDOW_MIN } from './rainNowService';
+import { rainRateMmH } from './precipSemantics';
 import type { NormalizedStation } from '../types/station';
 
 const BLOCK = { x0: 60, y0: 46, nx: 2, ny: 2 };
@@ -77,9 +78,10 @@ export function simGauges(stations: NormalizedStation[], newest: RadarMosaic): G
   return stations.map((s) => {
     const dbz = maxDbzNear(newest, s.lon, s.lat, 1);
     const wet = dbz >= 25;
+    const mm = wet ? Math.round((dbz - 20) / 4) / 2 : 0;
     return {
       id: s.id, name: s.name, lon: s.lon, lat: s.lat, official: isOfficialGauge(s.id),
-      mm: wet ? Math.round((dbz - 20) / 4) / 2 : 0, verdict: wet ? 'rain' : 'dry', radarDbz: dbz,
+      mm, mmPerHour: rainRateMmH(s.id, mm, RAIN_WINDOW_MIN), verdict: wet ? 'rain' : 'dry', radarDbz: dbz,
     };
   });
 }

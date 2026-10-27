@@ -94,11 +94,11 @@ describe('classifyGauges', () => {
 });
 
 describe('gaugeIntensity', () => {
-  it('bands the half-hour rain as an hourly rate', () => {
-    expect(gaugeIntensity(0.4)).toBe('debil');
-    expect(gaugeIntensity(2)).toBe('moderada');
-    expect(gaugeIntensity(6)).toBe('moderada'); // 12 mm/h: moderate on AEMET's scale, as the alert says
-    expect(gaugeIntensity(8)).toBe('fuerte');
+  it('bands the rate (mm/h, GaugeRain.mmPerHour) on AEMET\'s scale', () => {
+    expect(gaugeIntensity(0.8)).toBe('debil');
+    expect(gaugeIntensity(4)).toBe('moderada');
+    expect(gaugeIntensity(12)).toBe('moderada'); // moderate on AEMET's scale, as the alert says
+    expect(gaugeIntensity(16)).toBe('fuerte');
   });
 });
 
@@ -115,7 +115,7 @@ function mosaicWith(blobs: { lon: number; lat: number; r: number; dbz: number }[
   return m;
 }
 const gauge = (id: string, at: { lat: number; lon: number }, verdict: 'rain' | 'dry') =>
-  ({ id, name: id, lon: at.lon, lat: at.lat, official: true, mm: verdict === 'rain' ? 1 : 0, verdict, radarDbz: null });
+  ({ id, name: id, lon: at.lon, lat: at.lat, official: true, mm: verdict === 'rain' ? 1 : 0, mmPerHour: verdict === 'rain' ? 2 : 0, verdict, radarDbz: null });
 
 describe('findRainCells and groundTruth', () => {
   it('drops speckle and keeps real patches', () => {
