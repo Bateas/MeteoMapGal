@@ -90,7 +90,6 @@ export function LegalSection() {
             <AttrRow name="MeteoGalicia" license="CC BY-SA 4.0" desc="Cámaras de la costa y del interior" />
             <AttrRow name="DGT" license="Sus condiciones" desc="Cámaras de tráfico de Ribadavia (N-120) y Barbantes (A-52)" />
             <AttrRow name="Enlaces" license="Enlace" desc="Waira Surf School (Patos), tmkites (Cesantes) y Ría de Vigo Cam (YouTube)" />
-            <AttrRow name="ESP32-CAM" license="Propia" desc="Webcam propia en el embalse de Castrelo de Miño" />
           </ul>
           <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
             Si eres titular de alguno de estos datos y quieres que cambiemos cómo se muestra o se cita,

@@ -891,8 +891,9 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     waveRelevance: 'none',
     thermalDetection: true,
     hardGates: { maxWindKt: 30 },
+    // The own ESP32-CAM (/webcam/castrelo.jpg) is off: its last photo is from 1-apr-2026 and the popup
+    // showed it with no age as if it were live. Back only when it uploads again, with its age shown.
     webcams: [
-      { label: 'Castrelo (ESP32-CAM)', url: 'https://meteomapgal.navia3d.com/webcam/castrelo.jpg', type: 'image', source: 'Propia', azimuth: 225, refreshInterval: 60 },
       { label: 'Ribadavia N-120 (DGT)', url: 'https://etraffic.dgt.es/camarasEtraffic/1187.jpg', type: 'image', source: 'DGT', azimuth: 270, refreshInterval: 600 },
       { label: 'Barbantes A-52 (DGT)', url: 'https://etraffic.dgt.es/camarasEtraffic/557.jpg', type: 'image', source: 'DGT', azimuth: 180, refreshInterval: 600 },
     ],
