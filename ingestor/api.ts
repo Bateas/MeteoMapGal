@@ -76,7 +76,6 @@ import { getSpotsForSector } from '../src/config/spots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatcher.js';
 import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effisFetcher.js';
 import { corsHeaders, json, error, dbError, parseSearchParams, ALLOWED_ORIGINS } from './httpHelpers.js';
-import { handleWebcamUpload } from './webcamHandler.js';
 import { queryMgAuxLatest, parseMgAuxStationId } from './mgAuxLatest.js';
 import { queryRecentReadings } from './recentReadings.js';
 import { queryTeleconnections } from './teleconnections.js';
@@ -1638,10 +1637,7 @@ const server = http.createServer(async (req, res) => {
   // POST routes
   if (req.method === 'POST') {
     const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
-    const webcamMatch = url.pathname.match(/^\/api\/webcam\/([a-z0-9-]+)$/);
-    if (webcamMatch) {
-      await handleWebcamUpload(webcamMatch[1], req, res, origin);
-    } else if (url.pathname === '/api/v1/storm-predictions') {
+    if (url.pathname === '/api/v1/storm-predictions') {
       await handleStormPredictionPost(req, res, origin);
     } else if (url.pathname === '/api/v1/reports') {
       await handleFieldReportPost(req, res, origin);
