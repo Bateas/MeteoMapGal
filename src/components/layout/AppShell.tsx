@@ -30,6 +30,7 @@ import { SourceStatusBanner } from '../common/SourceStatusBanner';
 import { MagicWindowBanner } from '../common/MagicWindowBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { NewVersionBanner } from '../common/NewVersionBanner';
+import { SimulationBanner } from '../common/SimulationBanner';
 import { useThemeStore } from '../../store/themeStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
@@ -350,6 +351,7 @@ export function AppShell() {
       >
         Saltar al mapa
       </a>
+      <SimulationBanner />
       <Header
         onRefresh={forceRefresh}
         fieldDrawerOpen={fieldDrawerOpen}
