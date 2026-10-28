@@ -198,13 +198,46 @@ export function aemetDataPaths(body: Buffer): string[] {
  * overwritten on each refresh.
  */
 const aemetDataOrigin = new Map<string, string>();
+/** The temporary path each resource handed out LAST. Only that one may write or pause the
+ *  shared copy: a superseded path, or any other path, is cached and paused on its own. */
+const aemetCurrentPath = new Map<string, string>();
 
 function rememberDataOrigin(stepOnePath: string, body: Buffer): void {
   const paths = aemetDataPaths(body);
-  paths.forEach((p, i) => aemetDataOrigin.set(p, i === 0 ? stepOnePath : `${stepOnePath}#meta`));
+  paths.forEach((p, i) => {
+    const resource = i === 0 ? stepOnePath : `${stepOnePath}#meta`;
+    aemetDataOrigin.set(p, resource);
+    aemetCurrentPath.set(resource, p);
+  });
   while (aemetDataOrigin.size > 500) {
     aemetDataOrigin.delete(aemetDataOrigin.keys().next().value as string);
   }
+}
+
+/** The three step-one operations the map uses. Anything else would be a call signed with
+ *  our key on someone else's behalf, with its own cache entry pushing ours out. */
+export const AEMET_STEP_ONE_PATHS: ReadonlySet<string> = new Set([
+  '/api/observacion/convencional/todas',
+  '/api/valores/climatologicos/inventarioestaciones/todasestaciones',
+  '/api/avisos_cap/ultimoelaborado/area/61',
+]);
+
+/** Step-two paths are the temporary links AEMET issues: /opendata/sh/<code>, nothing else. */
+export function isAemetDataPath(p: string): boolean {
+  return /^\/opendata\/sh\/[A-Za-z0-9_-]{1,64}$/.test(p);
+}
+
+/** Cache and pause key of a step-two request: the shared resource only for the path that
+ *  resource handed out last; any other path stays in its own namespace. */
+export function aemetDataKey(dataPath: string): { key: string; stepOne?: string } {
+  const stepOne = aemetDataOrigin.get(dataPath);
+  if (stepOne && aemetCurrentPath.get(stepOne) === dataPath) return { key: `data:${stepOne}`, stepOne };
+  return { key: `data-raw:${dataPath}`, stepOne };
+}
+
+/** Tests only: record a step-one answer as the proxy does. */
+export function __rememberDataOriginForTests(stepOnePath: string, body: Buffer): void {
+  rememberDataOrigin(stepOnePath, body);
 }
 
 export async function handleAemetProxy(
@@ -217,8 +250,8 @@ export async function handleAemetProxy(
     return;
   }
 
-  // Whitelist allowed AEMET paths to prevent SSRF
-  if (!aemetPath.startsWith('/api/') && !aemetPath.startsWith('/opendata/')) {
+  // Only the exact operations the map uses: our key signs whatever passes here.
+  if (!AEMET_STEP_ONE_PATHS.has(aemetPath)) {
     error(res, 'Invalid AEMET path', 400, origin);
     return;
   }
@@ -372,9 +405,13 @@ export async function handleAemetDataProxy(
   res: http.ServerResponse,
   origin?: string,
 ): Promise<void> {
-  // Cached under the resource it belongs to, not under the temporary url.
-  const stepOne = aemetDataOrigin.get(dataPath);
-  const key = `data:${stepOne ?? dataPath}`;
+  if (!isAemetDataPath(dataPath)) {
+    error(res, 'Invalid AEMET data path', 400, origin);
+    return;
+  }
+  // Cached under the resource it belongs to, not under the temporary url — but only for the
+  // url that resource handed out last, so no other path can pause or overwrite it.
+  const { key, stepOne } = aemetDataKey(dataPath);
   const ttl = stepOne ? aemetTtlFor(stepOne) : AEMET_CACHE_TTL;
   const cached = aemetCache.get(key);
   if (cached && Date.now() - cached.ts < ttl) {
@@ -530,6 +567,16 @@ export async function handleMeteoSixProxy(
 const obsCache = new Map<string, { data: Buffer; contentType: string; ts: number }>();
 const OBS_CACHE_TTL = 3 * 60_000;
 
+/** Buoy ids the map asks for (`OBS_STATIONS` in src/api/observatorioCosteiro.ts; a test keeps
+ *  both lists equal). Our gateway key signs only these. */
+export const OBSCOSTEIRO_BUOY_IDS: ReadonlySet<number> = new Set([15001, 15002, 15004, 15005, 15100, 15009]);
+
+/** Exactly /ultimo/recente/<id> for a known buoy: no other operation, no encoded slash. */
+export function isAllowedObsCosteiroPath(p: string): boolean {
+  const m = /^\/ultimo\/recente\/(\d{5})$/.exec(p);
+  return m != null && OBSCOSTEIRO_BUOY_IDS.has(Number(m[1]));
+}
+
 export async function handleObsCosteiroProxy(
   obsPath: string,
   res: http.ServerResponse,
@@ -540,7 +587,7 @@ export async function handleObsCosteiroProxy(
     return;
   }
 
-  if (!obsPath.startsWith('/ultimo/')) {
+  if (!isAllowedObsCosteiroPath(obsPath)) {
     error(res, 'Invalid ObsCosteiro path', 400, origin);
     return;
   }
