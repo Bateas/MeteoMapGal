@@ -478,6 +478,49 @@ const METEOSIX_EDGE_CACHE = 'public, max-age=600';
 
 const MS_ALLOWED_PATHS = new Set(['/getNumericForecastInfo', '/getTidesInfo']);
 
+/** Model, grid and variables the map asks MeteoSIX for (src/api/meteoSixClient.ts). */
+const MS_COMBOS: Record<string, { grid: string; vars: ReadonlySet<string> }> = {
+  WRF: { grid: '1km', vars: new Set(['temperature', 'wind', 'precipitation_amount', 'relative_humidity', 'cloud_area_fraction', 'air_pressure_at_sea_level', 'sky_state', 'snow_level']) },
+  USWAN: { grid: 'Galicia', vars: new Set(['significative_wave_height', 'mean_wave_direction', 'relative_peak_period']) },
+  MOHID: { grid: 'Vigo', vars: new Set(['sea_water_temperature']) },
+};
+const MS_NUM = /^-?\d{1,3}(\.\d{1,15})?$/;
+
+/**
+ * The query our key signs, rebuilt from validated parts, or null. Only the shapes the map
+ * builds: coordinates inside Galicia, one of the three model+grid pairs with a subset of its
+ * variables, lang=es, format=application/json, nothing else. Rebuilt in the map's own order,
+ * so a valid request reaches MeteoSIX byte for byte as before, and equivalent requests share
+ * one cache entry.
+ */
+export function canonicalMeteoSixQuery(msPath: string, query: string): string | null {
+  const p = new URLSearchParams(query);
+  const allowed = msPath === '/getNumericForecastInfo'
+    ? ['coords', 'variables', 'models', 'grids', 'lang', 'format']
+    : msPath === '/getTidesInfo' ? ['coords', 'lang', 'format'] : null;
+  if (!allowed) return null;
+  for (const k of new Set(p.keys())) if (!allowed.includes(k) || p.getAll(k).length !== 1) return null;
+  if (!allowed.every((k) => p.has(k))) return null;
+  if (p.get('lang') !== 'es' || p.get('format') !== 'application/json') return null;
+
+  const [lonS, latS, ...rest] = (p.get('coords') as string).split(',');
+  if (rest.length || !MS_NUM.test(lonS ?? '') || !MS_NUM.test(latS ?? '')) return null;
+  const lon = Number(lonS), lat = Number(latS);
+  if (lon < -10.5 || lon > -6 || lat < 41.3 || lat > 44.2) return null;
+  const coords = `${lonS},${latS}`;
+  if (msPath === '/getTidesInfo') return `coords=${coords}&lang=es&format=application/json`;
+
+  const vars = (p.get('variables') as string).split(',');
+  const models = (p.get('models') as string).split(',');
+  const grids = (p.get('grids') as string).split(',');
+  const combo = MS_COMBOS[models[0]];
+  if (!combo || vars.length === 0 || new Set(vars).size !== vars.length) return null;
+  if (models.length !== vars.length || grids.length !== vars.length) return null;
+  if (!models.every((m) => m === models[0]) || !grids.every((g) => g === combo.grid)) return null;
+  if (!vars.every((v) => combo.vars.has(v))) return null;
+  return `coords=${coords}&variables=${vars.join(',')}&models=${models.join(',')}&grids=${grids.join(',')}&lang=es&format=application/json`;
+}
+
 /** True for MeteoSIX's error answer, a top-level `{"exception": ...}` object. */
 export function isMeteoSixErrorEnvelope(body: Buffer): boolean {
   return /^\s*\{\s*"exception"\s*:/.test(body.subarray(0, 64).toString('utf8'));
@@ -485,7 +528,7 @@ export function isMeteoSixErrorEnvelope(body: Buffer): boolean {
 
 export async function handleMeteoSixProxy(
   msPath: string,
-  query: string,
+  rawQuery: string,
   res: http.ServerResponse,
   origin?: string,
 ): Promise<void> {
@@ -500,6 +543,13 @@ export async function handleMeteoSixProxy(
     error(res, 'Invalid MeteoSIX path', 400, origin);
     return;
   }
+  // And only the query shapes the map builds, rebuilt here: the client's string is never signed.
+  const canonical = canonicalMeteoSixQuery(msPath, rawQuery);
+  if (canonical == null) {
+    error(res, 'Invalid MeteoSIX query', 400, origin);
+    return;
+  }
+  const query = canonical;
 
   const cacheKey = `${msPath}?${query}`;
   const cached = meteosixCache.get(cacheKey);

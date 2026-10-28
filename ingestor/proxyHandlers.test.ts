@@ -320,3 +320,36 @@ describe('keyed proxies — only the exact requests the map makes', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('canonicalMeteoSixQuery — our key signs only the shapes the map builds', () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const client = fs.readFileSync(path.join(__dirname, '..', 'src/api/meteoSixClient.ts'), 'utf8');
+  const listOf = (name: string) => [...(client.split(`const ${name} = [`)[1] ?? '').split(']')[0].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  const q = (vars: string[], model: string, grid: string, coords = '-8.619,42.307') =>
+    `coords=${coords}&variables=${vars.join(',')}&models=${vars.map(() => model).join(',')}&grids=${vars.map(() => grid).join(',')}&lang=es&format=application/json`;
+
+  it('passes the three forecasts and the tide table the map asks for, unchanged', async () => {
+    const { canonicalMeteoSixQuery } = await import('./proxyHandlers');
+    const atmo = listOf('ATMO_VARIABLES');
+    const marine = listOf('MARINE_VARIABLES');
+    expect(atmo.length).toBeGreaterThan(5);
+    expect(marine.length).toBe(3);
+    for (const s of [q(atmo, 'WRF', '1km'), q(marine, 'USWAN', 'Galicia'), q(['sea_water_temperature'], 'MOHID', 'Vigo'), q(['wind'], 'WRF', '1km')]) {
+      expect(canonicalMeteoSixQuery('/getNumericForecastInfo', s)).toBe(s);
+    }
+    const tides = 'coords=-8.7262,42.2406&lang=es&format=application/json';
+    expect(canonicalMeteoSixQuery('/getTidesInfo', tides)).toBe(tides);
+  });
+
+  it('rejects extra parameters, another format, mixed models, unknown variables and coordinates outside Galicia', async () => {
+    const { canonicalMeteoSixQuery } = await import('./proxyHandlers');
+    const ok = q(['wind'], 'WRF', '1km');
+    expect(canonicalMeteoSixQuery('/getNumericForecastInfo', `${ok}&x=1`)).toBeNull();
+    expect(canonicalMeteoSixQuery('/getNumericForecastInfo', ok.replace('application/json', 'text/html'))).toBeNull();
+    expect(canonicalMeteoSixQuery('/getNumericForecastInfo', 'coords=-8.6,42.3&variables=wind,temperature&models=WRF,USWAN&grids=1km,1km&lang=es&format=application/json')).toBeNull();
+    expect(canonicalMeteoSixQuery('/getNumericForecastInfo', q(['geopotential'], 'WRF', '1km'))).toBeNull();
+    expect(canonicalMeteoSixQuery('/getNumericForecastInfo', q(['wind'], 'WRF', '1km', '-3.7,40.4'))).toBeNull();
+    expect(canonicalMeteoSixQuery('/getNumericForecastInfo', `${ok}&coords=-8.1,42.1`)).toBeNull();
+  });
+});
