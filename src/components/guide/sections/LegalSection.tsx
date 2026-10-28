@@ -137,6 +137,12 @@ export function LegalSection() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
+              Lo que se pide a través de nuestro servidor (MeteoGalicia, Meteoclimatic, IHM, CESGA, ENAIRE,
+              OpenSky, SkyX) les llega sin tu IP, tu país, tus cookies ni los datos de tu navegador: solo ven
+              a MeteoMapGal
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
               Caché local (PWA) para funcionamiento offline — datos solo en tu dispositivo
             </li>
           </ul>
