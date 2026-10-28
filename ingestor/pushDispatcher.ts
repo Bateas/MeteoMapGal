@@ -384,18 +384,18 @@ interface Queryable {
 }
 
 /**
- * With the store full, a NEW browser makes room by dropping the oldest subscription that has
- * never received an alert, instead of getting 503 (security audit 28-oct, item 16). A flood of
- * junk can no longer lock real browsers out; a subscription that has been reached at least once
- * is never dropped. Returns false when every stored subscription has been reached: then the
- * store really is full of live browsers and the caller refuses as before.
+ * With the store full, a NEW browser makes room by dropping the oldest subscription whose last
+ * delivery FAILED (fail_count > 0), instead of getting 503 (security audit 28-oct, item 16).
+ * Only those: a subscription that never failed may be a real browser still waiting for its first
+ * storm, and a flood of new junk must not be able to push it out (automated review, 28-oct).
+ * Returns false when no stored subscription has failed: the caller refuses as before.
  */
 export async function makeRoomForNewSubscription(db: Queryable = getPool()): Promise<boolean> {
   const r = await db.query(
     `DELETE FROM push_subscriptions
      WHERE endpoint = (SELECT endpoint FROM push_subscriptions
-                       WHERE last_ok IS NULL
-                       ORDER BY created_at ASC NULLS FIRST
+                       WHERE fail_count > 0
+                       ORDER BY fail_count DESC, created_at ASC NULLS FIRST
                        LIMIT 1)`,
   );
   return (r.rowCount ?? 0) > 0;
