@@ -73,7 +73,7 @@ import { clientKeyOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpo
 import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta, type ObserverLabRow } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
-import { getVapidPublicKey, sendTestPush, logPushStartup } from './pushDispatcher.js';
+import { getVapidPublicKey, sendTestPush, logPushStartup, makeRoomForNewSubscription } from './pushDispatcher.js';
 import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effisFetcher.js';
 import { corsHeaders, json, error, dbError, parseSearchParams, ALLOWED_ORIGINS } from './httpHelpers.js';
 import { queryMgAuxLatest, parseMgAuxStationId } from './mgAuxLatest.js';
@@ -1536,9 +1536,12 @@ async function handlePushSubscribe(
       [endpoint],
     );
     if (room.rows[0].n >= PUSH_SUBSCRIPTIONS_MAX && !room.rows[0].known) {
-      log.warn(`[Push] subscription store full (${room.rows[0].n}); refusing new endpoint`);
-      error(res, 'push capacity reached', 503, origin);
-      return;
+      if (!(await makeRoomForNewSubscription())) {
+        log.warn(`[Push] subscription store full (${room.rows[0].n}) of reached browsers; refusing new endpoint`);
+        error(res, 'push capacity reached', 503, origin);
+        return;
+      }
+      log.warn(`[Push] subscription store full (${room.rows[0].n}); dropped the oldest one never reached to let a new browser in`);
     }
     // Re-subscribing (or editing the spot list) refreshes the crypto keys
     // and resets the failure streak — the browser just proved it is alive.
