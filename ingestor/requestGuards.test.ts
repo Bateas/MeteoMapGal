@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clientIpOf, clampInt, isAllowedPushEndpoint, pruneCache, memoAsync } from './requestGuards';
+import { clientIpOf, clampInt, isAllowedPushEndpoint, isValidPushSpotList, pruneCache, memoAsync } from './requestGuards';
 
 describe('clientIpOf — the bucket key must not be something the client wrote', () => {
   it('prefers the tunnel header, which the client cannot forge', () => {
@@ -37,6 +37,23 @@ describe('clampInt', () => {
     expect(clampInt('abc', 1, 30, 7)).toBe(7);
     expect(clampInt(undefined, 1, 30, 7)).toBe(7);
     expect(clampInt('', 1, 30, 7)).toBe(7);
+  });
+});
+
+describe('isValidPushSpotList — a subscription must opt into a curated spot', () => {
+  const VALID = new Set(['cesantes', 'lourido']);
+  it('accepts one or more curated ids', () => {
+    expect(isValidPushSpotList(['cesantes'], VALID)).toBe(true);
+    expect(isValidPushSpotList(['cesantes', 'lourido'], VALID)).toBe(true);
+  });
+  it('rejects an empty list: the dispatcher would never contact or prune that row', () => {
+    expect(isValidPushSpotList([], VALID)).toBe(false);
+  });
+  it('rejects unknown ids, non-strings, non-arrays and more than 20 entries', () => {
+    expect(isValidPushSpotList(['inventado'], VALID)).toBe(false);
+    expect(isValidPushSpotList([1], VALID)).toBe(false);
+    expect(isValidPushSpotList('cesantes', VALID)).toBe(false);
+    expect(isValidPushSpotList(Array(21).fill('cesantes'), VALID)).toBe(false);
   });
 });
 

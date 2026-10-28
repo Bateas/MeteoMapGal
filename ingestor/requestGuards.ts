@@ -69,6 +69,17 @@ const PUSH_HOSTS_EXACT = new Set([
 ]);
 const PUSH_HOST_SUFFIXES = ['.notify.windows.com', '.push.apple.com'];
 
+/**
+ * A subscription must opt into 1..20 curated spots. An empty list is never
+ * selected by the dispatcher, so such a row is never contacted and never
+ * pruned: it would only fill the store. The real client never sends one
+ * (removing the last spot calls /push/unsubscribe).
+ */
+export function isValidPushSpotList(spotIds: unknown, valid: ReadonlySet<string>): spotIds is string[] {
+  return Array.isArray(spotIds) && spotIds.length >= 1 && spotIds.length <= 20
+    && spotIds.every((id: unknown) => typeof id === 'string' && valid.has(id));
+}
+
 /** True only for an https URL on a known browser push service. */
 export function isAllowedPushEndpoint(endpoint: unknown): endpoint is string {
   if (typeof endpoint !== 'string' || endpoint.length > 1000) return false;

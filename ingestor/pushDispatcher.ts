@@ -21,6 +21,7 @@
 import webpush from 'web-push';
 import { getPool } from './db.js';
 import { log } from './logger.js';
+import { isAllowedPushEndpoint } from './requestGuards.js';
 import type { SpotLightningRisk } from '../src/services/lightningProximityService.js';
 
 // ── VAPID config (read once at process start) ──────────
@@ -231,6 +232,13 @@ export async function dispatchLightningPush(
     const errors: string[] = [];
 
     for (const sub of result.rows) {
+      // The host allowlist is checked on write; a row stored before it existed
+      // must not be contacted either: drop it instead of sending.
+      if (!isAllowedPushEndpoint(sub.endpoint)) {
+        await removeSubscription(sub.endpoint).catch(() => undefined);
+        errors.push('host not allowed (removed)');
+        continue;
+      }
       const key = `${sub.endpoint}|${spotId}`;
       if (!shouldSendPush(sendState, key, risk.level)) continue;
 
@@ -311,6 +319,10 @@ export async function sendTestPush(endpoint: string): Promise<TestPushResult> {
     );
     const sub = result.rows[0];
     if (!sub) return 'not-found';
+    if (!isAllowedPushEndpoint(sub.endpoint)) {
+      await removeSubscription(sub.endpoint).catch(() => undefined);
+      return 'not-found';
+    }
 
     // Arm the rate limit before the send so a hanging push service cannot
     // be hammered by an impatient user re-tapping the button.

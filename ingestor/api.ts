@@ -69,7 +69,7 @@ import {
   LIGHTNING_RECENT_WINDOWS,
 } from './queries.js';
 import { getPool } from './db.js';
-import { clientIpOf, clampInt, isAllowedPushEndpoint, pruneCache, memoAsync } from './requestGuards.js';
+import { clientIpOf, clampInt, isAllowedPushEndpoint, isValidPushSpotList, pruneCache, memoAsync } from './requestGuards.js';
 import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta, type ObserverLabRow } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
@@ -1519,8 +1519,7 @@ async function handlePushSubscribe(
 
   const validKeys = typeof p256dh === 'string' && p256dh.length > 0 && p256dh.length <= 300
     && typeof auth === 'string' && auth.length > 0 && auth.length <= 300;
-  const validSpots = Array.isArray(spotIds) && spotIds.length <= 20
-    && spotIds.every((id: unknown) => typeof id === 'string' && VALID_PUSH_SPOT_IDS.has(id));
+  const validSpots = isValidPushSpotList(spotIds, VALID_PUSH_SPOT_IDS);
 
   if (!isAllowedPushEndpoint(endpoint) || !validKeys || !validSpots) {
     error(res, 'Invalid payload', 400, origin);
