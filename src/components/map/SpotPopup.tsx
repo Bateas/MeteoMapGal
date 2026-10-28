@@ -62,6 +62,7 @@ import { WebcamSection } from '../spot/WebcamSection';
 import { useHistoricalBaseline } from '../../hooks/useHistoricalBaseline';
 import { describeVsBaseline, severityToBadgeClass } from '../../services/historicalBaselineService';
 import { buildShareUrl } from '../../services/shareImageGenerator';
+import { isSimulationActive } from '../../config/simulation';
 
 // Marker shapes for the popup head chip (30x30 box): hexagon for wind spots, pentagon for surf.
 const HEX_PTS = '15,2 26.26,8.5 26.26,21.5 15,28 3.74,21.5 3.74,8.5';
@@ -413,7 +414,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
                   else's chat will not. Hidden on surf spots too: the image is a
                   WIND card, and it said «CALMA 2 kt» for a beach whose card said
                   «CLÁSICO ~1,1 m». */}
-              {score && !score.provisional && spot.category !== 'surf' && (
+              {score && !score.provisional && spot.category !== 'surf' && !isSimulationActive() && (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
@@ -1619,6 +1620,9 @@ function ShareButton({ spot, score, verdict: _verdict, vs, surf }: {
     parts.push('— MeteoMapGal');
     return parts.join(' | ');
   }, [spot.name, vs.label, score, isSurf, surfLabel, surfWaveM]);
+
+  // A demo link (?simstrike, ?simorange...) must not leave the app as a real report.
+  if (isSimulationActive()) return null;
 
   const handleShare = async () => {
     // Deep-link: useDeepLink reabre este spot en este sector al recibir el enlace
