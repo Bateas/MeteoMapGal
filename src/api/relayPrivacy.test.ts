@@ -39,4 +39,21 @@ describe('third-party relays send no visitor data', () => {
       }
     }
   });
+
+  it('every relay keeps the security headers its own add_header would drop (audit item 9)', async () => {
+    for (const r of await thirdPartyRoutes()) {
+      expect(r.body, r.name).toContain('add_header X-Content-Type-Options "nosniff" always;');
+      expect(r.body, r.name).toContain('add_header X-Frame-Options "DENY" always;');
+      expect(r.body, r.name).toMatch(/add_header Content-Security-Policy "default-src 'none';[^"]*sandbox" always;/);
+    }
+  });
+
+  it('the static routes with their own add_header keep nosniff', async () => {
+    const conf: string = (await fs.readFile(path.join(ROOT, 'nginx.conf'), 'utf8')).replace(/\r\n/g, '\n');
+    for (const loc of ['/assets/', '/sw.js', '/manifest.json']) {
+      const m = conf.match(new RegExp(`\\n {4}location ${loc.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')} \\{([\\s\\S]*?)\\n {4}\\}`));
+      expect(m, loc).not.toBeNull();
+      expect(m![1], loc).toContain('add_header X-Content-Type-Options "nosniff" always;');
+    }
+  });
 });
