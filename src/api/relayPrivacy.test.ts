@@ -48,6 +48,17 @@ describe('third-party relays send no visitor data', () => {
     }
   });
 
+  it('every relay drops the provider copy of each security header it sets', async () => {
+    // Otherwise both reach the browser: IHM sent its own CSP next to ours, CESGA and OpenSky a
+    // second X-Frame-Options, IHM and CESGA a second Referrer-Policy (checked 29-oct).
+    const headers = ['X-Frame-Options', 'Content-Security-Policy', 'X-Content-Type-Options', 'Referrer-Policy', 'Strict-Transport-Security'];
+    for (const r of await thirdPartyRoutes()) {
+      for (const h of headers) {
+        if (r.body.includes(`add_header ${h} `)) expect(r.body, `${r.name}: ${h}`).toContain(`proxy_hide_header ${h};`);
+      }
+    }
+  });
+
   it('the static routes with their own add_header keep nosniff', async () => {
     const conf: string = (await fs.readFile(path.join(ROOT, 'nginx.conf'), 'utf8')).replace(/\r\n/g, '\n');
     for (const loc of ['/assets/', '/sw.js', '/manifest.json']) {
