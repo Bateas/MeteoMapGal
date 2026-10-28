@@ -15,10 +15,10 @@ export default defineConfig(({ mode }) => {
   build: {
     target: 'esnext',
     // 'hidden': sourcemaps generated as separate .map files (not referenced
-    // from the bundle) — adds ~2MB total to dist/ but enables stack traces
-    // pointing to original source when reading prod errors locally with the
-    // Chrome devtools "Add source map" feature. No SEO/perf cost since the
-    // .map files are only fetched on demand.
+    // from the bundle), to read a production stack trace against the build
+    // that made it. They stay in dist/ on the server and are NEVER published:
+    // the deploy script removes every .map from the web root and the web
+    // server answers 404 to them (security audit 28-oct).
     sourcemap: 'hidden',
     // Filter modulepreload: only preload chunks needed for first paint.
     // Vite adds preloads for ALL transitive deps including lazy chunks like

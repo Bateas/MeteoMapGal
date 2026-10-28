@@ -251,6 +251,11 @@ if [ "$FRONTEND_CHANGED" = true ] || [ "$VERSION_BUMPED" = true ] || [ "$ROOT_PK
     npm run build
     echo "📂 Copying dist → $WWW..."
     cp -r dist/* "$WWW/"
+    # Source maps never go out: they rebuild the original code with its comments (security
+    # audit 28-oct). They stay in dist/ for debugging. This also removes the ones earlier
+    # deploys left; the web server answers 404 to any .map anyway.
+    find "$WWW" -type f -name '*.map' -delete
+    echo "🗺️  Source maps removed from the web root (kept in dist/)"
     # Purge orphaned hashed chunks from previous deploys, but only those no build has
     # shipped for 14 days. `cp` only ADDS files, so old assets/<name>-<hash>.js would
     # pile up forever. They are NOT harmless the moment they go: a page left open, or
