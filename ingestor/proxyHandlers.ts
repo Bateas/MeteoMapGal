@@ -118,10 +118,26 @@ function noteUpstreamFailure(label: string, key: string, status: number, graceFi
   else log.debug(msg);
 }
 
-/** The provider's answer and body; a request that gets no answer at all is noted as a failure. */
+/**
+ * The type we answer with, from our own domain. A provider's HTML or SVG served as such from
+ * here could run in our origin (security audit 28-oct, item 10), so anything that is not data
+ * goes out as plain text. The charset stays: AEMET answers in ISO-8859-15.
+ */
+const DATA_TYPES = new Set(['application/json', 'text/json', 'application/geo+json', 'text/plain', 'text/csv', 'application/xml', 'text/xml']);
+export function safeContentType(upstream: string | null): string {
+  if (!upstream) return 'application/json';
+  const media = upstream.split(';')[0].trim().toLowerCase();
+  return DATA_TYPES.has(media) ? upstream : 'text/plain; charset=utf-8';
+}
+
+/**
+ * The provider's answer and body; a request that gets no answer at all is noted as a failure.
+ * Redirects are refused: these requests carry our key, and a redirect would take it to
+ * another address (none of the three providers redirects; checked 28-oct).
+ */
 async function fetchBody(url: string, init: RequestInit, label: string, downKey: string): Promise<{ upstream: Response; buf: Buffer }> {
   try {
-    const upstream = await fetch(url, init);
+    const upstream = await fetch(url, { ...init, redirect: 'error' });
     const buf = Buffer.from(await upstream.arrayBuffer());
     return { upstream, buf };
   } catch (err) {
@@ -287,7 +303,7 @@ export async function handleAemetProxy(
         headers: { 'Accept': 'application/json' },
         signal: AbortSignal.timeout(15_000),
       }, '[AEMET Proxy]', downKey);
-      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const contentType = safeContentType(upstream.headers.get('content-type'));
 
       // Cache real answers only (see aemetAnswerOk)
       const good = upstream.ok && aemetAnswerOk(buf);
@@ -433,7 +449,7 @@ export async function handleAemetDataProxy(
     const { value, joined } = await singleFlight(`aemet-data:${dataPath}`, async () => {
       const url = `https://opendata.aemet.es${dataPath}`;
       const { upstream, buf } = await fetchBody(url, { signal: AbortSignal.timeout(15_000) }, '[AEMET Data Proxy]', downKey);
-      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const contentType = safeContentType(upstream.headers.get('content-type'));
 
       const good = upstream.ok && aemetAnswerOk(buf);
       if (good) {
@@ -571,7 +587,7 @@ export async function handleMeteoSixProxy(
       const sep = query ? '&' : '';
       const url = `${METEOSIX_BASE}${msPath}?${query}${sep}API_KEY=${METEOSIX_API_KEY}`;
       const { upstream, buf } = await fetchBody(url, { headers: { Accept: 'application/json', 'User-Agent': SERVER_USER_AGENT }, signal: AbortSignal.timeout(15_000) }, '[MeteoSIX Proxy]', downKey);
-      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const contentType = safeContentType(upstream.headers.get('content-type'));
 
       // MeteoSIX reports its own failures as 200 + {"exception": ...}. Caching
       // one would serve that error to every visitor for the whole TTL.
@@ -663,7 +679,7 @@ export async function handleObsCosteiroProxy(
         headers: { apikey: OBSCOSTEIRO_API_KEY, Accept: 'application/json', 'User-Agent': SERVER_USER_AGENT },
         signal: AbortSignal.timeout(15_000),
       }, '[ObsCosteiro Proxy]', downKey);
-      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const contentType = safeContentType(upstream.headers.get('content-type'));
 
       const good = upstream.ok;
       if (good) {
@@ -717,7 +733,7 @@ export async function handleMetarProxy(
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(15_000),
       });
-      const contentType = upstream.headers.get('content-type') || 'application/json';
+      const contentType = safeContentType(upstream.headers.get('content-type'));
       const buf = Buffer.from(await upstream.arrayBuffer());
 
       if (upstream.ok) {

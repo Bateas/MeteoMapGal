@@ -353,3 +353,33 @@ describe('canonicalMeteoSixQuery — our key signs only the shapes the map build
     expect(canonicalMeteoSixQuery('/getNumericForecastInfo', `${ok}&coords=-8.1,42.1`)).toBeNull();
   });
 });
+
+describe('keyed proxies — what we answer with, from our domain', () => {
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.resetModules(); });
+
+  it('keeps data types with their charset and turns anything else into plain text', async () => {
+    const { safeContentType } = await import('./proxyHandlers');
+    expect(safeContentType('application/json;charset=UTF-8')).toBe('application/json;charset=UTF-8');
+    expect(safeContentType('text/plain;charset=ISO-8859-15')).toBe('text/plain;charset=ISO-8859-15');   // AEMET
+    expect(safeContentType('text/html; charset=utf-8')).toBe('text/plain; charset=utf-8');
+    expect(safeContentType('image/svg+xml')).toBe('text/plain; charset=utf-8');
+    expect(safeContentType('application/javascript')).toBe('text/plain; charset=utf-8');
+    expect(safeContentType(null)).toBe('application/json');
+  });
+
+  it('a provider HTML page goes out as plain text, with nosniff, and the key never follows a redirect', async () => {
+    vi.stubEnv('OBSCOSTEIRO_API_KEY', 'test-key');
+    vi.resetModules();
+    const { handleObsCosteiroProxy } = await import('./proxyHandlers');
+    const fetchMock = vi.fn(async () => new Response('<html><script>x()</script></html>', { status: 200, headers: { 'content-type': 'text/html' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const r = fakeRes();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await handleObsCosteiroProxy('/ultimo/recente/15001', r as any);
+    expect(r.headers['content-type']).toBe('text/plain; charset=utf-8');
+    expect(r.headers['x-content-type-options']).toBe('nosniff');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const init = (fetchMock.mock.calls[0] as unknown[])[1] as RequestInit;
+    expect(init.redirect).toBe('error');
+  });
+});
