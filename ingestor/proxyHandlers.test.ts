@@ -237,3 +237,86 @@ describe('AEMET data proxy with an expired temporary url', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+// Audit 28-oct: the keyed proxies signed whatever path a visitor chose. Now an exact list.
+describe('keyed proxies — only the exact requests the map makes', () => {
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+
+  it('the AEMET list holds exactly the step-one paths the frontend asks for', async () => {
+    const { AEMET_STEP_ONE_PATHS } = await import('./proxyHandlers');
+    const used = new Set<string>();
+    for (const f of ['src/config/apiEndpoints.ts', 'src/api/aemetAvisosClient.ts']) {
+      for (const m of src(f).matchAll(/\/api\/v1\/aemet(\/api\/[A-Za-z0-9_/]+)/g)) used.add(m[1]);
+    }
+    expect([...used].sort()).toEqual([...AEMET_STEP_ONE_PATHS].sort());
+  });
+
+  it('AEMET answers 400 to any other path without asking AEMET', async () => {
+    vi.stubEnv('AEMET_API_KEY', 'test-key');
+    vi.resetModules();
+    const { handleAemetProxy } = await import('./proxyHandlers');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    for (const p of ['/api/prediccion/especifica/municipio/diaria/36057', '/opendata/x', '/api/observacion/convencional/todas/extra']) {
+      const r = fakeRes();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await handleAemetProxy(p, r as any);
+      expect(r.status).toBe(400);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('AEMET step two takes only /opendata/sh/<code>', async () => {
+    const { isAemetDataPath } = await import('./proxyHandlers');
+    expect(isAemetDataPath('/opendata/sh/a9ce101b')).toBe(true);
+    expect(isAemetDataPath('/api/observacion/convencional/todas')).toBe(false);
+    expect(isAemetDataPath('/opendata/sh/a9ce101b/extra')).toBe(false);
+    expect(isAemetDataPath('/opendata/sh/..%2Fx')).toBe(false);
+    expect(isAemetDataPath('/dist/index.html')).toBe(false);
+  });
+
+  it('only the temporary path a resource handed out LAST shares its cache and pause', async () => {
+    vi.resetModules();
+    const m = await import('./proxyHandlers');
+    const R = '/api/observacion/convencional/todas';
+    m.__rememberDataOriginForTests(R, STEP_ONE);
+    expect(m.aemetDataKey('/opendata/sh/a9ce101b').key).toBe(`data:${R}`);
+    // A newer answer supersedes it: the old path no longer touches the shared copy.
+    m.__rememberDataOriginForTests(R, b('{"estado":200,"datos":"https://opendata.aemet.es/opendata/sh/bbbb0001"}'));
+    expect(m.aemetDataKey('/opendata/sh/bbbb0001').key).toBe(`data:${R}`);
+    expect(m.aemetDataKey('/opendata/sh/a9ce101b').key).toBe('data-raw:/opendata/sh/a9ce101b');
+    // A path no answer ever handed out never collides with a resource key.
+    expect(m.aemetDataKey('/opendata/sh/ffff0000').key).toBe('data-raw:/opendata/sh/ffff0000');
+  });
+
+  it('the ObsCosteiro list matches the buoys the frontend polls', async () => {
+    const { OBSCOSTEIRO_BUOY_IDS } = await import('./proxyHandlers');
+    const ids = [...src('src/api/observatorioCosteiro.ts').matchAll(/obsId:\s*(\d+)/g)].map((x) => Number(x[1]));
+    expect(ids.sort()).toEqual([...OBSCOSTEIRO_BUOY_IDS].sort());
+  });
+
+  it('ObsCosteiro takes only /ultimo/recente/<known id>', async () => {
+    const { isAllowedObsCosteiroPath } = await import('./proxyHandlers');
+    expect(isAllowedObsCosteiroPath('/ultimo/recente/15001')).toBe(true);
+    expect(isAllowedObsCosteiroPath('/ultimo/recente/99999')).toBe(false);
+    expect(isAllowedObsCosteiroPath('/ultimo/otra/cosa')).toBe(false);
+    expect(isAllowedObsCosteiroPath('/ultimo/..%2F..%2Fmeteo2api/v1/api/x')).toBe(false);
+    expect(isAllowedObsCosteiroPath('/ultimo/recente/15001/x')).toBe(false);
+  });
+
+  it('ObsCosteiro answers 400 to any other path without calling the gateway', async () => {
+    vi.stubEnv('OBSCOSTEIRO_API_KEY', 'test-key');
+    vi.resetModules();
+    const { handleObsCosteiroProxy } = await import('./proxyHandlers');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const r = fakeRes();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await handleObsCosteiroProxy('/ultimo/..%2F..%2Fx', r as any);
+    expect(r.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
