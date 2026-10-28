@@ -66,6 +66,16 @@ describe('MeteoGalicia relay allowlist', () => {
     for (const p of paths) expect(p, p).toMatch(allowed);
   });
 
+  it('a refusal or a rate limit from MeteoGalicia never replaces a good copy', async () => {
+    const conf: string = (await fs.readFile(path.join(ROOT, 'nginx.conf'), 'utf8')).replace(/\r\n/g, '\n');
+    const block = conf.match(/location ~ \^\/meteogalicia-api\/[^\n]*\{([\s\S]*?)\n {4}\}/);
+    expect(block).not.toBeNull();
+    const stale = block![1].match(/proxy_cache_use_stale ([^;]+);/);
+    expect(stale![1].split(/\s+/)).toEqual(expect.arrayContaining(['http_403', 'http_429', 'http_503']));
+    // Only safe with the background refresh (one request per URL, not one per visitor).
+    expect(block![1]).toContain('proxy_cache_background_update on;');
+  });
+
   it('refuses lightning, MeteoSIX and anything else', async () => {
     const allowed = await allowedPattern();
     for (const p of [
