@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clientIpOf, clampInt, isAllowedPushEndpoint, isValidPushSpotList, pruneCache, memoAsync } from './requestGuards';
+import { clientIpOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards';
 
 describe('clientIpOf — the bucket key must not be something the client wrote', () => {
   it('prefers the tunnel header, which the client cannot forge', () => {
@@ -128,5 +128,36 @@ describe('memoAsync — at most one query per TTL, whatever the request rate', (
     const get = memoAsync(1000, async () => { calls++; if (calls === 1) throw new Error('db down'); return 'ok'; }, () => 0);
     await expect(get()).rejects.toThrow('db down');
     expect(await get()).toBe('ok');
+  });
+});
+
+describe('hitBucket — a fixed window per key that cannot grow without bound', () => {
+  it('counts up to max inside the window, then refuses until it resets', () => {
+    const m = new Map<string, { count: number; resetAt: number }>();
+    expect(hitBucket(m, 'a', 0, 2, 1000)).toBe(true);
+    expect(hitBucket(m, 'a', 10, 2, 1000)).toBe(true);
+    expect(hitBucket(m, 'a', 20, 2, 1000)).toBe(false);
+    expect(hitBucket(m, 'a', 1001, 2, 1000)).toBe(true);
+  });
+  it('keeps at most cap keys, dropping the oldest windows first', () => {
+    const m = new Map<string, { count: number; resetAt: number }>();
+    for (let i = 0; i < 10; i++) hitBucket(m, 'k' + i, i, 5, 1000, 4);
+    expect(m.size).toBe(4);
+    expect([...m.keys()]).toEqual(['k6', 'k7', 'k8', 'k9']);
+  });
+});
+
+describe('parseTimeRange — bounded from/to for the historical routes', () => {
+  const NOW = Date.parse('2026-10-28T12:00:00Z');
+  it('defaults to the last 24 h', () => {
+    expect(parseTimeRange(undefined, undefined, 365, NOW)).toEqual({ from: '2026-10-27T12:00:00.000Z', to: '2026-10-28T12:00:00.000Z' });
+  });
+  it('passes a valid range through unchanged', () => {
+    expect(parseTimeRange('2026-10-01', '2026-10-28T10:00:00Z', 365, NOW)).toEqual({ from: '2026-10-01', to: '2026-10-28T10:00:00Z' });
+  });
+  it('rejects garbage, a reversed range and a span wider than the cap', () => {
+    expect(parseTimeRange('ayer', undefined, 365, NOW)).toHaveProperty('error');
+    expect(parseTimeRange('2026-10-28', '2026-10-01', 365, NOW)).toHaveProperty('error');
+    expect(parseTimeRange('1970-01-01', undefined, 365, NOW)).toHaveProperty('error');
   });
 });
