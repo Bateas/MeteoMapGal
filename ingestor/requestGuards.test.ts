@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clientIpOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards';
+import { clientIpOf, clientKeyOf, rateKeyOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards';
 
 describe('clientIpOf — the bucket key must not be something the client wrote', () => {
   it('prefers the tunnel header, which the client cannot forge', () => {
@@ -159,5 +159,58 @@ describe('parseTimeRange — bounded from/to for the historical routes', () => {
     expect(parseTimeRange('ayer', undefined, 365, NOW)).toHaveProperty('error');
     expect(parseTimeRange('2026-10-28', '2026-10-01', 365, NOW)).toHaveProperty('error');
     expect(parseTimeRange('1970-01-01', undefined, 365, NOW)).toHaveProperty('error');
+  });
+});
+
+describe('rateKeyOf — an IPv6 /64 is one client, here and in nginx', () => {
+  it('puts every address of a /64 in one bucket, however it is written', () => {
+    const k = rateKeyOf('2001:db8:1:2:aaaa::1');
+    expect(k).toBe('2001:db8:1:2::/64');
+    expect(rateKeyOf('2001:db8:1:2:bbbb:cccc:dddd:eeee')).toBe(k);
+    expect(rateKeyOf('2001:DB8:0001:0002::ffff')).toBe(k);
+    // A /64 with zeros in its 3rd and 4th groups comes written short.
+    const z = rateKeyOf('2001:db8::1');
+    expect(z).toBe('2001:db8:0:0::/64');
+    expect(rateKeyOf('2001:db8:0:0:1:2:3:4')).toBe(z);
+    expect(rateKeyOf('2001:db8::1:2:3:4')).toBe(z);
+    expect(rateKeyOf('2001:db8:0:5::1')).not.toBe(z);
+  });
+
+  it('leaves IPv4, IPv4-mapped, loopback and junk per address', () => {
+    expect(rateKeyOf('203.0.113.9')).toBe('203.0.113.9');
+    expect(rateKeyOf('::ffff:203.0.113.9')).toBe('203.0.113.9');
+    expect(rateKeyOf('::1')).toBe('::1');
+    expect(rateKeyOf('unknown')).toBe('unknown');
+    expect(rateKeyOf('1:2::3::4')).toBe('1:2::3::4');
+  });
+
+  it('the API keys on it', () => {
+    expect(clientKeyOf({ 'cf-connecting-ip': '2001:db8:1:2:aaaa::1' }, undefined)).toBe('2001:db8:1:2::/64');
+    expect(clientKeyOf({ 'cf-connecting-ip': '203.0.113.9' }, undefined)).toBe('203.0.113.9');
+  });
+
+  it('nginx groups the same addresses together and never gives an empty key', async () => {
+    const [fsModule, pathModule, urlModule] = ['node:fs', 'node:path', 'node:url'];
+    const { readFileSync } = await import(fsModule);
+    const path = await import(pathModule);
+    const { fileURLToPath } = await import(urlModule);
+    const conf: string = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'nginx.conf'), 'utf8');
+    const map = conf.match(/map \$remote_addr \$rate_limit_key \{([\s\S]*?)\n\}/);
+    expect(map).not.toBeNull();
+    const rules = [...map![1].matchAll(/"~(\^[^"]+)" \$(\w+);/g)].map((m) => ({ re: new RegExp(m[1]), name: m[2] }));
+    expect(rules).toHaveLength(2);
+    const nginxKey = (addr: string) => {
+      for (const r of rules) { const m = addr.match(r.re); if (m) return m.groups![r.name]; }
+      return `bin:${addr}`;
+    };
+    // nginx writes $remote_addr short (RFC 5952), as these are.
+    const sameSlash64 = ['2001:db8:1:2:aaaa::1', '2001:db8:1:2:bbbb:cccc:dddd:eeee'];
+    expect(new Set(sameSlash64.map(nginxKey)).size).toBe(1);
+    const zeros = ['2001:db8::1', '2001:db8::1:2:3:4', '2001:db8::abcd'];
+    expect(new Set(zeros.map(nginxKey)).size).toBe(1);
+    for (const a of [...sameSlash64, ...zeros, '2001:db8:0:5::1', '2a02:9130:abcd:1200::7']) {
+      expect(nginxKey(a), a).not.toBe('');
+    }
+    expect(nginxKey('203.0.113.9')).toBe('bin:203.0.113.9');
   });
 });
