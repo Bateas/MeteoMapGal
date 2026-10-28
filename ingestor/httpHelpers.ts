@@ -15,6 +15,8 @@ export function corsHeaders(origin: string | undefined): Record<string, string> 
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
+    // Never let a browser guess a type from the body (security audit 28-oct, item 10).
+    'X-Content-Type-Options': 'nosniff',
   };
 }
 
