@@ -47,6 +47,38 @@ export function clientIpOf(headers: IncomingHttpHeaders, socketAddress: string |
   return socketAddress || 'unknown';
 }
 
+/**
+ * The bucket key for an address. IPv6 is keyed by its /64: one connection is handed a whole
+ * /64, so a per-address key would give it as many buckets as it likes (security audit
+ * 28-oct, item 13). IPv4 and an IPv4-mapped IPv6 stay per address; so do the loopback and
+ * anything that does not parse, which never reach production through the tunnel.
+ * nginx groups the same way (`map $remote_addr $rate_limit_key` in nginx.conf).
+ */
+export function rateKeyOf(ip: string): string {
+  const addr = ip.trim().replace(/^\[|\]$/g, '').split('%')[0].toLowerCase();
+  if (!addr.includes(':')) return addr;
+  const mapped = addr.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (mapped) return mapped[1];
+  if (addr.startsWith('::')) return addr;
+  const halves = addr.split('::');
+  if (halves.length > 2) return addr;
+  const head = halves[0].split(':');
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  // An embedded IPv4 at the end takes two groups.
+  const tailGroups = tail.reduce((n, g) => n + (g.includes('.') ? 2 : 1), 0);
+  const groups = halves.length === 2
+    ? [...head, ...Array<string>(Math.max(0, 8 - head.length - tailGroups)).fill('0'), ...tail]
+    : head;
+  const prefix = groups.slice(0, 4);
+  if (prefix.length < 4 || prefix.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return addr;
+  return `${prefix.map((g) => g.replace(/^0+(?=.)/, '')).join(':')}::/64`;
+}
+
+/** What the API's per-client limits key on: the client address, grouped by rateKeyOf. */
+export function clientKeyOf(headers: IncomingHttpHeaders, socketAddress: string | undefined): string {
+  return rateKeyOf(clientIpOf(headers, socketAddress));
+}
+
 /** Integer from a query param, clamped to [min, max]; `fallback` when absent or not a number. */
 export function clampInt(raw: string | null | undefined, min: number, max: number, fallback: number): number {
   const n = raw == null || raw === '' ? NaN : Number.parseInt(raw, 10);

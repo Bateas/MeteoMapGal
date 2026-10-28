@@ -69,7 +69,7 @@ import {
   LIGHTNING_RECENT_WINDOWS,
 } from './queries.js';
 import { getPool } from './db.js';
-import { clientIpOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards.js';
+import { clientKeyOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards.js';
 import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta, type ObserverLabRow } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
@@ -1027,7 +1027,7 @@ async function handleStormPredictionPost(
   }
 
   // Per-IP rate limit (same pattern as webcam upload)
-  const ip = clientIpOf(req.headers, req.socket.remoteAddress);
+  const ip = clientKeyOf(req.headers, req.socket.remoteAddress);
   if (!hitBucket(stormPostCounts, ip, Date.now(), STORM_POST_MAX, STORM_POST_WINDOW_MS)) {
     res.writeHead(429, corsHeaders(origin));
     res.end(JSON.stringify({ error: 'Rate limit exceeded' }));
@@ -1162,7 +1162,7 @@ async function handleFieldReportPost(
     res.end(JSON.stringify({ error: 'Forbidden' }));
     return;
   }
-  const ip = clientIpOf(req.headers, req.socket.remoteAddress);
+  const ip = clientKeyOf(req.headers, req.socket.remoteAddress);
   const now = Date.now();
   const bucket = reportCounts.get(ip);
   if (bucket && now < bucket.resetAt) {
@@ -1281,7 +1281,7 @@ async function handleObserverMe(
     res.end(JSON.stringify({ error: 'Forbidden' }));
     return;
   }
-  const ip = clientIpOf(req.headers, req.socket.remoteAddress);
+  const ip = clientKeyOf(req.headers, req.socket.remoteAddress);
   const now = Date.now();
   if (now >= observerUnknown.resetAt) observerUnknown = { count: 0, resetAt: now + 60 * 60_000 };
   const bucket = observerMeCounts.get(ip);
@@ -1444,7 +1444,7 @@ async function readPushPostBody(
     return null;
   }
 
-  const ip = clientIpOf(req.headers, req.socket.remoteAddress);
+  const ip = clientKeyOf(req.headers, req.socket.remoteAddress);
   if (!hitBucket(pushPostCounts, ip, Date.now(), PUSH_POST_MAX, PUSH_POST_WINDOW_MS)) {
     res.writeHead(429, corsHeaders(origin));
     res.end(JSON.stringify({ error: 'Rate limit exceeded' }));
