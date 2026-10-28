@@ -138,3 +138,53 @@ export function memoAsync<T>(ttlMs: number, produce: () => Promise<T>, clock: ()
     return inflight;
   };
 }
+
+/**
+ * One fixed-window rate-limit hit. Returns false when the key is over `max`
+ * inside its window. A new window moves the key to the end of the Map, and
+ * the oldest keys go once there are more than `cap`, so the Map cannot grow
+ * with every client that ever posted (the storm and push buckets used to).
+ */
+export function hitBucket(
+  buckets: Map<string, { count: number; resetAt: number }>,
+  key: string,
+  now: number,
+  max: number,
+  windowMs: number,
+  cap = 5000,
+): boolean {
+  const b = buckets.get(key);
+  if (b && now < b.resetAt) {
+    if (b.count >= max) return false;
+    b.count++;
+    return true;
+  }
+  buckets.delete(key);
+  buckets.set(key, { count: 1, resetAt: now + windowMs });
+  for (const k of buckets.keys()) {
+    if (buckets.size <= cap) break;
+    buckets.delete(k);
+  }
+  return true;
+}
+
+/**
+ * from/to of the historical routes: last 24 h by default; otherwise both must
+ * be dates, to >= from, and the span at most `maxDays`. The strings go to SQL
+ * unchanged (parameterised), so a valid request means exactly what it meant.
+ */
+export function parseTimeRange(
+  fromParam: string | undefined,
+  toParam: string | undefined,
+  maxDays: number,
+  now: number = Date.now(),
+): { from: string; to: string } | { error: string } {
+  const to = toParam || new Date(now).toISOString();
+  const from = fromParam || new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const tf = Date.parse(from);
+  const tt = Date.parse(to);
+  if (!Number.isFinite(tf) || !Number.isFinite(tt)) return { error: 'Invalid from/to' };
+  if (tt < tf) return { error: 'to must not be before from' };
+  if (tt - tf > maxDays * 24 * 60 * 60 * 1000) return { error: `Range too wide (max ${maxDays} days)` };
+  return { from, to };
+}

@@ -11,7 +11,11 @@ const { Pool } = pg;
 
 let pool: pg.Pool | null = null;
 
-export function initPool(): pg.Pool {
+/**
+ * `statementTimeoutMs`: the public API passes one so no request can hold one of its five
+ * connections indefinitely. The polling ingestor passes none: its nightly jobs are long.
+ */
+export function initPool(opts: { statementTimeoutMs?: number } = {}): pg.Pool {
   pool = new Pool({
     host: process.env.DB_HOST || 'REDACTED_DB_HOST',
     port: parseInt(process.env.DB_PORT || '5432', 10),
@@ -21,6 +25,7 @@ export function initPool(): pg.Pool {
     max: 5,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
+    ...(opts.statementTimeoutMs ? { statement_timeout: opts.statementTimeoutMs } : {}),
   });
 
   pool.on('error', (err) => {

@@ -69,7 +69,7 @@ import {
   LIGHTNING_RECENT_WINDOWS,
 } from './queries.js';
 import { getPool } from './db.js';
-import { clientIpOf, clampInt, isAllowedPushEndpoint, isValidPushSpotList, pruneCache, memoAsync } from './requestGuards.js';
+import { clientIpOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards.js';
 import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta, type ObserverLabRow } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { getSpotsForSector } from '../src/config/spots.js';
@@ -113,17 +113,20 @@ function validateSource(source: string | undefined): string | null {
 }
 
 /**
- * Default time range: last 24 hours.
- * Returns [from, to] as ISO strings.
+ * from/to of a historical route (last 24 h by default), or null after
+ * answering 400: unparseable dates, to before from, or a span wider than
+ * MAX_RANGE_DAYS (the same cap as the analytics routes). An unbounded range
+ * held one of the API's five database connections for as long as the client
+ * liked.
  */
-function defaultTimeRange(
-  fromParam?: string,
-  toParam?: string
-): [string, string] {
-  const to = toParam || new Date().toISOString();
-  const from =
-    fromParam || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  return [from, to];
+function timeRangeOr400(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): [string, string] | null {
+  const r = parseTimeRange(params.from, params.to, MAX_RANGE_DAYS);
+  if ('error' in r) { error(res, r.error, 400, origin); return null; }
+  return [r.from, r.to];
 }
 
 // ── Route handlers ─────────────────────────────────────
@@ -194,8 +197,11 @@ async function handleReadings(
     error(res, 'Missing required parameter: station_id', 400, origin);
     return;
   }
+  if (!validateStationId(station_id)) { error(res, 'Invalid station_id format', 400, origin); return; }
 
-  const [from, to] = defaultTimeRange(params.from, params.to);
+  const range = timeRangeOr400(params, res, origin);
+  if (!range) return;
+  const [from, to] = range;
   const limit = Math.min(parseInt(limitStr || '2000', 10), 10000);
 
   if (interval === 'hourly') {
@@ -251,8 +257,11 @@ async function handleCompare(
     error(res, 'station_ids must contain 1-10 comma-separated station IDs', 400, origin);
     return;
   }
+  if (!ids.every((id) => validateStationId(id))) { error(res, 'Invalid station_id format', 400, origin); return; }
 
-  const [from, to] = defaultTimeRange(params.from, params.to);
+  const range = timeRangeOr400(params, res, origin);
+  if (!range) return;
+  const [from, to] = range;
   const limit = Math.min(parseInt(limitStr || '5000', 10), 20000);
   const mode = interval === 'hourly' ? 'hourly' : 'raw';
 
@@ -271,8 +280,11 @@ async function handleStats(
     error(res, 'Missing required parameter: station_id', 400, origin);
     return;
   }
+  if (!validateStationId(station_id)) { error(res, 'Invalid station_id format', 400, origin); return; }
 
-  const [from, to] = defaultTimeRange(params.from, params.to);
+  const range = timeRangeOr400(params, res, origin);
+  if (!range) return;
+  const [from, to] = range;
   const stats = await queryStats(station_id, from, to);
 
   if (!stats) {
@@ -312,7 +324,9 @@ async function handleBuoyReadings(
     return;
   }
 
-  const [from, to] = defaultTimeRange(params.from, params.to);
+  const range = timeRangeOr400(params, res, origin);
+  if (!range) return;
+  const [from, to] = range;
   const limit = Math.min(parseInt(limitStr || '2000', 10), 10000);
 
   if (interval === 'hourly') {
@@ -1014,17 +1028,10 @@ async function handleStormPredictionPost(
 
   // Per-IP rate limit (same pattern as webcam upload)
   const ip = clientIpOf(req.headers, req.socket.remoteAddress);
-  const now = Date.now();
-  const bucket = stormPostCounts.get(ip);
-  if (bucket && now < bucket.resetAt) {
-    if (bucket.count >= STORM_POST_MAX) {
-      res.writeHead(429, corsHeaders(origin));
-      res.end(JSON.stringify({ error: 'Rate limit exceeded' }));
-      return;
-    }
-    bucket.count++;
-  } else {
-    stormPostCounts.set(ip, { count: 1, resetAt: now + STORM_POST_WINDOW_MS });
+  if (!hitBucket(stormPostCounts, ip, Date.now(), STORM_POST_MAX, STORM_POST_WINDOW_MS)) {
+    res.writeHead(429, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Rate limit exceeded' }));
+    return;
   }
 
   const declaredLength = parseInt(req.headers['content-length'] || '0', 10);
@@ -1438,17 +1445,10 @@ async function readPushPostBody(
   }
 
   const ip = clientIpOf(req.headers, req.socket.remoteAddress);
-  const now = Date.now();
-  const bucket = pushPostCounts.get(ip);
-  if (bucket && now < bucket.resetAt) {
-    if (bucket.count >= PUSH_POST_MAX) {
-      res.writeHead(429, corsHeaders(origin));
-      res.end(JSON.stringify({ error: 'Rate limit exceeded' }));
-      return null;
-    }
-    bucket.count++;
-  } else {
-    pushPostCounts.set(ip, { count: 1, resetAt: now + PUSH_POST_WINDOW_MS });
+  if (!hitBucket(pushPostCounts, ip, Date.now(), PUSH_POST_MAX, PUSH_POST_WINDOW_MS)) {
+    res.writeHead(429, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Rate limit exceeded' }));
+    return null;
   }
 
   const declaredLength = parseInt(req.headers['content-length'] || '0', 10);
@@ -1722,8 +1722,9 @@ async function start(): Promise<void> {
   log.info('║   MeteoMapGal History API v1.0.0         ║');
   log.info('╚══════════════════════════════════════════╝');
 
-  // 1. Initialize database pool
-  initPool();
+  // 1. Initialize database pool. 30 s per statement: the heaviest route measured so far
+  // (grouping the whole readings table) took 9.8 s; nothing legitimate needs more.
+  initPool({ statementTimeoutMs: 30_000 });
   const dbOk = await pingDb();
   if (!dbOk) {
     log.error('Cannot connect to TimescaleDB — check .env configuration');
