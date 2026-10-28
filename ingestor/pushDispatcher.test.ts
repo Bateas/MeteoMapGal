@@ -14,6 +14,7 @@ import {
   markPushSent,
   shouldNotifyRisk,
   PUSH_COOLDOWN_MS,
+  makeRoomForNewSubscription,
   type PushSendState,
 } from './pushDispatcher.js';
 import type { SpotLightningRisk } from '../src/services/lightningProximityService.js';
@@ -149,5 +150,23 @@ describe('shouldNotifyRisk — aviso requires an approaching storm', () => {
 
   it('always passes peligro, approaching or not', () => {
     expect(shouldNotifyRisk(makeRisk({ level: 'peligro', approaching: false }))).toBe(true);
+  });
+});
+
+describe('makeRoomForNewSubscription — a full store never locks new browsers out', () => {
+  it('drops only the oldest subscription that never got an alert, and says whether it found one', async () => {
+    const calls: string[] = [];
+    const db = { query: async (sql: string) => { calls.push(sql); return { rowCount: 1 }; } };
+    expect(await makeRoomForNewSubscription(db)).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatch(/DELETE FROM push_subscriptions/);
+    expect(calls[0]).toMatch(/last_ok IS NULL/);
+    expect(calls[0]).toMatch(/ORDER BY created_at ASC/);
+    expect(calls[0]).toMatch(/LIMIT 1/);
+  });
+
+  it('returns false when every stored browser has been reached: nothing is dropped', async () => {
+    const db = { query: async () => ({ rowCount: 0 }) };
+    expect(await makeRoomForNewSubscription(db)).toBe(false);
   });
 });
