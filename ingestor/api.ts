@@ -1537,11 +1537,11 @@ async function handlePushSubscribe(
     );
     if (room.rows[0].n >= PUSH_SUBSCRIPTIONS_MAX && !room.rows[0].known) {
       if (!(await makeRoomForNewSubscription())) {
-        log.warn(`[Push] subscription store full (${room.rows[0].n}) and none has failed; refusing new endpoint`);
+        log.warn(`[Push] subscription store full (${room.rows[0].n}) and none is failed and never delivered; refusing new endpoint`);
         error(res, 'push capacity reached', 503, origin);
         return;
       }
-      log.warn(`[Push] subscription store full (${room.rows[0].n}); dropped the most-failed subscription to let a new browser in`);
+      log.warn(`[Push] subscription store full (${room.rows[0].n}); dropped a failed, never-delivered subscription to let a new browser in`);
     }
     // Re-subscribing (or editing the spot list) refreshes the crypto keys
     // and resets the failure streak — the browser just proved it is alive.

@@ -154,19 +154,19 @@ describe('shouldNotifyRisk — aviso requires an approaching storm', () => {
 });
 
 describe('makeRoomForNewSubscription — a full store never locks new browsers out', () => {
-  it('drops only a subscription whose delivery failed, and says whether it found one', async () => {
+  it('drops only a subscription that failed and was never delivered to, and says whether it found one', async () => {
     const calls: string[] = [];
     const db = { query: async (sql: string) => { calls.push(sql); return { rowCount: 1 }; } };
     expect(await makeRoomForNewSubscription(db)).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatch(/DELETE FROM push_subscriptions/);
-    expect(calls[0]).toMatch(/fail_count > 0/);
-    expect(calls[0]).not.toMatch(/last_ok IS NULL/);   // never one that may still be waiting for its first storm
+    // Failed AND never delivered: not one still waiting for its first storm, not one reached before.
+    expect(calls[0]).toMatch(/fail_count > 0 AND last_ok IS NULL/);
     expect(calls[0]).toMatch(/ORDER BY fail_count DESC, created_at ASC/);
     expect(calls[0]).toMatch(/LIMIT 1/);
   });
 
-  it('returns false when no stored subscription has failed: nothing is dropped', async () => {
+  it('returns false when there is no such subscription: nothing is dropped', async () => {
     const db = { query: async () => ({ rowCount: 0 }) };
     expect(await makeRoomForNewSubscription(db)).toBe(false);
   });
