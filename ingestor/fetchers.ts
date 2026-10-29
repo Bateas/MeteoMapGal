@@ -19,7 +19,7 @@ import {
   parseIpmaTimestamp,
 } from '../src/services/normalizer.js';
 import { parseMeteoclimaticXml } from './xml.js';
-import { skyXWindIsMeasuring } from '../src/api/skyxClient.js';
+import { readingFromSkyXReport } from '../src/api/skyxClient.js';
 import { WU_UNITS, wuMetricFields, type WuMetric } from '../src/api/wundergroundUnits.js';
 import { getNetatmoToken, GALICIA_SWEEP_POINTS, GALICIA_SWEEP_RADIUS_KM } from './discover.js';
 
@@ -633,7 +633,6 @@ async function fetchNetatmo(
 const SKYX_API = 'https://api.skyxglobal.com';
 const SKYX_SN = 'SKY-100A0B765294EA4';
 const SKYX_AUTH = 'a21bd737-a714-4a5c-9b08-e7d3d2693a51';
-const SKYX_STATION_ID = 'skyx_SKY100';
 
 interface SkyXReport {
   sn: string;
@@ -650,10 +649,6 @@ interface SkyXResponse {
   code: number;
   message: string;
   data: SkyXReport;
-}
-
-function cleanSkyX(v: number): number | null {
-  return v === 9999 ? null : v;
 }
 
 let skyxLastReading: NormalizedReading | null = null;
@@ -690,24 +685,9 @@ async function fetchSkyX(
       return [];
     }
 
-    const report = json.data;
-    // Mean AND peak both exactly zero is the unit sitting still, not calm —
-    // see skyXWindIsMeasuring. Shared with the frontend client so the two
-    // paths into the same station cannot disagree about it.
-    const measuring = skyXWindIsMeasuring(report.wav, report.wmax);
-    const reading: NormalizedReading = {
-      stationId: SKYX_STATION_ID,
-      timestamp: new Date(report.ts),
-      temperature: cleanSkyX(report.t),
-      humidity: cleanSkyX(report.h),
-      windSpeed: measuring ? cleanSkyX(report.wav) : null,
-      windGust: measuring ? cleanSkyX(report.wmax) : null,
-      windDirection: null, // SKY-100 has no wind vane
-      precipitation: null,
-      pressure: cleanSkyX(report.p),
-      dewPoint: null,
-      solarRadiation: null,
-    };
+    // Shared with the frontend client so the two paths into the same station
+    // cannot read the report differently (0/0 is calm: see readingFromSkyXReport).
+    const reading = readingFromSkyXReport(json.data);
 
     skyxLastReading = reading;
     skyxLastGoodSlot = slotOf(Date.now(), SKYX_SLOT_MS, SKYX_SLOT_OFFSET_MS);

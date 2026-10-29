@@ -33,28 +33,37 @@ function clean(v: number): number | null {
   return v === 9999 ? null : v;
 }
 
+/** The report fields a reading is built from. */
+type SkyXReportValues = Pick<SkyXReport, 'ts' | 't' | 'h' | 'p' | 'wav' | 'wmax'>;
+
 /**
- * True when the SKY-100's wind fields are an actual measurement.
+ * One SKY-100 report as a reading. Shared with ingestor/fetchers.ts, so the map
+ * and the archive cannot read the same report differently.
  *
- * The unit has a sentinel for a dead sensor (9999) but none for "the cups are
- * not turning": it sends a plain zero, which on a single reading is
- * indistinguishable from real calm. Except in one respect. `wmax` is the PEAK
- * of the reporting interval, and the peak of a real interval outdoors is never
- * exactly zero — air always moves a little. Mean AND peak both at exactly 0.00
- * is the unit sitting still: indoors, boxed, or with the anemometer unplugged.
- *
- * Measured on the reservoir unit 2026-08-04: 190 consecutive readings over
- * seven days, every one of them wav=0 and wmax=0, while stations 5km away
- * reported 4-12kt. Meanwhile it read a median 5.8 C WARMER than Prado, 1.5km
- * from the water — the signature of a station indoors, not of a calm site.
- *
- * That zero was reaching the Castrelo consensus as a PREFERRED station, so it
- * arrived with the x1.3 exposure boost on top, and it pulled the verdict toward
- * calm on every cycle. The engine skips a null wind and weights a zero, so the
- * fix has to be here, at the parse: a non-measurement must arrive as null.
+ * Mean and peak both at 0 are kept as calm. Until 29-oct they arrived as null,
+ * because in August the unit sat indoors sending 0/0 for a week while the water
+ * had 15-18 kt, and that zero dragged the Castrelo verdict toward calm. Since
+ * 18-oct it is on a moored boat, 1.8 m over the water: its 0/0 hours line up
+ * with Ribadavia at 0.5-1.5 kt, so they are the real still nights that fog and
+ * frost need, and dropping them threw that record away every night. A unit
+ * sitting still is caught by the ingestor's stuck-anemometer check (24 h at
+ * zero, raw value kept) and, with wind around it, the engine's low-outlier
+ * weight, not by guessing from one report.
  */
-export function skyXWindIsMeasuring(wav: number, wmax: number): boolean {
-  return !(wav === 0 && wmax === 0);
+export function readingFromSkyXReport(report: SkyXReportValues): NormalizedReading {
+  return {
+    stationId: SKYX_STATION_ID,
+    timestamp: new Date(report.ts),
+    temperature: clean(report.t),
+    humidity: clean(report.h),
+    windSpeed: clean(report.wav),
+    windGust: clean(report.wmax),
+    windDirection: null, // SKY-100 has no wind vane
+    precipitation: null,
+    pressure: clean(report.p),
+    dewPoint: null,
+    solarRadiation: null,
+  };
 }
 
 /** Parse "lat,lon" string from extra.gps */
@@ -124,20 +133,7 @@ export async function fetchSkyXData(
       altitude: 0, // SKY-100 has no altimeter — use 0
     };
 
-    const measuring = skyXWindIsMeasuring(report.wav, report.wmax);
-    const reading: NormalizedReading = {
-      stationId: SKYX_STATION_ID,
-      timestamp: new Date(report.ts),
-      temperature: clean(report.t),
-      humidity: clean(report.h),
-      windSpeed: measuring ? clean(report.wav) : null,
-      windGust: measuring ? clean(report.wmax) : null,
-      windDirection: null, // SKY-100 has no wind vane
-      precipitation: null,
-      pressure: clean(report.p),
-      dewPoint: null,
-      solarRadiation: null,
-    };
+    const reading = readingFromSkyXReport(report);
 
     console.debug(`[Discovery] SkyX station: ${SKYX_STATION_NAME} at ${coords.lat.toFixed(4)},${coords.lon.toFixed(4)}`);
     return { station, reading };
@@ -172,21 +168,7 @@ export async function fetchSkyXReading(): Promise<NormalizedReading | null> {
     const json: SkyXResponse = await res.json();
     if (json.code !== 200 || !json.data || json.data.t === 9999) return null;
 
-    const report = json.data;
-    const measuring = skyXWindIsMeasuring(report.wav, report.wmax);
-    return {
-      stationId: SKYX_STATION_ID,
-      timestamp: new Date(report.ts),
-      temperature: clean(report.t),
-      humidity: clean(report.h),
-      windSpeed: measuring ? clean(report.wav) : null,
-      windGust: measuring ? clean(report.wmax) : null,
-      windDirection: null,
-      precipitation: null,
-      pressure: clean(report.p),
-      dewPoint: null,
-      solarRadiation: null,
-    };
+    return readingFromSkyXReport(json.data);
   } catch (err) {
     console.debug('[SkyX] fetch/parse failed', err);
     return null;

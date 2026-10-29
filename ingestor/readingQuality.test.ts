@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { skyXWindIsMeasuring } from '../src/api/skyxClient';
+import { readingFromSkyXReport } from '../src/api/skyxClient';
 import {
   applyQualityControl,
   describeQcFlag,
@@ -225,21 +225,34 @@ describe('applyQualityControl — a stopped anemometer is not a calm day', () =>
   });
 });
 
-describe('skyXWindIsMeasuring — the SKY-100 has no sentinel for a still anemometer', () => {
-  it('rejects mean and peak both at exactly zero', () => {
-    // Measured live 2026-08-04: wav 0, wmax 0, while the unit read 33.4 C
-    // against 25 C at four neighbours. Indoors, not becalmed.
-    expect(skyXWindIsMeasuring(0, 0)).toBe(false);
+describe('readingFromSkyXReport — a SKY-100 report as a reading', () => {
+  const report = (over: Partial<{ t: number; h: number; p: number; wav: number; wmax: number }> = {}) =>
+    ({ ts: '2026-10-28T23:00:00Z', t: 14.1, h: 98, p: 1013.9, wav: 0, wmax: 0, ...over });
+
+  it('keeps mean and peak both at zero as calm', () => {
+    // The unit has been on a boat 1.8 m over the reservoir since 18-oct, and its
+    // 0/0 nights line up with Ribadavia at 0.5-1.5 kt: real calm, the night fog
+    // and frost need. Until 29-oct these arrived as null.
+    const r = readingFromSkyXReport(report());
+    expect(r.windSpeed).toBe(0);
+    expect(r.windGust).toBe(0);
   });
 
-  it('accepts a real calm, which still has a non-zero peak', () => {
-    // The discriminator: the PEAK of a real reporting interval outdoors is
-    // never exactly zero, however still the mean looks.
-    expect(skyXWindIsMeasuring(0, 0.9)).toBe(true);
+  it('a stopped unit is still caught, by the 24 h check and not by one report', () => {
+    // What used to be the parser's job: in August the unit sat indoors sending 0/0
+    // for a week. The stuck-anemometer set nulls those zeros and keeps the raw value.
+    const out = applyQualityControl(readingFromSkyXReport(report()), new Set(['skyx_SKY100']));
+    expect(out.reading.windSpeed).toBeNull();
+    expect(out.windSpeedRaw).toBe(0);
   });
 
-  it('accepts ordinary wind', () => {
-    expect(skyXWindIsMeasuring(4.1, 7.3)).toBe(true);
+  it('turns the 9999 sentinel into null and never invents a direction', () => {
+    const r = readingFromSkyXReport(report({ wav: 4.1, wmax: 7.3, t: 9999 }));
+    expect(r.temperature).toBeNull();
+    expect(r.windSpeed).toBe(4.1);
+    expect(r.windGust).toBe(7.3);
+    expect(r.windDirection).toBeNull();
+    expect(r.stationId).toBe('skyx_SKY100');
   });
 });
 

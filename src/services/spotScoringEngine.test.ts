@@ -877,9 +877,10 @@ describe('skyx_SKY100 — back in the wind consensus', () => {
   // It sat in WIND_BLACKLIST while the owner had the anemometer out of service
   // (jammed, link dropping). The hardware is back, so the entry went; these
   // pin that it stays out of the blacklist. What made reinstating safe is
-  // elsewhere and tested there: a stopped anemometer arrives as null
-  // (`skyXWindIsMeasuring`) and a 24h-at-zero one is nulled by quality control
-  // (`readingQuality.test.ts`) — so a relapse cannot vote calm at 1.3x.
+  // elsewhere and tested there: a 24h-at-zero anemometer is nulled by quality
+  // control (`readingQuality.test.ts`), and with wind around it a lone zero takes
+  // the low-outlier weight — so a relapse cannot vote calm at 1.3x. Since 29-oct
+  // a single 0/0 report is calm, not null (`readingFromSkyXReport`).
   it('is not excluded from the wind consensus', () => {
     expect(isWindBlacklisted('skyx_SKY100')).toBe(false);
   });
