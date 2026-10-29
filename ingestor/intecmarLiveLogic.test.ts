@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { platformRows } from './intecmarLogic';
 import {
-  addRequest, dailyCap, describeDay, describePlatform, emptyLedger, INTECMAR_PLATFORMS, liveBuoyRow, liveEnabled,
+  addRequest, DAILY_CAP_DEFAULT, dailyCap, describeDay, describePlatform, emptyLedger, INTECMAR_PLATFORMS, liveBuoyRow, liveEnabled,
   liveIntervalMs, livePlan, liveReading, liveWindow, requestsLeft, rollLedger,
 } from './intecmarLiveLogic';
 import { OBS_STATIONS, parseObsResponse } from './buoyFetcher';
@@ -53,9 +53,10 @@ describe('livePlan', () => {
     expect(c.some((p) => p.parameterId === 10018)).toBe(true);
   });
 
-  it('fits 24 hourly passes, and even 72 (20 min), under the default cap of 1500 and 3000', () => {
-    expect(plan.length * 24).toBeLessThan(1500);
-    expect(plan.length * 72).toBeLessThan(3000);
+  it('fits 48 passes a day (every 30 min) and the night under the default cap of 3000', () => {
+    const night = 5 * 8 * 7; // every series of the night archive, a week behind: its worst case
+    expect(plan.length * 48 + night).toBeLessThan(DAILY_CAP_DEFAULT);
+    expect(DAILY_CAP_DEFAULT).toBeLessThanOrEqual(3000); // a third of the ~10,000 at which INTECMAR blocks
   });
 });
 
@@ -101,16 +102,16 @@ describe('environment', () => {
     for (const off of ['0', 'off', 'OFF', 'false', 'no', ' 0 ']) expect(liveEnabled(off)).toBe(false);
   });
 
-  it('INTECMAR_LIVE_MS defaults to 60 min and never goes below 10', () => {
-    expect(liveIntervalMs(undefined)).toBe(3_600_000);
-    expect(liveIntervalMs('abc')).toBe(3_600_000);
+  it('INTECMAR_LIVE_MS defaults to 30 min (agreed with INTECMAR on 29-oct) and never goes below 10', () => {
+    expect(liveIntervalMs(undefined)).toBe(1_800_000);
+    expect(liveIntervalMs('abc')).toBe(1_800_000);
     expect(liveIntervalMs('3600000')).toBe(3_600_000);
     expect(liveIntervalMs('60000')).toBe(600_000);
   });
 
-  it('INTECMAR_MAX_REQUESTS_PER_DAY defaults to 1500', () => {
-    expect(dailyCap(undefined)).toBe(1500);
-    expect(dailyCap('-5')).toBe(1500);
+  it('INTECMAR_MAX_REQUESTS_PER_DAY defaults to 3000', () => {
+    expect(dailyCap(undefined)).toBe(3000);
+    expect(dailyCap('-5')).toBe(3000);
     expect(dailyCap('5000')).toBe(5000);
   });
 });

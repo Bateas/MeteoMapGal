@@ -66,25 +66,27 @@ export function liveWindow(nowMs: number): { begin: string; end: string } {
 
 // ── Environment ─────────────────────────────────────────
 
-/** Hourly: INTECMAR said (21-oct) an hourly query is more than enough. We asked whether 20-30 min would be
- *  acceptable; until they answer, the default is what they said. Below 10 minutes there is nothing new to read. */
-export const LIVE_DEFAULT_MS = 60 * 60_000;
+/** Every 30 min: INTECMAR answered in writing on 29-oct that «cada 30 minutos está perfecto» (on 21-oct they had
+ *  said hourly was enough, and we asked about 20-30). Below 10 minutes there is nothing new to read. */
+export const LIVE_DEFAULT_MS = 30 * 60_000;
 export const LIVE_MIN_MS = 10 * 60_000;
-export const DAILY_CAP_DEFAULT = 1500;
+/** 48 live passes of 37 requests (~1,800) plus the night stay under it, with room for the retries of a bad
+ *  day; still under a third of the ~10,000 a day at which INTECMAR blocks the account. */
+export const DAILY_CAP_DEFAULT = 3000;
 
 /** INTECMAR_LIVE: '0', 'off', 'false' or 'no' switch the live feed off; anything else (or unset) leaves it on. */
 export function liveEnabled(raw: string | undefined): boolean {
   return !['0', 'off', 'false', 'no'].includes((raw ?? '').trim().toLowerCase());
 }
 
-/** INTECMAR_LIVE_MS in milliseconds; unreadable → 60 min; never below 10 min. */
+/** INTECMAR_LIVE_MS in milliseconds; unreadable → 30 min; never below 10 min. */
 export function liveIntervalMs(raw: string | undefined): number {
   const n = Number(raw);
   if (raw == null || raw.trim() === '' || !Number.isFinite(n) || n <= 0) return LIVE_DEFAULT_MS;
   return Math.max(LIVE_MIN_MS, Math.round(n));
 }
 
-/** INTECMAR_MAX_REQUESTS_PER_DAY; unreadable → 1500. INTECMAR blocks the account near 10,000 a day. */
+/** INTECMAR_MAX_REQUESTS_PER_DAY; unreadable → 3000. INTECMAR blocks the account near 10,000 a day. */
 export function dailyCap(raw: string | undefined): number {
   const n = Number(raw);
   if (raw == null || raw.trim() === '' || !Number.isFinite(n) || n <= 0) return DAILY_CAP_DEFAULT;

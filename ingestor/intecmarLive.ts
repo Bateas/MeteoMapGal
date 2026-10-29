@@ -1,6 +1,6 @@
 /**
  * Live readings of the Observatorio Costeiro platforms from api.intecmar.gal (21-oct-2026: INTECMAR no
- * longer offers them through MeteoGalicia). Every INTECMAR_LIVE_MS (default 60 min, never below 10) it
+ * longer offers them through MeteoGalicia). Every INTECMAR_LIVE_MS (default 30 min, as agreed with INTECMAR on 29-oct; never below 10) it
  * asks only the series the map and the engine read (intecmarLiveLogic.livePlan: 37 requests), over today
  * UTC (and yesterday before 01:00 UTC), and:
  *   - keeps one reading per platform, with the shape of the MeteoGalicia path and source 'intecmar';

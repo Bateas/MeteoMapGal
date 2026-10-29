@@ -672,8 +672,8 @@ async function start(): Promise<void> {
   setTimeout(() => { void runIntecmarArchive(); }, 300_000);
   intecmarTimer = setInterval(() => { void runIntecmarArchive(); }, INTECMAR_CHECK_MS);
 
-  // The platforms in real time from INTECMAR itself (intecmarLive.ts), every INTECMAR_LIVE_MS (60 min by
-  // default; INTECMAR_LIVE=0 switches it off). Fire-and-forget: the buoy step of each poll merges the
+  // The platforms in real time from INTECMAR itself (intecmarLive.ts), every INTECMAR_LIVE_MS (30 min by
+  // default, agreed with INTECMAR; INTECMAR_LIVE=0 switches it off). Fire-and-forget: the buoy step of each poll merges the
   // newest rows it kept. 45s stagger so the first rows are there for the second poll.
   setTimeout(() => { void runIntecmarLive(obsCosteiroLastTimes()); }, 45_000);
   intecmarLiveTimer = setInterval(() => { void runIntecmarLive(obsCosteiroLastTimes()); }, intecmarLiveIntervalMs());
