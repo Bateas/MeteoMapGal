@@ -2,7 +2,7 @@
  * Guard for the ingestor → frontend code boundary.
  *
  * The ingestor deliberately shares PURE logic with the frontend instead of
- * duplicating it (skyXWindIsMeasuring, predictCesantesCanalization, the
+ * duplicating it (readingFromSkyXReport, predictCesantesCanalization, the
  * scoring gates...), so the map and the 24/7 analyzer cannot disagree. The
  * price of sharing is a boundary that must hold:
  *
