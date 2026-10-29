@@ -15,6 +15,7 @@ Disallow: /noaa-api/
 Disallow: /opensky-api/
 Disallow: /swan-api/
 Disallow: /api/
+Disallow: /equipo
 
 # Allow app assets and entry point
 Allow: /assets/
