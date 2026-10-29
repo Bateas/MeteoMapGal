@@ -1,7 +1,7 @@
 {
   "name": "meteomapgal",
   "private": true,
-  "version": "2.196.37",
+  "version": "2.196.38",
   "type": "module",
   "scripts": {
     "dev": "vite",
