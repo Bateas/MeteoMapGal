@@ -51,6 +51,10 @@ export interface AirspaceCheck {
 
 const DEFAULT_FLIGHT_ALT_M = 120;
 
+/** Highest ground in Galicia, Pena Trevinca (2,127 m), in feet and rounded up. A NOTAM whose floor (above
+ *  sea level or a flight level) is higher than this plus the drone ceiling cannot touch a drone anywhere here. */
+const GALICIA_MAX_TERRAIN_FT = 7000;
+
 // ── Point-in-polygon (ray-casting) ─────────────────────────
 // Simple algorithm — works for convex/concave polygons without holes.
 // Sufficient for ENAIRE UAS zones which are simple polygons.
@@ -211,6 +215,9 @@ export function evaluateAirspace(
     // Skip NOTAMs whose floor is above drone flight altitude (120m AGL)
     // If lowerAltitudeAglFt > 0 and above our ceiling → doesn't affect drones
     if (notam.lowerAltitudeAglFt > 0 && notam.lowerAltitudeAglFt > flightAltitudeFt) continue;
+    // A floor given above sea level or as a flight level (FL120 = 12,000 ft): out of reach if even over
+    // the highest ground it stays above the drone ceiling.
+    if (notam.lowerAltitudeFt > flightAltitudeFt + GALICIA_MAX_TERRAIN_FT) continue;
 
     // Distance check (NOTAMs are relevant within sector radius)
     let inRange = false;
