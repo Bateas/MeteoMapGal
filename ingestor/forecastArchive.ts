@@ -89,8 +89,21 @@ export async function writeArchiveRows(rows: ArchiveRow[]): Promise<number> {
   return res.rowCount ?? 0;
 }
 
+/**
+ * The API serves forecasts with the same code but does not archive them: it will run with its own
+ * database user, which can only write what visitors send (reports, storm predictions, push
+ * subscriptions). Nothing is lost: the ingestor refreshes every hour and rows are stamped with the issue
+ * hour, so an API refresh in the same hour only collided with the ingestor's (ON CONFLICT DO NOTHING).
+ */
+let archiving = true;
+
+export function stopForecastArchive(): void {
+  archiving = false;
+}
+
 /** Called after a successful refresh. Never throws, never blocks the caller. */
 export function archiveForecast(sector: string, model: string, fetchedAt: Date, hours: HourlyForecast[]): void {
+  if (!archiving) return;
   let rows: ArchiveRow[];
   try {
     rows = buildArchiveRows(sector, model, fetchedAt, hours);
