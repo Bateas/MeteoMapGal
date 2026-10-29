@@ -10,8 +10,10 @@ vi.mock('./meteogaliciaClient', () => ({ fetchStationList: vi.fn(async () => [])
 vi.mock('./meteoclimaticClient', () => ({ fetchMeteoclimaticFeed: vi.fn(async () => []) }));
 vi.mock('./wundergroundClient', () => ({
   fetchWUNearbyStations: vi.fn(async () => []),
-  // Our own list unavailable, so these runs take the direct WU path this test counts.
+  // Our own list unavailable, so these runs take the direct WU path this test counts
+  // (development: in production there is no direct path).
   fetchWUStationsFromApi: vi.fn(async () => null),
+  WU_DIRECT: true,
 }));
 vi.mock('./netatmoClient', () => ({
   fetchNetatmoStations: vi.fn(async () => []),

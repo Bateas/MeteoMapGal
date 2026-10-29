@@ -16,9 +16,15 @@ import { WU_UNITS, wuMetricFields, type WuMetric } from './wundergroundUnits';
 // Used ONLY for station discovery (location/near). Observations go via ingestor.
 // NOT a credential leak: appears verbatim in any wunderground.com page source.
 // Removing this fallback BROKE discovery (see commits 9f07f33 → 58ea5ca). Do NOT remove.
+// Since v2.198.5 it is used only in development (WU_DIRECT): production reads our server's list.
 const WU_PUBLIC_KEY = 'e1f10a1e78da46f5b10a1e78da96f525';
 const API_KEY = import.meta.env.VITE_WU_API_KEY ?? '';
 const BASE_URL = 'https://api.weather.com';
+
+/** Ask WU straight from the browser only when running without our service. In production every
+ *  visitor would hand their address to a third party, with the key in the URL, and with WU
+ *  silent (21-oct-2026) each Rías visit made 15 lookups that came back with nothing. */
+export const WU_DIRECT = import.meta.env.DEV;
 
 // ── Types ────────────────────────────────────────────────
 

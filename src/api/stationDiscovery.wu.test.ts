@@ -1,10 +1,13 @@
 /**
- * Wunderground discovery reads the list our server keeps and only asks api.weather.com when
- * that list cannot be read. Before, every new visitor to the Rías cost 15 requests to WU under
- * a key all visitors share.
+ * Wunderground discovery reads the list our server keeps. Only in development, when that list
+ * cannot be read, does it ask api.weather.com: in production that handed every visitor's
+ * address to WU, with the key in the URL, and with WU silent since 21-oct each Rías visit made
+ * 15 lookups that came back with nothing.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { NormalizedStation } from '../types/station';
+
+const direct = vi.hoisted(() => ({ value: true }));
 
 vi.mock('./aemetClient', () => ({ fetchStationInventory: vi.fn(async () => []) }));
 vi.mock('./meteogaliciaClient', () => ({ fetchStationList: vi.fn(async () => []) }));
@@ -12,6 +15,7 @@ vi.mock('./meteoclimaticClient', () => ({ fetchMeteoclimaticFeed: vi.fn(async ()
 vi.mock('./wundergroundClient', () => ({
   fetchWUNearbyStations: vi.fn(async () => []),
   fetchWUStationsFromApi: vi.fn(async () => null),
+  get WU_DIRECT() { return direct.value; },
 }));
 vi.mock('./netatmoClient', () => ({
   fetchNetatmoStations: vi.fn(async () => []),
@@ -35,6 +39,16 @@ describe('Wunderground discovery', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearSectorStationsCache();
+    direct.value = true;
+  });
+
+  it('in production never asks WU, even when our list holds nothing current', async () => {
+    direct.value = false;
+    vi.mocked(fetchWUStationsFromApi).mockResolvedValue(null);
+    const r = await discoverStations(rias);
+
+    expect(fetchWUNearbyStations).not.toHaveBeenCalled();
+    expect(r.filter((s) => s.source === 'wunderground')).toEqual([]);
   });
 
   it('takes the stations from our list and never asks WU when the list is there', async () => {

@@ -3,7 +3,7 @@ import { fetchStationInventory } from './aemetClient';
 import { fetchListedAemetStations } from './aemetFromApi';
 import { fetchStationList } from './meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from './meteoclimaticClient';
-import { fetchWUNearbyStations, fetchWUStationsFromApi } from './wundergroundClient';
+import { fetchWUNearbyStations, fetchWUStationsFromApi, WU_DIRECT } from './wundergroundClient';
 import { fetchNetatmoStations, netatmoStationsInRadius, NETATMO_DIRECT } from './netatmoClient';
 import { fetchListedStations } from './stationListClient';
 import { normalizeAemetStation, normalizeMeteoGaliciaStation, normalizeMeteoclimaticStation } from '../services/normalizer';
@@ -146,15 +146,16 @@ export async function discoverStations(params: DiscoveryParams): Promise<Normali
 }
 
 /**
- * Wunderground stations for a sector. First from the list our own server keeps (one request,
- * shared by both sectors and at the edge); only if that cannot be read, straight from WU as
- * before: the centre plus one lookup per extra coverage point, because WU's nearby search
- * returns just the ten closest stations to each point. Both come back unfiltered — the radius
- * and coverage checks below apply to either.
+ * Wunderground stations for a sector, from the list our own server keeps (one request, shared
+ * by both sectors and at the edge). Straight from WU only in development, without our service:
+ * the centre plus one lookup per extra coverage point, because WU's nearby search returns just
+ * the ten closest stations to each point. Both come back unfiltered — the radius and coverage
+ * checks below apply to either.
  */
 async function discoverWU(params: DiscoveryParams): Promise<NormalizedStation[]> {
   const listed = await shared('wu-list', fetchWUStationsFromApi);
   if (listed) return listed;
+  if (!WU_DIRECT) return [];
   const lookups = await Promise.allSettled([
     fetchWUNearbyStations(params.center, params.radiusKm),
     ...(params.extraCoveragePoints ?? []).map((p) => fetchWUNearbyStations([p.lon, p.lat], 10)),

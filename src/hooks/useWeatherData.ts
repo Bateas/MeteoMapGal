@@ -8,7 +8,7 @@ import { fetchAemetFromApi, GALICIA_VIS_IDS } from '../api/aemetFromApi';
 import { fetchLatestForStations } from '../api/meteogaliciaClient';
 import { fetchMeteoclimaticFeed } from '../api/meteoclimaticClient';
 import { fetchLatestReadings, historyToNormalized } from '../api/historyClient';
-import { fetchWUObservations } from '../api/wundergroundClient';
+import { fetchWUObservations, WU_DIRECT } from '../api/wundergroundClient';
 import { fetchNetatmoObservations, NETATMO_DIRECT } from '../api/netatmoClient';
 import { fetchSkyXReading } from '../api/skyxClient';
 import { fetchIpmaData } from '../api/ipmaClient';
@@ -218,7 +218,9 @@ export function useWeatherData() {
           onSourceReadings(readings);
           return readings;
         }).catch((ingestorErr) => {
-          // Fallback: direct WU API (dev or ingestor unavailable)
+          // Straight to WU only in development. In production the direct path asked nobody
+          // (no key) and still reported WU as working with 0 readings; now it is marked down.
+          if (!WU_DIRECT) throw ingestorErr;
           console.warn('[WeatherData] WU ingestor failed, trying direct:', (ingestorErr as Error).message);
           return fetchWUObservations(wuStationIds).then((readings) => {
             updateSourceStatus('wunderground', true, readings.length);
@@ -231,6 +233,10 @@ export function useWeatherData() {
           return [];
         })
       );
+    } else {
+      // Both sectors always had dozens of WU stations: none with a recent reading means WU is
+      // silent (21-oct-2026, the shared key throttled). Say it, instead of «Esperando...» forever.
+      updateSourceStatus('wunderground', false, 0, 'Ninguna estación con lectura reciente');
     }
 
     // Netatmo — ingestor API first, fallback to direct Netatmo API
