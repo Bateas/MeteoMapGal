@@ -72,6 +72,7 @@ import { getPool } from './db.js';
 import { clientKeyOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards.js';
 import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta, type ObserverLabRow } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
+import { stopForecastArchive } from './forecastArchive.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup, makeRoomForNewSubscription } from './pushDispatcher.js';
 import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effisFetcher.js';
@@ -1728,6 +1729,8 @@ async function start(): Promise<void> {
   // 1. Initialize database pool. 30 s per statement: the heaviest route measured so far
   // (grouping the whole readings table) took 9.8 s; nothing legitimate needs more.
   initPool({ statementTimeoutMs: 30_000 });
+  // The forecasts this process fetches are archived by the ingestor, not here (forecastArchive.ts).
+  stopForecastArchive();
   const dbOk = await pingDb();
   if (!dbOk) {
     log.error('Cannot connect to TimescaleDB — check .env configuration');

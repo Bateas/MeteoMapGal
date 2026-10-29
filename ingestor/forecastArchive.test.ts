@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { buildArchiveRows, MAX_LEAD_H } from './forecastArchive';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('./db.js', () => ({ getPool: vi.fn(() => ({ query: vi.fn(async () => ({ rowCount: 0 })) })) }));
+
+import { getPool } from './db.js';
+import { archiveForecast, buildArchiveRows, MAX_LEAD_H, stopForecastArchive } from './forecastArchive';
 import type { HourlyForecast } from '../src/types/forecast';
 
 const H = 3_600_000;
@@ -43,5 +47,17 @@ describe('buildArchiveRows', () => {
   it('skips hours with an invalid time instead of throwing', () => {
     const rows = buildArchiveRows('rias', 'om', new Date('2026-09-24T10:00:00Z'), [{ time: new Date('nope') } as HourlyForecast]);
     expect(rows).toEqual([]);
+  });
+});
+
+describe('archiveForecast', () => {
+  it('writes nothing once stopped: the API leaves the archive to the ingestor', () => {
+    const now = Date.now();
+    const hours = [hour(new Date(now + 2 * H).toISOString())];
+    archiveForecast('rias', 'wrf', new Date(now), hours);
+    expect(getPool).toHaveBeenCalledTimes(1);
+    stopForecastArchive();
+    archiveForecast('rias', 'wrf', new Date(now), hours);
+    expect(getPool).toHaveBeenCalledTimes(1);
   });
 });
