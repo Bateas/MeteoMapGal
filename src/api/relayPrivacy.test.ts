@@ -59,6 +59,16 @@ describe('third-party relays send no visitor data', () => {
     }
   });
 
+  it('the relays answer CORS only for the production site', async () => {
+    // In development the relays go through the Vite proxy (same origin), so a local
+    // origin here would only serve pages running on some visitor's own machine.
+    const conf: string = (await fs.readFile(path.join(ROOT, 'nginx.conf'), 'utf8')).replace(/\r\n/g, '\n');
+    const map = conf.match(/map \$http_origin \$cors_origin \{([\s\S]*?)\n\}/);
+    expect(map).not.toBeNull();
+    const origins = [...map![1].matchAll(/"(https?:\/\/[^"]+)"/g)].map((m) => m[1]);
+    expect(origins).toEqual(['https://meteomapgal.navia3d.com']);
+  });
+
   it('the static routes with their own add_header keep nosniff', async () => {
     const conf: string = (await fs.readFile(path.join(ROOT, 'nginx.conf'), 'utf8')).replace(/\r\n/g, '\n');
     for (const loc of ['/assets/', '/sw.js', '/manifest.json']) {
