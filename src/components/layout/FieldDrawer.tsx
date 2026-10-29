@@ -778,7 +778,8 @@ function DroneSection({ alerts, forecast }: { alerts: FieldAlerts; forecast?: Ho
               border: `1px solid ${d.flyable ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'}`,
             }}
           >
-            {d.flyable ? 'APTO PARA VOLAR' : 'NO RECOMENDADO'}
+            {/* The weather only: it says nothing about airspace (that is the next section), so never «apto para volar». */}
+            {d.flyable ? 'TIEMPO APTO' : 'NO RECOMENDADO'}
           </span>
         </div>
 
