@@ -300,5 +300,31 @@ if [ "$NGINX_CHANGED" = true ]; then
     echo
 fi
 
+# ── Service hardening (ingestor/*.endurecido.conf) ────
+# The installed drop-in must be the one in the repo, and the shared .env, once
+# both services read their own file from /etc/meteomapgal, only serves the way
+# back and only root may read it: a service user that could read it would get
+# every key back through dotenv.
+for svc in meteo-api meteo-ingestor; do
+    installed="/etc/systemd/system/$svc.service.d/endurecido.conf"
+    if [ -f "$installed" ] && ! cmp -s "$REPO/ingestor/$svc.endurecido.conf" "$installed"; then
+        echo "AVISO: $installed no es el del repositorio. Copiarlo, systemctl daemon-reload y reiniciar $svc:"
+        echo "     install -m 644 $REPO/ingestor/$svc.endurecido.conf $installed"
+        echo
+    fi
+done
+OLD_ENV="$REPO/ingestor/.env"
+if [ -f "$OLD_ENV" ]; then
+    if [ -n "$(find "$OLD_ENV" -perm /044 2>/dev/null)" ]; then
+        echo "AVISO: $OLD_ENV lo pueden leer otros usuarios: chown root:root y chmod 600."
+        echo
+    fi
+    if [ -f /etc/meteomapgal/api.env ] && [ -f /etc/meteomapgal/ingestor.env ]; then
+        echo "Nota: los dos servicios leen /etc/meteomapgal/; $OLD_ENV solo sirve para volver atrás."
+        echo "     Tras una semana sin problemas, se puede borrar."
+        echo
+    fi
+fi
+
 echo "✅ Deploy complete: $OLD_VERSION → $NEW_VERSION"
 echo "   Frontend hash: $(curl -s https://meteomapgal.navia3d.com/ 2>/dev/null | grep -oE 'main-[A-Za-z0-9_-]+\.js' || echo 'check manually')"
