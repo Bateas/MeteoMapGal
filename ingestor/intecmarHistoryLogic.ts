@@ -28,8 +28,15 @@ export interface HistorySeries {
 export const HISTORY_FIRST_MONTH = '2007-08';
 /** What we told INTECMAR (29-oct): at most about a thousand requests a night. */
 export const HISTORY_NIGHT_MAX = 1000;
-/** After the night archive (01 UTC), so it never competes with it. */
+/** Only at night: from 02 UTC (after the night archive, 01 UTC) to 07 UTC. A restart in the afternoon
+ *  waits for the night; a night that reaches 07 UTC stops and goes on the next one. */
 export const HISTORY_FIRST_HOUR_UTC = 2;
+export const HISTORY_LAST_HOUR_UTC = 7;
+
+export function inHistoryWindow(nowMs: number): boolean {
+  const h = new Date(nowMs).getUTCHours();
+  return h >= HISTORY_FIRST_HOUR_UTC && h < HISTORY_LAST_HOUR_UTC;
+}
 export const HISTORY_RETRY_MS = 7 * 86_400_000;
 export const HISTORY_MAX_ATTEMPTS = 3;
 /** Kept free above what the live feed still needs today. */
