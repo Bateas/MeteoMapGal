@@ -1218,6 +1218,49 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- ── INTECMAR history: hourly values of the platforms since 2007 (intecmarHistory.ts) ──
+-- INTECMAR's own hourly aggregates (function AVG, and MAX for the wind = the hour's highest gust), a
+-- month of one series per request, at most a thousand requests a night. Kept as published: NULL where
+-- they publish -9999, with its quality code (codes of a year are final from the middle of the next one,
+-- when the history reads that year again). `time` as published (the first value of 2007 is 01:00).
+-- Same key as intecmar_platform, one-year chunks: ~10 M rows when complete.
+CREATE TABLE IF NOT EXISTS intecmar_platform_hourly (
+  time           TIMESTAMPTZ      NOT NULL,   -- UTC
+  station_code   INTEGER          NOT NULL,   -- as intecmar_platform, plus 15002 Cíes (dead since 4-dec-2025)
+  parameter_id   INTEGER          NOT NULL,
+  func           TEXT             NOT NULL,   -- AVG, MAX
+  depth_m        DOUBLE PRECISION NOT NULL,
+  parameter_code TEXT             NOT NULL,
+  value          DOUBLE PRECISION,
+  quality_code   SMALLINT,
+  fetched_at     TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (station_code, parameter_id, func, depth_m, time)
+);
+SELECT create_hypertable('intecmar_platform_hourly', 'time', chunk_time_interval => INTERVAL '1 year', if_not_exists => TRUE);
+GRANT SELECT, INSERT, UPDATE ON intecmar_platform_hourly TO meteomap_app;
+
+-- What the history has asked, month by month: the job's whole state (it goes on where it stopped) and
+-- what Grafana shows. status: ok (stored), empty (no value at all that month), error (retried a week
+-- later, 3 times at most; `attempts` counts the failures).
+CREATE TABLE IF NOT EXISTS intecmar_history_months (
+  station_code   INTEGER     NOT NULL,
+  parameter_id   INTEGER     NOT NULL,
+  func           TEXT        NOT NULL,
+  month          DATE        NOT NULL,       -- first day of the month (UTC)
+  status         TEXT        NOT NULL,
+  hourly_rows    INTEGER     NOT NULL DEFAULT 0,
+  attempts       INTEGER     NOT NULL DEFAULT 0,
+  error          TEXT,
+  fetched_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (station_code, parameter_id, func, month)
+);
+GRANT SELECT, INSERT, UPDATE ON intecmar_history_months TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON intecmar_platform_hourly, intecmar_history_months TO grafana_ro;
+  END IF;
+END $$;
+
 -- ── MeteoGalicia 2 m wind, SHADOW archive (mgAuxArchive.ts) ───────────────
 -- 39 MeteoGalicia stations (most of the 19xxx agro-meteorological series: Prado 19032 next to the
 -- Castrelo reservoir, EVEGA Leiro 19026, Cequeliños 19048...) measure wind ONLY at 2 m, among the

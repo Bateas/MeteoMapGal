@@ -1,6 +1,7 @@
 /**
  * Requests to the Observatorio Costeiro's API (https://api.intecmar.gal), shared by the live feed
- * (intecmarLive.ts) and the night archive (intecmarArchive.ts): one session, one pace, one daily count.
+ * (intecmarLive.ts), the night archive (intecmarArchive.ts) and the history (intecmarHistory.ts): one
+ * session, one pace, one daily count.
  *
  * The account: the project's free registration at apiweb.intecmar.gal. Its user and
  * password live only in `ingestor/.env` (INTECMAR_USER, INTECMAR_PASSWORD) and are never printed.
@@ -44,7 +45,7 @@ export class IntecmarHttpError extends Error {
 }
 
 /** Who asks: counted apart in the daily ledger. */
-export type IntecmarTag = 'vivo' | 'noche';
+export type IntecmarTag = 'vivo' | 'noche' | 'historico';
 
 /** One pass of a caller (a live pass, a night): it may log in again once, never per request. */
 export interface IntecmarPass {
