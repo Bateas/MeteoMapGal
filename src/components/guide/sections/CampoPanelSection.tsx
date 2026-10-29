@@ -141,14 +141,14 @@ export function CampoPanelSection() {
           title="Vuelo Dron"
           color="#a855f7"
           items={[
-            { label: 'Estado', desc: 'Badge Apto / Precaución con razón principal' },
-            { label: 'Viento', desc: 'Velocidad y rachas actuales. > 15 kt = precaución' },
-            { label: 'Precipitación', desc: 'Lluvia activa o prevista = precaución' },
-            { label: 'Espacio aéreo', desc: 'Zonas UAS + NOTAMs de ENAIRE. Restricciones automáticas.' },
+            { label: 'Estado', desc: 'TIEMPO APTO o NO RECOMENDADO, con los motivos' },
+            { label: 'Viento', desc: 'Velocidad y rachas previstas. Más de 15 kt de viento o 18 kt de racha = no recomendado' },
+            { label: 'Lluvia y tormenta', desc: 'Lluvia prevista o riesgo de tormenta = no recomendado' },
+            { label: 'Espacio aéreo', desc: 'Una zona prohibida o un NOTAM de cierre también lo hacen no recomendado. Las zonas que piden autorización y los NOTAM de zona restringida se ven en Espacio Aéreo ENAIRE.' },
           ]}
           levels={[
-            { level: 'Apto', condition: 'Viento < 15 kt, sin lluvia, sin restricciones' },
-            { level: 'Precaución', condition: 'Viento > 15 kt, lluvia, o zona con autorización requerida' },
+            { level: 'Tiempo apto', condition: 'Viento hasta 15 kt, rachas hasta 18 kt, sin lluvia ni tormenta. Es el tiempo, no un permiso de vuelo' },
+            { level: 'No recomendado', condition: 'Pasa alguno de esos límites, o hay zona prohibida o NOTAM de cierre' },
           ]}
         />
 
@@ -227,13 +227,14 @@ export function CampoPanelSection() {
           color="#6366f1"
           items={[
             { label: 'Zonas UAS (ZGUAS)', desc: 'Zonas de restricción UAS: prohibidas o con autorización requerida' },
-            { label: 'NOTAMs', desc: 'Avisos temporales de restricciones de vuelo (filtro ≤120m AGL)' },
+            { label: 'NOTAMs', desc: 'Avisos temporales del servicio de drones de ENAIRE que pueden afectar a un vuelo de hasta 120 m' },
             { label: 'Interacción', desc: 'Clic en zona/NOTAM en el drawer → zoom al centroide en el mapa' },
           ]}
           levels={[
-            { level: 'Sin restricción', condition: 'Ninguna zona UAS ni NOTAM activo' },
-            { level: 'Precaución', condition: 'Zona con autorización requerida o NOTAM informativo' },
-            { level: 'Prohibido', condition: 'Zona prohibida o NOTAM de restricción activa' },
+            { level: 'Sin restricciones', condition: 'ENAIRE responde y no hay zona UAS ni NOTAM aquí' },
+            { level: 'Requiere autorización', condition: 'Zona con autorización requerida, o NOTAM de zona restringida o segregada' },
+            { level: 'Zona prohibida', condition: 'Zona prohibida, o NOTAM de cierre o prohibición' },
+            { level: 'Sin dato', condition: 'ENAIRE no responde: no se sabe si hay restricciones, y no se da por libre' },
           ]}
         />
 

@@ -82,7 +82,7 @@ Bot de Telegram con resumen diario a las 9:00, cambios de viento por spot, torme
 | NASA FIRMS, Copernicus EFFIS | Focos e incendios activos |
 | ENAIRE, IGN, Copernicus Marine, OpenSeaMap | Espacio aéreo, cartografía, temperatura del mar, balizamiento |
 
-Cada fuente se cita en la app con su licencia. Algunas necesitan clave gratuita (AEMET, MeteoSIX, Observatorio Costeiro); se usan solo en el servidor.
+Cada fuente se cita en la app con su licencia. Algunas necesitan clave o cuenta gratuita (AEMET, MeteoSIX, Observatorio Costeiro, INTECMAR, Puertos del Estado); se usan solo en el servidor.
 
 ---
 
