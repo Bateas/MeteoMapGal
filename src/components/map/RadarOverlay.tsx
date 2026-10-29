@@ -223,6 +223,37 @@ export const RadarOverlay = memo(function RadarOverlay() {
   );
 });
 
+const SOURCE_ID = 'rainviewer-tiles';
+const LAYER_ID = 'rainviewer-raster';
+
+/**
+ * Adds the radar source and layer when missing (first mount, or after a setStyle wiped them).
+ * False while the style is still loading: MapLibre then throws «Style is not done loading», and
+ * with the radar animating every half second a base-map or theme switch hit that window and the
+ * whole map fell to its error screen (seen in production on 29-oct). The style.load listener
+ * installs it as soon as the style is ready.
+ */
+export function installRadarLayer(
+  map: Pick<maplibregl.Map, 'getSource' | 'addSource' | 'addLayer'>,
+  tileUrl: string,
+  opacity: number,
+): boolean {
+  if (map.getSource(SOURCE_ID)) return true;
+  try {
+    map.addSource(SOURCE_ID, { type: 'raster', tiles: [tileUrl], tileSize: 256, maxzoom: 7 });
+    map.addLayer({
+      id: LAYER_ID,
+      type: 'raster',
+      source: SOURCE_ID,
+      paint: { 'raster-opacity': opacity, 'raster-fade-duration': 300 },
+    });
+    return true;
+  } catch (err) {
+    if (/not done loading/i.test(String(err))) return false;
+    throw err;
+  }
+}
+
 /** RainViewer tile layer — updates tiles via map API without remounting */
 function RainViewerLayer({ tileUrl, opacity }: { tileUrl: string; opacity: number }) {
   const { current: mapInstance } = useMap();
@@ -235,24 +266,9 @@ function RainViewerLayer({ tileUrl, opacity }: { tileUrl: string; opacity: numbe
   tileUrlRef.current = tileUrl;
   opacityRef.current = opacity;
 
-  const SOURCE_ID = 'rainviewer-tiles';
-  const LAYER_ID = 'rainviewer-raster';
-
-  // Idempotent: adds the source + layer when missing (first mount, or after a setStyle wiped them).
+  // Idempotent, and waits for the style instead of throwing (installRadarLayer).
   const installLayer = useCallback((map: maplibregl.Map) => {
-    if (map.getSource(SOURCE_ID)) return;
-    map.addSource(SOURCE_ID, {
-      type: 'raster',
-      tiles: [tileUrlRef.current],
-      tileSize: 256,
-      maxzoom: 7,
-    });
-    map.addLayer({
-      id: LAYER_ID,
-      type: 'raster',
-      source: SOURCE_ID,
-      paint: { 'raster-opacity': opacityRef.current, 'raster-fade-duration': 300 },
-    });
+    installRadarLayer(map, tileUrlRef.current, opacityRef.current);
   }, []);
 
   // Mount / unmount only.
