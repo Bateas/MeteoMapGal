@@ -1,12 +1,20 @@
 import type http from 'node:http';
 import { log } from './logger.js';
 
-// CORS: allow frontend origins
-export const ALLOWED_ORIGINS = new Set([
-  'http://localhost:5173',           // Vite dev
-  'http://localhost:4173',           // Vite preview
-  'https://meteomapgal.navia3d.com', // Production
-]);
+// CORS: allow frontend origins. The local Vite ones only outside production
+// (the units set NODE_ENV=production): there they would let any page served on a
+// visitor's own machine call the API, and send it data, with that visitor's browser.
+export function allowedOrigins(nodeEnv: string | undefined): Set<string> {
+  return new Set([
+    'https://meteomapgal.navia3d.com', // Production
+    ...(nodeEnv === 'production' ? [] : [
+      'http://localhost:5173',         // Vite dev
+      'http://localhost:4173',         // Vite preview
+    ]),
+  ]);
+}
+
+export const ALLOWED_ORIGINS = allowedOrigins(process.env.NODE_ENV);
 
 export function corsHeaders(origin: string | undefined): Record<string, string> {
   const allowedOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : '';

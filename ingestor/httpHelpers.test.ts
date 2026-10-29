@@ -5,7 +5,19 @@
  */
 import { describe, it, expect } from 'vitest';
 import type http from 'node:http';
-import { json, error } from './httpHelpers';
+import { json, error, allowedOrigins } from './httpHelpers';
+
+describe('allowedOrigins', () => {
+  it('production accepts only the site itself', () => {
+    expect([...allowedOrigins('production')]).toEqual(['https://meteomapgal.navia3d.com']);
+  });
+
+  it('development also accepts the local Vite server', () => {
+    const dev = allowedOrigins(undefined);
+    expect(dev.has('https://meteomapgal.navia3d.com')).toBe(true);
+    expect(dev.has('http://localhost:5173')).toBe(true);
+  });
+});
 
 /** The two things these helpers do to a response: status and headers. */
 function fakeRes() {
