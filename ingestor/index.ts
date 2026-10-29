@@ -39,6 +39,7 @@ import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetc
 import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
 import { runMetarArchive, METAR_ARCHIVE_INTERVAL_MS } from './metarArchive.js';
 import { runIntecmarArchive, INTECMAR_CHECK_MS } from './intecmarArchive.js';
+import { runIntecmarHistory } from './intecmarHistory.js';
 import { runIntecmarLive, intecmarLiveIntervalMs } from './intecmarLive.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
@@ -111,6 +112,7 @@ let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
 let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
 let metarTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarTimer: ReturnType<typeof setInterval> | null = null;
+let intecmarHistoryTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarLiveTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
@@ -672,6 +674,11 @@ async function start(): Promise<void> {
   setTimeout(() => { void runIntecmarArchive(); }, 300_000);
   intecmarTimer = setInterval(() => { void runIntecmarArchive(); }, INTECMAR_CHECK_MS);
 
+  // The platforms' hourly record since 2007 (intecmarHistory.ts): after 02:00 UTC, at most a thousand
+  // requests a night, state in intecmar_history_months. Fire-and-forget: a night takes up to about an hour.
+  setTimeout(() => { void runIntecmarHistory(); }, 330_000);
+  intecmarHistoryTimer = setInterval(() => { void runIntecmarHistory(); }, INTECMAR_CHECK_MS);
+
   // The platforms in real time from INTECMAR itself (intecmarLive.ts), every INTECMAR_LIVE_MS (30 min by
   // default, agreed with INTECMAR; INTECMAR_LIVE=0 switches it off). Fire-and-forget: the buoy step of each poll merges the
   // newest rows it kept. 45s stagger so the first rows are there for the second poll.
@@ -707,6 +714,7 @@ async function shutdown(signal: string): Promise<void> {
   if (wrfPointTimer) clearInterval(wrfPointTimer);
   if (metarTimer) clearInterval(metarTimer);
   if (intecmarTimer) clearInterval(intecmarTimer);
+  if (intecmarHistoryTimer) clearInterval(intecmarHistoryTimer);
   if (intecmarLiveTimer) clearInterval(intecmarLiveTimer);
 
   // Close database pool

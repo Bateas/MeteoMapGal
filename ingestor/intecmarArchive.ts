@@ -50,8 +50,11 @@ const abortsPass = (err: unknown) => err instanceof IntecmarAuthError || err ins
 
 const P_COLS = 8;
 
-/** Upsert of platform rows; shared with the live feed. Values never change at INTECMAR, codes may be refreshed. */
-export async function insertPlatform(rows: PlatformRow[]): Promise<number> {
+/**
+ * Upsert of platform rows; shared with the live feed and, into the hourly table, with the history.
+ * Values never change at INTECMAR, codes may be refreshed (the yearly review).
+ */
+export async function insertPlatform(rows: PlatformRow[], table: 'intecmar_platform' | 'intecmar_platform_hourly' = 'intecmar_platform'): Promise<number> {
   let written = 0;
   for (let i = 0; i < rows.length; i += 1000) {
     const part = rows.slice(i, i + 1000);
@@ -61,7 +64,7 @@ export async function insertPlatform(rows: PlatformRow[]): Promise<number> {
       return `(${Array.from({ length: P_COLS }, (_, c) => `$${k * P_COLS + c + 1}`).join(',')})`;
     });
     const res = await getPool().query(
-      `INSERT INTO intecmar_platform (time, station_code, parameter_id, func, depth_m, parameter_code, value, quality_code)
+      `INSERT INTO ${table} (time, station_code, parameter_id, func, depth_m, parameter_code, value, quality_code)
        VALUES ${tuples.join(',')}
        ON CONFLICT (station_code, parameter_id, func, depth_m, time)
        DO UPDATE SET value = EXCLUDED.value, quality_code = EXCLUDED.quality_code, fetched_at = NOW()`,
