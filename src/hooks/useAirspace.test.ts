@@ -38,4 +38,25 @@ describe('useAirspace', () => {
     await waitFor(() => expect(fetchUasZones).toHaveBeenCalled());
     expect(fetchActiveNotams).toHaveBeenCalled();
   });
+
+  it('marks the part ENAIRE did not give, and keeps the part it gave', async () => {
+    vi.mocked(fetchUasZones).mockRejectedValueOnce(new Error('ENAIRE no responde (zonas UAS)'));
+    useUIStore.setState({ alphaMode: true });
+    renderHook(() => useAirspace());
+    await waitFor(() => expect(useAirspaceStore.getState().missing).toEqual({ zones: true, notams: false }));
+    const st = useAirspaceStore.getState();
+    expect(st.check).not.toBeNull();
+    expect(st.lastZoneFetch).toBe(0); // a failed part is asked again on the next poll
+    expect(st.lastNotamFetch).toBeGreaterThan(0);
+    // ...on the next poll, not at once: its own results must not run it again (that looped).
+    await new Promise((r) => setTimeout(r, 100));
+    expect(fetchUasZones).toHaveBeenCalledTimes(1);
+  });
+
+  it('nothing is missing when ENAIRE gives both parts', async () => {
+    useUIStore.setState({ alphaMode: true });
+    renderHook(() => useAirspace());
+    await waitFor(() => expect(useAirspaceStore.getState().check).not.toBeNull());
+    expect(useAirspaceStore.getState().missing).toEqual({ zones: false, notams: false });
+  });
 });

@@ -925,6 +925,7 @@ function AirspaceSection() {
   const airspaceCheck = useAirspaceStore((s) => s.check);
   const rawZones = useAirspaceStore((s) => s.zones);
   const loading = useAirspaceStore((s) => s.loading);
+  const missing = useAirspaceStore((s) => s.missing);
   const setFlyToTarget = useUIStore((s) => s.setFlyToTarget);
 
   if (loading && !airspaceCheck) {
@@ -935,13 +936,19 @@ function AirspaceSection() {
     );
   }
 
-  if (!airspaceCheck) {
+  if (!airspaceCheck || (missing.zones && missing.notams)) {
     return (
       <AlertSection icon={<WeatherIcon id="drone" size={14} />} title="Espacio Aéreo" level="none">
-        <p className="text-[11px] text-slate-500">Sin datos de espacio aéreo</p>
+        {missing.zones && missing.notams ? (
+          <EnaireUnavailableNote text="ENAIRE no responde: no sabemos si hay zonas restringidas ni NOTAM aquí." />
+        ) : (
+          <p className="text-[11px] text-slate-500">Sin datos de espacio aéreo</p>
+        )}
       </AlertSection>
     );
   }
+  // With a part missing, «no restriction found» is not «no restriction»: never green.
+  const unknown = airspaceCheck.severity === 'none' && (missing.zones || missing.notams);
 
   const level: AlertLevel =
     airspaceCheck.severity === 'prohibited' ? 'critico' :
@@ -950,21 +957,25 @@ function AirspaceSection() {
   const statusLabel =
     airspaceCheck.severity === 'prohibited' ? 'ZONA PROHIBIDA' :
     airspaceCheck.severity === 'caution' ? 'REQUIERE AUTORIZACIÓN' :
+    unknown ? 'SIN DATO' :
     'SIN RESTRICCIONES';
 
   const statusColor =
     airspaceCheck.severity === 'prohibited' ? '#ef4444' :
     airspaceCheck.severity === 'caution' ? '#f59e0b' :
+    unknown ? '#94a3b8' :
     '#22c55e';
 
   const statusBg =
     airspaceCheck.severity === 'prohibited' ? 'rgba(239,68,68,0.15)' :
     airspaceCheck.severity === 'caution' ? 'rgba(245,158,11,0.15)' :
+    unknown ? 'rgba(148,163,184,0.15)' :
     'rgba(34,197,94,0.15)';
 
   const statusBorder =
     airspaceCheck.severity === 'prohibited' ? 'rgba(239,68,68,0.3)' :
     airspaceCheck.severity === 'caution' ? 'rgba(245,158,11,0.3)' :
+    unknown ? 'rgba(148,163,184,0.3)' :
     'rgba(34,197,94,0.3)';
 
   return (
@@ -1032,14 +1043,31 @@ function AirspaceSection() {
           </div>
         )}
 
-        {/* No restrictions */}
-        {airspaceCheck.zones.length === 0 && airspaceCheck.notams.length === 0 && (
+        {missing.zones && (
+          <EnaireUnavailableNote text="Zonas UAS: ENAIRE no responde, no sabemos si hay zonas restringidas aquí." />
+        )}
+        {missing.notams && (
+          <EnaireUnavailableNote text="NOTAM: ENAIRE no responde, no sabemos si hay restricciones temporales." />
+        )}
+
+        {/* No restrictions: only when ENAIRE gave both parts */}
+        {!missing.zones && !missing.notams && airspaceCheck.zones.length === 0 && airspaceCheck.notams.length === 0 && (
           <p className="text-[11px] text-slate-500">
             No hay restricciones de espacio aéreo en esta zona
           </p>
         )}
       </div>
     </AlertSection>
+  );
+}
+
+/** ENAIRE did not answer: say what we don't know and where to look before flying. */
+function EnaireUnavailableNote({ text }: { text: string }) {
+  return (
+    <p className="text-[11px] text-slate-400 leading-snug">
+      {text}{' '}Antes de volar, consúltalo en{' '}
+      <a href="https://drones.enaire.es" target="_blank" rel="noopener noreferrer" className="text-blue-400 underline underline-offset-2">drones.enaire.es</a>.
+    </p>
   );
 }
 
