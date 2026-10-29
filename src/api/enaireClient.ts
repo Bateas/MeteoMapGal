@@ -3,7 +3,7 @@
  *
  * Two services (ArcGIS REST, no authentication, GeoJSON output):
  * 1. Zonas UAS (ZGUAS) — 4 layers: Aero, Infra, Medioambiente, Urbano
- * 2. NOTAMs activos — Active temporary flight restrictions
+ * 2. NOTAMs activos — the drone service (NOTAM_UAS_APP_V3): temporary areas for unmanned flight
  *
  * ⚠️ Subdomain difference:
  *   - UAS zones:  servais.enaire.es/insignia/...  (no S)
@@ -165,7 +165,12 @@ function firstLayerFailure(responses: PromiseSettledResult<ArcGISResponse>[]): u
 // ZEPA coverage use the MITECO WMS source instead (documented gotcha).
 const UAS_LAYERS = [0, 2, 3]; // 0 Infraestructuras, 2 Aero, 3 Urbano (1 Medioambiente dropped)
 const UAS_BASE = '/enaire-api/insignia/rest/services/NSF_SRV/SRV_UAS_ZG_V1/MapServer';
-const NOTAM_BASE = '/enaire-api/insignias/rest/services/InfoARES/NOTAM_APP_V3/MapServer';
+// NOTAMs: ENAIRE's drone service. The old InfoARES/NOTAM_APP_V3 no longer exists (it answers 200 with
+// «Service not found», 29-oct) and its failures were skipped, so the tab never had a NOTAM. The general
+// NOTAM/NOTAM_APP_V3 lists approach procedures and the like; NOTAM_UAS_APP_V3 is the one ENAIRE keeps for
+// drones (segregated areas for unmanned flight, air operations), areas only, in layer 1.
+const NOTAM_BASE = '/enaire-api/insignias/rest/services/NOTAM/NOTAM_UAS_APP_V3/MapServer';
+const NOTAM_LAYERS = [1];
 
 function buildQueryUrl(base: string, layer: number, bbox: [number, number, number, number]): string {
   const [minLon, minLat, maxLon, maxLat] = bbox;
@@ -271,9 +276,10 @@ function parseNotamFeature(f: ArcGISFeature): ActiveNotam | null {
     return null;
   }
 
-  // Parse dates — ENAIRE sends epoch ms or ISO strings
-  const startRaw = a['FECHA_INICIO'] ?? a['START_DATE'] ?? a['startDate'];
-  const endRaw = a['FECHA_FIN'] ?? a['END_DATE'] ?? a['endDate'];
+  // Parse dates — ENAIRE sends epoch ms or ISO strings. The current service puts them in the ICAO items:
+  // B (from) and C (until), in epoch ms; without them a NOTAM read as «from now, for 24 h».
+  const startRaw = a['FECHA_INICIO'] ?? a['START_DATE'] ?? a['startDate'] ?? a['itemB'];
+  const endRaw = a['FECHA_FIN'] ?? a['END_DATE'] ?? a['endDate'] ?? a['itemC'];
   const startDate = startRaw ? new Date(startRaw as number | string) : new Date();
   const endDate = endRaw ? new Date(endRaw as number | string) : new Date(Date.now() + 86400000);
 
@@ -282,14 +288,16 @@ function parseNotamFeature(f: ArcGISFeature): ActiveNotam | null {
 
   return {
     notamId: String(a['NOTAM_ID'] ?? a['notamId'] ?? a['ID'] ?? ''),
-    location: String(a['LOCALIZACION'] ?? a['LOCATION'] ?? a['location'] ?? ''),
-    description: String(a['DESCRIPCION'] ?? a['DESCRIPTION'] ?? a['itemE'] ?? a['ITEM_E'] ?? ''),
-    lowerAltitudeFt: Number(a['ALT_INF_FT'] ?? a['LOWER_FL'] ?? a['lowerAlt'] ?? 0),
-    upperAltitudeFt: Number(a['ALT_SUP_FT'] ?? a['UPPER_FL'] ?? a['upperAlt'] ?? 0),
-    lowerAltitudeAglFt: Number(a['ALT_INF_AGL_FT'] ?? a['LOWER_ALT_AGL'] ?? 0),
+    // Current service: item A = ICAO location, item E = the text (DESCRIPTION repeats the dates in
+    // HTML and arrives with a broken accent), LOWER_VAL/UPPER_VAL in feet, qcode in lower case.
+    location: String(a['LOCALIZACION'] ?? a['LOCATION'] ?? a['location'] ?? a['itemA'] ?? ''),
+    description: String(a['DESCRIPCION'] ?? a['itemE'] ?? a['ITEM_E'] ?? a['DESCRIPTION'] ?? ''),
+    lowerAltitudeFt: Number(a['ALT_INF_FT'] ?? a['LOWER_FL'] ?? a['lowerAlt'] ?? a['LOWER_VAL'] ?? 0),
+    upperAltitudeFt: Number(a['ALT_SUP_FT'] ?? a['UPPER_FL'] ?? a['upperAlt'] ?? a['UPPER_VAL'] ?? 0),
+    lowerAltitudeAglFt: Number(a['ALT_INF_AGL_FT'] ?? a['LOWER_ALT_AGL'] ?? a['LOWER_VAL_AGL'] ?? 0),
     startDate,
     endDate,
-    qcode: String(a['QCODE'] ?? a['Q_CODE'] ?? ''),
+    qcode: String(a['QCODE'] ?? a['Q_CODE'] ?? a['qcode'] ?? ''),
     geometry,
   };
 }
@@ -367,7 +375,7 @@ export async function fetchUasZones(
 
 /**
  * Fetch active NOTAMs for a bounding box.
- * Queries layers 0 (points) and 1 (areas) in parallel.
+ * Queries the drone service's area layer (NOTAM_LAYERS).
  * Cache: 30min.
  */
 export async function fetchActiveNotams(
@@ -388,7 +396,7 @@ export async function fetchActiveNotams(
 
   try {
     const responses = await Promise.allSettled(
-      [0, 1].map(layer =>
+      NOTAM_LAYERS.map(layer =>
         fetchWithRetry(buildQueryUrl(NOTAM_BASE, layer, bbox), { label: 'ENAIRE NOTAM', timeout: 15000, maxRetries: 1 })
           .then(r => {
             if (!r.ok) throw new Error(`HTTP ${r.status}`);

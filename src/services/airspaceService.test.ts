@@ -198,6 +198,25 @@ describe('evaluateAirspace — NOTAM detection', () => {
     expect(result.notams).toHaveLength(0);
   });
 
+  it('skips NOTAMs whose floor is a flight level out of drone reach (FL120)', () => {
+    const notam = makeNotam({ lowerAltitudeFt: 12000, upperAltitudeFt: 18000, lowerAltitudeAglFt: 0 });
+    const result = evaluateAirspace([-8.1, 42.3], 35, [], [notam]);
+
+    expect(result.notams).toHaveLength(0);
+  });
+
+  it('keeps a surface-up drone area (SFC to 400 ft) and marks it as caution', () => {
+    const notam = makeNotam({
+      geometry: makePolygon(-8.1, 42.3),
+      lowerAltitudeFt: 0, upperAltitudeFt: 400, qcode: 'RTCA',
+      description: 'TEMPO SEGREGATED AREA ACTIVATED FOR UNMANNED ACFT FLYING',
+    });
+    const result = evaluateAirspace([-8.1, 42.3], 35, [], [notam]);
+
+    expect(result.notams).toHaveLength(1);
+    expect(result.severity).toBe('caution');
+  });
+
   it('skips NOTAMs outside radius (point type)', () => {
     const notam = makeNotam({
       geometry: { type: 'Point', coordinates: [-10.0, 44.0] }, // far away

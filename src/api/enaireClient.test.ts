@@ -12,12 +12,24 @@ import {
 const BBOX: [number, number, number, number] = [-8.9, 42.1, -8.5, 42.4];
 const MIN = 60_000;
 
-type Answer = 'ok' | 'forbidden' | 'layer-error';
+type Answer = 'ok' | 'forbidden' | 'layer-error' | 'drone-notam';
+
+// A real one from ENAIRE's drone NOTAM service (29-oct), geometry shortened to its own corners.
+const DRONE_NOTAM = {
+  attributes: {
+    notamId: 'V48168/26', itemA: 'LECM', itemB: 1791441540000, itemC: 1794158580000,
+    itemE: 'TEMPO SEGREGATED AREA ACTIVATED FOR UNMANNED ACFT FLYING WI COORD: 420733N 0075823W - 420726N 0075736W CELANOVA, OURENSE',
+    DESCRIPTION: '<b>DESDE:</b>08/10/2026 06:39:00<br /><b>DESCRIPCI�N:</b>TEMPO SEGREGATED AREA',
+    LOWER_VAL: 0, UPPER_VAL: 400, LOWER_VAL_AGL: null, qcode: 'RTCA',
+  },
+  geometry: { rings: [[[-7.973, 42.126], [-7.960, 42.124], [-7.977, 42.084], [-8.004, 42.096], [-7.973, 42.126]]] },
+};
 let answers: (url: string) => Answer;
 const fetchMock = vi.fn(async (url: string) => {
   const a = answers(url);
   if (a === 'forbidden') return { ok: false, status: 403, json: async () => ({}) };
   if (a === 'layer-error') return { ok: true, status: 200, json: async () => ({ error: { message: 'Invalid query', code: 400 } }) };
+  if (a === 'drone-notam') return { ok: true, status: 200, json: async () => ({ features: [DRONE_NOTAM] }) };
   return { ok: true, status: 200, json: async () => ({ features: [] }) };
 });
 
@@ -75,6 +87,31 @@ describe('ENAIRE NOTAMs', () => {
     await expect(fetchActiveNotams(BBOX)).resolves.toEqual([]);
     later(95 * MIN); // 2 h 06 after the good answer, and past the 30 min pause
     await expect(fetchActiveNotams(BBOX)).rejects.toBeInstanceOf(EnaireUnavailableError);
+  });
+});
+
+describe('ENAIRE drone NOTAMs', () => {
+  it('are asked to the drone service, area layer only', async () => {
+    await fetchActiveNotams(BBOX);
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls).toHaveLength(1);
+    expect(urls[0]).toContain('/insignias/rest/services/NOTAM/NOTAM_UAS_APP_V3/MapServer/1/query?');
+    expect(urls[0]).not.toContain('InfoARES');
+  });
+
+  it('read dates, place, text and heights from the fields the service sends today', async () => {
+    answers = () => 'drone-notam';
+    const [n] = await fetchActiveNotams(BBOX);
+    expect(n.notamId).toBe('V48168/26');
+    expect(n.location).toBe('LECM');
+    // NOTAM times are UTC: item B 08/10/2026 06:39, item C 08/11/2026 17:23
+    expect(n.startDate.toISOString()).toBe('2026-10-08T06:39:00.000Z');
+    expect(n.endDate.toISOString()).toBe('2026-11-08T17:23:00.000Z');
+    expect(n.description).toMatch(/^TEMPO SEGREGATED AREA/); // item E, not the HTML copy
+    expect(n.lowerAltitudeFt).toBe(0);
+    expect(n.upperAltitudeFt).toBe(400);
+    expect(n.qcode).toBe('RTCA');
+    expect(n.geometry.type).toBe('Polygon');
   });
 });
 
