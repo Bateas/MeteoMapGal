@@ -10,6 +10,14 @@
  *   - NOTAMs:     servais.enaire.es/insignias/... (with S)
  *
  * Cache: zones 24h (semi-static), NOTAMs 30min (dynamic)
+ *
+ * An answer counts only when EVERY layer came back. If one fails, the result is
+ * not «no zones», it is «we don't know»: the function serves the last complete
+ * answer it has (zones within a week, NOTAMs within 2 h) or throws
+ * EnaireUnavailableError, and the drone tab says so instead of «sin
+ * restricciones». Before (28-oct, ENAIRE's firewall refusing our server) the
+ * failed layers were skipped, the empty list was taken as a good answer and the
+ * tab read «SIN RESTRICCIONES» in green.
  */
 import { fetchWithRetry } from './fetchWithRetry';
 
@@ -63,6 +71,16 @@ interface ArcGISResponse {
   error?: { message: string; code: number };
 }
 
+/** ENAIRE gave no complete answer and there is no recent complete one to serve. */
+export class EnaireUnavailableError extends Error {
+  readonly what: 'zones' | 'notams';
+  constructor(what: 'zones' | 'notams') {
+    super(`ENAIRE no responde (${what === 'zones' ? 'zonas UAS' : 'NOTAM'})`);
+    this.name = 'EnaireUnavailableError';
+    this.what = what;
+  }
+}
+
 // ── Cache ──────────────────────────────────────────────────
 
 const ZONE_CACHE_TTL = 24 * 60 * 60 * 1000;  // 24h
@@ -74,6 +92,11 @@ let zonesCachedAt = 0;
 let cachedNotams: ActiveNotam[] = [];
 let notamsCachedAt = 0;
 
+/** How old the last complete answer may be when ENAIRE fails now. Zones barely change;
+ *  a NOTAM list older than 2 h would be an old answer shown as the current one. */
+const ZONE_STALE_MAX_MS = 7 * 24 * 60 * 60 * 1000;
+const NOTAM_STALE_MAX_MS = 2 * 60 * 60 * 1000;
+
 // ── Circuit breaker ─────────────────────────────────────────
 // ENAIRE ArcGIS REST goes down periodically (auth.enaire.es maintenance,
 // CORS upstream changes, transient 5xx). Without a breaker every poll on
@@ -82,21 +105,31 @@ let notamsCachedAt = 0;
 // so an empty result for a few minutes is fine. Same pattern as
 // lightningClient.ts: one shared breaker for both UAS + NOTAM endpoints
 // (same upstream infrastructure → same failure modes correlate).
+// The pause doubles with each failure in a row (30 min, 1 h, 2 h, then 4 h at most):
+// an outage of days asks a handful of times a day per open page, not every poll.
 const ENAIRE_COOLDOWN_MS = 30 * 60_000;
+const ENAIRE_COOLDOWN_MAX_MS = 4 * 60 * 60_000;
 let enaireBreakerOpenUntil = 0;
+let enaireFailStreak = 0;
 
 function isEnaireBreakerOpen(): boolean {
   return Date.now() < enaireBreakerOpenUntil;
 }
 
+/** The pause after the given number of failures in a row. */
+export function enaireCooldownMs(failStreak: number): number {
+  return Math.min(ENAIRE_COOLDOWN_MAX_MS, ENAIRE_COOLDOWN_MS * 2 ** Math.max(0, failStreak - 1));
+}
+
 function tripEnaireBreaker(label: string, err: unknown): void {
-  const wasOpen = enaireBreakerOpenUntil > Date.now();
-  enaireBreakerOpenUntil = Date.now() + ENAIRE_COOLDOWN_MS;
-  if (!wasOpen) {
-    console.warn(`[${label}] Fetch error — breaker open ${ENAIRE_COOLDOWN_MS / 60_000} min:`, err);
+  enaireFailStreak += 1;
+  const pause = enaireCooldownMs(enaireFailStreak);
+  enaireBreakerOpenUntil = Date.now() + pause;
+  if (enaireFailStreak === 1) {
+    console.warn(`[${label}] Fetch error — breaker open ${pause / 60_000} min:`, err);
   }
   // After the first trip we log debug only so the F12 console doesn't
-  // accumulate one warn per visitor per failed poll for 30 min.
+  // accumulate one warn per visitor per failed poll.
 }
 
 function clearEnaireBreaker(): void {
@@ -104,6 +137,23 @@ function clearEnaireBreaker(): void {
     console.debug('[ENAIRE] breaker cleared by successful response');
   }
   enaireBreakerOpenUntil = 0;
+  enaireFailStreak = 0;
+}
+
+/** Tests only: forget the cache and the breaker, as a page reload does. */
+export function __resetEnaireForTests(): void {
+  cachedZones = []; zonesCachedAt = 0;
+  cachedNotams = []; notamsCachedAt = 0;
+  enaireBreakerOpenUntil = 0; enaireFailStreak = 0;
+}
+
+/** The first reason a layer gave no usable answer, or null when every layer answered. */
+function firstLayerFailure(responses: PromiseSettledResult<ArcGISResponse>[]): unknown {
+  for (const r of responses) {
+    if (r.status === 'rejected') return r.reason ?? new Error('layer failed');
+    if (r.value.error) return new Error(r.value.error.message);
+  }
+  return null;
 }
 
 // ── Proxy-aware URL builder ────────────────────────────────
@@ -254,14 +304,17 @@ function parseNotamFeature(f: ArcGISFeature): ActiveNotam | null {
 export async function fetchUasZones(
   bbox: [number, number, number, number],
 ): Promise<UasZone[]> {
-  if (cachedZones.length > 0 && Date.now() - zonesCachedAt < ZONE_CACHE_TTL) {
+  if (zonesCachedAt > 0 && Date.now() - zonesCachedAt < ZONE_CACHE_TTL) {
     return cachedZones;
   }
+  const staleZonesOrThrow = (): UasZone[] => {
+    if (zonesCachedAt > 0 && Date.now() - zonesCachedAt < ZONE_STALE_MAX_MS) return cachedZones;
+    throw new EnaireUnavailableError('zones');
+  };
 
-  // Breaker open — silently serve cache (or empty). Avoids hammering a dead
-  // endpoint with every poll across every visitor for 30 min.
+  // Breaker open — no request: the last complete answer, or «unavailable».
   if (isEnaireBreakerOpen()) {
-    return cachedZones;
+    return staleZonesOrThrow();
   }
 
   try {
@@ -276,6 +329,12 @@ export async function fetchUasZones(
       )
     );
 
+    const failure = firstLayerFailure(responses);
+    if (failure) {
+      tripEnaireBreaker('ENAIRE UAS', failure);
+      return staleZonesOrThrow();
+    }
+
     const zones: UasZone[] = [];
 
     // Label each zone with the ENAIRE layer it came from, not with its position in
@@ -285,10 +344,6 @@ export async function fetchUasZones(
       const layerIndex = UAS_LAYERS[i];
       if (result.status !== 'fulfilled') return;
       const data = result.value;
-      if (data.error) {
-        console.debug('[ENAIRE UAS] Layer error:', data.error.message);
-        return;
-      }
       if (!data.features) return;
 
       for (const feature of data.features) {
@@ -304,8 +359,9 @@ export async function fetchUasZones(
 
     return zones;
   } catch (err) {
+    if (err instanceof EnaireUnavailableError) throw err;
     tripEnaireBreaker('ENAIRE UAS', err);
-    return cachedZones; // Graceful fallback to stale cache
+    return staleZonesOrThrow();
   }
 }
 
@@ -317,13 +373,17 @@ export async function fetchUasZones(
 export async function fetchActiveNotams(
   bbox: [number, number, number, number],
 ): Promise<ActiveNotam[]> {
-  if (cachedNotams.length > 0 && Date.now() - notamsCachedAt < NOTAM_CACHE_TTL) {
+  if (notamsCachedAt > 0 && Date.now() - notamsCachedAt < NOTAM_CACHE_TTL) {
     return cachedNotams;
   }
+  const staleNotamsOrThrow = (): ActiveNotam[] => {
+    if (notamsCachedAt > 0 && Date.now() - notamsCachedAt < NOTAM_STALE_MAX_MS) return cachedNotams;
+    throw new EnaireUnavailableError('notams');
+  };
 
   // Same breaker as UAS — same upstream, same failure correlation.
   if (isEnaireBreakerOpen()) {
-    return cachedNotams;
+    return staleNotamsOrThrow();
   }
 
   try {
@@ -337,15 +397,17 @@ export async function fetchActiveNotams(
       )
     );
 
+    const failure = firstLayerFailure(responses);
+    if (failure) {
+      tripEnaireBreaker('ENAIRE NOTAM', failure);
+      return staleNotamsOrThrow();
+    }
+
     const notams: ActiveNotam[] = [];
 
     for (const result of responses) {
       if (result.status !== 'fulfilled') continue;
       const data = result.value;
-      if (data.error) {
-        console.debug('[ENAIRE NOTAM] Layer error:', data.error.message);
-        continue;
-      }
       if (!data.features) continue;
 
       for (const feature of data.features) {
@@ -369,8 +431,9 @@ export async function fetchActiveNotams(
 
     return unique;
   } catch (err) {
+    if (err instanceof EnaireUnavailableError) throw err;
     tripEnaireBreaker('ENAIRE NOTAM', err);
-    return cachedNotams; // Graceful fallback to stale cache
+    return staleNotamsOrThrow();
   }
 }
 

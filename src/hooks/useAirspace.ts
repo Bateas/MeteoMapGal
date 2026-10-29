@@ -10,6 +10,10 @@
  * fetch ran for every visitor: four ENAIRE queries and a NOTAM poll every
  * 30 minutes for a tab almost nobody opens. Turning alphaMode on fetches at
  * once; turning it off keeps what was fetched and stops polling.
+ *
+ * Zones and NOTAMs are asked separately: if ENAIRE gives one and not the other,
+ * the part it gave is still shown and the missing one is marked in
+ * airspaceStore.missing, so the tab says «sin dato» instead of «sin restricciones».
  */
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -38,14 +42,13 @@ export function useAirspace(): AirspaceCheck {
   const sectorCenter = useSectorStore((s) => s.activeSector.center);
   const sectorRadiusKm = useSectorStore((s) => s.activeSector.radiusKm);
   const check = useAirspaceStore((s) => s.check);
-  const lastZoneFetch = useAirspaceStore((s) => s.lastZoneFetch);
-  const lastNotamFetch = useAirspaceStore((s) => s.lastNotamFetch);
 
   const setZones = useAirspaceStore((s) => s.setZones);
   const setNotams = useAirspaceStore((s) => s.setNotams);
   const setCheck = useAirspaceStore((s) => s.setCheck);
   const setLoading = useAirspaceStore((s) => s.setLoading);
   const setError = useAirspaceStore((s) => s.setError);
+  const setMissing = useAirspaceStore((s) => s.setMissing);
   const reset = useAirspaceStore((s) => s.reset);
 
   const prevSectorId = useRef(sectorId);
@@ -58,43 +61,50 @@ export function useAirspace(): AirspaceCheck {
     }
   }, [sectorId, reset]);
 
-  // Fetch zones + NOTAMs and evaluate
+  // Fetch zones + NOTAMs and evaluate. The fetch times and the check are read from the store
+  // when it runs, not from the render: as dependencies, every result made a new callback and
+  // the effect below ran it again, and with a part ENAIRE keeps failing that never stopped.
   const fetchAndEvaluate = useCallback(async () => {
     const bbox = bboxFromCenter(sectorCenter, sectorRadiusKm);
     const now = Date.now();
+    const { lastZoneFetch, lastNotamFetch, check: current } = useAirspaceStore.getState();
 
     const needZones = now - lastZoneFetch > ZONE_CACHE_TTL;
     const needNotams = now - lastNotamFetch > NOTAM_CACHE_TTL;
 
-    if (!needZones && !needNotams && check) return;
+    if (!needZones && !needNotams && current) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const [zones, notams] = await Promise.all([
-        needZones ? fetchUasZones(bbox) : Promise.resolve(useAirspaceStore.getState().zones),
-        needNotams ? fetchActiveNotams(bbox) : Promise.resolve(useAirspaceStore.getState().notams),
+      const stored = useAirspaceStore.getState();
+      const [zonesR, notamsR] = await Promise.allSettled([
+        needZones ? fetchUasZones(bbox) : Promise.resolve(stored.zones),
+        needNotams ? fetchActiveNotams(bbox) : Promise.resolve(stored.notams),
       ]);
 
-      if (needZones) setZones(zones);
-      if (needNotams) setNotams(notams);
+      const missing = {
+        zones: zonesR.status === 'rejected' || (!needZones && stored.missing.zones),
+        notams: notamsR.status === 'rejected' || (!needNotams && stored.missing.notams),
+      };
+      const zones = zonesR.status === 'fulfilled' ? zonesR.value : [];
+      const notams = notamsR.status === 'fulfilled' ? notamsR.value : [];
 
-      const result = evaluateAirspace(
-        sectorCenter,
-        sectorRadiusKm,
-        zones,
-        notams,
-      );
+      if (needZones && zonesR.status === 'fulfilled') setZones(zones);
+      if (needNotams && notamsR.status === 'fulfilled') setNotams(notams);
+      setMissing(missing);
+      if (missing.zones || missing.notams) setError('ENAIRE no responde');
 
-      setCheck(result);
+      // A failed part counts as empty here; the tab reads `missing` and never calls that «sin restricciones».
+      setCheck(evaluateAirspace(sectorCenter, sectorRadiusKm, zones, notams));
     } catch (err) {
       console.warn('[useAirspace] Error:', err);
       setError(err instanceof Error ? err.message : 'Error fetching airspace data');
     } finally {
       setLoading(false);
     }
-  }, [sectorCenter, sectorRadiusKm, lastZoneFetch, lastNotamFetch, check, setZones, setNotams, setCheck, setLoading, setError]);
+  }, [sectorCenter, sectorRadiusKm, setZones, setNotams, setCheck, setLoading, setError, setMissing]);
 
   // Initial fetch on sector change, and as soon as alphaMode turns on
   useEffect(() => {
