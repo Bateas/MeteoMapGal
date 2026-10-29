@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   consolidatedFromMs, HISTORY_FIRST_MONTH, HISTORY_LIVE_MARGIN, HISTORY_MAX_ATTEMPTS, HISTORY_NIGHT_MAX, HISTORY_RETRY_MS,
-  historyBudget, historyPlan, historyQueue, lastCompleteMonth, liveReserve, monthBounds, monthRows, monthsBack, monthWindow,
+  historyBudget, historyPlan, historyQueue, inHistoryWindow, lastCompleteMonth, liveReserve, monthBounds, monthRows, monthsBack, monthWindow,
   type HistoryMonth, type HistorySeries,
 } from './intecmarHistoryLogic';
 import { platformPlan } from './intecmarLogic';
@@ -114,6 +114,16 @@ describe('the queue', () => {
 
   it('an empty month counts as done (the platform did not exist yet)', () => {
     expect(historyQueue([row('2008-01', { status: 'empty' })], NOW, ONE).some((t) => t.month === '2008-01')).toBe(false);
+  });
+});
+
+describe('the night window', () => {
+  it('works from 02 to 07 UTC only: a restart in the afternoon waits for the night', () => {
+    expect(inHistoryWindow(Date.parse('2026-10-29T01:59:00Z'))).toBe(false);
+    expect(inHistoryWindow(Date.parse('2026-10-29T02:00:00Z'))).toBe(true);
+    expect(inHistoryWindow(Date.parse('2026-10-29T06:59:00Z'))).toBe(true);
+    expect(inHistoryWindow(Date.parse('2026-10-29T07:00:00Z'))).toBe(false);
+    expect(inHistoryWindow(Date.parse('2026-10-29T18:35:00Z'))).toBe(false);
   });
 });
 

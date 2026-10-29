@@ -6,8 +6,8 @@
  * rules in intecmarHistoryLogic.ts; requests through the shared client (intecmarClient.ts), so it shares
  * the pace, the daily cap and the breaker with the live feed and the night archive.
  *
- * Checked every hour, it runs once per UTC day after 02:00 UTC (after the night archive), and again after
- * a restart with what is left of the night's budget. A month whose series has no value at all is noted
+ * Checked every hour, it runs only at night, between 02 and 07 UTC (after the night archive), once per
+ * UTC day, and again after a restart that night with what is left of its budget; at 07 UTC it stops. A month whose series has no value at all is noted
  * as empty and stores nothing (before a platform existed, or a sensor it never had); a month with values
  * is kept as published, -9999 included as NULL with its code, like the 10-minute archive. Without
  * credentials or with INTECMAR_HISTORY=0 it stays off. It never throws and never blocks the poll.
@@ -16,8 +16,8 @@ import { getPool } from './db.js';
 import { log } from './logger.js';
 import { insertPlatform } from './intecmarArchive.js';
 import { describeDay, liveEnabled, liveIntervalMs, livePlan } from './intecmarLiveLogic.js';
-import { HISTORY_FIRST_HOUR_UTC, historyBudget, historyPlan, historyQueue, liveReserve, monthRows, monthWindow,
-  type HistoryMonth, type HistoryStatus, type HistoryTask } from './intecmarHistoryLogic.js';
+import { historyBudget, historyPlan, historyQueue, liveReserve, monthRows, monthWindow,
+  inHistoryWindow, type HistoryMonth, type HistoryStatus, type HistoryTask } from './intecmarHistoryLogic.js';
 import { IntecmarAuthError, IntecmarBreakerError, IntecmarBudgetError, IntecmarSessionError, intecmarBreakerOpen,
   intecmarCredentials, intecmarGet, intecmarLedger, intecmarRequestsLeft, intecmarStopped, newPass } from './intecmarClient.js';
 
@@ -78,7 +78,7 @@ export async function runIntecmarHistory(nowMs = Date.now()): Promise<void> {
   }
   const now = new Date(nowMs);
   const day = now.toISOString().slice(0, 10);
-  if (now.getUTCHours() < HISTORY_FIRST_HOUR_UTC || attemptedDay === day || intecmarBreakerOpen(nowMs)) return;
+  if (!inHistoryWindow(nowMs) || attemptedDay === day || intecmarBreakerOpen(nowMs)) return;
   running = true;
   attemptedDay = day;
   const counts = { ok: 0, empty: 0, error: 0, rows: 0 };
@@ -101,7 +101,9 @@ export async function runIntecmarHistory(nowMs = Date.now()): Promise<void> {
       return;
     }
     const pass = newPass('historico');
+    let stoppedAtDawn = false;
     for (const t of queue.slice(0, budget)) {
+      if (!inHistoryWindow(Date.now())) { stoppedAtDawn = true; break; }
       asked++;
       try {
         const r = await askMonth(t, pass);
@@ -113,7 +115,7 @@ export async function runIntecmarHistory(nowMs = Date.now()): Promise<void> {
         await noteMonth(t, 'error', 0, (err as Error).message.slice(0, 200));
       }
     }
-    log.info(`[INTECMAR historico] noche: ${asked} peticiones (${counts.ok} meses con datos, ${counts.empty} vacios, ${counts.error} fallos), ${counts.rows} filas horarias; pendientes ${queue.length - asked} (total ${total} meses-serie de ${historyPlan().length} series); peticiones a INTECMAR hoy ${describeDay(intecmarLedger().ledger.current)}`);
+    log.info(`[INTECMAR historico] noche${stoppedAtDawn ? ' (cortada a las 07 UTC)' : ''}: ${asked} peticiones (${counts.ok} meses con datos, ${counts.empty} vacios, ${counts.error} fallos), ${counts.rows} filas horarias; pendientes ${queue.length - asked} (total ${total} meses-serie de ${historyPlan().length} series); peticiones a INTECMAR hoy ${describeDay(intecmarLedger().ledger.current)}`);
   } catch (err) {
     const e = err as { code?: string; message: string };
     if (e.code === '42P01') {
