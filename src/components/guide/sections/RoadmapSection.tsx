@@ -236,7 +236,34 @@ export function RoadmapSection() {
             </div>
           </label>
         </div>
+        {alphaMode && <TeamDeviceRow />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Marks this device as one of the team's, so its visits stay out of the audience
+ * panels. The server sets and removes the cookie (/equipo, /equipo/fuera) and sends
+ * the device back here; the page only reads it. A plain link on purpose: the
+ * installed app on iPhone keeps its own cookies and has no address bar.
+ */
+function TeamDeviceRow() {
+  const marked = document.cookie.split('; ').includes('mmg_equipo=1');
+  return (
+    <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/60 mt-3 flex flex-col gap-1">
+      <div className="text-[13px] font-bold text-slate-300">Dispositivo del equipo</div>
+      <p className="text-[11px] text-slate-400">
+        {marked
+          ? 'Este dispositivo está marcado: sus visitas no cuentan en la audiencia.'
+          : 'Márcalo solo si es del equipo: sus visitas dejarán de contar en la audiencia.'}
+      </p>
+      <a
+        href={marked ? '/equipo/fuera' : '/equipo'}
+        className="text-[12px] text-blue-400 hover:text-blue-300 underline underline-offset-2 self-start"
+      >
+        {marked ? 'Quitar la marca' : 'Marcar este dispositivo'}
+      </a>
     </div>
   );
 }
