@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type http from 'node:http';
-import { json, error, allowedOrigins, parseLimit } from './httpHelpers';
+import { json, error, allowedOrigins, parseLimit, readCapped, BodyTooLarge } from './httpHelpers';
 
 describe('allowedOrigins', () => {
   it('production accepts only the site itself', () => {
@@ -84,5 +84,34 @@ describe('parseLimit', () => {
     for (const bad of ['abc', '-5', '0', '1.5', '1e3', ' 7', '12abc', '9999999999']) {
       expect(parseLimit(bad, 2000, 10000)).toBeNull();
     }
+  });
+});
+
+describe('readCapped', () => {
+  const streamOf = (chunks: number[]) => new ReadableStream<Uint8Array>({
+    start(c) { for (const n of chunks) c.enqueue(new Uint8Array(n)); c.close(); },
+  });
+
+  it('returns the whole body under the cap', async () => {
+    const buf = await readCapped(new Response('{"ok":true}'), 1024);
+    expect(buf.toString('utf8')).toBe('{"ok":true}');
+  });
+
+  it('stops reading once the body passes the cap', async () => {
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) { pulled += 1; c.enqueue(new Uint8Array(400)); },  // never ends on its own
+    });
+    await expect(readCapped(new Response(body), 1000)).rejects.toBeInstanceOf(BodyTooLarge);
+    expect(pulled).toBeLessThan(10);
+  });
+
+  it('refuses a declared size over the cap without reading it', async () => {
+    const r = new Response(streamOf([10]), { headers: { 'content-length': '5000000' } });
+    await expect(readCapped(r, 1000)).rejects.toBeInstanceOf(BodyTooLarge);
+  });
+
+  it('accepts a body exactly at the cap', async () => {
+    expect((await readCapped(new Response(streamOf([600, 400])), 1000)).length).toBe(1000);
   });
 });
