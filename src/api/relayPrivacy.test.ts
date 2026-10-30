@@ -48,6 +48,16 @@ describe('third-party relays send no visitor data', () => {
     }
   });
 
+  it('no provider can steer nginx with X-Accel-* headers (security audit 28-oct)', async () => {
+    // X-Accel-Redirect would jump to an internal location, X-Accel-Expires set our cache time.
+    for (const r of await thirdPartyRoutes()) {
+      const line = r.body.split('\n').find((l) => /proxy_ignore_headers/.test(l)) ?? '';
+      for (const h of ['X-Accel-Redirect', 'X-Accel-Expires', 'X-Accel-Limit-Rate', 'X-Accel-Buffering', 'X-Accel-Charset']) {
+        expect(line, `${r.name}: ${h}`).toContain(h);
+      }
+    }
+  });
+
   it('every relay drops the provider copy of each security header it sets', async () => {
     // Otherwise both reach the browser: IHM sent its own CSP next to ours, CESGA and OpenSky a
     // second X-Frame-Options, IHM and CESGA a second Referrer-Policy (checked 29-oct).
