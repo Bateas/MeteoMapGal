@@ -33,6 +33,7 @@
  *   POST /api/v1/reports                                          → Field reports (labels, never drawn)
  *   GET /api/v1/reports/recent?spot=                              → What was said there in the last 2 h (grouped, anonymous)
  *   POST /api/v1/observers/me                                     → Name + last reports of a personal observer code (no-store)
+ *   POST /api/v1/csp-report                                       → What the page's CSP blocked: directive + host only, to the log
  *
  * Usage:
  *   node --import tsx api.ts
@@ -81,6 +82,7 @@ import { queryMgAuxLatest, parseMgAuxStationId } from './mgAuxLatest.js';
 import { queryRecentReadings } from './recentReadings.js';
 import { queryTeleconnections } from './teleconnections.js';
 import { queryRecentPrecip } from './recentPrecip.js';
+import { parseCspReports } from './cspReport.js';
 import {
   handleAemetProxy,
   handleAemetDataProxy,
@@ -1002,6 +1004,60 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/push/vapid-key':               handlePushVapidKey,
 };
 
+// ── CSP reports ─────────────────────────────────────────
+// What the security policy blocked in visitors' browsers, while the closed host list runs as
+// Report-Only (infra, 30-oct). Browsers send these on their own, often without Origin, so there is
+// no origin gate: the defense is the size cap, the limits and keeping almost nothing. Only the
+// directive and the blocked host reach the log (escaped by the logger); no IP, no page address.
+
+const CSP_POST_MAX = 20;                        // per client per hour: a missing tile host fires one per tile
+const CSP_GLOBAL_MAX = 600;                     // all clients per hour: a flood cannot fill the log
+const CSP_WINDOW_MS = 60 * 60_000;
+const CSP_MAX_BODY = 16 * 1024;                 // 16 KB, asked by infra; a real report is under 2 KB
+const cspPostCounts = new Map<string, { count: number; resetAt: number }>();
+const cspGlobalCount = new Map<string, { count: number; resetAt: number }>();
+let cspGlobalFullLogged = 0;
+
+async function handleCspReport(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const done = (status: number) => { res.writeHead(status, corsHeaders(origin)); res.end(); };
+  const now = Date.now();
+  if (!hitBucket(cspPostCounts, clientKeyOf(req.headers, req.socket.remoteAddress), now, CSP_POST_MAX, CSP_WINDOW_MS)) {
+    done(429);
+    return;
+  }
+  if (!hitBucket(cspGlobalCount, 'all', now, CSP_GLOBAL_MAX, CSP_WINDOW_MS)) {
+    if (now - cspGlobalFullLogged > CSP_WINDOW_MS) {
+      cspGlobalFullLogged = now;
+      log.warn(`[CSP] over ${CSP_GLOBAL_MAX} reports this hour: the rest are not written`);
+    }
+    done(429);
+    return;
+  }
+  const declared = Number(req.headers['content-length']);
+  if (Number.isFinite(declared) && declared > CSP_MAX_BODY) {
+    done(413);
+    return;
+  }
+  const chunks: Buffer[] = [];
+  let received = 0;
+  for await (const chunk of req) {
+    received += (chunk as Buffer).length;
+    if (received > CSP_MAX_BODY) {
+      done(413);
+      return;
+    }
+    chunks.push(chunk as Buffer);
+  }
+  for (const v of parseCspReports(Buffer.concat(chunks).toString('utf8'))) {
+    log.warn(`[CSP] ${v.directive} blocked ${v.blocked}`);
+  }
+  done(204);
+}
+
 // ── Storm prediction POST handler ──────────────────────
 // This endpoint feeds the ML calibration dataset (prediction_outcomes joins
 // against it), so a drive-by curl could poison accuracy math. The legitimate
@@ -1665,6 +1721,8 @@ const server = http.createServer(async (req, res) => {
         await handlePushUnsubscribe(req, res, origin);
       } else if (url.pathname === '/api/v1/push/test') {
         await handlePushTest(req, res, origin);
+      } else if (url.pathname === '/api/v1/csp-report') {
+        await handleCspReport(req, res, origin);
       } else {
         error(res, 'Method not allowed', 405, origin);
       }
