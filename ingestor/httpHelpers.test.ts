@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type http from 'node:http';
-import { json, error, allowedOrigins } from './httpHelpers';
+import { json, error, allowedOrigins, parseLimit } from './httpHelpers';
 
 describe('allowedOrigins', () => {
   it('production accepts only the site itself', () => {
@@ -68,6 +68,21 @@ describe('json / error cache headers', () => {
       expect(seen.status).toBe(status);
       expect(cacheOf(seen)).toBe('no-store');
       expect(seen.body).toBe('{"error":"nope"}');
+    }
+  });
+});
+
+describe('parseLimit', () => {
+  it('uses the default when absent and caps at the maximum', () => {
+    expect(parseLimit(undefined, 2000, 10000)).toBe(2000);
+    expect(parseLimit('', 2000, 10000)).toBe(2000);
+    expect(parseLimit('50', 2000, 10000)).toBe(50);
+    expect(parseLimit('999999', 2000, 10000)).toBe(10000);
+  });
+
+  it('refuses what used to reach the SQL as a 500', () => {
+    for (const bad of ['abc', '-5', '0', '1.5', '1e3', ' 7', '12abc', '9999999999']) {
+      expect(parseLimit(bad, 2000, 10000)).toBeNull();
     }
   });
 });

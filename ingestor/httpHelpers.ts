@@ -80,6 +80,18 @@ export function dbError(
   error(res, 'Internal error', 500, origin);
 }
 
+/**
+ * `limit` from the query: absent or empty -> `def`; a whole number from 1 up -> capped at `max`;
+ * anything else -> null, and the route answers 400. `parseInt` alone gave NaN for «abc» and a
+ * negative for «-5», and both reached the SQL as a 500 (security audit 28-oct).
+ */
+export function parseLimit(raw: string | undefined, def: number, max: number): number | null {
+  if (raw === undefined || raw === '') return def;
+  if (!/^\d{1,9}$/.test(raw)) return null;
+  const n = Number(raw);
+  return n >= 1 ? Math.min(n, max) : null;
+}
+
 export function parseSearchParams(url: URL): Record<string, string> {
   const params: Record<string, string> = {};
   url.searchParams.forEach((value, key) => {

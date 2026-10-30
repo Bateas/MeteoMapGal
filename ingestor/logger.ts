@@ -31,21 +31,35 @@ function ts(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// One entry, one line. Text that reaches a message from outside (a client's body quoted in a
+// JSON error, a provider's answer) could carry line breaks that forge whole entries in a file
+// kept for a year, or terminal escape codes. Control characters are written as \n, \r, \t or
+// \uXXXX, and very long text is cut (security audit 28-oct).
+export const LOG_TEXT_MAX = 2000;
+
+export function cleanForLog(text: string): string {
+  const s = text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, (ch) =>
+    ch === '\n' ? '\\n' : ch === '\r' ? '\\r' : ch === '\t' ? '\\t' : `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  return s.length > LOG_TEXT_MAX ? `${s.slice(0, LOG_TEXT_MAX)}... (${s.length - LOG_TEXT_MAX} more)` : s;
+}
+
+const clean = (args: unknown[]) => args.map((a) => (typeof a === 'string' ? cleanForLog(a) : a));
+
 export const log = {
   info(msg: string, ...args: unknown[]) {
-    console.log(`${COLORS.dim}${ts()}${COLORS.reset} ${COLORS.cyan}INFO${COLORS.reset}  ${msg}`, ...args);
+    console.log(`${COLORS.dim}${ts()}${COLORS.reset} ${COLORS.cyan}INFO${COLORS.reset}  ${cleanForLog(msg)}`, ...clean(args));
   },
   ok(msg: string, ...args: unknown[]) {
-    console.log(`${COLORS.dim}${ts()}${COLORS.reset} ${COLORS.green}OK${COLORS.reset}    ${msg}`, ...args);
+    console.log(`${COLORS.dim}${ts()}${COLORS.reset} ${COLORS.green}OK${COLORS.reset}    ${cleanForLog(msg)}`, ...clean(args));
   },
   warn(msg: string, ...args: unknown[]) {
-    console.warn(`${COLORS.dim}${ts()}${COLORS.reset} ${COLORS.yellow}WARN${COLORS.reset}  ${msg}`, ...args);
+    console.warn(`${COLORS.dim}${ts()}${COLORS.reset} ${COLORS.yellow}WARN${COLORS.reset}  ${cleanForLog(msg)}`, ...clean(args));
   },
   error(msg: string, ...args: unknown[]) {
-    console.error(`${COLORS.dim}${ts()}${COLORS.reset} ${COLORS.red}ERROR${COLORS.reset} ${msg}`, ...args);
+    console.error(`${COLORS.dim}${ts()}${COLORS.reset} ${COLORS.red}ERROR${COLORS.reset} ${cleanForLog(msg)}`, ...clean(args));
   },
   debug(msg: string, ...args: unknown[]) {
     if (!DEBUG_ENABLED) return;
-    console.log(`${COLORS.dim}${ts()} DEBUG ${msg}${COLORS.reset}`, ...args);
+    console.log(`${COLORS.dim}${ts()} DEBUG ${cleanForLog(msg)}${COLORS.reset}`, ...clean(args));
   },
 };
