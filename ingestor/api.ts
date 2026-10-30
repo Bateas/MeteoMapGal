@@ -76,7 +76,7 @@ import { stopForecastArchive } from './forecastArchive.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup, makeRoomForNewSubscription } from './pushDispatcher.js';
 import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effisFetcher.js';
-import { corsHeaders, json, error, dbError, parseSearchParams, ALLOWED_ORIGINS } from './httpHelpers.js';
+import { corsHeaders, json, error, dbError, parseSearchParams, parseLimit, ALLOWED_ORIGINS } from './httpHelpers.js';
 import { queryMgAuxLatest, parseMgAuxStationId } from './mgAuxLatest.js';
 import { queryRecentReadings } from './recentReadings.js';
 import { queryTeleconnections } from './teleconnections.js';
@@ -203,7 +203,8 @@ async function handleReadings(
   const range = timeRangeOr400(params, res, origin);
   if (!range) return;
   const [from, to] = range;
-  const limit = Math.min(parseInt(limitStr || '2000', 10), 10000);
+  const limit = parseLimit(limitStr, 2000, 10000);
+  if (limit === null) { error(res, 'limit must be a whole number from 1', 400, origin); return; }
 
   if (interval === 'hourly') {
     try {
@@ -263,7 +264,8 @@ async function handleCompare(
   const range = timeRangeOr400(params, res, origin);
   if (!range) return;
   const [from, to] = range;
-  const limit = Math.min(parseInt(limitStr || '5000', 10), 20000);
+  const limit = parseLimit(limitStr, 5000, 20000);
+  if (limit === null) { error(res, 'limit must be a whole number from 1', 400, origin); return; }
   const mode = interval === 'hourly' ? 'hourly' : 'raw';
 
   const rows = await queryMultiStation(ids, from, to, mode, limit);
@@ -328,7 +330,8 @@ async function handleBuoyReadings(
   const range = timeRangeOr400(params, res, origin);
   if (!range) return;
   const [from, to] = range;
-  const limit = Math.min(parseInt(limitStr || '2000', 10), 10000);
+  const limit = parseLimit(limitStr, 2000, 10000);
+  if (limit === null) { error(res, 'limit must be a whole number from 1', 400, origin); return; }
 
   if (interval === 'hourly') {
     const rows = await queryBuoyHourly(id, from, to, limit);
@@ -1062,6 +1065,14 @@ async function handleStormPredictionPost(
     return;
   }
 
+  // JSON can be valid and still not an object («null», «7», «[]»): destructuring null threw and the
+  // request was never answered.
+  if (body == null || typeof body !== 'object' || Array.isArray(body)) {
+    res.writeHead(400, corsHeaders(origin));
+    res.end(JSON.stringify({ error: 'Invalid payload' }));
+    return;
+  }
+
   // Strict value validation — shape AND ranges (mirrors stormPredictionLogger.ts)
   const { sector, probability, horizon, severity, hasLightning, signals } = body;
   const validSignals = Array.isArray(signals) && signals.length <= 12
@@ -1637,23 +1648,30 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST routes
+  // POST routes. Inside their own try: an exception here used to leave the request unanswered
+  // until the client gave up (security audit 28-oct).
   if (req.method === 'POST') {
-    const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
-    if (url.pathname === '/api/v1/storm-predictions') {
-      await handleStormPredictionPost(req, res, origin);
-    } else if (url.pathname === '/api/v1/reports') {
-      await handleFieldReportPost(req, res, origin);
-    } else if (url.pathname === '/api/v1/observers/me') {
-      await handleObserverMe(req, res, origin);
-    } else if (url.pathname === '/api/v1/push/subscribe') {
-      await handlePushSubscribe(req, res, origin);
-    } else if (url.pathname === '/api/v1/push/unsubscribe') {
-      await handlePushUnsubscribe(req, res, origin);
-    } else if (url.pathname === '/api/v1/push/test') {
-      await handlePushTest(req, res, origin);
-    } else {
-      error(res, 'Method not allowed', 405, origin);
+    try {
+      const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
+      if (url.pathname === '/api/v1/storm-predictions') {
+        await handleStormPredictionPost(req, res, origin);
+      } else if (url.pathname === '/api/v1/reports') {
+        await handleFieldReportPost(req, res, origin);
+      } else if (url.pathname === '/api/v1/observers/me') {
+        await handleObserverMe(req, res, origin);
+      } else if (url.pathname === '/api/v1/push/subscribe') {
+        await handlePushSubscribe(req, res, origin);
+      } else if (url.pathname === '/api/v1/push/unsubscribe') {
+        await handlePushUnsubscribe(req, res, origin);
+      } else if (url.pathname === '/api/v1/push/test') {
+        await handlePushTest(req, res, origin);
+      } else {
+        error(res, 'Method not allowed', 405, origin);
+      }
+    } catch (err) {
+      log.error('POST error:', (err as Error).message);
+      if (!res.headersSent) error(res, 'Internal server error', 500, origin);
+      else res.end();
     }
     return;
   }
@@ -1755,7 +1773,7 @@ async function start(): Promise<void> {
 // ── Graceful shutdown ──────────────────────────────────
 
 async function shutdown(signal: string): Promise<void> {
-  log.info(`\n${signal} received — shutting down...`);
+  log.info(`${signal} received — shutting down...`);
   server.close();
   await closePool();
   log.ok('Shutdown complete');

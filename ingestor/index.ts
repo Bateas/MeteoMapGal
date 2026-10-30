@@ -694,7 +694,7 @@ async function shutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  log.info(`\n${signal} received — shutting down gracefully...`);
+  log.info(`${signal} received — shutting down gracefully...`);
 
   // Clear timers
   if (pollTimer) clearInterval(pollTimer);
