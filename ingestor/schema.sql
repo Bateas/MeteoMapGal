@@ -894,12 +894,16 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON push_subscriptions TO meteomap_app;
 
--- ── Retention (uncomment when ready) ─────────────────
--- SELECT add_retention_policy('readings', INTERVAL '2 years', if_not_exists => TRUE);
--- SELECT add_retention_policy('alerts', INTERVAL '1 year', if_not_exists => TRUE);
--- SELECT add_retention_policy('webcam_readings', INTERVAL '6 months', if_not_exists => TRUE);
--- Lightning + fires + upper_air + convection kept FOREVER (foundation of
--- historical pattern dataset — these tables are the substrate, not derived)
+-- ── Retention: none. Our data is kept ─────────────────
+-- Observations, field reports, predictions and scores are the history every check and every
+-- model is built on, and they are worth more the more years they cover; the whole database is
+-- 1,5 GB after eight months (30-oct-2026). So no table has a retention policy, and re-applying
+-- this file removes any that was added by hand (five tables had one at 2 years).
+SELECT remove_retention_policy('readings', if_exists => TRUE);
+SELECT remove_retention_policy('convection_grid_hourly', if_exists => TRUE);
+SELECT remove_retention_policy('storm_predictions', if_exists => TRUE);
+SELECT remove_retention_policy('lightning_strikes', if_exists => TRUE);
+SELECT remove_retention_policy('spot_scores', if_exists => TRUE);
 
 -- ── Station calibration: the measured transfer function ────
 -- How much of the free stream each land station actually sees, measured hour
