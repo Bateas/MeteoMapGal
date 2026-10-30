@@ -80,6 +80,37 @@ export function dbError(
   error(res, 'Internal error', 500, origin);
 }
 
+/** A provider's answer bigger than the route's cap. */
+export class BodyTooLarge extends Error {}
+
+/**
+ * A provider's body, read up to `max` bytes. Past that it stops reading and throws, so a runaway
+ * or hostile answer cannot fill the API's memory (security audit 28-oct). The caps are generous:
+ * the biggest real answer, AEMET's observations of all of Spain, is 3,3 MB (measured 30-oct).
+ */
+export async function readCapped(r: Response, max: number): Promise<Buffer> {
+  const declared = Number(r.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > max) {
+    await r.body?.cancel();
+    throw new BodyTooLarge(`answer of ${declared} bytes, over the ${max} cap`);
+  }
+  if (!r.body) return Buffer.alloc(0);
+  const reader = r.body.getReader();
+  const parts: Buffer[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      throw new BodyTooLarge(`answer over the ${max} cap`);
+    }
+    parts.push(Buffer.from(value));
+  }
+  return Buffer.concat(parts, size);
+}
+
 /**
  * `limit` from the query: absent or empty -> `def`; a whole number from 1 up -> capped at `max`;
  * anything else -> null, and the route answers 400. `parseInt` alone gave NaN for «abc» and a

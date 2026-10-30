@@ -2,7 +2,7 @@ import type http from 'node:http';
 import { log } from './logger.js';
 import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import { pruneCache } from './requestGuards.js';
-import { corsHeaders, error } from './httpHelpers.js';
+import { corsHeaders, error, readCapped } from './httpHelpers.js';
 import { singleFlight } from './singleFlight.js';
 import { FIRMS_PRODUCTS, mergeFirmsCsv } from '../src/services/fireService.js';
 
@@ -130,6 +130,9 @@ export function safeContentType(upstream: string | null): string {
   return DATA_TYPES.has(media) ? upstream : 'text/plain; charset=utf-8';
 }
 
+// AEMET, MeteoSIX and ObsCosteiro through fetchBody. The biggest, AEMET's observations, is 3,3 MB.
+const PROVIDER_MAX_BYTES = 16 * 1024 * 1024;
+
 /**
  * The provider's answer and body; a request that gets no answer at all is noted as a failure.
  * Redirects are refused: these requests carry our key, and a redirect would take it to
@@ -138,7 +141,7 @@ export function safeContentType(upstream: string | null): string {
 async function fetchBody(url: string, init: RequestInit, label: string, downKey: string): Promise<{ upstream: Response; buf: Buffer }> {
   try {
     const upstream = await fetch(url, { ...init, redirect: 'error' });
-    const buf = Buffer.from(await upstream.arrayBuffer());
+    const buf = await readCapped(upstream, PROVIDER_MAX_BYTES);
     return { upstream, buf };
   } catch (err) {
     noteUpstreamFailure(label, downKey, 0);
@@ -345,6 +348,7 @@ export async function handleAemetProxy(
 const firmsCache = new Map<number, { data: Buffer; ts: number }>();
 const FIRMS_CACHE_TTL = 30 * 60_000; // 30 minutes
 const FIRMS_TIMEOUT_MS = 10_000;
+const FIRMS_MAX_BYTES = 8 * 1024 * 1024; // one product, Galicia, up to 10 days: a few hundred KB in a fire summer
 
 export async function handleFirmsProxy(
   daysParam: string | null,
@@ -379,7 +383,7 @@ export async function handleFirmsProxy(
               log.warn(`[FIRMS Proxy] ${product} upstream ${r.status}`);
               return null;
             }
-            return await r.text();
+            return (await readCapped(r, FIRMS_MAX_BYTES)).toString('utf8');
           } catch (err) {
             log.warn(`[FIRMS Proxy] ${product} failed: ${(err as Error).message}`);
             return null;
@@ -715,6 +719,7 @@ export async function handleObsCosteiroProxy(
 // ── METAR proxy (aviationweather.gov) ──────────────────
 const METAR_URL = 'https://aviationweather.gov/api/data/metar?ids=LEVX,LEST,LECO&format=json';
 const METAR_CACHE_TTL = 5 * 60_000; // 5 minutes
+const METAR_MAX_BYTES = 1024 * 1024; // three airports: ~1 KB
 let metarCache: { data: Buffer; contentType: string; ts: number } | null = null;
 
 export async function handleMetarProxy(
@@ -734,7 +739,7 @@ export async function handleMetarProxy(
         signal: AbortSignal.timeout(15_000),
       });
       const contentType = safeContentType(upstream.headers.get('content-type'));
-      const buf = Buffer.from(await upstream.arrayBuffer());
+      const buf = await readCapped(upstream, METAR_MAX_BYTES);
 
       if (upstream.ok) {
         metarCache = { data: buf, contentType, ts: Date.now() };
