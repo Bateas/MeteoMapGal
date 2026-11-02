@@ -972,6 +972,8 @@ CREATE TABLE IF NOT EXISTS forecast_archive (
   sky_state    TEXT,
   PRIMARY KEY (issued_at, sector, valid_time)
 );
+ALTER TABLE forecast_archive ADD COLUMN IF NOT EXISTS cloud_low_pct REAL;  -- 2-nov: low cloud decides the breeze
+ALTER TABLE forecast_archive ADD COLUMN IF NOT EXISTS visibility_m REAL;   -- 2-nov
 SELECT create_hypertable('forecast_archive', 'issued_at', if_not_exists => TRUE, chunk_time_interval => INTERVAL '30 days');
 CREATE INDEX IF NOT EXISTS idx_forecast_archive_valid
   ON forecast_archive (sector, valid_time, issued_at DESC);

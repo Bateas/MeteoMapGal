@@ -37,7 +37,7 @@ describe('buildArchiveRows', () => {
   it('keeps the value order the INSERT expects and turns non-numbers into null', () => {
     const [r] = buildArchiveRows('rias', 'wrf', new Date('2026-09-24T10:00:00Z'),
       [hour('2026-09-24T11:00:00Z', { windSpeed: NaN, cape: null, skyState: null })]);
-    expect(r.values).toHaveLength(16);
+    expect(r.values).toHaveLength(18);
     expect(r.values[0]).toBeNull();     // wind_ms
     expect(r.values[1]).toBe(230);      // wind_dir
     expect(r.values[10]).toBeNull();    // cape

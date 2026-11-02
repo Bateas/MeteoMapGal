@@ -57,7 +57,7 @@ export function buildArchiveRows(
         num(h.windSpeed), num(h.windDirection), num(h.windGusts), num(h.temperature), num(h.humidity),
         num(h.precipitation), num(h.precipProbability), num(h.cloudCover), num(h.pressure), num(h.solarRadiation),
         num(h.cape), num(h.cin), num(h.liftedIndex), num(h.boundaryLayerHeight), num(h.temperature500hPa),
-        h.skyState ?? null,
+        h.skyState ?? null, num(h.cloudLow), num(h.visibility),
       ],
     });
   }
@@ -69,6 +69,7 @@ const COLUMNS = [
   'wind_ms', 'wind_dir', 'gust_ms', 'temp_c', 'humidity',
   'precip_mm', 'precip_prob', 'cloud_pct', 'pressure', 'solar_wm2',
   'cape', 'cin', 'lifted_index', 'pbl_m', 't500_c', 'sky_state',
+  'cloud_low_pct', 'visibility_m',
 ];
 
 /** Writes the rows; returns how many were new. Duplicate issue hours are ignored. */

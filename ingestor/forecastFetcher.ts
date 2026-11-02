@@ -72,7 +72,7 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
       'precipitation', 'precipitation_probability',
       'cloud_cover', 'surface_pressure',
       'shortwave_radiation', 'cape', 'lifted_index', 'convective_inhibition',
-      'boundary_layer_height', 'is_day', 'visibility',
+      'boundary_layer_height', 'is_day', 'visibility', 'cloud_cover_low',
       // Cold-tops indicator for hail risk
       'temperature_500hPa',
     ].join(','),
@@ -111,6 +111,7 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
       boundary_layer_height: (number | null)[];
       is_day: (number | null)[];
       visibility: (number | null)[];
+      cloud_cover_low?: (number | null)[];
       temperature_500hPa?: (number | null)[];
     };
   };
@@ -135,6 +136,7 @@ async function fetchForecast(lat: number, lon: number): Promise<HourlyForecast[]
     liftedIndex: h.lifted_index?.[i] ?? null,
     boundaryLayerHeight: h.boundary_layer_height?.[i] ?? null,
     visibility: h.visibility?.[i] ?? null,
+    cloudLow: h.cloud_cover_low?.[i] ?? null,
     snowLevel: null,
     skyState: null,
     temperature500hPa: h.temperature_500hPa?.[i] ?? null,
@@ -212,6 +214,7 @@ async function refreshForecast(sector: 'embalse' | 'rias'): Promise<HourlyForeca
           h.liftedIndex = om.liftedIndex;
           h.solarRadiation = om.solarRadiation;
           h.visibility = om.visibility;
+          h.cloudLow = om.cloudLow;
           h.windGusts = om.windGusts;
           h.boundaryLayerHeight = om.boundaryLayerHeight;
           h.precipProbability = om.precipProbability;

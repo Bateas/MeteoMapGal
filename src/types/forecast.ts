@@ -31,6 +31,8 @@ export interface HourlyForecast {
   boundaryLayerHeight: number | null;
   /** Visibility (m) — from Open-Meteo. <1000m = fog, <5000m = mist */
   visibility: number | null;
+  /** Low cloud (%), only archived by the ingestor: low cloud decides whether the breeze gets going. */
+  cloudLow?: number | null;
   /** Lifted Index (°C) — negative = unstable. <-3 strong instability, >0 stable */
   liftedIndex: number | null;
   /** Convective Inhibition (J/kg) — high CIN suppresses convection even with high CAPE */
