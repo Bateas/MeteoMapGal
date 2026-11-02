@@ -236,7 +236,8 @@ export async function discoverPoemPlans(
 
 function describePlan(name: string, plan: PoemStationPlan): string {
   const cols = plan.columns.map((c) => `${c.column}${c.unit ? ` ${c.unit}` : ''} /${c.factor}`).join(', ');
-  return `${name} ${plan.stationId} → ${plan.table}: ${cols}`;
+  const aux = plan.aux.map((c) => `${c.column}${c.unit ? ` ${c.unit}` : ''} /${c.factor}`).join(', ') || 'ninguna';
+  return `${name} ${plan.stationId} → ${plan.table}: ${cols}; aparte: ${aux}`;
 }
 
 async function ensurePoemPlans(stations: readonly BuoyStation[], token: string, nowMs: number): Promise<void> {
