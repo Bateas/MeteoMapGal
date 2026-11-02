@@ -8,6 +8,7 @@ import type { AemetApiResponse, AemetRawObservation } from '../src/types/aemet.j
 import type { MeteoGaliciaObsEntry } from '../src/types/meteogalicia.js';
 import { latestObservationUrls, indexLatestById } from '../src/api/mgLatestBatch.js';
 import { parseMgAux2m, type MgAuxReading } from '../src/api/mgAux2m.js';
+import { archiveAemetAux } from './aemetAuxArchive.js';
 import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 import type { MeteoclimaticRawStation } from '../src/types/meteoclimatic.js';
 import { METEOCLIMATIC_STATIONS } from '../src/types/meteoclimatic.js';
@@ -147,6 +148,7 @@ async function fetchAemet(
     aemetBreaker.reportSuccess();
     if (readings.length > 0) {
       aemetLastGoodAt = Date.now();
+      void archiveAemetAux(rawObs, stationIds);
       aemetLastReadings = readings;
     }
     log.info(`AEMET: ${readings.length} readings`);

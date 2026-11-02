@@ -41,7 +41,36 @@ describe('parseMgAux2m', () => {
       windSd2m: 0.9,
       dirSd2m: 31,
       leafWetMin: 10,
+      grassTemp: null,
+      soilTemp10: null,
+      soilMoist20: null,
+      sunMin: null,
+      windSd10: null,
+      dirSd10: null,
     });
+  });
+
+  it('keeps grass and soil temperature, sun and the 10 m spread of any station', () => {
+    const r = parseMgAux2m(10905, entry([
+      { code: 'TA_AVG_0.1m', valor: -1.4 },
+      { code: 'TS_AVG_-0.1m', valor: 8.2 },
+      { code: 'HS_CV_AVG_-0.2m', valor: 31 },
+      { code: 'HSOL_SUM_1.5m', valor: 0.1667, unidade: 'h' },
+      { code: 'VV_SD_10m', valor: 1.2 },
+      { code: 'DV_SD_10m', valor: 22 },
+    ]));
+    expect(r).toMatchObject({ grassTemp: -1.4, soilTemp10: 8.2, soilMoist20: 31, sunMin: 10, windSd10: 1.2, dirSd10: 22, wind2m: null });
+  });
+
+  it('drops what is impossible in the new fields', () => {
+    const r = parseMgAux2m(10905, entry([
+      { code: 'TA_AVG_0.1m', valor: 95 },
+      { code: 'HSOL_SUM_1.5m', valor: 0.5, unidade: 'h' },
+      { code: 'DV_SD_10m', valor: 22 },
+    ]));
+    expect(r?.grassTemp).toBeNull();
+    expect(r?.sunMin).toBeNull();
+    expect(r?.dirSd10).toBe(22);
   });
 
   it('turns the -9999 sentinel into null, field by field', () => {
@@ -81,7 +110,7 @@ describe('parseMgAux2m', () => {
     expect(r?.gust2m).toBe(7.3);
   });
 
-  it('gives null for a 10 m station that carries none of the 2 m set', () => {
+  it('gives null for a station that carries none of the kept set', () => {
     const tenMetre = entry([
       { code: 'VV_AVG_10m', valor: 5 },
       { code: 'DV_AVG_10m', valor: 200 },

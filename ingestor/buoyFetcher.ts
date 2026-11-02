@@ -22,9 +22,10 @@ import { readObsCurrent, type ObsResponse } from '../src/api/obsCosteiroParse.js
 import { intecmarLiveReadings } from './intecmarLive.js';
 import { shouldAskPortus, isBackingOff, nextPortusBackoff, type PortusBackoff } from './portusBackoff.js';
 import { poemGet, poemToken, PoemHttpError } from './poemClient.js';
+import { archivePoemAux } from './poemAuxArchive.js';
 import {
-  buildStationPlan, planRequestColumns, poemRowsToReading, poemRows, poemIsoUtc, jwtExpiryMs,
-  type EstacionParamRow, type ParamInfo, type PoemStationPlan,
+  buildStationPlan, planRequestColumns, poemRowsToReading, poemAuxRows, poemRows, poemIsoUtc, jwtExpiryMs,
+  type EstacionParamRow, type ParamInfo, type PoemAuxRow, type PoemStationPlan,
 } from './poemLogic.js';
 
 const OBS_BASE = 'https://apis-ext.xunta.gal/mgplatpubapi/v1/api';
@@ -283,6 +284,7 @@ async function fetchPdeViaPoem(
   await ensurePoemPlans(allStations, token, nowMs);
 
   const rows: BuoyReadingRow[] = [];
+  const auxRows: PoemAuxRow[] = [];
   for (const station of stations) {
     const plan = poemPlans.get(station.id);
     if (!plan) { bump('sin plan'); continue; }
@@ -295,6 +297,7 @@ async function fetchPdeViaPoem(
         Columns: planRequestColumns(plan).join(','),
       }, token);
       notePortusAnswer(station, false);
+      auxRows.push(...poemAuxRows(plan, poemRows(data)));
       const result = poemRowsToReading(plan, station.name, poemRows(data), Date.now(), MAX_AGE_MS);
       for (const d of result.dropped) bump(d);
       if (result.reading) rows.push(result.reading);
@@ -311,6 +314,7 @@ async function fetchPdeViaPoem(
       notePortusAnswer(station, true);
     }
   }
+  void archivePoemAux(auxRows);
   return rows;
 }
 
