@@ -75,6 +75,7 @@ export async function queryMgAuxLatestUncached(stationId: string): Promise<MgAux
          FROM mg_aux_readings
         WHERE station_id = $1
           AND time > NOW() - ($2 || ' minutes')::INTERVAL
+          AND (wind_2m IS NOT NULL OR gust_2m IS NOT NULL)
         ORDER BY time DESC
         LIMIT 1`,
       [stationId, String(MG_AUX_MAX_AGE_MIN)],

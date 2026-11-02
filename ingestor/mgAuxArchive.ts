@@ -1,5 +1,6 @@
 /**
- * SHADOW archive of MeteoGalicia's 2 m wind and leaf wetness (table mg_aux_readings).
+ * SHADOW archive of what MeteoGalicia sends and the map does not use (table mg_aux_readings): 2 m wind,
+ * leaf wetness, grass and soil temperature, sun, spread of the 10 m wind.
  *
  * The rows come from the `ultimos10min` answer the MeteoGalicia poll already downloads
  * (`fetchMeteoGalicia` keeps them aside): no extra request to MeteoGalicia. Nothing reads the table:
@@ -14,7 +15,7 @@ import { getPool } from './db.js';
 import { log } from './logger.js';
 import type { MgAuxReading } from '../src/api/mgAux2m.js';
 
-const COLS = 8;
+const COLS = 14;
 const BATCH_SIZE = 200;
 
 let disabled = false;
@@ -30,7 +31,8 @@ export function __resetMgAuxArchiveForTests(): void {
 export function mgAuxInsertParts(rows: MgAuxReading[]): { tuples: string[]; values: unknown[] } {
   const values: unknown[] = [];
   const tuples = rows.map((r, i) => {
-    values.push(r.time, r.stationId, r.wind2m, r.gust2m, r.dir2m, r.windSd2m, r.dirSd2m, r.leafWetMin);
+    values.push(r.time, r.stationId, r.wind2m, r.gust2m, r.dir2m, r.windSd2m, r.dirSd2m, r.leafWetMin,
+      r.grassTemp, r.soilTemp10, r.soilMoist20, r.sunMin, r.windSd10, r.dirSd10);
     return `(${Array.from({ length: COLS }, (_, k) => `$${i * COLS + k + 1}`).join(',')})`;
   });
   return { tuples, values };
@@ -44,7 +46,8 @@ export async function archiveMgAux(rows: MgAuxReading[]): Promise<void> {
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const { tuples, values } = mgAuxInsertParts(rows.slice(i, i + BATCH_SIZE));
       const res = await getPool().query(
-        `INSERT INTO mg_aux_readings (time, station_id, wind_2m, gust_2m, dir_2m, wind_sd_2m, dir_sd_2m, leaf_wet_min)
+        `INSERT INTO mg_aux_readings (time, station_id, wind_2m, gust_2m, dir_2m, wind_sd_2m, dir_sd_2m, leaf_wet_min,
+                                      grass_temp, soil_temp_10, soil_moist_20, sun_min, wind_sd_10, dir_sd_10)
          VALUES ${tuples.join(',')}
          ON CONFLICT (station_id, time) DO NOTHING`,
         values,
@@ -55,9 +58,9 @@ export async function archiveMgAux(rows: MgAuxReading[]): Promise<void> {
     log.info(`[MG 2 m sombra] ${added} filas nuevas de ${rows.length} (${stations} estaciones)`);
   } catch (err) {
     const e = err as { code?: string; message: string };
-    if (e.code === '42P01') {
+    if (e.code === '42P01' || e.code === '42703') {
       disabled = true;
-      log.warn('[MG 2 m sombra] falta la tabla mg_aux_readings: aplicar ingestor/schema.sql en la base; el archivo queda parado hasta el proximo reinicio');
+      log.warn('[MG 2 m sombra] falta la tabla mg_aux_readings o sus columnas: aplicar ingestor/schema.sql en la base; el archivo queda parado hasta el proximo reinicio');
     } else {
       log.warn(`[MG 2 m sombra] fallo al guardar (${added} guardadas): ${e.message}`);
     }

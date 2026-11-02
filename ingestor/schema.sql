@@ -1275,6 +1275,60 @@ END $$;
 -- or the map until an exam against field truths validates it. Values as published, -9999 and
 -- MeteoGalicia's own rejected values (validation code other than 1) stored as NULL.
 -- ~45 stations x 144 a day.
+-- Visibility, irradiance and precipitation of the port stations of Puertos del Estado (POEM), in the
+-- rows we already ask for (ingestor/poemAuxArchive.ts). Value divided by its factor, with its quality
+-- flag, not filtered. Measured visibility is the truth fog lacks, and low cloud decides the breeze.
+CREATE TABLE IF NOT EXISTS poem_aux (
+  time              TIMESTAMPTZ NOT NULL,
+  station_id        INTEGER     NOT NULL,   -- as in buoy_readings
+  visibility        REAL,                   -- vs, in the unit of `units`
+  visibility_qc     SMALLINT,
+  visibility_cause  TEXT,                   -- vs_cause, as POEM gives it
+  irradiance        REAL,                   -- ir
+  irradiance_qc     SMALLINT,
+  precip            REAL,                   -- pc
+  precip_qc         SMALLINT,
+  units             TEXT,                   -- what POEM declares, e.g. vs=km;ir=W/m2;pc=mm
+  fetched_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (station_id, time)
+);
+SELECT create_hypertable('poem_aux', 'time', if_not_exists => TRUE);
+GRANT SELECT, INSERT ON poem_aux TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON poem_aux TO grafana_ro;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ml_job') THEN
+    GRANT SELECT ON poem_aux TO ml_job;
+  END IF;
+END $$;
+
+-- What AEMET's hourly answer carries and readings does not keep (ingestor/aemetAuxArchive.ts).
+CREATE TABLE IF NOT EXISTS aemet_aux (
+  time         TIMESTAMPTZ NOT NULL,
+  station_id   TEXT        NOT NULL,   -- aemet_<idema>, as in readings
+  ta_min       REAL,                   -- C, minimum of the hour (tamin)
+  ta_max       REAL,                   -- C, maximum of the hour (tamax)
+  ground_temp  REAL,                   -- C at the surface (ts)
+  soil_5       REAL,                   -- C at 5 cm (tss5cm)
+  soil_20      REAL,                   -- C at 20 cm (tss20cm)
+  wind_sd      REAL,                   -- m/s (stdvv)
+  dir_sd       REAL,                   -- degrees (stddv)
+  geo925       REAL,                   -- geopotential height of 925 hPa
+  fetched_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (station_id, time)
+);
+SELECT create_hypertable('aemet_aux', 'time', if_not_exists => TRUE);
+GRANT SELECT, INSERT ON aemet_aux TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON aemet_aux TO grafana_ro;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ml_job') THEN
+    GRANT SELECT ON aemet_aux TO ml_job;
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS mg_aux_readings (
   time          TIMESTAMPTZ NOT NULL,   -- UTC, end of the 10-min period
   station_id    TEXT        NOT NULL,   -- mg_<idEstacion>, as in readings
@@ -1288,6 +1342,14 @@ CREATE TABLE IF NOT EXISTS mg_aux_readings (
   PRIMARY KEY (station_id, time)
 );
 SELECT create_hypertable('mg_aux_readings', 'time', if_not_exists => TRUE);
+-- 2-nov: the rest of the same answer. Grass and soil temperature for frost, sun for what low cloud
+-- does to the breeze, spread of the 10 m wind. Nothing reads them yet: they are kept for the models.
+ALTER TABLE mg_aux_readings ADD COLUMN IF NOT EXISTS grass_temp REAL;     -- C at 0.1 m (TA_AVG_0.1m)
+ALTER TABLE mg_aux_readings ADD COLUMN IF NOT EXISTS soil_temp_10 REAL;   -- C at -0.1 m (TS_AVG_-0.1m)
+ALTER TABLE mg_aux_readings ADD COLUMN IF NOT EXISTS soil_moist_20 REAL;  -- HS_CV_AVG_-0.2m
+ALTER TABLE mg_aux_readings ADD COLUMN IF NOT EXISTS sun_min REAL;        -- minutes of sun in the 10 (HSOL_SUM_1.5m)
+ALTER TABLE mg_aux_readings ADD COLUMN IF NOT EXISTS wind_sd_10 REAL;     -- m/s (VV_SD_10m)
+ALTER TABLE mg_aux_readings ADD COLUMN IF NOT EXISTS dir_sd_10 REAL;      -- degrees (DV_SD_10m)
 GRANT SELECT, INSERT ON mg_aux_readings TO meteomap_app;
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN

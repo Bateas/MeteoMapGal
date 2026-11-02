@@ -35,6 +35,9 @@ export interface AemetRawObservation {
   geo700: number;      // Geopotential 700
   geo850: number;      // Geopotential 850
   geo925: number;      // Geopotential 925
+  ts?: number;         // Ground surface temperature (C), about 1 of 6 stations
+  tss5cm?: number;     // Soil temperature at 5 cm (C)
+  tss20cm?: number;    // Soil temperature at 20 cm (C)
   np: number;          // Cloud layers
   hrnp: number;        // Humidity at cloud layer
   // ... more fields possible

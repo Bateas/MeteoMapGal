@@ -12,6 +12,9 @@
  * direction matched the SW entry. Until an exam against field truths validates it, it is archived
  * apart and read by nothing. That is why these codes live here and not in `MG_PARAMS`.
  *
+ * Since 2-nov the same row also keeps grass and soil temperature, sun and the spread of the 10 m wind,
+ * so it now covers most stations, not only those 39: a reader of the 2 m wind filters on wind_2m.
+ *
  * Pure: shared by the ingestor; same -9999 handling and validation code as the rest of the source.
  */
 import type { MeteoGaliciaMedida, MeteoGaliciaObsEntry } from '../types/meteogalicia';
@@ -24,6 +27,15 @@ export const MG_AUX_PARAMS = {
   WIND_SPEED_SD_2M: 'VV_SD_2m',
   WIND_DIR_SD_2M: 'DV_SD_2m',
   LEAF_WETNESS: 'HF_SUM_2m',
+  // Same answer, also dropped until 2-nov: grass and soil temperature (frost), sun (a low cloud or a
+  // fog bank switches off the breeze) and how much the 10 m wind moves within the 10 min (the map
+  // reads the mean, not the spread).
+  GRASS_TEMP: 'TA_AVG_0.1m',
+  SOIL_TEMP_10CM: 'TS_AVG_-0.1m',
+  SOIL_MOISTURE_20CM: 'HS_CV_AVG_-0.2m',
+  SUNSHINE: 'HSOL_SUM_1.5m',
+  WIND_SPEED_SD_10M: 'VV_SD_10m',
+  WIND_DIR_SD_10M: 'DV_SD_10m',
 } as const;
 
 /** MeteoGalicia's validation code for a good value (2 suspect, 3 wrong, 5 interpolated, 9 not recorded). */
@@ -38,6 +50,12 @@ export interface MgAuxReading {
   windSd2m: number | null;    // m/s, std deviation of speed over the 10 min
   dirSd2m: number | null;     // degrees, std deviation of direction
   leafWetMin: number | null;  // minutes of wet leaf within the 10 min (0-10)
+  grassTemp: number | null;   // °C at 0.1 m
+  soilTemp10: number | null;  // °C at -0.1 m
+  soilMoist20: number | null; // as MeteoGalicia gives it, at -0.2 m
+  sunMin: number | null;      // minutes of sun within the 10 min (0-10)
+  windSd10: number | null;    // m/s, std deviation of the 10 m speed
+  dirSd10: number | null;     // degrees, std deviation of the 10 m direction
 }
 
 const within = (v: number | null, min: number, max: number): number | null =>
@@ -59,9 +77,9 @@ function speedMs(m: MeteoGaliciaMedida | null, max = 60): number | null {
   return within(v, 0, max);
 }
 
-/** Leaf wetness as minutes of the 10. MeteoGalicia's duration sums in this feed come in HOURS
+/** Leaf wetness or sun as minutes of the 10. MeteoGalicia's duration sums in this feed come in HOURS
  *  (like HSOL_SUM: 0.1667 is the whole period); a unit spelled in minutes is taken as is. */
-function leafWetMinutes(m: MeteoGaliciaMedida | null): number | null {
+function durationMinutes(m: MeteoGaliciaMedida | null): number | null {
   if (!m) return null;
   const minutes = /min/i.test(m.unidade ?? '') ? m.valor : m.valor * 60;
   const v = within(minutes, 0, 10.5); // the source rounds a hair over the period
@@ -81,6 +99,7 @@ export function parseMgAux2m(stationId: number, entry: MeteoGaliciaObsEntry | nu
   const med = entry.listaMedidas;
   const dir = valid(med, MG_AUX_PARAMS.WIND_DIRECTION_2M);
   const dirSd = valid(med, MG_AUX_PARAMS.WIND_DIR_SD_2M);
+  const num = (code: string, min: number, max: number) => within(valid(med, code)?.valor ?? null, min, max);
   const out: MgAuxReading = {
     stationId: `mg_${stationId}`,
     time,
@@ -89,9 +108,14 @@ export function parseMgAux2m(stationId: number, entry: MeteoGaliciaObsEntry | nu
     dir2m: within(dir?.valor ?? null, 0, 360),
     windSd2m: speedMs(valid(med, MG_AUX_PARAMS.WIND_SPEED_SD_2M), 20), // above 20 m/s of spread is not wind
     dirSd2m: within(dirSd?.valor ?? null, 0, 180),
-    leafWetMin: leafWetMinutes(valid(med, MG_AUX_PARAMS.LEAF_WETNESS)),
+    leafWetMin: durationMinutes(valid(med, MG_AUX_PARAMS.LEAF_WETNESS)),
+    grassTemp: num(MG_AUX_PARAMS.GRASS_TEMP, -40, 70),
+    soilTemp10: num(MG_AUX_PARAMS.SOIL_TEMP_10CM, -30, 70),
+    soilMoist20: num(MG_AUX_PARAMS.SOIL_MOISTURE_20CM, 0, 100),
+    sunMin: durationMinutes(valid(med, MG_AUX_PARAMS.SUNSHINE)),
+    windSd10: speedMs(valid(med, MG_AUX_PARAMS.WIND_SPEED_SD_10M), 20),
+    dirSd10: num(MG_AUX_PARAMS.WIND_DIR_SD_10M, 0, 180),
   };
-  const any = out.wind2m != null || out.gust2m != null || out.dir2m != null
-    || out.windSd2m != null || out.dirSd2m != null || out.leafWetMin != null;
-  return any ? out : null;
+  const { stationId: _id, time: _t, ...fields } = out;
+  return Object.values(fields).some((v) => v != null) ? out : null;
 }

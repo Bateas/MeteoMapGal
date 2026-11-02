@@ -91,12 +91,25 @@ export interface PoemColumnPlan {
   description: string | null;
 }
 
+/** A column kept apart for the archive (poem_aux), not a field of the reading. */
+export interface PoemAuxColumn {
+  column: string;
+  factor: number;
+  unit: string | null;
+  qcColumn: string | null;
+}
+
 export interface PoemStationPlan {
   stationId: number;
   /** Path under /doris/, e.g. "mareas/redmar_mir_tr". */
   table: string;
   columns: PoemColumnPlan[];
+  /** Visibility, irradiance and precipitation when the table has them; [] otherwise. */
+  aux: PoemAuxColumn[];
 }
+
+/** Port stations (REMPOR) send these too. They do not reach the map: see poemAuxRows. */
+const POEM_AUX_COLUMNS = ['vs', 'ir', 'pc'] as const;
 
 /** "boyas.redcos_tr" (or "redcos_tr") → "boyas/redcos_tr" if it is a table we read, else null. */
 export function poemTablePath(dbTable: string | null | undefined): string | null {
@@ -170,7 +183,15 @@ export function buildStationPlan(
     const prev = chosen.get(c.field);
     if (!prev || rank(c) < rank(prev)) chosen.set(c.field, c);
   }
-  return { stationId, table, columns: [...chosen.values()] };
+  const aux: PoemAuxColumn[] = [];
+  for (const column of POEM_AUX_COLUMNS) {
+    const r = rows.find((x) => x.db_column?.trim() === column && poemTablePath(x.db_table) === table);
+    const factor = toNumber(r?.factor);
+    if (!r || factor == null || factor <= 0) continue;
+    const info = r.param != null ? params.get(r.param) : undefined;
+    aux.push({ column, factor, unit: info?.unidad?.trim() || null, qcColumn: qcColumnFor(table, column) });
+  }
+  return { stationId, table, columns: [...chosen.values()], aux };
 }
 
 /** The columns to ask for: the data, their quality flags, the station code and the time. */
@@ -180,6 +201,11 @@ export function planRequestColumns(plan: PoemStationPlan): string[] {
     cols.add(c.column);
     if (c.qcColumn) cols.add(c.qcColumn);
   }
+  for (const c of plan.aux ?? []) {
+    cols.add(c.column);
+    if (c.qcColumn) cols.add(c.qcColumn);
+  }
+  if ((plan.aux ?? []).some((c) => c.column === 'vs') && TABLE_COLUMNS.get(plan.table)?.has('vs_cause')) cols.add('vs_cause');
   return [...cols];
 }
 
@@ -392,4 +418,62 @@ export function jwtExpiryMs(token: string): number | null {
 /** "2026-10-01T06:00:00+00:00", the form the guide uses in its date filters. */
 export function poemIsoUtc(ms: number): string {
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, '+00:00');
+}
+
+// ── Archive of the rest of a port station's row ─────
+
+export interface PoemAuxRow {
+  time: Date;
+  stationId: number;
+  visibility: number | null;
+  visibilityQc: number | null;
+  visibilityCause: string | null;
+  irradiance: number | null;
+  irradianceQc: number | null;
+  precip: number | null;
+  precipQc: number | null;
+  /** The units POEM declares, e.g. "vs=km;ir=W/m2;pc=mm": they have not been seen yet, so they are kept. */
+  units: string;
+}
+
+/**
+ * The visibility, irradiance and precipitation of the rows of a plan that has them, divided by their
+ * factor and WITH their quality flag: an archive is not filtered, whoever reads it filters. Pure.
+ */
+export function poemAuxRows(plan: PoemStationPlan, rows: readonly Record<string, unknown>[]): PoemAuxRow[] {
+  const aux = plan.aux ?? [];
+  if (aux.length === 0) return [];
+  const units = aux.map((c) => `${c.column}=${c.unit ?? '?'}`).join(';');
+  const out: PoemAuxRow[] = [];
+  for (const r of rows) {
+    if (r == null || typeof r !== 'object') continue;
+    const t = poemFechaMs(r.fecha);
+    if (t == null) continue;
+    const read = (column: string) => {
+      const c = aux.find((x) => x.column === column);
+      const raw = c ? toNumber(r[column]) : null;
+      return {
+        value: c && raw != null ? raw / c.factor : null,
+        qc: c?.qcColumn ? toNumber(r[c.qcColumn]) : null,
+      };
+    };
+    const vs = read('vs');
+    const ir = read('ir');
+    const pc = read('pc');
+    if (vs.value == null && ir.value == null && pc.value == null) continue;
+    const cause = r.vs_cause;
+    out.push({
+      time: new Date(t),
+      stationId: plan.stationId,
+      visibility: vs.value,
+      visibilityQc: vs.qc,
+      visibilityCause: typeof cause === 'string' && cause.trim() !== '' ? cause.trim().slice(0, 40) : cause == null ? null : String(cause).slice(0, 40),
+      irradiance: ir.value,
+      irradianceQc: ir.qc,
+      precip: pc.value,
+      precipQc: pc.qc,
+      units,
+    });
+  }
+  return out;
 }
