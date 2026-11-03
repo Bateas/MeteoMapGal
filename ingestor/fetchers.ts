@@ -191,6 +191,14 @@ export function takeMgAuxRows(): MgAuxReading[] {
   return rows;
 }
 
+/** Time of the newest MeteoGalicia record seen. A failed poll leaves it as it was, so the age grows. */
+let mgNewestMs: number | null = null;
+
+/** Whole minutes since that record; null until one has been seen. */
+export function mgNewestAgeMin(nowMs: number): number | null {
+  return mgNewestMs == null ? null : Math.round((nowMs - mgNewestMs) / 60_000);
+}
+
 async function fetchMeteoGalicia(
   stations: NormalizedStation[]
 ): Promise<NormalizedReading[]> {
@@ -240,6 +248,7 @@ async function fetchMeteoGalicia(
   // lines give MeteoGalicia's publication delay, which is what a fixed 10-min slot needs before
   // the poll can be halved without making the wind late (21-oct audit, finding 10).
   const newestMs = readings.reduce((m, r) => Math.max(m, r.timestamp.getTime()), -Infinity);
+  if (Number.isFinite(newestMs)) mgNewestMs = newestMs;
   const newestNote = Number.isFinite(newestMs) ? `, newest ${Math.round((Date.now() - newestMs) / 60_000)} min old` : '';
   log.info(`MeteoGalicia: ${readings.length}/${mgStations.length} readings (${urls.length} request${urls.length === 1 ? '' : 's'}${newestNote})`);
   return readings;

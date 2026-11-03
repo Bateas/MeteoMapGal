@@ -317,6 +317,36 @@ export function stepOpportunityRise(prev: RiseState | undefined, verdict: Verdic
   return { state: { armed: true, pending }, confirmed: false };
 }
 
+/**
+ * Minutes without a new MeteoGalicia record that count as frozen. It answers 200 with old data:
+ * never 30+ min in the logs of 23-26 oct, then 18-33 cycles on each working day from 28-oct. Set
+ * below the 40 min at which its stations leave the consensus, so the hold is on first.
+ */
+export const MG_FROZEN_MIN = 30;
+
+/** Share of the spot's stations from before the freeze at or under which it has lost too many. */
+export const STATIONS_LEFT_RATIO = 0.8;
+
+/**
+ * Whether a rise waits because the spot's consensus has just lost MeteoGalicia. Losing it moves
+ * the figure with no change of wind: Cesantes 3-nov, 8 stations and 5.1 kt, then 4 stations and
+ * 11.1 kt with «BUENO» sent at 08:45, then 7 stations and 6.6 kt once it was back. Replayed from
+ * 1-oct it takes out that alert and A Lanzada 30-oct (5 of 9 stations, 10 kt, then 5.7), no other.
+ * Only invitations wait: FUERTE and the spot's hard limits never do. A spot whose stations are not
+ * MeteoGalicia's keeps its count and does not wait.
+ */
+export function holdsRiseOnFrozenSource(
+  mgAgeMin: number | null,
+  stationCount: number,
+  countBeforeFreeze: number | undefined,
+  verdict: Verdict,
+  hardGate?: string | null,
+): boolean {
+  if (mgAgeMin == null || mgAgeMin < MG_FROZEN_MIN || countBeforeFreeze == null) return false;
+  if (verdict === 'strong' || hardGate) return false;
+  return stationCount <= STATIONS_LEFT_RATIO * countBeforeFreeze;
+}
+
 /** Whether a verdict is worth announcing when a spot rises into it: good or strong, or
  *  sailing from 10kt (marginal sailing below that flips too often to be worth a message). */
 export function isWorthAlerting(verdict: string, windKt: number | null): boolean {
