@@ -36,6 +36,7 @@ import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import type { SpotScore } from '../src/services/spotScoringEngine.js';
 import { scoreWithEngine, findDivergences, describeDivergences, engineView, alertResult } from './engineShadow.js';
+import { mgNewestAgeMin } from './fetchers.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
 import {
   scoreSpot,
@@ -45,6 +46,8 @@ import {
   ALERT_VERDICTS,
   opportunityAlertAllowed,
   stepOpportunityRise,
+  holdsRiseOnFrozenSource,
+  MG_FROZEN_MIN,
   canAlertOnResult,
   isWorthAlerting,
   type SpotDef,
@@ -104,6 +107,8 @@ const SAFETY_SPOTS = safetySpots();
 
 /** Per spot: armed by a calm/light verdict, counting the cycles a rise has held (stepOpportunityRise). */
 const riseStates = new Map<string, RiseState>();
+/** Per spot: its station count on the last cycle MeteoGalicia was not frozen (holdsRiseOnFrozenSource). */
+const stationsBeforeFreeze = new Map<string, number>();
 let lastForecastRun = 0;
 const FORECAST_INTERVAL_MS = 30 * 60_000; // 30 minutes
 /** Whether spot_scores has the engine shadow columns, as last seen by persistSpotScores.
@@ -460,6 +465,9 @@ export async function runAnalysis(): Promise<void> {
   const scoreRows: SpotResult[] = [];
   const pipelineRows: SpotResult[] = [];
   const boostedSpots: string[] = [];
+  const heldSpots: string[] = [];
+  const mgAgeMin = mgNewestAgeMin(now);
+  const mgFrozen = mgAgeMin != null && mgAgeMin >= MG_FROZEN_MIN;
   for (const spot of SPOTS) {
     const pipelineResult = scoreSpot(spot, readings, buoys, ctx);
     pipelineRows.push(pipelineResult);
@@ -489,7 +497,16 @@ export async function runAnalysis(): Promise<void> {
     // so a restart never announces whatever the wind happened to be doing at that moment.
     const ok = ALERT_VERDICTS.has(result.verdict)
       && isWorthAlerting(result.verdict, result.avgWindKt) && canAlertOnResult(result);
-    const step = stepOpportunityRise(riseStates.get(spot.id), result.verdict, ok);
+    // Waiting neither counts nor disarms: a rise real enough to last is still announced when the
+    // source is back, and a figure that only came from the missing stations is gone by then.
+    if (!mgFrozen) stationsBeforeFreeze.set(spot.id, result.stationCount);
+    const before = stationsBeforeFreeze.get(spot.id);
+    const held = holdsRiseOnFrozenSource(mgAgeMin, result.stationCount, before, result.verdict, result.hardGate);
+    if (held) heldSpots.push(`${spot.id} ${result.stationCount}/${before}`);
+    const prevRise = riseStates.get(spot.id);
+    const step = held
+      ? { state: prevRise ?? { armed: false, pending: 0 }, confirmed: false }
+      : stepOpportunityRise(prevRise, result.verdict, ok);
     riseStates.set(spot.id, step.state);
     const rises = step.confirmed;
     const storm = rises ? stormNearPoint(spot.lat, spot.lon, strikesNow) : null;
@@ -508,6 +525,10 @@ export async function runAnalysis(): Promise<void> {
         { gustKt: result.maxGustKt > 0 ? result.maxGustKt : undefined, hardGate: result.hardGate ?? undefined },
       );
     }
+  }
+
+  if (heldSpots.length > 0) {
+    log.info(`[Analyzer] MeteoGalicia sin dato nuevo hace ${mgAgeMin} min, avisos en espera: ${heldSpots.join(', ')}`);
   }
 
   // Detector summary log (cycle-level — once per 5min poll instead of per-spot)

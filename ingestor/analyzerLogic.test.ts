@@ -20,6 +20,8 @@ import {
   MIN_SOURCES_FOR_ALERT,
   opportunityAlertAllowed,
   stepOpportunityRise,
+  holdsRiseOnFrozenSource,
+  MG_FROZEN_MIN,
   OPPORTUNITY_CONFIRM_CYCLES,
   type RiseState,
   type Verdict,
@@ -1350,6 +1352,36 @@ describe('stepOpportunityRise — a rise is announced only once it has held (29-
 
   it('a new rise after the wind dropped away again is announced again', () => {
     expect(run([['calm', false], good, good, good, good, ['light', false], good, good, good, good])).toEqual([4, 9]);
+  });
+});
+
+describe('holdsRiseOnFrozenSource — a figure moved by a missing source invites nobody (3-nov)', () => {
+  const frozen = MG_FROZEN_MIN + 10;
+
+  it('Cesantes 3-nov: 4 of 8 stations with MeteoGalicia frozen waits', () => {
+    expect(holdsRiseOnFrozenSource(frozen, 4, 8, 'good')).toBe(true);
+  });
+
+  it('A Lanzada 30-oct: 5 of 9 waits', () => {
+    expect(holdsRiseOnFrozenSource(frozen, 5, 9, 'sailing')).toBe(true);
+  });
+
+  it('with MeteoGalicia fresh, the same drop is not its doing', () => {
+    expect(holdsRiseOnFrozenSource(MG_FROZEN_MIN - 1, 4, 8, 'good')).toBe(false);
+  });
+
+  it('a spot that kept its stations does not wait', () => {
+    expect(holdsRiseOnFrozenSource(frozen, 8, 8, 'good')).toBe(false);
+  });
+
+  it('FUERTE and a hard limit never wait', () => {
+    expect(holdsRiseOnFrozenSource(frozen, 4, 8, 'strong')).toBe(false);
+    expect(holdsRiseOnFrozenSource(frozen, 4, 8, 'good', 'Oleaje 3.4m > 3m')).toBe(false);
+  });
+
+  it('with no MeteoGalicia record or no count from before, nothing waits', () => {
+    expect(holdsRiseOnFrozenSource(null, 4, 8, 'good')).toBe(false);
+    expect(holdsRiseOnFrozenSource(frozen, 4, undefined, 'good')).toBe(false);
   });
 });
 
