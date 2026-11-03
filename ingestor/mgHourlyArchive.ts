@@ -27,8 +27,9 @@ const BATCH_SIZE = 200;
 /** The first full run can be about 50 MB. */
 const REQUEST_TIMEOUT_MS = 180_000;
 const MAX_ATTEMPTS_PER_DAY = 3;
-/** Runs after this UTC hour, once the nightly INTECMAR jobs are going, far from anyone's use. */
-const RUN_AFTER_UTC_HOUR = 3;
+/** Runs in this window of UTC hours, far from anyone's use. A restart by day must not launch it. */
+const RUN_FROM_UTC_HOUR = 3;
+const RUN_UNTIL_UTC_HOUR = 7;
 /** A record newer than this means tonight's run is done. */
 const FRESH_ENOUGH_MS = 20 * HOUR_MS;
 const MIN_HOURS = 26;
@@ -85,7 +86,8 @@ export function mgHourlyHoursToAsk(lastStoredMs: number | null, nowMs: number): 
 
 /** Whether tonight's run is still to do. */
 export function mgHourlyDue(lastStoredMs: number | null, nowMs: number): boolean {
-  if (new Date(nowMs).getUTCHours() < RUN_AFTER_UTC_HOUR) return false;
+  const hour = new Date(nowMs).getUTCHours();
+  if (hour < RUN_FROM_UTC_HOUR || hour >= RUN_UNTIL_UTC_HOUR) return false;
   return lastStoredMs == null || nowMs - lastStoredMs >= FRESH_ENOUGH_MS;
 }
 
