@@ -1361,3 +1361,42 @@ DO $$ BEGIN
     GRANT SELECT ON mg_aux_readings TO ml_job;
   END IF;
 END $$;
+
+-- ── MeteoGalicia hourly record of every station (mgHourlyArchive.ts) ──────
+-- One request a night, all stations. Since 28-oct the 10-min service freezes for 40-90 min on working
+-- days and what it did not show is gone from readings; the hourly record still has it. Values as
+-- published, kept next to their validation code. Nothing reads it yet, and it never goes to readings.
+CREATE TABLE IF NOT EXISTS mg_hourly (
+  time          TIMESTAMPTZ NOT NULL,   -- UTC, as published (instanteLecturaUTC)
+  station_id    TEXT        NOT NULL,   -- mg_<idEstacion>, as in readings
+  wind_avg      REAL,                   -- m/s at 10 m (VV_AVG_10m): 4 of 155 stations at first, the rest weeks later
+  wind_gust     REAL,                   -- m/s (VV_RACHA_10m)
+  wind_dir      REAL,                   -- degrees, from (DV_AVG_10m)
+  wind_avg_2m   REAL,                   -- m/s at 2 m, among the vines: not wind on the water
+  wind_gust_2m  REAL,
+  wind_dir_2m   REAL,
+  temp          REAL,                   -- C at 1.5 m
+  temp_min      REAL,
+  temp_max      REAL,
+  humidity      REAL,                   -- %
+  precip        REAL,                   -- L/m2 in the hour
+  rain_rate     REAL,                   -- mm/h, highest in the hour (IP_MAX_1.5m)
+  solar         REAL,                   -- W/m2
+  sun_h         REAL,                   -- hours of sun in the hour
+  pressure      REAL,                   -- hPa at the station
+  pressure_red  REAL,                   -- hPa reduced to sea level
+  leaf_wet_h    REAL,                   -- hours of wet leaf in the hour
+  flags         JSONB,                  -- {code: validation} for every value whose code is not 1: 2 suspect, 3 wrong, 5 interpolated
+  fetched_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (station_id, time)
+);
+SELECT create_hypertable('mg_hourly', 'time', chunk_time_interval => INTERVAL '1 month', if_not_exists => TRUE);
+GRANT SELECT, INSERT, UPDATE ON mg_hourly TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON mg_hourly TO grafana_ro;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ml_job') THEN
+    GRANT SELECT ON mg_hourly TO ml_job;
+  END IF;
+END $$;
