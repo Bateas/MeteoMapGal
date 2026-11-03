@@ -89,6 +89,11 @@ describe('how much and when', () => {
     expect(mgHourlyHoursToAsk(null, NOW)).toBe(198);
   });
 
+  it('a restart by day does not launch it, not even the first run', () => {
+    expect(mgHourlyDue(null, Date.UTC(2026, 10, 3, 18, 30))).toBe(false);
+    expect(mgHourlyDue(NOW - 30 * HOUR, Date.UTC(2026, 10, 4, 7, 0))).toBe(false);
+  });
+
   it('due once a night, from 03 UTC', () => {
     expect(mgHourlyDue(NOW - 24 * HOUR, Date.UTC(2026, 10, 4, 2, 59))).toBe(false);
     expect(mgHourlyDue(NOW - 24 * HOUR, NOW)).toBe(true);
