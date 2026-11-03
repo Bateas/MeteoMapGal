@@ -40,6 +40,7 @@ import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
 import { runMetarArchive, METAR_ARCHIVE_INTERVAL_MS } from './metarArchive.js';
 import { runIntecmarArchive, INTECMAR_CHECK_MS } from './intecmarArchive.js';
 import { runIntecmarHistory } from './intecmarHistory.js';
+import { runMgHourlyArchive } from './mgHourlyArchive.js';
 import { runIntecmarLive, intecmarLiveIntervalMs } from './intecmarLive.js';
 import { findStaleBuoys, formatSilence } from './buoyStaleness.js';
 import {
@@ -113,6 +114,7 @@ let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
 let metarTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarHistoryTimer: ReturnType<typeof setInterval> | null = null;
+let mgHourlyTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarLiveTimer: ReturnType<typeof setInterval> | null = null;
 let isShuttingDown = false;
 let cycleCount = 0;
@@ -679,6 +681,11 @@ async function start(): Promise<void> {
   setTimeout(() => { void runIntecmarHistory(); }, 330_000);
   intecmarHistoryTimer = setInterval(() => { void runIntecmarHistory(); }, INTECMAR_CHECK_MS);
 
+  // MeteoGalicia's hourly record of every station (mgHourlyArchive.ts): checked hourly, one request a
+  // night after 03:00 UTC. What a frozen 10-min feed did not show is still there. 360s stagger.
+  setTimeout(() => { void runMgHourlyArchive(); }, 360_000);
+  mgHourlyTimer = setInterval(() => { void runMgHourlyArchive(); }, INTECMAR_CHECK_MS);
+
   // The platforms in real time from INTECMAR itself (intecmarLive.ts), every INTECMAR_LIVE_MS (30 min by
   // default, agreed with INTECMAR; INTECMAR_LIVE=0 switches it off). Fire-and-forget: the buoy step of each poll merges the
   // newest rows it kept. 45s stagger so the first rows are there for the second poll.
@@ -715,6 +722,7 @@ async function shutdown(signal: string): Promise<void> {
   if (metarTimer) clearInterval(metarTimer);
   if (intecmarTimer) clearInterval(intecmarTimer);
   if (intecmarHistoryTimer) clearInterval(intecmarHistoryTimer);
+  if (mgHourlyTimer) clearInterval(mgHourlyTimer);
   if (intecmarLiveTimer) clearInterval(intecmarLiveTimer);
 
   // Close database pool
