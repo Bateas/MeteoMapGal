@@ -6,11 +6,12 @@
  * confidence threshold.
  */
 import { describe, it, expect } from 'vitest';
-import { detectBocana } from './bocanaDetector';
+import { detectBocana, bocanaFigureKt } from './bocanaDetector';
 import type { BuoyReading } from '../api/buoyClient';
 
 const RANDE = 1251;
 const VIGO = 3221;
+const MARIN = 3223;
 
 function buoy(stationId: number, o: Partial<BuoyReading> = {}): BuoyReading {
   return {
@@ -60,6 +61,68 @@ describe('detectBocana — gates', () => {
   });
 });
 
+// ── The figure: nothing added, and only the buoy on this water ──
+
+describe('bocanaFigureKt — a terral shows a measured wind', () => {
+  // 3-nov 08:30: 12.9 kt at the stations, Vigo 15.6, and the app said 20.9 (FUERTE).
+  it('the Vigo buoy over the consensus: the buoy, not their sum', () => {
+    const r = detectBocana([rande(3, 85), buoy(VIGO, { windSpeed: 8, windDir: 60 })], 200, MORNING);
+    expect(r.active).toBe(true);
+    expect(bocanaFigureKt(12.9, r)).toBeCloseTo(15.6, 1);
+  });
+
+  // 4-nov 09:33: 5.9 at the stations, Vigo 6.8, and the app said 11.9.
+  it('the Vigo buoy near the consensus moves it no further than the buoy', () => {
+    const r = detectBocana([rande(3, 85), buoy(VIGO, { windSpeed: 3.5, windDir: 60 })], 200, MORNING);
+    expect(bocanaFigureKt(5.9, r)).toBeCloseTo(6.8, 1);
+  });
+
+  it('a consensus above the buoy stays', () => {
+    const r = detectBocana([rande(3, 85), buoy(VIGO, { windSpeed: 3, windDir: 60 })], 200, MORNING);
+    expect(bocanaFigureKt(9, r)).toBe(9);
+  });
+
+  // 31-oct 09:34: Vigo 5.2, Marin 14.6, gust 7, and the app said 13.7.
+  it('Marin confirms the terral but does not set the figure', () => {
+    const r = detectBocana(
+      [rande(3, 85), buoy(VIGO, { windSpeed: 2.7, windDir: 60 }), buoy(MARIN, { windSpeed: 7.5, windDir: 60 })],
+      200, MORNING,
+    );
+    expect(r.active).toBe(true);
+    expect(r.signal).toMatch(/boya de Marín/);
+    expect(bocanaFigureKt(5.7, r)).toBeCloseTo(5.7, 1);
+  });
+
+  it('Marin alone gives no figure', () => {
+    const r = detectBocana([rande(3, 85), buoy(MARIN, { windSpeed: 7.5, windDir: 60 })], 200, MORNING);
+    expect(r.active).toBe(true);
+    expect(bocanaFigureKt(5.7, r)).toBe(5.7);
+  });
+
+  it('with no buoy measuring it, the temperature difference alone moves nothing', () => {
+    const r = detectBocana([rande(3, 80)], 200, MORNING);
+    expect(r.active).toBe(true);
+    expect(bocanaFigureKt(4, r)).toBe(4);
+  });
+
+  it('a Vigo reading older than 45 min does not set the figure', () => {
+    const old = new Date(Date.now() - 60 * 60_000).toISOString();
+    const r = detectBocana([rande(3, 85), buoy(VIGO, { windSpeed: 8, windDir: 60, timestamp: old })], 200, MORNING);
+    expect(r.localBuoyKt).toBeNull();
+    expect(bocanaFigureKt(5, r)).toBe(5);
+  });
+
+  it('Vigo blowing from the sea does not set the figure', () => {
+    const r = detectBocana([rande(3, 85), buoy(VIGO, { windSpeed: 8, windDir: 220 })], 200, MORNING);
+    expect(bocanaFigureKt(5, r)).toBe(5);
+  });
+
+  it('with no terral the consensus stays', () => {
+    const r = detectBocana([rande(0.5), buoy(VIGO, { windSpeed: 8, windDir: 60 })], 200, MORNING);
+    expect(bocanaFigureKt(5, r)).toBe(5);
+  });
+});
+
 // ── Detection paths ──────────────────────────────────────
 
 describe('detectBocana — detection', () => {
@@ -70,7 +133,7 @@ describe('detectBocana — detection', () => {
     );
     expect(r.active).toBe(true);
     expect(r.confidence).toBeGreaterThanOrEqual(60);
-    expect(r.boostKt).toBeGreaterThan(2);
+    expect(r.localBuoyKt).toBeCloseTo(9.7, 1);
     expect(r.buoyWindKt).not.toBeNull();
     expect(r.buoyDir).toBe(60);
     expect(r.signal).toMatch(/Terral/);
@@ -80,7 +143,7 @@ describe('detectBocana — detection', () => {
     const r = detectBocana([rande(3, 80)], 200, MORNING); // no wind buoy
     expect(r.active).toBe(true);
     expect(r.buoyWindKt).toBeNull();
-    expect(r.boostKt).toBeGreaterThanOrEqual(2);
+    expect(r.localBuoyKt).toBeNull();
     expect(r.signal).toMatch(/probable/i);
   });
 
