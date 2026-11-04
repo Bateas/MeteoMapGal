@@ -132,12 +132,12 @@ export function LegalSection() {
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
               No vendemos ni cedemos tus datos. Algunos mapas, modelos y webcams se cargan directamente
-              desde sus proveedores (Esri, IGN, OpenStreetMap, Open-Meteo, RainViewer, Copernicus, IPMA, DGT, Cloudflare),
+              desde sus proveedores (Esri, IGN, OpenStreetMap, EMODnet, OpenSeaMap, Protomaps, Amazon, Open-Meteo, RainViewer, Copernicus, el IHM para la carta náutica, IPMA, DGT, Cloudflare),
               que ven tu dirección IP como cualquier web que visitas
             </li>
             <li className="flex items-start gap-2">
               <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
-              Lo que se pide a través de nuestro servidor (MeteoGalicia, Meteoclimatic, IHM, CESGA, ENAIRE,
+              Lo que se pide a través de nuestro servidor (MeteoGalicia, Meteoclimatic, las mareas del IHM, CESGA, ENAIRE,
               OpenSky, SkyX) les llega sin tu IP, tu país, tus cookies ni los datos de tu navegador: solo ven
               a MeteoMapGal
             </li>

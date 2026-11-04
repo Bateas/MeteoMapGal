@@ -192,7 +192,7 @@ describe('tide requests on the wire when the IHM is down', () => {
     vi.useRealTimers();
   });
 
-  it('one page load costs three IHM requests with backoff, then none', async () => {
+  it('one page load costs one IHM request, then none', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const onWire = (needle: string) => fetchMock.mock.calls.filter(([u]) => String(u).includes(needle)).length;
@@ -200,7 +200,7 @@ describe('tide requests on the wire when the IHM is down', () => {
     const all = Promise.allSettled([fetchTides48h('29'), fetchTidePredictions('29'), fetchTides48h('28')]);
     await vi.runAllTimersAsync();
     await all;
-    expect(onWire('/ihm-api/')).toBe(3); // 1 + retries at 2 s and 4 s
+    expect(onWire('/ihm-api/')).toBe(1); // no retries: a failure here is for every station and day
     expect(onWire('getTidesInfo')).toBe(2); // 1 + one retry
 
     // An hour later the panel and the ticker poll again
@@ -208,6 +208,6 @@ describe('tide requests on the wire when the IHM is down', () => {
     const later = Promise.allSettled([fetchTides48h('29'), fetchTidePredictions('29')]);
     await vi.runAllTimersAsync();
     await later;
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
