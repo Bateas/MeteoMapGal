@@ -417,12 +417,13 @@ async function fetchTidePredictionsLive(
 
   const url = `${IHM_BASE}/api-ihm/getmarea?${params}`;
 
-  // Two retries with backoff (2 s, then 4 s) only while the IHM is being
-  // probed; after that the session gate decides, not the retry loop.
+  // No retries: when the IHM fails it fails for every station and day, and for
+  // hours, so asking again 2 and 6 seconds later only added two more errors per
+  // page load. The session gate stops asking and MeteoSIX takes over.
   const response = await fetchWithRetry(url, {
     label: 'Tide',
     timeout: 10_000,
-    maxRetries: 2,
+    maxRetries: 0,
   });
 
   if (!response.ok) {
