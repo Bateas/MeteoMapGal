@@ -3,7 +3,8 @@
  *
  * Two levels driven by the EXISTING lightningProximityService brain (pure
  * observation of certified CG strikes, never a model):
- *   aviso   — real storm <=25km AND approaching: distance + ETA heads-up.
+ *   aviso   — real storm <=25km AND approaching (distance + ETA heads-up), or
+ *             a strike within 10km: a storm in the zone or arriving.
  *   peligro — strikes <10km: "sal del agua". The only push that ignores
  *             night silence, because it is an immediate safety call.
  *
@@ -23,6 +24,7 @@ import { getPool } from './db.js';
 import { log } from './logger.js';
 import { isAllowedPushEndpoint } from './requestGuards.js';
 import type { SpotLightningRisk } from '../src/services/lightningProximityService.js';
+import { LIGHTNING_DANGER_KM } from '../src/services/lightningProximityService.js';
 
 // ── VAPID config (read once at process start) ──────────
 // Both services (meteo-ingestor and meteo-api) import 'dotenv/config' as
@@ -91,14 +93,14 @@ export interface PushSentEntry {
 export type PushSendState = Map<string, PushSentEntry>;
 
 /**
- * The AVISO push is defined as "storm <=25km AND approaching" — a static
- * storm parked next door belongs on the map, not in the pocket (its body
- * copy literally says "acercandose"). PELIGRO always qualifies.
+ * The AVISO push is "storm <=25km AND approaching", or a strike within 10 km: a static storm parked
+ * next door belongs on the map, not in the pocket, but a strike that close is what someone not
+ * looking at the sky needs to hear. PELIGRO always qualifies.
  */
 export function shouldNotifyRisk(
-  risk: Pick<SpotLightningRisk, 'level' | 'approaching'>,
+  risk: Pick<SpotLightningRisk, 'level' | 'approaching' | 'nearestKm'>,
 ): boolean {
-  return risk.level === 'peligro' || risk.approaching;
+  return risk.level === 'peligro' || risk.approaching || risk.nearestKm <= LIGHTNING_DANGER_KM;
 }
 
 /**
@@ -147,7 +149,7 @@ export function buildPushPayload(
   spotName: string,
   sectorId: string,
   spotId: string,
-  risk: Pick<SpotLightningRisk, 'level' | 'nearestKm' | 'etaMin'>,
+  risk: Pick<SpotLightningRisk, 'level' | 'nearestKm' | 'etaMin'> & { approaching?: boolean },
 ): PushPayload {
   const url = `/?sector=${sectorId}&spot=${spotId}`;
   const tag = `lightning-${spotId}`;
@@ -162,7 +164,8 @@ export function buildPushPayload(
   }
 
   const km = Math.max(1, Math.round(risk.nearestKm));
-  let body = `Tormenta a ${km} km, acercandose.`;
+  // Only a storm seen moving says it is coming: a strike alone says where it fell
+  let body = risk.approaching === false ? `Rayo a ${km} km: posible tormenta en la zona.` : `Tormenta a ${km} km, acercandose.`;
   if (risk.etaMin != null) {
     body += ` Llegada estimada ~${risk.etaMin} min.`;
   }

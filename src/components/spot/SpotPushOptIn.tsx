@@ -5,7 +5,7 @@
  * the installed PWA): silence, not an explanation — the popup just went on a
  * density diet and an unusable feature earns zero pixels.
  *
- * Only the two safety levels ever push (AVISO approaching / PELIGRO <10km),
+ * Only the two safety levels ever push (AVISO approaching or a strike within 10 km / PELIGRO <10km),
  * both computed by lightningProximityService on the ingestor side. Nothing
  * else pushes — no verdicts, no wind, no summaries.
  */

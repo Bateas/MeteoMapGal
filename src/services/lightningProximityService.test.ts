@@ -62,9 +62,15 @@ describe('assessSpotLightningRisk', () => {
     expect(risks[0].nearestKm).toBeLessThan(8);
   });
 
-  it('a single close strike with no storm context stays silent (rigor)', () => {
+  it('a single close strike warns, without reaching danger: a storm in the zone or arriving', () => {
     const risks = assessSpotLightningRisk([CESANTES], [strike(CESANTES, 6, 3)], NOW);
-    expect(risks).toEqual([]);
+    expect(risks).toHaveLength(1);
+    expect(risks[0].level).toBe('aviso');
+    expect(risks[0].countNear).toBe(1);
+  });
+
+  it('a single strike further than 10 km stays silent', () => {
+    expect(assessSpotLightningRisk([CESANTES], [strike(CESANTES, 14, 3)], NOW)).toEqual([]);
   });
 
   it('one close strike escalates to peligro when the 25km context corroborates', () => {

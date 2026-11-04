@@ -8,7 +8,7 @@
 
 import { log } from './logger.js';
 import { webcamSite } from '../src/config/webcams.js';
-import { LIGHTNING_OVERHEAD_KM } from '../src/services/lightningProximityService.js';
+import { LIGHTNING_DANGER_KM, LIGHTNING_OVERHEAD_KM } from '../src/services/lightningProximityService.js';
 import {
   alertedZoneKey, parseAlertedZoneKey, fireWatchDigestText, ALERT_COOLDOWN_MS, DIGEST_MIN_GAP_MS,
   type AlertedZone, type DigestZone,
@@ -489,7 +489,9 @@ export async function dispatchLightningAlert(
     : `Actividad electrica — ${sector}`;
   const advice = level === 'peligro'
     ? 'Fuera del agua: refugio cerrado o coche.'
-    : 'Vigila el radar antes de salir.';
+    : nearestKm != null && nearestKm <= LIGHTNING_DANGER_KM
+      ? 'Posible tormenta en la zona: mira el radar y ve pensando en volver.'
+      : 'Vigila el radar antes de salir.';
   const emoji = level === 'peligro' ? '⚡🔴' : '⚡🟡';
   const msg = `${emoji} *${title}*\n${spotLines.join('\n')}\n${advice}`;
 
