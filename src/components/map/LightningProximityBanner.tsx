@@ -35,9 +35,9 @@ export const LightningProximityBanner = memo(function LightningProximityBanner()
   const kmTxt = top.nearestKm < 1 ? '<1 km' : `${Math.round(top.nearestKm)} km`;
   const title = danger
     ? `RAYO A ${kmTxt.toUpperCase()} — ${top.spotName.toUpperCase()}`
-    : `Rayos a ${kmTxt} — ${top.spotName}`;
+    : `${top.count25 === 1 ? 'Rayo' : 'Rayos'} a ${kmTxt} — ${top.spotName}`;
 
-  let subtitle = `${top.count25} impactos en 20 min`;
+  let subtitle = top.count25 === 1 ? '1 impacto en 20 min · posible tormenta en la zona' : `${top.count25} impactos en 20 min`;
   if (top.approaching) {
     subtitle += top.etaMin != null ? ` · acercándose ~${top.etaMin} min` : ' · acercándose';
   }

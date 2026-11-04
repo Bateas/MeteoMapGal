@@ -20,7 +20,7 @@ import { assessSpotLightningRisk } from '../services/lightningProximityService';
  * Alert levels, measured from the sector centre:
  * - danger / warning: the lightning safety rule (lightningProximityService, the one behind the
  *   map banner and Telegram): >= 2 ground strikes within 10 km, or 1 with >= 3 within 25 km /
- *   >= 3 within 25 km, in its 20-min window. A lone strike never raises either.
+ *   >= 3 within 25 km, or 1 alone within 10 km, in its 20-min window.
  * - watch: any strike within WATCH_KM in the last 30 min (information, not a warning).
  */
 const WATCH_KM = 80; // Extended from 50 — shows "Rayos detectados" info for distant strikes

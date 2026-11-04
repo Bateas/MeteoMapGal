@@ -139,6 +139,15 @@ describe('shouldSendPush — night silence 23-07', () => {
   });
 });
 
+describe('a lone strike within 10 km', () => {
+  it('reaches the pocket, and says where it fell without saying it is coming', () => {
+    const risk = makeRisk({ approaching: false, nearestKm: 7, etaMin: null });
+    expect(shouldNotifyRisk(risk)).toBe(true);
+    const push = buildPushPayload('Cesantes', 'rias', 'cesantes', risk);
+    expect(push.body).toBe('Rayo a 7 km: posible tormenta en la zona.');
+  });
+});
+
 describe('shouldNotifyRisk — aviso requires an approaching storm', () => {
   it('drops an aviso for a static storm (map info, not pocket info)', () => {
     expect(shouldNotifyRisk(makeRisk({ approaching: false }))).toBe(false);

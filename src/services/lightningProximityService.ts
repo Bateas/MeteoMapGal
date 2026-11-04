@@ -13,7 +13,10 @@
  *   peligro — >=2 strikes within 10km, or 1 within 10km backed by an active
  *             storm context (>=3 strikes within 25km). A lone strike with no
  *             storm around it never fires the top level.
- *   aviso   — >=3 strikes within 25km: storm active next door.
+ *   aviso   — >=3 strikes within 25km: storm active next door. Or a single
+ *             strike within 10km: a measured strike that close is a storm in
+ *             the zone or arriving, and whoever is not looking at the sky is
+ *             who needs telling.
  * Anything further/quieter stays silent — a strike 40km away is not a
  * decision (measured: the sector-wide ">=1 strike in 40km" floor sits at a
  * 21% climatological base rate, useless as a personal signal).
@@ -116,7 +119,7 @@ export function assessSpotLightningRisk(
 
     let level: LightningRiskLevel | null = null;
     if (countNear >= 2 || (countNear >= 1 && count25 >= 3)) level = 'peligro';
-    else if (count25 >= 3) level = 'aviso';
+    else if (countNear >= 1 || count25 >= 3) level = 'aviso';
     if (!level) continue;
 
     const nearestKm = Math.min(...within25.map((e) => e.distKm));
