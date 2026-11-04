@@ -81,12 +81,12 @@ describe('how much and when', () => {
 
   it('a normal night asks a bit over a day, a missed one fills itself in, and it is capped', () => {
     expect(mgHourlyHoursToAsk(NOW - 24 * HOUR, NOW)).toBe(26);
-    expect(mgHourlyHoursToAsk(NOW - 72 * HOUR, NOW)).toBe(74);
-    expect(mgHourlyHoursToAsk(NOW - 900 * HOUR, NOW)).toBe(240);
+    expect(mgHourlyHoursToAsk(NOW - 48 * HOUR, NOW)).toBe(50);
+    expect(mgHourlyHoursToAsk(NOW - 900 * HOUR, NOW)).toBe(72);
   });
 
-  it('the very first run goes back to the day before the first freeze', () => {
-    expect(mgHourlyHoursToAsk(null, NOW)).toBe(198);
+  it('an empty table asks all the service gives', () => {
+    expect(mgHourlyHoursToAsk(null, NOW)).toBe(72);
   });
 
   it('a restart by day does not launch it, not even the first run', () => {

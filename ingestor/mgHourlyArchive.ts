@@ -24,7 +24,7 @@ import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
 const MG_BASE = 'https://servizos.meteogalicia.gal/mgrss/observacion';
 const HOUR_MS = 3_600_000;
 const BATCH_SIZE = 200;
-/** The first full run can be about 50 MB. */
+/** Every station in a single answer. */
 const REQUEST_TIMEOUT_MS = 180_000;
 const MAX_ATTEMPTS_PER_DAY = 3;
 /** Runs in this window of UTC hours, far from anyone's use. A restart by day must not launch it. */
@@ -33,9 +33,8 @@ const RUN_UNTIL_UTC_HOUR = 7;
 /** A record newer than this means tonight's run is done. */
 const FRESH_ENOUGH_MS = 20 * HOUR_MS;
 const MIN_HOURS = 26;
-const MAX_HOURS = 240;
-/** The day before the first freeze: where the very first run goes back to. */
-const FIRST_HOUR_MS = Date.UTC(2026, 9, 27);
+/** The service answers about 73 h however many are asked (4-nov, 198 asked): older hours need another request. */
+const MAX_HOURS = 72;
 /** Some stations stamp hours ahead of now (O Fieitoso and Santiago-San Lazaro 12 days on 3-nov). */
 const FUTURE_MARGIN_MS = HOUR_MS;
 
@@ -80,7 +79,8 @@ export function mgHourlyUrl(numHoras: number): string {
 
 /** Hours to ask: back to the last one stored and two more, so a missed night fills itself in. */
 export function mgHourlyHoursToAsk(lastStoredMs: number | null, nowMs: number): number {
-  const hours = Math.ceil((nowMs - (lastStoredMs ?? FIRST_HOUR_MS)) / HOUR_MS) + 2;
+  if (lastStoredMs === null) return MAX_HOURS;
+  const hours = Math.ceil((nowMs - lastStoredMs) / HOUR_MS) + 2;
   return Math.min(MAX_HOURS, Math.max(MIN_HOURS, hours));
 }
 
@@ -172,6 +172,9 @@ export async function runMgHourlyArchive(nowMs = Date.now()): Promise<void> {
     attempts++;
 
     const hours = mgHourlyHoursToAsk(lastMs, nowMs);
+    if (lastMs !== null && nowMs - lastMs > MAX_HOURS * HOUR_MS) {
+      log.warn(`[MG horario] hueco: la última hora guardada es de hace ${Math.round((nowMs - lastMs) / HOUR_MS)} h y el servicio solo da unas ${MAX_HOURS}`);
+    }
     const answer = await fetch(mgHourlyUrl(hours), {
       headers: { 'User-Agent': SERVER_USER_AGENT },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
