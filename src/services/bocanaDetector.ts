@@ -14,6 +14,12 @@
  *
  * Open-Meteo Archive does NOT capture bocana (10km grid too coarse).
  * Only real buoy data detects it.
+ *
+ * It NAMES the terral and never makes up a figure. It used to add «buoy - 2 kt» on top of a consensus
+ * that already counts the buoys, on the assumption that land sat at 0-3 kt: on 4-nov 09:33 that gave
+ * 11.9 kt with 5.9 at the stations and 6.8 at the Vigo buoy, and from 30-sep to 4-nov the figure beat
+ * the measured gust in 426 of 492 boosted cycles. Now the most a terral can do is show what the Vigo
+ * buoy measures.
  */
 
 import type { BuoyReading } from '../api/buoyClient';
@@ -26,8 +32,8 @@ export interface BocanaSignal {
   active: boolean;
   /** Confidence 0-100% */
   confidence: number;
-  /** Wind boost to apply (kt) */
-  boostKt: number;
+  /** Vigo buoy wind (kt) if it blows from land and is recent: the only figure the terral can show */
+  localBuoyKt: number | null;
   /** Human-readable signal description */
   signal: string | null;
   /** Rande water-air delta */
@@ -49,6 +55,13 @@ const RANDE_ID = 1251;
 
 /** Buoys that measure wind in/near Ría de Vigo */
 const WIND_BUOY_IDS = new Set([3221, 3223]); // Vigo + Marín REDMAR
+const WIND_BUOY_NAMES: Record<number, string> = { 3221: 'Vigo', 3223: 'Marín' };
+
+/** The buoy on this water. Marín is another ría: it confirms a terral, it does not measure this one. */
+const LOCAL_BUOY_ID = 3221;
+
+/** A terral dies within the morning: an older reading no longer says what blows now. */
+const LOCAL_BUOY_MAX_AGE_MIN = 45;
 
 /** Bocana direction range: NE to ESE (land → sea) */
 const BOCANA_DIR_MIN = 20;
@@ -83,7 +96,7 @@ export function detectBocana(
 ): BocanaSignal {
   const currentHour = hour ?? sunHour();
   const noSignal: BocanaSignal = {
-    active: false, confidence: 0, boostKt: 0,
+    active: false, confidence: 0, localBuoyKt: null,
     signal: null, deltaT: null, buoyWindKt: null, buoyDir: null,
   };
 
@@ -114,7 +127,9 @@ export function detectBocana(
   // ── Find wind buoy confirming E/NE direction ───────
   let bestBuoyWind = 0;
   let bestBuoyDir: number | null = null;
+  let bestBuoyId: number | null = null;
   let buoyConfirmed = false;
+  let localBuoyKt: number | null = null;
 
   for (const b of buoys) {
     if (!WIND_BUOY_IDS.has(b.stationId)) continue;
@@ -123,9 +138,17 @@ export function detectBocana(
     const dir = b.windDir;
     const isBocanaDir = dir >= BOCANA_DIR_MIN && dir <= BOCANA_DIR_MAX;
 
+    if (
+      isBocanaDir && b.stationId === LOCAL_BUOY_ID
+      && Date.now() - new Date(b.timestamp).getTime() <= LOCAL_BUOY_MAX_AGE_MIN * 60_000
+    ) {
+      localBuoyKt = b.windSpeed * 1.94384;
+    }
+
     if (isBocanaDir && b.windSpeed > bestBuoyWind) {
       bestBuoyWind = b.windSpeed;
       bestBuoyDir = dir;
+      bestBuoyId = b.stationId;
       buoyConfirmed = b.windSpeed >= MIN_BUOY_WIND_MS;
     }
   }
@@ -168,35 +191,26 @@ export function detectBocana(
   // ── Threshold: need >40% confidence to activate ────
   if (confidence < 40) return noSignal;
 
-  // ── Compute boost ──────────────────────────────────
-  // Buoy-confirmed: use buoy wind as basis (capped at 8kt boost)
-  // Not buoy-confirmed: estimate from ΔT (conservative 3-5kt)
-  let boostKt: number;
   const buoyKt = bestBuoyWind * 1.94384;
-
-  if (buoyConfirmed) {
-    // Buoy is measuring the real wind — use it minus land consensus
-    // Land shows ~1-3kt, buoy shows 5-17kt → boost = buoy - 2kt (conservative)
-    boostKt = Math.min(buoyKt - 2, 8);
-  } else {
-    // No buoy confirmation — conservative estimate from ΔT
-    boostKt = deltaT >= 3 ? 4 : 3;
-  }
-  boostKt = Math.max(boostKt, 2);
 
   // ── Build signal description ───────────────────────
   const dirStr = bestBuoyDir != null ? `${Math.round(bestBuoyDir)}°` : 'E/NE';
   const signal = buoyConfirmed
-    ? `Terral ${dirStr} detectado (${Math.round(buoyKt)}kt en boya, ΔT ${deltaT.toFixed(1)}°C)`
+    ? `Terral ${dirStr} detectado (${Math.round(buoyKt)}kt en boya de ${WIND_BUOY_NAMES[bestBuoyId ?? 0] ?? 'la ría'}, ΔT ${deltaT.toFixed(1)}°C)`
     : `Terral probable (ΔT ${deltaT.toFixed(1)}°C, hum ${humidity ?? '?'}%)`;
 
   return {
     active: true,
     confidence,
-    boostKt,
+    localBuoyKt,
     signal,
     deltaT,
     buoyWindKt: buoyConfirmed ? Math.round(buoyKt) : null,
     buoyDir: bestBuoyDir,
   };
+}
+
+/** The wind to show with a terral: the consensus, or the Vigo buoy if it measures more. Nothing added. */
+export function bocanaFigureKt(consensusKt: number, signal: BocanaSignal): number {
+  return signal.active ? Math.max(consensusKt, signal.localBuoyKt ?? 0) : consensusKt;
 }

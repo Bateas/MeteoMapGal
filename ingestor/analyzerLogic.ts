@@ -15,7 +15,7 @@ import { assessRainVeto } from '../src/services/rainVeto.js';
 import { assessSynopticRegime, type UpperWind } from '../src/services/synopticRegime.js';
 import type { ThermalVeto } from '../src/services/cesantesCanalizationDetector.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
-import { detectBocana } from '../src/services/bocanaDetector.js';
+import { detectBocana, bocanaFigureKt } from '../src/services/bocanaDetector.js';
 import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor, spotGustKt, WATER_LEVEL_MAX_ALTITUDE_M } from '../src/services/spotScoringEngine.js';
 import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
@@ -536,7 +536,7 @@ function applyBocanaBoost(
   if (!signal.active || signal.confidence < 40) return null;
 
   return {
-    effectiveKt: rawKt + signal.boostKt,
+    effectiveKt: bocanaFigureKt(rawKt, signal),
     confidence: signal.confidence,
     signal: signal.signal ?? 'Terral matinal detectado',
   };

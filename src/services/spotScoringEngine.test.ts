@@ -1168,3 +1168,44 @@ describe('dirInArc', () => {
     expect(dirInArc(-20, 300, 90)).toBe(true);
   });
 });
+
+describe('Bocana terral in the engine — a measured figure, nothing added', () => {
+  const bocana = RIAS_SPOTS.find(s => s.id === 'bocana')!;
+  const blank: BuoyReading = {
+    stationId: 0, stationName: '', timestamp: '',
+    waveHeight: null, waveHeightMax: null, wavePeriod: null, wavePeriodMean: null, waveDir: null,
+    windSpeed: null, windDir: null, windGust: null,
+    waterTemp: null, airTemp: null, airPressure: null,
+    currentSpeed: null, currentDir: null, salinity: null, seaLevel: null,
+    humidity: null, dewPoint: null,
+  };
+  const score = (vigoKt: number, marinKt: number) => {
+    const timestamp = new Date().toISOString();
+    const buoys: BuoyReading[] = [
+      { ...blank, stationId: 1251, timestamp, waterTemp: 16, airTemp: 12, humidity: 85 },
+      { ...blank, stationId: 3221, timestamp, windSpeed: msFromKt(vigoKt), windDir: 60 },
+      { ...blank, stationId: 3223, timestamp, windSpeed: msFromKt(marinKt), windDir: 60 },
+    ];
+    const station = makeStation('mg_test', bocana.center[1], bocana.center[0]);
+    const reading = { ...makeReading('mg_test', msFromKt(3), 60), solarRadiation: 300 };
+    return scoreAllSpots([bocana], [station], new Map([['mg_test', reading]]), buoys).get('bocana')!;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-04T09:33:00+01:00'));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('never shows more than the strongest thing measured', () => {
+    const s = score(7, 8);
+    expect(s.summary).toMatch(/Terral/);
+    expect(s.effectiveWindKt!).toBeLessThanOrEqual(8);
+  });
+
+  it('a strong Marin does not lift the figure over the consensus', () => {
+    const s = score(5, 15);
+    expect(s.summary).toMatch(/boya de Marín/);
+    expect(s.effectiveWindKt!).toBeLessThanOrEqual(Math.max(s.wind!.avgSpeedKt, 5));
+  });
+});

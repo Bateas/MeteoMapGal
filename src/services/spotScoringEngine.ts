@@ -31,7 +31,7 @@ import { fastDistanceKm, computeBearing } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
 import { analyzeSpotWindTrend, type WindTrend } from './windTrendService';
-import { detectBocana } from './bocanaDetector';
+import { detectBocana, bocanaFigureKt } from './bocanaDetector';
 import { predictCesantesCanalization, computeInteriorSolar, freshPortWind, PORT_VIGO_STATION_ID, type CesantesPrediction } from './cesantesCanalizationDetector';
 import { assessRainVeto, type RainVeto } from './rainVeto';
 import { assessSynopticRegime, type RegimeVeto, type UpperWind } from './synopticRegime';
@@ -1295,8 +1295,11 @@ function scoreSpot(
       .find(s => s.reading.solarRadiation != null)?.reading.solarRadiation ?? null;
     const bocana = detectBocana(buoyReadings, solarRad);
     if (bocana.active) {
-      effectiveSpd = Math.max(effectiveSpd, effectiveSpd + bocana.boostKt);
-      thermalBoosted = true;
+      const figure = bocanaFigureKt(effectiveSpd, bocana);
+      if (figure > effectiveSpd) {
+        effectiveSpd = figure;
+        thermalBoosted = true;
+      }
       bocanaSignal = bocana.signal;
     }
   }
