@@ -186,6 +186,7 @@ function selectStationsForSpot(
   spot: SailingSpot,
   stations: NormalizedStation[],
   readings: Map<string, NormalizedReading>,
+  lateSources: Map<string, number> = new Map(),
 ): { station: NormalizedStation; reading: NormalizedReading; distKm: number }[] {
   const result: { station: NormalizedStation; reading: NormalizedReading; distKm: number }[] = [];
   const [spotLon, spotLat] = spot.center;
@@ -208,7 +209,7 @@ function selectStationsForSpot(
     // silently excluded every AEMET station from every spot, forever, because
     // an hourly network is never that fresh.
     const ageMin = (now - reading.timestamp.getTime()) / 60_000;
-    if (ageMin > staleGateMinFor(s.id)) continue;
+    if (ageMin > staleGateMinFor(s.id) && !keptWithLateSource(s.id, ageMin, lateSources.get(sourceOf(s.id)))) continue;
 
     const distKm = fastDistanceKm(s.lat, s.lon, spotLat, spotLon);
     const isPreferred = preferredSet.has(s.id);
@@ -334,6 +335,45 @@ export function staleGateMinFor(stationIdOrSource: string): number {
   // have, and still drops a station that has genuinely stopped. IPMA lands on
   // the same 240min.
   return cadence * STALE_CYCLES + cadence;
+}
+
+/**
+ * A whole network late at once is late, not gone. Since 28-oct MeteoGalicia keeps answering its
+ * 10-min feed on working mornings, with all its stations, but the same old record for 30-90 min.
+ * Its stations then crossed the gate above together and left the consensus, and the figure jumped
+ * with no change of wind: Cesantes 3-nov 08:30, 8 stations and 5.1 kt, then 4 and 10.8 kt (BUENO on
+ * the map and in Telegram), 7 again at 09:10 when the feed came back. A station of such a source
+ * stays while it reported at the source's last record, up to LATE_SOURCE_MAX_MIN, with the weight
+ * its age already costs it (freshnessMulFor). Only a network counts (LATE_SOURCE_MIN_STATIONS): a
+ * single station that stops, like SkyX, is gone.
+ */
+export const LATE_SOURCE_MIN = 30;
+export const LATE_SOURCE_MAX_MIN = 120;
+export const LATE_SOURCE_MIN_STATIONS = 5;
+
+/** Minutes since the newest reading of each source that has LATE_SOURCE_MIN_STATIONS or more. */
+export function lateSourceAges(readings: Map<string, NormalizedReading>, nowMs: number): Map<string, number> {
+  const newest = new Map<string, number>();
+  const count = new Map<string, number>();
+  for (const [id, r] of readings) {
+    const t = r.timestamp.getTime();
+    if (!Number.isFinite(t)) continue;
+    const source = sourceOf(id);
+    count.set(source, (count.get(source) ?? 0) + 1);
+    if (t > (newest.get(source) ?? -Infinity)) newest.set(source, t);
+  }
+  const ages = new Map<string, number>();
+  for (const [source, t] of newest) {
+    if ((count.get(source) ?? 0) >= LATE_SOURCE_MIN_STATIONS) ages.set(source, (nowMs - t) / 60_000);
+  }
+  return ages;
+}
+
+/** Whether a reading past its stale gate stays because its whole source is late (see above). */
+export function keptWithLateSource(stationIdOrSource: string, ageMin: number, sourceAgeMin: number | undefined): boolean {
+  if (sourceAgeMin == null || sourceAgeMin < LATE_SOURCE_MIN || ageMin > LATE_SOURCE_MAX_MIN) return false;
+  const cadence = SOURCE_CADENCE_MIN[sourceOf(stationIdOrSource)] ?? DEFAULT_CADENCE_MIN;
+  return ageMin - sourceAgeMin <= cadence;
 }
 
 /**
@@ -1719,9 +1759,11 @@ export function scoreAllSpots(
     stations.length >= PROVISIONAL_MIN_STATIONS &&
     freshReadingCount < stations.length * PROVISIONAL_FRESH_RATIO;
 
+  const lateSources = lateSourceAges(readings, Date.now());
+
   for (const spot of spots) {
     const regimeVeto = INLAND_SPOT_IDS.has(spot.id) ? regimeInland : regimeCoastal;
-    const stationData = selectStationsForSpot(spot, stations, readings);
+    const stationData = selectStationsForSpot(spot, stations, readings, lateSources);
     const buoyData = selectBuoysForSpot(spot, buoys);
 
     const wind = computeSpotWindConsensus(spot, stationData, buoyData, regimeVeto);
