@@ -13,9 +13,23 @@
  *   creating convergence zones with high food density (xouba, squid, mackerel).
  */
 import type { BuoyReading } from '../api/buoyClient';
-import { isBuoyFresh, BUOY_WATER_MAX_MIN } from './buoyUtils';
+import { isBuoyFresh, BUOY_STALE_MAX_MIN, BUOY_WATER_MAX_MIN } from './buoyUtils';
+import { msToKnots } from './windUtils';
 
 export type WaterMassType = 'acna' | 'fluvial' | 'surface_warm' | 'transitional' | 'anomaly' | 'unknown';
+
+const UPWELLING_FIRST_MONTH = 4; // May
+const UPWELLING_LAST_MONTH = 8; // September
+
+/**
+ * Water at or under 14.8 °C only points to upwelling while the sea is normally warmer. Ribeira,
+ * 2026: 42 such readings from May to September, 1,972 of 4,436 in October and every one so far
+ * in November. From autumn to spring it is simply the sea in that season.
+ */
+export function isUpwellingSeason(atMs: number = Date.now()): boolean {
+  const month = new Date(atMs).getMonth();
+  return month >= UPWELLING_FIRST_MONTH && month <= UPWELLING_LAST_MONTH;
+}
 
 export interface WaterMassInfo {
   type: WaterMassType;
@@ -30,7 +44,7 @@ export interface WaterMassInfo {
 /**
  * Classify water mass from temperature and salinity measurements.
  */
-export function classifyWaterMass(tempC: number | null, salinityPsu: number | null): WaterMassInfo {
+export function classifyWaterMass(tempC: number | null, salinityPsu: number | null, atMs: number = Date.now()): WaterMassInfo {
   if (tempC == null && salinityPsu == null) {
     return {
       type: 'unknown',
@@ -78,13 +92,14 @@ export function classifyWaterMass(tempC: number | null, salinityPsu: number | nu
     tempC <= 14.5 || (tempC <= 14.8 && salinityPsu != null && salinityPsu >= 34.5)
   ) && (salinityPsu == null || salinityPsu >= 33.0);
 
-  if (isAcna) {
+  if (isAcna && isUpwellingSeason(atMs)) {
     const salStr = salinityPsu != null ? ` (${salinityPsu.toFixed(1)} PSU)` : '';
     return {
       type: 'acna',
       label: 'Agua Profunda ACNA',
       badgeText: 'Afloramiento ACNA',
-      description: `Agua fría profunda oceánica rica en nutrientes${salStr}. Afloramiento activo.`,
+      // One buoy's water cannot say the process is going on now: that takes the wind.
+      description: `Agua fría profunda oceánica rica en nutrientes${salStr}. Propia de un afloramiento reciente.`,
       color: '#38bdf8', // sky-400
       bg: 'rgba(14, 165, 233, 0.15)',
       borderColor: 'rgba(56, 189, 248, 0.4)',
@@ -104,7 +119,7 @@ export function classifyWaterMass(tempC: number | null, salinityPsu: number | nu
     };
   }
 
-  // 5. Standard coastal mix (14.6 - 16.9°C)
+  // 5. Standard coastal mix (14.6 - 16.9°C, and colder outside the upwelling season)
   return {
     type: 'transitional',
     label: 'Agua Costera Mixta',
@@ -134,6 +149,22 @@ export interface UpwellingSummary {
 const OUTER_STATION_IDS = new Set([2248, 1255]); // Cabo Silleiro, Ribeira
 // Inner ría / coastal station IDs
 const INNER_STATION_IDS = new Set([1251, 1250, 1253]); // Rande, Cortegada, A Guarda
+
+/** Southerly component (kt) from which the wind is doing the opposite of raising cold water: it
+ *  piles surface water against this north-south coast. A westerly has no such component. */
+export const UPWELLING_SOUTHERLY_VETO_KT = 8;
+
+/** The strongest southerly component at the outer buoys; null when none of them measures wind. */
+function southerlyKtOffshore(buoys: BuoyReading[], now: number): number | null {
+  let strongest: number | null = null;
+  for (const b of buoys) {
+    if (!OUTER_STATION_IDS.has(b.stationId) || b.windSpeed == null || b.windDir == null) continue;
+    if (!isBuoyFresh(b, BUOY_STALE_MAX_MIN, now)) continue;
+    const southerly = -msToKnots(b.windSpeed) * Math.cos((b.windDir * Math.PI) / 180);
+    if (strongest === null || southerly > strongest) strongest = southerly;
+  }
+  return strongest;
+}
 
 /**
  * Detect upwelling events and thermal fronts across coastal buoy readings.
@@ -181,7 +212,12 @@ export function detectUpwellingSummary(buoys: BuoyReading[], now: number = Date.
     }
   }
 
-  const hasUpwelling = coldest != null && coldest.temp <= 14.8;
+  // Cold water is one signal and upwelling is what the north wind does to it (checked against
+  // Cabo Silleiro, May to October 2026). On 9-nov this read «Afloramiento» with a southerly
+  // gale, from water that is simply that cold in November. Wind unknown: no claim.
+  const southerly = southerlyKtOffshore(buoys, now);
+  const hasUpwelling = coldest != null && coldest.temp <= 14.8 && isUpwellingSeason(now)
+    && southerly !== null && southerly < UPWELLING_SOUTHERLY_VETO_KT;
 
   let thermalFront: UpwellingSummary['thermalFront'] = null;
   if (outerTemp && innerTemp) {

@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { classifyWaterMass, detectUpwellingSummary } from './upwellingDetector';
 import type { BuoyReading } from '../api/buoyClient';
 
+const JUL = Date.parse('2026-07-15T12:00:00Z');
+const NOV = Date.parse('2026-11-09T12:00:00Z');
+const KT = 1 / 1.94384;
+
 describe('upwellingDetector', () => {
   describe('classifyWaterMass', () => {
     it('returns unknown when both temp and salinity are null', () => {
@@ -10,13 +14,20 @@ describe('upwellingDetector', () => {
     });
 
     it('classifies cold water (<= 14.5°C) with oceanic salinity as ACNA upwelling', () => {
-      const res = classifyWaterMass(14.0, null);
+      const res = classifyWaterMass(14.0, null, JUL);
       expect(res.type).toBe('acna');
       expect(res.badgeText).toContain('Afloramiento ACNA');
     });
 
+    it('in November the same water is just the sea in November, never upwelling', () => {
+      const res = classifyWaterMass(14.1, 35.4, NOV);
+      expect(res.type).toBe('transitional');
+      expect(res.badgeText).not.toContain('Afloramiento');
+      expect(res.description).not.toContain('Afloramiento');
+    });
+
     it('classifies water <= 14.8°C with high oceanic salinity (>= 34.5 PSU) as ACNA', () => {
-      const res = classifyWaterMass(14.8, 35.6);
+      const res = classifyWaterMass(14.8, 35.6, JUL);
       expect(res.type).toBe('acna');
     });
 
@@ -57,17 +68,18 @@ describe('upwellingDetector', () => {
       name: string,
       waterTemp: number | null,
       salinity: number | null = null,
+      wind: { kt: number; dir: number } | null = null,
     ): BuoyReading => ({
       stationId: id,
       stationName: name,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(JUL).toISOString(),
       waveHeight: null,
       waveHeightMax: null,
       wavePeriod: null,
       wavePeriodMean: null,
       waveDir: null,
-      windSpeed: null,
-      windDir: null,
+      windSpeed: wind ? wind.kt * KT : null,
+      windDir: wind ? wind.dir : null,
       windGust: null,
       waterTemp,
       airTemp: null,
@@ -89,10 +101,10 @@ describe('upwellingDetector', () => {
     it('detects upwelling when cold water is reported in the rías', () => {
       const buoys: BuoyReading[] = [
         mockBuoy(1251, 'Rande (Ría Vigo)', 14.0, 35.2),
-        mockBuoy(2248, 'Cabo Silleiro', 17.6, 35.6),
+        mockBuoy(2248, 'Cabo Silleiro', 17.6, 35.6, { kt: 14, dir: 350 }),
       ];
 
-      const res = detectUpwellingSummary(buoys);
+      const res = detectUpwellingSummary(buoys, JUL);
       expect(res.hasUpwelling).toBe(true);
       expect(res.coldestBuoy?.name).toBe('Rande (Ría Vigo)');
       expect(res.coldestBuoy?.temp).toBe(14.0);
@@ -103,13 +115,51 @@ describe('upwellingDetector', () => {
       expect(res.fishingAdvice?.toLowerCase()).toContain('calamar');
     });
 
+    describe('cold water is not enough', () => {
+      const cold = mockBuoy(1251, 'Rande (Ría Vigo)', 14.0, 35.2);
+      const silleiro = (wind: { kt: number; dir: number } | null, atMs = JUL) => ({
+        ...mockBuoy(2248, 'Cabo Silleiro', 17.6, 35.6, wind),
+        timestamp: new Date(atMs).toISOString(),
+      });
+
+      it('a southerly offshore is the opposite of upwelling (9-nov, with a gale from the south)', () => {
+        const res = detectUpwellingSummary([cold, silleiro({ kt: 22, dir: 190 })], JUL);
+        expect(res.hasUpwelling).toBe(false);
+        expect(res.tickerMessage).toBeNull();
+        expect(res.fishingAdvice).toBeNull();
+      });
+
+      it('a westerly has no southerly component and does not rule it out', () => {
+        expect(detectUpwellingSummary([cold, silleiro({ kt: 15, dir: 270 })], JUL).hasUpwelling).toBe(true);
+      });
+
+      it('a light southerly under the limit does not rule it out either', () => {
+        expect(detectUpwellingSummary([cold, silleiro({ kt: 6, dir: 180 })], JUL).hasUpwelling).toBe(true);
+      });
+
+      it('without wind at the outer buoys it says nothing', () => {
+        expect(detectUpwellingSummary([cold, silleiro(null)], JUL).hasUpwelling).toBe(false);
+      });
+
+      it('a wind reading that stopped publishing counts as no wind', () => {
+        const old = silleiro({ kt: 14, dir: 350 }, JUL - 4 * 60 * 60_000);
+        expect(detectUpwellingSummary([cold, old], JUL).hasUpwelling).toBe(false);
+      });
+
+      it('outside the season it says nothing, even with north wind', () => {
+        const res = detectUpwellingSummary([{ ...cold, timestamp: new Date(NOV).toISOString() }, silleiro({ kt: 14, dir: 350 }, NOV)], NOV);
+        expect(res.hasUpwelling).toBe(false);
+        expect(res.coldestBuoy?.name).toBe('Rande (Ría Vigo)');
+      });
+    });
+
     it('discards sensor glitches (< 10.5°C) from triggering fake upwelling', () => {
       const buoys: BuoyReading[] = [
         mockBuoy(1250, 'Cortegada (Arousa)', 8.4, 25.3),
         mockBuoy(2248, 'Cabo Silleiro', 17.6, 35.6),
       ];
 
-      const res = detectUpwellingSummary(buoys);
+      const res = detectUpwellingSummary(buoys, JUL);
       expect(res.hasUpwelling).toBe(false);
       expect(res.coldestBuoy?.name).toBe('Cabo Silleiro');
       expect(res.thermalFront).toBeNull();
@@ -122,7 +172,7 @@ describe('upwellingDetector', () => {
         mockBuoy(2248, 'Cabo Silleiro', 17.6, 35.6),
       ];
 
-      const res = detectUpwellingSummary(buoys);
+      const res = detectUpwellingSummary(buoys, JUL);
       expect(res.hasUpwelling).toBe(false);
       expect(res.coldestBuoy?.name).toBe('Cabo Silleiro');
     });
@@ -142,8 +192,9 @@ describe('upwellingDetector', () => {
     it('still uses a reading a few hours old: the water mass changes slowly', () => {
       const now = Date.parse('2026-09-22T01:00:00Z');
       const threeHours = { ...mockBuoy(1251, 'Rande (Ría Vigo)', 14.0, 35.2), timestamp: '2026-09-21T22:00:00Z' };
+      const windNow = { ...mockBuoy(2248, 'Cabo Silleiro', 17.6, 35.6, { kt: 12, dir: 0 }), timestamp: '2026-09-22T00:30:00Z' };
 
-      const res = detectUpwellingSummary([threeHours], now);
+      const res = detectUpwellingSummary([threeHours, windNow], now);
       expect(res.hasUpwelling).toBe(true);
     });
 
@@ -153,7 +204,7 @@ describe('upwellingDetector', () => {
         mockBuoy(2248, 'Cabo Silleiro', 19.0, 35.6),
       ];
 
-      const res = detectUpwellingSummary(buoys);
+      const res = detectUpwellingSummary(buoys, JUL);
       expect(res.hasUpwelling).toBe(false);
       expect(res.tickerMessage).toBeNull();
     });
