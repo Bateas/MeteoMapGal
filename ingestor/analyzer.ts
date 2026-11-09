@@ -34,7 +34,7 @@ import {
 import { degreesToCardinal } from '../src/services/windUtils.js';
 import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import { getSpotsForSector } from '../src/config/spots.js';
-import type { SpotScore } from '../src/services/spotScoringEngine.js';
+import { isGustGate, type SpotScore } from '../src/services/spotScoringEngine.js';
 import { scoreWithEngine, findDivergences, describeDivergences, engineView, alertResult } from './engineShadow.js';
 import { mgNewestAgeMin } from './fetchers.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
@@ -496,7 +496,8 @@ export async function runAnalysis(): Promise<void> {
     // cycles (stepOpportunityRise). A spot is only armed once it has been SEEN calm or light,
     // so a restart never announces whatever the wind happened to be doing at that moment.
     const ok = ALERT_VERDICTS.has(result.verdict)
-      && isWorthAlerting(result.verdict, result.avgWindKt) && canAlertOnResult(result);
+      && isWorthAlerting(result.verdict, result.avgWindKt) && canAlertOnResult(result)
+      && !isGustGate(result.hardGate); // gusts close a spot: that is the strong-wind alert's job, not an invitation
     // Waiting neither counts nor disarms: a rise real enough to last is still announced when the
     // source is back, and a figure that only came from the missing stations is gone by then.
     if (!mgFrozen) stationsBeforeFreeze.set(spot.id, result.stationCount);
