@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  summarizeDays, rainBands, rainLevel, windTone, describeBands, describeNextRain, describeRadarOverPoint, warningsForZones, warningTypeEs,
+  summarizeDays, rainBands, rainLevel, windTone, describeBands, describeNextRain, describeRadarOverPoint, panoramaWithLiveGauge, warningsForZones, warningTypeEs,
 } from './pointForecast';
 import type { HourlyForecast } from '../types/forecast';
 import type { MGWarning } from '../api/mgWarningsClient';
@@ -111,6 +111,28 @@ describe('describeRadarOverPoint', () => {
     expect(describeRadarOverPoint(30, 26)).toBeNull();
     expect(describeRadarOverPoint(null, 5)).toBeNull();
     expect(describeRadarOverPoint(30, null)).toBeNull();
+  });
+});
+
+describe('panoramaWithLiveGauge', () => {
+  const live = { name: 'Amiudal', mmPerHour: 0.4 };
+  const said = (state: string) => ({ state, text: 'Amiudal no mide lluvia.' });
+
+  it('says what the gauge just measured when the sentence still says it has not', () => {
+    for (const state of ['seco', 'se-acerca', 'no-llega']) {
+      expect(panoramaWithLiveGauge(said(state), live)?.text).toBe('Amiudal acaba de medir lluvia (0,4 mm/h), aún sin comparar con el WRF.');
+    }
+  });
+
+  it('leaves alone a sentence that already speaks of rain, or no data', () => {
+    for (const state of ['coincide', 'adelanta', 'retrasa', 'no-previsto', 'ya-paso', 'sin-dato']) {
+      expect(panoramaWithLiveGauge(said(state), live)?.text).toBe('Amiudal no mide lluvia.');
+    }
+  });
+
+  it('changes nothing without a gauge or without a sentence', () => {
+    expect(panoramaWithLiveGauge(said('seco'), null)?.text).toBe('Amiudal no mide lluvia.');
+    expect(panoramaWithLiveGauge(null, live)).toBeNull();
   });
 });
 
