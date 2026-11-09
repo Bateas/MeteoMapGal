@@ -76,7 +76,7 @@ describe('describeNextRain', () => {
   });
 
   it('says so when the model sees none', () => {
-    expect(describeNextRain([h(11, 0), h(16, 0)], now)).toBe('Sin lluvia en las próximas 6 h');
+    expect(describeNextRain([h(11, 0), h(16, 0)], now)).toBe('El modelo no da lluvia en las próximas 6 h');
   });
 
   it('gives nothing without hours ahead', () => {

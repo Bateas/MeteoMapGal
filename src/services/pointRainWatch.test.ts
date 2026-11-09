@@ -57,7 +57,7 @@ describe('dry now, and the model had rain for the last hours', () => {
   it('nothing has fallen: not here yet, or not coming', () => {
     const p = run({ 8: 3 }, [gauge()]);
     expect(p.state).toBe('no-llega');
-    expect(p.text).toBe('El WRF daba lluvia a las 8 h y en Estación A no ha caído nada: aún no ha llegado o no llegará.');
+    expect(p.text).toBe('El WRF daba lluvia a las 8 h y Estación A no ha medido nada: aún no ha llegado, no llegará o es tan débil que no marca.');
   });
 
   it('it rained before the model said: already gone', () => {
@@ -86,8 +86,17 @@ describe('dry now, looking ahead', () => {
   it('rain soon', () => {
     const p = run({ 11: 2 }, [gauge()]);
     expect(p.state).toBe('se-acerca');
-    expect(p.text).toBe('Seco en Estación A. El WRF da lluvia hacia las 11 h.');
+    expect(p.text).toBe('Estación A no mide lluvia. El WRF la da hacia las 11 h.');
     expect(p.key).not.toBe('');
+  });
+
+  it('rain the model has for this very hour', () => {
+    expect(run({ 10: 2 }, [gauge()]).text).toBe('Estación A no mide lluvia. El WRF la da para esta hora.');
+  });
+
+  it('never says it is dry: only what the gauge measured', () => {
+    const cases: Record<number, number>[] = [{}, { 11: 2 }, { 20: 2 }, { 8: 3 }];
+    for (const rain of cases) expect(run(rain, [gauge()]).text).not.toMatch(/seco/i);
   });
 
   it('nothing soon is not worth a message, and says when', () => {

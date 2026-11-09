@@ -467,6 +467,54 @@ export function echoWorthFollowing(m: RadarMosaic, centre: { lon: number; lat: n
     && distKm(c.lat, c.lon, centre.lat, centre.lon) <= DRAW_FAR_KM);
 }
 
+// ── Trajectories ─────────────────────────────────────────
+
+/** Trajectory arrows drawn at most, the patches nearest the sector first. */
+export const MAX_TRAJECTORIES = 6;
+
+export interface RainTrajectory {
+  cellId: number;
+  lon: number;
+  lat: number;
+  kmh: number;
+  toDeg: number;
+  /** True: the patch's own steady track. False: the steady motion of the whole radar picture. */
+  own: boolean;
+}
+
+/**
+ * Where each patch on the map is heading, coming to the sector or not. Its own track when the heading
+ * repeated; otherwise, for a patch just born or wandering, the steady motion of the whole picture, which
+ * is what carries it (9-nov: steady tracks of 32-69 km/h towards 31-56°, whole picture 46 km/h towards 51°;
+ * a one-pair track of a shower gave 82 km/h towards 131°). Echo that stays put has no arrow, and with no
+ * steady motion a patch without its own track has none either. A direction, never an arrival time.
+ */
+export function rainTrajectories(
+  cells: RainCell[],
+  tracks: Map<number, CellTrack> | null,
+  drawn: Set<number>,
+  motion: { kmh: number; toDeg: number; stable: boolean } | null,
+  centre: { lon: number; lat: number },
+  skip: Set<number> = new Set(),
+): RainTrajectory[] {
+  if (!tracks) return [];
+  const out: (RainTrajectory & { dist: number })[] = [];
+  for (const c of cells) {
+    if (!drawn.has(c.id) || skip.has(c.id)) continue;
+    const t = tracks.get(c.id);
+    if (!t || t.kind === 'static') continue;
+    const own = carries(t);
+    if (!own && !motion?.stable) continue;
+    out.push({
+      cellId: c.id, lon: c.lon, lat: c.lat, own,
+      kmh: own ? t.kmh : motion!.kmh,
+      toDeg: own ? t.toDeg : motion!.toDeg,
+      dist: distKm(c.lat, c.lon, centre.lat, centre.lon),
+    });
+  }
+  return out.sort((a, b) => a.dist - b.dist).slice(0, MAX_TRAJECTORIES).map(({ dist: _dist, ...t }) => t);
+}
+
 // ── Picture ──────────────────────────────────────────────
 
 /** Our three tones (light, moderate, heavy) as RGBA. Low alpha on purpose: start faint, raise on request. */
