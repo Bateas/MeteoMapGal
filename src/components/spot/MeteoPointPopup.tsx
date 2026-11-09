@@ -47,7 +47,7 @@ export const MeteoPointPopup = memo(function MeteoPointPopup({ spot }: { spot: U
         </div>
       </div>
 
-      <PointForecast pointId={spot.id} lat={spot.center[1]} lon={spot.center[0]} zones={spot.warningZones ?? []} />
+      <PointForecast pointId={spot.id} lat={spot.center[1]} lon={spot.center[0]} zones={spot.warningZones ?? []} gaugeIds={spot.gauges?.map((g) => g.id)} />
 
       {nearest && (
         <p className="gf-sub gfp-now">

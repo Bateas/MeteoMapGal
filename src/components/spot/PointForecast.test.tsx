@@ -6,6 +6,7 @@ import { fetchMGWarnings, type MGWarning } from '../../api/mgWarningsClient';
 import { fetchMeteoPointStatus } from '../../api/meteoPointStatusClient';
 import { fetchRadarFrames } from '../../api/radarTiles';
 import { assembleMosaic, lonLatToPx } from '../../services/radarDecode';
+import { useRainNowStore, type RainNowSummary } from '../../store/rainNowStore';
 
 vi.mock('../../api/meteoSixClient', () => ({ fetchMeteoSixForecast: vi.fn() }));
 vi.mock('../../api/mgWarningsClient', () => ({ fetchMGWarnings: vi.fn() }));
@@ -22,6 +23,7 @@ beforeEach(() => {
   vi.mocked(fetchMGWarnings).mockResolvedValue([]);
   vi.mocked(fetchMeteoPointStatus).mockResolvedValue(null);
   vi.mocked(fetchRadarFrames).mockResolvedValue(null);
+  useRainNowStore.setState({ summary: null });
 });
 
 describe('PointForecast', () => {
@@ -59,6 +61,16 @@ describe('PointForecast', () => {
     render(<PointForecast pointId="p" lat={42.2} lon={-8.2} zones={zones} />);
     await waitFor(() => expect(screen.getByText(/4,9 mm en 1 h/)).toBeTruthy());
     expect(screen.queryByText(/radar/i)).toBeNull();
+  });
+
+  it('says what a nearby gauge has just measured when the server has not caught up', async () => {
+    vi.mocked(fetchMeteoSixForecast).mockResolvedValue([rainyHour] as never);
+    vi.mocked(fetchMeteoPointStatus).mockResolvedValue({ state: 'se-acerca', text: 'Amiudal no mide lluvia.' });
+    const summary = { gauges: [{ id: 'mg_1', name: 'Amiudal', mm: 0.2, mmPerHour: 0.4, radarDbz: null }], arrivals: [], approaching: [], motion: null, radarAgeMin: 5, cells: 1, sim: false } satisfies RainNowSummary;
+    useRainNowStore.setState({ summary });
+    render(<PointForecast pointId="p" lat={42.2} lon={-8.2} zones={zones} gaugeIds={['mg_1']} />);
+    await waitFor(() => expect(screen.getByText(/Amiudal acaba de medir lluvia \(0,4 mm\/h\)/)).toBeTruthy());
+    expect(screen.queryByText(/Amiudal no mide lluvia/)).toBeNull();
   });
 
   it('says so when the model does not answer, without breaking the card', async () => {

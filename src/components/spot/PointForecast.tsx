@@ -11,7 +11,8 @@ import { fetchRadarFrames } from '../../api/radarTiles';
 import { maxDbzNear } from '../../services/radarDecode';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { PointMeteogram } from './PointMeteogram';
-import { summarizeDays, describeBands, describeNextRain, describeRadarOverPoint, warningsForZones } from '../../services/pointForecast';
+import { useRainNowStore } from '../../store/rainNowStore';
+import { summarizeDays, describeBands, describeNextRain, describeRadarOverPoint, panoramaWithLiveGauge, warningsForZones } from '../../services/pointForecast';
 import type { HourlyForecast } from '../../types/forecast';
 
 const TTL_MS = 30 * 60_000;
@@ -51,13 +52,15 @@ const LEVEL_TONE: Record<number, string> = { 1: 'var(--g-l-moderado)', 2: 'var(-
 
 interface Props {
   pointId: string;
+  /** Its nearby gauges, nearest first: one the rain layer has just seen wet corrects the server's older sentence. */
+  gaugeIds?: string[];
   lat: number;
   lon: number;
   /** Official warning zones of this point, by the name the feed gives them. */
   zones: string[];
 }
 
-export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zones }: Props) {
+export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zones, gaugeIds = [] }: Props) {
   const [hours, setHours] = useState<HourlyForecast[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [warnings, setWarnings] = useState<MGWarning[] | null>(null);
@@ -82,6 +85,12 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
   }, [pointId]);
   useVisibilityPolling(pollStatus, STATUS_POLL_MS);
 
+  const rainNow = useRainNowStore((s) => s.summary);
+  const liveGauge = rainNow && !rainNow.sim
+    ? gaugeIds.map((id) => rainNow.gauges.find((g) => g.id === id)).find(Boolean) ?? null
+    : null;
+  const shown = panoramaWithLiveGauge(status, liveGauge);
+
   // Read in the browser, only with the card open, from the frames the rain layer already decodes.
   const [radar, setRadar] = useState<string | null>(null);
   const pollRadar = useCallback(async () => {
@@ -105,10 +114,10 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
     <>
       {nextRain && <p className="gf-say" style={{ '--gf-tone': 'var(--gfp-2)' } as CSSProperties}>{nextRain}</p>}
 
-      {(status || radar) && (
-        <p className="gfp-panorama" data-state={status?.state ?? 'se-acerca'}>
-          {status && <span>Ahora, frente al WRF</span>}
-          {status?.text}
+      {(shown || radar) && (
+        <p className="gfp-panorama" data-state={shown?.state ?? 'se-acerca'}>
+          {shown && <span>Ahora, frente al WRF</span>}
+          {shown?.text}
           {radar && <span className="gfp-radar">{radar}</span>}
         </p>
       )}

@@ -212,6 +212,21 @@ export function describeRadarOverPoint(maxDbz: number | null, ageMin: number | n
   return `El radar ve lluvia ${strength} encima, ${ageMin <= 1 ? 'ahora' : `hace ${ageMin} min`}.`;
 }
 
+const SAYS_NOT_MEASURED = new Set(['seco', 'se-acerca', 'no-llega']);
+
+/**
+ * The sentence from the server can be 10-15 min behind the gauges on the map, so when one of them has just
+ * measured rain and the sentence still says none has, the card says what was measured (9-nov: 0,4 on the
+ * map, «no mide lluvia» on the card). Only the words of the card: the watcher and its exam do not change.
+ */
+export function panoramaWithLiveGauge<T extends { state: string; text: string }>(
+  status: T | null,
+  gauge: { name: string; mmPerHour: number } | null,
+): T | null {
+  if (!status || !gauge || !SAYS_NOT_MEASURED.has(status.state)) return status;
+  return { ...status, text: `${gauge.name} acaba de medir lluvia (${fmtMm(gauge.mmPerHour)} mm/h), aún sin comparar con el WRF.` };
+}
+
 export function warningsForZones(warnings: MGWarning[], zones: string[], now: Date): ZoneWarning[] {
   const wanted = zones.map((z) => z.toLowerCase());
   const best = new Map<string, ZoneWarning & { startMs: number }>();
