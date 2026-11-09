@@ -32,6 +32,12 @@
 .gfp-panorama[data-state="adelanta"], .gfp-panorama[data-state="retrasa"], .gfp-panorama[data-state="no-previsto"], .gfp-panorama[data-state="no-llega"], .gfp-panorama[data-state="ya-paso"] { --gfp-tone: var(--g-l-moderado); }
 .gfp-panorama[data-state="se-acerca"] { --gfp-tone: var(--gfp-2); }
 .gfp-panorama[data-state="sin-dato"] { --gfp-tone: var(--g-muted); }
+/* The rain already fallen: three measured figures */
+.gfp-fallen { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gfp-fallen div { display: flex; flex-direction: column; gap: 1px; }
+.gfp-fallen b { font: 700 19px/1.15 var(--g-font); font-variant-numeric: tabular-nums; color: var(--g-ink); }
+.gfp-fallen b small { font-size: 12.5px; font-weight: 400; color: var(--g-muted); }
+.gfp-fallen span { font-size: 12.5px; color: var(--g-muted); }
 .gfp-noalert { margin: 12px 0 0; }
 .gfp-now { margin: 12px 0 0; }
 

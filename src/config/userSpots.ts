@@ -52,6 +52,12 @@ export const METEO_POINTS: UserSpot[] = [
     watchUntil: '2026-11-15' },
 ];
 
+/** The gauge whose totals stand for a weather point: its nearest MeteoGalicia one, which reports
+ *  every 10 minutes the rain of those 10 minutes, so a total is a sum and a missing row shows. */
+export function pointRainGauge(point: UserSpot): { id: string; name: string } | null {
+  return point.gauges?.find((g) => g.id.startsWith('mg_')) ?? null;
+}
+
 /** The weather points plus this browser's own pins. */
 export function withMeteoPoints(userSpots: UserSpot[]): UserSpot[] {
   return [...METEO_POINTS, ...userSpots];

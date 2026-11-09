@@ -14,6 +14,7 @@
  *   GET /api/v1/readings/latest  → Latest weather reading per station
  *   GET /api/v1/readings/precip-recent → Every station's precipitation, last 75 min (rain layer cold start)
  *   GET /api/v1/meteo-point/status?id= → How a BETA weather point's rain goes against the WRF (pointRainWatch.ts)
+ *   GET /api/v1/meteo-point/rain?id=   → Rain already fallen at a weather point's gauge (24 h, 3 and 7 days)
  *   GET /api/v1/readings/recent        → Every station's readings of the last 3 h (page history on load; replaces model values)
  *   GET /api/v1/teleconnections      → NAO/AO latest values (NOAA, read every 12 h by the server)
  *   GET /api/v1/readings/compare → Multi-station comparison
@@ -69,6 +70,7 @@ import {
   queryRecentLightning,
   queryLatestMetar,
   LIGHTNING_RECENT_WINDOWS,
+  queryGaugeRain,
 } from './queries.js';
 import { getPool } from './db.js';
 import { clientKeyOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards.js';
@@ -76,7 +78,7 @@ import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { stopForecastArchive } from './forecastArchive.js';
 import { getSpotsForSector } from '../src/config/spots.js';
-import { METEO_POINTS } from '../src/config/userSpots.js';
+import { METEO_POINTS, pointRainGauge } from '../src/config/userSpots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup, makeRoomForNewSubscription } from './pushDispatcher.js';
 import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effisFetcher.js';
 import { corsHeaders, json, error, dbError, parseSearchParams, parseLimit, ALLOWED_ORIGINS } from './httpHelpers.js';
@@ -938,6 +940,30 @@ async function handleMeteoPointStatus(
   }
 }
 
+async function handleMeteoPointRain(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const point = METEO_POINTS.find((p) => p.id === (params.id ?? ''));
+  if (!point) {
+    error(res, 'Unknown point', 400, origin);
+    return;
+  }
+  const gauge = pointRainGauge(point);
+  if (!gauge) {
+    json(res, { gauge: null }, 200, origin);
+    return;
+  }
+  try {
+    const totals = await queryGaugeRain(gauge.id);
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    json(res, { gauge: gauge.name, ...totals }, 200, origin);
+  } catch (err) {
+    dbError(res, err, 'handleMeteoPointRain', origin);
+  }
+}
+
 async function handleRecentPrecip(
   _params: Record<string, string>,
   res: http.ServerResponse,
@@ -999,6 +1025,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/readings/latest': handleLatest,
   '/api/v1/readings/precip-recent': handleRecentPrecip,
   '/api/v1/meteo-point/status': handleMeteoPointStatus,
+  '/api/v1/meteo-point/rain': handleMeteoPointRain,
   '/api/v1/readings/recent': handleRecentReadings,
   '/api/v1/teleconnections': handleTeleconnections,
   '/api/v1/readings/compare': handleCompare,

@@ -3,14 +3,14 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { PointForecast, __clearPointForecastCacheForTests } from './PointForecast';
 import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
 import { fetchMGWarnings, type MGWarning } from '../../api/mgWarningsClient';
-import { fetchMeteoPointStatus } from '../../api/meteoPointStatusClient';
+import { fetchMeteoPointRain, fetchMeteoPointStatus } from '../../api/meteoPointStatusClient';
 import { fetchRadarFrames } from '../../api/radarTiles';
 import { assembleMosaic, lonLatToPx } from '../../services/radarDecode';
 import { useRainNowStore, type RainNowSummary } from '../../store/rainNowStore';
 
 vi.mock('../../api/meteoSixClient', () => ({ fetchMeteoSixForecast: vi.fn() }));
 vi.mock('../../api/mgWarningsClient', () => ({ fetchMGWarnings: vi.fn() }));
-vi.mock('../../api/meteoPointStatusClient', () => ({ fetchMeteoPointStatus: vi.fn() }));
+vi.mock('../../api/meteoPointStatusClient', () => ({ fetchMeteoPointStatus: vi.fn(), fetchMeteoPointRain: vi.fn() }));
 vi.mock('../../api/radarTiles', () => ({ fetchRadarFrames: vi.fn() }));
 
 const tomorrow9 = new Date(Date.now() + 86_400_000);
@@ -22,11 +22,26 @@ beforeEach(() => {
   __clearPointForecastCacheForTests();
   vi.mocked(fetchMGWarnings).mockResolvedValue([]);
   vi.mocked(fetchMeteoPointStatus).mockResolvedValue(null);
+  vi.mocked(fetchMeteoPointRain).mockResolvedValue(null);
   vi.mocked(fetchRadarFrames).mockResolvedValue(null);
   useRainNowStore.setState({ summary: null });
 });
 
 describe('PointForecast', () => {
+  it('shows the rain already fallen at the gauge, and leaves it out without an answer', async () => {
+    vi.mocked(fetchMeteoSixForecast).mockResolvedValue([rainyHour] as never);
+    vi.mocked(fetchMeteoPointRain).mockResolvedValue({ gauge: 'Amiudal', mm24h: 36.1, mm3d: 46.1, mm7d: 48.1, n24h: 144, n3d: 432, n7d: 1008, lastAt: new Date().toISOString() });
+    const first = render(<PointForecast pointId="p" lat={42.2} lon={-8.2} zones={zones} />);
+    await waitFor(() => expect(screen.getByText('Lluvia ya caída')).toBeTruthy());
+    expect(screen.getByText('medida en Amiudal')).toBeTruthy();
+    expect(screen.getByText('36')).toBeTruthy();
+    first.unmount();
+    vi.mocked(fetchMeteoPointRain).mockResolvedValue(null);
+    render(<PointForecast pointId="p" lat={42.2} lon={-8.2} zones={zones} />);
+    await waitFor(() => expect(fetchMeteoPointRain).toHaveBeenCalled());
+    expect(screen.queryByText('Lluvia ya caída')).toBeNull();
+  });
+
   it('says roughly when it rains next and draws the hours', async () => {
     vi.mocked(fetchMeteoSixForecast).mockResolvedValue([rainyHour] as never);
     const { container } = render(<PointForecast pointId="p" lat={42.2} lon={-8.2} zones={zones} />);
