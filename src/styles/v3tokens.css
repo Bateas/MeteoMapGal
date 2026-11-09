@@ -1,0 +1,48 @@
+/*
+ * V3 style «G · Parte refinada» (chosen 26-sep): paper and ink, colour only for states.
+ * Tokens from .claude/proto/rediseno/gen_bplus.py (contrast gate passed in both themes).
+ * --g-s-* are the verdict tones darkened or lightened to >= 3:1 on the background, for lines and text.
+ * --g-l-* are the alert levels the map already uses, adjusted to >= 3:1 on the same background.
+ *
+ * They live on :root so anything on the page can read them (also the map's own zoom control).
+ * An inline script in index.html sets data-theme before the first paint, so the page never flashes the
+ * other theme; the loading screen there repeats these colours by hand (bootTokens.test.ts keeps them equal).
+ *
+ * Motion: one curve and three durations, nothing outside 120-240 ms, nothing that moves by itself. Reduced
+ * motion is handled once, at the top of index.css: no rule here or in the components needs its own.
+ */
+:root {
+  --g-bg: #141618; --g-ink: #e4e8e5; --g-muted: #a2a8a4; --g-hair: #30353a; --g-rule: #687070;
+  --g-s-calma: #a3aca7; --g-s-flojo: #4a97f0; --g-s-navegable: #37bd78; --g-s-bueno: #f5b82e; --g-s-fuerte: #cdaafb;
+  /* Filled cells of the strip: calm recedes, the good hours light up (semaforo) */
+  --g-c-calma: #303a42; --g-ct-calma: #b4c2cd; --g-c-flojo: #3e6fa4; --g-ct-flojo: #ffffff;
+  --g-c-navegable: #4faf77; --g-ct-navegable: #07170e; --g-c-bueno: #ecbb59; --g-ct-bueno: #1a1204;
+  --g-c-fuerte: #c6a6ee; --g-ct-fuerte: #141618;
+  --g-m-ring: #8a928e; --g-m-ringin: #141618; --g-m-notch: #b7beba; --g-surf: #45b6d6;
+  --g-night: #0e1012; --g-danger: #d42a3f; --g-danger-text: #ee5a6a; --g-rain-text: #6fa3d6;
+  --g-l-riesgo: #5b9cf5; --g-l-moderado: #eab308; --g-l-alto: #f59e0b; --g-l-critico: #ef4444; --g-rain: #2563eb;
+  --g-shadow: 0 1px 3px rgb(0 0 0 / .45);
+  --g-shadow-lg: 0 8px 28px rgb(0 0 0 / .5);
+  --g-font: 'Archivo', 'DM Sans', system-ui, sans-serif;
+  --g-narrow: 'Archivo Narrow', 'Archivo', 'DM Sans', system-ui, sans-serif;
+  --g-ease: cubic-bezier(.2, 0, 0, 1);
+  --g-t-fast: 120ms; --g-t: 180ms; --g-t-slow: 240ms;
+}
+:root[data-theme="light"] {
+  --g-bg: #f4f5f3; --g-ink: #121416; --g-muted: #4e545a; --g-hair: #cbd0ca; --g-rule: #121416;
+  --g-s-calma: #868f8a; --g-s-flojo: #2a74c8; --g-s-navegable: #128f5a; --g-s-bueno: #b67c00; --g-s-fuerte: #6a2fa8;
+  --g-c-calma: #e5e9eb; --g-ct-calma: #4f5b64; --g-c-flojo: #8eb9e4; --g-ct-flojo: #121416;
+  --g-c-navegable: #52a975; --g-ct-navegable: #07170e; --g-c-bueno: #e6ae4c; --g-ct-bueno: #1a1204;
+  --g-c-fuerte: #663b9a; --g-ct-fuerte: #ffffff;
+  --g-m-ring: #121416; --g-m-ringin: #f4f5f3; --g-m-notch: #121416; --g-surf: #0f7fa8;
+  --g-night: #e6e8e3; --g-danger: #c8102e; --g-danger-text: #c8102e; --g-rain-text: #3a6390;
+  --g-l-riesgo: #2f6fd0; --g-l-moderado: #9a7b00; --g-l-alto: #b86e00; --g-l-critico: #c8102e;
+  --g-shadow: 0 1px 3px rgb(0 0 0 / .22);
+  --g-shadow-lg: 0 8px 28px rgb(0 0 0 / .22);
+}
+
+.g-theme {
+  background: var(--g-bg);
+  color: var(--g-ink);
+  font-family: var(--g-font);
+}

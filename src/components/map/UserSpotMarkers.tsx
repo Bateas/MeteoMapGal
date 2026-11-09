@@ -14,6 +14,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { displayVerdict, displayWindKt, verdictLabel } from '../../config/verdictStyles';
+import { withMeteoPoints } from '../../config/userSpots';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
 
 const VERDICT_LABEL: Record<SpotVerdict, string> = {
@@ -33,7 +34,7 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
   const selectedId = useUserSpotStore((s) => s.selectedUserSpotId);
   const selectUserSpot = useUserSpotStore((s) => s.selectUserSpot);
 
-  const mine = useMemo(() => userSpots.filter((u) => u.sectorId === sectorId), [userSpots, sectorId]);
+  const mine = useMemo(() => withMeteoPoints(userSpots).filter((u) => u.sectorId === sectorId), [userSpots, sectorId]);
 
   // Zoom-based scaling — shrink at low zoom to avoid clutter (mirror SpotMarker).
   const { current: mapRef } = useMap();
@@ -83,7 +84,7 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
             // Keyboard button with a real name (see markerA11y). Inline callback
             // ref because hooks can't go in this loop; makeMarkerButton is
             // idempotent, so re-applying it on each render never stacks listeners.
-            ref={(mk) => makeMarkerButton(mk, `${us.name} (sin calibrar): ${badge}`, () => handleSelect(us.id))}
+            ref={(mk) => makeMarkerButton(mk, us.meteoOnly ? `${us.name} (BETA)` : `${us.name} (sin calibrar): ${badge}`, () => handleSelect(us.id))}
             longitude={us.center[0]}
             latitude={us.center[1]}
             anchor="center"
@@ -92,24 +93,26 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
           >
             <div
               className="relative cursor-pointer flex flex-col items-center"
-              title={`${us.name} (sin calibrar)`}
+              title={us.meteoOnly ? `${us.name} (BETA)` : `${us.name} (sin calibrar)`}
               style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center' }}
             >
-              {/* Verdict badge */}
-              <div
-                className="pointer-events-none whitespace-nowrap font-bold mb-0.5"
-                style={{
-                  fontSize: 10,
-                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                  padding: '2px 6px',
-                  borderRadius: 5,
-                  background: 'rgba(15, 23, 42, 0.9)',
-                  border: `1px dashed ${PIN_ACCENT}aa`,
-                  color: textColor,
-                }}
-              >
-                {badge}
-              </div>
+              {/* Verdict badge: a weather point has no verdict to give */}
+              {!us.meteoOnly && (
+                <div
+                  className="pointer-events-none whitespace-nowrap font-bold mb-0.5"
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                    padding: '2px 6px',
+                    borderRadius: 5,
+                    background: 'rgba(15, 23, 42, 0.9)',
+                    border: `1px dashed ${PIN_ACCENT}aa`,
+                    color: textColor,
+                  }}
+                >
+                  {badge}
+                </div>
+              )}
 
               {/* Dashed pin — clearly distinct from the solid hexagon spots */}
               <div
@@ -136,7 +139,7 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
                   className="text-[8px] font-bold tracking-wider mx-auto inline-block px-1 rounded"
                   style={{ color: '#ddd6fe', background: 'rgba(124, 58, 237, 0.25)', border: '1px solid rgba(167,139,250,0.4)' }}
                 >
-                  SIN CALIBRAR
+                  {us.meteoOnly ? 'BETA' : 'SIN CALIBRAR'}
                 </div>
               </div>
             </div>

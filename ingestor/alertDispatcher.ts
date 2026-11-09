@@ -408,6 +408,20 @@ export async function dispatchDuskBetaAlert(
   }
 }
 
+/** A change in a BETA weather point's rain against the model (pointRainWatch.ts). Owner's chat only today. */
+export async function dispatchPointRainBeta(key: string, title: string, msg: string): Promise<boolean> {
+  return postWebhook({
+    type: 'beta-point-rain',
+    category: 'rain',
+    detail: msg,
+    sector: 'embalse',
+    title,
+    message: msg,
+    text: msg,
+    severity: 'moderate',
+  }, key);
+}
+
 /**
  * Dispatch a "Magic Window" detection — rare optimal-sailing convergence.
  *

@@ -4,7 +4,7 @@
  * no reading history. That keeps the estimate honest ("SIN CALIBRAR") and the
  * results fully isolated from `spotStore` / official alerts (moat O3).
  *
- * Only runs when the active sector has user spots — zero cost otherwise.
+ * Only runs when the active sector has pins or weather points — zero cost otherwise.
  */
 import { useEffect, useRef } from 'react';
 import { useWeatherStore } from '../store/weatherStore';
@@ -12,7 +12,7 @@ import { useBuoyStore } from '../store/buoyStore';
 import { useSectorStore } from '../store/sectorStore';
 import { useUserSpotStore } from '../store/userSpotStore';
 import { scoreAllSpots } from '../services/spotScoringEngine';
-import { userSpotToSailingSpot } from '../config/userSpots';
+import { userSpotToSailingSpot, withMeteoPoints } from '../config/userSpots';
 
 const RESCORE_INTERVAL_MS = 15_000;
 
@@ -27,7 +27,7 @@ export function useUserSpotScoring() {
   const lastScoredRef = useRef(0);
 
   useEffect(() => {
-    const mine = userSpots.filter((u) => u.sectorId === sectorId);
+    const mine = withMeteoPoints(userSpots).filter((u) => u.sectorId === sectorId);
 
     // Clear stale scores when the user has no pins in this sector.
     if (mine.length === 0) {
