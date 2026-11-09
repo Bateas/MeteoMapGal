@@ -7,7 +7,7 @@
  * (`SimulationBanner`) and hides the share buttons: the picture would outlive the joke.
  * A new `?sim*` parameter goes in this list.
  */
-export const SIM_PARAMS = ['simstrike', 'simwait', 'simfog', 'simrain', 'simorange', 'simsurge'] as const;
+export const SIM_PARAMS = ['simstrike', 'simwait', 'simfog', 'simrain', 'simorange', 'simsurge', 'simpanorama'] as const;
 
 function currentSearch(): string {
   try {

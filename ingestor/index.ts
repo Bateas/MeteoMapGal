@@ -37,6 +37,7 @@ import { runCalibrationCycle, CALIBRATION_CHECK_INTERVAL_MS } from './calibratio
 import { runStationHealthCycle, loadStationHealth, HEALTH_CHECK_INTERVAL_MS } from './stationHealthJob.js';
 import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetcher.js';
 import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
+import { runPointRainWatch, POINT_WATCH_EVERY_MS } from './pointRainWatch.js';
 import { runMetarArchive, METAR_ARCHIVE_INTERVAL_MS } from './metarArchive.js';
 import { runIntecmarArchive, INTECMAR_CHECK_MS } from './intecmarArchive.js';
 import { runIntecmarHistory } from './intecmarHistory.js';
@@ -111,6 +112,7 @@ let calibrationTimer: ReturnType<typeof setInterval> | null = null;
 let stationHealthTimer: ReturnType<typeof setInterval> | null = null;
 let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
 let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
+let pointRainTimer: ReturnType<typeof setInterval> | null = null;
 let metarTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarHistoryTimer: ReturnType<typeof setInterval> | null = null;
@@ -666,6 +668,10 @@ async function start(): Promise<void> {
   setTimeout(() => { void runWrfPointArchive(); }, 260_000);
   wrfPointTimer = setInterval(() => { void runWrfPointArchive(); }, WRF_POINT_CHECK_MS);
 
+  // Rain of the BETA weather points against the WRF (pointRainWatch.ts): a dated test, stops by itself.
+  setTimeout(() => { void runPointRainWatch(); }, 300_000);
+  pointRainTimer = setInterval(() => { void runPointRainWatch(); }, POINT_WATCH_EVERY_MS);
+
   // Airport reports (metarArchive.ts): the measured fog label. The first pass fills the ~3 days the
   // API still holds; then every 30 min. 280s stagger, after the WRF points.
   setTimeout(() => { void runMetarArchive(); }, 280_000);
@@ -719,6 +725,7 @@ async function shutdown(signal: string): Promise<void> {
   if (stationHealthTimer) clearInterval(stationHealthTimer);
   if (nwpPreviousTimer) clearInterval(nwpPreviousTimer);
   if (wrfPointTimer) clearInterval(wrfPointTimer);
+  if (pointRainTimer) clearInterval(pointRainTimer);
   if (metarTimer) clearInterval(metarTimer);
   if (intecmarTimer) clearInterval(intecmarTimer);
   if (intecmarHistoryTimer) clearInterval(intecmarHistoryTimer);

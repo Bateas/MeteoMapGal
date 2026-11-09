@@ -1,0 +1,190 @@
+/*
+ * Cards on the map, V3 style «G · Parte refinada»: spot, station, buoy, webcam, own spot, fire, airspace,
+ * aircraft. Paper and ink: the words stay in ink so they read in both themes, and colour only marks a
+ * state, in a chip, a bar or an icon. Until the marker lot the state colours are the map's own.
+ * Plain classes on purpose: the unlayered reset in index.css zeroes Tailwind's padding and margin.
+ */
+
+/* ── Shell: docked to the corner of the map on desktop, clear of the tools at the bottom ── */
+.gf-dock { position: absolute; z-index: 35; top: 12px; left: 12px; display: flex; width: min(360px, calc(100% - 24px)); max-height: calc(100% - 76px); border: 1px solid var(--g-hair); border-top: 2px solid var(--g-rule); border-radius: 4px; box-shadow: var(--g-shadow-lg); }
+.gf-dock:focus { outline: none; }
+.gf-dock:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
+/* On a narrow map the notices need the top: the card goes to the bottom (WeatherMap sets the attribute) */
+[data-narrow] .gf-dock { top: auto; bottom: 64px; max-height: 50%; }
+.gf-body { flex: 1; min-width: 0; overflow-x: hidden; overflow-y: auto; padding: 14px 16px 10px; }
+
+/* ── Shell: bottom sheet on a phone ── */
+.gf-sheetwrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; }
+.gf-sheetbox { position: relative; }
+.gf-sheet { max-height: 60dvh; overflow-x: hidden; overflow-y: auto; padding: 0 16px calc(5rem + env(safe-area-inset-bottom, 0px)); background: var(--g-bg); border-top: 2px solid var(--g-rule); box-shadow: var(--g-shadow-lg); }
+.gf-handle { display: flex; justify-content: center; padding: 8px 0 12px; touch-action: none; }
+.gf-handle span { width: 40px; height: 4px; border-radius: 2px; background: var(--g-rule); }
+.gf-close { position: absolute; top: 4px; right: 4px; z-index: 1; background: var(--g-bg); }
+.gf-sheetwrap .gf-close { top: 8px; }
+
+/* ── Head ── */
+.gf { display: flex; flex-direction: column; min-width: 0; font: 400 14px/1.35 var(--g-font); color: var(--g-ink); }
+.gf-head { display: flex; align-items: flex-start; gap: 4px; padding-right: 40px; margin-bottom: 10px; }
+.gf-sheetwrap .gf-head { padding-right: 44px; }
+.gf-titles { flex: 1; min-width: 0; }
+.gf-name { display: block; margin: 0; font: 800 21px/1.15 var(--g-font); letter-spacing: -.01em; }
+.gf-namebtn { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 28px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.gf-namebtn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gf-sub { font-size: 13px; color: var(--g-muted); }
+.gf-tag { display: inline-block; vertical-align: 3px; margin-left: 6px; padding: 1px 5px; border: 1px solid var(--g-hair); border-radius: 2px; font: 600 12px/1.3 var(--g-narrow); color: var(--g-muted); letter-spacing: .02em; }
+.gf-acts { display: flex; flex-shrink: 0; margin-top: -6px; }
+
+/* ── The state, in one big line ── */
+.gf-big { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 8px; min-width: 0; }
+.gf-chip { flex-shrink: 0; }
+.gf-figure { font: 700 36px/1.05 var(--g-narrow); letter-spacing: -.01em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gf-figure--long { font-size: 27px; white-space: normal; }
+.gf-sheetwrap .gf-figure { font-size: 40px; }
+.gf-sheetwrap .gf-figure--long { font-size: 30px; }
+/* Beside the figure if its longest piece fits there; if not, the whole of it goes under */
+.gf-side { flex: 1 1 96px; display: flex; flex-wrap: wrap; gap: 0 8px; font-size: 14px; line-height: 1.28; min-width: min-content; }
+.gf-side b { font-weight: 600; white-space: nowrap; }
+.gf-side span { color: var(--g-muted); }
+.gf-side span.gf-trend { color: var(--g-ink); font-weight: 600; }
+.gf-model { font-size: 13px; color: var(--g-muted); }
+.gf-pending { font-size: 15px; font-weight: 600; color: var(--g-muted); }
+.gf-say { margin: 0 0 10px; padding: 2px 0 2px 12px; border-left: 4px solid var(--gf-tone, var(--g-rule)); font-size: 15px; font-weight: 600; line-height: 1.32; }
+
+/* ── Danger: nothing else on the card looks like this ── */
+.gf-alert { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; padding: 8px 10px; border-radius: 3px; background: var(--g-danger); color: #fff; font-size: 14px; font-weight: 700; line-height: 1.3; }
+.gf-alert svg { flex-shrink: 0; margin-top: 1px; }
+
+/* ── Groups of a long card: thick rule and air between them, little air and no rules inside ── */
+.gf-group { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.gf-group:not(:has(> :not(.gf-grouphead, :empty))) { display: none; }
+.gf-grouphead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 5px; border-bottom: 2px solid var(--g-rule); }
+.gf-grouphead h3 { margin: 0; font: 700 15px/1.2 var(--g-font); }
+.gf-grouphead span { font-size: 13px; color: var(--g-muted); }
+.gf-group > .gf-sec, .gf-group > .gf-notes, .gf-group > .gf-data, .gf-group > .gf-ask { padding: 0; border-top: 0; }
+.gf-group > .gf-data + .gf-data { margin-top: -2px; }
+.gf-group > .gf-more { margin-top: -8px; min-height: 32px; }
+.gf-group > .gf-row--static { border-top: 0; min-height: 0; }
+/* A list of folds: rows of a list keep a hairline between them, and only them */
+.gf-group--list { gap: 0; }
+.gf-group--list > .gf-grouphead + .gf-row { border-top: 0; }
+.gf-group > .gf-row--link { margin-top: -4px; border-top: 0; min-height: 40px; font-weight: 600; }
+.gf-sheetwrap .gf-group > .gf-row--link { min-height: 44px; }
+.gf-label { margin: 0 0 2px; font-size: 12.5px; font-weight: 400; color: var(--g-muted); }
+.gf-action { width: 100%; margin-top: 16px; white-space: normal; }
+
+/* ── Sections, one rule apart ── */
+.gf-notes { display: flex; flex-direction: column; gap: 7px; padding: 10px 0; border-top: 1px solid var(--g-hair); }
+.gf-notes:empty { display: none; }
+.gf-notes--now { padding: 0; border-top: 0; margin-bottom: 8px; }
+.gf-note { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; font-size: 13.5px; line-height: 1.34; }
+.gf-note:not(.gf-note--block) > :first-child { display: flex; margin-top: 2px; color: var(--tone, var(--g-muted)); }
+.gf-note small { display: block; margin-top: 1px; font-size: 12.5px; color: var(--g-muted); }
+.gf-note a { color: inherit; }
+.gf-note--block { margin: 0 0 8px; padding: 8px 10px; border-left: 4px solid var(--tone, var(--g-rule)); background: color-mix(in srgb, var(--g-ink) 5%, transparent); }
+.gf-note--block button { display: flex; align-items: flex-start; width: 100%; gap: 6px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.gf-sheetwrap .gf-note--block button, .gf-sheetwrap .gf-namebtn { min-height: 44px; }
+.gf-strong { font-weight: 700; }
+.gf-mono { font-variant-numeric: tabular-nums; }
+
+.gf-data { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 14px; margin: 0; padding: 10px 0; border-top: 1px solid var(--g-hair); }
+.gf-data + .gf-data { border-top: 0; padding-top: 0; }
+.gf-cell { min-width: 0; }
+.gf-cell dt { font-size: 12.5px; color: var(--g-muted); }
+.gf-cell dd { margin: 0; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.gf-cell dd small { font-size: 13px; font-weight: 400; color: var(--g-muted); }
+.gf-cell dd svg { display: inline-block; vertical-align: -2px; color: var(--g-l-alto); }
+.gf-more { align-self: flex-start; min-height: 40px; padding: 0; border: 0; background: transparent; color: var(--g-muted); font: 500 13px var(--g-font); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.gf-sheetwrap .gf-more { min-height: 44px; }
+.gf-link { display: inline-flex; align-items: center; min-height: 40px; font-size: 13px; text-decoration: underline; text-underline-offset: 2px; color: inherit; }
+.gf-sheetwrap .gf-link { min-height: 44px; }
+.gf-more:hover { color: var(--g-ink); }
+
+.gf-sec { padding: 10px 0; border-top: 1px solid var(--g-hair); }
+.gf-sectitle { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; margin: 0 0 6px; font: 700 14px/1.25 var(--g-font); }
+.gf-sectitle small { font-size: 12.5px; font-weight: 400; color: var(--g-muted); }
+.gf-sectitle h3, .gf-sectitle h4 { margin: 0; font: inherit; }
+
+/* Hours table of the forecast */
+.gf-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.gf-table caption { padding: 0 0 4px; text-align: left; font-size: 12.5px; color: var(--g-muted); }
+.gf-table th { white-space: nowrap; padding: 0 0 3px; border-bottom: 1px solid var(--g-rule); font-size: 12.5px; font-weight: 600; color: var(--g-muted); text-align: left; }
+.gf-table td { height: 30px; padding: 0; border-bottom: 1px solid var(--g-hair); }
+.gf-table .gf-n { padding-left: 8px; text-align: right; }
+.gf-table td.gf-n b { font: 700 16px var(--g-narrow); }
+.gf-bar { display: block; height: 12px; box-sizing: border-box; border: 2px solid var(--g-muted); }
+.gf-dirs { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+
+/* Row that opens something: same height and rule everywhere */
+.gf-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0; border: 0; border-top: 1px solid var(--g-hair); background: transparent; color: var(--g-ink); font: 500 14px/1.25 var(--g-font); text-align: left; text-decoration: none; cursor: pointer; }
+.gf-row:hover { background: color-mix(in srgb, var(--g-ink) 6%, transparent); }
+.gf-row:focus-visible, .gf-opt:focus-visible, .gf-namebtn:focus-visible, .gf-more:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
+.gf-row:disabled { opacity: .6; cursor: default; }
+.gf-row > .gf-grow { flex: 1; min-width: 0; }
+.gf-row small { font-size: 12.5px; font-weight: 400; color: var(--g-muted); }
+.gf-row--static { cursor: default; color: var(--g-muted); font-size: 13px; }
+.gf-row--static:hover { background: transparent; }
+.gf-row svg { flex-shrink: 0; }
+.gf-panel { padding: 0 0 12px; }
+.gf-panel .gf-note + .gf-note { margin-top: 6px; }
+.gf-signal { display: grid; grid-template-columns: 8px 92px minmax(0, 1fr) 76px; align-items: center; gap: 6px; font-size: 12.5px; }
+.gf-signal + .gf-signal { margin-top: 4px; }
+.gf-signal i { width: 8px; height: 8px; border-radius: 50%; background: var(--g-hair); }
+.gf-signal.on i { background: var(--g-s-navegable); }
+.gf-signal .gf-track { height: 6px; background: var(--g-hair); }
+.gf-signal .gf-track span { display: block; height: 100%; background: var(--g-muted); }
+.gf-signal.on .gf-track span { background: var(--g-s-navegable); }
+.gf-signal b { font-weight: 400; color: var(--g-muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: right; }
+
+/* «¿Estás aquí ahora?» and other answers */
+.gf-ask { display: flex; flex-direction: column; gap: 7px; padding: 10px 0; border-top: 1px solid var(--g-hair); }
+.gf-ask p { margin: 0; font-size: 13px; }
+.gf-ask p span, .gf-hint { color: var(--g-muted); font-size: 12.5px; }
+.gf-opts { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 4px; }
+.gf-opt { min-height: 40px; padding: 2px 4px; border: 1px solid var(--g-hair); border-radius: 3px; background: transparent; color: var(--g-ink); font: 500 13px/1.15 var(--g-font); cursor: pointer; }
+.gf-opt:hover { background: color-mix(in srgb, var(--g-ink) 8%, transparent); }
+.gf-opt[aria-pressed="true"] { background: var(--g-ink); border-color: var(--g-ink); color: var(--g-bg); }
+.gf-sheetwrap .gf-opt { min-height: 44px; }
+.gf-actions { display: flex; align-items: center; gap: 6px; padding: 10px 0 2px; }
+.gf-input { width: 100%; min-width: 0; min-height: 36px; padding: 0 8px; border: 1px solid var(--g-rule); border-radius: 3px; background: transparent; color: var(--g-ink); font: 400 14px var(--g-font); }
+.gf-input:focus-visible { outline: 2px solid var(--g-ink); outline-offset: 1px; }
+.gf-namefield { font-size: 18px; font-weight: 700; }
+
+/* Foot */
+.gf-foot { display: flex; align-items: center; gap: 2px; margin-top: 0; padding-top: 4px; border-top: 1px solid var(--g-hair); }
+.gf-foot .gc-btn { font-size: 13px; }
+.gf-credit { margin: 0; padding-top: 6px; font-size: 12.5px; color: var(--g-muted); }
+.gf-credit a { color: inherit; }
+.gf-credit .gf-tag { margin: 0 6px 0 0; vertical-align: baseline; }
+
+/* Pictures and small charts */
+.gf-photo { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--g-night); border: 1px solid var(--g-hair); }
+.gf-photo--empty { display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--g-muted); }
+.gf-chart { display: block; width: 100%; height: auto; color: var(--g-ink); }
+.gf-chart text { fill: var(--g-muted); font-family: var(--g-font); }
+.gf-chartfoot { display: flex; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.gf-plot { display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 6px; }
+.gf-plot-y { position: relative; }
+.gf-plot-y span { position: absolute; right: 0; transform: translateY(-50%); font-size: 12px; line-height: 1; color: var(--g-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gf-plot-area { position: relative; cursor: crosshair; touch-action: pan-y; }
+.gf-plot-area:focus-visible { outline: 2px solid var(--g-ink); outline-offset: 2px; }
+.gf-plot-tip { position: absolute; top: -4px; z-index: 1; padding: 2px 6px; background: var(--g-paper); border: 1px solid var(--g-rule); font-size: 13px; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+.gf-plot-tip b { font-weight: 700; }
+.gf-plot-foot { grid-column: 2; position: relative; }
+.gf-axisay { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.gf-axislegend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin-top: 2px; }
+.gf-axislegend span { display: inline-flex; align-items: center; gap: 5px; }
+.gf-swatch { display: inline-block; width: 18px; border-top: 2.25px solid currentColor; }
+.gf-swatch--model { border-top: 0; height: 2.5px; background-image: radial-gradient(circle, currentColor 1.1px, transparent 1.3px); background-size: 5px 2.5px; }
+
+/* ── Movement (curve and durations in v3tokens.css, reduced motion at the top of index.css) ── */
+@keyframes gf-in-side { from { opacity: 0; translate: -8px 0; } }
+@keyframes gf-in-rise { from { opacity: 0; translate: 0 8px; } }
+.gf-dock { animation: gf-in-side var(--g-t) var(--g-ease); }
+[data-narrow] .gf-dock { animation-name: gf-in-rise; }
+.gf-sheetwrap.animate-slide-up { animation-duration: var(--g-t-slow); animation-timing-function: var(--g-ease); }
+.gf-panel { animation: gc-in-fall var(--g-t-fast) var(--g-ease); }
+/* A figure that has changed: it comes in soft instead of snapping, no flash and no colour. It only fires if
+   the element is new, so each figure needs its value as React key (the marker's upgradeFlash is another thing:
+   that one says the verdict went up). */
+@keyframes gf-figure-in { from { opacity: .35; translate: 0 3px; } }
+.gf-figure { animation: gf-figure-in var(--g-t-slow) var(--g-ease); }

@@ -34,6 +34,27 @@ export interface UserSpot {
   sectorId: string;
   /** Creation timestamp (ms). */
   createdAt: number;
+  /** A weather point, not a place to sail: its card shows the forecast and warnings instead of a verdict. */
+  meteoOnly?: boolean;
+  /** Official warning zones of a weather point, by the name the feed gives them. */
+  warningZones?: string[];
+  /** Rain gauges that stand for a weather point, nearest first. */
+  gauges?: { id: string; name: string }[];
+  /** Last local day (YYYY-MM-DD) the server compares its rain with the model: a dated test. */
+  watchUntil?: string;
+}
+
+/** BETA weather points everyone sees. They use the pin's marker and card but cannot be edited,
+ *  and stay out of the official spots on purpose: no verdict, no alerts, no rankings. */
+export const METEO_POINTS: UserSpot[] = [
+  { id: 'meteo-alto-avion', name: 'Alto de Avión', center: [-8.25178, 42.38513], sectorId: 'embalse', createdAt: 0, meteoOnly: true, warningZones: ['Noroeste de Ourense', 'Ourense (provincia)'],
+    gauges: [{ id: 'mg_10109', name: 'Amiudal' }, { id: 'nt_2d0b7e', name: 'Surribas' }, { id: 'aemet_1696O', name: 'Beariz' }],
+    watchUntil: '2026-11-15' },
+];
+
+/** The weather points plus this browser's own pins. */
+export function withMeteoPoints(userSpots: UserSpot[]): UserSpot[] {
+  return [...METEO_POINTS, ...userSpots];
 }
 
 /** Hard cap on stored pins — guards localStorage growth + map clutter. */

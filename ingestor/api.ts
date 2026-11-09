@@ -13,6 +13,7 @@
  *   GET /api/v1/readings         → Weather time series (raw or hourly)
  *   GET /api/v1/readings/latest  → Latest weather reading per station
  *   GET /api/v1/readings/precip-recent → Every station's precipitation, last 75 min (rain layer cold start)
+ *   GET /api/v1/meteo-point/status?id= → How a BETA weather point's rain goes against the WRF (pointRainWatch.ts)
  *   GET /api/v1/readings/recent        → Every station's readings of the last 3 h (page history on load; replaces model values)
  *   GET /api/v1/teleconnections      → NAO/AO latest values (NOAA, read every 12 h by the server)
  *   GET /api/v1/readings/compare → Multi-station comparison
@@ -75,6 +76,7 @@ import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { stopForecastArchive } from './forecastArchive.js';
 import { getSpotsForSector } from '../src/config/spots.js';
+import { METEO_POINTS } from '../src/config/userSpots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup, makeRoomForNewSubscription } from './pushDispatcher.js';
 import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effisFetcher.js';
 import { corsHeaders, json, error, dbError, parseSearchParams, parseLimit, ALLOWED_ORIGINS } from './httpHelpers.js';
@@ -908,6 +910,34 @@ async function handleMetarLatest(
   }
 }
 
+/** What the rain watcher last said for a weather point; `state: null` while it is not running. */
+async function handleMeteoPointStatus(
+  params: Record<string, string>,
+  res: http.ServerResponse,
+  origin?: string,
+): Promise<void> {
+  const id = params.id ?? '';
+  if (!METEO_POINTS.some((p) => p.id === id)) {
+    error(res, 'Unknown point', 400, origin);
+    return;
+  }
+  try {
+    const r = await getPool().query<{ time: Date; reason: string | null }>(
+      `SELECT time, reason FROM beta_signals
+        WHERE kind = 'point-rain' AND spot_id = $1 AND time > NOW() - INTERVAL '30 minutes'`,
+      [id],
+    );
+    const row = r.rows[0];
+    const cut = row?.reason?.indexOf('|') ?? -1;
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    json(res, row && cut > 0
+      ? { state: row.reason!.slice(0, cut), text: row.reason!.slice(cut + 1), time: row.time }
+      : { state: null }, 200, origin);
+  } catch (err) {
+    dbError(res, err, 'handleMeteoPointStatus', origin);
+  }
+}
+
 async function handleRecentPrecip(
   _params: Record<string, string>,
   res: http.ServerResponse,
@@ -968,6 +998,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/readings': handleReadings,
   '/api/v1/readings/latest': handleLatest,
   '/api/v1/readings/precip-recent': handleRecentPrecip,
+  '/api/v1/meteo-point/status': handleMeteoPointStatus,
   '/api/v1/readings/recent': handleRecentReadings,
   '/api/v1/teleconnections': handleTeleconnections,
   '/api/v1/readings/compare': handleCompare,
@@ -1415,7 +1446,7 @@ const BETA_FRESH_SQL = `time > NOW() - INTERVAL '20 minutes'`;
 async function observerBetas(pool: ReturnType<typeof getPool>): Promise<ObserverBeta[]> {
   try {
     const r = await pool.query(
-      `SELECT kind, spot_id, time, active, estimate_kt, app_kt, reason FROM beta_signals WHERE ${BETA_FRESH_SQL}`);
+      `SELECT kind, spot_id, time, active, estimate_kt, app_kt, reason FROM beta_signals WHERE kind <> 'point-rain' AND ${BETA_FRESH_SQL}`);
     return r.rows.map((x) => ({
       kind: x.kind, spotId: x.spot_id, at: new Date(x.time).getTime(), active: x.active,
       estimateKt: x.estimate_kt, appKt: x.app_kt, reason: x.reason,

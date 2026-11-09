@@ -89,8 +89,17 @@ describe('UserSpotMarkers', () => {
     expect(container.textContent).toContain('Calculando');
   });
 
-  it('renders nothing when the user has no pins in the active sector', () => {
+  it('renders nothing in a sector with no pins and no weather points', () => {
+    useSectorStore.setState((s) => ({ activeSector: { ...s.activeSector, id: 'rias' } }) as never);
     const { container } = render(<UserSpotMarkers />);
     expect(container.textContent).toBe('');
+  });
+
+  it('shows a weather point to everyone, as BETA and with no verdict', () => {
+    useSectorStore.setState((s) => ({ activeSector: { ...s.activeSector, id: 'embalse' } }) as never);
+    const { container } = render(<UserSpotMarkers />);
+    expect(container.textContent).toContain('BETA');
+    expect(container.textContent).not.toContain('SIN CALIBRAR');
+    expect(container.textContent).not.toContain('Calculando');
   });
 });
