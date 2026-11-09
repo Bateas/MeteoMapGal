@@ -1174,3 +1174,35 @@ async function queryLatestMetarUncached(): Promise<LatestMetar[]> {
 
 /** Reports come every 30 min and the archive asks every 30: one query a minute serves every visitor. */
 export const queryLatestMetar = memoByKey(60_000, queryLatestMetarUncached, () => 'metar-latest');
+
+export interface GaugeRainTotals {
+  mm24h: number; mm3d: number; mm7d: number;
+  /** Readings behind each total: fewer than expected means the rain can only be more. */
+  n24h: number; n3d: number; n7d: number;
+  lastAt: string | null;
+}
+
+async function queryGaugeRainUncached(stationId: string): Promise<GaugeRainTotals> {
+  const res = await getPool().query<{ mm24h: number; mm3d: number; mm7d: number; n24h: number; n3d: number; n7d: number; last_at: Date | null }>(
+    `SELECT COALESCE(SUM(precip) FILTER (WHERE time > NOW() - INTERVAL '24 hours'), 0)::float8 AS mm24h,
+            COALESCE(SUM(precip) FILTER (WHERE time > NOW() - INTERVAL '3 days'), 0)::float8 AS mm3d,
+            COALESCE(SUM(precip), 0)::float8 AS mm7d,
+            COUNT(*) FILTER (WHERE time > NOW() - INTERVAL '24 hours')::int AS n24h,
+            COUNT(*) FILTER (WHERE time > NOW() - INTERVAL '3 days')::int AS n3d,
+            COUNT(*)::int AS n7d,
+            MAX(time) AS last_at
+       FROM readings
+      WHERE station_id = $1 AND time > NOW() - INTERVAL '7 days' AND precip IS NOT NULL`,
+    [stationId],
+  );
+  const r = res.rows[0];
+  const tenth = (v: number) => Math.round(v * 10) / 10;
+  return {
+    mm24h: tenth(r.mm24h), mm3d: tenth(r.mm3d), mm7d: tenth(r.mm7d),
+    n24h: r.n24h, n3d: r.n3d, n7d: r.n7d,
+    lastAt: r.last_at ? r.last_at.toISOString() : null,
+  };
+}
+
+/** A gauge reports every 10 min and the card asks every 10: one query per gauge serves every visitor. */
+export const queryGaugeRain = memoByKey(5 * 60_000, queryGaugeRainUncached, (stationId) => `gauge-rain:${stationId}`);

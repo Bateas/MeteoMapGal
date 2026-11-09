@@ -7,6 +7,7 @@
  */
 import type { HourlyForecast } from '../types/forecast';
 import type { MGWarning } from '../api/mgWarningsClient';
+import type { GaugeRain } from '../api/meteoPointStatusClient';
 import { msToKnots, degToCardinal8 } from './windUtils';
 
 const TZ = 'Europe/Madrid';
@@ -250,4 +251,39 @@ export function warningsForZones(warnings: MGWarning[], zones: string[], now: Da
     }
   }
   return [...best.values()].sort((a, b) => a.startMs - b.startMs);
+}
+
+/** Readings of a 10-minute gauge in each window, and the share under which a total is a floor. */
+const GAUGE_ROWS = { h24: 144, d3: 432, d7: 1008 } as const;
+const GAUGE_MIN_COVERAGE = 0.9;
+const GAUGE_STALE_MIN = 180;
+const GAUGE_LATE_MIN = 40;
+const clockFmt = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' });
+
+export interface GaugeRainView {
+  gauge: string;
+  cells: { label: string; mm: string }[];
+  note: string | null;
+}
+
+/**
+ * The rain already fallen, as the gauge measured it: the state of the ground depends on it and no
+ * forecast says it. It says what was measured and where, never how wet the ground is: that needs
+ * the soil itself. A silent gauge gives no figure rather than an old one.
+ */
+export function describeGaugeRain(r: GaugeRain | null, now: Date): GaugeRainView | null {
+  if (!r?.gauge || !r.lastAt) return null;
+  const ageMin = (now.getTime() - new Date(r.lastAt).getTime()) / 60_000;
+  if (!(ageMin <= GAUGE_STALE_MIN)) return null;
+  const cell = (label: string, mm: number) => ({ label, mm: mm < 0.05 ? '0' : fmtMm(mm) });
+  const gaps = r.n24h < GAUGE_ROWS.h24 * GAUGE_MIN_COVERAGE || r.n3d < GAUGE_ROWS.d3 * GAUGE_MIN_COVERAGE
+    || r.n7d < GAUGE_ROWS.d7 * GAUGE_MIN_COVERAGE;
+  const notes: string[] = [];
+  if (gaps) notes.push('Faltan lecturas: puede haber caído algo más.');
+  if (ageMin > GAUGE_LATE_MIN) notes.push(`Última lectura a las ${clockFmt.format(new Date(r.lastAt))}.`);
+  return {
+    gauge: r.gauge,
+    cells: [cell('24 h', r.mm24h), cell('3 días', r.mm3d), cell('7 días', r.mm7d)],
+    note: notes.length > 0 ? notes.join(' ') : null,
+  };
 }

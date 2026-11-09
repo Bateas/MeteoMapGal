@@ -4,7 +4,7 @@
  */
 import { memo, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
-import { fetchMeteoPointStatus, type MeteoPointStatus } from '../../api/meteoPointStatusClient';
+import { fetchMeteoPointRain, fetchMeteoPointStatus, type GaugeRain, type MeteoPointStatus } from '../../api/meteoPointStatusClient';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { fetchMGWarnings, type MGWarning } from '../../api/mgWarningsClient';
 import { fetchRadarFrames } from '../../api/radarTiles';
@@ -12,11 +12,12 @@ import { maxDbzNear } from '../../services/radarDecode';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { PointMeteogram } from './PointMeteogram';
 import { useRainNowStore } from '../../store/rainNowStore';
-import { summarizeDays, describeBands, describeNextRain, describeRadarOverPoint, panoramaWithLiveGauge, warningsForZones } from '../../services/pointForecast';
+import { summarizeDays, describeBands, describeGaugeRain, describeNextRain, describeRadarOverPoint, panoramaWithLiveGauge, warningsForZones } from '../../services/pointForecast';
 import type { HourlyForecast } from '../../types/forecast';
 
 const TTL_MS = 30 * 60_000;
 const STATUS_POLL_MS = 5 * 60_000;
+const RAIN_POLL_MS = 10 * 60_000;
 const RADAR_OVER_KM = 2;
 /** The «now» mark on the chart moves with the card open. */
 const CLOCK_MS = 60_000;
@@ -91,6 +92,16 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
     : null;
   const shown = panoramaWithLiveGauge(status, liveGauge);
 
+  const [rain, setRain] = useState<GaugeRain | null>(null);
+  const pollRain = useCallback(async () => {
+    if (new URLSearchParams(window.location.search).get('simpanorama')) {
+      setRain({ gauge: 'Amiudal', mm24h: 36.1, mm3d: 46.1, mm7d: 48.1, n24h: 135, n3d: 417, n7d: 950, lastAt: new Date().toISOString() });
+      return;
+    }
+    setRain(await fetchMeteoPointRain(pointId));
+  }, [pointId]);
+  useVisibilityPolling(pollRain, RAIN_POLL_MS);
+
   // Read in the browser, only with the card open, from the frames the rain layer already decodes.
   const [radar, setRadar] = useState<string | null>(null);
   const pollRadar = useCallback(async () => {
@@ -109,6 +120,7 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
   const days = useMemo(() => (hours ? summarizeDays(hours, new Date()) : []), [hours]);
   const nextRain = useMemo(() => (hours ? describeNextRain(hours, new Date()) : null), [hours]);
   const active = useMemo(() => (warnings ? warningsForZones(warnings, zones, new Date()) : []), [warnings, zones]);
+  const fallen = useMemo(() => describeGaugeRain(rain, clock), [rain, clock]);
 
   return (
     <>
@@ -139,6 +151,18 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
           </div>
         )}
       </section>
+
+      {fallen && (
+        <section className="gf-group">
+          <div className="gf-grouphead"><h3>Lluvia ya caída</h3><span>medida en {fallen.gauge}</span></div>
+          <div className="gfp-fallen">
+            {fallen.cells.map((c) => (
+              <div key={c.label}><b>{c.mm}<small> mm</small></b><span>{c.label}</span></div>
+            ))}
+          </div>
+          {fallen.note && <div className="gf-hint">{fallen.note}</div>}
+        </section>
+      )}
 
       {active.length > 0 && (
         <section className="gf-group">
