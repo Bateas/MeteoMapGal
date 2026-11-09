@@ -85,6 +85,7 @@ export const RainNowChip = memo(function RainNowChip() {
               <i className="inline-block w-2.5 h-2.5 rounded-full border border-white" style={{ background: '#2563eb' }} />
               Pluviómetro que la ha medido (mm/h)
             </div>
+            <p className="text-[11px] text-slate-300">La flecha llega hasta donde estaría esa lluvia en media hora.</p>
             {summary.gauges.length > 0 && (
               <p className="text-[11px] text-slate-400">
                 {summary.gauges.slice(0, 3).map((g) => `${g.name} ${g.mmPerHour.toFixed(1).replace('.', ',')} mm/h`).join(' · ')}

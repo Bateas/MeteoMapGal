@@ -16,6 +16,8 @@ import { Source, Layer, type SourceProps } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { resolveStyleId, useMapStyleStore } from '../../store/mapStyleStore';
+import { useThemeStore } from '../../store/themeStore';
 import { useRainNowStore, type RainNowDebug } from '../../store/rainNowStore';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { fetchRadarFrames, FRAMES_WANTED } from '../../api/radarTiles';
@@ -25,7 +27,7 @@ import { estimateMotion, type RadarMotion } from '../../services/radarMotion';
 import { pixelsByLabel, trackCells, type CellTrack } from '../../services/radarTracking';
 import {
   announcingTracks, approachingCells, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, gaugeIntensity, groundTruth,
-  rainArrivalAt, renderRain, ARRIVAL_MAX_MIN, type GaugeRain, type RainApproach,
+  rainArrivalAt, rainTrajectories, renderRain, ARRIVAL_MAX_MIN, type GaugeRain, type RainApproach,
 } from '../../services/rainNowService';
 import { updateArrivalChecks } from '../../services/rainArrivalChecks';
 import { simGauges, simRainFrames, simRainMode } from '../../services/rainSim';
@@ -37,7 +39,7 @@ import type { NormalizedReading } from '../../types/station';
  *  A look with no new frame costs one small JSON (the decoded frames are kept). */
 const POLL_MS = 3 * 60_000;
 const TONE_COLOR = { debil: '#60a5fa', moderada: '#2563eb', fuerte: '#7c3aed' } as const;
-/** Arrows drawn at most (the soonest coming), so the map does not fill with them. */
+/** Arrows of rain coming to the sector drawn at most (the soonest), so the map does not fill with them. */
 const MAX_ARROWS = 3;
 
 /**
@@ -59,6 +61,10 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   // and looked gone (6-oct). Gauges, arrows and the chip stay.
   const rawRadarOn = useWeatherLayerStore((s) => s.activeLayer === 'radar');
   const sector = useSectorStore((s) => s.activeSector);
+  // On the dark canvas the old dark blue arrow all but disappeared.
+  const styleChoice = useMapStyleStore((s) => s.activeStyleId);
+  const theme = useThemeStore((s) => s.theme);
+  const arrowColor = resolveStyleId(styleChoice, theme) === 'dark' ? '#bfdbfe' : '#1d4ed8';
   const stations = useWeatherStore((s) => s.stations);
   const readingsEpoch = useWeatherStore((s) => s.readingsEpoch);
   const historyEpoch = useWeatherStore((s) => s.historyEpoch);
@@ -201,10 +207,15 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
           pictureRef.current = { key: pictureKey, picture };
         }
       }
-      // Arrows only for the rain coming to the sector: an arrow means «this is heading your way».
-      // 6-oct: the fallback (biggest steady patch) drew one over the sea, going nowhere near a spot.
-      const arrowCells = approach.slice(0, MAX_ARROWS).map((a) => ({ lon: a.lon, lat: a.lat, toDeg: a.toDeg, kmh: a.kmh }));
-      arrows = arrowCells.flatMap((c) => arrowGeo(c.lon, c.lat, c.toDeg, c.kmh * 0.5).features);
+      // Every arrow reaches where that rain would be in half an hour. The strongest one is rain coming to
+      // the sector; the others say where each patch on the map is going (asked for on 9-nov: blue patches
+      // with no direction told nothing), see rainTrajectories.
+      const coming = approach.slice(0, MAX_ARROWS);
+      arrows = [
+        ...coming.flatMap((a) => arrowGeo(a.lon, a.lat, a.toDeg, a.kmh * 0.5, 'coming').features),
+        ...rainTrajectories(judged, analysis.tracks, draw, motion, centre, new Set(coming.map((a) => a.cellId)))
+          .flatMap((t) => arrowGeo(t.lon, t.lat, t.toDeg, t.kmh * 0.5, t.own ? 'own' : 'flow').features),
+      ];
     } else if (raining.length === 0 && !sim) {
       return { off: true as const, gauges, arrivals, debug };
     }
@@ -259,10 +270,10 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
       {view.arrowGeo && (
         <Source id="rain-now-arrow" type="geojson" data={view.arrowGeo}>
           <Layer id="rain-now-arrow-line" type="line" filter={['==', ['get', 'part'], 'shaft']}
-            paint={{ 'line-color': '#1d4ed8', 'line-width': 2.5, 'line-dasharray': [2, 1.5], 'line-opacity': 0.85 }} />
+            paint={{ 'line-color': arrowColor, 'line-width': ['match', ['get', 'kind'], 'coming', 2.5, 'own', 2, 1.5], 'line-dasharray': [2, 1.5], 'line-opacity': ['match', ['get', 'kind'], 'coming', 0.9, 'own', 0.85, 0.65] }} />
           <Layer id="rain-now-arrow-head" type="line" filter={['==', ['get', 'part'], 'head']}
             layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-            paint={{ 'line-color': '#1d4ed8', 'line-width': 3, 'line-opacity': 0.9 }} />
+            paint={{ 'line-color': arrowColor, 'line-width': ['match', ['get', 'kind'], 'coming', 3, 'own', 2.4, 1.8], 'line-opacity': ['match', ['get', 'kind'], 'coming', 0.9, 'own', 0.85, 0.65] }} />
         </Source>
       )}
       <Source id="rain-now-gauges" type="geojson" data={view.gaugeGeo}>
@@ -278,7 +289,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
 
 /** A dashed shaft from (lon, lat) `km` towards `toDeg`, and an open chevron at its end (two short
  *  strokes, so it does not cover a spot marker when zoomed in). */
-function arrowGeo(lon: number, lat: number, toDeg: number, km: number): GeoJSON.FeatureCollection {
+function arrowGeo(lon: number, lat: number, toDeg: number, km: number, kind: 'coming' | 'own' | 'flow'): GeoJSON.FeatureCollection {
   const kmLat = 111.32, kmLon = 111.32 * Math.cos((lat * Math.PI) / 180);
   const from = (p: [number, number], d: number, deg: number): [number, number] => {
     const r = (deg * Math.PI) / 180;
@@ -289,8 +300,8 @@ function arrowGeo(lon: number, lat: number, toDeg: number, km: number): GeoJSON.
   return {
     type: 'FeatureCollection',
     features: [
-      { type: 'Feature', properties: { part: 'shaft' }, geometry: { type: 'LineString', coordinates: [[lon, lat], tip] } },
-      { type: 'Feature', properties: { part: 'head' }, geometry: { type: 'LineString', coordinates: [from(tip, barb, toDeg + 150), tip, from(tip, barb, toDeg - 150)] } },
+      { type: 'Feature', properties: { part: 'shaft', kind }, geometry: { type: 'LineString', coordinates: [[lon, lat], tip] } },
+      { type: 'Feature', properties: { part: 'head', kind }, geometry: { type: 'LineString', coordinates: [from(tip, barb, toDeg + 150), tip, from(tip, barb, toDeg - 150)] } },
     ],
   };
 }

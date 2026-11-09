@@ -6,6 +6,10 @@
  * It says what was measured and reads it as ahead or behind only when the gauges allow it. A gauge with
  * no recent reading says nothing (MeteoGalicia stops publishing some weekday mornings): that is «no
  * data», never «dry». One amateur gauge never decides alone; an official one can.
+ *
+ * «dry» below only means the gauge stayed under its threshold, so the sentences say what it measured and
+ * never that it is dry there: on 9-nov it rained lightly on the point at 09:52 and 10:50 with 0 mm at the
+ * nearest gauge, and the radar had nothing over it at 09:50.
  */
 import { rainInWindowMm, type PrecipSample } from './precipSemantics';
 import { isOfficialGauge } from './rainNowService';
@@ -122,13 +126,13 @@ export function pointRainPanorama(opts: { model: ModelHour[]; gauges: WatchGauge
       if (before.state === 'wet') {
         return {
           state: 'ya-paso',
-          text: `Ya ha pasado: llovió en ${before.name} (${fmtMm(before.mm)} mm) antes de ${atHour(hourAt(start))}, que es cuando la daba el WRF.`,
+          text: `Ya pasó por ${before.name}: midió ${fmtMm(before.mm)} mm antes de ${atHour(hourAt(start))}, que es cuando la daba el WRF.`,
           key: `ya-paso:${startMs}`,
         };
       }
       return {
         state: 'no-llega',
-        text: `El WRF daba lluvia a ${atHour(hourAt(start))} y en ${last.name} no ha caído nada: aún no ha llegado o no llegará.`,
+        text: `El WRF daba lluvia a ${atHour(hourAt(start))} y ${last.name} no ha medido nada: aún no ha llegado, no llegará o es tan débil que no marca.`,
         key: `no-llega:${startMs}`,
       };
     }
@@ -138,7 +142,7 @@ export function pointRainPanorama(opts: { model: ModelHour[]; gauges: WatchGauge
   if (soon !== null) {
     return {
       state: 'se-acerca',
-      text: `Seco en ${last.name}. El WRF da lluvia hacia ${atHour(hourAt(soon))}.`,
+      text: `${last.name} no mide lluvia. El WRF la da ${soon === 0 ? 'para esta hora' : `hacia ${atHour(hourAt(soon))}`}.`,
       key: `se-acerca:${nowH + soon * HOUR_MS}`,
     };
   }
@@ -146,8 +150,8 @@ export function pointRainPanorama(opts: { model: ModelHour[]; gauges: WatchGauge
   return {
     state: 'seco',
     text: later === null
-      ? `Seco en ${last.name}, como da el WRF.`
-      : `Seco en ${last.name}, como da el WRF, que no ve lluvia hasta ${atHour(hourAt(later))}.`,
+      ? `${last.name} no mide lluvia y el WRF tampoco la da.`
+      : `${last.name} no mide lluvia y el WRF no la da hasta ${atHour(hourAt(later))}.`,
     key: '',
   };
 }

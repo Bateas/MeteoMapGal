@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { NormalizedReading, NormalizedStation } from '../types/station';
 import { assembleMosaic, lonLatToPx, type RadarMosaic } from './radarDecode';
 import {
-  RAIN_GAUGE_BLACKLIST, announcingTracks, approachingCells, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, formatEta,
+  RAIN_GAUGE_BLACKLIST, announcingTracks, approachingCells, rainTrajectories, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, formatEta,
   gaugeIntensity, groundTruth, rainArrivalAt, renderRain, roundEta,
 } from './rainNowService';
 import type { CellTrack } from './radarTracking';
@@ -277,6 +277,45 @@ describe('approachingCells: rain seen before it arrives', () => {
     const small = mosaicWith([{ ...east(-90), r: 2.5, dbz: 34 }]);
     const sm = findRainCells(small);
     expect(approachingCells(sm.cells, tracksFor(sm.cells, track('moving', 40, 90)), small, BASE, 40)).toEqual([]);
+  });
+});
+
+describe('rainTrajectories: where each patch on the map is heading', () => {
+  const m = mosaicWith([{ ...east(-20), r: 5, dbz: 30 }, { ...east(20), r: 5, dbz: 30 }]);
+  const { cells } = findRainCells(m);
+  const drawn = new Set(cells.map((c) => c.id));
+  const flow = { kmh: 46, toDeg: 51, stable: true };
+  const bySide = () => [...cells].sort((a, b) => a.lon - b.lon);
+
+  it('uses the own track when its heading repeated', () => {
+    const [t] = rainTrajectories(cells, tracksFor(cells, track('moving', 40, 90)), drawn, flow, BASE);
+    expect(t).toMatchObject({ kmh: 40, toDeg: 90, own: true });
+  });
+
+  it('uses the flow for a patch just born or wandering', () => {
+    for (const t of [track('new'), track('unclear'), track('moving', 82, 131, false)]) {
+      expect(rainTrajectories(cells, tracksFor(cells, t), drawn, flow, BASE)[0]).toMatchObject({ kmh: 46, toDeg: 51, own: false });
+    }
+  });
+
+  it('draws nothing for echo that stays put', () => {
+    expect(rainTrajectories(cells, tracksFor(cells, track('static')), drawn, flow, BASE)).toEqual([]);
+  });
+
+  it('draws nothing for a patch without a track when the picture has no steady motion', () => {
+    expect(rainTrajectories(cells, tracksFor(cells, track('new')), drawn, { ...flow, stable: false }, BASE)).toEqual([]);
+    expect(rainTrajectories(cells, tracksFor(cells, track('new')), drawn, null, BASE)).toEqual([]);
+  });
+
+  it('leaves out what is not drawn and what already has its arrow', () => {
+    const [west, eastern] = bySide();
+    const tracks = tracksFor(cells, track('moving', 40, 90));
+    expect(rainTrajectories(cells, tracks, new Set([west.id]), flow, BASE).map((t) => t.cellId)).toEqual([west.id]);
+    expect(rainTrajectories(cells, tracks, drawn, flow, BASE, new Set([west.id])).map((t) => t.cellId)).toEqual([eastern.id]);
+  });
+
+  it('returns nothing without tracks', () => {
+    expect(rainTrajectories(cells, null, drawn, flow, BASE)).toEqual([]);
   });
 });
 

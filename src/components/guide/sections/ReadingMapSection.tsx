@@ -189,7 +189,7 @@ export function ReadingMapSection() {
           <MiniExplainer
             iconId="cloud-rain"
             title="Lluvia ahora"
-            text="Cuando llueve, el mapa pinta dónde, con qué intensidad y hacia dónde va. El radar dibuja la zona y los pluviómetros confirman que llega al suelo: el eco débil que desmienten no se pinta. Con tiempo seco no aparece. Se puede ocultar por hoy desde su botón en la barra inferior."
+            text="Cuando llueve, el mapa pinta dónde, con qué intensidad y hacia dónde va. El radar dibuja la zona y los pluviómetros confirman que llega al suelo: el eco débil que desmienten no se pinta. La flecha de cada mancha llega hasta donde estaría en media hora. Con tiempo seco no aparece. Se puede ocultar por hoy desde su botón en la barra inferior."
           />
           <MiniExplainer
             iconId="thermometer"

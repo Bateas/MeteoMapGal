@@ -19,9 +19,9 @@ const STATUS_POLL_MS = 5 * 60_000;
 const SIM_PANORAMA: Record<string, string> = {
   coincide: 'Llueve en Amiudal (1,2 mm en la última hora), como daba el WRF.',
   adelanta: 'Ya llueve en Amiudal (0,8 mm en la última hora) y el WRF no la daba hasta las 13 h: va unas 3 h adelantada.',
-  'no-llega': 'El WRF daba lluvia a las 8 h y en Amiudal no ha caído nada: aún no ha llegado o no llegará.',
-  'ya-paso': 'Ya ha pasado: llovió en Amiudal (1,4 mm) antes de las 8 h, que es cuando la daba el WRF.',
-  seco: 'Seco en Amiudal, como da el WRF, que no ve lluvia hasta las 16 h.',
+  'no-llega': 'El WRF daba lluvia a las 8 h y Amiudal no ha medido nada: aún no ha llegado, no llegará o es tan débil que no marca.',
+  'ya-paso': 'Ya pasó por Amiudal: midió 1,4 mm antes de las 8 h, que es cuando la daba el WRF.',
+  seco: 'Amiudal no mide lluvia y el WRF no la da hasta las 16 h.',
 };
 
 /** Module-level so reopening the card, or a remount, reuses the answer (the model changes a few times a day). */

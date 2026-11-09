@@ -146,7 +146,7 @@ export function describeNextRain(hours: HourlyForecast[], now: Date): string | n
   }
   const first = ahead.findIndex(wet);
   if (first < 0) {
-    return `Sin lluvia en las próximas ${Math.round((ahead[ahead.length - 1].time.getTime() - nowMs) / 3_600_000)} h`;
+    return `El modelo no da lluvia en las próximas ${Math.round((ahead[ahead.length - 1].time.getTime() - nowMs) / 3_600_000)} h`;
   }
   let end = first;
   while (ahead[end + 1] && wet(ahead[end + 1])) end++;
