@@ -26,7 +26,7 @@ import { mosaicCorners, type RadarMosaic } from '../../services/radarDecode';
 import { estimateMotion, type RadarMotion } from '../../services/radarMotion';
 import { pixelsByLabel, trackCells, type CellTrack } from '../../services/radarTracking';
 import {
-  announcingTracks, approachingCells, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, gaugeIntensity, groundTruth,
+  announcingTracks, approachingCells, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, gaugeIntensity, groundTruth, leadingEdge,
   rainArrivalAt, rainTrajectories, renderRain, ARRIVAL_MAX_MIN, type GaugeRain, type RainApproach,
 } from '../../services/rainNowService';
 import { updateArrivalChecks } from '../../services/rainArrivalChecks';
@@ -127,7 +127,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   const newest = frames?.[frames.length - 1] ?? null;
 
   // 3. Cells, the motion of the whole picture and each cell's own track: once per frame set.
-  const analysisRef = useRef<{ key: string; motion: RadarMotion | null; cells: ReturnType<typeof findRainCells>; tracks: Map<number, CellTrack> | null } | null>(null);
+  const analysisRef = useRef<{ key: string; motion: RadarMotion | null; cells: ReturnType<typeof findRainCells>; tracks: Map<number, CellTrack> | null; byLabel: Map<number, number[]> | null } | null>(null);
   // The last radar picture and what it was drawn from. A new canvas is a new source, and MapLibre does not
   // free the texture of the source it drops: rebuild it only when the frame or the drawn cells change, not
   // on every batch of readings (15-oct, memory audit).
@@ -141,7 +141,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
     const motion = history ? estimateMotion(frames) : null;
     const byLabel = history ? pixelsByLabel(found.labels) : null;
     const tracks = byLabel ? trackCells(frames, found.cells.map((c) => c.id), (id) => byLabel.get(id) ?? [], motion) : null;
-    analysisRef.current = { key, motion, cells: found, tracks };
+    analysisRef.current = { key, motion, cells: found, tracks, byLabel };
     return analysisRef.current;
   }, [frames, newest, simMode]);
   const motion = analysis?.motion ?? null;
@@ -207,14 +207,18 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
           pictureRef.current = { key: pictureKey, picture };
         }
       }
-      // Every arrow reaches where that rain would be in half an hour. The strongest one is rain coming to
-      // the sector; the others say where each patch on the map is going (asked for on 9-nov: blue patches
-      // with no direction told nothing), see rainTrajectories.
+      // Every arrow starts at the front of its patch and reaches where that front would be in half an hour.
+      // The strongest one is rain coming to the sector; the others say where each patch on the map is going
+      // (asked for on 9-nov: blue patches with no direction told nothing), see rainTrajectories.
+      const arrowOf = (a: { cellId: number; lon: number; lat: number; toDeg: number; kmh: number }, kind: ArrowKind) => {
+        const from = leadingEdge(newest, analysis.byLabel?.get(a.cellId) ?? [], a.lon, a.lat, a.toDeg);
+        return arrowGeo(from.lon, from.lat, a.toDeg, a.kmh * 0.5, kind).features;
+      };
       const coming = approach.slice(0, MAX_ARROWS);
       arrows = [
-        ...coming.flatMap((a) => arrowGeo(a.lon, a.lat, a.toDeg, a.kmh * 0.5, 'coming').features),
+        ...coming.flatMap((a) => arrowOf(a, 'coming')),
         ...rainTrajectories(judged, analysis.tracks, draw, motion, centre, new Set(coming.map((a) => a.cellId)))
-          .flatMap((t) => arrowGeo(t.lon, t.lat, t.toDeg, t.kmh * 0.5, t.own ? 'own' : 'flow').features),
+          .flatMap((t) => arrowOf(t, t.own ? 'own' : 'flow')),
       ];
     } else if (raining.length === 0 && !sim) {
       return { off: true as const, gauges, arrivals, debug };
@@ -287,9 +291,11 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   );
 });
 
+type ArrowKind = 'coming' | 'own' | 'flow';
+
 /** A dashed shaft from (lon, lat) `km` towards `toDeg`, and an open chevron at its end (two short
  *  strokes, so it does not cover a spot marker when zoomed in). */
-function arrowGeo(lon: number, lat: number, toDeg: number, km: number, kind: 'coming' | 'own' | 'flow'): GeoJSON.FeatureCollection {
+function arrowGeo(lon: number, lat: number, toDeg: number, km: number, kind: ArrowKind): GeoJSON.FeatureCollection {
   const kmLat = 111.32, kmLon = 111.32 * Math.cos((lat * Math.PI) / 180);
   const from = (p: [number, number], d: number, deg: number): [number, number] => {
     const r = (deg * Math.PI) / 180;
