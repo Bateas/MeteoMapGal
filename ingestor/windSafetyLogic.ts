@@ -17,6 +17,7 @@
  */
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { isWindBlacklisted, WATER_LEVEL_MAX_ALTITUDE_M } from '../src/services/spotScoringEngine.js';
+import { LAND_STATION_BUOY_COPIES } from '../src/services/buoyUtils.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import type { BuoyWind, StationReading } from './analyzerLogic.js';
 
@@ -91,6 +92,7 @@ export function assessStrongWind(
     const sectorSpots = spots.filter((s) => s.sector === sector);
     if (sectorSpots.length === 0) continue;
     const evidence: WindEvidence[] = [];
+    const measuredBy = new Set<string>();
 
     for (const r of readings) {
       if (r.wind_speed == null || r.wind_gust == null) continue;
@@ -101,10 +103,17 @@ export function assessStrongWind(
       const gustKt = r.wind_gust * MS_TO_KT;
       if (gustKt < WIND_AVISO_GUST_KT || !plausible(meanKt, gustKt)) continue;
       evidence.push({ name: r.name ?? r.station_id, meanKt, gustKt, lat: r.latitude, lon: r.longitude });
+      measuredBy.add(r.station_id);
     }
 
     for (const b of buoys) {
       if (b.wind_gust == null || !b.lat || !b.lon) continue;
+      // Ons and Cabo Udra reach us twice, as the MeteoGalicia station and as a Puertos del Estado
+      // feed of the same anemometer (LAND_STATION_BUOY_COPIES): two rows, one instrument. On
+      // 9-nov «Ons» and «Boya Ons» alone made the two sources of an aviso at 08:15. The copy still
+      // speaks when the station does not, which is what happens when MeteoGalicia freezes.
+      const original = LAND_STATION_BUOY_COPIES.get(b.station_id);
+      if (original && measuredBy.has(original)) continue;
       if (!fresh(b.time, nowMs) || !nearSpot(sectorSpots, b.lat, b.lon)) continue;
       const meanKt = b.wind_speed * MS_TO_KT;
       const gustKt = b.wind_gust * MS_TO_KT;

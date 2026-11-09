@@ -33,14 +33,37 @@ const rias = (readings: StationReading[], buoys: BuoyWind[] = []) =>
 describe('assessStrongWind — measured gusts, two sources, near a spot', () => {
   it('the front of 29-sep: Ons and Cabo Udra with 44 kt gusts is PELIGRO, and names the spots nearby', () => {
     const a = rias(
-      [station('Ons', 42.38, -8.93, 29, 44), station('Cabo Udra', 42.34, -8.83, 28, 44)],
+      [station('Ons', 42.38, -8.93, 29, 44, { station_id: 'mg_10126' }), station('Cabo Udra', 42.34, -8.83, 28, 44)],
       [buoy(4272, 'Ons', 42.38, -8.94, 29, 43)],
     );
     expect(a.level).toBe('peligro');
-    expect(a.evidence.map((e) => e.name)).toEqual(['Ons', 'Cabo Udra', 'Boya Ons']);
+    expect(a.evidence.map((e) => e.name)).toEqual(['Ons', 'Cabo Udra']);
     expect(a.spots).toContain('A Lanzada');
     expect(a.spots).toContain('Liméns');
     expect(a.spots).not.toContain('Lanzada Surf'); // same place, named once
+  });
+
+  describe('one anemometer is one source (9-nov: «Ons» and «Boya Ons»)', () => {
+    const ons = (extra: Partial<StationReading> = {}) => station('Ons', 42.38, -8.93, 27, 39, { station_id: 'mg_10126', ...extra });
+    const onsCopy = buoy(4272, 'Ons', 42.38, -8.94, 27, 39);
+
+    it('the station and its Puertos del Estado copy are not two sources', () => {
+      const a = rias([ons()], [onsCopy]);
+      expect(a.level).toBeNull();
+      expect(a.evidence.map((e) => e.name)).toEqual(['Ons']);
+    });
+
+    it('a copy with the station silent counts once, and needs a second instrument like anything else', () => {
+      expect(rias([], [onsCopy]).level).toBeNull();
+      const a = rias([station('Cabo Udra', 42.34, -8.83, 28, 37)], [onsCopy]);
+      expect(a.level).toBe('aviso');
+      expect(a.evidence.map((e) => e.name).sort()).toEqual(['Boya Ons', 'Cabo Udra']);
+    });
+
+    it('a real buoy still counts next to a station', () => {
+      expect(rias([ons()], [buoy(2248, 'Cabo Silleiro', 42.13, -8.86, 28, 38)]).level).toBeNull(); // out of range of every spot
+      expect(rias([ons()], [buoy(1255, 'Ribeira', 42.40, -8.92, 28, 38)]).level).toBe('aviso');
+    });
   });
 
   it('two sources with 35-39 kt gusts is AVISO', () => {
