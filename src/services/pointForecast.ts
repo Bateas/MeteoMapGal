@@ -127,6 +127,12 @@ export function summarizeDays(hours: HourlyForecast[], now: Date, days = 3): Day
   return out;
 }
 
+/** Rain the sentence announces: the same line as the comparison with the gauges. The chart still draws less. */
+const NEXT_RAIN_MM = 0.3;
+/** Further ahead, the hour a spell of rain ends moves by hours between model runs: said by part of the day. */
+const EXACT_END_H = 6;
+const partOfDay = (h: number) => (h < 7 ? 'madrugada' : h < 13 ? 'mañana' : h < 21 ? 'tarde' : 'noche');
+
 /** One sentence: when the model next has rain here, roughly, and how much that shower leaves. */
 export function describeNextRain(hours: HourlyForecast[], now: Date): string | null {
   const nowMs = now.getTime();
@@ -134,15 +140,21 @@ export function describeNextRain(hours: HourlyForecast[], now: Date): string | n
     .filter((h) => h.time.getTime() >= nowMs - 30 * 60_000)
     .sort((a, b) => a.time.getTime() - b.time.getTime());
   if (ahead.length === 0) return null;
-  const wet = (h: HourlyForecast) => (h.precipitation ?? 0) >= DRY_MM;
+  const wet = (h: HourlyForecast) => (h.precipitation ?? 0) >= NEXT_RAIN_MM;
   const when = (h: HourlyForecast) => {
     const hh = localHour(h.time);
     return `hacia ${hh === 1 ? 'la' : 'las'} ${hh} h${dayKey(h.time) === dayKey(now) ? '' : ` del ${weekdayFmt.format(h.time)}`}`;
   };
 
-  if (wet(ahead[0]) && ahead[0].time.getTime() - nowMs <= 30 * 60_000) {
+  const ends = (h: HourlyForecast) => {
+    if (h.time.getTime() - nowMs <= EXACT_END_H * 3_600_000) return when(h);
+    return `por la ${partOfDay(localHour(h.time))}${dayKey(h.time) === dayKey(now) ? '' : ` del ${weekdayFmt.format(h.time)}`}`;
+  };
+
+  // «Now» only once that hour has begun: the next hour, 15 min away, read as «it is raining now».
+  if (wet(ahead[0]) && ahead[0].time.getTime() <= nowMs) {
     const dry = ahead.find((h) => !wet(h));
-    return dry ? `Según el modelo llueve ahora. Para ${when(dry)}` : 'Según el modelo llueve ahora, sin final a la vista';
+    return dry ? `Según el modelo llueve ahora. Para ${ends(dry)}` : 'Según el modelo llueve ahora, sin final a la vista';
   }
   const first = ahead.findIndex(wet);
   if (first < 0) {
@@ -152,8 +164,9 @@ export function describeNextRain(hours: HourlyForecast[], now: Date): string | n
   while (ahead[end + 1] && wet(ahead[end + 1])) end++;
   const shower = ahead.slice(first, end + 1);
   const total = shower.reduce((a, h) => a + (h.precipitation ?? 0), 0);
-  const inH = Math.max(1, Math.round((ahead[first].time.getTime() - nowMs) / 3_600_000));
-  const lead = inH >= 24 ? 'Lluvia' : inH === 1 ? 'Lluvia en 1 h aprox.,' : `Lluvia en unas ${inH} h,`;
+  const inMin = (ahead[first].time.getTime() - nowMs) / 60_000;
+  const inH = Math.max(1, Math.round(inMin / 60));
+  const lead = inH >= 24 || inMin <= 45 ? 'Lluvia' : inH === 1 ? 'Lluvia en 1 h aprox.,' : `Lluvia en unas ${inH} h,`;
   return `${lead} ${when(ahead[first])}: ${fmtMm(total)} mm en ${shower.length} h`;
 }
 
@@ -185,6 +198,20 @@ export function warningTypeEs(type: string): string {
 }
 
 /** Official warnings not yet over in exactly these zones, soonest first; one line per kind and zone. */
+/** Echo that counts as rain over a point: the cut of the rain layer, and only a recent frame. */
+const RADAR_RAIN_DBZ = 20;
+const RADAR_MAX_AGE_MIN = 25;
+
+/**
+ * What the radar shows right over a point, or null. Only ever says rain is there: an empty radar proves
+ * nothing, since light rain from low cloud passes under the beam (9-nov, 09:52: rain, and no echo).
+ */
+export function describeRadarOverPoint(maxDbz: number | null, ageMin: number | null): string | null {
+  if (maxDbz === null || ageMin === null || maxDbz < RADAR_RAIN_DBZ || ageMin > RADAR_MAX_AGE_MIN) return null;
+  const strength = maxDbz >= 40 ? 'fuerte' : maxDbz >= 30 ? 'moderada' : 'débil';
+  return `El radar ve lluvia ${strength} encima, ${ageMin <= 1 ? 'ahora' : `hace ${ageMin} min`}.`;
+}
+
 export function warningsForZones(warnings: MGWarning[], zones: string[], now: Date): ZoneWarning[] {
   const wanted = zones.map((z) => z.toLowerCase());
   const best = new Map<string, ZoneWarning & { startMs: number }>();

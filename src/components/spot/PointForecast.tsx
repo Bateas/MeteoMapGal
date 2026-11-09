@@ -7,13 +7,16 @@ import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
 import { fetchMeteoPointStatus, type MeteoPointStatus } from '../../api/meteoPointStatusClient';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { fetchMGWarnings, type MGWarning } from '../../api/mgWarningsClient';
+import { fetchRadarFrames } from '../../api/radarTiles';
+import { maxDbzNear } from '../../services/radarDecode';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { PointMeteogram } from './PointMeteogram';
-import { summarizeDays, describeBands, describeNextRain, warningsForZones } from '../../services/pointForecast';
+import { summarizeDays, describeBands, describeNextRain, describeRadarOverPoint, warningsForZones } from '../../services/pointForecast';
 import type { HourlyForecast } from '../../types/forecast';
 
 const TTL_MS = 30 * 60_000;
 const STATUS_POLL_MS = 5 * 60_000;
+const RADAR_OVER_KM = 2;
 /** The «now» mark on the chart moves with the card open. */
 const CLOCK_MS = 60_000;
 
@@ -78,6 +81,19 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
     setStatus(await fetchMeteoPointStatus(pointId));
   }, [pointId]);
   useVisibilityPolling(pollStatus, STATUS_POLL_MS);
+
+  // Read in the browser, only with the card open, from the frames the rain layer already decodes.
+  const [radar, setRadar] = useState<string | null>(null);
+  const pollRadar = useCallback(async () => {
+    try {
+      const r = await fetchRadarFrames(undefined, 1);
+      const newest = r?.frames[r.frames.length - 1];
+      setRadar(newest ? describeRadarOverPoint(maxDbzNear(newest, lon, lat, RADAR_OVER_KM), r!.newestAgeMin) : null);
+    } catch {
+      setRadar(null);
+    }
+  }, [lat, lon]);
+  useVisibilityPolling(pollRadar, STATUS_POLL_MS);
   const [clock, setClock] = useState(() => new Date());
   useVisibilityPolling(() => setClock(new Date()), CLOCK_MS);
 
@@ -89,10 +105,11 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
     <>
       {nextRain && <p className="gf-say" style={{ '--gf-tone': 'var(--gfp-2)' } as CSSProperties}>{nextRain}</p>}
 
-      {status && (
-        <p className="gfp-panorama" data-state={status.state}>
-          <span>Ahora, frente al WRF</span>
-          {status.text}
+      {(status || radar) && (
+        <p className="gfp-panorama" data-state={status?.state ?? 'se-acerca'}>
+          {status && <span>Ahora, frente al WRF</span>}
+          {status?.text}
+          {radar && <span className="gfp-radar">{radar}</span>}
         </p>
       )}
 

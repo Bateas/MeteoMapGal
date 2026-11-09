@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  summarizeDays, rainBands, rainLevel, windTone, describeBands, describeNextRain, warningsForZones, warningTypeEs,
+  summarizeDays, rainBands, rainLevel, windTone, describeBands, describeNextRain, describeRadarOverPoint, warningsForZones, warningTypeEs,
 } from './pointForecast';
 import type { HourlyForecast } from '../types/forecast';
 import type { MGWarning } from '../api/mgWarningsClient';
@@ -75,12 +75,42 @@ describe('describeNextRain', () => {
     expect(describeNextRain([h(10, 2), h(11, 1), h(12, 0)], now)).toBe('Según el modelo llueve ahora. Para hacia las 12 h');
   });
 
+  it('does not say «now» for an hour that has not begun', () => {
+    const at = new Date('2026-11-09T10:45:00+01:00');
+    expect(describeNextRain([h(11, 2), h(12, 0)], at)).toBe('Lluvia hacia las 11 h: 2,0 mm en 1 h');
+  });
+
+  it('leaves a trace out of the sentence', () => {
+    expect(describeNextRain([h(11, 0.2), h(16, 0)], now)).toBe('El modelo no da lluvia en las próximas 6 h');
+  });
+
+  it('says a far end by the part of the day', () => {
+    const wet = Array.from({ length: 19 }, (_, i) => hour(new Date(Date.UTC(2026, 10, 9, 9 + i)).toISOString(), 1));
+    const hours = [...wet, hour('2026-11-10T05:00:00+01:00', 0)];
+    expect(describeNextRain(hours, now)).toBe('Según el modelo llueve ahora. Para por la madrugada del martes');
+  });
+
   it('says so when the model sees none', () => {
     expect(describeNextRain([h(11, 0), h(16, 0)], now)).toBe('El modelo no da lluvia en las próximas 6 h');
   });
 
   it('gives nothing without hours ahead', () => {
     expect(describeNextRain([h(5, 3)], now)).toBeNull();
+  });
+});
+
+describe('describeRadarOverPoint', () => {
+  it('says how strong and how old', () => {
+    expect(describeRadarOverPoint(24, 5)).toBe('El radar ve lluvia débil encima, hace 5 min.');
+    expect(describeRadarOverPoint(33, 12)).toBe('El radar ve lluvia moderada encima, hace 12 min.');
+    expect(describeRadarOverPoint(44, 1)).toBe('El radar ve lluvia fuerte encima, ahora.');
+  });
+
+  it('says nothing under the cut, with an old frame or without radar: no echo proves nothing', () => {
+    expect(describeRadarOverPoint(19, 5)).toBeNull();
+    expect(describeRadarOverPoint(30, 26)).toBeNull();
+    expect(describeRadarOverPoint(null, 5)).toBeNull();
+    expect(describeRadarOverPoint(30, null)).toBeNull();
   });
 });
 
