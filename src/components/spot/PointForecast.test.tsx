@@ -4,10 +4,13 @@ import { PointForecast, __clearPointForecastCacheForTests } from './PointForecas
 import { fetchMeteoSixForecast } from '../../api/meteoSixClient';
 import { fetchMGWarnings, type MGWarning } from '../../api/mgWarningsClient';
 import { fetchMeteoPointStatus } from '../../api/meteoPointStatusClient';
+import { fetchRadarFrames } from '../../api/radarTiles';
+import { assembleMosaic, lonLatToPx } from '../../services/radarDecode';
 
 vi.mock('../../api/meteoSixClient', () => ({ fetchMeteoSixForecast: vi.fn() }));
 vi.mock('../../api/mgWarningsClient', () => ({ fetchMGWarnings: vi.fn() }));
 vi.mock('../../api/meteoPointStatusClient', () => ({ fetchMeteoPointStatus: vi.fn() }));
+vi.mock('../../api/radarTiles', () => ({ fetchRadarFrames: vi.fn() }));
 
 const tomorrow9 = new Date(Date.now() + 86_400_000);
 tomorrow9.setHours(9, 0, 0, 0);
@@ -18,6 +21,7 @@ beforeEach(() => {
   __clearPointForecastCacheForTests();
   vi.mocked(fetchMGWarnings).mockResolvedValue([]);
   vi.mocked(fetchMeteoPointStatus).mockResolvedValue(null);
+  vi.mocked(fetchRadarFrames).mockResolvedValue(null);
 });
 
 describe('PointForecast', () => {
@@ -40,6 +44,21 @@ describe('PointForecast', () => {
     render(<PointForecast pointId="p" lat={42.2} lon={-8.2} zones={zones} />);
     await waitFor(() => expect(screen.getByText(/4,9 mm en 1 h/)).toBeTruthy());
     expect(screen.queryByText(/frente al WRF/)).toBeNull();
+  });
+
+  it('says when the radar sees rain over the point, and says nothing when it does not', async () => {
+    vi.mocked(fetchMeteoSixForecast).mockResolvedValue([rainyHour] as never);
+    const m = assembleMosaic([], { x0: 60, y0: 46, nx: 2, ny: 2 }, 1);
+    const [x, y] = lonLatToPx(m, -8.2, 42.2);
+    m.dbz[Math.floor(y) * m.w + Math.floor(x)] = 33;
+    vi.mocked(fetchRadarFrames).mockResolvedValue({ frames: [m], newestAgeMin: 5 });
+    const wet = render(<PointForecast pointId="p" lat={42.2} lon={-8.2} zones={zones} />);
+    await waitFor(() => expect(screen.getByText(/El radar ve lluvia moderada encima, hace 5 min/)).toBeTruthy());
+    wet.unmount();
+    vi.mocked(fetchRadarFrames).mockResolvedValue({ frames: [assembleMosaic([], { x0: 60, y0: 46, nx: 2, ny: 2 }, 1)], newestAgeMin: 5 });
+    render(<PointForecast pointId="p" lat={42.2} lon={-8.2} zones={zones} />);
+    await waitFor(() => expect(screen.getByText(/4,9 mm en 1 h/)).toBeTruthy());
+    expect(screen.queryByText(/radar/i)).toBeNull();
   });
 
   it('says so when the model does not answer, without breaking the card', async () => {
