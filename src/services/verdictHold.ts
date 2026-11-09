@@ -35,6 +35,8 @@ export interface VerdictHoldState {
   pending: SpotVerdict | null;
   pendingSince: number;
   seenAt: number;
+  /** The gust gate that closed this spot, kept a while after its last reading (scoreAllSpots). */
+  gustGate?: { hardGate: string; summary: string; atMs: number };
 }
 
 const RANK: Record<SpotVerdict, number> = { calm: 0, light: 1, sailing: 2, good: 3, strong: 4, unknown: -1 };

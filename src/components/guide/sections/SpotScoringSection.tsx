@@ -140,7 +140,7 @@ export function SpotScoringSection() {
             <VerdictRow color="#38bdf8" label="Flojo"     wind="6-7kt"    desc="Viento ligero. SUP, paseo, esperar a que suba." />
             <VerdictRow color="#22c55e" label="Navegable" wind="8-11kt"   desc="Viento justo, condiciones limitadas." />
             <VerdictRow color="#eab308" label="Buen día"  wind="12-17kt"  desc="Viento estable, apto para todas las modalidades." />
-            <VerdictRow color="#f97316" label="Fuerte"    wind="18kt o más" desc="Requiere experiencia. Viento potente." />
+            <VerdictRow color="#f97316" label="Fuerte"    wind="18kt o más" desc="Requiere experiencia. Viento potente. También sale con rachas de 30 kt en una estación cercana y 25 kt en otra, aunque la media sea menor." />
           </div>
           <p className="text-slate-500 leading-relaxed pt-1">
             Cíes-Ría usa umbrales oceánicos propios, porque en mar abierto 8 nudos no es lo mismo

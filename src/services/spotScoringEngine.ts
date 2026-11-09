@@ -26,7 +26,7 @@ import type { SailingSpot, SpotId } from '../config/spots';
 import { patternHours, getSpotsForSector } from '../config/spots';
 import { madridHour, sunHour } from './localTime';
 import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
-import { isBuoyFresh, isLandStationCopy, isOpenWaterWind, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
+import { isBuoyFresh, isLandStationCopy, isOpenWaterWind, LAND_STATION_BUOY_COPIES, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
 import { fastDistanceKm, computeBearing } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import type { TeleconnectionIndex } from '../api/naoClient';
@@ -1351,6 +1351,26 @@ function scoreSpot(
 
   // ── Primary verdict from wind speed (using effective speed with thermal boost) ──
   const rawVerdict = windVerdict(effectiveSpd, spot.id);
+
+  // ── Gust gate: the mean is not all that a small boat feels ──
+  // 9-nov, twelve hours of a southerly gale: Lourido, Centro Ria, Bocana and Vao read NAVEGABLE or
+  // BUENO in 20-25 of 144 cycles with gusts of 30 kt or more. A spot already FUERTE by its mean
+  // stays as it is: a 20 kt nortada gusting 30 is an ordinary day for those who go out in it.
+  if (rawVerdict !== 'strong' && spot.category !== 'surf' && stationData && buoyData) {
+    const gusts = gustGateReading(gustSourcesOf(stationData, buoyData), Date.now(), waterLevelMaxAltitudeM(spot.id));
+    if (gusts) {
+      const peak = Math.round(gusts.peakKt);
+      const second = Math.round(gusts.secondKt);
+      return {
+        score: 0,
+        verdict: 'strong',
+        hardGate: `Rachas de ${peak} kt, y ${second} kt en otra estación`,
+        summary: `Media de ${Math.round(effectiveSpd)} kt, pero rachas de ${peak} kt, y ${second} kt en otra estación a menos de ${SPOT_GUST_MAX_DIST_KM} km. Requiere experiencia.`,
+        thermalBoosted, effectiveWindKt: Math.round(effectiveSpd * 10) / 10, humiditySignal: null, thetaVGradient: null, channelingPossibleKt,
+      };
+    }
+  }
+
   // Summary and score below follow the verdict SHOWN, so the popup text matches the colour.
   const verdict = settle ? settle(rawVerdict, effectiveSpd) : rawVerdict;
 
@@ -1589,6 +1609,15 @@ export interface GustSource {
    *  filling the stations that send none, almost none is unknown. Buoys: 0. */
   altitudeM?: number | null;
   blacklisted?: boolean;
+  /** Which instrument measured it: two sources with the same id are one anemometer. */
+  sensorId?: string;
+}
+
+/** Whether a source's gust says anything about this spot now (spotGustKt, gustGateReading). */
+function gustCounts(s: GustSource, nowMs: number, maxAltitudeM: number): boolean {
+  if (s.gustKt == null || s.blacklisted || s.distKm > SPOT_GUST_MAX_DIST_KM) return false;
+  if (s.altitudeM != null && s.altitudeM > maxAltitudeM) return false;
+  return gustIsCurrent(s.time, nowMs) && gustIsPlausible(s.meanKt, s.gustKt);
 }
 
 /**
@@ -1606,14 +1635,70 @@ export function spotGustKt(
   nowMs = Date.now(),
   maxAltitudeM: number = WATER_LEVEL_MAX_ALTITUDE_M.rias,
 ): number | null {
-  const gusts: number[] = [];
-  for (const s of sources) {
-    if (s.gustKt == null || s.blacklisted || s.distKm > SPOT_GUST_MAX_DIST_KM) continue;
-    if (s.altitudeM != null && s.altitudeM > maxAltitudeM) continue;
-    if (!gustIsCurrent(s.time, nowMs)) continue;
-    if (gustIsPlausible(s.meanKt, s.gustKt)) gusts.push(s.gustKt);
-  }
+  const gusts = sources.filter((s) => gustCounts(s, nowMs, maxAltitudeM)).map((s) => s.gustKt as number);
   return peakPlausibleGustKt(gusts);
+}
+
+/** A gust of this much (as shown, in whole knots) at one instrument, backed by GUST_GATE_SECOND_KT
+ *  at another, makes the spot FUERTE whatever its mean. 30 and 30 was tried first and closed
+ *  nothing on 9-nov: around each spot one station passed 30 and the next stayed at 25-29 (Cangas
+ *  34 with Porto de Vigo 29). 30 and 25 replayed from 1-aug: Centro Ria, Bocana and Vao on 2 days
+ *  of 100 (29-sep and 9-nov), Castineiras, the most exposed, on 6. */
+export const GUST_GATE_KT = 30;
+export const GUST_GATE_SECOND_KT = 25;
+/** On the map the gate stays closed this long after its last reading: stations report every 10
+ *  minutes and a gust is not repeated in each one, so without it the colour flips cycle by cycle. */
+export const GUST_GATE_HOLD_MS = 15 * 60_000;
+
+/**
+ * Two independent instruments around the spot with strong gusts, under the same rules as the gust
+ * shown. Two because one anemometer is never enough for a warning, and a mast or a port roof can
+ * gust alone. Null when they are not there.
+ */
+export function gustGateReading(
+  sources: GustSource[],
+  nowMs = Date.now(),
+  maxAltitudeM: number = WATER_LEVEL_MAX_ALTITUDE_M.rias,
+): { peakKt: number; secondKt: number } | null {
+  const bySensor = new Map<string, number>();
+  sources.forEach((s, i) => {
+    if (!gustCounts(s, nowMs, maxAltitudeM)) return;
+    const sensor = s.sensorId ?? `source-${i}`;
+    bySensor.set(sensor, Math.max(bySensor.get(sensor) ?? 0, s.gustKt as number));
+  });
+  const [peakKt, secondKt] = [...bySensor.values()].sort((a, b) => b - a);
+  if (peakKt === undefined || secondKt === undefined) return null;
+  return Math.round(peakKt) >= GUST_GATE_KT && Math.round(secondKt) >= GUST_GATE_SECOND_KT ? { peakKt, secondKt } : null;
+}
+
+/** Whether a hard gate is the gust one. It closes a spot but invites nobody: no opportunity alert. */
+export function isGustGate(gate: string | null | undefined): boolean {
+  return gate?.startsWith('Rachas') ?? false;
+}
+
+function gustSourcesOf(
+  stationData: { reading: NormalizedReading; distKm: number; station?: { altitude?: number | null } }[],
+  buoyData: { buoy: BuoyReading; distKm: number }[],
+): GustSource[] {
+  return [
+    ...stationData.map(({ reading, distKm, station }) => ({
+      gustKt: reading.windGust == null ? null : msToKnots(reading.windGust),
+      meanKt: reading.windSpeed == null ? null : msToKnots(reading.windSpeed),
+      distKm,
+      time: reading.timestamp,
+      altitudeM: station?.altitude ?? null,
+      blacklisted: isWindBlacklisted(reading.stationId),
+      sensorId: reading.stationId,
+    })),
+    ...buoyData.map(({ buoy, distKm }) => ({
+      gustKt: buoy.windGust == null ? null : msToKnots(buoy.windGust),
+      meanKt: buoy.windSpeed == null ? null : msToKnots(buoy.windSpeed),
+      distKm,
+      time: buoy.timestamp,
+      altitudeM: 0,
+      sensorId: LAND_STATION_BUOY_COPIES.get(buoy.stationId) ?? `buoy_${buoy.stationId}`,
+    })),
+  ];
 }
 
 /** The map's side of spotGustKt. localGustKt stays as it was for the Cesantes detector, which
@@ -1624,23 +1709,7 @@ export function reportedGustKt(
   nowMs = Date.now(),
   maxAltitudeM: number = WATER_LEVEL_MAX_ALTITUDE_M.rias,
 ): number | null {
-  return spotGustKt([
-    ...stationData.map(({ reading, distKm, station }) => ({
-      gustKt: reading.windGust == null ? null : msToKnots(reading.windGust),
-      meanKt: reading.windSpeed == null ? null : msToKnots(reading.windSpeed),
-      distKm,
-      time: reading.timestamp,
-      altitudeM: station?.altitude ?? null,
-      blacklisted: isWindBlacklisted(reading.stationId),
-    })),
-    ...buoyData.map(({ buoy, distKm }) => ({
-      gustKt: buoy.windGust == null ? null : msToKnots(buoy.windGust),
-      meanKt: buoy.windSpeed == null ? null : msToKnots(buoy.windSpeed),
-      distKm,
-      time: buoy.timestamp,
-      altitudeM: 0,
-    })),
-  ], nowMs, maxAltitudeM);
+  return spotGustKt(gustSourcesOf(stationData, buoyData), nowMs, maxAltitudeM);
 }
 
 /** Peak gust from the CLOSEST sources only (stations <= 8 km, buoys <= 12 km), so a distant
@@ -1882,11 +1951,24 @@ export function scoreAllSpots(
           return out.shown;
         }
       : undefined;
+    const gustLatch = verdictHold?.states.get(spot.id)?.gustGate;
     let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient, channelingPossibleKt } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction, rainVeto, regimeVeto, settle);
+    let gustGate = verdictHold && hardGate !== null && isGustGate(hardGate)
+      ? { hardGate, summary, atMs: verdictHold.nowMs }
+      : undefined;
+    if (verdictHold && gustLatch && hardGate === null && verdict !== 'unknown'
+      && verdictHold.nowMs - gustLatch.atMs < GUST_GATE_HOLD_MS) {
+      score = 0;
+      verdict = 'strong';
+      hardGate = gustLatch.hardGate;
+      summary = gustLatch.summary;
+      gustGate = gustLatch;
+    }
     // Early returns of scoreSpot (danger gates, no wind) never reach settle: they are shown at once
     // and become the state, so the next ordinary verdict is compared with what the map showed.
     if (verdictHold && (hardGate !== null || verdict === 'unknown')) {
-      verdictHold.states.set(spot.id, settleVerdict(undefined, verdict, verdictHold.nowMs, true).state);
+      const state = settleVerdict(undefined, verdict, verdictHold.nowMs, true).state;
+      verdictHold.states.set(spot.id, gustGate ? { ...state, gustGate } : state);
     }
 
     // Scoring confidence based on source count and type
