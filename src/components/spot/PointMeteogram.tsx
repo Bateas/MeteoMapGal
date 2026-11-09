@@ -5,7 +5,7 @@
  */
 import { memo, useRef, useState, type PointerEvent } from 'react';
 import {
-  fmtMm, rainLevel, windTone, DRY_MM, MORNING_FROM_H, MORNING_TO_H, STRIP_FROM_H,
+  dayKey, fmtMm, localHour, rainLevel, windTone, DRY_MM, MORNING_FROM_H, MORNING_TO_H, STRIP_FROM_H,
   type DaySummary, type PointHour,
 } from '../../services/pointForecast';
 
@@ -42,7 +42,7 @@ function peakIndex(values: (number | null)[]): number {
   return values.reduce<number>((best, v, i) => ((v ?? -Infinity) > (values[best] ?? -Infinity) ? i : best), 0);
 }
 
-export const PointMeteogram = memo(function PointMeteogram({ days }: { days: DaySummary[] }) {
+export const PointMeteogram = memo(function PointMeteogram({ days, now }: { days: DaySummary[]; now?: Date }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [at, setAt] = useState<{ d: number; i: number } | null>(null);
   if (days.length === 0) return null;
@@ -53,6 +53,13 @@ export const PointMeteogram = memo(function PointMeteogram({ days }: { days: Day
   const colX = (d: number) => GUTTER + d * (colW + GAP);
   const cellX = (d: number, i: number) => colX(d) + i * cellW;
   const clampLabel = (x: number, d: number) => Math.min(colX(d) + colW - 9, Math.max(colX(d) + 9, x));
+
+  // The clock, in today's column. A bar is centred on its hour, as the axis labels are.
+  const todayCol = now ? days.findIndex((d) => d.dayKey === dayKey(now)) : -1;
+  const clockH = now ? localHour(now) + now.getUTCMinutes() / 60 : 0;
+  const nowX = todayCol >= 0 && clockH >= STRIP_FROM_H - 0.5 && clockH <= STRIP_FROM_H + cells - 0.5
+    ? cellX(todayCol, 0) + cellW / 2 + (clockH - STRIP_FROM_H) * cellW
+    : null;
 
   const all = days.flatMap((d) => d.hours);
   const maxRain = Math.max(4, ...all.map((h) => h.rainMm ?? 0));
@@ -90,7 +97,7 @@ export const PointMeteogram = memo(function PointMeteogram({ days }: { days: Day
         viewBox={`0 0 ${W} ${H}`}
         className="gfp-chart"
         role="img"
-        aria-label={`Lluvia, viento y temperatura por horas, de 7 a 20 h, en ${days.length} días`}
+        aria-label={`Lluvia, viento y temperatura por horas, de 7 a 20 h, en ${days.length} días${nowX === null ? '' : '. La línea vertical marca la hora actual'}`}
         onPointerMove={onPointer}
         onPointerDown={onPointer}
         onPointerLeave={(e) => { if (e.pointerType === 'mouse') setAt(null); }}
@@ -180,6 +187,15 @@ export const PointMeteogram = memo(function PointMeteogram({ days }: { days: Day
             </g>
           );
         })}
+
+        {nowX !== null && (
+          <g>
+            {/* Beside the day's name, the one row no peak label ever reaches. */}
+            <text className="gfp-nowtext" textAnchor="middle" x={Math.min(colX(todayCol) + colW - 16, Math.max(colX(todayCol) + 64, nowX))} y={11}>ahora</text>
+            <path className="gfp-nowmark" d={`M${(nowX - 4).toFixed(1)} ${RAIN.top - 8} L${(nowX + 4).toFixed(1)} ${RAIN.top - 8} L${nowX.toFixed(1)} ${RAIN.top - 2} Z`} />
+            <line className="gfp-nowline" x1={nowX} x2={nowX} y1={RAIN.top - 2} y2={GRID_BOTTOM} />
+          </g>
+        )}
 
         {at && (
           <line

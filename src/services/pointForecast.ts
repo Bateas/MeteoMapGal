@@ -24,7 +24,7 @@ const labelFmt = new Intl.DateTimeFormat('es-ES', { timeZone: TZ, weekday: 'shor
 const weekdayFmt = new Intl.DateTimeFormat('es-ES', { timeZone: TZ, weekday: 'long' });
 const shortFmt = new Intl.DateTimeFormat('es-ES', { timeZone: TZ, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
-const dayKey = (d: Date) => dayFmt.format(d);
+export const dayKey = (d: Date) => dayFmt.format(d);
 export const localHour = (d: Date) => Number(hourFmt.format(d));
 
 /** mm with the decimal comma the rest of the card reads with. */

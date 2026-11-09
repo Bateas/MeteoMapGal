@@ -2,8 +2,8 @@
  * The weather point's card: V3 paper and ink on today's map popup. The !important rules beat the popup
  * overrides in index.css, which use it too. When V3 lands this card moves into Ficha and this file goes.
  */
-.gf-popup { --gfp-1: #3b6ea5; --gfp-2: #4a97f0; --gfp-3: #d6e8fc; }
-:root[data-theme="light"] .gf-popup { --gfp-1: #86b3e0; --gfp-2: #2a74c8; --gfp-3: #123f75; }
+.gf-popup, .gf-sheetwrap { --gfp-1: #3b6ea5; --gfp-2: #4a97f0; --gfp-3: #d6e8fc; }
+:root[data-theme="light"] .gf-popup, :root[data-theme="light"] .gf-sheetwrap { --gfp-1: #86b3e0; --gfp-2: #2a74c8; --gfp-3: #123f75; }
 
 .gf-popup .maplibregl-popup-content {
   padding: 14px 16px 10px !important;
@@ -56,6 +56,9 @@
 .gfp-arrow { fill: var(--g-muted); }
 .gfp-temp { fill: none; stroke: var(--g-ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .gfp-cursor { stroke: var(--g-rule); stroke-width: 1; }
+.gfp-nowline { stroke: var(--g-ink); stroke-width: 1.75; }
+.gfp-nowmark { fill: var(--g-ink); }
+.gfp-nowtext { font-size: 12px; font-weight: 700; fill: var(--g-ink); }
 .gfp-readout { min-height: 18px; font-size: 13px; color: var(--g-muted); font-variant-numeric: tabular-nums; }
 
 .gfp-bandlist { display: flex; flex-direction: column; gap: 2px; }

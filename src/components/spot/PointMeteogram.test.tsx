@@ -50,6 +50,32 @@ describe('PointMeteogram', () => {
     expect(() => render(<PointMeteogram days={[empty]} />)).not.toThrow();
   });
 
+  describe('the mark of the current time', () => {
+    const x = (el: Element | null | undefined) => Number(el?.getAttribute('x1'));
+
+    it('sits on today where the axis has that time', () => {
+      const { container } = render(<PointMeteogram days={[day()]} now={new Date('2026-11-09T12:45:00+01:00')} />);
+      const ticks = container.querySelectorAll('.gfp-grid');
+      const at12 = x(ticks[1]), at16 = x(ticks[2]);
+      expect(x(container.querySelector('.gfp-nowline'))).toBeCloseTo(at12 + ((at16 - at12) * 0.75) / 4, 3);
+      expect(container.textContent).toContain('ahora');
+    });
+
+    it('goes in the column of today, not the first one', () => {
+      const tomorrow = { ...day(), dayKey: '2026-11-10', label: 'mar 10' };
+      const { container } = render(<PointMeteogram days={[day(), tomorrow]} now={new Date('2026-11-10T08:00:00+01:00')} />);
+      const ticks = container.querySelectorAll('.gfp-grid');
+      expect(x(container.querySelector('.gfp-nowline'))).toBeCloseTo(x(ticks[4]), 3);
+    });
+
+    it('is not drawn on a chart without today, before or after its hours, or without a clock', () => {
+      for (const now of [new Date('2026-11-12T12:00:00+01:00'), new Date('2026-11-09T03:00:00+01:00'), new Date('2026-11-09T22:00:00+01:00'), undefined]) {
+        const { container } = render(<PointMeteogram days={[day()]} now={now} />);
+        expect(container.querySelector('.gfp-nowline')).toBeNull();
+      }
+    });
+  });
+
   it('draws nothing without days', () => {
     const { container } = render(<PointMeteogram days={[]} />);
     expect(container.textContent).toBe('');

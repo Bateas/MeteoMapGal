@@ -14,6 +14,8 @@ import type { HourlyForecast } from '../../types/forecast';
 
 const TTL_MS = 30 * 60_000;
 const STATUS_POLL_MS = 5 * 60_000;
+/** The «now» mark on the chart moves with the card open. */
+const CLOCK_MS = 60_000;
 
 /** `?simpanorama=<state>`: how the line looks before the server has anything to say. */
 const SIM_PANORAMA: Record<string, string> = {
@@ -76,6 +78,8 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
     setStatus(await fetchMeteoPointStatus(pointId));
   }, [pointId]);
   useVisibilityPolling(pollStatus, STATUS_POLL_MS);
+  const [clock, setClock] = useState(() => new Date());
+  useVisibilityPolling(() => setClock(new Date()), CLOCK_MS);
 
   const days = useMemo(() => (hours ? summarizeDays(hours, new Date()) : []), [hours]);
   const nextRain = useMemo(() => (hours ? describeNextRain(hours, new Date()) : null), [hours]);
@@ -97,7 +101,7 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
         {failed && <div className="gf-hint">Sin previsión ahora mismo. Vuelve a abrir la ficha en un rato.</div>}
         {!failed && !hours && <div className="gf-hint">Cargando previsión…</div>}
         {hours && days.length === 0 && <div className="gf-hint">El modelo no llega a los próximos días.</div>}
-        {days.length > 0 && <PointMeteogram days={days} />}
+        {days.length > 0 && <PointMeteogram days={days} now={clock} />}
         {days.length > 0 && (
           <div className="gfp-bandlist">
             {days.map((d) => (
