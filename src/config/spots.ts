@@ -281,7 +281,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     ],
     preferredStations: [
       'mg_14001',               // Porto de Vigo (7m, ON water, avg 10.8kt!) — best in-ría wind
-      'mc_ESGAL3600000036940A', // Cangas do Morrazo (~8km N) — costera
+      // Cangas Meteoclimatic was preferred here until v2.203.6: 0.23-0.64 of the real wind, up to 39 % of the weight.
       'mc_ESGAL3600000036209A', // Vigo Bouzas (~5km S) — costera
     ],
     preferredBuoys: [
@@ -426,7 +426,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     // y fiable para N/NNW). Es la que manda — la ría sopla otra cosa.
     preferredStations: ['mg_10905'],
     // Cangas MG (Meteoclimatic, ~2-3km) infravalora todas las direcciones
-    // (ratio 0.23-0.64) → fuera. Sigue válida para centro-ria / virazón.
+    // (ratio 0.23-0.64) → fuera. Sigue contando en centro-ria como una estación más, y para la virazón.
     excludeStations: ['mc_ESGAL3600000036940A'],
     preferredBuoys: [
       4273, // Cabo Udra REMPOR (N) — corrobora, pero suele ir 1-2h retrasada
