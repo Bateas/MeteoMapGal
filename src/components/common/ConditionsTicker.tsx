@@ -721,7 +721,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
   const officialWarnings = useMemo(() => {
     return mgWarnings.map((w) => {
       const levelLabel = w.maxLevel === 3 ? 'ROJO' : w.maxLevel === 2 ? 'NARANJA' : 'AMARILLO';
-      const zoneNames = w.zones.map((z) => z.name).join(', ');
+      const zoneNames = [...new Set(w.zones.map((z) => z.name))].join(', '); // a zone with two time windows comes twice
       const color = w.maxLevel === 3
         ? 'text-red-200'
         : w.maxLevel === 2 ? 'text-orange-200' : 'text-yellow-200';

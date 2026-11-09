@@ -7,10 +7,7 @@
  *
  * Feed URL: /meteogalicia-api/mgrss/predicion/rssAdversos.action?request_locale=gl
  *
- * Zone IDs relevant to our sectors:
- * - Embalse: 323 (Interior A Coruña), 335 (Interior Pontevedra), 334 (Miño Pontevedra)
- * - Rías:    336 (Costa Pontevedra), 400 (Rías Baixas mar), 401 (Costa da Morte mar),
- *            321 (Noroeste A Coruña)
+ * The zones of each sector are listed below by name (SECTOR_ZONES).
  *
  * Warning levels: 1=amarillo (yellow), 2=naranja (orange), 3=rojo (red)
  */
@@ -49,24 +46,23 @@ export interface MGWarningZone {
 
 // ── Zone mapping to our sectors ──────────────────────────
 
-/** MG zone IDs relevant to Embalse de Castrelo (interior Galicia) */
-const EMBALSE_ZONES = new Set([
-  323,  // Interior A Coruña
-  335,  // Interior Pontevedra
-  334,  // Miño Pontevedra
-  324,  // Interior Lugo
-  333,  // Interior Ourense
-]);
-
-/** MG zone IDs relevant to Rías Baixas (coastal) */
-const RIAS_ZONES = new Set([
-  336,  // Costa Pontevedra
-  400,  // Rías Baixas (mar)
-  401,  // Costa da Morte (mar)
-  321,  // Noroeste A Coruña
-  338,  // Coruña Noroeste (mar)
-  322,  // Costa A Coruña
-]);
+/**
+ * The zones each sector covers, by NAME as the feed writes them (lower case). Until 9-nov this was a
+ * table of ids that did not match the feed: 334 is the Pontevedra coast and 324 south-west A Coruña, so
+ * the Embalse banner named those and never Ourense, and Rías had the Miño but not its own coast.
+ * A zone is here only if the sector has spots or area in it: a warning shows where it applies.
+ */
+const SECTOR_ZONES: Record<'embalse' | 'rias', ReadonlySet<string>> = {
+  embalse: new Set([
+    'noroeste de ourense', 'sur de ourense', 'ourense (provincia)',
+    'interior de pontevedra', 'miño de pontevedra', // the west of the circle: A Cañiza, Arbo, As Neves
+    'sur de lugo',                                  // the Belesar reservoir
+  ]),
+  rias: new Set([
+    'litoral pontevedra', 'pontevedra (provincia)', 'rías baixas (mar)',
+    'suroeste de a coruña',                         // Corrubedo and the north shore of Arousa
+  ]),
+};
 
 /** Warning types relevant to storm prediction */
 const STORM_TYPES = new Set(['Tormenta', 'Tormenta eléctrica', 'Treboada']);
@@ -114,14 +110,14 @@ export function getWarningsForSector(
   warnings: MGWarning[],
   sectorId: 'embalse' | 'rias',
 ): MGWarning[] {
-  const zoneSet = sectorId === 'embalse' ? EMBALSE_ZONES : RIAS_ZONES;
+  const zoneSet = SECTOR_ZONES[sectorId];
   const now = Date.now();
 
   return warnings
     .map((w) => {
       // Filter zones to only those matching our sector AND currently active
       const relevantZones = w.zones.filter(
-        (z) => zoneSet.has(z.id) && z.endTime.getTime() > now,
+        (z) => zoneSet.has(z.name.trim().toLowerCase()) && z.endTime.getTime() > now,
       );
       if (relevantZones.length === 0) return null;
       return {
