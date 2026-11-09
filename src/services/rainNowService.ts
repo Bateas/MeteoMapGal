@@ -515,6 +515,25 @@ export function rainTrajectories(
   return out.sort((a, b) => a.dist - b.dist).slice(0, MAX_TRAJECTORIES).map(({ dist: _dist, ...t }) => t);
 }
 
+/**
+ * The front of a patch along its heading, on the line through its centre: the 95th percentile of its
+ * pixels, so a stray tail does not set it. An arrow from the centre of a 150 km band crossed the map
+ * and began far from any rain that was moving next (9-nov).
+ */
+export function leadingEdge(m: RadarMosaic, pixels: number[], lon: number, lat: number, toDeg: number): { lon: number; lat: number } {
+  if (pixels.length === 0) return { lon, lat };
+  const [cx, cy] = lonLatToPx(m, lon, lat);
+  const r = (toDeg * Math.PI) / 180;
+  const ux = Math.sin(r), uy = -Math.cos(r);            // y grows southwards
+  const along = pixels.map((p) => {
+    const x = p % m.w;
+    return (x + 0.5 - cx) * ux + ((p - x) / m.w + 0.5 - cy) * uy;
+  }).sort((a, b) => a - b);
+  const front = along[Math.floor(0.95 * (along.length - 1))];
+  const [eLon, eLat] = pxToLonLat(m, cx + ux * front, cy + uy * front);
+  return { lon: eLon, lat: eLat };
+}
+
 // ── Picture ──────────────────────────────────────────────
 
 /** Our three tones (light, moderate, heavy) as RGBA. Low alpha on purpose: start faint, raise on request. */

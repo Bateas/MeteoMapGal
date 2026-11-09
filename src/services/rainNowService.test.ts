@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { NormalizedReading, NormalizedStation } from '../types/station';
 import { assembleMosaic, lonLatToPx, type RadarMosaic } from './radarDecode';
 import {
-  RAIN_GAUGE_BLACKLIST, announcingTracks, approachingCells, rainTrajectories, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, formatEta,
+  RAIN_GAUGE_BLACKLIST, announcingTracks, approachingCells, leadingEdge, rainTrajectories, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, formatEta,
   gaugeIntensity, groundTruth, rainArrivalAt, renderRain, roundEta,
 } from './rainNowService';
 import type { CellTrack } from './radarTracking';
@@ -316,6 +316,33 @@ describe('rainTrajectories: where each patch on the map is heading', () => {
 
   it('returns nothing without tracks', () => {
     expect(rainTrajectories(cells, null, drawn, flow, BASE)).toEqual([]);
+  });
+});
+
+describe('leadingEdge: where an arrow starts', () => {
+  const m = mosaicWith([{ ...east(-20), r: 10, dbz: 30 }]);
+  const { cells, labels } = findRainCells(m);
+  const c = cells[0];
+  const pixels: number[] = [];
+  labels.forEach((id, i) => { if (id === c.id) pixels.push(i); });
+
+  it('sits ahead of the centre, inside the patch, on its heading', () => {
+    const toEast = leadingEdge(m, pixels, c.lon, c.lat, 90);
+    expect(toEast.lon).toBeGreaterThan(c.lon);
+    expect(Math.abs(toEast.lat - c.lat)).toBeLessThan(0.02);
+    const [cx] = lonLatToPx(m, c.lon, c.lat);
+    const [ex] = lonLatToPx(m, toEast.lon, toEast.lat);
+    expect(ex - cx).toBeGreaterThan(6);
+    expect(ex - cx).toBeLessThanOrEqual(10.5);
+  });
+
+  it('follows the heading', () => {
+    expect(leadingEdge(m, pixels, c.lon, c.lat, 0).lat).toBeGreaterThan(c.lat);
+    expect(leadingEdge(m, pixels, c.lon, c.lat, 270).lon).toBeLessThan(c.lon);
+  });
+
+  it('stays at the centre without pixels', () => {
+    expect(leadingEdge(m, [], c.lon, c.lat, 90)).toEqual({ lon: c.lon, lat: c.lat });
   });
 });
 
