@@ -370,21 +370,21 @@ export function GlossarySection() {
         <Term
           term="Cluster / Nucleo tormentoso"
           definition="Agrupacion de impactos de rayos que indica una celula de tormenta activa. MeteoMapGal los agrupa automaticamente en poligonos con etiquetas."
-          example="Un cluster de 12 rayos a 30 km moviéndose a 45 km/h hacia el embalse con ETA 40 min → preparar para salir."
+          example="Un cluster de 12 rayos a 30 km del embalse → mira si los siguientes caen más cerca y ten pensada la salida."
           color="#a855f7"
           search={q}
         />
         <Term
           term="Distancia (km en etiqueta)"
           definition="Distancia desde el centro del cluster al centro de tu sector (Interior o Rías). Indica lo lejos que esta la tormenta."
-          example="'149 km' = esa tormenta esta a 149 km del embalse. A 40 km/h tardaria 3.7 horas en llegar si se acercase."
+          example="'149 km' = esa tormenta esta a 149 km del embalse."
           color="#a855f7"
           search={q}
         />
         <Term
-          term="ETA (tiempo estimado de llegada)"
-          definition="Minutos estimados para que un cluster tormentoso alcance tu sector, basado en su velocidad y direccion actual."
-          example="ETA ~18 min con flecha naranja apuntando a tu zona → sal del agua y busca refugio."
+          term="Aviso y peligro por rayos"
+          definition="Niveles medidos, sin pronóstico: AVISO con 3 rayos o más a menos de 25 km (o uno a menos de 10 km); PELIGRO con 2 o más a menos de 10 km (o uno, con 3 a menos de 25 km). La app no da minutos de llegada: comprobados con las tormentas guardadas, fallaban casi siempre."
+          example="PELIGRO con el último rayo hace 2 min → sal del agua y busca refugio. Tras el peligro, la app pide esperar 30 min desde el último rayo cercano."
           color="#a855f7"
           search={q}
         />

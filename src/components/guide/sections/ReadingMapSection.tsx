@@ -408,49 +408,35 @@ export function ReadingMapSection() {
           <div className="bg-slate-800/60 rounded-lg p-3 font-mono text-xs leading-relaxed text-center" style={{ color: '#fbbf24' }}>
             12 rayos<br/>
             {'→'} 45 km/h SW<br/>
-            ETA ~18 min<br/>
             32 km
           </div>
           <div className="space-y-1.5 text-[11px] text-slate-400">
             <p><strong className="text-slate-200">Rayos</strong> — Numero de impactos en este nucleo (ultima hora).</p>
             <p><strong className="text-slate-200">Velocidad + direccion</strong> — A donde se mueve el nucleo (SW = hacia el suroeste). Solo aparece si se detecta movimiento consistente en 2+ ciclos.</p>
-            <p><strong className="text-slate-200">ETA</strong> — Tiempo estimado de llegada al embalse/rias. Solo si el nucleo se acerca directamente (bearing {'<'}60 grados). Usa la componente de velocidad hacia ti, no la velocidad total.</p>
+            <p><strong className="text-slate-200">Sin minutos de llegada</strong> — La app no dice en cuántos minutos llega una tormenta: comprobado con las tormentas guardadas, esa cifra fallaba casi siempre. La flecha indica hacia dónde se ha movido el núcleo, no dónde estará.</p>
             <p><strong className="text-slate-200">Distancia (km)</strong> — Distancia desde el centro del cluster hasta el centro de tu sector. Asi sabes de un vistazo lo lejos que esta.</p>
           </div>
         </div>
 
-        {/* Predictor explanation */}
+        {/* What the lightning chip says */}
         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
-          <p className="text-xs font-bold text-purple-400">Predictor de tormentas (9 señales)</p>
+          <p className="text-xs font-bold text-purple-400">Indicador de rayos: solo lo medido</p>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            MeteoMapGal cruza <strong className="text-slate-200">9 señales</strong> para estimar la probabilidad
-            de tormenta en tu zona. El resultado aparece en el indicador <strong className="text-purple-300">RAYOS</strong> de
-            la barra inferior del mapa.
+            El indicador <strong className="text-purple-300">RAYOS</strong> de la barra inferior dice lo que ha medido la
+            red de rayos alrededor del centro de tu sector en los últimos 30 minutos:{' '}
+            <strong className="text-slate-200">a qué distancia cayó el más cercano, cuántos han caído y hace cuánto fue el último</strong>.
           </p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {[
-              { name: 'CAPE', desc: 'Inestabilidad atmosferica', color: '#f59e0b' },
-              { name: 'CIN', desc: 'Tapon convectivo (suprime)', color: '#64748b' },
-              { name: 'Lluvia', desc: 'Precipitacion prevista', color: '#3b82f6' },
-              { name: 'Nubes', desc: 'Cobertura nubosa >80%', color: '#94a3b8' },
-              { name: 'Rayos', desc: 'Deteccion tiempo real', color: '#a855f7' },
-              { name: 'Avance', desc: 'Tormenta acercandose', color: '#f97316' },
-              { name: 'Sombra', desc: 'Caida radiacion solar', color: '#6366f1' },
-              { name: 'Aviso MG', desc: 'Alerta oficial MeteoGalicia', color: '#eab308' },
-              { name: 'Sky state', desc: 'WRF MeteoSIX cielo tormentoso', color: '#ec4899' },
-            ].map((s) => (
-              <div key={s.name} className="flex items-center gap-1.5 text-[10px]">
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
-                <span className="text-slate-300 font-medium">{s.name}</span>
-                <span className="text-slate-500">{s.desc}</span>
-              </div>
-            ))}
-          </div>
           <div className="border-t border-slate-700/40 pt-2 space-y-1 text-[11px]">
-            <p className="text-slate-400"><strong className="text-amber-300">{'>'} 60% inminente</strong> — Banner rojo de emergencia con accion recomendada.</p>
-            <p className="text-slate-400"><strong className="text-amber-300">40-60% probable</strong> — Indicador ambar en la barra.</p>
-            <p className="text-slate-400"><strong className="text-slate-300">{'<'} 25%</strong> — Sin indicacion visual (condiciones tranquilas).</p>
+            <p className="text-slate-400"><strong className="text-red-300">PELIGRO</strong> — 2 rayos o más a menos de 10 km, o uno con otros 3 a menos de 25 km. Fuera del agua y a cubierto.</p>
+            <p className="text-slate-400"><strong className="text-amber-300">AVISO</strong> — 3 rayos o más a menos de 25 km, o uno a menos de 10 km. No te alejes de la orilla.</p>
+            <p className="text-slate-400"><strong className="text-purple-300">55 km</strong> (una distancia) — Hay rayos en la región, a menos de 80 km. Es un dato, no un aviso.</p>
+            <p className="text-slate-400"><strong className="text-slate-300">RAYOS</strong> en gris — Ningún rayo a menos de 80 km en 30 minutos.</p>
           </div>
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            Ya no se enseña un porcentaje de tormenta ni los minutos de llegada. Los comparamos con los rayos que
+            cayeron después durante una temporada entera y no se cumplían: con «30-44 %» había tormenta en el punto
+            1 de cada 7 veces. Los rayos llegan a la app con unos 5 minutos de retraso.
+          </p>
         </div>
 
         {/* Safety tips */}

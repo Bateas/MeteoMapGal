@@ -29,15 +29,16 @@ export function buildStormAlerts(storm: StormAlert): UnifiedAlert[] {
   const score = stormAlertScore(storm.level, storm.nearestKm);
   const labels: Record<StormAlertLevel, string> = {
     danger: 'PELIGRO — Tormenta encima',
-    warning: 'AVISO — Tormenta acercándose',
+    // «cerca», not «acercándose»: the level means 3 strikes within 25 km, whichever way it moves.
+    warning: 'AVISO — Tormenta cerca',
     watch: 'Actividad el\u00e9ctrica detectada',
     none: '',
   };
 
-  let detail = `${storm.nearestKm.toFixed(0)} km, ${storm.recentCount} rayos recientes`;
-  if (storm.trend === 'approaching' && storm.etaMinutes != null) {
-    detail += ` · ETA ~${storm.etaMinutes.toFixed(0)} min`;
-  } else if (storm.trend === 'receding') {
+  // Distance and count, as measured. No «ETA ~N min»: on the stored storms the tracker's arrival
+  // time was right 10 times out of 69 and no better than assuming the storm stood still.
+  let detail = `Rayos a ${storm.nearestKm.toFixed(0)} km, ${storm.recentCount} en 30 min`;
+  if (storm.trend === 'receding') {
     detail += ' · alejándose';
   }
 
@@ -85,16 +86,10 @@ export function buildStormShadowAlerts(
   // ── Contextual title based on lightning presence ──
   // Clouds without lightning are NOT alarming — just informational.
   // Only escalate language when lightning or wind outflow confirms a real storm.
-  let title: string;
-  if (shadow.etaMinutes !== null) {
-    title = hasLightning
-      ? `Tormenta acercándose — ETA ~${shadow.etaMinutes} min`
-      : `Nubes en la zona — ETA ~${shadow.etaMinutes} min`;
-  } else if (hasLightning) {
-    title = 'Tormenta cercana detectada';
-  } else {
-    title = 'Nubes en la zona';
-  }
+  // No arrival minutes in the words: the shadow's ETA comes from sun dropping at one station
+  // after another, and as a storm signal that drop went the wrong way (23 % of its windows saw
+  // lightning against 46 % of the rest; weight 0 in stormPredictor since v2.90.0).
+  const title = hasLightning ? 'Tormenta cercana detectada' : 'Nubes en la zona';
 
   // ── Detail ──
   let detail = `${shadow.shadowedStations.length} estación(es) afectada(s)`;
@@ -107,10 +102,6 @@ export function buildStormShadowAlerts(
     const idx = Math.round(shadow.movementBearing / 45) % 8;
     detail += ` hacia ${dirs[idx]}`;
   }
-  if (shadow.etaMinutes !== null) {
-    detail += ` · ETA ~${shadow.etaMinutes} min a la zona`;
-  }
-
   // Lightning context
   if (hasLightning) {
     detail += ` · ${shadow.lightningNearby} rayo(s)`;

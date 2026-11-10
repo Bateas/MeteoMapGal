@@ -261,8 +261,7 @@ export function stormNearPoint(
 export function formatRiskLine(r: SpotLightningRisk): string {
   const kmTxt = r.nearestKm < 1 ? '<1km' : `${Math.round(r.nearestKm)}km`;
   let extra = `${r.count25} en ${LIGHTNING_WINDOW_MIN}min`;
-  if (r.approaching) {
-    extra += r.etaMin != null ? `, acercandose ~${r.etaMin}min` : ', acercandose';
-  }
+  // The trend, not the minutes to arrival: see LightningProximityBanner.
+  if (r.approaching) extra += ', acercandose';
   return `${r.spotName}: rayo a ${kmTxt} (${extra})`;
 }

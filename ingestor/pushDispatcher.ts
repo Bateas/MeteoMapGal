@@ -165,10 +165,8 @@ export function buildPushPayload(
 
   const km = Math.max(1, Math.round(risk.nearestKm));
   // Only a storm seen moving says it is coming: a strike alone says where it fell
-  let body = risk.approaching === false ? `Rayo a ${km} km: posible tormenta en la zona.` : `Tormenta a ${km} km, acercandose.`;
-  if (risk.etaMin != null) {
-    body += ` Llegada estimada ~${risk.etaMin} min.`;
-  }
+  // No «llegada estimada ~N min»: the minutes were off by 18 on average on the stored season.
+  const body = risk.approaching === false ? `Rayo a ${km} km: posible tormenta en la zona.` : `Tormenta a ${km} km, acercandose.`;
   return {
     title: `Aviso de tormenta - ${spotName}`,
     body,

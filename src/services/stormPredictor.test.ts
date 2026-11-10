@@ -400,4 +400,54 @@ describe('stormPredictor', () => {
       expect(['severe', 'extreme']).toContain(result.severity);
     });
   });
+
+  // Signals that were applied to the wrong thing or the wrong moment (review of Nov-2026).
+  describe('signals measure what they claim', () => {
+    const H = 3600_000;
+    const warning = (type: string, startInH: number, endInH: number, level = 2) => [{
+      type, typeId: 7, maxLevel: level,
+      zones: [{ name: 'Test', id: 335, level, startTime: new Date(Date.now() + startInH * H), endTime: new Date(Date.now() + endInH * H), comment: '' }],
+      publishedAt: new Date(), link: '',
+    }];
+    const mg = (w: ReturnType<typeof warning>) =>
+      predictStorm([makeForecast()], NO_ALERT, null, w).signals.find((s) => s.name === 'Aviso MG oficial');
+
+    it('a RAIN warning is not a storm signal', () => {
+      expect(mg(warning('Choiva', -1, 6))?.active).toBe(false);
+      expect(predictStorm([makeForecast()], NO_ALERT, null, warning('Choiva', -1, 6)).probability).toBe(0);
+    });
+
+    it('a storm warning that starts tomorrow does not count today', () => {
+      expect(mg(warning('Tormenta', 20, 30))?.active).toBe(false);
+    });
+
+    it('a storm warning in force, or starting within 3 h, counts', () => {
+      expect(mg(warning('Tormenta', -1, 6))?.value).toBe('Naranja');
+      expect(mg(warning('Tormenta', 2, 8))?.active).toBe(true);
+    });
+
+    it('a warning already over does not count', () => {
+      expect(mg(warning('Tormenta', -8, -1))?.active).toBe(false);
+    });
+
+    it('«extreme» needs the storm within the point rings, not one strike in the region', () => {
+      const unstable = makeForecast({ cape: 1800, liftedIndex: -6 });
+      const far: StormAlert = { ...NO_ALERT, level: 'watch', nearestKm: 79, recentCount: 1, trend: 'stationary' };
+      expect(predictStorm([unstable], far, null).severity).not.toBe('extreme');
+      const near: StormAlert = { ...NO_ALERT, level: 'warning', nearestKm: 18, recentCount: 6, trend: 'stationary' };
+      expect(predictStorm([unstable], near, null).severity).toBe('extreme');
+    });
+
+    it('arrival minutes never come from the shadow detector', () => {
+      const result = predictStorm([makeForecast()], NO_ALERT, makeShadow({ confidence: 90, etaMinutes: 12 }));
+      expect(result.etaMinutes).toBeNull();
+    });
+
+    it('no summary promises a storm in the next hour', () => {
+      const aviso: StormAlert = { ...NO_ALERT, level: 'warning', nearestKm: 18, recentCount: 6, trend: 'stationary' };
+      const result = predictStorm([makeForecast({ cape: 900 })], aviso, null);
+      expect(result.horizon).toBe('likely');
+      expect(result.summary).not.toMatch(/probable|pr[oó]xima hora|inminente/i);
+    });
+  });
 });

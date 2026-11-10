@@ -9,7 +9,7 @@
  * `simple` prop (simpleMode): the ticker ALWAYS mounts — official
  * MeteoGalicia warnings (static strip) plus a filtered marquee with only
  * critical/actionable items (beach headline, best surf spot from SURF OK
- * up + safety: storm prediction, forecast storms/fog, active fires). A casual user in simple mode must
+ * up + safety: measured lightning, forecast storms/fog, active fires). A casual user in simple mode must
  * never miss an official NARANJA warning. With no critical items and no
  * warnings, it renders nothing (silence by default).
  */
@@ -20,7 +20,8 @@ import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
 import { useRainNowStore } from '../../store/rainNowStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
-import { useStormPrediction } from '../../hooks/useStormPrediction';
+import { useLightningStatus } from '../../hooks/useLightningStatus';
+import { formatStrikeAge } from '../../services/lightningStatus';
 import { useWarningsStore } from '../../hooks/useWarnings';
 import { useUIStore } from '../../store/uiStore';
 import { useAirQualityStore } from '../../store/airQualityStore';
@@ -92,7 +93,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
   const forecastHourly = useForecastStore((s) => s.hourly);
   // Measured rain («Lluvia ahora» layer): the beach headline must not say «Buen día» under it.
   const rainNowSummary = useRainNowStore((s) => s.summary);
-  const stormPrediction = useStormPrediction();
+  const lightning = useLightningStatus();
   const mgWarnings = useWarningsStore((s) => s.sectorWarnings);
   const unifiedAlerts = useAlertStore((s) => s.alerts);
   // Subscribed, not read through getState(): fires poll on their own 30min
@@ -514,29 +515,19 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
       }
     }
 
-    // ── Storm prediction (priority 11 = highest urgency) ──
-    if (stormPrediction.probability >= 25) {
-      const isImminent = stormPrediction.horizon === 'imminent';
-      const isLikely = stormPrediction.horizon === 'likely';
-      const etaStr = stormPrediction.etaMinutes != null && stormPrediction.etaMinutes < 120
-        ? ` ETA ~${stormPrediction.etaMinutes}min`
-        : '';
-      // With measured lightning overhead it is not a probability any more: say what is happening,
-      // the same words as the alert panel and the banner.
-      const stormOverhead = unifiedAlerts.some((a) => a.category === 'storm' && a.severity === 'critical');
-      const text = isImminent && stormOverhead
-        ? 'TORMENTA ENCIMA · rayos medidos'
-        : isImminent
-        ? `TORMENTA INMINENTE ${stormPrediction.probability}%${etaStr}`
-        : isLikely
-        ? `Tormenta probable ${stormPrediction.probability}%${etaStr}`
-        : `Riesgo tormenta ${stormPrediction.probability}%`;
+    // ── Lightning measured around the sector point (priority 11 = highest urgency) ──
+    // Distance of the nearest strike and age of the last one. No percentage and no arrival time:
+    // against the stored season neither held up (services/lightningStatus.ts).
+    if (lightning.level !== 'none') {
+      const isDanger = lightning.level === 'danger';
+      const isWarning = lightning.level === 'warning';
+      const age = lightning.lastStrikeMin != null ? ` · ${formatStrikeAge(lightning.lastStrikeMin)}` : '';
       result.push({
-        key: 'storm-prediction',
-        text,
-        color: isImminent ? 'text-purple-400' : isLikely ? 'text-amber-400' : 'text-slate-400',
-        bg: isImminent ? 'bg-purple-900/30' : isLikely ? 'bg-amber-900/25' : '',
-        priority: isImminent ? 11 : isLikely ? 10 : 6,
+        key: 'lightning-measured',
+        text: isDanger ? `TORMENTA ENCIMA · ${lightning.headline.toLowerCase()}${age}` : `${lightning.headline}${age}`,
+        color: isDanger ? 'text-purple-400' : isWarning ? 'text-amber-400' : 'text-slate-400',
+        bg: isDanger ? 'bg-purple-900/30' : isWarning ? 'bg-amber-900/25' : '',
+        priority: isDanger ? 11 : isWarning ? 10 : 6,
         essential: true,
       });
     }
@@ -703,7 +694,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
     // it's prioritised by what matters NOW.
     // Simple mode: only critical/actionable items survive — beach headline,
     // best surf spot from SURF OK up +
-    // safety (storm prediction, forecast storms/fog, active fires). All the
+    // safety (measured lightning, forecast storms/fog, active fires). All the
     // informational density (spot verdicts, gusts, waves, tide, forecast
     // summary, thermal, UV, air quality, sea breeze, station status) shows
     // only in full mode. No essential items → empty marquee (silence).
@@ -712,7 +703,7 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
 
     const cap = isMobile ? 6 : 9;
     return pool.length > cap ? pool.slice(0, cap) : pool;
-  }, [scores, surfWaveCache, theme, readings, stations, buoyReadings, sectorId, forecastHourly, rainNowSummary, stormPrediction, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple, aloft]);
+  }, [scores, surfWaveCache, theme, readings, stations, buoyReadings, sectorId, forecastHourly, rainNowSummary, lightning, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple, aloft]);
 
   // ── Official MG warnings — static strip above the marquee ─────
   // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).

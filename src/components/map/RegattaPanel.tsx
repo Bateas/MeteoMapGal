@@ -262,7 +262,7 @@ export const RegattaPanel = memo(function RegattaPanel() {
     const storm = useLightningStore.getState().stormAlert;
     if (storm.level === 'danger') {
       semaphore = 'red';
-      alertMsgs.push(`TORMENTA A ${storm.nearestKm.toFixed(0)}km${storm.etaMinutes ? ` — ETA ${storm.etaMinutes}min` : ''}`);
+      alertMsgs.push(`RAYOS A ${storm.nearestKm.toFixed(0)} km`);
     } else if (storm.level === 'warning') {
       semaphore = 'red';
       alertMsgs.push(`Tormenta detectada a ${storm.nearestKm.toFixed(0)}km${storm.trend === 'approaching' ? ' — acercandose' : ''}`);

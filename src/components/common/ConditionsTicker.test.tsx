@@ -13,6 +13,7 @@ import { useBuoyStore } from '../../store/buoyStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useWarningsStore } from '../../hooks/useWarnings';
+import { useLightningStore } from '../../hooks/useLightningData';
 import { SECTORS } from '../../config/sectors';
 import type { MGWarning } from '../../api/mgWarningsClient';
 import type { SpotScore } from '../../services/spotScoringEngine';
@@ -100,6 +101,7 @@ describe('ConditionsTicker', () => {
     useWarningsStore.setState({
       sectorWarnings: [],
     });
+    useLightningStore.setState({ strikes: [], lastFetch: null, stormAlert: { ...useLightningStore.getState().stormAlert, level: 'none' } });
     useSectorStore.setState({
       activeSectorId: 'embalse',
       activeSector: SECTORS.find((s) => s.id === 'embalse')!,
@@ -117,6 +119,26 @@ describe('ConditionsTicker', () => {
     const { container } = render(<ConditionsTicker />);
     // With no data, ticker returns null (no items to show)
     expect(container.innerHTML).toBe('');
+  });
+
+  // Lightning is said as measured (distance of the nearest strike, age of the last one), in simple
+  // mode too. The storm percentage and the «ETA ~N min» were removed: against the strikes that
+  // followed a whole season of logged predictions, neither held up.
+  it('lightning: distance and age of the last strike, no percentage and no arrival time', () => {
+    const [lon, lat] = SECTORS.find((s) => s.id === 'embalse')!.center;
+    const strike = (km: number, minAgo: number, id: number) => ({
+      id, lat: lat + km / 111.2, lon, timestamp: Date.now() - minAgo * 60_000,
+      peakCurrent: 20, cloudToCloud: false, multiplicity: 1, ageMinutes: minAgo,
+    });
+    useLightningStore.setState({
+      strikes: [strike(18, 4, 1), strike(20, 9, 2), strike(22, 15, 3)],
+      lastFetch: new Date(),
+      stormAlert: { ...useLightningStore.getState().stormAlert, level: 'warning', nearestKm: 18, recentCount: 3, etaMinutes: 25, trend: 'approaching' },
+    });
+
+    const { container } = render(<ConditionsTicker simple />);
+    expect(screen.getAllByText('Rayos a 18 km · último hace 4 min').length).toBeGreaterThan(0);
+    expect(container.textContent).not.toMatch(/%|ETA|INMINENTE|probable/i);
   });
 
   it('renders without crashing with station data but no scores', () => {
