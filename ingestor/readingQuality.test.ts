@@ -27,6 +27,8 @@ import {
   MAX_NAMED_STATIONS,
   summariseQualityControl,
   describeQualityControl,
+  keepCorroboratedGusts,
+  QC_GUST_RATIO_CORROBORATED,
 } from './readingQuality';
 import type { NormalizedReading } from '../src/types/station';
 
@@ -417,5 +419,62 @@ describe('the cycle summary — because a nulled column says nothing on its own'
       reading({ stationId: 'c', solarRadiation: 1500 }),
     ]));
     expect(describeQualityControl(s)!).toMatch(/^QC corrected 3 readings: 2 temperature/);
+  });
+});
+
+describe('keepCorroboratedGusts — a gale at a sheltered site is not a spike', () => {
+  // Sanxenxo, 10-nov-2026: mean 4 m/s, gust 15 m/s (29 kt) while the island and the cape gusted 20 m/s.
+  const COORDS: Record<string, { lat: number; lon: number }> = {
+    mg_sheltered: { lat: 42.40, lon: -8.80 },
+    mg_island: { lat: 42.38, lon: -8.93 },   // ~11 km
+    mg_cape: { lat: 42.34, lon: -8.83 },     // ~7 km
+    mg_far: { lat: 43.30, lon: -8.00 },      // ~120 km
+    nt_alone: { lat: 42.45, lon: -8.70 },
+  };
+  const coordsOf = (id: string) => COORDS[id];
+  const at = (min: number) => new Date(Date.UTC(2026, 10, 10, 9, min));
+  const qc = (stationId: string, windSpeed: number, windGust: number, min = 0) =>
+    applyQualityControl(reading({ stationId, windSpeed, windGust, timestamp: at(min) }));
+  const sheltered = () => qc('mg_sheltered', 4, 15);
+
+  it('the ratio test alone drops it', () => {
+    const q = sheltered();
+    expect(q.qcFlag & QC_GUST_RATIO).toBeTruthy();
+    expect(q.reading.windGust).toBeNull();
+    expect(q.windGustRaw).toBe(15);
+  });
+
+  it('two neighbours measuring as much give it back, marked', () => {
+    const [q] = keepCorroboratedGusts([sheltered(), qc('mg_island', 14, 20, 10), qc('mg_cape', 12, 13)], coordsOf);
+    expect(q.reading.windGust).toBe(15);
+    expect(q.windGustRaw).toBeNull();
+    expect(q.qcFlag).toBe(QC_GUST_RATIO_CORROBORATED);
+    expect(describeQcFlag(q.qcFlag)).toEqual(['gust above ratio kept, neighbours measured as much']);
+  });
+
+  it('one neighbour is not enough, nor are two that are weaker, far away or from another hour', () => {
+    const stays = (others: ReturnType<typeof qc>[]) =>
+      expect(keepCorroboratedGusts([sheltered(), ...others], coordsOf)[0].reading.windGust).toBeNull();
+    stays([qc('mg_island', 14, 20)]);
+    stays([qc('mg_island', 8, 11), qc('mg_cape', 8, 11.9)]);            // under 80 % of 15
+    stays([qc('mg_island', 14, 20), qc('mg_far', 14, 20)]);
+    stays([qc('mg_island', 14, 20, 20), qc('mg_cape', 12, 18, -20)]);   // 20 min away
+  });
+
+  it('a gust that was itself dropped never vouches, so two spikes do not rescue each other', () => {
+    const out = keepCorroboratedGusts([sheltered(), qc('mg_island', 4, 15), qc('mg_cape', 4, 15)], coordsOf);
+    expect(out.every((q) => q.reading.windGust === null)).toBe(true);
+  });
+
+  it('leaves the absolute cap and the stations without coordinates as they were', () => {
+    const over = qc('mg_sheltered', 10, MAX_PLAUSIBLE_GUST_MS + 1);
+    expect(keepCorroboratedGusts([over, qc('mg_island', 30, 45), qc('mg_cape', 30, 45)], coordsOf)[0].reading.windGust).toBeNull();
+    const unknown = qc('nt_nowhere', 4, 15);
+    expect(keepCorroboratedGusts([unknown, qc('mg_island', 14, 20), qc('mg_cape', 12, 18)], coordsOf)[0].reading.windGust).toBeNull();
+  });
+
+  it('does not touch a clean reading', () => {
+    const clean = qc('mg_island', 14, 20);
+    expect(keepCorroboratedGusts([clean, sheltered()], coordsOf)[0]).toBe(clean);
   });
 });

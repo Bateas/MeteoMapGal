@@ -4,7 +4,7 @@
 
 import pg from 'pg';
 import type { NormalizedReading } from '../src/types/station.js';
-import { applyQualityControl, summariseQualityControl, describeQualityControl, type QualityControlled } from './readingQuality.js';
+import { applyQualityControl, keepCorroboratedGusts, summariseQualityControl, describeQualityControl, type QualityControlled } from './readingQuality.js';
 import { log } from './logger.js';
 
 const { Pool } = pg;
@@ -149,6 +149,9 @@ export function readingRow(q: QualityControlled): unknown[] {
  */
 let stuckAnemometers: ReadonlySet<string> = new Set();
 
+/** Where each station is, as of the last `batchUpsertStations`: what quality control needs to ask the neighbours. */
+const stationCoords = new Map<string, { lat: number; lon: number }>();
+
 export function setStuckAnemometers(ids: ReadonlySet<string>): void {
   stuckAnemometers = ids;
 }
@@ -167,7 +170,12 @@ export async function batchUpsert(
   // reading exactly as every existing consumer expects it — implausible values
   // nulled — plus what was rejected and why, so the archive keeps what the
   // filter throws away. See readingQuality.ts for why that distinction matters.
-  const controlled = readings.map((r) => applyQualityControl(r, stuckAnemometers));
+  // A gust over the ratio is given back when two neighbours measured as much (a gale at a sheltered
+  // site); the coordinates are the ones the last station upsert saw.
+  const controlled = keepCorroboratedGusts(
+    readings.map((r) => applyQualityControl(r, stuckAnemometers)),
+    (id) => stationCoords.get(id),
+  );
 
   // Say what was rejected. A nulled column is indistinguishable from a sensor
   // the station never had, so without this line the checks are invisible and a
@@ -314,6 +322,9 @@ export async function batchUpsertStations(
   const db = getPool();
   const entries = Array.from(stations.values());
   if (entries.length === 0) return 0;
+  for (const s of entries) {
+    if (Number.isFinite(s.lat) && Number.isFinite(s.lon)) stationCoords.set(s.id, { lat: s.lat, lon: s.lon });
+  }
 
   const BATCH_SIZE = 100;
   // Must match BOTH the column list and the values pushed below. Getting this
