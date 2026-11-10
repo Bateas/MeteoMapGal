@@ -19,6 +19,8 @@ import {
   BUOY_STALE_MAX_MIN,
   BUOY_WAVE_MAX_MIN,
   isOpenWaterWind,
+  trustedBuoyWindDir,
+  BUOY_WIND_DIR_UNRELIABLE,
 } from './buoyUtils';
 
 // ── waveHeightColor ──────────────────────────────────────────
@@ -269,3 +271,16 @@ describe('isOpenWaterWind', () => {
     for (const id of [1250, 1251, 1253, 2248]) expect(isOpenWaterWind(id)).toBe(true);
   });
 });
+
+describe('trustedBuoyWindDir', () => {
+  it('leaves out the direction of the Vigo gauge, whose vane came back rotated in nov-2025', () => {
+    expect(trustedBuoyWindDir(3221, 230)).toBeNull();
+    expect(BUOY_WIND_DIR_UNRELIABLE.has(3221)).toBe(true);
+  });
+  it('keeps every other gauge and buoy as published', () => {
+    expect(trustedBuoyWindDir(3223, 190)).toBe(190);
+    expect(trustedBuoyWindDir(2248, 0)).toBe(0);
+    expect(trustedBuoyWindDir(3223, null)).toBeNull();
+  });
+});
+

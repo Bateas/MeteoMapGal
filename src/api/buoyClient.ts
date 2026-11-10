@@ -7,6 +7,7 @@
  */
 
 import { fetchWithRetry } from './fetchWithRetry';
+import { trustedBuoyWindDir } from '../services/buoyUtils';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -144,7 +145,7 @@ export function storedRowToReading(row: StoredBuoyRow): BuoyReading {
     wavePeriodMean: row.wave_period_mean,
     waveDir: row.wave_dir,
     windSpeed: row.wind_speed,
-    windDir: row.wind_dir,
+    windDir: trustedBuoyWindDir(row.station_id, row.wind_dir),
     windGust: row.wind_gust,
     waterTemp: row.water_temp,
     airTemp: row.air_temp,
