@@ -17,7 +17,7 @@ import type { ThermalVeto } from '../src/services/cesantesCanalizationDetector.j
 import type { PrecipSample } from '../src/services/precipSemantics.js';
 import { detectBocana, bocanaFigureKt } from '../src/services/bocanaDetector.js';
 import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor, spotGustKt, WATER_LEVEL_MAX_ALTITUDE_M } from '../src/services/spotScoringEngine.js';
-import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN } from '../src/services/buoyUtils.js';
+import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN, trustedBuoyWindDir } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
 import { sunHour } from '../src/services/localTime.js';
@@ -236,7 +236,7 @@ export function buoyWindToBuoyReading(b: BuoyWind): BuoyReading {
     wavePeriodMean: null,
     waveDir: b.wave_dir ?? null,
     windSpeed: b.wind_speed > 0 ? b.wind_speed : null,
-    windDir: b.wind_dir,
+    windDir: trustedBuoyWindDir(b.station_id, b.wind_dir),
     windGust: null,
     waterTemp: b.water_temp ?? null,
     airTemp: b.air_temp ?? null,
@@ -661,7 +661,7 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
     const proximityBoost = (preferredBuoySet.has(b.station_id) && distKm <= 5) ? 2.0 : 1.0;
     const weight = (proximityBoost / (distKm + 1))
       * buoyFreshness(b.time, now) * BUOY_EXPOSURE_BOOST;
-    entries.push({ speedKt, weight, dir: b.wind_dir });
+    entries.push({ speedKt, weight, dir: trustedBuoyWindDir(b.station_id, b.wind_dir) });
   }
 
   // ── Outlier suppression (port of engine step 4) ──

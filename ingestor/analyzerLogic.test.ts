@@ -785,8 +785,10 @@ describe('scoreSpot — Bocana terral matinal (Phase B TIER 1 P0)', () => {
     });
     const result = scoreSpot(bocana, [landStation], [rande, vigo]);
     expect(result.boostedBy).toBe('bocana-terral');
-    // Raw was ~6kt (land 2kt + buoy 9.7kt avg), boost adds 2-8kt
-    expect(result.avgWindKt).toBeGreaterThan(result.rawWindKt!);
+    // Since 10-nov-2026 the Vigo gauge's direction is not used (vane rotated ~40 degrees since nov-2025,
+    // BUOY_WIND_DIR_UNRELIABLE): it cannot say «from land», so it no longer lifts the figure above the
+    // consensus. Its speed still counts inside the consensus.
+    expect(result.avgWindKt).toBe(result.rawWindKt);
   });
 
   it('does NOT boost outside 6-11h window', () => {

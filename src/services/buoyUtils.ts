@@ -153,6 +153,22 @@ export function isLandStationCopy(buoyId: number): boolean {
  */
 export const SHELTERED_BUOY_WIND: ReadonlySet<number> = new Set([3220, 3221, 3223, 4271]);
 
+/**
+ * Gauges whose wind DIRECTION is not used; their speed is.
+ *
+ * Vigo 3221: no data from 14-oct to 25-nov-2025, and since it came back its vane reads about 40 degrees
+ * clockwise of where it did, the same for every direction (measured against the Marin gauge, Porto de
+ * Vigo and the 1 km model through the whole of 2026); the speed did not change. A fixed correction
+ * would turn wrong the day the vane is re-aligned, so the direction is left out until its owner says.
+ * Stored readings keep the value as published.
+ */
+export const BUOY_WIND_DIR_UNRELIABLE: ReadonlySet<number> = new Set([3221]);
+
+/** The direction a buoy reading may be used with: null for the gauges in BUOY_WIND_DIR_UNRELIABLE. */
+export function trustedBuoyWindDir(buoyId: number, windDir: number | null): number | null {
+  return BUOY_WIND_DIR_UNRELIABLE.has(buoyId) ? null : windDir;
+}
+
 export function isOpenWaterWind(buoyId: number): boolean {
   return !SHELTERED_BUOY_WIND.has(buoyId);
 }
