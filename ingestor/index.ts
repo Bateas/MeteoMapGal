@@ -25,6 +25,7 @@ import { setSendRecorder, seedCooldowns, dispatchSourceSilenceAlert } from './al
 import { recordSent, loadRecentSends } from './sentAlerts.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
 import { runLightningCycle } from './lightningFetcher.js';
+import { runLightningProbShadow } from './lightningProbShadow.js';
 import { runSynopticCycle, lastSynopticRunMs } from './synopticFetcher.js';
 import { runFirmsCycle } from './firmsFetcher.js';
 import { runEffisCycle } from './effisFetcher.js';
@@ -91,6 +92,9 @@ async function lightningLoop(): Promise<void> {
   try {
     stormActive = (await runLightningCycle()).stormActive;
     await runLightningSafety();
+    // Shadow lightning probability (stored, shown nowhere). Not awaited: it never throws and must
+    // not delay the next poll or the safety check above.
+    void runLightningProbShadow();
     if (stormActive !== lightningStormMode) {
       log.info(stormActive ? '[Lightning] tormenta activa (sondeo cada 5 min, lo que pide MeteoGalicia)' : '[Lightning] sin tormenta cerca');
       lightningStormMode = stormActive;
