@@ -19,7 +19,7 @@
 
 import type { SpotScore, SpotVerdict } from './spotScoringEngine';
 import type { SailingSpot } from '../config/spots';
-import { VERDICT_HEX, displayVerdict, displayWindKt, isDirVariable, verdictLabel, gateWaveText, gateWaveWhere } from '../config/verdictStyles';
+import { VERDICT_HEX, displayVerdict, displayWindKt, isDirVariable, verdictLabel, gateWaveText, gateWaveWhere, verdictDoubtText } from '../config/verdictStyles';
 
 // ── Data shape ──────────────────────────────────────────────
 
@@ -38,6 +38,8 @@ export interface ShareCardData {
   waterTempC: number | null;
   waveSummary: string | null;
   summary: string | null;
+  /** «entre Navegable y Buen día» when the wind sits on a verdict line. */
+  doubt?: string | null;
   /** Spot closed by the sea: «3,0 m» and where it was measured; the card then leads with the sea. */
   seaText?: string | null;
   seaWhere?: string | null;
@@ -99,6 +101,7 @@ export function buildShareData(
     waterTempC: score.waterTemp != null ? Math.round(score.waterTemp * 10) / 10 : null,
     waveSummary: extras.waveSummary ?? null,
     summary: score.summary ?? null,
+    doubt: verdictDoubtText(score),
     seaText: gateWaveText(score),
     seaWhere: gateWaveWhere(score),
     generatedAt: new Date(),
@@ -326,6 +329,7 @@ export function buildShareText(data: ShareCardData): string {
     if (data.windKt != null) line1Bits.push(`viento ${data.windKt}kt`);
   } else if (data.windKt != null) {
     line1Bits.push(`${data.windKt}kt${data.windDirCardinal ? ' ' + data.windDirCardinal : ''}`);
+    if (data.doubt) line1Bits.push(data.doubt);
   }
   if (data.gustKt != null && data.windKt != null && data.gustKt >= data.windKt + 5) {
     line1Bits.push(`rachas ${data.gustKt}kt`);

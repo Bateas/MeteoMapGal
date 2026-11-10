@@ -22,7 +22,7 @@ import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import { MAX_PLAUSIBLE_GUST_KT as MAX_DISPLAY_GUST_KT } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
 import { isBeachSpot } from '../../config/spots';
-import { displayWindKt, displayWindDir, displayVerdict as renderedVerdict, gateWaveText, gateWaveWhere } from '../../config/verdictStyles';
+import { displayWindKt, displayWindDir, displayVerdict as renderedVerdict, gateWaveText, gateWaveWhere, verdictDoubtText } from '../../config/verdictStyles';
 import { SpotReportBox } from '../spot/SpotReportBox';
 import { fetchRecentReports } from '../../api/fieldReportClient';
 import type { RecentReportSummary } from '../../services/fieldReport';
@@ -500,6 +500,8 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
 
         {spot.category !== 'surf' && score?.wind && (
           <div className="sg-meta">
+            {/* On a verdict line the reading does not tell the two levels apart: say so. */}
+            {verdictDoubtText(score) && <span>{verdictDoubtText(score)} ·</span>}
             <SpotWindTrend spotId={spot.id} />
             <SpotWindSparkline spotId={spot.id} />
             <span>{score.wind.stationCount} estaciones</span>
