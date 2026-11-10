@@ -137,6 +137,14 @@ describe('buildShareFilename', () => {
 // ── buildShareText ──────────────────────────────────────────
 
 describe('buildShareText', () => {
+  it('says the doubt when the wind sits on a verdict line, and nothing when it is clear', () => {
+    const onLine = buildShareData(SPOT_CESANTES, SCORE_BASE, { sectorId: 'rias' });
+    expect(onLine.doubt).toBe('entre Navegable y Buen día');
+    expect(buildShareText(onLine)).toContain('entre Navegable y Buen día');
+    const clear = buildShareData(SPOT_CESANTES, { ...SCORE_BASE, effectiveWindKt: 9.5, wind: { ...SCORE_BASE.wind!, avgSpeedKt: 9.5 } }, { sectorId: 'rias' });
+    expect(clear.doubt).toBeNull();
+  });
+
   it('produces caption with verdict and url', () => {
     const data = buildShareData(SPOT_CESANTES, SCORE_BASE, { sectorId: 'rias' });
     const text = buildShareText(data);

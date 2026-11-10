@@ -174,6 +174,12 @@ export function renderShareCanvas(canvas: HTMLCanvasElement, data: ShareCardData
   ctx.fillStyle = data.verdictColor;
   ctx.textBaseline = 'middle';
   ctx.fillText(verdictText, PAD + 24, 242);
+  // The wind on a verdict line: both levels named beside the pill, in the quiet tone.
+  if (data.doubt) {
+    ctx.font = '500 32px "DM Sans", system-ui, sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(fitText(ctx, data.doubt, CARD_W - PAD * 2 - verdictW - 24), PAD + verdictW + 24, 242);
+  }
 
   ctx.textBaseline = 'alphabetic';
   ctx.font = '700 96px "DM Sans", system-ui, sans-serif';
