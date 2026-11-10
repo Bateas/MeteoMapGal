@@ -82,6 +82,28 @@ describe('dry now, and the model had rain for the last hours', () => {
   });
 });
 
+describe('a gauge that marks under the threshold is not «nothing»', () => {
+  // 10-nov-2026 at the point: drizzle from 9 to 10, 0,1 mm at the gauge, and the card said «no ha medido nada».
+  const drizzle = gauge([[9, 30, 0.1]]);
+
+  it('says how little it measured when the model had rain', () => {
+    const p = run({ 9: 2.6 }, [drizzle]);
+    expect(p.state).toBe('no-llega');
+    expect(p.text).toBe('El WRF daba lluvia a las 9 h y Estación A solo ha medido 0,1 mm: es llovizna, o lo que daba el modelo aún no ha llegado.');
+  });
+
+  it('calls it drizzle with rain ahead, and with none', () => {
+    expect(run({ 12: 2 }, [drizzle]).text).toBe('Estación A marca llovizna (0,1 mm en la última hora). El WRF da lluvia hacia las 12 h.');
+    expect(run({}, [drizzle]).text).toBe('Estación A marca llovizna (0,1 mm en la última hora) y el WRF no da lluvia.');
+    expect(run({ 16: 2 }, [drizzle]).text).toBe('Estación A marca llovizna (0,1 mm en la última hora) y el WRF no da lluvia hasta las 16 h.');
+  });
+
+  it('keeps the state: under the threshold is still not rain for the watcher', () => {
+    expect(run({}, [drizzle]).state).toBe('seco');
+    expect(run({ 12: 2 }, [drizzle]).state).toBe('se-acerca');
+  });
+});
+
 describe('dry now, looking ahead', () => {
   it('rain soon', () => {
     const p = run({ 11: 2 }, [gauge()]);

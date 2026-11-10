@@ -47,7 +47,8 @@ export interface Panorama {
   key: string;
 }
 
-type Zone = { state: 'wet'; mm: number; name: string } | { state: 'dry'; name: string } | { state: 'unknown' };
+/** `dry` = under the threshold, which is not the same as nothing: `mm` is what its official gauge did mark. */
+type Zone = { state: 'wet'; mm: number; name: string } | { state: 'dry'; name: string; mm: number } | { state: 'unknown' };
 
 function zone(gauges: WatchGauge[], endMs: number, windowMin: number): Zone {
   const read = gauges.flatMap((g) => {
@@ -59,10 +60,15 @@ function zone(gauges: WatchGauge[], endMs: number, windowMin: number): Zone {
   const wet = read.filter((r) => r.mm >= GAUGE_WET_MM).sort((a, b) => b.mm - a.mm);
   if (wet.some((r) => isOfficialGauge(r.g.id)) || wet.length >= 2) return { state: 'wet', mm: wet[0].mm, name: wet[0].g.name };
   const official = read.find((r) => isOfficialGauge(r.g.id));
-  return official ? { state: 'dry', name: official.g.name } : { state: 'unknown' };
+  return official ? { state: 'dry', name: official.g.name, mm: official.mm } : { state: 'unknown' };
 }
 
 const atHour = (h: number) => `${h === 1 ? 'la' : 'las'} ${h} h`;
+
+/** What a gauge under the threshold says of the last hour. 10-nov-2026: «no ha medido nada» with 0,1 mm
+ *  marked and drizzle falling on the point. Words only: the states and the thresholds do not move. */
+const dryNow = (z: { name: string; mm: number }) =>
+  z.mm > 0 ? `${z.name} marca llovizna (${fmtMm(z.mm)} mm en la última hora)` : `${z.name} no mide lluvia`;
 
 const NO_DATA: Panorama = {
   state: 'sin-dato',
@@ -132,7 +138,9 @@ export function pointRainPanorama(opts: { model: ModelHour[]; gauges: WatchGauge
       }
       return {
         state: 'no-llega',
-        text: `El WRF daba lluvia a ${atHour(hourAt(start))} y ${last.name} no ha medido nada: aún no ha llegado, no llegará o es tan débil que no marca.`,
+        text: since.mm > 0
+          ? `El WRF daba lluvia a ${atHour(hourAt(start))} y ${since.name} solo ha medido ${fmtMm(since.mm)} mm: es llovizna, o lo que daba el modelo aún no ha llegado.`
+          : `El WRF daba lluvia a ${atHour(hourAt(start))} y ${last.name} no ha medido nada: aún no ha llegado, no llegará o es tan débil que no marca.`,
         key: `no-llega:${startMs}`,
       };
     }
@@ -142,7 +150,7 @@ export function pointRainPanorama(opts: { model: ModelHour[]; gauges: WatchGauge
   if (soon !== null) {
     return {
       state: 'se-acerca',
-      text: `${last.name} no mide lluvia. El WRF la da ${soon === 0 ? 'para esta hora' : `hacia ${atHour(hourAt(soon))}`}.`,
+      text: `${dryNow(last)}. El WRF ${last.mm > 0 ? 'da lluvia' : 'la da'} ${soon === 0 ? 'para esta hora' : `hacia ${atHour(hourAt(soon))}`}.`,
       key: `se-acerca:${nowH + soon * HOUR_MS}`,
     };
   }
@@ -150,8 +158,8 @@ export function pointRainPanorama(opts: { model: ModelHour[]; gauges: WatchGauge
   return {
     state: 'seco',
     text: later === null
-      ? `${last.name} no mide lluvia y el WRF tampoco la da.`
-      : `${last.name} no mide lluvia y el WRF no la da hasta ${atHour(hourAt(later))}.`,
+      ? (last.mm > 0 ? `${dryNow(last)} y el WRF no da lluvia.` : `${last.name} no mide lluvia y el WRF tampoco la da.`)
+      : `${dryNow(last)} y el WRF no ${last.mm > 0 ? 'da lluvia' : 'la da'} hasta ${atHour(hourAt(later))}.`,
     key: '',
   };
 }
