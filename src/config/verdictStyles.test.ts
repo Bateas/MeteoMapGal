@@ -20,7 +20,7 @@ import {
   isDirVariable,
   DIR_VARIABLE_BELOW,
 } from './verdictStyles';
-import { verdictFigure, gateWaveWhere, gateWaveText } from './verdictStyles';
+import { verdictFigure, gateWaveWhere, gateWaveText, verdictDoubt, verdictDoubtText } from './verdictStyles';
 import type { SpotVerdict } from '../services/spotScoringEngine';
 
 describe('displayVerdict', () => {
@@ -153,5 +153,30 @@ describe('spot closed by the sea (wave hard gate)', () => {
   it('a provisional score stays «Calculando…»', () => {
     expect(verdictLabel({ ...cies, provisional: true })).toBe('Calculando…');
     expect(verdictFigure({ ...cies, provisional: true })).toBeNull();
+  });
+});
+
+describe('verdictDoubt: the wind on a line', () => {
+  const at = (verdict: 'calm' | 'light' | 'sailing' | 'good' | 'strong', kt: number) => ({ verdict, effectiveWindKt: kt });
+  it('names both levels at the 12 and 18 kt lines, from either side', () => {
+    expect(verdictDoubtText(at('sailing', 11))).toBe('entre Navegable y Buen día');
+    expect(verdictDoubtText(at('good', 12.2))).toBe('entre Navegable y Buen día');
+    expect(verdictDoubtText(at('good', 17))).toBe('entre Buen día y Fuerte');
+  });
+  it('is silent away from a line', () => {
+    expect(verdictDoubtText(at('sailing', 9.5))).toBeNull();
+    expect(verdictDoubtText(at('good', 14))).toBeNull();
+  });
+  it('never softens a spot shown strong, closed by a gate, or still loading', () => {
+    expect(verdictDoubt(at('strong', 17.8))).toBeNull();
+    expect(verdictDoubt({ ...at('strong', 11), hardGateTriggered: 'Rachas de 32 kt', hardGateKind: 'wind' })).toBeNull();
+    expect(verdictDoubt({ ...at('good', 12), provisional: true })).toBeNull();
+    expect(verdictDoubt({ verdict: 'unknown', effectiveWindKt: 12 })).toBeNull();
+  });
+  it('at the 6 and 8 kt lines speaks only when the colour is held against the figure', () => {
+    expect(verdictDoubtText(at('light', 7))).toBeNull();
+    expect(verdictDoubtText(at('light', 7.8))).toBe('entre Flojo y Navegable');
+    expect(verdictDoubtText(at('calm', 5.9))).toBe('entre Calma y Flojo');
+    expect(verdictDoubtText(at('calm', 5))).toBeNull();
   });
 });

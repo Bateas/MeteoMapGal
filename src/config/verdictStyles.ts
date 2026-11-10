@@ -57,6 +57,7 @@ export interface VerdictSource {
   effectiveWindKt?: number | null;
   wind?: { avgSpeedKt: number } | null;
   hardGateKind?: 'wind' | 'wave' | null;
+  hardGateTriggered?: string | null;
   waves?: { waveHeight: number | null; sourceBuoy?: string | null; localHeight?: number | null; localSource?: 'swan' | 'estimate' | 'buoy' | null } | null;
 }
 
@@ -72,6 +73,46 @@ export function verdictLabel(score: VerdictSource | undefined | null): string {
   if (score?.provisional) return PROVISIONAL_LABEL;
   if (isWaveGate(score)) return WAVE_GATE_LABEL;
   return VERDICT_STYLE[displayVerdict(score)].label;
+}
+
+// ── Wind on a line: say the doubt ────
+//
+// 44 % of the cycles sit within 1 kt of a verdict line (20-oct to 10-nov), and an anemometer does
+// not tell 11 kt from 12. The colour waits for the wind to pass the line by that margin
+// (verdictHold.ts); meanwhile the card names both levels. Never from above: a spot shown FUERTE,
+// closed by gusts or by the sea, or still loading, states no doubt. The two low lines (6 and 8 kt)
+// change nobody's decision, so they speak only when the colour is being held and the figure would
+// otherwise contradict the label.
+
+/** kt either side of a line inside which the reading does not tell the two levels apart. */
+export const VERDICT_DOUBT_KT = 1.0;
+
+// `windVerdict` rounds, so each line sits half a knot below its integer.
+const DOUBT_LINES: { at: number; low: SpotVerdict; high: SpotVerdict; always: boolean }[] = [
+  { at: 5.5, low: 'calm', high: 'light', always: false },
+  { at: 7.5, low: 'light', high: 'sailing', always: false },
+  { at: 11.5, low: 'sailing', high: 'good', always: true },
+  { at: 17.5, low: 'good', high: 'strong', always: true },
+];
+
+/** The two levels the wind sits between, or null when the verdict is clear. */
+export function verdictDoubt(score: VerdictSource | undefined | null): { low: SpotVerdict; high: SpotVerdict } | null {
+  if (!score || score.provisional || score.hardGateTriggered || score.hardGateKind) return null;
+  const shown = score.verdict;
+  if (!shown || shown === 'strong' || shown === 'unknown') return null;
+  const kt = displayWindKt(score);
+  if (kt == null) return null;
+  const line = DOUBT_LINES.find((l) => Math.abs(kt - l.at) < VERDICT_DOUBT_KT);
+  if (!line || (shown !== line.low && shown !== line.high)) return null;
+  const held = (kt >= line.at ? line.high : line.low) !== shown;
+  if (!line.always && !held) return null;
+  return { low: line.low, high: line.high };
+}
+
+/** «entre Navegable y Buen día», or null. */
+export function verdictDoubtText(score: VerdictSource | undefined | null): string | null {
+  const d = verdictDoubt(score);
+  return d ? `entre ${VERDICT_STYLE[d.low].label} y ${VERDICT_STYLE[d.high].label}` : null;
 }
 
 // ── A spot closed by the SEA, not the wind ────

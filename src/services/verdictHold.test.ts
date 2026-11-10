@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { settleVerdict, holdContextKey, VERDICT_HOLD_MS, HOLD_STATE_TTL_MS, type VerdictHoldState } from './verdictHold';
+import { settleVerdict, holdContextKey, HOLD_STATE_TTL_MS, type VerdictHoldState } from './verdictHold';
 import { scoreAllSpots } from './spotScoringEngine';
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import { RIAS_SPOTS } from '../config/spots';
+import { verdictDoubtText } from '../config/verdictStyles';
 
 const MIN = 60_000;
 const T0 = Date.parse('2026-10-08T10:00:00Z');
@@ -27,14 +28,15 @@ describe('settleVerdict', () => {
     expect(new Set(shown)).toEqual(new Set(['sailing']));
   });
 
-  it('changes once the new verdict has lasted the hold time', () => {
+  it('time alone does not change it: only the wind clearly past the line does', () => {
     const shown = run([
       { raw: 'sailing', at: T0 },
       { raw: 'good', at: T0 + 5 * MIN },
       { raw: 'good', at: T0 + 10 * MIN },
-      { raw: 'good', at: T0 + 5 * MIN + VERDICT_HOLD_MS },
+      { raw: 'good', at: T0 + 15 * MIN },
+      { raw: 'good', at: T0 + 19 * MIN, clearly: true },
     ]);
-    expect(shown).toEqual(['sailing', 'sailing', 'sailing', 'good']);
+    expect(shown).toEqual(['sailing', 'sailing', 'sailing', 'sailing', 'good']);
   });
 
   it('changes at once when the wind is clearly past the line', () => {
@@ -51,8 +53,6 @@ describe('settleVerdict', () => {
   it('coming down from strong waits like any adjacent change (17-18 kt flicker), and goes clearly at once', () => {
     const seq = ['strong', 'good', 'strong', 'good', 'good'] as const;
     expect(run(seq.map((raw, i) => ({ raw, at: T0 + i * 5 * MIN })))).toEqual(['strong', 'strong', 'strong', 'strong', 'strong']);
-    expect(run([{ raw: 'strong', at: T0 }, { raw: 'good', at: T0 + MIN }, { raw: 'good', at: T0 + MIN + VERDICT_HOLD_MS }]))
-      .toEqual(['strong', 'strong', 'good']);
     expect(run([{ raw: 'strong', at: T0 }, { raw: 'good', at: T0 + MIN, clearly: true }])).toEqual(['strong', 'good']);
   });
 
@@ -82,7 +82,10 @@ describe('scoreAllSpots with the verdict hold', () => {
     const held = score(onLine, { states, nowMs: T0 + 5 * MIN });
     expect(held.verdict).toBe('sailing');
     expect(held.summary).not.toMatch(/Buenas condiciones/);
-    expect(score(onLine, { states, nowMs: T0 + 5 * MIN + VERDICT_HOLD_MS }).verdict).toBe('good');
+    // A held colour always comes with the doubt said.
+    expect(verdictDoubtText(held)).toBe('entre Navegable y Buen día');
+    expect(score(onLine, { states, nowMs: T0 + 15 * MIN }).verdict).toBe('sailing');
+    expect(score(onLine + 1.2, { states, nowMs: T0 + 16 * MIN }).verdict).toBe('good');
   });
 
   it('goes up at once when the wind is well past the line', () => {

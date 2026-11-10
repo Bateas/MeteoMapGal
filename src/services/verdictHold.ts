@@ -5,8 +5,12 @@
  * centro-ria 14, almost always with 1-2 kt between cycles, because the wind sat on the 12 kt
  * line (NAVEGABLE / BUENO) and the consensus moves about 1 kt from one cycle to the next.
  *
- * Rule: a change to the next level up or down waits until the new verdict has lasted
- * VERDICT_HOLD_MS, unless the wind is clearly past the line (the caller says so). Every other
+ * Rule (10-nov): a change to the next level up or down shows only when the wind is clearly
+ * past the line (the caller says so). There is no clock any more: replayed over 21 days, the
+ * 8-minute wait left 14.8 changes a day per spot and 4.6 there-and-back; waiting for the margin
+ * leaves 9.65 and 2.05, with no rise to strong delayed. While the colour is held the wind is
+ * within the margin of the line, and the card says so («entre Navegable y Buen día»,
+ * `verdictDoubt` in config/verdictStyles.ts). Every other
  * change is immediate: going UP to strong (danger lives there), unknown (no data / cold load)
  * and any jump of two levels or more. Coming DOWN from strong to good waits like any other
  * adjacent change (17-18 kt flickered too): it keeps the warning colour a little longer, never
@@ -21,7 +25,6 @@
 import type { SpotVerdict } from './spotScoringEngine';
 import { assessSynopticRegime, type UpperWind } from './synopticRegime';
 
-export const VERDICT_HOLD_MS = 8 * 60_000;
 export const HOLD_STATE_TTL_MS = 20 * 60_000;
 /** kt past the line that count as a real change, not noise around it. `windVerdict` rounds, so
  *  the line itself sits half a knot below the integer (BUENO from 11.5): with 1.0 a held colour
@@ -60,10 +63,7 @@ export function settleVerdict(
   if (raw === prev.shown) return show(raw);
   if (raw === 'strong' || raw === 'unknown' || prev.shown === 'unknown') return show(raw);
   if (Math.abs(RANK[raw] - RANK[prev.shown]) >= 2 || clearlyRaw) return show(raw);
-  if (prev.pending === raw) {
-    if (nowMs - prev.pendingSince >= VERDICT_HOLD_MS) return show(raw);
-    return { shown: prev.shown, state: { ...prev, seenAt: nowMs } };
-  }
+  if (prev.pending === raw) return { shown: prev.shown, state: { ...prev, seenAt: nowMs } };
   return { shown: prev.shown, state: { shown: prev.shown, pending: raw, pendingSince: nowMs, seenAt: nowMs } };
 }
 
