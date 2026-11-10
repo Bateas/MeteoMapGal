@@ -30,6 +30,7 @@
 
 import type { NormalizedReading } from '../src/types/station.js';
 import { gustComparableToMean } from '../src/services/gustSemantics.js';
+import { fastDistanceKm } from '../src/services/idwInterpolation.js';
 
 /**
  * Above this, a gust is treated as a sensor artefact (~90kt). It was 23 m/s (~45kt) until
@@ -127,6 +128,15 @@ export const QC_DEWPOINT_ABOVE_TEMP = 32;
 export const QC_TEMP_IMPLAUSIBLE = 64;
 /** Pressure outside anything the atmosphere produces at sea level. */
 export const QC_PRESSURE_IMPLAUSIBLE = 128;
+
+/** Gust above the ratio, but kept: neighbours measured as much at the same time (keepCorroboratedGusts). */
+export const QC_GUST_RATIO_CORROBORATED = 256;
+
+/** How near, how close in time, how strong and how many, for a neighbour's gust to vouch for one. */
+export const CORROBORATE_KM = 30;
+export const CORROBORATE_WINDOW_MS = 15 * 60_000;
+export const CORROBORATE_FRACTION = 0.8;
+export const CORROBORATE_NEIGHBOURS = 2;
 
 export interface QualityControlled {
   /** The reading as every existing consumer expects it: rejections nulled. */
@@ -333,6 +343,50 @@ export function summariseQualityControl(
   return { corrected, byReason, suspectStations: [...suspects].slice(0, MAX_NAMED_STATIONS) };
 }
 
+/**
+ * Gives back the gusts the ratio test dropped when the neighbourhood measured the same.
+ *
+ * In a gale a sheltered station has little mean wind and strong gusts, which is exactly what the
+ * ratio test rejects: over 8-10 Nov 2026 it dropped 458 gusts (mean 19 kt, up to 36 kt) while the
+ * islands and capes measured 40 kt. A gust above the ratio is kept when at least two OTHER stations
+ * within 30 km have, within 15 minutes, a clean gust of at least 80 % of it. A broken anemometer
+ * spikes alone, so it stays rejected. Sealed before its exam (28-30 Sep, 5-7 Oct, 10-17 Oct):
+ * 211 of 217 official gusts kept in the two storms, none of the blacklisted stations let through.
+ *
+ * Decided from the batch as it came in: a gust kept here never vouches for another. The absolute
+ * cap is untouched. No coordinates for a station = it stays as the ratio test left it.
+ */
+export function keepCorroboratedGusts(
+  batch: QualityControlled[],
+  coordsOf: (stationId: string) => { lat: number; lon: number } | undefined,
+): QualityControlled[] {
+  const clean = batch.flatMap((q) => {
+    const at = coordsOf(q.reading.stationId);
+    const gust = q.reading.windGust;
+    return at && gust != null ? [{ id: q.reading.stationId, gust, t: q.reading.timestamp.getTime(), at }] : [];
+  });
+  if (clean.length < CORROBORATE_NEIGHBOURS) return batch;
+  return batch.map((q) => {
+    if (!(q.qcFlag & QC_GUST_RATIO) || (q.qcFlag & QC_GUST_ABSOLUTE) || q.windGustRaw == null) return q;
+    const here = coordsOf(q.reading.stationId);
+    if (!here) return q;
+    const t = q.reading.timestamp.getTime();
+    const need = q.windGustRaw * CORROBORATE_FRACTION;
+    const vouching = new Set<string>();
+    for (const c of clean) {
+      if (c.id === q.reading.stationId || c.gust < need || Math.abs(c.t - t) > CORROBORATE_WINDOW_MS) continue;
+      if (fastDistanceKm(here.lat, here.lon, c.at.lat, c.at.lon) <= CORROBORATE_KM) vouching.add(c.id);
+    }
+    if (vouching.size < CORROBORATE_NEIGHBOURS) return q;
+    return {
+      ...q,
+      reading: { ...q.reading, windGust: q.windGustRaw },
+      windGustRaw: null,
+      qcFlag: (q.qcFlag & ~QC_GUST_RATIO) | QC_GUST_RATIO_CORROBORATED,
+    };
+  });
+}
+
 /** One line for the cycle log, or null when there was nothing to say. */
 export function describeQualityControl(s: QualityControlSummary): string | null {
   if (s.corrected === 0) return null;
@@ -349,6 +403,7 @@ export function describeQcFlag(qcFlag: number): string[] {
   const reasons: string[] = [];
   if (qcFlag & QC_GUST_ABSOLUTE) reasons.push('gust above absolute cap');
   if (qcFlag & QC_GUST_RATIO) reasons.push('gust above ratio to mean');
+  if (qcFlag & QC_GUST_RATIO_CORROBORATED) reasons.push('gust above ratio kept, neighbours measured as much');
   if (qcFlag & QC_SPEED_ABSOLUTE) reasons.push('speed above absolute cap');
   if (qcFlag & QC_ANEMOMETER_STUCK) reasons.push('zero from a stopped anemometer');
   if (qcFlag & QC_SOLAR_IMPOSSIBLE) reasons.push('solar above what reaches this latitude');
