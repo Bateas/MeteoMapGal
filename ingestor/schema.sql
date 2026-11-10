@@ -358,6 +358,11 @@ ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS boosted_by TEXT;
 ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS boost_confidence SMALLINT;
 ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS engine_verdict TEXT;
 ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS engine_wind_kt REAL;
+-- What the map SHOWS (ingestor/shownVerdict.ts): engine_verdict after the map's own hold (the colour
+-- changes only when the wind is 1 kt past the line) and the two levels the card names on a line
+-- ('sailing-good'), NULL when the verdict is clear. Nothing reads them: they measure the flicker.
+ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS shown_verdict TEXT;
+ALTER TABLE spot_scores ADD COLUMN IF NOT EXISTS doubt TEXT;
 
 -- ── Lightning strikes (historical-data-vision Phase 1a) ────
 -- Individual strikes from MeteoGalicia meteo2api raios/lenda.
@@ -1401,5 +1406,34 @@ DO $$ BEGIN
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ml_job') THEN
     GRANT SELECT ON mg_hourly TO ml_job;
+  END IF;
+END $$;
+
+-- ── MeteoGalicia official warnings, with start and end (mgWarningsArchive.ts) ──────
+-- The RSS only says what is in force or announced now. One row per type, zone, level and span,
+-- with the first and the last time the feed showed it (every 30 min). Nothing reads it yet:
+-- it is the label to judge storm, wind and rain detectors with afterwards.
+CREATE TABLE IF NOT EXISTS mg_warnings (
+  type_id       INTEGER     NOT NULL,   -- idtipoalerta of the feed
+  zone_id       INTEGER     NOT NULL,
+  level         SMALLINT    NOT NULL,   -- 1 yellow, 2 orange, 3 red
+  start_time    TIMESTAMPTZ NOT NULL,
+  end_time      TIMESTAMPTZ NOT NULL,
+  type          TEXT        NOT NULL,   -- as the feed names it (Galician)
+  zone          TEXT        NOT NULL,
+  comment       TEXT,
+  published_at  TIMESTAMPTZ,            -- pubDate of the item
+  first_seen    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (type_id, zone_id, level, start_time, end_time)
+);
+CREATE INDEX IF NOT EXISTS mg_warnings_start_idx ON mg_warnings (start_time DESC);
+GRANT SELECT, INSERT, UPDATE ON mg_warnings TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON mg_warnings TO grafana_ro;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ml_job') THEN
+    GRANT SELECT ON mg_warnings TO ml_job;
   END IF;
 END $$;

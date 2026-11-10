@@ -40,6 +40,7 @@ import { runNwpPreviousCycle, NWP_PREVIOUS_INTERVAL_MS } from './nwpPreviousFetc
 import { runWrfPointArchive, WRF_POINT_CHECK_MS } from './wrfPointArchive.js';
 import { runPointRainWatch, POINT_WATCH_EVERY_MS } from './pointRainWatch.js';
 import { runMetarArchive, METAR_ARCHIVE_INTERVAL_MS } from './metarArchive.js';
+import { runMgWarningsArchive, MG_WARNINGS_EVERY_MS } from './mgWarningsArchive.js';
 import { runIntecmarArchive, INTECMAR_CHECK_MS } from './intecmarArchive.js';
 import { runIntecmarHistory } from './intecmarHistory.js';
 import { runMgHourlyArchive } from './mgHourlyArchive.js';
@@ -118,6 +119,7 @@ let nwpPreviousTimer: ReturnType<typeof setInterval> | null = null;
 let wrfPointTimer: ReturnType<typeof setInterval> | null = null;
 let pointRainTimer: ReturnType<typeof setInterval> | null = null;
 let metarTimer: ReturnType<typeof setInterval> | null = null;
+let mgWarningsTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarTimer: ReturnType<typeof setInterval> | null = null;
 let intecmarHistoryTimer: ReturnType<typeof setInterval> | null = null;
 let mgHourlyTimer: ReturnType<typeof setInterval> | null = null;
@@ -681,6 +683,11 @@ async function start(): Promise<void> {
   setTimeout(() => { void runMetarArchive(); }, 280_000);
   metarTimer = setInterval(() => { void runMetarArchive(); }, METAR_ARCHIVE_INTERVAL_MS);
 
+  // MeteoGalicia's official warnings with their start and end (mgWarningsArchive.ts): the feed only
+  // says what is in force now. One request every 30 min. 290s stagger, after METAR.
+  setTimeout(() => { void runMgWarningsArchive(); }, 290_000);
+  mgWarningsTimer = setInterval(() => { void runMgWarningsArchive(); }, MG_WARNINGS_EVERY_MS);
+
   // INTECMAR's own record of the platforms and the CTD casts (intecmarArchive.ts): checked hourly,
   // runs once per UTC day after 01:00 and asks only what the table still lacks. 300s stagger, after METAR.
   setTimeout(() => { void runIntecmarArchive(); }, 300_000);
@@ -731,6 +738,7 @@ async function shutdown(signal: string): Promise<void> {
   if (wrfPointTimer) clearInterval(wrfPointTimer);
   if (pointRainTimer) clearInterval(pointRainTimer);
   if (metarTimer) clearInterval(metarTimer);
+  if (mgWarningsTimer) clearInterval(mgWarningsTimer);
   if (intecmarTimer) clearInterval(intecmarTimer);
   if (intecmarHistoryTimer) clearInterval(intecmarHistoryTimer);
   if (mgHourlyTimer) clearInterval(mgHourlyTimer);
