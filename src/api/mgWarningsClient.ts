@@ -190,7 +190,7 @@ export function warningLevelColor(level: number): string {
  * Parse the RSS XML feed. Uses regex-based parsing (no DOMParser needed
  * for this simple well-structured feed — avoids heavy XML library).
  */
-function parseWarningsXML(xml: string): MGWarning[] {
+export function parseWarningsXML(xml: string): MGWarning[] {
   const warnings: MGWarning[] = [];
 
   // Split by <item> blocks
@@ -263,10 +263,28 @@ function extractTag(xml: string, tag: string): string | null {
   return match ? match[1].trim() : null;
 }
 
-/** Parse MG date format: "DD/MM/YYYY HH:MM" → Date */
-function parseMGDate(str: string): Date {
+const madridParts = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Madrid', hourCycle: 'h23',
+  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+});
+
+/** Offset of Madrid's clock from UTC at that instant, in ms. */
+function madridOffsetMs(utcMs: number): number {
+  const p: Record<string, number> = {};
+  for (const part of madridParts.formatToParts(new Date(utcMs))) if (part.type !== 'literal') p[part.type] = Number(part.value);
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(utcMs / 60_000) * 60_000;
+}
+
+/**
+ * Parse MG date format: "DD/MM/YYYY HH:MM" → Date. The feed writes Galicia's clock time, so it is
+ * read as Europe/Madrid whatever the clock of the machine: the server archives these times too
+ * (ingestor/mgWarningsArchive.ts), and a browser abroad showed them shifted.
+ */
+export function parseMGDate(str: string): Date {
   const match = str.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
   if (!match) return new Date();
   const [, day, month, year, hour, min] = match;
-  return new Date(`${year}-${month}-${day}T${hour}:${min}:00`);
+  const wall = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(min));
+  const first = wall - madridOffsetMs(wall);
+  return new Date(wall - madridOffsetMs(first));
 }
