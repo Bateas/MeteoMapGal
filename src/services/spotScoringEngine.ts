@@ -1463,6 +1463,18 @@ function scoreSpot(
   return { score, verdict, hardGate: null, summary, thermalBoosted, effectiveWindKt: Math.round(effectiveSpd * 10) / 10, humiditySignal: precursor.signal ?? bocanaSignal, thetaVGradient: precursor.thetaVGradient, channelingPossibleKt };
 }
 
+/**
+ * Past the line by a margin = a real change, not noise on it: the verdict a bit nearer the shown
+ * one agrees with the raw one. Shared with the server's record of what the map shows
+ * (ingestor/shownVerdict.ts), so both hold the colour by the same rule.
+ */
+export function isClearlyPastLine(shown: SpotVerdict | undefined, raw: SpotVerdict, kt: number, spotId: SpotId): boolean {
+  const prevRank = shown ? verdictRank(shown) : -1;
+  const rawRank = verdictRank(raw);
+  const probe = windVerdict(rawRank > prevRank ? kt - VERDICT_CLEAR_MARGIN_KT : kt + VERDICT_CLEAR_MARGIN_KT, spotId);
+  return rawRank > prevRank ? verdictRank(probe) >= rawRank : verdictRank(probe) <= rawRank;
+}
+
 // ── Summary Builder ──────────────────────────────────────────
 
 function buildSpotSummary(
@@ -1941,12 +1953,7 @@ export function scoreAllSpots(
     const settle = verdictHold && spot.category !== 'surf'
       ? (raw: SpotVerdict, kt: number): SpotVerdict => {
           const prev = verdictHold.states.get(spot.id);
-          const prevRank = prev ? verdictRank(prev.shown) : -1;
-          const rawRank = verdictRank(raw);
-          // Past the line by a margin = a real change: the verdict a bit nearer the shown one agrees with raw.
-          const probe = windVerdict(rawRank > prevRank ? kt - VERDICT_CLEAR_MARGIN_KT : kt + VERDICT_CLEAR_MARGIN_KT, spot.id);
-          const clearly = rawRank > prevRank ? verdictRank(probe) >= rawRank : verdictRank(probe) <= rawRank;
-          const out = settleVerdict(prev, raw, verdictHold.nowMs, clearly);
+          const out = settleVerdict(prev, raw, verdictHold.nowMs, isClearlyPastLine(prev?.shown, raw, kt, spot.id));
           verdictHold.states.set(spot.id, out.state);
           return out.shown;
         }
