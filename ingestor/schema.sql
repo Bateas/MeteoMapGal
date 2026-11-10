@@ -262,6 +262,9 @@ CREATE TABLE IF NOT EXISTS alert_log (
 );
 
 SELECT create_hypertable('alert_log', 'time', if_not_exists => TRUE);
+-- First writer (10-Nov-2026): lightningProbShadow.ts, alert_type 'lightning-prob-shadow', one row
+-- per sector and lightning poll with the three inputs and both probabilities in params. Append-only.
+GRANT SELECT, INSERT ON alert_log TO meteomap_app;
 
 -- Index for querying by alert type + validation status
 CREATE INDEX IF NOT EXISTS alert_log_type_idx
