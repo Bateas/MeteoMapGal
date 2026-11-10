@@ -41,7 +41,8 @@ import { describeSweep, type SweepStatus } from './sourceHealth.js';
 import { log } from './logger.js';
 import { allSettledLimit } from './concurrency.js';
 import * as aemetBreaker from './aemetBreaker.js';
-import { aemetPollDue, isAemetQuotaAnswer, isAemetKeyRefusal, aemetKeyNotice } from './aemetCadence.js';
+import { aemetPollDue, isAemetQuotaAnswer, isAemetKeyRefusal, aemetKeyNotice, lateAemetReadings } from './aemetCadence.js';
+import { batchUpsert } from './db.js';
 import { jwtExpiryMs } from './poemLogic.js';
 import { dispatchOpsNotice } from './alertDispatcher.js';
 import { ipmaFeed } from './ipmaCadence.js';
@@ -62,6 +63,17 @@ const TIMEOUT = 15_000;
 let aemetLastGoodAt: number | null = null;
 let aemetLastReadings: NormalizedReading[] = [];
 let aemetKeyNotedDay = '';
+const aemetLateSent = new Map<string, number>();
+
+/** Hours that arrived too old for the cycle go straight to the table. Never throws: the poll comes first. */
+async function storeLateAemet(late: NormalizedReading[]): Promise<void> {
+  try {
+    const { inserted } = await batchUpsert(late);
+    if (inserted > 0) log.info(`AEMET: ${inserted} late hourly readings stored (${late.length} in the file were over 2 h old)`);
+  } catch (err) {
+    log.warn('AEMET late readings not stored:', (err as Error).message);
+  }
+}
 
 /** Once a day: when the AEMET key stops working, from its own `exp`. Warnings also go to the owner. */
 function noteAemetKeyExpiry(apiKey: string): void {
@@ -150,6 +162,8 @@ async function fetchAemet(
       aemetLastGoodAt = Date.now();
       void archiveAemetAux(rawObs, stationIds);
       aemetLastReadings = readings;
+      const late = lateAemetReadings(readings, Date.now(), aemetLateSent);
+      if (late.length > 0) void storeLateAemet(late);
     }
     log.info(`AEMET: ${readings.length} readings`);
     return readings;

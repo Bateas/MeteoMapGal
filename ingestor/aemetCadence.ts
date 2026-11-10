@@ -9,6 +9,40 @@
  */
 export const AEMET_MIN_GAP_MS = 15 * 60_000;
 
+/** The cycle only keeps readings under 2 h old (`fetchAllObservations`): right for the map, which wants the present. */
+export const AEMET_LIVE_MAX_AGE_MS = 2 * 60 * 60_000;
+/** The file carries about 13 hourly readings per station; a day leaves room for a long outage of ours. */
+export const AEMET_LATE_MAX_AGE_MS = 24 * 60 * 60_000;
+/** A late reading is offered again after this long, in case its insert failed. */
+export const AEMET_LATE_RESEND_MS = 60 * 60_000;
+
+/**
+ * The hours AEMET published too late for the cycle.
+ *
+ * 22 of the 56 Galician stations (10-nov-2026) deliver their hourly readings in batches every ~4 h. By the
+ * time a batch lands, three of its four hours are over 2 h old and the cycle dropped them: those stations
+ * kept 5-6 readings a day instead of 24, and three quarters of their hourly rain never reached the archive.
+ * The live path stays as it was; these go straight to the table, where `ON CONFLICT DO NOTHING` makes a
+ * repeat harmless. `sent` (key -> when it was offered) keeps the same rows from being offered every poll.
+ */
+export function lateAemetReadings<T extends { stationId: string; timestamp: Date }>(
+  readings: T[], nowMs: number, sent: Map<string, number>,
+): T[] {
+  for (const [k, at] of sent) if (nowMs - at >= AEMET_LATE_RESEND_MS) sent.delete(k);
+  const out: T[] = [];
+  for (const r of readings) {
+    const t = r.timestamp.getTime();
+    if (Number.isNaN(t)) continue;
+    const age = nowMs - t;
+    if (age <= AEMET_LIVE_MAX_AGE_MS || age > AEMET_LATE_MAX_AGE_MS) continue;
+    const key = `${r.stationId}|${t}`;
+    if (sent.has(key)) continue;
+    sent.set(key, nowMs);
+    out.push(r);
+  }
+  return out;
+}
+
 export function aemetPollDue(lastGoodAt: number | null, now: number, gapMs = AEMET_MIN_GAP_MS): boolean {
   return lastGoodAt == null || now - lastGoodAt >= gapMs;
 }
