@@ -99,11 +99,16 @@ describe('buildStormAlerts', () => {
     expect(alerts[0].urgent).toBe(false);
   });
 
-  it('detail includes ETA when approaching with etaMinutes', () => {
+  it('says distance and count, never arrival minutes, even with a tracked ETA', () => {
     const alerts = buildStormAlerts(stormAlert({
-      level: 'warning', trend: 'approaching', etaMinutes: 12,
+      level: 'warning', trend: 'approaching', etaMinutes: 12, nearestKm: 18, recentCount: 7,
     }));
-    expect(alerts[0].detail).toContain('ETA ~12 min');
+    expect(alerts[0].detail).toBe('Rayos a 18 km, 7 en 30 min');
+    expect(`${alerts[0].title} ${alerts[0].detail}`).not.toMatch(/ETA|12 min|acerc/i);
+  });
+
+  it('the warning title states where the storm is, not where it is going', () => {
+    expect(buildStormAlerts(stormAlert({ level: 'warning', trend: 'receding' }))[0].title).toBe('AVISO — Tormenta cerca');
   });
 
   it('detail includes "alejándose" when receding', () => {

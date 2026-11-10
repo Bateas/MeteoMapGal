@@ -109,7 +109,7 @@ export function DataSection() {
               'CAPE', 'CIN', 'índice de elevación', 'altura de capa límite',
               'viento en 850/700/500 hPa', 'temperatura en altura', 'geopotencial',
             ]}
-            note="Es lo que permite distinguir una tarde de nubes de una tarde de tormenta antes de que haya un solo rayo."
+            note="Dice si la atmósfera está inestable. Comparado con los rayos de una temporada, no basta para avisar de una tormenta en un punto antes del primer rayo: por eso los avisos salen de los rayos medidos."
           />
 
           <VarGroup
@@ -117,7 +117,7 @@ export function DataSection() {
             title="Descargas eléctricas"
             source="MeteoGalicia"
             vars={['posición', 'hora', 'amperaje', 'polaridad']}
-            note="Cada rayo se archiva individualmente. Sobre esa serie se agrupan las tormentas, se calcula hacia dónde van y se avisa por proximidad a un punto concreto."
+            note="Cada rayo se archiva individualmente. Sobre esa serie se agrupan las tormentas, se mira hacia dónde se han movido y se avisa por proximidad a un punto concreto."
           />
 
           <VarGroup

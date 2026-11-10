@@ -11,6 +11,14 @@
  * - stormShadowDetector (solar drops, wind anomalies)
  *
  * Pure computation — no API calls, no side effects.
+ *
+ * NOT SHOWN ANYWHERE since Nov-2026: it is still computed and logged (storm_predictions) so its
+ * series goes on, but every surface now says what the lightning network measured
+ * (services/lightningStatus.ts). Checked against the strikes that followed 1,644 logged
+ * predictions (Apr-Nov 2026): «30-44 %» meant a storm at the point 14 % of the time, the nine
+ * signals did worse than three counts of recent strikes, and with no strike within 80 km a
+ * «30 % or more» was right 2 times and wrong 144. Do not put its percentage, its horizon or its
+ * minutes back on screen without an exam that says otherwise.
  */
 
 import type { HourlyForecast } from '../types/forecast';
@@ -224,14 +232,16 @@ export function predictStorm(
   probability += gustSignal.weight * 100;
 
   // ── 8. Official MG adverse warnings ──
-  // MeteoGalicia storm/rain warnings are high-confidence signals — they incorporate
-  // the full NWP model suite + human meteorologist review.
-  const stormWarnings = (mgWarnings ?? []).filter((w) =>
-    w.type === 'Tormenta' || w.type === 'Treboada' || w.type === 'Choiva' || w.type === 'Chuvia',
-  );
-  const maxWarningLevel = stormWarnings.length > 0
-    ? Math.max(...stormWarnings.map((w) => w.maxLevel))
-    : 0;
+  // Only STORM warnings, and only for a period in force or starting within the same 3 h the
+  // forecast signals look at. Until Nov-2026 a rain warning («Choiva») counted as a storm signal,
+  // and so did a storm warning for tomorrow: the sector list keeps every warning that has not
+  // ended yet, which is right for the warning strip and wrong for «storm in the next hours».
+  const warningHorizon = now + 3 * 3600_000;
+  const stormWarningLevels = (mgWarnings ?? [])
+    .filter((w) => w.type === 'Tormenta' || w.type === 'Treboada')
+    .flatMap((w) => (w.zones ?? []).filter((z) => z.endTime.getTime() > now && z.startTime.getTime() <= warningHorizon))
+    .map((z) => z.level);
+  const maxWarningLevel = stormWarningLevels.length > 0 ? Math.max(...stormWarningLevels) : 0;
   const warningSignal: StormSignal = {
     name: 'Aviso MG oficial',
     active: maxWarningLevel > 0,
@@ -285,8 +295,11 @@ export function predictStorm(
   const ra = recentActivity;
   const sustainedRecent = ra != null && ra.count30m >= 30;
   const hasLightning = stormAlert.level !== 'none' || sustainedRecent;
+  // «Severa (posible granizo)» needs the storm at the point's own rings (aviso or peligro, i.e.
+  // strikes within 25 km). One strike 79 km away plus model CAPE used to be enough.
+  const lightningNear = stormAlert.level === 'warning' || stormAlert.level === 'danger';
   let severity: StormPrediction['severity'] = 'none';
-  if ((maxCape >= CAPE_SEVERE && hasLightning) || (stormAlert.level === 'danger' && maxPrecip > 10)) {
+  if ((maxCape >= CAPE_SEVERE && lightningNear) || (stormAlert.level === 'danger' && maxPrecip > 10)) {
     severity = 'extreme';
   } else if (stormAlert.level === 'danger' || (stormAlert.level === 'warning' && maxCape >= CAPE_HIGH)) {
     severity = 'severe';
@@ -321,7 +334,10 @@ export function predictStorm(
   }
 
   // ── ETA ──
-  const etaMinutes = stormAlert.etaMinutes ?? (stormShadow?.etaMinutes ?? null);
+  // From the lightning tracker only. The shadow detector's minutes used to fill in when the
+  // tracker had none: arrival times read off a drop in sunshine, from a signal that as a storm
+  // signal went the wrong way (weight 0 above).
+  const etaMinutes = stormAlert.etaMinutes ?? null;
 
   // ── Summary ──
   const summary = buildSummary(probability, horizon, severity, signals, etaMinutes);
@@ -349,10 +365,12 @@ function buildSummary(
   const active = signals.filter((s) => s.active).map((s) => s.name);
   const parts: string[] = [];
 
+  // «likely» is the lightning AVISO (3 strikes within 25 km): it says where the storm is. «Tormenta
+  // probable en la próxima hora» came true 24 % of the time (6 % within 10 km).
   if (horizon === 'imminent') {
-    parts.push('Tormenta inminente');
+    parts.push('Rayos muy cerca');
   } else if (horizon === 'likely') {
-    parts.push('Tormenta probable en la próxima hora');
+    parts.push('Tormenta activa cerca');
   } else {
     parts.push(`Riesgo de tormenta (${prob}%)`);
   }

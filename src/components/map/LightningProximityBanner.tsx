@@ -38,9 +38,10 @@ export const LightningProximityBanner = memo(function LightningProximityBanner()
     : `${top.count25 === 1 ? 'Rayo' : 'Rayos'} a ${kmTxt} — ${top.spotName}`;
 
   let subtitle = top.count25 === 1 ? '1 impacto en 20 min · posible tormenta en la zona' : `${top.count25} impactos en 20 min`;
-  if (top.approaching) {
-    subtitle += top.etaMin != null ? ` · acercándose ~${top.etaMin} min` : ' · acercándose';
-  }
+  // «acercándose» is measured (the strikes of the last 10 min fell closer than the 10 before);
+  // the minutes to arrival are not shown: on the stored season they were off by 18 min on average
+  // and the notice itself was wrong 6 times out of 10.
+  if (top.approaching) subtitle += ' · acercándose';
   if (danger) subtitle += ' · sal del agua';
   const others = risks.length - 1;
 

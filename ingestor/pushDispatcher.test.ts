@@ -44,10 +44,10 @@ const NIGHT = new Date(2026, 6, 21, 2, 30, 0); // 02:30 local — inside 23-07
 const KEY = 'https://push.example/sub-1|cesantes';
 
 describe('buildPushPayload', () => {
-  it('builds an aviso payload with distance and ETA', () => {
+  it('builds an aviso payload with the distance and never the minutes to arrival', () => {
     const p = buildPushPayload('Cesantes', 'rias', 'cesantes', makeRisk({ nearestKm: 17.3, etaMin: 25 }));
     expect(p.title).toBe('Aviso de tormenta - Cesantes');
-    expect(p.body).toBe('Tormenta a 17 km, acercandose. Llegada estimada ~25 min.');
+    expect(p.body).toBe('Tormenta a 17 km, acercandose.');
     expect(p.url).toBe('/?sector=rias&spot=cesantes');
     expect(p.tag).toBe('lightning-cesantes');
   });

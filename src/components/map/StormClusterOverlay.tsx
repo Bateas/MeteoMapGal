@@ -302,10 +302,8 @@ function clusterInfoPoint(cluster: StormCluster): GeoJSON.Feature<GeoJSON.Point>
     lines.push(`→ ${cluster.velocity.speedKmh.toFixed(0)} km/h ${dir}`);
   }
 
-  // Line: ETA (if approaching)
-  if (cluster.approaching && cluster.etaMinutes != null) {
-    lines.push(`ETA ~${cluster.etaMinutes} min`);
-  }
+  // No «ETA ~N min» line: the tracker's arrival time was right 10 times out of 69 on the storms
+  // stored on 6-oct, all the misses after the storm had already passed.
 
   // Line: distance
   lines.push(`${cluster.distanceToReservoir.toFixed(0)} km`);

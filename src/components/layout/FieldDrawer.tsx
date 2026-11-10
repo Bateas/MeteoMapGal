@@ -24,8 +24,8 @@ import { isCoastalSector } from '../../config/sectors';
 import { useThermalStore } from '../../store/thermalStore';
 import { getLunarPhase, getLunarCalendar } from '../../services/lunarService';
 import { msToKnots } from '../../services/windUtils';
-import { useStormPrediction } from '../../hooks/useStormPrediction';
-import type { StormPrediction, StormSignal } from '../../services/stormPredictor';
+import { useLightningStatus } from '../../hooks/useLightningStatus';
+import { formatStrikeKm } from '../../services/lightningStatus';
 import { useWarningsStore } from '../../hooks/useWarnings';
 import { warningLevelColor, classifyWarningType } from '../../api/mgWarningsClient';
 
@@ -221,7 +221,7 @@ export function FieldDrawer({ open, onClose, alerts }: FieldDrawerProps) {
                 </AlertSection>
               )}
               <MGWarningsSection />
-              <StormPredictionSection />
+              <LightningSection />
               <FogSection alerts={alerts} />
               <AlertHistorySection />
             </>
@@ -427,110 +427,46 @@ function MGWarningsSection() {
   );
 }
 
-function StormPredictionSection() {
-  const prediction = useStormPrediction();
+/**
+ * Lightning as measured around the sector point: nearest strike, how many and how long ago.
+ * It replaces «Predicción Tormenta» (probability bar, horizon, severity, ETA and the nine
+ * signals): against the stored season the percentage and the minutes did not hold up
+ * (services/lightningStatus.ts). Nothing to show = no section.
+ */
+function LightningSection() {
+  const status = useLightningStatus();
+  if (status.level === 'none' || status.nearestKm == null) return null;
 
-  // Don't show section if prediction is negligible
-  if (prediction.probability < 15) return null;
-
-  const levelMap: Record<StormPrediction['horizon'], AlertLevel> = {
-    imminent: 'critico',
-    likely: 'alto',
-    possible: 'riesgo',
-    none: 'none',
-  };
-  const alertLevel = levelMap[prediction.horizon];
-
-  const horizonLabel: Record<StormPrediction['horizon'], string> = {
-    imminent: 'Inminente (<30min)',
-    likely: 'Probable (30-60min)',
-    possible: 'Posible (1-3h)',
-    none: 'Baja',
-  };
-
-  const severityLabel: Record<StormPrediction['severity'], string> = {
-    extreme: 'Extrema (granizo)',
-    severe: 'Severa (eléctrica)',
-    moderate: 'Moderada (lluvia+viento)',
-    none: 'Sin severidad',
-  };
-
-  const severityColor: Record<StormPrediction['severity'], string> = {
-    extreme: 'text-red-400',
-    severe: 'text-purple-400',
-    moderate: 'text-amber-400',
-    none: 'text-slate-500',
-  };
+  const alertLevel: AlertLevel = status.level === 'danger' ? 'critico' : status.level === 'warning' ? 'alto' : 'none';
+  const tone = status.level === 'danger' ? 'text-red-400' : status.level === 'warning' ? 'text-amber-300' : 'text-slate-300';
 
   return (
-    <AlertSection icon={<WeatherIcon id="zap" size={14} />} title="Predicción Tormenta" level={alertLevel}>
+    <AlertSection icon={<WeatherIcon id="zap" size={14} />} title="Rayos medidos" level={alertLevel}>
       <div className="space-y-2">
-        {/* Probability bar */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-[11px]">
-            <span className="text-slate-400">Probabilidad</span>
-            <span className={`font-bold ${prediction.probability >= 60 ? 'text-purple-400' : prediction.probability >= 40 ? 'text-amber-400' : 'text-slate-300'}`}>
-              {prediction.probability}%
-            </span>
-          </div>
-          <div className="h-1.5 rounded-full bg-slate-700/60 overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${prediction.probability}%`,
-                background: prediction.probability >= 60 ? '#a855f7' : prediction.probability >= 40 ? '#f59e0b' : '#64748b',
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Horizon + Severity */}
         <div className="flex justify-between text-[11px]">
-          <span className="text-slate-400">Horizonte</span>
-          <span className="text-slate-300 font-medium">{horizonLabel[prediction.horizon]}</span>
+          <span className="text-slate-400">Más cercano</span>
+          <span className={`font-bold ${tone}`}>a {formatStrikeKm(status.nearestKm)}</span>
         </div>
         <div className="flex justify-between text-[11px]">
-          <span className="text-slate-400">Severidad</span>
-          <span className={`font-medium ${severityColor[prediction.severity]}`}>{severityLabel[prediction.severity]}</span>
+          <span className="text-slate-400">En 30 min</span>
+          <span className="text-slate-300 font-medium">
+            {status.count80} a menos de 80 km{status.count25 > 0 ? ` · ${status.count25} a menos de 25 km` : ''}
+          </span>
         </div>
-
-        {/* ETA */}
-        {prediction.etaMinutes != null && prediction.etaMinutes < 120 && (
+        {status.lastStrikeMin != null && (
           <div className="flex justify-between text-[11px]">
-            <span className="text-slate-400">ETA</span>
-            <span className="text-purple-300 font-bold">~{prediction.etaMinutes} min</span>
+            <span className="text-slate-400">Último</span>
+            <span className="text-slate-300 font-medium">hace {status.lastStrikeMin < 1 ? 'menos de 1' : status.lastStrikeMin} min</span>
           </div>
         )}
-
-        {/* Signal breakdown */}
-        <div className="mt-1.5 pt-1.5 border-t border-slate-700/40">
-          <p className="text-[10px] text-slate-500 mb-1">Señales activas:</p>
-          <div className="space-y-0.5">
-            {prediction.signals.filter((s: StormSignal) => s.active).map((s: StormSignal) => (
-              <div key={s.name} className="flex justify-between text-[10px]">
-                <span className="text-slate-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400/60" />
-                  {s.name}
-                </span>
-                <span className="text-slate-300 font-mono">{s.value}</span>
-              </div>
-            ))}
-            {prediction.signals.filter((s: StormSignal) => !s.active).length > 0 && (
-              <p className="text-[10px] text-slate-600 mt-0.5">
-                {prediction.signals.filter((s: StormSignal) => !s.active).length} señales inactivas
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Action */}
-        {prediction.horizon !== 'none' && (
+        {status.action && (
           <div className="mt-1.5 p-1.5 rounded bg-slate-800/60 border border-slate-600/30">
-            <p className={`text-[11px] font-medium ${prediction.horizon === 'imminent' ? 'text-red-400' : 'text-amber-300'}`}>
-              {prediction.action}
-            </p>
+            <p className={`text-[11px] font-medium ${tone}`}>{status.action}</p>
           </div>
         )}
+        <p className="text-[10px] text-slate-500">
+          Distancias al centro del sector. Rayos a tierra de la red de MeteoGalicia, que llegan con unos 5 min de retraso.
+        </p>
       </div>
     </AlertSection>
   );

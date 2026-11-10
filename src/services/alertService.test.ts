@@ -61,7 +61,9 @@ describe('buildStormAlerts', () => {
     expect(alerts).toHaveLength(1);
     expect(alerts[0].severity).toBe('high');
     expect(alerts[0].urgent).toBe(true);
-    expect(alerts[0].detail).toContain('ETA');
+    // Measured distance and count; the tracker's arrival minutes are no longer shown.
+    expect(alerts[0].detail).toBe('Rayos a 15 km, 5 en 30 min');
+    expect(alerts[0].detail).not.toContain('ETA');
   });
 
   it('shows "alejándose" for receding storms', () => {

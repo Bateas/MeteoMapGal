@@ -167,7 +167,8 @@ describe('formatRiskLine', () => {
       nearestKm: 6.2, countNear: 2, count25: 5,
       approaching: true, etaMin: 15, freshestAgeMin: 2,
     });
-    expect(line).toBe('Cesantes: rayo a 6km (5 en 20min, acercandose ~15min)');
+    expect(line).toBe('Cesantes: rayo a 6km (5 en 20min, acercandose)');
+    expect(line).not.toMatch(/~|\d+ ?min\)/);
   });
 
   it('handles sub-km strikes and no approach', () => {
