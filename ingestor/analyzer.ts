@@ -36,6 +36,7 @@ import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { isGustGate, type SpotScore } from '../src/services/spotScoringEngine.js';
 import { scoreWithEngine, findDivergences, describeDivergences, engineView, alertResult } from './engineShadow.js';
+import { shownVerdicts, describeShown } from './shownVerdict.js';
 import { mgNewestAgeMin } from './fetchers.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
 import {
@@ -371,6 +372,8 @@ async function getLatestBuoys(): Promise<BuoyWind[]> {
 /**
  * Persist spot scores to DB for verification and accuracy tracking.
  */
+let shownLoggedAt = 0;
+
 async function persistSpotScores(results: SpotResult[], engine: Map<string, SpotScore> | null): Promise<void> {
   const db = getPool();
   const now = new Date();
@@ -389,20 +392,29 @@ async function persistSpotScores(results: SpotResult[], engine: Map<string, Spot
       engineColsState = true;
     }
   }
+  // What the map shows (shownVerdict.ts): one settle per cycle for every spot, written or not.
+  const withShown = withEngine && await hasColumn('spot_scores', 'shown_verdict');
+  const shown = withShown ? shownVerdicts(engine!, now.getTime()) : null;
+  if (shown && now.getTime() - shownLoggedAt >= 60 * 60_000) {
+    shownLoggedAt = now.getTime();
+    log.info(`[Analyzer] lo que muestra el mapa: ${describeShown(shown, engine!)}`);
+  }
   for (const r of results) {
     if (r.verdict === 'unknown') continue;
     const e = withEngine ? engineView(engine!.get(r.spot.id)) : null;
+    const sh = shown?.get(r.spot.id) ?? null;
     await db.query(
       `INSERT INTO spot_scores
          (time, spot_id, sector, verdict, wind_kt, gust_kt, wind_dir, score,
-          station_count, inferred_dir, raw_wind_kt, boosted_by, boost_confidence${withEngine ? ', engine_verdict, engine_wind_kt' : ''})
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13${withEngine ? ', $14, $15' : ''})
+          station_count, inferred_dir, raw_wind_kt, boosted_by, boost_confidence${withEngine ? ', engine_verdict, engine_wind_kt' : ''}${withShown ? ', shown_verdict, doubt' : ''})
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13${withEngine ? ', $14, $15' : ''}${withShown ? ', $16, $17' : ''})
        ON CONFLICT (time, spot_id) DO NOTHING`,
       [
         now, r.spot.id, r.spot.sector, r.verdict, r.avgWindKt, r.maxGustKt, r.avgDir, 0,
         r.stationCount, r.inferredDir || null,
         r.rawWindKt ?? null, r.boostedBy ?? null, r.boostConfidence ?? null,
         ...(withEngine ? [e?.verdict ?? null, e?.windKt ?? null] : []),
+        ...(withShown ? [sh?.verdict ?? null, sh?.doubt ?? null] : []),
       ]
     );
   }
