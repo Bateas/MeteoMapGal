@@ -1437,3 +1437,43 @@ DO $$ BEGIN
     GRANT SELECT ON mg_warnings TO ml_job;
   END IF;
 END $$;
+
+-- ── Nearshore wave forecast of Puertos del Estado (POEM, SAPO and Rias Baixas meshes) ──
+-- 94 points inside the rias and off the surf beaches, hourly, 72 h, one set per model run.
+-- Values AS SENT (integers): factor and unit not confirmed by the provider yet. Nothing reads it:
+-- kept to compare the forecast with what was measured, run by run.
+CREATE TABLE IF NOT EXISTS poem_wave_points (
+  code       INTEGER PRIMARY KEY,
+  mesh       TEXT             NOT NULL,
+  latitude   DOUBLE PRECISION NOT NULL,
+  longitude  DOUBLE PRECISION NOT NULL,
+  kind       TEXT,
+  first_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS poem_wave_forecast (
+  code      INTEGER     NOT NULL,
+  mesh      TEXT        NOT NULL,
+  run_time  TIMESTAMPTZ NOT NULL,   -- when the mesh last ran (fecha_ejec)
+  time      TIMESTAMPTZ NOT NULL,   -- forecast hour
+  mt_hm0    INTEGER,                -- total sea: height, peak period, mean period, direction
+  mt_tp     INTEGER,
+  mt_tm02   INTEGER,
+  mt_dmd    INTEGER,
+  mf1_hm0   INTEGER,                -- first swell: height
+  mv_hm0    INTEGER,                -- wind sea: height (empty in these meshes so far)
+  vv_imd    INTEGER,                -- wind speed and direction of the model
+  vv_dmd    INTEGER,
+  PRIMARY KEY (code, run_time, time)
+);
+CREATE INDEX IF NOT EXISTS poem_wave_forecast_time_idx ON poem_wave_forecast (time DESC);
+GRANT SELECT, INSERT, UPDATE ON poem_wave_points TO meteomap_app;
+GRANT SELECT, INSERT ON poem_wave_forecast TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON poem_wave_points, poem_wave_forecast TO grafana_ro;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ml_job') THEN
+    GRANT SELECT ON poem_wave_points, poem_wave_forecast TO ml_job;
+  END IF;
+END $$;
