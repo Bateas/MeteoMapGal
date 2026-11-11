@@ -18,7 +18,7 @@
 import type { IconId } from '../components/icons/WeatherIcons';
 
 /** Type-safe spot identifiers for exhaustive matching */
-export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourido' | 'castineiras' | 'vao' | 'lanzada' | 'illa-arousa' | 'limens' | 'castrelo' | 'belesar'
+export type SpotId = 'cesantes' | 'bocana' | 'centro-ria' | 'cies-ria' | 'lourido' | 'castineiras' | 'vao' | 'lanzada' | 'illa-arousa' | 'limens' | 'castrelo' | 'belesar' | 'velle'
   | 'surf-patos' | 'surf-lanzada' | 'surf-corrubedo';
 
 export interface WindPattern {
@@ -916,6 +916,31 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     preferredStations: [
       'mg_19021',     // San Fiz (MeteoGalicia agro, 1,8 km, 2 m)
       'aemet_1535I',  // O Saviñao (AEMET, 0,8 km, 560 m, horaria)
+    ],
+    preferredBuoys: [],
+    waveRelevance: 'none',
+    thermalDetection: false,
+    hardGates: { maxWindKt: 30 },
+    beta: true,
+  },
+  {
+    // Spot en prueba (11-nov), pedido por Simon. Embalse de Velle, en el Miño, aguas arriba de
+    // la ciudad de Ourense. Ninguna estacion mide sobre el agua: las dos con viento mas cercanas
+    // estan en la ciudad. Ourense-Estacions (2,3 km, 139 m, cada 10 min) lee bajo entre
+    // edificios (48 h de muestra: media 1 kt, racha hasta 10); Ourense de AEMET (3,8 km) da un
+    // dato por hora. Sin termica ni patrones: no hay nada medido aqui que los sostenga, y las
+    // reglas de Castrelo no se trasladan sin verdades de campo.
+    id: 'velle',
+    name: 'Embalse de Velle (Miño)',
+    shortName: 'Velle',
+    icon: 'sailboat',
+    center: [-7.851020, 42.358982],
+    radiusKm: 6,
+    description: 'Embalse de Velle, en el Miño junto a Ourense. Spot en prueba: el viento sale de dos estaciones de la ciudad (Ourense-Estacións y Ourense de AEMET); ninguna mide sobre el agua.',
+    windPatterns: [],
+    preferredStations: [
+      'mg_10155',     // Ourense-Estacions (MeteoGalicia, 2,3 km, 139 m, 10 min)
+      'aemet_1690A',  // Ourense (AEMET, 3,8 km, 146 m, horaria)
     ],
     preferredBuoys: [],
     waveRelevance: 'none',
