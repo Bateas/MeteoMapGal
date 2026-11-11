@@ -37,6 +37,15 @@ describe('describeGaugeRain', () => {
     expect(v.note).toContain('mínimo');
   });
 
+  it('a nearby station gives the size of the rain only while the gauge barely reports, and with a full day behind it', () => {
+    const witness = { gauge: 'Surribas', mm24h: 11.3, coveredMin: 1410, lastAt: new Date(NOW.getTime() - 20 * 60_000).toISOString() };
+    const sparse = describeGaugeRain(full({ n24h: 44, mm24h: 1.1, witness }), NOW)!;
+    expect(sparse.note).toContain('Surribas, estación particular cercana, midió unos 11 mm en 24 h.');
+    expect(describeGaugeRain(full({ n24h: 44, mm24h: 1.1, witness: { ...witness, coveredMin: 600 } }), NOW)!.note).not.toContain('Surribas');
+    expect(describeGaugeRain(full({ n24h: 44, mm24h: 1.1, witness: { ...witness, lastAt: new Date(NOW.getTime() - 3 * 3_600_000).toISOString() } }), NOW)!.note).not.toContain('Surribas');
+    expect(describeGaugeRain(full({ n24h: 44, mm24h: 20, witness }), NOW)!.note).not.toContain('Surribas');
+  });
+
   it('a reading of more than 40 minutes ago gives its hour', () => {
     const late = full({ lastAt: new Date(NOW.getTime() - 60 * 60_000).toISOString() });
     expect(describeGaugeRain(late, NOW)!.note).toBe('Última lectura a las 22:00.');

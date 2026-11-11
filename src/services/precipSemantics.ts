@@ -211,3 +211,32 @@ export function withServerPrecip(
   }
   return out;
 }
+
+/**
+ * Total of a window from a gauge that reports «the last 60 minutes» (Netatmo): its readings overlap,
+ * so they cannot be added up. Each one counts for the time since the previous reading, an hour at
+ * most: the integral of the rolling rate. `coveredMin` is how much of the window had a reading
+ * behind it; with holes the total is a floor and the caller decides whether to speak.
+ */
+export function rollingWindowTotalMm(
+  s: PrecipSample[], nowMs: number, windowMin: number,
+): { mm: number; coveredMin: number; lastAt: number | null } {
+  const start = nowMs - windowMin * MIN_MS;
+  const sorted = s
+    .filter((x) => Number.isFinite(x.t) && Number.isFinite(x.mm) && x.mm >= 0 && x.t <= nowMs)
+    .sort((a, b) => a.t - b.t);
+  let mm = 0;
+  let coveredMin = 0;
+  let lastAt: number | null = null;
+  for (let i = 1; i < sorted.length; i++) {
+    const cur = sorted[i];
+    if (cur.t <= start) continue;
+    const from = Math.max(sorted[i - 1].t, start);
+    const gapMin = Math.min(60, (cur.t - from) / MIN_MS);
+    if (gapMin <= 0) continue;
+    mm += cur.mm * (gapMin / 60);
+    coveredMin += gapMin;
+    lastAt = cur.t;
+  }
+  return { mm: round2(mm), coveredMin: Math.round(coveredMin), lastAt };
+}

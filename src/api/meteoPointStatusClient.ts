@@ -22,6 +22,8 @@ export interface GaugeRain {
   mm24h: number; mm3d: number; mm7d: number;
   n24h: number; n3d: number; n7d: number;
   lastAt: string | null;
+  /** Sent only while the gauge is barely reporting: the last 24 h at the nearest private station. */
+  witness?: { gauge: string; mm24h: number; coveredMin: number; lastAt: string | null };
 }
 
 /** Null when the point has no gauge, or the server does not answer: the card just leaves it out. */
