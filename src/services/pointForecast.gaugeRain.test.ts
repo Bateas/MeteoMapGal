@@ -22,9 +22,19 @@ describe('describeGaugeRain', () => {
   });
 
   it('with readings missing the totals are a floor, and it says so', () => {
-    expect(describeGaugeRain(full({ n7d: 900 }), NOW)!.note).toBe('Faltan lecturas: puede haber caído algo más.');
+    const week = describeGaugeRain(full({ n7d: 900, mm7d: 30 }), NOW)!;
+    expect(week.note).toBe('Faltan lecturas: lo caído es como mínimo esto.');
+    expect(week.cells[2].floor).toBe(true);
+    expect(week.cells[0].floor).toBeUndefined();
     expect(describeGaugeRain(full({ n24h: 120 }), NOW)!.note).toContain('Faltan lecturas');
     expect(describeGaugeRain(full({ n7d: 910 }), NOW)!.note).toBeNull();
+  });
+
+  it('a gauge that barely reported says how many readings came and gives a floor', () => {
+    const v = describeGaugeRain(full({ gauge: 'Amiudal', n24h: 44, mm24h: 1.1 }), NOW)!;
+    expect(v.cells[0]).toEqual({ label: '24 h', mm: '1,1', floor: true });
+    expect(v.note).toContain('Amiudal solo ha enviado 44 de sus 144 lecturas');
+    expect(v.note).toContain('mínimo');
   });
 
   it('a reading of more than 40 minutes ago gives its hour', () => {

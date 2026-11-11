@@ -256,13 +256,16 @@ export function warningsForZones(warnings: MGWarning[], zones: string[], now: Da
 /** Readings of a 10-minute gauge in each window, and the share under which a total is a floor. */
 const GAUGE_ROWS = { h24: 144, d3: 432, d7: 1008 } as const;
 const GAUGE_MIN_COVERAGE = 0.9;
+/** Under this share of the day the gauge is barely reporting: the card names how many readings came. */
+const GAUGE_SPARSE_COVERAGE = 0.5;
 const GAUGE_STALE_MIN = 180;
 const GAUGE_LATE_MIN = 40;
 const clockFmt = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' });
 
 export interface GaugeRainView {
   gauge: string;
-  cells: { label: string; mm: string }[];
+  /** `floor`: readings are missing in that window, the figure is a minimum («más de»). */
+  cells: { label: string; mm: string; floor?: true }[];
   note: string | null;
 }
 
@@ -275,15 +278,27 @@ export function describeGaugeRain(r: GaugeRain | null, now: Date): GaugeRainView
   if (!r?.gauge || !r.lastAt) return null;
   const ageMin = (now.getTime() - new Date(r.lastAt).getTime()) / 60_000;
   if (!(ageMin <= GAUGE_STALE_MIN)) return null;
-  const cell = (label: string, mm: number) => ({ label, mm: mm < 0.05 ? '0' : fmtMm(mm) });
-  const gaps = r.n24h < GAUGE_ROWS.h24 * GAUGE_MIN_COVERAGE || r.n3d < GAUGE_ROWS.d3 * GAUGE_MIN_COVERAGE
-    || r.n7d < GAUGE_ROWS.d7 * GAUGE_MIN_COVERAGE;
+  // A window with readings missing is a floor, not a total: the cell says so itself («más de 1,1»).
+  // On 11-nov Amiudal sent 4 of its 84 readings of the morning and the card read «1,1 mm» as the
+  // rain of the day, with about ten times that falling around it.
+  const short = (n: number, expected: number) => n < expected * GAUGE_MIN_COVERAGE;
+  const cell = (label: string, mm: number, floor: boolean) => {
+    const figure = mm < 0.05 ? '0' : fmtMm(mm);
+    return floor ? { label, mm: figure, floor: true as const } : { label, mm: figure };
+  };
+  const floor24 = short(r.n24h, GAUGE_ROWS.h24);
+  const floor3d = short(r.n3d, GAUGE_ROWS.d3);
+  const floor7d = short(r.n7d, GAUGE_ROWS.d7);
   const notes: string[] = [];
-  if (gaps) notes.push('Faltan lecturas: puede haber caído algo más.');
+  if (r.n24h < GAUGE_ROWS.h24 * GAUGE_SPARSE_COVERAGE) {
+    notes.push(`${r.gauge} solo ha enviado ${r.n24h} de sus ${GAUGE_ROWS.h24} lecturas de las últimas 24 h: la cifra es un mínimo, no el total.`);
+  } else if (floor24 || floor3d || floor7d) {
+    notes.push('Faltan lecturas: lo caído es como mínimo esto.');
+  }
   if (ageMin > GAUGE_LATE_MIN) notes.push(`Última lectura a las ${clockFmt.format(new Date(r.lastAt))}.`);
   return {
     gauge: r.gauge,
-    cells: [cell('24 h', r.mm24h), cell('3 días', r.mm3d), cell('7 días', r.mm7d)],
+    cells: [cell('24 h', r.mm24h, floor24), cell('3 días', r.mm3d, floor3d), cell('7 días', r.mm7d, floor7d)],
     note: notes.length > 0 ? notes.join(' ') : null,
   };
 }

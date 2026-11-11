@@ -157,7 +157,7 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
           <div className="gf-grouphead"><h3>Lluvia ya caída</h3><span>medida en {fallen.gauge}</span></div>
           <div className="gfp-fallen">
             {fallen.cells.map((c) => (
-              <div key={c.label}><b>{c.mm}<small> mm</small></b><span>{c.label}</span></div>
+              <div key={c.label}><b>{c.floor && <small>más de </small>}{c.mm}<small> mm</small></b><span>{c.label}</span></div>
             ))}
           </div>
           {fallen.note && <div className="gf-hint">{fallen.note}</div>}
