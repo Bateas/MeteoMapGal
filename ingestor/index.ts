@@ -26,6 +26,7 @@ import { recordSent, loadRecentSends } from './sentAlerts.js';
 import { runWebcamAnalysis } from './webcamAnalyzer.js';
 import { runLightningCycle } from './lightningFetcher.js';
 import { runLightningProbShadow } from './lightningProbShadow.js';
+import { runShadowClaims } from './shadowClaims.js';
 import { runSynopticCycle, lastSynopticRunMs } from './synopticFetcher.js';
 import { runFirmsCycle } from './firmsFetcher.js';
 import { runEffisCycle } from './effisFetcher.js';
@@ -401,6 +402,9 @@ async function runCycle(): Promise<void> {
     // audit (was warn — masking real pipeline outage).
     await runAnalysis().catch(err =>
       log.error('Analyzer failed:', (err as Error).message));
+    // Shadow record of what the map says (alert_log, shown nowhere). After the analysis so it
+    // sees this cycle's spot scores. Not awaited: never throws.
+    void runShadowClaims();
 
     // 5. Webcam vision analysis (every 3 cycles = ~15min, if enabled)
     // Fire-and-forget — Ollama CPU inference takes 6-7min for 12 cameras.
