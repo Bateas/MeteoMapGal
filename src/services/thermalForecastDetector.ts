@@ -1,6 +1,9 @@
 /**
  * Thermal Forecast Detector — Early warning for epic sailing days.
  *
+ * What it says: only the epic tier (which needs the wind forecast to back it) speaks of wind.
+ * Every other tier describes the afternoon it measured (warm, dry) and does not promise wind.
+ *
  * Crosses Open-Meteo forecast (12-48h ahead) with real-time conditions
  * to predict thermal wind events BEFORE they happen.
  *
@@ -210,14 +213,17 @@ function analyzeWindow(
     label = day === 'hoy'
       ? `Día épico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte ${startHour}-${endHour}h`
       : `Mañana dia epico: ${peakTemp.toFixed(0)}C HR ${minHumidity.toFixed(0)}% - viento fuerte previsto`;
-  } else if (signals >= 3) {
-    label = day === 'hoy'
-      ? `Viento probable ${startHour}-${endHour}h (${peakTemp.toFixed(0)}C, HR ${minHumidity.toFixed(0)}%)`
-      : `Mañana: viento probable (${peakTemp.toFixed(0)}C, HR ${minHumidity.toFixed(0)}%)`;
   } else {
+    // Below the epic tier nothing here has looked at wind: the count is temperature, humidity,
+    // cloud and calm hours. Measured on 17 autumn days with a "today" message, the reservoir
+    // reached 8 kt on 3 and 11 kt on 1. So the label says what was measured (a warm, dry
+    // afternoon) and promises no wind until the rule passes an exam.
+    const warmth = peakTemp >= TEMP_GOOD ? 'cálida' : 'templada';
+    const what = minHumidity <= HR_MODERATE ? `seca y ${warmth}` : warmth;
+    const figures = `${peakTemp.toFixed(0)} °C, HR ${minHumidity.toFixed(0)} %`;
     label = day === 'hoy'
-      ? `Condiciones favorables ${startHour}-${endHour}h (${peakTemp.toFixed(0)}C)`
-      : `Mañana: condiciones favorables (${peakTemp.toFixed(0)}C)`;
+      ? `Tarde ${what} ${startHour}-${endHour}h (${figures})`
+      : `Mañana: tarde ${what} (${figures})`;
   }
 
   return {

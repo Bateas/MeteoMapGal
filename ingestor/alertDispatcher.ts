@@ -267,7 +267,12 @@ export async function dispatchSpotAlert(
 }
 
 /**
- * Dispatch a thermal forecast early warning.
+ * The thermal forecast is NOT sent any more: it only goes to the log.
+ *
+ * It used to go out as a wind forecast («Viento probable 11-19h»). Measured over 42 days it was
+ * sent on 26 of them and the water reached 11 kt on one, because its rule counts temperature,
+ * humidity, cloud and calm hours and never wind. Until that rule passes an exam it describes the
+ * afternoon in the map and stays out of the messages. The log keeps the same 6-hour spacing.
  */
 export async function dispatchForecastAlert(
   sector: string,
@@ -276,20 +281,8 @@ export async function dispatchForecastAlert(
 ): Promise<void> {
   if (isNightTime()) return;
   if (isInCooldown(lastForecastAlert, sector, FORECAST_COOLDOWN_MS)) return;
-
-  const ok = await postWebhook({
-    type: 'thermal-forecast',
-    sector,
-    text: label,
-    severity: 'info',
-    title: `Prevision ${sector}`,
-    message: label,
-  }, `forecast:${sector}`);
-
-  if (ok) {
-    lastForecastAlert.set(sector, Date.now());
-    log.ok(`Forecast: ${label} (${sector})`);
-  }
+  lastForecastAlert.set(sector, Date.now());
+  log.info(`Prevision termica ${sector}: ${label} (solo registro, no se envia)`);
 }
 
 // ── Visibility / Fog alerts ──────────────────────────

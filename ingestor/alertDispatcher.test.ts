@@ -126,8 +126,14 @@ describe('alertDispatcher — sends are stored and cooldowns survive a restart (
       { key: 'forecast:Embalse', atMs: now - 30 * 60_000, level: 'info' },
       { key: 'spot:cies-ria', atMs: now - 30 * 60_000, level: 'moderate' },
     ])).toBe(2);
-    await dispatchForecastAlert('Embalse', 'Viento probable 12-19h', 'high');
+    await dispatchForecastAlert('Embalse', 'Tarde seca y cálida 12-19h (27 °C, HR 40 %)', 'high');
     await dispatchSpotAlert('cies-ria', 'Cíes-Ría', 'Rías Baixas', 'BUENO', 15, 'S');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('the thermal forecast is never sent, cooldown or not: it does not measure wind', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+    await dispatchForecastAlert('Interior', 'Tarde seca y cálida 11-19h (26 °C, HR 44 %)', 'media');
     expect(fetch).not.toHaveBeenCalled();
   });
 
