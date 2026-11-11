@@ -141,6 +141,16 @@ export function useUnifiedAlertPipeline({
   // against last run; if identical, skip the 11 alert builders entirely.
   const lastAggregateSigRef = useRef<string>('');
 
+  // A change of sector empties the list at once: until the rebuild below (half a second, and longer
+  // while the new sector's readings arrive) the strip, the panel and the map kept the alerts of the
+  // sector just left, read as if they were of this one. Nothing for a moment is better than fog of the
+  // rías over the reservoir. A store subscription, so it runs inside the change and no frame shows them.
+  useEffect(() => useSectorStore.subscribe((st, prev) => {
+    if (st.activeSector.id === prev.activeSector.id) return;
+    lastAggregateSigRef.current = '';
+    useAlertStore.getState().setAlerts([], { score: 0, severity: 'info', color: 'green', activeCount: 0 });
+  }), []);
+
   useEffect(() => {
     const t = setTimeout(() => {
       // AEMET visibility readings (sector-agnostic map of the 8 Galician stations
@@ -166,6 +176,7 @@ export function useUnifiedAlertPipeline({
       // exist on the types — were silently typed `any` in some configs).
       // Replaced with real fields that signal "this shadow/profile is different".
       const sig = [
+        sectorId,
         currentReadings.size,
         historyEpoch,
         stormAlert?.level ?? 'none',
