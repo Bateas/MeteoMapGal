@@ -260,6 +260,9 @@ const GAUGE_MIN_COVERAGE = 0.9;
 const GAUGE_SPARSE_COVERAGE = 0.5;
 const GAUGE_STALE_MIN = 180;
 const GAUGE_LATE_MIN = 40;
+/** The nearby station speaks only with nine tenths of the day behind it and a reading of the last 90 min. */
+const WITNESS_MIN_COVERED_MIN = 24 * 60 * 0.9;
+const WITNESS_STALE_MIN = 90;
 const clockFmt = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' });
 
 export interface GaugeRainView {
@@ -296,6 +299,12 @@ export function describeGaugeRain(r: GaugeRain | null, now: Date): GaugeRainView
     notes.push('Faltan lecturas: lo caído es como mínimo esto.');
   }
   if (ageMin > GAUGE_LATE_MIN) notes.push(`Última lectura a las ${clockFmt.format(new Date(r.lastAt))}.`);
+  // Another station nearby gives the size of what fell, never the figure of the point: «unos».
+  const w = r.witness;
+  if (w && w.lastAt && w.coveredMin >= WITNESS_MIN_COVERED_MIN
+    && now.getTime() - new Date(w.lastAt).getTime() <= WITNESS_STALE_MIN * 60_000 && w.mm24h > r.mm24h) {
+    notes.push(`${w.gauge}, estación particular cercana, midió unos ${fmtMm(w.mm24h)} mm en 24 h.`);
+  }
   return {
     gauge: r.gauge,
     cells: [cell('24 h', r.mm24h, floor24), cell('3 días', r.mm3d, floor3d), cell('7 días', r.mm7d, floor7d)],

@@ -6,6 +6,7 @@
 import { getPool, stationAltitudeSql } from './db.js';
 import { memoByKey } from './singleFlight.js';
 import { withPublicLocation } from './publicLocation.js';
+import { rollingWindowTotalMm } from '../src/services/precipSemantics.js';
 import type { RecentReportRow } from '../src/services/fieldReport.js';
 
 // ── Types ──────────────────────────────────────────────
@@ -1203,6 +1204,23 @@ async function queryGaugeRainUncached(stationId: string): Promise<GaugeRainTotal
     lastAt: r.last_at ? r.last_at.toISOString() : null,
   };
 }
+
+export interface WitnessRain { mm24h: number; coveredMin: number; lastAt: string | null }
+
+/** The last 24 h of a station that reports «the last 60 minutes», worked out from its overlapping readings. */
+async function queryWitnessRainUncached(stationId: string): Promise<WitnessRain> {
+  const res = await getPool().query<{ t: string; precip: number }>(
+    `SELECT (extract(epoch FROM time) * 1000)::bigint AS t, precip::float8 AS precip
+       FROM readings
+      WHERE station_id = $1 AND time > NOW() - INTERVAL '25 hours' AND precip IS NOT NULL
+      ORDER BY time`,
+    [stationId],
+  );
+  const out = rollingWindowTotalMm(res.rows.map((r) => ({ t: Number(r.t), mm: r.precip })), Date.now(), 24 * 60);
+  return { mm24h: Math.round(out.mm * 10) / 10, coveredMin: out.coveredMin, lastAt: out.lastAt ? new Date(out.lastAt).toISOString() : null };
+}
+
+export const queryWitnessRain = memoByKey(5 * 60_000, queryWitnessRainUncached, (stationId) => `witness-rain:${stationId}`);
 
 /** A gauge reports every 10 min and the card asks every 10: one query per gauge serves every visitor. */
 export const queryGaugeRain = memoByKey(5 * 60_000, queryGaugeRainUncached, (stationId) => `gauge-rain:${stationId}`);

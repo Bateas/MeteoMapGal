@@ -71,6 +71,7 @@ import {
   queryLatestMetar,
   LIGHTNING_RECENT_WINDOWS,
   queryGaugeRain,
+  queryWitnessRain,
 } from './queries.js';
 import { getPool } from './db.js';
 import { clientKeyOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards.js';
@@ -78,7 +79,7 @@ import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { stopForecastArchive } from './forecastArchive.js';
 import { getSpotsForSector } from '../src/config/spots.js';
-import { METEO_POINTS, pointRainGauge } from '../src/config/userSpots.js';
+import { METEO_POINTS, pointRainGauge, pointRainWitness } from '../src/config/userSpots.js';
 import { getVapidPublicKey, sendTestPush, logPushStartup, makeRoomForNewSubscription } from './pushDispatcher.js';
 import { EFFIS_ATTRIBUTION, isGalicianProvince, normalizeProvince } from './effisFetcher.js';
 import { corsHeaders, json, error, dbError, parseSearchParams, parseLimit, ALLOWED_ORIGINS } from './httpHelpers.js';
@@ -957,8 +958,14 @@ async function handleMeteoPointRain(
   }
   try {
     const totals = await queryGaugeRain(gauge.id);
+    // With the point's own gauge barely reporting (under half of its 144 readings a day), the nearest
+    // private station gives the size of what fell. Its failure never takes the main answer down.
+    const other = totals.n24h < 72 ? pointRainWitness(point) : null;
+    const witness = other
+      ? await queryWitnessRain(other.id).then((w) => ({ gauge: other.name, ...w })).catch(() => null)
+      : null;
     res.setHeader('Cache-Control', 'public, max-age=300');
-    json(res, { gauge: gauge.name, ...totals }, 200, origin);
+    json(res, { gauge: gauge.name, ...totals, ...(witness ? { witness } : {}) }, 200, origin);
   } catch (err) {
     dbError(res, err, 'handleMeteoPointRain', origin);
   }

@@ -58,6 +58,12 @@ export function pointRainGauge(point: UserSpot): { id: string; name: string } | 
   return point.gauges?.find((g) => g.id.startsWith('mg_')) ?? null;
 }
 
+/** The private station that speaks for the point when its own gauge is barely reporting: the nearest
+ *  one that gives the rain of the last hour, whose day can be worked out (rollingWindowTotalMm). */
+export function pointRainWitness(point: UserSpot): { id: string; name: string } | null {
+  return point.gauges?.find((g) => g.id.startsWith('nt_')) ?? null;
+}
+
 /** The weather points plus this browser's own pins. */
 export function withMeteoPoints(userSpots: UserSpot[]): UserSpot[] {
   return [...METEO_POINTS, ...userSpots];
