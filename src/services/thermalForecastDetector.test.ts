@@ -78,7 +78,7 @@ describe('detectThermalForecast — the model gets the last word on wording', ()
     expect(s!.label).not.toMatch(/fuerte/i);
     expect(s!.label).not.toMatch(/épico|epico/i);
     // It still speaks — the ingredients ARE there, it just stops overselling.
-    expect(s!.label).toMatch(/probable|favorables/i);
+    expect(s!.label).toMatch(/^Tarde /);
   });
 
   it('still calls it epic when the model actually backs it', () => {
@@ -109,6 +109,25 @@ describe('detectThermalForecast — the model gets the last word on wording', ()
     // The whole point is downgrading the WORDING, not suppressing the warning:
     // the ingredients are real information and the user still wants them.
     expect(detectThermalForecast(day())).not.toHaveLength(0);
+  });
+});
+
+describe('detectThermalForecast — below the epic tier it describes the afternoon, it does not promise wind', () => {
+  it('a warm dry afternoon is named as such, with its figures', () => {
+    const s = today(day())!;
+    expect(s.label).toMatch(/^Tarde seca y cálida \d+-\d+h \(\d+ °C, HR \d+ %\)$/);
+    expect(s.label).not.toMatch(/viento|probable|favorables/i);
+  });
+
+  it('tomorrow reads the same way', () => {
+    const s = detectThermalForecast([...day(), ...day({ offsetDays: 1 })]).find((x) => x.day === 'manana')!;
+    expect(s.label).toMatch(/^Mañana: tarde /);
+    expect(s.label).not.toMatch(/viento|probable|favorables/i);
+  });
+
+  it('a 21 °C afternoon is mild, not warm', () => {
+    const s = today(day({ peakTempC: 21 }));
+    if (s) expect(s.label).toMatch(/templada/);
   });
 });
 
