@@ -164,10 +164,6 @@ let poemExpiryNotedDay = '';
 let noTokenNotedAt = 0;
 const NO_TOKEN_NOTE_MS = 6 * 60 * 60_000;
 
-function madridDay(ms: number): string {
-  return new Date(ms).toLocaleDateString('sv-SE', { timeZone: 'Europe/Madrid' });
-}
-
 function madridDateTime(ms: number): string {
   return new Date(ms).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', dateStyle: 'short', timeStyle: 'short' });
 }
@@ -178,21 +174,18 @@ function noteRejectedToken(status: number, what: string): void {
   log.error(`POEM rechaza la peticion (${what}, HTTP ${status}): token caducado o sin permiso. Renovar POEM_TOKEN en ingestor/.env y reiniciar el ingestor; mientras, no hay boyas de Puertos del Estado.`);
 }
 
-/** Once a day: when the token stops working, as its own expiry says. */
-function noteTokenExpiry(token: string, nowMs: number): void {
-  const day = madridDay(nowMs);
-  if (poemExpiryNotedDay === day) return;
-  poemExpiryNotedDay = day;
+/**
+ * Once per start. Puertos del Estado left our token without expiry (told to us in November 2026),
+ * so the date written inside it is not a deadline: a token that stops working shows up as a
+ * rejected request (noteRejectedToken), which is the only signal that counts.
+ */
+function noteTokenExpiry(token: string, _nowMs: number): void {
+  if (poemExpiryNotedDay) return;
+  poemExpiryNotedDay = 'said';
   const exp = jwtExpiryMs(token);
-  if (exp == null) {
-    log.info('POEM: el token no dice cuando caduca');
-    return;
-  }
-  const days = Math.floor((exp - nowMs) / 86_400_000);
-  const text = `POEM: el token caduca el ${madridDateTime(exp)}`;
-  if (exp <= nowMs) log.error(`${text} (YA CADUCADO). Renovar POEM_TOKEN en ingestor/.env`);
-  else if (days < 7) log.warn(`${text} (en ${days} dias). Renovarlo antes`);
-  else log.info(`${text} (en ${days} dias)`);
+  log.info(exp == null
+    ? 'POEM: token sin fecha de caducidad'
+    : `POEM: el token lleva escrita la fecha ${madridDateTime(exp)}, pero Puertos del Estado lo mantiene sin caducidad; si dejara de valer se veria como peticion rechazada`);
 }
 
 /**
