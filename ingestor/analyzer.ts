@@ -36,6 +36,7 @@ import { RIAS_BUOY_STATIONS } from '../src/api/buoyClient.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import { isGustGate, type SpotScore } from '../src/services/spotScoringEngine.js';
 import { scoreWithEngine, findDivergences, describeDivergences, engineView, alertResult } from './engineShadow.js';
+import { noteEngineScores } from './shadowClaims.js';
 import { shownVerdicts, describeShown } from './shownVerdict.js';
 import { mgNewestAgeMin } from './fetchers.js';
 import type { PrecipSample } from '../src/services/precipSemantics.js';
@@ -462,6 +463,7 @@ export async function runAnalysis(): Promise<void> {
   } catch (err) {
     log.warn(`Engine failed, alerts use the pipeline this cycle: ${(err as Error).message}`);
   }
+  noteEngineScores(engineScores, now);
   const alertsFromEngine = ALERTS_FROM_ENGINE && engineScores !== null;
   const modeLine = alertsFromEngine ? 'motor del mapa' : ALERTS_FROM_ENGINE ? 'calculo propio (el motor fallo)' : 'calculo propio (ANALYZER_WIND=pipeline)';
   if (modeLine !== lastAlertModeLine) {
