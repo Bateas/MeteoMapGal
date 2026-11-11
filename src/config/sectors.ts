@@ -81,7 +81,7 @@ export const SECTORS: Sector[] = [
       latitude: 42.29,
       zoom: 11,
       pitch: 0, // flat 2D — tilt/terrain removed (per-frame GPU cost, no info gain)
-      bearing: -15,
+      bearing: 0, // north up: the -15 came from the tilted 3D view and left the flat map crooked
     },
     meteoclimaticRegions: ['ESGAL32', 'ESGAL36'],
     extraCoveragePoints: [
