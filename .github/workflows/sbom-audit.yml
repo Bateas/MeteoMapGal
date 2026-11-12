@@ -1,0 +1,74 @@
+name: SBOM and dependency audit
+
+# Weekly, informational only: never fails and never blocks a merge.
+# - SBOM (CycloneDX) of the frontend and the ingestor from their lockfiles, kept as an artifact.
+# - npm audit of the production dependencies: a warning for each high or critical advisory that is
+#   not already declared not applicable in security/vex.openvex.json (with its reason there).
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  sbom-audit:
+    name: SBOM + audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+
+      - name: SBOM (CycloneDX, from the lockfiles)
+        # Pinned version, published months before this job was written. Reads the lockfile only:
+        # nothing of the project is installed or run.
+        run: |
+          mkdir -p sbom
+          npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --package-lock-only --omit dev --output-format JSON --output-file sbom/frontend.cdx.json
+          (cd ingestor && npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --package-lock-only --omit dev --output-format JSON --output-file ../sbom/ingestor.cdx.json)
+
+      - name: Audit (production dependencies, high and critical)
+        run: |
+          for dir in . ingestor; do
+            (cd "$dir" && npm audit --omit=dev --json > /tmp/audit-$(basename "$PWD").json || true)
+          done
+          node - <<'EOF'
+          const fs = require('fs');
+          const vex = JSON.parse(fs.readFileSync('security/vex.openvex.json', 'utf8'));
+          const known = new Set(vex.statements.filter((s) => s.status === 'not_affected')
+            .flatMap((s) => [s.vulnerability.name, ...(s.vulnerability.aliases || [])]));
+          let fresh = 0;
+          const lines = ['## Dependency audit (production)', ''];
+          for (const f of fs.readdirSync('/tmp').filter((n) => n.startsWith('audit-'))) {
+            const report = JSON.parse(fs.readFileSync('/tmp/' + f, 'utf8') || '{}');
+            for (const [pkg, v] of Object.entries(report.vulnerabilities || {})) {
+              for (const via of v.via) {
+                if (typeof via !== 'object' || !['high', 'critical'].includes(via.severity)) continue;
+                const id = (via.url || '').split('/').pop();
+                if (known.has(id)) { lines.push(`- ${pkg}: ${id} (${via.severity}) declared not applicable in the VEX file`); continue; }
+                fresh++;
+                console.log(`::warning title=${via.severity} advisory in ${pkg}::${id} ${via.title} (${via.range})`);
+                lines.push(`- **${pkg}: ${id} (${via.severity}) NEW** ${via.title}`);
+              }
+            }
+          }
+          if (lines.length === 2) lines.push('No high or critical advisories.');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
+          console.log(`${fresh} new high/critical advisories`);
+          EOF
+
+      - name: Upload SBOM
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom
+          path: sbom/
+          retention-days: 90
