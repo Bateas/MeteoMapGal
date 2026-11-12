@@ -182,3 +182,30 @@ describe('what the gauges can and cannot say', () => {
     expect(run({}, [near, far]).text).toContain('La cercana');
   });
 });
+
+describe('a gauge that barely reports (12-nov: Amiudal, 1 reading of 6 an hour)', () => {
+  // One reading in the last hour, at 10:00, 0 mm; nothing between 9:10 and 9:50.
+  const sparse: WatchGauge = { id: 'mg_1', name: 'Amiudal', samples: [{ t: at(9, 0), mm: 0 }, { t: at(10, 0), mm: 0 }] };
+
+  it('says how many readings came, not «no mide lluvia», and keeps the state', () => {
+    const p = run({ 10: 2 }, [sparse]);
+    expect(p.state).toBe('se-acerca');
+    expect(p.text).toBe('Amiudal solo ha enviado 1 de sus 6 lecturas de la última hora: no se sabe cuánto llueve allí. El WRF da lluvia para esta hora.');
+    expect(p.text).not.toContain('no mide lluvia');
+  });
+
+  it('with no rain in the model either', () => {
+    const p = run({}, [sparse]);
+    expect(p.state).toBe('seco');
+    expect(p.text).toBe('Amiudal solo ha enviado 1 de sus 6 lecturas de la última hora: no se sabe cuánto llueve allí; el WRF no da lluvia.');
+  });
+
+  it('a complete gauge keeps the words it had', () => {
+    expect(run({}, [gauge()]).text).toBe('Estación A no mide lluvia y el WRF tampoco la da.');
+  });
+
+  it('an hourly official gauge (AEMET) is never called sparse for its single reading', () => {
+    const aemet: WatchGauge = { id: 'aemet_1696O', name: 'Beariz', samples: [{ t: at(10, 0), mm: 0 }] };
+    expect(run({}, [aemet]).text).toBe('Beariz no mide lluvia y el WRF tampoco la da.');
+  });
+});
