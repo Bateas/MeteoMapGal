@@ -48,7 +48,14 @@ export interface Panorama {
 }
 
 /** `dry` = under the threshold, which is not the same as nothing: `mm` is what its official gauge did mark. */
-type Zone = { state: 'wet'; mm: number; name: string } | { state: 'dry'; name: string; mm: number } | { state: 'unknown' };
+type Zone = { state: 'wet'; mm: number; name: string }
+  | { state: 'dry'; name: string; mm: number; sent: number; expected: number }
+  | { state: 'unknown' };
+
+/** Readings an official gauge sends in an hour: MeteoGalicia every 10 min, AEMET and IPMA once. */
+const readingsPerHour = (id: string) => (id.startsWith('mg_') ? 6 : 1);
+/** Under this share of its readings in the window, its figure is not the rain of the window. */
+const SPARSE_SHARE = 2 / 3;
 
 function zone(gauges: WatchGauge[], endMs: number, windowMin: number): Zone {
   const read = gauges.flatMap((g) => {
@@ -60,15 +67,27 @@ function zone(gauges: WatchGauge[], endMs: number, windowMin: number): Zone {
   const wet = read.filter((r) => r.mm >= GAUGE_WET_MM).sort((a, b) => b.mm - a.mm);
   if (wet.some((r) => isOfficialGauge(r.g.id)) || wet.length >= 2) return { state: 'wet', mm: wet[0].mm, name: wet[0].g.name };
   const official = read.find((r) => isOfficialGauge(r.g.id));
-  return official ? { state: 'dry', name: official.g.name, mm: official.mm } : { state: 'unknown' };
+  if (!official) return { state: 'unknown' };
+  const fromMs = endMs - windowMin * 60_000;
+  const sent = official.g.samples.filter((x) => x.t > fromMs && x.t <= endMs).length;
+  const expected = Math.max(1, Math.round((windowMin / 60) * readingsPerHour(official.g.id)));
+  return { state: 'dry', name: official.g.name, mm: official.mm, sent, expected };
 }
 
 const atHour = (h: number) => `${h === 1 ? 'la' : 'las'} ${h} h`;
 
 /** What a gauge under the threshold says of the last hour. 10-nov-2026: «no ha medido nada» with 0,1 mm
  *  marked and drizzle falling on the point. Words only: the states and the thresholds do not move. */
-const dryNow = (z: { name: string; mm: number }) =>
-  z.mm > 0 ? `${z.name} marca llovizna (${fmtMm(z.mm)} mm en la última hora)` : `${z.name} no mide lluvia`;
+const dryNow = (z: { name: string; mm: number; sent: number; expected: number }) =>
+  isSparse(z)
+    ? `${z.name} solo ha enviado ${z.sent} de sus ${z.expected} lecturas de la última hora: no se sabe cuánto llueve allí`
+    : z.mm > 0 ? `${z.name} marca llovizna (${fmtMm(z.mm)} mm en la última hora)` : `${z.name} no mide lluvia`;
+/** 12-nov-2026: Amiudal sent 1 reading of 6 an hour and the card read «Amiudal no mide lluvia» and «marca
+ *  llovizna (0,1 mm)» while the gauges around measured 6-8 mm in that hour. Words only, as the two text
+ *  corrections before: the states and the thresholds do not move during the sealed test. */
+const isSparse = (z: { sent: number; expected: number }) => z.expected > 1 && z.sent < z.expected * SPARSE_SHARE;
+/** «da lluvia» once the sentence before named something other than rain, «la da» after «no mide lluvia». */
+const daIt = (z: { mm: number; sent: number; expected: number }) => (z.mm > 0 || isSparse(z) ? 'da lluvia' : 'la da');
 
 const NO_DATA: Panorama = {
   state: 'sin-dato',
@@ -150,7 +169,7 @@ export function pointRainPanorama(opts: { model: ModelHour[]; gauges: WatchGauge
   if (soon !== null) {
     return {
       state: 'se-acerca',
-      text: `${dryNow(last)}. El WRF ${last.mm > 0 ? 'da lluvia' : 'la da'} ${soon === 0 ? 'para esta hora' : `hacia ${atHour(hourAt(soon))}`}.`,
+      text: `${dryNow(last)}. El WRF ${daIt(last)} ${soon === 0 ? 'para esta hora' : `hacia ${atHour(hourAt(soon))}`}.`,
       key: `se-acerca:${nowH + soon * HOUR_MS}`,
     };
   }
@@ -158,8 +177,8 @@ export function pointRainPanorama(opts: { model: ModelHour[]; gauges: WatchGauge
   return {
     state: 'seco',
     text: later === null
-      ? (last.mm > 0 ? `${dryNow(last)} y el WRF no da lluvia.` : `${last.name} no mide lluvia y el WRF tampoco la da.`)
-      : `${dryNow(last)} y el WRF no ${last.mm > 0 ? 'da lluvia' : 'la da'} hasta ${atHour(hourAt(later))}.`,
+      ? (last.mm > 0 || isSparse(last) ? `${dryNow(last)}${isSparse(last) ? ';' : ' y'} el WRF no da lluvia.` : `${last.name} no mide lluvia y el WRF tampoco la da.`)
+      : `${dryNow(last)}${isSparse(last) ? ';' : ' y'} el WRF no ${daIt(last)} hasta ${atHour(hourAt(later))}.`,
     key: '',
   };
 }
