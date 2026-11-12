@@ -292,17 +292,29 @@ export function describeGaugeRain(r: GaugeRain | null, now: Date): GaugeRainView
   const floor24 = short(r.n24h, GAUGE_ROWS.h24);
   const floor3d = short(r.n3d, GAUGE_ROWS.d3);
   const floor7d = short(r.n7d, GAUGE_ROWS.d7);
+  const sparse = r.n24h < GAUGE_ROWS.h24 * GAUGE_SPARSE_COVERAGE;
+  const w = r.witness;
+  const witnessOk = !!w && !!w.lastAt && w.coveredMin >= WITNESS_MIN_COVERED_MIN
+    && now.getTime() - new Date(w.lastAt).getTime() <= WITNESS_STALE_MIN * 60_000;
+  // A gauge that barely reports does not lead the card: on 12-nov the big figure read «más de 1,1 mm»
+  // from Amiudal (25 of 144 readings) with Surribas at 19 mm just below. The complete nearby station
+  // gives the day, named as what it is; the official one says why it is not the figure.
+  if (sparse && witnessOk && w && w.mm24h > r.mm24h) {
+    return {
+      gauge: `${w.gauge}, estación particular cercana`,
+      cells: [cell('24 h', w.mm24h, false)],
+      note: `${r.gauge}, la estación oficial, solo ha enviado ${r.n24h} de sus ${GAUGE_ROWS.h24} lecturas de las últimas 24 h: no sirve para el total.`,
+    };
+  }
   const notes: string[] = [];
-  if (r.n24h < GAUGE_ROWS.h24 * GAUGE_SPARSE_COVERAGE) {
+  if (sparse) {
     notes.push(`${r.gauge} solo ha enviado ${r.n24h} de sus ${GAUGE_ROWS.h24} lecturas de las últimas 24 h: la cifra es un mínimo, no el total.`);
   } else if (floor24 || floor3d || floor7d) {
     notes.push('Faltan lecturas: lo caído es como mínimo esto.');
   }
   if (ageMin > GAUGE_LATE_MIN) notes.push(`Última lectura a las ${clockFmt.format(new Date(r.lastAt))}.`);
   // Another station nearby gives the size of what fell, never the figure of the point: «unos».
-  const w = r.witness;
-  if (w && w.lastAt && w.coveredMin >= WITNESS_MIN_COVERED_MIN
-    && now.getTime() - new Date(w.lastAt).getTime() <= WITNESS_STALE_MIN * 60_000 && w.mm24h > r.mm24h) {
+  if (w && witnessOk && w.mm24h > r.mm24h) {
     notes.push(`${w.gauge}, estación particular cercana, midió unos ${fmtMm(w.mm24h)} mm en 24 h.`);
   }
   return {
