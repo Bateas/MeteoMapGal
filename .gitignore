@@ -12,6 +12,7 @@
 !/.npmrc
 !/LICENSE
 !/README.md
+!/SECURITY.md
 !/assets/
 !/eslint.config.js
 !/hero.jpg
@@ -22,6 +23,7 @@
 !/package-lock.json
 !/package.json
 !/public/
+!/security/
 !/src/
 !/tools/
 !/tsconfig.app.json
@@ -49,8 +51,9 @@ dist-ssr/
 __pycache__/
 *.pyc
 .DS_Store
-# notes and documents: only the README is published
+# notes and documents: only the README and the security policy are published
 *.md
 !/README.md
+!/SECURITY.md
 CLAUDE.md
 .claude/

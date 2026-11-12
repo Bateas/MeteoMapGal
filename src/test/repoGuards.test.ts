@@ -45,11 +45,11 @@ describe.skipIf(!isClone)('repository guards (this repository is public)', () =>
     expect(git('ls-files -ci --exclude-standard')).toBe('');
   });
 
-  it('publishes no notes or documents beyond the README', () => {
+  it('publishes no notes or documents beyond the README and the security policy', () => {
     const docs = git('ls-files')
       .split('\n')
       .filter((p) => /\.(md|pdf|docx?|odt|html?)$/i.test(p))
-      .filter((p) => !['README.md', 'index.html', 'widget.html'].includes(p));
+      .filter((p) => !['README.md', 'SECURITY.md', 'index.html', 'widget.html'].includes(p));
     expect(docs).toEqual([]);
   });
 });
