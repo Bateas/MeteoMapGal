@@ -85,6 +85,14 @@ describe('stripHtml', () => {
   it('strips nested tags', () => {
     expect(stripHtml('<p><b>Nested <i>tags</i></b></p>')).toBe('Nested tags');
   });
+
+  it('decodes &amp; last, so an escaped entity stays as text (no double decoding)', () => {
+    expect(stripHtml('&amp;lt;b&amp;gt;')).toBe('&lt;b&gt;');
+  });
+
+  it('leaves no tag behind when tags are split in pieces', () => {
+    expect(stripHtml('<sc<b>ript>x</sc</b>ript>')).not.toMatch(/<[a-z]/i);
+  });
 });
 
 // ── evaluateAirspace — zone detection ────────────────────

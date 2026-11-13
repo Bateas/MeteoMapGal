@@ -190,7 +190,8 @@ function aliasTargets(specifier: string, aliases: PathAlias[]): string[] | undef
       && specifier.endsWith(suffix);
     if (matches && (!best || prefix.length > best.prefixLength)) {
       const captured = specifier.slice(prefix.length, specifier.length - suffix.length);
-      best = { prefixLength: prefix.length, targets: targets.map((t) => t.replace('*', captured)) };
+      // A tsconfig path pattern holds a single '*'; the global replace says so to static analysis too.
+      best = { prefixLength: prefix.length, targets: targets.map((t) => t.replace(/\*/g, captured)) };
     }
   }
   return best?.targets;

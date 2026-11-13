@@ -190,3 +190,14 @@ describe('sanitize — defense in depth', () => {
     expect(typeof sanitize('')).toBe('string');
   });
 });
+
+describe('sanitize — patterns rebuilt by a removal', () => {
+  it('a protocol hidden inside itself does not survive', () => {
+    expect(sanitize('javajavascript:script:alert(1)')).not.toMatch(/javascript\s*:/i);
+    expect(sanitize('dadata:ta:x')).not.toMatch(/data\s*:/i);
+  });
+
+  it('normal text is unchanged', () => {
+    expect(sanitize('El viento entró a las 15:30 en Cesantes')).toBe('El viento entró a las 15:30 en Cesantes');
+  });
+});
