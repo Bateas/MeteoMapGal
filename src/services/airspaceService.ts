@@ -98,14 +98,21 @@ function pointInGeoJSONPolygon(
 // ── HTML sanitization ──────────────────────────────────────
 // ENAIRE `message` fields contain HTML tags (<br>, <b>, etc.)
 
+// The result is shown as React text (escaped), never as HTML.
 export function stripHtml(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&amp;/g, '&')
+  let text = html.replace(/<br\s*\/?>/gi, ' ');
+  // Remove tags until none is left: removing one can join the pieces of another ("<sc<b>ript>").
+  let previous: string;
+  do {
+    previous = text;
+    text = text.replace(/<[^>]*>/g, '');
+  } while (text !== previous);
+  // &amp; goes last, so "&amp;lt;" reads as the text "&lt;" instead of being decoded twice.
+  return text
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
 }

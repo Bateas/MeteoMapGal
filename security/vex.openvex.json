@@ -2,24 +2,49 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://github.com/Bateas/MeteoMapGal/blob/master/security/vex.openvex.json",
   "author": "MeteoMapGal maintainers",
-  "timestamp": "2026-11-12T18:30:00Z",
-  "version": 1,
+  "timestamp": "2026-11-13T00:25:00Z",
+  "version": 2,
   "statements": [
     {
       "vulnerability": {
         "name": "GHSA-jrc7-96c5-q579",
-        "aliases": ["CVE-2026-85061"]
+        "aliases": [
+          "CVE-2026-85061"
+        ]
       },
       "products": [
         {
           "@id": "pkg:npm/meteomapgal",
-          "subcomponents": [{ "@id": "pkg:npm/maplibre-gl@5.24.0" }]
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/maplibre-gl@5.24.0"
+            }
+          ]
         }
       ],
       "status": "not_affected",
       "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
       "impact_statement": "The flaw is in the sanitizer that maplibre-gl applies to attribution HTML. Every attribution the app shows is a string literal in its own source: the map style is built in code (no remote style or TileJSON), no popup HTML is set, and no attribution is taken from a network response. src/test/mapAttributionGuard.test.ts fails if a non-literal attribution is added. Fixed upstream in 6.4.1; the move to maplibre-gl 6 is planned.",
       "timestamp": "2026-11-12T18:30:00Z"
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-g3hv-75wg-m249"
+      },
+      "products": [
+        {
+          "@id": "pkg:npm/meteomapgal",
+          "subcomponents": [
+            {
+              "@id": "pkg:npm/minimatch@10.2.5"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
+      "impact_statement": "Development only: minimatch comes with eslint and typescript-eslint and is in neither the browser bundle nor the ingestor. The globs it expands are the ones in our own lint configuration; nothing from users or the network reaches it. The fix is in minimatch 11, which none of its three dependants accept yet (they require ^10). To revisit when eslint moves to minimatch 11.",
+      "timestamp": "2026-11-13T00:25:00Z"
     }
   ]
 }

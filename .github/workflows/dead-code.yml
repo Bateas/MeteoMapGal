@@ -21,6 +21,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only: it checks out, runs knip and uploads its report as an artifact.
+permissions:
+  contents: read
+
 jobs:
   knip:
     name: knip report
