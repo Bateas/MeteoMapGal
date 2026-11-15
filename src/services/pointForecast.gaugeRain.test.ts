@@ -37,13 +37,14 @@ describe('describeGaugeRain', () => {
     expect(v.note).toContain('mínimo');
   });
 
-  it('a nearby station gives the size of the rain only while the gauge barely reports, and with a full day behind it', () => {
+  it('a nearby station is only a note, with a full day behind it, and never the figure of the point', () => {
     const witness = { gauge: 'Surribas', mm24h: 11.3, coveredMin: 1410, lastAt: new Date(NOW.getTime() - 20 * 60_000).toISOString() };
     const sparse = describeGaugeRain(full({ n24h: 44, mm24h: 1.1, witness }), NOW)!;
-    // 12-nov: the barely reporting gauge no longer leads; the complete station gives the day
-    expect(sparse.gauge).toBe('Surribas, estación particular cercana');
-    expect(sparse.cells).toEqual([{ label: '24 h', mm: '11' }]);
-    expect(sparse.note).toBe('Amiudal, la estación oficial, solo ha enviado 44 de sus 144 lecturas de las últimas 24 h: no sirve para el total.');
+    // 15-nov: the official gauge keeps the figure, as a floor; the other station is a note, never the figure
+    expect(sparse.gauge).toBe('Amiudal');
+    expect(sparse.cells[0]).toEqual({ label: '24 h', mm: '1,1', floor: true });
+    expect(sparse.note).toContain('Amiudal solo ha enviado 44 de sus 144 lecturas');
+    expect(sparse.note).toContain('Surribas, estación particular de otro sitio cercano, midió unos 11 mm en 24 h. No es este punto: unas veces mide más que Amiudal y otras menos.');
     const halfWitness = describeGaugeRain(full({ n24h: 44, mm24h: 1.1, witness: { ...witness, coveredMin: 600 } }), NOW)!;
     expect(halfWitness.gauge).toBe('Amiudal');
     expect(halfWitness.note).not.toContain('Surribas');
