@@ -95,10 +95,27 @@ const NO_DATA: Panorama = {
   key: '',
 };
 
+const clock = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit' });
+
+/** 15-nov-2026: «sin datos de las estaciones cercanas» with Fornelos and Leiro reporting and only Amiudal
+ *  silent since 20:30. The sentence names the official gauge and its last reading. Words only: the states,
+ *  the thresholds and the key do not move. */
+function noData(gauges: WatchGauge[], nowMs: number): Panorama {
+  const official = gauges.find((g) => isOfficialGauge(g.id) && g.id.startsWith('mg_'));
+  if (!official) return NO_DATA;
+  const newest = official.samples.reduce((m, s) => (s.t <= nowMs && s.t > m ? s.t : m), -Infinity);
+  if (nowMs - newest <= GAUGE_FRESH_MIN * 60_000) return NO_DATA;
+  const since = Number.isFinite(newest) && nowMs - newest < 24 * HOUR_MS
+    ? `no envía datos desde las ${clock.format(new Date(newest))}`
+    : 'no envía datos';
+  return { ...NO_DATA, text: `${official.name}, la estación oficial de este punto, ${since}, y las otras cercanas no tienen lectura reciente: ahora no se puede comparar con el WRF.` };
+}
+
 export function pointRainPanorama(opts: { model: ModelHour[]; gauges: WatchGauge[]; nowMs: number }): Panorama {
   const { model, gauges, nowMs } = opts;
   const last = zone(gauges, nowMs, 60);
-  if (last.state === 'unknown' || model.length === 0) return NO_DATA;
+  if (model.length === 0) return NO_DATA;
+  if (last.state === 'unknown') return noData(gauges, nowMs);
 
   const nowH = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
   const byHour = new Map(model.map((m) => [m.timeMs, m.mm]));
