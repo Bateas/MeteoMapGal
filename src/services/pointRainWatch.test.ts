@@ -148,6 +148,14 @@ describe('what the gauges can and cannot say', () => {
     expect(p.key).toBe('');
   });
 
+  it('names the silent official gauge and its last reading (15-nov: Amiudal silent since 20:30)', () => {
+    const p = run({ 8: 3 }, [gauge([], at(8, 0), 'mg_10109', 'Amiudal')]);
+    expect(p.text).toBe('Amiudal, la estación oficial de este punto, no envía datos desde las 08:00, y las otras cercanas no tienen lectura reciente: ahora no se puede comparar con el WRF.');
+    expect(p.key).toBe('');
+    // without a MeteoGalicia gauge the general sentence stays
+    expect(run({}, [{ id: 'nt_1', name: 'Vecina', samples: [{ t: at(10, 0), mm: 2 }] }]).text).toBe('Sin datos recientes de las estaciones cercanas: ahora no se puede comparar con el WRF.');
+  });
+
   it('does not claim the model missed it before it has this hour stored', () => {
     const future: ModelHour[] = [{ timeMs: at(14), mm: 2 }];
     const p = pointRainPanorama({ model: future, gauges: [wetNow], nowMs: now });
