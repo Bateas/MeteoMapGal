@@ -29,6 +29,10 @@ describe('cardinalEs', () => {
 });
 
 describe('daySentence', () => {
+  it('names every stretch of bueno, not only the longest (Castrelo, 18-nov)', () => {
+    const s = daySentence([ph(13, 4), ph(14, 15), ph(15, 11), ph(16, 10), ph(17, 15)]);
+    expect(s).toBe('Navegable de 14 a 18 h, bueno de 14 a 15 h y de 17 a 18 h (hasta 15 kt del SO); el resto, en calma.');
+  });
   it('names the sailing window, its best part and the rest', () => {
     const s = daySentence([ph(10, 4), ph(11, 7), ph(12, 9), ph(13, 13), ph(14, 14), ph(15, 10), ph(16, 5)]);
     expect(s).toBe('Navegable de 12 a 16 h, bueno de 13 a 15 h (hasta 14 kt del SO); el resto, flojo o en calma.');

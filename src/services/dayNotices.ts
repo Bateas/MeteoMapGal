@@ -48,18 +48,23 @@ function spanText(fromMs: number, toMs: number, [d0, d1]: [number, number]): str
   return `de ${h(fromMs)} a ${h(toMs)} h`;
 }
 
-interface Span { level: number; from: number; to: number }
+interface Span { from: number; to: number }
+/** Per source and type, the window of each level separately: a yellow from 3 h and an orange from 18 h
+ *  are not «naranja desde las 3 h» (Castrelo forecast, 16-nov). */
+type Levels = Map<number, Span>;
 
-function merge(into: Map<string, Span>, key: string, level: number, from: number, to: number) {
-  const s = into.get(key);
-  if (!s) into.set(key, { level, from, to });
-  else { s.level = Math.max(s.level, level); s.from = Math.min(s.from, from); s.to = Math.max(s.to, to); }
+function merge(into: Map<string, Levels>, key: string, level: number, from: number, to: number) {
+  let byLevel = into.get(key);
+  if (!byLevel) into.set(key, (byLevel = new Map()));
+  const s = byLevel.get(level);
+  if (!s) byLevel.set(level, { from, to });
+  else { s.from = Math.min(s.from, from); s.to = Math.max(s.to, to); }
 }
 
 export function officialNotices(day: Date, mg: MGWarning[], ipma: IpmaWarning[]): DayNotice[] {
   const bounds = dayBounds(day);
   const [d0, d1] = bounds;
-  const spans = new Map<string, Span>();
+  const spans = new Map<string, Levels>();
   for (const w of mg) {
     for (const z of w.zones) {
       const from = z.startTime.getTime(), to = z.endTime.getTime();
@@ -71,9 +76,17 @@ export function officialNotices(day: Date, mg: MGWarning[], ipma: IpmaWarning[])
     if (to > d0 && from < d1 && w.level >= 1) merge(spans, `IPMA|${typeEs(w.type)}`, w.level, from, to);
   }
   return [...spans.entries()]
-    .map(([key, s]) => {
+    .map(([key, byLevel]) => {
       const [source, type] = key.split('|');
-      return { level: Math.min(3, s.level) as 1 | 2 | 3, text: `Aviso ${LEVEL[Math.min(3, s.level)]} de ${source} por ${type}, ${spanText(s.from, s.to, bounds)}` };
+      const levels = [...byLevel.keys()].sort((a, b) => b - a);
+      const top = Math.min(3, levels[0]) as 1 | 2 | 3;
+      const s = byLevel.get(levels[0])!;
+      // The lower level is added only when it covers time the top one does not.
+      const lower = levels.slice(1)
+        .filter((l) => { const x = byLevel.get(l)!; return x.from < s.from || x.to > s.to; })
+        .map((l) => { const x = byLevel.get(l)!; return `${LEVEL[Math.min(3, l)]} ${spanText(x.from, x.to, bounds)}`; });
+      const extra = lower.length ? ` (${lower.join('; ')})` : '';
+      return { level: top, text: `Aviso ${LEVEL[top]} de ${source} por ${type}, ${spanText(s.from, s.to, bounds)}${extra}` };
     })
     .sort((a, b) => b.level - a.level);
 }
