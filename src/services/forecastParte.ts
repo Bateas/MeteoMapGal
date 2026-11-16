@@ -79,9 +79,18 @@ export function daySentence(hours: PartHour[]): string {
   if (run.length) {
     const p = peak(run);
     const from = p.dirDeg != null ? ` del ${cardinalEs(p.dirDeg)}` : '';
-    const good = longestRun(run, (h) => h.tone === 'bueno');
+    // Every stretch of «bueno» inside the window, not only the longest: on 18-nov the panel said
+    // «bueno de 14 a 15 h» while 17 h was bueno too.
+    const goodRuns: PartHour[][] = [];
+    for (const h of run) {
+      const last = goodRuns[goodRuns.length - 1];
+      if (h.tone !== 'bueno') continue;
+      if (last && h.time.getTime() - last[last.length - 1].time.getTime() <= 3_600_000) last.push(h);
+      else goodRuns.push([h]);
+    }
+    const good = goodRuns.flat();
     const head = good.length && good.length < run.length
-      ? `Navegable ${span(run)}, bueno ${span(good)}`
+      ? `Navegable ${span(run)}, bueno ${goodRuns.map(span).join(' y ')}`
       : `${good.length ? 'Bueno' : 'Navegable'} ${span(run)}`;
     parts.push(`${parts.length ? head.charAt(0).toLowerCase() + head.slice(1) : head} (hasta ${Math.round(p.kt)} kt${from})`);
     const rest = hours.filter((h) => !run.includes(h) && !strong.includes(h));

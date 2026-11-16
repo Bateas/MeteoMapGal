@@ -96,3 +96,13 @@ describe('the alert list does not outlive its sector', () => {
     expect(useAlertStore.getState().risk.activeCount).toBe(0);
   });
 });
+
+describe('IPMA sea warnings stay on the coast', () => {
+  it('an inland sector drops «agitação marítima» and keeps the rest (Castrelo, 16-nov)', async () => {
+    const { getIpmaWarningsForSector } = await import('../api/ipmaWarningsClient');
+    const sea = { districtCode: 'VCT', type: 'Agitação Marítima' } as unknown as IpmaWarning;
+    const rain = { districtCode: 'VCT', type: 'Precipitação' } as unknown as IpmaWarning;
+    expect(getIpmaWarningsForSector([sea, rain], 'embalse')).toEqual([rain]);
+    expect(getIpmaWarningsForSector([sea, rain], 'rias')).toEqual([sea, rain]);
+  });
+});

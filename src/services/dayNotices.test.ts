@@ -24,9 +24,9 @@ describe('isStormRiskHour: the summary rule', () => {
 });
 
 describe('officialNotices', () => {
-  it('one line per source and type, highest level of its zones, window clipped to the day', () => {
+  it('one line per source and type: the top level with its own window, the lower one when it covers more time', () => {
     const w = mg('Vento', [[1, at(7, 12), at(7, 20)], [2, at(7, 14), at(7, 18)]]);
-    expect(officialNotices(at(7, 0), [w], [])).toEqual([{ level: 2, text: 'Aviso naranja de MeteoGalicia por viento, de 12 a 20 h' }]);
+    expect(officialNotices(at(7, 0), [w], [])).toEqual([{ level: 2, text: 'Aviso naranja de MeteoGalicia por viento, de 14 a 18 h (amarillo de 12 a 20 h)' }]);
   });
   it('a warning crossing midnight reads «desde» on the first day and «hasta» on the next', () => {
     const w = mg('Ondas', [[1, at(7, 15), at(8, 9)]]);
@@ -37,6 +37,16 @@ describe('officialNotices', () => {
   it('IPMA warnings name their source, in Spanish', () => {
     const ipma: IpmaWarning = { id: 'x', districtCode: 'VCT', districtName: 'Viana', type: 'Agitação Marítima', level: 1, levelName: 'yellow', startTime: at(7, 0), endTime: at(8, 0), description: '' };
     expect(officialNotices(at(7, 0), [], [ipma])[0].text).toBe('Aviso amarillo de IPMA por oleaje, todo el día');
+  });
+  it('yellow from 3 h and orange from 18 h is not «naranja desde las 3 h» (Castrelo, 16-nov)', () => {
+    const base = { id: 'x', districtCode: 'VCT', districtName: 'Viana', type: 'Precipitação', description: '' };
+    const y: IpmaWarning = { ...base, level: 1, levelName: 'yellow', startTime: at(7, 3), endTime: at(7, 18) };
+    const o: IpmaWarning = { ...base, level: 2, levelName: 'orange', startTime: at(7, 18), endTime: at(8, 19) };
+    expect(officialNotices(at(7, 0), [], [y, o])[0].text).toBe('Aviso naranja de IPMA por lluvia, desde las 18 h (amarillo de 3 a 18 h)');
+  });
+  it('a lower level inside the top window adds nothing', () => {
+    const w = mg('Vento', [[2, at(7, 12), at(7, 20)], [1, at(7, 14), at(7, 18)]]);
+    expect(officialNotices(at(7, 0), [w], [])[0].text).toBe('Aviso naranja de MeteoGalicia por viento, de 12 a 20 h');
   });
 });
 

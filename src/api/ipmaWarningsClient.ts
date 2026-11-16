@@ -10,6 +10,8 @@
  *   - BGC: Bragança (Ourense este / A Gudiña)
  */
 
+import { isCoastalSector } from '../config/sectors';
+
 export interface IpmaWarningRaw {
   idAreaAviso: string;
   awarenessTypeName: string;
@@ -129,8 +131,19 @@ export function getIpmaWarningsForSector(
   if (sectorId === 'rias') {
     return warnings.filter((w) => w.districtCode === 'VCT');
   }
-  if (sectorId === 'embalse') {
-    return warnings.filter((w) => ['VRL', 'BRG', 'VCT'].includes(w.districtCode));
+  // A sea warning of a Portuguese coast says nothing about an inland sector: on 16-nov the Castrelo
+  // forecast showed an IPMA orange warning for waves.
+  const inland = !isCoastalSector(sectorId);
+  const forSector = warnings.filter((w) => !(inland && isMarineIpmaType(w.type)));
+  if (sectorId === 'rias') {
+    return forSector.filter((w) => w.districtCode === 'VCT');
   }
-  return warnings;
+  if (sectorId === 'embalse') {
+    return forSector.filter((w) => ['VRL', 'BRG', 'VCT'].includes(w.districtCode));
+  }
+  return forSector;
 }
+
+/** IPMA warning types that only concern the sea. */
+export const isMarineIpmaType = (type: string | undefined) =>
+  type != null && /agita[çc][ãa]o mar[íi]tima/i.test(type);
