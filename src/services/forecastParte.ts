@@ -53,47 +53,51 @@ const isRainy = (h: PartHour) => h.rainMm >= RAIN_MM && (h.rainProb ?? 100) >= R
 const sailable = (t: Tone) => t === 'navegable' || t === 'bueno';
 const hh = (d: Date) => d.getHours();
 
-function longestRun(hours: PartHour[], ok: (h: PartHour) => boolean): PartHour[] {
-  let best: PartHour[] = [], cur: PartHour[] = [];
+/** Every stretch of consecutive hours that pass `ok`, in time order. */
+function runsOf(hours: PartHour[], ok: (h: PartHour) => boolean): PartHour[][] {
+  const runs: PartHour[][] = [];
   for (const h of hours) {
-    if (ok(h) && (cur.length === 0 || h.time.getTime() - cur[cur.length - 1].time.getTime() <= 3_600_000)) cur.push(h);
-    else cur = ok(h) ? [h] : [];
-    if (cur.length > best.length) best = [...cur];
+    if (!ok(h)) continue;
+    const last = runs[runs.length - 1];
+    if (last && h.time.getTime() - last[last.length - 1].time.getTime() <= 3_600_000) last.push(h);
+    else runs.push([h]);
   }
-  return best;
+  return runs;
 }
+
+/** «A», «A y B», «A, B y C». */
+const listEs = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`);
 
 const span = (run: PartHour[]) => `de ${hh(run[0].time)} a ${hh(run[run.length - 1].time) + 1} h`;
 const peak = (run: PartHour[]) => run.reduce((a, b) => (b.kt > a.kt ? b : a));
 
-/** One sentence for the daylight hours of a day, from its best window. */
+/**
+ * One sentence for the daylight hours of a day. It names EVERY stretch of strong and of sailable
+ * wind, not only the longest: on 17-nov the panel said «navegable de 8 a 12 h; el resto, flojo o
+ * en calma» for a Friday with 15, 12 and 10 kt from 13 to 16 h.
+ */
 export function daySentence(hours: PartHour[]): string {
   if (hours.length === 0) return 'Sin horas de luz por delante.';
   const parts: string[] = [];
-  const strong = longestRun(hours, (h) => h.tone === 'fuerte');
+  const strongRuns = runsOf(hours, (h) => h.tone === 'fuerte');
+  const strong = strongRuns.flat();
   if (strong.length) {
     const gust = Math.max(...strong.map((h) => h.gustKt ?? h.kt));
-    parts.push(`Fuerte ${span(strong)} (rachas de ${Math.round(gust)} kt)`);
+    parts.push(`Fuerte ${listEs(strongRuns.map(span))} (rachas de ${Math.round(gust)} kt)`);
   }
-  const run = longestRun(hours, (h) => sailable(h.tone));
-  if (run.length) {
-    const p = peak(run);
+  const runs = runsOf(hours, (h) => sailable(h.tone));
+  const sail = runs.flat();
+  if (sail.length) {
+    const p = peak(sail);
     const from = p.dirDeg != null ? ` del ${cardinalEs(p.dirDeg)}` : '';
-    // Every stretch of «bueno» inside the window, not only the longest: on 18-nov the panel said
-    // «bueno de 14 a 15 h» while 17 h was bueno too.
-    const goodRuns: PartHour[][] = [];
-    for (const h of run) {
-      const last = goodRuns[goodRuns.length - 1];
-      if (h.tone !== 'bueno') continue;
-      if (last && h.time.getTime() - last[last.length - 1].time.getTime() <= 3_600_000) last.push(h);
-      else goodRuns.push([h]);
-    }
+    // Every stretch of «bueno» too (18-nov: «bueno de 14 a 15 h» while 17 h was bueno as well).
+    const goodRuns = runsOf(sail, (h) => h.tone === 'bueno');
     const good = goodRuns.flat();
-    const head = good.length && good.length < run.length
-      ? `Navegable ${span(run)}, bueno ${goodRuns.map(span).join(' y ')}`
-      : `${good.length ? 'Bueno' : 'Navegable'} ${span(run)}`;
+    const head = good.length && good.length < sail.length
+      ? `Navegable ${listEs(runs.map(span))}, bueno ${listEs(goodRuns.map(span))}`
+      : `${good.length ? 'Bueno' : 'Navegable'} ${listEs(runs.map(span))}`;
     parts.push(`${parts.length ? head.charAt(0).toLowerCase() + head.slice(1) : head} (hasta ${Math.round(p.kt)} kt${from})`);
-    const rest = hours.filter((h) => !run.includes(h) && !strong.includes(h));
+    const rest = hours.filter((h) => !sail.includes(h) && !strong.includes(h));
     if (rest.length) parts.push(rest.some((h) => h.tone === 'flojo') ? 'el resto, flojo o en calma' : 'el resto, en calma');
   } else if (!strong.length) {
     const p = peak(hours);

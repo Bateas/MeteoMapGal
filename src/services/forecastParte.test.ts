@@ -33,6 +33,20 @@ describe('daySentence', () => {
     const s = daySentence([ph(13, 4), ph(14, 15), ph(15, 11), ph(16, 10), ph(17, 15)]);
     expect(s).toBe('Navegable de 14 a 18 h, bueno de 14 a 15 h y de 17 a 18 h (hasta 15 kt del SO); el resto, en calma.');
   });
+  it('names every sailing stretch, not only the longest (Castrelo, Friday 20-nov in the 17-nov WRF)', () => {
+    const kts = [14, 11, 8, 9, 6, 15, 12, 10, 7, 9];
+    const s = daySentence(kts.map((kt, i) => ph(8 + i, kt)));
+    expect(s).toBe('Navegable de 8 a 12 h, de 13 a 16 h y de 17 a 18 h, bueno de 8 a 9 h y de 13 a 15 h (hasta 15 kt del SO); el resto, flojo o en calma.');
+  });
+  it('a lone sailable hour late in the day is named too (Castrelo, Thursday 19-nov in the 17-nov WRF)', () => {
+    const kts = [6, 3, 8, 9, 7, 5, 3, 7, 7, 11];
+    const s = daySentence(kts.map((kt, i) => ph(8 + i, kt)));
+    expect(s).toBe('Navegable de 10 a 12 h y de 17 a 18 h (hasta 11 kt del SO); el resto, flojo o en calma.');
+  });
+  it('every stretch of strong wind, and sailable hours between them are not called calm', () => {
+    const s = daySentence([ph(12, 19, { gustKt: 30 }), ph(13, 10), ph(14, 20, { gustKt: 33 }), ph(15, 4)]);
+    expect(s).toBe('Fuerte de 12 a 13 h y de 14 a 15 h (rachas de 33 kt); navegable de 13 a 14 h (hasta 10 kt del SO); el resto, en calma.');
+  });
   it('names the sailing window, its best part and the rest', () => {
     const s = daySentence([ph(10, 4), ph(11, 7), ph(12, 9), ph(13, 13), ph(14, 14), ph(15, 10), ph(16, 5)]);
     expect(s).toBe('Navegable de 12 a 16 h, bueno de 13 a 15 h (hasta 14 kt del SO); el resto, flojo o en calma.');
