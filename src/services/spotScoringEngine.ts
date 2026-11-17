@@ -1625,11 +1625,48 @@ export interface GustSource {
   sensorId?: string;
 }
 
-/** Whether a source's gust says anything about this spot now (spotGustKt, gustGateReading). */
-function gustCounts(s: GustSource, nowMs: number, maxAltitudeM: number): boolean {
+/**
+ * A gust above gustIsPlausible's ratio still counts when ANOTHER instrument around the spot gusts
+ * at least this share of it in the same hour: a broken anemometer spikes alone, a front gusts
+ * everywhere. 17-nov 11:48, Castrelo: SkyX 32 kt over a 10.5 mean and Prado 21 over 5.3, each just
+ * past its own ratio, each backing the other; the card read «racha 15» from Remuíño while the
+ * water was white. Replayed over 30 days and 16 spots (69,136 moments, stations only): 0.48 %
+ * change, almost all on the front days (8-9, 15-17 nov); the FUERTE gate fires in 307 moments
+ * instead of 287, all of them gusts of 30+ backed by 25+ on those days.
+ */
+export const GUST_CORROBORATION_RATIO = 0.6;
+/** Below this mean the ratio is no evidence of anything (a dead mean with a gust is a fault). */
+export const GUST_CORROBORATION_MIN_MEAN_KT = 2;
+/** Even backed, a gust stays within max(5 x its mean, mean + 20): 40 kt over a 4 kt mean beside a
+ *  real 35 is still a fault, and with the 35 it would close the FUERTE gate on its own. The real
+ *  ones of the replay sat at 3-5x (AEMET's hourly maximum over its 10-min mean: up to 7x in light
+ *  wind, inside the + 20). */
+export const GUST_CORROBORATED_MAX_RATIO = 5;
+export const GUST_CORROBORATED_MAX_EXCESS_KT = 20;
+
+/** Whether a source is close, low, current and sane enough to say anything about the spot. */
+function gustInRange(s: GustSource, nowMs: number, maxAltitudeM: number): boolean {
   if (s.gustKt == null || s.blacklisted || s.distKm > SPOT_GUST_MAX_DIST_KM) return false;
   if (s.altitudeM != null && s.altitudeM > maxAltitudeM) return false;
-  return gustIsCurrent(s.time, nowMs) && gustIsPlausible(s.meanKt, s.gustKt);
+  if (s.meanKt == null || !(s.gustKt > 0) || s.gustKt < s.meanKt || s.gustKt > MAX_PLAUSIBLE_GUST_KT) return false;
+  return gustIsCurrent(s.time, nowMs);
+}
+
+/** Indexes of the sources whose gust says something about this spot now (spotGustKt,
+ *  gustGateReading): plausible on its own, or above its ratio and backed by another instrument. */
+function countedGustIndexes(sources: GustSource[], nowMs: number, maxAltitudeM: number): number[] {
+  const sensorOf = (i: number) => sources[i].sensorId ?? `source-${i}`;
+  const inRange = sources.map((_, i) => i).filter((i) => gustInRange(sources[i], nowMs, maxAltitudeM));
+  return inRange.filter((i) => {
+    const s = sources[i];
+    const gust = s.gustKt as number;
+    if (gustIsPlausible(s.meanKt, gust)) return true;
+    const mean = s.meanKt as number;
+    if (mean < GUST_CORROBORATION_MIN_MEAN_KT) return false;
+    if (gust > Math.max(GUST_CORROBORATED_MAX_RATIO * mean, mean + GUST_CORROBORATED_MAX_EXCESS_KT)) return false;
+    return inRange.some((j) => sensorOf(j) !== sensorOf(i)
+      && (sources[j].gustKt as number) >= GUST_CORROBORATION_RATIO * gust);
+  });
 }
 
 /**
@@ -1647,7 +1684,7 @@ export function spotGustKt(
   nowMs = Date.now(),
   maxAltitudeM: number = WATER_LEVEL_MAX_ALTITUDE_M.rias,
 ): number | null {
-  const gusts = sources.filter((s) => gustCounts(s, nowMs, maxAltitudeM)).map((s) => s.gustKt as number);
+  const gusts = countedGustIndexes(sources, nowMs, maxAltitudeM).map((i) => sources[i].gustKt as number);
   return peakPlausibleGustKt(gusts);
 }
 
@@ -1673,11 +1710,11 @@ export function gustGateReading(
   maxAltitudeM: number = WATER_LEVEL_MAX_ALTITUDE_M.rias,
 ): { peakKt: number; secondKt: number } | null {
   const bySensor = new Map<string, number>();
-  sources.forEach((s, i) => {
-    if (!gustCounts(s, nowMs, maxAltitudeM)) return;
+  for (const i of countedGustIndexes(sources, nowMs, maxAltitudeM)) {
+    const s = sources[i];
     const sensor = s.sensorId ?? `source-${i}`;
     bySensor.set(sensor, Math.max(bySensor.get(sensor) ?? 0, s.gustKt as number));
-  });
+  }
   const [peakKt, secondKt] = [...bySensor.values()].sort((a, b) => b - a);
   if (peakKt === undefined || secondKt === undefined) return null;
   return Math.round(peakKt) >= GUST_GATE_KT && Math.round(secondKt) >= GUST_GATE_SECOND_KT ? { peakKt, secondKt } : null;

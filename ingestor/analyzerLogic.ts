@@ -17,7 +17,7 @@ import type { ThermalVeto } from '../src/services/cesantesCanalizationDetector.j
 import type { PrecipSample } from '../src/services/precipSemantics.js';
 import { detectBocana, bocanaFigureKt } from '../src/services/bocanaDetector.js';
 import { isWindBlacklisted, getSourceQuality, freshnessMulFor, staleGateMinFor, spotGustKt, WATER_LEVEL_MAX_ALTITUDE_M } from '../src/services/spotScoringEngine.js';
-import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN, trustedBuoyWindDir } from '../src/services/buoyUtils.js';
+import { isBuoyFresh, isLandStationCopy, BUOY_STALE_MAX_MIN, trustedBuoyWindDir, LAND_STATION_BUOY_COPIES } from '../src/services/buoyUtils.js';
 import { getStationBiasAt } from '../src/config/stationBiases.js';
 import type { BuoyReading } from '../src/api/buoyClient.js';
 import { sunHour } from '../src/services/localTime.js';
@@ -719,6 +719,7 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
       time: r.time,
       altitudeM: r.altitude ?? null,
       blacklisted: isWindBlacklisted(r.station_id),
+      sensorId: r.station_id,
     })),
     ...nearbyBuoys.map(({ b, distKm }) => ({
       gustKt: b.wind_gust == null ? null : msToKnots(b.wind_gust),
@@ -726,6 +727,8 @@ export function scoreSpot(spot: SpotDef, readings: StationReading[], buoyWinds: 
       distKm,
       time: b.time,
       altitudeM: 0,
+      // One anemometer, two rows: a buoy copy must not back its own land station's gust.
+      sensorId: LAND_STATION_BUOY_COPIES.get(b.station_id) ?? `buoy_${b.station_id}`,
     })),
   ], Date.now(), WATER_LEVEL_MAX_ALTITUDE_M[spot.sector]);
 
