@@ -32,7 +32,6 @@ const RUN_FROM_UTC_HOUR = 3;
 const RUN_UNTIL_UTC_HOUR = 7;
 /** A record newer than this means tonight's run is done. */
 const FRESH_ENOUGH_MS = 20 * HOUR_MS;
-const MIN_HOURS = 26;
 /** The service answers about 73 h however many are asked (4-nov, 198 asked): older hours need another request. */
 const MAX_HOURS = 72;
 /** Some stations stamp hours ahead of now (O Fieitoso and Santiago-San Lazaro 12 days on 3-nov). */
@@ -77,11 +76,13 @@ export function mgHourlyUrl(numHoras: number): string {
   return `${MG_BASE}/ultimosHorariosEstacions.action?numHoras=${numHoras}&idParam=${Object.keys(MG_HOURLY_PARAMS).join(',')}`;
 }
 
-/** Hours to ask: back to the last one stored and two more, so a missed night fills itself in. */
-export function mgHourlyHoursToAsk(lastStoredMs: number | null, nowMs: number): number {
-  if (lastStoredMs === null) return MAX_HOURS;
-  const hours = Math.ceil((nowMs - lastStoredMs) / HOUR_MS) + 2;
-  return Math.min(MAX_HOURS, Math.max(MIN_HOURS, hours));
+/**
+ * Hours to ask: always all the service gives (~3 days). MeteoGalicia fills in hours of a station later
+ * (Amiudal, 17-nov: 16 valid hours stored, 23 in the service two days on); asking only back to the last
+ * stored hour never saw them again. The upsert completes a row and never empties it, so asking again is safe.
+ */
+export function mgHourlyHoursToAsk(_lastStoredMs: number | null, _nowMs: number): number {
+  return MAX_HOURS;
 }
 
 /** Whether tonight's run is still to do. */

@@ -79,9 +79,9 @@ describe('how much and when', () => {
     expect(url).not.toContain('idEst=');
   });
 
-  it('a normal night asks a bit over a day, a missed one fills itself in, and it is capped', () => {
-    expect(mgHourlyHoursToAsk(NOW - 24 * HOUR, NOW)).toBe(26);
-    expect(mgHourlyHoursToAsk(NOW - 48 * HOUR, NOW)).toBe(50);
+  it('every night asks the last ~3 days again: MeteoGalicia fills hours in late (Amiudal, 17-nov)', () => {
+    expect(mgHourlyHoursToAsk(NOW - 24 * HOUR, NOW)).toBe(72);
+    expect(mgHourlyHoursToAsk(NOW - 48 * HOUR, NOW)).toBe(72);
     expect(mgHourlyHoursToAsk(NOW - 900 * HOUR, NOW)).toBe(72);
   });
 
