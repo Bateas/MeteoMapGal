@@ -11,41 +11,52 @@
 #     before its declaration (TS2448). A missing import once replaced the whole
 #     map with the error screen while the build and every test were green.
 #  2. Everything else is known debt: the count may go down, never up. When a
-#     commit fixes some, lower BASELINE in that same commit.
+#     commit fixes some, lower the baseline in that same commit.
+#
+# The ingestor runs through tsx, which does not typecheck either, and the build
+# does not include it: it gets the same two rules with its own tsconfig and
+# baseline. It needs `npm ci` in ingestor/ first (its types come from there).
 set -u
 
 BASELINE=99
+INGESTOR_BASELINE=1
 CRASH_CODES='TS2304|TS2552|TS2307|TS2305|TS2724|TS2448'
-
-log=$(mktemp)
-npx tsc -b --force > "$log" 2>&1
-total=$(grep -c "error TS" "$log")
-crash=$(grep -E "error ($CRASH_CODES):" "$log")
 
 summary() {
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then echo "$1" >> "$GITHUB_STEP_SUMMARY"; fi
   echo "$1"
 }
 
-summary "Typecheck: $total errors (baseline $BASELINE)"
-
-if [ -n "$crash" ]; then
-  echo "$crash" | while IFS= read -r line; do echo "::error::$line"; done
-  summary "FAIL: a name, module or declaration that does not exist at runtime (see above)."
+# check <name> <baseline> <baseline variable> <tsc args...>
+check() {
+  local name=$1 baseline=$2 var=$3
+  shift 3
+  local log total crash
+  log=$(mktemp)
+  npx tsc "$@" > "$log" 2>&1
+  total=$(grep -c "error TS" "$log")
+  crash=$(grep -E "error ($CRASH_CODES):" "$log")
+  summary "$name: $total errors (baseline $baseline)"
+  if [ -n "$crash" ]; then
+    echo "$crash" | while IFS= read -r line; do echo "::error::$line"; done
+    summary "FAIL ($name): a name, module or declaration that does not exist at runtime (see above)."
+    rm -f "$log"
+    return 1
+  fi
+  if [ "$total" -gt "$baseline" ]; then
+    grep "error TS" "$log"
+    summary "FAIL ($name): $total type errors, more than the baseline of $baseline. Fix the new ones (git stash tells yours from the old debt)."
+    rm -f "$log"
+    return 1
+  fi
+  if [ "$total" -lt "$baseline" ]; then
+    summary "Below the baseline: lower $var to $total in tools/typecheck-gate.sh."
+  fi
   rm -f "$log"
-  exit 1
-fi
+  return 0
+}
 
-if [ "$total" -gt "$BASELINE" ]; then
-  grep "error TS" "$log" | while IFS= read -r line; do echo "$line"; done
-  summary "FAIL: $total type errors, more than the baseline of $BASELINE. Fix the new ones (git stash tells yours from the old debt)."
-  rm -f "$log"
-  exit 1
-fi
-
-if [ "$total" -lt "$BASELINE" ]; then
-  summary "Below the baseline: lower BASELINE to $total in tools/typecheck-gate.sh."
-fi
-
-rm -f "$log"
-exit 0
+status=0
+check "Typecheck" "$BASELINE" BASELINE -b --force || status=1
+check "Typecheck (ingestor)" "$INGESTOR_BASELINE" INGESTOR_BASELINE -p ingestor --noEmit || status=1
+exit $status

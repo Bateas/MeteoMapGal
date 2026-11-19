@@ -37,6 +37,7 @@
 !/tools/meteomap-update.sh
 !/tools/security-scan.sh
 !/tools/typecheck-gate.sh
+!/tools/lint-gate.sh
 
 # Inside the allowed folders, still never:
 .env
